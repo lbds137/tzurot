@@ -104,7 +104,7 @@ describe('Me Preset Set Handler', () => {
       // No slot option → defaults to the text (chat) slot.
       expect(stub.setModelOverride).toHaveBeenCalledWith(
         { personalityId: 'personality-1', configId: 'config-1' },
-        { kind: 'text' }
+        { slot: 'text' }
       );
 
       const embedCall = mockEditReply.mock.calls[0][0] as { embeds: EmbedBuilder[] };
@@ -121,7 +121,7 @@ describe('Me Preset Set Handler', () => {
       expect(stub.listUserLlmConfigs).not.toHaveBeenCalled();
     });
 
-    it('sends the vision slot when kind:vision is chosen (the vision-set fix)', async () => {
+    it('sends the vision slot when slot:vision is chosen (the vision-set fix)', async () => {
       stub.listWalletKeys.mockResolvedValue(
         makeOk({ keys: [{ provider: 'openrouter', isActive: true }] })
       );
@@ -142,7 +142,7 @@ describe('Me Preset Set Handler', () => {
       // lands in the text slot (the bug this fix closes).
       expect(stub.setModelOverride).toHaveBeenCalledWith(
         { personalityId: 'personality-1', configId: 'vision-config' },
-        { kind: 'vision' }
+        { slot: 'vision' }
       );
 
       // The confirmation names the vision slot.
@@ -207,7 +207,7 @@ describe('Me Preset Set Handler', () => {
 
       expect(stub.setModelOverride).toHaveBeenCalledWith(
         { personalityId: 'personality-1', configId: 'free-config' },
-        { kind: 'text' }
+        { slot: 'text' }
       );
     });
 

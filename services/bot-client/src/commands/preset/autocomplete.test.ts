@@ -68,7 +68,7 @@ describe('handleAutocomplete', () => {
         getFocused: vi.fn(),
         getSubcommand: vi.fn().mockReturnValue('delete'),
         getSubcommandGroup: vi.fn().mockReturnValue(null),
-        // The `kind` option is optional; null → handler defaults to 'text'.
+        // A `slot` option may exist on the command; the picker never scopes by it.
         getString: vi.fn().mockReturnValue(null),
       },
       respond: vi.fn().mockResolvedValue(undefined),
@@ -110,8 +110,8 @@ describe('handleAutocomplete', () => {
 
       await handleAutocomplete(mockInteraction);
 
-      // Capability-agnostic: fetch ALL kinds (slot-independent picker).
-      expect(stub.listUserLlmConfigs).toHaveBeenCalledWith({ kind: 'all' });
+      // Capability-agnostic: fetch the full unscoped list (slot-independent picker).
+      expect(stub.listUserLlmConfigs).toHaveBeenCalledWith();
       // Should only return owned presets
       expect(mockInteraction.respond).toHaveBeenCalledWith([
         { name: 'My Preset · claude-sonnet-4', value: '00000000-0000-4000-8000-0000000000c1' },
@@ -142,8 +142,8 @@ describe('handleAutocomplete', () => {
 
       await handleAutocomplete(mockInteraction);
 
-      // Always fetches all kinds (no slot-scoping); the vision row is 👁-badged.
-      expect(stub.listUserLlmConfigs).toHaveBeenCalledWith({ kind: 'all' });
+      // Always fetches the full unscoped list (no slot-scoping); the vision row is 👁-badged.
+      expect(stub.listUserLlmConfigs).toHaveBeenCalledWith();
       const respondCall = vi.mocked(mockInteraction.respond).mock.calls[0][0] as {
         name: string;
         value: string;
@@ -428,20 +428,20 @@ describe('handleAutocomplete', () => {
       expect(respondCall).toEqual([expect.objectContaining({ value: 'g-free' })]);
     });
 
-    it('fetches the global list capability-agnostically (kind=all), ignoring the slot option', async () => {
+    it('fetches the full unscoped global list, ignoring the slot option', async () => {
       vi.mocked(mockInteraction.options.getFocused).mockReturnValue({
         name: 'preset',
         value: '',
       } as unknown as string);
       vi.mocked(mockInteraction.options.getSubcommand).mockReturnValue('set-default');
-      // Even with a vision slot chosen, the picker fetches BOTH kinds and badges
-      // by capability — so the suggestion list doesn't reorder when the slot changes.
+      // Even with a vision slot chosen, the picker fetches the full unscoped list
+      // and badges by capability — so it doesn't reorder when the slot changes.
       vi.mocked(mockInteraction.options.getString).mockReturnValue('vision');
       ownerStub.listGlobalLlmConfigs.mockResolvedValue(cacheableFixture);
 
       await handleAutocomplete(mockInteraction);
 
-      expect(ownerStub.listGlobalLlmConfigs).toHaveBeenCalledWith({ kind: 'all' });
+      expect(ownerStub.listGlobalLlmConfigs).toHaveBeenCalledWith();
     });
 
     it('caches the global config set — a second keystroke hits the cache', async () => {

@@ -5,9 +5,9 @@
  */
 
 import { EmbedBuilder } from 'discord.js';
+import { toModelSlot } from '@tzurot/common-types/constants/ai';
 import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
 import { settingsPresetClearDefaultOptions } from '@tzurot/common-types/generated/commandOptions';
-import { toConfigKind } from '@tzurot/common-types/services/LlmConfigMapper';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
 import { clientsFor } from '../../../utils/gatewayClients.js';
@@ -22,12 +22,12 @@ export async function handleClearDefault(context: DeferredCommandContext): Promi
   // No slot → clear BOTH defaults (`all`); an explicit slot clears just that one.
   // The vision default is a separate FK from the text default, so a no-slot clear
   // has to target both or it silently leaves the other in place.
-  const slot = settingsPresetClearDefaultOptions(context.interaction).slot();
-  const kind = slot !== null ? toConfigKind(slot) : 'all';
+  const slotOption = settingsPresetClearDefaultOptions(context.interaction).slot();
+  const slot = slotOption !== null ? toModelSlot(slotOption) : 'all';
 
   try {
     const { userClient } = clientsFor(context.interaction);
-    const result = await userClient.clearDefaultModelConfig({ kind });
+    const result = await userClient.clearDefaultModelConfig({ slot });
 
     if (!result.ok) {
       logger.warn({ userId, status: result.status }, 'Failed to clear default');
@@ -42,16 +42,16 @@ export async function handleClearDefault(context: DeferredCommandContext): Promi
     // free default exists for it. Per-character overrides are unaffected and
     // surface in the closing sentence.
     const SLOT_LABELS = { text: 'Chat', vision: 'Vision' } as const;
-    const fallbackLines = (['text', 'vision'] as const).flatMap(slot => {
-      const fallback = result.data.newEffectiveDefaults[slot];
+    const fallbackLines = (['text', 'vision'] as const).flatMap(slotKey => {
+      const fallback = result.data.newEffectiveDefaults[slotKey];
       // Slot absent from the map → it wasn't cleared, so emit no line for it.
       if (fallback === undefined) {
         return [];
       }
       return [
         fallback !== null
-          ? `**${SLOT_LABELS[slot]}** → falling back to system default: \`${fallback.name}\`.`
-          : `**${SLOT_LABELS[slot]}** → no system default is configured; the bot will use its built-in fallback.`,
+          ? `**${SLOT_LABELS[slotKey]}** → falling back to system default: \`${fallback.name}\`.`
+          : `**${SLOT_LABELS[slotKey]}** → no system default is configured; the bot will use its built-in fallback.`,
       ];
     });
 
@@ -75,7 +75,7 @@ export async function handleClearDefault(context: DeferredCommandContext): Promi
     logger.info(
       {
         userId,
-        kind,
+        slot,
         newDefaults: {
           text: result.data.newEffectiveDefaults.text?.name ?? null,
           vision: result.data.newEffectiveDefaults.vision?.name ?? null,

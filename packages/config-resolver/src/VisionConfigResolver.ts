@@ -1,16 +1,16 @@
 /**
  * Vision Config Resolver Service
  *
- * Resolves the effective VISION model for a user+personality combination. Vision
- * configs are their own first-class presets — `kind='vision'` rows in the SAME
- * `llm_configs` table as text presets (their `model` field IS the vision model) —
+ * Resolves the effective VISION model for a user+personality combination. Any
+ * preset in `llm_configs` can occupy a vision slot (its `model` field IS the
+ * vision model; the slot assignment is capability-gated at write time) —
  * so this resolver reuses the LLM mapper and walks a parallel cascade.
  *
  * Resolution hierarchy (first match wins):
  *   1. User per-personality override (UserPersonalityConfig.visionConfigId)
  *   2. User global default (User.defaultVisionConfigId)
  *   3. Personality vision default (PersonalityVisionDefaultConfig — separate join table)
- *   4. Global vision default (kind='vision' AND isGlobal AND isDefault — the paid default)
+ *   4. Global vision default (AdminSettings.globalDefaultVisionConfigId — the paid default)
  *   5. Hardcoded fallback (MODEL_DEFAULTS.VISION_FALLBACK)
  *
  * The cascade waterfall (tiers 1-2) and cache lifecycle live in `BaseConfigResolver`.
@@ -18,7 +18,7 @@
  *
  * Phase-1 scope: this resolves the PAID vision default for the no-override case. The
  * GUEST downgrade stays downstream (AuthStep + selectVisionModel → VISION_FALLBACK_FREE);
- * guest-aware DB resolution (consulting a kind='vision' isFreeDefault row) is deferred
+ * guest-aware DB resolution (consulting the free-default vision pointer) is deferred
  * alongside the vision editing surface.
  *
  * Sister concerns: `LlmConfigResolver` (text model) and `TtsConfigResolver` (this is
@@ -164,7 +164,7 @@ export class VisionConfigResolver extends BaseConfigResolver<
       );
     }
 
-    // Tier 4: global vision default (kind='vision' AND isGlobal AND isDefault).
+    // Tier 4: global vision default (the AdminSettings pointer).
     const globalDefault = await this.getGlobalDefaultConfig();
     if (globalDefault !== null) {
       return globalDefault;
@@ -205,9 +205,9 @@ export class VisionConfigResolver extends BaseConfigResolver<
   }
 
   /**
-   * Get the global vision default (kind='vision' AND isGlobal AND isDefault). Cached
+   * Get the global vision default (the AdminSettings pointer). Cached
    * under the base's free-default sentinel slot — it's the no-axis system default for
-   * the vision kind. Returns null if no such row exists (callers fall to hardcoded).
+   * the vision slot. Returns null if no such row exists (callers fall to hardcoded).
    */
   async getGlobalDefaultConfig(): Promise<ResolvedVisionConfig | null> {
     const cached = this.cache.get(GLOBAL_DEFAULT_CACHE_KEY);
@@ -225,7 +225,7 @@ export class VisionConfigResolver extends BaseConfigResolver<
       // (singleton). The vision slot is capability-gated at write time, so any
       // pointed config is vision-eligible; a null pointer means no admin default —
       // fall through to the hardcoded floor. Replaces the old
-      // kind='vision'+isGlobal+isDefault flag query.
+      // per-kind flag query.
       const settings = await this.prisma.adminSettings.findUnique({
         where: { id: ADMIN_SETTINGS_SINGLETON_ID },
         select: { globalDefaultVisionConfig: { select: LLM_CONFIG_SELECT_WITH_NAME } },

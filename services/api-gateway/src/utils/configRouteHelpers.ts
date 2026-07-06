@@ -15,11 +15,7 @@
 
 import type { Response } from 'express';
 import { z } from 'zod';
-import {
-  CONFIG_KINDS,
-  DEFAULT_CONFIG_KIND,
-  type ConfigKind,
-} from '@tzurot/common-types/constants/ai';
+import { MODEL_SLOTS, DEFAULT_MODEL_SLOT, type ModelSlot } from '@tzurot/common-types/constants/ai';
 import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import { type EntityPermissions } from '@tzurot/common-types/utils/permissions';
 import { sendError } from './responseHelpers.js';
@@ -53,53 +49,53 @@ export function parseBodyOrSendError<T>(
   return result.data;
 }
 
-/** Zod schema for the optional `?kind=` config-kind query param. */
-const ConfigKindQuerySchema = z.object({
-  kind: z.enum(CONFIG_KINDS).default(DEFAULT_CONFIG_KIND),
+/** Zod schema for the optional `?slot=` model-slot query param. */
+const ModelSlotQuerySchema = z.object({
+  slot: z.enum(MODEL_SLOTS).default(DEFAULT_MODEL_SLOT),
 });
 
 /**
- * Parse the optional `?kind=` query param (`text` | `vision`), defaulting to
- * `text`. Lets the read / by-id config routes scope to a kind so the SAME
- * handler serves both — vision callers pass `?kind=vision`, everyone else gets
- * the text default (so existing callers are unchanged). On an invalid value
+ * Parse the optional `?slot=` query param (`text` | `vision`), defaulting to
+ * `text`. Used by the slot-addressed routes (model overrides, admin default
+ * pointers) so the SAME handler serves both slots — vision callers pass
+ * `?slot=vision`, everyone else gets the text default. On an invalid value
  * sends a Zod-shaped 400 and returns `null` (caller returns early); an absent
  * param resolves to the default, never null.
  */
-export function parseConfigKindQuery(res: Response, query: unknown): ConfigKind | null {
+export function parseModelSlotQuery(res: Response, query: unknown): ModelSlot | null {
   // `query ?? {}`: an absent query object means "no params" → the text default,
   // not a 400. Express always populates `req.query` (at least `{}`), but guard
   // the undefined case so the helper never rejects purely for a missing object.
-  const result = ConfigKindQuerySchema.safeParse(query ?? {});
+  const result = ModelSlotQuerySchema.safeParse(query ?? {});
   if (!result.success) {
     sendZodError(res, result.error);
     return null;
   }
-  return result.data.kind;
+  return result.data.slot;
 }
 
-/** LIST-route `?kind=` schema that also accepts the `all` sentinel (both kinds). */
-const ConfigKindOrAllQuerySchema = z.object({
-  kind: z.enum([...CONFIG_KINDS, 'all'] as const).default(DEFAULT_CONFIG_KIND),
+/** `?slot=` schema that also accepts the `all` sentinel (both slots). */
+const ModelSlotOrAllQuerySchema = z.object({
+  slot: z.enum([...MODEL_SLOTS, 'all'] as const).default(DEFAULT_MODEL_SLOT),
 });
 
 /**
- * Parse the optional `?kind=` query for LIST routes, additionally accepting the
- * `'all'` sentinel meaning "return BOTH kinds" (used by browse to fetch text +
- * vision in one call). Defaults to text so existing callers are unchanged. Only
- * list/browse handlers use this; the strict {@link parseConfigKindQuery} stays
- * for by-id / set / clear so those can never receive `'all'`.
+ * Parse the optional `?slot=` query, additionally accepting the `'all'`
+ * sentinel meaning "BOTH slots" (used by the override list — one row per
+ * occupied slot — and the clear-default path that clears both pointers).
+ * Defaults to text. Setters use the strict {@link parseModelSlotQuery} so a
+ * write can never target `'all'`.
  */
-export function parseConfigKindQueryAllowAll(
+export function parseModelSlotQueryAllowAll(
   res: Response,
   query: unknown
-): ConfigKind | 'all' | null {
-  const result = ConfigKindOrAllQuerySchema.safeParse(query ?? {});
+): ModelSlot | 'all' | null {
+  const result = ModelSlotOrAllQuerySchema.safeParse(query ?? {});
   if (!result.success) {
     sendZodError(res, result.error);
     return null;
   }
-  return result.data.kind;
+  return result.data.slot;
 }
 
 /**
@@ -134,7 +130,7 @@ export type GlobalGuardOperation =
  * a global config. On not-found → 404; on non-global → 400 with operation-scoped
  * wording. Returns the row on success, null on failure (error already sent).
  */
-export async function findGlobalConfigOrSendError<T extends { isGlobal: boolean; kind?: string }>(
+export async function findGlobalConfigOrSendError<T extends { isGlobal: boolean }>(
   res: Response,
   fetchRow: () => Promise<T | null>,
   options: {
@@ -144,16 +140,6 @@ export async function findGlobalConfigOrSendError<T extends { isGlobal: boolean;
     resourceLabel: string;
     /** Operation being attempted — determines guard wording. */
     operation: GlobalGuardOperation;
-    /**
-     * When set, reject (as not-found) any row whose `kind` is present AND differs.
-     * Gates the bare admin surface (no `?kind=`, which defaults to text) to text
-     * rows: a vision config 404s unless the caller explicitly passes
-     * `?kind=vision`, so the text surface can't accidentally edit / delete /
-     * (un)default a vision row. The `kind !== undefined` leniency is a production
-     * no-op (the column is NOT NULL with a default) — it only spares callers/tests
-     * that don't select `kind`. Requires `kind` in the select.
-     */
-    requireKind?: ConfigKind;
   }
 ): Promise<T | null> {
   const row = await fetchRow();
@@ -168,15 +154,6 @@ export async function findGlobalConfigOrSendError<T extends { isGlobal: boolean;
         formatGlobalGuardMessage(options.operation, options.resourceLabel)
       )
     );
-    return null;
-  }
-  if (
-    options.requireKind !== undefined &&
-    row.kind !== undefined &&
-    row.kind !== options.requireKind
-  ) {
-    // A wrong-kind row is "not found" on this surface — don't reveal it exists elsewhere.
-    sendError(res, ErrorResponses.notFound(options.notFoundResource));
     return null;
   }
   return row;
@@ -242,8 +219,7 @@ interface NameExistsChecker<TScope> {
     name: string,
     scope: TScope,
     excludeId?: string,
-    postIsGlobal?: boolean,
-    kind?: ConfigKind
+    postIsGlobal?: boolean
   ): Promise<{ exists: boolean }>;
 }
 
@@ -276,19 +252,14 @@ export async function ensureNoNameCollision<TScope>(
      *  state would be `isGlobal: true`, so the check widens to the
      *  cross-user global namespace. Admin and create paths omit this. */
     postIsGlobal?: boolean;
-    /** Config kind to scope the collision check to. Names are unique per
-     *  `(kind, …)` (the partial-unique indexes), so a vision config named "X"
-     *  must NOT collide with a text config named "X". Pass `body.kind` on
-     *  create; omit (defaults text in the service) for text-only callers. */
-    kind?: ConfigKind;
     /** Caller-provided message formatter. Receives `name` (so the caller
      *  doesn't have to capture it in closure) and returns the full
      *  user-facing message. */
     formatCollisionMessage: (name: string) => string;
   }
 ): Promise<boolean> {
-  const { name, scope, excludeId, postIsGlobal, kind, formatCollisionMessage } = options;
-  const nameCheck = await service.checkNameExists(name, scope, excludeId, postIsGlobal, kind);
+  const { name, scope, excludeId, postIsGlobal, formatCollisionMessage } = options;
+  const nameCheck = await service.checkNameExists(name, scope, excludeId, postIsGlobal);
   if (nameCheck.exists) {
     sendError(res, ErrorResponses.nameCollision(formatCollisionMessage(name)));
     return false;

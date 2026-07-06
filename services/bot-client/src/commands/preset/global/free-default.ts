@@ -4,9 +4,8 @@
  * Sets a global config as the free tier default for guest users (owner only)
  */
 
-import { DEFAULT_CONFIG_KIND } from '@tzurot/common-types/constants/ai';
+import { DEFAULT_MODEL_SLOT, toModelSlot } from '@tzurot/common-types/constants/ai';
 import { presetGlobalFreeDefaultOptions } from '@tzurot/common-types/generated/commandOptions';
-import { toConfigKind } from '@tzurot/common-types/services/LlmConfigMapper';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
 import { handleGlobalPresetUpdate } from './globalPresetHelpers.js';
 
@@ -16,10 +15,10 @@ import { handleGlobalPresetUpdate } from './globalPresetHelpers.js';
 export async function handleGlobalSetFreeDefault(context: DeferredCommandContext): Promise<void> {
   const options = presetGlobalFreeDefaultOptions(context.interaction);
   const configId = options.preset();
-  const kind = toConfigKind(options.slot() ?? DEFAULT_CONFIG_KIND);
+  const slot = toModelSlot(options.slot() ?? DEFAULT_MODEL_SLOT);
 
   await handleGlobalPresetUpdate(context, configId, {
-    promote: (ownerClient, id) => ownerClient.setGlobalLlmConfigFreeDefault(id, { kind }),
+    promote: (ownerClient, id) => ownerClient.setGlobalLlmConfigFreeDefault(id, { slot }),
     embedTitle: 'Free Tier Default Preset Updated',
     embedDescription: (configName: string) =>
       `**${configName}** is now the free tier default preset.\n\n` +

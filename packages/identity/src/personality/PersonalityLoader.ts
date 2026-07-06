@@ -376,7 +376,7 @@ export class PersonalityLoader {
       const mappedConfig = mapLlmConfigFromDb(globalDefault);
 
       logger.info(
-        { model: mappedConfig.model, kind: mappedConfig.kind },
+        { model: mappedConfig.model },
         '[PersonalityLoader] Loaded global default LLM config'
       );
 

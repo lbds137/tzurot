@@ -16,8 +16,6 @@
  */
 
 import type { Response } from 'express';
-import { DEFAULT_CONFIG_KIND, type ConfigKind } from '@tzurot/common-types/constants/ai';
-import { toConfigKind } from '@tzurot/common-types/services/LlmConfigMapper';
 import { sendError } from './responseHelpers.js';
 import { ErrorResponses } from './errorResponses.js';
 import { validateModelAndContextWindow } from './modelValidation.js';
@@ -74,66 +72,37 @@ export interface ValidateLlmConfigModelFieldsOptions {
     service: LlmConfigService;
     configId: string;
   };
-  /**
-   * Config kind, gating the vision capability check. Pass it explicitly whenever
-   * the caller already knows a verified kind — the **create** path (`body.kind`)
-   * and the **admin edit** path (the `requireKind`-checked value, after the row
-   * fetch) both do; this lets the helper skip a redundant `getById`. Leave it
-   * undefined when the kind isn't known to the caller (e.g. the user edit path) —
-   * the helper then derives it from the existing row via `fallback` (kind is
-   * immutable, never in the update body). When neither is available it defaults
-   * to {@link DEFAULT_CONFIG_KIND} (text), which never rejects.
-   */
-  kind?: ConfigKind;
 }
 
 /**
- * Resolve the effective model + kind for validation. The stored row is the
- * fallback source for both: the model (when the body omits it, so
- * contextWindowTokens can still be validated against a known model) AND the
- * immutable kind (never in the update body). A single getById serves both,
- * fetched only when something needs it:
- *  - model fallback: the body omits `model`.
- *  - kind for the capability gate: a model IS being set and the caller didn't
- *    pass `kind`. Callers with an already-verified kind (create from `body.kind`,
- *    admin edit from the `requireKind`-checked value) pass it, so this fetch is
- *    skipped; a context-only edit doesn't need the kind either.
+ * Resolve the effective model for validation: the body's model when present,
+ * otherwise the stored row's (so contextWindowTokens can still be validated
+ * against a known model on a context-only edit). The fetch only happens when
+ * the fallback is actually needed.
  */
-async function resolveEffectiveModelAndKind(
+async function resolveEffectiveModel(
   opts: ValidateLlmConfigModelFieldsOptions
-): Promise<{ effectiveModel: string | undefined; effectiveKind: ConfigKind }> {
-  const { body, fallback, kind } = opts;
-  let effectiveModel = body.model;
-  let effectiveKind: ConfigKind = kind ?? DEFAULT_CONFIG_KIND;
-  if (fallback !== undefined) {
-    const needModelFallback = effectiveModel === undefined;
-    const needKind = kind === undefined && body.model !== undefined;
-    if (needModelFallback || needKind) {
-      const current = await fallback.service.getById(fallback.configId);
-      if (needModelFallback) {
-        effectiveModel = current?.model;
-      }
-      if (needKind && current !== null) {
-        effectiveKind = toConfigKind(current.kind);
-      }
-      // If `current` is null here (the config doesn't exist), effectiveKind stays
-      // the text default, so the vision gate is skipped — which is harmless: the
-      // update route's own fetch returns a clean 404 right after. We deliberately
-      // don't 404 here; existence is the route's concern, not the validator's.
-    }
+): Promise<string | undefined> {
+  const { body, fallback } = opts;
+  if (body.model !== undefined || fallback === undefined) {
+    return body.model;
   }
-  return { effectiveModel, effectiveKind };
+  // If the row doesn't exist, this resolves undefined and validation is skipped —
+  // which is harmless: the update route's own fetch returns a clean 404 right
+  // after. We deliberately don't 404 here; existence is the route's concern.
+  const current = await fallback.service.getById(fallback.configId);
+  return current?.model;
 }
 
 /**
- * Vision capability gate — fail closed. A vision config's model MUST be confirmed
- * vision-capable; the prod failure the epic targets is a vision config silently
+ * Vision capability gate — fail closed. A vision-slot model MUST be confirmed
+ * vision-capable; the prod failure the epic targeted was a vision slot silently
  * pointing at a text-only model (→ no image description → the LLM improvises).
  * On failure sends a 400 and returns false; returns true when the model is
  * confirmed vision-capable.
  *
- * Exported so the slot-setting routes (user/personality vision-slot overrides)
- * gate on the SAME capability check the create/update path uses — a config's
+ * THE gate for vision-ness: every slot-setting route (user/personality vision-slot
+ * overrides, admin default pointers) runs this same capability check — a config's
  * model must be confirmed vision-capable before it can occupy a vision slot,
  * regardless of which endpoint does the slotting.
  */
@@ -195,7 +164,7 @@ export async function validateLlmConfigModelFields(
     return true;
   }
 
-  const { effectiveModel, effectiveKind } = await resolveEffectiveModelAndKind(opts);
+  const effectiveModel = await resolveEffectiveModel(opts);
 
   const result = await validateModelAndContextWindow(
     modelCache,
@@ -207,14 +176,6 @@ export async function validateLlmConfigModelFields(
   if (result.error !== undefined) {
     sendError(res, ErrorResponses.validationError(result.error));
     return false;
-  }
-
-  // Vision capability gate. Only runs when a model is actually being SET — create
-  // always sets one; update only when `body.model` is present — so a context-only
-  // edit doesn't re-validate an unchanged model. Text configs never reach here;
-  // vision models are also text-capable.
-  if (effectiveKind === 'vision' && body.model !== undefined) {
-    return ensureVisionCapableModel(res, modelCache, body.model);
   }
 
   return true;

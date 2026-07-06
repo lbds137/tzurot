@@ -4,13 +4,13 @@
  * Covers the customId helpers, the view builder, and the three interaction
  * handlers (slash / select / button). The two consumers (preset + TTS) are
  * thin wrappers, so this is where the behaviour is exercised — including the
- * optional `kind` axis (preset overrides span text + vision; TTS has none).
+ * optional `slot` axis (preset overrides span text + vision; TTS has none).
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { type EmbedBuilder } from 'discord.js';
 import type { UserClient } from '@tzurot/clients';
-import type { ConfigKind } from '@tzurot/common-types/constants/ai';
+import type { ModelSlot } from '@tzurot/common-types/constants/ai';
 import { makeOk, makeErr } from '../test/gatewayClientStubs.js';
 import {
   type OverrideBrowseConfig,
@@ -23,8 +23,8 @@ import {
 } from './overrideBrowse.js';
 
 const stub = {
-  // list now returns `OverrideSummary[] | null` (null = fetch failed); the
-  // domain config owns the fetch strategy (preset issues two kind-scoped calls).
+  // list returns `OverrideSummary[] | null` (null = fetch failed); the
+  // domain config owns the fetch strategy.
   list: vi.fn(),
   delete: vi.fn(),
 };
@@ -46,7 +46,7 @@ function makeConfig(): OverrideBrowseConfig {
     selectPlaceholder: 'Pick one…',
     logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() } as never,
     list: () => stub.list() as ReturnType<OverrideBrowseConfig['list']>,
-    delete: (_uc, id, kind) => stub.delete(id, kind) as ReturnType<OverrideBrowseConfig['delete']>,
+    delete: (_uc, id, slot) => stub.delete(id, slot) as ReturnType<OverrideBrowseConfig['delete']>,
   };
 }
 
@@ -54,10 +54,10 @@ function override(
   id: string,
   name: string,
   configName: string | null = 'Cfg',
-  kind?: ConfigKind,
+  slot?: ModelSlot,
   supportsVision?: boolean
 ): OverrideSummary {
-  return { personalityId: id, personalityName: name, configName, kind, supportsVision };
+  return { personalityId: id, personalityName: name, configName, slot, supportsVision };
 }
 
 beforeEach(() => {
@@ -75,7 +75,7 @@ describe('createOverrideBrowseCustomIds', () => {
     expect(ids.clear('p1')).toBe('test-override::clear::p1');
   });
 
-  it('appends kind as a 4th segment when present', () => {
+  it('appends slot as a 4th segment when present', () => {
     expect(ids.clear('p1', 'vision')).toBe('test-override::clear::p1::vision');
     expect(ids.clear('p1', 'text')).toBe('test-override::clear::p1::text');
   });
@@ -92,17 +92,17 @@ describe('createOverrideBrowseCustomIds', () => {
     expect(ids.parse('test-override::clear::p1')).toEqual({ action: 'clear', personalityId: 'p1' });
   });
 
-  it('parses the kind segment on a clear id', () => {
+  it('parses the slot segment on a clear id', () => {
     expect(ids.parse('test-override::clear::p1::vision')).toEqual({
       action: 'clear',
       personalityId: 'p1',
-      kind: 'vision',
+      slot: 'vision',
     });
-    // A non-kind 4th segment is ignored (kind left undefined).
+    // A non-slot 4th segment is ignored (slot left undefined).
     expect(ids.parse('test-override::clear::p1::bogus')).toEqual({
       action: 'clear',
       personalityId: 'p1',
-      kind: undefined,
+      slot: undefined,
     });
   });
 
@@ -138,12 +138,12 @@ describe('buildOverrideBrowseView', () => {
     };
     const menu = row.components[0];
     expect(menu.custom_id).toBe('test-override::select');
-    // No kind → bare personalityId values (kind-less domains unchanged).
+    // No slot → bare personalityId values (slot-less domains unchanged).
     expect(menu.options.map(o => o.value)).toEqual(['p1', 'p2']);
     expect(menu.options[0].label).toContain('Lilith');
   });
 
-  it('badges by model capability (supportsVision) and encodes kind in the select value', () => {
+  it('badges by model capability (supportsVision) and encodes slot in the select value', () => {
     const overrides = [
       override('p1', 'Lilith', 'Text Cfg', 'text', false),
       override('p1', 'Lilith', 'Vision Cfg', 'vision', true),
@@ -158,7 +158,7 @@ describe('buildOverrideBrowseView', () => {
       components: { options: { label: string; value: string }[] }[];
     };
     const menu = row.components[0];
-    // Same personality, two kinds → kind-encoded values disambiguate them.
+    // Same personality, two slots → slot-encoded values disambiguate them.
     expect(menu.options.map(o => o.value)).toEqual(['p1::text', 'p1::vision']);
     expect(menu.options[1].label).toContain('👁️');
     expect(menu.options[0].label).not.toContain('👁️');
@@ -166,7 +166,7 @@ describe('buildOverrideBrowseView', () => {
 
   it('badges from capability, not slot: a chat-slot override on a vision-capable model gets 👁️', () => {
     // The badge reflects the MODEL's capability, not which slot the override
-    // occupies — a chat-slot (kind:text) override whose model supports vision is
+    // occupies — a chat-slot (slot:text) override whose model supports vision is
     // still badged. This is the whole point of the capability-driven switch.
     const overrides = [override('p1', 'Lilith', 'Vision-capable chat model', 'text', true)];
     const { embeds, components } = buildOverrideBrowseView(makeConfig(), overrides);
@@ -254,7 +254,7 @@ describe('handleOverrideBrowseSelect', () => {
     expect(buttonIds).toEqual(['test-override::cancel', 'test-override::clear::p1']);
   });
 
-  it('disambiguates a kind-encoded select value and carries kind into the clear id', async () => {
+  it('disambiguates a slot-encoded select value and carries slot into the clear id', async () => {
     stub.list.mockResolvedValue([
       override('p1', 'Lilith', 'Text Cfg', 'text'),
       override('p1', 'Lilith', 'Vision Cfg', 'vision'),
@@ -317,13 +317,13 @@ describe('handleOverrideBrowseButton', () => {
     await handleOverrideBrowseButton(makeConfig(), buttonInteraction('test-override::clear::p1'));
 
     expect(deferUpdate).toHaveBeenCalled();
-    // No kind in the customId → kind passed through as undefined.
+    // No slot in the customId → slot passed through as undefined.
     expect(stub.delete).toHaveBeenCalledWith('p1', undefined);
     const arg = editReply.mock.calls[0][0] as { embeds: EmbedBuilder[] };
     expect(arg.embeds[0].toJSON().description).toContain('No overrides set');
   });
 
-  it('passes the kind through to delete when the clear id carries it', async () => {
+  it('passes the slot through to delete when the clear id carries it', async () => {
     stub.delete.mockResolvedValue(makeOk({ deleted: true }));
     stub.list.mockResolvedValue([]);
 

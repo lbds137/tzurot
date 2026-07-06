@@ -11,6 +11,9 @@ import {
   getZaiCodingPlanContextLength,
   zaiCodingPlanModelCapabilities,
   listZaiCodingPlanModels,
+  toModelSlot,
+  MODEL_SLOTS,
+  DEFAULT_MODEL_SLOT,
 } from './ai.js';
 
 describe('isFreeModel', () => {
@@ -42,6 +45,20 @@ describe('isFreeModel', () => {
     expect(isFreeModel('')).toBe(false);
     expect(isFreeModel(':free')).toBe(true);
     expect(isFreeModel('model:FREE')).toBe(false); // case sensitive
+  });
+});
+
+describe('toModelSlot', () => {
+  it('narrows each known slot value through unchanged', () => {
+    for (const slot of MODEL_SLOTS) {
+      expect(toModelSlot(slot)).toBe(slot);
+    }
+  });
+
+  it('floors an unrecognized value to the default (text) slot', () => {
+    expect(toModelSlot('audio')).toBe(DEFAULT_MODEL_SLOT);
+    expect(toModelSlot('')).toBe(DEFAULT_MODEL_SLOT);
+    expect(toModelSlot('TEXT')).toBe(DEFAULT_MODEL_SLOT); // case-sensitive
   });
 });
 

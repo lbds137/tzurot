@@ -26,8 +26,8 @@ import { createLogger } from '@tzurot/common-types/utils/logger';
 import { requireUserAuth, requireProvisionedUser } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import {
-  parseConfigKindQuery,
-  parseConfigKindQueryAllowAll,
+  parseModelSlotQuery,
+  parseModelSlotQueryAllowAll,
 } from '../../utils/configRouteHelpers.js';
 import { ensureVisionCapableModel } from '../../utils/llmConfigValidation.js';
 import { ModelCapabilityService } from '../../services/ModelCapabilityService.js';
@@ -46,7 +46,7 @@ const logger = createLogger('user-model-override');
  * Verify that the given LLM config exists and the user can access it (global or owned).
  * Returns the config (incl. its `model`) if accessible, null otherwise. The slot a
  * config occupies (chat vs vision) is the caller's request, NOT a property of the
- * config — so the set handlers pick the FK column from `?kind=`. `model` is returned
+ * config — so the set handlers pick the FK column from `?slot=`. `model` is returned
  * so the vision slot can be capability-gated (the model must support image input).
  */
 async function verifyConfigAccess(
@@ -71,21 +71,21 @@ export const handleListModelOverrides = (deps: RouteDeps): RequestHandler => {
     const discordUserId = req.userId;
     const userId = resolveProvisionedUserId(req);
 
-    // Browse passes `?kind=all` to list BOTH kinds in one call (one summary row
+    // Browse passes `?slot=all` to list BOTH slots in one call (one summary row
     // per non-null FK); the dashboard passes an explicit text|vision.
-    const kind = parseConfigKindQueryAllowAll(res, req.query);
-    if (kind === null) {
+    const slot = parseModelSlotQueryAllowAll(res, req.query);
+    if (slot === null) {
       return;
     }
-    const allKinds = kind === 'all';
-    const isVision = kind === 'vision';
+    const allSlots = slot === 'all';
+    const isVision = slot === 'vision';
 
     // Select BOTH FK pairs (fixed shape — a conditional select would yield a
-    // union return type), then emit the matching kind(s) below.
+    // union return type), then emit the matching slot(s) below.
     const overrides = await prisma.userPersonalityConfig.findMany({
       where: {
         userId,
-        ...(allKinds
+        ...(allSlots
           ? { OR: [{ llmConfigId: { not: null } }, { visionConfigId: { not: null } }] }
           : isVision
             ? { visionConfigId: { not: null } }
@@ -100,16 +100,16 @@ export const handleListModelOverrides = (deps: RouteDeps): RequestHandler => {
         visionConfigId: true,
         visionConfig: { select: { name: true, model: true } },
       },
-      // Bounds personality CONFIG rows, not output rows: for `kind=all` a
+      // Bounds personality CONFIG rows, not output rows: for `slot=all` a
       // personality with both FKs expands to two summaries below, so the
       // response can be up to 2× this (≤200). Fine for the browse page size.
       take: 100,
     });
 
     // A character can have BOTH a text and a vision override; for `all`, emit a
-    // row per non-null FK (kind-tagged) so browse can badge + clear each.
-    const emitText = allKinds || !isVision; // kind === 'text' or kind === 'all'
-    const emitVision = allKinds || isVision; // kind === 'vision' or kind === 'all'
+    // row per non-null FK (slot-tagged) so browse can badge + clear each.
+    const emitText = allSlots || !isVision; // slot === 'text' or slot === 'all'
+    const emitVision = allSlots || isVision; // slot === 'vision' or slot === 'all'
     const result: ModelOverrideSummary[] = [];
     for (const o of overrides) {
       if (emitText && o.llmConfigId !== null) {
@@ -118,7 +118,7 @@ export const handleListModelOverrides = (deps: RouteDeps): RequestHandler => {
           personalityName: o.personality.name,
           configId: o.llmConfigId,
           configName: o.llmConfig?.name ?? null,
-          kind: 'text',
+          slot: 'text',
           supportsVision: await capabilities.supportsVision(o.llmConfig?.model ?? ''),
         });
       }
@@ -128,13 +128,13 @@ export const handleListModelOverrides = (deps: RouteDeps): RequestHandler => {
           personalityName: o.personality.name,
           configId: o.visionConfigId,
           configName: o.visionConfig?.name ?? null,
-          kind: 'vision',
+          slot: 'vision',
           supportsVision: await capabilities.supportsVision(o.visionConfig?.model ?? ''),
         });
       }
     }
 
-    logger.info({ discordUserId, count: result.length, kind }, 'Listed overrides');
+    logger.info({ discordUserId, count: result.length, slot }, 'Listed overrides');
     sendCustomSuccess(res, { overrides: result }, StatusCodes.OK);
   });
 };
@@ -147,9 +147,9 @@ export const handleSetModelOverride = (deps: RouteDeps): RequestHandler => {
     const discordUserId = req.userId;
 
     // The slot (chat vs vision) is the request's choice, not a config property;
-    // `?kind=` defaults to text. The vision slot is capability-gated below.
-    const kind = parseConfigKindQuery(res, req.query);
-    if (kind === null) {
+    // `?slot=` defaults to text. The vision slot is capability-gated below.
+    const slot = parseModelSlotQuery(res, req.query);
+    if (slot === null) {
       return;
     }
 
@@ -181,7 +181,7 @@ export const handleSetModelOverride = (deps: RouteDeps): RequestHandler => {
     // confirmed vision-capable (unknown/unresolvable capability → 400, fail
     // closed). With no model cache wired (local dev) an OpenRouter-only model
     // can't be resolved and 400s here; prod always has the cache.
-    const isVision = kind === 'vision';
+    const isVision = slot === 'vision';
     if (isVision && !(await ensureVisionCapableModel(res, modelCache, llmConfig.model))) {
       return;
     }
@@ -219,7 +219,7 @@ export const handleSetModelOverride = (deps: RouteDeps): RequestHandler => {
       configName: isVision
         ? (override.visionConfig?.name ?? null)
         : (override.llmConfig?.name ?? null),
-      kind: isVision ? 'vision' : 'text',
+      slot: isVision ? 'vision' : 'text',
       // Re-resolves the vision slot's capability that ensureVisionCapableModel
       // already checked on the write-gate — harmless while resolution is a warm
       // in-memory cache hit; revisit if it ever grows a network round-trip.
@@ -235,7 +235,7 @@ export const handleSetModelOverride = (deps: RouteDeps): RequestHandler => {
         personalityName: personality.name,
         configId,
         configName: llmConfig.name,
-        kind: isVision ? 'vision' : 'text',
+        slot: isVision ? 'vision' : 'text',
       },
       'Set override'
     );
@@ -251,14 +251,14 @@ export const handleGetDefaultModelConfig = (deps: RouteDeps): RequestHandler => 
     const discordUserId = req.userId;
     const userId = resolveProvisionedUserId(req);
 
-    const kind = parseConfigKindQuery(res, req.query);
-    if (kind === null) {
+    const slot = parseModelSlotQuery(res, req.query);
+    if (slot === null) {
       return;
     }
-    const isVision = kind === 'vision';
+    const isVision = slot === 'vision';
 
     // Select both FK pairs (fixed shape — a conditional select would yield a
-    // union return type), then pick the requested kind.
+    // union return type), then pick the requested slot.
     const user = await prisma.user.findUnique({
       where: { id: userId },
       select: {
@@ -279,7 +279,7 @@ export const handleGetDefaultModelConfig = (deps: RouteDeps): RequestHandler => 
           configName: user?.defaultLlmConfig?.name ?? null,
         };
 
-    logger.info({ discordUserId, configId: result.configId, kind }, 'Got default config');
+    logger.info({ discordUserId, configId: result.configId, slot }, 'Got default config');
     sendCustomSuccess(res, { default: result }, StatusCodes.OK);
   });
 };
@@ -291,9 +291,9 @@ export const handleSetDefaultModelConfig = (deps: RouteDeps): RequestHandler => 
     const discordUserId = req.userId;
 
     // The slot (chat vs vision) is the request's choice, not a config property;
-    // `?kind=` defaults to text. The vision slot is capability-gated below.
-    const kind = parseConfigKindQuery(res, req.query);
-    if (kind === null) {
+    // `?slot=` defaults to text. The vision slot is capability-gated below.
+    const slot = parseModelSlotQuery(res, req.query);
+    if (slot === null) {
       return;
     }
 
@@ -316,7 +316,7 @@ export const handleSetDefaultModelConfig = (deps: RouteDeps): RequestHandler => 
     // confirmed vision-capable (unknown/unresolvable capability → 400, fail
     // closed). With no model cache wired (local dev) an OpenRouter-only model
     // can't be resolved and 400s here; prod always has the cache.
-    const isVision = kind === 'vision';
+    const isVision = slot === 'vision';
     if (isVision && !(await ensureVisionCapableModel(res, modelCache, llmConfig.model))) {
       return;
     }
@@ -331,7 +331,7 @@ export const handleSetDefaultModelConfig = (deps: RouteDeps): RequestHandler => 
     };
 
     logger.info(
-      { discordUserId, configId, configName: llmConfig.name, kind: isVision ? 'vision' : 'text' },
+      { discordUserId, configId, configName: llmConfig.name, slot: isVision ? 'vision' : 'text' },
       'Set default config'
     );
 
@@ -356,12 +356,12 @@ export const handleClearDefaultModelConfig = (deps: RouteDeps): RequestHandler =
 
     // `all` (the bot-client default when no slot is chosen) clears BOTH slots;
     // an explicit text|vision clears just that one.
-    const kind = parseConfigKindQueryAllowAll(res, req.query);
-    if (kind === null) {
+    const slot = parseModelSlotQueryAllowAll(res, req.query);
+    if (slot === null) {
       return;
     }
-    const clearText = kind === 'text' || kind === 'all';
-    const clearVision = kind === 'vision' || kind === 'all';
+    const clearText = slot === 'text' || slot === 'all';
+    const clearVision = slot === 'vision' || slot === 'all';
 
     const user = await prisma.user.findUnique({
       where: { id: userId },
@@ -408,7 +408,7 @@ export const handleClearDefaultModelConfig = (deps: RouteDeps): RequestHandler =
 
     if (!wasSet) {
       logger.info(
-        { discordUserId, kind, hadDefault: false },
+        { discordUserId, slot, hadDefault: false },
         'Clear called but no default was set (idempotent success)'
       );
       return sendCustomSuccess(
@@ -426,7 +426,7 @@ export const handleClearDefaultModelConfig = (deps: RouteDeps): RequestHandler =
       },
     });
 
-    logger.info({ discordUserId, kind }, 'Cleared default config');
+    logger.info({ discordUserId, slot }, 'Cleared default config');
 
     await tryInvalidateCache(
       llmConfigCacheInvalidation?.invalidateUserLlmConfig.bind(
@@ -450,12 +450,12 @@ export const handleDeleteModelOverride = (deps: RouteDeps): RequestHandler => {
 
     // `all` (the bot-client default when no slot is chosen) clears BOTH slots;
     // an explicit text|vision clears just that one.
-    const kind = parseConfigKindQueryAllowAll(res, req.query);
-    if (kind === null) {
+    const slot = parseModelSlotQueryAllowAll(res, req.query);
+    if (slot === null) {
       return;
     }
-    const clearText = kind === 'text' || kind === 'all';
-    const clearVision = kind === 'vision' || kind === 'all';
+    const clearText = slot === 'text' || slot === 'all';
+    const clearVision = slot === 'vision' || slot === 'all';
 
     const override = await prisma.userPersonalityConfig.findFirst({
       where: {
@@ -477,7 +477,7 @@ export const handleDeleteModelOverride = (deps: RouteDeps): RequestHandler => {
 
     if (override === null || !wasSet) {
       logger.info(
-        { discordUserId, personalityId, kind, hadOverride: false },
+        { discordUserId, personalityId, slot, hadOverride: false },
         'Reset called but no override was set (idempotent success)'
       );
       return sendCustomSuccess(res, { deleted: true, wasSet: false }, StatusCodes.OK);
@@ -492,7 +492,7 @@ export const handleDeleteModelOverride = (deps: RouteDeps): RequestHandler => {
     });
 
     logger.info(
-      { discordUserId, personalityId, personalityName: override.personality.name, kind },
+      { discordUserId, personalityId, personalityName: override.personality.name, slot },
       'Removed override'
     );
 

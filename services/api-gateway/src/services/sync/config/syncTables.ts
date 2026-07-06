@@ -109,7 +109,7 @@ export const SYNC_CONFIG: Record<SyncTableName, TableSyncConfig> = {
     //     DEFERRABLE since migration 20260418010642 (the original circular-FK fix).
     //   - default_tts_config_id (nullable): DEFERRABLE since migration
     //     20260504065151 (added when the TTS feature shipped).
-    //   - default_vision_config_id (nullable, → llm_configs vision-kind row):
+    //   - default_vision_config_id (nullable, → llm_configs row):
     //     DEFERRABLE since migration 20260627040007 (the vision_config_kind migration).
     // Nullability is orthogonal to DEFERRABLE: deferral controls *when* the FK
     // reference is validated (at COMMIT, after the referenced row is synced),

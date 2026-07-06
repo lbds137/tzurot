@@ -108,7 +108,6 @@ CREATE TABLE "llm_configs" (
     "id" UUID NOT NULL,
     "name" CITEXT NOT NULL,
     "description" TEXT,
-    "kind" VARCHAR(10) NOT NULL DEFAULT 'text',
     "owner_id" UUID NOT NULL,
     "is_global" BOOLEAN NOT NULL DEFAULT false,
     "provider" VARCHAR(20) NOT NULL DEFAULT 'openrouter',
@@ -532,9 +531,6 @@ CREATE INDEX "llm_configs_owner_id_idx" ON "llm_configs"("owner_id");
 CREATE INDEX "llm_configs_is_global_idx" ON "llm_configs"("is_global");
 
 -- CreateIndex
-CREATE INDEX "llm_configs_kind_idx" ON "llm_configs"("kind");
-
--- CreateIndex
 CREATE UNIQUE INDEX "llm_configs_owner_id_name_key" ON "llm_configs"("owner_id", "name");
 
 -- CreateIndex
@@ -925,7 +921,7 @@ ALTER TABLE "users" ADD CONSTRAINT "valid_default_stt_provider_id" CHECK ("defau
 -- being real Postgres-in-WASM, applies just like prod.)
 CREATE UNIQUE INDEX "tts_configs_free_default_unique" ON "tts_configs"("is_free_default") WHERE "is_free_default" = true;
 CREATE UNIQUE INDEX "tts_configs_global_name_unique" ON "tts_configs"("name") WHERE "is_global" = true;
-CREATE UNIQUE INDEX "llm_configs_global_name_unique" ON "llm_configs"("kind", "name") WHERE "is_global" = true;
+CREATE UNIQUE INDEX "llm_configs_global_name_unique" ON "llm_configs" ("name") WHERE ("is_global" = true);
 
 -- DEFERRABLE-constraint ALTERs harvested from prisma/migrations/**/migration.sql
 -- (Prisma can't express DEFERRABLE in schema.prisma, so the hand-written

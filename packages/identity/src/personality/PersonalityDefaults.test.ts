@@ -175,7 +175,6 @@ describe('PersonalityDefaults', () => {
           llmConfig: {
             model: 'anthropic/claude-sonnet-4.5',
             provider: 'openrouter',
-            kind: 'text',
             advancedParameters: {
               temperature: 0.7,
               max_tokens: 4096,
@@ -215,7 +214,6 @@ describe('PersonalityDefaults', () => {
       const globalConfig: MappedLlmConfig = {
         model: 'global-model',
         provider: 'openrouter',
-        kind: 'text',
         temperature: 0.8,
         maxTokens: 2048,
         memoryScoreThreshold: 0.6,
@@ -277,7 +275,6 @@ describe('PersonalityDefaults', () => {
           llmConfig: {
             model: 'deepseek/deepseek-r1',
             provider: 'openrouter',
-            kind: 'text',
             advancedParameters: {
               temperature: 0.7,
               top_p: 0.95,
@@ -323,7 +320,6 @@ describe('PersonalityDefaults', () => {
       const globalConfig: MappedLlmConfig = {
         model: 'global-model',
         provider: 'openrouter',
-        kind: 'text',
         temperature: 0.8,
         maxTokens: 2048,
         memoryScoreThreshold: 0.6,
@@ -359,7 +355,6 @@ describe('PersonalityDefaults', () => {
           llmConfig: {
             model: 'z-ai/glm-4.5-air:free',
             provider: 'openrouter',
-            kind: 'text',
             advancedParameters: {
               temperature: 1,
               top_p: 0.95,
@@ -395,7 +390,6 @@ describe('PersonalityDefaults', () => {
           llmConfig: {
             model: 'anthropic/claude-sonnet-4.5',
             provider: 'openrouter',
-            kind: 'text',
             advancedParameters: {
               temperature: 0.7,
               max_tokens: 16384, // Explicitly set
@@ -456,7 +450,6 @@ describe('PersonalityDefaults', () => {
           llmConfig: {
             model: 'test-model',
             provider: 'openrouter',
-            kind: 'text',
             advancedParameters: {
               temperature: 0.7,
               max_tokens: 4096,
@@ -490,7 +483,6 @@ describe('PersonalityDefaults', () => {
       const globalConfig: MappedLlmConfig = {
         model: 'global-model',
         provider: 'openrouter',
-        kind: 'text',
         temperature: 0.7,
         maxTokens: 2048,
         memoryScoreThreshold: 0.5,
@@ -534,7 +526,6 @@ describe('PersonalityDefaults', () => {
           llmConfig: {
             model: 'anthropic/claude-3-opus',
             provider: 'openrouter',
-            kind: 'text',
             advancedParameters: {
               temperature: 0.9,
               max_tokens: 4096,
@@ -553,7 +544,6 @@ describe('PersonalityDefaults', () => {
       const globalConfig: MappedLlmConfig = {
         model: 'openai/gpt-4',
         provider: 'openrouter',
-        kind: 'text',
         temperature: 0.5,
         maxTokens: 2048,
         memoryScoreThreshold: 0.5,

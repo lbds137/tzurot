@@ -29,8 +29,8 @@ vi.mock('./errorResponses.js', () => ({
 
 import {
   parseBodyOrSendError,
-  parseConfigKindQuery,
-  parseConfigKindQueryAllowAll,
+  parseModelSlotQuery,
+  parseModelSlotQueryAllowAll,
   findConfigOrSendNotFound,
   findGlobalConfigOrSendError,
   findAdminUserOrSendError,
@@ -43,56 +43,56 @@ const mockRes = {} as Response;
 
 beforeEach(() => vi.resetAllMocks());
 
-describe('parseConfigKindQuery', () => {
-  it('returns the parsed kind for a valid ?kind=vision', () => {
-    expect(parseConfigKindQuery(mockRes, { kind: 'vision' })).toBe('vision');
+describe('parseModelSlotQuery', () => {
+  it('returns the parsed slot for a valid ?slot=vision', () => {
+    expect(parseModelSlotQuery(mockRes, { slot: 'vision' })).toBe('vision');
     expect(mockSendZodError).not.toHaveBeenCalled();
   });
 
-  it('returns text for a valid ?kind=text', () => {
-    expect(parseConfigKindQuery(mockRes, { kind: 'text' })).toBe('text');
+  it('returns text for a valid ?slot=text', () => {
+    expect(parseModelSlotQuery(mockRes, { slot: 'text' })).toBe('text');
   });
 
   it('defaults to text when the param is absent', () => {
-    expect(parseConfigKindQuery(mockRes, {})).toBe('text');
+    expect(parseModelSlotQuery(mockRes, {})).toBe('text');
     expect(mockSendZodError).not.toHaveBeenCalled();
   });
 
   it('defaults to text when the query object itself is undefined', () => {
     // Express always populates req.query, but the helper must not 400 purely
     // because the object is missing (e.g. in unit tests / edge cases).
-    expect(parseConfigKindQuery(mockRes, undefined)).toBe('text');
+    expect(parseModelSlotQuery(mockRes, undefined)).toBe('text');
     expect(mockSendZodError).not.toHaveBeenCalled();
   });
 
-  it('sends a Zod error and returns null for an invalid kind', () => {
-    expect(parseConfigKindQuery(mockRes, { kind: 'audio' })).toBeNull();
+  it('sends a Zod error and returns null for an invalid slot', () => {
+    expect(parseModelSlotQuery(mockRes, { slot: 'audio' })).toBeNull();
     expect(mockSendZodError).toHaveBeenCalledTimes(1);
   });
 });
 
-describe('parseConfigKindQueryAllowAll', () => {
-  it('returns the parsed kind for a valid ?kind=vision', () => {
-    expect(parseConfigKindQueryAllowAll(mockRes, { kind: 'vision' })).toBe('vision');
+describe('parseModelSlotQueryAllowAll', () => {
+  it('returns the parsed slot for a valid ?slot=vision', () => {
+    expect(parseModelSlotQueryAllowAll(mockRes, { slot: 'vision' })).toBe('vision');
     expect(mockSendZodError).not.toHaveBeenCalled();
   });
 
-  it('returns text for a valid ?kind=text', () => {
-    expect(parseConfigKindQueryAllowAll(mockRes, { kind: 'text' })).toBe('text');
+  it('returns text for a valid ?slot=text', () => {
+    expect(parseModelSlotQueryAllowAll(mockRes, { slot: 'text' })).toBe('text');
   });
 
-  it('accepts the all-kinds sentinel ?kind=all (list-only widening)', () => {
-    expect(parseConfigKindQueryAllowAll(mockRes, { kind: 'all' })).toBe('all');
+  it('accepts the both-slots sentinel ?slot=all (list-only widening)', () => {
+    expect(parseModelSlotQueryAllowAll(mockRes, { slot: 'all' })).toBe('all');
     expect(mockSendZodError).not.toHaveBeenCalled();
   });
 
   it('defaults to text when the param is absent', () => {
-    expect(parseConfigKindQueryAllowAll(mockRes, {})).toBe('text');
+    expect(parseModelSlotQueryAllowAll(mockRes, {})).toBe('text');
     expect(mockSendZodError).not.toHaveBeenCalled();
   });
 
-  it('sends a Zod error and returns null for an invalid kind', () => {
-    expect(parseConfigKindQueryAllowAll(mockRes, { kind: 'audio' })).toBeNull();
+  it('sends a Zod error and returns null for an invalid slot', () => {
+    expect(parseModelSlotQueryAllowAll(mockRes, { slot: 'audio' })).toBeNull();
     expect(mockSendZodError).toHaveBeenCalledTimes(1);
   });
 });
@@ -290,7 +290,6 @@ describe('ensureNoNameCollision', () => {
       'NewName',
       globalScope,
       undefined,
-      undefined,
       undefined
     );
     expect(mockSendError).not.toHaveBeenCalled();
@@ -334,7 +333,6 @@ describe('ensureNoNameCollision', () => {
       'RenameTarget',
       globalScope,
       'existing-id-789',
-      undefined,
       undefined
     );
   });
@@ -354,7 +352,6 @@ describe('ensureNoNameCollision', () => {
     expect(service.checkNameExists).toHaveBeenCalledWith(
       'MyConfig',
       userScope,
-      undefined,
       undefined,
       undefined
     );
@@ -393,13 +390,7 @@ describe('ensureNoNameCollision', () => {
       formatCollisionMessage: _n => `irrelevant`,
     });
 
-    expect(service.checkNameExists).toHaveBeenCalledWith(
-      'Renamed',
-      userScope,
-      'cfg-1',
-      true,
-      undefined
-    );
+    expect(service.checkNameExists).toHaveBeenCalledWith('Renamed', userScope, 'cfg-1', true);
   });
 
   it('does not pass postIsGlobal when omitted (service receives undefined 4th arg)', async () => {
@@ -417,29 +408,7 @@ describe('ensureNoNameCollision', () => {
       'Created',
       userScope,
       undefined,
-      undefined,
       undefined
-    );
-  });
-
-  it('forwards kind to the service so collision checks are kind-scoped', async () => {
-    const service = {
-      checkNameExists: vi.fn().mockResolvedValue({ exists: false }),
-    };
-
-    await ensureNoNameCollision(mockRes, service, {
-      name: 'VisionPreset',
-      scope: globalScope,
-      kind: 'vision',
-      formatCollisionMessage: _n => `irrelevant`,
-    });
-
-    expect(service.checkNameExists).toHaveBeenCalledWith(
-      'VisionPreset',
-      globalScope,
-      undefined,
-      undefined,
-      'vision'
     );
   });
 });

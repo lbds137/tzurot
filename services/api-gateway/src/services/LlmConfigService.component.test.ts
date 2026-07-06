@@ -656,7 +656,6 @@ describe('LlmConfigService Integration', () => {
         description: 'Test description',
         model: 'test-model',
         provider: 'openrouter',
-        kind: 'text',
         isGlobal: true,
         // isDefault/isFreeDefault intentionally absent from the detail — see S4a.
         memoryScoreThreshold: 0.8,
@@ -888,15 +887,15 @@ describe('LlmConfigService Integration', () => {
     });
   });
 
-  describe('per-kind partial-unique constraints (DB-level, via PGLite)', () => {
-    // Guards the hand-written partial-unique indexes Prisma can't represent (harvested
-    // into the PGLite schema by generate-schema.ts): text and vision each get their OWN
-    // default / free-default / global-name namespace. This is the core "vision is a
-    // first-class, independently-defaulted config axis" guarantee — verified against the
-    // real Postgres engine (PGLite), since the unit tier mocks the DB and can't see it.
-    // Generic over the overrides so their keys (id, name, kind, …) survive in the
-    // return type — a non-generic `Record<string, unknown>` param would erase them and
-    // leave the merged object missing the required `id`/`name` at the type level.
+  describe('global-name partial-unique constraint (DB-level, via PGLite)', () => {
+    // Guards the hand-written partial-unique index Prisma can't represent (harvested
+    // into the PGLite schema by generate-schema.ts): `llm_configs_global_name_unique`
+    // is UNIQUE (name) WHERE is_global — ONE shared namespace for every global preset.
+    // Verified against the real Postgres engine (PGLite), since the unit tier mocks
+    // the DB and can't see it. Generic over the overrides so their keys (id, name, …)
+    // survive in the return type — a non-generic `Record<string, unknown>` param would
+    // erase them and leave the merged object missing the required `id`/`name` at the
+    // type level.
     const baseConfig = <T extends Record<string, unknown>>(overrides: T) => ({
       model: 'test/model',
       provider: 'openrouter',
@@ -907,41 +906,14 @@ describe('LlmConfigService Integration', () => {
       ...overrides,
     });
 
-    it('scopes the global-name unique by kind (same name, different kind coexist)', async () => {
-      // Different owners on purpose: the owner-scoped `owner_id+name` unique would fire
-      // first for same-owner rows. `llm_configs_global_name_unique` is what guards
-      // CROSS-owner global name clashes, and it's scoped by kind — so the same global
-      // name under different kinds must coexist.
-      await prisma.llmConfig.create({
-        data: baseConfig({
-          id: newLlmConfigId(),
-          name: 'shared-name',
-          kind: 'text',
-          isGlobal: true,
-          ownerId: adminUserId,
-        }),
-      });
-      await expect(
-        prisma.llmConfig.create({
-          data: baseConfig({
-            id: newLlmConfigId(),
-            name: 'shared-name',
-            kind: 'vision',
-            isGlobal: true,
-            ownerId: testUserId,
-          }),
-        })
-      ).resolves.toBeDefined();
-    });
-
-    it('rejects two cross-owner global configs of the same kind+name (llm_configs_global_name_unique)', async () => {
-      // Different owners bypass `owner_id+name`, isolating the global-name partial unique:
-      // two GLOBAL configs of the same kind+name must be rejected regardless of owner.
+    it('rejects two cross-owner global configs of the same name (llm_configs_global_name_unique)', async () => {
+      // Different owners bypass `owner_id+name`, isolating the global-name partial
+      // unique: two GLOBAL configs of the same name must be rejected regardless of
+      // owner — the single namespace the kind-column retirement collapsed to.
       await prisma.llmConfig.create({
         data: baseConfig({
           id: newLlmConfigId(),
           name: 'dup',
-          kind: 'text',
           isGlobal: true,
           ownerId: adminUserId,
         }),
@@ -951,12 +923,34 @@ describe('LlmConfigService Integration', () => {
           data: baseConfig({
             id: newLlmConfigId(),
             name: 'dup',
-            kind: 'text',
             isGlobal: true,
             ownerId: testUserId,
           }),
         })
       ).rejects.toThrow();
+    });
+
+    it('permits the same name on a NON-global config (the unique is partial)', async () => {
+      // The WHERE (is_global) clause is what makes the index partial: a user's own
+      // private preset may share a name with someone's global one.
+      await prisma.llmConfig.create({
+        data: baseConfig({
+          id: newLlmConfigId(),
+          name: 'partial-name',
+          isGlobal: true,
+          ownerId: adminUserId,
+        }),
+      });
+      await expect(
+        prisma.llmConfig.create({
+          data: baseConfig({
+            id: newLlmConfigId(),
+            name: 'partial-name',
+            isGlobal: false,
+            ownerId: testUserId,
+          }),
+        })
+      ).resolves.toBeDefined();
     });
   });
 });
