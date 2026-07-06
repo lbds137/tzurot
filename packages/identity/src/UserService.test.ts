@@ -413,6 +413,91 @@ describe('UserService', () => {
       });
     });
 
+    it('pins the user lookup select shape (the downstream field contract)', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce({
+        id: 'user-uuid',
+        isSuperuser: false,
+        username: 'testuser',
+        defaultPersonaId: 'persona-uuid',
+      });
+
+      await userService.getOrCreateUser('123456', 'testuser');
+
+      expect(mockPrisma.user.findUnique).toHaveBeenCalledWith({
+        where: { discordId: '123456' },
+        select: { id: true, isSuperuser: true, username: true, defaultPersonaId: true },
+      });
+    });
+
+    it('rethrows a P2002 whose target only SUBSTRING-matches (element equality, not substring)', async () => {
+      // 'legacy_discord_id' CONTAINS the call site's target 'discord_id' as a
+      // substring — an includes()-style comparison would wrongly recover here;
+      // element-granularity equality must rethrow.
+      mockPrisma.user.findUnique.mockResolvedValueOnce(null);
+      mockPrisma.$executeRaw.mockRejectedValueOnce({
+        code: 'P2002',
+        meta: { target: ['legacy_discord_id'] },
+      });
+
+      await expect(userService.getOrCreateUser('123456', 'testuser')).rejects.toMatchObject({
+        code: 'P2002',
+      });
+    });
+
+    it('recovers when discord_id appears among MULTIPLE constraint columns (some, not every)', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce(null);
+      mockPrisma.$executeRaw.mockRejectedValueOnce({
+        code: 'P2002',
+        meta: { target: ['tenant', 'discord_id'] },
+      });
+      mockPrisma.user.findUnique.mockResolvedValueOnce({
+        id: 'existing-user-uuid',
+        isSuperuser: false,
+        username: 'testuser',
+        defaultPersonaId: 'persona-uuid',
+      });
+
+      const result = await userService.getOrCreateUser('123456', 'testuser');
+
+      expect(result?.userId).toBe('existing-user-uuid');
+    });
+
+    it('recovers when meta.target is a plain string equal to the constraint', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce(null);
+      mockPrisma.$executeRaw.mockRejectedValueOnce({
+        code: 'P2002',
+        meta: { target: 'discord_id' },
+      });
+      mockPrisma.user.findUnique.mockResolvedValueOnce({
+        id: 'existing-user-uuid',
+        isSuperuser: false,
+        username: 'testuser',
+        defaultPersonaId: 'persona-uuid',
+      });
+
+      const result = await userService.getOrCreateUser('123456', 'testuser');
+
+      expect(result?.userId).toBe('existing-user-uuid');
+    });
+
+    it('rethrows a P2002 carrying no meta.target when a target is required', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce(null);
+      mockPrisma.$executeRaw.mockRejectedValueOnce({ code: 'P2002', meta: {} });
+
+      await expect(userService.getOrCreateUser('123456', 'testuser')).rejects.toMatchObject({
+        code: 'P2002',
+      });
+    });
+
+    it('rethrows a non-P2002 object error untouched', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce(null);
+      mockPrisma.$executeRaw.mockRejectedValueOnce({ code: 'P1001' });
+
+      await expect(userService.getOrCreateUser('123456', 'testuser')).rejects.toMatchObject({
+        code: 'P1001',
+      });
+    });
+
     it('should throw and log error on database error', async () => {
       mockPrisma.user.findUnique.mockRejectedValue(new Error('Database error'));
 
