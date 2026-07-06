@@ -8,9 +8,11 @@
 
 import { MessageType, type Client, type Message } from 'discord.js';
 import { stripErrorSpoiler } from '@tzurot/common-types/constants/error';
+import { type MaintenanceFlag } from '@tzurot/common-types/services/MaintenanceFlag';
 import { type LLMGenerationResult } from '@tzurot/common-types/types/schemas/generation';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { buildErrorContent } from '../utils/buildErrorContent.js';
+import { acknowledgeMessageDuringMaintenance } from '../utils/maintenanceResponses.js';
 import type { IMessageProcessor } from '../processors/IMessageProcessor.js';
 import { isUserContentMessage } from '../utils/messageTypeUtils.js';
 import { fetchTypingChannel } from '../utils/fetchTypingChannel.js';
@@ -45,6 +47,8 @@ export interface MessageHandlerDeps {
   personalityService: IPersonalityLoader;
   /** Discord client — re-fetches the channel for a late-recovered delivery. */
   client: Client;
+  /** Maintenance-window gate — checked before the processor chain runs. */
+  maintenanceFlag: MaintenanceFlag;
 }
 
 export class MessageHandler {
@@ -56,6 +60,7 @@ export class MessageHandler {
   private readonly coordinator: MultiTagCoordinator;
   private readonly personalityService: IPersonalityLoader;
   private readonly client: Client;
+  private readonly maintenanceFlag: MaintenanceFlag;
 
   constructor(deps: MessageHandlerDeps) {
     this.processors = deps.processors;
@@ -66,6 +71,7 @@ export class MessageHandler {
     this.coordinator = deps.coordinator;
     this.personalityService = deps.personalityService;
     this.client = deps.client;
+    this.maintenanceFlag = deps.maintenanceFlag;
     logger.info({ processorCount: deps.processors.length }, 'Initialized with processor chain');
   }
 
@@ -86,6 +92,15 @@ export class MessageHandler {
           },
           'Ignoring system message'
         );
+        return;
+      }
+
+      // Maintenance gate — BEFORE the processor chain, so nothing reaches the
+      // (503ing) gateway during a destructive-migration window. Friendly
+      // acknowledgement where it's cheap to know the message was for us
+      // (DMs, @mentions); silent drop otherwise.
+      if (await this.maintenanceFlag.isActive()) {
+        await acknowledgeMessageDuringMaintenance(message);
         return;
       }
 

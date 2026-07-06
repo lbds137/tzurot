@@ -17,6 +17,7 @@ import helmet from 'helmet';
 import { Redis } from 'ioredis';
 import { createRequire } from 'module';
 import { getConfig } from '@tzurot/common-types/config/config';
+import { MaintenanceFlag } from '@tzurot/common-types/services/MaintenanceFlag';
 import { fastPoolConnectionOptions } from '@tzurot/common-types/services/poolConfig';
 import {
   createPrismaClient,
@@ -61,6 +62,7 @@ import { createMetricsRouter, createVoiceReferenceRouter } from './routes/protec
 // Middleware
 import {
   createCorsMiddleware,
+  createMaintenanceMiddleware,
   allowCrossOriginEmbedding,
   notFoundHandler,
   globalErrorHandler,
@@ -287,6 +289,11 @@ function registerRoutes(
   // /health is intentionally exempt from rate limiting — uptime monitors
   // (Railway, external probes) need unconstrained polling access.
   app.use('/health', createHealthRouter(startTime));
+
+  // Maintenance gate — everything EXCEPT /health 503s while the flag is on
+  // (health must keep passing or Railway restart-loops the service mid-window).
+  // Toggled by `pnpm ops maintenance on|off --env <env>`.
+  app.use(createMaintenanceMiddleware(new MaintenanceFlag(cacheRedis)));
 
   const publicRateLimiter = createRedisPublicRouteRateLimiter(
     cacheRedis,
