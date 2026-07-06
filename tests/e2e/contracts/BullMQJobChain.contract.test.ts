@@ -103,4 +103,57 @@ describe('Contract: BullMQ job chain (real producer fixture → consumer schemas
       expect(data.dependencies).toBeUndefined();
     });
   });
+
+  // The envelope fixtures are the shapes bot-client ACTUALLY ships
+  // post-cutover. Schema breadth only here — the load-bearing consumer is
+  // the PIPELINE tier (BullMQJobChainPipeline.consumer.contract.test.ts),
+  // which runs these same fixtures through the real worker steps (schema
+  // acceptance alone greenlit the legacy shapes ContextStep rejects).
+  describe('envelope chains (the thin shape bot-client ships)', () => {
+    it('envelope-minimal validates and stays pipeline-eligible (kind + rawAssemblyInputs)', () => {
+      const envChain = loadContractFixture<CapturedChain>('bullmq-job-chain/envelope-minimal.json');
+      const data = llmGenerationJobDataSchema.parse(envChain.data);
+      expect(data.context.kind).toBe('envelope');
+      expect(data.context.rawAssemblyInputs).toBeDefined();
+      expect(envChain.children).toBeUndefined();
+    });
+
+    it('envelope-direct-attachments carries UNstamped children for the trigger message own attachments', () => {
+      const directChain = loadContractFixture<CapturedChain>(
+        'bullmq-job-chain/envelope-direct-attachments.json'
+      );
+      const data = llmGenerationJobDataSchema.parse(directChain.data);
+      expect(data.context.kind).toBe('envelope');
+      expect(data.dependencies).toHaveLength(2);
+      const children = (directChain.children ?? []) as {
+        name: string;
+        data: { sourceReferenceNumber?: number };
+      }[];
+      expect(children).toHaveLength(2);
+      for (const child of children) {
+        expect(child.data.sourceReferenceNumber).toBeUndefined();
+      }
+    });
+
+    it('envelope-referenced-attachments carries reference-stamped preprocessing children (#1184 shape)', () => {
+      const refChain = loadContractFixture<CapturedChain>(
+        'bullmq-job-chain/envelope-referenced-attachments.json'
+      );
+      const data = llmGenerationJobDataSchema.parse(refChain.data);
+      expect(data.context.kind).toBe('envelope');
+      expect(data.dependencies).toHaveLength(2);
+
+      const children = (refChain.children ?? []) as {
+        name: string;
+        data: { sourceReferenceNumber?: number };
+      }[];
+      expect(
+        children.map(c => c.data.sourceReferenceNumber).sort((a, b) => (a ?? 0) - (b ?? 0))
+      ).toEqual([1, 2]);
+      const audio = children.find(c => c.name === JobType.AudioTranscription);
+      const image = children.find(c => c.name === JobType.ImageDescription);
+      expect(audioTranscriptionJobDataSchema.safeParse(audio?.data).success).toBe(true);
+      expect(imageDescriptionJobDataSchema.safeParse(image?.data).success).toBe(true);
+    });
+  });
 });

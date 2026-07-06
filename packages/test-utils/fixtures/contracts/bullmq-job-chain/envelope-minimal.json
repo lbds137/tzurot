@@ -1,7 +1,7 @@
 {
   "name": "llm-generation",
   "data": {
-    "requestId": "fixture-req-text",
+    "requestId": "fixture-req-envelope",
     "jobType": "llm-generation",
     "personality": {
       "id": "f8c7b96b-c16e-5ad7-b83a-0f7da84f1e63",
@@ -20,10 +20,14 @@
       "voiceEnabled": false,
       "visionModel": "resolved/vision-model"
     },
-    "message": "just a plain text message",
+    "message": "hello from the thin envelope",
     "context": {
       "userId": "fixture-user",
-      "channelId": "fixture-channel"
+      "channelId": "fixture-channel",
+      "kind": "envelope",
+      "rawAssemblyInputs": {
+        "rawMessageContent": "hello from the thin envelope"
+      }
     },
     "responseDestination": {
       "type": "discord",
@@ -34,6 +38,6 @@
   },
   "queueName": "test-queue",
   "opts": {
-    "jobId": "llm-fixture-req-text"
+    "jobId": "llm-fixture-req-envelope"
   }
 }
