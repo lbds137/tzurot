@@ -5,6 +5,7 @@ import {
   buildSimilaritySearchQuery,
   parseQueryOptions,
 } from './PgvectorQueryBuilder.js';
+import { AI_DEFAULTS } from '@tzurot/common-types/constants/ai';
 
 describe('PgvectorQueryBuilder', () => {
   describe('buildWhereConditions', () => {
@@ -183,8 +184,8 @@ describe('PgvectorQueryBuilder', () => {
       const result = parseQueryOptions({ personaId: 'persona-123' });
 
       expect(result.limit).toBe(10);
-      expect(result.minSimilarity).toBe(0.85);
-      expect(result.maxDistance).toBeCloseTo(0.15);
+      expect(result.minSimilarity).toBe(AI_DEFAULTS.MEMORY_SCORE_THRESHOLD);
+      expect(result.maxDistance).toBeCloseTo(1 - AI_DEFAULTS.MEMORY_SCORE_THRESHOLD);
     });
 
     it('uses provided limit', () => {
@@ -215,7 +216,7 @@ describe('PgvectorQueryBuilder', () => {
     it('ignores zero scoreThreshold', () => {
       const result = parseQueryOptions({ personaId: 'persona-123', scoreThreshold: 0 });
 
-      expect(result.minSimilarity).toBe(0.85);
+      expect(result.minSimilarity).toBe(AI_DEFAULTS.MEMORY_SCORE_THRESHOLD);
     });
 
     it('ignores null values', () => {
@@ -226,7 +227,7 @@ describe('PgvectorQueryBuilder', () => {
       });
 
       expect(result.limit).toBe(10);
-      expect(result.minSimilarity).toBe(0.85);
+      expect(result.minSimilarity).toBe(AI_DEFAULTS.MEMORY_SCORE_THRESHOLD);
     });
   });
 });
