@@ -356,6 +356,9 @@ jobs:
       - name: Run mutation testing (conversation-history)
         run: pnpm --filter @tzurot/conversation-history test:mutation
 
+      - name: Run mutation testing (identity)
+        run: pnpm --filter @tzurot/identity test:mutation
+
       - name: Enforce mutation-score baseline
         run: pnpm ops mutation:check --summary
 
