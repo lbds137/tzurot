@@ -22,6 +22,10 @@ import {
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { clientsFor } from '../../../utils/gatewayClients.js';
 import { handlePersonalityAutocomplete } from '../../../utils/autocomplete/index.js';
+import {
+  runGuardedAutocomplete,
+  CHARACTER_ID_AUTOCOMPLETE,
+} from '../../../utils/autocomplete/guardedAutocomplete.js';
 
 const logger = createLogger('voice-tts-autocomplete');
 
@@ -30,34 +34,15 @@ export async function handleAutocomplete(interaction: AutocompleteInteraction): 
   const focusedOption = interaction.options.getFocused(true);
   const userId = interaction.user.id;
 
-  try {
+  await runGuardedAutocomplete(interaction, logger, async () => {
     if (focusedOption.name === 'character') {
-      await handlePersonalityAutocomplete(interaction, {
-        optionName: 'character',
-        ownedOnly: false,
-        showVisibility: true,
-        valueField: 'id',
-      });
+      await handlePersonalityAutocomplete(interaction, CHARACTER_ID_AUTOCOMPLETE);
     } else if (focusedOption.name === 'tts') {
       await handleTtsConfigAutocomplete(interaction, focusedOption.value, userId);
     } else {
       await interaction.respond([]);
     }
-  } catch (error) {
-    logger.error(
-      {
-        err: error,
-        option: focusedOption.name,
-        query: focusedOption.value,
-        userId,
-        guildId: interaction.guildId,
-        command: interaction.commandName,
-        subcommand: interaction.options.getSubcommand(false),
-      },
-      'Autocomplete error'
-    );
-    await interaction.respond([]);
-  }
+  });
 }
 
 async function handleTtsConfigAutocomplete(

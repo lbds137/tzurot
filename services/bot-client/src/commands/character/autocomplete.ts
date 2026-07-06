@@ -8,6 +8,7 @@
 import type { AutocompleteInteraction } from 'discord.js';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { handlePersonalityAutocomplete } from '../../utils/autocomplete/index.js';
+import { runGuardedAutocomplete } from '../../utils/autocomplete/guardedAutocomplete.js';
 
 const logger = createLogger('character-autocomplete');
 
@@ -22,7 +23,7 @@ const logger = createLogger('character-autocomplete');
 export async function handleAutocomplete(interaction: AutocompleteInteraction): Promise<void> {
   const subcommand = interaction.options.getSubcommand(false);
 
-  try {
+  await runGuardedAutocomplete(interaction, logger, async () => {
     // Determine if we should only show owned characters.
     // getSubcommand(false) returns string | null — null when focused option isn't in a subcommand.
     const ownedOnlySubcommands = ['edit', 'avatar', 'voice', 'voice-clear'];
@@ -38,17 +39,5 @@ export async function handleAutocomplete(interaction: AutocompleteInteraction): 
       // Option wasn't 'character', return empty
       await interaction.respond([]);
     }
-  } catch (error) {
-    logger.error(
-      {
-        err: error,
-        userId: interaction.user.id,
-        guildId: interaction.guildId,
-        command: interaction.commandName,
-        subcommand,
-      },
-      'Autocomplete error'
-    );
-    await interaction.respond([]);
-  }
+  });
 }

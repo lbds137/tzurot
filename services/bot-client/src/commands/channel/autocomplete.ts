@@ -6,6 +6,7 @@
 import type { AutocompleteInteraction } from 'discord.js';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { handlePersonalityAutocomplete } from '../../utils/autocomplete/index.js';
+import { runGuardedAutocomplete } from '../../utils/autocomplete/guardedAutocomplete.js';
 
 const logger = createLogger('channel-autocomplete');
 
@@ -15,9 +16,7 @@ const logger = createLogger('channel-autocomplete');
  * For 'activate': shows all accessible personalities (owned + public)
  */
 export async function handleAutocomplete(interaction: AutocompleteInteraction): Promise<void> {
-  const subcommand = interaction.options.getSubcommand(false);
-
-  try {
+  await runGuardedAutocomplete(interaction, logger, async () => {
     const handled = await handlePersonalityAutocomplete(interaction, {
       optionName: 'character',
       ownedOnly: false, // Channel activation can use any accessible personality
@@ -28,17 +27,5 @@ export async function handleAutocomplete(interaction: AutocompleteInteraction): 
       // Option wasn't 'character', return empty
       await interaction.respond([]);
     }
-  } catch (error) {
-    logger.error(
-      {
-        err: error,
-        userId: interaction.user.id,
-        guildId: interaction.guildId,
-        command: interaction.commandName,
-        subcommand,
-      },
-      'Autocomplete error'
-    );
-    await interaction.respond([]);
-  }
+  });
 }

@@ -22,6 +22,7 @@ import {
   formatModelChoice,
 } from '../../utils/modelAutocomplete.js';
 
+import { runGuardedAutocomplete } from '../../utils/autocomplete/guardedAutocomplete.js';
 const logger = createLogger('preset-autocomplete');
 
 /**
@@ -79,7 +80,7 @@ export async function handleAutocomplete(interaction: AutocompleteInteraction): 
   const subcommandGroup = interaction.options.getSubcommandGroup(false);
   const subcommand = interaction.options.getSubcommand(false);
 
-  try {
+  await runGuardedAutocomplete(interaction, logger, async () => {
     if (focusedOption.name === 'preset') {
       // The 'preset' option appears in both user-scoped subcommands (suggest the
       // user's own + global presets) and the owner-only 'global' group (suggest
@@ -97,21 +98,7 @@ export async function handleAutocomplete(interaction: AutocompleteInteraction): 
     } else {
       await interaction.respond([]);
     }
-  } catch (error) {
-    logger.error(
-      {
-        err: error,
-        option: focusedOption.name,
-        query: focusedOption.value,
-        userId,
-        guildId: interaction.guildId,
-        command: interaction.commandName,
-        subcommand: interaction.options.getSubcommand(false),
-      },
-      'Autocomplete error'
-    );
-    await interaction.respond([]);
-  }
+  });
 }
 
 /**
