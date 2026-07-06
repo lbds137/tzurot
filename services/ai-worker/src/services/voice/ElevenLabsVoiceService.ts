@@ -17,7 +17,7 @@
 
 import { TTS_VOICE_NAME_PREFIX } from '@tzurot/common-types/constants/ai';
 import { createLogger } from '@tzurot/common-types/utils/logger';
-import { TTLCache } from '@tzurot/common-types/utils/TTLCache';
+import { CloneCacheKernel } from './CloneCacheKernel.js';
 import {
   elevenLabsCloneVoice,
   elevenLabsListVoices,
@@ -36,14 +36,9 @@ const NEGATIVE_CACHE_TTL_MS = 5 * 60 * 1000;
 /** Max cached entries */
 const CACHE_MAX_SIZE = 200;
 
-interface CachedVoice {
-  voiceId: string;
-}
-
 interface EvictAndCloneOptions {
   slug: string;
   apiKey: string;
-  cacheKey: string;
   voices: ElevenLabsVoiceInfo[];
   voiceName: string;
   audioBuffer: Buffer;
@@ -52,20 +47,11 @@ interface EvictAndCloneOptions {
 }
 
 export class ElevenLabsVoiceService {
-  private readonly cloneCache: TTLCache<CachedVoice>;
-  private readonly negativeCache: TTLCache<string>;
-  private readonly inflight = new Map<string, Promise<string>>();
-
-  constructor() {
-    this.cloneCache = new TTLCache<CachedVoice>({
-      ttl: CLONE_CACHE_TTL_MS,
-      maxSize: CACHE_MAX_SIZE,
-    });
-    this.negativeCache = new TTLCache<string>({
-      ttl: NEGATIVE_CACHE_TTL_MS,
-      maxSize: CACHE_MAX_SIZE,
-    });
-  }
+  private readonly cloneCache = new CloneCacheKernel({
+    positiveTtlMs: CLONE_CACHE_TTL_MS,
+    negativeTtlMs: NEGATIVE_CACHE_TTL_MS,
+    maxSize: CACHE_MAX_SIZE,
+  });
 
   /**
    * Ensure a voice is cloned for the given personality slug.
@@ -76,45 +62,23 @@ export class ElevenLabsVoiceService {
   async ensureVoiceCloned(slug: string, apiKey: string): Promise<string> {
     const cacheKey = this.buildCacheKey(slug, apiKey);
 
-    // Check positive cache
-    const cached = this.cloneCache.get(cacheKey);
-    if (cached !== null) {
-      return cached.voiceId;
-    }
-
-    // Check negative cache
-    const failReason = this.negativeCache.get(cacheKey);
-    if (failReason !== null) {
-      throw new Error(`ElevenLabs voice clone for "${slug}" recently failed: ${failReason}`);
-    }
-
-    // Deduplicate concurrent clone attempts
-    const existing = this.inflight.get(cacheKey);
-    if (existing !== undefined) {
-      return existing;
-    }
-
-    const promise = this.doEnsureCloned(slug, apiKey, cacheKey)
-      .catch(error => {
-        const reason = error instanceof Error ? error.message : String(error);
-
+    return this.cloneCache.resolve({
+      cacheKey,
+      describe: `ElevenLabs voice clone for "${slug}"`,
+      work: () => this.doEnsureCloned(slug, apiKey),
+      classifyFailure: (error, reason) => {
         // Rate limit (429) is transient — don't negatively cache
         if (error instanceof ElevenLabsApiError && error.isRateLimited) {
           logger.warn({ slug, reason }, 'ElevenLabs voice clone rate limited (not cached)');
-        } else {
-          this.negativeCache.set(cacheKey, reason);
-          logger.warn({ slug, reason }, 'ElevenLabs voice clone failed — cached for 5 min');
+          return null;
         }
-
-        throw error;
-      })
-      .finally(() => this.inflight.delete(cacheKey));
-
-    this.inflight.set(cacheKey, promise);
-    return promise;
+        logger.warn({ slug, reason }, 'ElevenLabs voice clone failed — cached for 5 min');
+        return reason;
+      },
+    });
   }
 
-  private async doEnsureCloned(slug: string, apiKey: string, cacheKey: string): Promise<string> {
+  private async doEnsureCloned(slug: string, apiKey: string): Promise<string> {
     const voiceName = `${TTS_VOICE_NAME_PREFIX}${slug}`;
 
     // 1. List voices → find existing → cache & return
@@ -124,7 +88,6 @@ export class ElevenLabsVoiceService {
       voices = await elevenLabsListVoices(apiKey);
       const existing = voices.find(v => v.name === voiceName);
       if (existing !== undefined) {
-        this.cloneCache.set(cacheKey, { voiceId: existing.voiceId });
         logger.info({ slug, voiceId: existing.voiceId }, 'Found existing ElevenLabs voice');
         return existing.voiceId;
       }
@@ -152,7 +115,6 @@ export class ElevenLabsVoiceService {
         description,
       });
 
-      this.cloneCache.set(cacheKey, { voiceId });
       logger.info({ slug, voiceId }, 'ElevenLabs voice cloned and cached');
       return voiceId;
     } catch (error) {
@@ -161,7 +123,6 @@ export class ElevenLabsVoiceService {
         return this.evictAndClone({
           slug,
           apiKey,
-          cacheKey,
           voices,
           voiceName,
           audioBuffer,
@@ -187,8 +148,7 @@ export class ElevenLabsVoiceService {
    * negatively cached for 5 min. Low probability and self-healing.
    */
   private async evictAndClone(opts: EvictAndCloneOptions): Promise<string> {
-    const { slug, apiKey, cacheKey, voices, voiceName, audioBuffer, contentType, description } =
-      opts;
+    const { slug, apiKey, voices, voiceName, audioBuffer, contentType, description } = opts;
     const keySuffix = this.getKeySuffix(apiKey);
 
     const candidates = voices.filter(v => {
@@ -201,7 +161,7 @@ export class ElevenLabsVoiceService {
       }
       const candidateSlug = v.name.slice(TTS_VOICE_NAME_PREFIX.length);
       const candidateKey = `${candidateSlug}:${keySuffix}`;
-      return !this.cloneCache.has(candidateKey) && !this.inflight.has(candidateKey);
+      return !this.cloneCache.has(candidateKey) && !this.cloneCache.hasInflight(candidateKey);
     });
 
     if (candidates.length === 0) {
@@ -239,7 +199,7 @@ export class ElevenLabsVoiceService {
     // Clear any stale negative cache for the evicted voice's slug so it can be
     // re-cloned immediately if requested (rather than waiting for 5-min expiry)
     const victimSlug = victim.name.slice(TTS_VOICE_NAME_PREFIX.length);
-    this.negativeCache.delete(`${victimSlug}:${keySuffix}`);
+    this.cloneCache.deleteNegative(`${victimSlug}:${keySuffix}`);
 
     // Retry clone
     const { voiceId } = await elevenLabsCloneVoice({
@@ -250,7 +210,6 @@ export class ElevenLabsVoiceService {
       description,
     });
 
-    this.cloneCache.set(cacheKey, { voiceId });
     logger.info({ slug, voiceId, evictedVoice: victim.name }, 'Voice cloned after eviction');
     return voiceId;
   }
@@ -280,15 +239,11 @@ export class ElevenLabsVoiceService {
    * to force re-cloning on the next ensureVoiceCloned() call.
    */
   invalidateVoice(slug: string, apiKey: string): void {
-    const cacheKey = this.buildCacheKey(slug, apiKey);
-    this.cloneCache.delete(cacheKey);
-    this.negativeCache.delete(cacheKey);
+    this.cloneCache.invalidate(this.buildCacheKey(slug, apiKey));
   }
 
   /** @internal Clear all caches (for testing only). */
   clearCache(): void {
     this.cloneCache.clear();
-    this.negativeCache.clear();
-    this.inflight.clear();
   }
 }
