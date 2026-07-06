@@ -35,6 +35,7 @@ describe('/channel autocomplete', () => {
   function createMockInteraction(subcommand: string = 'activate'): AutocompleteInteraction {
     return {
       options: {
+        getFocused: vi.fn().mockReturnValue({ name: 'character', value: '' }),
         getSubcommand: vi.fn().mockReturnValue(subcommand),
       },
       user: { id: 'user-123' },
