@@ -353,6 +353,7 @@ describe('findContentRefs (against real repo)', () => {
       'inspect:tts-configs',
       'lint:complexity-report',
       'logs',
+      'maintenance',
       'memory:analyze',
       'memory:backfill',
       'memory:cleanup',

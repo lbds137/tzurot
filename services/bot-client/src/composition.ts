@@ -41,6 +41,7 @@ import { type DiscordResponseSender } from './services/DiscordResponseSender.js'
 import type { Queue } from 'bullmq';
 import type { Redis } from 'ioredis';
 import type { Client } from 'discord.js';
+import type { MaintenanceFlag } from '@tzurot/common-types/services/MaintenanceFlag';
 import type { IPersonalityLoader } from './types/IPersonalityLoader.js';
 
 /**
@@ -213,6 +214,7 @@ export function buildMessageHandler(deps: {
   coordinator: MultiTagCoordinator;
   personalityService: IPersonalityLoader;
   client: Client;
+  maintenanceFlag: MaintenanceFlag;
 }): MessageHandler {
   const processors = buildProcessorChain({
     denylistCache: deps.denylistCache,
@@ -232,5 +234,6 @@ export function buildMessageHandler(deps: {
     coordinator: deps.coordinator,
     personalityService: deps.personalityService,
     client: deps.client,
+    maintenanceFlag: deps.maintenanceFlag,
   });
 }

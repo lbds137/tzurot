@@ -16,6 +16,7 @@ import type { JobTracker } from '../services/JobTracker.js';
 import type { SlotDeliveryService } from '../services/SlotDeliveryService.js';
 import type { IPersonalityLoader } from '../types/IPersonalityLoader.js';
 import type { MultiTagCoordinator } from '../services/MultiTagCoordinator.js';
+import type { MaintenanceFlag } from '@tzurot/common-types/services/MaintenanceFlag';
 
 // confirmDelivery + updateDiagnosticResponseIds moved off GatewayClient to the
 // gatewayServiceCalls module; route them to a holder so the existing
@@ -84,6 +85,12 @@ const mockClient = {
   channels: { fetch: vi.fn().mockResolvedValue(null) },
 };
 
+// Maintenance gate defaults OFF so the existing suite exercises the normal
+// path; the maintenance tests flip the resolved value per-test.
+const mockMaintenanceFlag = {
+  isActive: vi.fn().mockResolvedValue(false),
+};
+
 describe('MessageHandler', () => {
   let messageHandler: MessageHandler;
   let mockProcessor1: IMessageProcessor;
@@ -108,6 +115,8 @@ describe('MessageHandler', () => {
       process: vi.fn().mockResolvedValue(false),
     };
 
+    mockMaintenanceFlag.isActive.mockResolvedValue(false);
+
     messageHandler = new MessageHandler({
       processors: [mockProcessor1, mockProcessor2, mockProcessor3],
       responseSender: mockResponseSender as unknown as DiscordResponseSender,
@@ -117,6 +126,7 @@ describe('MessageHandler', () => {
       coordinator: mockCoordinator as unknown as MultiTagCoordinator,
       personalityService: mockPersonalityService as unknown as IPersonalityLoader,
       client: mockClient as unknown as import('discord.js').Client,
+      maintenanceFlag: mockMaintenanceFlag as unknown as MaintenanceFlag,
     });
 
     // Direct mocks — no threading-through. Tests assert on
@@ -140,6 +150,31 @@ describe('MessageHandler', () => {
         ...overrides,
       } as unknown as Message;
     }
+
+    it('short-circuits the chain during a maintenance window (silent for non-mention guild messages)', async () => {
+      mockMaintenanceFlag.isActive.mockResolvedValue(true);
+      const message = createMockMessage({
+        guild: {},
+        client: { user: { id: 'bot-id' } },
+        mentions: { has: vi.fn().mockReturnValue(false) },
+      });
+
+      await messageHandler.handleMessage(message);
+
+      // Nothing reaches the processor chain — the whole point of the gate.
+      expect(mockProcessor1.process).not.toHaveBeenCalled();
+      expect(message.reply).not.toHaveBeenCalled();
+    });
+
+    it('replies with the maintenance notice for DMs during a maintenance window', async () => {
+      mockMaintenanceFlag.isActive.mockResolvedValue(true);
+      const message = createMockMessage({ guild: null, client: { user: { id: 'bot-id' } } });
+
+      await messageHandler.handleMessage(message);
+
+      expect(mockProcessor1.process).not.toHaveBeenCalled();
+      expect(message.reply).toHaveBeenCalledWith(expect.stringContaining('maintenance'));
+    });
 
     it('should pass message through processor chain in order', async () => {
       const message = createMockMessage();

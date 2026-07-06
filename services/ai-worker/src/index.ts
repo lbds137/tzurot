@@ -22,7 +22,7 @@ import { cleanupExpiredExports } from './jobs/cleanupExpiredExports.js';
 import { ConversationRetentionService } from '@tzurot/conversation-history';
 import { getConfig } from '@tzurot/common-types/config/config';
 import { CONTENT_TYPES } from '@tzurot/common-types/constants/media';
-import { QUEUE_CONFIG } from '@tzurot/common-types/constants/queue';
+import { QUEUE_CONFIG, SCHEDULED_QUEUE_NAME } from '@tzurot/common-types/constants/queue';
 import { HealthStatus } from '@tzurot/common-types/constants/service';
 import { TIMEOUTS } from '@tzurot/common-types/constants/timing';
 import { createPrismaClient, type PrismaClient } from '@tzurot/common-types/services/prisma';
@@ -204,10 +204,10 @@ async function setupScheduledJobs(
   pendingMemoryProcessor: PendingMemoryProcessor,
   prisma: PrismaClient
 ): Promise<ScheduledJobsResult> {
-  const scheduledQueue = new Queue('scheduled-jobs', { connection: config.redis });
+  const scheduledQueue = new Queue(SCHEDULED_QUEUE_NAME, { connection: config.redis });
 
   const scheduledWorker = new Worker(
-    'scheduled-jobs',
+    SCHEDULED_QUEUE_NAME,
     async (job: Job) => {
       if (job.name === SCHEDULED_JOBS.PROCESS_PENDING_MEMORIES) {
         logger.debug('Running pending memory processor');

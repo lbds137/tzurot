@@ -68,6 +68,7 @@ pnpm ops gh:pr-edit 478 --title "..."  # Edit PR
 ```bash
 pnpm ops deploy:setup-vars --env dev --dry-run  # Preview env var setup
 pnpm ops run --env dev <command>     # Run any command with Railway creds
+pnpm ops maintenance on|off|status --env prod   # Maintenance mode (destructive migrations) — sequence in /tzurot-deployment
 ```
 
 **Migration-timing reminder:** Migrations are NOT auto-applied on Railway, and timing matters because every service auto-deploys in parallel. For a **prod release**, migrate BEFORE merging the release PR — `pnpm ops release:premigrate` (then merge; auto-deploy lands into the ready schema). For **dev**, apply promptly after the push — `pnpm ops db:migrate --env dev`. See `.claude/rules/03-database.md` § Deployment for the additive-vs-destructive distinction.
