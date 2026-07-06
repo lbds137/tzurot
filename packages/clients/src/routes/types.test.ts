@@ -115,3 +115,8 @@ describe('resolveQueryShape', () => {
     expect(Object.keys(objectShape ?? {})).toEqual(['a']);
   });
 });
+describe('resolveQueryShape — no query defined', () => {
+  it('returns undefined for a route without a query schema', () => {
+    expect(resolveQueryShape(undefined)).toBeUndefined();
+  });
+});
