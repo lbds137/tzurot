@@ -38,8 +38,7 @@ import {
 } from '../../utils/llmConfigValidation.js';
 import {
   parseBodyOrSendError,
-  parseConfigKindQuery,
-  parseConfigKindQueryAllowAll,
+  parseModelSlotQuery,
   findGlobalConfigOrSendError,
   findAdminUserOrSendError,
   ensureNoNameCollision,
@@ -60,26 +59,17 @@ const CONFIG_LABEL = 'configs';
 function createListHandler(service: LlmConfigService, modelCache?: OpenRouterModelCache) {
   // Stateless wrapper over the cache ref — built once per handler, not per request.
   const capabilities = new ModelCapabilityService(modelCache);
-  return async (req: Request, res: Response) => {
-    // AllowAll so the owner picker can fetch both slots in one call (capability-
-    // agnostic, mirroring the user list route); `service.list` handles the `all`
-    // sentinel. Sets (set-default / set-free-default) stay strict — you target a
-    // single slot, never `all`.
-    const kind = parseConfigKindQueryAllowAll(res, req.query);
-    if (kind === null) {
-      return;
-    }
-
+  return async (_req: Request, res: Response) => {
     const configs = await Promise.all(
-      (await service.list({ type: 'GLOBAL' }, kind)).map(async raw => ({
+      (await service.list({ type: 'GLOBAL' })).map(async raw => ({
         ...withAdminOwnership(service.formatConfigSummary(raw)),
-        // Capability-driven vision eligibility, sourced live from the model
-        // (not the config's `kind`). Cheap: a cached array lookup per row.
+        // Capability-driven vision eligibility, sourced live from the model.
+        // Cheap: a cached array lookup per row.
         supportsVision: await capabilities.supportsVision(raw.model),
       }))
     );
 
-    logger.info({ count: configs.length, kind }, 'Listed all configs');
+    logger.info({ count: configs.length }, 'Listed all configs');
     sendCustomSuccess(res, { configs }, StatusCodes.OK);
   };
 }
@@ -88,9 +78,6 @@ function createGetHandler(service: LlmConfigService, modelCache?: OpenRouterMode
   return async (req: Request, res: Response) => {
     const configId = getRequiredParam(req.params.id, 'id');
 
-    // Kind-agnostic by id: a config's kind is intrinsic to its unique id, so a
-    // by-id fetch returns it regardless of kind (no `?kind=` gate). Only the
-    // list endpoint scopes by kind (no id, so the caller states which kind).
     const config = await service.getById(configId);
     if (config === null) {
       return sendError(res, ErrorResponses.notFound(CONFIG_RESOURCE));
@@ -127,7 +114,6 @@ function createCreateConfigHandler(
         modelCache,
         body,
         hasZaiCodingKey: true,
-        kind: body.kind,
       }))
     ) {
       return;
@@ -142,7 +128,6 @@ function createCreateConfigHandler(
       !(await ensureNoNameCollision(res, service, {
         name: body.name,
         scope: { type: 'GLOBAL' },
-        kind: body.kind,
         formatCollisionMessage: n => `A global config named "${n}" already exists`,
       }))
     ) {
@@ -166,33 +151,24 @@ function createEditConfigHandler(
   return async (req: Request, res: Response) => {
     const configId = getRequiredParam(req.params.id, 'id');
 
-    const kind = parseConfigKindQuery(res, req.query);
-    if (kind === null) {
-      return;
-    }
-
     const body = parseBodyOrSendError(res, LlmConfigUpdateSchema, req.body);
     if (body === null) {
       return;
     }
 
-    // Fetch + kind-verify the row FIRST, so the model/vision validation below
-    // runs against the row's real (requireKind-verified) kind rather than the
-    // caller-supplied query param. Otherwise `?kind=vision` on a text config
-    // would fire a misleading vision-capability 400 (and leak that the id exists)
-    // before requireKind rejects the kind mismatch.
+    // Fetch the row first: the isGlobal guard must reject before any
+    // model/collision work leaks whether the id exists.
     const existing = await findGlobalConfigOrSendError(
       res,
       () =>
         prisma.llmConfig.findUnique({
           where: { id: configId },
-          select: { id: true, name: true, isGlobal: true, kind: true },
+          select: { id: true, name: true, isGlobal: true },
         }),
       {
         notFoundResource: CONFIG_RESOURCE,
         resourceLabel: CONFIG_LABEL,
         operation: 'edit',
-        requireKind: kind,
       }
     );
     if (existing === null) {
@@ -206,9 +182,6 @@ function createEditConfigHandler(
         body,
         fallback: { service, configId: configId },
         hasZaiCodingKey: true,
-        // `kind` is verified against the row by requireKind above, so the
-        // vision-capability gate trusts it without a redundant getById fetch.
-        kind,
       }))
     ) {
       return;
@@ -220,12 +193,6 @@ function createEditConfigHandler(
         name: body.name,
         scope: { type: 'GLOBAL' },
         excludeId: configId,
-        // Scope the collision check to the config's kind — global names are unique
-        // per (kind, name) (`llm_configs_global_name_unique`), so a vision rename
-        // must check the vision namespace, not text. Without this the helper
-        // defaults to text → false block across namespaces, or false pass → a
-        // Postgres unique-constraint 500.
-        kind,
         formatCollisionMessage: n => `A global config named "${n}" already exists`,
       }))
     ) {
@@ -256,10 +223,9 @@ function createSetDefaultHandler(
   return async (req: Request, res: Response) => {
     const configId = getRequiredParam(req.params.id, 'id');
 
-    // The slot the config fills (chat vs vision) is the request's choice, not the
-    // config's kind — any global config can fill any slot, so there's no kind-match
-    // gate. The vision slot is capability-gated below instead.
-    const slot = parseConfigKindQuery(res, req.query);
+    // The slot the config fills (chat vs vision) is the request's choice — any
+    // global config can fill any slot. The vision slot is capability-gated below.
+    const slot = parseModelSlotQuery(res, req.query);
     if (slot === null) {
       return;
     }
@@ -301,9 +267,8 @@ function createSetFreeDefaultHandler(
   return async (req: Request, res: Response) => {
     const configId = getRequiredParam(req.params.id, 'id');
 
-    // Slot = request's choice (chat vs vision); no kind-match gate. Vision is
-    // capability-gated below.
-    const slot = parseConfigKindQuery(res, req.query);
+    // Slot = request's choice (chat vs vision). Vision is capability-gated below.
+    const slot = parseModelSlotQuery(res, req.query);
     if (slot === null) {
       return;
     }

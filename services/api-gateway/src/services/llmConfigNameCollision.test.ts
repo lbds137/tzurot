@@ -16,29 +16,25 @@ function mockPrisma(takenNames: string[]) {
 describe('resolveNonCollidingName', () => {
   it('returns the base name when nothing collides', async () => {
     const prisma = mockPrisma([]);
-    expect(await resolveNonCollidingName(prisma, 'Preset', 'owner-1', 'text')).toBe('Preset');
+    expect(await resolveNonCollidingName(prisma, 'Preset', 'owner-1')).toBe('Preset');
   });
 
   it('bumps a (Copy) suffix when the base name is taken', async () => {
     const prisma = mockPrisma(['Preset']);
-    expect(await resolveNonCollidingName(prisma, 'Preset', 'owner-1', 'text')).toBe(
-      'Preset (Copy)'
-    );
+    expect(await resolveNonCollidingName(prisma, 'Preset', 'owner-1')).toBe('Preset (Copy)');
   });
 
   it('matches case-insensitively (lowercased legacy rows still collide)', async () => {
     const prisma = mockPrisma(['preset']); // lowercase legacy row
-    expect(await resolveNonCollidingName(prisma, 'Preset', 'owner-1', 'text')).toBe(
-      'Preset (Copy)'
-    );
+    expect(await resolveNonCollidingName(prisma, 'Preset', 'owner-1')).toBe('Preset (Copy)');
   });
 
-  it('scopes the lookup to the given owner and kind', async () => {
+  it('scopes the lookup to the given owner', async () => {
     const prisma = mockPrisma([]);
-    await resolveNonCollidingName(prisma, 'Preset', 'owner-1', 'vision');
+    await resolveNonCollidingName(prisma, 'Preset', 'owner-1');
     expect(prisma.llmConfig.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: expect.objectContaining({ ownerId: 'owner-1', kind: 'vision' }),
+        where: expect.objectContaining({ ownerId: 'owner-1' }),
       })
     );
   });
@@ -52,7 +48,7 @@ describe('resolveNonCollidingName', () => {
       candidate = generateClonedName(candidate);
     }
     const prisma = mockPrisma(taken);
-    await expect(resolveNonCollidingName(prisma, 'Preset', 'owner-1', 'text')).rejects.toThrow(
+    await expect(resolveNonCollidingName(prisma, 'Preset', 'owner-1')).rejects.toThrow(
       CloneNameExhaustedError
     );
   });

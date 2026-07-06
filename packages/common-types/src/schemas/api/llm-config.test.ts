@@ -33,7 +33,7 @@ describe('LLM Config API Contract Tests', () => {
       model: 'openai/gpt-4o-mini',
       provider: 'openrouter',
       supportsVision: false,
-      kind: 'text',
+
       isGlobal: true,
       isDefault: true,
       isFreeDefault: false,
@@ -128,7 +128,7 @@ describe('LLM Config API Contract Tests', () => {
       description: null,
       provider: 'openrouter',
       model: 'openai/gpt-4o-mini',
-      kind: 'text',
+
       isGlobal: true,
       isOwned: false,
       permissions: { canEdit: false, canDelete: false },
@@ -203,7 +203,7 @@ describe('LLM Config API Contract Tests', () => {
             model: 'openai/gpt-4o-mini',
             provider: 'openrouter',
             supportsVision: false,
-            kind: 'text',
+
             isGlobal: true,
             isDefault: true,
             isFreeDefault: false,
@@ -217,7 +217,7 @@ describe('LLM Config API Contract Tests', () => {
             model: 'anthropic/claude-sonnet-4',
             provider: 'openrouter',
             supportsVision: true,
-            kind: 'vision',
+
             isGlobal: false,
             isDefault: false,
             isFreeDefault: false,
@@ -248,7 +248,7 @@ describe('LLM Config API Contract Tests', () => {
           description: 'A custom preset',
           model: 'anthropic/claude-sonnet-4',
           provider: 'openrouter',
-          kind: 'text',
+
           isGlobal: false,
           isDefault: false,
           isFreeDefault: false,
@@ -393,21 +393,6 @@ describe('LLM Config API Contract Tests', () => {
       expect(result.success).toBe(true);
     });
 
-    it('kind is optional (omitted → undefined) and accepts a valid kind', () => {
-      const omitted = LlmConfigCreateSchema.safeParse(validCreateInput);
-      expect(omitted.success).toBe(true);
-      expect(omitted.success && omitted.data.kind).toBeUndefined();
-
-      const vision = LlmConfigCreateSchema.safeParse({ ...validCreateInput, kind: 'vision' });
-      expect(vision.success).toBe(true);
-      expect(vision.success && vision.data.kind).toBe('vision');
-    });
-
-    it('rejects an unknown kind', () => {
-      const result = LlmConfigCreateSchema.safeParse({ ...validCreateInput, kind: 'audio' });
-      expect(result.success).toBe(false);
-    });
-
     it('should validate complete create input with all optional fields', () => {
       const completeInput = {
         ...validCreateInput,
@@ -531,13 +516,6 @@ describe('LLM Config API Contract Tests', () => {
       expect(result.success).toBe(true);
     });
 
-    it('does not carry kind — it is immutable (any supplied kind is stripped)', () => {
-      const result = LlmConfigUpdateSchema.safeParse({ name: 'X', kind: 'vision' });
-      expect(result.success).toBe(true);
-      // Zod strips unknown keys, so `kind` never reaches the update payload.
-      expect(result.success && 'kind' in result.data).toBe(false);
-    });
-
     it('should validate partial update with single field', () => {
       const updates = [
         { name: 'New Name' },
@@ -651,7 +629,7 @@ describe('LLM Config API Contract Tests', () => {
       description: null,
       provider: 'openrouter',
       model: 'openai/gpt-4o-mini',
-      kind: 'text',
+
       isGlobal: true,
       isDefault: false,
       isFreeDefault: false,
@@ -683,7 +661,7 @@ describe('LLM Config API Contract Tests', () => {
         description: null,
         provider: 'openrouter',
         model: 'openai/gpt-4o-mini',
-        kind: 'text',
+
         isGlobal: true,
         isDefault: false,
         isFreeDefault: false,

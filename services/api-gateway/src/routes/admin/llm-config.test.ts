@@ -191,38 +191,6 @@ describe('Admin LLM Config Routes', () => {
       expect(response.body.configs[1].isOwned).toBe(true);
     });
 
-    it('scopes the list to ?kind=vision', async () => {
-      prisma.llmConfig.findMany.mockResolvedValue([]);
-
-      const response = await request(app).get('/admin/llm-config?kind=vision');
-
-      expect(response.status).toBe(200);
-      expect(prisma.llmConfig.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({ where: expect.objectContaining({ kind: 'vision' }) })
-      );
-    });
-
-    it('accepts ?kind=all and lists both slots (capability-agnostic owner picker)', async () => {
-      prisma.llmConfig.findMany.mockResolvedValue([]);
-
-      const response = await request(app).get('/admin/llm-config?kind=all');
-
-      // `all` is now a valid LIST sentinel (parseConfigKindQueryAllowAll) — the
-      // owner picker fetches both slots in one call. No 400; the admin GLOBAL
-      // scope drops the kind filter entirely (where: {}).
-      expect(response.status).toBe(200);
-      expect(prisma.llmConfig.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({ where: {} })
-      );
-    });
-
-    it('rejects an invalid ?kind= with 400', async () => {
-      const response = await request(app).get('/admin/llm-config?kind=audio');
-
-      expect(response.status).toBe(400);
-      expect(prisma.llmConfig.findMany).not.toHaveBeenCalled();
-    });
-
     it('enriches each list row with supportsVision from the model capabilities', async () => {
       // gpt-4o resolves vision-capable via OpenRouter; glm-4.7 misses OpenRouter
       // and resolves text-only from the z.ai catalog → supportsVision false.
@@ -261,7 +229,6 @@ describe('Admin LLM Config Routes', () => {
           name: 'Vision',
           model: 'openai/gpt-4o',
           provider: 'openrouter',
-          kind: 'text',
           isGlobal: true,
           isDefault: false,
           isFreeDefault: false,
@@ -272,7 +239,6 @@ describe('Admin LLM Config Routes', () => {
           name: 'Text',
           model: 'z-ai/glm-4.7',
           provider: 'openrouter',
-          kind: 'text',
           isGlobal: true,
           isDefault: false,
           isFreeDefault: false,
@@ -292,19 +258,17 @@ describe('Admin LLM Config Routes', () => {
     });
   });
 
-  describe('invalid ?kind= on by-id write routes', () => {
-    // DELETE no longer parses ?kind= (the capability-driven delete guard reads the
-    // AdminSettings pointers, not a kind-scoped flag), so only the kind-parsing write
-    // routes are covered here.
+  describe('invalid ?slot= on by-id write routes', () => {
+    // Only set-default / set-free-default parse ?slot= — edit and delete take
+    // no slot query, so they aren't covered here.
     it.each([
-      { path: '/admin/llm-config/cfg-1' },
       { path: '/admin/llm-config/cfg-1/set-default' },
       { path: '/admin/llm-config/cfg-1/set-free-default' },
-    ])('rejects put $path with 400 (kind parsed before any DB work)', async ({ path }) => {
-      const response = await request(app).put(`${path}?kind=audio`);
+    ])('rejects put $path with 400 (slot parsed before any DB work)', async ({ path }) => {
+      const response = await request(app).put(`${path}?slot=audio`);
 
       expect(response.status).toBe(400);
-      // The kind gate runs before the config fetch, so nothing is touched.
+      // The slot gate runs before the config fetch, so nothing is touched.
       expect(prisma.llmConfig.findUnique).not.toHaveBeenCalled();
     });
   });
@@ -335,33 +299,6 @@ describe('Admin LLM Config Routes', () => {
       expect(response.body.config.name).toBe('Default Config');
       expect(response.body.config.isGlobal).toBe(true);
       expect(response.body.config.params).toEqual({ temperature: 0.7 });
-    });
-
-    it('returns a kind=vision config WITHOUT ?kind= (GET by id is kind-agnostic)', async () => {
-      // Unlike the write routes, GET-by-id has no kind gate — the id uniquely
-      // identifies the config, so a vision row is returned on the bare route.
-      prisma.llmConfig.findUnique.mockResolvedValue({
-        id: 'vision-cfg',
-        name: 'Vision Cfg',
-        description: 'vision',
-        model: 'qwen/qwen3-vl-30b-a3b-instruct',
-        provider: 'openrouter',
-        isGlobal: true,
-        isDefault: false,
-        isFreeDefault: false,
-        kind: 'vision',
-        advancedParameters: {},
-        maxMessages: 50,
-        maxAge: null,
-        maxImages: 10,
-        memoryScoreThreshold: { toNumber: () => 0.5 },
-        memoryLimit: 20,
-      });
-
-      const response = await request(app).get('/admin/llm-config/vision-cfg');
-
-      expect(response.status).toBe(200);
-      expect(response.body.config.id).toBe('vision-cfg');
     });
 
     it('should return context settings (maxMessages, maxAge, maxImages)', async () => {
@@ -688,8 +625,8 @@ describe('Admin LLM Config Routes', () => {
 
   describe('PUT /admin/llm-config/:id', () => {
     it('should return 400 when model validation fails on update', async () => {
-      // The config must exist (and pass the kind check) before model validation
-      // runs — validation is now after the row fetch, so mock findUnique.
+      // The config must exist before model validation runs — validation is
+      // after the row fetch, so mock findUnique.
       prisma.llmConfig.findUnique.mockResolvedValue({
         id: 'config-id',
         name: 'Existing',
@@ -748,61 +685,6 @@ describe('Admin LLM Config Routes', () => {
         data: { name: 'New Name', model: 'google/gemini-2.0-flash' },
         select: expect.any(Object),
       });
-    });
-
-    it('edits a kind=vision config when ?kind=vision is passed', async () => {
-      // requireKind:vision lets the vision row through the otherwise text-default gate.
-      prisma.llmConfig.findUnique.mockResolvedValue({
-        id: 'vision-cfg',
-        name: 'Vision Cfg',
-        isGlobal: true,
-        kind: 'vision',
-        memoryScoreThreshold: { toNumber: () => 0.5 },
-        memoryLimit: 20,
-      });
-      prisma.llmConfig.update.mockResolvedValue({
-        id: 'vision-cfg',
-        name: 'Vision Cfg',
-        model: 'qwen/qwen3-vl-30b-a3b-instruct',
-        provider: 'openrouter',
-        isGlobal: true,
-        isDefault: false,
-        memoryScoreThreshold: { toNumber: () => 0.5 },
-        memoryLimit: 20,
-      });
-
-      const response = await request(app)
-        .put('/admin/llm-config/vision-cfg?kind=vision')
-        .send({ model: 'qwen/qwen3-vl-30b-a3b-instruct' });
-
-      expect(response.status).toBe(200);
-      expect(prisma.llmConfig.update).toHaveBeenCalledWith({
-        where: { id: 'vision-cfg' },
-        data: { model: 'qwen/qwen3-vl-30b-a3b-instruct' },
-        select: expect.any(Object),
-      });
-    });
-
-    it('rejects a kind-mismatched edit (404) before the model/vision gate runs', async () => {
-      // The row is a TEXT config but the caller claims ?kind=vision. The row
-      // fetch + requireKind must reject (404) BEFORE model validation — otherwise
-      // the vision-capability gate would fire a misleading 400 and leak that the
-      // id exists. Guards the validate-after-fetch ordering.
-      prisma.llmConfig.findUnique.mockResolvedValue({
-        id: 'text-cfg',
-        name: 'Text Cfg',
-        isGlobal: true,
-        kind: 'text',
-        memoryScoreThreshold: { toNumber: () => 0.5 },
-        memoryLimit: 20,
-      });
-
-      const response = await request(app)
-        .put('/admin/llm-config/text-cfg?kind=vision')
-        .send({ model: 'openai/gpt-4o-mini' });
-
-      expect(response.status).toBe(404);
-      expect(prisma.llmConfig.update).not.toHaveBeenCalled();
     });
 
     it('should accept memory settings in update (parity fix)', async () => {
@@ -975,10 +857,9 @@ describe('Admin LLM Config Routes', () => {
       expect(response.body.message).toMatch(/only global/i);
     });
 
-    it('writes the global vision-slot pointer when ?kind=vision and the model is vision-capable', async () => {
-      // The config's own kind is irrelevant now — any vision-capable config can fill
-      // the vision slot. The pointer write targets globalDefaultVisionConfigId, leaving
-      // the chat slot untouched.
+    it('writes the global vision-slot pointer when ?slot=vision and the model is vision-capable', async () => {
+      // Any vision-capable config can fill the vision slot. The pointer write
+      // targets globalDefaultVisionConfigId, leaving the chat slot untouched.
       prisma.llmConfig.findUnique.mockResolvedValue({
         id: 'vision-default',
         name: 'vision-default',
@@ -987,7 +868,7 @@ describe('Admin LLM Config Routes', () => {
       });
 
       const response = await request(buildAppWithVisionCache()).put(
-        '/admin/llm-config/vision-default/set-default?kind=vision'
+        '/admin/llm-config/vision-default/set-default?slot=vision'
       );
 
       expect(response.status).toBe(200);
@@ -997,7 +878,7 @@ describe('Admin LLM Config Routes', () => {
       );
     });
 
-    it('rejects ?kind=vision when the model is not vision-capable', async () => {
+    it('rejects ?slot=vision when the model is not vision-capable', async () => {
       prisma.llmConfig.findUnique.mockResolvedValue({
         id: 'text-only',
         name: 'text-only',
@@ -1006,14 +887,14 @@ describe('Admin LLM Config Routes', () => {
       });
 
       const response = await request(buildAppWithVisionCache()).put(
-        '/admin/llm-config/text-only/set-default?kind=vision'
+        '/admin/llm-config/text-only/set-default?slot=vision'
       );
 
       expect(response.status).toBe(400);
       expect(prisma.adminSettings.upsert).not.toHaveBeenCalled();
     });
 
-    it('rejects ?kind=vision when the model is unknown to the catalog (fail closed)', async () => {
+    it('rejects ?slot=vision when the model is unknown to the catalog (fail closed)', async () => {
       prisma.llmConfig.findUnique.mockResolvedValue({
         id: 'mystery',
         name: 'Mystery',
@@ -1022,7 +903,7 @@ describe('Admin LLM Config Routes', () => {
       });
 
       const response = await request(buildAppWithVisionCache()).put(
-        '/admin/llm-config/mystery/set-default?kind=vision'
+        '/admin/llm-config/mystery/set-default?slot=vision'
       );
 
       expect(response.status).toBe(400);
@@ -1051,7 +932,7 @@ describe('Admin LLM Config Routes', () => {
       );
     });
 
-    it('writes the free vision-slot pointer when ?kind=vision and the model is a free vision model', async () => {
+    it('writes the free vision-slot pointer when ?slot=vision and the model is a free vision model', async () => {
       prisma.llmConfig.findUnique.mockResolvedValue({
         id: 'vision-free',
         name: 'Vision Free',
@@ -1061,7 +942,7 @@ describe('Admin LLM Config Routes', () => {
       });
 
       const response = await request(buildAppWithVisionCache()).put(
-        '/admin/llm-config/vision-free/set-free-default?kind=vision'
+        '/admin/llm-config/vision-free/set-free-default?slot=vision'
       );
 
       expect(response.status).toBe(200);
@@ -1070,7 +951,7 @@ describe('Admin LLM Config Routes', () => {
       );
     });
 
-    it('rejects ?kind=vision when the free model is not vision-capable', async () => {
+    it('rejects ?slot=vision when the free model is not vision-capable', async () => {
       // Passes the :free check but fails the vision capability gate.
       prisma.llmConfig.findUnique.mockResolvedValue({
         id: 'glm-free',
@@ -1080,7 +961,7 @@ describe('Admin LLM Config Routes', () => {
       });
 
       const response = await request(buildAppWithVisionCache()).put(
-        '/admin/llm-config/glm-free/set-free-default?kind=vision'
+        '/admin/llm-config/glm-free/set-free-default?slot=vision'
       );
 
       expect(response.status).toBe(400);
@@ -1349,43 +1230,6 @@ describe('Admin LLM Config Routes', () => {
       expect(prisma.llmConfig.update).not.toHaveBeenCalled();
     });
 
-    it('scopes the rename collision check to the config kind (vision rename ignores a same-named text config)', async () => {
-      // The vision config being renamed.
-      prisma.llmConfig.findUnique.mockResolvedValue({
-        id: 'vision-id',
-        name: 'Old Vision',
-        isGlobal: true,
-        kind: 'vision',
-        memoryScoreThreshold: { toNumber: () => 0.5 },
-        memoryLimit: 20,
-      });
-      // A config named "Foo" exists ONLY in the text namespace. The collision
-      // check must query kind=vision (finds nothing) — before the fix it queried
-      // the text namespace and falsely blocked the rename.
-      prisma.llmConfig.findFirst.mockImplementation((args: { where?: { kind?: string } }) =>
-        Promise.resolve(args?.where?.kind === 'text' ? { id: 'text-foo' } : null)
-      );
-      prisma.llmConfig.update.mockResolvedValue({
-        id: 'vision-id',
-        name: 'Foo',
-        isGlobal: true,
-        kind: 'vision',
-        memoryScoreThreshold: { toNumber: () => 0.5 },
-        memoryLimit: 20,
-      });
-
-      const response = await request(app)
-        .put('/admin/llm-config/vision-id?kind=vision')
-        .send({ name: 'Foo' });
-
-      // Vision namespace has no "Foo" → rename allowed (not the false 400).
-      expect(response.status).toBe(200);
-      // The collision query was scoped to the vision namespace, not text.
-      expect(prisma.llmConfig.findFirst).toHaveBeenCalledWith(
-        expect.objectContaining({ where: expect.objectContaining({ kind: 'vision' }) })
-      );
-    });
-
     it('should allow keeping the same name (no duplicate check against self)', async () => {
       prisma.llmConfig.findUnique.mockResolvedValue({
         id: 'config-id',
@@ -1418,7 +1262,6 @@ describe('Admin LLM Config Routes', () => {
       expect(prisma.llmConfig.findFirst).toHaveBeenCalledWith({
         where: {
           isGlobal: true,
-          kind: 'text',
           name: 'Same Name',
           id: { not: 'config-id' },
         },
@@ -1495,7 +1338,6 @@ describe('Admin LLM Config Routes', () => {
         id: 'config-id',
         name: 'Free Config',
         isGlobal: true,
-        kind: 'text',
         model: 'meta-llama/llama-3.3-70b-instruct:free',
         provider: 'openrouter',
         memoryScoreThreshold: { toNumber: () => 0.5 },

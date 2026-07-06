@@ -201,7 +201,7 @@ async function initializeServices(prisma: PrismaClient): Promise<ServicesContext
   // moment a user's LLM config changes, closing the cache-TTL window where a job
   // could otherwise be stamped with the pre-change model.
   const llmConfigResolver = new LlmConfigResolver(prisma);
-  // Vision configs ARE LlmConfig rows (kind='vision'), so they share the SAME
+  // Vision slots point at LlmConfig rows in the same table, so they share the SAME
   // cache-invalidation pub/sub as text configs — a preset/config edit must clear the
   // vision resolver's cache (incl. its global-default slot) too.
   const visionConfigResolver = new VisionConfigResolver(prisma);

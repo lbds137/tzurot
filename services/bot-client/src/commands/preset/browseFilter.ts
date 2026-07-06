@@ -9,20 +9,20 @@
  * the encoding; everything else passes the composite around verbatim.
  */
 
-import { CONFIG_KINDS } from '@tzurot/common-types/constants/ai';
+import { MODEL_SLOTS } from '@tzurot/common-types/constants/ai';
 
 // Single source of truth for each axis: the runtime arrays drive the types
 // (`typeof[number]`) AND the customId factory's validation, so the two can't
 // drift. Adding a scope/capability value here updates both with no second edit.
 const PRESET_SCOPE_FILTERS = ['all', 'global', 'mine', 'free'] as const;
-// The capability values reuse CONFIG_KINDS ('text'/'vision') as the encoded
+// The capability values reuse MODEL_SLOTS ('text'/'vision') as the encoded
 // tokens so the customId format is unchanged from when this axis was a config
-// `kind` — but they're now interpreted as a model-capability filter, not a kind.
-const PRESET_CAPABILITY_FILTERS = ['all', ...CONFIG_KINDS] as const;
+// `kind` — but they're now interpreted as a model-capability filter.
+const PRESET_CAPABILITY_FILTERS = ['all', ...MODEL_SLOTS] as const;
 
 /** Scope axis of the browse filter (independent of capability). */
 export type PresetScopeFilter = (typeof PRESET_SCOPE_FILTERS)[number];
-/** Capability axis — `'all'` means no capability filter (derived from CONFIG_KINDS). */
+/** Capability axis — `'all'` means no capability filter (derived from MODEL_SLOTS). */
 export type PresetCapabilityFilter = (typeof PRESET_CAPABILITY_FILTERS)[number];
 
 /**

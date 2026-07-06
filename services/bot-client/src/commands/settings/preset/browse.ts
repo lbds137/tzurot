@@ -33,20 +33,20 @@ const presetOverrideConfig: OverrideBrowseConfig = {
   clearCommandHint: '/settings preset clear',
   selectPlaceholder: 'Select an override to clear…',
   logger,
-  // One all-kinds call: the gateway emits a row per non-null FK, each tagged with
-  // its kind, so a character with both a text + a vision override surfaces as two
-  // rows that badge and clear independently. (`kind` is nullable on the summary to
-  // mirror `configId`, but all-kinds rows always carry it — coerce null → undefined.)
+  // One all-slots call: the gateway emits a row per non-null FK, each tagged with
+  // its slot, so a character with both a text + a vision override surfaces as two
+  // rows that badge and clear independently. (`slot` is nullable on the summary to
+  // mirror `configId`, but all-slots rows always carry it — coerce null → undefined.)
   list: async userClient => {
-    const result = await userClient.listModelOverrides({ kind: 'all' });
+    const result = await userClient.listModelOverrides({ slot: 'all' });
     if (!result.ok) {
       logger.warn({ status: result.status }, 'Failed to list preset overrides');
       return null;
     }
-    return result.data.overrides.map(o => ({ ...o, kind: o.kind ?? undefined }));
+    return result.data.overrides.map(o => ({ ...o, slot: o.slot ?? undefined }));
   },
-  delete: (userClient, personalityId, kind) =>
-    userClient.deleteModelOverride(personalityId, { kind }),
+  delete: (userClient, personalityId, slot) =>
+    userClient.deleteModelOverride(personalityId, { slot }),
 };
 
 const presetOverrideIds = createOverrideBrowseCustomIds(PRESET_OVERRIDE_PREFIX);

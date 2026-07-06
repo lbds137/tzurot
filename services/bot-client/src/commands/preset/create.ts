@@ -45,7 +45,7 @@ const logger = createLogger('preset-create');
  * because this subcommand uses deferralMode: 'modal'.
  */
 export async function handleCreate(context: ModalCommandContext): Promise<void> {
-  // No kind/slot: a preset's vision-capability is derived from its model
+  // No slot option: a preset's vision-capability is derived from its model
   // (`supportsVision`), not chosen at creation. The vision SLOT is picked later
   // when the preset is assigned (set/set-default/global).
   const modal = new ModalBuilder()

@@ -2,11 +2,10 @@
  * Clone-name collision resolution for LLM config presets.
  *
  * Extracted from LlmConfigService (keeps that file under the max-lines limit).
- * Self-contained: a name-walk over the owner's existing configs of a given kind,
+ * Self-contained: a name-walk over the owner's existing configs,
  * with no service state beyond the injected Prisma client.
  */
 
-import { type ConfigKind } from '@tzurot/common-types/constants/ai';
 import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import { generateClonedName, stripCopySuffix } from '@tzurot/common-types/utils/presetCloneName';
 import { CloneNameExhaustedError } from './LlmConfigErrors.js';
@@ -20,7 +19,7 @@ export const MAX_CLONE_NAME_ATTEMPTS = 20;
 
 /**
  * Find a name that doesn't collide with any existing config owned by the same
- * user (of the given `kind`), starting from `baseName` and bumping `(Copy N)`
+ * user, starting from `baseName` and bumping `(Copy N)`
  * suffixes via `generateClonedName` until a free slot is found.
  *
  * Uses a single SELECT to enumerate all variants (base, `base (Copy)`,
@@ -34,8 +33,7 @@ export const MAX_CLONE_NAME_ATTEMPTS = 20;
 export async function resolveNonCollidingName(
   prisma: PrismaClient,
   baseName: string,
-  ownerId: string,
-  kind: ConfigKind
+  ownerId: string
 ): Promise<string> {
   const stripped = stripCopySuffix(baseName);
 
@@ -66,7 +64,6 @@ export async function resolveNonCollidingName(
   const existing = await prisma.llmConfig.findMany({
     where: {
       ownerId,
-      kind,
       OR: [
         { name: stripped },
         { name: { startsWith: `${stripped} (Copy)`, mode: 'insensitive' } },

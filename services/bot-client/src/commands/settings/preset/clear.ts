@@ -3,8 +3,8 @@
  * Handles /settings preset clear subcommand
  */
 
+import { toModelSlot } from '@tzurot/common-types/constants/ai';
 import { settingsPresetClearOptions } from '@tzurot/common-types/generated/commandOptions';
-import { toConfigKind } from '@tzurot/common-types/services/LlmConfigMapper';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
 import {
@@ -26,8 +26,8 @@ export async function handleClear(context: DeferredCommandContext): Promise<void
   // No slot → clear BOTH slots (`all`); an explicit slot clears just that one.
   // A vision override is a separate FK from the text override, so a no-slot
   // clear has to target both or it silently leaves the other in place.
-  const slot = options.slot();
-  const kind = slot !== null ? toConfigKind(slot) : 'all';
+  const slotOption = options.slot();
+  const slot = slotOption !== null ? toModelSlot(slotOption) : 'all';
 
   if (isAutocompleteErrorSentinel(personalityId)) {
     await context.editReply({ content: AUTOCOMPLETE_UNAVAILABLE_MESSAGE });
@@ -36,7 +36,7 @@ export async function handleClear(context: DeferredCommandContext): Promise<void
 
   try {
     const { userClient } = clientsFor(context.interaction);
-    const result = await userClient.deleteModelOverride(personalityId, { kind });
+    const result = await userClient.deleteModelOverride(personalityId, { slot });
 
     if (!result.ok) {
       logger.warn({ userId, status: result.status, personalityId }, 'Failed to clear override');
@@ -59,7 +59,7 @@ export async function handleClear(context: DeferredCommandContext): Promise<void
 
     await context.editReply({ embeds: [embed] });
 
-    logger.info({ userId, personalityId, kind, wasSet }, 'Cleared override');
+    logger.info({ userId, personalityId, slot, wasSet }, 'Cleared override');
   } catch (error) {
     logger.error({ err: error, userId, command: 'Preset Clear' }, 'Error');
     await context.editReply({ content: '❌ An error occurred. Please try again later.' });

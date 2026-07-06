@@ -76,7 +76,7 @@ async function handlePresetAutocomplete(
   // so the suggestion list doesn't reorder when the user flips Chat ↔ Vision.
   const { userClient } = clientsFor(interaction);
   const [configResult, walletResult] = await Promise.all([
-    userClient.listUserLlmConfigs({ kind: 'all' }),
+    userClient.listUserLlmConfigs(),
     userClient.listWalletKeys(),
   ]);
 

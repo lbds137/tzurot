@@ -44,13 +44,13 @@ describe('handleClearDefault', () => {
     mockEditReply.mockResolvedValue(undefined);
   });
 
-  function createMockContext(kind?: string) {
+  function createMockContext(slot?: string) {
     return {
       user: { id: '123456789', username: 'testuser' },
       interaction: {
-        // The `kind` option is optional (null → handler defaults to text).
+        // The `slot` option is optional (null → handler clears both slots).
         options: {
-          getString: (_name: string, _required?: boolean) => kind ?? null,
+          getString: (_name: string, _required?: boolean) => slot ?? null,
         },
       } as never,
       editReply: mockEditReply,
@@ -62,15 +62,15 @@ describe('handleClearDefault', () => {
 
     await handleClearDefault(createMockContext());
 
-    expect(stub.clearDefaultModelConfig).toHaveBeenCalledWith({ kind: 'all' });
+    expect(stub.clearDefaultModelConfig).toHaveBeenCalledWith({ slot: 'all' });
   });
 
-  it('should clear the vision default when kind=vision', async () => {
+  it('should clear the vision default when slot=vision', async () => {
     stub.clearDefaultModelConfig.mockResolvedValue(makeOk(mockClearDefaultConfigResponse()));
 
     await handleClearDefault(createMockContext('vision'));
 
-    expect(stub.clearDefaultModelConfig).toHaveBeenCalledWith({ kind: 'vision' });
+    expect(stub.clearDefaultModelConfig).toHaveBeenCalledWith({ slot: 'vision' });
     // The vision path completes through to the success embed, same as text.
     expect(mockEditReply).toHaveBeenCalledWith({
       embeds: [

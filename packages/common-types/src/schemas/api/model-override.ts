@@ -10,7 +10,7 @@
  */
 
 import { z } from 'zod';
-import { CONFIG_KINDS } from '../../constants/ai.js';
+import { MODEL_SLOTS } from '../../constants/ai.js';
 
 // ============================================================================
 // Shared Sub-schemas
@@ -25,17 +25,17 @@ export const ModelOverrideSummarySchema = z.object({
   configId: z.string().nullable(),
   configName: z.string().nullable(),
   /**
-   * Config kind of the override (text | vision). Nullable to match `configId`:
-   * null when there's no override; set when one exists. The all-kinds list emits
-   * one row per kind, so browse can badge + carry the kind through clear.
+   * Which model slot the override occupies (text | vision). Nullable to match
+   * `configId`: null when there's no override; set when one exists. The all-slots
+   * list emits one row per slot, so browse can badge + carry the slot through clear.
    */
-  kind: z.enum(CONFIG_KINDS).nullable(),
+  slot: z.enum(MODEL_SLOTS).nullable(),
   /**
    * Whether the override's config MODEL supports vision — sourced live from the
-   * model's capabilities (OpenRouter-authoritative → z.ai catalog), NOT from
-   * `kind`. This is the capability-driven signal the override-browse 👁 badge
-   * uses (mirrors `LlmConfigSummary.supportsVision`). `false` when capability is
-   * unknown (fail-closed). Populated by the override-list route, not the schema.
+   * model's capabilities (OpenRouter-authoritative → z.ai catalog). This is the
+   * capability-driven signal the override-browse 👁 badge uses (mirrors
+   * `LlmConfigSummary.supportsVision`). `false` when capability is unknown
+   * (fail-closed). Populated by the override-list route, not the schema.
    */
   supportsVision: z.boolean(),
 });

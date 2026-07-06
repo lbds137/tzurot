@@ -102,7 +102,6 @@ const sampleConfigDetail = {
   description: 'A test config',
   model: 'anthropic/claude-sonnet-4',
   provider: 'openrouter',
-  kind: 'text',
   isGlobal: true,
   isDefault: false,
   isFreeDefault: false,
@@ -151,24 +150,6 @@ describe('LlmConfigService', () => {
 
       expect(result).toBeNull();
     });
-
-    it('returns the config when expectedKind matches the row kind', async () => {
-      prisma.llmConfig.findUnique.mockResolvedValue(sampleConfigDetail); // kind: 'text'
-
-      const result = await service.getById('config-123', 'text');
-
-      expect(result).toEqual(sampleConfigDetail);
-    });
-
-    it('returns null when expectedKind does NOT match the row kind (cross-kind gate)', async () => {
-      prisma.llmConfig.findUnique.mockResolvedValue(sampleConfigDetail); // kind: 'text'
-
-      // Asking for a vision config by an id that resolves to a text row → null,
-      // so a vision-scoped route never returns a text row (and vice versa).
-      const result = await service.getById('config-123', 'vision');
-
-      expect(result).toBeNull();
-    });
   });
 
   describe('list', () => {
@@ -207,12 +188,12 @@ describe('LlmConfigService', () => {
       // First call: global configs
       expect(prisma.llmConfig.findMany).toHaveBeenNthCalledWith(
         1,
-        expect.objectContaining({ where: { isGlobal: true, kind: 'text' } })
+        expect.objectContaining({ where: { isGlobal: true } })
       );
       // Second call: user's own configs
       expect(prisma.llmConfig.findMany).toHaveBeenNthCalledWith(
         2,
-        expect.objectContaining({ where: { ownerId: 'user-123', isGlobal: false, kind: 'text' } })
+        expect.objectContaining({ where: { ownerId: 'user-123', isGlobal: false } })
       );
     });
 
@@ -258,33 +239,6 @@ describe('LlmConfigService', () => {
       const result = await service.list({ type: 'GLOBAL' });
 
       expect(result[0].isDefault).toBe(true);
-    });
-
-    it('scopes the query to the requested kind (defaults to text; vision when asked)', async () => {
-      prisma.llmConfig.findMany.mockResolvedValue([]);
-
-      await service.list({ type: 'GLOBAL' }); // default kind
-      expect(prisma.llmConfig.findMany).toHaveBeenLastCalledWith(
-        expect.objectContaining({ where: { kind: 'text' } })
-      );
-
-      await service.list({ type: 'GLOBAL' }, 'vision');
-      expect(prisma.llmConfig.findMany).toHaveBeenLastCalledWith(
-        expect.objectContaining({ where: { kind: 'vision' } })
-      );
-    });
-
-    it("omits the kind filter entirely for the 'all' sentinel (both kinds)", async () => {
-      prisma.llmConfig.findMany.mockResolvedValue([]);
-
-      await service.list({ type: 'GLOBAL' }, 'all');
-
-      // The 'all' sentinel drops the `kind` predicate from the where clause
-      // (vs. the text/vision cases above which pin it) → both kinds returned.
-      const lastCall = prisma.llmConfig.findMany.mock.calls.at(-1)?.[0] as {
-        where: Record<string, unknown>;
-      };
-      expect(lastCall.where).not.toHaveProperty('kind');
     });
   });
 
@@ -348,20 +302,6 @@ describe('LlmConfigService', () => {
             ownerId: 'user-123',
           }),
         })
-      );
-    });
-
-    it('stamps kind: defaults to text, honors an explicit vision kind', async () => {
-      prisma.llmConfig.create.mockResolvedValue(sampleConfigDetail);
-
-      await service.create({ type: 'GLOBAL' }, { name: 'T', model: 'm' }, 'owner');
-      expect(prisma.llmConfig.create).toHaveBeenLastCalledWith(
-        expect.objectContaining({ data: expect.objectContaining({ kind: 'text' }) })
-      );
-
-      await service.create({ type: 'GLOBAL' }, { name: 'V', model: 'm', kind: 'vision' }, 'owner');
-      expect(prisma.llmConfig.create).toHaveBeenLastCalledWith(
-        expect.objectContaining({ data: expect.objectContaining({ kind: 'vision' }) })
       );
     });
 
@@ -720,7 +660,7 @@ describe('LlmConfigService', () => {
 
   describe('setAsDefault', () => {
     // The slot (chat vs vision) is the caller's choice — it writes the matching
-    // pointer on the AdminSettings singleton, NOT a per-kind flag. The route layer
+    // pointer on the AdminSettings singleton, NOT a flag on the config row. The route layer
     // verifies the config exists + capability-gates the vision slot before this runs.
     it('writes the global chat-slot pointer for slot=text', async () => {
       await service.setAsDefault('config-123', 'text');
@@ -775,7 +715,7 @@ describe('LlmConfigService', () => {
 
       expect(result).toEqual({ exists: false });
       expect(prisma.llmConfig.findFirst).toHaveBeenCalledWith({
-        where: { name: 'Test Name', isGlobal: true, kind: 'text' },
+        where: { name: 'Test Name', isGlobal: true },
         select: { id: true },
       });
     });
@@ -788,7 +728,7 @@ describe('LlmConfigService', () => {
 
       expect(result).toEqual({ exists: true, conflictId: 'existing-config' });
       expect(prisma.llmConfig.findFirst).toHaveBeenCalledWith({
-        where: { name: 'Test Name', ownerId: 'user-123', kind: 'text' },
+        where: { name: 'Test Name', ownerId: 'user-123' },
         select: { id: true },
       });
     });
@@ -802,7 +742,6 @@ describe('LlmConfigService', () => {
         where: {
           name: 'Test Name',
           isGlobal: true,
-          kind: 'text',
           id: { not: 'current-config-id' },
         },
         select: { id: true },
@@ -822,10 +761,10 @@ describe('LlmConfigService', () => {
 
       expect(result).toEqual({ exists: true, conflictId: 'someone-elses-global' });
       expect(prisma.llmConfig.findFirst).toHaveBeenCalledTimes(2);
-      // Second call queries the global namespace (kind='text' mirrors the
-      // per-kind partial-unique index it pre-empts)
+      // Second call queries the global namespace (mirrors the partial-unique
+      // index it pre-empts: UNIQUE (name) WHERE is_global)
       expect(prisma.llmConfig.findFirst).toHaveBeenNthCalledWith(2, {
-        where: { name: 'MyVoice-bob', isGlobal: true, kind: 'text' },
+        where: { name: 'MyVoice-bob', isGlobal: true },
         select: { id: true },
       });
     });
@@ -852,7 +791,7 @@ describe('LlmConfigService', () => {
 
       expect(prisma.llmConfig.findFirst).toHaveBeenCalledTimes(1);
       expect(prisma.llmConfig.findFirst).toHaveBeenCalledWith({
-        where: { name: 'Test Name', ownerId: 'user-123', kind: 'text' },
+        where: { name: 'Test Name', ownerId: 'user-123' },
         select: { id: true },
       });
     });
@@ -935,7 +874,6 @@ describe('LlmConfigService', () => {
         description: 'A test config',
         model: 'anthropic/claude-sonnet-4',
         provider: 'openrouter',
-        kind: 'text',
         isGlobal: true,
         // isDefault/isFreeDefault are intentionally NOT on the detail response —
         // default-ness is an AdminSettings pointer relationship, carried on the

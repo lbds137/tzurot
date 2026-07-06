@@ -200,7 +200,7 @@ describe('/user/model-override routes', () => {
               personalityName: 'Lilith',
               configId: '22222222-2222-4222-a222-222222222222',
               configName: 'GPT-4 Config',
-              kind: 'text',
+              slot: 'text',
               supportsVision: false,
             },
           ],
@@ -402,14 +402,14 @@ describe('/user/model-override routes', () => {
             personalityName: 'Lilith',
             configId: '22222222-2222-4222-a222-222222222222',
             configName: 'GPT-4',
-            kind: 'text',
+            slot: 'text',
             supportsVision: false,
           },
         })
       );
     });
 
-    it('writes the vision slot when ?kind=vision and the model is vision-capable', async () => {
+    it('writes the vision slot when ?slot=vision and the model is vision-capable', async () => {
       mockPrisma.personality.findFirst.mockResolvedValue({
         id: '11111111-1111-4111-a111-111111111111',
         name: 'Lilith',
@@ -443,7 +443,7 @@ describe('/user/model-override routes', () => {
           configId: '22222222-2222-4222-a222-222222222222',
         },
         {},
-        { kind: 'vision' }
+        { slot: 'vision' }
       );
 
       await handler(req, res);
@@ -459,11 +459,11 @@ describe('/user/model-override routes', () => {
       );
       expect(res.status).toHaveBeenCalledWith(200);
       // supportsVision: true proves the enrichment reads the vision slot's model
-      // (openai/gpt-4o) capability via modelCache — not the kind label — and that
+      // (openai/gpt-4o) capability via modelCache — not the slot label — and that
       // the isVision→visionConfig.model branch is wired correctly.
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
-          override: expect.objectContaining({ kind: 'vision', supportsVision: true }),
+          override: expect.objectContaining({ slot: 'vision', supportsVision: true }),
         })
       );
     });
@@ -496,7 +496,7 @@ describe('/user/model-override routes', () => {
           configId: '22222222-2222-4222-a222-222222222222',
         },
         {},
-        { kind: 'vision' }
+        { slot: 'vision' }
       );
 
       await handler(req, res);
@@ -537,7 +537,7 @@ describe('/user/model-override routes', () => {
           configId: '22222222-2222-4222-a222-222222222222',
         },
         {},
-        { kind: 'vision' }
+        { slot: 'vision' }
       );
 
       await handler(req, res);
@@ -742,7 +742,7 @@ describe('/user/model-override routes', () => {
       );
     });
 
-    it('writes the vision default when ?kind=vision and the model is vision-capable', async () => {
+    it('writes the vision default when ?slot=vision and the model is vision-capable', async () => {
       mockPrisma.llmConfig.findFirst.mockResolvedValue({
         id: '22222222-2222-4222-a222-222222222222',
         name: 'GPT-4o',
@@ -763,7 +763,7 @@ describe('/user/model-override routes', () => {
       const { req, res } = createMockReqRes(
         { configId: '22222222-2222-4222-a222-222222222222' },
         {},
-        { kind: 'vision' }
+        { slot: 'vision' }
       );
 
       await handler(req, res);
@@ -796,7 +796,7 @@ describe('/user/model-override routes', () => {
       const { req, res } = createMockReqRes(
         { configId: '22222222-2222-4222-a222-222222222222' },
         {},
-        { kind: 'vision' }
+        { slot: 'vision' }
       );
 
       await handler(req, res);
@@ -829,7 +829,7 @@ describe('/user/model-override routes', () => {
       const { req, res } = createMockReqRes(
         { configId: '22222222-2222-4222-a222-222222222222' },
         {},
-        { kind: 'vision' }
+        { slot: 'vision' }
       );
 
       await handler(req, res);
@@ -937,7 +937,7 @@ describe('/user/model-override routes', () => {
         expect.objectContaining({
           deleted: true,
           wasSet: false,
-          // No slot arg → kind defaults to text; no admin free default mocked → null.
+          // No slot arg → slot defaults to text; no admin free default mocked → null.
           newEffectiveDefaults: { text: null },
         })
       );
@@ -1106,17 +1106,17 @@ describe('/user/model-override routes', () => {
     });
   });
 
-  describe('vision kind branching', () => {
+  describe('vision slot branching', () => {
     const VISION_CFG = '33333333-3333-4333-a333-333333333333';
     const PERSONALITY = '11111111-1111-4111-a111-111111111111';
 
-    // NOTE: the PUT-set paths (vision slot via `?kind=vision` + capability gate)
+    // NOTE: the PUT-set paths (vision slot via `?slot=vision` + capability gate)
     // are covered above in the `PUT /user/model-override` and `PUT /default`
-    // describe blocks. The slot is now chosen by the request, not derived from
-    // `config.kind`, so those write tests live with the rest of the set-handler
-    // coverage. The read/clear `?kind=` scoping below is what this block exercises.
+    // describe blocks. The slot is chosen by the request, so those write tests
+    // live with the rest of the set-handler coverage. The read/clear `?slot=`
+    // scoping below is what this block exercises.
 
-    it('GET /default?kind=vision returns the vision default (text default ignored)', async () => {
+    it('GET /default?slot=vision returns the vision default (text default ignored)', async () => {
       mockPrisma.user.findUnique.mockResolvedValue({
         defaultLlmConfigId: 'text-cfg',
         defaultLlmConfig: { name: 'Text' },
@@ -1126,7 +1126,7 @@ describe('/user/model-override routes', () => {
 
       const router = createModelOverrideRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'get', '/default');
-      const { req, res } = createMockReqRes({}, {}, { kind: 'vision' });
+      const { req, res } = createMockReqRes({}, {}, { slot: 'vision' });
 
       await handler(req, res);
 
@@ -1137,7 +1137,7 @@ describe('/user/model-override routes', () => {
       );
     });
 
-    it('DELETE /default?kind=vision clears only the vision default + scopes the free fallback', async () => {
+    it('DELETE /default?slot=vision clears only the vision default + scopes the free fallback', async () => {
       mockPrisma.user.findUnique.mockResolvedValue({
         defaultLlmConfigId: 'text-cfg',
         defaultVisionConfigId: VISION_CFG,
@@ -1150,7 +1150,7 @@ describe('/user/model-override routes', () => {
 
       const router = createModelOverrideRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'delete', '/default');
-      const { req, res } = createMockReqRes({}, {}, { kind: 'vision' });
+      const { req, res } = createMockReqRes({}, {}, { slot: 'vision' });
 
       await handler(req, res);
 
@@ -1161,7 +1161,7 @@ describe('/user/model-override routes', () => {
         where: { id: 'user-uuid-123' },
         data: { defaultVisionConfigId: null },
       });
-      // The fallback resolves the VISION free-default POINTER (cleared kind=vision).
+      // The fallback resolves the VISION free-default POINTER (cleared slot=vision).
       // Exactly once — the text slot is NOT resolved (the "clears only vision" contract).
       expect(mockPrisma.llmConfig.findUnique).toHaveBeenCalledTimes(1);
       expect(mockPrisma.llmConfig.findUnique).toHaveBeenCalledWith({
@@ -1177,7 +1177,7 @@ describe('/user/model-override routes', () => {
       );
     });
 
-    it('GET /?kind=vision lists vision overrides', async () => {
+    it('GET /?slot=vision lists vision overrides', async () => {
       mockPrisma.userPersonalityConfig.findMany.mockResolvedValue([
         {
           personalityId: PERSONALITY,
@@ -1191,7 +1191,7 @@ describe('/user/model-override routes', () => {
 
       const router = createModelOverrideRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'get', '/');
-      const { req, res } = createMockReqRes({}, {}, { kind: 'vision' });
+      const { req, res } = createMockReqRes({}, {}, { slot: 'vision' });
 
       await handler(req, res);
 
@@ -1207,7 +1207,7 @@ describe('/user/model-override routes', () => {
       );
     });
 
-    it('GET /?kind=all emits one kind-tagged row per non-null FK (both on one personality)', async () => {
+    it('GET /?slot=all emits one slot-tagged row per non-null FK (both on one personality)', async () => {
       mockPrisma.userPersonalityConfig.findMany.mockResolvedValue([
         {
           personalityId: PERSONALITY,
@@ -1221,11 +1221,11 @@ describe('/user/model-override routes', () => {
 
       const router = createModelOverrideRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'get', '/');
-      const { req, res } = createMockReqRes({}, {}, { kind: 'all' });
+      const { req, res } = createMockReqRes({}, {}, { slot: 'all' });
 
       await handler(req, res);
 
-      // All-kinds query matches a row with EITHER FK set (not a single-kind filter).
+      // All-slots query matches a row with EITHER FK set (not a single-slot filter).
       expect(mockPrisma.userPersonalityConfig.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({
@@ -1233,7 +1233,7 @@ describe('/user/model-override routes', () => {
           }),
         })
       );
-      // One personality with both FKs → two rows, each tagged with its kind.
+      // One personality with both FKs → two rows, each tagged with its slot.
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
           overrides: [
@@ -1242,7 +1242,7 @@ describe('/user/model-override routes', () => {
               personalityName: 'Lilith',
               configId: 'text-cfg',
               configName: 'Text Cfg',
-              kind: 'text',
+              slot: 'text',
               supportsVision: false,
             },
             {
@@ -1250,7 +1250,7 @@ describe('/user/model-override routes', () => {
               personalityName: 'Lilith',
               configId: VISION_CFG,
               configName: 'Vision Cfg',
-              kind: 'vision',
+              slot: 'vision',
               supportsVision: false,
             },
           ],
@@ -1258,7 +1258,7 @@ describe('/user/model-override routes', () => {
       );
     });
 
-    it('DELETE /:personalityId?kind=vision clears only the vision override', async () => {
+    it('DELETE /:personalityId?slot=vision clears only the vision override', async () => {
       mockPrisma.userPersonalityConfig.findFirst.mockResolvedValue({
         id: 'upc-1',
         llmConfigId: 'text-cfg',
@@ -1268,7 +1268,7 @@ describe('/user/model-override routes', () => {
 
       const router = createModelOverrideRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'delete', '/:personalityId');
-      const { req, res } = createMockReqRes({}, { personalityId: PERSONALITY }, { kind: 'vision' });
+      const { req, res } = createMockReqRes({}, { personalityId: PERSONALITY }, { slot: 'vision' });
 
       await handler(req, res);
 
@@ -1281,7 +1281,7 @@ describe('/user/model-override routes', () => {
       expect(res.status).toHaveBeenCalledWith(200);
     });
 
-    it('DELETE /default?kind=all clears BOTH defaults in one update', async () => {
+    it('DELETE /default?slot=all clears BOTH defaults in one update', async () => {
       mockPrisma.user.findUnique.mockResolvedValue({
         defaultLlmConfigId: 'text-cfg',
         defaultVisionConfigId: VISION_CFG,
@@ -1298,7 +1298,7 @@ describe('/user/model-override routes', () => {
 
       const router = createModelOverrideRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'delete', '/default');
-      const { req, res } = createMockReqRes({}, {}, { kind: 'all' });
+      const { req, res } = createMockReqRes({}, {}, { slot: 'all' });
 
       await handler(req, res);
 
@@ -1320,7 +1320,7 @@ describe('/user/model-override routes', () => {
       expect(res.status).toHaveBeenCalledWith(200);
     });
 
-    it('DELETE /:personalityId?kind=all clears BOTH override slots in one update', async () => {
+    it('DELETE /:personalityId?slot=all clears BOTH override slots in one update', async () => {
       mockPrisma.userPersonalityConfig.findFirst.mockResolvedValue({
         id: 'upc-1',
         llmConfigId: 'text-cfg',
@@ -1330,7 +1330,7 @@ describe('/user/model-override routes', () => {
 
       const router = createModelOverrideRoutes({ prisma: mockPrisma as unknown as PrismaClient });
       const handler = getHandler(router, 'delete', '/:personalityId');
-      const { req, res } = createMockReqRes({}, { personalityId: PERSONALITY }, { kind: 'all' });
+      const { req, res } = createMockReqRes({}, { personalityId: PERSONALITY }, { slot: 'all' });
 
       await handler(req, res);
 

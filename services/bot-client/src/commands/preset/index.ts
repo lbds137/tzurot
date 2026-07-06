@@ -198,7 +198,7 @@ export default defineCommand({
         )
     )
     .addSubcommand(subcommand =>
-      // No kind/slot option: a preset's vision-capability is derived from its
+      // No slot option: a preset's vision-capability is derived from its
       // model (`supportsVision`), not chosen at creation. The vision SLOT is
       // picked later when the preset is assigned (set/set-default/global).
       subcommand.setName('create').setDescription('Create a new model preset')

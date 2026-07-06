@@ -188,10 +188,6 @@ model LlmConfig {
   id                                String                           @id @db.Uuid
   name                              String                           @db.Citext
   description                       String?
-  /// Discriminates text-model presets (kind='text') from vision-model presets
-  /// (kind='vision'). A vision config's `model` field IS the vision model — there is no
-  /// nested vision field. Per-kind defaults are enforced by partial unique indexes.
-  kind                              String                           @default("text") @db.VarChar(10)
   ownerId                           String                           @map("owner_id") @db.Uuid
   isGlobal                          Boolean                          @default(false) @map("is_global")
   provider                          String                           @default("openrouter") @db.VarChar(20)
@@ -227,7 +223,6 @@ model LlmConfig {
   @@unique([ownerId, name], map: "llm_configs_owner_id_name_key")
   @@index([ownerId])
   @@index([isGlobal])
-  @@index([kind])
   @@map("llm_configs")
 }
 

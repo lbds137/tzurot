@@ -13,7 +13,6 @@ describe('LlmConfigMapper', () => {
   describe('LLM_CONFIG_SELECT', () => {
     it('should include all required fields', () => {
       expect(LLM_CONFIG_SELECT.model).toBe(true);
-      expect(LLM_CONFIG_SELECT.kind).toBe(true);
       expect(LLM_CONFIG_SELECT.advancedParameters).toBe(true);
       expect(LLM_CONFIG_SELECT.memoryScoreThreshold).toBe(true);
       expect(LLM_CONFIG_SELECT.memoryLimit).toBe(true);
@@ -39,7 +38,6 @@ describe('LlmConfigMapper', () => {
     const createRaw = (overrides: Partial<RawLlmConfigFromDb> = {}): RawLlmConfigFromDb => ({
       model: 'openai/gpt-4',
       provider: 'openrouter',
-      kind: 'text',
       advancedParameters: null,
       memoryScoreThreshold: null,
       memoryLimit: null,
@@ -55,7 +53,6 @@ describe('LlmConfigMapper', () => {
       const result = mapLlmConfigFromDb(raw);
 
       expect(result.model).toBe('openai/gpt-4');
-      expect(result.kind).toBe('text');
       expect(result.contextWindowTokens).toBe(128000);
     });
 
@@ -205,7 +202,6 @@ describe('LlmConfigMapper', () => {
         name: 'My Custom Config',
         model: 'openai/gpt-4',
         provider: 'openrouter',
-        kind: 'text',
         advancedParameters: { temperature: 0.7 },
         memoryScoreThreshold: null,
         memoryLimit: 100,
@@ -228,7 +224,6 @@ describe('LlmConfigMapper', () => {
       const raw: RawLlmConfigFromDb = {
         model: 'anthropic/claude-3-sonnet',
         provider: 'openrouter',
-        kind: 'vision',
         advancedParameters: {
           temperature: 0.9,
           top_p: 0.95,
@@ -245,7 +240,6 @@ describe('LlmConfigMapper', () => {
       const result = mapLlmConfigFromDb(raw);
 
       expect(result.model).toBe('anthropic/claude-3-sonnet');
-      expect(result.kind).toBe('vision');
       expect(result.temperature).toBe(0.9);
       expect(result.topP).toBe(0.95);
       expect(result.maxTokens).toBe(4096);
@@ -258,7 +252,6 @@ describe('LlmConfigMapper', () => {
       const raw: RawLlmConfigFromDb = {
         model: 'deepseek/deepseek-r1',
         provider: 'openrouter',
-        kind: 'text',
         advancedParameters: {
           temperature: 1.0, // Required for reasoning models
           max_tokens: 32000,
@@ -293,7 +286,6 @@ describe('LlmConfigMapper', () => {
         name: 'Creative Mode',
         model: 'openai/gpt-4o',
         provider: 'openrouter',
-        kind: 'text',
         advancedParameters: {
           temperature: 1.5,
           frequency_penalty: 0.8,
@@ -314,35 +306,6 @@ describe('LlmConfigMapper', () => {
       // Other params should be undefined for proper cascade merging
       expect(result.topP).toBeUndefined();
       expect(result.maxTokens).toBeUndefined();
-    });
-  });
-
-  describe('kind discriminator', () => {
-    const rawWithKind = (kind: string): RawLlmConfigFromDb => ({
-      model: 'openai/gpt-4',
-      provider: 'openrouter',
-      kind,
-      advancedParameters: null,
-      memoryScoreThreshold: null,
-      memoryLimit: null,
-      contextWindowTokens: 128000,
-      maxMessages: 50,
-      maxAge: null,
-      maxImages: 10,
-    });
-
-    it("maps a 'vision' kind through unchanged", () => {
-      expect(mapLlmConfigFromDb(rawWithKind('vision')).kind).toBe('vision');
-    });
-
-    it("maps a 'text' kind through unchanged", () => {
-      expect(mapLlmConfigFromDb(rawWithKind('text')).kind).toBe('text');
-    });
-
-    it('defaults an unrecognized kind to text (defensive narrowing)', () => {
-      // The DB column is constrained, but an unknown value must not propagate an
-      // invalid discriminator through the resolver cascade — toConfigKind floors it.
-      expect(mapLlmConfigFromDb(rawWithKind('image-not-yet-supported')).kind).toBe('text');
     });
   });
 });

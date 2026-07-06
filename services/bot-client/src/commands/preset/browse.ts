@@ -5,7 +5,7 @@
  * Replaces the old /preset list with enhanced functionality:
  * - Optional query parameter for searching by name/model
  * - Optional scope filter (all, global, mine, free)
- * - Optional kind filter (all, text, vision) — orthogonal to scope
+ * - Optional capability filter (all, text, vision) — orthogonal to scope
  * - Pagination support for larger lists
  */
 
@@ -125,7 +125,7 @@ function buildPresetDescription(preset: LlmConfigSummary, isGuestMode: boolean):
 
 /**
  * Apply the scope + capability axes + search query — all client-side. Browse
- * fetches every config (`kind: 'all'`); capability ('vision'/'text') is a
+ * fetches every config; capability ('vision'/'text') is a
  * model-`supportsVision` check applied here, not a fetch-scope parameter.
  */
 function filterPresets(
@@ -301,13 +301,13 @@ function buildBrowsePage(
 }
 
 /**
- * Fetches all of the user's presets (`kind: 'all'`) in a single call; the
+ * Fetches all of the user's presets in a single call; the
  * capability axis (text/vision) is applied client-side from each row's
- * `supportsVision`, since configs no longer carry a `kind` to fetch-scope by.
+ * `supportsVision` — capability is a model property, not a fetch-scope parameter.
  * Returns null on fetch failure.
  */
 async function fetchPresets(userClient: UserClient): Promise<LlmConfigSummary[] | null> {
-  const result = await userClient.listUserLlmConfigs({ kind: 'all' });
+  const result = await userClient.listUserLlmConfigs();
   if (!result.ok) {
     logger.warn({ status: result.status }, 'Failed to fetch presets');
     return null;

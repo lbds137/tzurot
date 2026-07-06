@@ -12,7 +12,7 @@
  * This eliminates duplication between /admin/llm-config and /user/llm-config routes.
  */
 
-import { type ConfigKind, DEFAULT_CONFIG_KIND } from '@tzurot/common-types/constants/ai';
+import { type ModelSlot } from '@tzurot/common-types/constants/ai';
 import { ADMIN_SETTINGS_SINGLETON_ID } from '@tzurot/common-types/schemas/api/adminSettings';
 import {
   type LlmConfigCreateInput,
@@ -22,7 +22,6 @@ import {
   LLM_CONFIG_DEFAULTS,
 } from '@tzurot/common-types/schemas/api/llm-config';
 import { safeValidateAdvancedParams } from '@tzurot/common-types/schemas/llmAdvancedParams';
-import { toConfigKind } from '@tzurot/common-types/services/LlmConfigMapper';
 import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import { newLlmConfigId } from '@tzurot/common-types/utils/deterministicUuid';
 import { createLogger } from '@tzurot/common-types/utils/logger';
@@ -68,7 +67,6 @@ interface RawConfigList {
   description: string | null;
   provider: string;
   model: string;
-  kind: string;
   isGlobal: boolean;
   ownerId: string;
 }
@@ -89,8 +87,6 @@ interface RawConfigListWithFlags extends RawConfigList {
  * Raw config from Prisma query (detail select).
  */
 interface RawConfigDetail extends RawConfigList {
-  /** Discriminator ('text' | 'vision' | …) — projected by LLM_CONFIG_DETAIL_SELECT for the getById kind-gate; not surfaced in the response. */
-  kind: string;
   advancedParameters: unknown;
   memoryScoreThreshold: { toNumber: () => number };
   memoryLimit: number;
@@ -110,7 +106,6 @@ interface FormattedConfigSummary {
   description: string | null;
   provider: string;
   model: string;
-  kind: ConfigKind;
   isGlobal: boolean;
   isDefault: boolean;
   isFreeDefault: boolean;
@@ -125,7 +120,6 @@ interface FormattedConfigDetail {
   description: string | null;
   provider: string;
   model: string;
-  kind: ConfigKind;
   isGlobal: boolean;
   memoryScoreThreshold: number;
   memoryLimit: number;
@@ -161,25 +155,13 @@ export class LlmConfigService {
   // --------------------------------------------------------------------------
 
   /**
-   * Get a single config by ID.
-   * Returns null if not found, or if `expectedKind` is given and the row is a
-   * different kind (so a text-scoped route never returns a vision row, and vice
-   * versa). Post-fetch check rather than a `findFirst({ id, kind })` query — it
-   * keeps the single-row `findUnique` (and its test mocks) intact while still
-   * closing the cross-kind read gap. `expectedKind` omitted = no kind filter.
+   * Get a single config by ID. Returns null if not found.
    */
-  async getById(configId: string, expectedKind?: ConfigKind): Promise<RawConfigDetail | null> {
-    const config = await this.prisma.llmConfig.findUnique({
+  async getById(configId: string): Promise<RawConfigDetail | null> {
+    return this.prisma.llmConfig.findUnique({
       where: { id: configId },
       select: LLM_CONFIG_DETAIL_SELECT,
     });
-    if (config === null) {
-      return null;
-    }
-    if (expectedKind !== undefined && toConfigKind(config.kind) !== expectedKind) {
-      return null;
-    }
-    return config;
   }
 
   /**
@@ -188,20 +170,11 @@ export class LlmConfigService {
    * - GLOBAL scope: All configs (for admin view)
    * - USER scope: Global configs + user's own configs
    */
-  async list(
-    scope: LlmConfigScope,
-    kind: ConfigKind | 'all' = DEFAULT_CONFIG_KIND
-  ): Promise<RawConfigListWithFlags[]> {
-    // Queries are scoped to the requested `kind` (default 'text'); the `'all'`
-    // sentinel drops the filter so browse can list text + vision in one call
-    // (each row carries `kind` in the summary). The autocomplete picker still
-    // passes an explicit kind so it never mixes kinds.
-    //
+  async list(scope: LlmConfigScope): Promise<RawConfigListWithFlags[]> {
     // Bound note: each findMany is `take: 100`. For USER scope that's two
-    // parallel queries (global + owned), so the merged result can reach 200 —
-    // and `'all'` widens each to both kinds. browse paginates, so a larger set
-    // is fine; a future non-paginating caller should pass an explicit kind.
-    const kindWhere = kind === 'all' ? {} : { kind };
+    // parallel queries (global + owned), so the merged result can reach 200.
+    // browse paginates, so a larger set is fine.
+    //
     // isDefault/isFreeDefault moved to the AdminSettings pointers in S3; the
     // boolean columns are no longer maintained (set-default writes only the
     // pointer), so they're stale. Derive both flags — and the defaults-first
@@ -214,11 +187,10 @@ export class LlmConfigService {
     });
 
     if (scope.type === 'GLOBAL') {
-      // Admin: list all configs of this kind. Base-order by name in the DB; the
+      // Admin: list all configs. Base-order by name in the DB; the
       // defaults-first sort is applied in-app from the derived flags (the DB
       // orderBy can't express pointer membership).
       const configs = await this.prisma.llmConfig.findMany({
-        where: kindWhere,
         select: LLM_CONFIG_LIST_SELECT,
         orderBy: { name: 'asc' },
         take: 100,
@@ -226,16 +198,16 @@ export class LlmConfigService {
       return configs.map(applyDefaultFlags).sort(compareConfigsForList);
     }
 
-    // User scope: Global configs + user's own configs (of this kind)
+    // User scope: Global configs + user's own configs
     const [globalConfigs, userConfigs] = await Promise.all([
       this.prisma.llmConfig.findMany({
-        where: { isGlobal: true, ...kindWhere },
+        where: { isGlobal: true },
         select: LLM_CONFIG_LIST_SELECT,
         orderBy: { name: 'asc' },
         take: 100,
       }),
       this.prisma.llmConfig.findMany({
-        where: { ownerId: scope.userId, isGlobal: false, ...kindWhere },
+        where: { ownerId: scope.userId, isGlobal: false },
         select: LLM_CONFIG_LIST_SELECT,
         orderBy: { name: 'asc' },
         take: 100,
@@ -303,10 +275,9 @@ export class LlmConfigService {
     const isGlobal = scope.type === 'GLOBAL';
     const requestedName = data.name.trim();
 
-    const kind = data.kind ?? DEFAULT_CONFIG_KIND;
     const effectiveName =
       data.autoSuffixOnCollision === true
-        ? await resolveNonCollidingName(this.prisma, requestedName, ownerId, kind)
+        ? await resolveNonCollidingName(this.prisma, requestedName, ownerId)
         : requestedName;
 
     let config;
@@ -322,9 +293,6 @@ export class LlmConfigService {
           // lives entirely on the AdminSettings pointers (S3).
           provider: data.provider ?? LLM_CONFIG_DEFAULTS.provider,
           model: data.model.trim(),
-          // Stamp the requested kind (Zod defaults it to 'text'). Per-kind capability
-          // validation runs in the route handler before create is called.
-          kind,
           advancedParameters: data.advancedParameters ?? undefined,
           // Memory settings — memoryScoreThreshold and memoryLimit are
           // NOT NULL with `@default(0.5)` / `@default(20)` in the schema.
@@ -460,7 +428,7 @@ export class LlmConfigService {
    * Set a config as the global (paid) default for a slot.
    *
    * Writes the per-slot pointer on the AdminSettings singleton — the slot (chat
-   * vs vision) is the caller's choice, NOT the config's `kind`. A config can be
+   * vs vision) is always the caller's choice. A config can be
    * the chat default and the vision default simultaneously (separate pointers).
    * The config's existence and (for the vision slot) capability are validated at
    * the route layer before this is called — an invalid id reaching the upsert
@@ -477,7 +445,7 @@ export class LlmConfigService {
    * @param configId - ID of config to point the slot at
    * @param slot - which default slot to set ('text' = chat, or 'vision')
    */
-  async setAsDefault(configId: string, slot: ConfigKind): Promise<void> {
+  async setAsDefault(configId: string, slot: ModelSlot): Promise<void> {
     const data =
       slot === 'vision'
         ? { globalDefaultVisionConfigId: configId }
@@ -503,7 +471,7 @@ export class LlmConfigService {
    * @param configId - ID of config to point the slot at
    * @param slot - which free-default slot to set ('text' = chat, or 'vision')
    */
-  async setAsFreeDefault(configId: string, slot: ConfigKind): Promise<void> {
+  async setAsFreeDefault(configId: string, slot: ModelSlot): Promise<void> {
     const data =
       slot === 'vision'
         ? { freeDefaultVisionConfigId: configId }
@@ -547,16 +515,16 @@ export class LlmConfigService {
     name: string,
     scope: LlmConfigScope,
     excludeId?: string,
-    postIsGlobal = false,
-    kind: ConfigKind = DEFAULT_CONFIG_KIND
+    postIsGlobal = false
   ): Promise<NameCheckResult> {
     const trimmedName = name.trim();
     const excludeClause = excludeId !== undefined ? { id: { not: excludeId } } : {};
 
     if (scope.type === 'GLOBAL') {
-      // Admin: Check among global configs of this kind only
+      // Admin: check the single global namespace (names are unique per
+      // owner and — via the partial-unique index — across all globals).
       const existing = await this.prisma.llmConfig.findFirst({
-        where: { name: trimmedName, isGlobal: true, kind, ...excludeClause },
+        where: { name: trimmedName, isGlobal: true, ...excludeClause },
         select: { id: true },
       });
       return existing === null ? { exists: false } : { exists: true, conflictId: existing.id };
@@ -567,9 +535,6 @@ export class LlmConfigService {
     const ownClause: Record<string, unknown> = {
       name: trimmedName,
       ownerId: scope.userId,
-      // Scoped to the requested kind — keeps the app check aligned with the
-      // per-kind unique index (names are unique per (kind, owner)/(kind, global)).
-      kind,
       ...excludeClause,
     };
     const ownPromise = this.prisma.llmConfig.findFirst({
@@ -583,10 +548,9 @@ export class LlmConfigService {
     }
 
     const globalPromise = this.prisma.llmConfig.findFirst({
-      // Scoped to kind to mirror the partial-unique index this check pre-empts
-      // (`llm_configs_global_name_unique` is UNIQUE (kind, name) WHERE is_global);
-      // without it a promotion would falsely collide with a same-named other-kind global.
-      where: { name: trimmedName, isGlobal: true, kind, ...excludeClause },
+      // Mirrors the partial-unique index this check pre-empts
+      // (`llm_configs_global_name_unique` is UNIQUE (name) WHERE is_global).
+      where: { name: trimmedName, isGlobal: true, ...excludeClause },
       select: { id: true },
     });
     const [own, global] = await Promise.all([ownPromise, globalPromise]);
@@ -646,7 +610,6 @@ export class LlmConfigService {
       description: raw.description,
       provider: raw.provider,
       model: raw.model,
-      kind: toConfigKind(raw.kind),
       isGlobal: raw.isGlobal,
       // isDefault/isFreeDefault are NOT on the detail response: defaults live on
       // the AdminSettings pointers (S3), and no client reads them off the detail
@@ -678,7 +641,6 @@ export class LlmConfigService {
       description: raw.description,
       provider: raw.provider,
       model: raw.model,
-      kind: toConfigKind(raw.kind),
       isGlobal: raw.isGlobal,
       isDefault: raw.isDefault,
       isFreeDefault: raw.isFreeDefault,

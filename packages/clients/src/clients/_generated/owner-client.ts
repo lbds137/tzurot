@@ -172,8 +172,8 @@ export class OwnerClient {
   /**
    * @safeRead Server-side has no observable mutation — safe to cache client-side.
    */
-  async listGlobalLlmConfigs(options: { kind?: string } = {}): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.listGlobalLlmConfigs.output>>> {
-    const fullPath = '/api/admin/llm-config' + buildQueryString([['kind', options.kind]]);
+  async listGlobalLlmConfigs(): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.listGlobalLlmConfigs.output>>> {
+    const fullPath = '/api/admin/llm-config';
     return callGateway({
       baseUrl: this.baseUrl,
       serviceSecret: this.serviceSecret,
@@ -242,8 +242,8 @@ export class OwnerClient {
   /**
    * @idempotent Replaying the exact same request lands the same final state — safe to retry on network failure.
    */
-  async setGlobalLlmConfigDefault(id: string, options: { kind?: string } = {}): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.setGlobalLlmConfigDefault.output>>> {
-    const fullPath = `/api/admin/llm-config/${encodeURIComponent(id)}/set-default` + buildQueryString([['kind', options.kind]]);
+  async setGlobalLlmConfigDefault(id: string, options: { slot?: string } = {}): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.setGlobalLlmConfigDefault.output>>> {
+    const fullPath = `/api/admin/llm-config/${encodeURIComponent(id)}/set-default` + buildQueryString([['slot', options.slot]]);
     return callGateway({
       baseUrl: this.baseUrl,
       serviceSecret: this.serviceSecret,
@@ -259,8 +259,8 @@ export class OwnerClient {
   /**
    * @idempotent Replaying the exact same request lands the same final state — safe to retry on network failure.
    */
-  async setGlobalLlmConfigFreeDefault(id: string, options: { kind?: string } = {}): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.setGlobalLlmConfigFreeDefault.output>>> {
-    const fullPath = `/api/admin/llm-config/${encodeURIComponent(id)}/set-free-default` + buildQueryString([['kind', options.kind]]);
+  async setGlobalLlmConfigFreeDefault(id: string, options: { slot?: string } = {}): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.setGlobalLlmConfigFreeDefault.output>>> {
+    const fullPath = `/api/admin/llm-config/${encodeURIComponent(id)}/set-free-default` + buildQueryString([['slot', options.slot]]);
     return callGateway({
       baseUrl: this.baseUrl,
       serviceSecret: this.serviceSecret,

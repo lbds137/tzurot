@@ -196,28 +196,39 @@ export const MODEL_DEFAULTS = {
 } as const;
 
 /**
- * Config-kind discriminator for the shared `llm_configs` table. A config row is a
- * text-model preset or a vision-model preset (future: image / video). Vision (and
- * future-modality) configs REUSE the same table + cascade + CRUD as text,
- * distinguished only by `kind`.
+ * Model-slot selector: which of a target's two model assignments an operation
+ * addresses. Personalities, user defaults, and the admin global/free defaults each
+ * carry a text-model slot and a vision-model slot (separate FK columns / pointer
+ * columns); the slot is always the CALLER's choice on the request, never a property
+ * of the config row — any preset can occupy either slot, gated only by model
+ * capability at assignment time (`ensureVisionCapableModel`).
  *
- * Single source of truth: the Prisma column default, the resolver queries, the
- * `LlmConfigService` filters, and the slash-command `kind` choices all
- * reference this — so adding a modality is a one-line change here, with the type
- * system enforcing exhaustiveness at every switch on a `ConfigKind`.
+ * Single source of truth for the wire `?slot=` query param, the slash-command
+ * `slot` choices, and every switch on a `ModelSlot`.
  */
-export const CONFIG_KINDS = ['text', 'vision'] as const;
-export type ConfigKind = (typeof CONFIG_KINDS)[number];
+export const MODEL_SLOTS = ['text', 'vision'] as const;
+export type ModelSlot = (typeof MODEL_SLOTS)[number];
 
 /**
  * Max length for an LlmConfig/TtsConfig `name`. Single source for the `.max()` in
  * both config schemas AND the promote-normalization util, so they can't drift.
- * Lives here with the other config-domain constants (`CONFIG_KINDS` etc.).
+ * Lives here with the other config-domain constants (`MODEL_SLOTS` etc.).
  */
 export const CONFIG_NAME_MAX_LENGTH = 100;
 
-/** Default kind for a newly-created config — matches the Prisma `kind` column default. */
-export const DEFAULT_CONFIG_KIND: ConfigKind = 'text';
+/** Default slot when an operation doesn't specify one — the text (chat) slot. */
+export const DEFAULT_MODEL_SLOT: ModelSlot = 'text';
+
+/**
+ * Narrow a string (e.g. a slash-command option value) to a {@link ModelSlot}.
+ * Option choices are compile-time constrained to the slot values, so this normally
+ * just narrows the type; an unrecognized value floors to the default (text) slot.
+ */
+export function toModelSlot(value: string): ModelSlot {
+  return (MODEL_SLOTS as readonly string[]).includes(value)
+    ? (value as ModelSlot)
+    : DEFAULT_MODEL_SLOT;
+}
 
 /**
  * Shared description for the `slot` slash-command option (Chat | Vision) across the
@@ -225,7 +236,7 @@ export const DEFAULT_CONFIG_KIND: ConfigKind = 'text';
  * silently diverge between `/preset` and `/settings preset`. The option NAME +
  * required flag stay inline at each call site because the command-types codegen
  * reads them as string literals (it does not read the description). The encoded
- * choice values stay `text`/`vision` (the gateway's `?kind=` wire contract); only
+ * choice values stay `text`/`vision` (the gateway's `?slot=` wire contract); only
  * the user-facing labels are Chat/Vision.
  */
 export const CONFIG_SLOT_OPTION_DESCRIPTION = 'Which slot to target: Chat (default) or Vision';

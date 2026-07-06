@@ -179,7 +179,7 @@ export class LlmConfigResolver extends BaseConfigResolver<
 
     try {
       // Read the admin-set free-tier chat default via the AdminSettings pointer
-      // (singleton). Replaces the old isFreeDefault+kind='text' flag query; a null
+      // (singleton). Replaces the old per-kind flag query; a null
       // pointer means no free default — caller uses the hardcoded fallback.
       const settings = await this.prisma.adminSettings.findUnique({
         where: { id: ADMIN_SETTINGS_SINGLETON_ID },

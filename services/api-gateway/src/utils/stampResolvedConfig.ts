@@ -23,7 +23,7 @@ const logger = createLogger('ConfigStamping');
  *
  * The TEXT model (`personality.model`) and the VISION model (`personality.visionModel`,
  * the carrier `selectVisionModel` reads at priority 1) resolve through INDEPENDENT
- * cascades — `LlmConfigResolver` (kind='text') and `VisionConfigResolver` (kind='vision').
+ * cascades — `LlmConfigResolver` (text slot) and `VisionConfigResolver` (vision slot).
  * Vision stamps regardless of the text source, since it's its own config axis.
  *
  * `provider` is intentionally NOT stamped: `ResolvedLlmConfig` carries no provider
