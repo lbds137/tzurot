@@ -4,6 +4,49 @@
 
 import type { CAC } from 'cac';
 
+const ENV_OPTION = '--env <env>';
+
+function registerMaintenanceCommand(cli: CAC): void {
+  cli
+    .command('maintenance <action>', 'Toggle maintenance mode (on | off | status)')
+    .option(ENV_OPTION, 'Target environment (local, dev, or prod)', { default: 'dev' })
+    .option('--skip-drain', 'Skip waiting for active BullMQ jobs to finish after "on"', {
+      default: false,
+    })
+    .option('--drain-timeout <seconds>', 'Max seconds to wait for the queue to drain', {
+      default: 120,
+    })
+    .example('pnpm ops maintenance status --env prod')
+    .example('pnpm ops maintenance on --env prod')
+    .example('pnpm ops maintenance off --env prod')
+    .action(
+      async (
+        action: string,
+        options: { env: string; skipDrain: boolean; drainTimeout: number }
+      ) => {
+        if (action !== 'on' && action !== 'off' && action !== 'status') {
+          console.error('Error: action must be "on", "off", or "status"');
+          process.exit(1);
+        }
+        if (options.env !== 'local' && options.env !== 'dev' && options.env !== 'prod') {
+          console.error('Error: --env must be "local", "dev", or "prod"');
+          process.exit(1);
+        }
+
+        const { runMaintenance } = await import('../deployment/maintenance.js');
+        // NaN-guard: `Number('abc')` is NaN, and `waited >= NaN` is always
+        // false — an unfiltered NaN deadline would poll forever. Fall back to
+        // the command default instead.
+        const drainTimeout = Number(options.drainTimeout);
+        process.exitCode = await runMaintenance(action, {
+          env: options.env,
+          skipDrain: options.skipDrain,
+          drainTimeoutSec: Number.isFinite(drainTimeout) ? drainTimeout : undefined,
+        });
+      }
+    );
+}
+
 export function registerDeployCommands(cli: CAC): void {
   cli.command('deploy:dev', 'Deploy to Railway development environment').action(async () => {
     const { deployDev } = await import('../deployment/deploy-dev.js');
@@ -22,7 +65,7 @@ export function registerDeployCommands(cli: CAC): void {
 
   cli
     .command('deploy:setup-vars', 'Set up Railway environment variables from .env')
-    .option('--env <env>', 'Target environment (dev or prod)', { default: 'dev' })
+    .option(ENV_OPTION, 'Target environment (dev or prod)', { default: 'dev' })
     .option('--dry-run', 'Show what would be set without making changes', { default: false })
     .option('--yes, -y', 'Skip confirmation prompts', { default: false })
     .action(async (options: { env: string; dryRun: boolean; yes: boolean }) => {
@@ -39,9 +82,11 @@ export function registerDeployCommands(cli: CAC): void {
       });
     });
 
+  registerMaintenanceCommand(cli);
+
   cli
     .command('logs', 'Fetch logs from Railway services')
-    .option('--env <env>', 'Environment (dev or prod)', { default: 'dev' })
+    .option(ENV_OPTION, 'Environment (dev or prod)', { default: 'dev' })
     .option('--service <service>', 'Service name (bot-client, api-gateway, ai-worker)')
     .option('--lines <n>', 'Number of lines to fetch (capped at ~5000 by the Railway CLI)')
     .option('--filter <text>', 'Server-side Railway query DSL (@level:error, "a AND b")')

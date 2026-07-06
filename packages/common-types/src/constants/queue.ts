@@ -22,6 +22,14 @@ export const QUEUE_CONFIG = {
 } as const;
 
 /**
+ * Name of ai-worker's repeatable-cron queue (pending-memory processing,
+ * cleanup jobs). Consumers: `ai-worker/index.ts` (queue + worker),
+ * `tooling/deployment/maintenance.ts` (paused during destructive-migration
+ * windows — its cron ticks hit Prisma and must not fire mid-migration).
+ */
+export const SCHEDULED_QUEUE_NAME = 'scheduled-jobs';
+
+/**
  * Job ID prefixes for different job types
  */
 export const JOB_PREFIXES = {

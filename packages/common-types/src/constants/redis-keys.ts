@@ -29,3 +29,11 @@ export const CACHE_KEY_PREFIXES = {
    */
   VISION_SYSTEM_FALLBACK_QUOTA: 'visionfallback:system:',
 } as const;
+
+/**
+ * Maintenance-mode flag — a singleton key (no dynamic suffix, hence not in
+ * CACHE_KEY_PREFIXES). Present ⇒ maintenance active; value = ISO timestamp of
+ * enable time. Consumers: `common-types/MaintenanceFlag` (read/write; used by
+ * bot-client, api-gateway, and the `pnpm ops maintenance` command).
+ */
+export const MAINTENANCE_FLAG_KEY = 'maintenance:enabled';

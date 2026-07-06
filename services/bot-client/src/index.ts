@@ -9,6 +9,7 @@ import {
 import { Queue } from 'bullmq';
 import { Redis } from 'ioredis';
 import { getConfig } from '@tzurot/common-types/config/config';
+import { MaintenanceFlag } from '@tzurot/common-types/services/MaintenanceFlag';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { isBotOwner } from '@tzurot/common-types/utils/ownerMiddleware';
 import { registerProcessLifecycle } from '@tzurot/common-types/utils/processLifecycle';
@@ -30,6 +31,7 @@ import type { MessageHandler } from './handlers/MessageHandler.js';
 import { CommandHandler } from './handlers/CommandHandler.js';
 import { redis as botRedis, closeRedis } from './redis.js';
 import { deployCommands } from './utils/deployCommands.js';
+import { respondToInteractionDuringMaintenance } from './utils/maintenanceResponses.js';
 import { ResultsListener } from './services/ResultsListener.js';
 import { JobTracker } from './services/JobTracker.js';
 import { JobFailureListener } from './services/JobFailureListener.js';
@@ -139,6 +141,8 @@ interface Services {
   denylistCache: DenylistCache;
   denylistCacheInvalidationService: DenylistCacheInvalidationService;
   dmCacheWarmer: DMCacheWarmer;
+  /** Maintenance-window gate — checked at both Discord front doors. */
+  maintenanceFlag: MaintenanceFlag;
   multiTagCoordinator: MultiTagCoordinator;
   multiTagPersistence: MultiTagPersistence;
   multiTagRecovery: MultiTagRecovery;
@@ -210,6 +214,9 @@ function createServices(): Services {
   // Denylist cache and invalidation service
   const denylistCache = new DenylistCache();
   const denylistCacheInvalidationService = new DenylistCacheInvalidationService(cacheRedis);
+
+  // Maintenance-window gate (destructive-migration windows; `pnpm ops maintenance`).
+  const maintenanceFlag = new MaintenanceFlag(cacheRedis);
 
   // DM channel cache warmer — pre-establishes Discord.js's internal channel
   // cache for any user we encounter, so subsequent plain-text DMs can be
@@ -292,6 +299,7 @@ function createServices(): Services {
     coordinator: multiTagCoordinator,
     personalityService: routingPersonalityLoader,
     client,
+    maintenanceFlag,
   });
 
   // Register services for global access (used by slash commands)
@@ -317,6 +325,7 @@ function createServices(): Services {
     channelActivationCacheInvalidationService,
     denylistCache,
     denylistCacheInvalidationService,
+    maintenanceFlag,
     multiTagCoordinator,
     multiTagPersistence,
     multiTagRecovery,
@@ -362,6 +371,15 @@ client.on(Events.InteractionCreate, interaction => {
         ) {
           return;
         }
+      }
+
+      // Maintenance gate — friendly ephemeral rejection instead of letting the
+      // interaction reach the (503ing) gateway during a migration window. The
+      // TTL-cached flag read stays well inside the 3-second ack budget; the
+      // maintenance reply itself is the ack.
+      if (await services.maintenanceFlag.isActive()) {
+        await respondToInteractionDuringMaintenance(interaction);
+        return;
       }
 
       if (interaction.isChatInputCommand()) {

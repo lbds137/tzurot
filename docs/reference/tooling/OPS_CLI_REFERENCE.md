@@ -102,6 +102,20 @@ Runtime state inspection for debugging:
 
 **Use case:** Debug BullMQ/async issues, check for stuck or failed jobs.
 
+## Maintenance Mode
+
+Quiesce user-facing traffic for destructive-migration windows (bot-client
+replies with a friendly notice, api-gateway 503s below `/health`). The flag
+lives in Redis; `on` waits ~5s for service flag-caches to converge, then for
+the BullMQ queue (active + waiting) to drain. Full sequence: `/tzurot-deployment`.
+
+| Command                                       | Description                                         |
+| --------------------------------------------- | --------------------------------------------------- |
+| `pnpm ops maintenance status --env prod`      | Show flag state + queue depth                       |
+| `pnpm ops maintenance on --env prod`          | Enable + converge + drain (`--skip-drain` bypasses) |
+| `pnpm ops maintenance off --env prod`         | Disable; traffic resumes within ~5s                 |
+| `pnpm ops maintenance on --drain-timeout 300` | Longer drain deadline (seconds; default 120)        |
+
 ## Logs Commands
 
 Fetch and analyze Railway service logs:

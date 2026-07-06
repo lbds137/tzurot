@@ -83,7 +83,7 @@ pnpm ops release:premigrate --dry-run   # preview the new migrations in the rele
 pnpm ops release:premigrate             # apply to prod, THEN merge the release PR
 ```
 
-Safe for **additive** migrations (a new column/table/constraint the old code ignores). **Destructive** migrations (drop/rename a column, tighten a constraint on existing data) invert the window — applying them breaks the still-live old code — so they need a brief maintenance window; `release:premigrate` detects the likely-destructive shapes and refuses without `--allow-destructive`.
+Safe for **additive** migrations (a new column/table/constraint the old code ignores). **Destructive** migrations (drop/rename a column, tighten a constraint on existing data) invert the window — applying them breaks the still-live old code — so they need a brief maintenance window: `pnpm ops maintenance on --env prod` (friendly rejections + BullMQ drain) → `release:premigrate --allow-destructive` → merge → `pnpm ops maintenance off --env prod`. `release:premigrate` detects the likely-destructive shapes and refuses without `--allow-destructive`.
 
 **Dev:** dev auto-deploys on every push to `develop`, so there's no merge gate to run before — apply migrations promptly after the push (`pnpm ops db:migrate --env dev`); the brief window on dev is low-stakes.
 

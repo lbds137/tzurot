@@ -57,7 +57,19 @@ pnpm ops db:migrate --env dev
 pnpm ops release:premigrate
 ```
 
-Additive migrations are safe to premigrate; destructive ones (drop/rename/tighten) need a maintenance window — `release:premigrate` refuses them without `--allow-destructive`. See `.claude/rules/03-database.md` § Deployment.
+Additive migrations are safe to premigrate; destructive ones (drop/rename/tighten) need a maintenance window — `release:premigrate` refuses them without `--allow-destructive`.
+
+**Destructive-release sequence** (maintenance mode quiesces traffic so the old still-live code never reads the changed schema):
+
+```bash
+pnpm ops maintenance on --env prod      # bot replies 🔧, gateway 503s (health stays green), BullMQ drains
+pnpm ops release:premigrate --allow-destructive
+gh pr merge <release-PR> --rebase       # Railway auto-deploys into the ready schema
+# verify /health + bot boot, then:
+pnpm ops maintenance off --env prod     # traffic resumes within the 5s flag-cache window
+```
+
+`pnpm ops maintenance status --env prod` shows the flag + queue depth. The flag lives in Redis (not an env var — env changes trigger Railway redeploys, and Postgres is the thing in flux). Note: the maintenance CHECK must already be deployed in prod for the gate to work — it protects releases after the one that ships it. See `.claude/rules/03-database.md` § Deployment.
 
 ### 3. Monitor deployment
 
