@@ -250,9 +250,88 @@ describe('memoryUtils', () => {
         createdAt: 1704067200000,
         distance: 0.15,
         score: 0.85,
+        retrieval: null,
         chunkGroupId: null,
         chunkIndex: null,
         totalChunks: null,
+      });
+    });
+
+    it('carries RRF score and explain components on hybrid rows', () => {
+      const queryResult: MemoryQueryResult = {
+        id: 'mem-hybrid',
+        content: 'Hybrid row',
+        persona_id: 'p1',
+        persona_name: 'Persona',
+        owner_username: 'user',
+        personality_id: 'pers1',
+        personality_name: 'Personality',
+        session_id: null,
+        canon_scope: 'personal',
+        summary_type: null,
+        channel_id: null,
+        guild_id: null,
+        message_ids: null,
+        senders: null,
+        created_at: new Date('2024-01-01T00:00:00.000Z'),
+        distance: 0.2,
+        dense_rank: 1,
+        fts_rank: 3,
+        recency_rank: 2,
+        rrf_score: 0.0345,
+        chunk_group_id: null,
+        chunk_index: null,
+        total_chunks: null,
+      };
+
+      const result = mapQueryResultToDocument(queryResult);
+
+      expect(result.metadata?.score).toBe(0.0345);
+      expect(result.metadata?.retrieval).toEqual({
+        denseSimilarity: 0.8,
+        denseRank: 1,
+        ftsRank: 3,
+        recencyRank: 2,
+        rrfScore: 0.0345,
+      });
+    });
+
+    it('handles FTS-only hybrid rows (null distance) without fabricating similarity', () => {
+      const queryResult: MemoryQueryResult = {
+        id: 'mem-fts-only',
+        content: 'Lexical match outside the dense gate',
+        persona_id: 'p1',
+        persona_name: 'Persona',
+        owner_username: 'user',
+        personality_id: 'pers1',
+        personality_name: 'Personality',
+        session_id: null,
+        canon_scope: 'personal',
+        summary_type: null,
+        channel_id: null,
+        guild_id: null,
+        message_ids: null,
+        senders: null,
+        created_at: new Date('2024-01-01T00:00:00.000Z'),
+        distance: null,
+        dense_rank: null,
+        fts_rank: 1,
+        recency_rank: 1,
+        rrf_score: 0.0205,
+        chunk_group_id: null,
+        chunk_index: null,
+        total_chunks: null,
+      };
+
+      const result = mapQueryResultToDocument(queryResult);
+
+      expect(result.metadata?.score).toBe(0.0205);
+      expect(result.metadata?.retrieval).toEqual({
+        denseSimilarity: null,
+        denseRank: null,
+        ftsRank: 1,
+        recencyRank: 1,
+        rrfScore: 0.0205,
       });
     });
 

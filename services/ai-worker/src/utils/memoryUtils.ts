@@ -8,6 +8,7 @@ import type {
   NormalizedMetadata,
   MemoryQueryResult,
   PgvectorMemoryDocument,
+  RetrievalComponents,
 } from '../services/PgvectorTypes.js';
 import { replacePromptPlaceholders } from './promptPlaceholders.js';
 
@@ -68,6 +69,23 @@ export function mapQueryResultToDocument(memory: MemoryQueryResult): PgvectorMem
     memory.owner_username
   );
 
+  // Hybrid rows carry the fused RRF value as `score` plus per-arm explain
+  // components. Sibling-expander rows (no rrf_score — their query predates
+  // fusion) keep the legacy 1-distance similarity so their hardcoded
+  // distance=0 still reads as the intentional "perfect ride-along" marker.
+  const rrfScore = memory.rrf_score ?? null;
+  const retrieval: RetrievalComponents | null =
+    rrfScore !== null
+      ? {
+          denseSimilarity:
+            memory.distance !== null && memory.distance !== undefined ? 1 - memory.distance : null,
+          denseRank: memory.dense_rank ?? null,
+          ftsRank: memory.fts_rank ?? null,
+          recencyRank: memory.recency_rank ?? null,
+          rrfScore,
+        }
+      : null;
+
   return {
     pageContent: content,
     metadata: {
@@ -84,7 +102,8 @@ export function mapQueryResultToDocument(memory: MemoryQueryResult): PgvectorMem
       senders: memory.senders,
       createdAt: new Date(memory.created_at).getTime(),
       distance: memory.distance,
-      score: 1 - memory.distance,
+      score: rrfScore ?? 1 - (memory.distance ?? 0),
+      retrieval,
       chunkGroupId: memory.chunk_group_id,
       chunkIndex: memory.chunk_index,
       totalChunks: memory.total_chunks,

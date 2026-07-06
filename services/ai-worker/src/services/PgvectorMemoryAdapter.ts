@@ -19,7 +19,7 @@ import {
 } from '../utils/memoryUtils.js';
 import {
   buildWhereConditions,
-  buildSimilaritySearchQuery,
+  buildHybridSearchQuery,
   parseQueryOptions,
 } from './PgvectorQueryBuilder.js';
 import { expandWithSiblings } from './PgvectorSiblingExpander.js';
@@ -75,16 +75,19 @@ export class PgvectorMemoryAdapter {
       const embeddingVector = `[${queryEmbedding.join(',')}]`;
 
       // Parse options with defaults
-      const { limit, minSimilarity, maxDistance } = parseQueryOptions(options);
+      const { limit, minSimilarity, maxDistance, candidateLimit } = parseQueryOptions(options);
 
-      // Build and execute query
+      // Build and execute the hybrid (dense + FTS + recency, RRF-fused) query.
+      // The raw query text feeds the FTS arm; the threshold gates dense only.
       const whereConditions = buildWhereConditions(options);
-      const sqlQuery = buildSimilaritySearchQuery(
+      const sqlQuery = buildHybridSearchQuery({
         embeddingVector,
+        rawQueryText: query,
         whereConditions,
         maxDistance,
-        limit
-      );
+        limit,
+        candidateLimit,
+      });
 
       logger.debug(
         {
@@ -93,8 +96,9 @@ export class PgvectorMemoryAdapter {
           limit,
           minSimilarity,
           maxDistance,
+          candidateLimit,
         },
-        'Querying memories with pgvector'
+        'Querying memories with hybrid pgvector + FTS retrieval'
       );
 
       const memories = await this.prisma.$queryRaw<MemoryQueryResult[]>(sqlQuery);

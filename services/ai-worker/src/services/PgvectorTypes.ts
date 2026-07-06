@@ -11,20 +11,18 @@ export interface MemoryQueryOptions {
   sessionId?: string;
   limit?: number;
   /**
-   * Minimum cosine similarity score (0-1 range, where 1 = identical vectors)
-   * Default: 0.85 (returns only highly similar memories)
+   * Minimum cosine similarity (0-1, where 1 = identical vectors) gating the
+   * DENSE ARM of the hybrid query only. Default: AI_DEFAULTS.MEMORY_SCORE_THRESHOLD.
    *
-   * This represents a MINIMUM similarity threshold - only memories with
-   * similarity >= this value will be returned.
+   * Under hybrid retrieval this is a semantic-similarity gate, not an
+   * absolute result filter: the FTS arm is rank-limited but never
+   * similarity-gated, so an exact-word match (a name, handle, codeword) can
+   * surface even when its embedding similarity falls below this threshold —
+   * that recall class is the point of the hybrid.
    *
-   * Internally converted to pgvector distance using: distance < (1 - similarity)
-   * - pgvector cosine distance range: 0-2 (0=identical, 1=orthogonal, 2=opposite)
-   * - For normalized embeddings, practically 0-1
-   *
-   * Examples:
-   * - 0.85 (default) → distance < 0.15 → highly similar memories only
-   * - 0.70 → distance < 0.30 → moderately similar memories
-   * - 0.50 → distance < 0.50 → loosely related memories
+   * Internally converted to pgvector distance for the dense arm:
+   * distance < (1 - similarity); cosine distance is practically 0-1 for
+   * normalized embeddings.
    */
   scoreThreshold?: number;
   excludeNewerThan?: number; // Unix timestamp - exclude memories created after this time
@@ -160,11 +158,35 @@ export interface MemoryQueryResult {
   message_ids: string[] | null;
   senders: string[] | null;
   created_at: Date | string;
-  distance: number;
+  /**
+   * Dense-arm cosine distance. Null for rows the hybrid query surfaced via
+   * the FTS arm only (never within the dense candidate gate); the sibling
+   * expander's separate query hardcodes 0.
+   */
+  distance: number | null;
+  // Hybrid (RRF) fusion fields — absent on sibling-expander rows, whose
+  // separate query predates fusion (they ride along unranked at the tail).
+  dense_rank?: number | null;
+  fts_rank?: number | null;
+  recency_rank?: number | null;
+  rrf_score?: number | null;
   // Chunk linking fields
   chunk_group_id: string | null;
   chunk_index: number | null;
   total_chunks: number | null;
+}
+
+/**
+ * Per-arm retrieval explain components carried on document metadata (feeds
+ * DiagnosticMemoryEntry → the /inspect Memory Inspector). Null per field when
+ * the memory didn't appear in that arm's candidate pool.
+ */
+export interface RetrievalComponents {
+  denseSimilarity: number | null;
+  denseRank: number | null;
+  ftsRank: number | null;
+  recencyRank: number | null;
+  rrfScore: number;
 }
 
 /**
