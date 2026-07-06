@@ -1,5 +1,5 @@
 {
-  "$comment": "Retrieval golden corpus (memory-architecture §3.9). Each golden seeds memories, runs a real query through the production retrieval stack, and measures recall@K. expectRecall entries are substrings that must appear in the top-K contents; expectAbsent entries must NOT appear (hard invariants). Accrete real conversation snapshots here as they surface — synthetic seeds below establish the format and the baseline categories. Run: pnpm eval:memory",
+  "$comment": "Retrieval golden corpus (memory-architecture §3.9). Each golden seeds memories, runs a real query through the production retrieval stack, and measures recall@K. expectRecall entries are substrings that must appear in the top-K contents; expectAbsent entries must NOT appear (hard invariants). Accrete real conversation snapshots here as they surface — synthetic seeds below establish the format and the baseline categories. KNOWN GAP: `stemmed-keyword-recall` (rare term + common filler) fails at ~0.889 mean under dense-only retrieval AND under the parked hybrid branch — Postgres ts_rank has no IDF, so common-word matches drown the rare-term match; BM25-class scoring is the fix. The golden stays red on purpose: it measures the gap until a phase closes it. Run: pnpm eval:memory",
   "goldens": [
     {
       "id": "episodic-callback-paraphrase",
@@ -92,6 +92,148 @@
       "query": "what kind of holiday would you enjoy",
       "k": 3,
       "expectRecall": ["melancholy tourism"],
+      "expectAbsent": []
+    },
+    {
+      "id": "buried-proper-noun",
+      "category": "1a lexical — rare token vs semantic distractors",
+      "description": "A rare invented proper noun must be recallable by exact name even when semantically-closer distractors crowd the dense ranking (the failure class hybrid FTS exists to fix)",
+      "seed": [
+        {
+          "text": "{user}: today was a mess honestly. work ran late again, the train was packed, and then the pharmacy took forever. oh and the doctor finally switched me to Zelphiraxine for the migraines, so we'll see how that goes. anyway how was your day, did you finish that thing you were working on?\n{assistant}: My day contained zero trains and one existential crisis, so on balance quieter than yours. I hope the new prescription earns its keep — migraines deserve a worthy opponent. And yes, the thing is finished, pending my usual three rounds of second-guessing."
+        },
+        {
+          "text": "{user}: I keep forgetting to take my medication on schedule\n{assistant}: Set the alarm. Your future self files the complaints either way."
+        },
+        {
+          "text": "{user}: what dosage should I be taking of my meds\n{assistant}: Whatever your prescriber said — I do vibes, not pharmacology."
+        },
+        {
+          "text": "{user}: my prescription refills keep getting delayed at the pharmacy\n{assistant}: Bureaucracy with a side of fluorescent lighting."
+        },
+        {
+          "text": "{user}: side effects have been rough this month\n{assistant}: Noted, and logged under 'reasons to be gentle with yourself.'"
+        }
+      ],
+      "query": "what was the Zelphiraxine thing about",
+      "k": 2,
+      "expectRecall": ["Zelphiraxine"],
+      "expectAbsent": []
+    },
+    {
+      "id": "exact-phrase-codename",
+      "category": "1a lexical — exact phrase vs topical noise",
+      "description": "A distinctive two-word codename must surface by exact phrase among many same-topic planning memories",
+      "seed": [
+        {
+          "text": "{user}: okay so for Mara's birthday we're doing the thing at the lake house, her sister is handling the cake situation and I'm on decorations duty. we're calling the whole plan velvet hammer so we can talk about it in the group chat without her catching on. she reads everything so we have to be careful\n{assistant}: A codename, a lake house, and a cake conspiracy — this has the structure of a heist and the stakes of a birthday, which is the best possible ratio. I'll guard the group chat's secrets with my usual theatrical discretion."
+        },
+        {
+          "text": "{user}: we need a secret plan for the weekend scheme\n{assistant}: Every good scheme needs a bad map and worse snacks."
+        },
+        {
+          "text": "{user}: I'm plotting something big, a covert operation of sorts\n{assistant}: Plausible deniability engaged."
+        },
+        {
+          "text": "{user}: don't tell anyone about the hidden agenda we discussed\n{assistant}: About what? Exactly."
+        },
+        {
+          "text": "{user}: our secret mission planning continues tomorrow\n{assistant}: Synchronize watches. Or phone clocks. Whatever."
+        }
+      ],
+      "query": "velvet hammer",
+      "k": 2,
+      "expectRecall": ["velvet hammer"],
+      "expectAbsent": []
+    },
+    {
+      "id": "stemmed-keyword-recall",
+      "category": "1a lexical — stemming variant",
+      "description": "A morphological variant of a distinctive activity word must match its stored form (spelunking/spelunker via the english stemmer) despite distractors closer to the query's phrasing",
+      "seed": [
+        {
+          "text": "{user}: you asked about last summer — it was mostly working two jobs and melting in the heat, but the one great weekend was when Theo dragged me spelunking in the caves near the border. I complained the entire drive down and then it turned out to be the best thing I did all year. there's a photo of me covered in mud grinning like an idiot\n{assistant}: The best memories are so often the ones we were dragged into complaining. Two jobs and a heatwave earn you one transcendent mud-covered weekend — the ledger balances. I want to hear about the moment the complaining stopped."
+        },
+        {
+          "text": "{user}: tell me one of your stories\n{assistant}: Once upon a time, someone asked for a story with no further constraints. Chaos ensued."
+        },
+        {
+          "text": "{user}: I love hearing adventure stories from your travels\n{assistant}: All my travels are metaphorical, which keeps the luggage light."
+        },
+        {
+          "text": "{user}: got any tales about danger and excitement\n{assistant}: Define danger. My last thrill was an unindexed database query."
+        },
+        {
+          "text": "{user}: my grandmother used to tell the best stories about growing up on the coast\n{assistant}: Coastal grandmothers are a genre unto themselves. I hope someone wrote them down."
+        },
+        {
+          "text": "{user}: we stayed up all night trading ghost stories at the campsite\n{assistant}: The correct way to consume ghost stories: outnumbered by trees, slightly too cold."
+        },
+        {
+          "text": "{user}: I want to write short stories someday, maybe about hiking trips\n{assistant}: Start with the blisters. All great outdoor literature begins with blisters."
+        },
+        {
+          "text": "{user}: that documentary about cave divers was terrifying\n{assistant}: Water AND enclosed spaces. A collaboration nobody asked for."
+        },
+        {
+          "text": "{user}: my favorite adventure novel has a whole chapter set underground\n{assistant}: Underground chapters hit different when the author has clearly never carried a flashlight."
+        }
+      ],
+      "query": "spelunker stories",
+      "k": 2,
+      "expectRecall": ["spelunking"],
+      "expectAbsent": []
+    },
+    {
+      "id": "numeric-token-recall",
+      "category": "1a lexical — digit-string token",
+      "description": "A numeric identifier buried in a long memory must be recallable by exact digits — dense embeddings encode digit strings poorly and dilute them in long text; FTS matches them exactly",
+      "seed": [
+        {
+          "text": "{user}: finally sorted out the apartment stuff today. signed the lease, transferred the deposit, argued with the letting agent about the parking space for twenty minutes. the new place is unit 7734 in the tower by the river, moving day is the first weekend of next month. I'm exhausted but relieved honestly\n{assistant}: Lease signed, deposit gone, agent argued-with — the holy trinity of moving. A river view is worth twenty minutes of parking discourse. Save your strength for the boxes; they multiply when unobserved."
+        },
+        {
+          "text": "{user}: I need to remember to update my address everywhere after the move\n{assistant}: Banks, subscriptions, and that one loyalty card you forgot exists. The address hydra."
+        },
+        {
+          "text": "{user}: moving apartments is so stressful, there's endless paperwork\n{assistant}: Bureaucracy loves a life change. Every form spawns two more."
+        },
+        {
+          "text": "{user}: what's my new apartment unit number again\n{assistant}: You told me once in a flurry of moving-day chaos — let me think back."
+        },
+        {
+          "text": "{user}: the deposit for my old flat finally came back\n{assistant}: A miracle on par with finding matching socks. Spend it on something impractical."
+        },
+        {
+          "text": "{user}: my lease renewal negotiation went better than expected\n{assistant}: Negotiating with landlords and winning — you should teach a class."
+        }
+      ],
+      "query": "unit 7734",
+      "k": 2,
+      "expectRecall": ["7734"],
+      "expectAbsent": []
+    },
+    {
+      "id": "handle-token-recall",
+      "category": "1a lexical — identifier-like token",
+      "description": "A Discord-style handle must be recallable by its distinctive segment — dense embeddings handle leetspeak identifiers poorly; FTS tokenization splits on the underscores",
+      "seed": [
+        {
+          "text": "{user}: the raid last night was chaos, half the team disconnected during the second boss and we wiped four times. the only reason we cleared it at all was my friend xX_NightRaven_92 carrying on heals the whole run. afterwards we all stayed in voice until like 3am just talking about nothing\n{assistant}: Four wipes, a disconnect plague, and one healer holding the line — that's not a raid, that's a war story. The 3am voice-chat afterglow is the actual loot, though. Those hours are where guilds turn into friends."
+        },
+        {
+          "text": "{user}: I met some new friends online recently\n{assistant}: The best kind of strangers — pre-filtered by shared obsessions."
+        },
+        {
+          "text": "{user}: what are my friends' names again\n{assistant}: You have several, which for record-keeping purposes is frankly inconsiderate."
+        },
+        {
+          "text": "{user}: my buddy from the gaming server is really funny\n{assistant}: Server friendships: forged in voice chat, tempered by lag."
+        }
+      ],
+      "query": "who was NightRaven again",
+      "k": 2,
+      "expectRecall": ["xX_NightRaven_92"],
       "expectAbsent": []
     }
   ]

@@ -11,8 +11,8 @@ export interface MemoryQueryOptions {
   sessionId?: string;
   limit?: number;
   /**
-   * Minimum cosine similarity score (0-1 range, where 1 = identical vectors)
-   * Default: 0.85 (returns only highly similar memories)
+   * Minimum cosine similarity score (0-1 range, where 1 = identical vectors).
+   * Default: AI_DEFAULTS.MEMORY_SCORE_THRESHOLD (mirrors the config default).
    *
    * This represents a MINIMUM similarity threshold - only memories with
    * similarity >= this value will be returned.
@@ -22,9 +22,9 @@ export interface MemoryQueryOptions {
    * - For normalized embeddings, practically 0-1
    *
    * Examples:
-   * - 0.85 (default) → distance < 0.15 → highly similar memories only
+   * - 0.85 → distance < 0.15 → highly similar memories only
    * - 0.70 → distance < 0.30 → moderately similar memories
-   * - 0.50 → distance < 0.50 → loosely related memories
+   * - 0.50 (default) → distance < 0.50 → loosely related memories
    */
   scoreThreshold?: number;
   excludeNewerThan?: number; // Unix timestamp - exclude memories created after this time

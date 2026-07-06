@@ -3,6 +3,7 @@
  * Constructs Prisma.sql queries for pgvector operations
  */
 
+import { AI_DEFAULTS } from '@tzurot/common-types/constants/ai';
 import { Prisma } from '@tzurot/common-types/services/prisma';
 import { isValidId } from '../utils/memoryUtils.js';
 import type { MemoryQueryOptions } from './PgvectorTypes.js';
@@ -120,18 +121,21 @@ export function parseQueryOptions(options: MemoryQueryOptions): {
   const limit =
     options.limit !== undefined && options.limit !== null && options.limit > 0 ? options.limit : 10;
 
-  // scoreThreshold is MINIMUM similarity (0-1 range)
-  // Default 0.85 = only show highly similar memories
+  // scoreThreshold is MINIMUM similarity (0-1 range). The fallback mirrors
+  // the config default — a hardcoded 0.85 here previously contradicted
+  // AI_DEFAULTS and was dead in production (MemoryRetriever always passes a
+  // threshold), but silently over-filtered direct adapter callers (the eval
+  // harness measured paraphrase recall at ZERO rows through that path).
   const minSimilarity =
     options.scoreThreshold !== undefined &&
     options.scoreThreshold !== null &&
     options.scoreThreshold > 0
       ? options.scoreThreshold
-      : 0.85;
+      : AI_DEFAULTS.MEMORY_SCORE_THRESHOLD;
 
   // pgvector distance: 0 = identical, 2 = opposite (practically 0-1 for normalized embeddings)
   // Cosine Distance = 1 - Cosine Similarity
-  // If we want similarity > 0.85, we need distance < (1 - 0.85) = 0.15
+  // If we want similarity > 0.5, we need distance < (1 - 0.5) = 0.5
   const maxDistance = 1 - minSimilarity;
 
   return { limit, minSimilarity, maxDistance };
