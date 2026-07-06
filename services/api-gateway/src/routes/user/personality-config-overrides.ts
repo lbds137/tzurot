@@ -15,15 +15,13 @@ import { asyncHandler } from '../../utils/asyncHandler.js';
 import {
   tryInvalidateCache,
   mergeAndValidateOverrides,
+  getValidatedPersonalityId,
 } from '../../utils/configOverrideHelpers.js';
 import { resolveProvisionedUserId } from '../../utils/resolveProvisionedUserId.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
-import { getRequiredParam } from '../../utils/requestParams.js';
 import type { AuthenticatedRequest, ProvisionedRequest } from '../../types.js';
 import { requireDep, type RouteDeps } from '../routeDeps.js';
-
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
  * GET /api/user/config-overrides/resolve-personality/:personalityId — resolve 3-tier cascade.
@@ -34,10 +32,9 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{
 export const handleResolvePersonalityCascade = (deps: RouteDeps): RequestHandler => {
   const cascadeResolver = requireDep(deps.cascadeResolver, 'cascadeResolver');
   return asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-    const personalityId = getRequiredParam(req.params.personalityId, 'personalityId');
-
-    if (!UUID_PATTERN.test(personalityId)) {
-      return sendError(res, ErrorResponses.validationError('Invalid personalityId format'));
+    const personalityId = getValidatedPersonalityId(req, res);
+    if (personalityId === null) {
+      return;
     }
 
     // Pass undefined for userId and channelId to skip user/channel tiers
@@ -53,10 +50,9 @@ export const handleResolvePersonalityCascade = (deps: RouteDeps): RequestHandler
 export const handleUpdatePersonalityConfigDefaults = (deps: RouteDeps): RequestHandler => {
   const { prisma, cascadeInvalidation } = deps;
   return asyncHandler(async (req: ProvisionedRequest, res: Response) => {
-    const personalityId = getRequiredParam(req.params.personalityId, 'personalityId');
-
-    if (!UUID_PATTERN.test(personalityId)) {
-      return sendError(res, ErrorResponses.validationError('Invalid personalityId format'));
+    const personalityId = getValidatedPersonalityId(req, res);
+    if (personalityId === null) {
+      return;
     }
 
     const userId = resolveProvisionedUserId(req);

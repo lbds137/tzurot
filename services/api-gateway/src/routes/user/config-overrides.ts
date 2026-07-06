@@ -30,6 +30,7 @@ import { asyncHandler } from '../../utils/asyncHandler.js';
 import {
   tryInvalidateCache,
   mergeAndValidateOverrides,
+  getValidatedPersonalityId,
 } from '../../utils/configOverrideHelpers.js';
 import { resolveProvisionedUserId } from '../../utils/resolveProvisionedUserId.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
@@ -52,8 +53,6 @@ function parseConfigTier(raw: unknown): Record<string, unknown> | null {
   }
   return result.data;
 }
-
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** Query schema for resolve endpoint */
 const resolveQuerySchema = z.object({
@@ -207,10 +206,9 @@ export const handleResolveCascade = (deps: RouteDeps): RequestHandler => {
 export const handleUpdatePersonalityOverrides = (deps: RouteDeps): RequestHandler => {
   const { prisma, cascadeInvalidation } = deps;
   return asyncHandler(async (req: ProvisionedRequest, res: Response) => {
-    const personalityId = getRequiredParam(req.params.personalityId, 'personalityId');
-
-    if (!UUID_PATTERN.test(personalityId)) {
-      return sendError(res, ErrorResponses.validationError('Invalid personalityId format'));
+    const personalityId = getValidatedPersonalityId(req, res);
+    if (personalityId === null) {
+      return;
     }
 
     const userId = resolveProvisionedUserId(req);
@@ -257,10 +255,9 @@ export const handleUpdatePersonalityOverrides = (deps: RouteDeps): RequestHandle
 export const handleClearPersonalityOverrides = (deps: RouteDeps): RequestHandler => {
   const { prisma, cascadeInvalidation } = deps;
   return asyncHandler(async (req: ProvisionedRequest, res: Response) => {
-    const personalityId = getRequiredParam(req.params.personalityId, 'personalityId');
-
-    if (!UUID_PATTERN.test(personalityId)) {
-      return sendError(res, ErrorResponses.validationError('Invalid personalityId format'));
+    const personalityId = getValidatedPersonalityId(req, res);
+    if (personalityId === null) {
+      return;
     }
 
     const userId = resolveProvisionedUserId(req);
