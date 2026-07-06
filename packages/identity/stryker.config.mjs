@@ -43,9 +43,10 @@ export default {
   // Advisory coloring for the clear-text/html reports only — no `break`
   // threshold in the pilot, so a low score reports rather than fails.
   thresholds: { high: 80, low: 60 },
-  // Two concurrent test runners: mutation runs are memory-multiplicative
-  // (each runner is a full vitest process) and the Steam Deck dev machine
-  // OOMs under default all-cores concurrency.
-  concurrency: 2,
+  // Two concurrent test runners by default: mutation runs are memory-
+  // multiplicative (each runner is a full vitest process) and the Steam Deck
+  // dev machine OOMs under default all-cores concurrency. CI runners have
+  // more headroom — the workflow raises this via STRYKER_CONCURRENCY.
+  concurrency: process.env.STRYKER_CONCURRENCY !== undefined ? Number(process.env.STRYKER_CONCURRENCY) : 2,
   tempDirName: '.stryker-tmp',
 };

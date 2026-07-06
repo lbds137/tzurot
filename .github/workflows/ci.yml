@@ -321,6 +321,12 @@ jobs:
   # drop below a package's floor (baseline − graceMargin).
   mutation-tests:
     runs-on: ubuntu-latest
+    env:
+      # The per-package stryker configs default to concurrency 2 (dev-machine
+      # memory ceiling); CI runners have 4 vCPUs, so run wider here. The knob
+      # is not part of the baseline fingerprint — it changes speed, not what
+      # the score measures.
+      STRYKER_CONCURRENCY: '4'
     steps:
       - uses: actions/checkout@v7
         with:
