@@ -437,3 +437,7 @@ Ingested 2026-07-05 (notes-Discord cleanup). New persona field storing a vision-
 #### ✨ Top-probability (logprobs) display
 
 Ingested 2026-07-05 (notes-Discord cleanup). Expose token top-probabilities in `/inspect` for the curious-power-user tier. OpenRouter logprobs support is provider-dependent; display shape unclear (per-token UI doesn't fit Discord well). Smallest honest version: logprobs of the FIRST token or a perplexity-style aggregate in the inspect Config view. **Promote when**: someone actually asks, or an inspect overhaul touches the area.
+
+## Scheduled service-tier mutation audit (report-only, no ratchet)
+
+Per-PR mutation testing on the three services is adjudicated non-viable (projection from five measured packages: ~0.35 mutants/src-line → ai-worker ~13k, api-gateway ~10k, bot-client ~22k mutants ≈ 30–70+ min per run). If service-tier test-effectiveness measurement is ever wanted, the shape is a WEEKLY scheduled report-only Stryker run riding the existing audit-cron infra (Discord thread delivery, JSONL summary line), trend-only — no baseline, no gate, no per-PR cost. Prerequisite: verify a full service run completes on a CI runner at all (timeout ceilings), and consider `--mutate` scoping to `src/services/**` hot paths if not. Filed 2026-07-06 at Stryker candidate-1 close-out; promote if a service ships a test-gap-shaped bug that mutation would have caught.
