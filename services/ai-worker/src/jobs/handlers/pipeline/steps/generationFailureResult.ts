@@ -41,6 +41,15 @@ export interface GenerationFailureOptions {
   configSource: ReadyConfig['configSource'];
   provider: ReadyAuth['provider'];
   isGuestMode: boolean;
+  /**
+   * A quota retarget that TOOK EFFECT for the failed attempt (the proactive
+   * swap from AuthStep — `effectivePersonality`/`modelUsed` is already the
+   * fallback model, and without this field the error footer can't explain
+   * why). A FAILED reactive retarget is deliberately NOT carried here: no
+   * reply came from its target, so a "from → to" line would misdescribe —
+   * its story rides the fallback-failure text summary instead.
+   */
+  quotaFallback?: ReadyAuth['quotaFallback'];
 }
 
 /**
@@ -62,6 +71,7 @@ export function composeGenerationFailureResult(
     configSource,
     provider,
     isGuestMode,
+    quotaFallback,
   } = options;
   const { job, startTime } = context;
   const { requestId, personality } = job.data;
@@ -118,6 +128,9 @@ export function composeGenerationFailureResult(
         // The failed fallback attempt (if any) rides along so the error
         // footer renders the full route chain, not just the primary.
         fallbackProviderAttempted: getAttemptedFallbackProvider(error),
+        // A proactive quota swap that took effect before the failure — the
+        // footer must explain why modelUsed is the fallback (never silent).
+        quotaFallback,
         configSource,
         isGuestMode,
         showModelFooter: context.configOverrides?.showModelFooter,

@@ -492,6 +492,12 @@ export class GenerationStep implements IPipelineStep {
         configSource,
         provider,
         isGuestMode,
+        // The proactive swap (if any) took effect for this failed attempt —
+        // effectivePersonality is already the fallback model, and the error
+        // footer must explain why. A failed REACTIVE retarget is not carried
+        // (no reply came from its target); its story rides the
+        // fallback-failure summary the composer already folds in.
+        quotaFallback: auth.quotaFallback,
       });
     }
   }

@@ -593,6 +593,66 @@ describe('GenerationStep', () => {
       );
     });
 
+    describe('quotaFallback metadata assembly (the announce-carrier seam)', () => {
+      const proactiveSwap = {
+        fromModel: 'configured/original',
+        toModel: 'fallback/model',
+        category: ApiErrorCategory.QUOTA_EXCEEDED,
+        mode: 'proactive',
+      } as const;
+
+      it('success path: a proactive swap from AuthStep rides result metadata', async () => {
+        vi.mocked(mockRAGService.generateResponse).mockResolvedValue({
+          content: 'ok',
+          modelUsed: 'fallback/model',
+        } as RAGResponse);
+
+        const result = await step.process({
+          job: createMockJob(),
+          startTime: Date.now(),
+          config: baseConfig,
+          auth: { ...baseAuth, quotaFallback: proactiveSwap },
+          preparedContext: basePreparedContext,
+        });
+
+        expect(result.result?.success).toBe(true);
+        expect(result.result?.metadata?.quotaFallback).toEqual(proactiveSwap);
+      });
+
+      it('failure path: a proactive swap still rides the ERROR metadata (never silent — the failed attempt ran the fallback model)', async () => {
+        vi.mocked(mockRAGService.generateResponse).mockRejectedValue(
+          new Error('fresh HTTP error on the fallback model')
+        );
+
+        const result = await step.process({
+          job: createMockJob(),
+          startTime: Date.now(),
+          config: baseConfig,
+          auth: { ...baseAuth, quotaFallback: proactiveSwap },
+          preparedContext: basePreparedContext,
+        });
+
+        expect(result.result?.success).toBe(false);
+        // The footer must be able to explain why modelUsed is the fallback.
+        expect(result.result?.metadata?.quotaFallback).toEqual(proactiveSwap);
+      });
+
+      it('failure path without any swap: quotaFallback stays absent', async () => {
+        vi.mocked(mockRAGService.generateResponse).mockRejectedValue(new Error('plain failure'));
+
+        const result = await step.process({
+          job: createMockJob(),
+          startTime: Date.now(),
+          config: baseConfig,
+          auth: baseAuth,
+          preparedContext: basePreparedContext,
+        });
+
+        expect(result.result?.success).toBe(false);
+        expect(result.result?.metadata?.quotaFallback).toBeUndefined();
+      });
+    });
+
     describe('RetryError unwrapping', () => {
       it('should unwrap RetryError to classify underlying API error', async () => {
         // Create an underlying authentication error
