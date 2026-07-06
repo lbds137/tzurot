@@ -4,7 +4,7 @@ _Focus: four distinct DRY-extraction campaigns that the api-gateway CRUD-config 
 
 The campaign-close audit at `docs/reference/CPD_CAMPAIGN_AUDIT.md` classifies the remaining post-filter clones into four buckets. Three of those buckets are out-of-scope-by-design (deferred to future campaigns); one is in-file local-helper work. Picking these up individually:
 
-1. **🟣 Service-layer parallel cleanup** (~24 lines / 2 clones)
+1. ~~**🟣 Service-layer parallel cleanup**~~ — **OBSOLETE 2026-07-06 (verified, not done)**: the kind-column retirement (#1499/#1501) restructured LlmConfigService enough that raw jscpd now finds ZERO clones between the pair; the parallel method names remain but the implementations diverged structurally (ModelSlot-parameterized defaults vs slotless TTS pointers, checkNameExists vs resolveNonCollidingName). The council question answered itself: the divergences ARE structural. No extraction. (original scope: ~24 lines / 2 clones)
    - `services/api-gateway/src/services/LlmConfigService.ts` ↔ `TtsConfigService.ts`
    - Sibling service implementations with shared structure (CRUD methods, scope-aware lookups, cache invalidation, error classes)
    - **Lowest blast radius** of the four. The helpers from PR #1039-1041 are at the ROUTE layer; this campaign would be the analogous extraction one level deeper. Some helpers may apply directly (`checkNameExists` is already parameterized).
@@ -22,7 +22,7 @@ The campaign-close audit at `docs/reference/CPD_CAMPAIGN_AUDIT.md` classifies th
    - **Largest remaining cluster** by lines, but most architecturally different from what was just done.
    - Council pass should focus on: which command groupings genuinely share helper-extractable shape? `character/*` siblings probably yes; `character/truncationWarning` ↔ `persona/truncationWarning` looks ripe.
 
-4. **🟣 ai-worker service-pattern campaign** (~34 lines / 2 clones for voice-provider siblings, plus internal in `KeyValidationService`, `ElevenLabsClient`)
+4. ✅ **🟣 ai-worker service-pattern campaign** — **SHIPPED 2026-07-06** (council pass: composed `CloneCacheKernel` over BaseTtsProvider inheritance — the failure classifiers have near-opposite polarity per provider and are load-bearing divergence; the three-cache state machine (positive/negative/inflight + finally-cleanup) is the identical-invariant kernel that must stay in sync. Exactly 2 callbacks (work + classifyFailure); Mistral's eviction mutex stays a provider lifecycle concern. Both provider suites passed UNCHANGED post-extraction; pair clones now 0. Internal `KeyValidationService`/`ElevenLabsClient` self-clones remain item-5 material.)
    - `services/ai-worker/src/services/voice/ElevenLabsVoiceService.ts` ↔ `voice/providers/MistralTtsProvider.ts`
    - Voice provider abstraction was deliberately additive during the TTS Phase 1+3 work — each provider implements `TtsProvider` independently. Cross-provider duplication has accumulated.
    - Council pass should focus on: is the `TtsProvider` interface incomplete? Should there be a `BaseTtsProvider` with shared concerns (cost telemetry, fallback wiring) and provider-specific subclasses for inference?
@@ -31,7 +31,7 @@ The campaign-close audit at `docs/reference/CPD_CAMPAIGN_AUDIT.md` classifies th
 
 5. **🔵 In-file local-helper extraction sweep** — 10 file pairs from the audit are SAME-file internal clones (`user/history.ts` self, `user/memorySingle.ts` self, `SettingsDashboardHandler` self, `ElevenLabsClient` self, etc., totaling ~339 lines). These are repeated guards/loops within single handlers that local-helper extraction would clean up. Per-file work, not a campaign — surface for opportunistic cleanup when next touching each file.
 
-**Sequencing**: Item 1 (service-layer) has the lowest blast radius and most immediate adjacency to what we just shipped — natural first pick. Item 2 (override-routes) is gated on a council design pass for the cascade-helper kernel shape. Item 3 (bot-client) is the largest but most architecturally distinct — would benefit from its own multi-PR shape. Item 4 (ai-worker voice providers) is the smallest and could be a single PR.
+**Sequencing**: Item 1 obsolete, item 4 shipped (2026-07-06). Item 2 (override-routes) is gated on a council design pass for the cascade-helper kernel shape. Item 3 (bot-client) is the largest but most architecturally distinct — would benefit from its own multi-PR shape. Item 4 (ai-worker voice providers) is the smallest and could be a single PR.
 
 **Promote when**: capacity for another DRY-extraction campaign exists, OR opportunistically when next touching the relevant code. Each item gets its own council pass before plan-mode per the project's "consult council before major refactors" rule.
 

@@ -33,7 +33,7 @@ import {
   type TtsProviderId,
 } from '@tzurot/common-types/services/tts/TtsProvider';
 import { createLogger } from '@tzurot/common-types/utils/logger';
-import { TTLCache } from '@tzurot/common-types/utils/TTLCache';
+import { CloneCacheKernel } from '../CloneCacheKernel.js';
 import {
   mistralCloneVoice,
   mistralListVoices,
@@ -71,10 +71,6 @@ const MISTRAL_CAPABILITIES: TtsCapabilities = {
   outputFormat: 'wav',
 };
 
-interface CachedVoice {
-  voiceId: string;
-}
-
 /**
  * The discriminated return shape of `mistralListVoices` — `{ voices, truncated }`.
  * Aliased so call-site code reads cleanly without repeating the inline
@@ -106,9 +102,11 @@ export class MistralTtsProvider implements TtsProvider {
   readonly displayName = 'Mistral Voxtral (BYOK)';
   readonly capabilities = MISTRAL_CAPABILITIES;
 
-  private readonly cloneCache: TTLCache<CachedVoice>;
-  private readonly negativeCache: TTLCache<string>;
-  private readonly inflight = new Map<string, Promise<string>>();
+  private readonly cloneCache = new CloneCacheKernel({
+    positiveTtlMs: CLONE_CACHE_TTL_MS,
+    negativeTtlMs: NEGATIVE_CACHE_TTL_MS,
+    maxSize: CACHE_MAX_SIZE,
+  });
 
   /**
    * Eviction mutex — serializes prepare() per-instance to prevent the
@@ -116,17 +114,6 @@ export class MistralTtsProvider implements TtsProvider {
    * section. Same pattern as ElevenLabsTtsProvider.
    */
   private evictionLock: Promise<unknown> = Promise.resolve();
-
-  constructor() {
-    this.cloneCache = new TTLCache<CachedVoice>({
-      ttl: CLONE_CACHE_TTL_MS,
-      maxSize: CACHE_MAX_SIZE,
-    });
-    this.negativeCache = new TTLCache<string>({
-      ttl: NEGATIVE_CACHE_TTL_MS,
-      maxSize: CACHE_MAX_SIZE,
-    });
-  }
 
   /** Cheap predicate — Mistral requires a BYOK key. No I/O. */
   isAvailable(ctx: TtsContext): boolean {
@@ -214,16 +201,12 @@ export class MistralTtsProvider implements TtsProvider {
 
   /** Invalidate cached voice for slug+key (e.g., on 404 from synthesize). */
   invalidateVoice(slug: string, apiKey: string): void {
-    const cacheKey = this.buildCacheKey(slug, apiKey);
-    this.cloneCache.delete(cacheKey);
-    this.negativeCache.delete(cacheKey);
+    this.cloneCache.invalidate(this.buildCacheKey(slug, apiKey));
   }
 
   /** @internal Test-only cache reset. */
   clearCache(): void {
     this.cloneCache.clear();
-    this.negativeCache.clear();
-    this.inflight.clear();
   }
 
   // ===== Internal lifecycle ===============================================
@@ -231,34 +214,15 @@ export class MistralTtsProvider implements TtsProvider {
   private async ensureVoiceCloned(slug: string, apiKey: string): Promise<string> {
     const cacheKey = this.buildCacheKey(slug, apiKey);
 
-    // Positive cache hit
-    const cached = this.cloneCache.get(cacheKey);
-    if (cached !== null) {
-      return cached.voiceId;
-    }
-
-    // Negative cache hit — surface the prior failure rather than retrying
-    const failReason = this.negativeCache.get(cacheKey);
-    if (failReason !== null) {
-      throw new Error(`Mistral voice clone for "${slug}" recently failed: ${failReason}`);
-    }
-
-    // Inflight dedup — defensive backstop only. The eviction mutex in
-    // `prepare()` already serializes concurrent calls, so by the time the
-    // second call's promise chain reaches here, the first has settled and
-    // populated the cache (or cleared inflight via `.finally`). The check
-    // is unreachable under the current call shape (`ensureVoiceCloned` is
-    // private + only called from the mutex-chained path), kept in case a
-    // future caller bypasses the mutex (e.g., direct test invocation).
-    const existing = this.inflight.get(cacheKey);
-    if (existing !== undefined) {
-      return existing;
-    }
-
-    const promise = this.doEnsureCloned(slug, apiKey, cacheKey)
-      .catch(error => {
-        const reason = error instanceof Error ? error.message : String(error);
-
+    // The kernel's inflight dedup is a defensive backstop only here: the
+    // eviction mutex in `prepare()` already serializes concurrent calls, so
+    // the check is unreachable under the current call shape — kept for any
+    // future caller that bypasses the mutex (e.g., direct test invocation).
+    return this.cloneCache.resolve({
+      cacheKey,
+      describe: `Mistral voice clone for "${slug}"`,
+      work: () => this.doEnsureCloned(slug, apiKey),
+      classifyFailure: (error, reason) => {
         // Branch ordering matters: MistralReferenceAudioTooLongError has
         // `isTransient = false`, so `isDeterministicFailure` would match it
         // too. Keep this explicit instanceof check first so the structured
@@ -278,43 +242,44 @@ export class MistralTtsProvider implements TtsProvider {
             },
             'Mistral reference audio exceeds 30s limit — skipping clone; dispatcher will attempt fallback if available'
           );
-        } else if (error instanceof MistralVoiceListUnavailableError) {
+          return null;
+        }
+        if (error instanceof MistralVoiceListUnavailableError) {
           // The clone path never ran — the list endpoint failed (truncation
           // or fetch retry-exhaustion). Log message reflects the actual
           // failure mode, distinct from "voice clone failed" which would
           // misattribute. Still cache (isTransient=true) so the next 5 min
           // of prepares short-circuit instead of repeating retry storms.
-          this.negativeCache.set(cacheKey, reason);
           logger.warn(
             { event: 'mistral.voiceListUnavailable', slug, listReason: error.reason, reason },
             'Mistral voice list unavailable — cached for 5 min, no clone attempted'
           );
-        } else if (error instanceof MistralApiError && error.isRateLimited) {
+          return reason;
+        }
+        if (error instanceof MistralApiError && error.isRateLimited) {
           // Rate-limited (429) is transient but too granular for a 5-min
           // blanket cache — Mistral's retry-after header is more precise.
           logger.warn({ slug, reason }, 'Mistral voice clone rate limited (not cached)');
-        } else if (isDeterministicFailure(error)) {
+          return null;
+        }
+        if (isDeterministicFailure(error)) {
           // Other deterministic failures (e.g., 4xx auth, malformed audio) —
           // caching adds nothing because the same input will keep failing.
-          // The absence of `negativeCache.set` is intentional: the `throw error`
-          // below still rejects the caller's promise, so the failure surfaces;
-          // we just don't poison the cache for the next attempt.
+          // Returning null is intentional: the kernel still rejects the
+          // caller's promise, so the failure surfaces; we just don't poison
+          // the cache for the next attempt.
           logger.warn({ slug, reason }, 'Mistral voice clone failed (deterministic — not cached)');
-        } else {
-          // Transient (5xx, response-shape, network blips) or unknown.
-          // Cache for 5 min to prevent retry storms.
-          this.negativeCache.set(cacheKey, reason);
-          logger.warn({ slug, reason }, 'Mistral voice clone failed — cached for 5 min');
+          return null;
         }
-        throw error;
-      })
-      .finally(() => this.inflight.delete(cacheKey));
-
-    this.inflight.set(cacheKey, promise);
-    return promise;
+        // Transient (5xx, response-shape, network blips) or unknown.
+        // Cache for 5 min to prevent retry storms.
+        logger.warn({ slug, reason }, 'Mistral voice clone failed — cached for 5 min');
+        return reason;
+      },
+    });
   }
 
-  private async doEnsureCloned(slug: string, apiKey: string, cacheKey: string): Promise<string> {
+  private async doEnsureCloned(slug: string, apiKey: string): Promise<string> {
     const voiceName = `${TTS_VOICE_NAME_PREFIX}${slug}`;
 
     // Step 1: list voices, find by name. `mistralListVoices` walks pages up
@@ -369,7 +334,6 @@ export class MistralTtsProvider implements TtsProvider {
     if (listResult !== undefined) {
       const existing = listResult.voices.find(v => v.name === voiceName);
       if (existing !== undefined) {
-        this.cloneCache.set(cacheKey, { voiceId: existing.id });
         logger.info({ slug, voiceId: existing.id }, 'Found existing Mistral voice');
         return existing.id;
       }
@@ -424,7 +388,6 @@ export class MistralTtsProvider implements TtsProvider {
       apiKey,
     });
 
-    this.cloneCache.set(cacheKey, { voiceId: cloned.id });
     logger.info({ slug, voiceId: cloned.id }, 'Mistral voice cloned and cached');
     return cloned.id;
   }
