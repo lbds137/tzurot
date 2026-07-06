@@ -14,7 +14,7 @@ _Recently resolved items move to the GitHub release notes at ship time — this 
 
 ### 🎯 Current Focus (max 3)
 
-**🏗️ `[LIFT]` Spinoff-theme knockout + finishing-first — the release focus (no new epic)** — User decisions 2026-07-02/03: burn down the spinoff themes, and theme-CLOSERS outrank theme-starters. Roadmap + ordering in `active-epic.md`. Legacy-column retirement CLOSED 2026-07-05 (#1499 + #1501). Next pulls: job-payload contract suite (test-quality theme's founding motivation) · CPD campaign 1 (council-first).
+**🏗️ `[LIFT]` Spinoff-theme knockout + finishing-first — the release focus (no new epic)** — User decisions 2026-07-02/03: burn down the spinoff themes, and theme-CLOSERS outrank theme-starters. Roadmap + ordering in `active-epic.md`. Legacy-column retirement CLOSED 2026-07-05 (#1499 + #1501); test-quality theme CLOSED 2026-07-06 (all four candidates — contract suite + five-package Stryker ratchet + Pact rule-out + invariants audit). Next pulls: CPD campaign 1 (council-first) · agentic scaffolding build (prerequisite discharged) · real-scale goldens session (unparks memory 1a).
 
 **✨ `[FEAT]` ~~Boulder design pass~~ ✅ **COMPLETE 2026-07-05 — all four, two days early.** Five accepted artifacts in `docs/proposals/backlog/`: `ux-design-system-spec` + `platform-portable-ux-design` (#1), `prompt-assembly-architecture` (#2), `memory-architecture` (#3), `agentic-scaffolding` (#4) — each 3-6-source grounded, full-trio-council passed, all decisions owner-signed. Theme files rewritten to implement the artifacts. Implementation phases are now the queue (each phase: plan-mode + council at build time). The struck agenda below stays one cycle as the artifact index:
 

@@ -441,3 +441,18 @@ Ingested 2026-07-05 (notes-Discord cleanup). Expose token top-probabilities in `
 ## Scheduled service-tier mutation audit (report-only, no ratchet)
 
 Per-PR mutation testing on the three services is adjudicated non-viable (projection from five measured packages: ~0.35 mutants/src-line → ai-worker ~13k, api-gateway ~10k, bot-client ~22k mutants ≈ 30–70+ min per run). If service-tier test-effectiveness measurement is ever wanted, the shape is a WEEKLY scheduled report-only Stryker run riding the existing audit-cron infra (Discord thread delivery, JSONL summary line), trend-only — no baseline, no gate, no per-PR cost. Prerequisite: verify a full service run completes on a CI runner at all (timeout ceilings), and consider `--mutate` scoping to `src/services/**` hot paths if not. Filed 2026-07-06 at Stryker candidate-1 close-out; promote if a service ships a test-gap-shaped bug that mutation would have caught.
+
+## Wire-result discriminated unions (make illegal states unrepresentable at the BullMQ seam)
+
+The test-quality theme's candidate-4 audit (2026-07-06) found one coherent family: every cross-service RESULT shape is `success: boolean` + all-optional payload fields — the compiler cannot reject `{ success: true }` with no content, nor `{ success: false }` with no error. The type-level fix is the ContextVariant treatment: discriminated unions on `success` with per-arm required fields.
+
+**The family** (all in common-types):
+- `AudioTranscriptionResult` (jobs.ts) — success arm requires `content`; failure arm requires `error` and owns `failureReason` (its own doc already says "set only when success=false" — an invariant the type should carry)
+- `ImageDescriptionResult` (jobs.ts) — success arm requires `descriptions`
+- `LLMGenerationResult` (schemas/generation.ts:183, Zod) — same treatment via `z.discriminatedUnion`
+- `ShapesImportJobResult` / `ShapesExportJobResult` (shapes-import.ts) — same pattern, lower traffic
+- **Bundle-with**: the `llmGenerationContextSchema` superRefine (jobs.ts:410) converts to `z.discriminatedUnion('kind', ...)` naturally WHEN the legacy tolerance retires — same touch as the existing follow-ups row (the `.default('legacy')` on the discriminator is what blocks it today).
+
+**Why it matters**: these shapes cross the BullMQ seam that produced #1184; the contract suite now pins their runtime behavior, but a union makes the producer-side mistakes uncompilable rather than merely caught. Consumers' `if (result.success)` narrowing improves for free.
+
+**Effort**: medium — the interfaces are consumed across ai-worker handlers/DependencyStep and bot-client result paths; each arm-split surfaces every call site that fabricates partial results (mostly tests). One shape at a time is the right grain; `AudioTranscriptionResult` first (it has the documented-but-unenforced `failureReason` invariant). Promote when: any functional touch of jobs.ts result shapes, or as a standalone chore slice.
