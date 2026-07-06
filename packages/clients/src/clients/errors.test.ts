@@ -78,3 +78,17 @@ describe('parseErrorResponse', () => {
     expect(parsed.message).toBe('HTTP 500');
   });
 });
+describe('parseErrorResponse — wrong-shape JSON fallback', () => {
+  it('falls back to the status-derived message when the body is JSON but not an error envelope', async () => {
+    // message must be present with the WRONG TYPE — the schema is passthrough
+    // with all-optional fields, so merely-unknown keys would still parse.
+    const response = new Response(JSON.stringify({ message: 123 }), {
+      status: 502,
+      headers: { 'content-type': 'application/json' },
+    });
+
+    const parsed = await parseErrorResponse(response);
+
+    expect(parsed).toEqual({ message: 'HTTP 502' });
+  });
+});

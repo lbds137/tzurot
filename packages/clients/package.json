@@ -17,13 +17,17 @@
     "lint:fix": "eslint src --fix",
     "format": "prettier --write .",
     "typecheck": "tsc --noEmit",
-    "typecheck:spec": "tsc --noEmit --project tsconfig.spec.json"
+    "typecheck:spec": "tsc --noEmit --project tsconfig.spec.json",
+    "test:mutation": "stryker run"
   },
   "dependencies": {
     "@tzurot/common-types": "workspace:*",
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@stryker-mutator/api": "^9.6.1",
+    "@stryker-mutator/core": "^9.6.1",
+    "@stryker-mutator/vitest-runner": "^9.6.1",
     "@types/node": "^26.1.0"
   }
 }
