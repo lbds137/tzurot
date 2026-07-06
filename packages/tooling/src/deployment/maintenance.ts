@@ -51,8 +51,8 @@ export interface MaintenanceOptions {
 /** Injectable seams so tests mock the network without child-process gymnastics. */
 export interface MaintenanceDeps {
   getRedisUrl: (env: Environment) => Promise<string | null>;
-  createRedis: (redisUrl: string, env: Environment) => Redis;
-  createQueue: (redisUrl: string, env: Environment, queueName: string) => Queue;
+  createRedis: (redisUrl: string) => Redis;
+  createQueue: (redisUrl: string, queueName: string) => Queue;
   sleep: (ms: number) => Promise<void>;
 }
 
@@ -71,7 +71,7 @@ const FLAG_CONVERGENCE_MS = 5_000;
 export const defaultMaintenanceDeps: MaintenanceDeps = {
   getRedisUrl: getRailwayRedisUrl,
   createRedis: createInspectorRedis,
-  createQueue: (redisUrl, env, queueName) => createInspectorQueue(redisUrl, queueName, env),
+  createQueue: createInspectorQueue,
   sleep: ms => new Promise(resolve => setTimeout(resolve, ms)),
 };
 
@@ -154,16 +154,10 @@ export async function runMaintenance(
     return 1;
   }
 
-  const redis = deps.createRedis(redisUrl, options.env);
+  const redis = deps.createRedis(redisUrl);
   const queues: NamedQueue[] = [
-    {
-      name: DEFAULT_QUEUE_NAME,
-      queue: deps.createQueue(redisUrl, options.env, DEFAULT_QUEUE_NAME),
-    },
-    {
-      name: SCHEDULED_QUEUE_NAME,
-      queue: deps.createQueue(redisUrl, options.env, SCHEDULED_QUEUE_NAME),
-    },
+    { name: DEFAULT_QUEUE_NAME, queue: deps.createQueue(redisUrl, DEFAULT_QUEUE_NAME) },
+    { name: SCHEDULED_QUEUE_NAME, queue: deps.createQueue(redisUrl, SCHEDULED_QUEUE_NAME) },
   ];
   const flag = new MaintenanceFlag(redis);
 

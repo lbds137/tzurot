@@ -6,9 +6,7 @@
 
 ## Unreleased on Develop
 
-_(empty — reset at beta.149)_
-
-⚠️ **Maintenance mode is NOT yet operable against Railway**: `getRailwayRedisUrl` queries service `redis` (actual name `Redis`), reads the internal `REDIS_URL` (unreachable off-platform; `REDIS_PUBLIC_URL` is the reachable one), and forces IPv6 (the public proxy is IPv4) — `inspect:queue`/`inspect:dlq` share the defect (pre-existing; local-only verification masked it). Filed as a Quick Win; must be fixed BEFORE the next destructive release (TTS mirror columns).
+- **ops Redis tooling reaches Railway** (fix PR, same day as beta.149): `getRailwayRedisUrl` now queries service `Redis` (with lowercase fallback), prefers `REDIS_PUBLIC_URL` (internal URL is off-platform-unreachable), and pins IPv4 (the forced IPv6 was the remote-hang cause) — un-breaking `maintenance on|off|status` + `inspect:queue`/`inspect:dlq` for `--env dev/prod`. **Runtime-verified against BOTH dev and prod** (flag OFF, queues running, cron ticks visible as delayed jobs). Maintenance mode is now confirmed operable for the next destructive release.
 
 ## Next Session Goal
 
