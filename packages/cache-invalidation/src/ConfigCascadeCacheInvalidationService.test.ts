@@ -4,6 +4,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { ConfigCascadeCacheInvalidationService } from './ConfigCascadeCacheInvalidationService.js';
+import type { Redis } from 'ioredis';
 import { REDIS_CHANNELS } from '@tzurot/common-types/constants/queue';
 
 // Mock logger
@@ -166,6 +167,77 @@ describe('ConfigCascadeCacheInvalidationService', () => {
         REDIS_CHANNELS.CONFIG_CASCADE_CACHE_INVALIDATION,
         JSON.stringify({ type: 'all' })
       );
+    });
+  });
+
+  describe('subscribe dispatch (wire-contract validation)', () => {
+    async function makeSubscribed(): Promise<{
+      deliver: (raw: string, channel?: string) => void;
+      callback: ReturnType<typeof vi.fn>;
+    }> {
+      let onMessage: ((channel: string, message: string) => void) | undefined;
+      const subscriber = {
+        subscribe: vi.fn().mockResolvedValue(undefined),
+        unsubscribe: vi.fn().mockResolvedValue(undefined),
+        disconnect: vi.fn(),
+        on: vi.fn((event: string, cb: (channel: string, message: string) => void) => {
+          if (event === 'message') {
+            onMessage = cb;
+          }
+        }),
+      };
+      const redisForDispatch = {
+        duplicate: vi.fn().mockReturnValue(subscriber),
+        publish: vi.fn().mockResolvedValue(1),
+        subscribe: vi.fn(),
+        unsubscribe: vi.fn(),
+        disconnect: vi.fn(),
+        on: vi.fn(),
+      } as unknown as Redis;
+      const dispatchService = new ConfigCascadeCacheInvalidationService(redisForDispatch);
+      const callback = vi.fn();
+      await dispatchService.subscribe(callback);
+      return {
+        deliver: (
+          raw: string,
+          channel: string = REDIS_CHANNELS.CONFIG_CASCADE_CACHE_INVALIDATION
+        ): void => {
+          onMessage?.(channel, raw);
+        },
+        callback,
+      };
+    }
+
+    it.each([
+      ['user', { type: 'user', discordId: 'discord-1' }],
+      ['personality', { type: 'personality', personalityId: 'pers-1' }],
+      ['channel', { type: 'channel', channelId: 'chan-1' }],
+      ['admin', { type: 'admin' }],
+      ['all', { type: 'all' }],
+    ])('delivers a valid %s event to the callback', async (_name, event) => {
+      const { deliver, callback } = await makeSubscribed();
+      deliver(JSON.stringify(event));
+      expect(callback).toHaveBeenCalledWith(event);
+    });
+
+    it.each([
+      ['a personality event missing personalityId', JSON.stringify({ type: 'personality' })],
+      [
+        'a channel event with a numeric channelId',
+        JSON.stringify({ type: 'channel', channelId: 9 }),
+      ],
+      ['an unknown event type', JSON.stringify({ type: 'guild' })],
+      ['malformed JSON', '{not json'],
+    ])('rejects %s without invoking the callback', async (_name, raw) => {
+      const { deliver, callback } = await makeSubscribed();
+      deliver(raw);
+      expect(callback).not.toHaveBeenCalled();
+    });
+
+    it('ignores messages arriving on a different channel', async () => {
+      const { deliver, callback } = await makeSubscribed();
+      deliver(JSON.stringify({ type: 'all' }), 'unrelated:channel');
+      expect(callback).not.toHaveBeenCalled();
     });
   });
 });

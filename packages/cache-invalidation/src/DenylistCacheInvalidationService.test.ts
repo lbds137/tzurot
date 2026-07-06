@@ -3,6 +3,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import type { Redis } from 'ioredis';
 import {
   DenylistCacheInvalidationService,
   isValidDenylistInvalidationEvent,
@@ -265,6 +266,90 @@ describe('DenylistCacheInvalidationService', () => {
 
       expect(mockSubscriber.unsubscribe).not.toHaveBeenCalled();
       expect(mockSubscriber.disconnect).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('subscribe dispatch (wire-contract validation)', () => {
+    async function makeSubscribed(): Promise<{
+      deliver: (raw: string, channel?: string) => void;
+      callback: ReturnType<typeof vi.fn>;
+    }> {
+      let onMessage: ((channel: string, message: string) => void) | undefined;
+      const subscriber = {
+        subscribe: vi.fn().mockResolvedValue(undefined),
+        unsubscribe: vi.fn().mockResolvedValue(undefined),
+        disconnect: vi.fn(),
+        on: vi.fn((event: string, cb: (channel: string, message: string) => void) => {
+          if (event === 'message') {
+            onMessage = cb;
+          }
+        }),
+      };
+      const redisForDispatch = {
+        duplicate: vi.fn().mockReturnValue(subscriber),
+        publish: vi.fn().mockResolvedValue(1),
+        subscribe: vi.fn(),
+        unsubscribe: vi.fn(),
+        disconnect: vi.fn(),
+        on: vi.fn(),
+      } as unknown as Redis;
+      const dispatchService = new DenylistCacheInvalidationService(redisForDispatch);
+      const callback = vi.fn();
+      await dispatchService.subscribe(callback);
+      return {
+        deliver: (
+          raw: string,
+          channel: string = REDIS_CHANNELS.DENYLIST_CACHE_INVALIDATION
+        ): void => {
+          onMessage?.(channel, raw);
+        },
+        callback,
+      };
+    }
+
+    it.each([
+      [
+        'add',
+        {
+          type: 'add',
+          entry: { type: 'user', discordId: 'd-1', scope: 'user', scopeId: 'u-1', mode: 'block' },
+        },
+      ],
+      [
+        'remove',
+        {
+          type: 'remove',
+          entry: { type: 'user', discordId: 'd-2', scope: 'guild', scopeId: 'g-1', mode: 'block' },
+        },
+      ],
+      ['all', { type: 'all' }],
+    ])('delivers a valid %s event to the callback', async (_name, event) => {
+      const { deliver, callback } = await makeSubscribed();
+      deliver(JSON.stringify(event));
+      expect(callback).toHaveBeenCalledWith(event);
+    });
+
+    it.each([
+      ['an add event missing its entry', JSON.stringify({ type: 'add' })],
+      [
+        'an add event whose entry lacks mode',
+        JSON.stringify({
+          type: 'add',
+          entry: { type: 'user', discordId: 'd-1', scope: 'user', scopeId: 'u-1' },
+        }),
+      ],
+      ['an all event carrying an extra key', JSON.stringify({ type: 'all', extra: true })],
+      ['malformed JSON', '{not json'],
+    ])('rejects %s without invoking the callback', async (_name, raw) => {
+      const { deliver, callback } = await makeSubscribed();
+      deliver(raw);
+      expect(callback).not.toHaveBeenCalled();
+    });
+
+    it('ignores messages arriving on a different channel', async () => {
+      const { deliver, callback } = await makeSubscribed();
+      deliver(JSON.stringify({ type: 'all' }), 'unrelated:channel');
+      expect(callback).not.toHaveBeenCalled();
     });
   });
 });
