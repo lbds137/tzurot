@@ -6,12 +6,13 @@
  * channel config-overrides, and model-override routes.
  */
 
-import type { Response } from 'express';
-import { Prisma } from '@tzurot/common-types/services/prisma';
+import type { Request, Response } from 'express';
+import { Prisma, type PrismaClient } from '@tzurot/common-types/services/prisma';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { mergeConfigOverrides } from './configOverrideMerge.js';
 import { sendError } from './responseHelpers.js';
 import { ErrorResponses } from './errorResponses.js';
+import { getRequiredParam } from './requestParams.js';
 
 const logger = createLogger('configOverrideHelpers');
 
@@ -85,4 +86,46 @@ export function mergeAndValidateOverrides(
 
   const prismaValue = merged === null ? Prisma.JsonNull : (merged as Prisma.InputJsonValue);
   return { merged, prismaValue };
+}
+
+// ============================================================================
+// Route preambles
+// ============================================================================
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Extract and UUID-validate the `:personalityId` route param, sending a
+ * validation error on a malformed id. Returns null after sending (callers
+ * early-return on null).
+ */
+export function getValidatedPersonalityId(req: Request, res: Response): string | null {
+  const personalityId = getRequiredParam(req.params.personalityId, 'personalityId');
+  if (!UUID_PATTERN.test(personalityId)) {
+    sendError(res, ErrorResponses.validationError('Invalid personalityId format'));
+    return null;
+  }
+  return personalityId;
+}
+
+/**
+ * Confirm the personality a cascade override points at exists, sending a 404
+ * otherwise. Existence-check only — override rows are user-scoped, so no
+ * ownership gate belongs here (the owner-gated load in the personality
+ * config-defaults route is deliberately a DIFFERENT shape).
+ */
+export async function findPersonalityOrSendNotFound(
+  res: Response,
+  prisma: PrismaClient,
+  personalityId: string
+): Promise<{ id: string; name: string } | null> {
+  const personality = await prisma.personality.findFirst({
+    where: { id: personalityId },
+    select: { id: true, name: true },
+  });
+  if (personality === null) {
+    sendError(res, ErrorResponses.notFound('Personality'));
+    return null;
+  }
+  return personality;
 }

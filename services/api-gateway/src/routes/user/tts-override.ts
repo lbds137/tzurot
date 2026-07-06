@@ -29,7 +29,10 @@ import { generateUserPersonalityConfigUuid } from '@tzurot/common-types/utils/de
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { requireUserAuth, requireProvisionedUser } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
-import { tryInvalidateCache } from '../../utils/configOverrideHelpers.js';
+import {
+  tryInvalidateCache,
+  findPersonalityOrSendNotFound,
+} from '../../utils/configOverrideHelpers.js';
 import { resolveProvisionedUserId } from '../../utils/resolveProvisionedUserId.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
@@ -105,12 +108,9 @@ export const handleSetTtsOverride = (deps: RouteDeps): RequestHandler => {
 
     const userId = resolveProvisionedUserId(req);
 
-    const personality = await prisma.personality.findFirst({
-      where: { id: personalityId },
-      select: { id: true, name: true },
-    });
+    const personality = await findPersonalityOrSendNotFound(res, prisma, personalityId);
     if (personality === null) {
-      return sendError(res, ErrorResponses.notFound('Personality'));
+      return;
     }
 
     const ttsConfig = await verifyTtsConfigAccess(prisma, configId, userId);
