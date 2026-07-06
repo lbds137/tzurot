@@ -41,6 +41,9 @@ import { PrismaContextDataSource } from '../../services/context/PrismaContextDat
 import { ContextAssembler } from '../../services/context/ContextAssembler.js';
 import { VisionDescriptionWriter } from '../../services/context/visionDescriptionWriter.js';
 import { type ApiKeyResolver } from '../../services/ApiKeyResolver.js';
+import { creditExhaustionCache, rateLimitCache } from '../../redis.js';
+import { type QuotaFallbackCaches } from '../../services/quotaFallback.js';
+import { type QuotaFallbackDeps } from './pipeline/steps/quotaFallbackRunner.js';
 import type { EmbeddingServiceInterface } from '../../utils/duplicateDetection.js';
 import { storeDiagnosticLog } from './pipeline/steps/diagnosticStorage.js';
 import {
@@ -119,6 +122,27 @@ export class LLMGenerationHandler {
   ) {
     const { configResolver, embeddingService, cascadeResolver, ttsConfigResolver, sttResolver } =
       options;
+
+    // Tier-aware quota fallback (profiles Phase 0): both hooks share the
+    // worker-local doom-caches and the resolver's admin-default readers.
+    // Wired only when the full dependency set exists (production always;
+    // test fixtures that omit resolvers get the disabled passthrough).
+    const quotaFallbackCaches: QuotaFallbackCaches = {
+      creditExhaustion: creditExhaustionCache,
+      rateLimit: rateLimitCache,
+    };
+    const quotaFallbackDeps: QuotaFallbackDeps | undefined =
+      configResolver !== undefined && apiKeyResolver !== undefined
+        ? {
+            configResolver,
+            caches: quotaFallbackCaches,
+            // Never-throwing by contract (see ApiKeyResolver): these run
+            // inside the runner's error handling, where a fresh throw would
+            // replace the original quota error.
+            resolveSystemKey: () => apiKeyResolver.resolveSystemOpenRouterKey(),
+            resolveUserOpenRouterKey: userId => apiKeyResolver.resolveUserOpenRouterKey(userId),
+          }
+        : undefined;
     // Build the pipeline with all steps
     // Order matters: each step may depend on results from previous steps
     //
@@ -150,14 +174,14 @@ export class LLMGenerationHandler {
       new ValidationStep(),
       new NormalizationStep(),
       new ConfigStep(cascadeResolver),
-      new AuthStep(apiKeyResolver, configResolver, undefined, sttResolver),
+      new AuthStep(apiKeyResolver, configResolver, undefined, sttResolver, quotaFallbackCaches),
       new DownloadAttachmentsStep(),
       new DependencyStep(apiKeyResolver, visionDescriptionWriter),
       // Handler (and thus this pipeline) is constructed once at worker
       // startup — the data source, assembler, and their wrapped services are
       // constructed once here, not re-allocated per job.
       this.buildContextStep(prisma),
-      new GenerationStep(ragService, prisma, embeddingService),
+      new GenerationStep(ragService, prisma, embeddingService, quotaFallbackDeps),
       new TTSStep(ttsConfigResolver),
     ];
   }

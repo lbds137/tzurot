@@ -18,6 +18,7 @@ import type { BaseMessage } from '@langchain/core/messages';
 import type { DiagnosticCollector } from '../../../services/DiagnosticCollector.js';
 import type { ProcessedAttachment } from '../../../services/MultimodalProcessor.js';
 import type { FallbackRoute } from '../../../services/ProviderRouter.js';
+import type { QuotaFallbackInfo } from '../../../services/quotaFallback.js';
 
 /**
  * Conversation history entry (raw format from job data)
@@ -146,6 +147,13 @@ export interface ResolvedAuth {
    * route on its end. Shape defined in `services/ai-worker/src/services/ProviderRouter.ts`.
    */
   fallback?: FallbackRoute;
+  /**
+   * Set when AuthStep's PROACTIVE quota check retargeted the resolved model
+   * (the configured preset was already known-doomed via the exhaustion/rate
+   * caches). GenerationStep threads it into result metadata so the footer
+   * announces the swap — retargeting is never silent.
+   */
+  quotaFallback?: QuotaFallbackInfo;
 }
 
 /**

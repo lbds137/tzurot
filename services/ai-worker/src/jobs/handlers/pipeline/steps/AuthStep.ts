@@ -12,6 +12,15 @@ import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { SttResolver, LlmConfigResolver } from '@tzurot/config-resolver';
 import type { ApiKeyResolver } from '../../../../services/ApiKeyResolver.js';
 import { ProviderRouter } from '../../../../services/ProviderRouter.js';
+import {
+  applyConfigToPersonality,
+  checkModelViability,
+  logQuotaFallbackAudit,
+  selectQuotaFallbackTarget,
+  type QuotaFallbackCaches,
+  type QuotaFallbackInfo,
+} from '../../../../services/quotaFallback.js';
+import { deriveCacheKeyId } from '../../../../services/RateLimitCache.js';
 import type { IPipelineStep, GenerationContext } from '../types.js';
 
 const logger = createLogger('AuthStep');
@@ -24,7 +33,8 @@ export class AuthStep implements IPipelineStep {
     private readonly apiKeyResolver?: ApiKeyResolver,
     private readonly configResolver?: LlmConfigResolver,
     providerRouter?: ProviderRouter,
-    private readonly sttResolver?: SttResolver
+    private readonly sttResolver?: SttResolver,
+    private readonly quotaFallbackCaches?: QuotaFallbackCaches
   ) {
     // ProviderRouter wraps ApiKeyResolver to encode the auto-fallthrough
     // routing rule for `zai-coding` (and any future provider that needs it).
@@ -46,7 +56,11 @@ export class AuthStep implements IPipelineStep {
       throw new Error('[AuthStep] ConfigStep must run before AuthStep');
     }
 
-    const llmAuth = await this.resolveLlmAuth(config.effectivePersonality, jobContext.userId);
+    const llmAuth = await this.resolveLlmAuthWithQuotaCheck(
+      config.effectivePersonality,
+      jobContext.userId,
+      job.id
+    );
     const {
       resolvedApiKey,
       resolvedProvider,
@@ -54,61 +68,10 @@ export class AuthStep implements IPipelineStep {
       effectivePersonality,
       wasAutoPromoted,
       fallback,
+      quotaFallback,
     } = llmAuth;
 
-    // Resolve audio-provider keys (ElevenLabs + Mistral). Each provider's key
-    // authorizes ALL of that provider's audio endpoints — TTS, STT, cloning.
-    //
-    // Skipped in guest mode: isGuestMode is determined by OpenRouter resolution,
-    // so a user with ONLY an audio key (no OpenRouter) won't get BYOK TTS/STT.
-    // This is an intentional v1 coupling — decoupling requires per-provider
-    // guest mode logic and is tracked as a follow-up.
-    const audioKeysBuilder = new Map<AudioProviderId, string>();
-    if (this.apiKeyResolver && !isGuestMode) {
-      // ElevenLabs (existing)
-      try {
-        const elResult = await this.apiKeyResolver.resolveApiKey(
-          jobContext.userId,
-          AIProvider.ElevenLabs
-        );
-        if (!elResult.isGuestMode && elResult.apiKey !== undefined) {
-          audioKeysBuilder.set('elevenlabs', elResult.apiKey);
-          logger.debug(
-            { userId: jobContext.userId, source: elResult.source },
-            'Resolved ElevenLabs API key'
-          );
-        }
-      } catch (error) {
-        logger.warn(
-          { err: error, userId: jobContext.userId },
-          'ElevenLabs key resolution failed, falling back to voice-engine'
-        );
-      }
-
-      // Mistral (new). Same shape: failure to resolve is logged
-      // and tolerated; the dispatcher will skip Mistral providers when its
-      // entry is missing from the map.
-      try {
-        const mistralResult = await this.apiKeyResolver.resolveApiKey(
-          jobContext.userId,
-          AIProvider.Mistral
-        );
-        if (!mistralResult.isGuestMode && mistralResult.apiKey !== undefined) {
-          audioKeysBuilder.set('mistral', mistralResult.apiKey);
-          logger.debug(
-            { userId: jobContext.userId, source: mistralResult.source },
-            'Resolved Mistral API key'
-          );
-        }
-      } catch (error) {
-        logger.warn(
-          { err: error, userId: jobContext.userId },
-          'Mistral key resolution failed (non-fatal — TTS dispatcher will skip Mistral)'
-        );
-      }
-    }
-    // Map is ReadonlyMap on the type contract; constructed Map narrows fine.
-    const audioProviderKeys: ReadonlyMap<AudioProviderId, string> = audioKeysBuilder;
+    const audioProviderKeys = await this.resolveAudioProviderKeys(jobContext.userId, isGuestMode);
 
     // Resolve STT dispatch once here so downstream steps (DependencyStep,
     // GenerationStep → MultimodalProcessor) don't each re-resolve. SttResolver
@@ -139,8 +102,187 @@ export class AuthStep implements IPipelineStep {
         // rather than crashing — silent no-op is preferable to a runtime fault.
         ...(wasAutoPromoted === true ? { wasAutoPromoted: true } : {}),
         ...(fallback !== undefined ? { fallback } : {}),
+        ...(quotaFallback !== undefined ? { quotaFallback } : {}),
       },
     };
+  }
+
+  /**
+   * Resolve LLM auth, then apply the PROACTIVE quota check on the result: if
+   * the resolved model is already known-doomed for this account
+   * (exhaustion/rate caches), retarget NOW and skip the doomed round-trip.
+   * Same target matrix as the reactive path.
+   */
+  private async resolveLlmAuthWithQuotaCheck(
+    initialPersonality: NonNullable<GenerationContext['config']>['effectivePersonality'],
+    userId: string,
+    jobId: string | undefined
+  ): Promise<
+    Awaited<ReturnType<AuthStep['resolveLlmAuth']>> & { quotaFallback?: QuotaFallbackInfo }
+  > {
+    const llmAuth = await this.resolveLlmAuth(initialPersonality, userId);
+    const proactive = await this.applyProactiveQuotaFallback({
+      personality: llmAuth.effectivePersonality,
+      apiKey: llmAuth.resolvedApiKey,
+      isGuestMode: llmAuth.isGuestMode,
+      userId,
+      jobId,
+    });
+    if (proactive === null) {
+      return llmAuth;
+    }
+    return {
+      ...llmAuth,
+      effectivePersonality: proactive.personality,
+      resolvedApiKey: proactive.apiKey,
+      isGuestMode: proactive.isGuestMode,
+      quotaFallback: proactive.info,
+      // The separately-tracked provider tier must follow the retarget too —
+      // it drives the context-window clamp, cross-provider vision auth, and
+      // the footer badge downstream. Phase-0 targets (admin defaults) are
+      // OpenRouter-routed by construction; revisit if an explicit fallback
+      // edge ever allows a non-OpenRouter target.
+      resolvedProvider: AIProvider.OpenRouter,
+      // The retarget replaced the promoted model/provider, so the
+      // pre-computed auto-promotion passthrough route no longer describes
+      // this request — carrying it forward would let GenerationStep retry a
+      // failure via the STALE route (the original z-ai model), which is the
+      // exact dead end the retarget just escaped.
+      wasAutoPromoted: undefined,
+      fallback: undefined,
+    };
+  }
+
+  /**
+   * Proactive half of the tier-aware quota fallback: consult the doom-caches
+   * for the resolved model and retarget before dispatch when it's already
+   * known-blocked. Returns null when no retarget applies (the common case,
+   * or when the caches/resolver aren't wired — test fixtures). When a
+   * retarget fires, the caller also clears the auto-promotion route (it
+   * describes the replaced model).
+   */
+  private async applyProactiveQuotaFallback(options: {
+    personality: NonNullable<GenerationContext['config']>['effectivePersonality'];
+    apiKey: string | undefined;
+    isGuestMode: boolean;
+    userId: string;
+    jobId: string | undefined;
+  }): Promise<{
+    personality: NonNullable<GenerationContext['config']>['effectivePersonality'];
+    apiKey: string | undefined;
+    isGuestMode: boolean;
+    info: QuotaFallbackInfo;
+  } | null> {
+    if (this.quotaFallbackCaches === undefined || this.configResolver === undefined) {
+      return null;
+    }
+
+    const { personality, apiKey, isGuestMode, userId, jobId } = options;
+    const cacheKeyId = deriveCacheKeyId(apiKey, userId);
+    const viability = await checkModelViability({
+      model: personality.model,
+      cacheKeyId,
+      caches: this.quotaFallbackCaches,
+    });
+    if (viability.viable) {
+      return null;
+    }
+
+    const target = await selectQuotaFallbackTarget({
+      category: viability.category,
+      isGuestMode,
+      failingModel: personality.model,
+      cacheKeyId,
+      configResolver: this.configResolver,
+      caches: this.quotaFallbackCaches,
+    });
+    if (target === null) {
+      return null;
+    }
+
+    let retargetApiKey = apiKey;
+    let retargetIsGuestMode = isGuestMode;
+    if (target.forceSystemKey) {
+      const systemKey = await this.apiKeyResolver?.resolveSystemOpenRouterKey();
+      if (systemKey === undefined) {
+        return null;
+      }
+      retargetApiKey = systemKey;
+      retargetIsGuestMode = true;
+    } else if (
+      personality.provider !== undefined &&
+      personality.provider !== (AIProvider.OpenRouter as string)
+    ) {
+      // The resolved key belongs to a different provider (e.g. a z.ai-promoted
+      // request carries the user's z.ai key). The OpenRouter retarget needs the
+      // user's OWN OpenRouter key; without one, abort rather than running a
+      // paid default on the system key (owner-cost boundary).
+      const openRouterKey = await this.apiKeyResolver?.resolveUserOpenRouterKey(userId);
+      if (openRouterKey === undefined) {
+        return null;
+      }
+      retargetApiKey = openRouterKey;
+    }
+
+    const info: QuotaFallbackInfo = {
+      fromModel: personality.model,
+      toModel: target.config.model,
+      category: viability.category,
+      mode: 'proactive',
+    };
+    logQuotaFallbackAudit(info, { jobId, cacheKeyId });
+
+    return {
+      personality: applyConfigToPersonality(personality, target.config),
+      apiKey: retargetApiKey,
+      isGuestMode: retargetIsGuestMode,
+      info,
+    };
+  }
+
+  /**
+   * Resolve audio-provider keys (ElevenLabs + Mistral). Each provider's key
+   * authorizes ALL of that provider's audio endpoints — TTS, STT, cloning.
+   *
+   * Skipped in guest mode: isGuestMode is determined by OpenRouter resolution,
+   * so a user with ONLY an audio key (no OpenRouter) won't get BYOK TTS/STT.
+   * This is an intentional v1 coupling — decoupling requires per-provider
+   * guest mode logic and is tracked as a follow-up. Per-provider resolution
+   * failure is logged and tolerated; the dispatcher skips providers whose
+   * entry is missing from the map.
+   */
+  private async resolveAudioProviderKeys(
+    userId: string,
+    isGuestMode: boolean
+  ): Promise<ReadonlyMap<AudioProviderId, string>> {
+    const audioKeysBuilder = new Map<AudioProviderId, string>();
+    if (!this.apiKeyResolver || isGuestMode) {
+      return audioKeysBuilder;
+    }
+    const providers: { id: AudioProviderId; provider: AIProvider; failNote: string }[] = [
+      {
+        id: 'elevenlabs',
+        provider: AIProvider.ElevenLabs,
+        failNote: 'ElevenLabs key resolution failed, falling back to voice-engine',
+      },
+      {
+        id: 'mistral',
+        provider: AIProvider.Mistral,
+        failNote: 'Mistral key resolution failed (non-fatal — TTS dispatcher will skip Mistral)',
+      },
+    ];
+    for (const { id, provider, failNote } of providers) {
+      try {
+        const result = await this.apiKeyResolver.resolveApiKey(userId, provider);
+        if (!result.isGuestMode && result.apiKey !== undefined) {
+          audioKeysBuilder.set(id, result.apiKey);
+          logger.debug({ userId, source: result.source, provider: id }, 'Resolved audio API key');
+        }
+      } catch (error) {
+        logger.warn({ err: error, userId }, failNote);
+      }
+    }
+    return audioKeysBuilder;
   }
 
   /**

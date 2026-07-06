@@ -6,6 +6,8 @@ The vision-config epic itself SHIPPED (`VisionConfigResolver` + gateway stamping
 
 **DESIGNS ACCEPTED 2026-07-05**: the profiles + user-channel items below are designed in [`docs/proposals/backlog/llm-profiles-and-user-channel-tier.md`](../../../docs/proposals/backlog/llm-profiles-and-user-channel-tier.md) (profile = preset + tier-filtered fallback edge; Phase 0 = zero-schema tier-aware fallback closing the live BYOK gap; UserChannelConfig between user-default and user-personality). The server tier is designed in `config-cascade-semantics.md`. Free Model Quota Resilience is absorbed by that design's D2 switching layer. Sections below retained as background until the phases ship.
 
+**Phase 0 SHIPPED 2026-07-06**: tier-aware quota fallback live — proactive (AuthStep doom-cache check pre-dispatch) + reactive (one-shot retarget on fresh QUOTA_EXCEEDED/CREDIT_EXHAUSTION), classification trigger matrix incl. the billing-entity futility rule (credit-exhausted BYOK → free default on SYSTEM key with guest semantics — owner decision; credit-exhausted guest → terminal), full-param-set swap, announced footer (`from → to (out of credit|rate limited)`), structured audit log per fire, wallet-key-update clears the exhaustion cache (top-up recovery), `isViable` seam ready for the piggyback allocator. Remaining: **Phase 1** (explicit `fallbackConfigId` edge + dashboard field) → **Phase 2** (UserChannelConfig tier).
+
 #### ✨ Config cascade extension — server, user-server, user-channel tiers
 
 Current cascade: admin < personality < channel < user-default < user+personality. Missing tiers:

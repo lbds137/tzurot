@@ -25,6 +25,17 @@ vi.mock('../../redis.js', () => ({
   redisService: {
     getJobResult: vi.fn(),
   },
+  // Doom-cache singletons consumed by the quota-fallback wiring. Default to
+  // "everything viable" so existing generation tests are unaffected.
+  creditExhaustionCache: {
+    isCreditExhausted: vi.fn().mockResolvedValue({ exhausted: false }),
+    markCreditExhausted: vi.fn(),
+    clearCreditExhausted: vi.fn(),
+  },
+  rateLimitCache: {
+    isRateLimited: vi.fn().mockResolvedValue({ rateLimited: false }),
+    markRateLimited: vi.fn(),
+  },
 }));
 
 // Mock conversationUtils

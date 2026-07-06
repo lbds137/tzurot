@@ -91,6 +91,9 @@ function createMockApiKeyResolver(): ApiKeyResolver {
     tryResolveUserKey: vi.fn(),
     invalidateUserCache: vi.fn(),
     clearCache: vi.fn(),
+    // Never-throwing convenience helpers used by the quota-fallback paths.
+    resolveSystemOpenRouterKey: vi.fn().mockResolvedValue('sk-system-key'),
+    resolveUserOpenRouterKey: vi.fn().mockResolvedValue('sk-user-key'),
   } as unknown as ApiKeyResolver;
 }
 
@@ -245,6 +248,206 @@ describe('AuthStep', () => {
 
       expect(result.auth?.isGuestMode).toBe(true);
       expect(result.auth?.apiKey).toBeUndefined();
+    });
+
+    describe('proactive quota fallback', () => {
+      const BYOK_RESULT: ApiKeyResolutionResult = {
+        apiKey: 'sk-user-key',
+        provider: AIProvider.OpenRouter,
+        source: 'user',
+        isGuestMode: false,
+      };
+      const SYSTEM_RESULT: ApiKeyResolutionResult = {
+        apiKey: 'sk-system-key',
+        provider: AIProvider.OpenRouter,
+        source: 'system',
+        isGuestMode: true,
+      };
+
+      function buildCaches(overrides?: { exhausted?: boolean; rateLimitedModels?: string[] }): {
+        creditExhaustion: { isCreditExhausted: ReturnType<typeof vi.fn> };
+        rateLimit: { isRateLimited: ReturnType<typeof vi.fn> };
+      } {
+        const rateLimitedModels = overrides?.rateLimitedModels ?? [];
+        return {
+          creditExhaustion: {
+            isCreditExhausted: vi
+              .fn()
+              .mockResolvedValue(
+                overrides?.exhausted === true
+                  ? { exhausted: true, exhaustedAtMs: 0, ttlSeconds: 60 }
+                  : { exhausted: false }
+              ),
+          },
+          rateLimit: {
+            isRateLimited: vi
+              .fn()
+              .mockImplementation(({ model }: { model: string }) =>
+                Promise.resolve(
+                  rateLimitedModels.includes(model) ? { rateLimited: true } : { rateLimited: false }
+                )
+              ),
+          },
+        };
+      }
+
+      function buildContext(): GenerationContext {
+        return {
+          job: createMockJob(),
+          startTime: Date.now(),
+          config: { effectivePersonality: TEST_PERSONALITY, configSource: 'personality' },
+        };
+      }
+
+      it('retargets a rate-limited model to the global default and announces it', async () => {
+        vi.mocked(mockApiKeyResolver.resolveApiKey).mockResolvedValue(BYOK_RESULT);
+        const resolverWithGlobal = {
+          ...mockConfigResolver,
+          getGlobalDefaultConfig: vi
+            .fn()
+            .mockResolvedValue({ model: 'paid/default', temperature: 0.5 }),
+        } as unknown as LlmConfigResolver;
+        const caches = buildCaches({
+          rateLimitedModels: [TEST_PERSONALITY.model],
+        });
+
+        step = new AuthStep(
+          mockApiKeyResolver,
+          resolverWithGlobal,
+          undefined,
+          undefined,
+          caches as never
+        );
+        const result = await step.process(buildContext());
+
+        // Seam assertions: the personality actually got rewritten and the swap announced.
+        expect(result.config?.effectivePersonality.model).toBe('paid/default');
+        expect(result.config?.effectivePersonality.temperature).toBe(0.5);
+        expect(result.auth?.apiKey).toBe('sk-user-key');
+        expect(result.auth?.quotaFallback).toEqual({
+          fromModel: TEST_PERSONALITY.model,
+          toModel: 'paid/default',
+          category: 'quota_exceeded',
+          mode: 'proactive',
+        });
+      });
+
+      it('credit-exhausted BYOK: retargets to the free default on the SYSTEM key with guest semantics', async () => {
+        vi.mocked(mockApiKeyResolver.resolveApiKey).mockImplementation(userId =>
+          Promise.resolve(userId === undefined ? SYSTEM_RESULT : BYOK_RESULT)
+        );
+        const resolverWithFree = {
+          ...mockConfigResolver,
+          getFreeDefaultConfig: vi.fn().mockResolvedValue({ model: 'free/model' }),
+          getGlobalDefaultConfig: vi.fn().mockResolvedValue(null),
+        } as unknown as LlmConfigResolver;
+        const caches = buildCaches({ exhausted: true });
+
+        step = new AuthStep(
+          mockApiKeyResolver,
+          resolverWithFree,
+          undefined,
+          undefined,
+          caches as never
+        );
+        const result = await step.process(buildContext());
+
+        expect(result.config?.effectivePersonality.model).toBe('free/model');
+        expect(result.auth?.apiKey).toBe('sk-system-key');
+        expect(result.auth?.isGuestMode).toBe(true);
+        expect(result.auth?.quotaFallback?.category).toBe('credit_exhaustion');
+        expect(result.auth?.quotaFallback?.mode).toBe('proactive');
+      });
+
+      it('does nothing when the resolved model is viable', async () => {
+        vi.mocked(mockApiKeyResolver.resolveApiKey).mockResolvedValue(BYOK_RESULT);
+        const caches = buildCaches();
+
+        step = new AuthStep(
+          mockApiKeyResolver,
+          mockConfigResolver,
+          undefined,
+          undefined,
+          caches as never
+        );
+        const result = await step.process(buildContext());
+
+        expect(result.config?.effectivePersonality.model).toBe(TEST_PERSONALITY.model);
+        expect(result.auth?.quotaFallback).toBeUndefined();
+      });
+
+      it('z.ai-promoted personality: retarget resets provider, swaps to the user OpenRouter key, and clears the stale auto-promotion route', async () => {
+        // The motivating incident's population — the reviewer-flagged
+        // zero-coverage intersection of auto-promotion and quota fallback.
+        vi.mocked(mockApiKeyResolver.resolveApiKey).mockImplementation((_userId, provider) =>
+          Promise.resolve(
+            provider === AIProvider.ZaiCoding
+              ? {
+                  apiKey: 'sk-zai-key',
+                  provider: AIProvider.ZaiCoding,
+                  source: 'user',
+                  isGuestMode: false,
+                }
+              : BYOK_RESULT
+          )
+        );
+        const resolverWithGlobal = {
+          ...mockConfigResolver,
+          getGlobalDefaultConfig: vi
+            .fn()
+            .mockResolvedValue({ model: 'paid/default', provider: 'openrouter' }),
+        } as unknown as LlmConfigResolver;
+        // z-ai model auto-promotes via the real ProviderRouter (no injected
+        // router), then the doom-cache blocks the promoted model.
+        const caches = buildCaches({ rateLimitedModels: ['glm-5.2'] });
+
+        step = new AuthStep(
+          mockApiKeyResolver,
+          resolverWithGlobal,
+          undefined,
+          undefined,
+          caches as never
+        );
+        const context: GenerationContext = {
+          job: createMockJob({
+            personality: { ...TEST_PERSONALITY, model: 'z-ai/glm-5.2', provider: 'openrouter' },
+          }),
+          startTime: Date.now(),
+          config: {
+            effectivePersonality: {
+              ...TEST_PERSONALITY,
+              model: 'z-ai/glm-5.2',
+              provider: 'openrouter',
+            },
+            configSource: 'personality',
+          },
+        };
+        const result = await step.process(context);
+
+        // Provider rewritten with the model — not left as zai-coding.
+        expect(result.config?.effectivePersonality.model).toBe('paid/default');
+        expect(result.config?.effectivePersonality.provider).toBe('openrouter');
+        // Key swapped to the user's OpenRouter credential, not the z.ai key.
+        expect(result.auth?.apiKey).toBe('sk-user-key');
+        // The separately-tracked provider tier follows the retarget (drives
+        // the context-window clamp, vision auth, and the footer badge).
+        expect(result.auth?.provider).toBe(AIProvider.OpenRouter);
+        // Stale auto-promotion route cleared — GenerationStep must not retry
+        // a failure via the replaced model's passthrough route.
+        expect(result.auth?.wasAutoPromoted).toBeUndefined();
+        expect(result.auth?.fallback).toBeUndefined();
+        expect(result.auth?.quotaFallback?.fromModel).toBe('glm-5.2');
+        expect(result.auth?.quotaFallback?.toModel).toBe('paid/default');
+      });
+
+      it('does nothing when the caches are not wired (test fixtures)', async () => {
+        vi.mocked(mockApiKeyResolver.resolveApiKey).mockResolvedValue(BYOK_RESULT);
+
+        step = new AuthStep(mockApiKeyResolver, mockConfigResolver);
+        const result = await step.process(buildContext());
+
+        expect(result.auth?.quotaFallback).toBeUndefined();
+      });
     });
 
     describe('zai-coding provider routing', () => {

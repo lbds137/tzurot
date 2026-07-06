@@ -156,6 +156,32 @@ export class CreditExhaustionCache {
       return { exhausted: false };
     }
   }
+
+  /**
+   * Clear the credit-exhaustion mark for `cacheKeyId`. The recovery edge:
+   * fired from the ApiKey cache-invalidation subscriber when a user sets or
+   * updates their wallet key, so a top-up isn't stranded behind a stale
+   * doom-cache until the TTL expires. Failure is non-fatal — the TTL remains
+   * the backstop.
+   */
+  async clearCreditExhausted(options: CheckOptions): Promise<void> {
+    const { cacheKeyId } = options;
+    if (cacheKeyId.length === 0) {
+      return;
+    }
+    const key = buildKey(cacheKeyId);
+    try {
+      const deleted = await this.redis.del(key);
+      if (deleted > 0) {
+        logger.info({ cacheKeyId }, 'Cleared credit-exhaustion state (wallet key updated)');
+      }
+    } catch (err) {
+      logger.warn(
+        { err, cacheKeyId },
+        'Credit-exhaustion cache clear failed — TTL remains the backstop'
+      );
+    }
+  }
 }
 
 /**
