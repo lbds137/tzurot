@@ -110,7 +110,7 @@ export async function viewDlq(options: DlqViewOptions = {}): Promise<void> {
   let queue: Queue | null = null;
 
   try {
-    queue = createInspectorQueue(redisUrl, queueName, env);
+    queue = createInspectorQueue(redisUrl, queueName);
 
     const failedJobs = await queue.getFailed(0, limit - 1);
 

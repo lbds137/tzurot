@@ -50,7 +50,7 @@ function makeHarness(): Harness {
   const deps: MaintenanceDeps = {
     getRedisUrl: vi.fn().mockResolvedValue('redis://localhost:6379'),
     createRedis: vi.fn().mockReturnValue(redis as unknown as Redis),
-    createQueue: vi.fn().mockImplementation((_url: string, _env: string, name: string) => {
+    createQueue: vi.fn().mockImplementation((_url: string, name: string) => {
       const queue = makeQueue();
       queues.set(name, queue);
       return queue as unknown as Queue;
@@ -132,7 +132,7 @@ describe('runMaintenance', () => {
       const h = makeHarness();
       // First poll: work in flight on both queues; then done.
       let call = 0;
-      h.deps.createQueue = vi.fn().mockImplementation((_u: string, _e: string, name: string) => {
+      h.deps.createQueue = vi.fn().mockImplementation((_u: string, name: string) => {
         const queue = makeQueue();
         queue.getActiveCount.mockImplementation(() => {
           call += 1;
@@ -150,7 +150,7 @@ describe('runMaintenance', () => {
 
     it('treats waiting/delayed jobs as PARKED — they do not gate the drain', async () => {
       const h = makeHarness();
-      h.deps.createQueue = vi.fn().mockImplementation((_u: string, _e: string, name: string) => {
+      h.deps.createQueue = vi.fn().mockImplementation((_u: string, name: string) => {
         const queue = makeQueue();
         queue.getActiveCount.mockResolvedValue(0);
         queue.getWaitingCount.mockResolvedValue(7); // parked in the paused queue
@@ -180,7 +180,7 @@ describe('runMaintenance', () => {
 
     it('times out the drain with exit 0 (operator judgment, not a failure)', async () => {
       const h = makeHarness();
-      h.deps.createQueue = vi.fn().mockImplementation((_u: string, _e: string, name: string) => {
+      h.deps.createQueue = vi.fn().mockImplementation((_u: string, name: string) => {
         const queue = makeQueue();
         queue.getActiveCount.mockResolvedValue(3); // never drains
         h.queues.set(name, queue);

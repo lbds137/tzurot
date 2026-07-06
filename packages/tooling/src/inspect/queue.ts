@@ -189,7 +189,7 @@ export async function inspectQueue(options: InspectQueueOptions = {}): Promise<v
   let queue: Queue | null = null;
 
   try {
-    queue = createInspectorQueue(redisUrl, queueName, env);
+    queue = createInspectorQueue(redisUrl, queueName);
     const stats = await fetchQueueStats(queue);
 
     displayQueueStats(stats);

@@ -31,7 +31,7 @@ _beta.146 SHIPPED 2026-07-03 (11 PRs #1456–#1466): 2 prod provider-failure fix
 
 _Small tasks that can be done between major features. Good for momentum._
 
-- 🐛 `[FIX]` **ops Redis tooling can't reach Railway** — `getRailwayRedisUrl` (tooling/inspect/bullmqConnection.ts) queries service `redis` (actual: `Redis`), returns the internal `REDIS_URL` (off-platform-unreachable; use `REDIS_PUBLIC_URL`), and the config forces IPv6 (public proxy is IPv4; may also need TLS handling — a direct public-URL connect attempt hung). Breaks `maintenance on|off|status` + `inspect:queue`/`inspect:dlq` for `--env dev/prod` (pre-existing for inspect; maintenance inherited it; local-only verification masked it). **Must land before the next destructive release** — maintenance mode is inoperable against prod until then. Add a test that pins the service name + public-URL preference. Surfaced 2026-07-06 during the beta.149 post-deploy smoke.
+_(empty)_
 
 ### 📥 Untriaged (max 10)
 
