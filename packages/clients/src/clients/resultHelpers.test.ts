@@ -101,3 +101,16 @@ describe('nullOn404', () => {
     expect(() => nullOn404(forbidden())).not.toThrow(InfraError);
   });
 });
+describe('GatewayClientError — message content', () => {
+  it('carries both the status and the error text in the message', () => {
+    const err = new GatewayClientError({
+      ok: false,
+      kind: 'http',
+      status: 403,
+      error: 'Persona not found',
+    });
+
+    expect(err.message).toBe('Gateway client error (status 403): Persona not found');
+    expect(err.name).toBe('GatewayClientError');
+  });
+});
