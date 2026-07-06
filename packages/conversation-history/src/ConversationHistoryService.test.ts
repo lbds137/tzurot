@@ -27,6 +27,7 @@ const createMockPrismaClient = () => {
       findMany: vi.fn(),
       update: vi.fn(),
       deleteMany: vi.fn(),
+      count: vi.fn(),
     },
     conversationHistoryTombstone: {
       createMany: vi.fn().mockResolvedValue({ count: 0 }),
@@ -174,6 +175,181 @@ describe('ConversationHistoryService - Token Count Caching', () => {
           tokenCount: 0,
         }),
       });
+    });
+  });
+
+  describe('addMessage — create-payload shape (the persisted wire contract)', () => {
+    const base = {
+      channelId: 'chan-1',
+      personalityId: 'pers-1',
+      personaId: 'persona-1',
+      role: MessageRole.User,
+      content: 'hello',
+      guildId: null,
+    };
+
+    beforeEach(() => {
+      mockCountTextTokens.mockReturnValue(3);
+      mockPrismaClient.conversationHistory.create.mockResolvedValue({});
+    });
+
+    function createdData(): Record<string, unknown> {
+      return mockPrismaClient.conversationHistory.create.mock.calls[0][0].data;
+    }
+
+    it('wraps a single discordMessageId string into an array', async () => {
+      await service.addMessage({ ...base, discordMessageId: 'd-1' });
+      expect(createdData().discordMessageId).toEqual(['d-1']);
+    });
+
+    it('passes a discordMessageId array through unchanged', async () => {
+      await service.addMessage({ ...base, discordMessageId: ['d-1', 'd-2'] });
+      expect(createdData().discordMessageId).toEqual(['d-1', 'd-2']);
+    });
+
+    it('stores an empty id array when discordMessageId is absent', async () => {
+      await service.addMessage({ ...base });
+      expect(createdData().discordMessageId).toEqual([]);
+    });
+
+    it('omits the messageMetadata key entirely when not provided', async () => {
+      await service.addMessage({ ...base });
+      expect(createdData()).not.toHaveProperty('messageMetadata');
+    });
+
+    it('persists messageMetadata when provided and stores the guild id', async () => {
+      const messageMetadata = { referencedMessages: [] };
+      await service.addMessage({ ...base, guildId: 'guild-9', messageMetadata });
+      expect(createdData().messageMetadata).toEqual(messageMetadata);
+      expect(createdData().guildId).toBe('guild-9');
+    });
+
+    it('stores null guildId for DMs', async () => {
+      await service.addMessage({ ...base });
+      expect(createdData().guildId).toBeNull();
+    });
+  });
+
+  describe('getHistory — query construction (epoch, cursor, clamp, hasMore)', () => {
+    beforeEach(() => {
+      mockPrismaClient.conversationHistory.findMany.mockResolvedValue([]);
+    });
+
+    function findManyArgs(): Record<string, unknown> {
+      return mockPrismaClient.conversationHistory.findMany.mock.calls[0][0];
+    }
+
+    it('gates on createdAt > contextEpoch when an epoch is provided', async () => {
+      const epoch = new Date('2026-01-01T00:00:00Z');
+      await service.getHistory('chan-1', 'pers-1', 10, undefined, epoch);
+      expect((findManyArgs().where as Record<string, unknown>).createdAt).toEqual({ gt: epoch });
+    });
+
+    it('omits the createdAt gate without an epoch', async () => {
+      await service.getHistory('chan-1', 'pers-1', 10);
+      expect(findManyArgs().where).not.toHaveProperty('createdAt');
+    });
+
+    it('treats an empty-string cursor as no cursor', async () => {
+      await service.getHistory('chan-1', 'pers-1', 10, '');
+      expect(findManyArgs()).not.toHaveProperty('cursor');
+      expect(findManyArgs()).not.toHaveProperty('skip');
+    });
+
+    it('applies cursor + skip for a real cursor id', async () => {
+      await service.getHistory('chan-1', 'pers-1', 10, 'row-5');
+      expect(findManyArgs().cursor).toEqual({ id: 'row-5' });
+      expect(findManyArgs().skip).toBe(1);
+    });
+
+    it('reports NO more when the row count is exactly the limit (the strict-inequality boundary)', async () => {
+      const row = (id: string) => ({
+        id,
+        role: MessageRole.User,
+        content: `Message ${id}`,
+        tokenCount: 3,
+        createdAt: new Date('2026-01-01T10:00:00Z'),
+        personaId: 'persona-1',
+        personalityId: 'pers-1',
+        discordMessageId: [`discord-${id}`],
+        messageMetadata: null,
+        persona: { name: 'User', preferredName: null, owner: { username: 'testuser' } },
+        personality: { name: 'TestBot', displayName: 'Test Bot' },
+      });
+      // Exactly safeLimit rows came back (no over-fetch row): hasMore must be
+      // false and nothing may be sliced off.
+      mockPrismaClient.conversationHistory.findMany.mockResolvedValue([row('a'), row('b')]);
+
+      const result = await service.getHistory('chan-1', 'pers-1', 2);
+
+      expect(result.hasMore).toBe(false);
+      expect(result.messages).toHaveLength(2);
+    });
+  });
+
+  describe('getHistoryStats — count wiring and epoch threading', () => {
+    beforeEach(() => {
+      mockPrismaClient.conversationHistory.count.mockResolvedValue(0);
+      mockPrismaClient.conversationHistory.findFirst.mockResolvedValue(null);
+    });
+
+    it('issues role-split counts over the same base where clause', async () => {
+      mockPrismaClient.conversationHistory.count
+        .mockResolvedValueOnce(10)
+        .mockResolvedValueOnce(6)
+        .mockResolvedValueOnce(4);
+
+      const stats = await service.getHistoryStats('chan-1', 'pers-1');
+
+      expect(stats).toEqual({
+        totalMessages: 10,
+        userMessages: 6,
+        assistantMessages: 4,
+        oldestMessage: undefined,
+        newestMessage: undefined,
+      });
+      const countCalls = mockPrismaClient.conversationHistory.count.mock.calls as [
+        { where: Record<string, unknown> },
+      ][];
+      const wheres = countCalls.map(c => c[0].where);
+      expect(wheres[0]).toEqual({ channelId: 'chan-1', personalityId: 'pers-1' });
+      expect(wheres[1].role).toBe(MessageRole.User);
+      expect(wheres[2].role).toBe(MessageRole.Assistant);
+    });
+
+    it('threads the context epoch into every where clause', async () => {
+      const epoch = new Date('2026-02-02T00:00:00Z');
+      await service.getHistoryStats('chan-1', 'pers-1', epoch);
+
+      for (const call of mockPrismaClient.conversationHistory.count.mock.calls) {
+        expect((call[0].where as Record<string, unknown>).createdAt).toEqual({ gt: epoch });
+      }
+    });
+
+    it('surfaces oldest/newest timestamps from the two findFirst probes', async () => {
+      const oldest = new Date('2026-01-01T00:00:00Z');
+      const newest = new Date('2026-03-01T00:00:00Z');
+      mockPrismaClient.conversationHistory.findFirst
+        .mockResolvedValueOnce({ createdAt: oldest })
+        .mockResolvedValueOnce({ createdAt: newest });
+
+      const stats = await service.getHistoryStats('chan-1', 'pers-1');
+
+      expect(stats.oldestMessage).toEqual(oldest);
+      expect(stats.newestMessage).toEqual(newest);
+      // The probes must ask for opposite extremes of createdAt, nothing more.
+      const probeArgs = mockPrismaClient.conversationHistory.findFirst.mock.calls;
+      expect(probeArgs[0][0].orderBy).toEqual({ createdAt: 'asc' });
+      expect(probeArgs[1][0].orderBy).toEqual({ createdAt: 'desc' });
+      expect(probeArgs[0][0].select).toEqual({ createdAt: true });
+    });
+
+    it('degrades to zeroed stats on a query failure', async () => {
+      mockPrismaClient.conversationHistory.count.mockRejectedValue(new Error('db down'));
+
+      const stats = await service.getHistoryStats('chan-1', 'pers-1');
+
+      expect(stats).toEqual({ totalMessages: 0, userMessages: 0, assistantMessages: 0 });
     });
   });
 

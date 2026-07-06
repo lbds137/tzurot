@@ -58,7 +58,11 @@ const EXPECTED_IGNORERS = ['logger-calls', 'observability-options'] as const;
  * first report, then `pnpm ops mutation:update-baseline` (the fingerprint
  * change forces the refresh anyway).
  */
-export const MUTATED_PACKAGES = ['config-resolver', 'cache-invalidation'] as const;
+export const MUTATED_PACKAGES = [
+  'config-resolver',
+  'cache-invalidation',
+  'conversation-history',
+] as const;
 
 export const DEFAULT_MUTATION_BASELINE_PATH = '.github/baselines/mutation-baseline.json';
 
