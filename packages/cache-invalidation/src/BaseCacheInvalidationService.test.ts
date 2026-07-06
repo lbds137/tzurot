@@ -304,6 +304,26 @@ describe('BaseCacheInvalidationService', () => {
       expect(callback3).toHaveBeenCalledWith({ type: 'all' });
     });
 
+    it('should isolate callback errors — a throwing callback must not block later ones', async () => {
+      const throwing = vi.fn().mockImplementation(() => {
+        throw new Error('subscriber bug');
+      });
+      const healthy = vi.fn();
+
+      await service.subscribe(throwing);
+      await service.subscribe(healthy);
+
+      const messageHandler = mockSubscriber.on.mock.calls.find(
+        (call: unknown[]) => call[0] === 'message'
+      )?.[1] as (channel: string, message: string) => void;
+
+      expect(() => {
+        messageHandler('test:channel', JSON.stringify({ type: 'all' }));
+      }).not.toThrow();
+      expect(throwing).toHaveBeenCalled();
+      expect(healthy).toHaveBeenCalledWith({ type: 'all' });
+    });
+
     it('should clean up on subscribe error', async () => {
       mockSubscriber.subscribe.mockRejectedValue(new Error('Connection failed'));
 

@@ -43,11 +43,14 @@ import { emitSummary } from '../audits/summary.js';
 export const MUTATION_IMPL_VERSION = 1;
 
 /**
- * Ignorer plugins the per-package Stryker configs are expected to run with.
- * Part of the config fingerprint: silently dropping the logger ignorer would
- * change what the score measures, so it must invalidate the baseline.
+ * Ignorer plugins the per-package Stryker configs are expected to run with —
+ * the UNION across packages (each package runs the subset matching its noise
+ * profile: config-resolver runs logger-calls only; cache-invalidation adds
+ * observability-options for its logOptions callback plumbing). Part of the
+ * config fingerprint: silently dropping an ignorer would change what the
+ * score measures, so it must invalidate the baseline.
  */
-const EXPECTED_IGNORERS = ['logger-calls'] as const;
+const EXPECTED_IGNORERS = ['logger-calls', 'observability-options'] as const;
 
 /**
  * Packages under mutation testing. Adding one: give it a stryker.config.mjs
@@ -55,7 +58,7 @@ const EXPECTED_IGNORERS = ['logger-calls'] as const;
  * first report, then `pnpm ops mutation:update-baseline` (the fingerprint
  * change forces the refresh anyway).
  */
-export const MUTATED_PACKAGES = ['config-resolver'] as const;
+export const MUTATED_PACKAGES = ['config-resolver', 'cache-invalidation'] as const;
 
 export const DEFAULT_MUTATION_BASELINE_PATH = '.github/baselines/mutation-baseline.json';
 
