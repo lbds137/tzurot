@@ -179,6 +179,25 @@ describe('CacheInvalidationService', () => {
       expect(mockPersonalityService.invalidatePersonality).not.toHaveBeenCalled();
     });
 
+    it('should reject an all event carrying extra keys (strict key count)', () => {
+      const handler = messageHandlers.get('message');
+      expect(handler).toBeDefined();
+      handler!(REDIS_CHANNELS.CACHE_INVALIDATION, JSON.stringify({ type: 'all', extra: true }));
+
+      expect(mockPersonalityService.invalidateAll).not.toHaveBeenCalled();
+    });
+
+    it('should reject a personality event carrying extra keys (strict key count)', () => {
+      const handler = messageHandlers.get('message');
+      expect(handler).toBeDefined();
+      handler!(
+        REDIS_CHANNELS.CACHE_INVALIDATION,
+        JSON.stringify({ type: 'personality', personalityId: 'p-1', extra: true })
+      );
+
+      expect(mockPersonalityService.invalidatePersonality).not.toHaveBeenCalled();
+    });
+
     it('should reject invalid event type', () => {
       const invalidEvent = { type: 'invalid' };
       const message = JSON.stringify(invalidEvent);

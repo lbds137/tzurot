@@ -12,6 +12,7 @@ import {
   evaluateMutationScores,
   parseMutationBaseline,
   computeUpdatedMutationBaseline,
+  MUTATED_PACKAGES,
   getMutationConfigFingerprint,
   runMutationCheck,
   MUTATION_IMPL_VERSION,
@@ -151,13 +152,25 @@ describe('computeUpdatedMutationBaseline', () => {
     hashConfigSlice(getMutationConfigFingerprint())
   );
 
+  /** Every tracked package needs a report for update — fill the rest at 100%. */
+  function scoresForAll(overrides: Record<string, ReturnType<typeof computeMutationScore>>) {
+    return Object.fromEntries(
+      MUTATED_PACKAGES.map(name => [
+        name,
+        overrides[name] ?? computeMutationScore(report(['Killed'])),
+      ])
+    );
+  }
+
   it('writes the measured score and preserves the previous grace margin + notes', () => {
     const previous: Partial<MutationBaseline> = {
       version: 2,
       notes: 'keep me',
       packages: { 'config-resolver': { score: 90, graceMargin: 2.5 } },
     };
-    const scores = { 'config-resolver': computeMutationScore(report(['Killed', 'Survived'])) };
+    const scores = scoresForAll({
+      'config-resolver': computeMutationScore(report(['Killed', 'Survived'])),
+    });
 
     const updated = computeUpdatedMutationBaseline(scores, previous, meta, new Date(0));
 
@@ -168,7 +181,7 @@ describe('computeUpdatedMutationBaseline', () => {
   });
 
   it('applies the default grace margin for a newly-tracked package', () => {
-    const scores = { 'config-resolver': computeMutationScore(report(['Killed'])) };
+    const scores = scoresForAll({});
 
     const updated = computeUpdatedMutationBaseline(scores, {}, meta);
 
@@ -176,7 +189,8 @@ describe('computeUpdatedMutationBaseline', () => {
   });
 
   it('throws when a tracked package has no report', () => {
-    expect(() => computeUpdatedMutationBaseline({ 'config-resolver': null }, {}, meta)).toThrow(
+    const scores = { ...scoresForAll({}), 'config-resolver': null };
+    expect(() => computeUpdatedMutationBaseline(scores, {}, meta)).toThrow(
       'no mutation report for "config-resolver"'
     );
   });
@@ -189,8 +203,8 @@ describe('getMutationConfigFingerprint', () => {
     // or dropping the ignorer must invalidate baselines.
     expect(getMutationConfigFingerprint()).toEqual({
       implVersion: MUTATION_IMPL_VERSION,
-      ignorers: ['logger-calls'],
-      packages: ['config-resolver'],
+      ignorers: ['logger-calls', 'observability-options'],
+      packages: [...MUTATED_PACKAGES],
     });
   });
 });
