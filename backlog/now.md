@@ -31,7 +31,7 @@ _beta.146 SHIPPED 2026-07-03 (11 PRs #1456–#1466): 2 prod provider-failure fix
 
 _Small tasks that can be done between major features. Good for momentum._
 
-_(empty)_
+- 🏗️ `[LIFT]` **Real-scale eval goldens → unpark hybrid retrieval** — the Phase 1a resume gate (full context: `cold/themes/memory-system-overhaul.md` § Phase 1a status). Build goldens from REAL prod memory data at real corpus scale (hundreds of rows/persona, where dense dilution actually bites), re-run the dense-vs-hybrid A/B, then merge `feat/memory-hybrid-retrieval` on demonstrated lift or delete it on a second null. **Design constraint to settle first**: the repo is PUBLIC — raw prod memories cannot land in the committed goldens file; needs a gitignored local fixture (eval skips if absent) or anonymized derivation, owner call. Owner involvement wanted for realistic query construction. ~2hr + the owner session. Parked branch rots mechanically as develop moves — rebase it when resuming. Filed 2026-07-06.
 
 ### 📥 Untriaged (max 10)
 
