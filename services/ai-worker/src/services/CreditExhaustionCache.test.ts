@@ -9,6 +9,7 @@ describe('CreditExhaustionCache', () => {
   let mockRedis: {
     setex: ReturnType<typeof vi.fn>;
     get: ReturnType<typeof vi.fn>;
+    del: ReturnType<typeof vi.fn>;
   };
   let cache: CreditExhaustionCache;
 
@@ -18,6 +19,7 @@ describe('CreditExhaustionCache', () => {
     mockRedis = {
       setex: vi.fn().mockResolvedValue('OK'),
       get: vi.fn().mockResolvedValue(null),
+      del: vi.fn().mockResolvedValue(1),
     };
     cache = new CreditExhaustionCache(mockRedis as unknown as Redis);
   });
@@ -156,6 +158,26 @@ describe('CreditExhaustionCache', () => {
       mockRedis.get.mockResolvedValue(JSON.stringify({ ts: longAgoMs, ttl: 3600 }));
       const result = await cache.isCreditExhausted({ cacheKeyId: 'system' });
       expect(result).toMatchObject({ exhausted: true, ttlSeconds: 0 });
+    });
+  });
+
+  describe('clearCreditExhausted', () => {
+    it('deletes the account-scoped key (the wallet-top-up recovery edge)', async () => {
+      await cache.clearCreditExhausted({ cacheKeyId: 'user:278863839632818186' });
+
+      expect(mockRedis.del).toHaveBeenCalledWith('nocredits:openrouter:user:278863839632818186');
+    });
+
+    it('no-ops on an empty cacheKeyId (cache opt-out)', async () => {
+      await cache.clearCreditExhausted({ cacheKeyId: '' });
+
+      expect(mockRedis.del).not.toHaveBeenCalled();
+    });
+
+    it('swallows Redis errors — the TTL remains the backstop', async () => {
+      mockRedis.del.mockRejectedValue(new Error('redis down'));
+
+      await expect(cache.clearCreditExhausted({ cacheKeyId: 'user:1' })).resolves.toBeUndefined();
     });
   });
 

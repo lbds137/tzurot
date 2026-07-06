@@ -133,6 +133,15 @@ vi.mock('@tzurot/identity', () => ({
   },
 }));
 
+// The wallet-update recovery edge calls the worker's credit-exhaustion cache
+// singleton; mock the redis module so no real client is constructed.
+const mockClearCreditExhausted = vi.fn().mockResolvedValue(undefined);
+vi.mock('./redis.js', () => ({
+  creditExhaustionCache: {
+    clearCreditExhausted: (options: { cacheKeyId: string }) => mockClearCreditExhausted(options),
+  },
+}));
+
 import { setupCacheInvalidation } from './cacheInvalidation.js';
 import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 import type { Redis } from 'ioredis';
@@ -190,6 +199,21 @@ describe('setupCacheInvalidation', () => {
       await setupCacheInvalidation({ cacheRedis: mockRedis, prisma: mockPrisma });
       capturedCallbacks.apiKey?.({ type: 'user', discordId: 'user-123' });
       expect(mockApiKeyResolver.invalidateUserCache).toHaveBeenCalledWith('user-123');
+    });
+
+    it('clears the credit-exhaustion mark for the user bucket on a wallet key update', async () => {
+      await setupCacheInvalidation({ cacheRedis: mockRedis, prisma: mockPrisma });
+      capturedCallbacks.apiKey?.({ type: 'user', discordId: '278863839632818186' });
+      // The recovery edge: a top-up must not stay stranded behind the doom-cache.
+      expect(mockClearCreditExhausted).toHaveBeenCalledWith({
+        cacheKeyId: 'user:278863839632818186',
+      });
+    });
+
+    it('does NOT clear the credit-exhaustion cache on an "all" event (per-account semantic)', async () => {
+      await setupCacheInvalidation({ cacheRedis: mockRedis, prisma: mockPrisma });
+      capturedCallbacks.apiKey?.({ type: 'all' });
+      expect(mockClearCreditExhausted).not.toHaveBeenCalled();
     });
   });
 

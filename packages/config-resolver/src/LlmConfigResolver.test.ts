@@ -622,6 +622,95 @@ describe('LlmConfigResolver', () => {
     });
   });
 
+  describe('getGlobalDefaultConfig', () => {
+    it('should return null when no global default pointer is set', async () => {
+      mockPrisma.adminSettings.findUnique.mockResolvedValue({ globalDefaultLlmConfig: null });
+
+      const result = await resolver.getGlobalDefaultConfig();
+
+      expect(result).toBeNull();
+      expect(mockPrisma.adminSettings.findUnique).toHaveBeenCalledWith({
+        where: { id: expect.any(String) },
+        select: {
+          freeDefaultLlmConfig: { select: expect.any(Object) },
+          globalDefaultLlmConfig: { select: expect.any(Object) },
+        },
+      });
+    });
+
+    it('should return the full param set when the global default pointer is set', async () => {
+      mockPrisma.adminSettings.findUnique.mockResolvedValue({
+        globalDefaultLlmConfig: {
+          name: 'Global Default Config',
+          model: 'anthropic/claude-sonnet-4',
+          provider: 'openrouter',
+          advancedParameters: {
+            temperature: 0.4,
+            top_p: 0.8,
+            top_k: 50,
+            frequency_penalty: 0.1,
+            presence_penalty: 0.2,
+            max_tokens: 8192,
+          },
+          memoryScoreThreshold: null,
+          memoryLimit: null,
+          contextWindowTokens: 200000,
+        },
+      });
+
+      const result = await resolver.getGlobalDefaultConfig();
+
+      expect(result).not.toBeNull();
+      expect(result!.model).toBe('anthropic/claude-sonnet-4');
+      expect(result!.temperature).toBe(0.4);
+      expect(result!.topP).toBe(0.8);
+      expect(result!.topK).toBe(50);
+      expect(result!.frequencyPenalty).toBe(0.1);
+      expect(result!.presencePenalty).toBe(0.2);
+      expect(result!.maxTokens).toBe(8192);
+      expect(result!.contextWindowTokens).toBe(200000);
+      // Provider rides along so a quota-fallback retarget can rewrite the
+      // personality's provider coherently with the target model.
+      expect(result!.provider).toBe('openrouter');
+    });
+
+    it('should cache the global default config result', async () => {
+      mockPrisma.adminSettings.findUnique.mockResolvedValue({
+        globalDefaultLlmConfig: {
+          name: 'Global Default Config',
+          model: 'anthropic/claude-sonnet-4',
+          provider: 'openrouter',
+          advancedParameters: { temperature: 0.4 },
+          memoryScoreThreshold: null,
+          memoryLimit: null,
+          contextWindowTokens: 200000,
+        },
+      });
+
+      await resolver.getGlobalDefaultConfig();
+      await resolver.getGlobalDefaultConfig();
+
+      expect(mockPrisma.adminSettings.findUnique).toHaveBeenCalledTimes(1);
+    });
+
+    it('should NOT cache a null pointer', async () => {
+      mockPrisma.adminSettings.findUnique.mockResolvedValue({ globalDefaultLlmConfig: null });
+
+      await resolver.getGlobalDefaultConfig();
+      await resolver.getGlobalDefaultConfig();
+
+      expect(mockPrisma.adminSettings.findUnique).toHaveBeenCalledTimes(2);
+    });
+
+    it('should handle database errors gracefully', async () => {
+      mockPrisma.adminSettings.findUnique.mockRejectedValue(new Error('Database error'));
+
+      const result = await resolver.getGlobalDefaultConfig();
+
+      expect(result).toBeNull();
+    });
+  });
+
   describe('getFreeDefaultConfig', () => {
     // The free chat default is now the AdminSettings.freeDefaultLlmConfig pointer
     // (a relation join), not an isFreeDefault+kind='text' flag query. The kind
@@ -635,7 +724,10 @@ describe('LlmConfigResolver', () => {
       expect(result).toBeNull();
       expect(mockPrisma.adminSettings.findUnique).toHaveBeenCalledWith({
         where: { id: expect.any(String) },
-        select: { freeDefaultLlmConfig: { select: expect.any(Object) } },
+        select: {
+          freeDefaultLlmConfig: { select: expect.any(Object) },
+          globalDefaultLlmConfig: { select: expect.any(Object) },
+        },
       });
     });
 
@@ -725,6 +817,49 @@ describe('LlmConfigResolver', () => {
       const result = await resolver.getFreeDefaultConfig();
 
       expect(result).toBeNull();
+    });
+
+    it('should NOT cache a null pointer (admin setting it takes effect without invalidation)', async () => {
+      mockPrisma.adminSettings.findUnique.mockResolvedValue({ freeDefaultLlmConfig: null });
+
+      await resolver.getFreeDefaultConfig();
+      await resolver.getFreeDefaultConfig();
+
+      expect(mockPrisma.adminSettings.findUnique).toHaveBeenCalledTimes(2);
+    });
+
+    it('caches free and global defaults under SEPARATE sentinel keys', async () => {
+      mockPrisma.adminSettings.findUnique.mockResolvedValue({
+        freeDefaultLlmConfig: {
+          name: 'Free',
+          model: 'free/model',
+          provider: 'openrouter',
+          advancedParameters: { temperature: 0.7 },
+          memoryScoreThreshold: null,
+          memoryLimit: null,
+          contextWindowTokens: 128000,
+        },
+        globalDefaultLlmConfig: {
+          name: 'Global',
+          model: 'paid/default',
+          provider: 'openrouter',
+          advancedParameters: { temperature: 0.4 },
+          memoryScoreThreshold: null,
+          memoryLimit: null,
+          contextWindowTokens: 200000,
+        },
+      });
+
+      const free = await resolver.getFreeDefaultConfig();
+      const global = await resolver.getGlobalDefaultConfig();
+
+      // Distinct results — one sentinel must not serve the other pointer.
+      expect(free!.model).toBe('free/model');
+      expect(global!.model).toBe('paid/default');
+      // Both cached independently: repeat reads hit no new queries.
+      await resolver.getFreeDefaultConfig();
+      await resolver.getGlobalDefaultConfig();
+      expect(mockPrisma.adminSettings.findUnique).toHaveBeenCalledTimes(2);
     });
 
     it('should handle Prisma Decimal values for memoryScoreThreshold', async () => {

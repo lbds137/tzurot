@@ -23,11 +23,7 @@ import type { ResolvedConfigOverrides } from '../schemas/api/configOverrides.js'
  * wrapper's `source` field matches the inner config's source.
  */
 export type ConfigResolutionSource =
-  | 'user-personality'
-  | 'user-default'
-  | 'personality'
-  | 'free-default'
-  | 'hardcoded';
+  'user-personality' | 'user-default' | 'personality' | 'free-default' | 'hardcoded';
 
 /** Result of cascade resolution, with source tracking. */
 export interface BaseConfigResolutionResult<TResolved> {
@@ -45,6 +41,14 @@ export interface BaseConfigResolutionResult<TResolved> {
  */
 export interface ResolvedLlmConfig extends ConvertedLlmParams {
   model: string;
+  /**
+   * Provider tier the config's model routes through ('openrouter',
+   * 'zai-coding', …). Carried so a config-driven retarget (quota fallback)
+   * can rewrite the personality's provider coherently with its model — a
+   * model string is only meaningful relative to its provider's catalog.
+   * Optional: the cascade paths predate this field and don't populate it.
+   */
+  provider?: string;
   memoryScoreThreshold?: number | null;
   memoryLimit?: number | null;
   contextWindowTokens?: number;

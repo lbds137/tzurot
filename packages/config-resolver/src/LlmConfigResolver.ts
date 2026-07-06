@@ -36,6 +36,9 @@ import {
 /** Sentinel cache key for the free-default lookup (no userId/personalityId axis). */
 const FREE_DEFAULT_CACHE_KEY = '__free_default__';
 
+/** Sentinel cache key for the global-default lookup (no userId/personalityId axis). */
+const GLOBAL_DEFAULT_CACHE_KEY = '__global_default__';
+
 /**
  * LLM Config Resolver — resolves user-specific config overrides.
  */
@@ -161,44 +164,68 @@ export class LlmConfigResolver extends BaseConfigResolver<
   }
 
   /**
-   * Get the default free config for guest mode users.
-   *
-   * Resolution order:
-   * 1. Database config with isFreeDefault=true
-   * 2. Returns null if none found (caller should use hardcoded fallback)
-   *
-   * @returns The free default config or null if none set
+   * Get the default free config for guest mode users (the admin-set
+   * `freeDefaultLlmConfig` pointer). Returns null if none set — caller uses
+   * the hardcoded fallback.
    */
   async getFreeDefaultConfig(): Promise<ResolvedLlmConfig | null> {
-    // Check cache first
-    const cached = this.cache.get(FREE_DEFAULT_CACHE_KEY);
+    return this.getAdminDefaultConfig('freeDefaultLlmConfig', FREE_DEFAULT_CACHE_KEY, 'free');
+  }
+
+  /**
+   * Get the global (paid-tier) default config (the admin-set
+   * `globalDefaultLlmConfig` pointer). Used by the tier-aware quota fallback:
+   * BYOK users retarget here when their configured preset is quota-blocked.
+   * Returns null if none set.
+   */
+  async getGlobalDefaultConfig(): Promise<ResolvedLlmConfig | null> {
+    return this.getAdminDefaultConfig('globalDefaultLlmConfig', GLOBAL_DEFAULT_CACHE_KEY, 'global');
+  }
+
+  /**
+   * Shared reader for the two AdminSettings default pointers. Cached under a
+   * sentinel key (no user/personality axis); a null pointer is NOT cached, so
+   * an admin setting the pointer takes effect without an invalidation event.
+   */
+  private async getAdminDefaultConfig(
+    pointer: 'freeDefaultLlmConfig' | 'globalDefaultLlmConfig',
+    cacheKey: string,
+    label: string
+  ): Promise<ResolvedLlmConfig | null> {
+    const cached = this.cache.get(cacheKey);
     if (cached !== null) {
-      this.logger.debug({ source: 'cache' }, 'Free default config resolved from cache');
+      this.logger.debug({ source: 'cache', label }, 'Admin default config resolved from cache');
       return cached.config;
     }
 
     try {
-      // Read the admin-set free-tier chat default via the AdminSettings pointer
-      // (singleton). Replaces the old per-kind flag query; a null
-      // pointer means no free default — caller uses the hardcoded fallback.
       const settings = await this.prisma.adminSettings.findUnique({
         where: { id: ADMIN_SETTINGS_SINGLETON_ID },
-        select: { freeDefaultLlmConfig: { select: LLM_CONFIG_SELECT_WITH_NAME } },
+        select: {
+          freeDefaultLlmConfig: { select: LLM_CONFIG_SELECT_WITH_NAME },
+          globalDefaultLlmConfig: { select: LLM_CONFIG_SELECT_WITH_NAME },
+        },
       });
-      const freeConfig = settings?.freeDefaultLlmConfig ?? null;
+      const dbConfig =
+        (pointer === 'freeDefaultLlmConfig'
+          ? settings?.freeDefaultLlmConfig
+          : settings?.globalDefaultLlmConfig) ?? null;
 
-      if (freeConfig === null) {
-        this.logger.debug('No free default config pointer set in admin_settings');
+      if (dbConfig === null) {
+        this.logger.debug({ pointer }, 'No default config pointer set in admin_settings');
         return null;
       }
 
       // Use shared mapper to convert from DB format to application format
-      const mapped = mapLlmConfigFromDbWithName(freeConfig);
+      const mapped = mapLlmConfigFromDbWithName(dbConfig);
 
       // Create ResolvedLlmConfig with all params from the mapper
       // The mapper already returns undefined for missing values, matching ConvertedLlmParams
       const config: ResolvedLlmConfig = {
         model: mapped.model,
+        // Provider tier — carried so a quota-fallback retarget can rewrite
+        // the personality's provider coherently with the target model.
+        provider: mapped.provider,
         // Basic sampling - directly from mapper (undefined if not set)
         temperature: mapped.temperature,
         topP: mapped.topP,
@@ -228,19 +255,19 @@ export class LlmConfigResolver extends BaseConfigResolver<
       };
 
       // Cache the result
-      this.cache.set(FREE_DEFAULT_CACHE_KEY, {
+      this.cache.set(cacheKey, {
         config,
         source: 'personality',
         configName: mapped.name,
       });
 
       this.logger.info(
-        { configName: mapped.name, model: config.model },
-        'Free default config loaded from database'
+        { configName: mapped.name, model: config.model, label },
+        'Admin default config loaded from database'
       );
       return config;
     } catch (error) {
-      this.logger.error({ err: error }, 'Failed to get free default config');
+      this.logger.error({ err: error, pointer }, 'Failed to get admin default config');
       return null;
     }
   }

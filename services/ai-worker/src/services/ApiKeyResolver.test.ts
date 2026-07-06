@@ -493,3 +493,51 @@ describe('ApiKeyResolver', () => {
     });
   });
 });
+
+describe('safe OpenRouter key helpers', () => {
+  // Both helpers are never-throwing by contract: the quota-fallback paths
+  // call them INSIDE error handling, where a fresh throw would replace the
+  // original quota error being propagated.
+  it('resolveSystemOpenRouterKey returns the system key and undefined on user-source or throw', async () => {
+    const resolver = new ApiKeyResolver({} as never);
+    const spy = vi.spyOn(resolver, 'resolveApiKey');
+
+    spy.mockResolvedValueOnce({
+      apiKey: 'sk-system',
+      source: 'system',
+      provider: AIProvider.OpenRouter,
+      isGuestMode: true,
+    });
+    expect(await resolver.resolveSystemOpenRouterKey()).toBe('sk-system');
+
+    spy.mockRejectedValueOnce(new Error('no key configured'));
+    expect(await resolver.resolveSystemOpenRouterKey()).toBeUndefined();
+  });
+
+  it('resolveUserOpenRouterKey returns the BYOK key only, undefined on system-source or throw', async () => {
+    const resolver = new ApiKeyResolver({} as never);
+    const spy = vi.spyOn(resolver, 'resolveApiKey');
+
+    spy.mockResolvedValueOnce({
+      apiKey: 'sk-user',
+      source: 'user',
+      provider: AIProvider.OpenRouter,
+      userId: '123',
+      isGuestMode: false,
+    });
+    expect(await resolver.resolveUserOpenRouterKey('123')).toBe('sk-user');
+
+    // System-source = the user has no key of their own — deliberately rejected.
+    spy.mockResolvedValueOnce({
+      apiKey: 'sk-system',
+      source: 'system',
+      provider: AIProvider.OpenRouter,
+      userId: '123',
+      isGuestMode: true,
+    });
+    expect(await resolver.resolveUserOpenRouterKey('123')).toBeUndefined();
+
+    spy.mockRejectedValueOnce(new Error('db blip'));
+    expect(await resolver.resolveUserOpenRouterKey('123')).toBeUndefined();
+  });
+});

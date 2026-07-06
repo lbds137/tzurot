@@ -30,6 +30,11 @@ import {
 } from '../../../../utils/duplicateDetection.js';
 import { isRecentDuplicateAsync } from '../../../../utils/crossTurnDetection.js';
 import { runWithAutoPromotionFallback } from './autoPromotionFallback.js';
+import {
+  composeQuotaFallbackInfo,
+  runWithQuotaFallback,
+  type QuotaFallbackDeps,
+} from './quotaFallbackRunner.js';
 import { composeGenerationFailureResult } from './generationFailureResult.js';
 import { validatePrerequisites } from './generationStepValidation.js';
 import { getRecentAssistantMessages } from '../../../../utils/conversationHistoryUtils.js';
@@ -57,7 +62,8 @@ export class GenerationStep implements IPipelineStep {
   constructor(
     private readonly ragService: ConversationalRAGService,
     private readonly prisma: PrismaClient,
-    private readonly embeddingService?: EmbeddingServiceInterface
+    private readonly embeddingService?: EmbeddingServiceInterface,
+    private readonly quotaFallbackDeps?: QuotaFallbackDeps
   ) {}
 
   /**
@@ -304,35 +310,49 @@ export class GenerationStep implements IPipelineStep {
       });
 
       // Generate response with automatic retry on empty content and cross-turn duplication.
-      // Wrapped in `runWithAutoPromotionFallback` when ProviderRouter auto-promoted the
-      // request to z.ai-direct: if the z.ai call fails entirely (any error — most likely
-      // catalog-drift 404 or auth issue from a stale whitelist), retry once via the
-      // pre-computed OpenRouter fallback route. Defense in depth on the whitelist.
+      // Two one-shot fallback layers wrap the attempt, innermost first:
+      // - `runWithAutoPromotionFallback`: when ProviderRouter auto-promoted the request
+      //   to z.ai-direct, a failure retries once via the pre-computed OpenRouter route
+      //   (catalog-drift defense).
+      // - `runWithQuotaFallback`: a quota-class failure (QUOTA_EXCEEDED /
+      //   CREDIT_EXHAUSTION) retargets once to the tier-aware admin default. Its retry
+      //   deliberately bypasses the auto-promotion wrapper — that wrapper's fallback
+      //   route belongs to the PRIMARY model.
+      const attemptOpts = {
+        personality: effectivePersonality,
+        message: message as MessageContent,
+        conversationContext,
+        recentAssistantMessages,
+        apiKey,
+        sttDispatch: auth.sttDispatch,
+        isGuestMode,
+        jobId: job.id,
+        diagnosticCollector,
+        configOverrides: context.configOverrides,
+        // Primary attempt routes to the resolved provider; the fallback
+        // wrapper overrides this to OpenRouter if it swaps to the fallback.
+        effectiveProvider: provider,
+      };
       const {
         response,
         duplicateRetries,
         emptyRetries,
         leakedThinkingRetries,
         effectiveProviderUsed,
-      } = await runWithAutoPromotionFallback(
-        opts => this.generateWithDuplicateRetry(opts),
-        {
-          personality: effectivePersonality,
-          message: message as MessageContent,
-          conversationContext,
-          recentAssistantMessages,
-          apiKey,
-          sttDispatch: auth.sttDispatch,
-          isGuestMode,
-          jobId: job.id,
-          diagnosticCollector,
-          configOverrides: context.configOverrides,
-          // Primary attempt routes to the resolved provider; the fallback
-          // wrapper overrides this to OpenRouter if it swaps to the fallback.
-          effectiveProvider: provider,
-        },
-        auth.wasAutoPromoted === true ? auth.fallback : undefined
-      );
+        quotaFallback: reactiveQuotaFallback,
+      } = await runWithQuotaFallback({
+        primary: () =>
+          runWithAutoPromotionFallback(
+            opts => this.generateWithDuplicateRetry(opts),
+            attemptOpts,
+            auth.wasAutoPromoted === true ? auth.fallback : undefined
+          ),
+        retry: opts => this.generateWithDuplicateRetry(opts),
+        opts: attemptOpts,
+        userId: jobContext.userId,
+        deps: this.quotaFallbackDeps,
+      });
+      const quotaFallbackInfo = composeQuotaFallbackInfo(reactiveQuotaFallback, auth.quotaFallback);
 
       // Store memory ONCE after retry loop completes with a valid response.
       // This prevents duplicate memories when retries occur (the fix for the
@@ -417,6 +437,10 @@ export class GenerationStep implements IPipelineStep {
               thinkingContent: response.thinkingContent,
               showThinking: effectivePersonality.showThinking,
               showModelFooter: context.configOverrides?.showModelFooter,
+              // A retarget may have fired even though the new model then
+              // produced only empty responses — the swap still happened and
+              // must still be announced (never silent).
+              quotaFallback: quotaFallbackInfo,
             },
           },
         };
@@ -450,6 +474,9 @@ export class GenerationStep implements IPipelineStep {
             thinkingContent: response.thinkingContent,
             showThinking: effectivePersonality.showThinking,
             showModelFooter: context.configOverrides?.showModelFooter,
+            // Tier-aware quota retarget (proactive from AuthStep or reactive
+            // from the wrapper above) — the footer announces it, never silent.
+            quotaFallback: quotaFallbackInfo,
           },
         },
       };

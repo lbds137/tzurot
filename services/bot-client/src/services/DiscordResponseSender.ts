@@ -76,6 +76,14 @@ interface SendResponseOptions {
    * as a route chain ("via Z.AI Coding Plan → OpenRouter (both routes failed)").
    */
   fallbackProviderAttempted?: string;
+  /**
+   * Tier-aware quota fallback that fired for this turn (worker metadata
+   * passthrough) — the footer announces the swap, never silent.
+   */
+  quotaFallback?: {
+    fromModel: string;
+    category: 'quota_exceeded' | 'credit_exhaustion';
+  };
   /** Whether response was generated in guest mode (free model, no API key) */
   isGuestMode?: boolean;
   /** Whether this is an auto-response from channel activation (not @mention) */
@@ -273,6 +281,7 @@ export class DiscordResponseSender {
       modelUsed,
       providerUsed,
       fallbackProviderAttempted,
+      quotaFallback,
       isGuestMode,
       isAutoResponse,
       focusModeEnabled,
@@ -285,6 +294,7 @@ export class DiscordResponseSender {
       footer += `\n-# ${buildModelFooterText(modelUsed, modelUrl, {
         provider: providerUsed,
         fallbackProviderAttempted,
+        quotaFallback,
         withAutoBadge: isAutoResponse === true,
       })}`;
     } else if (isAutoResponse === true) {

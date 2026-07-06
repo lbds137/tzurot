@@ -309,6 +309,17 @@ export interface ModelFooterOptions {
   fallbackProviderAttempted?: string;
   /** Include the auto-response badge on the same line. */
   withAutoBadge?: boolean;
+  /**
+   * Tier-aware quota fallback that fired for this turn. Renders the swap as
+   * "• <from> → <to> (out of credit | rate limited)" — a model swap is never
+   * silent (an unexplained voice shift reads as a bug, and "why did I get
+   * the free model" must be answerable from the reply itself). `modelUsed`
+   * already IS the target model; this names where the request started.
+   */
+  quotaFallback?: {
+    fromModel: string;
+    category: 'quota_exceeded' | 'credit_exhaustion';
+  };
 }
 
 /**
@@ -324,11 +335,17 @@ export function buildModelFooterText(
   modelUrl: string,
   options: ModelFooterOptions = {}
 ): string {
-  const { provider, fallbackProviderAttempted, withAutoBadge = false } = options;
+  const { provider, fallbackProviderAttempted, withAutoBadge = false, quotaFallback } = options;
   // Defensive: sanitize model name to prevent markdown injection
   // (brackets and angle brackets could break link syntax)
   const sanitizedModel = modelUsed.replace(/[[\]()<>]/g, '');
   let text = `Model: [${sanitizedModel}](<${modelUrl}>)`;
+  if (quotaFallback !== undefined) {
+    const sanitizedFrom = quotaFallback.fromModel.replace(/[[\]()<>]/g, '');
+    const reason =
+      quotaFallback.category === 'credit_exhaustion' ? 'out of credit' : 'rate limited';
+    text += ` • ${sanitizedFrom} → ${sanitizedModel} (${reason})`;
+  }
   const providerLabel = provider !== undefined ? PROVIDER_FOOTER_LABEL[provider] : undefined;
   const fallbackLabel =
     fallbackProviderAttempted !== undefined

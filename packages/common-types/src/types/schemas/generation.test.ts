@@ -18,6 +18,51 @@ const baseValid = {
 };
 
 describe('llmGenerationResultSchema.metadata', () => {
+  describe('quotaFallback', () => {
+    it('accepts a well-formed quota-fallback record', () => {
+      const parsed = llmGenerationResultSchema.safeParse({
+        ...baseValid,
+        metadata: {
+          quotaFallback: {
+            fromModel: 'expensive/primary',
+            toModel: 'free/model',
+            category: 'credit_exhaustion',
+            mode: 'reactive',
+          },
+        },
+      });
+      expect(parsed.success).toBe(true);
+    });
+
+    it('rejects unknown categories and modes (closed enums)', () => {
+      const badCategory = llmGenerationResultSchema.safeParse({
+        ...baseValid,
+        metadata: {
+          quotaFallback: {
+            fromModel: 'a',
+            toModel: 'b',
+            category: 'transient',
+            mode: 'reactive',
+          },
+        },
+      });
+      expect(badCategory.success).toBe(false);
+
+      const badMode = llmGenerationResultSchema.safeParse({
+        ...baseValid,
+        metadata: {
+          quotaFallback: { fromModel: 'a', toModel: 'b', category: 'quota_exceeded', mode: 'auto' },
+        },
+      });
+      expect(badMode.success).toBe(false);
+    });
+
+    it('is optional (absent on the common no-fallback turn)', () => {
+      const parsed = llmGenerationResultSchema.safeParse({ ...baseValid, metadata: {} });
+      expect(parsed.success).toBe(true);
+    });
+  });
+
   describe('ttsNotices bounds', () => {
     it('accepts a notice exactly at the 500-char per-element max', () => {
       const longest = 'x'.repeat(500);

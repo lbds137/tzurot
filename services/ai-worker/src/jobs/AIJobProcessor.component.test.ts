@@ -41,6 +41,17 @@ vi.mock('../redis.js', () => ({
     publishJobResult: vi.fn().mockResolvedValue(undefined),
     storeJobResult: vi.fn().mockResolvedValue(undefined),
   },
+  // Doom-cache singletons consumed by the quota-fallback wiring; default to
+  // "everything viable" so component flows are unaffected.
+  creditExhaustionCache: {
+    isCreditExhausted: vi.fn().mockResolvedValue({ exhausted: false }),
+    markCreditExhausted: vi.fn(),
+    clearCreditExhausted: vi.fn(),
+  },
+  rateLimitCache: {
+    isRateLimited: vi.fn().mockResolvedValue({ rateLimited: false }),
+    markRateLimited: vi.fn(),
+  },
 }));
 
 // Mock cleanup function to avoid background processing during tests
