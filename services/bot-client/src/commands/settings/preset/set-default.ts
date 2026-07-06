@@ -5,10 +5,9 @@
  */
 
 import { EmbedBuilder } from 'discord.js';
-import { DEFAULT_CONFIG_KIND } from '@tzurot/common-types/constants/ai';
+import { DEFAULT_MODEL_SLOT, toModelSlot } from '@tzurot/common-types/constants/ai';
 import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
 import { settingsPresetSetDefaultOptions } from '@tzurot/common-types/generated/commandOptions';
-import { toConfigKind } from '@tzurot/common-types/services/LlmConfigMapper';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
 import { clientsFor } from '../../../utils/gatewayClients.js';
@@ -26,7 +25,7 @@ export async function handleSetDefault(context: DeferredCommandContext): Promise
   // The slot (text = chat default, or vision) decides which default FK the value
   // writes; the gateway capability-gates the vision slot. Without sending it a
   // vision default silently lands in the text slot — mirror clear-default.
-  const kind = toConfigKind(options.slot() ?? DEFAULT_CONFIG_KIND);
+  const slot = toModelSlot(options.slot() ?? DEFAULT_MODEL_SLOT);
 
   if (await handleUnlockModelsUpsell(context, configId, userId)) {
     return;
@@ -40,10 +39,10 @@ export async function handleSetDefault(context: DeferredCommandContext): Promise
     }
     const { reason } = outcome;
 
-    const result = await userClient.setDefaultModelConfig({ configId }, { kind });
+    const result = await userClient.setDefaultModelConfig({ configId }, { slot });
 
     if (!result.ok) {
-      logger.warn({ userId, status: result.status, configId, kind }, 'Failed to set default');
+      logger.warn({ userId, status: result.status, configId, slot }, 'Failed to set default');
       await context.editReply({ content: `❌ Failed to set default: ${result.error}` });
       return;
     }
@@ -54,7 +53,7 @@ export async function handleSetDefault(context: DeferredCommandContext): Promise
       .setTitle('✅ Default Preset Set')
       .setColor(DISCORD_COLORS.SUCCESS)
       .setDescription(
-        `Your default ${kind === 'vision' ? 'vision (image)' : 'chat'} preset is now ` +
+        `Your default ${slot === 'vision' ? 'vision (image)' : 'chat'} preset is now ` +
           `**${data.default.configName}**.\n\n` +
           'This will be used for all characters unless you have a specific override.'
       )
@@ -64,7 +63,7 @@ export async function handleSetDefault(context: DeferredCommandContext): Promise
     await context.editReply({ embeds: [embed] });
 
     logger.info(
-      { userId, configId, configName: data.default.configName, kind, reason },
+      { userId, configId, configName: data.default.configName, slot, reason },
       'Set default config'
     );
   } catch (error) {

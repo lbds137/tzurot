@@ -122,7 +122,7 @@ describe('Preset Command Handlers', () => {
       // No slot option → defaults to the text (chat) slot.
       expect(stub.setModelOverride).toHaveBeenCalledWith(
         { personalityId: PERSONALITY_ID_1, configId: CONFIG_ID_1 },
-        { kind: 'text' }
+        { slot: 'text' }
       );
       expect(mockEditReply).toHaveBeenCalledWith({
         embeds: [
@@ -135,7 +135,7 @@ describe('Preset Command Handlers', () => {
       });
     });
 
-    it('routes the chosen slot to the gateway when kind:vision is selected', async () => {
+    it('routes the chosen slot to the gateway when slot:vision is selected', async () => {
       // Mirrors set.test.ts's vision-slot case at the shared-handler level: the
       // slot option must reach setModelOverride, or a vision override silently
       // lands in the text slot.
@@ -166,7 +166,7 @@ describe('Preset Command Handlers', () => {
 
       expect(stub.setModelOverride).toHaveBeenCalledWith(
         { personalityId: PERSONALITY_ID_1, configId: CONFIG_ID_1 },
-        { kind: 'vision' }
+        { slot: 'vision' }
       );
     });
 
@@ -206,7 +206,7 @@ describe('Preset Command Handlers', () => {
       await handleClear(createMockContext());
 
       // No slot → clears both slots (the gateway's `all` sentinel).
-      expect(stub.deleteModelOverride).toHaveBeenCalledWith(PERSONALITY_ID_1, { kind: 'all' });
+      expect(stub.deleteModelOverride).toHaveBeenCalledWith(PERSONALITY_ID_1, { slot: 'all' });
       expect(mockCreateSuccessEmbed).toHaveBeenCalledWith(
         '🔄 Preset Override Removed',
         'The character will now use its default preset.'

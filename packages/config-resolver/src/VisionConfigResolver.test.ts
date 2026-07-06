@@ -48,7 +48,6 @@ function createMockPrisma(): MockPrisma {
 function visionRow(over: { model?: string; name?: string } = {}): Record<string, unknown> {
   return {
     model: over.model ?? 'qwen/qwen3-vl-235b-a22b-instruct',
-    kind: 'vision',
     provider: 'openrouter',
     advancedParameters: null,
     memoryScoreThreshold: null,

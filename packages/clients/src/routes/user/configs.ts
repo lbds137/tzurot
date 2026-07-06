@@ -11,7 +11,7 @@
  */
 
 import { z } from 'zod';
-import { CONFIG_KINDS } from '@tzurot/common-types/constants/ai';
+import { MODEL_SLOTS } from '@tzurot/common-types/constants/ai';
 import { GATEWAY_TIMEOUTS } from '@tzurot/common-types/constants/discord';
 import {
   CreateLlmConfigResponseSchema,
@@ -110,11 +110,6 @@ export const userConfigRoutes = {
     method: 'get',
     path: '/llm-config',
     id: 'listUserLlmConfigs',
-    // Scope the listing to a config kind (text|vision), or `all` to return both
-    // (browse fetches both in one call); defaults text. The gateway LIST handler
-    // parses this with parseConfigKindQueryAllowAll, so `all` is a valid inbound
-    // value the manifest must permit.
-    query: { kind: z.enum([...CONFIG_KINDS, 'all']).optional() },
     output: ListLlmConfigsResponseSchema,
     requiresProvisionedUser: true,
     meta: { safeRead: true },
@@ -359,11 +354,11 @@ export const userConfigRoutes = {
     method: 'get',
     path: '/model-override',
     id: 'listModelOverrides',
-    // Scope the listing to a config kind (text|vision), or `all` to return both
-    // (browse fetches both in one call); defaults text. The gateway LIST handler
-    // parses this with parseConfigKindQueryAllowAll, so `all` is a valid inbound
-    // value the manifest must permit.
-    query: { kind: z.enum([...CONFIG_KINDS, 'all']).optional() },
+    // Scope the listing to a slot (text|vision), or `all` to return both
+    // (browse fetches both in one call — one row per occupied slot); defaults
+    // text. The gateway parses this with parseModelSlotQueryAllowAll, so `all`
+    // is a valid inbound value the manifest must permit.
+    query: { slot: z.enum([...MODEL_SLOTS, 'all']).optional() },
     output: ListModelOverridesResponseSchema,
     requiresProvisionedUser: true,
     meta: { safeRead: true },
@@ -378,7 +373,7 @@ export const userConfigRoutes = {
     input: SetModelOverrideSchema,
     // The slot the override occupies (text|vision); defaults text. The gateway
     // capability-gates the vision slot (its model must support image input).
-    query: { kind: z.enum(CONFIG_KINDS).optional() },
+    query: { slot: z.enum(MODEL_SLOTS).optional() },
     output: SetModelOverrideResponseSchema,
     requiresProvisionedUser: true,
     meta: { idempotent: true },
@@ -392,7 +387,7 @@ export const userConfigRoutes = {
     params: { personalityId: z.string() },
     // Scope the clear to a slot: `all` (the no-slot default) clears BOTH slots,
     // an explicit text|vision clears just that one.
-    query: { kind: z.enum([...CONFIG_KINDS, 'all']).optional() },
+    query: { slot: z.enum([...MODEL_SLOTS, 'all']).optional() },
     output: DeleteModelOverrideResponseSchema,
     requiresProvisionedUser: true,
   },
@@ -419,7 +414,7 @@ export const userConfigRoutes = {
     input: SetDefaultConfigSchema,
     // The slot the default occupies (text|vision); defaults text. The gateway
     // capability-gates the vision slot (its model must support image input).
-    query: { kind: z.enum(CONFIG_KINDS).optional() },
+    query: { slot: z.enum(MODEL_SLOTS).optional() },
     output: SetDefaultConfigResponseSchema,
     requiresProvisionedUser: true,
     meta: { idempotent: true },
@@ -432,7 +427,7 @@ export const userConfigRoutes = {
     id: 'clearDefaultModelConfig',
     // Scope the clear to a slot: `all` (the no-slot default) clears BOTH slots,
     // an explicit text|vision clears just that one.
-    query: { kind: z.enum([...CONFIG_KINDS, 'all']).optional() },
+    query: { slot: z.enum([...MODEL_SLOTS, 'all']).optional() },
     output: ClearDefaultConfigResponseSchema,
     requiresProvisionedUser: true,
   },

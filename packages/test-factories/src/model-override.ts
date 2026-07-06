@@ -38,7 +38,7 @@ function createBaseModelOverrideSummary(
     personalityName: 'TestPersonality',
     configId: DEFAULT_CONFIG_ID,
     configName: 'TestConfig',
-    kind: 'text',
+    slot: 'text',
     supportsVision: false,
   };
   return deepMerge(base, overrides);

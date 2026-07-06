@@ -28,7 +28,7 @@ import {
   type ButtonInteraction,
   type StringSelectMenuInteraction,
 } from 'discord.js';
-import { CONFIG_KINDS, type ConfigKind } from '@tzurot/common-types/constants/ai';
+import { MODEL_SLOTS, type ModelSlot } from '@tzurot/common-types/constants/ai';
 import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
 import { type createLogger } from '@tzurot/common-types/utils/logger';
 import type { GatewayResult, UserClient } from '@tzurot/clients';
@@ -40,14 +40,14 @@ import { buildBrowseSelectMenu } from './browse/index.js';
 type Logger = ReturnType<typeof createLogger>;
 
 /**
- * Narrow a raw customId/select-value segment to a {@link ConfigKind}, or
- * `undefined` when the segment is absent or not a known kind. Checked against
- * `CONFIG_KINDS` rather than literal comparisons so a future third kind is
+ * Narrow a raw customId/select-value segment to a {@link ModelSlot}, or
+ * `undefined` when the segment is absent or not a known slot. Checked against
+ * `MODEL_SLOTS` rather than literal comparisons so a future third slot is
  * picked up automatically.
  */
-function narrowConfigKind(value: string | undefined): ConfigKind | undefined {
-  return value !== undefined && (CONFIG_KINDS as readonly string[]).includes(value)
-    ? (value as ConfigKind)
+function narrowModelSlot(value: string | undefined): ModelSlot | undefined {
+  return value !== undefined && (MODEL_SLOTS as readonly string[]).includes(value)
+    ? (value as ModelSlot)
     : undefined;
 }
 
@@ -60,14 +60,14 @@ export interface OverrideSummary {
   personalityName: string;
   configName: string | null;
   /**
-   * Config kind of this override (text | vision). Optional: domains without a
-   * kind axis (e.g. TTS overrides) omit it. It is the ROUTING identity carried
+   * Which model slot this override occupies (text | vision). Optional: domains without a
+   * slot axis (e.g. TTS overrides) omit it. It is the ROUTING identity carried
    * through select → clear so the right FK is cleared (a character can have BOTH
-   * a text and a vision override — so `(personalityId, kind)` is the unique key).
+   * a text and a vision override — so `(personalityId, slot)` is the unique key).
    * The 👁 badge is NOT derived from this — it reads `supportsVision`, so the
    * badge reflects the model's actual capability, not the slot label.
    */
-  kind?: ConfigKind;
+  slot?: ModelSlot;
   /**
    * Whether the override's config MODEL supports vision — capability-driven, from
    * the gateway's `ModelOverrideSummary.supportsVision`. Drives the 👁 badge.
@@ -102,19 +102,19 @@ export interface OverrideBrowseConfig {
   /** Domain logger (e.g. `settings-preset-browse`). */
   logger: Logger;
   /**
-   * Fetch the user's overrides. Returns the rows (optionally kind-tagged), or
+   * Fetch the user's overrides. Returns the rows (optionally slot-tagged), or
    * `null` if the fetch failed — domains that span multiple kinds (preset) issue
-   * one call per kind and merge here, so a single `GatewayResult` no longer fits.
+   * one call per slot and merge here, so a single `GatewayResult` no longer fits.
    */
   list: (userClient: UserClient) => Promise<OverrideSummary[] | null>;
   /**
-   * Clear one override by personality id (+ kind, for kind-aware domains — the
-   * gateway clears the matching FK; omitted ⇒ the route's default kind).
+   * Clear one override by personality id (+ slot, for slot-aware domains — the
+   * gateway clears the matching FK; omitted ⇒ the route's default slot).
    */
   delete: (
     userClient: UserClient,
     personalityId: string,
-    kind?: ConfigKind
+    slot?: ModelSlot
   ) => Promise<GatewayResult<unknown>>;
 }
 
@@ -143,23 +143,23 @@ function errorReply(content: string): { content: string; embeds: []; components:
 export function createOverrideBrowseCustomIds(prefix: string): {
   select: string;
   cancel: string;
-  clear: (personalityId: string, kind?: ConfigKind) => string;
+  clear: (personalityId: string, slot?: ModelSlot) => string;
   isOwn: (customId: string) => boolean;
   parse: (
     customId: string
-  ) => { action: 'select' | 'clear' | 'cancel'; personalityId?: string; kind?: ConfigKind } | null;
+  ) => { action: 'select' | 'clear' | 'cancel'; personalityId?: string; slot?: ModelSlot } | null;
 } {
   const select = `${prefix}${CUSTOM_ID_DELIMITER}select`;
   const cancel = `${prefix}${CUSTOM_ID_DELIMITER}cancel`;
   return {
     select,
     cancel,
-    // kind is appended as a 4th segment only for kind-aware domains; omitted for
+    // slot is appended as a 4th segment only for slot-aware domains; omitted for
     // the rest (TTS) so their customIds are byte-identical to before.
-    clear: (personalityId: string, kind?: ConfigKind) =>
-      kind === undefined
+    clear: (personalityId: string, slot?: ModelSlot) =>
+      slot === undefined
         ? `${prefix}${CUSTOM_ID_DELIMITER}clear${CUSTOM_ID_DELIMITER}${personalityId}`
-        : `${prefix}${CUSTOM_ID_DELIMITER}clear${CUSTOM_ID_DELIMITER}${personalityId}${CUSTOM_ID_DELIMITER}${kind}`,
+        : `${prefix}${CUSTOM_ID_DELIMITER}clear${CUSTOM_ID_DELIMITER}${personalityId}${CUSTOM_ID_DELIMITER}${slot}`,
     isOwn: (customId: string) => customId.startsWith(`${prefix}${CUSTOM_ID_DELIMITER}`),
     parse: customId => {
       if (!customId.startsWith(`${prefix}${CUSTOM_ID_DELIMITER}`)) {
@@ -171,7 +171,7 @@ export function createOverrideBrowseCustomIds(prefix: string): {
         return { action };
       }
       if (action === 'clear' && parts[2] !== undefined && parts[2] !== '') {
-        return { action: 'clear', personalityId: parts[2], kind: narrowConfigKind(parts[3]) };
+        return { action: 'clear', personalityId: parts[2], slot: narrowModelSlot(parts[3]) };
       }
       return null;
     },
@@ -217,14 +217,14 @@ export function buildOverrideBrowseView(
     startIndex: 0,
     formatItem: o => ({
       // The 👁 badge reads model capability (`supportsVision`); the value encodes
-      // `kind` so `(personalityId, kind)` stays the unique clear-key (a character
-      // can have both a text and a vision override). kind-less domains (TTS) get
+      // `slot` so `(personalityId, slot)` stays the unique clear-key (a character
+      // can have both a text and a vision override). slot-less domains (TTS) get
       // no badge and keep the bare id.
       label: o.supportsVision === true ? `👁️ ${o.personalityName}` : o.personalityName,
       value:
-        o.kind === undefined
+        o.slot === undefined
           ? o.personalityId
-          : `${o.personalityId}${CUSTOM_ID_DELIMITER}${o.kind}`,
+          : `${o.personalityId}${CUSTOM_ID_DELIMITER}${o.slot}`,
       description: `→ ${o.configName ?? 'Unknown'}`,
     }),
   });
@@ -263,12 +263,12 @@ export async function handleOverrideBrowseSelect(
 ): Promise<void> {
   await interaction.deferUpdate();
 
-  // The select value is `personalityId` or `personalityId::kind` (kind-aware
-  // domains) — split so `(personalityId, kind)` identifies the exact override.
+  // The select value is `personalityId` or `personalityId::slot` (slot-aware
+  // domains) — split so `(personalityId, slot)` identifies the exact override.
   // Safe because personalityId is always a UUID (never contains `::`), so the
-  // split is unambiguous — the first segment is the id, the second (if any) kind.
-  const [personalityId, kindStr] = interaction.values[0].split(CUSTOM_ID_DELIMITER);
-  const kind = narrowConfigKind(kindStr);
+  // split is unambiguous — the first segment is the id, the second (if any) slot.
+  const [personalityId, slotStr] = interaction.values[0].split(CUSTOM_ID_DELIMITER);
+  const slot = narrowModelSlot(slotStr);
   const userId = interaction.user.id;
   try {
     const { userClient } = clientsFor(interaction);
@@ -279,7 +279,7 @@ export async function handleOverrideBrowseSelect(
       return;
     }
 
-    const override = overrides.find(o => o.personalityId === personalityId && o.kind === kind);
+    const override = overrides.find(o => o.personalityId === personalityId && o.slot === slot);
     if (override === undefined) {
       // Already cleared elsewhere — just refresh the list.
       const view = buildOverrideBrowseView(config, overrides);
@@ -302,7 +302,7 @@ export async function handleOverrideBrowseSelect(
         .setLabel('Cancel')
         .setStyle(ButtonStyle.Secondary),
       new ButtonBuilder()
-        .setCustomId(ids.clear(override.personalityId, override.kind))
+        .setCustomId(ids.clear(override.personalityId, override.slot))
         .setLabel('Clear')
         .setStyle(ButtonStyle.Danger)
         .setEmoji('🗑️')
@@ -335,7 +335,7 @@ export async function handleOverrideBrowseButton(
     const { userClient } = clientsFor(interaction);
 
     if (parsed.action === 'clear' && parsed.personalityId !== undefined) {
-      const deleteResult = await config.delete(userClient, parsed.personalityId, parsed.kind);
+      const deleteResult = await config.delete(userClient, parsed.personalityId, parsed.slot);
       if (!deleteResult.ok) {
         config.logger.warn({ userId, status: deleteResult.status }, 'Failed to clear override');
         await interaction.editReply(
@@ -344,7 +344,7 @@ export async function handleOverrideBrowseButton(
         return;
       }
       config.logger.info(
-        { userId, personalityId: parsed.personalityId, kind: parsed.kind },
+        { userId, personalityId: parsed.personalityId, slot: parsed.slot },
         'Cleared override'
       );
     }

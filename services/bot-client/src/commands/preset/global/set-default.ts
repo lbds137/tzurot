@@ -4,9 +4,8 @@
  * Sets a global config as the system default (owner only)
  */
 
-import { DEFAULT_CONFIG_KIND } from '@tzurot/common-types/constants/ai';
+import { DEFAULT_MODEL_SLOT, toModelSlot } from '@tzurot/common-types/constants/ai';
 import { presetGlobalDefaultOptions } from '@tzurot/common-types/generated/commandOptions';
-import { toConfigKind } from '@tzurot/common-types/services/LlmConfigMapper';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
 import { handleGlobalPresetUpdate } from './globalPresetHelpers.js';
 
@@ -16,12 +15,12 @@ import { handleGlobalPresetUpdate } from './globalPresetHelpers.js';
 export async function handleGlobalSetDefault(context: DeferredCommandContext): Promise<void> {
   const options = presetGlobalDefaultOptions(context.interaction);
   const configId = options.preset();
-  // Admin set-default gates by slot (requireKind); pass it so a vision preset
+  // Admin set-default targets a slot; pass it so a vision preset
   // promotes to the vision default. Defaults Chat → existing usage unchanged.
-  const kind = toConfigKind(options.slot() ?? DEFAULT_CONFIG_KIND);
+  const slot = toModelSlot(options.slot() ?? DEFAULT_MODEL_SLOT);
 
   await handleGlobalPresetUpdate(context, configId, {
-    promote: (ownerClient, id) => ownerClient.setGlobalLlmConfigDefault(id, { kind }),
+    promote: (ownerClient, id) => ownerClient.setGlobalLlmConfigDefault(id, { slot }),
     embedTitle: 'System Default Preset Updated',
     embedDescription: (configName: string) =>
       `**${configName}** is now the system default preset.\n\n` +

@@ -92,7 +92,7 @@ describe('handleAutocomplete', () => {
       options: {
         getFocused: vi.fn(),
         getSubcommand: vi.fn().mockReturnValue('set'),
-        // The `kind` option is optional; null → handler defaults to 'text'.
+        // A `slot` option may exist on the command; the picker never scopes by it.
         getString: vi.fn().mockReturnValue(null),
       },
       respond: vi.fn().mockResolvedValue(undefined),
@@ -301,8 +301,8 @@ describe('handleAutocomplete', () => {
 
       await handleAutocomplete(mockInteraction);
 
-      // Capability-agnostic: fetch ALL kinds (slot-independent picker).
-      expect(stub.listUserLlmConfigs).toHaveBeenCalledWith({ kind: 'all' });
+      // Capability-agnostic: fetch the full unscoped list (slot-independent picker).
+      expect(stub.listUserLlmConfigs).toHaveBeenCalledWith();
       expect(mockInteraction.respond).toHaveBeenCalledWith([
         {
           name: '🌐⭐ Claude Config · claude-sonnet-4',
@@ -335,8 +335,8 @@ describe('handleAutocomplete', () => {
 
       await handleAutocomplete(mockInteraction);
 
-      // Always fetches all kinds (no slot-scoping); the vision row is 👁-badged.
-      expect(stub.listUserLlmConfigs).toHaveBeenCalledWith({ kind: 'all' });
+      // Always fetches the full unscoped list (no slot-scoping); the vision row is 👁-badged.
+      expect(stub.listUserLlmConfigs).toHaveBeenCalledWith();
       const choices = vi.mocked(mockInteraction.respond).mock.calls[0][0] as {
         name: string;
         value: string;

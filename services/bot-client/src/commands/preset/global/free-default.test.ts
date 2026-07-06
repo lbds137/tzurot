@@ -40,7 +40,7 @@ describe('Preset Global Set Free Default Handler', () => {
   const mockEditReply = vi.fn();
   let stub: OwnerClientStub;
 
-  const createMockContext = (configId: string, kind?: string) =>
+  const createMockContext = (configId: string, slot?: string) =>
     ({
       user: { id: 'owner-123' },
       interaction: {
@@ -49,7 +49,7 @@ describe('Preset Global Set Free Default Handler', () => {
           // The `slot` option is optional (getString('slot', false)); everything
           // else (the `preset` option) resolves to the configId under test.
           getString: vi.fn((name: string, _required?: boolean) =>
-            name === 'slot' ? (kind ?? null) : configId
+            name === 'slot' ? (slot ?? null) : configId
           ),
         },
       },
@@ -75,9 +75,9 @@ describe('Preset Global Set Free Default Handler', () => {
 
       await handleGlobalSetFreeDefault(context);
 
-      // No kind option → defaults to text (the admin route gates by kind).
+      // No slot option → defaults to text (the admin route gates by slot).
       expect(stub.setGlobalLlmConfigFreeDefault).toHaveBeenCalledWith('config-456', {
-        kind: 'text',
+        slot: 'text',
       });
 
       expect(mockEditReply).toHaveBeenCalledWith({
@@ -92,7 +92,7 @@ describe('Preset Global Set Free Default Handler', () => {
       expect(embedData.description).toContain('Guest users');
     });
 
-    it('should pass kind=vision through to the promote call', async () => {
+    it('should pass slot=vision through to the promote call', async () => {
       const context = createMockContext('vision-config', 'vision');
       stub.setGlobalLlmConfigFreeDefault.mockResolvedValue(
         makeOk({ success: true, configName: 'Gemini Vision Free' })
@@ -101,7 +101,7 @@ describe('Preset Global Set Free Default Handler', () => {
       await handleGlobalSetFreeDefault(context);
 
       expect(stub.setGlobalLlmConfigFreeDefault).toHaveBeenCalledWith('vision-config', {
-        kind: 'vision',
+        slot: 'vision',
       });
     });
 

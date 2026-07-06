@@ -40,7 +40,7 @@ describe('Preset Global Set Default Handler', () => {
   const mockEditReply = vi.fn();
   let stub: OwnerClientStub;
 
-  const createMockContext = (configId: string, kind?: string) =>
+  const createMockContext = (configId: string, slot?: string) =>
     ({
       user: { id: 'owner-123' },
       interaction: {
@@ -49,7 +49,7 @@ describe('Preset Global Set Default Handler', () => {
           // The `slot` option is optional (getString('slot', false)); everything
           // else (the `preset` option) resolves to the configId under test.
           getString: vi.fn((name: string, _required?: boolean) =>
-            name === 'slot' ? (kind ?? null) : configId
+            name === 'slot' ? (slot ?? null) : configId
           ),
         },
       },
@@ -75,8 +75,8 @@ describe('Preset Global Set Default Handler', () => {
 
       await handleGlobalSetDefault(context);
 
-      // No kind option → defaults to text (the admin route gates by kind).
-      expect(stub.setGlobalLlmConfigDefault).toHaveBeenCalledWith('config-123', { kind: 'text' });
+      // No slot option → defaults to text (the admin route gates by slot).
+      expect(stub.setGlobalLlmConfigDefault).toHaveBeenCalledWith('config-123', { slot: 'text' });
 
       expect(mockEditReply).toHaveBeenCalledWith({
         embeds: expect.arrayContaining([expect.any(EmbedBuilder)]),
@@ -90,7 +90,7 @@ describe('Preset Global Set Default Handler', () => {
       expect(embedData.description).toContain('system default');
     });
 
-    it('should pass kind=vision through to the promote call', async () => {
+    it('should pass slot=vision through to the promote call', async () => {
       const context = createMockContext('vision-config', 'vision');
       stub.setGlobalLlmConfigDefault.mockResolvedValue(
         makeOk({ success: true, configName: 'GPT-4 Vision' })
@@ -99,7 +99,7 @@ describe('Preset Global Set Default Handler', () => {
       await handleGlobalSetDefault(context);
 
       expect(stub.setGlobalLlmConfigDefault).toHaveBeenCalledWith('vision-config', {
-        kind: 'vision',
+        slot: 'vision',
       });
     });
 

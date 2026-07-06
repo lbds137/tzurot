@@ -96,8 +96,8 @@ export class UserClient {
   /**
    * @safeRead Server-side has no observable mutation — safe to cache client-side.
    */
-  async listUserLlmConfigs(options: { kind?: string } = {}): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.listUserLlmConfigs.output>>> {
-    const fullPath = '/api/user/llm-config' + buildQueryString([['kind', options.kind]]);
+  async listUserLlmConfigs(): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.listUserLlmConfigs.output>>> {
+    const fullPath = '/api/user/llm-config';
     return callGateway({
       baseUrl: this.baseUrl,
       serviceSecret: this.serviceSecret,
@@ -488,8 +488,8 @@ export class UserClient {
   /**
    * @safeRead Server-side has no observable mutation — safe to cache client-side.
    */
-  async listModelOverrides(options: { kind?: string } = {}): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.listModelOverrides.output>>> {
-    const fullPath = '/api/user/model-override' + buildQueryString([['kind', options.kind]]);
+  async listModelOverrides(options: { slot?: string } = {}): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.listModelOverrides.output>>> {
+    const fullPath = '/api/user/model-override' + buildQueryString([['slot', options.slot]]);
     return callGateway({
       baseUrl: this.baseUrl,
       serviceSecret: this.serviceSecret,
@@ -509,8 +509,8 @@ export class UserClient {
   /**
    * @idempotent Replaying the exact same request lands the same final state — safe to retry on network failure.
    */
-  async setModelOverride(input: z.infer<typeof ROUTE_MANIFEST.setModelOverride.input>, options: { kind?: string } = {}): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.setModelOverride.output>>> {
-    const fullPath = '/api/user/model-override' + buildQueryString([['kind', options.kind]]);
+  async setModelOverride(input: z.infer<typeof ROUTE_MANIFEST.setModelOverride.input>, options: { slot?: string } = {}): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.setModelOverride.output>>> {
+    const fullPath = '/api/user/model-override' + buildQueryString([['slot', options.slot]]);
     return callGateway({
       baseUrl: this.baseUrl,
       serviceSecret: this.serviceSecret,
@@ -527,8 +527,8 @@ export class UserClient {
     });
   }
 
-  async deleteModelOverride(personalityId: string, options: { kind?: string } = {}): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.deleteModelOverride.output>>> {
-    const fullPath = `/api/user/model-override/${encodeURIComponent(personalityId)}` + buildQueryString([['kind', options.kind]]);
+  async deleteModelOverride(personalityId: string, options: { slot?: string } = {}): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.deleteModelOverride.output>>> {
+    const fullPath = `/api/user/model-override/${encodeURIComponent(personalityId)}` + buildQueryString([['slot', options.slot]]);
     return callGateway({
       baseUrl: this.baseUrl,
       serviceSecret: this.serviceSecret,
@@ -568,8 +568,8 @@ export class UserClient {
   /**
    * @idempotent Replaying the exact same request lands the same final state — safe to retry on network failure.
    */
-  async setDefaultModelConfig(input: z.infer<typeof ROUTE_MANIFEST.setDefaultModelConfig.input>, options: { kind?: string } = {}): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.setDefaultModelConfig.output>>> {
-    const fullPath = '/api/user/model-override/default' + buildQueryString([['kind', options.kind]]);
+  async setDefaultModelConfig(input: z.infer<typeof ROUTE_MANIFEST.setDefaultModelConfig.input>, options: { slot?: string } = {}): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.setDefaultModelConfig.output>>> {
+    const fullPath = '/api/user/model-override/default' + buildQueryString([['slot', options.slot]]);
     return callGateway({
       baseUrl: this.baseUrl,
       serviceSecret: this.serviceSecret,
@@ -586,8 +586,8 @@ export class UserClient {
     });
   }
 
-  async clearDefaultModelConfig(options: { kind?: string } = {}): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.clearDefaultModelConfig.output>>> {
-    const fullPath = '/api/user/model-override/default' + buildQueryString([['kind', options.kind]]);
+  async clearDefaultModelConfig(options: { slot?: string } = {}): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.clearDefaultModelConfig.output>>> {
+    const fullPath = '/api/user/model-override/default' + buildQueryString([['slot', options.slot]]);
     return callGateway({
       baseUrl: this.baseUrl,
       serviceSecret: this.serviceSecret,

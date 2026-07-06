@@ -19,7 +19,6 @@ import {
   advancedParamsToConfigFormat,
   type ConvertedLlmParams,
 } from '../schemas/llmAdvancedParams.js';
-import { CONFIG_KINDS, DEFAULT_CONFIG_KIND, type ConfigKind } from '../constants/ai.js';
 import { createLogger } from '../utils/logger.js';
 
 const logger = createLogger('LlmConfigMapper');
@@ -36,7 +35,6 @@ const logger = createLogger('LlmConfigMapper');
  *
  * Fields included:
  * - model: Model identifier
- * - kind: 'text' | 'vision' discriminator (vision configs are their own presets)
  * - advancedParameters: JSONB with ALL sampling/reasoning/output params
  * - memoryScoreThreshold, memoryLimit: Memory-related settings (not in JSONB)
  * - contextWindowTokens: Context window size (not in JSONB)
@@ -44,7 +42,6 @@ const logger = createLogger('LlmConfigMapper');
  */
 export const LLM_CONFIG_SELECT = {
   model: true,
-  kind: true, // 'text' | 'vision' discriminator (vision rows are their own presets)
   provider: true, // String column — drives provider-tier routing (e.g. 'openrouter', 'zai-coding')
   advancedParameters: true, // JSONB (snake_case)
   memoryScoreThreshold: true, // Decimal column (not in JSONB)
@@ -77,7 +74,6 @@ export const LLM_CONFIG_SELECT_WITH_NAME = {
  */
 export interface RawLlmConfigFromDb {
   model: string;
-  kind: string; // 'text' | 'vision'
   provider: string; // 'openrouter' | 'zai-coding' | future enum values
   advancedParameters: unknown; // JSONB - validated via Zod
   memoryScoreThreshold: unknown; // Prisma Decimal - converted via toNumber()
@@ -104,7 +100,6 @@ export interface RawLlmConfigFromDbWithName extends RawLlmConfigFromDb {
  */
 export interface MappedLlmConfig extends ConvertedLlmParams {
   model: string;
-  kind: ConfigKind; // validated from the raw DB string via toConfigKind()
   /**
    * Provider routing key. String-typed (not the AIProvider enum) because the
    * DB stores it as a string column and may carry future values not yet in the
@@ -180,27 +175,6 @@ function toNumber(value: unknown): number | null {
  * @param raw - Raw result from Prisma query using LLM_CONFIG_SELECT
  * @returns Mapped config ready for use in application code
  */
-/**
- * Narrow a raw DB `kind` string to a {@link ConfigKind}. The column is constrained
- * (default 'text', only our own code writes it), so this normally just narrows the
- * type; an unrecognized value defensively falls back to the default kind rather than
- * propagating an unknown discriminator through the resolver cascade.
- */
-export function toConfigKind(value: string): ConfigKind {
-  if ((CONFIG_KINDS as readonly string[]).includes(value)) {
-    return value as ConfigKind;
-  }
-  // Should never fire (the column is constrained + defaulted) — but if a malformed
-  // kind reaches here via schema drift or a partial deploy, the silent floor to 'text'
-  // would make a vision row resolve as text and quietly fall to the vision fallback.
-  // Warn so the drift is observable rather than invisible.
-  logger.warn(
-    { actual: value, validKinds: CONFIG_KINDS },
-    'Unknown LlmConfig.kind — flooring to default (text)'
-  );
-  return DEFAULT_CONFIG_KIND;
-}
-
 export function mapLlmConfigFromDb(raw: RawLlmConfigFromDb): MappedLlmConfig {
   // Validate and convert advancedParameters JSONB
   const params = safeValidateAdvancedParams(raw.advancedParameters);
@@ -208,7 +182,6 @@ export function mapLlmConfigFromDb(raw: RawLlmConfigFromDb): MappedLlmConfig {
 
   return {
     model: raw.model,
-    kind: toConfigKind(raw.kind),
     provider: raw.provider,
     // Spread ALL converted params (sampling, reasoning, output, OpenRouter)
     ...converted,

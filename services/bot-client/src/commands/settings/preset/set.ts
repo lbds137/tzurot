@@ -4,10 +4,9 @@
  */
 
 import { EmbedBuilder } from 'discord.js';
-import { DEFAULT_CONFIG_KIND } from '@tzurot/common-types/constants/ai';
+import { DEFAULT_MODEL_SLOT, toModelSlot } from '@tzurot/common-types/constants/ai';
 import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
 import { settingsPresetSetOptions } from '@tzurot/common-types/generated/commandOptions';
-import { toConfigKind } from '@tzurot/common-types/services/LlmConfigMapper';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
 import {
@@ -30,7 +29,7 @@ export async function handleSet(context: DeferredCommandContext): Promise<void> 
   // The slot (text = chat default, or vision) decides which FK the override
   // writes; the gateway capability-gates the vision slot. Without sending it a
   // vision override silently lands in the text slot — mirror clear, which sends it.
-  const kind = toConfigKind(options.slot() ?? DEFAULT_CONFIG_KIND);
+  const slot = toModelSlot(options.slot() ?? DEFAULT_MODEL_SLOT);
 
   if (isAutocompleteErrorSentinel(personalityId)) {
     await context.editReply({ content: AUTOCOMPLETE_UNAVAILABLE_MESSAGE });
@@ -49,11 +48,11 @@ export async function handleSet(context: DeferredCommandContext): Promise<void> 
     }
     const { reason } = outcome;
 
-    const result = await userClient.setModelOverride({ personalityId, configId }, { kind });
+    const result = await userClient.setModelOverride({ personalityId, configId }, { slot });
 
     if (!result.ok) {
       logger.warn(
-        { userId, status: result.status, personalityId, configId, kind },
+        { userId, status: result.status, personalityId, configId, slot },
         'Failed to set override'
       );
       await context.editReply({ content: `❌ Failed to set preset: ${result.error}` });
@@ -67,7 +66,7 @@ export async function handleSet(context: DeferredCommandContext): Promise<void> 
       .setColor(DISCORD_COLORS.SUCCESS)
       .setDescription(
         `**${data.override.personalityName}** will now use the **${data.override.configName}** preset for ${
-          kind === 'vision' ? 'vision (image)' : 'chat'
+          slot === 'vision' ? 'vision (image)' : 'chat'
         } messages.`
       )
       .setFooter({ text: 'Use /settings preset clear to remove this override' })
@@ -82,7 +81,7 @@ export async function handleSet(context: DeferredCommandContext): Promise<void> 
         personalityName: data.override.personalityName,
         configId,
         configName: data.override.configName,
-        kind,
+        slot,
         reason,
       },
       'Set override'

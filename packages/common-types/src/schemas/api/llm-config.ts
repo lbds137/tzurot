@@ -16,12 +16,7 @@
 import { z } from 'zod';
 import { EntityPermissionsSchema, optionalString, nullableString } from './shared.js';
 import { AdvancedParamsSchema } from '../llmAdvancedParams.js';
-import {
-  MESSAGE_LIMITS,
-  AI_DEFAULTS,
-  CONFIG_KINDS,
-  CONFIG_NAME_MAX_LENGTH,
-} from '../../constants/index.js';
+import { MESSAGE_LIMITS, AI_DEFAULTS, CONFIG_NAME_MAX_LENGTH } from '../../constants/index.js';
 
 // ============================================================================
 // Context Settings Schema (shared validation for context history limits)
@@ -92,13 +87,6 @@ export const LlmConfigCreateSchema = z.object({
     .max(CONFIG_NAME_MAX_LENGTH, `name must be ${CONFIG_NAME_MAX_LENGTH} characters or less`),
   model: z.string().min(1, 'model is required').max(200),
 
-  // Config kind discriminator (text | vision | …). Optional; when omitted the
-  // service defaults it to 'text', so a caller that doesn't set it gets a text
-  // preset. A 'vision' create is validated for vision capability before it's
-  // accepted. NOT present on the update schema — `kind` is immutable (changing
-  // it would orphan the per-kind default flags); convert by delete + recreate.
-  kind: z.enum(CONFIG_KINDS).optional(),
-
   // Optional string fields
   description: z.string().max(500).optional().nullable(),
   provider: z.string().max(50).optional(),
@@ -162,10 +150,6 @@ export const LlmConfigUpdateSchema = z.object({
 
   /** Toggle global visibility - users can share their presets */
   isGlobal: z.boolean().optional(),
-
-  // NOTE: `kind` is intentionally absent — it's immutable after creation
-  // (changing it would orphan the per-kind default flags + mis-route resolvers).
-  // Convert a config to another kind by delete + recreate.
 });
 
 export type LlmConfigUpdateInput = z.infer<typeof LlmConfigUpdateSchema>;
@@ -184,9 +168,6 @@ export const LLM_CONFIG_LIST_SELECT = {
   description: true,
   provider: true,
   model: true,
-  // Surfaced in the list summary so browse can fetch all kinds in one call and
-  // badge/filter by kind without a per-kind round-trip.
-  kind: true,
   isGlobal: true,
   // isDefault/isFreeDefault are NOT selected: default-ness is an AdminSettings
   // pointer relationship (S3), and LlmConfigService.list derives the summary
@@ -201,8 +182,6 @@ export const LLM_CONFIG_LIST_SELECT = {
  */
 export const LLM_CONFIG_DETAIL_SELECT = {
   ...LLM_CONFIG_LIST_SELECT,
-  // `kind` comes through the LIST_SELECT spread (it's now surfaced in the list
-  // summary too). Detail queries still rely on it for the getById kind-gate.
   advancedParameters: true,
   // Memory settings
   memoryScoreThreshold: true,
@@ -260,13 +239,11 @@ export const LlmConfigSummarySchema = z.object({
   /**
    * Whether the model accepts image input, sourced live from the model's
    * capabilities (OpenRouter-authoritative → z.ai catalog), NOT from the config.
-   * This is the capability-driven signal the browse UI badges/filters on — it
-   * supersedes reading `kind` for vision eligibility. `false` when capability is
-   * unknown (fail-closed). Populated by the list route, not `formatConfigSummary`.
+   * This is the capability-driven signal the browse UI badges/filters on.
+   * `false` when capability is unknown (fail-closed). Populated by the list
+   * route, not `formatConfigSummary`.
    */
   supportsVision: z.boolean(),
-  /** Config kind discriminator (text | vision). Always present in list responses. */
-  kind: z.enum(CONFIG_KINDS),
   isGlobal: z.boolean(),
   isDefault: z.boolean(),
   isFreeDefault: z.boolean(),

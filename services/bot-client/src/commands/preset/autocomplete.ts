@@ -180,7 +180,7 @@ async function handlePresetAutocomplete(
   // Capability-agnostic: fetch ALL presets, 👁-badged by capability below. The
   // slot is chosen on the command option, so the picker stays slot-independent.
   const { userClient } = clientsFor(interaction);
-  const result = await userClient.listUserLlmConfigs({ kind: 'all' });
+  const result = await userClient.listUserLlmConfigs();
 
   if (!result.ok) {
     logger.warn({ userId, error: result.error }, 'Failed to fetch presets');
@@ -204,7 +204,7 @@ async function handlePresetAutocomplete(
       value: c.id,
       // Show scope badge for edit command only (global vs owned)
       scopeBadge: subcommand === 'edit' ? getPresetScopeBadge(c.isGlobal) : undefined,
-      // 👁 for vision-capable models (capability, not config kind)
+      // 👁 for vision-capable models (capability-driven)
       statusBadges: c.supportsVision ? [AUTOCOMPLETE_BADGES.VISION] : undefined,
       // Show model short name as metadata
       metadata: shortModelName(c.model),
@@ -243,7 +243,7 @@ async function handleVisionModelAutocomplete(
 }
 
 /** Single cache key — the picker is capability-agnostic, so the full global
- *  config set (both slots) is cached under one key, not one entry per kind. */
+ *  config set (both slots) is cached under one key, not one entry per slot. */
 const GLOBAL_CONFIG_CACHE_KEY = 'global-configs:all';
 
 /**
@@ -251,7 +251,7 @@ const GLOBAL_CONFIG_CACHE_KEY = 'global-configs:all';
  * the call site. Capability-agnostic, mirroring the user picker: the slot is
  * chosen on the command's `slot` option, so the suggestion list stays
  * slot-independent and doesn't reorder when the owner switches slots. The
- * gateway LIST route accepts the `all` sentinel via parseConfigKindQueryAllowAll.
+ * suggestion list is the full unscoped set.
  */
 async function fetchGlobalConfigs(
   interaction: AutocompleteInteraction
@@ -265,7 +265,7 @@ async function fetchGlobalConfigs(
   }
 
   const { ownerClient } = clientsFor(interaction);
-  const result = await ownerClient.listGlobalLlmConfigs({ kind: 'all' });
+  const result = await ownerClient.listGlobalLlmConfigs();
 
   if (!result.ok) {
     return null;

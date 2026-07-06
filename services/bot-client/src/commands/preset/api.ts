@@ -6,7 +6,6 @@
  * operations go through `ownerClient`.
  */
 
-import { type ConfigKind } from '@tzurot/common-types/constants/ai';
 import {
   type LlmConfigDetail,
   type LlmConfigUpdateInput,
@@ -123,8 +122,6 @@ export async function createPreset(
     model: string;
     provider?: string;
     description?: string;
-    /** Preset kind (text|vision); the server defaults to text when omitted. */
-    kind?: ConfigKind;
     /**
      * When true, server bumps the `(Copy N)` suffix on name collision
      * instead of returning NAME_COLLISION. Used by the clone flow so a

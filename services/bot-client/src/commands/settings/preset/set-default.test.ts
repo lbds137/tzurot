@@ -91,11 +91,11 @@ describe('handleSetDefault', () => {
     // No slot option → defaults to the text (chat) default.
     expect(stub.setDefaultModelConfig).toHaveBeenCalledWith(
       { configId: '00000000-0000-4000-8000-000000000456' },
-      { kind: 'text' }
+      { slot: 'text' }
     );
   });
 
-  it('sends the vision slot when kind:vision is chosen (the vision-default fix)', async () => {
+  it('sends the vision slot when slot:vision is chosen (the vision-default fix)', async () => {
     mockNonGuestUserApis('00000000-0000-4000-8000-0000000000a1', 'Gemini Vision');
 
     await handleSetDefault(createMockContext('00000000-0000-4000-8000-0000000000a1', 'vision'));
@@ -104,7 +104,7 @@ describe('handleSetDefault', () => {
     // lands in the text slot (the bug this fix closes).
     expect(stub.setDefaultModelConfig).toHaveBeenCalledWith(
       { configId: '00000000-0000-4000-8000-0000000000a1' },
-      { kind: 'vision' }
+      { slot: 'vision' }
     );
     // The confirmation names the vision slot.
     expect(mockEditReply).toHaveBeenCalledWith({
@@ -224,7 +224,7 @@ describe('handleSetDefault', () => {
 
     expect(stub.setDefaultModelConfig).toHaveBeenCalledWith(
       { configId: '00000000-0000-4000-8000-000000000f00' },
-      { kind: 'text' }
+      { slot: 'text' }
     );
     expect(mockEditReply).toHaveBeenCalledWith({
       embeds: [

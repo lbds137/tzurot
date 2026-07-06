@@ -79,7 +79,6 @@ export const LlmConfigSchema = z
  */
 export interface DatabaseLlmConfig {
   model: string;
-  kind: string;
   provider: string; // 'openrouter' | 'zai-coding' | future enum values
   advancedParameters: unknown; // JSONB - validated via Zod in mapper
   memoryScoreThreshold: Decimal | null;

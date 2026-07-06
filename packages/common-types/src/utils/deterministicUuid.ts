@@ -127,7 +127,7 @@ export function generateSystemGlobalTtsConfigUuid(name: string): string {
  * Deterministic UUID for a system-global LlmConfig row.
  *
  * Mirrors {@link generateSystemGlobalTtsConfigUuid}. Used by `VisionConfigBootstrap`
- * to seed the vision system globals (`kind='vision'` LlmConfig rows) with stable IDs,
+ * to seed the vision system globals (LlmConfig rows) with stable IDs,
  * so dev and prod assign the same UUID for the same well-known name. Without this,
  * `/admin db-sync` fails with `llm_configs_owner_id_name_key` collisions because each
  * env would generate its own random UUID for the same logical row.

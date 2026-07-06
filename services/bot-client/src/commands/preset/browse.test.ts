@@ -85,18 +85,15 @@ function configurePresets(
   hasWallet = true,
   visionPresets: Parameters<typeof mockListLlmConfigsResponse>[0] = []
 ): void {
-  // Browse now issues ONE all-kinds call and filters by capability client-side,
+  // Browse issues ONE unscoped call and filters by capability client-side,
   // so the mock just returns the full set. The 👁 badge + capability filter key
-  // off `supportsVision` — text rows are text-only, vision rows vision-capable;
-  // the `kind` tag is retained only for callers that still group by it.
+  // off `supportsVision` — text rows are text-only, vision rows vision-capable.
   const textRows = (presets ?? []).map(p => ({
     ...p,
-    kind: 'text' as const,
     supportsVision: false,
   }));
   const visionRows = visionPresets.map(p => ({
     ...p,
-    kind: 'vision' as const,
     supportsVision: true,
   }));
   stub.listUserLlmConfigs.mockResolvedValue(

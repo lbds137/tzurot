@@ -68,15 +68,15 @@ describe('Preset Clear Handler', () => {
     );
   });
 
-  function createMockContext(personalityId: string, kind?: string) {
+  function createMockContext(personalityId: string, slot?: string) {
     return {
       user: { id: 'user-123', username: 'testuser' },
       interaction: {
         options: {
-          // The `slot` option is optional (null → handler defaults to text);
+          // The `slot` option is optional (null → handler clears both slots);
           // every other option (`character`) resolves to the personalityId.
           getString: (name: string, _required?: boolean) =>
-            name === 'slot' ? (kind ?? null) : personalityId,
+            name === 'slot' ? (slot ?? null) : personalityId,
         },
       },
       editReply: mockEditReply,
@@ -91,7 +91,7 @@ describe('Preset Clear Handler', () => {
 
       // No slot → clear both slots (the gateway's `all` sentinel), so a vision
       // override isn't silently left behind.
-      expect(stub.deleteModelOverride).toHaveBeenCalledWith('personality-123', { kind: 'all' });
+      expect(stub.deleteModelOverride).toHaveBeenCalledWith('personality-123', { slot: 'all' });
 
       expect(mockCreateSuccessEmbed).toHaveBeenCalledWith(
         '🔄 Preset Override Removed',
@@ -103,12 +103,12 @@ describe('Preset Clear Handler', () => {
       });
     });
 
-    it('clears the vision override when kind=vision', async () => {
+    it('clears the vision override when slot=vision', async () => {
       stub.deleteModelOverride.mockResolvedValue(makeOk({ deleted: true }));
 
       await handleClear(createMockContext('personality-123', 'vision'));
 
-      expect(stub.deleteModelOverride).toHaveBeenCalledWith('personality-123', { kind: 'vision' });
+      expect(stub.deleteModelOverride).toHaveBeenCalledWith('personality-123', { slot: 'vision' });
       // The vision path completes through to the success embed, same as text.
       expect(mockCreateSuccessEmbed).toHaveBeenCalledWith(
         '🔄 Preset Override Removed',

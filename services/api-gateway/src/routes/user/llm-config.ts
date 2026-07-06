@@ -18,7 +18,6 @@ import {
   LlmConfigCreateSchema,
   LlmConfigUpdateSchema,
 } from '@tzurot/common-types/schemas/api/llm-config';
-import { toConfigKind } from '@tzurot/common-types/services/LlmConfigMapper';
 import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { isBotOwner } from '@tzurot/common-types/utils/ownerMiddleware';
@@ -32,7 +31,6 @@ import { isPrismaUniqueConstraintError } from '../../utils/prismaErrors.js';
 import { getRequiredParam } from '../../utils/requestParams.js';
 import {
   parseBodyOrSendError,
-  parseConfigKindQueryAllowAll,
   findConfigOrSendNotFound,
   ensureNoNameCollision,
 } from '../../utils/configRouteHelpers.js';
@@ -74,20 +72,14 @@ function createListHandler(service: LlmConfigService, modelCache?: OpenRouterMod
     const discordUserId = req.userId;
     const userId = resolveProvisionedUserId(req);
 
-    // Admin sees all presets (same pattern as character browse)
-    // Regular users see global + their own. Browse passes `?kind=all` to list
-    // both kinds in one call; autocomplete passes an explicit text|vision.
-    const kind = parseConfigKindQueryAllowAll(res, req.query);
-    if (kind === null) {
-      return;
-    }
-
+    // Admin sees all presets (same pattern as character browse);
+    // regular users see global + their own.
     const isAdmin = isBotOwner(discordUserId);
     const scope: LlmConfigScope = isAdmin
       ? { type: 'GLOBAL' }
       : { type: 'USER', userId, discordId: discordUserId };
 
-    const rawConfigs = await service.list(scope, kind);
+    const rawConfigs = await service.list(scope);
 
     // Enrich with ownership and permissions (user-specific). `formatConfigSummary`
     // projects only public fields — `c.ownerId` is read here for the ownership
@@ -97,8 +89,8 @@ function createListHandler(service: LlmConfigService, modelCache?: OpenRouterMod
       rawConfigs.map(async c => ({
         ...service.formatConfigSummary(c),
         isOwned: c.ownerId === userId,
-        // Capability-driven vision eligibility, sourced live from the model
-        // (not the config's `kind`). Cheap: a cached array lookup per row.
+        // Capability-driven vision eligibility, sourced live from the model.
+        // Cheap: a cached array lookup per row.
         supportsVision: await capabilities.supportsVision(c.model),
         permissions: computeLlmConfigPermissions(
           { ownerId: c.ownerId, isGlobal: c.isGlobal },
@@ -187,7 +179,6 @@ function createCreateHandler(
         modelCache,
         body,
         hasZaiCodingKey,
-        kind: body.kind,
       }))
     ) {
       return;
@@ -202,7 +193,6 @@ function createCreateHandler(
       !(await ensureNoNameCollision(res, service, {
         name: body.name,
         scope: { type: 'USER', userId, discordId: discordUserId },
-        kind: body.kind,
         formatCollisionMessage: n => `You already have a config named "${n}"`,
       }))
     ) {
@@ -285,11 +275,7 @@ async function buildUpdatePatchOrSendCollision<
   service: LlmConfigService;
   req: ProvisionedRequest;
   body: TBody;
-  /** Includes `kind` (the immutable discriminator) so the name-collision check
-   *  is scoped to the config's kind — a vision rename collides only against
-   *  vision names, never text. Derived from the row, not the request: kind is
-   *  intrinsic to the config and can't be changed by an update. */
-  config: { name: string; isGlobal: boolean; ownerId: string; kind: string };
+  config: { name: string; isGlobal: boolean; ownerId: string };
   configId: string;
   isOwnedByRequester: boolean;
 }): Promise<TBody | null> {
@@ -317,7 +303,6 @@ async function buildUpdatePatchOrSendCollision<
       scope: { type: 'USER', userId: config.ownerId, discordId: discordUserId },
       excludeId: configId,
       postIsGlobal,
-      kind: toConfigKind(config.kind),
       formatCollisionMessage: n =>
         buildCollisionMessage({
           effectiveName: n,
@@ -363,10 +348,6 @@ function createUpdateHandler(
       return;
     }
 
-    // User by-id routes are kind-agnostic: the id unambiguously identifies the
-    // config of whatever kind, and kind is immutable. A `?kind=` query param
-    // here is intentionally ignored — the collision check below derives kind
-    // from the stored row, not the request.
     const config = await findConfigOrSendNotFound(
       res,
       () => service.getById(configId),
