@@ -1,0 +1,172 @@
+{
+  "name": "llm-generation",
+  "data": {
+    "requestId": "fixture-req-envelope-refs",
+    "jobType": "llm-generation",
+    "personality": {
+      "id": "f8c7b96b-c16e-5ad7-b83a-0f7da84f1e63",
+      "name": "FixtureBot",
+      "displayName": "Fixture Bot",
+      "slug": "fixturebot",
+      "ownerId": "b82b0f25-5f29-5319-b724-48693fe3e7e7",
+      "systemPrompt": "Fixture prompt",
+      "model": "resolved/model",
+      "provider": "openrouter",
+      "temperature": 0.7,
+      "maxTokens": 1000,
+      "contextWindowTokens": 4096,
+      "characterInfo": "Fixture character",
+      "personalityTraits": "Fixture traits",
+      "voiceEnabled": false,
+      "visionModel": "resolved/vision-model"
+    },
+    "message": "what are these?",
+    "context": {
+      "userId": "fixture-user",
+      "channelId": "fixture-channel",
+      "kind": "envelope",
+      "rawAssemblyInputs": {
+        "rawMessageContent": "what are these?",
+        "rawReferencedMessages": [
+          {
+            "referenceNumber": 1,
+            "discordMessageId": "100000000000000001",
+            "discordUserId": "200000000000000001",
+            "authorUsername": "ref-author",
+            "authorDisplayName": "Ref Author",
+            "content": "look at this picture",
+            "embeds": "",
+            "timestamp": "2026-01-01T00:00:00.000Z",
+            "locationContext": "Server > #channel",
+            "attachments": [
+              {
+                "url": "https://cdn.example/ref-photo.png",
+                "name": "ref-photo.png",
+                "contentType": "image/png",
+                "size": 2048
+              }
+            ]
+          },
+          {
+            "referenceNumber": 2,
+            "discordMessageId": "100000000000000002",
+            "discordUserId": "200000000000000002",
+            "authorUsername": "ref-author-2",
+            "authorDisplayName": "Ref Author 2",
+            "content": "and this voice note",
+            "embeds": "",
+            "timestamp": "2026-01-01T00:01:00.000Z",
+            "locationContext": "Server > #channel",
+            "attachments": [
+              {
+                "url": "https://cdn.example/ref-voice.ogg",
+                "name": "ref-voice.ogg",
+                "contentType": "audio/ogg",
+                "size": 1024
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "responseDestination": {
+      "type": "discord",
+      "channelId": "fixture-channel",
+      "webhookUrl": "https://discord.com/api/webhooks/fixture"
+    },
+    "configSource": "user-personality",
+    "dependencies": [
+      {
+        "jobId": "image-fixture-req-envelope-refs-ref1-image",
+        "type": "image-description",
+        "status": "queued",
+        "resultKey": "job-result:fixture-user:image-fixture-req-envelope-refs-ref1-image"
+      },
+      {
+        "jobId": "audio-fixture-req-envelope-refs-ref2-audio-0",
+        "type": "audio-transcription",
+        "status": "queued",
+        "resultKey": "job-result:fixture-user:audio-fixture-req-envelope-refs-ref2-audio-0"
+      }
+    ]
+  },
+  "queueName": "test-queue",
+  "opts": {
+    "jobId": "llm-fixture-req-envelope-refs"
+  },
+  "children": [
+    {
+      "name": "image-description",
+      "data": {
+        "requestId": "fixture-req-envelope-refs-ref1-image",
+        "jobType": "image-description",
+        "attachments": [
+          {
+            "url": "https://cdn.example/ref-photo.png",
+            "name": "ref-photo.png",
+            "contentType": "image/png",
+            "size": 2048
+          }
+        ],
+        "personality": {
+          "id": "f8c7b96b-c16e-5ad7-b83a-0f7da84f1e63",
+          "name": "FixtureBot",
+          "displayName": "Fixture Bot",
+          "slug": "fixturebot",
+          "ownerId": "b82b0f25-5f29-5319-b724-48693fe3e7e7",
+          "systemPrompt": "Fixture prompt",
+          "model": "resolved/model",
+          "provider": "openrouter",
+          "temperature": 0.7,
+          "maxTokens": 1000,
+          "contextWindowTokens": 4096,
+          "characterInfo": "Fixture character",
+          "personalityTraits": "Fixture traits",
+          "voiceEnabled": false,
+          "visionModel": "resolved/vision-model"
+        },
+        "context": {
+          "userId": "fixture-user",
+          "channelId": "fixture-channel"
+        },
+        "responseDestination": {
+          "type": "discord",
+          "channelId": "fixture-channel",
+          "webhookUrl": "https://discord.com/api/webhooks/fixture"
+        },
+        "sourceReferenceNumber": 1
+      },
+      "queueName": "test-queue",
+      "opts": {
+        "jobId": "image-fixture-req-envelope-refs-ref1-image"
+      }
+    },
+    {
+      "name": "audio-transcription",
+      "data": {
+        "requestId": "fixture-req-envelope-refs-ref2-audio-0",
+        "jobType": "audio-transcription",
+        "attachment": {
+          "url": "https://cdn.example/ref-voice.ogg",
+          "name": "ref-voice.ogg",
+          "contentType": "audio/ogg",
+          "size": 1024
+        },
+        "context": {
+          "userId": "fixture-user",
+          "channelId": "fixture-channel"
+        },
+        "responseDestination": {
+          "type": "discord",
+          "channelId": "fixture-channel",
+          "webhookUrl": "https://discord.com/api/webhooks/fixture"
+        },
+        "sourceReferenceNumber": 2
+      },
+      "queueName": "test-queue",
+      "opts": {
+        "jobId": "audio-fixture-req-envelope-refs-ref2-audio-0"
+      }
+    }
+  ]
+}

@@ -1,7 +1,7 @@
 {
   "name": "llm-generation",
   "data": {
-    "requestId": "fixture-req",
+    "requestId": "fixture-req-envelope-direct",
     "jobType": "llm-generation",
     "personality": {
       "id": "f8c7b96b-c16e-5ad7-b83a-0f7da84f1e63",
@@ -20,24 +20,28 @@
       "voiceEnabled": false,
       "visionModel": "resolved/vision-model"
     },
-    "message": "What is in this audio and image?",
+    "message": "what do you make of these?",
     "context": {
       "userId": "fixture-user",
       "channelId": "fixture-channel",
+      "kind": "envelope",
       "attachments": [
         {
-          "url": "https://cdn.example/voice.ogg",
-          "name": "voice.ogg",
+          "url": "https://cdn.example/direct-voice.ogg",
+          "name": "direct-voice.ogg",
           "contentType": "audio/ogg",
           "size": 1024
         },
         {
-          "url": "https://cdn.example/photo.png",
-          "name": "photo.png",
+          "url": "https://cdn.example/direct-photo.png",
+          "name": "direct-photo.png",
           "contentType": "image/png",
           "size": 2048
         }
-      ]
+      ],
+      "rawAssemblyInputs": {
+        "rawMessageContent": "what do you make of these?"
+      }
     },
     "responseDestination": {
       "type": "discord",
@@ -47,32 +51,32 @@
     "configSource": "user-personality",
     "dependencies": [
       {
-        "jobId": "audio-fixture-req-audio-0",
+        "jobId": "audio-fixture-req-envelope-direct-audio-0",
         "type": "audio-transcription",
         "status": "queued",
-        "resultKey": "job-result:fixture-user:audio-fixture-req-audio-0"
+        "resultKey": "job-result:fixture-user:audio-fixture-req-envelope-direct-audio-0"
       },
       {
-        "jobId": "image-fixture-req-image",
+        "jobId": "image-fixture-req-envelope-direct-image",
         "type": "image-description",
         "status": "queued",
-        "resultKey": "job-result:fixture-user:image-fixture-req-image"
+        "resultKey": "job-result:fixture-user:image-fixture-req-envelope-direct-image"
       }
     ]
   },
   "queueName": "test-queue",
   "opts": {
-    "jobId": "llm-fixture-req"
+    "jobId": "llm-fixture-req-envelope-direct"
   },
   "children": [
     {
       "name": "audio-transcription",
       "data": {
-        "requestId": "fixture-req-audio-0",
+        "requestId": "fixture-req-envelope-direct-audio-0",
         "jobType": "audio-transcription",
         "attachment": {
-          "url": "https://cdn.example/voice.ogg",
-          "name": "voice.ogg",
+          "url": "https://cdn.example/direct-voice.ogg",
+          "name": "direct-voice.ogg",
           "contentType": "audio/ogg",
           "size": 1024
         },
@@ -88,18 +92,18 @@
       },
       "queueName": "test-queue",
       "opts": {
-        "jobId": "audio-fixture-req-audio-0"
+        "jobId": "audio-fixture-req-envelope-direct-audio-0"
       }
     },
     {
       "name": "image-description",
       "data": {
-        "requestId": "fixture-req-image",
+        "requestId": "fixture-req-envelope-direct-image",
         "jobType": "image-description",
         "attachments": [
           {
-            "url": "https://cdn.example/photo.png",
-            "name": "photo.png",
+            "url": "https://cdn.example/direct-photo.png",
+            "name": "direct-photo.png",
             "contentType": "image/png",
             "size": 2048
           }
@@ -133,7 +137,7 @@
       },
       "queueName": "test-queue",
       "opts": {
-        "jobId": "image-fixture-req-image"
+        "jobId": "image-fixture-req-envelope-direct-image"
       }
     }
   ]
