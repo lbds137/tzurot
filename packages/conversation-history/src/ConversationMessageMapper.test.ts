@@ -416,3 +416,21 @@ describe('ConversationMessageMapper', () => {
     });
   });
 });
+describe('parseMessageMetadata — null/invalid guards', () => {
+  it('returns undefined for null (SQL NULL round-trip)', () => {
+    expect(parseMessageMetadata(null)).toBeUndefined();
+  });
+
+  it('returns undefined for undefined', () => {
+    expect(parseMessageMetadata(undefined)).toBeUndefined();
+  });
+
+  it('returns undefined for a shape the schema rejects', () => {
+    expect(parseMessageMetadata({ referencedMessages: 'not-an-array' })).toBeUndefined();
+  });
+
+  it('returns the parsed metadata for a valid shape', () => {
+    const valid = { referencedMessages: [] };
+    expect(parseMessageMetadata(valid)).toEqual(valid);
+  });
+});

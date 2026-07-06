@@ -188,6 +188,17 @@ describe('ConversationRetentionService', () => {
     });
   });
 
+  describe('clearHistory — personaId filter shape', () => {
+    it('omits personaId from the where clause when the argument is an empty string', async () => {
+      mockPrismaClient.conversationHistory.findMany.mockResolvedValue([]);
+
+      await service.clearHistory('channel-123', 'personality-456', '');
+
+      const where = mockPrismaClient.conversationHistory.findMany.mock.calls[0][0].where;
+      expect(where).not.toHaveProperty('personaId');
+    });
+  });
+
   describe('cleanupOldHistory', () => {
     it('should delete messages older than specified days and create tombstones using batching', async () => {
       vi.useFakeTimers();

@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "lastUpdated": "2026-07-06T17:25:30.646Z",
+  "lastUpdated": "2026-07-06T18:01:46.773Z",
   "packages": {
     "config-resolver": {
       "score": 87.17,
@@ -9,13 +9,17 @@
     "cache-invalidation": {
       "score": 88.98,
       "graceMargin": 1
+    },
+    "conversation-history": {
+      "score": 85.04,
+      "graceMargin": 1
     }
   },
   "meta": {
     "toolVersion": "mutation-check/1",
-    "configHash": "9a5604fa3c55",
+    "configHash": "968675bf76c5",
     "nodeVersion": "v24.11.1",
-    "generatedFromSha": "a11640e3aabb9509df18065359321bcd556a1de5",
-    "generatedAt": "2026-07-06T17:25:30.646Z"
+    "generatedFromSha": "2190cc9645906a177c89bc263f7afb82ebf80ceb",
+    "generatedAt": "2026-07-06T18:01:46.773Z"
   }
 }

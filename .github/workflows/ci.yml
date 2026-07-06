@@ -353,6 +353,9 @@ jobs:
       - name: Run mutation testing (cache-invalidation)
         run: pnpm --filter @tzurot/cache-invalidation test:mutation
 
+      - name: Run mutation testing (conversation-history)
+        run: pnpm --filter @tzurot/conversation-history test:mutation
+
       - name: Enforce mutation-score baseline
         run: pnpm ops mutation:check --summary
 

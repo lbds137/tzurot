@@ -126,6 +126,25 @@ describe('ConversationSyncService', () => {
         },
         data: { visibility: 'deleted' },
       });
+      // The transaction's two operations carry the exact soft-delete + tombstone
+      // shapes: deletedAt stamped on the rows, tombstones duplicate-safe.
+      expect(mockPrismaClient.conversationHistory.updateMany).toHaveBeenCalledWith({
+        where: { id: { in: messageIds } },
+        data: { deletedAt: expect.any(Date) },
+      });
+      expect(mockPrismaClient.conversationHistoryTombstone.createMany).toHaveBeenCalledWith({
+        data: mockMessages.map(msg => ({
+          id: msg.id,
+          channelId: msg.channelId,
+          personalityId: msg.personalityId,
+          personaId: msg.personaId,
+          deletedAt: expect.any(Date),
+        })),
+        skipDuplicates: true,
+      });
+      expect(mockPrismaClient.memory.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({ data: { visibility: 'deleted' } })
+      );
       expect(mockPrismaClient.conversationHistory.findMany).toHaveBeenCalledWith({
         where: { id: { in: messageIds } },
         select: {
@@ -189,6 +208,17 @@ describe('ConversationSyncService', () => {
 
       expect(result.size).toBe(0);
       expect(mockPrismaClient.conversationHistory.findMany).not.toHaveBeenCalled();
+    });
+
+    it('omits channel and personality filters from the query when not provided', async () => {
+      mockPrismaClient.conversationHistory.findMany.mockResolvedValue([]);
+
+      await service.getMessagesByDiscordIds(['discord-1']);
+
+      const where = mockPrismaClient.conversationHistory.findMany.mock.calls[0][0].where;
+      expect(where).not.toHaveProperty('channelId');
+      expect(where).not.toHaveProperty('personalityId');
+      expect(where.discordMessageId).toEqual({ hasSome: ['discord-1'] });
     });
 
     it('should return map of Discord ID to message data', async () => {
@@ -401,6 +431,36 @@ describe('ConversationSyncService', () => {
       const result = await service.runSync('ch-1', 'p-1', [observed('d1', 'same content')]);
 
       expect(result).toEqual({ updated: 0, deleted: 0 });
+      expect(update).not.toHaveBeenCalled();
+    });
+
+    it('retains a record when at least ONE of its discord ids is still observed (some, not every)', async () => {
+      const row = dbRow('db-1', ['d1', 'd2'], 'same content');
+      vi.spyOn(service, 'getMessagesByDiscordIds').mockResolvedValue(new Map([['d1', row]]));
+      vi.spyOn(service, 'getMessagesInTimeWindow').mockResolvedValue([
+        { id: 'db-1', discordMessageId: ['d1', 'd2'], createdAt: row.createdAt },
+      ]);
+      const softDelete = vi.spyOn(service, 'softDeleteMessages');
+
+      // Only d1 is observed; d2 has vanished. A record survives as long as
+      // ANY of its ids is present — chunk-partial visibility is not deletion.
+      const result = await service.runSync('ch-1', 'p-1', [observed('d1', 'same content')]);
+
+      expect(result.deleted).toBe(0);
+      expect(softDelete).not.toHaveBeenCalled();
+    });
+
+    it('skips a multi-chunk record when a chunk is missing from the observed set (no partial-collation update)', async () => {
+      const row = dbRow('db-1', ['d1', 'd2'], 'part one part two');
+      vi.spyOn(service, 'getMessagesByDiscordIds').mockResolvedValue(new Map([['d1', row]]));
+      vi.spyOn(service, 'getMessagesInTimeWindow').mockResolvedValue([
+        { id: 'db-1', discordMessageId: ['d1', 'd2'], createdAt: row.createdAt },
+      ]);
+      const update = vi.spyOn(service, 'updateMessageContent').mockResolvedValue(true);
+
+      const result = await service.runSync('ch-1', 'p-1', [observed('d1', 'part one edited')]);
+
+      expect(result.updated).toBe(0);
       expect(update).not.toHaveBeenCalled();
     });
 
