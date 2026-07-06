@@ -4,4 +4,4 @@ _Per-PR slice detail for the current Active Focus (see [`../active-epic.md`](../
 
 ## Spinoff-Theme Knockout (beta.146+)
 
-_No per-PR slice log yet — the sweep's shipped items are tracked directly in `active-epic.md` (warmup ✅, 3 themes closed ✅, process-refit PR #1468 ✅). Add rows here when a multi-PR theme (job-payload contract suite, CPD campaign 1, legacy-column retirement) starts producing slices worth logging._
+_No per-PR slice log yet — the sweep's shipped items are tracked directly in `active-epic.md` (warmup ✅, 4 themes closed ✅, process-refit PR #1468 ✅). Add rows here when a multi-PR theme (job-payload contract suite, CPD campaign 1) starts producing slices worth logging._
