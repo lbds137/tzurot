@@ -14,6 +14,7 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { PersonalityLoader } from './PersonalityLoader.js';
+import { LLM_CONFIG_SELECT } from '@tzurot/common-types/services/LlmConfigMapper';
 import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 import { getConfig } from '@tzurot/common-types/config/config';
 import { isBotOwner } from '@tzurot/common-types/utils/ownerMiddleware';
@@ -97,6 +98,43 @@ describe('PersonalityLoader', () => {
     } as unknown as PrismaClient;
 
     loader = new PersonalityLoader(mockPrisma);
+  });
+
+  describe('query select shape (the persisted wire contract)', () => {
+    it('requests exactly the personality fields the mapper consumes', async () => {
+      vi.mocked(mockPrisma.personality.findFirst).mockResolvedValueOnce(null);
+      vi.mocked(mockPrisma.personality.findMany).mockResolvedValueOnce([]);
+
+      await loader.loadFromDatabase('00000000-0000-0000-0000-000000000001');
+
+      const select = vi.mocked(mockPrisma.personality.findFirst).mock.calls[0][0]?.select;
+      // Full-equality pin: dropping ANY field silently feeds undefined into
+      // the loaded personality downstream (select shapes are invisible to
+      // result-mocked unit tests otherwise).
+      expect(select).toEqual({
+        id: true,
+        name: true,
+        displayName: true,
+        slug: true,
+        isPublic: true,
+        ownerId: true,
+        createdAt: true,
+        updatedAt: true,
+        characterInfo: true,
+        personalityTraits: true,
+        personalityTone: true,
+        personalityAge: true,
+        personalityAppearance: true,
+        personalityLikes: true,
+        personalityDislikes: true,
+        conversationalGoals: true,
+        conversationalExamples: true,
+        errorMessage: true,
+        voiceEnabled: true,
+        systemPrompt: { select: { content: true } },
+        defaultConfigLink: { select: { llmConfig: { select: LLM_CONFIG_SELECT } } },
+      });
+    });
   });
 
   describe('loadFromDatabase', () => {
@@ -344,6 +382,34 @@ describe('PersonalityLoader', () => {
 
         expect(result).not.toBeNull();
         expect(result?.id).toBe('public-newer');
+      });
+
+      it('breaks equal-score ties by oldest createdAt', async () => {
+        const newer = createMockPersonality({
+          id: 'public-newer',
+          name: 'Lilith',
+          slug: 'lilith-newer',
+          isPublic: true,
+          ownerId: OTHER_OWNER,
+          createdAt: new Date('2026-02-01T00:00:00Z'),
+        });
+        const older = createMockPersonality({
+          id: 'public-older',
+          name: 'Lilith',
+          slug: 'lilith-older',
+          isPublic: true,
+          ownerId: OTHER_OWNER,
+          createdAt: new Date('2026-01-01T00:00:00Z'),
+        });
+
+        // Same score (both public, neither admin-owned): the OLDER row wins,
+        // regardless of array order (newer listed first here).
+        vi.mocked(mockPrisma.personality.findMany).mockResolvedValueOnce([newer, older] as any);
+        vi.mocked(getConfig).mockReturnValue({ BOT_OWNER_ID: undefined } as any);
+
+        const result = await loader.loadFromDatabase('Lilith');
+
+        expect(result?.id).toBe('public-older');
       });
 
       it('should prefer admin-owned among same visibility', async () => {

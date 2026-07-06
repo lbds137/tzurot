@@ -75,6 +75,33 @@ describe('PersonaResolver', () => {
       expect(result.config.personaId).toBe('');
     });
 
+    it('requests exactly the persona fields the mapper consumes (select pin)', async () => {
+      mockPrismaClient.user.findUnique.mockResolvedValue(null);
+
+      await resolver.resolve('discord-user-1', 'personality-1');
+
+      const personaFields = {
+        id: true,
+        name: true,
+        preferredName: true,
+        pronouns: true,
+        content: true,
+      };
+      expect(mockPrismaClient.user.findUnique).toHaveBeenCalledWith({
+        where: { discordId: 'discord-user-1' },
+        select: {
+          id: true,
+          defaultPersonaId: true,
+          defaultPersona: { select: personaFields },
+          ownedPersonas: {
+            select: personaFields,
+            orderBy: { createdAt: 'asc' },
+            take: 1,
+          },
+        },
+      });
+    });
+
     it('should return personality-specific override if exists', async () => {
       // User has no default but has personality override
       mockPrismaClient.user.findUnique.mockResolvedValue({
@@ -98,6 +125,37 @@ describe('PersonaResolver', () => {
       expect(result.source).toBe('context-override');
       expect(result.config.personaId).toBe('override-persona-123');
       expect(result.config.preferredName).toBe('Override Name');
+    });
+
+    it('pins the personality-override lookup shape (persona linked, not null)', async () => {
+      mockPrismaClient.user.findUnique.mockResolvedValue({
+        id: 'user-uuid',
+        defaultPersonaId: null,
+        defaultPersona: null,
+        ownedPersonas: [],
+      });
+      mockPrismaClient.userPersonalityConfig.findFirst.mockResolvedValue(null);
+
+      await resolver.resolve('discord-user-1', 'personality-1');
+
+      expect(mockPrismaClient.userPersonalityConfig.findFirst).toHaveBeenCalledWith({
+        where: {
+          userId: 'user-uuid',
+          personalityId: 'personality-1',
+          personaId: { not: null },
+        },
+        select: {
+          persona: {
+            select: {
+              id: true,
+              name: true,
+              preferredName: true,
+              pronouns: true,
+              content: true,
+            },
+          },
+        },
+      });
     });
 
     it('should return user default when no personality override exists', async () => {

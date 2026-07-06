@@ -62,6 +62,7 @@ export const MUTATED_PACKAGES = [
   'config-resolver',
   'cache-invalidation',
   'conversation-history',
+  'identity',
 ] as const;
 
 export const DEFAULT_MUTATION_BASELINE_PATH = '.github/baselines/mutation-baseline.json';
