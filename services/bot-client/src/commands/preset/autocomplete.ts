@@ -23,6 +23,7 @@ import {
 } from '../../utils/modelAutocomplete.js';
 
 import { runGuardedAutocomplete } from '../../utils/autocomplete/guardedAutocomplete.js';
+
 const logger = createLogger('preset-autocomplete');
 
 /**
