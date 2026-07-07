@@ -135,11 +135,16 @@ export class MemoryBudgetManager {
    * Calculate the token budget for memories
    *
    * Uses MEMORY_TOKEN_BUDGET_RATIO as a hard cap, but dynamically allocates
-   * more to memories if history is short (unused history budget → memories).
+   * more to memories if history is short (unused history budget → memories),
+   * and under history CONTENTION keeps a floor
+   * (MEMORY_CONTENTION_FLOOR_RATIO of the shared space) rather than starving
+   * to zero — memories are charged only for history that can actually ship,
+   * and history absorbs the squeeze downstream.
    *
    * This prevents wasting context window when:
    * - Starting a new conversation (empty/short history)
    * - History is very brief
+   * ...and prevents zero-memory turns in busy channels (long fetched history).
    *
    * @param contextWindowTokens - Total context window size
    * @param systemPromptBaseTokens - Tokens for system prompt base (without memories/history)
@@ -165,22 +170,23 @@ export class MemoryBudgetManager {
       return hardCap;
     }
 
-    // Calculate available space after fixed components
-    // Reserve safety margin for response tokens
+    // Joint allocation over the shared memory+history space. historyTokens is
+    // the PRE-truncation count of the full fetched history — charging memories
+    // for all of it starves them to zero exactly in busy channels, even though
+    // history is truncated downstream anyway. So memories are only charged for
+    // history that can actually ship (min(historyTokens, sharedSpace)), and
+    // under contention they keep a floor while history absorbs the squeeze
+    // (selectHistory recomputes its budget AFTER memories lock in, so the
+    // window invariant holds by construction): recency yields to identity at
+    // the margin.
     const safetyMargin = Math.floor(contextWindowTokens * AI_DEFAULTS.RESPONSE_SAFETY_MARGIN_RATIO);
-    const availableSpace =
-      contextWindowTokens -
-      systemPromptBaseTokens -
-      currentMessageTokens -
-      historyTokens -
-      safetyMargin;
-
-    // Dynamic allocation: use available space, but never exceed hard cap
-    const dynamicBudget = Math.max(0, availableSpace);
-
-    // Return the smaller of hard cap and available space
-    // This ensures we don't over-allocate while allowing more memories when history is short
-    const budget = Math.min(hardCap, dynamicBudget);
+    const sharedSpace =
+      contextWindowTokens - systemPromptBaseTokens - currentMessageTokens - safetyMargin;
+    const contentionFloor = Math.floor(sharedSpace * AI_DEFAULTS.MEMORY_CONTENTION_FLOOR_RATIO);
+    const budget = Math.max(
+      0,
+      Math.min(hardCap, Math.max(contentionFloor, sharedSpace - historyTokens))
+    );
 
     logger.debug(
       {
@@ -189,11 +195,12 @@ export class MemoryBudgetManager {
         currentMessageTokens,
         historyTokens,
         safetyMargin,
-        availableSpace,
+        sharedSpace,
+        contentionFloor,
         hardCap,
-        dynamicBudget: budget,
+        budget,
       },
-      'Calculated dynamic memory budget'
+      'Calculated dynamic memory budget (joint allocation)'
     );
 
     return budget;
