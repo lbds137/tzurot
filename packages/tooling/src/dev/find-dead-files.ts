@@ -21,6 +21,7 @@ const EXCLUDE_PATTERNS = [
   /-test-helpers\.ts$/, // Colocated test helper modules (only imported by sibling .test.ts files)
   /\.mock\.ts$/, // Mock files
   /\/fixtures/, // Test fixtures
+  /\/eval\//, // Eval-harness modules (imported by *.eval.test.ts measurement runners, which the importer grep excludes as test files)
   /\/scripts\//, // Standalone scripts
   /\/commands\/[^/]+\/[^/]+\.ts$/, // Command submodules (dynamically loaded)
   /^vitest\./, // Vitest config files
