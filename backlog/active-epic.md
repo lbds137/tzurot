@@ -1,32 +1,30 @@
-## 🏗 Active Focus: Spinoff-Theme Knockout (beta.146+)
+## 🏗 Active Epic: Memory System Overhaul
 
-_Focus: burn down the themes spun off from completed epics instead of picking a new epic (user decision 2026-07-02). The `cold/queue.md` pick is deferred until this sweep lands._
+_Focus: implement the ACCEPTED memory architecture — typed memories (episode/fact/reflection/canon) with social scoping pools, async extraction, relationship blocks, consolidation, and hybrid retrieval, evolved in-house on pgvector. Promoted 2026-07-06 after the Spinoff-Theme Knockout completed (its two trigger-gated stragglers — PGLite phases 2–3, z.ai samples — returned to the cold queue)._
 
-_Not a classic single epic — a sweep over the sibling themes that exist because a finished epic shed them. Warmup items run first (below), then the themes by dependency + size. Council passes stay per-theme where flagged; each theme keeps its detail in its own `cold/themes/` file — this roadmap is just ordering + gates._
+**Governing artifact**: [`docs/proposals/backlog/memory-architecture.md`](../docs/proposals/backlog/memory-architecture.md) (ACCEPTED 2026-07-05; owner-signed; full-trio council). The eval harness (§3.9) is the load-bearing gate: every phase ships with its before/after corpus run, and phases 3–6 proceed only if the numbers show the prior phase paid off.
 
-### Warmup (agreed 2026-07-02 — before theme work)
+### Roadmap (artifact §5 — each phase independently shippable, quality-gated)
 
-1. ✅ **Effective-route threading on the auto-promotion both-fail path** (error-footer mis-attribution) — SHIPPED as #1456 (2026-07-02): the error footer now renders the full route chain (`via Z.AI Coding Plan → OpenRouter (both routes failed)`). Closes the z.ai "routing bug" confusion family (diagnosed 2026-07-02: fallback visibility, not mis-routing).
-2. ✅ **`guard:workflow-sync` narrowing** to the claude workflow files — SHIPPED as #1457 (2026-07-02); the file-scoped validation got its third empirical confirmation in-PR (claude-review ran on a develop-based branch carrying ci.yml drift). The stale-ci.yml-comment follow-up row was discharged alongside.
-3. ✅ **Supervised lifecycle redeploy** — DONE 2026-07-02: prod bot-client redeploy showed the full graceful sequence (SIGTERM → dispose fan-out → `Shutdown complete`, zero re-entry/hard-exit lines); an in-flight multi-tag job was marked stale and RESUMED by the replacement instance — the shutdown→recovery handoff proven on a real user job.
-4. ✅ **Prod TTS pointer verification** — DONE 2026-07-02: tier-4 pointer read runtime-verified on BOTH read paths (gateway `/voice view` + ai-worker generation each logged `Free default TTS config loaded from database` → `kyutai-self-hosted`; synthesis dispatched self-hosted primary).
+| Phase | Contents | Status |
+| --- | --- | --- |
+| 0 — integrity + eval baseline | visibility filter, re-embed, linkage, delete propagation, scoping columns, golden corpus | ✅ DONE 2026-07-05 (#1490/#1497/#1498) |
+| 1a — hybrid retrieval | dense + FTS-OR + recency RRF | BUILT + PARKED on evidence (branch `feat/memory-hybrid-retrieval`; resume gate = real-scale goldens, owner session — Quick Win on the board) |
+| **2 — typed memories + extraction worker** | type enum, salience, async fact extraction w/ supersession targeting, dedup guard (eval-tuned), `/memory correct\|forget` (§3.6a), cost guardrails (§3.8) live from day one | **NEXT — plan-mode + council at build time (per-phase requirement)** |
+| 1b — full composite scoring | type-weights, salience, superseded/contradiction penalties (needs Phase 2's types) | after 2 |
+| 3 — scoping matrix activation | pool blend + community consent + encapsulation toggle + fiction flag | evidence-gated |
+| 4 — relationship layer | relationship blocks via boulder-#2 V-tier | evidence-gated |
+| 5 — consolidation | scheduled jobs, tier aging (light stages first) | evidence-gated |
+| 6 — curation surfaces | lore books, pins-generalization, `/memory share` | evidence-gated |
 
-### The spinoff themes (ordered)
+**Minimum-viable milestone**: Phases 0 + 1a + 2 — the smallest system that should visibly improve roleplay quality. **Backfill posture**: no bulk re-extraction of the existing corpus; old episodes get retrieval gains as-is.
 
-| #   | Theme                                                                                                              | Source epic                             | Gate / note                                                                                                                                                                                                                                                                        |
-| --- | ------------------------------------------------------------------------------------------------------------------ | ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | [PGLite Fidelity + Real-Postgres Integration Tier](cold/themes/pglite-fidelity-real-postgres-integration-tier.md) | Test-Pyramid epic + vision-config audit | Phase 1 (DEFERRABLE-FK harvester) ✅ SHIPPED #1458 (2026-07-02); Phases 2–3 (provision Postgres → write the tests PGLite can't host) are the meat — Phase 2's trigger is the first integration test needing real Postgres                                                            |
-| 2   | [LLM Config Legacy-Column Retirement](cold/themes/llm-config-legacy-column-retirement.md)                          | Model Config Overhaul                    | Phase A prep shipped beta.143; the DROPs are **destructive migrations** (`MAINTENANCE_MODE` interplay) and want the pointer reads to soak in prod — schedule mid/late cycle. Phase B additionally needs the name-collision namespace collapse first                                  |
-| 3   | [Adjacent CPD Follow-Up Campaigns](cold/themes/adjacent-cpd-follow-up-campaigns.md)                                | CPD campaign close-out                   | ✅ **THEME COMPLETE 2026-07-06** — all four campaigns resolved in one arc (#1517–#1520 + PR 3): campaign 1 obsolete-verified, 2/4 shipped, 3 shipped as three council-planned PRs incl. the EntitySectionAdapter. cpd:filtered 1648 → 1367.                                                                                                    |
-| 4   | [Deterministic Test-Quality Tooling](cold/themes/deterministic-test-quality-tooling.md)                            | seam-bug lineage (#1184, #1429/#1430)    | ✅ **THEME COMPLETE 2026-07-06** — all four candidates closed in one day: contract suite #1509 (catches resurrected #1184), Stryker ratchet on all five packages #1512–#1516 (services adjudicated not-per-PR-viable by projection), Pact ruled out, invariants audit filed (wire-result discriminated unions → cold/ideas.md). Opportunistic ride-alongs live in the theme file.                  |
-| 5   | [z.ai Catalog + 402 Error-Shape Verification](cold/themes/zai-402-error-shape-verification.md)                     | April z.ai/credit-cache work             | **Partially unblocked 2026-07-02**: the OpenRouter request-level 402 + z.ai headerless-429 samples are captured in the theme (prod incident ref `mr4a692gj8k`); the max_tokens auto-reduction idea evaluated + DECLINED (removed, not parked). Still missing: z.ai subscription-lapse 402 + drift-404 samples |
+### Phase-1a park (full context in the phase entry below)
 
-**Finishing-first ordering (user directive 2026-07-03: theme-CLOSERS outrank theme-starters).** The next pulls, cheapest closure first:
+The A/B on the toy corpus measured ZERO recall lift (both 0.889) — parked per the artifact's own evidence gate. Findings shaping the resume: BGE-small subword tokenization already handles short-query rare-token recall; the one both-modes failure needs BM25-class IDF (vanilla Postgres lacks it — Phase 1b note). Resume gate: real-scale goldens from prod data (owner-involved query construction; public-repo privacy call on fixture storage). Ride-alongs for the resume touch: goldens `$comment` rewording, `PgvectorTypes` threshold JSDoc reorder.
 
-1. ✅ **Human-users-only `requireUserAuth` invariant** — SHIPPED #1464 (2026-07-03); **THEME CLOSED** (file deleted, queue row removed). Investigation found the prior bot-block structurally unreachable (flag never passed); the invariant now runs wire-to-middleware on the user-context header rails.
-2. ✅ **Railway log-search ergonomic ops flags** — SHIPPED #1465 (2026-07-03); **THEME CLOSED** (file deleted, queue row removed). `--request-id`/`--job-id`/`--since` encode the reliable pull-and-grep-locally dig pattern (not the unreliable server DSL); review caught + fixed a real CAC numeric-coercion silent-drop on all-digit IDs.
-3. ✅ **`ops:health` aggregator + weekly cron** — SHIPPED #1466 (2026-07-03); **THEME CLOSED** (file deleted, queue row removed; canonical reference: `docs/reference/audit-enforcement.md`). The goal layer over Layers 1–3; 5-tool clean roster (2 perma-red candidates excluded with tuning rows); cron goes live when a release reaches main. Remaining calendar items filed as follow-ups (webhook secret setup, month-3 eval + 45-day age-gate).
-4. ✅ **LLM legacy-column retirement** — Phase A SHIPPED #1499, Phase B SHIPPED #1501 (2026-07-05); **THEME CLOSED** (file deleted, queue row removed). isDefault/isFreeDefault/kind columns + per-kind indexes + llmConfigSingletons all gone; global preset names collapsed to one namespace; ConfigKind → ModelSlot. Both destructive migrations queue for `release:premigrate --allow-destructive` at the next release.
-5. Then the knockout's remaining build-sized moves: job-payload contract suite / CPD campaign 1 (council-first).
+### Still-live items not owned by the artifact
 
-_Completed-epic writeups live in git history (themes/ holds only future/partial work per the completed-writeups-leave-themes policy, 2026-07-03). The Model Config Overhaul epic's deferred items: C2b-1..5 + RAG-family fallback wiring in `cold/follow-ups.md`, plus theme #2 above._
+- **Cross-channel history — smarter retrieval with limits**: limit messages per channel, prioritize channels with active conversations (automatic retrieval path at generation time; distinct from user-driven `/history range` import).
+
+_Per-PR slice detail goes to [`cold/epic-log.md`](cold/epic-log.md) as phases build. Completed-knockout writeup lives in git history (2026-07-06)._
