@@ -292,4 +292,16 @@ describe('classifyQuotaFailure', () => {
     );
     expect(classifyQuotaFailure(new Error('connection reset by peer'))).toBeNull();
   });
+
+  it('treats a RATE_LIMIT (live 429) as retargetable — the failing turn gets rescued', () => {
+    const rateLimit = new ApiError('429', {
+      type: ApiErrorType.TRANSIENT,
+      category: ApiErrorCategory.RATE_LIMIT,
+      userMessage: 'x',
+      technicalMessage: 'x',
+      referenceId: 'ref',
+      shouldRetry: true,
+    });
+    expect(classifyQuotaFailure(rateLimit)).toBe(ApiErrorCategory.RATE_LIMIT);
+  });
 });

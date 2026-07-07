@@ -143,6 +143,35 @@ describe('runWithQuotaFallback', () => {
     expect(result.effectiveProviderUsed).toBe('openrouter');
   });
 
+  it('RATE_LIMIT: rescues the FAILING turn by retargeting to the default model (same key)', async () => {
+    // The user's personal model 429s — the turn itself must degrade to the
+    // global default rather than only subsequent turns (the proactive path).
+    const original = quotaError(ApiErrorCategory.RATE_LIMIT);
+    const primary = vi.fn().mockRejectedValue(original);
+    const retry = vi.fn().mockResolvedValue(okResult);
+
+    const result = await runWithQuotaFallback({
+      primary,
+      retry,
+      opts: buildOpts(),
+      userId: '123',
+      deps: buildDeps({ global: { model: 'paid/default' } }),
+    });
+
+    expect(retry).toHaveBeenCalledWith(
+      expect.objectContaining({
+        apiKey: 'sk-user-key',
+        personality: expect.objectContaining({ model: 'paid/default' }),
+      })
+    );
+    expect(result.quotaFallback).toEqual({
+      fromModel: 'expensive/primary',
+      toModel: 'paid/default',
+      category: ApiErrorCategory.RATE_LIMIT,
+      mode: 'reactive',
+    });
+  });
+
   it('CREDIT_EXHAUSTION + BYOK: retries on the free default with the SYSTEM key in guest semantics', async () => {
     const primary = vi.fn().mockRejectedValue(quotaError(ApiErrorCategory.CREDIT_EXHAUSTION));
     const retry = vi.fn().mockResolvedValue(okResult);

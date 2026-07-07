@@ -11,7 +11,10 @@ export interface ResultMetadataPassthrough {
   modelUsed?: string;
   providerUsed?: string;
   fallbackProviderAttempted?: string;
-  quotaFallback?: { fromModel: string; category: 'quota_exceeded' | 'credit_exhaustion' };
+  quotaFallback?: {
+    fromModel: string;
+    category: 'quota_exceeded' | 'credit_exhaustion' | 'rate_limit';
+  };
   isGuestMode?: boolean;
   focusModeEnabled?: boolean;
   incognitoModeActive?: boolean;
