@@ -1,0 +1,138 @@
+{
+  "generatedForPhase": "phase2-slice2-shadow-baseline (fence-fix run; precision gap = over-extraction to tune in shadow + golden under-enumeration; recall and supersession perfect)",
+  "totals": {
+    "goldens": 15,
+    "meanPrecision": 0.6722222222222223,
+    "meanRecall": 1,
+    "hallucinationRate": 0.39285714285714285,
+    "supersessionHitRate": 1
+  },
+  "results": {
+    "simple-name-fact": {
+      "category": "durable-fact",
+      "precision": 1,
+      "recall": 1,
+      "extractedCount": 1,
+      "hallucinations": [],
+      "supersessionHit": null
+    },
+    "job-fact": {
+      "category": "durable-fact",
+      "precision": 0.5,
+      "recall": 1,
+      "extractedCount": 2,
+      "hallucinations": [
+        "The user sometimes works long shifts (at least twelve hours) that are physically and mentally exhausting."
+      ],
+      "supersessionHit": null
+    },
+    "preference-fact": {
+      "category": "preference",
+      "precision": 1,
+      "recall": 1,
+      "extractedCount": 1,
+      "hallucinations": [],
+      "supersessionHit": null
+    },
+    "narration-only": {
+      "category": "no-facts",
+      "precision": 0,
+      "recall": 1,
+      "extractedCount": 3,
+      "hallucinations": [
+        "There is a tavern with a bar and a fireplace.",
+        "A bartender works at the tavern.",
+        "It is a cold night in the world of this roleplay."
+      ],
+      "supersessionHit": null
+    },
+    "smalltalk-only": {
+      "category": "no-facts",
+      "precision": 1,
+      "recall": 1,
+      "extractedCount": 0,
+      "hallucinations": [],
+      "supersessionHit": null
+    },
+    "multi-fact-batch": {
+      "category": "multi-fact",
+      "precision": 0.75,
+      "recall": 1,
+      "extractedCount": 4,
+      "hallucinations": ["The user and Dana see each other approximately twice a year."],
+      "supersessionHit": null
+    },
+    "supersession-move": {
+      "category": "supersession",
+      "precision": 1,
+      "recall": 1,
+      "extractedCount": 1,
+      "hallucinations": [],
+      "supersessionHit": true
+    },
+    "supersession-job-change": {
+      "category": "supersession",
+      "precision": 1,
+      "recall": 1,
+      "extractedCount": 2,
+      "hallucinations": [],
+      "supersessionHit": true
+    },
+    "relationship-fact": {
+      "category": "durable-fact",
+      "precision": 0.6666666666666666,
+      "recall": 1,
+      "extractedCount": 3,
+      "hallucinations": ["Jamie gave the user concert tickets as an anniversary gift."],
+      "supersessionHit": null
+    },
+    "transient-state-not-fact": {
+      "category": "no-facts",
+      "precision": 0,
+      "recall": 1,
+      "extractedCount": 1,
+      "hallucinations": ["The user had insufficient sleep the previous night."],
+      "supersessionHit": null
+    },
+    "fiction-canon": {
+      "category": "fiction",
+      "precision": 0.6666666666666666,
+      "recall": 1,
+      "extractedCount": 3,
+      "hallucinations": ["The Ashen Order is believed to be extinct or destroyed"],
+      "supersessionHit": null
+    },
+    "allergy-fact": {
+      "category": "durable-fact",
+      "precision": 1,
+      "recall": 1,
+      "extractedCount": 1,
+      "hallucinations": [],
+      "supersessionHit": null
+    },
+    "timezone-fact": {
+      "category": "durable-fact",
+      "precision": 0.5,
+      "recall": 1,
+      "extractedCount": 2,
+      "hallucinations": ["The user experiences nighttime at 2am Tokyo time."],
+      "supersessionHit": null
+    },
+    "pet-addition-not-supersession": {
+      "category": "supersession",
+      "precision": 0.5,
+      "recall": 1,
+      "extractedCount": 2,
+      "hallucinations": ["Miso and Nori are still adjusting to living together"],
+      "supersessionHit": null
+    },
+    "birthday-fact": {
+      "category": "durable-fact",
+      "precision": 0.5,
+      "recall": 1,
+      "extractedCount": 2,
+      "hallucinations": ["The user is planning a small dinner for their birthday."],
+      "supersessionHit": null
+    }
+  }
+}

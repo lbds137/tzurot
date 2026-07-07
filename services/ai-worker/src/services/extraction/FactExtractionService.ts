@@ -26,6 +26,7 @@ import type { FactStore, FactForContext, NewFact } from './FactStore.js';
 import {
   buildExtractionPrompt,
   extractionResponseSchema,
+  extractJsonPayload,
   type ExtractedFact,
 } from './extractionPrompt.js';
 
@@ -183,7 +184,7 @@ export class FactExtractionService {
   ): ExtractedFact[] | null {
     let json: unknown;
     try {
-      json = JSON.parse(raw);
+      json = JSON.parse(extractJsonPayload(raw));
     } catch {
       // Response content is derived conversation content — log only its shape
       // (00-critical: never log message content).
