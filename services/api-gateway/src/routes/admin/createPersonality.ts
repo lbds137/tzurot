@@ -20,6 +20,7 @@ import { sendError, sendContractSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
 import { sendZodError } from '../../utils/zodHelpers.js';
 import { processAvatarData } from '../../utils/avatarProcessor.js';
+import { processVoiceReferenceData } from '../../utils/voiceReferenceProcessor.js';
 import type { AuthenticatedRequest } from '../../types.js';
 import type { RouteDeps } from '../routeDeps.js';
 
@@ -50,6 +51,8 @@ interface PersonalityCreateData {
   ownerId: string;
   systemPromptId: string | null;
   avatarBuffer: Buffer | undefined;
+  voiceReferenceBuffer: Buffer | undefined;
+  voiceReferenceMimeType: string | undefined;
 }
 
 /**
@@ -58,7 +61,7 @@ interface PersonalityCreateData {
 function buildPersonalityCreateData(
   data: PersonalityCreateData
 ): Prisma.PersonalityUncheckedCreateInput {
-  const { validated, ownerId, systemPromptId, avatarBuffer } = data;
+  const { validated, ownerId, systemPromptId, avatarBuffer, voiceReferenceBuffer } = data;
 
   return {
     id: generatePersonalityUuid(validated.slug),
@@ -82,7 +85,12 @@ function buildPersonalityCreateData(
       ? { customFields: validated.customFields as Prisma.InputJsonValue }
       : {}),
     avatarData: avatarBuffer !== undefined ? new Uint8Array(avatarBuffer) : null,
-    voiceEnabled: false,
+    voiceReferenceData:
+      voiceReferenceBuffer !== undefined ? new Uint8Array(voiceReferenceBuffer) : null,
+    voiceReferenceType: data.voiceReferenceMimeType ?? null,
+    // Auto-enable voice when a reference is provided, mirroring the user
+    // create route — a stored reference with voice off is a silent no-op.
+    voiceEnabled: voiceReferenceBuffer !== undefined,
     imageEnabled: false,
   };
 }
@@ -127,6 +135,12 @@ export const handleCreateGlobalPersonality = (deps: RouteDeps): RequestHandler =
       return sendError(res, avatarResult.error);
     }
 
+    // Process voice reference if provided
+    const voiceRefResult = processVoiceReferenceData(validated.voiceReferenceData, slug);
+    if (voiceRefResult !== null && !voiceRefResult.ok) {
+      return sendError(res, voiceRefResult.error);
+    }
+
     // Find default system prompt
     const defaultSystemPrompt = await prisma.systemPrompt.findFirst({
       where: { isDefault: true },
@@ -139,6 +153,8 @@ export const handleCreateGlobalPersonality = (deps: RouteDeps): RequestHandler =
       ownerId: adminUser.id,
       systemPromptId: defaultSystemPrompt?.id ?? null,
       avatarBuffer: avatarResult?.ok === true ? avatarResult.buffer : undefined,
+      voiceReferenceBuffer: voiceRefResult?.ok === true ? voiceRefResult.buffer : undefined,
+      voiceReferenceMimeType: voiceRefResult?.ok === true ? voiceRefResult.mimeType : undefined,
     });
     const personality = await prisma.personality.create({ data: createData });
 
