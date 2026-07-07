@@ -85,6 +85,71 @@ function newMigrationSqlFiles(): string[] {
     .filter(line => line.endsWith('.sql'));
 }
 
+/** A possibly-quoted, possibly-schema-qualified table reference in DDL. */
+const TABLE_REF = String.raw`(?:"[^"]+"|\w+)(?:\.(?:"[^"]+"|\w+))?`;
+
+const CREATE_TABLE_RE = new RegExp(
+  String.raw`\bCREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(${TABLE_REF})`,
+  'i'
+);
+
+// Captures the FULL comma-separated table list: `DROP TABLE a, b;` is one
+// statement targeting several tables (ALTER TABLE only ever targets one).
+const TARGET_TABLES_RE = new RegExp(
+  String.raw`\b(?:ALTER|DROP)\s+TABLE\s+(?:IF\s+EXISTS\s+)?(?:ONLY\s+)?(${TABLE_REF}(?:\s*,\s*${TABLE_REF})*)`,
+  'i'
+);
+
+/** Strip quotes + schema qualifier so `"public"."memory_facts"` ≡ `memory_facts`. */
+function normalizeTableRef(ref: string): string {
+  const parts = ref.split('.').map(p => p.replace(/"/g, '').toLowerCase());
+  return parts[parts.length - 1];
+}
+
+/**
+ * Every table the statement targets, or null when none is identifiable
+ * (no-target → the caller keeps the hit; over-warning is the safe direction).
+ */
+function statementTargetTables(statement: string): string[] | null {
+  const match = TARGET_TABLES_RE.exec(statement);
+  if (match === null) {
+    return null;
+  }
+  return match[1].split(',').map(ref => normalizeTableRef(ref.trim()));
+}
+
+/**
+ * Scan one migration file's SQL statement-by-statement for destructive shapes.
+ *
+ * A destructive statement targeting a table CREATEd **earlier in the same
+ * file** is exempt: prod doesn't have that table until this migration runs,
+ * so nothing live can break (e.g. CREATE TABLE + ALTER COLUMN TYPE on the new
+ * table in one file — a false positive that previously forced
+ * --allow-destructive). Order matters deliberately: DROP-then-reCREATE of the
+ * same name destroys prod data, and stays flagged because the CREATE comes
+ * after the DROP.
+ */
+function scanSqlForDestructive(sql: string): string[] {
+  const labels: string[] = [];
+  const createdEarlier = new Set<string>();
+  for (const statement of sql.split(';')) {
+    const created = CREATE_TABLE_RE.exec(statement);
+    for (const { label, re } of DESTRUCTIVE_PATTERNS) {
+      if (!re.test(statement)) continue;
+      // Exempt ONLY when every targeted table was created earlier in this
+      // file — `DROP TABLE new_one, live_one;` must keep its hit for the
+      // table that exists in prod.
+      const targets = statementTargetTables(statement);
+      if (targets?.every(t => createdEarlier.has(t)) === true) continue;
+      if (!labels.includes(label)) labels.push(label);
+    }
+    // Register AFTER scanning the statement itself, so a hypothetical
+    // single-statement create+destroy can't self-exempt.
+    if (created !== null) createdEarlier.add(normalizeTableRef(created[1]));
+  }
+  return labels;
+}
+
 /** Scan the given migration files for destructive SQL shapes. */
 function scanDestructive(repoRoot: string, files: string[]): { file: string; label: string }[] {
   const hits: { file: string; label: string }[] = [];
@@ -102,8 +167,8 @@ function scanDestructive(repoRoot: string, files: string[]): { file: string; lab
       );
       continue;
     }
-    for (const { label, re } of DESTRUCTIVE_PATTERNS) {
-      if (re.test(sql)) hits.push({ file, label });
+    for (const label of scanSqlForDestructive(sql)) {
+      hits.push({ file, label });
     }
   }
   return hits;
