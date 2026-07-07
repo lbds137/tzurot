@@ -4,6 +4,8 @@
  * Discord API limits, colors, and text truncation limits.
  */
 
+import type { QuotaFallbackCategoryValue } from './error.js';
+
 /**
  * Text truncation and preview limits
  */
@@ -318,7 +320,7 @@ export interface ModelFooterOptions {
    */
   quotaFallback?: {
     fromModel: string;
-    category: 'quota_exceeded' | 'credit_exhaustion' | 'rate_limit';
+    category: QuotaFallbackCategoryValue;
   };
 }
 

@@ -5,7 +5,11 @@
  */
 
 import { z } from 'zod';
-import { ApiErrorType, ApiErrorCategory } from '../../constants/index.js';
+import {
+  ApiErrorType,
+  ApiErrorCategory,
+  QUOTA_FALLBACK_CATEGORIES,
+} from '../../constants/index.js';
 import { TTS_PROVIDER_IDS } from '../../services/tts/TtsProvider.js';
 import { loadedPersonalitySchema, requestContextSchema } from './personality.js';
 
@@ -164,7 +168,7 @@ const generationPayloadSchema = z.object({
         .object({
           fromModel: z.string(),
           toModel: z.string(),
-          category: z.enum(['quota_exceeded', 'credit_exhaustion', 'rate_limit']),
+          category: z.enum(QUOTA_FALLBACK_CATEGORIES),
           mode: z.enum(['proactive', 'reactive']),
         })
         .optional(),
