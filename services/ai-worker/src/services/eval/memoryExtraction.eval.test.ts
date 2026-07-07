@@ -18,7 +18,11 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { LocalEmbeddingService } from '@tzurot/embeddings';
-import { buildExtractionPrompt, extractionResponseSchema } from '../extraction/extractionPrompt.js';
+import {
+  buildExtractionPrompt,
+  extractionResponseSchema,
+  extractJsonPayload,
+} from '../extraction/extractionPrompt.js';
 import { invokeExtractionModel } from '../extraction/FactExtractionService.js';
 import { matchFacts } from './factEquivalence.js';
 
@@ -104,7 +108,7 @@ describe('memory extraction eval (real model — manual run only)', () => {
       );
 
       const raw = await invokeExtractionModel(prompt);
-      const parsed = extractionResponseSchema.safeParse(JSON.parse(raw));
+      const parsed = extractionResponseSchema.safeParse(JSON.parse(extractJsonPayload(raw)));
       // A schema-invalid response is a HARD failure: production would skip the
       // batch entirely, which for a golden means the extractor produced nothing
       // usable — that's a real quality signal, not harness noise.

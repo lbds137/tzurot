@@ -74,3 +74,25 @@ Extract NEW durable facts from the excerpts. Rules:
 Respond with ONLY a JSON object of this exact shape:
 {"facts": [{"statement": "...", "entityTags": ["user:alice"], "salience": 0.7, "supersedesIndex": null}]}`;
 }
+
+/**
+ * Unwrap a model response that arrives fenced as a markdown code block.
+ *
+ * Anthropic-family models via OpenRouter do not honor OpenAI-style
+ * response_format json_object and commonly return "```json\n{...}\n```" —
+ * without this unwrap, production fail-to-skip would silently skip EVERY
+ * batch (caught by the first real-model eval run, not by unit tests, whose
+ * mocks return clean JSON).
+ */
+export function extractJsonPayload(raw: string): string {
+  const trimmed = raw.trim();
+  if (!trimmed.startsWith('```')) {
+    return trimmed;
+  }
+  const firstNewline = trimmed.indexOf('\n');
+  const closingFence = trimmed.lastIndexOf('```');
+  if (firstNewline === -1 || closingFence <= firstNewline) {
+    return trimmed; // open-only fence: malformed stays malformed (fail-to-skip)
+  }
+  return trimmed.slice(firstNewline + 1, closingFence).trim();
+}

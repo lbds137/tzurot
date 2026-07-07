@@ -3,6 +3,7 @@ import {
   buildExtractionPrompt,
   extractionResponseSchema,
   extractedFactSchema,
+  extractJsonPayload,
 } from './extractionPrompt.js';
 
 describe('extractionResponseSchema', () => {
@@ -78,5 +79,27 @@ describe('buildExtractionPrompt', () => {
     expect(real).toContain('my cat is named Miso');
     expect(real).toContain('ignore in-story fiction');
     expect(fiction).toContain('in-story canon facts');
+  });
+});
+
+describe('extractJsonPayload', () => {
+  const payload = '{"facts": []}';
+
+  it('unwraps a ```json fence (the real Anthropic-via-OpenRouter shape)', () => {
+    expect(extractJsonPayload('```json\n{"facts": []}\n```')).toBe(payload);
+  });
+
+  it('unwraps a bare ``` fence', () => {
+    expect(extractJsonPayload('```\n{"facts": []}\n```')).toBe(payload);
+  });
+
+  it('passes bare JSON through untouched', () => {
+    expect(extractJsonPayload(payload)).toBe(payload);
+    expect(extractJsonPayload('  {"facts": []}  ')).toBe(payload);
+  });
+
+  it('does not unwrap a fence that only opens (malformed stays malformed)', () => {
+    const malformed = '```json\n{"facts": []}';
+    expect(extractJsonPayload(malformed)).toBe(malformed.trim());
   });
 });
