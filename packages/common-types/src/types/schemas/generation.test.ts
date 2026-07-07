@@ -8,6 +8,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import { QUOTA_FALLBACK_CATEGORIES } from '../../constants/error.js';
 import { TTS_PROVIDER_IDS } from '../../services/tts/TtsProvider.js';
 import { CONFIG_SOURCE_IDS, llmGenerationResultSchema } from './generation.js';
 
@@ -32,6 +33,20 @@ describe('llmGenerationResultSchema.metadata', () => {
         },
       });
       expect(parsed.success).toBe(true);
+    });
+
+    it('accepts every retargetable category (positive acceptance across the enum)', () => {
+      // Iterate the source-of-truth tuple so a future category automatically
+      // gets a positive-acceptance case (no 5th hand-typed copy of the list).
+      for (const category of QUOTA_FALLBACK_CATEGORIES) {
+        const parsed = llmGenerationResultSchema.safeParse({
+          ...baseValid,
+          metadata: {
+            quotaFallback: { fromModel: 'a', toModel: 'b', category, mode: 'proactive' },
+          },
+        });
+        expect(parsed.success, `category '${category}' should parse`).toBe(true);
+      }
     });
 
     it('rejects unknown categories and modes (closed enums)', () => {

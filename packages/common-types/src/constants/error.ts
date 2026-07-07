@@ -185,6 +185,24 @@ export enum ApiErrorCategory {
 }
 
 /**
+ * The failure categories the tier-aware quota fallback can retarget on — the
+ * wire values carried in `quotaFallback` result metadata (a subset of
+ * `ApiErrorCategory` values). Single source of truth: the Zod enum in
+ * `generation.ts` and every hand-typed `category` field derive from this
+ * tuple, so adding a retargetable category is a one-line change here.
+ * (ai-worker's `QuotaFallbackCategory` enum-member union stays separate for
+ * its `ApiErrorCategory` narrowing; enum members are assignable to these
+ * literals, so producers type-check against this without casts.)
+ */
+export const QUOTA_FALLBACK_CATEGORIES = [
+  'quota_exceeded',
+  'credit_exhaustion',
+  'rate_limit',
+] as const;
+
+export type QuotaFallbackCategoryValue = (typeof QUOTA_FALLBACK_CATEGORIES)[number];
+
+/**
  * User-friendly error messages for each category
  * These are shown to users when no personality-specific error message is configured
  */

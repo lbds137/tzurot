@@ -5,6 +5,7 @@
  * others (error paths forward a narrower, hand-picked subset).
  */
 
+import { type QuotaFallbackCategoryValue } from '@tzurot/common-types/constants/error';
 import { type LLMGenerationResult } from '@tzurot/common-types/types/schemas/generation';
 
 export interface ResultMetadataPassthrough {
@@ -13,7 +14,7 @@ export interface ResultMetadataPassthrough {
   fallbackProviderAttempted?: string;
   quotaFallback?: {
     fromModel: string;
-    category: 'quota_exceeded' | 'credit_exhaustion' | 'rate_limit';
+    category: QuotaFallbackCategoryValue;
   };
   isGuestMode?: boolean;
   focusModeEnabled?: boolean;

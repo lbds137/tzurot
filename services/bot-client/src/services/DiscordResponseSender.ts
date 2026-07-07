@@ -18,6 +18,7 @@ import {
   BOT_FOOTER_TEXT,
   buildModelFooterText,
 } from '@tzurot/common-types/constants/discord';
+import { type QuotaFallbackCategoryValue } from '@tzurot/common-types/constants/error';
 import { type TypingChannel } from '@tzurot/common-types/types/discord-types';
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import { splitMessage } from '@tzurot/common-types/utils/discord';
@@ -82,7 +83,7 @@ interface SendResponseOptions {
    */
   quotaFallback?: {
     fromModel: string;
-    category: 'quota_exceeded' | 'credit_exhaustion' | 'rate_limit';
+    category: QuotaFallbackCategoryValue;
   };
   /** Whether response was generated in guest mode (free model, no API key) */
   isGuestMode?: boolean;
