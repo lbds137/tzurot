@@ -48,6 +48,13 @@ const PROTECTED_INDEXES = [
       'CREATE INDEX "idx_memories_embedding" ON "memories" USING ivfflat ("embedding" vector_cosine_ops) WITH (lists = 50);',
   },
   {
+    name: 'idx_memory_facts_embedding',
+    table: 'memory_facts',
+    description: 'IVFFlat vector index for fact similarity retrieval (384 dims, pgvector)',
+    recreateSQL:
+      'CREATE INDEX "idx_memory_facts_embedding" ON "memory_facts" USING ivfflat ("embedding" vector_cosine_ops) WITH (lists = 50);',
+  },
+  {
     name: 'memories_chunk_group_id_idx',
     table: 'memories',
     description: 'Partial index for chunk retrieval (WHERE chunk_group_id IS NOT NULL)',

@@ -178,4 +178,6 @@ export enum JobType {
   ShapesImport = 'shapes-import',
   /** Shapes.inc character data export job */
   ShapesExport = 'shapes-export',
+  /** Async fact extraction from verbatim episodes (memory Phase 2) */
+  FactExtraction = 'fact-extraction',
 }

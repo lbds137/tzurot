@@ -65,6 +65,24 @@ USING ivfflat ("embedding" vector_cosine_ops) WITH (lists = 50);
 - Vector similarity search will fall back to sequential scan (extremely slow)
 - Rebuild with: `CREATE INDEX "idx_memories_embedding" ON "memories" USING ivfflat ("embedding" vector_cosine_ops) WITH (lists = 50);`
 
+### 1b. pgvector IVFFlat Index (idx_memory_facts_embedding)
+
+**Table:** `memory_facts`
+**Index:** `idx_memory_facts_embedding`
+**Type:** IVFFlat — same design as `idx_memories_embedding` above (memory Phase 2 fact retrieval)
+
+```sql
+CREATE INDEX "idx_memory_facts_embedding" ON "memory_facts"
+USING ivfflat ("embedding" vector_cosine_ops) WITH (lists = 50);
+```
+
+Everything from section 1 applies verbatim: Prisma can't represent an index on
+an `Unsupported("vector")` column, the migration hand-ALTERs the column to
+`vector(384)` first (Prisma emits it dimensionless, which ivfflat rejects), and
+an accidental drop degrades fact similarity search to sequential scans.
+Registered in all three protected-index registries (`prisma/drift-ignore.json`,
+`check-migration-safety.ts`, `inspect-database.ts`).
+
 ### 2. Partial Index on chunk_group_id (memories_chunk_group_id_idx)
 
 **Table:** `memories`

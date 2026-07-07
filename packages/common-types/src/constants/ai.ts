@@ -188,6 +188,14 @@ export const MODEL_DEFAULTS = {
    */
   VISION_FALLBACK_FREE: FREE_ROUTER_MODEL,
   /**
+   * Fixed cheap system model for async fact extraction (memory Phase 2).
+   * NEVER the personality's model — extraction cost must stay decoupled from
+   * user-facing model choice. Runs on the system OpenRouter key with
+   * response_format json_object, like the vision fallback.
+   */
+  FACT_EXTRACTION: 'anthropic/claude-haiku-4.5',
+
+  /**
    * Local embedding model (not configurable via env)
    * Uses @tzurot/embeddings package with 384-dimensional vectors.
    * Replaces OpenAI's text-embedding-3-small (1536 dims) for cost savings.

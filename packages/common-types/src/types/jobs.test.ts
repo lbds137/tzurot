@@ -23,6 +23,8 @@ import {
   type ImageDescriptionJobData,
   type LLMGenerationJobData,
   type AudioTranscriptionResult,
+  factExtractionJobDataSchema,
+  type FactExtractionJobData,
 } from './jobs.js';
 import {
   shapesImportJobDataSchema,
@@ -85,6 +87,73 @@ describe('BullMQ Job Contract Tests', () => {
 
       const result = audioTranscriptionJobDataSchema.safeParse(invalidJob);
       expect(result.success).toBe(false);
+    });
+  });
+
+  describe('Schema Validation - Fact Extraction Job', () => {
+    const UUID_A = '4f9b0f66-0000-4000-8000-00000000000a';
+    const UUID_B = '4f9b0f66-0000-4000-8000-00000000000b';
+    const UUID_C = '4f9b0f66-0000-4000-8000-00000000000c';
+
+    it('should validate a valid fact extraction job', () => {
+      const validJob: FactExtractionJobData = {
+        requestId: 'req-fact-extract-1',
+        jobType: JobType.FactExtraction,
+        responseDestination: DISCORD_DESTINATION,
+        version: 1,
+        channelId: 'channel-123',
+        personalityId: UUID_A,
+        sourceMemoryIds: [UUID_B, UUID_C],
+        windowStart: UUID_B,
+      };
+
+      const result = factExtractionJobDataSchema.safeParse(validJob);
+      expect(result.success).toBe(true);
+    });
+
+    it('should reject an empty sourceMemoryIds batch', () => {
+      const invalidJob = {
+        requestId: 'req-fact-extract-2',
+        jobType: JobType.FactExtraction,
+        responseDestination: DISCORD_DESTINATION,
+        channelId: 'channel-123',
+        personalityId: UUID_A,
+        sourceMemoryIds: [],
+        windowStart: UUID_B,
+      };
+
+      const result = factExtractionJobDataSchema.safeParse(invalidJob);
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject non-uuid memory ids', () => {
+      const invalidJob = {
+        requestId: 'req-fact-extract-3',
+        jobType: JobType.FactExtraction,
+        responseDestination: DISCORD_DESTINATION,
+        channelId: 'channel-123',
+        personalityId: UUID_A,
+        sourceMemoryIds: ['not-a-uuid'],
+        windowStart: UUID_B,
+      };
+
+      const result = factExtractionJobDataSchema.safeParse(invalidJob);
+      expect(result.success).toBe(false);
+    });
+
+    it('should participate in the discriminated union', () => {
+      const job = {
+        requestId: 'req-fact-extract-4',
+        jobType: JobType.FactExtraction,
+        responseDestination: DISCORD_DESTINATION,
+        channelId: 'channel-123',
+        personalityId: UUID_A,
+        sourceMemoryIds: [UUID_B],
+        windowStart: UUID_B,
+      };
+
+      const result = anyJobDataSchema.safeParse(job);
+      expect(result.success).toBe(true);
     });
   });
 
@@ -1056,6 +1125,7 @@ describe('BullMQ Job Contract Tests', () => {
       [JobType.LLMGeneration]: llmGenerationJobDataSchema,
       [JobType.ShapesImport]: shapesImportJobDataSchema,
       [JobType.ShapesExport]: shapesExportJobDataSchema,
+      [JobType.FactExtraction]: factExtractionJobDataSchema,
     };
 
     it('should have a Zod data schema for every JobType enum value', () => {

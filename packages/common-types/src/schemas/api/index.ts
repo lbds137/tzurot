@@ -357,6 +357,17 @@ export {
   SingleMemoryResponseSchema,
 } from './memory.js';
 
+// Memory-fact schemas (memory Phase 2)
+export {
+  CorrectFactRequestSchema,
+  CorrectFactResponseSchema,
+  FACT_TIERS,
+  FactItemSchema,
+  FactListResponseSchema,
+  FactTierSchema,
+  ForgetFactResponseSchema,
+} from './fact.js';
+
 // History input schemas
 export {
   ClearHistoryResponseSchema,

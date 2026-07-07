@@ -333,6 +333,25 @@ export function generatePendingMemoryUuid(
 }
 
 /**
+ * Generate deterministic UUID for a fact-extraction BullMQ job (memory Phase 2)
+ * Seed: fact_extraction:{channelId}:{personalityId}:{windowStartMemoryId}
+ *
+ * The window-start episode id anchors the batch: a crash between enqueue and
+ * counter-reset re-enqueues the SAME job id, which BullMQ dedups — the trigger
+ * is idempotent by construction.
+ */
+export function generateFactExtractionJobUuid(
+  channelId: string,
+  personalityId: string,
+  windowStartMemoryId: string
+): string {
+  return uuidv5(
+    `fact_extraction:${channelId}:${personalityId}:${windowStartMemoryId}`,
+    TZUROT_NAMESPACE
+  );
+}
+
+/**
  * Generate deterministic UUID for UserApiKey
  * Seed: user_api_key:{userId}:{provider}
  *

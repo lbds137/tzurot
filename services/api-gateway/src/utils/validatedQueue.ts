@@ -21,6 +21,7 @@ import {
   audioTranscriptionJobDataSchema,
   imageDescriptionJobDataSchema,
   llmGenerationJobDataSchema,
+  factExtractionJobDataSchema,
 } from '@tzurot/common-types/types/jobs';
 import {
   shapesImportJobDataSchema,
@@ -41,6 +42,7 @@ const SCHEMA_MAP: Record<JobType, ZodSchema> = {
   [JobType.LLMGeneration]: llmGenerationJobDataSchema,
   [JobType.ShapesImport]: shapesImportJobDataSchema,
   [JobType.ShapesExport]: shapesExportJobDataSchema,
+  [JobType.FactExtraction]: factExtractionJobDataSchema,
 };
 
 /**
