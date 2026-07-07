@@ -72,6 +72,25 @@ const successResult: GenerateAttemptResult = {
 };
 
 describe('runWithAutoPromotionFallback', () => {
+  it('does NOT rescue via a guest-mode fallback (owner-cost boundary) — runs the plain attempt', async () => {
+    const attempt = vi.fn().mockRejectedValue(new Error('z.ai 429'));
+    const guestFallback = {
+      apiKey: 'sk-system',
+      provider: 'openrouter',
+      model: 'z-ai/glm-5.2',
+      isGuestMode: true,
+    };
+
+    await expect(
+      runWithAutoPromotionFallback(attempt, baseOpts as never, guestFallback)
+    ).rejects.toThrow('z.ai 429');
+
+    // Exactly one attempt — the paid-model-on-system-key rescue was refused,
+    // and note: NO maxLlmAttempts:1 override (plain passthrough call shape).
+    expect(attempt).toHaveBeenCalledTimes(1);
+    expect(attempt.mock.calls[0][0]).toEqual(baseOpts);
+  });
+
   it('should pass through directly when fallback is undefined', async () => {
     const attempt = vi.fn().mockResolvedValue(successResult);
 
@@ -262,22 +281,24 @@ describe('runWithAutoPromotionFallback', () => {
     expect(attempt).toHaveBeenCalledTimes(1);
   });
 
-  it('should propagate fallback isGuestMode when fallback was a system-key resolution', async () => {
-    // If the OpenRouter fallback resolution returned the system key (guest
-    // mode), that should propagate to the retried attempt — affects model
-    // restriction and footer rendering downstream.
-    const attempt = vi
-      .fn()
-      .mockRejectedValueOnce(new Error('z.ai err'))
-      .mockResolvedValueOnce(successResult);
+  it('refuses a guest-mode (system-key) fallback entirely — no paid model on the owner key', async () => {
+    // A guest-mode fallback means the OpenRouter resolution landed on the
+    // SYSTEM key. Rescuing would run the paid z-ai/<model> on the owner's
+    // key, so the rescue is refused: one plain attempt, failure propagates
+    // (the reactive quota fallback downstream retargets guests to the free
+    // default). This test previously asserted the guest flag PROPAGATED
+    // through a rescue — that assertion encoded the owner-cost hole.
+    const attempt = vi.fn().mockRejectedValueOnce(new Error('z.ai err'));
 
-    await runWithAutoPromotionFallback(attempt, baseOpts, {
-      apiKey: 'sk-or-system',
-      provider: 'openrouter',
-      model: 'z-ai/glm-5.1',
-      isGuestMode: true, // <-- guest mode on fallback
-    });
+    await expect(
+      runWithAutoPromotionFallback(attempt, baseOpts, {
+        apiKey: 'sk-or-system',
+        provider: 'openrouter',
+        model: 'z-ai/glm-5.1',
+        isGuestMode: true, // <-- guest mode on fallback
+      })
+    ).rejects.toThrow('z.ai err');
 
-    expect(attempt.mock.calls[1]?.[0].isGuestMode).toBe(true);
+    expect(attempt).toHaveBeenCalledTimes(1);
   });
 });
