@@ -19,6 +19,15 @@
       "recreateSQL": "CREATE INDEX \"memories_chunk_group_id_idx\" ON \"memories\"(\"chunk_group_id\") WHERE \"chunk_group_id\" IS NOT NULL;",
       "dropPattern": "DROP INDEX.*memories_chunk_group_id_idx",
       "createPattern": "CREATE INDEX.*memories_chunk_group_id_idx"
+    },
+    {
+      "name": "idx_memory_facts_embedding",
+      "table": "memory_facts",
+      "type": "ivfflat",
+      "description": "IVFFlat vector index for fact similarity retrieval (memory Phase 2). Dropping it silently degrades fact queries to sequential scans as the table grows.",
+      "recreateSQL": "CREATE INDEX \"idx_memory_facts_embedding\" ON \"memory_facts\" USING ivfflat (\"embedding\" vector_cosine_ops) WITH (lists = 50)",
+      "dropPattern": "DROP INDEX.*idx_memory_facts_embedding",
+      "createPattern": "CREATE INDEX.*idx_memory_facts_embedding"
     }
   ],
   "ignorePatterns": [
@@ -95,6 +104,11 @@
     {
       "pattern": "ALTER TABLE.*users.*ALTER CONSTRAINT.*users_default_vision_config_id_fkey.*NOT DEFERRABLE",
       "reason": "FK made DEFERRABLE INITIALLY IMMEDIATE in migration vision_config_kind so db-sync can copy a user row with non-NULL default_vision_config_id before the matching (vision-kind) llm_configs row arrives (mirrors the LLM/TTS circular-FK pattern). Prisma schema can't express DEFERRABLE.",
+      "action": "remove"
+    },
+    {
+      "pattern": "DROP INDEX.*idx_memory_facts_embedding",
+      "reason": "IVFFlat index on memory_facts.embedding managed outside Prisma (Unsupported vector type)",
       "action": "remove"
     }
   ],

@@ -91,9 +91,11 @@ const MECHANISM_TIER: Record<CoverageSurfaceMechanism, TestTier> = {
 };
 
 /**
- * Every JobType, classified: a payload-bearing job maps to its cross-service
- * `*JobDataSchema` name (the producer↔consumer contract); a job with no
- * discriminated payload schema (Shapes import/export) maps to `null`. The
+ * Every JobType, classified: a CROSS-SERVICE payload-bearing job maps to its
+ * `*JobDataSchema` name (the producer↔consumer contract); `null` means no
+ * cross-service seam exists — either no discriminated payload schema (Shapes
+ * import/export) or a worker-internal job whose producer and consumer are the
+ * same service (fact-extraction). The
  * `Record<JobType, …>` is the exhaustiveness guard — a newly-added JobType will
  * not compile until it is classified here, so a future payload-bearing job can't
  * be silently omitted from the topology.
@@ -104,6 +106,10 @@ const JOB_SCHEMA_BY_TYPE: Record<JobType, string | null> = {
   [JobType.LLMGeneration]: 'llmGenerationJobDataSchema',
   [JobType.ShapesImport]: null,
   [JobType.ShapesExport]: null,
+  // Worker-internal: ai-worker both enqueues (LongTermMemoryService tail call)
+  // and consumes fact-extraction jobs — no cross-service producer↔consumer seam,
+  // so no bullmq-contract surface despite having a payload schema.
+  [JobType.FactExtraction]: null,
 };
 
 /** The payload-bearing subset (non-null entries) — one BullMQ-contract surface each. */

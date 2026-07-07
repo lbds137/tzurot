@@ -28,6 +28,18 @@ export const CACHE_KEY_PREFIXES = {
    * Consumers: `ai-worker/VisionFallbackQuota`.
    */
   VISION_SYSTEM_FALLBACK_QUOTA: 'visionfallback:system:',
+  /**
+   * Per-(channel, personality) turn counter + pending episode-id list driving
+   * extraction batching (memory Phase 2). Consumers: `ai-worker` extraction
+   * trigger (slice 2).
+   */
+  FACT_EXTRACTION_COUNTER: 'factextract:counter:',
+  /**
+   * Per-(personality, UTC-day) extraction budget counter — the cost tripwire
+   * that auto-throttles extraction (memory Phase 2 §3.8). Consumers:
+   * `ai-worker` extraction worker (slice 2).
+   */
+  FACT_EXTRACTION_BUDGET: 'factextract:budget:',
 } as const;
 
 /**

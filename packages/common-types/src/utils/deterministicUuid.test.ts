@@ -24,6 +24,7 @@ import {
   generateUserPersonaHistoryConfigUuid,
   generateImageDescriptionCacheUuid,
   generateUsageLogUuid,
+  generateFactExtractionJobUuid,
   generatePendingMemoryUuid,
   generateUserApiKeyUuid,
   generateExportJobUuid,
@@ -262,6 +263,26 @@ describe('Deterministic UUID Generation', () => {
     it('should generate different UUIDs for different text content', () => {
       const uuid1 = generatePendingMemoryUuid('persona-1', 'personality-1', 'hello world');
       const uuid2 = generatePendingMemoryUuid('persona-1', 'personality-1', 'goodbye world');
+      expect(uuid1).not.toBe(uuid2);
+    });
+  });
+
+  describe('generateFactExtractionJobUuid', () => {
+    it('should generate consistent UUIDs for the same batch window', () => {
+      const uuid1 = generateFactExtractionJobUuid('chan-1', 'personality-1', 'mem-1');
+      const uuid2 = generateFactExtractionJobUuid('chan-1', 'personality-1', 'mem-1');
+      expect(uuid1).toBe(uuid2);
+    });
+
+    it('should generate different UUIDs for different window anchors', () => {
+      const uuid1 = generateFactExtractionJobUuid('chan-1', 'personality-1', 'mem-1');
+      const uuid2 = generateFactExtractionJobUuid('chan-1', 'personality-1', 'mem-2');
+      expect(uuid1).not.toBe(uuid2);
+    });
+
+    it('should generate different UUIDs across channels', () => {
+      const uuid1 = generateFactExtractionJobUuid('chan-1', 'personality-1', 'mem-1');
+      const uuid2 = generateFactExtractionJobUuid('chan-2', 'personality-1', 'mem-1');
       expect(uuid1).not.toBe(uuid2);
     });
   });

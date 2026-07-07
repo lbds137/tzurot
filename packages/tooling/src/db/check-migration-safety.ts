@@ -28,6 +28,12 @@ const PROTECTED_INDEXES: ProtectedIndex[] = [
     createPattern: /CREATE\s+INDEX.*idx_memories_embedding/i,
     description: 'IVFFlat vector index for BGE similarity search (384 dims)',
   },
+  {
+    name: 'idx_memory_facts_embedding',
+    dropPattern: /DROP\s+INDEX.*idx_memory_facts_embedding/i,
+    createPattern: /CREATE\s+INDEX.*idx_memory_facts_embedding/i,
+    description: 'IVFFlat vector index for fact similarity retrieval (384 dims)',
+  },
 ];
 
 interface CheckResult {
@@ -65,7 +71,13 @@ function findSqlFiles(dir: string): string[] {
  * Check a single migration file for dangerous patterns
  */
 function checkMigrationFile(filePath: string): CheckResult {
-  const content = readFileSync(filePath, 'utf-8');
+  // Strip SQL line comments before matching: the drift sanitizer leaves
+  // "-- REMOVED: DROP INDEX ..." markers in sanitized migrations, and a
+  // comment-blind regex flags every one of them as a live drop.
+  const content = readFileSync(filePath, 'utf-8')
+    .split('\n')
+    .filter(line => !line.trimStart().startsWith('--'))
+    .join('\n');
   const violations: string[] = [];
 
   for (const index of PROTECTED_INDEXES) {

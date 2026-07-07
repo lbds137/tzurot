@@ -37,6 +37,33 @@ describe('checkMigrationSafety', () => {
     processExitSpy.mockRestore();
   });
 
+  it('ignores a sanitized DROP INDEX marker left by the drift sanitizer', async () => {
+    vol.fromJSON({
+      '/migrations/20240104_sanitized/migration.sql': [
+        '-- REMOVED: DROP INDEX "idx_memories_embedding";',
+        'CREATE TABLE foo (id UUID PRIMARY KEY);',
+      ].join('\n'),
+    });
+
+    const { checkMigrationSafety } = await import('./check-migration-safety.js');
+    await checkMigrationSafety({ migrationsPath: '/migrations' });
+
+    expect(processExitSpy).not.toHaveBeenCalled();
+    const output = consoleLogSpy.mock.calls.flat().join(' ');
+    expect(output).toContain('All migrations are safe');
+  });
+
+  it('still flags a live DROP INDEX on a protected index', async () => {
+    vol.fromJSON({
+      '/migrations/20240105_dangerous/migration.sql': 'DROP INDEX "idx_memory_facts_embedding";',
+    });
+
+    const { checkMigrationSafety } = await import('./check-migration-safety.js');
+    await checkMigrationSafety({ migrationsPath: '/migrations' });
+
+    expect(processExitSpy).toHaveBeenCalledWith(1);
+  });
+
   it('should pass when no migrations exist', async () => {
     vol.fromJSON({});
 
