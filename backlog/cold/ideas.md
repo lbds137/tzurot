@@ -4,7 +4,7 @@ _Ungated speculative work — feature ideas and larger fixes with no committed s
 
 ## Character definition privacy + view/browse detail unification (beta.154 epic)
 
-_Surfaced 2026-07-07 (owner). Decisions captured — build after beta.153._
+_Surfaced 2026-07-07 (owner). **ACTIVE 2026-07-07**: council pass done, plan approved; Part 1 building as three PRs — PR1 (schema+redaction, #1546), PR2 (dashboard toggle), PR3 (import/export round-trip + the two export gaps below). **Part 2 stays deferred**: the privacy fix is DRY at the API (one redaction point in formatPersonalityResponse covers view + browse-detail), so the render unification is an independent pure-UX refactor — bundling it would dilute the security review. Promote Part 2 when Part 1 ships._
 
 **Motivation**: `/inspect` already redacts character internals (system prompt + memory previews) for non-owners (PR #898, 2026-04-25). But `/character view` and `/character browse`→select expose the FULL character card (characterInfo, personalityTraits, tone/age/appearance/likes/dislikes, conversationalGoals, conversationalExamples) to non-owners of PUBLIC characters — an inconsistency the owner flagged. Private characters are already safe (GET route `checkUserAccess` returns 401 for non-owners). System-prompt TEXT is not in the GET response (only its id), but every card field is.
 
