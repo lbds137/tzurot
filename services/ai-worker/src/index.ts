@@ -15,6 +15,7 @@ import { PgvectorMemoryAdapter } from './services/PgvectorMemoryAdapter.js';
 import { LocalEmbeddingService } from '@tzurot/embeddings';
 import { AIJobProcessor } from './jobs/AIJobProcessor.js';
 import { PendingMemoryProcessor } from './jobs/PendingMemoryProcessor.js';
+import { NullVectorReembedder } from './jobs/NullVectorReembedder.js';
 import { setupFactExtraction } from './jobs/factExtractionSetup.js';
 import { cleanupDiagnosticLogs } from './jobs/CleanupDiagnosticLogs.js';
 import { cleanupStuckImportJobs } from './jobs/cleanupStuckImportJobs.js';
@@ -46,6 +47,7 @@ const SCHEDULED_JOBS = {
   CLEANUP_STUCK_EXPORTS: 'cleanup-stuck-exports',
   CLEANUP_EXPIRED_EXPORTS: 'cleanup-expired-exports',
   CLEANUP_CONVERSATION_RETENTION: 'cleanup-conversation-retention',
+  REEMBED_NULL_VECTORS: 'reembed-null-vectors',
 } as const;
 
 // ============================================================================
@@ -199,11 +201,34 @@ function createMainWorker(jobProcessor: AIJobProcessor): Worker {
 }
 
 /**
+ * Repeatable-job schedule. Minute offsets are deliberate: they spread the
+ * hourly/15-min jobs across the hour so runs don't stack on shared resources.
+ * Conversation retention runs daily at 09:10 UTC — off-peak for the
+ * primarily-US user base, offset off the hourly jobs' minute marks.
+ */
+const REPEATABLE_JOB_SCHEDULE: readonly { name: string; pattern: string }[] = [
+  { name: SCHEDULED_JOBS.PROCESS_PENDING_MEMORIES, pattern: '*/10 * * * *' },
+  { name: SCHEDULED_JOBS.REEMBED_NULL_VECTORS, pattern: '13 * * * *' },
+  { name: SCHEDULED_JOBS.CLEANUP_DIAGNOSTIC_LOGS, pattern: '0 * * * *' },
+  { name: SCHEDULED_JOBS.CLEANUP_STUCK_IMPORTS, pattern: '*/15 * * * *' },
+  { name: SCHEDULED_JOBS.CLEANUP_STUCK_EXPORTS, pattern: '7,22,37,52 * * * *' },
+  { name: SCHEDULED_JOBS.CLEANUP_EXPIRED_EXPORTS, pattern: '30 * * * *' },
+  { name: SCHEDULED_JOBS.CLEANUP_CONVERSATION_RETENTION, pattern: '10 9 * * *' },
+];
+
+async function registerRepeatableJobs(scheduledQueue: Queue): Promise<void> {
+  for (const { name, pattern } of REPEATABLE_JOB_SCHEDULE) {
+    await scheduledQueue.add(name, {}, { repeat: { pattern }, jobId: name });
+  }
+}
+
+/**
  * Set up scheduled jobs queue and worker for periodic maintenance tasks
  */
 async function setupScheduledJobs(
   pendingMemoryProcessor: PendingMemoryProcessor,
-  prisma: PrismaClient
+  prisma: PrismaClient,
+  nullVectorReembedder: NullVectorReembedder
 ): Promise<ScheduledJobsResult> {
   const scheduledQueue = new Queue(SCHEDULED_QUEUE_NAME, { connection: config.redis });
 
@@ -212,7 +237,16 @@ async function setupScheduledJobs(
     async (job: Job) => {
       if (job.name === SCHEDULED_JOBS.PROCESS_PENDING_MEMORIES) {
         logger.debug('Running pending memory processor');
-        return pendingMemoryProcessor.processPendingMemories();
+        const stats = await pendingMemoryProcessor.processPendingMemories();
+        // Backlog snapshot rides every run's completed log — the dead-letter
+        // rows (attempts >= cap / the 999 invalid-metadata sentinel) are
+        // otherwise invisible after their single "Gave up" line.
+        const backlog = await pendingMemoryProcessor.getStats();
+        return { ...stats, backlog };
+      }
+      if (job.name === SCHEDULED_JOBS.REEMBED_NULL_VECTORS) {
+        logger.debug('Running NULL-vector re-embed sweep');
+        return nullVectorReembedder.sweep();
       }
       if (job.name === SCHEDULED_JOBS.CLEANUP_DIAGNOSTIC_LOGS) {
         logger.debug('Running diagnostic log cleanup');
@@ -260,54 +294,14 @@ async function setupScheduledJobs(
     logger.error({ err: error }, `Job ${job?.name} failed`);
   });
 
-  // Add repeatable job for pending memories (every 10 minutes)
-  await scheduledQueue.add(
-    SCHEDULED_JOBS.PROCESS_PENDING_MEMORIES,
-    {},
-    { repeat: { pattern: '*/10 * * * *' }, jobId: SCHEDULED_JOBS.PROCESS_PENDING_MEMORIES }
-  );
+  await registerRepeatableJobs(scheduledQueue);
 
-  // Add repeatable job for diagnostic log cleanup (hourly)
-  await scheduledQueue.add(
-    SCHEDULED_JOBS.CLEANUP_DIAGNOSTIC_LOGS,
-    {},
-    { repeat: { pattern: '0 * * * *' }, jobId: SCHEDULED_JOBS.CLEANUP_DIAGNOSTIC_LOGS }
-  );
-
-  // Add repeatable job for stuck import job cleanup (every 15 minutes)
-  await scheduledQueue.add(
-    SCHEDULED_JOBS.CLEANUP_STUCK_IMPORTS,
-    {},
-    { repeat: { pattern: '*/15 * * * *' }, jobId: SCHEDULED_JOBS.CLEANUP_STUCK_IMPORTS }
-  );
-
-  // Add repeatable job for stuck export job cleanup (every 15 minutes, offset by 7 min)
-  await scheduledQueue.add(
-    SCHEDULED_JOBS.CLEANUP_STUCK_EXPORTS,
-    {},
-    { repeat: { pattern: '7,22,37,52 * * * *' }, jobId: SCHEDULED_JOBS.CLEANUP_STUCK_EXPORTS }
-  );
-
-  // Add repeatable job for expired export cleanup (hourly, offset by 30 min)
-  await scheduledQueue.add(
-    SCHEDULED_JOBS.CLEANUP_EXPIRED_EXPORTS,
-    {},
-    { repeat: { pattern: '30 * * * *' }, jobId: SCHEDULED_JOBS.CLEANUP_EXPIRED_EXPORTS }
-  );
-
-  // Add repeatable job for conversation retention (daily at 09:10 UTC — off-peak
-  // for the primarily-US user base, offset off the hourly jobs' minute marks)
-  await scheduledQueue.add(
-    SCHEDULED_JOBS.CLEANUP_CONVERSATION_RETENTION,
-    {},
-    {
-      repeat: { pattern: '10 9 * * *' },
-      jobId: SCHEDULED_JOBS.CLEANUP_CONVERSATION_RETENTION,
-    }
-  );
-
+  // Derived from the schedule table so this line can't silently omit a job.
   logger.info(
-    'Scheduled jobs configured (pending memory: every 10 min, diagnostic cleanup: hourly, stuck imports/exports: every 15 min, expired exports: hourly, conversation retention: daily 09:10 UTC)'
+    {
+      schedule: Object.fromEntries(REPEATABLE_JOB_SCHEDULE.map(j => [j.name, j.pattern])),
+    },
+    'Scheduled jobs configured'
   );
 
   return { scheduledQueue, scheduledWorker };
@@ -402,9 +396,11 @@ async function main(): Promise<void> {
   }
 
   // Set up scheduled jobs
+  const nullVectorReembedder = new NullVectorReembedder(prisma, memoryManager);
   const { scheduledQueue, scheduledWorker } = await setupScheduledJobs(
     pendingMemoryProcessor,
-    prisma
+    prisma,
+    nullVectorReembedder
   );
 
   // Start health server if enabled
