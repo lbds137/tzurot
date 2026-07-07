@@ -2,6 +2,32 @@
 
 _Ungated speculative work — feature ideas and larger fixes with no committed schedule. Grep-on-demand; not loaded at session start. "Promote when…" notes are advisory, not a filing rule._
 
+## Character definition privacy + view/browse detail unification (beta.154 epic)
+
+_Surfaced 2026-07-07 (owner). Decisions captured — build after beta.153._
+
+**Motivation**: `/inspect` already redacts character internals (system prompt + memory previews) for non-owners (PR #898, 2026-04-25). But `/character view` and `/character browse`→select expose the FULL character card (characterInfo, personalityTraits, tone/age/appearance/likes/dislikes, conversationalGoals, conversationalExamples) to non-owners of PUBLIC characters — an inconsistency the owner flagged. Private characters are already safe (GET route `checkUserAccess` returns 401 for non-owners). System-prompt TEXT is not in the GET response (only its id), but every card field is.
+
+### Part 1 — Definition-visibility toggle (SpicyChat-style)
+
+- **New field** on `personality`: `definitionPublic Boolean @default(false)`. Owner-controlled. **DECISION: private for EVERYONE** — the migration sets ALL existing characters (including currently-public ones) to `false`; existing public characters' internals go dark until the owner opts in. Most consistent with `/inspect`'s stance.
+- **API (the DRY point)**: `formatPersonalityResponse` (or the GET route) redacts the card fields for non-owners when `definitionPublic === false`. Owner + bot-admin always see full (reuse the `canEdit` / `isBotOwner` signal). Keep public-safe fields visible regardless: name, displayName, slug, avatar, isPublic. **This single point covers `/character view` AND `/character browse`-detail AND any future consumer** — they all read this one endpoint.
+- **UI**: an owner toggle in the character settings/dashboard (`settings.ts` / dashboard). Mirror the visibility toggle pattern.
+- **Import/export round-trip (owner requirement)**: `definitionPublic` must be exported in the character JSON and honored on import (like `isPublic`). Owner also asked to **audit import/export field coverage** — the audit already found two real gaps to fix in this epic:
+  - **`customFields` — export OMITS it, import ACCEPTS it** (`export.ts` `EXPORT_FIELDS` has 14 fields, no customFields; `import.ts` `buildImportPayload` includes it). A character with custom fields loses them on export→re-import. Pre-existing data-loss bug — could be a one-line `EXPORT_FIELDS` addition sooner if desired, independent of the toggle.
+  - **Voice — export does NOT emit it, import (post-#1541) accepts it** via attachment. For symmetry, export should emit the voice reference as a separate file (like avatar), so voice round-trips.
+  - When adding `definitionPublic`: add to `EXPORT_FIELDS` AND `buildImportPayload` (+ import success-field list). Verify no OTHER card field is export-only or import-only.
+- **Guard**: does NOT affect chatting (ai-worker path doesn't use this GET route), so redacting for non-owners can't break using a public character.
+- **Migration**: additive column + a data step setting existing rows to false. Since it changes visible behavior (public internals go dark), treat as a real behavior change — announce in release notes.
+
+### Part 2 — view/browse detail unification (UX refactor, independent of Part 1)
+
+- Today: `/character view` uses its own paged builder (`view.ts` buildViewPage); `/character browse`→select opens the **dashboard embed** (`buildDashboardEmbed`, canEdit-aware) — two different renders of the same data.
+- **Goal (owner)**: browse-select should open the SAME canonical detail view as `/character view`; make browse→select→shared-detail-view a **common pattern for browse/view across commands** generally (not just character).
+- Bigger refactor; separable from Part 1 (the privacy fix is DRY at the API regardless of render). Sequence Part 2 after or alongside Part 1.
+
+_Promote when: beta.153 ships. Council pass recommended before plan-mode (per the "substantial pick deserves a council pass" backlog rule)._
+
 ### Surfaced 2026-06-28 (in-character error delivery — user directive)
 
 - ✨ `[FEAT]` **Errors should come from the character, not the system** — User directive 2026-06-28 (prod screenshot: a multi-character voice scene where the bot replied with the system notice "⏳ Couldn't get a response just now — something's slow on our end. Please try again in a moment."). When an error genuinely must reach the user, the persona should say it in its own register (via the character's webhook), not a generic system line that breaks immersion. This is **cross-cutting** — it applies to every user-facing error notice, not just the multi-tag path: the single-character generation-failure messages, STT-failure notices, the `MultiTagCoordinator` notices, etc. (The entry's original companion goal — eliminating the dominant trigger, the gateway user-message-persist hang — was FIXED via #1410/#1411; what remains is the in-character delivery of whatever errors still surface.) **Scope to decide**: how the character voices an error (a per-persona templated fallback line; a small set of generic-but-in-tone lines; or an LLM-generated in-character apology — weigh latency/cost/failure-during-failure); which classes stay system vs. go in-character (a transient timeout → in-character; a hard denial/NSFW-gate → arguably still system); how to keep the retry-affordance clear while in-character; the webhook constraint (the error must post as the character, not the bot user); and the failure-during-failure fallback (if the in-character path itself errors, fall back to a minimal system line). **Start**: enumerate every user-facing error-notice site in `bot-client` (grep the error strings); `MultiTagCoordinator.ts:200` is the reported one. Related recent work: `90c620125` (2026-06-24) made the multi-tag notice HONEST — distinguished a genuine denial from an infra throw — but it's still a SYSTEM message. **Absorbed by** [`cold/themes/platform-portable-ux-layer.md`](themes/platform-portable-ux-layer.md); **DESIGN LANDED 2026-07-04** — every scope question above is decided in [`docs/proposals/backlog/platform-portable-ux-design.md`](../../docs/proposals/backlog/platform-portable-ux-design.md) §4.3 (canned-through-webhook, voice boundary, name-attributed fallback, multi-tag → each errored persona replies its own line). Entry retained as the requirement record until Phase 1 ships. Surfaced 2026-06-28 (user directive, prod screenshot).
