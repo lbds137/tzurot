@@ -423,6 +423,69 @@ describe('PUT /user/personality/:slug (update)', () => {
       expect(res.status).toHaveBeenCalledWith(200);
     });
 
+    it('clearAvatar:true actually NULLs the stored avatar (avatarData:null is a no-op)', async () => {
+      // Real-route seam test: the bot-client sends { clearAvatar: true } for
+      // avatar-clear. Proves it reaches prisma as avatarData:null — the bug the
+      // mocked bot-client test could not catch (avatarData:null alone no-ops).
+      mockGlob.mockReturnValue(createAsyncGenerator([]));
+      const router = createPersonalityRoutes({
+        ...stubRouteResolvers(),
+        prisma: mockPrisma as unknown as PrismaClient,
+      });
+      const handler = getHandler(router, 'put', '/:slug');
+      const { req, res } = createMockReqRes({ clearAvatar: true }, { slug: 'test-char' });
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(mockPrisma.personality.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ avatarData: null }),
+        })
+      );
+    });
+
+    it('clearAvatar + a voice change in one request honors BOTH (no early-return drop)', async () => {
+      mockGlob.mockReturnValue(createAsyncGenerator([]));
+      const router = createPersonalityRoutes({
+        ...stubRouteResolvers(),
+        prisma: mockPrisma as unknown as PrismaClient,
+      });
+      const handler = getHandler(router, 'put', '/:slug');
+      const { req, res } = createMockReqRes(
+        { clearAvatar: true, voiceReferenceData: null },
+        { slug: 'test-char' }
+      );
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(mockPrisma.personality.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ avatarData: null, voiceReferenceData: null }),
+        })
+      );
+    });
+
+    it('avatarData:null alone is a no-op — does NOT clear the stored avatar', async () => {
+      // Pins the dashboard round-trip contract the clearAvatar flag exists for.
+      mockGlob.mockReturnValue(createAsyncGenerator([]));
+      const router = createPersonalityRoutes({
+        ...stubRouteResolvers(),
+        prisma: mockPrisma as unknown as PrismaClient,
+      });
+      const handler = getHandler(router, 'put', '/:slug');
+      const { req, res } = createMockReqRes(
+        { name: 'Updated', avatarData: null },
+        { slug: 'test-char' }
+      );
+
+      await handler(req, res);
+
+      const updateArg = mockPrisma.personality.update.mock.calls[0][0];
+      expect(updateArg.data).not.toHaveProperty('avatarData');
+    });
+
     it('should silently handle ENOENT when avatar directory does not exist', async () => {
       const enoentError = new Error('Directory not found') as NodeJS.ErrnoException;
       enoentError.code = 'ENOENT';

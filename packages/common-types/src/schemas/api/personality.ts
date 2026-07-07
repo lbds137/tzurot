@@ -285,6 +285,11 @@ export const PersonalityUpdateSchema = z.object({
   // section is safe. Rejecting null here is the avatarData-class 400 bug.
   avatarData: z.string().nullable().optional(),
 
+  // Explicit avatar clear. Because `avatarData: null` is the dashboard's
+  // "no change" sentinel (above), clearing an avatar needs a distinct signal:
+  // `clearAvatar: true` nulls the stored avatar. Ignored unless true.
+  clearAvatar: z.boolean().optional(),
+
   // Voice reference audio (base64 data URI, processed separately)
   // null = clear existing voice reference, undefined = don't change, string = set new
   voiceReferenceData: z.string().nullable().optional(),

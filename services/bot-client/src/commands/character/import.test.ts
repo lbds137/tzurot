@@ -77,7 +77,8 @@ global.fetch = mockFetch;
  */
 function createMockContext(
   fileAttachment?: Partial<Attachment>,
-  avatarAttachment: Partial<Attachment> | null = null
+  avatarAttachment: Partial<Attachment> | null = null,
+  voiceAttachment: Partial<Attachment> | null = null
 ): Parameters<typeof handleImport>[0] {
   const defaultFileAttachment: Attachment = {
     id: 'attachment-123',
@@ -121,6 +122,28 @@ function createMockContext(
       } as Attachment)
     : null;
 
+  const voiceAttachmentData = voiceAttachment
+    ? ({
+        id: 'voice-attachment-123',
+        name: 'voice.wav',
+        url: 'https://cdn.discordapp.com/attachments/123/456/voice.wav',
+        contentType: 'audio/wav',
+        size: 1024,
+        proxyURL: 'https://media.discordapp.net/attachments/123/456/voice.wav',
+        height: null,
+        width: null,
+        ephemeral: false,
+        description: null,
+        duration: null,
+        waveform: null,
+        flags: { bitfield: 0 } as any,
+        title: null,
+        spoiler: false,
+        toJSON: () => ({}),
+        ...voiceAttachment,
+      } as Attachment)
+    : null;
+
   return {
     user: { id: 'owner-123', username: 'testowner' },
     editReply: vi.fn().mockResolvedValue(undefined),
@@ -128,7 +151,8 @@ function createMockContext(
       options: {
         getAttachment: vi.fn().mockImplementation((name: string, _required?: boolean) => {
           if (name === 'file') return defaultFileAttachment;
-          if (name === 'avatar') return avatarAttachmentData;
+          if (name === 'image') return avatarAttachmentData;
+          if (name === 'audio') return voiceAttachmentData;
           return null;
         }),
       },
@@ -339,7 +363,7 @@ describe('handleImport', () => {
       await handleImport(context, mockConfig);
 
       const editReplyArg = (context.editReply as Mock).mock.calls[0][0];
-      expect(editReplyArg).toContain('❌ Invalid avatar URL.');
+      expect(editReplyArg).toContain('❌ Invalid attachment URL.');
     });
   });
 
@@ -710,6 +734,32 @@ describe('handleImport', () => {
         expect.objectContaining({
           name: 'Test Character',
           slug: 'test-character',
+        })
+      );
+    });
+
+    it('processes an attached voice reference into the create payload as a data URI', async () => {
+      // The new voice-at-import path — mirrors the existing avatar option.
+      const context = createMockContext(undefined, null, {}); // voice attachment present (audio/wav)
+      mockFetch.mockImplementation((url: string) => {
+        if (url.includes('voice.wav')) {
+          return Promise.resolve({
+            ok: true,
+            arrayBuffer: () => Promise.resolve(Buffer.from('fake-wav').buffer),
+          });
+        }
+        return Promise.resolve({
+          ok: true,
+          text: () => Promise.resolve(JSON.stringify(createValidCharacterData())),
+        });
+      });
+      mockCreateScenario({ ok: true, data: { id: 'new-id' } });
+
+      await handleImport(context, mockConfig);
+
+      expect(stub.createPersonality).toHaveBeenCalledWith(
+        expect.objectContaining({
+          voiceReferenceData: expect.stringMatching(/^data:audio\/wav;base64,/),
         })
       );
     });

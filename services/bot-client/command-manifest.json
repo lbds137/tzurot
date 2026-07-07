@@ -375,7 +375,7 @@
           {
             "type": 1,
             "name": "avatar",
-            "description": "Upload or change a character avatar",
+            "description": "Upload or replace a character avatar",
             "options": [
               {
                 "autocomplete": true,
@@ -394,8 +394,22 @@
           },
           {
             "type": 1,
+            "name": "avatar-clear",
+            "description": "Remove a character's avatar image",
+            "options": [
+              {
+                "autocomplete": true,
+                "type": 3,
+                "name": "character",
+                "description": "Character to update",
+                "required": true
+              }
+            ]
+          },
+          {
+            "type": 1,
             "name": "voice",
-            "description": "Upload a voice reference audio file for TTS cloning",
+            "description": "Upload or replace a character voice reference for TTS cloning",
             "options": [
               {
                 "autocomplete": true,
@@ -406,7 +420,7 @@
               },
               {
                 "name": "audio",
-                "description": "Audio file (WAV, MP3, OGG, FLAC)",
+                "description": "Voice reference audio (WAV, MP3, OGG, FLAC)",
                 "required": true,
                 "type": 11
               }
@@ -415,7 +429,7 @@
           {
             "type": 1,
             "name": "voice-clear",
-            "description": "Remove voice reference and disable TTS for a character",
+            "description": "Remove a character voice reference and disable TTS",
             "options": [
               {
                 "autocomplete": true,
@@ -438,8 +452,14 @@
                 "type": 11
               },
               {
-                "name": "avatar",
-                "description": "Optional avatar image (PNG, JPG, GIF, WebP)",
+                "name": "image",
+                "description": "Avatar image (PNG, JPG, GIF, WebP)",
+                "required": false,
+                "type": 11
+              },
+              {
+                "name": "audio",
+                "description": "Voice reference audio (WAV, MP3, OGG, FLAC)",
                 "required": false,
                 "type": 11
               }

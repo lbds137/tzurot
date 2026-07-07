@@ -1,89 +1,93 @@
 /**
  * Character Avatar Handler
  *
- * Handles avatar upload and update for characters.
- * Automatically resizes large images to fit within the API gateway's body limit.
+ * Handles avatar upload/replace and clear for characters.
+ * Mirrors the voice handler pattern — upload downloads from Discord CDN,
+ * resizes to fit the gateway body limit, base64-encodes, and sends to the API.
+ * Clear nulls the reference.
  */
 
+import { escapeMarkdown } from 'discord.js';
 import { type EnvConfig } from '@tzurot/common-types/config/config';
-import { characterAvatarOptions } from '@tzurot/common-types/generated/commandOptions';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
+import {
+  AUTOCOMPLETE_UNAVAILABLE_MESSAGE,
+  isAutocompleteErrorSentinel,
+} from '../../utils/apiCheck.js';
+import type { UserClient } from '@tzurot/clients';
 import { clientsFor } from '../../utils/gatewayClients.js';
 import { validateDiscordCdnUrl } from '../../utils/discordCdnGuard.js';
-import { fetchCharacter, updateCharacter } from './api.js';
-import {
-  VALID_IMAGE_TYPES,
-  MAX_INPUT_SIZE_MB,
-  MAX_INPUT_SIZE_BYTES,
-  processAvatarBuffer,
-} from './avatarUtils.js';
+import { validateImageAttachment } from './mediaValidation.js';
+import { fetchCharacter, updateCharacter, type FetchedCharacter } from './api.js';
+import { processAvatarBuffer } from './avatarUtils.js';
 
 const logger = createLogger('character-avatar');
 
 /**
- * Validate attachment is a supported image format and size
- * @returns Error message if invalid, null if valid
+ * Fetch a character and verify the user has edit permission.
+ * Sends error reply and returns null if the character is not found or not editable.
  */
-function validateAttachment(contentType: string | null, size: number): string | null {
-  if (contentType === null || !VALID_IMAGE_TYPES.includes(contentType)) {
-    return '❌ Invalid image format. Please upload a PNG, JPG, GIF, or WebP image.';
+async function fetchEditableCharacter(
+  slug: string,
+  config: EnvConfig,
+  userClient: UserClient,
+  context: DeferredCommandContext
+): Promise<FetchedCharacter | null> {
+  const character = await fetchCharacter(slug, config, userClient);
+  if (!character) {
+    await context.editReply(
+      `❌ Character \`${escapeMarkdown(slug)}\` not found or not accessible.`
+    );
+    return null;
   }
-  if (size > MAX_INPUT_SIZE_BYTES) {
-    return `❌ Image too large. Please upload an image under ${MAX_INPUT_SIZE_MB}MB.`;
+  if (!character.canEdit) {
+    await context.editReply(
+      `❌ You don't have permission to edit \`${escapeMarkdown(slug)}\`.\n` +
+        'You can only edit characters you own.'
+    );
+    return null;
   }
-  return null;
+  return character;
 }
 
 /**
- * Handle avatar upload subcommand
+ * Handle /character avatar upload
  */
-export async function handleAvatar(
+async function handleAvatarUpload(
   context: DeferredCommandContext,
   config: EnvConfig
 ): Promise<void> {
-  const options = characterAvatarOptions(context.interaction);
-  const slug = options.character();
-  const attachment = options.image();
+  const interaction = context.interaction;
+  const slug = interaction.options.getString('character', true);
+  if (isAutocompleteErrorSentinel(slug)) {
+    await context.editReply({ content: AUTOCOMPLETE_UNAVAILABLE_MESSAGE });
+    return;
+  }
+  const attachment = interaction.options.getAttachment('image', true);
   const userId = context.user.id;
 
-  const validationError = validateAttachment(attachment.contentType, attachment.size);
+  const validationError = validateImageAttachment(attachment);
   if (validationError !== null) {
     await context.editReply(validationError);
+    return;
+  }
+
+  const cdnGuard = validateDiscordCdnUrl(attachment.url, logger);
+  if (!cdnGuard.ok) {
+    await context.editReply('❌ Invalid attachment URL.');
     return;
   }
 
   const { userClient } = clientsFor(context.interaction);
 
   try {
-    // Check if user can edit this character
-    const character = await fetchCharacter(slug, config, userClient);
+    const character = await fetchEditableCharacter(slug, config, userClient, context);
     if (!character) {
-      await context.editReply(`❌ Character \`${slug}\` not found or not accessible.`);
       return;
     }
 
-    // Use server-side permission check (compares internal User UUIDs, not Discord IDs)
-    if (!character.canEdit) {
-      await context.editReply(
-        `❌ You don't have permission to edit \`${slug}\`.\n` +
-          'You can only edit characters you own.'
-      );
-      return;
-    }
-
-    // SSRF defense-in-depth: validate the attachment URL points at a Discord
-    // CDN host before fetching. Discord interactions only ever supply CDN URLs,
-    // so this is a guard rather than expected reject path.
-    const cdnGuard = validateDiscordCdnUrl(attachment.url, logger);
-    if (!cdnGuard.ok) {
-      await context.editReply('❌ Invalid attachment URL.');
-      return;
-    }
-
-    // Download the image with a 30s timeout (pattern matches voice.ts and
-    // avatarProcessor.ts). try/catch/finally ensures clearTimeout runs in
-    // every path — no double-clear in catch + after-try like the first draft.
+    // Download the image with a 30s timeout (pattern matches voice.ts).
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 30_000);
     let imageResponse: Response;
@@ -115,8 +119,6 @@ export async function handleAvatar(
     }
 
     const base64Image = result.buffer.toString('base64');
-
-    // Update character with new avatar
     await updateCharacter(slug, { avatarData: base64Image }, userClient, config);
 
     await context.editReply(
@@ -130,4 +132,60 @@ export async function handleAvatar(
   }
 }
 
-// Re-export constants for testing (from avatarUtils)
+/**
+ * Handle /character avatar-clear
+ */
+async function handleAvatarClear(
+  context: DeferredCommandContext,
+  config: EnvConfig
+): Promise<void> {
+  const interaction = context.interaction;
+  const slug = interaction.options.getString('character', true);
+  if (isAutocompleteErrorSentinel(slug)) {
+    await context.editReply({ content: AUTOCOMPLETE_UNAVAILABLE_MESSAGE });
+    return;
+  }
+  const userId = context.user.id;
+
+  const { userClient } = clientsFor(context.interaction);
+
+  try {
+    const character = await fetchEditableCharacter(slug, config, userClient, context);
+    if (!character) {
+      return;
+    }
+
+    // `clearAvatar: true` is the explicit clear signal — `avatarData: null`
+    // means "no change" (dashboard round-trip), so it would silently no-op.
+    await updateCharacter(slug, { clearAvatar: true }, userClient, config);
+
+    await context.editReply(
+      `✅ Avatar removed for **${character.displayName ?? character.name}**.`
+    );
+
+    logger.info({ slug, userId }, 'Character avatar cleared');
+  } catch (error) {
+    logger.error({ err: error, slug }, 'Failed to clear avatar');
+    await context.editReply('❌ Failed to clear avatar. Please try again.');
+  }
+}
+
+/**
+ * Handle /character avatar subcommands.
+ * Routes to upload or clear based on subcommand name (registered flat:
+ * 'avatar', 'avatar-clear').
+ */
+export async function handleAvatar(
+  context: DeferredCommandContext,
+  config: EnvConfig
+): Promise<void> {
+  const subcommand = context.interaction.options.getSubcommand();
+  if (subcommand === 'avatar') {
+    await handleAvatarUpload(context, config);
+  } else if (subcommand === 'avatar-clear') {
+    await handleAvatarClear(context, config);
+  } else {
+    logger.warn({ subcommand }, 'Unexpected avatar subcommand');
+    await context.editReply('❌ Unknown avatar command.');
+  }
+}
