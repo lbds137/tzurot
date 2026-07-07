@@ -183,6 +183,14 @@ describe('Bot Footer Text Constants', () => {
       expect(rateLimited).toBe(
         'Model: [paid-default](<https://example.com/m>) • expensive/primary → paid-default (rate limited)'
       );
+
+      // A live 429 classifies as rate_limit — renders the same "rate limited" reason.
+      const rateLimitCat = buildModelFooterText('free-default', 'https://example.com/m', {
+        quotaFallback: { fromModel: 'user/free-default', category: 'rate_limit' },
+      });
+      expect(rateLimitCat).toBe(
+        'Model: [free-default](<https://example.com/m>) • user/free-default → free-default (rate limited)'
+      );
     });
 
     it('sanitizes markdown-hostile characters in the quota-fallback source model', () => {

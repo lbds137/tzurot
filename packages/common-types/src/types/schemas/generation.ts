@@ -164,7 +164,7 @@ const generationPayloadSchema = z.object({
         .object({
           fromModel: z.string(),
           toModel: z.string(),
-          category: z.enum(['quota_exceeded', 'credit_exhaustion']),
+          category: z.enum(['quota_exceeded', 'credit_exhaustion', 'rate_limit']),
           mode: z.enum(['proactive', 'reactive']),
         })
         .optional(),

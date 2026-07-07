@@ -82,7 +82,7 @@ interface SendResponseOptions {
    */
   quotaFallback?: {
     fromModel: string;
-    category: 'quota_exceeded' | 'credit_exhaustion';
+    category: 'quota_exceeded' | 'credit_exhaustion' | 'rate_limit';
   };
   /** Whether response was generated in guest mode (free model, no API key) */
   isGuestMode?: boolean;

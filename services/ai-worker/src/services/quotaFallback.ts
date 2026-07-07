@@ -39,9 +39,11 @@ import type { RateLimitCache } from './RateLimitCache.js';
 
 const logger = createLogger('QuotaFallback');
 
-/** The two retargetable failure classes. Everything else is not our business. */
+/** The retargetable failure classes. Everything else is not our business. */
 export type QuotaFallbackCategory =
-  ApiErrorCategory.QUOTA_EXCEEDED | ApiErrorCategory.CREDIT_EXHAUSTION;
+  | ApiErrorCategory.QUOTA_EXCEEDED
+  | ApiErrorCategory.CREDIT_EXHAUSTION
+  | ApiErrorCategory.RATE_LIMIT;
 
 /** Announce/audit carrier — rides result metadata to the footer. */
 export interface QuotaFallbackInfo {
@@ -69,7 +71,12 @@ export interface QuotaFallbackTarget {
 
 function isQuotaFallbackCategory(category: ApiErrorCategory): category is QuotaFallbackCategory {
   return (
-    category === ApiErrorCategory.QUOTA_EXCEEDED || category === ApiErrorCategory.CREDIT_EXHAUSTION
+    category === ApiErrorCategory.QUOTA_EXCEEDED ||
+    category === ApiErrorCategory.CREDIT_EXHAUSTION ||
+    // A live 429 classifies as RATE_LIMIT; retarget the SAME way as
+    // QUOTA_EXCEEDED (different default model, same key) so the FAILING turn is
+    // rescued in-turn instead of only subsequent turns (proactive cache path).
+    category === ApiErrorCategory.RATE_LIMIT
   );
 }
 
