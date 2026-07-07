@@ -18,6 +18,7 @@ vi.mock('@tzurot/common-types/constants/ai', async () => {
     AI_DEFAULTS: {
       MEMORY_TOKEN_BUDGET_RATIO: 0.25,
       RESPONSE_SAFETY_MARGIN_RATIO: 0.05,
+      MEMORY_CONTENTION_FLOOR_RATIO: 0.1,
     },
   };
 });
@@ -214,11 +215,11 @@ describe('MemoryBudgetManager', () => {
       expect(result).toBeLessThan(25000);
     });
 
-    it('should return 0 when no space available', () => {
+    it('keeps the contention floor when fetched history alone would fill the shared space', () => {
       const contextWindow = 100000;
       const systemPrompt = 40000;
       const currentMessage = 10000;
-      const historyTokens = 60000; // Exceeds context window
+      const historyTokens = 60000; // pre-truncation count exceeds the shared space
 
       const result = manager.calculateMemoryBudget(
         contextWindow,
@@ -227,6 +228,42 @@ describe('MemoryBudgetManager', () => {
         historyTokens
       );
 
+      // sharedSpace = 100k − 40k − 10k − 5k margin = 45k; floor = 10% = 4500.
+      // The OLD formula returned 0 here — the starvation bug: memories were
+      // charged for history that gets truncated downstream anyway.
+      expect(result).toBe(4500);
+    });
+
+    it('acceptance: window-filling history on a small window still yields a positive budget', () => {
+      // The manifesting case: busy RP channel, long persona turns, small window.
+      const contextWindow = 32000;
+      const systemPrompt = 8000; // substantial character card
+      const currentMessage = 500;
+      const historyTokens = 40000; // 50 fetched messages of long-form RP — exceeds the window
+
+      const result = manager.calculateMemoryBudget(
+        contextWindow,
+        systemPrompt,
+        currentMessage,
+        historyTokens
+      );
+
+      // sharedSpace = 32000 − 8000 − 500 − 1600 = 21900; floor = 2190.
+      expect(result).toBe(2190);
+      expect(result).toBeGreaterThan(0);
+    });
+
+    it('acceptance: budget never exceeds the shared space or the hard cap', () => {
+      const contextWindow = 100000;
+      const result = manager.calculateMemoryBudget(contextWindow, 5000, 1000, 1000);
+      const sharedSpace = 100000 - 5000 - 1000 - 5000;
+      expect(result).toBeLessThanOrEqual(sharedSpace);
+      expect(result).toBeLessThanOrEqual(25000);
+    });
+
+    it('returns 0 when the window cannot even hold the fixed components', () => {
+      // sharedSpace itself is negative — nothing can ship; floor scales to ≤ 0.
+      const result = manager.calculateMemoryBudget(10000, 9000, 2000, 500);
       expect(result).toBe(0);
     });
 
