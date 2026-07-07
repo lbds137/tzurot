@@ -385,12 +385,12 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
   // match the existing `delete_confirm` / `delete_cancel` convention.
   const sectionId = parsed.sectionId;
   if (action === 'edit_truncated' && sectionId !== undefined) {
-    await handleEditTruncatedButton(interaction, entityId, sectionId, config);
+    await handleEditTruncatedButton(interaction, entityId, sectionId);
     return;
   }
 
   if (action === 'view_full' && sectionId !== undefined) {
-    await handleViewFullButton(interaction, entityId, sectionId, config);
+    await handleViewFullButton(interaction, entityId, sectionId);
     return;
   }
 
@@ -398,7 +398,7 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
   // The customId carries entity + section so the handler can build the
   // modal with zero pre-work (session warmed by step 1's handler).
   if (action === 'open_editor' && sectionId !== undefined) {
-    await handleOpenEditorButton(interaction, entityId, sectionId, config);
+    await handleOpenEditorButton(interaction, entityId, sectionId);
     return;
   }
 
