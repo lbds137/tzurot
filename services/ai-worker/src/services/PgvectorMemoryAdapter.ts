@@ -290,13 +290,17 @@ export class PgvectorMemoryAdapter {
    *
    * @returns true when a row was updated, false when the row no longer
    *   qualifies (already re-embedded, deleted, or made non-normal).
+   *
+   * Deliberately does NOT touch updated_at: that column tracks content edits
+   * (the UI shows "Updated" and supports sort=updatedAt), and a background
+   * embedding repair is not a content change — bumping it would make healed
+   * memories masquerade as user-edited.
    */
   async reembedMemory(memoryId: string, text: string): Promise<boolean> {
     const embedding = await this.generateEmbedding(text);
     const updated = await this.prisma.$executeRaw`
       UPDATE memories
-      SET embedding = ${`[${embedding.join(',')}]`}::vector(384),
-          updated_at = NOW()
+      SET embedding = ${`[${embedding.join(',')}]`}::vector(384)
       WHERE id = ${memoryId}::uuid
         AND embedding IS NULL
         AND visibility = 'normal'
