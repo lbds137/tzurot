@@ -103,14 +103,38 @@ export async function runWithQuotaFallback(options: {
       throw originalError;
     }
 
-    const credentials = await resolveRetryCredentials(target, opts, deps, userId);
+    let effectiveTarget = target;
+    let credentials = await resolveRetryCredentials(target, opts, deps, userId);
     if (credentials === null) {
-      throw originalError;
+      // Degraded-beats-failed (owner policy): the retarget's credential
+      // resolution came up empty (typically: paid target needs the user's own
+      // OpenRouter key and they have none). Downgrade to the FREE default on
+      // the system key — zero owner cost — rather than failing the turn.
+      // Wrapped so a throwing dep can never REPLACE the pristine original
+      // (same guarantee resolveRetryCredentials holds for itself).
+      try {
+        const guestTarget = await selectQuotaFallbackTarget({
+          category,
+          isGuestMode: true,
+          failingModel: opts.personality.model,
+          cacheKeyId,
+          configResolver: deps.configResolver,
+          caches: deps.caches,
+        });
+        const systemKey = await deps.resolveSystemKey();
+        if (guestTarget === null || systemKey === undefined) {
+          throw originalError;
+        }
+        effectiveTarget = guestTarget;
+        credentials = { apiKey: systemKey, isGuestMode: true };
+      } catch {
+        throw originalError;
+      }
     }
 
     const info: QuotaFallbackInfo = {
       fromModel: opts.personality.model,
-      toModel: target.config.model,
+      toModel: effectiveTarget.config.model,
       category,
       mode: 'reactive',
     };
@@ -120,7 +144,7 @@ export async function runWithQuotaFallback(options: {
       retry,
       opts: {
         ...opts,
-        personality: applyConfigToPersonality(opts.personality, target.config),
+        personality: applyConfigToPersonality(opts.personality, effectiveTarget.config),
         apiKey: credentials.apiKey,
         isGuestMode: credentials.isGuestMode,
         // The retarget is an OpenRouter attempt by construction (admin
