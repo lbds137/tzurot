@@ -11,7 +11,12 @@
 
 import { HumanMessage, SystemMessage } from '@langchain/core/messages';
 import { getConfig } from '@tzurot/common-types/config/config';
-import { AI_DEFAULTS, MODEL_DEFAULTS, type AIProvider } from '@tzurot/common-types/constants/ai';
+import {
+  AI_DEFAULTS,
+  MODEL_DEFAULTS,
+  isFreeModel,
+  type AIProvider,
+} from '@tzurot/common-types/constants/ai';
 import { ERROR_MESSAGES, ApiErrorCategory } from '@tzurot/common-types/constants/error';
 import { TIMEOUTS } from '@tzurot/common-types/constants/timing';
 import { type AttachmentMetadata } from '@tzurot/common-types/types/schemas/discord';
@@ -24,6 +29,7 @@ import { checkModelVisionSupport, visionDescriptionCache } from '../../redis.js'
 import { isDataUrl } from '../../utils/attachmentFetch.js';
 import { downloadImageToDataUrl } from '../../utils/imageToDataUrl.js';
 import {
+  VISION_PLACEHOLDER_PREFIX,
   isValidVisionDescription,
   VISION_MIN_DESCRIPTION_LENGTH,
 } from './visionDescriptionValidity.js';
@@ -443,7 +449,10 @@ export function buildFailureFallback(
   apiKeySource: 'user' | 'system' | undefined,
   filename?: string
 ): string {
-  const subject = filename !== undefined && filename.length > 0 ? `[Image "${filename}"` : '[Image';
+  const subject =
+    filename !== undefined && filename.length > 0
+      ? `${VISION_PLACEHOLDER_PREFIX} "${filename}"`
+      : VISION_PLACEHOLDER_PREFIX;
   if (category === ApiErrorCategory.AUTHENTICATION) {
     if (apiKeySource === 'user') {
       return `${subject} was shared but couldn't be processed — the vision API key was rejected; it can be fixed with /settings apikey set]`;
@@ -517,19 +526,40 @@ export async function selectVisionModel(
   personality: LoadedPersonality,
   isGuestMode: boolean
 ): Promise<string> {
-  // Priority 1: Use personality's configured vision model if specified
+  // Priority 1: Use personality's configured vision model if specified.
+  // Guest mode free-forces a PAID configured model — the same cost-leak class
+  // the fallback tiers already guard: a guest hunting paid-vision personas
+  // must not burn the system key on the primary tier either.
   if (
     personality.visionModel !== undefined &&
     personality.visionModel !== null &&
     personality.visionModel.length > 0
   ) {
+    if (isGuestMode && !isFreeModel(personality.visionModel)) {
+      logger.info(
+        { configuredVisionModel: personality.visionModel },
+        'Guest mode: free-forcing paid configured vision model'
+      );
+      return MODEL_DEFAULTS.VISION_FALLBACK_FREE;
+    }
     logger.debug({ visionModel: personality.visionModel }, 'Using configured vision model');
     return personality.visionModel;
   }
 
-  // Priority 2: Use personality's main model if it has native vision support
+  // Priority 2: Use personality's main model if it has native vision support.
+  // Same guest free-force as Priority 1 — a vision-capable PAID main model
+  // (gpt-4o, gemini-pro, ...) is the more common config than an explicit
+  // visionModel override; guarding at this seam needs no caller-by-caller
+  // reachability proof and cannot affect non-guests.
   const mainModelHasVision = await hasVisionSupport(personality.model);
   if (mainModelHasVision) {
+    if (isGuestMode && !isFreeModel(personality.model)) {
+      logger.info(
+        { mainModel: personality.model },
+        'Guest mode: free-forcing paid vision-capable main model'
+      );
+      return MODEL_DEFAULTS.VISION_FALLBACK_FREE;
+    }
     logger.debug(
       { model: personality.model, source: 'main-model-vision' },
       'Using main LLM for vision (native vision support detected via cache/pattern)'

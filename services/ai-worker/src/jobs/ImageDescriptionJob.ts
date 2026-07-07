@@ -26,6 +26,8 @@ import {
   type ResolveVisionConfigOptions,
 } from '../services/multimodal/visionAuthResolver.js';
 
+import { VISION_PLACEHOLDER_PREFIX } from '../services/multimodal/visionDescriptionValidity.js';
+
 const logger = createLogger('ImageDescriptionJob');
 
 /**
@@ -308,7 +310,15 @@ export async function processImageDescriptionJob(
       )
       .map(r => ({ url: r.url, description: r.description }));
 
-    const failedCount = results.length - descriptions.length;
+    // Placeholder-shaped "descriptions" (the '[Image ...' render of a failure)
+    // ARE the wired path's failure mode — the loop never throws, so counting
+    // only missing descriptions pins failedCount at 0 and mutes failure-rate
+    // monitoring entirely. Placeholder-as-content stays (deliberate design);
+    // this restores the signal only.
+    const placeholderCount = descriptions.filter(d =>
+      d.description.trim().startsWith(VISION_PLACEHOLDER_PREFIX)
+    ).length;
+    const failedCount = results.length - descriptions.length + placeholderCount;
 
     if (descriptions.length === 0) {
       return buildAllFailedResult(requestId, results, attachments.length, sourceReferenceNumber);

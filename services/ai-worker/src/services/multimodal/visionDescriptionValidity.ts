@@ -16,6 +16,14 @@
 export const VISION_MIN_DESCRIPTION_LENGTH = 10;
 
 /**
+ * The canonical prefix of a failure-placeholder "description" ('[Image ...').
+ * Shared contract between the placeholder renderer (buildFailureFallback),
+ * the validity check below, and ImageDescriptionJob's failure counting —
+ * one constant instead of three independent literals.
+ */
+export const VISION_PLACEHOLDER_PREFIX = '[Image';
+
+/**
  * Patterns that indicate a vision model returned an error message as text
  * content rather than an actual image description.
  */
@@ -61,7 +69,7 @@ export function isValidVisionDescription(description: string): boolean {
   const trimmed = description.trim();
   return (
     trimmed.length >= VISION_MIN_DESCRIPTION_LENGTH &&
-    !trimmed.startsWith('[Image') &&
+    !trimmed.startsWith(VISION_PLACEHOLDER_PREFIX) &&
     !isLikelyErrorDescription(trimmed)
   );
 }
