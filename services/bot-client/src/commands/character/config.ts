@@ -73,6 +73,7 @@ const baseCharacterDashboardConfig: DashboardConfig<CharacterData> = {
   },
   getDescription: (data: CharacterData) => {
     const visibility = data.isPublic ? '🌐 Public' : '🔒 Private';
+    const definition = data.definitionPublic ? '📖 Card Public' : '📕 Card Private';
     // Show voice status only when a voice reference exists
     const voice = data.hasVoiceReference
       ? data.voiceEnabled
@@ -80,7 +81,7 @@ const baseCharacterDashboardConfig: DashboardConfig<CharacterData> = {
         : '🔇 Voice Off'
       : '';
     const image = data.imageEnabled ? '🖼️ Images On' : '';
-    const features = [visibility, voice, image].filter(Boolean).join(' • ');
+    const features = [visibility, definition, voice, image].filter(Boolean).join(' • ');
 
     return `**Slug:** \`${data.slug}\`\n${features}`;
   },
@@ -91,6 +92,12 @@ const baseCharacterDashboardConfig: DashboardConfig<CharacterData> = {
       label: 'Toggle Visibility',
       description: 'Switch between public and private',
       emoji: '👁️',
+    },
+    {
+      id: 'definition-visibility',
+      label: 'Toggle Card Visibility',
+      description: 'Show or hide your character card to non-owners',
+      emoji: '📖',
     },
     {
       id: 'avatar',

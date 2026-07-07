@@ -143,6 +143,8 @@ export async function fetchAllCharacters(
       isPublic: p.isPublic,
       ownerId: p.ownerDiscordId, // Use Discord ID for fetching display names
       // These fields are not in the list response, but needed for CharacterData interface
+      definitionPublic: false,
+      definitionRedacted: false,
       characterInfo: '',
       personalityTraits: '',
       personalityTone: null,
