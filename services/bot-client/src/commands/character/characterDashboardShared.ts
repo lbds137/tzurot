@@ -31,7 +31,7 @@ export interface CharacterDashboardSpec {
   resolveCascade: (
     userClient: UserClient,
     personalityId: string
-  ) => Promise<{ ok: true; data: ResolvedConfigOverrides } | { ok: false }>;
+  ) => Promise<{ ok: true; data: ResolvedConfigOverrides } | { ok: false; error: string }>;
   /** Error-copy noun — narrowed so a future caller can't typo it silently. */
   noun: 'overrides' | 'settings';
   logger: Logger;
@@ -74,7 +74,10 @@ export async function openCharacterCascadeDashboard(
     if (!cascadeResult.ok) {
       // Log before the generic reply so timeout-vs-5xx-vs-validation
       // failures stay distinguishable in logs (the user copy stays generic).
-      logger.warn({ characterSlug, personalityId: personality.id }, 'Cascade resolve failed');
+      logger.warn(
+        { characterSlug, personalityId: personality.id, error: cascadeResult.error },
+        'Cascade resolve failed'
+      );
       await context.editReply({
         content: '❌ Failed to fetch config settings.',
       });

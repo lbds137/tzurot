@@ -790,8 +790,7 @@ describe('Character Dashboard', () => {
       expect(truncationWarning.handleEditTruncatedButton).toHaveBeenCalledWith(
         mockInteraction,
         'test-char',
-        'identity',
-        expect.any(Object)
+        'identity'
       );
     });
 
@@ -813,8 +812,7 @@ describe('Character Dashboard', () => {
       expect(truncationWarning.handleViewFullButton).toHaveBeenCalledWith(
         mockInteraction,
         'test-char',
-        'identity',
-        expect.any(Object)
+        'identity'
       );
     });
 
@@ -840,8 +838,7 @@ describe('Character Dashboard', () => {
       expect(truncationWarning.handleOpenEditorButton).toHaveBeenCalledWith(
         mockInteraction,
         'test-char',
-        'identity',
-        expect.any(Object)
+        'identity'
       );
     });
 

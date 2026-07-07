@@ -113,13 +113,13 @@ describe('openCharacterCascadeDashboard', () => {
     });
   });
 
-  it('reports a cascade failure without opening the dashboard', async () => {
+  it('reports a cascade failure without opening the dashboard, logging the error detail', async () => {
     const context = makeContext();
 
     await openCharacterCascadeDashboard(context, 'ivy', {
       dashboardConfig,
       sourceTier: 'user-personality',
-      resolveCascade: vi.fn().mockResolvedValue({ ok: false }),
+      resolveCascade: vi.fn().mockResolvedValue({ ok: false, error: 'gateway timeout' }),
       noun: 'overrides',
       logger,
     });
@@ -128,5 +128,9 @@ describe('openCharacterCascadeDashboard', () => {
       content: '❌ Failed to fetch config settings.',
     });
     expect(mockCreateDashboard).not.toHaveBeenCalled();
+    expect(vi.mocked((logger as { warn: unknown }).warn)).toHaveBeenCalledWith(
+      expect.objectContaining({ error: 'gateway timeout' }),
+      'Cascade resolve failed'
+    );
   });
 });
