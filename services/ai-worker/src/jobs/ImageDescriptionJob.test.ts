@@ -479,6 +479,75 @@ describe('ImageDescriptionJob', () => {
       expect(result.metadata!.failedCount).toBe(1); // Track failures
     });
 
+    it('counts placeholder-shaped descriptions into failedCount (C2b-3: the wired path never throws)', async () => {
+      // The fallback loop renders failures as '[Image ...' placeholder content
+      // with success: true — without placeholder counting, failedCount pins at
+      // 0 and failure-rate monitoring goes silent. Placeholder-as-content
+      // stays; only the signal is restored.
+      const jobData: ImageDescriptionJobData = {
+        requestId: 'test-req-placeholder',
+        jobType: JobType.ImageDescription,
+        attachments: [
+          {
+            url: 'https://example.com/broken.png',
+            name: 'broken.png',
+            contentType: CONTENT_TYPES.IMAGE_PNG,
+            size: 1024,
+          },
+        ],
+        personality: mockPersonality,
+        context: { userId: 'user-123', channelId: 'channel-456' },
+        responseDestination: { type: 'discord', channelId: 'channel-456' },
+      };
+      const job = { id: 'image-test-placeholder', data: jobData } as Job<ImageDescriptionJobData>;
+      mockDescribeImage.mockResolvedValue(
+        '[Image "broken.png" unavailable: the vision model could not process it]'
+      );
+
+      const result = await processImageDescriptionJob(job);
+
+      expect(result.success).toBe(true); // user-facing behavior unchanged
+      expect(result.descriptions).toHaveLength(1); // placeholder still ships as content
+      expect(result.metadata!.failedCount).toBe(1); // ...but the signal fires
+    });
+
+    it('counts a placeholder from the RESOLVER-WIRED path into failedCount (C2b-3 motivating path)', async () => {
+      // The fallback loop renders failures as placeholder content — this is
+      // the exact production path whose signal was muted (the legacy-path
+      // variant of this test lives above).
+      const jobData: ImageDescriptionJobData = {
+        requestId: 'test-req-wired-placeholder',
+        jobType: JobType.ImageDescription,
+        attachments: [
+          {
+            url: 'https://example.com/broken2.png',
+            name: 'broken2.png',
+            contentType: CONTENT_TYPES.IMAGE_PNG,
+            size: 1024,
+          },
+        ],
+        personality: mockPersonality,
+        context: { userId: 'user-123', channelId: 'channel-456' },
+        responseDestination: { type: 'discord', channelId: 'channel-456' },
+      };
+      const job = {
+        id: 'image-test-wired-placeholder',
+        data: jobData,
+      } as Job<ImageDescriptionJobData>;
+      const mockApiKeyResolver = {
+        tryResolveUserKey: vi.fn(),
+        resolveApiKey: vi.fn(),
+      } as unknown as ApiKeyResolver;
+      mockDescribeImageWithFallback.mockResolvedValue(
+        '[Image "broken2.png" unavailable: all vision routes failed]'
+      );
+
+      const result = await processImageDescriptionJob(job, mockApiKeyResolver);
+
+      expect(result.success).toBe(true); // placeholder still ships as content
+      expect(result.metadata!.failedCount).toBe(1); // ...and the signal fires on THIS path
+    });
+
     it('routes to describeImageWithFallback with the guest userId in the visionAuth bundle', async () => {
       // Phase-4: with a resolver present, the job hands the auth INPUTS to the
       // fallback loop. The genuine-guest → free-model-on-system-key resolution now
