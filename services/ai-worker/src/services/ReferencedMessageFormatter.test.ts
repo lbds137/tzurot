@@ -425,7 +425,7 @@ describe('ReferencedMessageFormatter', () => {
       const result = await formatter.formatReferencedMessages(references, mockPersonality);
 
       expect(result).toContain('<quote number="1" from="Alice" username="alice123" role="user">');
-      expect(result).toContain('[Referenced message — full text in <chat_log>]');
+      expect(result).toContain('[Referenced message — full text in the chat log]');
       expect(result).toContain('Some truncated content...');
       expect(result).toContain('</quote>');
     });
@@ -474,7 +474,7 @@ describe('ReferencedMessageFormatter', () => {
       expect(result).toContain(
         '<quote number="1" from="Lilith" username="Lilith" role="assistant">'
       );
-      expect(result).toContain('[Referenced message — full text in <chat_log>]');
+      expect(result).toContain('[Referenced message — full text in the chat log]');
     });
 
     it('renders authorRole="bot" on a deduped third-party reply-target', async () => {

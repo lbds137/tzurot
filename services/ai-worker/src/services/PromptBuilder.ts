@@ -200,9 +200,14 @@ export class PromptBuilder {
       'Persona and protocol lengths'
     );
 
-    // Build <system_identity> section
+    // Build <system_identity> section. personality.name is user-authored and
+    // must be escaped — it was previously interpolated raw into <role>.
+    // persona is per-field-escaped assembled XML; the outer escape here is a
+    // defense-in-depth no-op on the (unprotected) internal field tags and
+    // leaves already-escaped entities alone. The <character>/<system_identity>
+    // BOUNDARY protection at the field-value escape is what stops breakout.
     const identitySection = `<system_identity>
-<role>You are ${personality.name}.</role>
+<role>You are ${escapeXmlContent(personality.name)}.</role>
 <character>
 ${escapeXmlContent(persona)}
 </character>
@@ -264,7 +269,9 @@ ${serializedHistory}
 </chat_log>`
         : '';
 
-    // Protocol (near END of prompt - recency bias for highest impact)
+    // Protocol (near END of prompt - recency bias for highest impact). Outer
+    // escape kept: it also covers the LEGACY raw-systemPrompt path (author XML),
+    // and the <protocol> boundary protection stops sub-section values escaping.
     const protocolSection =
       protocol.length > 0 ? `\n\n<protocol>\n${escapeXmlContent(protocol)}\n</protocol>` : '';
 

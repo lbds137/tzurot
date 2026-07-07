@@ -128,6 +128,9 @@ jobs:
       - name: Check for export* barrels (re-mask knip)
         run: pnpm ops guard:no-export-star
 
+      - name: Check prompt structural tags are classified (injection guard)
+        run: pnpm ops guard:prompt-tags
+
       - name: Check Dockerfile runner-stage dist copies
         run: pnpm ops guard:dockerfile-dist
 
