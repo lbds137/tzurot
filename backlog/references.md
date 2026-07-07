@@ -1,7 +1,7 @@
 ## References
 
 - [GitHub Releases](https://github.com/lbds137/tzurot/releases) - Full release history
-- [backlog/cold/themes/memory-system-overhaul.md](cold/themes/memory-system-overhaul.md) — OpenMemory distillation + memory-overhaul phases
+- [backlog/active-epic.md](active-epic.md) — memory-overhaul phases (promoted to Active Epic 2026-07-06; governing artifact: docs/proposals/backlog/memory-architecture.md)
 - Shapes.inc import: Phases 1-4 complete on develop (see Character Portability theme)
 - [docs/research/sillytavern-features.md](../docs/research/sillytavern-features.md)
 - [docs/research/voice-cloning-2026.md](../docs/research/voice-cloning-2026.md) - Voice engine research summary + implementation map
