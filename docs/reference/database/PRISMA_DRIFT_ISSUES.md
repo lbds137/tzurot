@@ -83,6 +83,28 @@ an accidental drop degrades fact similarity search to sequential scans.
 Registered in all three protected-index registries (`prisma/drift-ignore.json`,
 `check-migration-safety.ts`, `inspect-database.ts`).
 
+### 1c. Partial Index for the NULL-vector sweep (idx_memories_null_embedding)
+
+**Table:** `memories`
+**Index:** `idx_memories_null_embedding`
+**Type:** Partial B-tree
+
+```sql
+CREATE INDEX "idx_memories_null_embedding" ON "memories" ("created_at")
+  WHERE embedding IS NULL AND visibility = 'normal';
+```
+
+**Purpose:** backs the `NullVectorReembedder` hourly self-healing sweep
+(`SELECT ... WHERE embedding IS NULL AND visibility = 'normal' ORDER BY created_at LIMIT 50`).
+The generic visibility index is non-selective ('normal' dominates), so without
+this the sweep scans all live rows every hour. The partial index stays tiny —
+only broken rows qualify.
+
+**Why Prisma can't represent it:** partial indexes (WHERE clauses) are not
+expressible in the Prisma schema. Protected by an `ignorePatterns` entry in
+`prisma/drift-ignore.json` (DROP suppression only — recreation is cheap, so no
+`protectedIndexes` entry).
+
 ### 2. Partial Index on chunk_group_id (memories_chunk_group_id_idx)
 
 **Table:** `memories`
