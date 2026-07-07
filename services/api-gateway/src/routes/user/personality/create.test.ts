@@ -211,6 +211,9 @@ describe('POST /user/personality (create)', () => {
           personalityTraits: 'Friendly, kind',
           ownerId: MOCK_USER_ID,
           isPublic: false,
+          // No voice reference provided → voice stays disabled (the false
+          // branch of create.ts's voiceEnabled derivation).
+          voiceEnabled: false,
         }),
         select: expect.objectContaining({
           id: true,
@@ -502,6 +505,9 @@ describe('POST /user/personality (create)', () => {
           data: expect.objectContaining({
             voiceReferenceData: new Uint8Array(audioBytes),
             voiceReferenceType: 'audio/wav',
+            // Providing a voice reference at creation auto-enables voice,
+            // matching the /character voice upload path.
+            voiceEnabled: true,
           }),
         })
       );

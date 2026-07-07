@@ -68,11 +68,12 @@ describe('Character Avatar Handler', () => {
       ...overrides,
     }) as Attachment;
 
-  const createMockContext = (slug: string, attachment: Attachment) =>
+  const createMockContext = (slug: string, attachment: Attachment, subcommand = 'avatar') =>
     ({
       user: { id: 'user-123' },
       interaction: {
         options: {
+          getSubcommand: vi.fn().mockReturnValue(subcommand),
           getString: vi.fn((_name: string, _required?: boolean) => slug),
           getAttachment: vi.fn((_name: string, _required?: boolean) => attachment),
         },
@@ -285,6 +286,42 @@ describe('Character Avatar Handler', () => {
 
       expect(mockContext.editReply).toHaveBeenCalledWith(
         expect.stringContaining('Failed to update avatar')
+      );
+    });
+  });
+
+  describe('avatar-clear', () => {
+    it('nulls avatarData and confirms removal on success', async () => {
+      const attachment = createMockAttachment();
+      const mockContext = createMockContext('my-char', attachment, 'avatar-clear');
+      vi.mocked(api.fetchCharacter).mockResolvedValue(createMockCharacter({ slug: 'my-char' }));
+      vi.mocked(api.updateCharacter).mockResolvedValue(createMockCharacter());
+
+      await handleAvatar(mockContext, mockConfig);
+
+      // Must send the explicit clearAvatar flag — `avatarData: null` is the
+      // dashboard "no change" sentinel and would silently no-op at the gateway.
+      expect(api.updateCharacter).toHaveBeenCalledWith(
+        'my-char',
+        { clearAvatar: true },
+        expect.any(Object),
+        mockConfig
+      );
+      expect(mockContext.editReply).toHaveBeenCalledWith(expect.stringContaining('Avatar removed'));
+    });
+
+    it('does not update when the character is not editable', async () => {
+      const attachment = createMockAttachment();
+      const mockContext = createMockContext('my-char', attachment, 'avatar-clear');
+      vi.mocked(api.fetchCharacter).mockResolvedValue(
+        createMockCharacter({ slug: 'my-char', canEdit: false })
+      );
+
+      await handleAvatar(mockContext, mockConfig);
+
+      expect(api.updateCharacter).not.toHaveBeenCalled();
+      expect(mockContext.editReply).toHaveBeenCalledWith(
+        expect.stringContaining("don't have permission")
       );
     });
   });

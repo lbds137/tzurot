@@ -10,7 +10,6 @@
 
 import { escapeMarkdown } from 'discord.js';
 import { type EnvConfig } from '@tzurot/common-types/config/config';
-import { VOICE_REFERENCE_LIMITS } from '@tzurot/common-types/constants/media';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import {
@@ -20,18 +19,10 @@ import {
 import type { UserClient } from '@tzurot/clients';
 import { clientsFor } from '../../utils/gatewayClients.js';
 import { validateDiscordCdnUrl } from '../../utils/discordCdnGuard.js';
+import { validateAudioAttachment } from './mediaValidation.js';
 import { fetchCharacter, updateCharacter, type FetchedCharacter } from './api.js';
 
 const logger = createLogger('character-voice');
-
-/** Content types accepted for voice reference upload (broader than the server-side
- * ALLOWED_TYPES — we accept any `audio/*` to give a friendlier Discord UX, and
- * let the gateway validate the specific MIME type). */
-const VALID_AUDIO_PREFIX = 'audio/';
-
-/** Max upload size accepted client-side (same as server limit) */
-const MAX_UPLOAD_BYTES = VOICE_REFERENCE_LIMITS.MAX_SIZE;
-const MAX_UPLOAD_MB = MAX_UPLOAD_BYTES / (1024 * 1024);
 
 /**
  * Fetch a character and verify the user has edit permission.
@@ -75,23 +66,11 @@ async function handleVoiceUpload(
   }
   const attachment = interaction.options.getAttachment('audio', true);
   const userId = context.user.id;
-
-  // Validate attachment type — explicit null check + startsWith narrows contentType
-  // to string after the guard. Uses === true to satisfy strict-boolean-expressions.
   const { contentType } = attachment;
-  if (contentType?.startsWith(VALID_AUDIO_PREFIX) !== true) {
-    await context.editReply(
-      `❌ Invalid file type. Please upload an audio file (WAV, MP3, OGG, or FLAC).\n` +
-        `Allowed types: ${VOICE_REFERENCE_LIMITS.ALLOWED_TYPES.join(', ')}`
-    );
-    return;
-  }
 
-  // Validate size
-  if (attachment.size > MAX_UPLOAD_BYTES) {
-    await context.editReply(
-      `❌ Audio file too large. Please upload a file under ${MAX_UPLOAD_MB}MB.`
-    );
+  const validationError = validateAudioAttachment(attachment);
+  if (validationError !== null) {
+    await context.editReply(validationError);
     return;
   }
 
@@ -117,6 +96,14 @@ async function handleVoiceUpload(
     let audioResponse: Response;
     try {
       audioResponse = await fetch(attachment.url, { signal: controller.signal });
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        await context.editReply(
+          '❌ Voice download timed out. Discord may be slow — please try again.'
+        );
+        return;
+      }
+      throw error;
     } finally {
       clearTimeout(timeout);
     }

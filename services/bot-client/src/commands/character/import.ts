@@ -20,12 +20,8 @@ import type { UserClient } from '@tzurot/clients';
 import { clientsFor } from '../../utils/gatewayClients.js';
 import { validateJsonFile, downloadAndParseJson } from '../../utils/jsonFileUtils.js';
 import { validateDiscordCdnUrl } from '../../utils/discordCdnGuard.js';
-import {
-  VALID_IMAGE_TYPES,
-  MAX_INPUT_SIZE_MB,
-  MAX_INPUT_SIZE_BYTES,
-  processAvatarBuffer,
-} from './avatarUtils.js';
+import { processAvatarBuffer } from './avatarUtils.js';
+import { validateImageAttachment, validateAudioAttachment } from './mediaValidation.js';
 import {
   getImportedFieldsList,
   getMissingRequiredFields,
@@ -45,12 +41,6 @@ type AttachmentOption = NonNullable<
   >
 >;
 
-/** Result of avatar processing */
-interface AvatarProcessingResult {
-  success: true;
-  data: string;
-}
-
 /** Import field definitions for building success message */
 const IMPORT_FIELD_DEFS: ImportFieldDef[] = [
   { key: 'characterInfo', label: 'Character Info' },
@@ -65,6 +55,7 @@ const IMPORT_FIELD_DEFS: ImportFieldDef[] = [
   { key: 'conversationalExamples', label: 'Conversational Examples' },
   { key: 'customFields', label: 'Custom Fields' },
   { key: 'avatarData', label: 'Avatar Data' },
+  { key: 'voiceReferenceData', label: 'Voice Reference' },
 ];
 
 // ============================================================================
@@ -107,7 +98,7 @@ function buildTemplateMessage(): string {
     '💡 **Tip:** Use `/character template` to download a template JSON file.\n\n' +
     '**Required fields:** `name`, `slug`, `characterInfo`, `personalityTraits`\n' +
     '**Slug format:** starts with a letter; lowercase letters, numbers, and hyphens (e.g., `my-character`)\n' +
-    '**Avatar:** Upload an image separately using the `avatar` option'
+    '**Avatar & voice:** attach an image to the `image` option and/or a voice reference to the `audio` option'
   );
 }
 
@@ -179,77 +170,74 @@ async function validateAndParseCharacterJsonFile(
 }
 
 /**
- * Validate avatar attachment
+ * Download a Discord CDN attachment with a 30s timeout (matches avatar.ts /
+ * voice.ts — a slow CDN must not hold the deferred interaction open).
  */
-function validateAvatarAttachment(avatar: AttachmentOption): string | null {
-  if (avatar.contentType === null || !VALID_IMAGE_TYPES.includes(avatar.contentType)) {
-    return (
-      '❌ Avatar must be an image file (PNG, JPG, GIF, or WebP).\n' +
-      `Received: ${avatar.contentType ?? 'unknown type'}`
-    );
-  }
-  if (avatar.size > MAX_INPUT_SIZE_BYTES) {
-    return `❌ Avatar image is too large. Maximum size is ${MAX_INPUT_SIZE_MB}MB.`;
-  }
-  return null;
-}
-
-/**
- * Process avatar attachment
- */
-async function processAvatarDownload(
-  avatar: AttachmentOption
-): Promise<AvatarProcessingResult | { error: string }> {
-  // SSRF defense-in-depth: reject non-Discord-CDN URLs before fetching.
-  const cdnGuard = validateDiscordCdnUrl(avatar.url, logger);
-  if (!cdnGuard.ok) {
-    return { error: '❌ Invalid avatar URL.' };
-  }
+async function downloadCdnAttachment(url: string): Promise<Buffer> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 30_000);
   try {
-    const response = await fetch(avatar.url);
+    const response = await fetch(url, { signal: controller.signal });
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`);
     }
-    const rawBuffer = Buffer.from(await response.arrayBuffer());
-    const result = await processAvatarBuffer(rawBuffer, avatar.name ?? 'import-avatar');
-
-    if (!result.success) {
-      return { error: `❌ ${result.message}` };
-    }
-
-    logger.info(
-      {
-        filename: avatar.name,
-        originalSizeKb: (avatar.size / 1024).toFixed(2),
-        finalSizeKb: (result.buffer.length / 1024).toFixed(2),
-        wasResized: result.wasResized,
-      },
-      'Processed avatar image'
-    );
-
-    return { success: true, data: result.buffer.toString('base64') };
-  } catch (error) {
-    logger.error({ err: error }, 'Failed to download avatar');
-    return { error: '❌ Failed to download avatar image. Please try again.' };
+    return Buffer.from(await response.arrayBuffer());
+  } finally {
+    clearTimeout(timeout);
   }
 }
 
 /**
- * Validate and process avatar attachment (combines validation and processing)
+ * Validate + download + process the optional avatar attachment.
+ * Returns base64 (no data-URI prefix — the avatar column stores raw base64).
  */
 async function validateAndProcessAvatar(
   avatar: AttachmentOption
 ): Promise<{ data: string } | { error: string }> {
-  const validationError = validateAvatarAttachment(avatar);
+  const validationError = validateImageAttachment(avatar);
   if (validationError !== null) {
     return { error: validationError };
   }
-
-  const result = await processAvatarDownload(avatar);
-  if ('error' in result) {
-    return { error: result.error };
+  const cdnGuard = validateDiscordCdnUrl(avatar.url, logger);
+  if (!cdnGuard.ok) {
+    return { error: '❌ Invalid attachment URL.' };
   }
-  return { data: result.data };
+  try {
+    const rawBuffer = await downloadCdnAttachment(avatar.url);
+    const result = await processAvatarBuffer(rawBuffer, avatar.name ?? 'import-avatar');
+    if (!result.success) {
+      return { error: `❌ ${result.message}` };
+    }
+    return { data: result.buffer.toString('base64') };
+  } catch (error) {
+    logger.error({ err: error }, 'Failed to download avatar');
+    return { error: '❌ Failed to download the image. Please try again.' };
+  }
+}
+
+/**
+ * Validate + download the optional voice attachment.
+ * Returns a base64 data URI (the voice column stores a data URI, matching the
+ * /character voice upload path).
+ */
+async function validateAndProcessVoice(
+  audio: AttachmentOption
+): Promise<{ data: string } | { error: string }> {
+  const validationError = validateAudioAttachment(audio);
+  if (validationError !== null) {
+    return { error: validationError };
+  }
+  const cdnGuard = validateDiscordCdnUrl(audio.url, logger);
+  if (!cdnGuard.ok) {
+    return { error: '❌ Invalid attachment URL.' };
+  }
+  try {
+    const rawBuffer = await downloadCdnAttachment(audio.url);
+    return { data: `data:${audio.contentType};base64,${rawBuffer.toString('base64')}` };
+  } catch (error) {
+    logger.error({ err: error }, 'Failed to download voice reference');
+    return { error: '❌ Failed to download the audio file. Please try again.' };
+  }
 }
 
 /**
@@ -280,11 +268,17 @@ function validatePayloadFields(payload: Record<string, unknown>): string | null 
 function buildImportPayload(
   data: Record<string, unknown>,
   normalizedSlug: string,
-  avatarData: string | undefined
+  avatarData: string | undefined,
+  voiceReferenceData: string | undefined
 ): Record<string, unknown> {
   const isPublic = typeof data.isPublic === 'boolean' ? data.isPublic : false;
+  // Attachment wins over the JSON field; fall back to the JSON payload's own
+  // embedded data if the user didn't attach one. Same precedence for both media.
   const finalAvatarData =
     avatarData ?? (typeof data.avatarData === 'string' ? data.avatarData : undefined);
+  const finalVoiceData =
+    voiceReferenceData ??
+    (typeof data.voiceReferenceData === 'string' ? data.voiceReferenceData : undefined);
 
   return {
     name: data.name,
@@ -302,6 +296,12 @@ function buildImportPayload(
     conversationalExamples: data.conversationalExamples ?? undefined,
     customFields: data.customFields ?? undefined,
     avatarData: finalAvatarData,
+    voiceReferenceData: finalVoiceData,
+    // Enable voice whenever a reference is present. On CREATE this is stripped
+    // (not in the create schema) and derived from the reference server-side; on
+    // UPDATE (re-import into an existing slug) it's honored — without it, the
+    // re-import would store the reference but leave voice disabled.
+    voiceEnabled: finalVoiceData !== undefined ? true : undefined,
     errorMessage: data.errorMessage ?? undefined,
   };
 }
@@ -413,7 +413,8 @@ export async function handleImport(
 
   try {
     const fileAttachment = options.file();
-    const avatarAttachment = options.avatar();
+    const avatarAttachment = options.image();
+    const voiceAttachment = options.audio();
 
     // Step 1: Validate, download, parse, and validate JSON file
     const parseResult = await validateAndParseCharacterJsonFile(fileAttachment);
@@ -436,8 +437,19 @@ export async function handleImport(
       avatarData = avatarResult.data;
     }
 
+    // Step 3b: Process optional voice reference (auto-enables voice server-side)
+    let voiceReferenceData: string | undefined;
+    if (voiceAttachment) {
+      const voiceResult = await validateAndProcessVoice(voiceAttachment);
+      if ('error' in voiceResult) {
+        await context.editReply(voiceResult.error);
+        return;
+      }
+      voiceReferenceData = voiceResult.data;
+    }
+
     // Step 4: Build payload
-    const payload = buildImportPayload(parseResult.data, slug, avatarData);
+    const payload = buildImportPayload(parseResult.data, slug, avatarData, voiceReferenceData);
 
     // Step 5: Validate field lengths before hitting the API
     const validationError = validatePayloadFields(payload);
