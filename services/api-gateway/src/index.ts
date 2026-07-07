@@ -92,6 +92,7 @@ import {
 
 // Queue
 import { aiQueue, queueEvents, closeQueue } from './queue.js';
+import { createShutdownHandler } from './shutdownHandler.js';
 import {
   initializeDeduplicationCache,
   disposeDeduplicationCache,
@@ -403,57 +404,6 @@ function registerRoutes(
   app.use(notFoundHandler);
 }
 
-/**
- * Create graceful shutdown handler
- */
-function createShutdownHandler(
-  server: ReturnType<Express['listen']>,
-  services: ServicesContext,
-  disposePrisma: () => Promise<void>
-): () => Promise<void> {
-  const {
-    cacheRedis,
-    cacheInvalidationService,
-    cascadeInvalidation,
-    cascadeResolver,
-    dbNotificationListener,
-  } = services;
-
-  // Pure dispose sequence — the re-entry guard, hard-exit backstop, and
-  // terminal exit(0)/exit(1) semantics that prevent the zombie-shutdown-loop
-  // failure mode live in registerProcessLifecycle (common-types), which wraps
-  // this. See the gateway zombie-outage entry in docs/incidents/PROJECT_POSTMORTEMS.md.
-  return async (): Promise<void> => {
-    server.close(err => {
-      if (err !== undefined) {
-        logger.warn({ err }, 'HTTP server close reported an error');
-      } else {
-        logger.info('HTTP server closed');
-      }
-    });
-
-    disposeDeduplicationCache();
-    logger.info('Request deduplication cache disposed');
-
-    await dbNotificationListener.stop();
-    logger.info('Database notification listener stopped');
-
-    await cacheInvalidationService.unsubscribe();
-    await cascadeInvalidation.unsubscribe();
-    cascadeResolver.stopCleanup();
-    cacheRedis.disconnect();
-    logger.info('Cache invalidation services closed');
-
-    await shutdownEmbeddingService();
-    logger.info('Embedding service shut down');
-
-    await closeQueue();
-
-    // dispose() logs 'Prisma client disconnected' itself — no second line here.
-    await disposePrisma();
-  };
-}
-
 // ============================================================================
 // MAIN
 // ============================================================================
@@ -568,7 +518,17 @@ async function main(): Promise<void> {
   // terminal exit semantics.
   registerProcessLifecycle({
     logger,
-    dispose: createShutdownHandler(server, services, disposeAllPrisma),
+    dispose: createShutdownHandler(server, {
+      disposeDeduplicationCache,
+      stopDbNotificationListener: () => services.dbNotificationListener.stop(),
+      unsubscribeCacheInvalidation: () => services.cacheInvalidationService.unsubscribe(),
+      unsubscribeCascadeInvalidation: () => services.cascadeInvalidation.unsubscribe(),
+      stopCascadeResolverCleanup: () => services.cascadeResolver.stopCleanup(),
+      disconnectCacheRedis: () => services.cacheRedis.disconnect(),
+      shutdownEmbeddingService,
+      closeQueue,
+      disposePrisma: disposeAllPrisma,
+    }),
     rejectionPolicy: 'shutdown',
   });
 
