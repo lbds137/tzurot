@@ -8,7 +8,10 @@
 
 import { type StoredReferencedMessage } from '@tzurot/common-types/types/schemas/message';
 import { formatPromptTimestamp } from '@tzurot/common-types/utils/dateFormatting';
-import { escapeXmlContent } from '@tzurot/common-types/utils/promptSanitizer';
+import {
+  escapeXmlContent,
+  neutralizeWrapperClosingTags,
+} from '@tzurot/common-types/utils/promptSanitizer';
 import { capDedupText } from '@tzurot/common-types/utils/referenceEnrichment';
 import { escapeXml } from '@tzurot/common-types/utils/xmlBuilder';
 import { formatQuoteElement, formatDedupedQuote } from '../../services/prompt/QuoteFormatter.js';
@@ -177,7 +180,9 @@ export function formatVoiceSection(msg: RawHistoryEntry): string {
   }
 
   const transcripts = msg.messageMetadata.voiceTranscripts
-    .map(t => `<transcript>${escapeXmlContent(t)}</transcript>`)
+    // voice_transcripts/transcript aren't in PROTECTED_TAGS — neutralize the
+    // wrapper closings so </transcript> in the text can't break out.
+    .map(t => `<transcript>${neutralizeWrapperClosingTags(escapeXmlContent(t))}</transcript>`)
     .join('\n');
   return `\n<voice_transcripts>\n${transcripts}\n</voice_transcripts>`;
 }

@@ -100,7 +100,7 @@ const { mockFormatQuoteElement, mockFormatDedupedQuote } = vi.hoisted(() => {
           from: opts.from,
           role: opts.role,
           timeFormatted: opts.timeFormatted,
-          content: `[Referenced message — full text in <chat_log>]\n\n${opts.content}`,
+          content: `[Referenced message — full text in the chat log]\n\n${opts.content}`,
         });
       }
     );
@@ -322,7 +322,7 @@ describe('xmlMetadataFormatters', () => {
       const historyIds = new Set(['already-in-history']);
       const result = formatQuotedSection(msg, 'user', personalityName, historyIds, undefined);
       expect(result).toContain('<quoted_messages>');
-      expect(result).toContain('[Referenced message — full text in <chat_log>]');
+      expect(result).toContain('[Referenced message — full text in the chat log]');
       expect(result).toContain('Duplicated message that is in history');
       expect(result).toContain('from="User One"');
     });
@@ -406,7 +406,7 @@ describe('xmlMetadataFormatters', () => {
       expect(result).toContain('from="User Two"');
       expect(result).toContain('Not in history');
       // Deduped stub for User One
-      expect(result).toContain('[Referenced message — full text in <chat_log>]');
+      expect(result).toContain('[Referenced message — full text in the chat log]');
       expect(result).toContain('In history');
     });
 

@@ -11,6 +11,7 @@ import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import { type AttachmentMetadata } from '@tzurot/common-types/types/schemas/discord';
 import { type StoredReferencedMessage } from '@tzurot/common-types/types/schemas/message';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { neutralizeWrapperClosingTags } from '@tzurot/common-types/utils/promptSanitizer';
 import type { VisionDescriptionCache } from './VisionDescriptionCache.js';
 import type { ProcessedAttachment } from './MultimodalProcessor.js';
 import type { InlineImageDescription } from '../jobs/utils/conversationUtils.js';
@@ -100,21 +101,6 @@ function formatProcessedAttachmentEntry(a: ProcessedAttachment): string {
     return `${header}\n<voice_transcripts><transcript>${safeTranscript}</transcript></voice_transcripts>`;
   }
   return '';
-}
-
-/**
- * Neutralize literal wrapper-closing-tag sequences in user-supplied transcript
- * text so a transcript that happens to recognize the words "less than slash
- * transcript greater than" can't break out of the wrapper.
- *
- * Replaces with the HTML-entity-escaped form so the LLM reads them as literal
- * text rather than markup. `escapeXmlContent` (called later on the full
- * message content) leaves `&lt;`/`&gt;` alone, so this doesn't double-escape.
- */
-function neutralizeWrapperClosingTags(content: string): string {
-  return content
-    .replace(/<\s*\/\s*transcript\s*>/gi, '&lt;/transcript&gt;')
-    .replace(/<\s*\/\s*voice_transcripts\s*>/gi, '&lt;/voice_transcripts&gt;');
 }
 
 function buildAudioAttachmentHeader(a: ProcessedAttachment): string {
