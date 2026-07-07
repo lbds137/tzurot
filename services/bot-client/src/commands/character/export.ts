@@ -33,6 +33,7 @@ const EXPORT_FIELDS = [
   'slug',
   'displayName',
   'isPublic',
+  'definitionPublic',
   'characterInfo',
   'personalityTraits',
   'personalityTone',
@@ -43,6 +44,9 @@ const EXPORT_FIELDS = [
   'conversationalGoals',
   'conversationalExamples',
   'errorMessage',
+  // Import accepts customFields; omitting it here silently lost the data on
+  // an export → re-import round-trip.
+  'customFields',
 ] as const;
 
 /**

@@ -734,7 +734,25 @@ describe('handleImport', () => {
         expect.objectContaining({
           name: 'Test Character',
           slug: 'test-character',
+          // Absent in the JSON → private internals, the safe default.
+          definitionPublic: false,
         })
+      );
+    });
+
+    it('round-trips definitionPublic: true from the import JSON', async () => {
+      const context = createMockContext();
+      const characterData = createValidCharacterData({ definitionPublic: true });
+      mockFetch.mockResolvedValue({
+        ok: true,
+        text: () => Promise.resolve(JSON.stringify(characterData)),
+      });
+      mockCreateScenario({ ok: true, data: { id: 'new-id' } });
+
+      await handleImport(context, mockConfig);
+
+      expect(stub.createPersonality).toHaveBeenCalledWith(
+        expect.objectContaining({ definitionPublic: true })
       );
     });
 
