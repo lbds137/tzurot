@@ -110,6 +110,11 @@
       "pattern": "DROP INDEX.*idx_memory_facts_embedding",
       "reason": "IVFFlat index on memory_facts.embedding managed outside Prisma (Unsupported vector type)",
       "action": "remove"
+    },
+    {
+      "pattern": "DROP INDEX.*idx_memories_null_embedding",
+      "reason": "Partial index with WHERE clause cannot be represented in Prisma schema (backs NullVectorReembedder sweep)",
+      "action": "remove"
     }
   ],
   "documentation": {
