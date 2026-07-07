@@ -48,6 +48,7 @@ export const PROTECTED_TAGS = [
   // Conversation-history ancestors (a user message must not forge these)
   'prior_conversations',
   'channel_history',
+  'current_conversation',
   'reactions',
   // Message / quote boundaries (one user must not forge another's structure)
   'message',
