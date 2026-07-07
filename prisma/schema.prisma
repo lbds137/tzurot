@@ -317,6 +317,14 @@ model Personality {
   birthDay               Int?    @map("birth_day")
   birthYear              Int?    @map("birth_year")
   isPublic               Boolean @default(true) @map("is_public")
+  /// When false (default), the character card fields (characterInfo,
+  /// personalityTraits, tone/age/appearance/likes/dislikes, conversational
+  /// goals/examples, errorMessage, customFields) are redacted to null for
+  /// non-owners on the GET personality route; owner and bot-admin always see
+  /// them. Gates definition visibility independently of `isPublic` (a public
+  /// character can keep private internals). Never reverts to a prior value on
+  /// its own — owner-controlled via the /character edit dashboard.
+  definitionPublic       Boolean @default(false) @map("definition_public")
   voiceEnabled           Boolean @default(false) @map("voice_enabled")
   voiceSettings          Json?   @map("voice_settings")
   imageEnabled           Boolean @default(false) @map("image_enabled")
