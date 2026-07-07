@@ -66,7 +66,9 @@ export interface PersonalityResponse extends Omit<PersonalityCharacterFields, Re
   ownerId: string;
   hasAvatar: boolean;
   hasVoiceReference: boolean;
-  customFields: unknown;
+  // Matches PersonalityFullSchema's declared shape — the create/update
+  // schemas only ever store records in the Json? column.
+  customFields: Record<string, unknown> | null;
   systemPromptId: string | null;
   voiceSettings: unknown;
   imageSettings: unknown;
@@ -117,7 +119,9 @@ export function formatPersonalityResponse(
     // voiceReferenceType (not voiceReferenceData) is the proxy — PERSONALITY_DETAIL_SELECT
     // excludes the blob column to avoid loading up to 10MB into memory on every query.
     hasVoiceReference: personality.voiceReferenceType !== null,
-    customFields: personality.customFields,
+    // Prisma types Json? as JsonValue; the create/update schemas only ever
+    // accept records, so the stored value is a record (or null) by invariant.
+    customFields: (personality.customFields ?? null) as Record<string, unknown> | null,
     systemPromptId: personality.systemPromptId,
     voiceSettings: personality.voiceSettings,
     imageSettings: personality.imageSettings,

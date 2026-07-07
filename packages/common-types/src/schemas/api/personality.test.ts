@@ -623,6 +623,7 @@ describe('Personality API Contract Tests', () => {
       ownerId: '44444444-4444-5444-8444-444444444444',
       hasAvatar: true,
       hasVoiceReference: false,
+      customFields: null,
       createdAt: '2025-01-15T12:00:00.000Z',
       updatedAt: '2025-01-20T15:30:00.000Z',
     };
@@ -699,6 +700,7 @@ describe('Personality API Contract Tests', () => {
       ownerId: '44444444-4444-5444-8444-444444444444',
       hasAvatar: false,
       hasVoiceReference: false,
+      customFields: null,
       createdAt: '2025-01-15T12:00:00.000Z',
       updatedAt: '2025-01-15T12:00:00.000Z',
     };
@@ -743,6 +745,7 @@ describe('Personality API Contract Tests', () => {
       ownerId: '44444444-4444-5444-8444-444444444444',
       hasAvatar: false,
       hasVoiceReference: false,
+      customFields: null,
       createdAt: '2025-01-15T12:00:00.000Z',
       updatedAt: '2025-01-15T12:00:00.000Z',
     };
@@ -751,6 +754,22 @@ describe('Personality API Contract Tests', () => {
       const data = { personality: validFull, canEdit: true };
       const result = GetPersonalityResponseSchema.safeParse(data);
       expect(result.success).toBe(true);
+    });
+
+    it('parse KEEPS customFields (typed clients strip undeclared keys)', () => {
+      // The typed client returns validation.data — Zod's default strip mode
+      // silently drops any key not declared on the schema. customFields was
+      // undeclared once, so the gateway sent it and every client threw it
+      // away (breaking the export round-trip). This pins the declaration.
+      const data = {
+        personality: { ...validFull, customFields: { lore: 'deep', tags: ['a'] } },
+        canEdit: true,
+      };
+      const result = GetPersonalityResponseSchema.safeParse(data);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.personality.customFields).toEqual({ lore: 'deep', tags: ['a'] });
+      }
     });
 
     it('should reject missing canEdit', () => {

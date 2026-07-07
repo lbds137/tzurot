@@ -50,6 +50,7 @@ function createBasePersonality(overrides?: Partial<PersonalityFull>): Personalit
     ownerId: DEFAULT_OWNER_ID,
     hasAvatar: false,
     hasVoiceReference: false,
+    customFields: null,
     createdAt: now,
     updatedAt: now,
     ...overrides,
