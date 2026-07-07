@@ -170,6 +170,21 @@ describe('isTransientError', () => {
 });
 
 describe('formatErrorSpoiler', () => {
+  it('omits a whitespace-only technical message entirely (no-detail form)', () => {
+    const result = formatErrorSpoiler(ApiErrorCategory.TIMEOUT, 'ref001', '   \n\n  ');
+    expect(result).toBe('||*(error: timeout; ref: ref001)*||');
+  });
+
+  it('trims trailing/leading whitespace from the technical message (provider errors end with newlines)', () => {
+    const result = formatErrorSpoiler(
+      ApiErrorCategory.RATE_LIMIT,
+      'mref12345',
+      '429 Provider returned error\n\nTroubleshooting URL: https://example.com/docs\n'
+    );
+    expect(result).not.toContain('\n"'); // the closing quote hugs the text
+    expect(result.endsWith('; ref: mref12345)*||')).toBe(true);
+  });
+
   it('should format category and reference ID in spoiler tags', () => {
     const result = formatErrorSpoiler(ApiErrorCategory.QUOTA_EXCEEDED, 'abc123');
     expect(result).toBe('||*(error: quota exceeded; ref: abc123)*||');
