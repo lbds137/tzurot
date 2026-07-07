@@ -475,6 +475,26 @@ export const llmGenerationJobDataSchema = baseJobDataSchema.extend({
 });
 
 /**
+ * Fact Extraction Job Data Schema (memory Phase 2)
+ * SINGLE SOURCE OF TRUTH for fact-extraction job payloads.
+ *
+ * The worker reads episode content by sourceMemoryIds from THIS payload — never
+ * from the Redis pending-list, which is cleared at enqueue time. windowStart is
+ * the first pending episode id and anchors the deterministic jobId.
+ */
+export const factExtractionJobDataSchema = baseJobDataSchema.extend({
+  jobType: z.literal(JobType.FactExtraction),
+  channelId: z.string(),
+  personalityId: z.string().uuid(),
+  /** Episode Memory.ids to extract facts from (the batch window). */
+  sourceMemoryIds: z.array(z.string().uuid()).min(1),
+  /** First pending episode id — the deterministic-jobId anchor, for traceability. */
+  windowStart: z.string().uuid(),
+});
+
+export type FactExtractionJobData = z.infer<typeof factExtractionJobDataSchema>;
+
+/**
  * Union schema for all job data types
  * Used for generic job validation
  */
@@ -482,4 +502,5 @@ export const anyJobDataSchema = z.discriminatedUnion('jobType', [
   audioTranscriptionJobDataSchema,
   imageDescriptionJobDataSchema,
   llmGenerationJobDataSchema,
+  factExtractionJobDataSchema,
 ]);
