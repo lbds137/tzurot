@@ -235,7 +235,52 @@ describe('runWithQuotaFallback', () => {
     );
   });
 
-  it('z.ai-promoted personality without an OpenRouter key: terminal (never paid default on system key)', async () => {
+  it('z.ai-promoted personality without an OpenRouter key: degrades to the FREE default on the system key', async () => {
+    // Degraded-beats-failed (owner policy): the paid retarget can't ride the
+    // system key, but the FREE default can — the turn must still work.
+    // (Previously terminal; that expectation left z.ai-only users with a
+    // failed request instead of a degraded one.)
+    const original = quotaError(ApiErrorCategory.QUOTA_EXCEEDED);
+    const primary = vi.fn().mockRejectedValue(original);
+    const retry = vi.fn().mockResolvedValue({
+      response: { content: 'rescued' },
+      duplicateRetries: 0,
+      emptyRetries: 0,
+      leakedThinkingRetries: 0,
+    });
+
+    const result = await runWithQuotaFallback({
+      primary,
+      retry,
+      opts: buildOpts({
+        personality: {
+          id: 'p1',
+          name: 'Testy',
+          model: 'glm-5.2',
+          provider: 'zai-coding',
+        } as unknown as GenerateAttemptOpts['personality'],
+        apiKey: 'sk-zai-key',
+      }),
+      userId: '123',
+      deps: buildDeps({
+        global: { model: 'paid/default' },
+        free: { model: 'free/default' },
+        systemKey: 'sk-system-key',
+        userOpenRouterKey: undefined,
+      }),
+    });
+
+    expect(retry).toHaveBeenCalledWith(
+      expect.objectContaining({
+        apiKey: 'sk-system-key',
+        isGuestMode: true,
+        personality: expect.objectContaining({ model: 'free/default' }),
+      })
+    );
+    expect(result.quotaFallback?.toModel).toBe('free/default');
+  });
+
+  it('z.ai-promoted personality without OpenRouter key AND no system key: terminal', async () => {
     const original = quotaError(ApiErrorCategory.QUOTA_EXCEEDED);
     const primary = vi.fn().mockRejectedValue(original);
     const retry = vi.fn();
@@ -254,7 +299,12 @@ describe('runWithQuotaFallback', () => {
           apiKey: 'sk-zai-key',
         }),
         userId: '123',
-        deps: buildDeps({ global: { model: 'paid/default' }, userOpenRouterKey: undefined }),
+        deps: buildDeps({
+          global: { model: 'paid/default' },
+          free: { model: 'free/default' },
+          systemKey: undefined,
+          userOpenRouterKey: undefined,
+        }),
       })
     ).rejects.toBe(original);
     expect(retry).not.toHaveBeenCalled();
