@@ -1,15 +1,13 @@
 # Current
 
-> **Version**: v3.0.0-beta.151 (released 2026-07-06 — the THIRD release of the day) — **zero migrations, merge-and-deploy**. The consolidation release, cut deliberately small to keep the release-review second look effective: **quota-swap ERROR-footer fix-forward** (#1511 — beta.150's one review finding), **five CPD consolidations** (#1517–#1521 — CloneCacheKernel, cascade-override helpers, autocomplete guard, character-dashboard flow, truncation EntitySectionAdapter; all behavior-pinned by unchanged suites), **five-package Stryker mutation ratchet** (#1512–#1516). Release review: "No changes requested" (independently re-traced CloneCacheKernel's three success paths + the adapter's context subtlety). TWO THEMES CLOSED TODAY: deterministic-test-quality + adjacent-CPD. _Prior: v3.0.0-beta.150 + v3.0.0-beta.149 (both 2026-07-06)._
+> **Version**: v3.0.0-beta.152 (released 2026-07-07) — **memory_facts premigrated** (additive; the ALTER-on-same-migration-table destructive flag was a detector false positive, overridden with express owner permission). The fallback-chain release: **memory starvation fix** (#1530, joint allocation), **z.ai demotion tier** (#1531 — doomed promotions retry same-model via OpenRouter before the global default) + **owner-cost guard** + **degraded-beats-failed free-default downgrade** (#1533), memory Phase 2 shadow foundation (#1527–#1529, prod-inert: flag absent), RouteDeps type-flip (#1523). Release review: "Nothing found that should block" — one finding (revival valid_from) folded into the FactStore follow-up row. _Prior: beta.151/150/149 (all 2026-07-06 — FOUR releases in ~30 hours)._
 
 ---
 
 ## Unreleased on Develop
 
-- **Memory Phase 2 slices 1+2 SHIPPED** (#1527 schema/types, #1528 extraction worker, #1529 fence fix + eval baseline): `memory_facts` table live on dev; extraction worker in shadow mode with `EXTRACTION_ENABLED=true` on dev ai-worker (facts written, nothing reads them). Eval baseline: recall 1.0 / supersession 1.0 / precision 0.672 (over-extraction — shadow-window tuning target; 95% gate guards slice 4). Next slices: 3 (`/memory correct|forget`) then 4 (retrieval, eval-gated).
-- **RouteDeps type-flip** (#1523, closed config-cascade Phase 0), **index-with-query rule** (#1524, DB-audit Phase 1), **working-posture rule** (#1525) + **handoff-audit round 2** (#1526).
-- **External Fable review brief INTAKEN** (8 items + riders filed): item 7 (memory starvation, MANIFESTING) in Production Issues — NEXT UP as a scoped fix before slice 3; item 1 (fair-share quota) in Quick Wins with ASK-first questions; items 4+5 promoted past triggers (veto reverts).
 - **Memory Phase 1a remains PARKED** on `feat/memory-hybrid-retrieval` (evidence gate: real-scale goldens).
+- _(nothing else — beta.152 flushed the queue)_
 
 ## Next Session Goal
 
