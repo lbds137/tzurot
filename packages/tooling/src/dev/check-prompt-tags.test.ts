@@ -5,10 +5,10 @@ import { PROTECTED_TAGS } from '@tzurot/common-types/utils/promptSanitizer';
 import {
   extractStructuralTags,
   stripComments,
-  isPromptAssemblyFile,
   analyzePromptTags,
   collectEmittedTags,
   KNOWN_UNPROTECTED_TAGS,
+  KNOWN_NON_PROMPT_TAGS,
 } from './check-prompt-tags.js';
 
 // packages/tooling/src/dev/ → repo root is four levels up.
@@ -74,21 +74,22 @@ describe('check-prompt-tags', () => {
     });
   });
 
-  describe('isPromptAssemblyFile', () => {
-    it('is true for files importing an XML escaper, false otherwise', () => {
-      expect(isPromptAssemblyFile("import { escapeXmlContent } from '...';")).toBe(true);
-      expect(isPromptAssemblyFile("import { escapeXml } from '...';")).toBe(true);
-      expect(isPromptAssemblyFile("import { neutralizeWrapperClosingTags } from '...';")).toBe(
-        true
-      );
-      expect(isPromptAssemblyFile("import { foo } from '...';")).toBe(false);
-    });
-  });
-
-  describe('KNOWN_UNPROTECTED_TAGS registry', () => {
-    it('every entry has a non-empty reason', () => {
+  describe('classification registries', () => {
+    it('every KNOWN_UNPROTECTED_TAGS entry has a non-empty reason', () => {
       for (const [tag, reason] of Object.entries(KNOWN_UNPROTECTED_TAGS)) {
         expect(reason.length, `${tag} needs a reason`).toBeGreaterThan(0);
+      }
+    });
+
+    it('every KNOWN_NON_PROMPT_TAGS entry has a non-empty reason', () => {
+      for (const [tag, reason] of Object.entries(KNOWN_NON_PROMPT_TAGS)) {
+        expect(reason.length, `${tag} needs a reason`).toBeGreaterThan(0);
+      }
+    });
+
+    it('the two registries are disjoint (a tag is a prompt tag OR not, never both)', () => {
+      for (const tag of Object.keys(KNOWN_NON_PROMPT_TAGS)) {
+        expect(tag in KNOWN_UNPROTECTED_TAGS, `${tag} is in both registries`).toBe(false);
       }
     });
   });
@@ -120,6 +121,13 @@ describe('check-prompt-tags', () => {
       for (const tag of ['attachments', 'quote', 'chat_log', 'server', 'channel']) {
         expect(emitted.has(tag), `extractor must discover <${tag}>`).toBe(true);
       }
+    });
+
+    it('discovers a tag in an escaper-import-less file (the widened-scan guarantee)', () => {
+      // <current_conversation> is emitted by ContextWindowManager.ts, which does
+      // NOT import an XML escaper — the import-gated scan was blind to it. This
+      // pins that the scan is now unconditional (its whole reason for existing).
+      expect(collectEmittedTags(REPO_ROOT).has('current_conversation')).toBe(true);
     });
   });
 });
