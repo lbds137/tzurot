@@ -109,6 +109,7 @@ describe('GET /user/personality/:slug', () => {
       birthDay: null,
       birthYear: null,
       isPublic: true,
+      definitionPublic: false,
       voiceEnabled: false,
       imageEnabled: false,
       ownerId: 'other-user',
@@ -128,6 +129,8 @@ describe('GET /user/personality/:slug', () => {
     await handler(req, res);
 
     expect(res.status).toHaveBeenCalledWith(200);
+    // Non-owner of a definition-private public character: metadata visible,
+    // card redacted to null, definitionRedacted true.
     expect(res.json).toHaveBeenCalledWith(
       expect.objectContaining({
         personality: expect.objectContaining({
@@ -135,6 +138,60 @@ describe('GET /user/personality/:slug', () => {
           name: 'Public Character',
           slug: 'public-char',
           hasAvatar: false,
+          characterInfo: null,
+          personalityTraits: null,
+          definitionRedacted: true,
+        }),
+        canEdit: false,
+      })
+    );
+  });
+
+  it('does NOT redact a definition-public character for a non-owner', async () => {
+    mockPrisma.personality.findUnique.mockResolvedValue({
+      id: 'personality-4b',
+      name: 'Open Character',
+      displayName: 'Openy',
+      slug: 'open-char',
+      characterInfo: 'Visible to all',
+      personalityTraits: 'Transparent',
+      personalityTone: null,
+      personalityAge: null,
+      personalityAppearance: null,
+      personalityLikes: null,
+      personalityDislikes: null,
+      conversationalGoals: null,
+      conversationalExamples: null,
+      errorMessage: null,
+      birthMonth: null,
+      birthDay: null,
+      birthYear: null,
+      isPublic: true,
+      definitionPublic: true,
+      voiceEnabled: false,
+      imageEnabled: false,
+      ownerId: 'other-user',
+      avatarData: null,
+      voiceReferenceType: null,
+      createdAt: new Date('2024-01-01'),
+      updatedAt: new Date('2024-01-02'),
+    });
+
+    const router = createPersonalityRoutes({
+      ...stubRouteResolvers(),
+      prisma: mockPrisma as unknown as PrismaClient,
+    });
+    const handler = getHandler(router, 'get', '/:slug');
+    const { req, res } = createMockReqRes({}, { slug: 'open-char' });
+
+    await handler(req, res);
+
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        personality: expect.objectContaining({
+          characterInfo: 'Visible to all',
+          personalityTraits: 'Transparent',
+          definitionRedacted: false,
         }),
         canEdit: false,
       })
@@ -161,6 +218,7 @@ describe('GET /user/personality/:slug', () => {
       birthDay: null,
       birthYear: null,
       isPublic: false,
+      definitionPublic: false,
       voiceEnabled: false,
       imageEnabled: false,
       ownerId: MOCK_USER_ID,
@@ -180,11 +238,14 @@ describe('GET /user/personality/:slug', () => {
     await handler(req, res);
 
     expect(res.status).toHaveBeenCalledWith(200);
+    // Owner (canEdit) always sees the full card even when definitionPublic=false.
     expect(res.json).toHaveBeenCalledWith(
       expect.objectContaining({
         personality: expect.objectContaining({
           id: 'personality-5',
           hasAvatar: true,
+          characterInfo: 'My character info',
+          definitionRedacted: false,
         }),
         canEdit: true,
       })

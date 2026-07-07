@@ -193,6 +193,7 @@ CREATE TABLE "personalities" (
     "birth_day" INTEGER,
     "birth_year" INTEGER,
     "is_public" BOOLEAN NOT NULL DEFAULT true,
+    "definition_public" BOOLEAN NOT NULL DEFAULT false,
     "voice_enabled" BOOLEAN NOT NULL DEFAULT false,
     "voice_settings" JSONB,
     "image_enabled" BOOLEAN NOT NULL DEFAULT false,

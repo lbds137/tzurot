@@ -195,6 +195,32 @@ describe('PUT /user/personality/:slug (update)', () => {
     expect(GetPersonalityResponseSchema.safeParse(sentBody).success).toBe(true);
   });
 
+  it('forwards definitionPublic to the Prisma update payload', async () => {
+    mockPrisma.personality.findUnique.mockResolvedValue({
+      id: '7e570000-0000-4000-8000-000000000009',
+      ownerId: MOCK_USER_ID,
+    });
+    mockPrisma.personality.update.mockResolvedValue(
+      createMockPersonality({ id: '7e570000-0000-4000-8000-000000000009', definitionPublic: true })
+    );
+
+    const router = createPersonalityRoutes({
+      ...stubRouteResolvers(),
+      prisma: mockPrisma as unknown as PrismaClient,
+    });
+    const handler = getHandler(router, 'put', '/:slug');
+    const { req, res } = createMockReqRes({ definitionPublic: true }, { slug: 'my-char' });
+
+    await handler(req, res);
+
+    expect(mockPrisma.personality.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ definitionPublic: true }),
+      })
+    );
+    expect(res.status).toHaveBeenCalledWith(200);
+  });
+
   it('should allow update via PersonalityOwner table', async () => {
     mockPrisma.personality.findUnique.mockResolvedValue({
       id: '7e570000-0000-4000-8000-000000000008',

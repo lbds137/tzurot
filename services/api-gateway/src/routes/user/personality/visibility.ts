@@ -78,7 +78,8 @@ export const handleSetPersonalityVisibility = (deps: RouteDeps): RequestHandler 
     // The schema argument pins the payload to the declared contract at
     // compile time.
     sendContractSuccess(res, GetPersonalityResponseSchema, {
-      personality: formatPersonalityResponse(updated),
+      // Owner-only route (toggling one's own visibility) — never redact.
+      personality: formatPersonalityResponse(updated, { redact: false }),
       canEdit: true,
     });
   });
