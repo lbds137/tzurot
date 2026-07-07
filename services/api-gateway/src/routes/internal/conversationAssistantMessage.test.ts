@@ -9,6 +9,7 @@ import { MessageRole } from '@tzurot/common-types/constants/message';
 import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import { generateConversationHistoryUuid } from '@tzurot/common-types/utils/deterministicUuid';
 import { handlePersistAssistantMessage } from './conversationAssistantMessage.js';
+import { stubRouteResolvers } from '../../test/shared-route-test-utils.js';
 
 const { mockLogger } = vi.hoisted(() => ({
   mockLogger: { info: vi.fn(), debug: vi.fn(), warn: vi.fn(), error: vi.fn() },
@@ -63,7 +64,10 @@ describe('POST /internal/conversation/assistant-message', () => {
     app.use(express.json());
     app.post(
       '/internal/conversation/assistant-message',
-      handlePersistAssistantMessage({ prisma: mockPrisma as unknown as PrismaClient })
+      handlePersistAssistantMessage({
+        ...stubRouteResolvers(),
+        prisma: mockPrisma as unknown as PrismaClient,
+      })
     );
   });
 
@@ -196,6 +200,7 @@ describe('POST /internal/conversation/assistant-message', () => {
     fastApp.post(
       '/internal/conversation/assistant-message',
       handlePersistAssistantMessage({
+        ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
         fastPrisma: fast as unknown as PrismaClient,
       })

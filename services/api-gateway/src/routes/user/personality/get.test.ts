@@ -39,6 +39,7 @@ vi.mock('../../../utils/asyncHandler.js', () => ({
 }));
 
 import { createPersonalityRoutes } from './index.js';
+import { stubRouteResolvers } from '../../../test/shared-route-test-utils.js';
 
 describe('GET /user/personality/:slug', () => {
   const mockPrisma = createMockPrisma();
@@ -51,7 +52,10 @@ describe('GET /user/personality/:slug', () => {
   it('should return 404 when personality not found', async () => {
     mockPrisma.personality.findUnique.mockResolvedValue(null);
 
-    const router = createPersonalityRoutes({ prisma: mockPrisma as unknown as PrismaClient });
+    const router = createPersonalityRoutes({
+      ...stubRouteResolvers(),
+      prisma: mockPrisma as unknown as PrismaClient,
+    });
     const handler = getHandler(router, 'get', '/:slug');
     const { req, res } = createMockReqRes({}, { slug: 'nonexistent' });
 
@@ -73,7 +77,10 @@ describe('GET /user/personality/:slug', () => {
       updatedAt: new Date(),
     });
 
-    const router = createPersonalityRoutes({ prisma: mockPrisma as unknown as PrismaClient });
+    const router = createPersonalityRoutes({
+      ...stubRouteResolvers(),
+      prisma: mockPrisma as unknown as PrismaClient,
+    });
     const handler = getHandler(router, 'get', '/:slug');
     const { req, res } = createMockReqRes({}, { slug: 'private-char' });
 
@@ -111,7 +118,10 @@ describe('GET /user/personality/:slug', () => {
       updatedAt: new Date('2024-01-02'),
     });
 
-    const router = createPersonalityRoutes({ prisma: mockPrisma as unknown as PrismaClient });
+    const router = createPersonalityRoutes({
+      ...stubRouteResolvers(),
+      prisma: mockPrisma as unknown as PrismaClient,
+    });
     const handler = getHandler(router, 'get', '/:slug');
     const { req, res } = createMockReqRes({}, { slug: 'public-char' });
 
@@ -160,7 +170,10 @@ describe('GET /user/personality/:slug', () => {
       updatedAt: new Date('2024-01-02'),
     });
 
-    const router = createPersonalityRoutes({ prisma: mockPrisma as unknown as PrismaClient });
+    const router = createPersonalityRoutes({
+      ...stubRouteResolvers(),
+      prisma: mockPrisma as unknown as PrismaClient,
+    });
     const handler = getHandler(router, 'get', '/:slug');
     const { req, res } = createMockReqRes({}, { slug: 'my-char' });
 

@@ -82,7 +82,7 @@ describe('LLM Config Resolution Integration', () => {
     app.use(express.json());
 
     // Mount LLM config routes (auth is mocked above). Resolvers are runtime-
-    // required at mount (requireDep) — real instances over the PGLite prisma,
+    // required on RouteDeps (compile-enforced) — real instances over the PGLite prisma,
     // cleanup timers off.
     const router = createLlmConfigRoutes({
       prisma,

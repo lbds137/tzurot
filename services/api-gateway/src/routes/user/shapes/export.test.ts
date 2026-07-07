@@ -33,6 +33,7 @@ vi.mock('../../../utils/asyncHandler.js', () => ({
 
 import { handleStartShapesExport, handleListShapesExportJobs } from './export.js';
 import type { PrismaClient } from '@tzurot/common-types/services/prisma';
+import { stubRouteResolvers } from '../../../test/shared-route-test-utils.js';
 
 /** Mocks for exportJob operations inside $transaction */
 const mockTxExportJob = {
@@ -105,6 +106,7 @@ describe('Shapes Export Routes', () => {
     async function callExportHandler(body: Record<string, unknown>) {
       const { req, res } = createMockReqRes(body);
       const handler = handleStartShapesExport({
+        ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
         aiQueue: mockQueue as never,
       });
@@ -196,6 +198,7 @@ describe('Shapes Export Routes', () => {
     async function callListHandler(query: Record<string, string> = {}) {
       const { req, res } = createMockReqRes({}, query);
       const handler = handleListShapesExportJobs({
+        ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
         aiQueue: mockQueue as never,
       });
@@ -267,7 +270,10 @@ describe('Shapes Export Routes', () => {
 
   describe('aiQueue-missing 503 guard (handler factory)', () => {
     it('handleStartShapesExport returns 503 when aiQueue is undefined', async () => {
-      const handler = handleStartShapesExport({ prisma: mockPrisma as unknown as PrismaClient });
+      const handler = handleStartShapesExport({
+        ...stubRouteResolvers(),
+        prisma: mockPrisma as unknown as PrismaClient,
+      });
       const { req, res } = createMockReqRes({ sourceSlug: 'test-shape', format: 'json' });
 
       await handler(req as unknown as Request, res, vi.fn());

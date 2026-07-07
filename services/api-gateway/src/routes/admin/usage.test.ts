@@ -8,6 +8,7 @@ import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 import express from 'express';
 import request from 'supertest';
 import { getAllRoutes } from '../../test/expressRouterUtils.js';
+import { stubRouteResolvers } from '../../test/shared-route-test-utils.js';
 
 // Mock logger
 vi.mock('@tzurot/common-types/utils/logger', async () => {
@@ -37,7 +38,10 @@ describe('Admin Usage Routes', () => {
   describe('middleware composition', () => {
     it('wires requireOwnerAuth on every route', () => {
       const routes = getAllRoutes(
-        createAdminUsageRoutes({ prisma: {} as unknown as PrismaClient })
+        createAdminUsageRoutes({
+          prisma: {} as unknown as PrismaClient,
+          ...stubRouteResolvers(),
+        })
       );
       expect(routes.length, 'expected at least one registered route').toBeGreaterThan(0);
       for (const route of routes) {
@@ -74,7 +78,10 @@ describe('Admin Usage Routes', () => {
     app.use(express.json());
     app.use(
       '/admin/usage',
-      createAdminUsageRoutes({ prisma: mockPrisma as unknown as PrismaClient })
+      createAdminUsageRoutes({
+        ...stubRouteResolvers(),
+        prisma: mockPrisma as unknown as PrismaClient,
+      })
     );
   });
 

@@ -46,6 +46,7 @@ vi.mock('../../services/EmbeddingService.js', () => ({
 import { handleSearch } from './memorySearch.js';
 import { getDefaultPersonaId } from './memoryHelpers.js';
 import { resolveProvisionedUserId } from '../../utils/resolveProvisionedUserId.js';
+import { stubRouteResolvers } from '../../test/shared-route-test-utils.js';
 import {
   isEmbeddingServiceAvailable,
   generateEmbedding,
@@ -69,7 +70,7 @@ const mockPrisma = {
 } as unknown as PrismaClient;
 
 function deps(): RouteDeps {
-  return { prisma: mockPrisma };
+  return { prisma: mockPrisma, ...stubRouteResolvers() };
 }
 
 function createMockReq(body: Record<string, unknown> = {}): ProvisionedRequest {

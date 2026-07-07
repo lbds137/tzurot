@@ -8,6 +8,7 @@ import request from 'supertest';
 import { handleAiGenerate } from './generate.js';
 import { JobStatus } from '@tzurot/common-types/constants/queue';
 import type { RouteDeps } from '../routeDeps.js';
+import { stubRouteResolvers } from '../../test/shared-route-test-utils.js';
 
 // Mock dependencies
 vi.mock('../../utils/deduplicationCache.js', () => ({
@@ -33,7 +34,7 @@ describe('POST /generate', () => {
     // empty stub it's undefined, so createJobChain (mocked here) is invoked with
     // no resolver and falls back to the seed personality — exercising the
     // back-compat path. `{} as unknown as RouteDeps` is clearer than `as never`.
-    app.post('/generate', handleAiGenerate({} as unknown as RouteDeps));
+    app.post('/generate', handleAiGenerate({ ...stubRouteResolvers() } as unknown as RouteDeps));
   });
 
   it('should create a job and return 202 Accepted', async () => {

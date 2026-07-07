@@ -7,6 +7,7 @@ import express, { type Express } from 'express';
 import request from 'supertest';
 import { createDenylistRoutes } from './denylist.js';
 import { getAllRoutes } from '../../test/expressRouterUtils.js';
+import { stubRouteResolvers } from '../../test/shared-route-test-utils.js';
 
 // Mock AuthMiddleware
 vi.mock('../../services/AuthMiddleware.js', () => ({
@@ -65,6 +66,7 @@ describe('Denylist Admin Routes', () => {
       // route stack (asyncHandler only), while every other route has at
       // least two (auth + business logic, plus optional rate limiter).
       const router = createDenylistRoutes({
+        ...stubRouteResolvers(),
         prisma: createMockPrisma() as never,
         denylistInvalidation: createMockDenylistInvalidation() as never,
       });
@@ -97,6 +99,7 @@ describe('Denylist Admin Routes', () => {
     app.use(
       '/admin/denylist',
       createDenylistRoutes({
+        ...stubRouteResolvers(),
         prisma: mockPrisma as never,
         denylistInvalidation: mockInvalidation as never,
       })

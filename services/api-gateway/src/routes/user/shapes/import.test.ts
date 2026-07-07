@@ -33,6 +33,7 @@ vi.mock('../../../utils/asyncHandler.js', () => ({
 
 import { handleStartShapesImport, handleListShapesImportJobs } from './import.js';
 import type { PrismaClient } from '@tzurot/common-types/services/prisma';
+import { stubRouteResolvers } from '../../../test/shared-route-test-utils.js';
 
 // Mock Prisma
 const mockPrisma = {
@@ -97,6 +98,7 @@ describe('Shapes Import Routes', () => {
     async function callImportHandler(body: Record<string, unknown>) {
       const { req, res } = createMockReqRes(body);
       const handler = handleStartShapesImport({
+        ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
         aiQueue: mockQueue as never,
       });
@@ -189,6 +191,7 @@ describe('Shapes Import Routes', () => {
     async function callListHandler(query: Record<string, string> = {}) {
       const { req, res } = createMockReqRes({}, query);
       const handler = handleListShapesImportJobs({
+        ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
         aiQueue: mockQueue as never,
       });
@@ -257,7 +260,10 @@ describe('Shapes Import Routes', () => {
 
   describe('aiQueue-missing 503 guard (handler factory)', () => {
     it('handleStartShapesImport returns 503 when aiQueue is undefined', async () => {
-      const handler = handleStartShapesImport({ prisma: mockPrisma as unknown as PrismaClient });
+      const handler = handleStartShapesImport({
+        ...stubRouteResolvers(),
+        prisma: mockPrisma as unknown as PrismaClient,
+      });
       const { req, res } = createMockReqRes({ sourceSlug: 'test-shape', importType: 'full' });
 
       await handler(req as unknown as Request, res, vi.fn());

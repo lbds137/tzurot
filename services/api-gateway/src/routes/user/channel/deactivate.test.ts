@@ -45,6 +45,7 @@ vi.mock('../../../utils/asyncHandler.js', () => ({
 }));
 
 import { createChannelRoutes } from './index.js';
+import { stubRouteResolvers } from '../../../test/shared-route-test-utils.js';
 
 describe('DELETE /user/channel/deactivate', () => {
   const mockPrisma = createMockPrisma();
@@ -58,7 +59,10 @@ describe('DELETE /user/channel/deactivate', () => {
     const existingSettings = createMockActivation();
     mockPrisma.channelSettings.findUnique.mockResolvedValue(existingSettings);
 
-    const router = createChannelRoutes({ prisma: mockPrisma as unknown as PrismaClient });
+    const router = createChannelRoutes({
+      ...stubRouteResolvers(),
+      prisma: mockPrisma as unknown as PrismaClient,
+    });
     const handler = getHandler(router, 'delete', '/deactivate');
     const { req, res } = createMockReqRes({
       channelId: MOCK_DISCORD_USER_ID,
@@ -83,7 +87,10 @@ describe('DELETE /user/channel/deactivate', () => {
   it('should return deactivated=false when no settings exist', async () => {
     mockPrisma.channelSettings.findUnique.mockResolvedValue(null);
 
-    const router = createChannelRoutes({ prisma: mockPrisma as unknown as PrismaClient });
+    const router = createChannelRoutes({
+      ...stubRouteResolvers(),
+      prisma: mockPrisma as unknown as PrismaClient,
+    });
     const handler = getHandler(router, 'delete', '/deactivate');
     const { req, res } = createMockReqRes({
       channelId: MOCK_DISCORD_USER_ID,
@@ -100,7 +107,10 @@ describe('DELETE /user/channel/deactivate', () => {
   });
 
   it('should reject invalid request body', async () => {
-    const router = createChannelRoutes({ prisma: mockPrisma as unknown as PrismaClient });
+    const router = createChannelRoutes({
+      ...stubRouteResolvers(),
+      prisma: mockPrisma as unknown as PrismaClient,
+    });
     const handler = getHandler(router, 'delete', '/deactivate');
     const { req, res } = createMockReqRes({
       channelId: '', // Invalid - empty string
@@ -117,7 +127,10 @@ describe('DELETE /user/channel/deactivate', () => {
   });
 
   it('should reject missing channelId', async () => {
-    const router = createChannelRoutes({ prisma: mockPrisma as unknown as PrismaClient });
+    const router = createChannelRoutes({
+      ...stubRouteResolvers(),
+      prisma: mockPrisma as unknown as PrismaClient,
+    });
     const handler = getHandler(router, 'delete', '/deactivate');
     const { req, res } = createMockReqRes({}); // Missing channelId
 

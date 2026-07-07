@@ -38,6 +38,7 @@ vi.mock('@tzurot/identity', async () => {
 });
 
 import { handleRoutingContextCreate } from './routingContextCreate.js';
+import { stubRouteResolvers } from '../../test/shared-route-test-utils.js';
 
 const VALID_BODY = {
   discordId: '278863839632818186',
@@ -59,7 +60,10 @@ function buildApp(): express.Express {
   app.use(express.json());
   app.post(
     '/internal/v1/routing-context',
-    handleRoutingContextCreate({ prisma: {} as unknown as PrismaClient })
+    handleRoutingContextCreate({
+      prisma: {} as unknown as PrismaClient,
+      ...stubRouteResolvers(),
+    })
   );
   return app;
 }
