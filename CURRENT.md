@@ -6,8 +6,12 @@
 
 ## Unreleased on Develop
 
+- **#1534** vision pair: guest paid-vision leak closed on Priorities 1+2 of `selectVisionModel` (protected surface: RAG/extended-context paths) + vision failure signal restored (placeholder-shaped descriptions count into failedCount; `VISION_PLACEHOLDER_PREFIX` shared constant).
+- **#1535** gateway connection-drain: dispose awaits `server.close` FIRST (extracted `shutdownHandler.ts`, order pinned by test).
+- **#1536** NULL-vector self-healing sweep (hourly, bounded 50, idempotent, partial index shipped with the query) + pending-memory dead-letter backlog in every scheduled run's log + data-driven `REPEATABLE_JOB_SCHEDULE`.
+- **#1537** (in CI) error-spoiler trims provider text — no more closing-quote-on-own-line.
 - **Memory Phase 1a remains PARKED** on `feat/memory-hybrid-retrieval` (evidence gate: real-scale goldens).
-- _(nothing else — beta.152 flushed the queue)_
+- **Open design question to owner**: add RATE_LIMIT to the reactive quota-retarget categories (same-turn rescue; today the 429 turn always fails and only subsequent turns retarget; personal-free-default == global-free-default users get no fallback at all). Awaiting owner's call — offered 2026-07-07.
 
 ## Next Session Goal
 
