@@ -251,6 +251,11 @@ describe('Character API Client', () => {
 
       expect(result.publicOthers).toHaveLength(1);
       expect(result.publicOthers[0].slug).toBe('other-char');
+
+      // List summaries don't carry the definition-privacy fields; the
+      // placeholder defaults must be explicit false, not undefined.
+      expect(result.owned[0].definitionPublic).toBe(false);
+      expect(result.owned[0].definitionRedacted).toBe(false);
     });
 
     it('should throw error on API failure', async () => {

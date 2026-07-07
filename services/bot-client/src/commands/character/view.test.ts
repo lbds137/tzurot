@@ -69,6 +69,8 @@ function createTestCharacter(overrides: Partial<CharacterData> = {}): CharacterD
     birthDay: null,
     birthYear: null,
     isPublic: false,
+    definitionPublic: false,
+    definitionRedacted: false,
     voiceEnabled: false,
     hasVoiceReference: false,
     imageEnabled: false,
@@ -522,6 +524,42 @@ describe('handleView / handleViewPagination', () => {
     expect(editReply).toHaveBeenCalledWith(expect.stringContaining('not found or not accessible'));
   });
 
+  it('renders the private-definition state with NO components when redacted', async () => {
+    // Non-owner of a definition-private character: card fields arrive null +
+    // definitionRedacted true. Must read as "private", not "abandoned".
+    stub.getPersonality.mockResolvedValue(
+      makeOk({
+        personality: createTestCharacter({
+          definitionRedacted: true,
+          characterInfo: '',
+          personalityTraits: '',
+        }),
+      })
+    );
+
+    await handleView(viewContext(), config);
+
+    const call = editReply.mock.calls[0][0];
+    expect(call.components).toEqual([]);
+    const embedJson = call.embeds[0].toJSON();
+    expect(embedJson.description).toContain('definition is private');
+    // Public-safe identity still shows; no "_Not set_" card fields.
+    expect(JSON.stringify(embedJson)).toContain('test-character');
+    expect(JSON.stringify(embedJson)).not.toContain('_Not set_\\n_Not set_');
+  });
+
+  it('collapses a stale pagination click on a now-redacted character to the private page', async () => {
+    stub.getPersonality.mockResolvedValue(
+      makeOk({ personality: createTestCharacter({ definitionRedacted: true }) })
+    );
+
+    await handleViewPagination(paginationInteraction(), 'test-character', 2, config);
+
+    const call = editReply.mock.calls[0][0];
+    expect(call.components).toEqual([]);
+    expect(call.embeds[0].toJSON().description).toContain('definition is private');
+  });
+
   it('shows a generic error when the fetch fails with a non-404 status', async () => {
     // fetchCharacterForView throws on non-404/403 → handleView's catch fires.
     stub.getPersonality.mockResolvedValue(makeErr(500, 'boom'));
@@ -626,6 +664,16 @@ describe('handleExpandField', () => {
     await handleExpandField(expandInteraction(), 'test-character', 'personalityLikes', config);
 
     expect(editReply).toHaveBeenCalledWith(expect.stringContaining('_Not set_'));
+    expect(sendChunkedReply).not.toHaveBeenCalled();
+  });
+
+  it('names the privacy state (not "_Not set_") on a stale expand of a redacted character', async () => {
+    const character = createTestCharacter({ definitionRedacted: true, characterInfo: '' });
+    stub.getPersonality.mockResolvedValue(makeOk({ personality: character }));
+
+    await handleExpandField(expandInteraction(), 'test-character', 'characterInfo', config);
+
+    expect(editReply).toHaveBeenCalledWith(expect.stringContaining('definition is private'));
     expect(sendChunkedReply).not.toHaveBeenCalled();
   });
 

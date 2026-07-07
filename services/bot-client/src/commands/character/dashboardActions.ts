@@ -77,6 +77,42 @@ export async function refreshDashboardAfterUpdate(
 }
 
 /**
+ * Toggle definitionPublic (whether non-owners can see the character card).
+ *
+ * TOCTOU note: fetch-then-toggle, same acceptance as voice-toggle — a
+ * single-user dashboard can just click again if a concurrent toggle won.
+ */
+async function handleDefinitionVisibilityToggle(
+  interaction: StringSelectMenuInteraction,
+  entityId: string,
+  config: EnvConfig
+): Promise<void> {
+  await interaction.deferUpdate();
+
+  const { userClient } = clientsFor(interaction);
+  const character = await fetchCharacter(entityId, config, userClient);
+  if (!character) {
+    return;
+  }
+
+  const newDefinitionPublic = !character.definitionPublic;
+  const updated = await updateCharacter(
+    entityId,
+    { definitionPublic: newDefinitionPublic },
+    userClient,
+    config
+  );
+
+  await refreshDashboardAfterUpdate(interaction, entityId, updated);
+
+  const status = newDefinitionPublic ? '📖 Card Public' : '📕 Card Private';
+  logger.info(
+    { slug: entityId, definitionPublic: newDefinitionPublic },
+    `Character definition visibility: ${status}`
+  );
+}
+
+/**
  * Handle dashboard actions (visibility toggle, avatar upload, voice, etc.)
  */
 export async function handleAction(
@@ -130,6 +166,11 @@ export async function handleAction(
         '(Discord modals cannot accept file uploads)',
       flags: MessageFlags.Ephemeral,
     });
+    return;
+  }
+
+  if (actionId === 'definition-visibility') {
+    await handleDefinitionVisibilityToggle(interaction, entityId, config);
     return;
   }
 
