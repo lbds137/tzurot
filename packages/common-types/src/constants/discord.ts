@@ -318,7 +318,7 @@ export interface ModelFooterOptions {
    */
   quotaFallback?: {
     fromModel: string;
-    category: 'quota_exceeded' | 'credit_exhaustion';
+    category: 'quota_exceeded' | 'credit_exhaustion' | 'rate_limit';
   };
 }
 
