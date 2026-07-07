@@ -76,6 +76,8 @@ export {
   MAX_ERROR_MESSAGE_LENGTH,
   ApiErrorType,
   ApiErrorCategory,
+  QUOTA_FALLBACK_CATEGORIES,
+  type QuotaFallbackCategoryValue,
   USER_ERROR_MESSAGES,
   VISION_FAILURE_CACHE_POLICY,
   generateErrorReferenceId,
