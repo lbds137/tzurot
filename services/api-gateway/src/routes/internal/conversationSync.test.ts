@@ -12,6 +12,7 @@ import request from 'supertest';
 import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import { ConversationSyncService } from '@tzurot/conversation-history';
 import { handleSyncConversation } from './conversationSync.js';
+import { stubRouteResolvers } from '../../test/shared-route-test-utils.js';
 
 vi.mock('@tzurot/common-types/utils/logger', async () => {
   const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
@@ -53,7 +54,10 @@ describe('POST /internal/conversation/sync', () => {
     app.use(express.json());
     app.post(
       '/internal/conversation/sync',
-      handleSyncConversation({ prisma: {} as unknown as PrismaClient })
+      handleSyncConversation({
+        prisma: {} as unknown as PrismaClient,
+        ...stubRouteResolvers(),
+      })
     );
   });
 

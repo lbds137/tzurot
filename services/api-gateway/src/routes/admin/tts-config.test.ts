@@ -10,6 +10,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Request, Response, Router } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import { getAllRoutes } from '../../test/expressRouterUtils.js';
+import { stubRouteResolvers } from '../../test/shared-route-test-utils.js';
 
 const sampleRawConfig = {
   id: 'cfg-uuid-1',
@@ -133,7 +134,7 @@ const mockPrisma = {
 };
 
 function buildRouter() {
-  return createAdminTtsConfigRoutes({ prisma: mockPrisma as never });
+  return createAdminTtsConfigRoutes({ ...stubRouteResolvers(), prisma: mockPrisma as never });
 }
 
 describe('admin/tts-config routes', () => {

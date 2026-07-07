@@ -14,6 +14,7 @@ vi.mock('./memoryHelpers.js', () => ({
   parseTimeframeFilter: vi.fn(),
 }));
 
+import { stubRouteResolvers } from '../../test/shared-route-test-utils.js';
 import {
   requireRedis,
   resolvePersonaIdForBatch,
@@ -30,7 +31,11 @@ function createMockRes() {
 describe('requireRedis', () => {
   it('returns the Redis client when deps.redis is configured', () => {
     const redis = {} as Redis;
-    const deps: RouteDeps = { prisma: {} as PrismaClient, redis };
+    const deps: RouteDeps = {
+      ...stubRouteResolvers(),
+      prisma: {} as PrismaClient,
+      redis,
+    };
     const res = createMockRes();
 
     const result = requireRedis(deps, res);
@@ -40,7 +45,10 @@ describe('requireRedis', () => {
   });
 
   it('sends 503 and returns null when deps.redis is undefined', () => {
-    const deps: RouteDeps = { prisma: {} as PrismaClient };
+    const deps: RouteDeps = {
+      ...stubRouteResolvers(),
+      prisma: {} as PrismaClient,
+    };
     const res = createMockRes();
 
     const result = requireRedis(deps, res);

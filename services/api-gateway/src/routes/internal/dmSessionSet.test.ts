@@ -7,6 +7,7 @@ import express from 'express';
 import request from 'supertest';
 import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 import { handleSetDmSession } from './dmSessionSet.js';
+import { stubRouteResolvers } from '../../test/shared-route-test-utils.js';
 
 vi.mock('@tzurot/common-types/utils/logger', async () => {
   const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
@@ -40,7 +41,7 @@ describe('POST /internal/channel/dm-session/set', () => {
     app.use(express.json());
     app.post(
       '/internal/channel/dm-session/set',
-      handleSetDmSession({ prisma: mockPrisma as unknown as PrismaClient })
+      handleSetDmSession({ ...stubRouteResolvers(), prisma: mockPrisma as unknown as PrismaClient })
     );
   });
 

@@ -81,19 +81,18 @@ export interface RouteDeps {
 
   /** Conversation retention sweep — used by admin cleanup. */
   readonly retentionService?: ConversationRetentionService;
-  /** Cascade-overrides resolver — the pub/sub-invalidated singleton. Consuming
-   * factories fail fast at mount time when absent (a locally-constructed
-   * fallback would never hear invalidation events and serve stale config);
-   * optional here only because ~65 route tests build ad-hoc RouteDeps subsets —
-   * the compile-level tightening is a queued mechanical sweep. */
-  readonly cascadeResolver?: ConfigCascadeResolver;
+  /** Cascade-overrides resolver — the pub/sub-invalidated singleton. Required
+   * at the type level: a locally-constructed fallback would never hear
+   * invalidation events and serve stale config, so a miswiring (production or
+   * test) must surface at compile time, not mount time. */
+  readonly cascadeResolver: ConfigCascadeResolver;
   /**
    * LLM model-config cascade resolver — used by the /ai/generate handler to
    * resolve the text `model` once at job-chain build and stamp it onto both the
    * conversation job and the image-description child job. Keeps the seed
    * (personality default) from leaking into the image-description path.
    */
-  readonly llmConfigResolver?: LlmConfigResolver;
+  readonly llmConfigResolver: LlmConfigResolver;
   /**
    * Vision model-config cascade resolver (kind='vision'). Resolves the vision model
    * independently of the text model and stamps `personality.visionModel` at job-chain
@@ -111,18 +110,4 @@ export interface RouteDeps {
   readonly aiQueue?: Queue;
   /** BullMQ queue events for sync-completion waiting. */
   readonly queueEvents?: QueueEvents;
-}
-
-/**
- * Mount-time assertion for deps that are runtime-required but type-optional.
- * Throwing at route-factory time turns a forgotten wiring into a boot crash
- * (caught by any component test) instead of a silently-stale local resolver.
- */
-export function requireDep<T>(dep: T | undefined, name: string): T {
-  if (dep === undefined) {
-    throw new Error(
-      `RouteDeps.${name} is required — wire the pub/sub-invalidated singleton from index.ts`
-    );
-  }
-  return dep;
 }

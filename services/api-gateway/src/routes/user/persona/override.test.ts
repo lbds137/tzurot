@@ -9,6 +9,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 import { API_ERROR_SUBCODE } from '@tzurot/common-types/constants/error';
+import { stubRouteResolvers } from '../../../test/shared-route-test-utils.js';
 import {
   createMockPrisma,
   createMockReqRes,
@@ -73,7 +74,10 @@ describe('persona override routes', () => {
         },
       ]);
 
-      const handler = handleListPersonaOverrides({ prisma: mockPrisma as unknown as PrismaClient });
+      const handler = handleListPersonaOverrides({
+        ...stubRouteResolvers(),
+        prisma: mockPrisma as unknown as PrismaClient,
+      });
 
       const { req, res } = createMockReqRes();
       await handler(req, res, vi.fn());
@@ -94,7 +98,10 @@ describe('persona override routes', () => {
     it('should return empty array when no overrides exist', async () => {
       mockPrisma.userPersonalityConfig.findMany.mockResolvedValue([]);
 
-      const handler = handleListPersonaOverrides({ prisma: mockPrisma as unknown as PrismaClient });
+      const handler = handleListPersonaOverrides({
+        ...stubRouteResolvers(),
+        prisma: mockPrisma as unknown as PrismaClient,
+      });
 
       const { req, res } = createMockReqRes();
       await handler(req, res, vi.fn());
@@ -111,7 +118,10 @@ describe('persona override routes', () => {
         displayName: 'Lilith the Succubus',
       });
 
-      const handler = handleGetPersonaOverride({ prisma: mockPrisma as unknown as PrismaClient });
+      const handler = handleGetPersonaOverride({
+        ...stubRouteResolvers(),
+        prisma: mockPrisma as unknown as PrismaClient,
+      });
 
       const { req, res } = createMockReqRes({}, { personalitySlug: 'lilith' });
       await handler(req, res, vi.fn());
@@ -128,7 +138,10 @@ describe('persona override routes', () => {
     it('should return 404 for non-existent personality', async () => {
       mockPrisma.personality.findUnique.mockResolvedValue(null);
 
-      const handler = handleGetPersonaOverride({ prisma: mockPrisma as unknown as PrismaClient });
+      const handler = handleGetPersonaOverride({
+        ...stubRouteResolvers(),
+        prisma: mockPrisma as unknown as PrismaClient,
+      });
 
       const { req, res } = createMockReqRes({}, { personalitySlug: 'nonexistent' });
       await handler(req, res, vi.fn());
@@ -151,7 +164,10 @@ describe('persona override routes', () => {
       });
       mockPrisma.userPersonalityConfig.upsert.mockResolvedValue({});
 
-      const handler = handleSetPersonaOverride({ prisma: mockPrisma as unknown as PrismaClient });
+      const handler = handleSetPersonaOverride({
+        ...stubRouteResolvers(),
+        prisma: mockPrisma as unknown as PrismaClient,
+      });
 
       const { req, res } = createMockReqRes(
         { personaId: MOCK_PERSONA_ID_2 },
@@ -190,7 +206,10 @@ describe('persona override routes', () => {
     it('should return 404 for non-existent persona', async () => {
       mockPrisma.persona.findFirst.mockResolvedValue(null);
 
-      const handler = handleSetPersonaOverride({ prisma: mockPrisma as unknown as PrismaClient });
+      const handler = handleSetPersonaOverride({
+        ...stubRouteResolvers(),
+        prisma: mockPrisma as unknown as PrismaClient,
+      });
 
       const { req, res } = createMockReqRes(
         { personaId: NONEXISTENT_UUID },
@@ -205,7 +224,10 @@ describe('persona override routes', () => {
       mockPrisma.persona.findFirst.mockResolvedValue({ id: MOCK_PERSONA_ID, name: 'Test' });
       mockPrisma.personality.findUnique.mockResolvedValue(null);
 
-      const handler = handleSetPersonaOverride({ prisma: mockPrisma as unknown as PrismaClient });
+      const handler = handleSetPersonaOverride({
+        ...stubRouteResolvers(),
+        prisma: mockPrisma as unknown as PrismaClient,
+      });
 
       const { req, res } = createMockReqRes(
         { personaId: MOCK_PERSONA_ID },
@@ -217,7 +239,10 @@ describe('persona override routes', () => {
     });
 
     it('should reject missing personaId', async () => {
-      const handler = handleSetPersonaOverride({ prisma: mockPrisma as unknown as PrismaClient });
+      const handler = handleSetPersonaOverride({
+        ...stubRouteResolvers(),
+        prisma: mockPrisma as unknown as PrismaClient,
+      });
 
       const { req, res } = createMockReqRes({}, { personalitySlug: 'lilith' });
       await handler(req, res, vi.fn());
@@ -239,7 +264,10 @@ describe('persona override routes', () => {
       });
       mockPrisma.userPersonalityConfig.delete.mockResolvedValue({});
 
-      const handler = handleClearPersonaOverride({ prisma: mockPrisma as unknown as PrismaClient });
+      const handler = handleClearPersonaOverride({
+        ...stubRouteResolvers(),
+        prisma: mockPrisma as unknown as PrismaClient,
+      });
 
       const { req, res } = createMockReqRes({}, { personalitySlug: 'lilith' });
       await handler(req, res, vi.fn());
@@ -270,7 +298,10 @@ describe('persona override routes', () => {
       });
       mockPrisma.userPersonalityConfig.update.mockResolvedValue({});
 
-      const handler = handleClearPersonaOverride({ prisma: mockPrisma as unknown as PrismaClient });
+      const handler = handleClearPersonaOverride({
+        ...stubRouteResolvers(),
+        prisma: mockPrisma as unknown as PrismaClient,
+      });
 
       const { req, res } = createMockReqRes({}, { personalitySlug: 'lilith' });
       await handler(req, res, vi.fn());
@@ -287,7 +318,10 @@ describe('persona override routes', () => {
     it('should return 404 for non-existent personality', async () => {
       mockPrisma.personality.findUnique.mockResolvedValue(null);
 
-      const handler = handleClearPersonaOverride({ prisma: mockPrisma as unknown as PrismaClient });
+      const handler = handleClearPersonaOverride({
+        ...stubRouteResolvers(),
+        prisma: mockPrisma as unknown as PrismaClient,
+      });
 
       const { req, res } = createMockReqRes({}, { personalitySlug: 'nonexistent' });
       await handler(req, res, vi.fn());
@@ -303,7 +337,10 @@ describe('persona override routes', () => {
       });
       mockPrisma.userPersonalityConfig.findUnique.mockResolvedValue(null);
 
-      const handler = handleClearPersonaOverride({ prisma: mockPrisma as unknown as PrismaClient });
+      const handler = handleClearPersonaOverride({
+        ...stubRouteResolvers(),
+        prisma: mockPrisma as unknown as PrismaClient,
+      });
 
       const { req, res } = createMockReqRes({}, { personalitySlug: 'lilith' });
       await handler(req, res, vi.fn());
@@ -350,6 +387,7 @@ describe('persona override routes', () => {
       mockPrisma.userPersonalityConfig.upsert.mockResolvedValue({});
 
       const handler = handleCreatePersonaOverride({
+        ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
       });
 
@@ -403,6 +441,7 @@ describe('persona override routes', () => {
       mockPrisma.persona.create.mockRejectedValue({ code: 'P2002' });
 
       const handler = handleCreatePersonaOverride({
+        ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
       });
 
@@ -417,6 +456,7 @@ describe('persona override routes', () => {
 
     it('should return 400 for invalid personalityId (not a UUID)', async () => {
       const handler = handleCreatePersonaOverride({
+        ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
       });
 
@@ -429,6 +469,7 @@ describe('persona override routes', () => {
 
     it('should return 400 for invalid body (missing required field)', async () => {
       const handler = handleCreatePersonaOverride({
+        ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
       });
 
@@ -446,6 +487,7 @@ describe('persona override routes', () => {
       mockPrisma.personality.findUnique.mockResolvedValue(null);
 
       const handler = handleCreatePersonaOverride({
+        ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
       });
 
@@ -484,6 +526,7 @@ describe('persona override routes', () => {
       mockPrisma.userPersonalityConfig.upsert.mockRejectedValue(new Error('write conflict'));
 
       const handler = handleCreatePersonaOverride({
+        ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
       });
 

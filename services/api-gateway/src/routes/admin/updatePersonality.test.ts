@@ -9,6 +9,7 @@ import { createUpdatePersonalityRoute } from './updatePersonality.js';
 import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 import type { CacheInvalidationService } from '@tzurot/cache-invalidation';
 import { optimizeAvatar } from '../../utils/imageProcessor.js';
+import { stubRouteResolvers } from '../../test/shared-route-test-utils.js';
 
 // Mock AuthMiddleware
 vi.mock('../../services/AuthMiddleware.js', () => ({
@@ -58,7 +59,10 @@ describe('PATCH /admin/personality/:slug', () => {
     app.use(express.json());
     app.use(
       '/admin/personality',
-      createUpdatePersonalityRoute({ prisma: prisma as unknown as PrismaClient })
+      createUpdatePersonalityRoute({
+        ...stubRouteResolvers(),
+        prisma: prisma as unknown as PrismaClient,
+      })
     );
   });
 
@@ -451,6 +455,7 @@ describe('PATCH /admin/personality/:slug', () => {
       appWithCache.use(
         '/admin/personality',
         createUpdatePersonalityRoute({
+          ...stubRouteResolvers(),
           prisma: prisma as unknown as PrismaClient,
           cacheInvalidationService: mockCacheService,
         })

@@ -8,6 +8,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Request, Response, Router } from 'express';
 import { StatusCodes } from 'http-status-codes';
+import { stubRouteResolvers } from '../../test/shared-route-test-utils.js';
 
 vi.mock('../../services/AuthMiddleware.js', () => ({
   requireUserAuth: () => (_req: Request, _res: Response, next: () => void) => next(),
@@ -93,6 +94,7 @@ const mockCache = { invalidateUserStt: vi.fn().mockResolvedValue(undefined) };
 
 function buildRouter() {
   return createSttOverrideRoutes({
+    ...stubRouteResolvers(),
     prisma: mockPrisma as never,
     sttResolverCacheInvalidation: mockCache as never,
   });

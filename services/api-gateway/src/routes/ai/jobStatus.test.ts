@@ -7,6 +7,7 @@ import express, { type Express } from 'express';
 import request from 'supertest';
 import { handleAiJobStatus } from './jobStatus.js';
 import type { Queue, Job } from 'bullmq';
+import { stubRouteResolvers } from '../../test/shared-route-test-utils.js';
 
 // Create mock BullMQ queue
 const createMockQueue = () => ({
@@ -33,7 +34,11 @@ describe('GET /job/:jobId', () => {
     app.use(express.json());
     app.get(
       '/job/:jobId',
-      handleAiJobStatus({ prisma: {} as never, aiQueue: aiQueue as unknown as Queue })
+      handleAiJobStatus({
+        prisma: {} as never,
+        aiQueue: aiQueue as unknown as Queue,
+        ...stubRouteResolvers(),
+      })
     );
   });
 

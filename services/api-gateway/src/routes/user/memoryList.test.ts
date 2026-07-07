@@ -40,6 +40,7 @@ vi.mock('../../utils/resolveProvisionedUserId.js', () => ({
 import { handleList } from './memoryList.js';
 import { getDefaultPersonaId } from './memoryHelpers.js';
 import { resolveProvisionedUserId } from '../../utils/resolveProvisionedUserId.js';
+import { stubRouteResolvers } from '../../test/shared-route-test-utils.js';
 
 const mockResolveProvisionedUserId = vi.mocked(resolveProvisionedUserId);
 const mockGetDefaultPersonaId = vi.mocked(getDefaultPersonaId);
@@ -53,7 +54,7 @@ const mockPrisma = {
 } as unknown as PrismaClient;
 
 function deps(): RouteDeps {
-  return { prisma: mockPrisma };
+  return { prisma: mockPrisma, ...stubRouteResolvers() };
 }
 
 function createMockReqRes(query: Record<string, string> = {}) {

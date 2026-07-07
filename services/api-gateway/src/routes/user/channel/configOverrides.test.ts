@@ -9,6 +9,7 @@ import express from 'express';
 import request from 'supertest';
 import { createChannelRoutes } from './index.js';
 import { createMockPrisma, setupStandardMocks, MOCK_DISCORD_USER_ID } from './test-utils.js';
+import { stubRouteResolvers } from '../../../test/shared-route-test-utils.js';
 
 // Mock AuthMiddleware
 vi.mock('../../../services/AuthMiddleware.js', () => ({
@@ -51,7 +52,10 @@ describe('Channel Config Overrides Routes', () => {
     app.use(express.json());
     app.use(
       '/user/channel',
-      createChannelRoutes({ prisma: mockPrisma as unknown as PrismaClient })
+      createChannelRoutes({
+        ...stubRouteResolvers(),
+        prisma: mockPrisma as unknown as PrismaClient,
+      })
     );
   });
 
@@ -148,6 +152,7 @@ describe('Channel Config Overrides Routes', () => {
       appWithInvalidation.use(
         '/user/channel',
         createChannelRoutes({
+          ...stubRouteResolvers(),
           prisma: mockPrisma as unknown as PrismaClient,
           cascadeInvalidation: mockInvalidation as never,
         })
@@ -175,6 +180,7 @@ describe('Channel Config Overrides Routes', () => {
       appWithInvalidation.use(
         '/user/channel',
         createChannelRoutes({
+          ...stubRouteResolvers(),
           prisma: mockPrisma as unknown as PrismaClient,
           cascadeInvalidation: mockInvalidation as never,
         })
@@ -203,6 +209,7 @@ describe('Channel Config Overrides Routes', () => {
       appWithInvalidation.use(
         '/user/channel',
         createChannelRoutes({
+          ...stubRouteResolvers(),
           prisma: mockPrisma as unknown as PrismaClient,
           cascadeInvalidation: mockInvalidation as never,
         })

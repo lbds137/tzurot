@@ -75,6 +75,7 @@ import {
 } from './memoryBatch.js';
 import { getDefaultPersonaId, getPersonalityById, parseTimeframeFilter } from './memoryHelpers.js';
 import { resolveProvisionedUserId } from '../../utils/resolveProvisionedUserId.js';
+import { stubRouteResolvers } from '../../test/shared-route-test-utils.js';
 
 const mockResolveProvisionedUserId = vi.mocked(resolveProvisionedUserId);
 const mockGetDefaultPersonaId = vi.mocked(getDefaultPersonaId);
@@ -102,6 +103,7 @@ const mockPrisma = {
 /** Deps with Redis present (the common case — service constructs over it). */
 function depsWithRedis(): RouteDeps {
   return {
+    ...stubRouteResolvers(),
     prisma: mockPrisma as unknown as PrismaClient,
     redis: {} as Redis, // shape only; the mocked service class ignores it
   };
@@ -109,7 +111,7 @@ function depsWithRedis(): RouteDeps {
 
 /** Deps without Redis — exercises the 503 guard inside each handler. */
 function depsWithoutRedis(): RouteDeps {
-  return { prisma: mockPrisma as unknown as PrismaClient };
+  return { prisma: mockPrisma as unknown as PrismaClient, ...stubRouteResolvers() };
 }
 
 function createMockBodyReq(body: Record<string, unknown> = {}) {

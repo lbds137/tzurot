@@ -43,6 +43,7 @@ vi.mock('../../utils/llmConfigValidation.js', () => ({
 
 import { createAdminLlmConfigRoutes } from './llm-config.js';
 import { createAdminTtsConfigRoutes } from './tts-config.js';
+import { stubRouteResolvers } from '../../test/shared-route-test-utils.js';
 
 // A valid RFC-4122 UUID — `LlmConfigSummarySchema.id` / `TtsConfigSummarySchema.id`
 // validate with `.uuid()`, so fixtures MUST use a conformant value (the existing
@@ -112,7 +113,7 @@ describe('Admin LLM config response contract', () => {
 
     app = express();
     app.use(express.json());
-    app.use('/admin/llm-config', createAdminLlmConfigRoutes({ prisma }));
+    app.use('/admin/llm-config', createAdminLlmConfigRoutes({ ...stubRouteResolvers(), prisma }));
   });
 
   it('GET /admin/llm-config satisfies listGlobalLlmConfigs output schema', async () => {
@@ -182,7 +183,7 @@ describe('Admin TTS config response contract', () => {
 
     app = express();
     app.use(express.json());
-    app.use('/admin/tts-config', createAdminTtsConfigRoutes({ prisma }));
+    app.use('/admin/tts-config', createAdminTtsConfigRoutes({ ...stubRouteResolvers(), prisma }));
   });
 
   it('GET /admin/tts-config satisfies listGlobalTtsConfigs output schema', async () => {

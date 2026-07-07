@@ -68,6 +68,7 @@ const mockPrisma = {
 import { createTimezoneRoutes } from './timezone.js';
 import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 import { getRouteHandler, findRoute } from '../../test/expressRouterUtils.js';
+import { stubRouteResolvers } from '../../test/shared-route-test-utils.js';
 
 // Helper to create mock request/response
 function createMockReqRes(body: Record<string, unknown> = {}) {
@@ -103,14 +104,20 @@ describe('/user/timezone routes', () => {
 
   describe('route factory', () => {
     it('should create a router', () => {
-      const router = createTimezoneRoutes({ prisma: mockPrisma as unknown as PrismaClient });
+      const router = createTimezoneRoutes({
+        ...stubRouteResolvers(),
+        prisma: mockPrisma as unknown as PrismaClient,
+      });
 
       expect(router).toBeDefined();
       expect(typeof router).toBe('function');
     });
 
     it('should have GET route registered', () => {
-      const router = createTimezoneRoutes({ prisma: mockPrisma as unknown as PrismaClient });
+      const router = createTimezoneRoutes({
+        ...stubRouteResolvers(),
+        prisma: mockPrisma as unknown as PrismaClient,
+      });
 
       expect(router.stack).toBeDefined();
       expect(router.stack.length).toBeGreaterThan(0);
@@ -119,7 +126,10 @@ describe('/user/timezone routes', () => {
     });
 
     it('should have PUT route registered', () => {
-      const router = createTimezoneRoutes({ prisma: mockPrisma as unknown as PrismaClient });
+      const router = createTimezoneRoutes({
+        ...stubRouteResolvers(),
+        prisma: mockPrisma as unknown as PrismaClient,
+      });
 
       expect(findRoute(router, 'put', '/')).toBeDefined();
     });
@@ -133,7 +143,10 @@ describe('/user/timezone routes', () => {
     it('should return 404 when user row is missing', async () => {
       mockPrisma.user.findUnique.mockResolvedValueOnce(null);
 
-      const router = createTimezoneRoutes({ prisma: mockPrisma as unknown as PrismaClient });
+      const router = createTimezoneRoutes({
+        ...stubRouteResolvers(),
+        prisma: mockPrisma as unknown as PrismaClient,
+      });
       const handler = getHandler(router, 'get', '/');
       const { req, res } = createMockReqRes();
 
@@ -145,7 +158,10 @@ describe('/user/timezone routes', () => {
     it('should return user timezone', async () => {
       mockPrisma.user.findUnique.mockResolvedValueOnce({ timezone: 'America/New_York' });
 
-      const router = createTimezoneRoutes({ prisma: mockPrisma as unknown as PrismaClient });
+      const router = createTimezoneRoutes({
+        ...stubRouteResolvers(),
+        prisma: mockPrisma as unknown as PrismaClient,
+      });
       const handler = getHandler(router, 'get', '/');
       const { req, res } = createMockReqRes();
 
@@ -163,7 +179,10 @@ describe('/user/timezone routes', () => {
     it('should return isDefault=true for UTC timezone', async () => {
       mockPrisma.user.findUnique.mockResolvedValueOnce({ timezone: 'UTC' });
 
-      const router = createTimezoneRoutes({ prisma: mockPrisma as unknown as PrismaClient });
+      const router = createTimezoneRoutes({
+        ...stubRouteResolvers(),
+        prisma: mockPrisma as unknown as PrismaClient,
+      });
       const handler = getHandler(router, 'get', '/');
       const { req, res } = createMockReqRes();
 
@@ -180,7 +199,10 @@ describe('/user/timezone routes', () => {
     it('should query user timezone by internal UUID', async () => {
       mockPrisma.user.findUnique.mockResolvedValueOnce({ timezone: 'UTC' });
 
-      const router = createTimezoneRoutes({ prisma: mockPrisma as unknown as PrismaClient });
+      const router = createTimezoneRoutes({
+        ...stubRouteResolvers(),
+        prisma: mockPrisma as unknown as PrismaClient,
+      });
       const handler = getHandler(router, 'get', '/');
       const { req, res } = createMockReqRes();
 
@@ -195,7 +217,10 @@ describe('/user/timezone routes', () => {
 
   describe('PUT /user/timezone', () => {
     it('should reject missing timezone', async () => {
-      const router = createTimezoneRoutes({ prisma: mockPrisma as unknown as PrismaClient });
+      const router = createTimezoneRoutes({
+        ...stubRouteResolvers(),
+        prisma: mockPrisma as unknown as PrismaClient,
+      });
       const handler = getHandler(router, 'put', '/');
       const { req, res } = createMockReqRes({});
 
@@ -211,7 +236,10 @@ describe('/user/timezone routes', () => {
     });
 
     it('should reject null timezone', async () => {
-      const router = createTimezoneRoutes({ prisma: mockPrisma as unknown as PrismaClient });
+      const router = createTimezoneRoutes({
+        ...stubRouteResolvers(),
+        prisma: mockPrisma as unknown as PrismaClient,
+      });
       const handler = getHandler(router, 'put', '/');
       const { req, res } = createMockReqRes({ timezone: null });
 
@@ -221,7 +249,10 @@ describe('/user/timezone routes', () => {
     });
 
     it('should reject empty timezone', async () => {
-      const router = createTimezoneRoutes({ prisma: mockPrisma as unknown as PrismaClient });
+      const router = createTimezoneRoutes({
+        ...stubRouteResolvers(),
+        prisma: mockPrisma as unknown as PrismaClient,
+      });
       const handler = getHandler(router, 'put', '/');
       const { req, res } = createMockReqRes({ timezone: '' });
 
@@ -231,7 +262,10 @@ describe('/user/timezone routes', () => {
     });
 
     it('should reject invalid timezone', async () => {
-      const router = createTimezoneRoutes({ prisma: mockPrisma as unknown as PrismaClient });
+      const router = createTimezoneRoutes({
+        ...stubRouteResolvers(),
+        prisma: mockPrisma as unknown as PrismaClient,
+      });
       const handler = getHandler(router, 'put', '/');
       const { req, res } = createMockReqRes({ timezone: 'Invalid/Timezone' });
 
@@ -246,7 +280,10 @@ describe('/user/timezone routes', () => {
     });
 
     it('should accept valid IANA timezone', async () => {
-      const router = createTimezoneRoutes({ prisma: mockPrisma as unknown as PrismaClient });
+      const router = createTimezoneRoutes({
+        ...stubRouteResolvers(),
+        prisma: mockPrisma as unknown as PrismaClient,
+      });
       const handler = getHandler(router, 'put', '/');
       const { req, res } = createMockReqRes({ timezone: 'America/New_York' });
 
@@ -262,7 +299,10 @@ describe('/user/timezone routes', () => {
     });
 
     it('should accept UTC timezone', async () => {
-      const router = createTimezoneRoutes({ prisma: mockPrisma as unknown as PrismaClient });
+      const router = createTimezoneRoutes({
+        ...stubRouteResolvers(),
+        prisma: mockPrisma as unknown as PrismaClient,
+      });
       const handler = getHandler(router, 'put', '/');
       const { req, res } = createMockReqRes({ timezone: 'UTC' });
 
@@ -278,7 +318,10 @@ describe('/user/timezone routes', () => {
     });
 
     it('should return timezone info in response', async () => {
-      const router = createTimezoneRoutes({ prisma: mockPrisma as unknown as PrismaClient });
+      const router = createTimezoneRoutes({
+        ...stubRouteResolvers(),
+        prisma: mockPrisma as unknown as PrismaClient,
+      });
       const handler = getHandler(router, 'put', '/');
       const { req, res } = createMockReqRes({ timezone: 'America/Los_Angeles' });
 

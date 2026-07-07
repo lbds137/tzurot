@@ -7,6 +7,7 @@
 
 import { vi } from 'vitest';
 import type { Request, Response, Router } from 'express';
+import type { ConfigCascadeResolver, LlmConfigResolver } from '@tzurot/config-resolver';
 import { getRouteHandler } from './expressRouterUtils.js';
 
 /**
@@ -95,4 +96,34 @@ export function getHandler(
   path: string
 ): RouteHandler {
   return getRouteHandler(router, method, path) as RouteHandler;
+}
+
+/**
+ * Stub resolvers for the two REQUIRED RouteDeps fields. Route tests that
+ * don't exercise the cascade/LLM-resolution paths still need the fields to
+ * satisfy the compile-level contract (required precisely so a test-only
+ * miswiring surfaces at compile time — see routeDeps.ts). Tests that DO
+ * exercise resolution keep providing their own real or per-test mocks.
+ */
+export function stubRouteResolvers(): {
+  cascadeResolver: ConfigCascadeResolver;
+  llmConfigResolver: LlmConfigResolver;
+} {
+  return {
+    // Method names mirror the REAL classes — the `as unknown` cast means the
+    // compiler can't verify this, so a rename there must be mirrored here or
+    // the first test exercising the stub gets a TypeError instead of a
+    // useful assertion failure.
+    cascadeResolver: {
+      resolveOverrides: vi.fn().mockResolvedValue({}),
+      invalidateUserCache: vi.fn(),
+      invalidatePersonalityCache: vi.fn(),
+      invalidateChannelCache: vi.fn(),
+      clearCache: vi.fn(),
+      stopCleanup: vi.fn(),
+    } as unknown as ConfigCascadeResolver,
+    llmConfigResolver: {
+      resolveConfig: vi.fn().mockResolvedValue(null),
+    } as unknown as LlmConfigResolver,
+  };
 }

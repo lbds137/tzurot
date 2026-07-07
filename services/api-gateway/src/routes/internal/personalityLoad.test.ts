@@ -8,6 +8,7 @@ import request from 'supertest';
 import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import { PersonalityService } from '@tzurot/identity';
 import { handleLoadPersonalityInternal } from './personalityLoad.js';
+import { stubRouteResolvers } from '../../test/shared-route-test-utils.js';
 
 vi.mock('@tzurot/common-types/utils/logger', async () => {
   const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
@@ -50,7 +51,10 @@ describe('GET /internal/personality/load', () => {
     app = express();
     app.get(
       '/internal/personality/load',
-      handleLoadPersonalityInternal({ prisma: {} as unknown as PrismaClient })
+      handleLoadPersonalityInternal({
+        prisma: {} as unknown as PrismaClient,
+        ...stubRouteResolvers(),
+      })
     );
   });
 
