@@ -77,6 +77,8 @@ describe('Character Export', () => {
     slug: 'test-character',
     displayName: 'Test Display Name',
     isPublic: true,
+    definitionPublic: true,
+    definitionRedacted: false,
     ownerId: 'owner-uuid',
     characterInfo: 'A test character',
     personalityTraits: 'Friendly and helpful',
@@ -142,6 +144,55 @@ describe('Character Export', () => {
       await handleExport(mockContext, mockConfig);
 
       expect(mockContext.editReply).toHaveBeenCalled();
+    });
+
+    it('round-trips definitionPublic and customFields in the exported JSON', async () => {
+      // Both were previously import-accepted but export-omitted — a character
+      // with custom fields silently lost them on export → re-import.
+      stub.getPersonality.mockResolvedValue({
+        ok: true,
+        data: {
+          personality: {
+            ...mockCharacterData,
+            definitionPublic: true,
+            customFields: { lore: 'deep' },
+          },
+          canEdit: true,
+        },
+      });
+
+      const mockContext = createMockContext();
+      await handleExport(mockContext, mockConfig);
+
+      const editReplyArgs = vi.mocked(mockContext.editReply).mock.calls[0][0] as {
+        files: AttachmentBuilder[];
+      };
+      const json = JSON.parse(
+        (editReplyArgs.files[0].attachment as Buffer).toString('utf-8')
+      ) as Record<string, unknown>;
+      expect(json.definitionPublic).toBe(true);
+      expect(json.customFields).toEqual({ lore: 'deep' });
+    });
+
+    it('exports definitionPublic: false explicitly (boolean false survives the non-null filter)', async () => {
+      stub.getPersonality.mockResolvedValue({
+        ok: true,
+        data: {
+          personality: { ...mockCharacterData, definitionPublic: false },
+          canEdit: true,
+        },
+      });
+
+      const mockContext = createMockContext();
+      await handleExport(mockContext, mockConfig);
+
+      const editReplyArgs = vi.mocked(mockContext.editReply).mock.calls[0][0] as {
+        files: AttachmentBuilder[];
+      };
+      const json = JSON.parse(
+        (editReplyArgs.files[0].attachment as Buffer).toString('utf-8')
+      ) as Record<string, unknown>;
+      expect(json.definitionPublic).toBe(false);
     });
 
     it('should use character name when displayName is null', async () => {

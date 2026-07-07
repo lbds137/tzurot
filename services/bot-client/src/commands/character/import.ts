@@ -72,6 +72,7 @@ export const CHARACTER_JSON_TEMPLATE = `{
   "slug": "character-slug",
   "displayName": "Display Name (optional)",
   "isPublic": false,
+  "definitionPublic": false,
   "characterInfo": "Background, history, and description of the character...",
   "personalityTraits": "Key personality traits and behaviors...",
   "personalityTone": "friendly, sarcastic, professional, etc. (optional)",
@@ -272,6 +273,9 @@ function buildImportPayload(
   voiceReferenceData: string | undefined
 ): Record<string, unknown> {
   const isPublic = typeof data.isPublic === 'boolean' ? data.isPublic : false;
+  // Absent in the JSON → private internals (the safe default for a shared file).
+  const definitionPublic =
+    typeof data.definitionPublic === 'boolean' ? data.definitionPublic : false;
   // Attachment wins over the JSON field; fall back to the JSON payload's own
   // embedded data if the user didn't attach one. Same precedence for both media.
   const finalAvatarData =
@@ -287,6 +291,7 @@ function buildImportPayload(
     personalityTraits: data.personalityTraits,
     displayName: data.displayName ?? undefined,
     isPublic,
+    definitionPublic,
     personalityTone: data.personalityTone ?? undefined,
     personalityAge: data.personalityAge ?? undefined,
     personalityAppearance: data.personalityAppearance ?? undefined,

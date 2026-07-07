@@ -74,6 +74,11 @@ export const PersonalityFullSchema = z.object({
   ownerId: z.string(),
   hasAvatar: z.boolean(),
   hasVoiceReference: z.boolean(),
+  // Must be DECLARED here or the typed client's Zod parse (default strip mode)
+  // silently drops it from every response — the gateway sends it, but an
+  // undeclared key never reaches bot-client (export round-trip depends on it).
+  // Null when the character has none OR when redacted (see definitionRedacted).
+  customFields: z.record(z.string(), z.unknown()).nullable(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
 });
