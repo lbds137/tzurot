@@ -26,8 +26,8 @@ A one-shot prod audit (`pg_stat_user_indexes` / `pg_stat_user_tables`, 2026-06-3
 - Seq-scan-heavy tables are mostly _tiny_ (`personas` 271 rows, `llm_configs` 34, `personalities` 178) — Postgres correctly prefers seq scans there; NOT a problem. Only `conversation_history` (~7500 rows, 34K seq-scans) is mildly worth a look for a missing index.
 - `pg_stat_database.stats_reset` was null; table-level counters are large (522K idx-scans on `users`), so the window is long enough to trust for secondary-index judgments — but confirm stats age before any drop.
 
-### Phase 1 — Prevention (cheapest, highest leverage) — NEXT
-- [ ] Add a rule to `.claude/rules/03-database.md`: **an index must ship in the same PR as a query that uses it.** `responseMessageIds` did this right; `message_metadata` didn't. (Load-bearing rule → small review-gated PR.)
+### Phase 1 — Prevention (cheapest, highest leverage) — ✅ SHIPPED 2026-07-06
+- [x] Rule added to `.claude/rules/03-database.md` § "Indexes Ship With Their Query": new index requires its query in the same PR (grep-verifiable); corollary encodes the 3-case drop judgment (no-query / real-query-small-table-KEEP / PK-constraint-never).
 
 ### Phase 2 — Recurring audit tooling
 - [ ] `pnpm ops db:index-audit` — pull `pg_stat_user_indexes` (idx_scan, size) + flag 0-scan _secondary_ indexes (exclude PK/unique), classified by the 3 cases above. Recurring green/red signal instead of a one-off. (Audit-class tool — see `docs/reference/audit-enforcement.md`.)
