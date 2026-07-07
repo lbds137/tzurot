@@ -398,8 +398,12 @@ describe('AuthStep', () => {
             .mockResolvedValue({ model: 'paid/default', provider: 'openrouter' }),
         } as unknown as LlmConfigResolver;
         // z-ai model auto-promotes via the real ProviderRouter (no injected
-        // router), then the doom-cache blocks the promoted model.
-        const caches = buildCaches({ rateLimitedModels: ['glm-5.2'] });
+        // router), then the doom-cache blocks BOTH pools — the promoted model
+        // AND its OpenRouter passthrough — so the demotion tier passes and the
+        // global-default retarget (this test's subject) fires. A doomed
+        // promotion with a VIABLE passthrough now demotes instead (covered by
+        // the demotion-tier describe block).
+        const caches = buildCaches({ rateLimitedModels: ['glm-5.2', 'z-ai/glm-5.2'] });
 
         step = new AuthStep(
           mockApiKeyResolver,
@@ -551,6 +555,151 @@ describe('AuthStep', () => {
           model: 'z-ai/glm-5.1', // original namespaced form preserved
           isGuestMode: false,
         });
+      });
+    });
+
+    describe('promotion demotion tier (doomed z.ai promotion → OpenRouter passthrough)', () => {
+      const PROMOTED_ROUTE = {
+        effectiveProvider: AIProvider.ZaiCoding,
+        effectiveModel: 'glm-5.2',
+        apiKey: 'sk-zai-key',
+        isGuestMode: false,
+        fallthroughTriggered: false,
+        wasAutoPromoted: true,
+        fallback: {
+          apiKey: 'sk-openrouter-key',
+          provider: AIProvider.OpenRouter,
+          model: 'z-ai/glm-5.2',
+          isGuestMode: false,
+        },
+      };
+
+      function buildDemotionCaches(rateLimitedModels: string[]): unknown {
+        return {
+          creditExhaustion: {
+            isCreditExhausted: vi.fn().mockResolvedValue({ exhausted: false }),
+          },
+          rateLimit: {
+            isRateLimited: vi
+              .fn()
+              .mockImplementation(({ model }: { model: string }) =>
+                Promise.resolve(
+                  rateLimitedModels.includes(model) ? { rateLimited: true } : { rateLimited: false }
+                )
+              ),
+          },
+        };
+      }
+
+      function makeStep(rateLimitedModels: string[], router?: unknown): AuthStep {
+        const injectedRouter = (router ?? {
+          resolveRoute: vi.fn().mockResolvedValue(PROMOTED_ROUTE),
+        }) as import('../../../../services/ProviderRouter.js').ProviderRouter;
+        return new AuthStep(
+          mockApiKeyResolver,
+          mockConfigResolver,
+          injectedRouter,
+          undefined,
+          buildDemotionCaches(rateLimitedModels) as never
+        );
+      }
+
+      function makeContext(): GenerationContext {
+        return {
+          job: createMockJob(),
+          startTime: Date.now(),
+          config: { effectivePersonality: TEST_PERSONALITY, configSource: 'personality' },
+        };
+      }
+
+      it('demotes a doomed promotion to the OpenRouter passthrough (same model, announced)', async () => {
+        step = makeStep(['glm-5.2']); // z.ai pool doomed; OpenRouter pool clean
+
+        const result = await step.process(makeContext());
+
+        expect(result.config?.effectivePersonality.model).toBe('z-ai/glm-5.2');
+        expect(result.config?.effectivePersonality.provider).toBe(AIProvider.OpenRouter);
+        expect(result.auth?.apiKey).toBe('sk-openrouter-key');
+        expect(result.auth?.quotaFallback).toEqual({
+          fromModel: 'glm-5.2',
+          toModel: 'z-ai/glm-5.2',
+          category: 'quota_exceeded',
+          mode: 'proactive',
+        });
+        // The passthrough is consumed — no stale rescue route survives.
+        expect(result.auth?.fallback).toBeUndefined();
+        expect(result.auth?.wasAutoPromoted).toBeUndefined();
+      });
+
+      it('falls through to the global-default retarget when BOTH pools are doomed', async () => {
+        const resolverWithGlobal = {
+          ...mockConfigResolver,
+          getGlobalDefaultConfig: vi
+            .fn()
+            .mockResolvedValue({ model: 'paid/default', temperature: 0.5 }),
+        } as unknown as LlmConfigResolver;
+        const injectedRouter = {
+          resolveRoute: vi.fn().mockResolvedValue(PROMOTED_ROUTE),
+        } as unknown as import('../../../../services/ProviderRouter.js').ProviderRouter;
+        // The quota retarget (OpenRouter target) needs the user's own OR key.
+        vi.mocked(mockApiKeyResolver.resolveUserOpenRouterKey).mockResolvedValue(
+          'sk-openrouter-key'
+        );
+        step = new AuthStep(
+          mockApiKeyResolver,
+          resolverWithGlobal,
+          injectedRouter,
+          undefined,
+          buildDemotionCaches(['glm-5.2', 'z-ai/glm-5.2']) as never
+        );
+
+        const result = await step.process(makeContext());
+
+        expect(result.config?.effectivePersonality.model).toBe('paid/default');
+        expect(result.auth?.quotaFallback?.fromModel).toBe('glm-5.2');
+        expect(result.auth?.quotaFallback?.toModel).toBe('paid/default');
+      });
+
+      it('promotion WITHOUT a pre-computed fallback skips demotion (falls to quota retarget)', async () => {
+        // Reachable production state: ProviderRouter promotes but the
+        // OpenRouter fallback resolution failed (its catch block proceeds
+        // sans-fallback). A doomed promotion must then take the retarget.
+        const { fallback: _unused, ...promotedNoFallback } = PROMOTED_ROUTE;
+        const resolverWithGlobal = {
+          ...mockConfigResolver,
+          getGlobalDefaultConfig: vi
+            .fn()
+            .mockResolvedValue({ model: 'paid/default', temperature: 0.5 }),
+        } as unknown as LlmConfigResolver;
+        const injectedRouter = {
+          resolveRoute: vi.fn().mockResolvedValue(promotedNoFallback),
+        } as unknown as import('../../../../services/ProviderRouter.js').ProviderRouter;
+        vi.mocked(mockApiKeyResolver.resolveUserOpenRouterKey).mockResolvedValue(
+          'sk-openrouter-key'
+        );
+        step = new AuthStep(
+          mockApiKeyResolver,
+          resolverWithGlobal,
+          injectedRouter,
+          undefined,
+          buildDemotionCaches(['glm-5.2']) as never
+        );
+
+        const result = await step.process(makeContext());
+
+        expect(result.config?.effectivePersonality.model).toBe('paid/default');
+        expect(result.auth?.quotaFallback?.toModel).toBe('paid/default');
+      });
+
+      it('leaves a viable promotion untouched (no demotion, rescue route intact)', async () => {
+        step = makeStep([]); // nothing doomed
+
+        const result = await step.process(makeContext());
+
+        expect(result.config?.effectivePersonality.model).toBe('glm-5.2');
+        expect(result.auth?.wasAutoPromoted).toBe(true);
+        expect(result.auth?.fallback).toEqual(PROMOTED_ROUTE.fallback);
+        expect(result.auth?.quotaFallback).toBeUndefined();
       });
     });
 

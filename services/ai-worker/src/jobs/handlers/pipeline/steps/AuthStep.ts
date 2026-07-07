@@ -18,9 +18,11 @@ import {
   logQuotaFallbackAudit,
   selectQuotaFallbackTarget,
   type QuotaFallbackCaches,
+  type QuotaFallbackCategory,
   type QuotaFallbackInfo,
 } from '../../../../services/quotaFallback.js';
 import { deriveCacheKeyId } from '../../../../services/RateLimitCache.js';
+import { tryPromotionDemotion } from './promotionDemotion.js';
 import type { IPipelineStep, GenerationContext } from '../types.js';
 
 const logger = createLogger('AuthStep');
@@ -121,12 +123,44 @@ export class AuthStep implements IPipelineStep {
     Awaited<ReturnType<AuthStep['resolveLlmAuth']>> & { quotaFallback?: QuotaFallbackInfo }
   > {
     const llmAuth = await this.resolveLlmAuth(initialPersonality, userId);
+
+    // One viability check for the resolved route, shared by the demotion tier
+    // and the quota retarget — they'd otherwise each hit the doom caches for
+    // the same (model, key) pair on every promoted request.
+    const viability =
+      this.quotaFallbackCaches === undefined
+        ? null
+        : await checkModelViability({
+            model: llmAuth.effectivePersonality.model,
+            cacheKeyId: deriveCacheKeyId(llmAuth.resolvedApiKey, userId),
+            caches: this.quotaFallbackCaches,
+          });
+    if (viability === null || viability.viable) {
+      return llmAuth;
+    }
+
+    // Demotion tier: a doomed AUTO-PROMOTED route demotes to its pre-computed
+    // OpenRouter passthrough (same model, different key → separate quota/rate
+    // pool) BEFORE any global-default retarget. The preset's model is only
+    // abandoned when BOTH pools are doomed — z.ai coding-plan quota is not
+    // OpenRouter quota, and the user configured this model on purpose.
+    const demotion = await tryPromotionDemotion(
+      llmAuth,
+      userId,
+      viability.category,
+      this.quotaFallbackCaches
+    );
+    if (demotion !== null) {
+      return demotion;
+    }
+
     const proactive = await this.applyProactiveQuotaFallback({
       personality: llmAuth.effectivePersonality,
       apiKey: llmAuth.resolvedApiKey,
       isGuestMode: llmAuth.isGuestMode,
       userId,
       jobId,
+      knownCategory: viability.category,
     });
     if (proactive === null) {
       return llmAuth;
@@ -167,6 +201,8 @@ export class AuthStep implements IPipelineStep {
     isGuestMode: boolean;
     userId: string;
     jobId: string | undefined;
+    /** Doom category already established by the caller's shared viability check. */
+    knownCategory?: QuotaFallbackCategory;
   }): Promise<{
     personality: NonNullable<GenerationContext['config']>['effectivePersonality'];
     apiKey: string | undefined;
@@ -177,19 +213,23 @@ export class AuthStep implements IPipelineStep {
       return null;
     }
 
-    const { personality, apiKey, isGuestMode, userId, jobId } = options;
+    const { personality, apiKey, isGuestMode, userId, jobId, knownCategory } = options;
     const cacheKeyId = deriveCacheKeyId(apiKey, userId);
-    const viability = await checkModelViability({
-      model: personality.model,
-      cacheKeyId,
-      caches: this.quotaFallbackCaches,
-    });
-    if (viability.viable) {
-      return null;
+    let category = knownCategory;
+    if (category === undefined) {
+      const viability = await checkModelViability({
+        model: personality.model,
+        cacheKeyId,
+        caches: this.quotaFallbackCaches,
+      });
+      if (viability.viable) {
+        return null;
+      }
+      category = viability.category;
     }
 
     const target = await selectQuotaFallbackTarget({
-      category: viability.category,
+      category,
       isGuestMode,
       failingModel: personality.model,
       cacheKeyId,
@@ -227,7 +267,7 @@ export class AuthStep implements IPipelineStep {
     const info: QuotaFallbackInfo = {
       fromModel: personality.model,
       toModel: target.config.model,
-      category: viability.category,
+      category,
       mode: 'proactive',
     };
     logQuotaFallbackAudit(info, { jobId, cacheKeyId });

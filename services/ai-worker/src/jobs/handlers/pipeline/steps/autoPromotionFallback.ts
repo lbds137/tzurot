@@ -96,7 +96,12 @@ export async function runWithAutoPromotionFallback(
   opts: GenerateAttemptOpts,
   fallback: NonNullable<GenerationContext['auth']>['fallback']
 ): Promise<GenerateAttemptResult> {
-  if (fallback === undefined) {
+  if (fallback === undefined || fallback.isGuestMode) {
+    // No fallback, or a guest-mode fallback that resolved onto the SYSTEM
+    // OpenRouter key — rescuing would run the PAID z-ai/<model> on the
+    // owner's key (owner-cost boundary). Let the failure propagate; the
+    // reactive quota fallback downstream retargets guests to the free
+    // default correctly.
     return attempt(opts);
   }
 
