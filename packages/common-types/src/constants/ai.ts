@@ -70,6 +70,14 @@ export const AI_DEFAULTS = {
    */
   MEMORY_TOKEN_BUDGET_RATIO: 0.25,
   /**
+   * Memory floor under history contention, as a ratio of the shared
+   * memory+history space. When fetched history alone would consume that
+   * space, memories keep this floor and history absorbs the squeeze —
+   * recency yields to identity at the margin (persona identity lives in
+   * long-term memories; history is truncated downstream anyway).
+   */
+  MEMORY_CONTENTION_FLOOR_RATIO: 0.1,
+  /**
    * Safety margin fraction reserved for response generation
    *
    * When calculating available context budget, this fraction is reserved to ensure
