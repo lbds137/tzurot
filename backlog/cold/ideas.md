@@ -456,3 +456,7 @@ The test-quality theme's candidate-4 audit (2026-07-06) found one coherent famil
 **Why it matters**: these shapes cross the BullMQ seam that produced #1184; the contract suite now pins their runtime behavior, but a union makes the producer-side mistakes uncompilable rather than merely caught. Consumers' `if (result.success)` narrowing improves for free.
 
 **Effort**: medium — the interfaces are consumed across ai-worker handlers/DependencyStep and bot-client result paths; each arm-split surfaces every call site that fabricates partial results (mostly tests). One shape at a time is the right grain; `AudioTranscriptionResult` first (it has the documented-but-unenforced `failureReason` invariant). Promote when: any functional touch of jobs.ts result shapes, or as a standalone chore slice.
+
+## Extraction cost rollup (rider on ops:health)
+
+When the planned `ops:health` aggregator exists, add per-personality extraction-cost rollups (memory Phase 2 slice 2 writes the raw signal: structured logs + usage_logs rows with requestType for extraction). Until then, logs are the observability. Filed 2026-07-06 (Phase 2 plan).
