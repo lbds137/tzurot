@@ -1,17 +1,17 @@
 # Current
 
-> **Version**: v3.0.0-beta.152 (released 2026-07-07) — **memory_facts premigrated** (additive; the ALTER-on-same-migration-table destructive flag was a detector false positive, overridden with express owner permission). The fallback-chain release: **memory starvation fix** (#1530, joint allocation), **z.ai demotion tier** (#1531 — doomed promotions retry same-model via OpenRouter before the global default) + **owner-cost guard** + **degraded-beats-failed free-default downgrade** (#1533), memory Phase 2 shadow foundation (#1527–#1529, prod-inert: flag absent), RouteDeps type-flip (#1523). Release review: "Nothing found that should block" — one finding (revival valid_from) folded into the FactStore follow-up row. _Prior: beta.151/150/149 (all 2026-07-06 — FOUR releases in ~30 hours)._
+> **Version**: v3.0.0-beta.153 (released 2026-07-07) — **prompt-injection hardening** headline. A deep audit found the escapeXmlContent allowlist had drifted from the emitted tags, opening a **universal `</message></chat_log>` breakout** (any user message) + 5 more seams (public-personality `<character>`, raw-interpolated names in `<role>`/constraints, LLM-unsafe CDATA `<about>`, transcript history-path, attachment filenames). New `guard:prompt-tags` fails closed on unclassified structural tags (#1538). Also: rate-limit in-turn rescue (#1539), guest paid-vision leak + failure signal (#1534), gateway connection-drain (#1535), NULL-vector self-healing sweep (#1536), error-spoiler trim (#1537), voice-at-import + `/character` UX sweep (#1541). Additive `add_null_embedding_sweep_index` premigrated. Release review: "nothing that should hold up this release." _Prior: beta.152 (2026-07-07, fallback chain)._
 
 ---
 
 ## Unreleased on Develop
 
-- **#1534** vision pair: guest paid-vision leak closed on Priorities 1+2 of `selectVisionModel` (protected surface: RAG/extended-context paths) + vision failure signal restored (placeholder-shaped descriptions count into failedCount; `VISION_PLACEHOLDER_PREFIX` shared constant).
-- **#1535** gateway connection-drain: dispose awaits `server.close` FIRST (extracted `shutdownHandler.ts`, order pinned by test).
-- **#1536** NULL-vector self-healing sweep (hourly, bounded 50, idempotent, partial index shipped with the query) + pending-memory dead-letter backlog in every scheduled run's log + data-driven `REPEATABLE_JOB_SCHEDULE`.
-- **#1537** (in CI) error-spoiler trims provider text — no more closing-quote-on-own-line.
 - **Memory Phase 1a remains PARKED** on `feat/memory-hybrid-retrieval` (evidence gate: real-scale goldens).
-- **Open design question to owner**: add RATE_LIMIT to the reactive quota-retarget categories (same-turn rescue; today the 429 turn always fails and only subsequent turns retarget; personal-free-default == global-free-default users get no fallback at all). Awaiting owner's call — offered 2026-07-07.
+- _(queue flushed by beta.153)_
+
+## Next Session Goal
+
+**beta.154 character-definition-privacy epic** (filed `cold/ideas.md`): definition-visibility toggle (private-default for everyone), view/browse detail DRY unification, import/export field audit (found: customFields export gap, voice export asymmetry). Council pass recommended before plan-mode. Plus open pending-input items: fair-share quota design (answers filed), items 4/5 already shipped, GLM eval + real-scale goldens owner sessions.
 
 ## Next Session Goal
 
