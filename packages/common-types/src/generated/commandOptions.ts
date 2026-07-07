@@ -114,6 +114,13 @@ export const characterAvatarOptions = defineTypedOptions({
 });
 
 /**
+ * /character avatar-clear <character>
+ */
+export const characterAvatarClearOptions = defineTypedOptions({
+  character: { type: 'string', required: true },
+});
+
+/**
  * /character voice <character, audio>
  */
 export const characterVoiceOptions = defineTypedOptions({
@@ -129,11 +136,12 @@ export const characterVoiceClearOptions = defineTypedOptions({
 });
 
 /**
- * /character import <file, avatar>
+ * /character import <file, image, audio>
  */
 export const characterImportOptions = defineTypedOptions({
   file: { type: 'attachment', required: true },
-  avatar: { type: 'attachment', required: false },
+  image: { type: 'attachment', required: false },
+  audio: { type: 'attachment', required: false },
 });
 
 /**

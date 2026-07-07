@@ -89,6 +89,7 @@ function createCharacterRouter(): (context: SafeCommandContext) => Promise<void>
         view: (ctx: DeferredCommandContext) => handleView(ctx, config),
         browse: (ctx: DeferredCommandContext) => handleBrowse(ctx, config),
         avatar: (ctx: DeferredCommandContext) => handleAvatar(ctx, config),
+        'avatar-clear': (ctx: DeferredCommandContext) => handleAvatar(ctx, config),
         voice: (ctx: DeferredCommandContext) => handleVoice(ctx, config),
         'voice-clear': (ctx: DeferredCommandContext) => handleVoice(ctx, config),
         import: (ctx: DeferredCommandContext) => handleImport(ctx, config),
@@ -274,7 +275,7 @@ export default defineCommand({
     .addSubcommand(subcommand =>
       subcommand
         .setName('avatar')
-        .setDescription('Upload or change a character avatar')
+        .setDescription('Upload or replace a character avatar')
         .addStringOption(option =>
           option
             .setName('character')
@@ -291,8 +292,20 @@ export default defineCommand({
     )
     .addSubcommand(subcommand =>
       subcommand
+        .setName('avatar-clear')
+        .setDescription("Remove a character's avatar image")
+        .addStringOption(option =>
+          option
+            .setName('character')
+            .setDescription(CHARACTER_TO_UPDATE_DESC)
+            .setRequired(true)
+            .setAutocomplete(true)
+        )
+    )
+    .addSubcommand(subcommand =>
+      subcommand
         .setName('voice')
-        .setDescription('Upload a voice reference audio file for TTS cloning')
+        .setDescription('Upload or replace a character voice reference for TTS cloning')
         .addStringOption(option =>
           option
             .setName('character')
@@ -303,14 +316,14 @@ export default defineCommand({
         .addAttachmentOption(option =>
           option
             .setName('audio')
-            .setDescription('Audio file (WAV, MP3, OGG, FLAC)')
+            .setDescription('Voice reference audio (WAV, MP3, OGG, FLAC)')
             .setRequired(true)
         )
     )
     .addSubcommand(subcommand =>
       subcommand
         .setName('voice-clear')
-        .setDescription('Remove voice reference and disable TTS for a character')
+        .setDescription('Remove a character voice reference and disable TTS')
         .addStringOption(option =>
           option
             .setName('character')
@@ -331,8 +344,14 @@ export default defineCommand({
         )
         .addAttachmentOption(option =>
           option
-            .setName('avatar')
-            .setDescription('Optional avatar image (PNG, JPG, GIF, WebP)')
+            .setName('image')
+            .setDescription('Avatar image (PNG, JPG, GIF, WebP)')
+            .setRequired(false)
+        )
+        .addAttachmentOption(option =>
+          option
+            .setName('audio')
+            .setDescription('Voice reference audio (WAV, MP3, OGG, FLAC)')
             .setRequired(false)
         )
     )

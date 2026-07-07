@@ -70,7 +70,9 @@ describe('handleVoice', () => {
 
       await handleVoice(context, mockConfig);
 
-      expect(context.editReply).toHaveBeenCalledWith(expect.stringContaining('Invalid file type'));
+      expect(context.editReply).toHaveBeenCalledWith(
+        expect.stringContaining('Invalid audio format')
+      );
       expect(fetchCharacter).not.toHaveBeenCalled();
     });
 
@@ -195,7 +197,9 @@ describe('handleVoice', () => {
 
       await handleVoice(context, mockConfig);
 
-      expect(context.editReply).toHaveBeenCalledWith(expect.stringContaining('Invalid file type'));
+      expect(context.editReply).toHaveBeenCalledWith(
+        expect.stringContaining('Invalid audio format')
+      );
     });
 
     it('should reject malformed attachment URLs', async () => {

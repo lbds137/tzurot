@@ -121,14 +121,24 @@ async function processMediaUploads(
 }> {
   const mediaFields: Prisma.PersonalityUpdateInput = {};
 
-  const avatarResult = await processAvatarData(body.avatarData, slug);
-  if (avatarResult !== null && !avatarResult.ok) {
-    return { avatarUpdated: false, mediaFields, error: avatarResult.error };
-  }
-
-  const avatarUpdated = avatarResult?.ok === true;
-  if (avatarUpdated) {
-    mediaFields.avatarData = new Uint8Array(avatarResult.buffer);
+  // Avatar: explicit clear takes precedence (`avatarData: null` means "no
+  // change" per the dashboard round-trip, so clearing needs the distinct
+  // `clearAvatar` flag). Only the AVATAR branch is skipped on clear — the voice
+  // block below still runs, so a request that clears the avatar AND changes
+  // voice in one body is honored for both.
+  let avatarUpdated = false;
+  if (body.clearAvatar === true) {
+    mediaFields.avatarData = null;
+    avatarUpdated = true;
+  } else {
+    const avatarResult = await processAvatarData(body.avatarData, slug);
+    if (avatarResult !== null) {
+      if (!avatarResult.ok) {
+        return { avatarUpdated: false, mediaFields, error: avatarResult.error };
+      }
+      avatarUpdated = true;
+      mediaFields.avatarData = new Uint8Array(avatarResult.buffer);
+    }
   }
 
   // null = clear existing voice reference, undefined = don't change, string = set new
