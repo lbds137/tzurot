@@ -23,6 +23,10 @@ _Focus: implement the ACCEPTED memory architecture — typed memories (episode/f
 
 The A/B on the toy corpus measured ZERO recall lift (both 0.889) — parked per the artifact's own evidence gate. Findings shaping the resume: BGE-small subword tokenization already handles short-query rare-token recall; the one both-modes failure needs BM25-class IDF (vanilla Postgres lacks it — Phase 1b note). Resume gate: real-scale goldens from prod data (owner-involved query construction; public-repo privacy call on fixture storage). Ride-alongs for the resume touch: goldens `$comment` rewording, `PgvectorTypes` threshold JSDoc reorder.
 
+### Design inputs
+
+[`docs/proposals/backlog/MEMORY_INGESTION_IMPROVEMENTS.md`](../docs/proposals/backlog/MEMORY_INGESTION_IMPROVEMENTS.md) remains the ingestion-side input (artifact §3.1 note) — feeds Phase 2 extraction design.
+
 ### Still-live items not owned by the artifact
 
 - **Cross-channel history — smarter retrieval with limits**: limit messages per channel, prioritize channels with active conversations (automatic retrieval path at generation time; distinct from user-driven `/history range` import).
