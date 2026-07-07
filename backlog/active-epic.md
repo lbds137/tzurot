@@ -28,6 +28,11 @@ The A/B on the toy corpus measured ZERO recall lift (both 0.889) — parked per 
 
 [`docs/proposals/backlog/MEMORY_INGESTION_IMPROVEMENTS.md`](../docs/proposals/backlog/MEMORY_INGESTION_IMPROVEMENTS.md) remains the ingestion-side input (artifact §3.1 note) — feeds Phase 2 extraction design.
 
+### Design inputs from the external Fable review (2026-07-06)
+
+- **STM/LTM dedup hole (review item 8) — the epic must fix this architecturally, not piecemeal**: LTM retrieval excludes memories newer than `oldestFetchedTimestamp − buffer` assuming history covers them, but history selection drops the OLDEST fetched messages under budget pressure — the dropped range is reachable by NEITHER path. Ordering circularity (retrieval runs before allocation) means the true truncation point isn't known at cutoff time; candidate resolutions: pessimistic predicted-truncation cutoff, post-allocation second LTM query over the dropped range, or restructuring the retrieval/allocation sequence. **The invariant the epic must enforce and test: every fetched message is reachable via exactly one of shipped-history or LTM.**
+- **Systemic lens for the epic**: items 7+8 are one bug family — budget-adjacent code trusting PRE-truncation state for decisions whose correctness depends on POST-truncation state. Token-counting is also inconsistent (chars/4 vs tiktoken-on-XML) — unify in the epic. Anywhere consuming `rawConversationHistory` size, `oldestHistoryTimestamp`, or per-entry `tokenCount` for allocation/exclusion is suspect until checked.
+
 ### Still-live items not owned by the artifact
 
 - **Cross-channel history — smarter retrieval with limits**: limit messages per channel, prioritize channels with active conversations (automatic retrieval path at generation time; distinct from user-driven `/history range` import).
