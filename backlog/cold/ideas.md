@@ -460,3 +460,7 @@ The test-quality theme's candidate-4 audit (2026-07-06) found one coherent famil
 ## Extraction cost rollup (rider on ops:health)
 
 When the planned `ops:health` aggregator exists, add per-personality extraction-cost rollups (memory Phase 2 slice 2 writes the raw signal: structured logs + usage_logs rows with requestType for extraction). Until then, logs are the observability. Filed 2026-07-06 (Phase 2 plan).
+
+## Eval: does GLM execute PLATFORM_CONSTRAINTS as written?
+
+The permissive-ambiguity calibration in `HardcodedConstraints.ts` is a deliberate owner decision, but the volume tier is GLM — a prose constraint is only as good as the model reading it. Build a small manual eval suite (rides `vitest.eval.config.ts`, never CI) feeding boundary cases and scoring whether the "explicitly frames as a minor" test is applied AS WRITTEN, measuring BOTH failure directions (false-block and false-pass). **Design the case set with the owner before writing it.** Filed 2026-07-07 (external Fable review, optional/design-first).
