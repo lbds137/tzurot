@@ -131,6 +131,7 @@ export function createMockPersonality(
     birthDay: null,
     birthYear: null,
     isPublic: false,
+    definitionPublic: false,
     voiceEnabled: false,
     imageEnabled: false,
     ownerId: MOCK_USER_ID,

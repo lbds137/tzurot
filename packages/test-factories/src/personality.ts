@@ -43,6 +43,8 @@ function createBasePersonality(overrides?: Partial<PersonalityFull>): Personalit
     birthDay: null,
     birthYear: null,
     isPublic: false,
+    definitionPublic: false,
+    definitionRedacted: false,
     voiceEnabled: false,
     imageEnabled: false,
     ownerId: DEFAULT_OWNER_ID,

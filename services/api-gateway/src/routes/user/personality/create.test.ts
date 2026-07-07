@@ -211,6 +211,8 @@ describe('POST /user/personality (create)', () => {
           personalityTraits: 'Friendly, kind',
           ownerId: MOCK_USER_ID,
           isPublic: false,
+          // Absent in the request → definition defaults to private.
+          definitionPublic: false,
           // No voice reference provided → voice stays disabled (the false
           // branch of create.ts's voiceEnabled derivation).
           voiceEnabled: false,

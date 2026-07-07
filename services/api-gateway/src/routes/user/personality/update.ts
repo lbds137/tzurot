@@ -52,6 +52,7 @@ function buildUpdateData(
     'conversationalExamples',
     'errorMessage',
     'voiceEnabled',
+    'definitionPublic',
   ];
 
   for (const field of simpleFields) {
@@ -283,7 +284,8 @@ function createHandler(prisma: PrismaClient, cacheInvalidationService?: CacheInv
     // otherwise is impossible). The schema argument pins the payload to the
     // declared contract at compile time.
     sendContractSuccess(res, GetPersonalityResponseSchema, {
-      personality: formatPersonalityResponse(updated),
+      // Owner-only route (the update already passed the edit gate) — never redact.
+      personality: formatPersonalityResponse(updated, { redact: false }),
       canEdit: true,
     });
   };

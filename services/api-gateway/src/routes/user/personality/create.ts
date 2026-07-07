@@ -61,6 +61,7 @@ function buildCreateData(
     conversationalExamples: body.conversationalExamples ?? null,
     errorMessage: body.errorMessage ?? null,
     isPublic: body.isPublic ?? false,
+    definitionPublic: body.definitionPublic ?? false,
     ownerId,
     systemPromptId,
     avatarData: media.avatarBuffer !== undefined ? new Uint8Array(media.avatarBuffer) : null,
@@ -147,7 +148,8 @@ export const handleCreatePersonality = (deps: RouteDeps): RequestHandler => {
     // snapshot. See the "Preset cascade standardization" backlog epic.
     sendCustomSuccess(
       res,
-      { success: true, personality: formatPersonalityResponse(personality) },
+      // Creator is the owner — never redact.
+      { success: true, personality: formatPersonalityResponse(personality, { redact: false }) },
       StatusCodes.CREATED
     );
   });

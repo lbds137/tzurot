@@ -60,6 +60,15 @@ export const PersonalityFullSchema = z.object({
   birthDay: z.number().nullable(),
   birthYear: z.number().nullable(),
   isPublic: z.boolean(),
+  /** When false, non-owners see the card fields redacted to null (see definitionRedacted). */
+  definitionPublic: z.boolean(),
+  /**
+   * True when the card fields in THIS response were redacted because the
+   * requester can't see the definition (non-owner + definitionPublic=false).
+   * Lets the client show a "definition is private" state instead of treating
+   * the nulled fields as "creator left them blank."
+   */
+  definitionRedacted: z.boolean(),
   voiceEnabled: z.boolean(),
   imageEnabled: z.boolean(),
   ownerId: z.string(),
@@ -237,6 +246,10 @@ export const PersonalityCreateSchema = z.object({
   // Visibility - defaults to false, can be set to true to make public
   isPublic: z.boolean().optional(),
 
+  // Definition visibility - defaults to false (private internals). Settable at
+  // create/import time; the create route maps it (default false when absent).
+  definitionPublic: z.boolean().optional(),
+
   // Custom fields (JSONB) - accepts arbitrary nested JSON to match Prisma Json? type
   customFields: z.record(z.string(), z.unknown()).optional().nullable(),
 
@@ -274,6 +287,11 @@ export const PersonalityUpdateSchema = z.object({
 
   // Visibility
   isPublic: z.boolean().optional(),
+
+  // Definition visibility — when false, non-owners see the card fields
+  // redacted. Toggled via the /character edit dashboard (auto-forwarded by the
+  // update route's simpleFields loop).
+  definitionPublic: z.boolean().optional(),
 
   // Custom fields (JSONB) - accepts arbitrary nested JSON to match Prisma Json? type
   customFields: z.record(z.string(), z.unknown()).optional().nullable(),
@@ -372,6 +390,7 @@ export const PERSONALITY_DETAIL_SELECT = {
   birthDay: true,
   birthYear: true,
   isPublic: true,
+  definitionPublic: true,
   voiceEnabled: true,
   imageEnabled: true,
   ownerId: true,

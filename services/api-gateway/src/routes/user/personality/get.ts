@@ -80,11 +80,20 @@ function createHandler(prisma: PrismaClient) {
 
     const canEdit = await canUserEditPersonality(prisma, userId, personality.id, discordUserId);
 
-    logger.info({ discordUserId, slug, canEdit }, 'Retrieved personality');
+    // Definition visibility: owner/bot-admin (canEdit) always see the card;
+    // everyone else sees it only when the creator opted the definition public.
+    // This is the single redaction point — it covers /character view AND
+    // /character browse-detail (both read this route) and any future consumer.
+    const canViewDefinition = canEdit || personality.definitionPublic;
+
+    logger.info({ discordUserId, slug, canEdit, canViewDefinition }, 'Retrieved personality');
 
     sendCustomSuccess(
       res,
-      { personality: formatPersonalityResponse(personality), canEdit },
+      {
+        personality: formatPersonalityResponse(personality, { redact: !canViewDefinition }),
+        canEdit,
+      },
       StatusCodes.OK
     );
   };
