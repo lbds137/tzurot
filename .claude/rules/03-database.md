@@ -49,6 +49,12 @@ const results = await prisma.$queryRaw<SimilarMemory[]>`
 `;
 ```
 
+## Indexes Ship With Their Query
+
+**A new index must land in the same PR as a query that uses it** (or name the existing query it backs, verifiable by grep). A speculative index is not free: its write-path maintenance costs land immediately while its read benefit never arrives — a GIN index added "for future JSONB queries" that were never built stalled prod inserts past the 6s query timeout and dead-ended a user response. When reviewing a migration that adds an index, ask "which query?" — no query, no index.
+
+Corollary for removals: `idx_scan = 0` alone never justifies a drop. Verify no query exists (raw AND Prisma) — an index backing a real query on a still-small table shows 0 scans only because the planner seq-scans; it becomes load-bearing as the table grows. PK/unique indexes are constraints, never drop candidates.
+
 ## Migrations
 
 ### The One True Workflow
