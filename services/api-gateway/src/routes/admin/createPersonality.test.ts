@@ -126,6 +126,41 @@ describe('POST /admin/personality', () => {
     });
   });
 
+  it('stores a voice reference and auto-enables voice (parity with the user create route)', async () => {
+    prisma.personality.findUnique.mockResolvedValue(null);
+    prisma.personality.create.mockResolvedValue({
+      id: 'personality-voice',
+      name: 'Voice Bot',
+      slug: 'voice-bot',
+      displayName: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    prisma.llmConfig.findFirst.mockResolvedValue(null);
+
+    const audioBytes = Buffer.from('fake-wav-audio');
+    const response = await request(app)
+      .post('/admin/personality')
+      .send({
+        name: 'Voice Bot',
+        slug: 'voice-bot',
+        characterInfo: 'Speaks',
+        personalityTraits: 'Vocal',
+        voiceReferenceData: `data:audio/wav;base64,${audioBytes.toString('base64')}`,
+      });
+
+    expect(response.status).toBe(201);
+    expect(prisma.personality.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        voiceReferenceData: new Uint8Array(audioBytes),
+        voiceReferenceType: 'audio/wav',
+        // A stored reference with voice off is a silent no-op; voiceEnabled
+        // must derive from the processed buffer, matching the user route.
+        voiceEnabled: true,
+      }),
+    });
+  });
+
   it('should reject creation with missing required fields', async () => {
     const response = await request(app).post('/admin/personality').send({
       name: 'Test Bot',
