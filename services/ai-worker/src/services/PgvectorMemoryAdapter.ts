@@ -281,6 +281,29 @@ export class PgvectorMemoryAdapter {
     }
   }
 
+  /**
+   * Re-embed one memory in place — the NULL-vector self-healing path. Rows
+   * get a NULL embedding when an edit lands during embedding-service downtime
+   * (correct per the visibility invariant: invisible beats wrongly-matched);
+   * this restores them to RAG visibility. Guards with embedding IS NULL so a
+   * concurrent normal update can't be clobbered (idempotent by shape).
+   *
+   * @returns true when a row was updated, false when the row no longer
+   *   qualifies (already re-embedded, deleted, or made non-normal).
+   */
+  async reembedMemory(memoryId: string, text: string): Promise<boolean> {
+    const embedding = await this.generateEmbedding(text);
+    const updated = await this.prisma.$executeRaw`
+      UPDATE memories
+      SET embedding = ${`[${embedding.join(',')}]`}::vector(384),
+          updated_at = NOW()
+      WHERE id = ${memoryId}::uuid
+        AND embedding IS NULL
+        AND visibility = 'normal'
+    `;
+    return updated > 0;
+  }
+
   private async generateEmbedding(text: string): Promise<number[]> {
     if (!this.embeddingService.isServiceReady()) {
       throw new Error('Embedding service is not ready');
