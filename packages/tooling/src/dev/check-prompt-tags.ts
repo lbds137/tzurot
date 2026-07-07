@@ -10,15 +10,24 @@
  * breakout seam — a public personality can emit `</character></system_identity>`
  * and escape into top-level prompt scope for every user who talks to it.
  *
- * This guard fails closed: every literal structural tag emitted by the prompt
- * assembly sources must be classified as EITHER
- *   - PROTECTED (in promptSanitizer's `PROTECTED_TAGS` — escaped in user content), OR
+ * This guard fails closed: every literal structural tag emitted by EVERY
+ * production `.ts` file under the scan roots must be classified as one of
+ *   - PROTECTED (in promptSanitizer's `PROTECTED_TAGS` — escaped in user content),
  *   - KNOWN_UNPROTECTED (this file's registry — proven to wrap only
  *     system-generated content, or handled by the separate
- *     `neutralizeWrapperClosingTags` mechanism).
- * A newly-added structural tag in neither list fails the guard, forcing the
- * author to decide whether it needs escaping. The check is bidirectional: a
- * KNOWN_UNPROTECTED entry no longer emitted is stale and also fails.
+ *     `neutralizeWrapperClosingTags` mechanism), OR
+ *   - KNOWN_NON_PROMPT (looks like a tag to the extractor but is never emitted —
+ *     doc placeholders, extractor artifacts).
+ * A newly-added structural tag in none of these fails the guard, forcing the
+ * author to decide whether it needs escaping. Bidirectional: a registry entry
+ * no longer emitted is stale and also fails.
+ *
+ * The scan is UNCONDITIONAL — every production `.ts` file, not just files that
+ * import an escaper. Import-gating would be blind to exactly the file the guard
+ * exists to catch: a new formatter emitting a tag with no escaper import.
+ * (What the extractor CANNOT yet detect is whether an emitted tag's content is
+ * actually escaped at runtime — it classifies tag presence, not escaping. The
+ * cross-package EmbedParser escaping pin lives in bot-client's own test.)
  *
  * Binary sync-check (like guard:duplicate-exports): no threshold, no WHY.md,
  * no --summary.
@@ -28,15 +37,15 @@ import { join } from 'node:path';
 import { PROTECTED_TAGS } from '@tzurot/common-types/utils/promptSanitizer';
 
 /**
- * Where prompt assembly lives. Every prompt-emitting file uses one of the XML
- * escapers, so a file is IN the surface iff it imports one — this auto-discovers
- * new formatters instead of hardcoding a file list that silently goes stale
- * (conversationUtils.ts / xmlMetadataFormatters.ts live outside services/prompt/,
- * and shared formatters like common-types environmentFormatter.ts live in a
- * different package — a directory allowlist would miss all of these).
+ * Where prompt assembly lives. EVERY `.ts` file under these roots is scanned
+ * for structural-tag emission — deliberately NOT gated on importing an XML
+ * escaper. A brand-new formatter that interpolates raw user content into a
+ * new tag without importing an escaper is exactly the file that must fail
+ * closed, and an import-gated scan is blind to it (found in practice:
+ * `<current_conversation>` in ContextWindowManager.ts, a real structural
+ * wrapper emitted by an escaper-import-less file).
  */
 const SCAN_ROOTS = ['services/ai-worker/src', 'packages/common-types/src'] as const;
-const ESCAPER_IMPORT = /\bescapeXmlContent\b|\bescapeXml\b|\bneutralizeWrapperClosingTags\b/;
 
 /**
  * Structural tags proven to enclose ONLY system-generated content (hardcoded
@@ -108,6 +117,26 @@ export const KNOWN_UNPROTECTED_TAGS: Record<string, string> = {
   directive: PROTOCOL_FIELD,
   formatting_rules: PROTOCOL_FIELD,
   rule: PROTOCOL_FIELD,
+  // Self-closing marker; the duration attribute is system-computed from
+  // timestamps (formatTimeGapMarker). No closing form to break out of, and a
+  // forged marker inside a user message stays within that message's protected
+  // <message> boundary — not an escalation.
+  time_gap: 'Self-closing; duration attribute is system-computed (timeGap.ts).',
+};
+
+/**
+ * Strings that LOOK like structural tags to the extractor but are never
+ * emitted into a prompt — documentation placeholders in error messages and
+ * extractor artifacts. Classified separately from KNOWN_UNPROTECTED_TAGS so
+ * that registry stays a list of real prompt tags with security reasons.
+ * Adding here asserts "this is not a prompt tag at all" — verify the source
+ * before extending.
+ */
+export const KNOWN_NON_PROMPT_TAGS: Record<string, string> = {
+  digits: 'Doc placeholder in a RateLimitCache error message ("user:<digits>").',
+  failed: 'Error-body placeholder string in Mistral voice clients ("<failed to read body...>").',
+  typeof:
+    'Extractor artifact: regex-literal quotes in logSanitizer.ts skew string pairing so a type expression is captured. Not emitted.',
 };
 
 // A structural tag literal INSIDE a string/template — `<tag>`, `</tag>`,
@@ -158,6 +187,10 @@ export function extractStructuralTags(source: string): Set<string> {
   return tags;
 }
 
+// Directories whose files never emit prompt XML: generated code (Prisma
+// internals contain doc-comment "<tag>" strings) and test infrastructure.
+const EXCLUDED_DIR_NAMES = new Set(['generated', 'test', '__mocks__']);
+
 function walk(dir: string, out: string[]): void {
   let entries: string[];
   try {
@@ -174,19 +207,27 @@ function walk(dir: string, out: string[]): void {
       continue;
     }
     if (stat.isDirectory()) {
-      walk(full, out);
-    } else if (full.endsWith('.ts') && !full.endsWith('.test.ts') && !full.endsWith('.d.ts')) {
+      if (!EXCLUDED_DIR_NAMES.has(entry)) {
+        walk(full, out);
+      }
+    } else if (
+      full.endsWith('.ts') &&
+      !full.endsWith('.test.ts') &&
+      !full.endsWith('.d.ts') &&
+      !full.endsWith('.mock.ts')
+    ) {
       out.push(full);
     }
   }
 }
 
-/** Is this file part of prompt assembly? (imports an XML escaper) */
-export function isPromptAssemblyFile(source: string): boolean {
-  return ESCAPER_IMPORT.test(source);
-}
-
-/** Collect every structural tag emitted across the prompt-assembly sources. */
+/**
+ * Collect every structural tag emitted across the scan roots. Unconditional —
+ * every production `.ts` file is scanned, NOT just files importing an XML
+ * escaper. The escaper-import heuristic previously gated collection here,
+ * which made the guard blind to exactly the file it exists to catch: a new
+ * formatter emitting a tag with no escaper import at all.
+ */
 export function collectEmittedTags(rootDir: string): Set<string> {
   const files: string[] = [];
   for (const root of SCAN_ROOTS) {
@@ -198,9 +239,6 @@ export function collectEmittedTags(rootDir: string): Set<string> {
     try {
       src = readFileSync(file, 'utf-8');
     } catch {
-      continue;
-    }
-    if (!isPromptAssemblyFile(src)) {
       continue;
     }
     for (const tag of extractStructuralTags(src)) {
@@ -220,12 +258,18 @@ export function analyzePromptTags(rootDir: string): PromptTagResult {
   const emitted = collectEmittedTags(rootDir);
   const protectedSet = new Set<string>(PROTECTED_TAGS);
   const knownUnprotected = new Set(Object.keys(KNOWN_UNPROTECTED_TAGS));
+  const knownNonPrompt = new Set(Object.keys(KNOWN_NON_PROMPT_TAGS));
 
   const unclassified = [...emitted]
-    .filter(tag => !protectedSet.has(tag) && !knownUnprotected.has(tag))
+    .filter(tag => !protectedSet.has(tag) && !knownUnprotected.has(tag) && !knownNonPrompt.has(tag))
     .sort();
 
-  const staleKnownUnprotected = [...knownUnprotected].filter(tag => !emitted.has(tag)).sort();
+  // Non-prompt placeholders participate in the stale check too — a removed
+  // placeholder should leave the registry so it can't silently mask a future
+  // REAL tag reusing the same name.
+  const staleKnownUnprotected = [...knownUnprotected, ...knownNonPrompt]
+    .filter(tag => !emitted.has(tag))
+    .sort();
   const staleProtected = [...protectedSet].filter(tag => !emitted.has(tag)).sort();
 
   return { unclassified, staleKnownUnprotected, staleProtected };
