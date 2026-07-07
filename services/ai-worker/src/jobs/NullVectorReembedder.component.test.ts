@@ -81,6 +81,9 @@ describe('NullVectorReembedder (component, PGLite)', () => {
       'The user has a pet dragon named Ember that breathes purple fire'
     );
     const deletedId = await seedNullVectorMemory('A soft-deleted memory about sailing', 'deleted');
+    const [{ updated_at: updatedAtBefore }] = await prisma.$queryRaw<{ updated_at: Date }[]>`
+      SELECT updated_at FROM memories WHERE id = ${orphanId}::uuid
+    `;
 
     const stats = await sweeper.sweep();
     expect(stats.scanned).toBe(1); // the soft-deleted row was never a candidate
@@ -93,6 +96,13 @@ describe('NullVectorReembedder (component, PGLite)', () => {
     `;
     expect(vectors.find(v => v.id === orphanId)?.has_embedding).toBe(true);
     expect(vectors.find(v => v.id === deletedId)?.has_embedding).toBe(false);
+
+    // Healing is not a content edit: updated_at must be untouched, or the UI
+    // would show the memory as "Updated" and reorder it under sort=updatedAt.
+    const [{ updated_at: updatedAtAfter }] = await prisma.$queryRaw<{ updated_at: Date }[]>`
+      SELECT updated_at FROM memories WHERE id = ${orphanId}::uuid
+    `;
+    expect(updatedAtAfter.getTime()).toBe(updatedAtBefore.getTime());
 
     // RAG-visible again: similarity search finds the healed memory.
     const results = await adapter.queryMemories('pet dragon purple fire', {
