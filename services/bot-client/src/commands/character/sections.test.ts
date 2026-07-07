@@ -39,6 +39,8 @@ function createTestCharacter(overrides: Partial<CharacterData> = {}): CharacterD
     birthDay: null,
     birthYear: null,
     isPublic: false,
+    definitionPublic: false,
+    definitionRedacted: false,
     voiceEnabled: false,
     hasVoiceReference: false,
     imageEnabled: false,

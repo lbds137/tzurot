@@ -232,9 +232,47 @@ const PAGE_BUILDERS = [
 ];
 
 /**
+ * Build the single-page view shown when the requester can't see the card
+ * (definitionRedacted). Without this, the nulled card fields render as
+ * "_Not set_" everywhere and a complete character reads as abandoned.
+ * Exported for browse-detail, which shows the same state instead of a
+ * dashboard full of "_Not configured_" section previews.
+ */
+export function buildRedactedViewPage(character: CharacterData): ViewPageResult {
+  const displayName = escapeMarkdown(character.displayName ?? character.name);
+  const embed = new EmbedBuilder()
+    .setTitle(`👁️ ${displayName}`)
+    .setColor(DISCORD_COLORS.BLURPLE)
+    .setTimestamp()
+    .setDescription(
+      "🔒 **This character's definition is private.**\n" +
+        'The creator has chosen not to share the character card. ' +
+        'You can still chat with this character normally.'
+    )
+    .addFields({
+      name: '🏷️ Identity',
+      value:
+        `**Name:** ${escapeMarkdown(character.name)}\n` +
+        `**Display Name:** ${character.displayName !== null && character.displayName !== undefined ? escapeMarkdown(character.displayName) : '_Not set_'}\n` +
+        `**Slug:** \`${character.slug}\``,
+      inline: false,
+    });
+
+  const created = formatDateShort(character.createdAt);
+  const updated = formatDateShort(character.updatedAt);
+  embed.setFooter({ text: `Created: ${created} • Updated: ${updated}` });
+
+  return { embed, truncatedFields: [] };
+}
+
+/**
  * Build a single page of the character view embed
  */
 function buildCharacterViewPage(character: CharacterData, page: number): ViewPageResult {
+  if (character.definitionRedacted) {
+    return buildRedactedViewPage(character);
+  }
+
   const displayName = escapeMarkdown(character.displayName ?? character.name);
   const safePage = Math.max(0, Math.min(page, VIEW_TOTAL_PAGES - 1));
   const truncatedFields: string[] = [];
@@ -378,9 +416,12 @@ export async function handleView(
       return;
     }
 
-    // Build paginated view starting at page 0
+    // Build paginated view starting at page 0. The redacted view is a single
+    // informational page — no pagination or expand buttons.
     const { embed, truncatedFields } = buildCharacterViewPage(character, 0);
-    const components = buildViewComponents(slug, 0, truncatedFields);
+    const components = character.definitionRedacted
+      ? []
+      : buildViewComponents(slug, 0, truncatedFields);
 
     await context.editReply({ embeds: [embed], components });
   } catch (error) {
@@ -412,9 +453,12 @@ export async function handleViewPagination(
       return;
     }
 
-    // Build requested page
+    // Build requested page (a stale pagination click on a now-redacted
+    // character collapses to the single redacted page with no components)
     const { embed, truncatedFields } = buildCharacterViewPage(character, page);
-    const components = buildViewComponents(slug, page, truncatedFields);
+    const components = character.definitionRedacted
+      ? []
+      : buildViewComponents(slug, page, truncatedFields);
 
     await interaction.editReply({ embeds: [embed], components });
   } catch (error) {
@@ -446,6 +490,13 @@ export async function handleExpandField(
     const fieldInfo = EXPANDABLE_FIELDS[fieldName];
     if (fieldInfo === undefined) {
       await replyError(interaction, '❌ Unknown field.');
+      return;
+    }
+
+    // A stale expand button on a now-redacted character must not read as
+    // "field is empty" — name the privacy state.
+    if (character.definitionRedacted) {
+      await interaction.editReply("🔒 This character's definition is private.");
       return;
     }
 

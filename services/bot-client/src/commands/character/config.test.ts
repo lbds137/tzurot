@@ -32,6 +32,8 @@ function createTestCharacter(overrides: Partial<CharacterData> = {}): CharacterD
     birthDay: null,
     birthYear: null,
     isPublic: false,
+    definitionPublic: false,
+    definitionRedacted: false,
     voiceEnabled: false,
     hasVoiceReference: false,
     imageEnabled: false,
@@ -371,11 +373,20 @@ describe('Character Dashboard Configuration', () => {
       expect(footer).toContain('Updated:');
     });
 
-    it('should have visibility, avatar, and voice actions', () => {
+    it('should have visibility, definition-visibility, avatar, and voice actions', () => {
       const actionIds = dashboardConfig.actions!.map(a => a.id);
       expect(actionIds).toContain('visibility');
+      expect(actionIds).toContain('definition-visibility');
       expect(actionIds).toContain('avatar');
       expect(actionIds).toContain('voice');
+    });
+
+    it('should show definition (card) visibility status in description', () => {
+      const cardPublic = createTestCharacter({ definitionPublic: true });
+      const cardPrivate = createTestCharacter({ definitionPublic: false });
+
+      expect(dashboardConfig.getDescription!(cardPublic)).toContain('Card Public');
+      expect(dashboardConfig.getDescription!(cardPrivate)).toContain('Card Private');
     });
 
     it('should show voice status in description when voice reference exists', () => {

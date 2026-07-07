@@ -27,6 +27,10 @@ export interface CharacterData extends PersonalityCharacterFields {
   birthDay: number | null;
   birthYear: number | null;
   isPublic: boolean;
+  /** Whether non-owners can see the character card (definition) fields */
+  definitionPublic: boolean;
+  /** True when THIS response's card fields were redacted for the requester */
+  definitionRedacted: boolean;
   voiceEnabled: boolean;
   /** Whether the character has a voice reference uploaded (from API) */
   hasVoiceReference: boolean;

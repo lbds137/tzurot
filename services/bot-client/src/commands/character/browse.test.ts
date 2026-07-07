@@ -10,7 +10,7 @@ import {
   isCharacterBrowseInteraction,
   isCharacterBrowseSelectInteraction,
 } from './browse.js';
-import { registerBrowseRebuilder } from '../../utils/dashboard/index.js';
+import { registerBrowseRebuilder, buildDashboardEmbed } from '../../utils/dashboard/index.js';
 import * as api from './api.js';
 import type { EnvConfig } from '@tzurot/common-types/config/config';
 import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js';
@@ -118,6 +118,8 @@ describe('handleBrowse', () => {
         slug: 'my-char',
         displayName: null,
         isPublic: false,
+        definitionPublic: false,
+        definitionRedacted: false,
         ownerId: '123456789',
         characterInfo: '',
         personalityTraits: '',
@@ -166,6 +168,8 @@ describe('handleBrowse', () => {
         slug: 'my-char',
         displayName: null,
         isPublic: false,
+        definitionPublic: false,
+        definitionRedacted: false,
         ownerId: '123456789',
         characterInfo: '',
         personalityTraits: '',
@@ -195,6 +199,8 @@ describe('handleBrowse', () => {
         slug: 'other-char',
         displayName: null,
         isPublic: true,
+        definitionPublic: false,
+        definitionRedacted: false,
         ownerId: 'other-user',
         characterInfo: '',
         personalityTraits: '',
@@ -235,6 +241,8 @@ describe('handleBrowse', () => {
         slug: 'private-char',
         displayName: null,
         isPublic: false,
+        definitionPublic: false,
+        definitionRedacted: false,
         ownerId: '123456789',
         characterInfo: '',
         personalityTraits: '',
@@ -262,6 +270,8 @@ describe('handleBrowse', () => {
         slug: 'public-char',
         displayName: null,
         isPublic: true,
+        definitionPublic: false,
+        definitionRedacted: false,
         ownerId: '123456789',
         characterInfo: '',
         personalityTraits: '',
@@ -302,6 +312,8 @@ describe('handleBrowse', () => {
         slug: 'alice-char',
         displayName: null,
         isPublic: false,
+        definitionPublic: false,
+        definitionRedacted: false,
         ownerId: '123456789',
         characterInfo: '',
         personalityTraits: '',
@@ -329,6 +341,8 @@ describe('handleBrowse', () => {
         slug: 'bob-char',
         displayName: null,
         isPublic: false,
+        definitionPublic: false,
+        definitionRedacted: false,
         ownerId: '123456789',
         characterInfo: '',
         personalityTraits: '',
@@ -387,6 +401,8 @@ describe('handleBrowse', () => {
         slug: 'other-char',
         displayName: null,
         isPublic: true,
+        definitionPublic: false,
+        definitionRedacted: false,
         ownerId: 'other-user',
         characterInfo: '',
         personalityTraits: '',
@@ -435,6 +451,8 @@ describe('handleBrowse', () => {
         slug: 'my-char',
         displayName: null,
         isPublic: false,
+        definitionPublic: false,
+        definitionRedacted: false,
         ownerId: '123456789',
         characterInfo: '',
         personalityTraits: '',
@@ -464,6 +482,8 @@ describe('handleBrowse', () => {
         slug: 'public-char',
         displayName: null,
         isPublic: true,
+        definitionPublic: false,
+        definitionRedacted: false,
         ownerId: 'other-user-id',
         characterInfo: '',
         personalityTraits: '',
@@ -507,6 +527,8 @@ describe('handleBrowse', () => {
         slug: 'my-char',
         displayName: null,
         isPublic: false,
+        definitionPublic: false,
+        definitionRedacted: false,
         ownerId: '123456789',
         characterInfo: '',
         personalityTraits: '',
@@ -607,6 +629,8 @@ describe('handleBrowsePagination', () => {
         slug: 'alpha-char',
         displayName: null,
         isPublic: false,
+        definitionPublic: false,
+        definitionRedacted: false,
         ownerId: '123456789',
         characterInfo: '',
         personalityTraits: '',
@@ -634,6 +658,8 @@ describe('handleBrowsePagination', () => {
         slug: 'zeta-char',
         displayName: null,
         isPublic: false,
+        definitionPublic: false,
+        definitionRedacted: false,
         ownerId: '123456789',
         characterInfo: '',
         personalityTraits: '',
@@ -684,6 +710,8 @@ describe('handleBrowsePagination', () => {
         slug: 'luna',
         displayName: null,
         isPublic: false,
+        definitionPublic: false,
+        definitionRedacted: false,
         ownerId: '123456789',
         characterInfo: '',
         personalityTraits: '',
@@ -711,6 +739,8 @@ describe('handleBrowsePagination', () => {
         slug: 'other',
         displayName: null,
         isPublic: false,
+        definitionPublic: false,
+        definitionRedacted: false,
         ownerId: '123456789',
         characterInfo: '',
         personalityTraits: '',
@@ -802,6 +832,8 @@ describe('handleBrowseSelect', () => {
       slug: 'luna',
       displayName: 'Luna the Cat',
       isPublic: true,
+      definitionPublic: false,
+      definitionRedacted: false,
       ownerId: '123456789',
       canEdit: true,
       characterInfo: 'A friendly cat',
@@ -849,6 +881,55 @@ describe('handleBrowseSelect', () => {
       embeds: expect.any(Array),
       components: expect.any(Array),
     });
+  });
+
+  it('shows the private-definition state instead of the dashboard when redacted', async () => {
+    const mockCharacter = createMockCharacter({
+      canEdit: false,
+      definitionPublic: false,
+      definitionRedacted: true,
+      characterInfo: '',
+      personalityTraits: '',
+    });
+    vi.mocked(api.fetchCharacter).mockResolvedValue(mockCharacter);
+
+    const interaction = createMockSelectInteraction('luna');
+    await handleBrowseSelect(interaction, mockConfig);
+
+    // The dashboard builder (whose section previews would all read
+    // "_Not configured_") must NOT be used for a redacted character.
+    expect(vi.mocked(buildDashboardEmbed)).not.toHaveBeenCalled();
+    const call = vi.mocked(interaction.editReply).mock.calls[0][0] as {
+      embeds: { toJSON: () => { description?: string } }[];
+    };
+    expect(call.embeds[0].toJSON().description).toContain('definition is private');
+  });
+
+  it('keeps Back-to-Browse on the redacted state when browse context parses', async () => {
+    const mockCharacter = createMockCharacter({
+      canEdit: false,
+      definitionPublic: false,
+      definitionRedacted: true,
+    });
+    vi.mocked(api.fetchCharacter).mockResolvedValue(mockCharacter);
+
+    // A REAL parseable select customId (page 0, filter all, sort name, empty
+    // query) — the shared fixture's bare 'character::browse-select' fails
+    // parseSelect, which would silently exercise only the no-back-button branch.
+    const interaction = {
+      ...createMockSelectInteraction('luna'),
+      customId: 'character::browse-select::0::all::name::',
+    } as unknown as StringSelectMenuInteraction;
+
+    await handleBrowseSelect(interaction, mockConfig);
+
+    const call = vi.mocked(interaction.editReply).mock.calls[0][0] as unknown as {
+      components: { toJSON: () => { components: { custom_id: string; label: string }[] } }[];
+    };
+    expect(call.components).toHaveLength(1);
+    const button = call.components[0].toJSON().components[0];
+    expect(button.custom_id).toBe('character::back::luna');
+    expect(button.label).toBe('Back to Browse');
   });
 
   it('should create session for dashboard tracking', async () => {

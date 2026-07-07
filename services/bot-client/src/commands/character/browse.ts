@@ -9,7 +9,14 @@
  * - Groups characters by owner for better organization
  */
 
-import { EmbedBuilder, type ButtonInteraction, type StringSelectMenuInteraction } from 'discord.js';
+import {
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  EmbedBuilder,
+  type ButtonInteraction,
+  type StringSelectMenuInteraction,
+} from 'discord.js';
 import { type EnvConfig, getConfig } from '@tzurot/common-types/config/config';
 import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
 import { characterBrowseOptions } from '@tzurot/common-types/generated/commandOptions';
@@ -30,6 +37,7 @@ import {
   type CharacterBrowseSortType,
 } from './config.js';
 import type { CharacterData } from './characterTypes.js';
+import { buildRedactedViewPage } from './view.js';
 import {
   buildDashboardEmbed,
   buildDashboardComponents,
@@ -399,6 +407,32 @@ export async function handleBrowsePagination(
 }
 
 /**
+ * Show the private-definition state for a browse-detail open. A non-owner of
+ * a definition-private character must NOT get the dashboard — its section
+ * previews would all render "_Not configured_", reading as an abandoned
+ * character. Reuses /character view's redacted page; keeps Back-to-Browse
+ * (same customId contract as renderTerminalScreen) when browse context exists.
+ */
+async function showRedactedDetail(
+  interaction: StringSelectMenuInteraction,
+  character: CharacterData,
+  hasBrowseContext: boolean
+): Promise<void> {
+  const { embed } = buildRedactedViewPage(character);
+  const backRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`character::back::${character.slug}`)
+      .setLabel('Back to Browse')
+      .setEmoji('◀️')
+      .setStyle(ButtonStyle.Secondary)
+  );
+  await interaction.editReply({
+    embeds: [embed],
+    components: hasBrowseContext ? [backRow] : [],
+  });
+}
+
+/**
  * Handle browse select menu - open character dashboard
  */
 export async function handleBrowseSelect(
@@ -427,12 +461,6 @@ export async function handleBrowseSelect(
       return;
     }
 
-    // Get dashboard config based on edit permissions
-    const dashboardConfig = getCharacterDashboardConfig(
-      character.canEdit,
-      character.hasVoiceReference
-    );
-
     // Create session data with browse context for back navigation
     const sessionData: CharacterData = {
       ...character,
@@ -447,17 +475,27 @@ export async function handleBrowseSelect(
         : undefined,
     };
 
-    // Build dashboard embed and components using shared options builder
-    const embed = buildDashboardEmbed(dashboardConfig, character);
-    const components = buildDashboardComponents(
-      dashboardConfig,
-      character.slug,
-      character,
-      buildCharacterDashboardOptions(sessionData)
-    );
+    if (character.definitionRedacted) {
+      await showRedactedDetail(interaction, character, browseContext !== null);
+    } else {
+      // Get dashboard config based on edit permissions
+      const dashboardConfig = getCharacterDashboardConfig(
+        character.canEdit,
+        character.hasVoiceReference
+      );
 
-    // Update the message with the dashboard
-    await interaction.editReply({ embeds: [embed], components });
+      // Build dashboard embed and components using shared options builder
+      const embed = buildDashboardEmbed(dashboardConfig, character);
+      const components = buildDashboardComponents(
+        dashboardConfig,
+        character.slug,
+        character,
+        buildCharacterDashboardOptions(sessionData)
+      );
+
+      // Update the message with the dashboard
+      await interaction.editReply({ embeds: [embed], components });
+    }
 
     // Store session for tracking
     const sessionManager = getSessionManager();
@@ -473,7 +511,9 @@ export async function handleBrowseSelect(
 
     logger.info(
       { userId, slug, name: character.displayName ?? character.name, canEdit: character.canEdit },
-      'Opened dashboard from browse'
+      character.definitionRedacted
+        ? 'Opened redacted view from browse'
+        : 'Opened dashboard from browse'
     );
   } catch (error) {
     logger.error({ err: error, slug }, 'Failed to open dashboard from browse');

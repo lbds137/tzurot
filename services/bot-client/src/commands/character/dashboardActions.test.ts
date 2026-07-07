@@ -81,6 +81,8 @@ function createMockCharacter(overrides: Partial<FetchedCharacter> = {}): Fetched
     slug: 'test-char',
     displayName: null,
     isPublic: false,
+    definitionPublic: false,
+    definitionRedacted: false,
     ownerId: 'user-123',
     characterInfo: '',
     personalityTraits: '',
@@ -186,6 +188,57 @@ describe('Dashboard Actions', () => {
         content: expect.stringContaining('/character voice-clear'),
         flags: MessageFlags.Ephemeral,
       });
+    });
+  });
+
+  describe('handleAction - definition-visibility', () => {
+    it('should toggle definitionPublic and refresh dashboard', async () => {
+      const mockInteraction = createMockInteraction();
+      vi.mocked(api.fetchCharacter).mockResolvedValue(
+        createMockCharacter({ definitionPublic: false })
+      );
+      vi.mocked(api.updateCharacter).mockResolvedValue(
+        createMockCharacter({ definitionPublic: true })
+      );
+
+      await handleAction(mockInteraction, 'test-char', 'definition-visibility', mockConfig);
+
+      expect(mockInteraction.deferUpdate).toHaveBeenCalled();
+      expect(api.updateCharacter).toHaveBeenCalledWith(
+        'test-char',
+        { definitionPublic: true },
+        expect.any(Object),
+        expect.any(Object)
+      );
+      expect(mockInteraction.editReply).toHaveBeenCalled();
+    });
+
+    it('should toggle back off from public', async () => {
+      const mockInteraction = createMockInteraction();
+      vi.mocked(api.fetchCharacter).mockResolvedValue(
+        createMockCharacter({ definitionPublic: true })
+      );
+      vi.mocked(api.updateCharacter).mockResolvedValue(
+        createMockCharacter({ definitionPublic: false })
+      );
+
+      await handleAction(mockInteraction, 'test-char', 'definition-visibility', mockConfig);
+
+      expect(api.updateCharacter).toHaveBeenCalledWith(
+        'test-char',
+        { definitionPublic: false },
+        expect.any(Object),
+        expect.any(Object)
+      );
+    });
+
+    it('should return early if character not found', async () => {
+      const mockInteraction = createMockInteraction();
+      vi.mocked(api.fetchCharacter).mockResolvedValue(null);
+
+      await handleAction(mockInteraction, 'test-char', 'definition-visibility', mockConfig);
+
+      expect(api.updateCharacter).not.toHaveBeenCalled();
     });
   });
 
