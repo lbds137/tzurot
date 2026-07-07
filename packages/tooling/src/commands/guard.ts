@@ -37,16 +37,7 @@ export function registerGuardCommands(cli: CAC): void {
       await checkDuplicateExports(options);
     });
 
-  cli
-    .command(
-      'guard:no-export-star',
-      'Fail if any production source uses `export *` (re-masks knip)'
-    )
-    .example('ops guard:no-export-star')
-    .action(async () => {
-      const { checkNoExportStar } = await import('../dev/check-no-export-star.js');
-      checkNoExportStar();
-    });
+  registerSyncGuards(cli);
 
   cli
     .command(
@@ -116,6 +107,31 @@ export function registerGuardCommands(cli: CAC): void {
   registerMetaGuards(cli);
   registerLinesCommands(cli);
   registerHealthCommand(cli);
+}
+
+/** Binary source sync-checks (no threshold / WHY.md / --summary). */
+function registerSyncGuards(cli: CAC): void {
+  cli
+    .command(
+      'guard:no-export-star',
+      'Fail if any production source uses `export *` (re-masks knip)'
+    )
+    .example('ops guard:no-export-star')
+    .action(async () => {
+      const { checkNoExportStar } = await import('../dev/check-no-export-star.js');
+      checkNoExportStar();
+    });
+
+  cli
+    .command(
+      'guard:prompt-tags',
+      'Fail if a structural prompt tag is emitted but not classified (protected vs known-unprotected)'
+    )
+    .example('ops guard:prompt-tags')
+    .action(async () => {
+      const { checkPromptTags } = await import('../dev/check-prompt-tags.js');
+      checkPromptTags();
+    });
 }
 
 /**

@@ -7,7 +7,8 @@
  * Key features:
  * - <participant id="..."> tags with unique personaId for ID binding
  * - Structured fields: <name>, <pronouns> as separate XML elements
- * - CDATA wrapping for user-generated content (prevents XML injection)
+ * - escapeXmlContent on the <about> body (targeted escaping: renders structural
+ *   tags inert to the LLM while preserving literal <3 / x > 5)
  * - source="user_input" attribution to clarify first-person content origin
  * - Optional guild info (roles, color, join date) for Discord server context
  *
@@ -16,6 +17,7 @@
 
 import { formatDateOnly } from '@tzurot/common-types/utils/dateFormatting';
 import { escapeXml } from '@tzurot/common-types/utils/xmlBuilder';
+import { escapeXmlContent } from '@tzurot/common-types/utils/promptSanitizer';
 import type { ParticipantInfo } from '../ConversationalRAGTypes.js';
 
 /**
@@ -34,7 +36,7 @@ import type { ParticipantInfo } from '../ConversationalRAGTypes.js';
  *         <role>Developer</role>
  *       </roles>
  *     </guild_info>
- *     <about source="user_input"><![CDATA[A transgender demon-angel in human form...]]></about>
+ *     <about source="user_input">A transgender demon-angel in human form...</about>
  *   </participant>
  * </participants>
  * ```
@@ -103,18 +105,23 @@ export function formatParticipantsContext(
       }
     }
 
-    // User-provided persona content in CDATA with source attribution
-    // CDATA prevents XML injection from user content
+    // User-provided persona content. Uses escapeXmlContent (targeted): it
+    // preserves literal <3 / x > 5 like CDATA did, but ALSO renders any
+    // structural tag inert to the LLM (CDATA does not — the model reads raw
+    // text, so a CDATA-wrapped </about> is still visible markup to it). <about>
+    // and <participant> are protected so content can't forge another party.
     // source="user_input" tells LLM this is user's self-description, not system instructions
-    parts.push(`<about source="user_input"><![CDATA[${info.content}]]></about>`);
+    parts.push(`<about source="user_input">${escapeXmlContent(info.content)}</about>`);
 
     parts.push('</participant>');
   }
 
   // Group conversation note
   if (participantPersonas.size > 1) {
-    const exampleName =
+    const rawExampleName =
       activePersonaName !== undefined && activePersonaName.length > 0 ? activePersonaName : 'Alice';
+    // activePersonaName is user-authored — was interpolated raw into <note>.
+    const exampleName = escapeXmlContent(rawExampleName);
     parts.push(
       `<note>This is a group conversation. Messages use from_id to indicate the speaker. Example: "${exampleName}: message"</note>`
     );

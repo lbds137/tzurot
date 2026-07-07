@@ -12,7 +12,10 @@
  */
 
 import { type ReferenceAuthorRole } from '@tzurot/common-types/types/schemas/message';
-import { escapeXmlContent } from '@tzurot/common-types/utils/promptSanitizer';
+import {
+  escapeXmlContent,
+  neutralizeWrapperClosingTags,
+} from '@tzurot/common-types/utils/promptSanitizer';
 import { escapeXml } from '@tzurot/common-types/utils/xmlBuilder';
 
 /**
@@ -92,9 +95,11 @@ export function formatQuoteElement(opts: QuoteElementOptions): string {
     }
   }
 
-  // Simple child sections — content is escaped; locationContext, embedsXml, and
-  // attachmentLines are pre-formatted XML from trusted internal sources (bot-client
-  // formatters, ReferencedMessageFormatter). Do NOT pass raw user input to those fields.
+  // Simple child sections. content/image-descriptions/attachmentLines carry
+  // user-derived text and are escaped at emit. locationContext and embedsXml are
+  // pre-formatted XML from trusted internal sources (ReferencedMessageFormatter;
+  // bot-client's EmbedParser, which escapeXml's every embed field) — those two
+  // are passed through verbatim; do NOT route raw user input through them.
   addNonEmpty(parts, opts.content, c => `<content>${escapeXmlContent(c)}</content>`);
   addNonEmpty(parts, opts.locationContext, loc => loc);
   addArraySection(parts, opts.imageDescriptions, 'image_descriptions', imgs =>
@@ -104,10 +109,17 @@ export function formatQuoteElement(opts: QuoteElementOptions): string {
     )
   );
   addArraySection(parts, opts.embedsXml, 'embeds', e => e);
+  // voice_transcripts/transcript are NOT in PROTECTED_TAGS (see promptSanitizer),
+  // so escapeXmlContent alone leaves </transcript> live — neutralize the wrapper
+  // closings the same way the current-turn audio path does.
   addArraySection(parts, opts.voiceTranscripts, 'voice_transcripts', ts =>
-    ts.map(t => `<transcript>${escapeXmlContent(t)}</transcript>`)
+    ts.map(t => `<transcript>${neutralizeWrapperClosingTags(escapeXmlContent(t))}</transcript>`)
   );
-  addArraySection(parts, opts.attachmentLines, 'attachments', a => a);
+  // attachmentLines carry unescaped filenames / transcriptions — escape so a
+  // crafted name can't close </attachments>/</quote> and break out.
+  addArraySection(parts, opts.attachmentLines, 'attachments', a =>
+    a.map(line => escapeXmlContent(line))
+  );
 
   parts.push('</quote>');
   return parts.join('\n');
@@ -173,7 +185,9 @@ export function formatForwardedQuote(content: ForwardedMessageContent): string {
  * rather than "above" — references are assembled BEFORE <chat_log>) and drops
  * the "reply target" Discord-UI jargon, which read as a task to the model.
  */
-const DEDUP_REPLY_TARGET_PREFIX = '[Referenced message — full text in <chat_log>]';
+// Prose marker — avoids literal tag syntax so it isn't escaped when it rides
+// through escapeXmlContent inside <content>.
+const DEDUP_REPLY_TARGET_PREFIX = '[Referenced message — full text in the chat log]';
 
 /**
  * Options for formatting a deduplicated reference stub.

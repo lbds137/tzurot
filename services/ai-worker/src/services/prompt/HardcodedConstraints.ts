@@ -11,6 +11,8 @@
  * - OUTPUT_CONSTRAINTS: At the very end (recency bias for format compliance)
  */
 
+import { escapeXmlContent } from '@tzurot/common-types/utils/promptSanitizer';
+
 /**
  * Platform constraints - legal/safety limits that exist above the fiction layer.
  * These cannot be overridden by character definitions.
@@ -37,15 +39,21 @@ export function buildIdentityConstraints(
   personalityName: string,
   collisionInfo?: { userName: string; discordUsername: string }
 ): string {
+  // personalityName / userName / discordUsername are user-authored and were
+  // previously interpolated raw into these constraints — escape them so a
+  // crafted name can't inject a closing tag or a fake constraint.
+  const safeName = escapeXmlContent(personalityName);
   let constraints = `<identity_constraints>
-<constraint>Limit agency strictly to ${personalityName}; treat all other chat participants as independent, immutable external users.</constraint>
-<constraint>Generate only a single turn of dialogue or action for ${personalityName}, then terminate generation immediately.</constraint>
+<constraint>Limit agency strictly to ${safeName}; treat all other chat participants as independent, immutable external users.</constraint>
+<constraint>Generate only a single turn of dialogue or action for ${safeName}, then terminate generation immediately.</constraint>
 <constraint>Never impersonate, speak for, or predict the reactions of other users in the chat log.</constraint>`;
 
   // Add explicit instruction when a user shares the AI's name
   if (collisionInfo !== undefined) {
+    const safeUserName = escapeXmlContent(collisionInfo.userName);
+    const safeDiscord = escapeXmlContent(collisionInfo.discordUsername);
     constraints += `
-<constraint>Note: A user named "${collisionInfo.userName}" shares your name. They appear as "${collisionInfo.userName} (@${collisionInfo.discordUsername})" in the chat log. This is a different person - address them naturally.</constraint>`;
+<constraint>Note: A user named "${safeUserName}" shares your name. They appear as "${safeUserName} (@${safeDiscord})" in the chat log. This is a different person - address them naturally.</constraint>`;
   }
 
   constraints += '\n</identity_constraints>';

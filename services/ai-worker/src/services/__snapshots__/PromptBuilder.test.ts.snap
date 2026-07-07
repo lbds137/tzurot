@@ -79,7 +79,7 @@ exports[`PromptBuilder > Prompt Snapshots > buildFullSystemPrompt snapshots > sh
 <instruction>These people are in this conversation. Match from_id attribute in chat_log messages to participant id attribute.</instruction>
 <participant id="p-test" active="true">
 <name>TestUser</name>
-<about source="user_input"><![CDATA[A developer testing the bot]]></about>
+<about source="user_input">A developer testing the bot</about>
 </participant>
 </participants>
 
@@ -135,35 +135,35 @@ exports[`PromptBuilder > Prompt Snapshots > buildFullSystemPrompt snapshots > sh
 <instruction>These people are in this conversation. Match from_id attribute in chat_log messages to participant id attribute.</instruction>
 <participant id="p-alice" active="true">
 <name>Alice</name>
-<about source="user_input"><![CDATA[Software developer who loves TypeScript]]></about>
+<about source="user_input">Software developer who loves TypeScript</about>
 </participant>
 <participant id="p-bob">
 <name>Bob</name>
-<about source="user_input"><![CDATA[UX designer focused on accessibility]]></about>
+<about source="user_input">UX designer focused on accessibility</about>
 </participant>
 <participant id="p-charlie">
 <name>Charlie</name>
-<about source="user_input"><![CDATA[DevOps engineer managing infrastructure]]></about>
+<about source="user_input">DevOps engineer managing infrastructure</about>
 </participant>
 <participant id="p-diana">
 <name>Diana</name>
-<about source="user_input"><![CDATA[Product manager setting priorities]]></about>
+<about source="user_input">Product manager setting priorities</about>
 </participant>
 <participant id="p-eve">
 <name>Eve</name>
-<about source="user_input"><![CDATA[Security researcher finding vulnerabilities]]></about>
+<about source="user_input">Security researcher finding vulnerabilities</about>
 </participant>
 <participant id="p-frank">
 <name>Frank</name>
-<about source="user_input"><![CDATA[Backend developer working on APIs]]></about>
+<about source="user_input">Backend developer working on APIs</about>
 </participant>
 <participant id="p-grace">
 <name>Grace</name>
-<about source="user_input"><![CDATA[Data scientist building ML models]]></about>
+<about source="user_input">Data scientist building ML models</about>
 </participant>
 <participant id="p-henry">
 <name>Henry</name>
-<about source="user_input"><![CDATA[QA engineer ensuring quality]]></about>
+<about source="user_input">QA engineer ensuring quality</about>
 </participant>
 <note>This is a group conversation. Messages use from_id to indicate the speaker. Example: "TestUser: message"</note>
 </participants>
