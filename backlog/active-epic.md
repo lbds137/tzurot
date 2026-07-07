@@ -10,6 +10,7 @@ _Focus: implement the ACCEPTED memory architecture — typed memories (episode/f
 | --- | --- | --- |
 | 0 — integrity + eval baseline | visibility filter, re-embed, linkage, delete propagation, scoping columns, golden corpus | ✅ DONE 2026-07-05 (#1490/#1497/#1498) |
 | **2 slice 1** — memory_facts schema + types | table + supersession chain + 3-registry-protected ivfflat + JobType/schemas/generator | ✅ DONE 2026-07-07 (#1527; 3 review rounds, all findings applied; dev migrated) |
+| **2 slice 2** — extraction worker (shadow) + goldens + tripwire | trigger/budget/service/store/prompt + eval harness + revival semantics | ✅ DONE 2026-07-07 (#1528; 7 review rounds — every round's findings real: crash vector, provenance leak, BullMQ config, PII logs, revival bug; dev shadow-enabled EXTRACTION_ENABLED=true) |
 | 1a — hybrid retrieval | dense + FTS-OR + recency RRF | BUILT + PARKED on evidence (branch `feat/memory-hybrid-retrieval`; resume gate = real-scale goldens, owner session — Quick Win on the board) |
 | **2 — typed memories + extraction worker** | type enum, salience, async fact extraction w/ supersession targeting, dedup guard (eval-tuned), `/memory correct\|forget` (§3.6a), cost guardrails (§3.8) live from day one | **NEXT — plan-mode + council at build time (per-phase requirement)** |
 | 1b — full composite scoring | type-weights, salience, superseded/contradiction penalties (needs Phase 2's types) | after 2 |
