@@ -343,6 +343,54 @@ describe('VisionProcessor', () => {
         expect(mockCheckModelVisionSupport).not.toHaveBeenCalled();
       });
 
+      it('guest + explicit PAID visionModel free-forces on the PRIMARY tier (C2b-6)', async () => {
+        // The same cost-leak class the fallback-tier fix closed: a guest must
+        // not run a paid configured vision model on the system key.
+        const personality = createMockPersonality({
+          model: 'gpt-4',
+          visionModel: 'anthropic/claude-sonnet-4.5', // explicit PAID vision model
+        });
+
+        await describeImage(mockAttachment, personality, true /* isGuestMode */, undefined);
+
+        expect(mockCreateChatModel).toHaveBeenCalledWith(
+          expect.objectContaining({
+            modelName: MODEL_DEFAULTS.VISION_FALLBACK_FREE,
+          })
+        );
+      });
+
+      it('guest + vision-capable PAID main model free-forces on Priority 2 too', async () => {
+        mockCheckModelVisionSupport.mockResolvedValue(true); // main model HAS vision
+        const personality = createMockPersonality({
+          model: 'openai/gpt-4o', // paid, vision-capable, no explicit visionModel
+          visionModel: undefined,
+        });
+
+        await describeImage(mockAttachment, personality, true /* isGuestMode */, undefined);
+
+        expect(mockCreateChatModel).toHaveBeenCalledWith(
+          expect.objectContaining({
+            modelName: MODEL_DEFAULTS.VISION_FALLBACK_FREE,
+          })
+        );
+      });
+
+      it('non-guest keeps an explicit paid visionModel unchanged on the primary tier', async () => {
+        const personality = createMockPersonality({
+          model: 'gpt-4',
+          visionModel: 'anthropic/claude-sonnet-4.5',
+        });
+
+        await describeImage(mockAttachment, personality, false /* isGuestMode */, undefined);
+
+        expect(mockCreateChatModel).toHaveBeenCalledWith(
+          expect.objectContaining({
+            modelName: 'anthropic/claude-sonnet-4.5',
+          })
+        );
+      });
+
       it('falls back to selectVisionModel when options.model is an empty string', async () => {
         mockCheckModelVisionSupport.mockResolvedValue(false);
         const personality = createMockPersonality({
