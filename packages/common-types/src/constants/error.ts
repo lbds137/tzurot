@@ -460,10 +460,13 @@ export function formatErrorSpoiler(
   const categoryLabel = category.replace(/_/g, ' ');
   // technicalMessage frequently carries provider URLs (e.g., the LangChain
   // troubleshooting link); wrap them so the spoiler doesn't trigger
-  // Discord embeds.
+  // Discord embeds. Provider messages also often end with a trailing newline,
+  // which would put the closing quote on its own line in the rendered
+  // spoiler — trim before quoting.
+  const trimmedTech = technicalMessage?.trim();
   const techPart =
-    technicalMessage !== undefined && technicalMessage.length > 0
-      ? ` — "${wrapUrlsForNoEmbed(technicalMessage)}"`
+    trimmedTech !== undefined && trimmedTech.length > 0
+      ? ` — "${wrapUrlsForNoEmbed(trimmedTech)}"`
       : '';
   return `||*(error: ${categoryLabel}${techPart}; ref: ${referenceId})*||`;
 }
