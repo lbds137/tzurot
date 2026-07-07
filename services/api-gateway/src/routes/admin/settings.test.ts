@@ -12,6 +12,7 @@ import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import express from 'express';
 import request from 'supertest';
 import { getAllRoutes } from '../../test/expressRouterUtils.js';
+import { stubRouteResolvers } from '../../test/shared-route-test-utils.js';
 
 // Mock isBotOwner - must be before vi.mock to be hoisted
 const mockIsBotOwner = vi.fn().mockReturnValue(true);
@@ -123,6 +124,7 @@ describe('Admin Settings Routes (Singleton)', () => {
       // in this PR. Lock the asymmetry in by asserting the resulting stack
       // lengths.
       const router = createAdminSettingsRoutes({
+        ...stubRouteResolvers(),
         prisma: createMockPrisma() as unknown as PrismaClient,
       });
       const routes = getAllRoutes(router);
@@ -163,7 +165,10 @@ describe('Admin Settings Routes (Singleton)', () => {
     });
     app.use(
       '/admin/settings',
-      createAdminSettingsRoutes({ prisma: mockPrisma as unknown as PrismaClient })
+      createAdminSettingsRoutes({
+        ...stubRouteResolvers(),
+        prisma: mockPrisma as unknown as PrismaClient,
+      })
     );
     // Add error handler
     app.use(
@@ -227,7 +232,10 @@ describe('Admin Settings Routes (Singleton)', () => {
       // Intentionally NOT injecting userId - simulating internal service call
       appWithoutUserId.use(
         '/admin/settings',
-        createAdminSettingsRoutes({ prisma: mockPrisma as unknown as PrismaClient })
+        createAdminSettingsRoutes({
+          ...stubRouteResolvers(),
+          prisma: mockPrisma as unknown as PrismaClient,
+        })
       );
     });
 
@@ -332,6 +340,7 @@ describe('Admin Settings Routes (Singleton)', () => {
       appWithInvalidation.use(
         '/admin/settings',
         createAdminSettingsRoutes({
+          ...stubRouteResolvers(),
           prisma: mockPrisma as unknown as PrismaClient,
           cascadeInvalidation: mockInvalidation as never,
         })
@@ -406,6 +415,7 @@ describe('Admin Settings Routes (Singleton)', () => {
       appWithInvalidation.use(
         '/admin/settings',
         createAdminSettingsRoutes({
+          ...stubRouteResolvers(),
           prisma: mockPrisma as unknown as PrismaClient,
           cascadeInvalidation: mockInvalidation as never,
         })

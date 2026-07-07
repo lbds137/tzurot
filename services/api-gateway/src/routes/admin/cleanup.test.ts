@@ -9,6 +9,7 @@ import type { ConversationRetentionService } from '@tzurot/conversation-history'
 import type { RouteDeps } from '../routeDeps.js';
 import express from 'express';
 import request from 'supertest';
+import { stubRouteResolvers } from '../../test/shared-route-test-utils.js';
 
 // Mock logger but preserve CLEANUP_DEFAULTS
 vi.mock('@tzurot/common-types/utils/logger', async () => {
@@ -52,6 +53,7 @@ describe('Admin Cleanup Routes', () => {
     };
 
     const deps: RouteDeps = {
+      ...stubRouteResolvers(),
       prisma: {} as PrismaClient,
       retentionService: mockService as unknown as ConversationRetentionService,
     };

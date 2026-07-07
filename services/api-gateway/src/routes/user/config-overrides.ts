@@ -37,7 +37,7 @@ import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
 import { getRequiredParam } from '../../utils/requestParams.js';
 import type { AuthenticatedRequest, ProvisionedRequest } from '../../types.js';
-import { requireDep, type RouteDeps } from '../routeDeps.js';
+import { type RouteDeps } from '../routeDeps.js';
 
 const logger = createLogger('user-config-overrides');
 
@@ -185,7 +185,7 @@ export const handleClearUserDefaults = (deps: RouteDeps): RequestHandler => {
 
 /** GET /api/user/config-overrides/resolve/:personalityId — full cascade resolution */
 export const handleResolveCascade = (deps: RouteDeps): RequestHandler => {
-  const cascadeResolver = requireDep(deps.cascadeResolver, 'cascadeResolver');
+  const cascadeResolver = deps.cascadeResolver;
   return asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const personalityId = getRequiredParam(req.params.personalityId, 'personalityId');
     const queryResult = resolveQuerySchema.safeParse(req.query);

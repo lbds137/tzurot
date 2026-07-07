@@ -55,6 +55,7 @@ import {
 import { getDefaultPersonaId } from './memoryHelpers.js';
 import { resolveProvisionedUserId } from '../../utils/resolveProvisionedUserId.js';
 import { isEmbeddingServiceAvailable, generateEmbedding } from '../../services/EmbeddingService.js';
+import { stubRouteResolvers } from '../../test/shared-route-test-utils.js';
 
 // Test constants
 const TEST_USER_ID = '00000000-0000-0000-0000-000000000001';
@@ -82,7 +83,7 @@ const mockGetDefaultPersonaId = vi.mocked(getDefaultPersonaId);
 
 /** Shared deps for the new (deps) => RequestHandler signature. */
 function deps(): RouteDeps {
-  return { prisma: mockPrisma as unknown as PrismaClient };
+  return { prisma: mockPrisma as unknown as PrismaClient, ...stubRouteResolvers() };
 }
 
 // Helper to create mock request/response

@@ -47,6 +47,7 @@ vi.mock('../../../utils/asyncHandler.js', () => ({
 
 import { handleListShapes } from './list.js';
 import type { PrismaClient } from '@tzurot/common-types/services/prisma';
+import { stubRouteResolvers } from '../../../test/shared-route-test-utils.js';
 
 const mockPrisma = {
   user: {
@@ -89,7 +90,10 @@ describe('Shapes List Routes', () => {
       prisma = mockPrisma
     ): Promise<{ req: Request & { userId: string }; res: Response }> {
       const { req, res } = createMockReqRes();
-      const handler = handleListShapes({ prisma: prisma as unknown as PrismaClient });
+      const handler = handleListShapes({
+        ...stubRouteResolvers(),
+        prisma: prisma as unknown as PrismaClient,
+      });
       await handler(req, res, vi.fn());
       return { req, res };
     }

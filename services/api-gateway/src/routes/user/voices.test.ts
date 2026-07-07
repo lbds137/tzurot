@@ -62,6 +62,7 @@ global.fetch = mockFetch;
 
 import { AIProvider } from '@tzurot/common-types/constants/ai';
 import { decryptApiKey } from '@tzurot/common-types/utils/encryption';
+import { stubRouteResolvers } from '../../test/shared-route-test-utils.js';
 
 describe('Voice Management Routes', () => {
   let app: express.Express;
@@ -158,7 +159,7 @@ describe('Voice Management Routes', () => {
 
     app = express();
     app.use(express.json());
-    app.use('/voices', createVoicesRoutes({ prisma: mockPrisma }));
+    app.use('/voices', createVoicesRoutes({ ...stubRouteResolvers(), prisma: mockPrisma }));
 
     // Default: user has ElevenLabs key only (mirrors the legacy single-provider
     // setup that pre-PR-3 was the only supported configuration).

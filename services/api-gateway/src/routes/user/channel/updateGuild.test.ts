@@ -44,6 +44,7 @@ vi.mock('../../../utils/asyncHandler.js', () => ({
 }));
 
 import { createChannelRoutes } from './index.js';
+import { stubRouteResolvers } from '../../../test/shared-route-test-utils.js';
 
 describe('PATCH /user/channel/update-guild', () => {
   const mockPrisma = createMockPrisma();
@@ -56,7 +57,10 @@ describe('PATCH /user/channel/update-guild', () => {
   it('should update guildId when activation has null guildId', async () => {
     mockPrisma.channelSettings.updateMany.mockResolvedValue({ count: 1 });
 
-    const router = createChannelRoutes({ prisma: mockPrisma as unknown as PrismaClient });
+    const router = createChannelRoutes({
+      ...stubRouteResolvers(),
+      prisma: mockPrisma as unknown as PrismaClient,
+    });
     const handler = getHandler(router, 'patch', '/update-guild');
     const { req, res } = createMockReqRes({
       channelId: MOCK_DISCORD_USER_ID,
@@ -80,7 +84,10 @@ describe('PATCH /user/channel/update-guild', () => {
   it('should return updated=false when no activation needs updating', async () => {
     mockPrisma.channelSettings.updateMany.mockResolvedValue({ count: 0 });
 
-    const router = createChannelRoutes({ prisma: mockPrisma as unknown as PrismaClient });
+    const router = createChannelRoutes({
+      ...stubRouteResolvers(),
+      prisma: mockPrisma as unknown as PrismaClient,
+    });
     const handler = getHandler(router, 'patch', '/update-guild');
     const { req, res } = createMockReqRes({
       channelId: MOCK_DISCORD_USER_ID,
@@ -94,7 +101,10 @@ describe('PATCH /user/channel/update-guild', () => {
   });
 
   it('should reject empty channelId', async () => {
-    const router = createChannelRoutes({ prisma: mockPrisma as unknown as PrismaClient });
+    const router = createChannelRoutes({
+      ...stubRouteResolvers(),
+      prisma: mockPrisma as unknown as PrismaClient,
+    });
     const handler = getHandler(router, 'patch', '/update-guild');
     const { req, res } = createMockReqRes({
       channelId: '',
@@ -113,7 +123,10 @@ describe('PATCH /user/channel/update-guild', () => {
   });
 
   it('should reject empty guildId', async () => {
-    const router = createChannelRoutes({ prisma: mockPrisma as unknown as PrismaClient });
+    const router = createChannelRoutes({
+      ...stubRouteResolvers(),
+      prisma: mockPrisma as unknown as PrismaClient,
+    });
     const handler = getHandler(router, 'patch', '/update-guild');
     const { req, res } = createMockReqRes({
       channelId: MOCK_DISCORD_USER_ID,
@@ -132,7 +145,10 @@ describe('PATCH /user/channel/update-guild', () => {
   });
 
   it('should reject missing fields', async () => {
-    const router = createChannelRoutes({ prisma: mockPrisma as unknown as PrismaClient });
+    const router = createChannelRoutes({
+      ...stubRouteResolvers(),
+      prisma: mockPrisma as unknown as PrismaClient,
+    });
     const handler = getHandler(router, 'patch', '/update-guild');
     const { req, res } = createMockReqRes({});
 

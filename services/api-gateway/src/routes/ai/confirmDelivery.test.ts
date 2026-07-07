@@ -7,6 +7,7 @@ import express, { type Express } from 'express';
 import request from 'supertest';
 import { handleAiConfirmDelivery } from './confirmDelivery.js';
 import type { PrismaClient } from '@tzurot/common-types/services/prisma';
+import { stubRouteResolvers } from '../../test/shared-route-test-utils.js';
 
 // Create mock Prisma client
 const createMockPrismaClient = () => ({
@@ -31,7 +32,10 @@ describe('POST /job/:jobId/confirm-delivery', () => {
     app.use(express.json());
     app.post(
       '/job/:jobId/confirm-delivery',
-      handleAiConfirmDelivery({ prisma: prisma as unknown as PrismaClient })
+      handleAiConfirmDelivery({
+        ...stubRouteResolvers(),
+        prisma: prisma as unknown as PrismaClient,
+      })
     );
   });
 

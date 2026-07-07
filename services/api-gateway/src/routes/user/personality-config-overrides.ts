@@ -21,7 +21,7 @@ import { resolveProvisionedUserId } from '../../utils/resolveProvisionedUserId.j
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
 import type { AuthenticatedRequest, ProvisionedRequest } from '../../types.js';
-import { requireDep, type RouteDeps } from '../routeDeps.js';
+import { type RouteDeps } from '../routeDeps.js';
 
 /**
  * GET /api/user/config-overrides/resolve-personality/:personalityId — resolve 3-tier cascade.
@@ -30,7 +30,7 @@ import { requireDep, type RouteDeps } from '../routeDeps.js';
  * (same data any user would experience). Only writes (PATCH) are creator-gated.
  */
 export const handleResolvePersonalityCascade = (deps: RouteDeps): RequestHandler => {
-  const cascadeResolver = requireDep(deps.cascadeResolver, 'cascadeResolver');
+  const cascadeResolver = deps.cascadeResolver;
   return asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const personalityId = getValidatedPersonalityId(req, res);
     if (personalityId === null) {

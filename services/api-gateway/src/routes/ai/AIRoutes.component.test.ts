@@ -17,6 +17,7 @@ import type { Queue, QueueEvents } from 'bullmq';
 import { PrismaClient } from '@tzurot/common-types/services/prisma';
 import type { PGlite } from '@electric-sql/pglite';
 import { PrismaPGlite } from 'pglite-prisma-adapter';
+import { stubRouteResolvers } from '../../test/shared-route-test-utils.js';
 import {
   createTestPGlite,
   setupTestEnvironment,
@@ -88,7 +89,12 @@ describe('AI Routes Integration', () => {
     } as unknown as QueueEvents;
 
     // Mount AI router
-    const aiRouter = createAIRouter({ prisma, aiQueue: mockQueue, queueEvents: mockQueueEvents });
+    const aiRouter = createAIRouter({
+      ...stubRouteResolvers(),
+      prisma,
+      aiQueue: mockQueue,
+      queueEvents: mockQueueEvents,
+    });
     app.use('/ai', aiRouter);
   }, 30000);
 

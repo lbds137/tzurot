@@ -7,6 +7,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Request, Response, Router } from 'express';
 import { StatusCodes } from 'http-status-codes';
+import { stubRouteResolvers } from '../../test/shared-route-test-utils.js';
 
 vi.mock('../../services/AuthMiddleware.js', () => ({
   requireUserAuth: () => (_req: Request, _res: Response, next: () => void) => next(),
@@ -98,7 +99,7 @@ const mockPrisma = {
 };
 
 function buildRouter() {
-  return createVoiceResolutionRoutes({ prisma: mockPrisma as never });
+  return createVoiceResolutionRoutes({ ...stubRouteResolvers(), prisma: mockPrisma as never });
 }
 
 describe('user/voice-resolution route', () => {

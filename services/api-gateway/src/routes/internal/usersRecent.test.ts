@@ -3,6 +3,7 @@ import express from 'express';
 import request from 'supertest';
 import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 import { handleRecentUsers } from './usersRecent.js';
+import { stubRouteResolvers } from '../../test/shared-route-test-utils.js';
 
 vi.mock('@tzurot/common-types/utils/logger', async () => {
   const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
@@ -29,7 +30,7 @@ describe('GET /internal/users/recent', () => {
     app = express();
     app.get(
       '/internal/users/recent',
-      handleRecentUsers({ prisma: mockPrisma as unknown as PrismaClient })
+      handleRecentUsers({ ...stubRouteResolvers(), prisma: mockPrisma as unknown as PrismaClient })
     );
   });
 

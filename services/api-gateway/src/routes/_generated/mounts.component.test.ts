@@ -31,7 +31,7 @@ import type { RouteDeps } from '../routeDeps.js';
 
 // The handlers all close over `deps.prisma`. The Prisma client isn't called
 // by the auth-failure paths we're testing, so a typed-stub is enough. The two
-// resolvers are runtime-required at mount time (requireDep fail-fast) but the
+// resolvers are compile-required on RouteDeps (type-level, not runtime) but the
 // auth-failure paths never invoke them — inert stubs satisfy the wiring check.
 function buildStubDeps(): RouteDeps {
   return {

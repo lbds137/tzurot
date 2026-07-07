@@ -24,8 +24,8 @@ import type { RouteDeps } from '../routeDeps.js';
  * Reads `deps.llmConfigResolver` to resolve the effective LLM config once at
  * job-chain build time (see `createJobChain`), so the conversation job and the
  * image-description child job share the same user-cascaded model rather than the
- * personality seed. The resolver is optional: when absent (tests, or wiring not
- * present), `createJobChain` falls back to the seed personality unchanged. The
+ * personality seed. The resolver is required on RouteDeps (compile-enforced);
+ * `createJobChain` still tolerates absence for direct-call tests only. The
  * deduplication cache and BullMQ job queue remain module-load singletons
  * accessed via getters.
  */

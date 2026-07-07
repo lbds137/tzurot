@@ -65,6 +65,7 @@ import {
   handleGetShapesAuthStatus,
 } from './auth.js';
 import type { PrismaClient } from '@tzurot/common-types/services/prisma';
+import { stubRouteResolvers } from '../../../test/shared-route-test-utils.js';
 
 // Mock Prisma
 const mockPrisma = {
@@ -137,7 +138,10 @@ describe('Shapes Auth Routes', () => {
       prisma = mockPrisma
     ): Promise<{ req: Request & { userId: string }; res: Response }> {
       const { req, res } = createMockReqRes(body);
-      const handler = handleStoreShapesAuth({ prisma: prisma as unknown as PrismaClient });
+      const handler = handleStoreShapesAuth({
+        ...stubRouteResolvers(),
+        prisma: prisma as unknown as PrismaClient,
+      });
       await handler(req, res, vi.fn());
       return { req, res };
     }
@@ -322,7 +326,10 @@ describe('Shapes Auth Routes', () => {
       prisma = mockPrisma
     ): Promise<{ req: Request & { userId: string }; res: Response }> {
       const { req, res } = createMockReqRes();
-      const handler = handleDeleteShapesAuth({ prisma: prisma as unknown as PrismaClient });
+      const handler = handleDeleteShapesAuth({
+        ...stubRouteResolvers(),
+        prisma: prisma as unknown as PrismaClient,
+      });
       await handler(req, res, vi.fn());
       return { req, res };
     }
@@ -352,7 +359,10 @@ describe('Shapes Auth Routes', () => {
       prisma = mockPrisma
     ): Promise<{ req: Request & { userId: string }; res: Response }> {
       const { req, res } = createMockReqRes();
-      const handler = handleGetShapesAuthStatus({ prisma: prisma as unknown as PrismaClient });
+      const handler = handleGetShapesAuthStatus({
+        ...stubRouteResolvers(),
+        prisma: prisma as unknown as PrismaClient,
+      });
       await handler(req, res, vi.fn());
       return { req, res };
     }

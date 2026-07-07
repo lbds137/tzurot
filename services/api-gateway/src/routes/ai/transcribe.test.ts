@@ -9,6 +9,7 @@ import { handleAiTranscribe } from './transcribe.js';
 import type { Queue, QueueEvents, Job } from 'bullmq';
 import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 import { JobStatus } from '@tzurot/common-types/constants/queue';
+import { stubRouteResolvers } from '../../test/shared-route-test-utils.js';
 
 // Create mock BullMQ queue
 const createMockQueue = () => ({
@@ -51,6 +52,7 @@ describe('POST /transcribe', () => {
     app.post(
       '/transcribe',
       handleAiTranscribe({
+        ...stubRouteResolvers(),
         prisma,
         aiQueue: aiQueue as unknown as Queue,
         queueEvents: queueEvents as unknown as QueueEvents,

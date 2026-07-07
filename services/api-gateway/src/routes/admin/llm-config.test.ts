@@ -9,6 +9,7 @@ import { createAdminLlmConfigRoutes } from './llm-config.js';
 import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 import type { LlmConfigCacheInvalidationService } from '@tzurot/cache-invalidation';
 import { getAllRoutes } from '../../test/expressRouterUtils.js';
+import { stubRouteResolvers } from '../../test/shared-route-test-utils.js';
 
 // Mock the admin auth middleware
 vi.mock('../../services/AuthMiddleware.js', () => ({
@@ -100,7 +101,10 @@ describe('Admin LLM Config Routes', () => {
   describe('middleware composition', () => {
     it('wires requireOwnerAuth on every route', () => {
       const routes = getAllRoutes(
-        createAdminLlmConfigRoutes({ prisma: {} as unknown as PrismaClient })
+        createAdminLlmConfigRoutes({
+          prisma: {} as unknown as PrismaClient,
+          ...stubRouteResolvers(),
+        })
       );
       expect(routes.length, 'expected at least one registered route').toBeGreaterThan(0);
       for (const route of routes) {
@@ -125,7 +129,10 @@ describe('Admin LLM Config Routes', () => {
     app.use(express.json());
     app.use(
       '/admin/llm-config',
-      createAdminLlmConfigRoutes({ prisma: prisma as unknown as PrismaClient })
+      createAdminLlmConfigRoutes({
+        ...stubRouteResolvers(),
+        prisma: prisma as unknown as PrismaClient,
+      })
     );
   });
 
@@ -146,6 +153,7 @@ describe('Admin LLM Config Routes', () => {
     a.use(
       '/admin/llm-config',
       createAdminLlmConfigRoutes({
+        ...stubRouteResolvers(),
         prisma: prisma as unknown as PrismaClient,
         modelCache:
           mockModelCache as unknown as import('../../services/OpenRouterModelCache.js').OpenRouterModelCache,
@@ -216,6 +224,7 @@ describe('Admin LLM Config Routes', () => {
       appWithModel.use(
         '/admin/llm-config',
         createAdminLlmConfigRoutes({
+          ...stubRouteResolvers(),
           prisma: prisma as unknown as PrismaClient,
           // List handler doesn't touch cache invalidation, so omit it; modelCache
           // drives the enrichment.
@@ -1281,6 +1290,7 @@ describe('Admin LLM Config Routes', () => {
       appWithCache.use(
         '/admin/llm-config',
         createAdminLlmConfigRoutes({
+          ...stubRouteResolvers(),
           prisma: prisma as unknown as PrismaClient,
           llmConfigCacheInvalidation: cacheService as unknown as LlmConfigCacheInvalidationService,
         })
@@ -1377,6 +1387,7 @@ describe('Admin LLM Config Routes', () => {
       appWithModel.use(
         '/admin/llm-config',
         createAdminLlmConfigRoutes({
+          ...stubRouteResolvers(),
           prisma: prisma as unknown as PrismaClient,
           llmConfigCacheInvalidation: cacheService as unknown as LlmConfigCacheInvalidationService,
           modelCache:
@@ -1429,6 +1440,7 @@ describe('Admin LLM Config Routes', () => {
       appWithModel.use(
         '/admin/llm-config',
         createAdminLlmConfigRoutes({
+          ...stubRouteResolvers(),
           prisma: prisma as unknown as PrismaClient,
           llmConfigCacheInvalidation: cacheService as unknown as LlmConfigCacheInvalidationService,
           modelCache:
@@ -1485,6 +1497,7 @@ describe('Admin LLM Config Routes', () => {
       appWithModel.use(
         '/admin/llm-config',
         createAdminLlmConfigRoutes({
+          ...stubRouteResolvers(),
           prisma: prisma as unknown as PrismaClient,
           llmConfigCacheInvalidation: cacheService as unknown as LlmConfigCacheInvalidationService,
           modelCache:

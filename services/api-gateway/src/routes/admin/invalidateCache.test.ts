@@ -8,6 +8,7 @@ import request from 'supertest';
 import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 import { createInvalidateCacheRoute } from './invalidateCache.js';
 import type { RouteDeps } from '../routeDeps.js';
+import { stubRouteResolvers } from '../../test/shared-route-test-utils.js';
 
 // Mock AuthMiddleware
 vi.mock('../../services/AuthMiddleware.js', () => ({
@@ -37,6 +38,7 @@ describe('POST /admin/invalidate-cache', () => {
 
     // Create Express app with invalidate cache router
     const deps: RouteDeps = {
+      ...stubRouteResolvers(),
       prisma: {} as PrismaClient,
 
       cacheInvalidationService: cacheInvalidationService as any,

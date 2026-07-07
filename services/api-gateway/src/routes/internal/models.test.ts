@@ -5,6 +5,7 @@ import type { ModelAutocompleteOption } from '@tzurot/common-types/types/ai';
 import { handleGetModels } from './models.js';
 import type { OpenRouterModelCache } from '../../services/OpenRouterModelCache.js';
 import type { RouteDeps } from '../routeDeps.js';
+import { stubRouteResolvers } from '../../test/shared-route-test-utils.js';
 
 vi.mock('@tzurot/common-types/utils/logger', async () => {
   const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
@@ -78,7 +79,7 @@ describe('GET /api/internal/models', () => {
 
   it('returns 503 when the model cache is absent (defensive guard)', async () => {
     const bareApp = express();
-    bareApp.get('/api/internal/models', handleGetModels({} as RouteDeps));
+    bareApp.get('/api/internal/models', handleGetModels({ ...stubRouteResolvers() } as RouteDeps));
     const res = await request(bareApp).get('/api/internal/models');
     expect(res.status).toBe(503);
   });

@@ -39,6 +39,7 @@ const mockPrisma = {};
 
 import { createConversationLookupRoutes } from './conversationLookup.js';
 import type { PrismaClient } from '@tzurot/common-types/services/prisma';
+import { stubRouteResolvers } from '../../test/shared-route-test-utils.js';
 
 // Helper to create mock request/response
 function createMockReqRes(query: Record<string, unknown> = {}) {
@@ -59,7 +60,10 @@ describe('conversationLookup routes', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    router = createConversationLookupRoutes({ prisma: mockPrisma as unknown as PrismaClient });
+    router = createConversationLookupRoutes({
+      ...stubRouteResolvers(),
+      prisma: mockPrisma as unknown as PrismaClient,
+    });
   });
 
   describe('GET /conversation/message-personality', () => {
