@@ -25,6 +25,7 @@ import {
   generateImageDescriptionCacheUuid,
   generateUsageLogUuid,
   generateFactExtractionJobUuid,
+  generateMemoryFactUuid,
   generatePendingMemoryUuid,
   generateUserApiKeyUuid,
   generateExportJobUuid,
@@ -263,6 +264,26 @@ describe('Deterministic UUID Generation', () => {
     it('should generate different UUIDs for different text content', () => {
       const uuid1 = generatePendingMemoryUuid('persona-1', 'personality-1', 'hello world');
       const uuid2 = generatePendingMemoryUuid('persona-1', 'personality-1', 'goodbye world');
+      expect(uuid1).not.toBe(uuid2);
+    });
+  });
+
+  describe('generateMemoryFactUuid', () => {
+    it('should generate consistent UUIDs for the same statement in the same scope', () => {
+      const uuid1 = generateMemoryFactUuid('personality-1', 'persona-1', 'Alice likes tea');
+      const uuid2 = generateMemoryFactUuid('personality-1', 'persona-1', 'Alice likes tea');
+      expect(uuid1).toBe(uuid2);
+    });
+
+    it('should distinguish persona-scoped from world facts', () => {
+      const scoped = generateMemoryFactUuid('personality-1', 'persona-1', 'Alice likes tea');
+      const world = generateMemoryFactUuid('personality-1', null, 'Alice likes tea');
+      expect(scoped).not.toBe(world);
+    });
+
+    it('should generate different UUIDs for different statements', () => {
+      const uuid1 = generateMemoryFactUuid('personality-1', 'persona-1', 'Alice likes tea');
+      const uuid2 = generateMemoryFactUuid('personality-1', 'persona-1', 'Alice likes coffee');
       expect(uuid1).not.toBe(uuid2);
     });
   });

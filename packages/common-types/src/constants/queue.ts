@@ -30,6 +30,14 @@ export const QUEUE_CONFIG = {
 export const SCHEDULED_QUEUE_NAME = 'scheduled-jobs';
 
 /**
+ * Queue for async fact-extraction jobs (memory Phase 2). Worker-internal to
+ * ai-worker (it both enqueues and consumes); separate from the main AI queue
+ * so background extraction never competes with user-facing generation
+ * concurrency, and the kill switch can stop the worker cleanly.
+ */
+export const FACT_EXTRACTION_QUEUE_NAME = 'fact-extraction';
+
+/**
  * Job ID prefixes for different job types
  */
 export const JOB_PREFIXES = {

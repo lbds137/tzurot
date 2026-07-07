@@ -11,6 +11,9 @@ import { vi } from 'vitest';
  */
 interface MockLongTermMemoryServiceInstance {
   storeInteraction: ReturnType<typeof vi.fn>;
+  /** Constructor args as received — lets tests assert the DI seam
+   * (e.g. that extractionTrigger survives the RAG-service forwarding). */
+  constructorArgs: unknown[];
 }
 
 let mockInstance: MockLongTermMemoryServiceInstance | null = null;
@@ -23,7 +26,7 @@ let mockInstance: MockLongTermMemoryServiceInstance | null = null;
  *
  * Override to simulate failure: `getLongTermMemoryServiceMock().storeInteraction.mockRejectedValue(new Error('DB error'))`
  */
-function createMockFunctions(): MockLongTermMemoryServiceInstance {
+function createMockFunctions(): Omit<MockLongTermMemoryServiceInstance, 'constructorArgs'> {
   return {
     storeInteraction: vi.fn().mockResolvedValue(undefined),
   };
@@ -35,10 +38,12 @@ function createMockFunctions(): MockLongTermMemoryServiceInstance {
 export const mockLongTermMemoryService = {
   LongTermMemoryService: class MockLongTermMemoryService {
     storeInteraction: ReturnType<typeof vi.fn>;
+    constructorArgs: unknown[];
 
-    constructor() {
+    constructor(...args: unknown[]) {
       const fns = createMockFunctions();
       this.storeInteraction = fns.storeInteraction;
+      this.constructorArgs = args;
       mockInstance = this;
     }
   },

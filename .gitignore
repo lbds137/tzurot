@@ -105,3 +105,4 @@ railway_dev_logs.md
 .stryker-tmp/
 scripts/migrations/barrel-kill/symbol-map.json
 services/ai-worker/src/services/eval/eval-results.json
+services/ai-worker/src/services/eval/extraction-eval-results.json

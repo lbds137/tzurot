@@ -58,6 +58,11 @@ export const envSchema = z.object({
     .enum(['true', 'false'])
     .optional()
     .or(z.literal('').transform(() => undefined)), // 'true' to automatically transcribe voice messages as bot
+  EXTRACTION_ENABLED: z
+    .enum(['true', 'false'])
+    .optional()
+    .or(z.literal('').transform(() => undefined)), // 'true' enables async fact extraction (memory Phase 2 shadow mode; default off)
+  EXTRACTION_BATCH_THRESHOLD: z.coerce.number().int().min(1).max(50).default(6), // episodes per (channel, personality) before an extraction batch enqueues
   BOT_OWNER_ID: optionalDiscordId(), // Discord user ID of bot owner for admin commands
   BOT_MENTION_CHAR: z.string().length(1).default('@'), // Character used for personality mentions (@personality or &personality)
   INTERNAL_SERVICE_SECRET: optionalNonEmptyString(), // Shared secret for service-to-service auth (bot-client -> api-gateway)
@@ -222,6 +227,8 @@ export function createTestConfig(overrides: Partial<EnvConfig> = {}): EnvConfig 
     GUILD_ID: undefined,
     AUTO_DEPLOY_COMMANDS: undefined,
     AUTO_TRANSCRIBE_VOICE: undefined,
+    EXTRACTION_ENABLED: undefined,
+    EXTRACTION_BATCH_THRESHOLD: 6,
     BOT_OWNER_ID: undefined,
     BOT_MENTION_CHAR: '@',
     INTERNAL_SERVICE_SECRET: undefined,

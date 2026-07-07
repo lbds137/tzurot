@@ -15,6 +15,7 @@ import { PgvectorMemoryAdapter } from './services/PgvectorMemoryAdapter.js';
 import { LocalEmbeddingService } from '@tzurot/embeddings';
 import { AIJobProcessor } from './jobs/AIJobProcessor.js';
 import { PendingMemoryProcessor } from './jobs/PendingMemoryProcessor.js';
+import { setupFactExtraction } from './jobs/factExtractionSetup.js';
 import { cleanupDiagnosticLogs } from './jobs/CleanupDiagnosticLogs.js';
 import { cleanupStuckImportJobs } from './jobs/cleanupStuckImportJobs.js';
 import { cleanupStuckExportJobs } from './jobs/cleanupStuckExportJobs.js';
@@ -364,6 +365,15 @@ async function main(): Promise<void> {
     logger.warn('Embedding service ready but vector memory failed');
   }
 
+  // Fact extraction (memory Phase 2, shadow mode) — undefined unless
+  // EXTRACTION_ENABLED=true AND the embedding service is up.
+  const factExtraction = setupFactExtraction(
+    prisma,
+    cacheRedis,
+    redisConfig,
+    localEmbeddingService
+  );
+
   // Create job processor and main worker
   const jobProcessor = new AIJobProcessor({
     prisma,
@@ -375,6 +385,7 @@ async function main(): Promise<void> {
     personaResolver,
     embeddingService: localEmbeddingService,
     cascadeResolver,
+    extractionTrigger: factExtraction?.trigger,
   });
   const worker = createMainWorker(jobProcessor);
 
@@ -409,6 +420,10 @@ async function main(): Promise<void> {
     await worker.close();
     await scheduledWorker.close();
     await scheduledQueue.close();
+    if (factExtraction !== undefined) {
+      await factExtraction.worker.close();
+      await factExtraction.queue.close();
+    }
     await pendingMemoryProcessor.disconnect();
     if (localEmbeddingService !== undefined) {
       await localEmbeddingService.shutdown();

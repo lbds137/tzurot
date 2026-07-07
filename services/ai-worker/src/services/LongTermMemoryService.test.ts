@@ -6,6 +6,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import type { ExtractionTrigger } from './extraction/ExtractionTrigger.js';
 import { LongTermMemoryService } from './LongTermMemoryService.js';
 import type { PgvectorMemoryAdapter } from './PgvectorMemoryAdapter.js';
 import type { PrismaClient } from '@tzurot/common-types/services/prisma';
@@ -438,6 +439,46 @@ describe('LongTermMemoryService', () => {
           metadata: expect.objectContaining({ messageIds: [] }),
         })
       );
+    });
+  });
+
+  describe('extraction trigger tail', () => {
+    it('records the episode after a successful store (fire-and-forget)', async () => {
+      const recordEpisode = vi.fn().mockResolvedValue(undefined);
+      const trigger = { recordEpisode } as unknown as ExtractionTrigger;
+      const withTrigger = new LongTermMemoryService(mockPrismaClient, mockMemoryManager, trigger);
+
+      await withTrigger.storeInteraction(
+        testPersonality,
+        'hello',
+        'hi there',
+        baseContext,
+        'persona-1'
+      );
+
+      expect(recordEpisode).toHaveBeenCalledTimes(1);
+      expect(recordEpisode).toHaveBeenCalledWith('channel-1', 'personality-1', expect.any(String));
+    });
+
+    it('does NOT record when vector storage failed', async () => {
+      const recordEpisode = vi.fn();
+      const trigger = { recordEpisode } as unknown as ExtractionTrigger;
+      vi.mocked(mockMemoryManager.addMemory).mockRejectedValue(new Error('pgvector down'));
+      const withTrigger = new LongTermMemoryService(mockPrismaClient, mockMemoryManager, trigger);
+
+      await withTrigger.storeInteraction(testPersonality, 'hello', 'hi', baseContext, 'persona-1');
+
+      expect(recordEpisode).not.toHaveBeenCalled();
+    });
+
+    it('a rejecting trigger never fails the store call', async () => {
+      const recordEpisode = vi.fn().mockRejectedValue(new Error('redis down'));
+      const trigger = { recordEpisode } as unknown as ExtractionTrigger;
+      const withTrigger = new LongTermMemoryService(mockPrismaClient, mockMemoryManager, trigger);
+
+      await expect(
+        withTrigger.storeInteraction(testPersonality, 'hello', 'hi', baseContext, 'persona-1')
+      ).resolves.toBeUndefined();
     });
   });
 });

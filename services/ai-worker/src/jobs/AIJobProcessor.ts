@@ -32,6 +32,7 @@ import {
 } from '@tzurot/common-types/types/shapes-import';
 import { generateUsageLogUuid } from '@tzurot/common-types/utils/deterministicUuid';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import type { ExtractionTrigger } from '../services/extraction/ExtractionTrigger.js';
 import {
   LlmConfigResolver,
   TtsConfigResolver,
@@ -68,6 +69,8 @@ interface AIJobProcessorOptions {
   sttResolver?: SttResolver;
   /** Optional: Persona resolver for persona-based memory retrieval (for DI in tests) */
   personaResolver?: PersonaResolver;
+  /** Optional: fact-extraction write-path trigger (memory Phase 2; absent = disabled) */
+  extractionTrigger?: ExtractionTrigger;
   /** Optional: Local embedding service for semantic duplicate detection */
   embeddingService?: EmbeddingServiceInterface;
   /** Optional: Config cascade resolver for per-field config overrides */
@@ -96,6 +99,7 @@ export class AIJobProcessor {
       personaResolver,
       embeddingService,
       cascadeResolver,
+      extractionTrigger,
     } = options;
 
     this.prisma = prisma;
@@ -111,7 +115,13 @@ export class AIJobProcessor {
     // Note: PersonaResolver is passed through to MemoryRetriever for persona-based memory retrieval
     this.ragService =
       ragService ??
-      new ConversationalRAGService(prisma, memoryManager, personaResolver, this.apiKeyResolver);
+      new ConversationalRAGService(
+        prisma,
+        memoryManager,
+        personaResolver,
+        this.apiKeyResolver,
+        extractionTrigger
+      );
 
     // Use provided LlmConfigResolver (for testing) or create new one (for production)
     // LlmConfigResolver handles user config overrides (per-personality and global default)
