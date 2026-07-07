@@ -12,6 +12,7 @@ Discord bot with AI personas. TypeScript monorepo on Railway.
 pnpm dev              # Start all services
 pnpm test             # Run unit tests
 pnpm test:component   # Run component tests (after command structure changes)
+pnpm test:integration # Run integration + contract tiers (*.contract.test.ts lives here, NOT in pnpm test)
 pnpm quality          # the full static gate — composition in package.json scripts.quality (synced to CI by guard:gate-parity)
 pnpm ops db:migrate --env dev  # Run migrations
 ```

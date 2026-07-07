@@ -1,11 +1,11 @@
 {
   "surfaces": {
     "rules": {
-      "lines": 2000,
+      "lines": 2120,
       "graceMargin": 150
     },
     "current": {
-      "lines": 33,
+      "lines": 37,
       "graceMargin": 60
     }
   },
@@ -13,7 +13,7 @@
     "toolVersion": "lines-check/1",
     "configHash": "84da1e207dac",
     "nodeVersion": "v24.11.1",
-    "generatedFromSha": "a2034e712f3bae289a56793ea74634cb1e4c74c4",
-    "generatedAt": "2026-07-03T19:27:14.760Z"
+    "generatedFromSha": "fabf69ee5b84334f2cba3986f6d5b45b084705a7",
+    "generatedAt": "2026-07-07T02:02:03.061Z"
   }
 }

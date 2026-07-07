@@ -322,6 +322,8 @@ Before extracting a new shared helper from a duplicated route pattern, prototype
 
 The rule's symmetry: when council reviewers (or your own instinct) warn "this looks like Wrong Abstraction," try the prototype. Don't pre-decide; let the signature size be the empirical answer.
 
+**The adapter-interface exception (council-ruled)**: a cohesive INTERFACE whose methods are authored together per implementor is ONE parameter, not N callbacks — even with 3+ methods. The test is cohesion: if removing one method makes the others meaningless (they produce/consume each other's outputs), it's an adapter seam; if the functions are independent degrees of freedom a caller could mix-and-match, it's callbacks and the ceiling applies. Precedents: `TtsProvider`, `EntitySectionAdapter` (findSection's sync bundle is what loadSectionData warms and resolveSectionContext composes — cohesive), vs. the rejected cascade-route "preamble helper" (schema + verify-access + pre-hook = independent knobs — ceiling). Constraint that keeps this honest: adapter IMPLEMENTATIONS live next to their implementor's code, never in the shared module.
+
 ### CPD measurement: raw vs filtered
 
 - **`pnpm cpd`** — runs jscpd. Output is informational. The raw clone count cannot reach zero in a well-abstracted TypeScript codebase because jscpd's token matcher treats standardized call sites of shared helpers as new clones across consumers.
