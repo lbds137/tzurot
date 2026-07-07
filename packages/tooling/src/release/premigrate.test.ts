@@ -92,6 +92,70 @@ describe('premigrate', () => {
     expect(runMigration).toHaveBeenCalledWith({ env: 'prod', force: true, dryRun: false });
   });
 
+  it('exempts destructive statements on tables CREATEd earlier in the same file', async () => {
+    // The vector-column false-positive class: CREATE TABLE + ALTER COLUMN TYPE
+    // on the brand-new table in one migration cannot break live code.
+    mockGitDiff([ADDITIVE_MIGRATION]);
+    vi.mocked(readFileSync).mockReturnValue(
+      'CREATE TABLE "memory_facts" ("id" UUID NOT NULL, "embedding" vector);\n' +
+        'ALTER TABLE "memory_facts" ALTER COLUMN "embedding" SET DATA TYPE vector(384);\n' +
+        'ALTER TABLE "public"."memory_facts" DROP COLUMN "scratch";'
+    );
+
+    await premigrate({ env: 'prod', force: true });
+
+    expect(runMigration).toHaveBeenCalledWith({ env: 'prod', force: true, dryRun: false });
+  });
+
+  it('still refuses DROP-then-reCREATE of the same table (order-aware exemption)', async () => {
+    // Recreating a table destroys prod data; the CREATE after the DROP must
+    // not retroactively bless it.
+    mockGitDiff([DESTRUCTIVE_MIGRATION]);
+    vi.mocked(readFileSync).mockReturnValue(
+      'DROP TABLE "memories";\nCREATE TABLE "memories" ("id" UUID NOT NULL);'
+    );
+
+    await expect(premigrate({ env: 'prod' })).rejects.toThrow('process.exit:1');
+    expect(runMigration).not.toHaveBeenCalled();
+  });
+
+  it('still refuses a comma-list DROP TABLE that includes a pre-existing table', async () => {
+    // `DROP TABLE new, existing;` — exempting on the first-listed (created)
+    // table alone would silently bless dropping the live one.
+    mockGitDiff([DESTRUCTIVE_MIGRATION]);
+    vi.mocked(readFileSync).mockReturnValue(
+      'CREATE TABLE "scratch_cache" ("id" UUID NOT NULL);\n' +
+        'DROP TABLE "scratch_cache", "user_settings";'
+    );
+
+    await expect(premigrate({ env: 'prod' })).rejects.toThrow('process.exit:1');
+    expect(runMigration).not.toHaveBeenCalled();
+  });
+
+  it('exempts a comma-list DROP TABLE when every listed table was created in the file', async () => {
+    mockGitDiff([ADDITIVE_MIGRATION]);
+    vi.mocked(readFileSync).mockReturnValue(
+      'CREATE TABLE "tmp_a" ("id" UUID NOT NULL);\n' +
+        'CREATE TABLE "tmp_b" ("id" UUID NOT NULL);\n' +
+        'DROP TABLE "tmp_a", "tmp_b";'
+    );
+
+    await premigrate({ env: 'prod', force: true });
+
+    expect(runMigration).toHaveBeenCalledWith({ env: 'prod', force: true, dryRun: false });
+  });
+
+  it('still refuses ALTER COLUMN TYPE on a table not created in the file', async () => {
+    mockGitDiff([DESTRUCTIVE_MIGRATION]);
+    vi.mocked(readFileSync).mockReturnValue(
+      'CREATE TABLE "other" ("id" UUID NOT NULL);\n' +
+        'ALTER TABLE "memories" ALTER COLUMN "content" SET DATA TYPE JSONB;'
+    );
+
+    await expect(premigrate({ env: 'prod' })).rejects.toThrow('process.exit:1');
+    expect(runMigration).not.toHaveBeenCalled();
+  });
+
   it('refuses when a release mixes additive and destructive migrations', async () => {
     mockGitDiff([ADDITIVE_MIGRATION, DESTRUCTIVE_MIGRATION]);
     // additive file → no destructive markers; destructive file → DROP COLUMN
