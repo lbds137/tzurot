@@ -54,7 +54,8 @@
     "changeset:status": "changeset status",
     "ops": "tsx packages/tooling/src/cli.ts",
     "with-env": "pnpm ops run --env",
-    "eval:memory": "vitest run --config vitest.eval.config.ts"
+    "eval:memory": "vitest run --config vitest.eval.config.ts services/ai-worker/src/services/eval/memoryRetrieval.eval.test.ts",
+    "eval:extraction": "vitest run --config vitest.eval.config.ts services/ai-worker/src/services/eval/memoryExtraction.eval.test.ts"
   },
   "devDependencies": {
     "@changesets/changelog-github": "^0.7.0",

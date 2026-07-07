@@ -333,6 +333,25 @@ export function generatePendingMemoryUuid(
 }
 
 /**
+ * Generate deterministic UUID for a MemoryFact row (memory Phase 2)
+ * Seed: memory_fact:{personalityId}:{personaId|world}:{statementHash}
+ *
+ * Content-hash dedup: re-extracting an identical statement in the same scope
+ * produces the same id, so a retried batch can't write exact duplicates.
+ */
+export function generateMemoryFactUuid(
+  personalityId: string,
+  personaId: string | null,
+  statement: string
+): string {
+  const statementHash = crypto.createHash('sha256').update(statement).digest('hex').slice(0, 32);
+  return uuidv5(
+    `memory_fact:${personalityId}:${personaId ?? 'world'}:${statementHash}`,
+    TZUROT_NAMESPACE
+  );
+}
+
+/**
  * Generate deterministic UUID for a fact-extraction BullMQ job (memory Phase 2)
  * Seed: fact_extraction:{channelId}:{personalityId}:{windowStartMemoryId}
  *

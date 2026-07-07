@@ -1851,4 +1851,22 @@ describe('ConversationalRAGService', () => {
       expect(result.thinkingContent).toBe('Internal reasoning that should not be shown to user.');
     });
   });
+
+  describe('extraction-trigger DI seam', () => {
+    it('forwards extractionTrigger through to LongTermMemoryService (3rd ctor arg)', () => {
+      const sentinelTrigger = { recordEpisode: vi.fn() };
+      // Constructed purely for the ctor side effect (the mock records its args).
+      void new ConversationalRAGService(
+        mockPrisma,
+        undefined,
+        undefined,
+        undefined,
+        sentinelTrigger as never
+      );
+
+      // The mocked LongTermMemoryService records its constructor args — the
+      // seam this pins is "the 5th RAG-service param lands as LTM's 3rd arg."
+      expect(getLongTermMemoryServiceMock().constructorArgs[2]).toBe(sentinelTrigger);
+    });
+  });
 });

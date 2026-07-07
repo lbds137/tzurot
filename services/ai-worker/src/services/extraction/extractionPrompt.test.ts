@@ -1,0 +1,82 @@
+import { describe, it, expect } from 'vitest';
+import {
+  buildExtractionPrompt,
+  extractionResponseSchema,
+  extractedFactSchema,
+} from './extractionPrompt.js';
+
+describe('extractionResponseSchema', () => {
+  const validFact = {
+    statement: "Alice's cat is named Miso",
+    entityTags: ['user:alice', 'pet:miso'],
+    salience: 0.7,
+    supersedesIndex: null,
+  };
+
+  it('accepts a valid response', () => {
+    expect(extractionResponseSchema.safeParse({ facts: [validFact] }).success).toBe(true);
+  });
+
+  it('accepts an empty extraction (nothing durable found)', () => {
+    expect(extractionResponseSchema.safeParse({ facts: [] }).success).toBe(true);
+  });
+
+  it('accepts a supersession by index', () => {
+    const res = { facts: [{ ...validFact, supersedesIndex: 3 }] };
+    expect(extractionResponseSchema.safeParse(res).success).toBe(true);
+  });
+
+  it('rejects a negative or fractional supersedesIndex', () => {
+    expect(extractedFactSchema.safeParse({ ...validFact, supersedesIndex: -1 }).success).toBe(
+      false
+    );
+    expect(extractedFactSchema.safeParse({ ...validFact, supersedesIndex: 1.5 }).success).toBe(
+      false
+    );
+  });
+
+  it('rejects out-of-range salience', () => {
+    expect(extractedFactSchema.safeParse({ ...validFact, salience: 2 }).success).toBe(false);
+  });
+
+  it('rejects an over-long statement (extraction should be atomic)', () => {
+    expect(
+      extractedFactSchema.safeParse({ ...validFact, statement: 'x'.repeat(501) }).success
+    ).toBe(false);
+  });
+
+  it('rejects a fact-bomb (more than 10 facts per batch)', () => {
+    const res = { facts: Array.from({ length: 11 }, () => validFact) };
+    expect(extractionResponseSchema.safeParse(res).success).toBe(false);
+  });
+});
+
+describe('buildExtractionPrompt', () => {
+  const episodes = ['{user}: my cat is named Miso\n{assistant}: Miso is a lovely name!'];
+
+  it('numbers known facts for index-based supersession', () => {
+    const prompt = buildExtractionPrompt(
+      episodes,
+      [
+        { id: 'a', statement: 'Alice has a cat', entityTags: [], isLocked: false },
+        { id: 'b', statement: 'Alice lives in Seattle', entityTags: [], isLocked: false },
+      ],
+      false
+    );
+    expect(prompt).toContain('[0] Alice has a cat');
+    expect(prompt).toContain('[1] Alice lives in Seattle');
+  });
+
+  it('handles the empty known-facts case', () => {
+    const prompt = buildExtractionPrompt(episodes, [], false);
+    expect(prompt).toContain('(none known yet)');
+  });
+
+  it('includes the episode text and switches instruction by fiction scope', () => {
+    const real = buildExtractionPrompt(episodes, [], false);
+    const fiction = buildExtractionPrompt(episodes, [], true);
+    expect(real).toContain('my cat is named Miso');
+    expect(real).toContain('ignore in-story fiction');
+    expect(fiction).toContain('in-story canon facts');
+  });
+});

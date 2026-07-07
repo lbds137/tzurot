@@ -9,10 +9,12 @@
  */
 
 import { type PgvectorMemoryAdapter } from './PgvectorMemoryAdapter.js';
+import { type ExtractionTrigger } from './extraction/ExtractionTrigger.js';
 import type { MemoryMetadata } from './PgvectorTypes.js';
 import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import { generatePendingMemoryUuid } from '@tzurot/common-types/utils/deterministicUuid';
+import { deterministicMemoryUuid } from '@tzurot/common-types/constants/memory';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { ConversationContext } from './ConversationalRAGTypes.js';
 
@@ -23,7 +25,9 @@ export class LongTermMemoryService {
 
   constructor(
     private readonly prisma: PrismaClient,
-    memoryManager?: PgvectorMemoryAdapter
+    memoryManager?: PgvectorMemoryAdapter,
+    /** Optional fact-extraction batching tail (memory Phase 2; absent = disabled). */
+    private readonly extractionTrigger?: ExtractionTrigger
   ) {
     this.memoryManager = memoryManager;
   }
@@ -87,6 +91,19 @@ export class LongTermMemoryService {
         { canonScope: memoryMetadata.canonScope, personalityName: personality.name, personaId },
         'Stored interaction to LTM'
       );
+
+      // Fire-and-forget extraction batching tail (post-commit; never blocks or
+      // fails the reply pipeline — the trigger itself is throw-proof, this
+      // catch is belt-and-braces for the promise chain). Known edge: chunked
+      // (oversized) episodes hash with a chunk suffix, so this derived id
+      // won't match their rows and they silently skip extraction — rare and
+      // acceptable; the worker tolerates missing ids by design.
+      if (this.extractionTrigger !== undefined && context.channelId !== undefined) {
+        const episodeId = deterministicMemoryUuid(personaId, personality.id, interactionText);
+        void this.extractionTrigger
+          .recordEpisode(context.channelId, personality.id, episodeId)
+          .catch((err: unknown) => logger.debug({ err }, 'Extraction tail rejected'));
+      }
     } catch (error) {
       logger.error({ err: error }, 'Failed to store interaction to vector database');
 

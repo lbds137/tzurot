@@ -25,6 +25,7 @@ import { LLMInvoker } from './LLMInvoker.js';
 import { MemoryRetriever } from './MemoryRetriever.js';
 import { PromptBuilder } from './PromptBuilder.js';
 import { LongTermMemoryService } from './LongTermMemoryService.js';
+import type { ExtractionTrigger } from './extraction/ExtractionTrigger.js';
 import { ContextWindowManager } from './context/ContextWindowManager.js';
 import { type PersonaResolver } from '@tzurot/identity';
 import { UserReferenceResolver } from './UserReferenceResolver.js';
@@ -73,12 +74,13 @@ export class ConversationalRAGService {
     private readonly prisma: PrismaClient,
     memoryManager?: PgvectorMemoryAdapter,
     personaResolver?: PersonaResolver,
-    private readonly apiKeyResolver?: ApiKeyResolver
+    private readonly apiKeyResolver?: ApiKeyResolver,
+    extractionTrigger?: ExtractionTrigger
   ) {
     this.llmInvoker = new LLMInvoker();
     this.memoryRetriever = new MemoryRetriever(prisma, memoryManager, personaResolver);
     this.promptBuilder = new PromptBuilder();
-    const longTermMemory = new LongTermMemoryService(prisma, memoryManager);
+    const longTermMemory = new LongTermMemoryService(prisma, memoryManager, extractionTrigger);
     this.referencedMessageFormatter = new ReferencedMessageFormatter();
     this.contextWindowManager = new ContextWindowManager();
     this.userReferenceResolver = new UserReferenceResolver(prisma);

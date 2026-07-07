@@ -1,0 +1,176 @@
+{
+  "$comment": "Extraction golden corpus (memory Phase 2 §3.9). Each golden: episodes (verbatim interaction texts) + knownFacts (injected supersession context) → expectFacts (statements the extractor should produce, matched by embedding equivalence) + expectSupersedesKnownIndex (which knownFacts entries a new fact should supersede). Categories: durable-fact, preference, no-facts (narration only), multi-fact, supersession, fiction. Grown toward the 100-sample re-open-trigger corpus; owner /memory correct|forget feedback accretes here.",
+  "goldens": [
+    {
+      "id": "simple-name-fact",
+      "category": "durable-fact",
+      "episodes": [
+        "{user}: by the way, my cat is named Miso\n{assistant}: Miso! What a lovely name for a cat."
+      ],
+      "knownFacts": [],
+      "expectFacts": ["The user has a cat named Miso"],
+      "expectSupersedesKnownIndex": []
+    },
+    {
+      "id": "job-fact",
+      "category": "durable-fact",
+      "episodes": [
+        "{user}: ugh, long shift at the hospital again. being a nurse is exhausting some weeks\n{assistant}: Twelve-hour shifts are no joke. I hope you can rest now."
+      ],
+      "knownFacts": [],
+      "expectFacts": ["The user works as a nurse"],
+      "expectSupersedesKnownIndex": []
+    },
+    {
+      "id": "preference-fact",
+      "category": "preference",
+      "episodes": [
+        "{user}: I can't stand coffee, honestly. tea person through and through\n{assistant}: Noted! I'll imagine you with a cup of Earl Grey then."
+      ],
+      "knownFacts": [],
+      "expectFacts": ["The user prefers tea over coffee"],
+      "expectSupersedesKnownIndex": []
+    },
+    {
+      "id": "narration-only",
+      "category": "no-facts",
+      "episodes": [
+        "{user}: *walks into the tavern and sits by the fire*\n{assistant}: *nods from behind the bar* Cold night out there."
+      ],
+      "knownFacts": [],
+      "expectFacts": [],
+      "expectSupersedesKnownIndex": []
+    },
+    {
+      "id": "smalltalk-only",
+      "category": "no-facts",
+      "episodes": [
+        "{user}: hey how are you today\n{assistant}: Doing well! How about you?\n{user}: pretty good pretty good"
+      ],
+      "knownFacts": [],
+      "expectFacts": [],
+      "expectSupersedesKnownIndex": []
+    },
+    {
+      "id": "multi-fact-batch",
+      "category": "multi-fact",
+      "episodes": [
+        "{user}: my sister Dana is visiting next month, she lives in Portland\n{assistant}: That's exciting! Do you two see each other often?",
+        "{user}: not really, maybe twice a year. she's a vet so her schedule is brutal\n{assistant}: A veterinarian's hours are rough. All the more special when you do meet."
+      ],
+      "knownFacts": [],
+      "expectFacts": [
+        "The user has a sister named Dana",
+        "Dana lives in Portland",
+        "Dana works as a veterinarian"
+      ],
+      "expectSupersedesKnownIndex": []
+    },
+    {
+      "id": "supersession-move",
+      "category": "supersession",
+      "episodes": [
+        "{user}: oh I should mention, I finally moved! living in Denver now as of last week\n{assistant}: Congratulations on the move! How are you finding Denver?"
+      ],
+      "knownFacts": [{ "statement": "The user lives in Seattle", "entityTags": ["user"] }],
+      "expectFacts": ["The user lives in Denver"],
+      "expectSupersedesKnownIndex": [0]
+    },
+    {
+      "id": "supersession-job-change",
+      "category": "supersession",
+      "episodes": [
+        "{user}: first day at the new job today! officially a teacher now, no more retail\n{assistant}: That's a huge change — congratulations! How was the first class?"
+      ],
+      "knownFacts": [
+        { "statement": "The user works in retail", "entityTags": ["user"] },
+        { "statement": "The user has a dog named Rex", "entityTags": ["user", "pet:rex"] }
+      ],
+      "expectFacts": ["The user works as a teacher"],
+      "expectSupersedesKnownIndex": [0]
+    },
+    {
+      "id": "no-restatement",
+      "category": "no-facts",
+      "episodes": [
+        "{user}: you know I love tea\n{assistant}: Of course — tea person through and through, as you always say."
+      ],
+      "knownFacts": [{ "statement": "The user prefers tea over coffee", "entityTags": ["user"] }],
+      "expectFacts": [],
+      "expectSupersedesKnownIndex": []
+    },
+    {
+      "id": "relationship-fact",
+      "category": "durable-fact",
+      "episodes": [
+        "{user}: my partner Jamie surprised me with concert tickets for our anniversary\n{assistant}: Jamie sounds wonderful! Happy anniversary to you both."
+      ],
+      "knownFacts": [],
+      "expectFacts": ["The user has a partner named Jamie"],
+      "expectSupersedesKnownIndex": []
+    },
+    {
+      "id": "transient-state-not-fact",
+      "category": "no-facts",
+      "episodes": [
+        "{user}: I'm so tired today, barely slept\n{assistant}: Oh no. Be gentle with yourself today — early night tonight?"
+      ],
+      "knownFacts": [],
+      "expectFacts": [],
+      "expectSupersedesKnownIndex": []
+    },
+    {
+      "id": "fiction-canon",
+      "category": "fiction",
+      "isFiction": true,
+      "episodes": [
+        "{user}: *draws her sword* I am Kaela, last knight of the Ashen Order\n{assistant}: *steps back, eyes widening* The Ashen Order... they said your kind were all gone."
+      ],
+      "knownFacts": [],
+      "expectFacts": ["Kaela is the last knight of the Ashen Order"],
+      "expectSupersedesKnownIndex": []
+    },
+    {
+      "id": "allergy-fact",
+      "category": "durable-fact",
+      "episodes": [
+        "{user}: can't do peanuts, deathly allergic. learned that the hard way as a kid\n{assistant}: That's important to know — I'll remember that."
+      ],
+      "knownFacts": [],
+      "expectFacts": ["The user is severely allergic to peanuts"],
+      "expectSupersedesKnownIndex": []
+    },
+    {
+      "id": "timezone-fact",
+      "category": "durable-fact",
+      "episodes": [
+        "{user}: it's already 2am here in Tokyo lol I should sleep\n{assistant}: Tokyo nights! Get some rest — we can continue tomorrow."
+      ],
+      "knownFacts": [],
+      "expectFacts": ["The user lives in Tokyo"],
+      "expectSupersedesKnownIndex": []
+    },
+    {
+      "id": "pet-addition-not-supersession",
+      "category": "supersession",
+      "episodes": [
+        "{user}: we adopted a second cat! her name is Nori, Miso is still getting used to her\n{assistant}: Two cats now! Nori and Miso — I hope they become friends soon."
+      ],
+      "knownFacts": [
+        { "statement": "The user has a cat named Miso", "entityTags": ["user", "pet:miso"] }
+      ],
+      "expectFacts": ["The user has a cat named Nori"],
+      "expectSupersedesKnownIndex": []
+    },
+    {
+      "id": "birthday-fact",
+      "category": "durable-fact",
+      "episodes": [
+        "{user}: my birthday's coming up on the 14th of March, planning a small dinner\n{assistant}: March 14th — noted! A small dinner sounds perfect."
+      ],
+      "knownFacts": [],
+      "expectFacts": ["The user's birthday is March 14"],
+      "expectSupersedesKnownIndex": []
+    }
+  ]
+}

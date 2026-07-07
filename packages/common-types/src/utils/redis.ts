@@ -56,7 +56,7 @@ interface RedisSocketConfig {
   enableReadyCheck: boolean;
 }
 
-interface BullMQRedisConfig {
+export interface BullMQRedisConfig {
   host: string;
   port: number;
   password?: string;
