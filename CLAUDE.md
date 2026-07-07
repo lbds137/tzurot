@@ -48,6 +48,7 @@ All rules load automatically from `.claude/rules/`:
 - **07-documentation.md** - Doc placement, naming, lifecycle
 - **08-review-response.md** - PR review-response iteration (auto-apply vs ASK)
 - **09-interaction-style.md** - Session interaction style (don't suggest stopping)
+- **10-working-posture.md** - How to drive a session (momentum, freshness-checks, dispositions)
 
 ## Git Workflow
 
