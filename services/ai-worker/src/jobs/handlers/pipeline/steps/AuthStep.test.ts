@@ -691,6 +691,40 @@ describe('AuthStep', () => {
         expect(result.auth?.quotaFallback?.toModel).toBe('paid/default');
       });
 
+      it('z.ai-only user (no OpenRouter key): doomed promotion degrades to the FREE default on the system key', async () => {
+        // Degraded-beats-failed: the paid retarget needs the user's own
+        // OpenRouter key; without one the request must still work — free
+        // default, system key, guest semantics, zero owner cost.
+        const promotedGuestFallback = {
+          ...PROMOTED_ROUTE,
+          fallback: { ...PROMOTED_ROUTE.fallback, apiKey: 'sk-system', isGuestMode: true },
+        };
+        const resolverWithDefaults = {
+          ...mockConfigResolver,
+          getGlobalDefaultConfig: vi.fn().mockResolvedValue({ model: 'paid/default' }),
+          getFreeDefaultConfig: vi.fn().mockResolvedValue({ model: 'free/default' }),
+        } as unknown as LlmConfigResolver;
+        const injectedRouter = {
+          resolveRoute: vi.fn().mockResolvedValue(promotedGuestFallback),
+        } as unknown as import('../../../../services/ProviderRouter.js').ProviderRouter;
+        vi.mocked(mockApiKeyResolver.resolveUserOpenRouterKey).mockResolvedValue(undefined);
+        vi.mocked(mockApiKeyResolver.resolveSystemOpenRouterKey).mockResolvedValue('sk-system');
+        step = new AuthStep(
+          mockApiKeyResolver,
+          resolverWithDefaults,
+          injectedRouter,
+          undefined,
+          buildDemotionCaches(['glm-5.2']) as never
+        );
+
+        const result = await step.process(makeContext());
+
+        expect(result.config?.effectivePersonality.model).toBe('free/default');
+        expect(result.auth?.apiKey).toBe('sk-system');
+        expect(result.auth?.isGuestMode).toBe(true);
+        expect(result.auth?.quotaFallback?.toModel).toBe('free/default');
+      });
+
       it('leaves a viable promotion untouched (no demotion, rescue route intact)', async () => {
         step = makeStep([]); // nothing doomed
 

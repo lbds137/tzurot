@@ -23,6 +23,7 @@ import {
 } from '../../../../services/quotaFallback.js';
 import { deriveCacheKeyId } from '../../../../services/RateLimitCache.js';
 import { tryPromotionDemotion } from './promotionDemotion.js';
+import { resolveRetargetRoute } from './retargetRoute.js';
 import type { IPipelineStep, GenerationContext } from '../types.js';
 
 const logger = createLogger('AuthStep');
@@ -240,40 +241,39 @@ export class AuthStep implements IPipelineStep {
       return null;
     }
 
-    let retargetApiKey = apiKey;
-    let retargetIsGuestMode = isGuestMode;
-    if (target.forceSystemKey) {
-      const systemKey = await this.apiKeyResolver?.resolveSystemOpenRouterKey();
-      if (systemKey === undefined) {
-        return null;
-      }
-      retargetApiKey = systemKey;
-      retargetIsGuestMode = true;
-    } else if (
-      personality.provider !== undefined &&
-      personality.provider !== (AIProvider.OpenRouter as string)
-    ) {
-      // The resolved key belongs to a different provider (e.g. a z.ai-promoted
-      // request carries the user's z.ai key). The OpenRouter retarget needs the
-      // user's OWN OpenRouter key; without one, abort rather than running a
-      // paid default on the system key (owner-cost boundary).
-      const openRouterKey = await this.apiKeyResolver?.resolveUserOpenRouterKey(userId);
-      if (openRouterKey === undefined) {
-        return null;
-      }
-      retargetApiKey = openRouterKey;
+    const resolved = await resolveRetargetRoute({
+      target,
+      personality,
+      apiKey,
+      isGuestMode,
+      userId,
+      category,
+      cacheKeyId,
+      deps: {
+        apiKeyResolver: this.apiKeyResolver,
+        configResolver: this.configResolver,
+        caches: this.quotaFallbackCaches,
+      },
+    });
+    if (resolved === null) {
+      return null;
     }
+    const {
+      config: retargetConfig,
+      apiKey: retargetApiKey,
+      isGuestMode: retargetIsGuestMode,
+    } = resolved;
 
     const info: QuotaFallbackInfo = {
       fromModel: personality.model,
-      toModel: target.config.model,
+      toModel: retargetConfig.model,
       category,
       mode: 'proactive',
     };
     logQuotaFallbackAudit(info, { jobId, cacheKeyId });
 
     return {
-      personality: applyConfigToPersonality(personality, target.config),
+      personality: applyConfigToPersonality(personality, retargetConfig),
       apiKey: retargetApiKey,
       isGuestMode: retargetIsGuestMode,
       info,
