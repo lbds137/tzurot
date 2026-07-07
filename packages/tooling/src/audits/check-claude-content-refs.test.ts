@@ -318,6 +318,8 @@ describe('findContentRefs (against real repo)', () => {
       'db:inspect',
       'db:migrate',
       'db:safe-migrate',
+      'mutation:check',
+      'mutation:update-baseline',
       'db:status',
       'deploy:dev',
       'deploy:setup-vars',

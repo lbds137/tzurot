@@ -91,6 +91,16 @@ pnpm ops xray --imports              # Include import analysis (auto for md/json
 
 **Decision-point trigger**: xray is not just a periodic-audit tool — it is the required sweep before any negative existence claim ("we don't have X") per `00-critical.md` § Don't Present Speculation as Fact. `pnpm ops xray --format md | grep -iE 'termA|termB|termC'` searches every export in seconds and cannot be stale.
 
+### Mutation-Score Ratchet (Stryker)
+
+```bash
+pnpm --filter @tzurot/<pkg> test:mutation   # run Stryker for one tracked package (writes reports/mutation/<pkg>/)
+pnpm ops mutation:check --summary           # CI gate: per-package score >= baseline - graceMargin
+pnpm ops mutation:update-baseline           # sanctioned refresh (needs a fresh LOCAL report for EVERY tracked package)
+```
+
+Tracked packages live in `MUTATED_PACKAGES` (`packages/tooling/src/test/mutation-check.ts`). Adding one: copy config-resolver's `stryker.config.mjs` + `logger-calls` ignorer (NOT cache-invalidation's copy — its `observability-options` rule is package-specific), add a `test:mutation` script + the `@stryker-mutator/*` devDeps, add to `MUTATED_PACKAGES` (fingerprint drift forces the baseline refresh), add its CI step before `mutation:check`. When the check fails on a genuine score drop: close the test gaps it names — never hand-edit the baseline. Services are adjudicated NOT per-PR viable (30-70min projected runs); don't re-attempt without new data. `ignoreStatic` stays OFF (owner decision — module-top-level mutants held the rollout's best real finds).
+
 ### Test Audits
 
 ```bash
