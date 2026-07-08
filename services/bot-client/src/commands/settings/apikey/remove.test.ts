@@ -124,7 +124,7 @@ describe('handleRemoveKey', () => {
     await handleRemoveKey(context);
 
     expect(mockEditReply).toHaveBeenCalledWith({
-      content: '❌ Failed to remove API key: Internal error',
+      content: '❌ Internal error',
     });
   });
 
@@ -135,7 +135,7 @@ describe('handleRemoveKey', () => {
     await handleRemoveKey(context);
 
     expect(mockEditReply).toHaveBeenCalledWith({
-      content: '❌ An unexpected error occurred. Please try again.',
+      content: '❌ Failed to remove the API key. Please try again.',
     });
   });
 });

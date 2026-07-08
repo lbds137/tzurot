@@ -58,6 +58,8 @@ import { handleClearDefault as handlePresetClearDefault } from './preset/clear-d
 import { handleAutocomplete as handlePresetAutocomplete } from './preset/autocomplete.js';
 
 // Defaults handlers (user-default config cascade settings)
+import { CATALOG } from '../../ux/catalog/catalog.js';
+import { renderSpec } from '../../ux/render/render.js';
 import {
   handleDefaultsEdit,
   handleUserDefaultsButton,
@@ -127,7 +129,7 @@ async function execute(context: SafeCommandContext): Promise<void> {
   } else {
     logger.warn({ group }, 'Unknown subcommand group');
     await (context as DeferredCommandContext).editReply({
-      content: '❌ Unknown settings group.',
+      content: renderSpec(CATALOG.error.validation('Unknown settings group.')),
     });
   }
 }
