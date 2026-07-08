@@ -87,9 +87,7 @@ describe('handleKick', () => {
     await handleKick(context);
 
     expect(context.editReply).toHaveBeenCalledWith({
-      content:
-        `❌ Bot is not in a server with ID \`${serverId}\`.\n\n` +
-        'Use `/admin servers` to see a list of all servers.',
+      content: expect.stringContaining(`Server "${serverId}" not found`),
     });
   });
 
@@ -130,9 +128,7 @@ describe('handleKick', () => {
     await handleKick(context);
 
     expect(context.editReply).toHaveBeenCalledWith({
-      content:
-        `❌ Failed to leave server \`${serverId}\`.\n\n` +
-        'The server may no longer exist or bot may lack permissions.',
+      content: expect.stringContaining(`Failed to leave server \`${serverId}\``),
     });
   });
 

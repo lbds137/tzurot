@@ -199,7 +199,7 @@ describe('handleDbSync', () => {
     await handleDbSync(context);
 
     expect(context.editReply).toHaveBeenCalledWith({
-      content: expect.stringContaining('❌ Error during database sync'),
+      content: expect.stringContaining('❌ Failed to run the database sync'),
     });
   });
 

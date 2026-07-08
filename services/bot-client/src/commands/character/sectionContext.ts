@@ -24,6 +24,8 @@
  */
 
 import { replyError } from '../../utils/dashboard/replyError.js';
+import { CATALOG } from '../../ux/catalog/catalog.js';
+import { renderSpec } from '../../ux/render/render.js';
 import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js';
 import { type EnvConfig } from '@tzurot/common-types/config/config';
 import { isBotOwner } from '@tzurot/common-types/utils/ownerMiddleware';
@@ -140,7 +142,7 @@ export async function resolveCharacterSectionContext(
 ): Promise<CharacterSectionContext | null> {
   const sync = findCharacterSection(sectionId, interaction.user.id);
   if (sync === null) {
-    await replyError(interaction, '❌ Unknown section.');
+    await replyError(interaction, renderSpec(CATALOG.error.validation('Unknown section.')));
     return null;
   }
   return loadCharacterSectionData(interaction, entityId, config, sync);

@@ -194,7 +194,7 @@ describe('handleCleanup', () => {
     await handleCleanup(context);
 
     expect(context.editReply).toHaveBeenCalledWith({
-      content: expect.stringContaining('❌ Error running cleanup'),
+      content: expect.stringContaining('❌ Failed to run cleanup'),
     });
   });
 

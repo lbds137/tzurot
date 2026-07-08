@@ -207,7 +207,7 @@ describe('handleClear', () => {
     await handleClear(context);
 
     expect(context.editReply).toHaveBeenCalledWith({
-      content: '❌ Failed to clear history. Please try again later.',
+      content: '❌ Server error',
     });
   });
 
@@ -218,7 +218,7 @@ describe('handleClear', () => {
     await handleClear(context);
 
     expect(context.editReply).toHaveBeenCalledWith({
-      content: '❌ An error occurred. Please try again later.',
+      content: '❌ Failed to clear history. Please try again.',
     });
   });
 

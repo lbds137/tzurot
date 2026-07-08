@@ -6,7 +6,11 @@
  * because the parent command uses deferralMode: 'ephemeral'.
  */
 
+import { escapeMarkdown } from 'discord.js';
 import { historyUndoOptions } from '@tzurot/common-types/generated/commandOptions';
+import { CATALOG } from '../../ux/catalog/catalog.js';
+import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
+import { renderSpec } from '../../ux/render/render.js';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import {
@@ -44,17 +48,21 @@ export async function handleUndo(context: DeferredCommandContext): Promise<void>
     const result = await userClient.undoHistory(body);
 
     if (!result.ok) {
-      let errorMessage: string;
-      if (result.status === 404) {
-        errorMessage = `Character "${personalitySlug}" not found.`;
-      } else if (result.status === 400) {
-        errorMessage =
-          'No previous context to restore. Undo is only available after a clear operation.';
-      } else {
-        errorMessage = 'Failed to undo. Please try again later.';
-      }
       logger.warn({ userId, personalitySlug, status: result.status }, 'Undo failed');
-      await context.editReply({ content: `❌ ${errorMessage}` });
+      await context.editReply({
+        content:
+          result.status === 404
+            ? renderSpec(
+                CATALOG.error.notFound('Character', { name: escapeMarkdown(personalitySlug) })
+              )
+            : result.status === 400
+              ? renderSpec(
+                  CATALOG.error.validation(
+                    'No previous context to restore. Undo is only available after a clear operation.'
+                  )
+                )
+              : renderSpec(classifyGatewayFailure(result, 'history', { failedAction: 'undo' })),
+      });
       return;
     }
 
@@ -75,6 +83,8 @@ export async function handleUndo(context: DeferredCommandContext): Promise<void>
     );
   } catch (error) {
     logger.error({ err: error, userId, command: 'History Undo' }, 'Error');
-    await context.editReply({ content: '❌ An error occurred. Please try again later.' });
+    await context.editReply({
+      content: renderSpec(classifyGatewayFailure(error, 'history', { failedAction: 'undo' })),
+    });
   }
 }

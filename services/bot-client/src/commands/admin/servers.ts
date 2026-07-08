@@ -22,6 +22,8 @@ import {
   type Guild,
 } from 'discord.js';
 import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
+import { CATALOG } from '../../ux/catalog/catalog.js';
+import { renderSpec } from '../../ux/render/render.js';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import {
@@ -334,7 +336,9 @@ export async function handleServers(context: DeferredCommandContext): Promise<vo
     logger.info({ count: guilds.length }, 'Browse servers');
   } catch (error) {
     logger.error({ err: error }, 'Error listing servers');
-    await context.editReply({ content: '❌ Failed to retrieve server list.' });
+    await context.editReply({
+      content: renderSpec(CATALOG.error.operationFailed('retrieve the server list')),
+    });
   }
 }
 
@@ -395,7 +399,9 @@ export async function handleServersSelect(interaction: StringSelectMenuInteracti
     const guild = interaction.client.guilds.cache.get(guildId);
     if (guild === undefined) {
       await interaction.editReply({
-        content: '❌ Server not found. It may have been removed.',
+        content: renderSpec(
+          CATALOG.error.notFound('Server', { hint: 'It may have been removed.' })
+        ),
         embeds: [],
         components: [],
       });
@@ -410,7 +416,7 @@ export async function handleServersSelect(interaction: StringSelectMenuInteracti
   } catch (error) {
     logger.error({ err: error, guildId }, 'Failed to load server details');
     await interaction.editReply({
-      content: '❌ Failed to load server details.',
+      content: renderSpec(CATALOG.error.operationFailed('load the server details')),
       embeds: [],
       components: [],
     });

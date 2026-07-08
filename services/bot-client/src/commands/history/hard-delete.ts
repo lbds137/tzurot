@@ -13,6 +13,8 @@
  */
 
 import { historyHardDeleteOptions } from '@tzurot/common-types/generated/commandOptions';
+import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
+import { renderSpec } from '../../ux/render/render.js';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import {
@@ -72,7 +74,11 @@ export async function handleHardDelete(context: DeferredCommandContext): Promise
     logger.info({ userId, personalitySlug, channelId }, 'Showing hard-delete confirmation');
   } catch (error) {
     logger.error({ err: error, userId, command: 'History Hard-Delete' }, 'Error');
-    await context.editReply({ content: '❌ An error occurred. Please try again later.' });
+    await context.editReply({
+      content: renderSpec(
+        classifyGatewayFailure(error, 'history', { failedAction: 'hard-delete history' })
+      ),
+    });
   }
 }
 

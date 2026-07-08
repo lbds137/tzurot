@@ -7,6 +7,9 @@
  */
 
 import { escapeMarkdown } from 'discord.js';
+import { CATALOG } from '../../ux/catalog/catalog.js';
+import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
+import { renderSpec } from '../../ux/render/render.js';
 import { historyStatsOptions } from '@tzurot/common-types/generated/commandOptions';
 import { formatDateTimeCompact } from '@tzurot/common-types/utils/dateFormatting';
 import { createLogger } from '@tzurot/common-types/utils/logger';
@@ -55,12 +58,15 @@ export async function handleStats(context: DeferredCommandContext): Promise<void
     const result = await userClient.getHistoryStats(query);
 
     if (!result.ok) {
-      const errorMessage =
-        result.status === 404
-          ? `Character "${personalitySlug}" not found.`
-          : 'Failed to get stats. Please try again later.';
       logger.warn({ userId, personalitySlug, status: result.status }, 'Stats failed');
-      await context.editReply({ content: `❌ ${errorMessage}` });
+      await context.editReply({
+        content:
+          result.status === 404
+            ? renderSpec(
+                CATALOG.error.notFound('Character', { name: escapeMarkdown(personalitySlug) })
+              )
+            : renderSpec(classifyGatewayFailure(result, 'history stats', { operation: 'read' })),
+      });
       return;
     }
 
@@ -123,6 +129,8 @@ export async function handleStats(context: DeferredCommandContext): Promise<void
     );
   } catch (error) {
     logger.error({ err: error, userId, command: 'History Stats' }, 'Error');
-    await context.editReply({ content: '❌ An error occurred. Please try again later.' });
+    await context.editReply({
+      content: renderSpec(classifyGatewayFailure(error, 'history stats', { operation: 'read' })),
+    });
   }
 }

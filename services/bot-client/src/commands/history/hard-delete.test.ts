@@ -137,7 +137,7 @@ describe('handleHardDelete', () => {
     await handleHardDelete(context);
 
     expect(context.editReply).toHaveBeenCalledWith({
-      content: '❌ An error occurred. Please try again later.',
+      content: '❌ Failed to hard-delete history. Please try again.',
     });
   });
 

@@ -6,7 +6,10 @@
  * because the parent command uses deferralMode: 'ephemeral'.
  */
 
+import { escapeMarkdown } from 'discord.js';
 import { adminKickOptions } from '@tzurot/common-types/generated/commandOptions';
+import { CATALOG } from '../../ux/catalog/catalog.js';
+import { renderSpec } from '../../ux/render/render.js';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 
@@ -21,9 +24,12 @@ export async function handleKick(context: DeferredCommandContext): Promise<void>
 
     if (!guild) {
       await context.editReply({
-        content:
-          `❌ Bot is not in a server with ID \`${serverId}\`.\n\n` +
-          'Use `/admin servers` to see a list of all servers.',
+        content: renderSpec(
+          CATALOG.error.notFound('Server', {
+            name: escapeMarkdown(serverId),
+            hint: 'Use `/admin servers` to see a list of all servers.',
+          })
+        ),
       });
       return;
     }
@@ -43,9 +49,11 @@ export async function handleKick(context: DeferredCommandContext): Promise<void>
   } catch (error) {
     logger.error({ err: error, serverId }, 'Error leaving server');
     await context.editReply({
-      content:
-        `❌ Failed to leave server \`${serverId}\`.\n\n` +
-        'The server may no longer exist or bot may lack permissions.',
+      content: renderSpec(
+        CATALOG.error.operationFailed(
+          `leave server \`${serverId}\` — it may no longer exist or the bot may lack permissions`
+        )
+      ),
     });
   }
 }

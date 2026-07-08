@@ -181,7 +181,7 @@ describe('Help Command', () => {
       await execute(interaction);
 
       expect(mockEditReply).toHaveBeenCalledWith({
-        content: expect.stringContaining('Unable to load commands'),
+        content: expect.stringContaining("Couldn't load the commands list"),
       });
     });
 
@@ -372,7 +372,7 @@ describe('Help Command', () => {
       await execute(interaction);
 
       expect(mockEditReply).toHaveBeenCalledWith({
-        content: expect.stringContaining('Unknown command'),
+        content: expect.stringContaining('not found'),
       });
     });
 
