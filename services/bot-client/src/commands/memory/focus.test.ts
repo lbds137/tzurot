@@ -138,7 +138,7 @@ describe('Memory Focus Handlers', () => {
       await handleFocusEnable(context);
 
       expect(mockEditReply).toHaveBeenCalledWith({
-        content: expect.stringContaining('Failed to update focus mode'),
+        content: expect.stringContaining('Server error'),
       });
     });
 
@@ -149,7 +149,7 @@ describe('Memory Focus Handlers', () => {
       await handleFocusEnable(context);
 
       expect(mockEditReply).toHaveBeenCalledWith({
-        content: expect.stringContaining('unexpected error'),
+        content: expect.stringContaining('Failed to update focus mode'),
       });
     });
   });
@@ -295,7 +295,7 @@ describe('Memory Focus Handlers', () => {
       await handleFocusStatus(context);
 
       expect(mockEditReply).toHaveBeenCalledWith({
-        content: expect.stringContaining('Failed to check focus mode'),
+        content: expect.stringContaining('Server error'),
       });
     });
 
@@ -306,7 +306,7 @@ describe('Memory Focus Handlers', () => {
       await handleFocusStatus(context);
 
       expect(mockEditReply).toHaveBeenCalledWith({
-        content: expect.stringContaining('unexpected error'),
+        content: expect.stringContaining('Failed to load the focus mode status'),
       });
     });
   });

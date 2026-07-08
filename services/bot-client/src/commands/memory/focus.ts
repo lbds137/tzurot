@@ -18,6 +18,12 @@ import { clientsFor } from '../../utils/gatewayClients.js';
 import { createSuccessEmbed, createInfoEmbed } from '../../utils/commandHelpers.js';
 import { getPersonalityName } from './autocomplete.js';
 import { resolveRequiredPersonality } from './resolveHelpers.js';
+import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
+import { renderSpec } from '../../ux/render/render.js';
+
+/** Shared resource + failedAction verb for the focus-mode classify paths. */
+const FOCUS_RESOURCE = 'focus mode';
+const UPDATE_FOCUS_ACTION = 'update focus mode';
 
 const logger = createLogger('memory-focus');
 
@@ -56,7 +62,9 @@ export async function handleFocusStatus(context: DeferredCommandContext): Promis
     if (!result.ok) {
       logger.warn({ userId, personalityInput, status: result.status }, 'Status check failed');
       await context.editReply({
-        content: '❌ Failed to check focus mode status. Please try again.',
+        content: renderSpec(
+          classifyGatewayFailure(result, 'focus mode status', { operation: 'read' })
+        ),
       });
       return;
     }
@@ -79,7 +87,12 @@ export async function handleFocusStatus(context: DeferredCommandContext): Promis
     );
   } catch (error) {
     logger.error({ err: error, userId }, 'Unexpected error');
-    await context.editReply({ content: '❌ An unexpected error occurred. Please try again.' });
+    // This handler only READS (resolve + getFocus) — never claim a write.
+    await context.editReply({
+      content: renderSpec(
+        classifyGatewayFailure(error, 'focus mode status', { operation: 'read' })
+      ),
+    });
   }
 }
 
@@ -109,7 +122,11 @@ async function setFocusMode(context: DeferredCommandContext, enabled: boolean): 
         { userId, personalityInput, enabled, status: result.status },
         'Set focus mode failed'
       );
-      await context.editReply({ content: '❌ Failed to update focus mode. Please try again.' });
+      await context.editReply({
+        content: renderSpec(
+          classifyGatewayFailure(result, FOCUS_RESOURCE, { failedAction: UPDATE_FOCUS_ACTION })
+        ),
+      });
       return;
     }
 
@@ -133,6 +150,10 @@ async function setFocusMode(context: DeferredCommandContext, enabled: boolean): 
     );
   } catch (error) {
     logger.error({ err: error, userId }, `Unexpected error`);
-    await context.editReply({ content: '❌ An unexpected error occurred. Please try again.' });
+    await context.editReply({
+      content: renderSpec(
+        classifyGatewayFailure(error, FOCUS_RESOURCE, { failedAction: UPDATE_FOCUS_ACTION })
+      ),
+    });
   }
 }

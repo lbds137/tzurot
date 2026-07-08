@@ -19,6 +19,9 @@ import type { DeferredCommandContext } from '../../utils/commandContext/types.js
 import { clientsFor } from '../../utils/gatewayClients.js';
 import { createWarningEmbed, createSuccessEmbed } from '../../utils/commandHelpers.js';
 import { resolveRequiredPersonality } from './resolveHelpers.js';
+import { CATALOG } from '../../ux/catalog/catalog.js';
+import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
+import { renderSpec } from '../../ux/render/render.js';
 
 const logger = createLogger('memory-batch-delete');
 
@@ -74,15 +77,20 @@ export async function handleBatchDelete(context: DeferredCommandContext): Promis
     });
 
     if (!previewResult.ok) {
-      const errorMessage =
-        previewResult.status === 404
-          ? `Character "${personalityInput}" not found.`
-          : (previewResult.error ?? 'Failed to preview deletion. Please try again later.');
       logger.warn(
         { userId, personalityInput, status: previewResult.status },
         'Delete preview failed'
       );
-      await context.editReply({ content: `❌ ${errorMessage}` });
+      await context.editReply({
+        content:
+          previewResult.status === 404
+            ? renderSpec(
+                CATALOG.error.notFound('Character', { name: escapeMarkdown(personalityInput) })
+              )
+            : renderSpec(
+                classifyGatewayFailure(previewResult, 'deletion preview', { operation: 'read' })
+              ),
+      });
       return;
     }
 
@@ -159,7 +167,11 @@ export async function handleBatchDelete(context: DeferredCommandContext): Promis
 
       if (!deleteResult.ok) {
         await buttonInteraction.editReply({
-          content: `❌ Failed to delete memories: ${deleteResult.error ?? 'Unknown error'}`,
+          content: renderSpec(
+            classifyGatewayFailure(deleteResult, 'memories', {
+              failedAction: 'delete the memories',
+            })
+          ),
           embeds: [],
           components: [],
         });
@@ -213,6 +225,12 @@ export async function handleBatchDelete(context: DeferredCommandContext): Promis
     }
   } catch (error) {
     logger.error({ err: error, userId }, 'Unexpected error');
-    await context.editReply({ content: '❌ An unexpected error occurred. Please try again.' });
+    await context.editReply({
+      content: renderSpec(
+        // The OUTER catch only fires for the resolve/preview READ phase — the
+        // delete write's failures are caught by the inner try above.
+        classifyGatewayFailure(error, 'memories', { operation: 'read' })
+      ),
+    });
   }
 }

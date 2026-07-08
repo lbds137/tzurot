@@ -41,6 +41,9 @@ import { buildMemoryActionId, handleMemorySelect } from './detail.js';
 
 import { handleMemoryDetailAction } from './detailActionRouter.js';
 import { formatSimilarity, truncateContent } from './formatters.js';
+import { CATALOG } from '../../ux/catalog/catalog.js';
+import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
+import { renderSpec } from '../../ux/render/render.js';
 import {
   saveMemoryListSession,
   findMemoryListSessionByMessage,
@@ -292,7 +295,9 @@ export async function handleSearch(context: DeferredCommandContext): Promise<voi
 
     if (data === null) {
       logger.warn({ userId, query: query.substring(0, 50) }, 'Search failed');
-      await context.editReply({ content: '❌ Failed to search memories. Please try again later.' });
+      await context.editReply({
+        content: renderSpec(CATALOG.error.transient("Couldn't search your memories right now.")),
+      });
       return;
     }
 
@@ -342,7 +347,14 @@ export async function handleSearch(context: DeferredCommandContext): Promise<voi
     );
   } catch (error) {
     logger.error({ err: error, userId }, 'Unexpected error');
-    await context.editReply({ content: '❌ An unexpected error occurred. Please try again.' });
+    await context.editReply({
+      content: renderSpec(
+        classifyGatewayFailure(error, 'memories', {
+          operation: 'read',
+          failedAction: 'search memories',
+        })
+      ),
+    });
   }
 }
 
@@ -401,7 +413,7 @@ export async function handleSearchPagination(interaction: ButtonInteraction): Pr
   });
   if (data === null) {
     await interaction.followUp({
-      content: '❌ Failed to load page. Please try again.',
+      content: renderSpec(CATALOG.error.transient("Couldn't load that page right now.")),
       flags: MessageFlags.Ephemeral,
     });
     return;

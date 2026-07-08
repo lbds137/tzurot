@@ -74,7 +74,7 @@ describe('resolveOptionalPersonality', () => {
     const result = await resolveOptionalPersonality(context, mkUser(), 'unknown');
     expect(result).toBeNull();
     expect(mockEditReply).toHaveBeenCalledWith({
-      content: '❌ Character "unknown" not found. Use autocomplete to select a valid character.',
+      content: '❌ Character "unknown" not found. Use autocomplete to select a valid option.',
     });
   });
 
@@ -128,7 +128,7 @@ describe('resolveRequiredPersonality', () => {
     const result = await resolveRequiredPersonality(context, mkUser(), 'unknown');
     expect(result).toBeNull();
     expect(mockEditReply).toHaveBeenCalledWith({
-      content: '❌ Character "unknown" not found. Use autocomplete to select a valid character.',
+      content: '❌ Character "unknown" not found. Use autocomplete to select a valid option.',
     });
   });
 

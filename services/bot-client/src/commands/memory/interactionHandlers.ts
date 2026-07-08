@@ -36,6 +36,8 @@ import {
   isMemorySearchPagination,
 } from './search.js';
 import { MEMORY_PURGE_PREFIX, handlePurgeButton, handlePurgeModal } from './purge.js';
+import { CATALOG } from '../../ux/catalog/catalog.js';
+import { renderSpec } from '../../ux/render/render.js';
 
 const logger = createLogger('memory-command');
 
@@ -87,7 +89,7 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
   if (parsed === null) {
     logger.debug({ customId }, 'Unknown button customId');
     await interaction.reply({
-      content: '❌ Unknown interaction.',
+      content: renderSpec(CATALOG.error.validation('Unknown interaction.')),
       flags: MessageFlags.Ephemeral,
     });
     return;
@@ -141,7 +143,7 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
     logger.warn({ customId }, 'Unhandled detail action');
     // Interaction is already deferred at this point, so use followUp.
     await interaction.followUp({
-      content: '❌ Unknown action.',
+      content: renderSpec(CATALOG.error.validation('Unknown action.')),
       flags: MessageFlags.Ephemeral,
     });
   }
@@ -168,7 +170,7 @@ export async function handleModal(interaction: ModalSubmitInteraction): Promise<
   if (parsed?.action !== 'edit') {
     logger.warn({ customId }, 'Unknown modal');
     await interaction.reply({
-      content: '❌ Unknown modal submission.',
+      content: renderSpec(CATALOG.error.validation('Unknown modal submission.')),
       flags: MessageFlags.Ephemeral,
     });
     return;
@@ -177,7 +179,7 @@ export async function handleModal(interaction: ModalSubmitInteraction): Promise<
   if (parsed.memoryId === undefined) {
     logger.warn({ customId: interaction.customId }, 'Edit modal missing memoryId');
     await interaction.reply({
-      content: '❌ Malformed edit modal (missing memory ID).',
+      content: renderSpec(CATALOG.error.validation('Malformed edit modal (missing memory ID).')),
       flags: MessageFlags.Ephemeral,
     });
     return;
@@ -223,7 +225,7 @@ export async function handleSelectMenu(interaction: StringSelectMenuInteraction)
   // Show "Unknown interaction" rather than "expired" so the user doesn't
   // chase the wrong cause (e.g., re-running the command needlessly).
   await interaction.reply({
-    content: '❌ Unknown interaction.',
+    content: renderSpec(CATALOG.error.validation('Unknown interaction.')),
     flags: MessageFlags.Ephemeral,
   });
 }

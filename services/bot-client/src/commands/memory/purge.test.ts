@@ -12,6 +12,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { GatewayApiError } from '@tzurot/clients';
 import { handlePurge, handlePurgeButton, handlePurgeModal, MEMORY_PURGE_PREFIX } from './purge.js';
 import type { ButtonInteraction, ModalSubmitInteraction } from 'discord.js';
 import { makeOk, makeErr, asUserClient } from '../../test/gatewayClientStubs.js';
@@ -196,7 +197,7 @@ describe('handlePurge (slash command entry)', () => {
     await handlePurge(context);
 
     expect(context.editReply).toHaveBeenCalledWith({
-      content: expect.stringContaining('Failed'),
+      content: expect.stringContaining('Server error'),
     });
   });
 
@@ -334,7 +335,7 @@ describe('handlePurgeButton (button routing)', () => {
 
     expect(interaction.reply).toHaveBeenCalledWith(
       expect.objectContaining({
-        content: expect.stringContaining('Only the person who ran this command'),
+        content: expect.stringContaining('only the original command invoker'),
       })
     );
     expect(interaction.showModal).not.toHaveBeenCalled();
@@ -349,7 +350,7 @@ describe('handlePurgeButton (button routing)', () => {
 
     expect(interaction.reply).toHaveBeenCalledWith(
       expect.objectContaining({
-        content: expect.stringContaining('Only the person who ran this command'),
+        content: expect.stringContaining('only the original command invoker'),
       })
     );
     expect(interaction.update).not.toHaveBeenCalled();
@@ -469,7 +470,7 @@ describe('handlePurgeModal (modal submission)', () => {
     await handlePurgeModal(interaction);
 
     expect(interaction.editReply).toHaveBeenCalledWith(
-      expect.objectContaining({ content: expect.stringContaining('Failed to confirm') })
+      expect.objectContaining({ content: expect.stringContaining('Confirmation required') })
     );
     // Only the token-issue call should have run; no execute attempt.
     expect(stub.issuePurgeToken).toHaveBeenCalledTimes(1);
@@ -490,7 +491,7 @@ describe('handlePurgeModal (modal submission)', () => {
     await handlePurgeModal(interaction);
 
     expect(interaction.editReply).toHaveBeenCalledWith(
-      expect.objectContaining({ content: expect.stringContaining('❌ Failed to purge') })
+      expect.objectContaining({ content: expect.stringContaining('Database error') })
     );
   });
 
@@ -526,7 +527,7 @@ describe('handlePurgeModal (modal submission)', () => {
 
     expect(interaction.reply).toHaveBeenCalledWith(
       expect.objectContaining({
-        content: expect.stringContaining('Only the person who ran this command'),
+        content: expect.stringContaining('only the original command invoker'),
       })
     );
     expect(stub.issuePurgeToken).not.toHaveBeenCalled();
@@ -541,7 +542,25 @@ describe('handlePurge top-level error catch (regression: was removed in routing 
     await handlePurge(context);
 
     expect(context.editReply).toHaveBeenCalledWith({
-      content: expect.stringContaining('unexpected error'),
+      content: expect.stringContaining('Failed to load the memories'),
     });
+  });
+
+  it('a READ-phase timeout never claims a write "may still be applying"', async () => {
+    // The read-classified-as-write false-claim class: the entry catch only
+    // wraps the resolve/getStats READ phase, so a typed timeout there must
+    // render a load failure, never the write-uncertain shape.
+    mockResolvePersonalityId.mockRejectedValue(
+      new GatewayApiError('Failed to fetch: 0 - timed out', 0, 'timeout')
+    );
+    const context = createMockContext();
+
+    await handlePurge(context);
+
+    const reply = (context.editReply as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0] as {
+      content: string;
+    };
+    expect(reply.content).toContain("Couldn't load the memories");
+    expect(reply.content).not.toContain('may still be applying');
   });
 });
