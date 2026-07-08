@@ -12,7 +12,12 @@
  * Uses gateway API for all data access (no direct Prisma).
  */
 
-import { MessageFlags, ModalBuilder, type ModalSubmitInteraction } from 'discord.js';
+import {
+  escapeMarkdown,
+  MessageFlags,
+  ModalBuilder,
+  type ModalSubmitInteraction,
+} from 'discord.js';
 import { DISCORD_LIMITS } from '@tzurot/common-types/constants/discord';
 import { API_ERROR_SUBCODE } from '@tzurot/common-types/constants/error';
 import { personaOverrideSetOptions } from '@tzurot/common-types/generated/commandOptions';
@@ -29,6 +34,9 @@ import {
 import { clientsFor } from '../../../utils/gatewayClients.js';
 import { showModalWithTimeoutCatch } from '../../../utils/dashboard/showModalWithTimeoutCatch.js';
 import { ackWithTimeoutCatch } from '../../../utils/dashboard/ackWithTimeoutCatch.js';
+import { CATALOG } from '../../../ux/catalog/catalog.js';
+import { classifyGatewayFailure } from '../../../ux/catalog/classify.js';
+import { renderSpec } from '../../../ux/render/render.js';
 
 const logger = createLogger('persona-override-set');
 
@@ -39,13 +47,21 @@ function mapOverrideError(error: string | undefined, personalitySlug: string): s
   }
   // Check specific errors first before generic 'not found'
   if (error.includes('Persona not found')) {
-    return '❌ Persona not found. Use `/persona browse` to see your personas.';
+    return renderSpec(
+      CATALOG.error.notFound('Persona', { hint: 'Use `/persona browse` to see your personas.' })
+    );
   }
   if (error.includes('Personality not found') || error.includes('personality not found')) {
-    return `❌ Character "${personalitySlug}" not found.`;
+    return renderSpec(
+      CATALOG.error.notFound('Character', { name: escapeMarkdown(personalitySlug) })
+    );
   }
   if (error.includes('no account') || error.includes('User not found')) {
-    return "❌ You don't have an account yet. Send a message to any character to create one!";
+    return renderSpec(
+      CATALOG.error.validation(
+        "You don't have an account yet. Send a message to any character to create one!"
+      )
+    );
   }
   return null;
 }
@@ -61,7 +77,8 @@ async function showCreateOverrideModal(
 
   if (!infoResult.ok) {
     const errorMsg = mapOverrideError(infoResult.error, personalitySlug);
-    const content = errorMsg ?? '❌ Failed to prepare persona creation. Please try again later.';
+    const content =
+      errorMsg ?? renderSpec(CATALOG.error.operationFailed('prepare persona creation'));
     // getPersonaOverride already ate into the budget before this ack — same
     // 10062 risk as the showModal success path below, so wrap it too.
     await ackWithTimeoutCatch(
@@ -143,7 +160,7 @@ async function setExistingOverride(
       'Failed to set override'
     );
     await context.interaction.editReply({
-      content: '❌ Failed to set persona override. Please try again later.',
+      content: renderSpec(classifyGatewayFailure(result, 'persona override')),
     });
     return;
   }
@@ -187,7 +204,11 @@ export async function handleOverrideSet(context: ModalCommandContext): Promise<v
     }
   } catch (error) {
     logger.error({ err: error, userId: discordId }, 'Failed to set override');
-    const content = '❌ Failed to set persona override. Please try again later.';
+    const content = renderSpec(
+      classifyGatewayFailure(error, 'persona override', {
+        failedAction: 'set the persona override',
+      })
+    );
     // setExistingOverride defers before its gateway write, so an error from that
     // branch arrives here already-acked → editReply. The showCreateOverrideModal
     // branch only throws before its showModal ack → reply.
@@ -229,7 +250,9 @@ export async function handleOverrideCreateModalSubmit(
 
     // Persona name is required
     if (personaName.length === 0) {
-      await interaction.editReply({ content: '❌ Persona name is required.' });
+      await interaction.editReply({
+        content: renderSpec(CATALOG.error.validation('Persona name is required.')),
+      });
       return;
     }
 
@@ -245,7 +268,11 @@ export async function handleOverrideCreateModalSubmit(
     if (!result.ok) {
       if (result.code === API_ERROR_SUBCODE.NAME_COLLISION) {
         await interaction.editReply({
-          content: `❌ You already have a persona named "${personaName}". Pick a different name, or edit the existing one with \`/persona edit\`.`,
+          content: renderSpec(
+            CATALOG.error.validation(
+              `You already have a persona named "${personaName}". Pick a different name, or edit the existing one with \`/persona edit\`.`
+            )
+          ),
         });
         return;
       }
@@ -266,7 +293,9 @@ export async function handleOverrideCreateModalSubmit(
         'Failed to create override persona via gateway'
       );
       await interaction.editReply({
-        content: '❌ Failed to create persona. Please try again later.',
+        content: renderSpec(
+          classifyGatewayFailure(result, 'persona', { failedAction: 'create the persona' })
+        ),
       });
       return;
     }
@@ -293,7 +322,9 @@ export async function handleOverrideCreateModalSubmit(
     // Post-defer: deferReply ran (and succeeded) before the try, so the
     // interaction is acked by the time any error reaches here.
     await interaction.editReply({
-      content: '❌ Failed to create persona. Please try again later.',
+      content: renderSpec(
+        classifyGatewayFailure(error, 'persona', { failedAction: 'create the persona' })
+      ),
     });
   }
 }

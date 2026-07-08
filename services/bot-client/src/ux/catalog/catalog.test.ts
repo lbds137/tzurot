@@ -65,6 +65,22 @@ describe('CATALOG', () => {
     expect(CATALOG.error.transient('X.').text).toMatch(/Please try again later\.$/);
   });
 
+  it('not-found composes name → autocomplete → hint in a fixed order', () => {
+    expect(
+      CATALOG.error.notFound('Persona', {
+        name: 'Alice',
+        autocomplete: true,
+        hint: 'Use `/persona browse` to see your personas.',
+      }).text
+    ).toBe(
+      'Persona "Alice" not found. Use autocomplete to select a valid option. ' +
+        'Use `/persona browse` to see your personas.'
+    );
+    expect(CATALOG.error.notFound('Persona', { hint: 'Try `/persona create`.' }).text).toBe(
+      'Persona not found. Try `/persona create`.'
+    );
+  });
+
   it('not-found appends the autocomplete steer only when requested', () => {
     expect(CATALOG.error.notFound('Preset').text).toBe('Preset not found.');
     expect(CATALOG.error.notFound('Preset', { autocomplete: true }).text).toContain(

@@ -147,7 +147,7 @@ describe('handleSetDefaultPersona', () => {
     await handleSetDefaultPersona(createMockContext('persona-123'));
 
     expect(mockEditReply).toHaveBeenCalledWith({
-      content: expect.stringContaining('Failed to set default'),
+      content: expect.stringContaining('Gateway error'),
     });
   });
 
@@ -157,7 +157,7 @@ describe('handleSetDefaultPersona', () => {
     await handleSetDefaultPersona(createMockContext('persona-123'));
 
     expect(mockEditReply).toHaveBeenCalledWith({
-      content: expect.stringContaining('Failed to set default'),
+      content: expect.stringContaining('Failed to'),
     });
   });
 

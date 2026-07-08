@@ -39,6 +39,9 @@ import {
 } from './config.js';
 import { fetchPersona } from './api.js';
 import type { PersonaSummary } from './types.js';
+import { CATALOG } from '../../ux/catalog/catalog.js';
+import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
+import { renderSpec } from '../../ux/render/render.js';
 
 const logger = createLogger('persona-browse');
 
@@ -200,7 +203,7 @@ export async function handleBrowse(context: DeferredCommandContext): Promise<voi
     if (!result.ok) {
       logger.warn({ userId, error: result.error }, 'Failed to fetch personas');
       await context.editReply({
-        content: '❌ Failed to load your personas. Please try again later.',
+        content: renderSpec(classifyGatewayFailure(result, 'personas', { operation: 'read' })),
       });
       return;
     }
@@ -212,7 +215,9 @@ export async function handleBrowse(context: DeferredCommandContext): Promise<voi
     logger.info({ userId, count: result.data.personas.length }, 'Browse personas');
   } catch (error) {
     logger.error({ err: error, userId }, 'Failed to browse personas');
-    await context.editReply('❌ Failed to load personas. Please try again.');
+    await context.editReply(
+      renderSpec(classifyGatewayFailure(error, 'personas', { operation: 'read' }))
+    );
   }
 }
 
@@ -268,7 +273,7 @@ export async function handleBrowseSelect(interaction: StringSelectMenuInteractio
 
     if (!persona) {
       await interaction.editReply({
-        content: '❌ Persona not found.',
+        content: renderSpec(CATALOG.error.notFound('Persona')),
         embeds: [],
         components: [],
       });
@@ -313,7 +318,7 @@ export async function handleBrowseSelect(interaction: StringSelectMenuInteractio
   } catch (error) {
     logger.error({ err: error, personaId }, 'Failed to open dashboard from browse');
     await interaction.editReply({
-      content: '❌ Failed to load persona. Please try again.',
+      content: renderSpec(classifyGatewayFailure(error, 'persona', { operation: 'read' })),
       embeds: [],
       components: [],
     });

@@ -48,6 +48,9 @@ import {
   type FlattenedPresetData,
 } from './config.js';
 import { fetchPreset } from './api.js';
+import { CATALOG } from '../../ux/catalog/catalog.js';
+import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
+import { renderSpec } from '../../ux/render/render.js';
 import {
   composeBrowseFilter,
   describeFilter,
@@ -336,7 +339,9 @@ export async function handleBrowse(context: DeferredCommandContext): Promise<voi
 
     if (presets === null) {
       logger.warn({ userId }, 'Failed to browse presets');
-      await context.editReply({ content: '❌ Failed to get presets. Please try again later.' });
+      await context.editReply({
+        content: renderSpec(CATALOG.error.transient("Couldn't load your presets right now.")),
+      });
       return;
     }
 
@@ -358,7 +363,9 @@ export async function handleBrowse(context: DeferredCommandContext): Promise<voi
     logger.info({ userId, count: presets.length, filter, query, isGuestMode }, 'Browse presets');
   } catch (error) {
     logger.error({ err: error, userId }, 'Error browsing presets');
-    await context.editReply({ content: '❌ An error occurred. Please try again later.' });
+    await context.editReply({
+      content: renderSpec(classifyGatewayFailure(error, 'presets', { operation: 'read' })),
+    });
   }
 }
 
@@ -485,7 +492,7 @@ export async function handleBrowseSelect(interaction: StringSelectMenuInteractio
 
     if (!preset) {
       await interaction.editReply({
-        content: '❌ Preset not found.',
+        content: renderSpec(CATALOG.error.notFound('Preset')),
         embeds: [],
         components: [],
       });
@@ -533,7 +540,7 @@ export async function handleBrowseSelect(interaction: StringSelectMenuInteractio
   } catch (error) {
     logger.error({ err: error, presetId }, 'Failed to open dashboard from browse');
     await interaction.editReply({
-      content: '❌ Failed to load preset. Please try again.',
+      content: renderSpec(classifyGatewayFailure(error, 'preset', { operation: 'read' })),
       embeds: [],
       components: [],
     });

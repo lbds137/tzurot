@@ -890,7 +890,7 @@ describe('handleButton', () => {
       await handleButton(createToggleButtonInteraction('preset::toggle-global::preset-123'));
 
       expect(mockFollowUp).toHaveBeenCalledWith({
-        content: '❌ Failed to update preset visibility. Please try again.',
+        content: '❌ Failed to update the preset visibility. Please try again.',
         flags: MessageFlags.Ephemeral,
       });
     });

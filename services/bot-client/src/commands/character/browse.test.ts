@@ -440,7 +440,9 @@ describe('handleBrowse', () => {
     const context = createMockContext();
     await handleBrowse(context, mockConfig);
 
-    expect(mockEditReply).toHaveBeenCalledWith('❌ Failed to load characters. Please try again.');
+    expect(mockEditReply).toHaveBeenCalledWith(
+      '❌ Failed to load the characters. Please try again.'
+    );
   });
 
   it('should show Other Users section with public characters from others', async () => {
@@ -957,7 +959,7 @@ describe('handleBrowseSelect', () => {
     await handleBrowseSelect(interaction, mockConfig);
 
     expect(interaction.editReply).toHaveBeenCalledWith({
-      content: '❌ Character not found or you do not have access.',
+      content: '❌ Character not found.',
       embeds: [],
       components: [],
     });
@@ -971,7 +973,7 @@ describe('handleBrowseSelect', () => {
     await handleBrowseSelect(interaction, mockConfig);
 
     expect(interaction.editReply).toHaveBeenCalledWith({
-      content: '❌ Failed to load character. Please try again.',
+      content: '❌ Failed to load the character. Please try again.',
       embeds: [],
       components: [],
     });

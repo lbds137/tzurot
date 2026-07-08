@@ -131,7 +131,7 @@ describe('handleOverrideClear', () => {
     await handleOverrideClear(createMockContext('lilith'));
 
     expect(mockEditReply).toHaveBeenCalledWith({
-      content: expect.stringContaining('Failed to clear persona override'),
+      content: expect.stringContaining('Failed to clear the persona override'),
     });
   });
 

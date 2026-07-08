@@ -783,7 +783,7 @@ describe('handleButton', () => {
       expect.objectContaining({
         outcome: expect.objectContaining({
           kind: 'error',
-          content: expect.stringContaining('Failed to delete'),
+          content: expect.stringContaining('Delete failed'),
         }),
       })
     );

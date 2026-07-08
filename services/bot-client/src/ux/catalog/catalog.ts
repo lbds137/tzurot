@@ -21,6 +21,8 @@ export interface NotFoundOptions {
   autocomplete?: boolean;
   /** Name the specific entity instance: `Character "Luna" not found.` */
   name?: string;
+  /** Contextual recovery steer appended after the absence statement. */
+  hint?: string;
 }
 
 export const CATALOG = {
@@ -31,7 +33,8 @@ export const CATALOG = {
       outcome: 'failed',
       text:
         `${entity}${opts.name !== undefined ? ` "${opts.name}"` : ''} not found.` +
-        `${opts.autocomplete === true ? ' Use autocomplete to select a valid option.' : ''}`,
+        `${opts.autocomplete === true ? ' Use autocomplete to select a valid option.' : ''}` +
+        `${opts.hint !== undefined ? ` ${opts.hint}` : ''}`,
     }),
 
     /** The user's input was the problem; an immediate retry is honest. */

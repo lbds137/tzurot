@@ -54,6 +54,8 @@ import {
 // handleSharedBackButton. Importing the module is enough — the
 // registerBrowseRebuilder call at the bottom of browse.ts runs on load.
 import './browse.js';
+import { CATALOG } from '../../ux/catalog/catalog.js';
+import { renderSpec } from '../../ux/render/render.js';
 
 const logger = createLogger('persona-dashboard');
 const BROWSE_COMMAND = '/persona browse';
@@ -79,7 +81,7 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction): Pr
 
   logger.warn({ customId }, 'Unknown persona modal submission');
   await interaction.reply({
-    content: '❌ Unknown form submission.',
+    content: renderSpec(CATALOG.error.validation('Unknown form submission.')),
     flags: MessageFlags.Ephemeral,
   });
 }
@@ -269,9 +271,11 @@ async function handleDeleteButton(interaction: ButtonInteraction, entityId: stri
   const isDefault = await isDefaultPersona(entityId, userClient);
   if (isDefault) {
     await interaction.followUp({
-      content:
-        '❌ Cannot delete your default persona.\n\n' +
-        'Use `/persona default <other-persona>` to set a different default first.',
+      content: renderSpec(
+        CATALOG.error.validation(
+          'Cannot delete your default persona.\nUse `/persona default <other-persona>` to set a different default first.'
+        )
+      ),
       flags: MessageFlags.Ephemeral,
     });
     return;
@@ -326,7 +330,10 @@ async function handleConfirmDeleteButton(
     await renderPostActionScreen({
       interaction,
       session: postActionSession,
-      outcome: { kind: 'error', content: `❌ Failed to delete persona: ${result.error}` },
+      outcome: {
+        kind: 'error',
+        content: renderSpec(CATALOG.error.gatewayRejection(result.error ?? 'Delete failed')),
+      },
     });
     return;
   }

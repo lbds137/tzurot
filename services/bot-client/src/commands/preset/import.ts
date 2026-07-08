@@ -12,6 +12,9 @@ import type { UserClient } from '@tzurot/clients';
 import { clientsFor } from '../../utils/gatewayClients.js';
 import { validateAndParseJsonFile } from '../../utils/jsonFileUtils.js';
 import { updatePreset } from './api.js';
+import { CATALOG } from '../../ux/catalog/catalog.js';
+import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
+import { renderSpec } from '../../ux/render/render.js';
 import {
   getImportedFieldsList,
   getMissingRequiredFields,
@@ -119,7 +122,11 @@ function validatePresetData(data: Record<string, unknown>): { valid: true } | { 
 
   if (missingFields.length > 0) {
     return {
-      error: `❌ Missing required fields: ${missingFields.join(', ')}\n\n` + buildTemplateMessage(),
+      error: renderSpec(
+        CATALOG.error.validation(
+          `Missing required fields: ${missingFields.join(', ')}\n\n` + buildTemplateMessage()
+        )
+      ),
     };
   }
 
@@ -128,7 +135,10 @@ function validatePresetData(data: Record<string, unknown>): { valid: true } | { 
   if (!model.includes('/')) {
     return {
       error:
-        '❌ Invalid model format. Use `provider/model-name` format.\n' +
+        renderSpec(
+          CATALOG.error.validation('Invalid model format. Use `provider/model-name` format.')
+        ) +
+        '\n' +
         `Example: \`anthropic/claude-sonnet-4\`\n\n` +
         buildTemplateMessage(),
     };
@@ -180,7 +190,7 @@ function buildImportPayload(data: ImportedPresetData): Record<string, unknown> {
 async function createPresetFromImport(
   userClient: UserClient,
   payload: Record<string, unknown>
-): Promise<{ ok: true; id: string; globalApplied?: boolean } | { ok: false; error: string }> {
+): Promise<{ ok: true; id: string; globalApplied?: boolean } | { ok: false; failure: unknown }> {
   // Create preset with all fields - API supports all fields in create endpoint
   const createResult = await userClient.createUserLlmConfig({
     name: payload.name,
@@ -193,7 +203,9 @@ async function createPresetFromImport(
 
   if (!createResult.ok) {
     logger.error({ error: createResult.error }, 'Failed to create preset');
-    return { ok: false, error: createResult.error };
+    // Return the fail-arm itself so the caller can classify honestly (kind
+    // preserved — an import timeout is outcome-uncertain, not "failed").
+    return { ok: false, failure: createResult };
   }
   const id = createResult.data.config.id;
 
@@ -285,7 +297,11 @@ export async function handleImport(context: DeferredCommandContext): Promise<voi
     const createResult = await createPresetFromImport(userClient, payload);
     if (!createResult.ok) {
       await context.editReply(
-        `❌ Failed to import preset:\n\`\`\`\n${createResult.error.slice(0, 1500)}\n\`\`\``
+        renderSpec(
+          classifyGatewayFailure(createResult.failure, 'preset', {
+            failedAction: 'import the preset',
+          })
+        )
       );
       return;
     }
@@ -299,7 +315,8 @@ export async function handleImport(context: DeferredCommandContext): Promise<voi
   } catch (error) {
     logger.error({ err: error }, 'Error importing preset');
     await context.editReply(
-      '❌ An unexpected error occurred while importing the preset.\n' +
+      renderSpec(classifyGatewayFailure(error, 'preset', { failedAction: 'import the preset' })) +
+        '\n' +
         'Check bot logs for details.'
     );
   }

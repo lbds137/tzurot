@@ -26,10 +26,15 @@ import { PersonaCustomIds } from '../../utils/customIds.js';
 import { clientsFor } from '../../utils/gatewayClients.js';
 import { sendChunkedReply } from '../../utils/chunkedReply.js';
 import { replyError } from '../../utils/dashboard/replyError.js';
+import { CATALOG } from '../../ux/catalog/catalog.js';
+import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
+import { renderSpec } from '../../ux/render/render.js';
 
 const logger = createLogger('persona-view');
 
-const PERSONA_FETCH_ERROR = '❌ Failed to retrieve your persona. Please try again later.';
+const PERSONA_FETCH_ERROR = renderSpec(
+  CATALOG.error.transient("Couldn't load your persona right now.")
+);
 const CONTENT_FIELD_NAME = '📝 Content';
 
 /** Response type for persona list */
@@ -127,8 +132,14 @@ export async function handleViewPersona(context: DeferredCommandContext): Promis
     if (persona === undefined) {
       const message =
         result.data.personas.length === 0
-          ? "❌ You don't have a persona set up yet. Use `/persona edit` to create one!"
-          : "❌ You don't have a default persona set. Use `/persona default` to set one!";
+          ? renderSpec(
+              CATALOG.error.notFound('Persona', { hint: 'Use `/persona edit` to create one!' })
+            )
+          : renderSpec(
+              CATALOG.error.notFound('Default persona', {
+                hint: 'Use `/persona default` to set one!',
+              })
+            );
       await context.editReply({ content: message });
       return;
     }
@@ -178,7 +189,7 @@ export async function handleExpandContent(
         { userId: discordId, personaId, error: result.error },
         'Failed to fetch persona for expand'
       );
-      await replyError(interaction, '❌ Persona not found or access denied.');
+      await replyError(interaction, renderSpec(CATALOG.error.notFound('Persona')));
       return;
     }
 
@@ -198,6 +209,9 @@ export async function handleExpandContent(
     logger.info({ userId: discordId, personaId }, 'User expanded persona content');
   } catch (error) {
     logger.error({ err: error, personaId }, 'Failed to expand persona content');
-    await replyError(interaction, '❌ Failed to load content. Please try again.');
+    await replyError(
+      interaction,
+      renderSpec(classifyGatewayFailure(error, 'persona content', { operation: 'read' }))
+    );
   }
 }

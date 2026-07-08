@@ -336,9 +336,9 @@ describe('Preset Import', () => {
 
       await handleImport(mockContext);
 
-      expect(mockContext.editReply).toHaveBeenCalledWith(
-        expect.stringContaining('Failed to import')
-      );
+      // Pin the SURFACED gateway message — a loose 'Failed to import' match
+      // also matched the generic fallback and hid a kind-dropping regression.
+      expect(mockContext.editReply).toHaveBeenCalledWith(expect.stringContaining('Duplicate name'));
     });
 
     it('should import preset with context window field', async () => {
@@ -370,7 +370,7 @@ describe('Preset Import', () => {
       await handleImport(mockContext);
 
       expect(mockContext.editReply).toHaveBeenCalledWith(
-        expect.stringContaining('unexpected error')
+        expect.stringContaining('Failed to import the preset')
       );
     });
 
