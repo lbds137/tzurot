@@ -6,8 +6,9 @@
 
 ## Unreleased on Develop
 
+- **Character-definition-privacy epic Part 1 COMPLETE** (#1546 schema+redaction, #1547 toggle+redacted rendering, #1548 import/export round-trip + customFields schema-strip fix). Additive `add_definition_public` migration applied to dev; prod premigrate at the beta.154 cut. **User-visible: existing public characters' card internals go dark for non-owners until the owner flips 📖 Card Public.**
+- **Review follow-up batch** (#1542 updated_at heal + admin voice + sanitizer docs, #1543 quota-category single-source, #1544 premigrate same-file-create exemption + comma-list gate fix, #1545 guard:prompt-tags unconditional scan + `<current_conversation>` PROTECTED + EmbedParser pin).
 - **Memory Phase 1a remains PARKED** on `feat/memory-hybrid-retrieval` (evidence gate: real-scale goldens).
-- _(queue flushed by beta.153)_
 
 ## Next Session Goal
 

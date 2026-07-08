@@ -2,31 +2,11 @@
 
 _Ungated speculative work — feature ideas and larger fixes with no committed schedule. Grep-on-demand; not loaded at session start. "Promote when…" notes are advisory, not a filing rule._
 
-## Character definition privacy + view/browse detail unification (beta.154 epic)
+## Character detail-view unification (browse/view DRY — Part 2 of the definition-privacy epic)
 
-_Surfaced 2026-07-07 (owner). **ACTIVE 2026-07-07**: council pass done, plan approved; Part 1 building as three PRs — PR1 (schema+redaction, #1546), PR2 (dashboard toggle), PR3 (import/export round-trip + the two export gaps below). **Part 2 stays deferred**: the privacy fix is DRY at the API (one redaction point in formatPersonalityResponse covers view + browse-detail), so the render unification is an independent pure-UX refactor — bundling it would dilute the security review. Promote Part 2 when Part 1 ships._
+_Part 1 (definitionPublic toggle + redaction + rendering + import/export round-trip) SHIPPED 2026-07-07 (#1546/#1547/#1548, rides beta.154). The customFields export gap shipped with it; voice-reference export has its own follow-ups row._
 
-**Motivation**: `/inspect` already redacts character internals (system prompt + memory previews) for non-owners (PR #898, 2026-04-25). But `/character view` and `/character browse`→select expose the FULL character card (characterInfo, personalityTraits, tone/age/appearance/likes/dislikes, conversationalGoals, conversationalExamples) to non-owners of PUBLIC characters — an inconsistency the owner flagged. Private characters are already safe (GET route `checkUserAccess` returns 401 for non-owners). System-prompt TEXT is not in the GET response (only its id), but every card field is.
-
-### Part 1 — Definition-visibility toggle (SpicyChat-style)
-
-- **New field** on `personality`: `definitionPublic Boolean @default(false)`. Owner-controlled. **DECISION: private for EVERYONE** — the migration sets ALL existing characters (including currently-public ones) to `false`; existing public characters' internals go dark until the owner opts in. Most consistent with `/inspect`'s stance.
-- **API (the DRY point)**: `formatPersonalityResponse` (or the GET route) redacts the card fields for non-owners when `definitionPublic === false`. Owner + bot-admin always see full (reuse the `canEdit` / `isBotOwner` signal). Keep public-safe fields visible regardless: name, displayName, slug, avatar, isPublic. **This single point covers `/character view` AND `/character browse`-detail AND any future consumer** — they all read this one endpoint.
-- **UI**: an owner toggle in the character settings/dashboard (`settings.ts` / dashboard). Mirror the visibility toggle pattern.
-- **Import/export round-trip (owner requirement)**: `definitionPublic` must be exported in the character JSON and honored on import (like `isPublic`). Owner also asked to **audit import/export field coverage** — the audit already found two real gaps to fix in this epic:
-  - **`customFields` — export OMITS it, import ACCEPTS it** (`export.ts` `EXPORT_FIELDS` has 14 fields, no customFields; `import.ts` `buildImportPayload` includes it). A character with custom fields loses them on export→re-import. Pre-existing data-loss bug — could be a one-line `EXPORT_FIELDS` addition sooner if desired, independent of the toggle.
-  - **Voice — export does NOT emit it, import (post-#1541) accepts it** via attachment. For symmetry, export should emit the voice reference as a separate file (like avatar), so voice round-trips.
-  - When adding `definitionPublic`: add to `EXPORT_FIELDS` AND `buildImportPayload` (+ import success-field list). Verify no OTHER card field is export-only or import-only.
-- **Guard**: does NOT affect chatting (ai-worker path doesn't use this GET route), so redacting for non-owners can't break using a public character.
-- **Migration**: additive column + a data step setting existing rows to false. Since it changes visible behavior (public internals go dark), treat as a real behavior change — announce in release notes.
-
-### Part 2 — view/browse detail unification (UX refactor, independent of Part 1)
-
-- Today: `/character view` uses its own paged builder (`view.ts` buildViewPage); `/character browse`→select opens the **dashboard embed** (`buildDashboardEmbed`, canEdit-aware) — two different renders of the same data.
-- **Goal (owner)**: browse-select should open the SAME canonical detail view as `/character view`; make browse→select→shared-detail-view a **common pattern for browse/view across commands** generally (not just character).
-- Bigger refactor; separable from Part 1 (the privacy fix is DRY at the API regardless of render). Sequence Part 2 after or alongside Part 1.
-
-_Promote when: beta.153 ships. Council pass recommended before plan-mode (per the "substantial pick deserves a council pass" backlog rule)._
+**Remaining scope (deferred by plan, promote when picked)**: `/character view` uses its own paged builder (`view.ts`); `/character browse`→select opens the edit dashboard (`buildDashboardEmbed`). Owner goal: browse-select opens the SAME canonical detail view as `/character view`, and browse→select→shared-detail-view becomes a common pattern across commands (not just character). Pure-UX refactor, independent of the privacy fix (redaction is DRY at the API). Related follow-ups to absorb: the browse isAdmin param fix, /character option-access idiom drift.
 
 ### Surfaced 2026-06-28 (in-character error delivery — user directive)
 
