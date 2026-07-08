@@ -29,6 +29,7 @@
 
 import { randomUUID } from 'node:crypto';
 import type { Message } from 'discord.js';
+import { ApiErrorCategory, ApiErrorType } from '@tzurot/common-types/constants/error';
 import { MULTI_TAG } from '@tzurot/common-types/constants/message';
 import { type TypingChannel } from '@tzurot/common-types/types/discord-types';
 import { type LLMGenerationResult } from '@tzurot/common-types/types/schemas/generation';
@@ -48,8 +49,13 @@ const logger = createLogger('MultiTagCoordinator');
 // stays under the `max-lines` cap and the projections are unit-testable
 // independently.
 export type { RuntimeEntry, RuntimeSlot } from './multiTagCoordinatorHelpers.js';
-import { toSnapshot, type RuntimeEntry, type RuntimeSlot } from './multiTagCoordinatorHelpers.js';
-import { deliverGroup } from './multiTagDeliveryFlow.js';
+import {
+  buildSyntheticErrorResult,
+  toSnapshot,
+  type RuntimeEntry,
+  type RuntimeSlot,
+} from './multiTagCoordinatorHelpers.js';
+import { deliverGroup, deliverAllFailedNotice } from './multiTagDeliveryFlow.js';
 
 /** Input shape for startFanOut — what PersonalityTriggerProcessor builds. */
 export interface StartFanOutInput {
@@ -149,14 +155,15 @@ export class MultiTagCoordinator {
     // and the dense numbering is the canonical view.
     const runtimeSlots: RuntimeSlot[] = [];
     let nextIndex = 0;
-    let anyInfraError = false;
+    // Collect errored outcomes (personality + classified spec) so the
+    // all-errored branch can deliver each character's own error voice.
+    // Denied outcomes need no accumulation — they render as a single system
+    // notice only when the WHOLE batch is denied.
+    const erroredOutcomes: Extract<SlotOutcome, { kind: 'errored' }>[] = [];
     for (const submission of slotSubmissions) {
-      if (submission === 'denied' || submission === 'errored') {
-        // A failed slot is not coordinated; its REASON drives the all-denied
-        // notice below — a transient 'errored' must not read to the user as the
-        // character being unavailable.
-        if (submission === 'errored') {
-          anyInfraError = true;
+      if (submission.kind !== 'submitted') {
+        if (submission.kind === 'errored') {
+          erroredOutcomes.push(submission);
         }
         continue;
       }
@@ -172,40 +179,11 @@ export class MultiTagCoordinator {
     }
 
     if (runtimeSlots.length === 0) {
-      logger.info(
-        { sourceMessageId: input.message.id, anyInfraError },
-        'All multi-tag slots failed (denied or errored) — nothing to coordinate'
+      await deliverAllFailedNotice(
+        { message: input.message, channel: input.channel },
+        erroredOutcomes,
+        this.deps
       );
-      // User-facing notice: pre-PR per-processor flow surfaced denial via
-      // the respective trigger processor (e.g., ActivatedChannelProcessor's
-      // inaccessible-personality notice). Unified multi-tag path has no
-      // such fallback today — without this, the user sees silence after
-      // tagging personalities that can't respond. Best-effort reply; if
-      // it fails, log only (we already did nothing useful for them anyway).
-      //
-      // **Bypasses the ordering buffer intentionally.** This notice is a
-      // UI feedback message, not an AI response, and denied fan-outs are
-      // rare. The cost of routing it through `ResponseOrderingService`
-      // (require a real jobId, register/handleResult round-trip) isn't
-      // worth the ordering guarantee given the user only sees this when
-      // their input produced no AI responses at all. The notice could
-      // theoretically appear before a queued response for the same
-      // channel if one is in flight, but the user already understands
-      // this notice belongs to a different message.
-      try {
-        await input.message.reply(
-          anyInfraError
-            ? "⏳ Couldn't get a response just now — something's slow on our end. " +
-                'Please try again in a moment.'
-            : '❌ None of the tagged characters are currently available. ' +
-                'They may be private, on the denylist, or restricted in this channel.'
-        );
-      } catch (err) {
-        logger.warn(
-          { err, sourceMessageId: input.message.id },
-          'Failed to send all-denied notice — user will see silence'
-        );
-      }
       return;
     }
 
@@ -494,10 +472,11 @@ export class MultiTagCoordinator {
   }
 
   /**
-   * Submit one slot's AI job through the chat manager. Returns submission
-   * details on success, `'denied'` on a genuine refusal (denylist / NSFW gate),
-   * or `'errored'` when submission throws (transient infra failure, e.g. a
-   * gateway write-timeout persisting the trigger message).
+   * Submit one slot's AI job through the chat manager. Returns a `SlotOutcome`
+   * discriminated union: `'submitted'` with tracking details, `'denied'` on a
+   * genuine refusal (denylist / NSFW / channel gate), or `'errored'` (with a
+   * synthetic error result) when submission throws (transient infra failure,
+   * e.g. a gateway write-timeout persisting the trigger message).
    */
   private async submitSlot(input: StartFanOutInput, resolved: ResolvedSlot): Promise<SlotOutcome> {
     try {
@@ -516,7 +495,7 @@ export class MultiTagCoordinator {
           },
           'Multi-tag slot denied — omitting from fan-out'
         );
-        return 'denied';
+        return { kind: 'denied', personality: resolved.personality };
       }
       // Register with JobTracker for typing-indicator refresh + context
       // storage, but skip ordering-service registration (the coordinator
@@ -525,6 +504,7 @@ export class MultiTagCoordinator {
         skipOrderingRegistration: true,
       });
       return {
+        kind: 'submitted',
         jobId: result.jobId,
         personality: resolved.personality,
         personaId: result.trackingContext.personaId,
@@ -536,7 +516,24 @@ export class MultiTagCoordinator {
         { err, personalityId: resolved.personality.id, sourceMessageId: input.message.id },
         'Multi-tag slot submission threw — synthesizing as errored slot'
       );
-      return 'errored';
+      // Carry a synthetic result so the all-errored branch can deliver the
+      // character's own error voice. The submission threw before any turn was
+      // created, so this is UNKNOWN-category (not a completed job's timeout).
+      // `technicalMessage` is a SAFE LITERAL — the raw `err` is logged above
+      // but must never reach the user-facing (spoilered) content per
+      // 00-critical's no-raw-error-leak rule.
+      const spec = buildSyntheticErrorResult(resolved.personality, {
+        requestId: input.message.id,
+        category: ApiErrorCategory.UNKNOWN,
+        type: ApiErrorType.UNKNOWN,
+        technicalMessage: 'Slot submission failed',
+      });
+      return {
+        kind: 'errored',
+        personality: resolved.personality,
+        isAutoResponse: resolved.isAutoResponse,
+        spec,
+      };
     }
   }
 
@@ -662,25 +659,40 @@ export class MultiTagCoordinator {
   }
 }
 
-interface SlotSubmission {
-  jobId: string;
-  personality: LoadedPersonality;
-  personaId: string;
-  source: SlotSource;
-  isAutoResponse: boolean;
-}
-
 /**
- * The outcome of one slot submission:
- * - `SlotSubmission` — a live job to coordinate.
- * - `'denied'` — a genuine refusal: the character can't respond (private,
- *   denylisted, NSFW-gated, or restricted here). The input was understood; the
- *   character simply isn't available.
- * - `'errored'` — an infrastructure failure: the submission threw (e.g. a
- *   gateway write-timeout while persisting the trigger message). Transient, so
- *   the honest user-facing response is "try again", not "unavailable".
+ * The outcome of one slot submission — a discriminated union carrying the
+ * personality (and, for `errored`, the classified error) so downstream
+ * handling can respond per-character instead of collapsing every failure to
+ * an anonymous string.
  *
- * Collapsing both failures to `null` (the prior shape) made the all-denied
- * notice blame the character for what was really a transient backend hiccup.
+ * - `'submitted'` — a live job to coordinate.
+ * - `'denied'` — a genuine refusal: the character can't respond (denylisted,
+ *   NSFW-gated, or restricted here). The input was understood; the character
+ *   simply isn't available. Rendered as a single system notice when the whole
+ *   batch is denied.
+ * - `'errored'` — an infrastructure failure: the submission threw (e.g. a
+ *   gateway write-timeout while persisting the trigger message). Transient.
+ *   Carries a synthetic `success:false` result so the character can deliver
+ *   the error IN ITS OWN VOICE (its `errorMessage`, else a canned line).
+ *
+ * NOTE: the `'errored'`/`'submitted'` discriminants here are DISJOINT from
+ * `RuntimeSlot.status`'s `'errored'`/`'completed'` — those are post-submission
+ * job-lifecycle states (a submitted slot whose result came back failed). These
+ * describe whether the submission itself succeeded; they only share spelling.
  */
-type SlotOutcome = SlotSubmission | 'denied' | 'errored';
+type SlotOutcome =
+  | {
+      kind: 'submitted';
+      jobId: string;
+      personality: LoadedPersonality;
+      personaId: string;
+      source: SlotSource;
+      isAutoResponse: boolean;
+    }
+  | { kind: 'denied'; personality: LoadedPersonality }
+  | {
+      kind: 'errored';
+      personality: LoadedPersonality;
+      isAutoResponse: boolean;
+      spec: LLMGenerationResult;
+    };

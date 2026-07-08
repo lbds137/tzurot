@@ -11,6 +11,11 @@
  */
 
 import type { Message } from 'discord.js';
+import {
+  USER_ERROR_MESSAGES,
+  type ApiErrorCategory,
+  type ApiErrorType,
+} from '@tzurot/common-types/constants/error';
 import type { TypingChannel } from '@tzurot/common-types/types/discord-types';
 import type { LLMGenerationResult } from '@tzurot/common-types/types/schemas/generation';
 import type { LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
@@ -70,6 +75,42 @@ export function buildSlotContext(entry: RuntimeEntry, slot: RuntimeSlot): SlotDe
     userMessageTime: entry.userMessageTime,
     isAutoResponse: slot.isAutoResponse,
     recipientUserId: entry.userId,
+  };
+}
+
+/**
+ * Build the synthetic `success: false` result that drives an in-character
+ * error reply. Single-sourced so both the per-slot delivery path
+ * (`multiTagDeliveryFlow.deliverSlot`, safety-timeout / empty-content) and the
+ * submit-failure path (`MultiTagCoordinator.submitSlot`'s catch) render the
+ * character's voice identically: `buildErrorContent` reads `personalityErrorMessage`
+ * first, falling back to `errorInfo.userMessage` then the generic default.
+ */
+export function buildSyntheticErrorResult(
+  personality: LoadedPersonality,
+  opts: {
+    requestId: string;
+    category: ApiErrorCategory;
+    type: ApiErrorType;
+    technicalMessage: string;
+  }
+): LLMGenerationResult {
+  const { requestId, category, type, technicalMessage } = opts;
+  return {
+    requestId,
+    success: false,
+    error: technicalMessage,
+    personalityErrorMessage: personality.errorMessage,
+    errorInfo: {
+      type,
+      category,
+      userMessage: USER_ERROR_MESSAGES[category],
+      technicalMessage,
+      referenceId: requestId,
+      // No auto-retry fires on these synthesized paths; the user decides
+      // whether to re-prompt after seeing the in-character error line.
+      shouldRetry: false,
+    },
   };
 }
 

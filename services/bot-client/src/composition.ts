@@ -55,6 +55,7 @@ export function buildPersonalityChatPipeline(deps: {
   persistence: ConversationPersistence;
   denylistCache: DenylistCache;
   jobTracker: JobTracker;
+  slotDelivery: SlotDeliveryService;
 }): {
   personalityChatManager: PersonalityChatManager;
   personalityHandler: PersonalityMessageHandler;
@@ -67,6 +68,7 @@ export function buildPersonalityChatPipeline(deps: {
   const personalityHandler = new PersonalityMessageHandler({
     manager: personalityChatManager,
     jobTracker: deps.jobTracker,
+    slotDelivery: deps.slotDelivery,
   });
   return { personalityChatManager, personalityHandler };
 }

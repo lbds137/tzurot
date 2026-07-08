@@ -17,6 +17,7 @@ describe('PersonalityMessageHandler', () => {
   let handler: PersonalityMessageHandler;
   let mockManager: { submitChatJob: ReturnType<typeof vi.fn> };
   let mockJobTracker: { trackJob: ReturnType<typeof vi.fn> };
+  let mockSlotDelivery: { deliverErrorNoPersist: ReturnType<typeof vi.fn> };
 
   const mockChannel = { id: 'channel-123', type: ChannelType.GuildText } as any;
   const baseTrackingContext = {
@@ -36,10 +37,12 @@ describe('PersonalityMessageHandler', () => {
     vi.clearAllMocks();
     mockManager = { submitChatJob: vi.fn() };
     mockJobTracker = { trackJob: vi.fn() };
+    mockSlotDelivery = { deliverErrorNoPersist: vi.fn().mockResolvedValue(undefined) };
 
     handler = new PersonalityMessageHandler({
       manager: mockManager as any,
       jobTracker: mockJobTracker as any,
+      slotDelivery: mockSlotDelivery as any,
     });
   });
 
@@ -86,37 +89,44 @@ describe('PersonalityMessageHandler', () => {
       expect(mockJobTracker.trackJob).not.toHaveBeenCalled();
     });
 
-    it('replies a classified catalog line (not the raw error) and does not track when the manager throws', async () => {
+    it('delivers the error IN CHARACTER via the webhook (not a plain reply) when the manager throws', async () => {
       const message = createMockMessage();
       mockManager.submitChatJob.mockRejectedValueOnce(new Error('boom'));
 
-      await handler.handleMessage(message, createMockPersonality(), 'Hi');
+      await handler.handleMessage(message, createMockPersonality(), 'Hi', { isAutoResponse: true });
 
-      // The classified catalog line — never the raw error.message (the old
-      // `Error: ${message}` shape leaked internals to users).
-      expect(message.reply).toHaveBeenCalledWith(
-        '❌ Failed to process your message. Please try again.'
-      );
-      expect(message.reply).not.toHaveBeenCalledWith(expect.stringContaining('boom'));
+      // Delivered through the webhook path with the failed personality — NOT a
+      // plain bot-voice message.reply, and never the raw error.message.
+      expect(mockSlotDelivery.deliverErrorNoPersist).toHaveBeenCalledTimes(1);
+      const [content, spec, context] = mockSlotDelivery.deliverErrorNoPersist.mock.calls[0];
+      expect(content).not.toContain('boom');
+      expect(spec.success).toBe(false);
+      expect(context).toMatchObject({
+        personality: expect.objectContaining({ id: 'personality-123' }),
+        channel: message.channel,
+        guildId: message.guildId,
+        clientId: 'bot-123',
+        isAutoResponse: true,
+      });
+      expect(message.reply).not.toHaveBeenCalled();
       expect(mockJobTracker.trackJob).not.toHaveBeenCalled();
     });
 
-    it('replies the generic catalog line for non-Error throws too (no raw leak)', async () => {
+    it('delivers in-character for non-Error throws too (no raw leak)', async () => {
       const message = createMockMessage();
       mockManager.submitChatJob.mockRejectedValueOnce('string-failure');
 
       await handler.handleMessage(message, createMockPersonality(), 'Hi');
 
-      expect(message.reply).toHaveBeenCalledWith(
-        '❌ Failed to process your message. Please try again.'
-      );
-      expect(message.reply).not.toHaveBeenCalledWith(expect.stringContaining('string-failure'));
+      expect(mockSlotDelivery.deliverErrorNoPersist).toHaveBeenCalledTimes(1);
+      const [content] = mockSlotDelivery.deliverErrorNoPersist.mock.calls[0];
+      expect(content).not.toContain('string-failure');
     });
 
-    it('does not throw if the error reply itself fails', async () => {
+    it('does not throw if the in-character delivery itself fails', async () => {
       const message = createMockMessage();
       mockManager.submitChatJob.mockRejectedValueOnce(new Error('boom'));
-      (message.reply as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('channel gone'));
+      mockSlotDelivery.deliverErrorNoPersist.mockRejectedValueOnce(new Error('webhook gone'));
 
       await expect(
         handler.handleMessage(message, createMockPersonality(), 'Hi')
