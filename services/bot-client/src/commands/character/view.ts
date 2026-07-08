@@ -21,7 +21,7 @@ import {
 import { characterViewOptions } from '@tzurot/common-types/generated/commandOptions';
 import { formatDateShort } from '@tzurot/common-types/utils/dateFormatting';
 import { createLogger } from '@tzurot/common-types/utils/logger';
-import { type UserClient } from '@tzurot/clients';
+import { GatewayApiError, type UserClient } from '@tzurot/clients';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import type { CharacterData } from './characterTypes.js';
 import { CharacterCustomIds } from '../../utils/customIds.js';
@@ -386,9 +386,15 @@ async function fetchCharacterForView(
 
   if (!result.ok) {
     if (result.status === 404 || result.status === 403) {
+      // 403 → absence deliberately (privacy: "not visible" ≡ "not found").
       return null;
     }
-    throw new Error(`Failed to fetch character: ${result.status}`);
+    // Typed throw preserves the transport kind for honest classification.
+    throw new GatewayApiError(
+      `Failed to fetch character: ${result.status} - ${result.error}`,
+      result.status,
+      result.kind
+    );
   }
 
   return toCharacterData(result.data.personality);

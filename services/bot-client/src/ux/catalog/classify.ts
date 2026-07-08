@@ -39,10 +39,20 @@ export interface ClassifyOptions {
   refreshAffordance?: boolean;
   /**
    * Verb phrase for the generic-failure fallback (`Failed to {failedAction}.`).
-   * Defaults to `update {resource}` — override for non-write contexts
-   * ("process your message", "load the character").
+   * Defaults to `update {resource}` for writes and `load the {resource}` for
+   * reads — override when neither verb fits ("process your message").
    */
   failedAction?: string;
+  /**
+   * Whether the failed call was a WRITE (default) or a pure READ. The
+   * outcome-uncertainty shapes are write-copy ("your change may still be
+   * applying", "was saved") — rendering them for a failed FETCH is a
+   * confidently false claim (nothing was submitted). Reads render honest
+   * load-failure shapes instead, where an immediate retry carries no
+   * duplicate-write risk. Still classifier-owned wording per the composition
+   * rule — the call site declares its operation kind, never picks copy.
+   */
+  operation?: 'read' | 'write';
 }
 
 function isGatewayResultFailure(input: unknown): input is GatewayResultFailure {
@@ -85,29 +95,46 @@ function extractGatewayMessage(message: string): string | null {
   return truncateSurfaced(match[1]);
 }
 
+function genericAction(resource: string, opts: ClassifyOptions): string {
+  return (
+    opts.failedAction ?? (opts.operation === 'read' ? `load the ${resource}` : `update ${resource}`)
+  );
+}
+
 function specForKind(
   kind: GatewayFailureKind,
   gatewayMessage: string | null,
   resource: string,
   opts: ClassifyOptions
 ): MessageSpec {
+  const isRead = opts.operation === 'read';
   switch (kind) {
     case 'timeout':
     case 'network':
-      return CATALOG.error.uncertainWrite(resource, opts);
+      // Writes: outcome genuinely unknown — never invite a retry. Reads:
+      // nothing was submitted, so "may still be applying" would be a false
+      // claim; a plain transient (retry-honest) shape is correct.
+      return isRead
+        ? CATALOG.error.transient(`Couldn't load the ${resource} right now.`)
+        : CATALOG.error.uncertainWrite(resource, opts);
     case 'schema':
-      return CATALOG.error.committedUnconfirmed(resource, opts);
+      // Writes: 200 OK with unreadable body = committed-unconfirmed. Reads:
+      // the DATA is fine server-side, only the response failed to parse —
+      // "was saved" would be a confidently false claim on a fetch.
+      return isRead
+        ? CATALOG.error.transient(`Couldn't read the ${resource} data.`)
+        : CATALOG.error.committedUnconfirmed(resource, opts);
     case 'http':
       return gatewayMessage !== null
         ? CATALOG.error.gatewayRejection(gatewayMessage)
-        : CATALOG.error.operationFailed(opts.failedAction ?? `update ${resource}`);
+        : CATALOG.error.operationFailed(genericAction(resource, opts));
     case 'config':
       return CATALOG.error.transient("Couldn't reach the server right now.");
     default:
       // Unreachable for the typed carriers, but the fail-arm guard only
       // verifies `kind` is a string — a malformed object with an off-union
       // kind must degrade to the generic failure, not return undefined.
-      return CATALOG.error.operationFailed(opts.failedAction ?? `update ${resource}`);
+      return CATALOG.error.operationFailed(genericAction(resource, opts));
   }
 }
 
@@ -142,7 +169,7 @@ export function classifyGatewayFailure(
     const gatewayMessage = extractGatewayMessage(input.message);
     return gatewayMessage !== null
       ? CATALOG.error.gatewayRejection(gatewayMessage)
-      : CATALOG.error.operationFailed(opts.failedAction ?? `update ${resource}`);
+      : CATALOG.error.operationFailed(genericAction(resource, opts));
   }
 
   if (isGatewayResultFailure(input)) {
@@ -167,5 +194,5 @@ export function classifyGatewayFailure(
 
   // Unknown error shape: generic definitive failure. Deliberately does NOT
   // surface `error.message` — unrecognized internals never reach users.
-  return CATALOG.error.operationFailed(opts.failedAction ?? `update ${resource}`);
+  return CATALOG.error.operationFailed(genericAction(resource, opts));
 }

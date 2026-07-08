@@ -1,6 +1,12 @@
 import { describe, it, expect, vi } from 'vitest';
 import { MessageFlags } from 'discord.js';
-import { ackMethodFor, replySpec, replySpecSafe, type RepliableInteraction } from './reply.js';
+import {
+  ackMethodFor,
+  followUpSpec,
+  replySpec,
+  replySpecSafe,
+  type RepliableInteraction,
+} from './reply.js';
 import { CATALOG } from '../catalog/catalog.js';
 
 vi.mock('@tzurot/common-types/utils/logger', async () => {
@@ -81,6 +87,35 @@ describe('replySpec', () => {
     );
 
     expect(interaction.reply).toHaveBeenCalledWith(
+      expect.objectContaining({ content: '⚠️ persona' })
+    );
+  });
+});
+
+describe('followUpSpec', () => {
+  it('always follows up ephemerally, regardless of ack state (the deferUpdate escape hatch)', async () => {
+    // A deferUpdate'd component handler must NOT take the ack matrix's
+    // editReply branch (it would clobber the component message) — this helper
+    // bypasses the matrix entirely.
+    const interaction = mockInteraction({ deferred: true, replied: false });
+    await followUpSpec(interaction, CATALOG.error.notFound('Memory'));
+
+    expect(interaction.followUp).toHaveBeenCalledWith({
+      content: '❌ Memory not found.',
+      flags: MessageFlags.Ephemeral,
+    });
+    expect(interaction.editReply).not.toHaveBeenCalled();
+    expect(interaction.reply).not.toHaveBeenCalled();
+  });
+
+  it('threads render options through', async () => {
+    const interaction = mockInteraction({ deferred: false, replied: false });
+    await followUpSpec(
+      interaction,
+      { severity: 'warning', outcome: 'failed', text: 'sys', personaText: 'persona' },
+      { register: 'persona' }
+    );
+    expect(interaction.followUp).toHaveBeenCalledWith(
       expect.objectContaining({ content: '⚠️ persona' })
     );
   });

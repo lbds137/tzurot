@@ -138,7 +138,7 @@ describe('Memory Detail Modals', () => {
       expect(mockShowModal).not.toHaveBeenCalled();
       expect(mockReply).toHaveBeenCalledWith(
         expect.objectContaining({
-          content: expect.stringContaining('Failed to load'),
+          content: expect.stringContaining('Memory not found'),
         })
       );
     });
@@ -218,7 +218,7 @@ describe('Memory Detail Modals', () => {
 
       await expect(handleEditButton(interaction, 'memory-123')).resolves.toBeUndefined();
       expect(mockFollowUp).toHaveBeenCalledWith(
-        expect.objectContaining({ content: expect.stringContaining('Failed to load') })
+        expect.objectContaining({ content: expect.stringContaining('Memory not found') })
       );
     });
   });
@@ -263,7 +263,7 @@ describe('Memory Detail Modals', () => {
       expect(mockShowModal).not.toHaveBeenCalled();
       expect(mockUpdate).toHaveBeenCalledWith(
         expect.objectContaining({
-          content: expect.stringContaining('Failed to load'),
+          content: expect.stringContaining('Memory not found'),
           embeds: [],
           components: [],
         })
@@ -293,7 +293,7 @@ describe('Memory Detail Modals', () => {
 
       await expect(handleEditTruncatedButton(interaction, 'memory-123')).resolves.toBeUndefined();
       expect(mockFollowUp).toHaveBeenCalledWith(
-        expect.objectContaining({ content: expect.stringContaining('Failed to load') })
+        expect.objectContaining({ content: expect.stringContaining('Memory not found') })
       );
     });
   });
@@ -322,7 +322,7 @@ describe('Memory Detail Modals', () => {
       expect(mockEditReply).toHaveBeenCalled();
     });
 
-    it('should show error on update failure', async () => {
+    it('surfaces the gateway message when the update is rejected (5xx)', async () => {
       stub.updateMemory.mockResolvedValue(makeErr(500, 'Update failed'));
 
       const mockDeferUpdate = vi.fn();
@@ -340,7 +340,7 @@ describe('Memory Detail Modals', () => {
 
       expect(mockFollowUp).toHaveBeenCalledWith(
         expect.objectContaining({
-          content: expect.stringContaining('Failed to update'),
+          content: expect.stringContaining('Update failed'),
         })
       );
     });

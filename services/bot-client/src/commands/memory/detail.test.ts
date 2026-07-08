@@ -301,7 +301,7 @@ describe('Memory Detail', () => {
 
       expect(mockFollowUp).toHaveBeenCalledWith(
         expect.objectContaining({
-          content: expect.stringContaining('Failed to load'),
+          content: expect.stringContaining('Memory not found'),
         })
       );
     });
@@ -329,7 +329,7 @@ describe('Memory Detail', () => {
       expect(mockEditReply).toHaveBeenCalled();
     });
 
-    it('should show error on lock failure', async () => {
+    it('surfaces the gateway message when the lock write is rejected (5xx)', async () => {
       stub.setMemoryLock.mockResolvedValue(makeErr(500, 'Lock failed'));
 
       const mockDeferUpdate = vi.fn();
@@ -345,7 +345,7 @@ describe('Memory Detail', () => {
 
       expect(mockFollowUp).toHaveBeenCalledWith(
         expect.objectContaining({
-          content: expect.stringContaining('Failed to update lock'),
+          content: expect.stringContaining('Lock failed'),
         })
       );
     });
@@ -415,7 +415,7 @@ describe('Memory Detail', () => {
 
       expect(mockFollowUp).toHaveBeenCalledWith(
         expect.objectContaining({
-          content: expect.stringContaining('Failed to load'),
+          content: expect.stringContaining('Memory not found'),
         })
       );
     });
@@ -440,7 +440,7 @@ describe('Memory Detail', () => {
       expect(mockDeferUpdate).toHaveBeenCalled();
     });
 
-    it('should show error and return false on failure', async () => {
+    it('classifies a 5xx delete failure and returns false', async () => {
       stub.deleteMemory.mockResolvedValue(makeErr(500, 'Delete failed'));
 
       const mockDeferUpdate = vi.fn();
@@ -457,7 +457,7 @@ describe('Memory Detail', () => {
       expect(result).toBe(false);
       expect(mockFollowUp).toHaveBeenCalledWith(
         expect.objectContaining({
-          content: expect.stringContaining('❌ Failed to delete'),
+          content: expect.stringContaining('Delete failed'),
         })
       );
     });
@@ -537,7 +537,7 @@ describe('Memory Detail', () => {
 
       expect(mockEditReply).toHaveBeenCalledWith(
         expect.objectContaining({
-          content: expect.stringContaining('Failed to load memory'),
+          content: expect.stringContaining('Memory not found'),
         })
       );
     });

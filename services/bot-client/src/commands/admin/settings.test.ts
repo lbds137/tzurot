@@ -249,12 +249,14 @@ describe('Admin Settings Dashboard', () => {
 
     it('should handle fetch failure gracefully', async () => {
       const context = createMockContext();
-      stub.getAdminSettings.mockResolvedValue(makeErr(500));
+      stub.getAdminSettings.mockResolvedValue(makeErr(500, 'Settings service unavailable'));
 
       await handleSettings(context);
 
+      // A 5xx now throws (nullOn404 contract) and the classifier surfaces the
+      // gateway's own message instead of a hand-written generic.
       expect(context.editReply).toHaveBeenCalledWith({
-        content: '❌ Failed to fetch admin settings.',
+        content: '❌ Settings service unavailable',
       });
     });
 
@@ -265,7 +267,7 @@ describe('Admin Settings Dashboard', () => {
       await handleSettings(context);
 
       expect(context.editReply).toHaveBeenCalledWith({
-        content: 'An error occurred while opening the settings dashboard.',
+        content: '❌ Failed to open the settings dashboard. Please try again.',
       });
     });
 
