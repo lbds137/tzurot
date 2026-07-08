@@ -23,6 +23,10 @@ import { clientsFor } from '../../utils/gatewayClients.js';
 import { showModalWithTimeoutCatch } from '../../utils/dashboard/showModalWithTimeoutCatch.js';
 import { ackWithTimeoutCatch } from '../../utils/dashboard/ackWithTimeoutCatch.js';
 import { fetchMemory, updateMemory } from './detailApi.js';
+import { CATALOG } from '../../ux/catalog/catalog.js';
+import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
+import { renderSpec } from '../../ux/render/render.js';
+import { followUpSpec } from '../../ux/render/reply.js';
 
 const logger = createLogger('memory-detail-modals');
 
@@ -35,8 +39,30 @@ const logger = createLogger('memory-detail-modals');
  */
 export const MAX_MODAL_CONTENT_LENGTH = 2000;
 
-/** Shared error copy for the memory-gone branches (initial ack + 10062 fallback) */
-const MEMORY_LOAD_FAILED = '❌ Failed to load memory. It may have been deleted.';
+/** Shared copy for the memory-gone branches (initial ack + 10062 fallback) */
+const MEMORY_NOT_FOUND = renderSpec(CATALOG.error.notFound('Memory'));
+
+/**
+ * Fetch for the pre-ack modal paths. Returns the memory, or the rendered
+ * content to deliver through the caller's ack wrapper — a genuine 404 renders
+ * absence, an infra failure renders its classified (outcome-honest) shape.
+ * Collapsed to content HERE because these handlers haven't acked yet and own
+ * delicate timeout-catch ack wrappers the delivery must flow through.
+ */
+async function fetchMemoryOrErrorContent(
+  userClient: Parameters<typeof fetchMemory>[0],
+  memoryId: string,
+  userId: string
+): Promise<{ memory: MemoryItem } | { errorContent: string }> {
+  try {
+    const memory = await fetchMemory(userClient, memoryId, userId);
+    return memory === null ? { errorContent: MEMORY_NOT_FOUND } : { memory };
+  } catch (error) {
+    return {
+      errorContent: renderSpec(classifyGatewayFailure(error, 'memory', { operation: 'read' })),
+    };
+  }
+}
 
 /** Diagnostic source for handleEditButton's ack wrappers */
 const EDIT_BUTTON_SOURCE = 'handleEditButton';
@@ -116,8 +142,8 @@ export async function handleEditButton(
   memoryId: string
 ): Promise<void> {
   const { userClient } = clientsFor(interaction);
-  const memory = await fetchMemory(userClient, memoryId, interaction.user.id);
-  if (memory === null) {
+  const fetched = await fetchMemoryOrErrorContent(userClient, memoryId, interaction.user.id);
+  if ('errorContent' in fetched) {
     // First ack lands AFTER the fetchMemory gateway call consumed part of
     // the 3-second budget — wrap so a blown window surfaces via followUp
     // instead of a silent "Interaction Failed".
@@ -125,7 +151,7 @@ export async function handleEditButton(
       interaction,
       () =>
         interaction.reply({
-          content: MEMORY_LOAD_FAILED,
+          content: fetched.errorContent,
           flags: MessageFlags.Ephemeral,
         }),
       {
@@ -134,10 +160,11 @@ export async function handleEditButton(
         entityId: memoryId,
         sectionId: 'edit',
       },
-      MEMORY_LOAD_FAILED
+      fetched.errorContent
     );
     return;
   }
+  const { memory } = fetched;
 
   // Check if content exceeds our modal's max_length setting
   // Must use MAX_MODAL_CONTENT_LENGTH (2000) because Discord requires value ≤ max_length
@@ -191,15 +218,15 @@ export async function handleEditTruncatedButton(
   memoryId: string
 ): Promise<void> {
   const { userClient } = clientsFor(interaction);
-  const memory = await fetchMemory(userClient, memoryId, interaction.user.id);
-  if (memory === null) {
+  const fetched = await fetchMemoryOrErrorContent(userClient, memoryId, interaction.user.id);
+  if ('errorContent' in fetched) {
     // Same async-before-ack exposure as handleEditButton — the update()
     // is this interaction's first ack and follows a gateway call.
     await ackWithTimeoutCatch(
       interaction,
       () =>
         interaction.update({
-          content: MEMORY_LOAD_FAILED,
+          content: fetched.errorContent,
           embeds: [],
           components: [],
         }),
@@ -209,10 +236,11 @@ export async function handleEditTruncatedButton(
         entityId: memoryId,
         sectionId: EDIT_TRUNCATED_ACTION,
       },
-      MEMORY_LOAD_FAILED
+      fetched.errorContent
     );
     return;
   }
+  const { memory } = fetched;
 
   // Truncate content to our max_length setting
   const truncatedContent = memory.content.substring(0, MAX_MODAL_CONTENT_LENGTH);
@@ -273,12 +301,18 @@ export async function handleEditModalSubmit(
   }
 
   const { userClient } = clientsFor(interaction);
-  const updatedMemory = await updateMemory(userClient, memoryId, newContent, userId);
+  let updatedMemory: MemoryItem | null;
+  try {
+    updatedMemory = await updateMemory(userClient, memoryId, newContent, userId);
+  } catch (error) {
+    // A timeout here is outcome-UNCERTAIN (the edit may have applied) — the
+    // classifier renders the honest verify-first shape, never "try again"
+    // (a blind modal re-submit is the duplicate-write risk this exists for).
+    await followUpSpec(interaction, classifyGatewayFailure(error, 'memory'));
+    return;
+  }
   if (updatedMemory === null) {
-    await interaction.followUp({
-      content: '❌ Failed to update memory. Please try again.',
-      flags: MessageFlags.Ephemeral,
-    });
+    await followUpSpec(interaction, CATALOG.error.notFound('Memory'));
     return;
   }
 
