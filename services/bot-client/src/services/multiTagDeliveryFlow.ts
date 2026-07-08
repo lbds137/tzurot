@@ -18,23 +18,23 @@
  * without forcing a circular import.
  */
 
-import {
-  ApiErrorCategory,
-  ApiErrorType,
-  USER_ERROR_MESSAGES,
-} from '@tzurot/common-types/constants/error';
+import type { Message } from 'discord.js';
+import { ApiErrorCategory, ApiErrorType } from '@tzurot/common-types/constants/error';
 import { MULTI_TAG } from '@tzurot/common-types/constants/message';
+import { type TypingChannel } from '@tzurot/common-types/types/discord-types';
 import { type LLMGenerationResult } from '@tzurot/common-types/types/schemas/generation';
+import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { buildErrorContent } from '../utils/buildErrorContent.js';
 import { pickNewDMActivePersonality } from './SlotResolver.js';
 import {
   buildSlotContext,
+  buildSyntheticErrorResult,
   toSnapshot,
   type RuntimeEntry,
   type RuntimeSlot,
 } from './multiTagCoordinatorHelpers.js';
-import type { SlotDeliveryService } from './SlotDeliveryService.js';
+import type { SlotDeliveryService, EphemeralErrorContext } from './SlotDeliveryService.js';
 import { confirmDelivery, setDmSessionPersonality } from '../utils/gatewayServiceCalls.js';
 import type { MultiTagPersistence } from './MultiTagPersistence.js';
 
@@ -130,23 +130,14 @@ async function deliverSlot(
     // emits an empty-content success result that fails `hasUsableContent`
     // but lacks the error metadata. Overlay the personality's `errorMessage`
     // before passing through so the user sees the character's voice.
-    const baseSynthetic: LLMGenerationResult = slot.result ?? {
-      requestId: entry.groupId,
-      success: false,
-      error: technicalMessage,
-      personalityErrorMessage: slot.personality.errorMessage,
-      errorInfo: {
-        type: isTimeout ? ApiErrorType.TRANSIENT : ApiErrorType.UNKNOWN,
+    const baseSynthetic: LLMGenerationResult =
+      slot.result ??
+      buildSyntheticErrorResult(slot.personality, {
+        requestId: entry.groupId,
         category,
-        userMessage: USER_ERROR_MESSAGES[category],
+        type: isTimeout ? ApiErrorType.TRANSIENT : ApiErrorType.UNKNOWN,
         technicalMessage,
-        referenceId: entry.groupId,
-        // Required by the errorInfo schema; false because no auto-retry
-        // fires on the safety-timeout path. The user decides whether to
-        // re-prompt after seeing the in-character error message.
-        shouldRetry: false,
-      },
-    };
+      });
     const synthetic: LLMGenerationResult =
       baseSynthetic.personalityErrorMessage === undefined &&
       slot.personality.errorMessage !== undefined
@@ -259,4 +250,82 @@ export async function deliverGroup(entry: RuntimeEntry, deps: DeliveryFlowDeps):
     { groupId: entry.groupId, deliveredCount: entry.slots.length },
     'Multi-tag group delivered and cleaned up'
   );
+}
+
+/**
+ * The errored variant of the coordinator's `SlotOutcome`, carried into the
+ * all-failed delivery so each character can speak its own error line.
+ */
+export interface ErroredSlotOutcome {
+  personality: LoadedPersonality;
+  isAutoResponse: boolean;
+  spec: LLMGenerationResult;
+}
+
+/**
+ * Nothing was submitted — every slot was denied or errored. Two shapes:
+ *
+ * - **Any errored**: each errored character delivers its OWN error line via
+ *   its webhook (in-character), in parallel. Denied slots stay silent — the
+ *   user already knows a denylisted/NSFW-gated/channel-restricted character
+ *   won't respond, and mixing a system "unavailable" line with in-character
+ *   error replies just adds register-noise. Bounded by MAX_TAGS upstream.
+ * - **All denied**: a single system notice (no character has anything to say
+ *   in-voice, and a per-persona "I'm unavailable" from each would confuse).
+ *
+ * **Bypasses the ordering buffer intentionally.** These are UI feedback
+ * messages, not AI responses, and all-failed fan-outs are rare. Routing them
+ * through `ResponseOrderingService` (a real jobId + register/handleResult
+ * round-trip) isn't worth the ordering guarantee given the user only sees
+ * this when their input produced no AI responses at all.
+ */
+export async function deliverAllFailedNotice(
+  source: { message: Message; channel: TypingChannel },
+  erroredOutcomes: ErroredSlotOutcome[],
+  deps: Pick<DeliveryFlowDeps, 'slotDelivery'>
+): Promise<void> {
+  const { message, channel } = source;
+  logger.info(
+    { sourceMessageId: message.id, erroredCount: erroredOutcomes.length },
+    'All multi-tag slots failed (denied or errored) — nothing to coordinate'
+  );
+
+  if (erroredOutcomes.length > 0) {
+    // Each errored character speaks in its own voice; `allSettled` (not `all`)
+    // keeps the error-containment local — one failing send can't drop a
+    // sibling's delivery even if `deliverErrorNoPersist` is ever refactored to
+    // throw (today it swallows internally, but the guarantee shouldn't rely on
+    // that).
+    await Promise.allSettled(
+      erroredOutcomes.map(async outcome => {
+        const context: EphemeralErrorContext = {
+          message,
+          channel,
+          guildId: message.guildId,
+          clientId: message.client.user?.id,
+          personality: outcome.personality,
+          isAutoResponse: outcome.isAutoResponse,
+        };
+        await deps.slotDelivery.deliverErrorNoPersist(
+          buildErrorContent(outcome.spec),
+          outcome.spec,
+          context
+        );
+      })
+    );
+    return;
+  }
+
+  // All denied — single system notice. Best-effort; if it fails, log only.
+  try {
+    await message.reply(
+      '❌ None of the tagged characters are currently available. ' +
+        'They may be private, on the denylist, or restricted in this channel.'
+    );
+  } catch (err) {
+    logger.warn(
+      { err, sourceMessageId: message.id },
+      'Failed to send all-denied notice — user will see silence'
+    );
+  }
 }

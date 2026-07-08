@@ -12,7 +12,13 @@ import type { Message } from 'discord.js';
 import type { TypingChannel } from '@tzurot/common-types/types/discord-types';
 import type { LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import {
+  ApiErrorCategory,
+  ApiErrorType,
+  USER_ERROR_MESSAGES,
+} from '@tzurot/common-types/constants/error';
+import {
   buildSlotContext,
+  buildSyntheticErrorResult,
   toSnapshot,
   type RuntimeEntry,
   type RuntimeSlot,
@@ -175,5 +181,49 @@ describe('toSnapshot', () => {
     expect(snap.slots[0].personalityId).toBe('pid-Capitalized');
     expect(snap.slots[0].personalitySlug).toBe('capitalized');
     clearTimeout(entry.timeoutHandle);
+  });
+});
+
+describe('buildSyntheticErrorResult', () => {
+  it('builds a success:false result carrying the persona errorMessage and category-sourced fields', () => {
+    const personality = {
+      ...buildPersonality('Alice'),
+      errorMessage: '*Alice sighs* something broke on my end.',
+    } as LoadedPersonality;
+
+    const result = buildSyntheticErrorResult(personality, {
+      requestId: 'req-abc',
+      category: ApiErrorCategory.TIMEOUT,
+      type: ApiErrorType.TRANSIENT,
+      technicalMessage: 'Response timed out',
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.requestId).toBe('req-abc');
+    expect(result.error).toBe('Response timed out');
+    // The persona's own voice is carried so buildErrorContent renders it.
+    expect(result.personalityErrorMessage).toBe('*Alice sighs* something broke on my end.');
+    expect(result.errorInfo).toMatchObject({
+      type: ApiErrorType.TRANSIENT,
+      category: ApiErrorCategory.TIMEOUT,
+      // userMessage is sourced from the shared table, not hand-written.
+      userMessage: USER_ERROR_MESSAGES[ApiErrorCategory.TIMEOUT],
+      technicalMessage: 'Response timed out',
+      referenceId: 'req-abc',
+      // Never auto-retries on a synthesized path — the user re-prompts.
+      shouldRetry: false,
+    });
+  });
+
+  it('leaves personalityErrorMessage undefined when the persona has none (generic fallback path)', () => {
+    const result = buildSyntheticErrorResult(buildPersonality('Bob'), {
+      requestId: 'req-xyz',
+      category: ApiErrorCategory.UNKNOWN,
+      type: ApiErrorType.UNKNOWN,
+      technicalMessage: 'Slot submission failed',
+    });
+
+    expect(result.personalityErrorMessage).toBeUndefined();
+    expect(result.errorInfo?.userMessage).toBe(USER_ERROR_MESSAGES[ApiErrorCategory.UNKNOWN]);
   });
 });
