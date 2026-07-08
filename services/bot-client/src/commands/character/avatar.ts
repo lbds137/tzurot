@@ -87,12 +87,24 @@ async function handleAvatarUpload(
 
   const { userClient } = clientsFor(context.interaction);
 
+  // Read phase gets its own catch: a transient failure while CHECKING the
+  // character must never render the write-uncertain "may still be applying"
+  // copy — nothing has been submitted yet.
+  let character: FetchedCharacter | null;
   try {
-    const character = await fetchEditableCharacter(slug, config, userClient, context);
-    if (!character) {
-      return;
-    }
+    character = await fetchEditableCharacter(slug, config, userClient, context);
+  } catch (error) {
+    logger.error({ err: error, slug }, 'Failed to load character for avatar upload');
+    await context.editReply(
+      renderSpec(classifyGatewayFailure(error, 'character', { operation: 'read' }))
+    );
+    return;
+  }
+  if (!character) {
+    return;
+  }
 
+  try {
     // Download the image with a 30s timeout (pattern matches voice.ts).
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 30_000);
@@ -161,12 +173,21 @@ async function handleAvatarClear(
 
   const { userClient } = clientsFor(context.interaction);
 
+  let character: FetchedCharacter | null;
   try {
-    const character = await fetchEditableCharacter(slug, config, userClient, context);
-    if (!character) {
-      return;
-    }
+    character = await fetchEditableCharacter(slug, config, userClient, context);
+  } catch (error) {
+    logger.error({ err: error, slug }, 'Failed to load character for avatar clear');
+    await context.editReply(
+      renderSpec(classifyGatewayFailure(error, 'character', { operation: 'read' }))
+    );
+    return;
+  }
+  if (!character) {
+    return;
+  }
 
+  try {
     // `clearAvatar: true` is the explicit clear signal — `avatarData: null`
     // means "no change" (dashboard round-trip), so it would silently no-op.
     await updateCharacter(slug, { clearAvatar: true }, userClient, config);

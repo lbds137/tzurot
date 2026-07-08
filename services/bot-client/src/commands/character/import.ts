@@ -18,6 +18,9 @@ import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import type { UserClient } from '@tzurot/clients';
 import { clientsFor } from '../../utils/gatewayClients.js';
+import { CATALOG } from '../../ux/catalog/catalog.js';
+import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
+import { renderSpec } from '../../ux/render/render.js';
 import { validateJsonFile, downloadAndParseJson } from '../../utils/jsonFileUtils.js';
 import { validateDiscordCdnUrl } from '../../utils/discordCdnGuard.js';
 import { processAvatarBuffer } from './avatarUtils.js';
@@ -116,7 +119,11 @@ function validateCharacterData(
   const missingFields = getMissingRequiredFields(data, REQUIRED_IMPORT_FIELDS);
   if (missingFields.length > 0) {
     return {
-      error: `❌ Missing required fields: ${missingFields.join(', ')}\n\n` + buildTemplateMessage(),
+      error: renderSpec(
+        CATALOG.error.validation(
+          `Missing required fields: ${missingFields.join(', ')}\n\n` + buildTemplateMessage()
+        )
+      ),
     };
   }
 
@@ -126,16 +133,20 @@ function validateCharacterData(
   // leading-hyphen result.
   if (!SLUG_PATTERN.test(rawSlug)) {
     return {
-      error:
-        `❌ Invalid slug format in JSON. ${SLUG_REQUIREMENTS_MESSAGE}\n` +
-        `Example: \`${suggestSlugExample(rawSlug)}\``,
+      error: renderSpec(
+        CATALOG.error.validation(
+          `Invalid slug format in JSON. ${SLUG_REQUIREMENTS_MESSAGE}\nExample: \`${suggestSlugExample(rawSlug)}\``
+        )
+      ),
     };
   }
   if (rawSlug.length < SLUG_MIN_LENGTH || rawSlug.length > DISCORD_LIMITS.SLUG_MAX_LENGTH) {
     return {
-      error:
-        `❌ Slug must be ${SLUG_MIN_LENGTH}–${DISCORD_LIMITS.SLUG_MAX_LENGTH} characters ` +
-        `(yours is ${rawSlug.length}).`,
+      error: renderSpec(
+        CATALOG.error.validation(
+          `Slug must be ${SLUG_MIN_LENGTH}–${DISCORD_LIMITS.SLUG_MAX_LENGTH} characters (yours is ${rawSlug.length}).`
+        )
+      ),
     };
   }
 
@@ -201,18 +212,18 @@ async function validateAndProcessAvatar(
   }
   const cdnGuard = validateDiscordCdnUrl(avatar.url, logger);
   if (!cdnGuard.ok) {
-    return { error: '❌ Invalid attachment URL.' };
+    return { error: renderSpec(CATALOG.error.validation('Invalid attachment URL.')) };
   }
   try {
     const rawBuffer = await downloadCdnAttachment(avatar.url);
     const result = await processAvatarBuffer(rawBuffer, avatar.name ?? 'import-avatar');
     if (!result.success) {
-      return { error: `❌ ${result.message}` };
+      return { error: renderSpec(CATALOG.error.validation(result.message)) };
     }
     return { data: result.buffer.toString('base64') };
   } catch (error) {
     logger.error({ err: error }, 'Failed to download avatar');
-    return { error: '❌ Failed to download the image. Please try again.' };
+    return { error: renderSpec(CATALOG.error.operationFailed('download the image')) };
   }
 }
 
@@ -230,14 +241,14 @@ async function validateAndProcessVoice(
   }
   const cdnGuard = validateDiscordCdnUrl(audio.url, logger);
   if (!cdnGuard.ok) {
-    return { error: '❌ Invalid attachment URL.' };
+    return { error: renderSpec(CATALOG.error.validation('Invalid attachment URL.')) };
   }
   try {
     const rawBuffer = await downloadCdnAttachment(audio.url);
     return { data: `data:${audio.contentType};base64,${rawBuffer.toString('base64')}` };
   } catch (error) {
     logger.error({ err: error }, 'Failed to download voice reference');
-    return { error: '❌ Failed to download the audio file. Please try again.' };
+    return { error: renderSpec(CATALOG.error.operationFailed('download the audio file')) };
   }
 }
 
@@ -256,7 +267,9 @@ function validatePayloadFields(payload: Record<string, unknown>): string | null 
     return `• **${field}**: ${issue.message}`;
   });
 
-  return `❌ **Validation errors in import file:**\n${fieldErrors.join('\n')}`;
+  return renderSpec(
+    CATALOG.error.validation(`**Validation errors in import file:**\n${fieldErrors.join('\n')}`)
+  );
 }
 
 // ============================================================================
@@ -359,14 +372,16 @@ async function saveCharacter(
   userClient: UserClient,
   payload: Record<string, unknown>,
   isUpdate: boolean
-): Promise<{ ok: true } | { ok: false; error: string }> {
+): Promise<{ ok: true } | { ok: false; failure: unknown }> {
   const result = isUpdate
     ? await userClient.updatePersonality(slug, payload)
     : await userClient.createPersonality(payload as Parameters<UserClient['createPersonality']>[0]);
 
   if (!result.ok) {
     logger.error({ error: result.error, isUpdate }, 'Failed to import');
-    return { ok: false, error: result.error };
+    // Return the fail-arm itself so the caller can classify honestly (kind
+    // preserved — an import timeout is outcome-uncertain, not "failed").
+    return { ok: false, failure: result };
   }
   return { ok: true };
 }
@@ -469,8 +484,11 @@ export async function handleImport(
     const existingCheck = await checkExistingCharacter(slug, userClient);
     if (existingCheck.exists && !existingCheck.canEdit) {
       await context.editReply(
-        `❌ A character with the slug \`${slug}\` already exists and you don't own it.\n` +
-          'You can only overwrite characters that you own.'
+        renderSpec(
+          CATALOG.error.validation(
+            `A character with the slug \`${slug}\` already exists and you don't own it.\nYou can only overwrite characters that you own.`
+          )
+        )
       );
       return;
     }
@@ -479,8 +497,11 @@ export async function handleImport(
     const saveResult = await saveCharacter(slug, userClient, payload, existingCheck.exists);
     if (!saveResult.ok) {
       await context.editReply(
-        `❌ Failed to ${existingCheck.exists ? 'update' : 'import'} character:\n` +
-          `\`\`\`\n${saveResult.error.slice(0, 1500)}\n\`\`\``
+        renderSpec(
+          classifyGatewayFailure(saveResult.failure, 'character', {
+            failedAction: existingCheck.exists ? 'update the character' : 'import the character',
+          })
+        )
       );
       return;
     }
@@ -496,8 +517,9 @@ export async function handleImport(
   } catch (error) {
     logger.error({ err: error }, 'Error importing character');
     await context.editReply(
-      '❌ An unexpected error occurred while importing the character.\n' +
-        'Check bot logs for details.'
+      renderSpec(
+        classifyGatewayFailure(error, 'character', { failedAction: 'import the character' })
+      )
     );
   }
 }

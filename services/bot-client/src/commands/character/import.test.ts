@@ -181,6 +181,7 @@ function createValidCharacterData(
  */
 function mockCreateScenario(createResponse: {
   ok: boolean;
+  kind?: string;
   data?: unknown;
   error?: string;
   status?: number;
@@ -194,7 +195,7 @@ function mockCreateScenario(createResponse: {
  */
 function mockUpdateScenario(
   canEdit: boolean,
-  updateResponse?: { ok: boolean; data?: unknown; error?: string; status?: number }
+  updateResponse?: { ok: boolean; kind?: string; data?: unknown; error?: string; status?: number }
 ) {
   const getResponse = {
     ok: true,
@@ -683,14 +684,15 @@ describe('handleImport', () => {
       });
       mockCreateScenario({
         ok: false,
+        kind: 'http',
         error: 'Internal server error',
         status: 500,
       });
 
       await handleImport(context, mockConfig);
 
+      // The fail-arm's gateway message is surfaced via the classifier.
       const editReplyArg = (context.editReply as Mock).mock.calls[0][0];
-      expect(editReplyArg).toContain('❌ Failed to import character');
       expect(editReplyArg).toContain('Internal server error');
     });
 
@@ -754,6 +756,42 @@ describe('handleImport', () => {
       expect(stub.createPersonality).toHaveBeenCalledWith(
         expect.objectContaining({ definitionPublic: true })
       );
+    });
+
+    it('surfaces the per-field validation list when the JSON fails the API schema', async () => {
+      const context = createMockContext();
+      // `name` is presence-checked earlier (truthy) but schema-rejected as non-string.
+      const badData = { ...createValidCharacterData(), name: 12345 };
+      mockFetch.mockResolvedValue({
+        ok: true,
+        text: () => Promise.resolve(JSON.stringify(badData)),
+      });
+
+      await handleImport(context, mockConfig);
+
+      const editReplyArg = (context.editReply as Mock).mock.calls[0][0] as string;
+      expect(editReplyArg).toContain('Validation errors in import file');
+      expect(editReplyArg).toContain('name');
+      expect(stub.createPersonality).not.toHaveBeenCalled();
+    });
+
+    it('renders the download-failure line when the voice reference download dies', async () => {
+      const context = createMockContext(undefined, null, {}); // voice attachment present
+      mockFetch.mockImplementation((url: string) => {
+        if (url.includes('voice.wav')) {
+          return Promise.reject(new Error('socket hang up'));
+        }
+        return Promise.resolve({
+          ok: true,
+          text: () => Promise.resolve(JSON.stringify(createValidCharacterData())),
+        });
+      });
+
+      await handleImport(context, mockConfig);
+
+      const editReplyArg = (context.editReply as Mock).mock.calls[0][0] as string;
+      expect(editReplyArg).toContain('Failed to download the audio file');
+      expect(stub.createPersonality).not.toHaveBeenCalled();
     });
 
     it('processes an attached voice reference into the create payload as a data URI', async () => {
@@ -1052,6 +1090,29 @@ describe('handleImport', () => {
   });
 
   describe('unexpected errors', () => {
+    it('renders the outcome-uncertain shape when the create times out (fail-arm kind preserved)', async () => {
+      // The saveCharacter fail-arm change's headline: an import timeout is
+      // outcome-uncertain (the character may have been created) — never the
+      // definitive "failed, try again".
+      const context = createMockContext();
+      mockFetch.mockResolvedValue({
+        ok: true,
+        text: () => Promise.resolve(JSON.stringify(createValidCharacterData())),
+      });
+      mockCreateScenario({
+        ok: false,
+        kind: 'timeout',
+        error: 'Request timed out',
+        status: 0,
+      });
+
+      await handleImport(context, mockConfig);
+
+      const editReplyArg = (context.editReply as Mock).mock.calls[0][0] as string;
+      expect(editReplyArg).toContain('may still be applying');
+      expect(editReplyArg).not.toMatch(/try again/i);
+    });
+
     it('should handle unexpected exceptions gracefully', async () => {
       const context = createMockContext();
       mockFetch.mockResolvedValue({
@@ -1064,8 +1125,7 @@ describe('handleImport', () => {
       await handleImport(context, mockConfig);
 
       expect(context.editReply).toHaveBeenCalledWith(
-        '❌ An unexpected error occurred while importing the character.\n' +
-          'Check bot logs for details.'
+        '❌ Failed to import the character. Please try again.'
       );
     });
   });
@@ -1138,6 +1198,7 @@ describe('handleImport', () => {
       });
       mockUpdateScenario(true, {
         ok: false,
+        kind: 'http',
         error: 'Database error',
         status: 500,
       });
@@ -1145,7 +1206,6 @@ describe('handleImport', () => {
       await handleImport(context, mockConfig);
 
       const editReplyArg = (context.editReply as Mock).mock.calls[0][0];
-      expect(editReplyArg).toContain('❌ Failed to update character');
       expect(editReplyArg).toContain('Database error');
     });
 
@@ -1175,7 +1235,9 @@ describe('handleImport', () => {
       expect(stub.createPersonality).not.toHaveBeenCalled();
       expect(stub.updatePersonality).not.toHaveBeenCalled();
       const editReplyArg = (context.editReply as Mock).mock.calls[0][0];
-      expect(editReplyArg).toContain('unexpected error');
+      // The thrown existence-check error carries the wrapper format, so the
+      // classifier surfaces the gateway's own message — better than a generic.
+      expect(editReplyArg).toContain('Gateway timeout');
     });
   });
 });

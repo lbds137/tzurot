@@ -424,7 +424,9 @@ export async function handleView(
     const { userClient } = clientsFor(context.interaction);
     const character = await fetchCharacterForView(slug, userClient);
     if (!character) {
-      await context.editReply(renderSpec(CATALOG.error.notFound('Character', { name: slug })));
+      await context.editReply(
+        renderSpec(CATALOG.error.notFound('Character', { name: escapeMarkdown(slug) }))
+      );
       return;
     }
 

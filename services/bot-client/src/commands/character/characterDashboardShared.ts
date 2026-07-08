@@ -16,7 +16,7 @@ import type { UserClient } from '@tzurot/clients';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { clientsFor } from '../../utils/gatewayClients.js';
 import { CATALOG } from '../../ux/catalog/catalog.js';
-import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
+import { classifyGatewayFailure, type GatewayResultFailure } from '../../ux/catalog/classify.js';
 import { renderSpec } from '../../ux/render/render.js';
 import {
   type SettingsDashboardConfig,
@@ -34,7 +34,7 @@ export interface CharacterDashboardSpec {
   resolveCascade: (
     userClient: UserClient,
     personalityId: string
-  ) => Promise<{ ok: true; data: ResolvedConfigOverrides } | { ok: false; error: string }>;
+  ) => Promise<{ ok: true; data: ResolvedConfigOverrides } | GatewayResultFailure>;
   /** Error-copy noun — narrowed so a future caller can't typo it silently. */
   noun: 'overrides' | 'settings';
   logger: Logger;
@@ -76,8 +76,8 @@ export async function openCharacterCascadeDashboard(
     const cascadeResult = await resolveCascade(userClient, personality.id);
 
     if (!cascadeResult.ok) {
-      // Log before the generic reply so timeout-vs-5xx-vs-validation
-      // failures stay distinguishable in logs (the user copy stays generic).
+      // Log the raw failure detail; the user copy is classified by kind
+      // (transient vs. surfaced gateway message) but stays terse.
       logger.warn(
         { characterSlug, personalityId: personality.id, error: cascadeResult.error },
         'Cascade resolve failed'

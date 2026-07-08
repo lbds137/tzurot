@@ -22,6 +22,10 @@ const stub: StubUserClient = {
   getPersonality: vi.fn(),
 };
 
+vi.mock('@tzurot/common-types/utils/ownerMiddleware', () => ({
+  isBotOwner: vi.fn().mockReturnValue(false),
+}));
+
 vi.mock('../../utils/gatewayClients.js', () => ({
   clientsFor: vi.fn(() => ({ userClient: stub as unknown as UserClient })),
 }));
@@ -112,6 +116,20 @@ describe('Character Export', () => {
   });
 
   describe('handleExport', () => {
+    it('denies export of a non-owned character (system-voice permission line)', async () => {
+      stub.getPersonality.mockResolvedValue({
+        ok: true,
+        data: { personality: mockCharacterData, canEdit: false },
+      });
+
+      const mockContext = createMockContext();
+      await handleExport(mockContext, mockConfig);
+
+      expect(mockContext.editReply).toHaveBeenCalledWith(
+        expect.stringContaining('You do not have permission to export')
+      );
+    });
+
     it('should export character as JSON attachment', async () => {
       stub.getPersonality.mockResolvedValue({
         ok: true,
@@ -287,7 +305,7 @@ describe('Character Export', () => {
       await handleExport(mockContext, mockConfig);
 
       expect(mockContext.editReply).toHaveBeenCalledWith(
-        '❌ Character `test-character` not found.'
+        '❌ Character "test-character" not found.'
       );
     });
 
@@ -302,13 +320,14 @@ describe('Character Export', () => {
       await handleExport(mockContext, mockConfig);
 
       expect(mockContext.editReply).toHaveBeenCalledWith(
-        "❌ You don't have access to character `test-character`."
+        '❌ You do not have permission to access character `test-character`.'
       );
     });
 
     it('should handle API errors gracefully', async () => {
       stub.getPersonality.mockResolvedValue({
         ok: false,
+        kind: 'http',
         status: 500,
         error: 'Internal server error',
       });
@@ -316,9 +335,8 @@ describe('Character Export', () => {
       const mockContext = createMockContext();
       await handleExport(mockContext, mockConfig);
 
-      expect(mockContext.editReply).toHaveBeenCalledWith(
-        '❌ An unexpected error occurred while exporting the character.'
-      );
+      // The fail-arm's gateway message is surfaced, not a hand-written generic.
+      expect(mockContext.editReply).toHaveBeenCalledWith('❌ Internal server error');
     });
 
     it('should handle network errors gracefully', async () => {
@@ -328,7 +346,7 @@ describe('Character Export', () => {
       await handleExport(mockContext, mockConfig);
 
       expect(mockContext.editReply).toHaveBeenCalledWith(
-        '❌ An unexpected error occurred while exporting the character.'
+        '❌ Failed to export the character. Please try again.'
       );
     });
 
