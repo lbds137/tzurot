@@ -20,6 +20,9 @@ import { clientsFor } from '../../utils/gatewayClients.js';
 import { validateDiscordCdnUrl } from '../../utils/discordCdnGuard.js';
 import { validateImageAttachment } from './mediaValidation.js';
 import { fetchCharacter, updateCharacter, type FetchedCharacter } from './api.js';
+import { CATALOG } from '../../ux/catalog/catalog.js';
+import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
+import { renderSpec } from '../../ux/render/render.js';
 import { processAvatarBuffer } from './avatarUtils.js';
 
 const logger = createLogger('character-avatar');
@@ -37,14 +40,17 @@ async function fetchEditableCharacter(
   const character = await fetchCharacter(slug, config, userClient);
   if (!character) {
     await context.editReply(
-      `❌ Character \`${escapeMarkdown(slug)}\` not found or not accessible.`
+      renderSpec(CATALOG.error.notFound('Character', { name: escapeMarkdown(slug) }))
     );
     return null;
   }
   if (!character.canEdit) {
     await context.editReply(
-      `❌ You don't have permission to edit \`${escapeMarkdown(slug)}\`.\n` +
-        'You can only edit characters you own.'
+      renderSpec(
+        CATALOG.error.permissionDenied(
+          `edit \`${escapeMarkdown(slug)}\` — you can only edit characters you own`
+        )
+      )
     );
     return null;
   }
@@ -75,7 +81,7 @@ async function handleAvatarUpload(
 
   const cdnGuard = validateDiscordCdnUrl(attachment.url, logger);
   if (!cdnGuard.ok) {
-    await context.editReply('❌ Invalid attachment URL.');
+    await context.editReply(renderSpec(CATALOG.error.validation('Invalid attachment URL.')));
     return;
   }
 
@@ -96,7 +102,9 @@ async function handleAvatarUpload(
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
         await context.editReply(
-          '❌ Avatar download timed out. Discord may be slow — please try again.'
+          renderSpec(
+            CATALOG.error.userRetryable('Avatar download timed out — Discord may be slow.')
+          )
         );
         return;
       }
@@ -105,7 +113,7 @@ async function handleAvatarUpload(
       clearTimeout(timeout);
     }
     if (!imageResponse.ok) {
-      await context.editReply('❌ Failed to download the image. Please try again.');
+      await context.editReply(renderSpec(CATALOG.error.operationFailed('download the image')));
       return;
     }
 
@@ -114,7 +122,7 @@ async function handleAvatarUpload(
     // Process avatar (resize if needed)
     const result = await processAvatarBuffer(rawBuffer, slug);
     if (!result.success) {
-      await context.editReply(`❌ ${result.message}`);
+      await context.editReply(renderSpec(CATALOG.error.validation(result.message)));
       return;
     }
 
@@ -128,7 +136,11 @@ async function handleAvatarUpload(
     logger.info({ slug, userId }, 'Character avatar updated');
   } catch (error) {
     logger.error({ err: error, slug }, 'Failed to update avatar');
-    await context.editReply('❌ Failed to update avatar. Please try again.');
+    // Gateway write — a timeout is outcome-uncertain; the classifier renders
+    // the honest shape instead of a blanket "try again".
+    await context.editReply(
+      renderSpec(classifyGatewayFailure(error, 'avatar', { failedAction: 'update the avatar' }))
+    );
   }
 }
 
@@ -166,7 +178,9 @@ async function handleAvatarClear(
     logger.info({ slug, userId }, 'Character avatar cleared');
   } catch (error) {
     logger.error({ err: error, slug }, 'Failed to clear avatar');
-    await context.editReply('❌ Failed to clear avatar. Please try again.');
+    await context.editReply(
+      renderSpec(classifyGatewayFailure(error, 'avatar', { failedAction: 'clear the avatar' }))
+    );
   }
 }
 
@@ -186,6 +200,6 @@ export async function handleAvatar(
     await handleAvatarClear(context, config);
   } else {
     logger.warn({ subcommand }, 'Unexpected avatar subcommand');
-    await context.editReply('❌ Unknown avatar command.');
+    await context.editReply(renderSpec(CATALOG.error.validation('Unknown avatar command.')));
   }
 }

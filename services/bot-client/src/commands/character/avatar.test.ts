@@ -190,7 +190,7 @@ describe('Character Avatar Handler', () => {
       await handleAvatar(mockContext, mockConfig);
 
       expect(mockContext.editReply).toHaveBeenCalledWith(
-        expect.stringContaining("don't have permission")
+        expect.stringContaining('do not have permission')
       );
     });
 
@@ -237,7 +237,7 @@ describe('Character Avatar Handler', () => {
       // Not the timeout-specific message — must fall through to outer catch.
       expect(mockContext.editReply).not.toHaveBeenCalledWith(expect.stringContaining('timed out'));
       expect(mockContext.editReply).toHaveBeenCalledWith(
-        expect.stringContaining('Failed to update avatar')
+        expect.stringContaining('Failed to update the avatar')
       );
       expect(api.updateCharacter).not.toHaveBeenCalled();
     });
@@ -285,7 +285,7 @@ describe('Character Avatar Handler', () => {
       await handleAvatar(mockContext, mockConfig);
 
       expect(mockContext.editReply).toHaveBeenCalledWith(
-        expect.stringContaining('Failed to update avatar')
+        expect.stringContaining('Failed to update the avatar')
       );
     });
   });
@@ -321,7 +321,7 @@ describe('Character Avatar Handler', () => {
 
       expect(api.updateCharacter).not.toHaveBeenCalled();
       expect(mockContext.editReply).toHaveBeenCalledWith(
-        expect.stringContaining("don't have permission")
+        expect.stringContaining('do not have permission')
       );
     });
   });
