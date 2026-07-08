@@ -5,6 +5,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { LLMInvoker } from './LLMInvoker.js';
 import { RetryError } from '../utils/retry.js';
+import { classifyQuotaFailure } from './quotaFallback.js';
 import { type BaseMessage, HumanMessage, SystemMessage } from '@langchain/core/messages';
 import { type BaseChatModel } from '@langchain/core/language_models/chat_models';
 import {
@@ -238,6 +239,39 @@ describe('LLMInvoker', () => {
           getErrorContext: expect.any(Function),
         })
       );
+    });
+
+    it('the 429-storm terminal error classifies quota even when the LAST attempt aborted', async () => {
+      // The masked-as-timeout prod shape: an early attempt sees a clean 429
+      // (the CAUSE), the final attempt dies of the per-attempt abort (the
+      // SYMPTOM). The thrown RetryError must carry the 429 as lastError so
+      // classifyQuotaFailure fires the reactive retarget downstream.
+      vi.useFakeTimers();
+
+      const rateLimited = new Error('429 Too Many Requests: rate limit exceeded');
+      const aborted = Object.assign(new Error('Request was aborted.'), { name: 'AbortError' });
+      const mockModel = {
+        invoke: vi
+          .fn()
+          .mockRejectedValueOnce(rateLimited)
+          .mockRejectedValueOnce(aborted)
+          .mockRejectedValueOnce(aborted),
+      } as any as BaseChatModel;
+
+      const promise = invoker.invokeWithRetry({
+        model: mockModel,
+        messages: [new HumanMessage('Hello')],
+        modelName: 'test-model',
+      });
+      const assertion = expect(promise).rejects.toThrow(RetryError);
+      await vi.runAllTimersAsync();
+      await assertion;
+
+      const thrown = (await promise.catch((e: unknown) => e)) as RetryError;
+      expect(thrown.lastError).toBe(rateLimited);
+      expect(classifyQuotaFailure(thrown)).toBe(ApiErrorCategory.RATE_LIMIT);
+
+      vi.useRealTimers();
     });
 
     it('should retry on transient ECONNRESET error', async () => {

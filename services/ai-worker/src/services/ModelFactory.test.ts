@@ -120,6 +120,15 @@ describe('ModelFactory', () => {
       );
     });
 
+    it('disables SDK-internal retries so 429s surface to the LLMInvoker ladder immediately', () => {
+      // During a free-pool 429 storm the SDK's own retry loop absorbed 429s
+      // inside the per-attempt budget until OUR abort fired — the failure then
+      // classified TIMEOUT and bypassed the quota retarget.
+      createChatModel({ modelName: 'test-model', apiKey: 'k' });
+
+      expect(mockChatOpenAI).toHaveBeenCalledWith(expect.objectContaining({ maxRetries: 0 }));
+    });
+
     it('should always set __includeRawResponse:true so the OpenRouter reasoning extractor has access to the raw API response', () => {
       // Required for extractAndPopulateOpenRouterReasoning() in LLMInvoker to read
       // additional_kwargs.__raw_response. If this assertion ever fails, also check
@@ -1055,6 +1064,8 @@ describe('ModelFactory', () => {
           modelName: 'glm-4.7',
           apiKey: 'zai-user-key',
           temperature: 0.7,
+          // SDK-internal retries off here too — retries belong to the ladder.
+          maxRetries: 0,
           configuration: expect.objectContaining({
             baseURL: 'https://api.z.ai/api/coding/paas/v4',
           }),

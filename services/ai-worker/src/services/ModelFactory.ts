@@ -391,6 +391,14 @@ function buildOpenRouterModel(
       frequencyPenalty: shared.frequencyPenalty,
       presencePenalty: shared.presencePenalty,
       maxTokens: shared.maxTokens,
+      // No SDK-internal retries: during a free-pool 429 storm the SDK's own
+      // retry loop honors Retry-After and silently absorbs 429s inside the
+      // per-attempt timeout budget until OUR abort kills the attempt — the
+      // failure then classifies TIMEOUT, masking the true rate_limit category
+      // and bypassing the quota retarget (runtime-confirmed: a 534s burn of
+      // back-to-back 429s that died as "Request was aborted"). LLMInvoker's
+      // ladder owns retries; a 429 must surface to it immediately.
+      maxRetries: 0,
       modelKwargs: shared.hasModelKwargs ? shared.modelKwargs : undefined,
       configuration: buildOpenRouterClientConfig(extraParams, needsCustomFetch),
       // Surfaces the raw OpenRouter response under additional_kwargs.__raw_response,
@@ -440,6 +448,9 @@ function buildZaiCodingModel(
       apiKey,
       temperature: shared.temperature,
       topP: shared.topP,
+      // Same rationale as the OpenRouter build: retries belong to LLMInvoker's
+      // ladder, not the SDK (429 masking + budget burn).
+      maxRetries: 0,
       // frequencyPenalty / presencePenalty intentionally excluded:
       // z.ai's chat-completion API returns 400 "Invalid API parameter" (code
       // 1210) for both. filterRestrictedParams strips them in `shared` before

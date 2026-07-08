@@ -46,6 +46,15 @@ interface RetryOptions {
    * `attempts`, and `totalTimeMs` are overridden by the retry infrastructure.
    */
   getErrorContext?: (error: unknown) => Record<string, unknown>;
+  /**
+   * When set, the exhaustion RetryError carries the most recent attempt error
+   * for which this returned true as `lastError`, instead of the literal last.
+   * Why: downstream classification keys off `lastError`, and the LAST attempt
+   * can die of a symptom (a per-attempt abort during a 429 storm classifies
+   * TIMEOUT) while an earlier attempt saw the true cause (RATE_LIMIT) — the
+   * cause must win or the quota retarget never fires. Must not throw.
+   */
+  preferTerminalError?: (error: unknown) => boolean;
 }
 
 /**
@@ -244,13 +253,23 @@ export async function withRetry<T>(
     operationName = 'operation',
     shouldRetry,
     getErrorContext,
+    preferTerminalError,
   } = options;
 
   const startTime = Date.now();
   let lastError: unknown;
+  let preferredError: unknown;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    checkGlobalTimeout({ globalTimeoutMs, startTime, attempt, operationName, lastError, logger });
+    checkGlobalTimeout({
+      globalTimeoutMs,
+      startTime,
+      attempt,
+      operationName,
+      // Same cause-over-symptom preference as the exhaustion path.
+      lastError: preferredError ?? lastError,
+      logger,
+    });
     const attemptStartTime = Date.now();
 
     try {
@@ -270,6 +289,13 @@ export async function withRetry<T>(
       return { value, attempts: attempt, totalTimeMs };
     } catch (error) {
       lastError = error;
+      try {
+        if (preferTerminalError?.(error) === true) {
+          preferredError = error;
+        }
+      } catch {
+        // Classifier callbacks must not break the retry machinery.
+      }
       const durationMs = Date.now() - attemptStartTime;
       checkRetryableError({
         error,
@@ -306,12 +332,19 @@ export async function withRetry<T>(
   }
 
   const totalTimeMs = Date.now() - startTime;
+  // The preferred (cause) error wins over the literal last (symptom) — see
+  // preferTerminalError's doc.
+  const terminalError = preferredError ?? lastError;
   const error = new RetryError(
     `${operationName} failed after ${maxAttempts} attempts`,
     maxAttempts,
-    lastError
+    terminalError
   );
-  const exhaustionContext = safeGetErrorContext(getErrorContext, lastError, logger);
+  // Log the TERMINAL (cause) error's context, not the literal last attempt's —
+  // the exhaustion log's errorCategory/statusCode is exactly the field prod
+  // debugging reads, and a masked-429 must report RATE_LIMIT here, not the
+  // abort's TIMEOUT (the observability half of this fix).
+  const exhaustionContext = safeGetErrorContext(getErrorContext, terminalError, logger);
   logger?.error(
     { ...exhaustionContext, err: error, operationName, attempts: maxAttempts, totalTimeMs },
     `[Retry] ${operationName} exhausted all retry attempts`

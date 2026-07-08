@@ -89,6 +89,94 @@ describe('retryService', () => {
       expect(mockLogger.error).toHaveBeenCalled();
     });
 
+    it('carries the PREFERRED attempt error as lastError over the literal last (cause beats symptom)', async () => {
+      // The 429-storm shape: attempt 1 sees the true cause (rate limit),
+      // the final attempt dies of the per-attempt abort (timeout). Downstream
+      // classification keys off lastError — the cause must win or the quota
+      // retarget never fires.
+      const rateLimited = new Error('429 Too Many Requests');
+      const aborted = new Error('Request was aborted.');
+      const fn = vi
+        .fn()
+        .mockRejectedValueOnce(rateLimited)
+        .mockRejectedValueOnce(aborted)
+        .mockRejectedValueOnce(aborted);
+
+      const promise = withRetry(fn, {
+        maxAttempts: 3,
+        initialDelayMs: 100,
+        logger: mockLogger,
+        preferTerminalError: error => error === rateLimited,
+      });
+      const assertionPromise = expect(promise).rejects.toThrow(RetryError);
+      await vi.runAllTimersAsync();
+      await assertionPromise;
+
+      const thrown = (await promise.catch((e: unknown) => e)) as RetryError;
+      expect(thrown.lastError).toBe(rateLimited);
+    });
+
+    it('logs the PREFERRED error context at exhaustion (observability must not re-mask the cause)', async () => {
+      // The incident was root-caused by reading the exhaustion log's category;
+      // if it still shows the abort's TIMEOUT while the thrown error says
+      // RATE_LIMIT, the next prod debugger is misled the same way.
+      const rateLimited = new Error('429 rate limited');
+      const aborted = new Error('Request was aborted.');
+      const fn = vi.fn().mockRejectedValueOnce(rateLimited).mockRejectedValueOnce(aborted);
+
+      const promise = withRetry(fn, {
+        maxAttempts: 2,
+        initialDelayMs: 100,
+        logger: mockLogger,
+        preferTerminalError: error => error === rateLimited,
+        getErrorContext: error => ({ category: (error as Error).message }),
+      });
+      const assertionPromise = expect(promise).rejects.toThrow(RetryError);
+      await vi.runAllTimersAsync();
+      await assertionPromise;
+
+      // The exhaustion error-level log carries the preferred (cause) context.
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        expect.objectContaining({ category: '429 rate limited' }),
+        expect.stringContaining('exhausted all retry attempts')
+      );
+    });
+
+    it('falls back to the literal last error when no attempt matches the preference', async () => {
+      const aborted = new Error('Request was aborted.');
+      const fn = vi.fn().mockRejectedValue(aborted);
+
+      const promise = withRetry(fn, {
+        maxAttempts: 2,
+        initialDelayMs: 100,
+        logger: mockLogger,
+        preferTerminalError: () => false,
+      });
+      const assertionPromise = expect(promise).rejects.toThrow(RetryError);
+      await vi.runAllTimersAsync();
+      await assertionPromise;
+
+      const thrown = (await promise.catch((e: unknown) => e)) as RetryError;
+      expect(thrown.lastError).toBe(aborted);
+    });
+
+    it('a throwing preferTerminalError callback never breaks the retry machinery', async () => {
+      const fn = vi.fn().mockRejectedValue(new Error('boom'));
+
+      const promise = withRetry(fn, {
+        maxAttempts: 2,
+        initialDelayMs: 100,
+        logger: mockLogger,
+        preferTerminalError: () => {
+          throw new Error('classifier exploded');
+        },
+      });
+      const assertionPromise = expect(promise).rejects.toThrow(RetryError);
+      await vi.runAllTimersAsync();
+      await assertionPromise;
+      expect(fn).toHaveBeenCalledTimes(2);
+    });
+
     it('should include getErrorContext in exhaustion error log', async () => {
       const error = new Error('Persistent failure');
       const fn = vi.fn().mockRejectedValue(error);
