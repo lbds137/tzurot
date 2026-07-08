@@ -231,19 +231,17 @@ function createServices(): Services {
   const voiceTranscription = new VoiceTranscriptionService();
   const replyResolver = new ReplyResolutionService(routingPersonalityLoader);
 
+  // Shared per-slot delivery (MessageHandler, MultiTagCoordinator, and the
+  // chat pipeline's in-character error delivery). Built before the pipeline.
+  const slotDelivery = new SlotDeliveryService({ responseSender, persistence });
+
   // Personality chat pipeline (manager + Discord-shape adapter).
   const { personalityChatManager, personalityHandler } = buildPersonalityChatPipeline({
     contextBuilder,
     persistence,
     denylistCache,
     jobTracker,
-  });
-
-  // Shared per-slot delivery (used by single-job MessageHandler and
-  // multi-tag MultiTagCoordinator).
-  const slotDelivery = new SlotDeliveryService({
-    responseSender,
-    persistence,
+    slotDelivery,
   });
 
   // BullMQ Queue handle for MultiTagRecovery's state polling. Constructed

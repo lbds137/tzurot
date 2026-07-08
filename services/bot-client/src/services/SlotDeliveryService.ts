@@ -62,6 +62,17 @@ export interface SlotDeliveryContext {
   recipientUserId: string;
 }
 
+/**
+ * The subset of `SlotDeliveryContext` needed to send an in-character error
+ * via the webhook + reply-fallback, WITHOUT the fields (`personaId`,
+ * `userMessageTime`, etc.) that only the history-persistence step consumes.
+ * Used by `deliverErrorNoPersist` for the submit-failure path.
+ */
+export type EphemeralErrorContext = Pick<
+  SlotDeliveryContext,
+  'message' | 'channel' | 'guildId' | 'clientId' | 'personality' | 'isAutoResponse'
+>;
+
 export interface SlotDeliveryServiceDeps {
   responseSender: DiscordResponseSender;
   persistence: ConversationPersistence;
@@ -185,33 +196,9 @@ export class SlotDeliveryService {
     result: LLMGenerationResult,
     slot: SlotDeliveryContext
   ): Promise<void> {
-    let chunkMessageIds: string[];
-    try {
-      const sendResult = await this.responseSender.sendResponse({
-        content: errorContent,
-        personality: slot.personality,
-        channel: slot.channel,
-        guildId: slot.guildId,
-        clientId: slot.clientId,
-        modelUsed: result.metadata?.modelUsed,
-        providerUsed: result.metadata?.providerUsed,
-        fallbackProviderAttempted: result.metadata?.fallbackProviderAttempted,
-        quotaFallback: result.metadata?.quotaFallback,
-        isGuestMode: result.metadata?.isGuestMode,
-        isAutoResponse: slot.isAutoResponse,
-        focusModeEnabled: result.metadata?.focusModeEnabled,
-        incognitoModeActive: result.metadata?.incognitoModeActive,
-        showModelFooter: result.metadata?.showModelFooter,
-      });
-      chunkMessageIds = sendResult.chunkMessageIds;
-    } catch (sendError) {
-      logger.error(
-        { err: sendError, personalityId: slot.personality.id },
-        'Failed to send error via webhook, falling back to reply'
-      );
-      await slot.message.reply(errorContent).catch(() => {
-        // Already logged the webhook error; ignore reply failure to avoid noise.
-      });
+    const chunkMessageIds = await this.sendErrorViaWebhook(errorContent, result, slot);
+    if (chunkMessageIds === null) {
+      // Webhook failed and the reply-fallback already ran (or also failed).
       return;
     }
 
@@ -233,6 +220,73 @@ export class SlotDeliveryService {
       );
     }
 
+    this.updateErrorDiagnostics(result, chunkMessageIds);
+  }
+
+  /**
+   * Deliver an in-character error line WITHOUT persisting a conversation turn.
+   *
+   * Used by the multi-tag submit-failure path (`MultiTagCoordinator`'s
+   * all-errored branch): the character's `submitChatJob` threw before any
+   * user/assistant turn was created, so there is no conversation turn to
+   * attribute — fabricating a `saveAssistantMessage` entry (which needs a
+   * `personaId` this path never resolved) would record a turn that never
+   * happened. The error line still goes out the webhook as the character.
+   */
+  async deliverErrorNoPersist(
+    errorContent: string,
+    result: LLMGenerationResult,
+    slot: EphemeralErrorContext
+  ): Promise<void> {
+    // No diagnostic-ID update here: a submit-failure never created an AI
+    // response row (its `requestId` is the Discord message ID, not a job ID),
+    // so `updateDiagnosticResponseIds` would be a guaranteed server-side miss +
+    // a warn on every in-character error delivery. The webhook send is the
+    // whole job on this path.
+    await this.sendErrorViaWebhook(errorContent, result, slot);
+  }
+
+  /**
+   * Shared webhook send + reply-fallback for both error-delivery paths.
+   * Returns the sent chunk IDs on webhook success, or `null` if the webhook
+   * threw (in which case the plain-reply fallback has already been attempted).
+   */
+  private async sendErrorViaWebhook(
+    errorContent: string,
+    result: LLMGenerationResult,
+    slot: EphemeralErrorContext
+  ): Promise<string[] | null> {
+    try {
+      const sendResult = await this.responseSender.sendResponse({
+        content: errorContent,
+        personality: slot.personality,
+        channel: slot.channel,
+        guildId: slot.guildId,
+        clientId: slot.clientId,
+        modelUsed: result.metadata?.modelUsed,
+        providerUsed: result.metadata?.providerUsed,
+        fallbackProviderAttempted: result.metadata?.fallbackProviderAttempted,
+        quotaFallback: result.metadata?.quotaFallback,
+        isGuestMode: result.metadata?.isGuestMode,
+        isAutoResponse: slot.isAutoResponse,
+        focusModeEnabled: result.metadata?.focusModeEnabled,
+        incognitoModeActive: result.metadata?.incognitoModeActive,
+        showModelFooter: result.metadata?.showModelFooter,
+      });
+      return sendResult.chunkMessageIds;
+    } catch (sendError) {
+      logger.error(
+        { err: sendError, personalityId: slot.personality.id },
+        'Failed to send error via webhook, falling back to reply'
+      );
+      await slot.message.reply(errorContent).catch(() => {
+        // Already logged the webhook error; ignore reply failure to avoid noise.
+      });
+      return null;
+    }
+  }
+
+  private updateErrorDiagnostics(result: LLMGenerationResult, chunkMessageIds: string[]): void {
     if (chunkMessageIds.length > 0) {
       void updateDiagnosticResponseIds(result.requestId, chunkMessageIds).catch(err => {
         logger.warn({ err }, 'Failed to update diagnostic response IDs for error');

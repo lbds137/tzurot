@@ -243,4 +243,40 @@ describe('SlotDeliveryService', () => {
       expect(slot.message.reply).not.toHaveBeenCalled();
     });
   });
+
+  describe('deliverErrorNoPersist', () => {
+    const failResult = {
+      requestId: 'req-1',
+      success: false,
+      error: 'thing broke',
+    } as LLMGenerationResult;
+
+    it('sends the error via webhook in-character but does NOT persist a conversation turn', async () => {
+      // The submit-failure path (multi-tag all-errored) never created a turn,
+      // so persisting an assistant message would fabricate history.
+      const slot = buildSlotContext();
+
+      await service.deliverErrorNoPersist('In-character error', failResult, slot);
+
+      expect(responseSender.sendResponse).toHaveBeenCalledWith(
+        expect.objectContaining({
+          content: 'In-character error',
+          personality: slot.personality,
+          isAutoResponse: slot.isAutoResponse,
+        })
+      );
+      // The distinguishing behavior: NO history persistence.
+      expect(persistence.saveAssistantMessage).not.toHaveBeenCalled();
+    });
+
+    it('falls back to message.reply when the webhook send fails', async () => {
+      responseSender.sendResponse.mockRejectedValue(new Error('webhook 500'));
+      const slot = buildSlotContext();
+
+      await service.deliverErrorNoPersist('In-character error', failResult, slot);
+
+      expect(slot.message.reply).toHaveBeenCalledWith('In-character error');
+      expect(persistence.saveAssistantMessage).not.toHaveBeenCalled();
+    });
+  });
 });

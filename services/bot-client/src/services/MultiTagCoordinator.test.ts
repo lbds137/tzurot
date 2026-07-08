@@ -20,11 +20,16 @@ import {
   type RuntimeEntry,
 } from './MultiTagCoordinator.js';
 import type { ResolvedSlot } from './SlotResolver.js';
+import { SlotDeliveryService } from './SlotDeliveryService.js';
+import type { DiscordResponseSender } from './DiscordResponseSender.js';
+import type { ConversationPersistence } from './ConversationPersistence.js';
 import { confirmDelivery, setDmSessionPersonality } from '../utils/gatewayServiceCalls.js';
 
 vi.mock('../utils/gatewayServiceCalls.js', () => ({
   confirmDelivery: vi.fn(),
   setDmSessionPersonality: vi.fn(),
+  // Called by the REAL SlotDeliveryService in the all-errored wiring test below.
+  updateDiagnosticResponseIds: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock('@tzurot/common-types/utils/logger', async () => {
@@ -88,6 +93,7 @@ describe('MultiTagCoordinator', () => {
   let slotDelivery: {
     deliverSuccess: ReturnType<typeof vi.fn>;
     deliverError: ReturnType<typeof vi.fn>;
+    deliverErrorNoPersist: ReturnType<typeof vi.fn>;
   };
   let persistence: {
     putEntry: ReturnType<typeof vi.fn>;
@@ -119,6 +125,7 @@ describe('MultiTagCoordinator', () => {
     slotDelivery = {
       deliverSuccess: vi.fn().mockResolvedValue({ chunkMessageIds: ['x'] }),
       deliverError: vi.fn().mockResolvedValue(undefined),
+      deliverErrorNoPersist: vi.fn().mockResolvedValue(undefined),
     };
     persistence = {
       putEntry: vi.fn().mockResolvedValue(undefined),
@@ -249,38 +256,14 @@ describe('MultiTagCoordinator', () => {
       );
     });
 
-    it('sends the try-again notice — not "unavailable" — when a slot fails with an infra error', async () => {
+    it('delivers each errored character in-character (webhook), not a single system notice', async () => {
       const msg = buildMessage();
-      // submitSlot catches the throw and synthesizes an 'errored' (not 'denied')
-      // slot; the all-denied notice must blame the backend, not the character.
+      // submitSlot catches the throw and synthesizes an 'errored' slot carrying
+      // the personality + a synthetic result — the character speaks its own
+      // error line via the webhook, never a bot-voice "something's slow" reply.
       chatManager.submitChatJob.mockRejectedValue(
         new Error('User-message persist failed via gateway: 0 Request timeout')
       );
-
-      await coordinator.startFanOut({
-        message: msg,
-        channel: buildChannel(),
-        slots: [buildResolvedSlot(buildPersonality('Alice'))],
-        content: 'hi',
-        truncated: false,
-      });
-
-      expect(vi.mocked(msg.reply)).toHaveBeenCalledWith(
-        expect.stringContaining("something's slow on our end")
-      );
-      expect(vi.mocked(msg.reply)).not.toHaveBeenCalledWith(
-        expect.stringContaining('currently available')
-      );
-    });
-
-    it('prefers the try-again notice when any slot errored, even alongside a genuine denial', async () => {
-      const msg = buildMessage();
-      chatManager.submitChatJob.mockImplementation(async ({ personality }) => {
-        if (personality.id === 'id-Alice') {
-          throw new Error('gateway timeout');
-        }
-        return { kind: 'denied', reason: 'denylist' };
-      });
 
       await coordinator.startFanOut({
         message: msg,
@@ -293,9 +276,41 @@ describe('MultiTagCoordinator', () => {
         truncated: false,
       });
 
-      expect(vi.mocked(msg.reply)).toHaveBeenCalledWith(
-        expect.stringContaining("something's slow on our end")
+      // Per-persona in-character delivery — one no-persist webhook call each.
+      expect(slotDelivery.deliverErrorNoPersist).toHaveBeenCalledTimes(2);
+      const deliveredPersonalities = slotDelivery.deliverErrorNoPersist.mock.calls.map(
+        c => c[2].personality.id
       );
+      expect(deliveredPersonalities).toEqual(expect.arrayContaining(['id-Alice', 'id-Bob']));
+      // No single bot-voice system notice.
+      expect(vi.mocked(msg.reply)).not.toHaveBeenCalled();
+    });
+
+    it('errored speak in-character; denied stay silent (mixed batch)', async () => {
+      const msg = buildMessage();
+      chatManager.submitChatJob.mockImplementation(async ({ personality }) => {
+        if (personality.id === 'id-Alice') {
+          throw new Error('gateway timeout');
+        }
+        return { kind: 'denied', reason: 'denylist' };
+      });
+
+      await coordinator.startFanOut({
+        message: msg,
+        channel: buildChannel(),
+        slots: [
+          buildResolvedSlot(buildPersonality('Alice')), // errored → speaks
+          buildResolvedSlot(buildPersonality('Bob')), // denied → silent
+        ],
+        content: 'hi',
+        truncated: false,
+      });
+
+      // Only the errored character delivers; the denied one is silent.
+      expect(slotDelivery.deliverErrorNoPersist).toHaveBeenCalledTimes(1);
+      expect(slotDelivery.deliverErrorNoPersist.mock.calls[0][2].personality.id).toBe('id-Alice');
+      // No all-denied system notice (an errored slot was present).
+      expect(vi.mocked(msg.reply)).not.toHaveBeenCalled();
     });
 
     it('refuses fan-out after shutdown begins', async () => {
@@ -811,5 +826,83 @@ describe('MultiTagCoordinator', () => {
       // Group flushed immediately via deliverGroup → deliverSuccess called
       expect(slotDelivery.deliverSuccess).toHaveBeenCalledOnce();
     });
+  });
+});
+
+/**
+ * Wiring/seam test (per 02-code-standards rule 7): runs the REAL
+ * coordinator → REAL SlotDeliveryService chain for the all-errored path,
+ * mocking ONLY the external boundary (the webhook `responseSender` + the
+ * history `persistence`). The per-dep-mocked unit tests above assert the
+ * coordinator calls `deliverErrorNoPersist` with the right shape; this proves
+ * that shape actually reaches the webhook per-persona, in-character, with no
+ * fabricated history entry.
+ */
+describe('MultiTagCoordinator — all-errored in-character delivery (real chain)', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.clearAllMocks();
+    vi.mocked(confirmDelivery).mockResolvedValue(undefined);
+    vi.mocked(setDmSessionPersonality).mockResolvedValue(undefined);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('each errored character reaches the webhook once, in-character, with no history persist and no double reply', async () => {
+    const sendResponse = vi.fn().mockResolvedValue({ chunkMessageIds: ['c1'] });
+    const saveAssistantMessage = vi.fn().mockResolvedValue(undefined);
+
+    // REAL delivery service — only the webhook + persistence boundary is mocked.
+    const realSlotDelivery = new SlotDeliveryService({
+      responseSender: { sendResponse } as unknown as DiscordResponseSender,
+      persistence: { saveAssistantMessage } as unknown as ConversationPersistence,
+    });
+
+    const chatManager = {
+      // Every submission throws → every slot errors.
+      submitChatJob: vi.fn().mockRejectedValue(new Error('gateway timeout')),
+    };
+    const coordinator = new MultiTagCoordinator({
+      chatManager: chatManager as unknown as MultiTagCoordinatorDeps['chatManager'],
+      jobTracker: {
+        trackJob: vi.fn(),
+        completeJob: vi.fn(),
+      } as unknown as MultiTagCoordinatorDeps['jobTracker'],
+      orderingService: {
+        registerJob: vi.fn(),
+        handleResult: vi.fn(),
+      } as unknown as MultiTagCoordinatorDeps['orderingService'],
+      slotDelivery: realSlotDelivery,
+      persistence: {
+        putEntry: vi.fn(),
+      } as unknown as MultiTagCoordinatorDeps['persistence'],
+    });
+
+    const msg = buildMessage();
+    await coordinator.startFanOut({
+      message: msg,
+      channel: buildChannel(),
+      slots: [
+        buildResolvedSlot(buildPersonality('Alice')),
+        buildResolvedSlot(buildPersonality('Bob')),
+      ],
+      content: 'hi',
+      truncated: false,
+    });
+
+    // Each errored character reached the webhook exactly once, in its own voice.
+    expect(sendResponse).toHaveBeenCalledTimes(2);
+    const sentPersonalityIds = sendResponse.mock.calls.map(c => c[0].personality.id);
+    expect(sentPersonalityIds).toEqual(expect.arrayContaining(['id-Alice', 'id-Bob']));
+    // No raw error leaked into the sent content.
+    for (const [payload] of sendResponse.mock.calls) {
+      expect(payload.content).not.toContain('gateway timeout');
+    }
+    // No fabricated conversation turn (submit failed before any turn existed).
+    expect(saveAssistantMessage).not.toHaveBeenCalled();
+    // No single bot-voice system notice.
+    expect(vi.mocked(msg.reply)).not.toHaveBeenCalled();
   });
 });
