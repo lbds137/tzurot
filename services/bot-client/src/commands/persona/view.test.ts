@@ -68,7 +68,7 @@ describe('handleViewPersona', () => {
     await handleViewPersona(createMockContext());
 
     expect(mockEditReply).toHaveBeenCalledWith({
-      content: expect.stringContaining("don't have a persona"),
+      content: expect.stringContaining('Persona not found. Use `/persona edit` to create one!'),
     });
   });
 
@@ -85,7 +85,7 @@ describe('handleViewPersona', () => {
     await handleViewPersona(createMockContext());
 
     expect(mockEditReply).toHaveBeenCalledWith({
-      content: expect.stringContaining("don't have a default persona"),
+      content: expect.stringContaining('Default persona not found'),
     });
   });
 
@@ -127,7 +127,7 @@ describe('handleViewPersona', () => {
     await handleViewPersona(createMockContext());
 
     expect(mockEditReply).toHaveBeenCalledWith({
-      content: expect.stringContaining('Failed to retrieve'),
+      content: expect.stringContaining("Couldn't load your persona"),
     });
   });
 
@@ -137,7 +137,7 @@ describe('handleViewPersona', () => {
     await handleViewPersona(createMockContext());
 
     expect(mockEditReply).toHaveBeenCalledWith({
-      content: expect.stringContaining('Failed to retrieve'),
+      content: expect.stringContaining("Couldn't load your persona"),
     });
   });
 
@@ -177,7 +177,7 @@ describe('handleViewPersona', () => {
     await handleViewPersona(createMockContext());
 
     expect(mockEditReply).toHaveBeenCalledWith({
-      content: expect.stringContaining('Failed to retrieve'),
+      content: expect.stringContaining("Couldn't load your persona"),
     });
   });
 });
@@ -301,7 +301,7 @@ describe('handleExpandContent', () => {
     await handleExpandContent(createMockButtonInteraction(), TEST_PERSONA_ID, 'content');
 
     expect(mockEditReply).toHaveBeenCalledWith({
-      content: expect.stringContaining('Failed to load'),
+      content: expect.stringContaining('Failed to load the persona content'),
     });
   });
 });

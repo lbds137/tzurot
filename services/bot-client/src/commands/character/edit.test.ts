@@ -131,7 +131,7 @@ describe('Character Edit Handler', () => {
       await handleEdit(mockContext, mockConfig);
 
       expect(mockContext.editReply).toHaveBeenCalledWith({
-        content: expect.stringContaining("don't have permission"),
+        content: expect.stringContaining('do not have permission'),
       });
     });
 
@@ -187,7 +187,7 @@ describe('Character Edit Handler', () => {
       await handleEdit(mockContext, mockConfig);
 
       expect(mockContext.editReply).toHaveBeenCalledWith({
-        content: expect.stringContaining('Failed to load character'),
+        content: expect.stringContaining('Failed to load the character'),
       });
     });
   });

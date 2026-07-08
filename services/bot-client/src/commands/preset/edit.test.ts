@@ -160,7 +160,7 @@ describe('handleEdit', () => {
 
     expect(mockEditReply).toHaveBeenCalledWith({
       content:
-        '❌ You can only edit your own presets.\n' +
+        '❌ You do not have permission to edit presets you do not own.\n' +
         'Use `/preset create` to create a copy of this preset.',
     });
     expect(mockBuildDashboardEmbed).not.toHaveBeenCalled();
@@ -179,7 +179,7 @@ describe('handleEdit', () => {
 
     expect(mockEditReply).toHaveBeenCalledWith({
       content:
-        '❌ Global presets can only be edited by the bot owner.\n' +
+        '❌ You do not have permission to edit global presets — bot owner only.\n' +
         'Use `/preset create` to create your own copy based on this preset.',
     });
     expect(mockBuildDashboardEmbed).not.toHaveBeenCalled();
@@ -222,7 +222,7 @@ describe('handleEdit', () => {
     await handleEdit(createMockContext());
 
     expect(mockEditReply).toHaveBeenCalledWith({
-      content: '❌ Failed to load preset. Please try again.',
+      content: '❌ Failed to load the preset. Please try again.',
     });
     expect(mockBuildDashboardEmbed).not.toHaveBeenCalled();
     expect(mockSessionManagerSet).not.toHaveBeenCalled();

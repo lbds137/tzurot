@@ -531,7 +531,7 @@ describe('Character Chat Handler (push delivery)', () => {
       await handleChat(ctx, mockConfig);
 
       expect(ctx.editReply).toHaveBeenCalledWith({
-        content: expect.stringContaining('something went wrong'),
+        content: expect.stringContaining('Failed to process the chat request'),
       });
       expect(mockJobTracker.trackJob).not.toHaveBeenCalled();
     });
@@ -545,7 +545,7 @@ describe('Character Chat Handler (push delivery)', () => {
       await handleChat(ctx, mockConfig);
 
       expect(ctx.editReply).toHaveBeenCalledWith({
-        content: expect.stringContaining('something went wrong'),
+        content: expect.stringContaining('Failed to process the chat request'),
       });
       expect(mockJobTracker.trackJob).not.toHaveBeenCalled();
     });
@@ -559,7 +559,9 @@ describe('Character Chat Handler (push delivery)', () => {
 
       await handleChat(ctx, mockConfig);
 
-      expect(channel.send).toHaveBeenCalledWith(expect.stringContaining('something went wrong'));
+      expect(channel.send).toHaveBeenCalledWith(
+        expect.stringContaining('Failed to process the chat request')
+      );
     });
   });
 

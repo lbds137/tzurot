@@ -85,7 +85,7 @@ describe('resolveCharacterSlug', () => {
 
     expect(result).toEqual({
       kind: 'error',
-      message: expect.stringContaining('Unable to load characters'),
+      message: expect.stringContaining('Failed to load the characters'),
     });
     // Pin the diagnostic log so a future refactor can't silently drop it
     expect(mockLogger.warn).toHaveBeenCalledWith(

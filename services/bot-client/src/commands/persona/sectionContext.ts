@@ -32,6 +32,8 @@ import {
 } from './config.js';
 import { fetchPersona } from './api.js';
 import type { PersonaDetails } from './types.js';
+import { CATALOG } from '../../ux/catalog/catalog.js';
+import { renderSpec } from '../../ux/render/render.js';
 
 /**
  * Pure-sync portion of the section resolution. Split out so callers that
@@ -110,7 +112,7 @@ export async function resolvePersonaSectionContext(
 ): Promise<PersonaSectionContext | null> {
   const sync = findPersonaSection(sectionId);
   if (sync === null) {
-    await replyError(interaction, '❌ Unknown section.');
+    await replyError(interaction, renderSpec(CATALOG.error.validation('Unknown section.')));
     return null;
   }
   return loadPersonaSectionData(interaction, entityId, sync);

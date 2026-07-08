@@ -45,6 +45,8 @@ import { getServiceClient } from '../../utils/gatewayClients.js';
 import { generate } from '../../utils/gatewayServiceCalls.js';
 import type { MessageContext } from '../../types.js';
 import { resolveCharacterSlug, finalizeDeferredReply } from './randomPick.js';
+import { CATALOG } from '../../ux/catalog/catalog.js';
+import { renderSpec } from '../../ux/render/render.js';
 
 const logger = createLogger('character-chat');
 
@@ -465,7 +467,9 @@ async function runCharacterTurn(
     const personality = await getPersonalityLoader().loadPersonalityStrict(characterSlug, userId);
     if (!personality) {
       await context.editReply({
-        content: `❌ Character "${escapeMarkdown(characterSlug)}" not found.`,
+        content: renderSpec(
+          CATALOG.error.notFound('Character', { name: escapeMarkdown(characterSlug) })
+        ),
       });
       return;
     }
@@ -618,12 +622,14 @@ async function handleChatError(context: DeferredCommandContext): Promise<void> {
   try {
     const { interaction } = context;
     if (interaction.replied || interaction.deferred) {
-      await context.editReply({ content: '❌ Sorry, something went wrong. Please try again.' });
+      await context.editReply({
+        content: renderSpec(CATALOG.error.operationFailed('process the chat request')),
+      });
     }
   } catch {
     const ch = context.channel;
     if (ch && 'send' in ch && typeof ch.send === 'function') {
-      await ch.send('❌ Sorry, something went wrong. Please try again.');
+      await ch.send(renderSpec(CATALOG.error.operationFailed('process the chat request')));
     }
   }
 }

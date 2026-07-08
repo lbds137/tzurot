@@ -132,7 +132,7 @@ describe('handleBrowse', () => {
     await handleBrowse(createMockContext());
 
     expect(mockEditReply).toHaveBeenCalledWith({
-      content: expect.stringContaining('Failed to load'),
+      content: expect.stringContaining('Gateway error'),
     });
   });
 
@@ -141,7 +141,9 @@ describe('handleBrowse', () => {
 
     await handleBrowse(createMockContext());
 
-    expect(mockEditReply).toHaveBeenCalledWith(expect.stringContaining('Failed to load'));
+    expect(mockEditReply).toHaveBeenCalledWith(
+      expect.stringContaining('Failed to load the persona')
+    );
   });
 });
 

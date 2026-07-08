@@ -70,7 +70,7 @@ describe('handleCreatePersona', () => {
     await handleCreatePersona(createMockContext());
 
     expect(mockReply).toHaveBeenCalledWith({
-      content: expect.stringContaining('Failed to open create dialog'),
+      content: expect.stringContaining('Failed to open the create dialog'),
       flags: MessageFlags.Ephemeral,
     });
   });
@@ -257,7 +257,7 @@ describe('handleCreateModalSubmit', () => {
     );
 
     expect(mockEditReply).toHaveBeenCalledWith({
-      content: expect.stringContaining('Failed to create persona'),
+      content: expect.stringContaining('Gateway error'),
     });
   });
 
@@ -275,7 +275,7 @@ describe('handleCreateModalSubmit', () => {
     );
 
     expect(mockEditReply).toHaveBeenCalledWith({
-      content: expect.stringContaining('Failed to create persona'),
+      content: expect.stringContaining('Failed to create the persona'),
     });
   });
 });

@@ -20,7 +20,11 @@ import {
   type CharacterSessionData,
 } from './config.js';
 import { clientsFor } from '../../utils/gatewayClients.js';
+import { CATALOG } from '../../ux/catalog/catalog.js';
+import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
+import { renderSpec } from '../../ux/render/render.js';
 import { fetchCharacter } from './api.js';
+import { escapeMarkdown } from 'discord.js';
 
 const logger = createLogger('character-edit');
 
@@ -40,16 +44,20 @@ export async function handleEdit(
     // Fetch character data from API
     const character = await fetchCharacter(slug, config, userClient);
     if (!character) {
-      await context.editReply({ content: `❌ Character \`${slug}\` not found or not accessible.` });
+      await context.editReply({
+        content: renderSpec(CATALOG.error.notFound('Character', { name: escapeMarkdown(slug) })),
+      });
       return;
     }
 
     // Use server-side permission check (compares internal User UUIDs, not Discord IDs)
     if (!character.canEdit) {
       await context.editReply({
-        content:
-          `❌ You don't have permission to edit \`${slug}\`.\n` +
-          'You can only edit characters you own.',
+        content: renderSpec(
+          CATALOG.error.permissionDenied(
+            `edit \`${escapeMarkdown(slug)}\` — you can only edit characters you own`
+          )
+        ),
       });
       return;
     }
@@ -86,6 +94,8 @@ export async function handleEdit(
     logger.info({ userId, slug: character.slug, isAdmin }, 'Character dashboard opened');
   } catch (error) {
     logger.error({ err: error, slug }, 'Failed to open character dashboard');
-    await context.editReply({ content: '❌ Failed to load character. Please try again.' });
+    await context.editReply({
+      content: renderSpec(classifyGatewayFailure(error, 'character', { operation: 'read' })),
+    });
   }
 }

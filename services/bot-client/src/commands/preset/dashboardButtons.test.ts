@@ -676,16 +676,16 @@ describe('Preset Dashboard Buttons', () => {
       );
     });
 
-    it('routes the delete-failure path through renderPostActionScreen with an error outcome', async () => {
+    it('renders the outcome-uncertain shape when the delete times out (write, never definitive)', async () => {
       const mockInteraction = createMockButtonInteraction('preset::confirm-delete::preset-123');
-
       mockSessionManager.get.mockResolvedValue({
         data: createMockFlattenedPreset(),
       });
       mockDeleteUserLlmConfig.mockResolvedValue({
         ok: false,
-        error: 'Database error',
-        status: 500,
+        kind: 'timeout',
+        error: 'timed out',
+        status: 0,
       });
 
       await handleConfirmDeleteButton(mockInteraction, 'preset-123');
@@ -694,7 +694,33 @@ describe('Preset Dashboard Buttons', () => {
         expect.objectContaining({
           outcome: expect.objectContaining({
             kind: 'error',
-            content: expect.stringContaining('Failed to delete'),
+            content: expect.stringContaining('may still be applying'),
+          }),
+        })
+      );
+    });
+
+    it('routes the delete-failure path through renderPostActionScreen with an error outcome', async () => {
+      const mockInteraction = createMockButtonInteraction('preset::confirm-delete::preset-123');
+
+      mockSessionManager.get.mockResolvedValue({
+        data: createMockFlattenedPreset(),
+      });
+      mockDeleteUserLlmConfig.mockResolvedValue({
+        ok: false,
+        kind: 'http',
+        error: 'Database error',
+        status: 500,
+      });
+
+      await handleConfirmDeleteButton(mockInteraction, 'preset-123');
+
+      // The gateway's own message is surfaced in the error outcome.
+      expect(mockRenderPostActionScreen).toHaveBeenCalledWith(
+        expect.objectContaining({
+          outcome: expect.objectContaining({
+            kind: 'error',
+            content: expect.stringContaining('Database error'),
           }),
         })
       );
