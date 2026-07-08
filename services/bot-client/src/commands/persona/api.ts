@@ -7,8 +7,7 @@
 
 import { type PersonaUpdateInput } from '@tzurot/common-types/schemas/api/persona';
 import { createLogger } from '@tzurot/common-types/utils/logger';
-import { nullOn404, type UserClient } from '@tzurot/clients';
-import { DashboardUpdateError } from '../../utils/dashboard/saveError.js';
+import { GatewayApiError, nullOn404, type UserClient } from '@tzurot/clients';
 import type { PersonaDetails, PersonaSummary } from './types.js';
 
 const logger = createLogger('persona-api');
@@ -76,7 +75,7 @@ export async function updatePersona(
     // Throw (rather than return null) so the dashboard can surface the real
     // gateway message and distinguish an outcome-uncertain abort (timeout/network)
     // from an HTTP rejection — the same contract as updateCharacter / updatePreset.
-    throw new DashboardUpdateError(
+    throw new GatewayApiError(
       `Failed to update persona: ${result.status} - ${result.error ?? 'Unknown'}`,
       result.status,
       result.kind

@@ -121,7 +121,7 @@ async function handleSectionModalSubmit(
     const updatePayload = unflattenPersonaData(extracted.merged);
 
     const { userClient } = clientsFor(interaction);
-    // updatePersona throws DashboardUpdateError on failure (caught below);
+    // updatePersona throws GatewayApiError on failure (caught below);
     // a resolved value is always a valid persona.
     const updatedPersona = await updatePersona(
       entityId,

@@ -40,4 +40,14 @@ describe('renderSpec', () => {
       );
     });
   });
+
+  it('worst-case rendered output stays under the Discord content cap', () => {
+    // MAX_SURFACED_LENGTH (1800) caps the classifier text; emoji prefix +
+    // affordance suffixes must not push the final render past 2000.
+    const spec = CATALOG.error.gatewayRejection('x'.repeat(1800) + '…');
+    expect(renderSpec(spec).length).toBeLessThanOrEqual(2000);
+
+    const uncertain = CATALOG.error.uncertainWrite('character', { refreshAffordance: true });
+    expect(renderSpec(uncertain).length).toBeLessThanOrEqual(2000);
+  });
 });

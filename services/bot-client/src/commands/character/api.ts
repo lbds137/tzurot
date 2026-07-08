@@ -24,8 +24,7 @@
 
 import type { ChatInputCommandInteraction } from 'discord.js';
 import type { EnvConfig } from '@tzurot/common-types/config/config';
-import type { UserClient } from '@tzurot/clients';
-import { DashboardUpdateError } from '../../utils/dashboard/saveError.js';
+import { GatewayApiError, type UserClient } from '@tzurot/clients';
 import type { CharacterData } from './characterTypes.js';
 
 /**
@@ -251,7 +250,7 @@ export async function createCharacter(
     // Consistent with updateCharacter: carry the status + kind (so a create flow
     // could surface the honest outcome-uncertain notice) and guard the message
     // against an undefined gateway error.
-    throw new DashboardUpdateError(
+    throw new GatewayApiError(
       `Failed to create character: ${result.status} - ${result.error ?? 'Unknown'}`,
       result.status,
       result.kind
@@ -273,11 +272,11 @@ export async function updateCharacter(
   const result = await userClient.updatePersonality(slug, omitEmptyRequiredText(data));
 
   if (!result.ok) {
-    // DashboardUpdateError carries status + kind so the dashboard can distinguish
+    // GatewayApiError carries status + kind so the dashboard can distinguish
     // an outcome-uncertain abort (timeout/network → "still applying") from a real
-    // HTTP rejection (whose message it surfaces). Message format matches
-    // extractApiErrorMessage.
-    throw new DashboardUpdateError(
+    // HTTP rejection (whose message it surfaces). Message format matches the
+    // classifier's caller-wrapper convention (`: {status} - {message}`).
+    throw new GatewayApiError(
       `Failed to update character: ${result.status} - ${result.error ?? 'Unknown'}`,
       result.status,
       result.kind

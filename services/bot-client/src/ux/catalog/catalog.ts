@@ -19,6 +19,8 @@ import type { MessageSpec } from './types.js';
 export interface NotFoundOptions {
   /** Append the autocomplete steer (only where the option HAS autocomplete). */
   autocomplete?: boolean;
+  /** Name the specific entity instance: `Character "Luna" not found.` */
+  name?: string;
 }
 
 export const CATALOG = {
@@ -27,7 +29,9 @@ export const CATALOG = {
     notFound: (entity: string, opts: NotFoundOptions = {}): MessageSpec => ({
       severity: 'error',
       outcome: 'failed',
-      text: `${entity} not found.${opts.autocomplete === true ? ' Use autocomplete to select a valid option.' : ''}`,
+      text:
+        `${entity}${opts.name !== undefined ? ` "${opts.name}"` : ''} not found.` +
+        `${opts.autocomplete === true ? ' Use autocomplete to select a valid option.' : ''}`,
     }),
 
     /** The user's input was the problem; an immediate retry is honest. */

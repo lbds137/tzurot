@@ -292,7 +292,7 @@ describe('Preset Create', () => {
       await handleSeedModalSubmit(mockInteraction);
 
       expect(mockInteraction.editReply).toHaveBeenCalledWith({
-        content: '❌ Failed to create preset. Please try again.',
+        content: '❌ Failed to create the preset. Please try again.',
       });
     });
 

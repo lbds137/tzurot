@@ -86,23 +86,31 @@ describe('PersonalityMessageHandler', () => {
       expect(mockJobTracker.trackJob).not.toHaveBeenCalled();
     });
 
-    it('replies with the error and does not track when the manager throws', async () => {
+    it('replies a classified catalog line (not the raw error) and does not track when the manager throws', async () => {
       const message = createMockMessage();
       mockManager.submitChatJob.mockRejectedValueOnce(new Error('boom'));
 
       await handler.handleMessage(message, createMockPersonality(), 'Hi');
 
-      expect(message.reply).toHaveBeenCalledWith('Error: boom');
+      // The classified catalog line — never the raw error.message (the old
+      // `Error: ${message}` shape leaked internals to users).
+      expect(message.reply).toHaveBeenCalledWith(
+        '❌ Failed to process your message. Please try again.'
+      );
+      expect(message.reply).not.toHaveBeenCalledWith(expect.stringContaining('boom'));
       expect(mockJobTracker.trackJob).not.toHaveBeenCalled();
     });
 
-    it('stringifies non-Error throws when replying', async () => {
+    it('replies the generic catalog line for non-Error throws too (no raw leak)', async () => {
       const message = createMockMessage();
       mockManager.submitChatJob.mockRejectedValueOnce('string-failure');
 
       await handler.handleMessage(message, createMockPersonality(), 'Hi');
 
-      expect(message.reply).toHaveBeenCalledWith('Error: string-failure');
+      expect(message.reply).toHaveBeenCalledWith(
+        '❌ Failed to process your message. Please try again.'
+      );
+      expect(message.reply).not.toHaveBeenCalledWith(expect.stringContaining('string-failure'));
     });
 
     it('does not throw if the error reply itself fails', async () => {

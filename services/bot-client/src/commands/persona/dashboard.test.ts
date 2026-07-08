@@ -385,7 +385,7 @@ describe('handleModalSubmit', () => {
       data: { name: 'Test Persona', preferredName: 'Tester' },
     });
     mockExtractModalValues.mockReturnValue({ name: 'Updated Name' });
-    // updatePersona throws DashboardUpdateError; the dashboard surfaces the
+    // updatePersona throws GatewayApiError; the dashboard surfaces the
     // extracted gateway message instead of a generic "Please try again".
     stub.updatePersona.mockResolvedValue(makeErr(400, 'pronouns: too long'));
 
