@@ -93,7 +93,7 @@ describe('handleApikeyModalSubmit', () => {
       await handleApikeyModalSubmit(interaction);
 
       expect(mockReply).toHaveBeenCalledWith({
-        content: '❌ Unknown apikey modal submission',
+        content: '❌ Unknown apikey modal submission.',
         flags: MessageFlags.Ephemeral,
       });
     });
@@ -104,7 +104,7 @@ describe('handleApikeyModalSubmit', () => {
       await handleApikeyModalSubmit(interaction);
 
       expect(mockReply).toHaveBeenCalledWith({
-        content: '❌ Unknown apikey modal submission',
+        content: '❌ Unknown apikey modal submission.',
         flags: MessageFlags.Ephemeral,
       });
     });
@@ -114,7 +114,7 @@ describe('handleApikeyModalSubmit', () => {
       await handleApikeyModalSubmit(interaction);
 
       expect(mockReply).toHaveBeenCalledWith({
-        content: '❌ Unknown apikey action',
+        content: '❌ Unknown apikey action.',
         flags: MessageFlags.Ephemeral,
       });
     });
@@ -126,7 +126,7 @@ describe('handleApikeyModalSubmit', () => {
       await handleApikeyModalSubmit(interaction);
 
       expect(mockDeferReply).toHaveBeenCalled();
-      expect(mockEditReply).toHaveBeenCalledWith({ content: '❌ API key cannot be empty' });
+      expect(mockEditReply).toHaveBeenCalledWith({ content: '❌ API key cannot be empty.' });
     });
 
     it('should reject OpenRouter key with wrong format', async () => {
@@ -274,9 +274,29 @@ describe('handleApikeyModalSubmit', () => {
       );
       await handleApikeyModalSubmit(interaction);
 
-      expect(mockEditReply).toHaveBeenCalledWith({
-        content: expect.stringContaining('Request Timed Out'),
-      });
+      // Outcome-uncertain (⏳), single glyph — never a doubled ❌ ⏳, and never
+      // an ❌ that would frame a possibly-saved key as a definitive failure.
+      const timeoutReply = (mockEditReply as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0] as {
+        content: string;
+      };
+      expect(timeoutReply.content).toContain('⏳ **Request Timed Out**');
+      expect(timeoutReply.content).not.toContain('❌');
+    });
+
+    it('should handle a rate-limit (429) as a transient warning, single glyph', async () => {
+      stub.setWalletKey.mockResolvedValue(makeErr(429, 'Too many requests'));
+
+      const interaction = createMockInteraction(
+        'settings::apikey::set::openrouter',
+        'sk-or-v1-ratelimited'
+      );
+      await handleApikeyModalSubmit(interaction);
+
+      const reply = (mockEditReply as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0] as {
+        content: string;
+      };
+      expect(reply.content).toContain('⚠️ **Too Many Requests**');
+      expect(reply.content).not.toContain('❌');
     });
 
     it('should handle generic gateway error', async () => {

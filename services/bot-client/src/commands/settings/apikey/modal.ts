@@ -18,6 +18,14 @@ import { getProviderDisplayName } from '../../../utils/providers.js';
 import { clientsFor } from '../../../utils/gatewayClients.js';
 import { ApikeyCustomIds } from '../../../utils/customIds.js';
 import { replyError } from '../../../utils/dashboard/replyError.js';
+import { CATALOG } from '../../../ux/catalog/catalog.js';
+import type { MessageSpec } from '../../../ux/catalog/types.js';
+import { renderSpec } from '../../../ux/render/render.js';
+
+/** Render a rich validation body through the catalog (❌ glyph from the renderer). */
+function validationReply(body: string): string {
+  return renderSpec(CATALOG.error.validation(body));
+}
 
 const logger = createLogger('settings-apikey-modal');
 
@@ -29,7 +37,7 @@ export async function handleApikeyModalSubmit(interaction: ModalSubmitInteractio
   // Parse customId using centralized utilities
   const parsed = ApikeyCustomIds.parse(interaction.customId);
   if (parsed?.provider === undefined) {
-    await replyError(interaction, '❌ Unknown apikey modal submission');
+    await replyError(interaction, validationReply('Unknown apikey modal submission.'));
     return;
   }
 
@@ -38,7 +46,7 @@ export async function handleApikeyModalSubmit(interaction: ModalSubmitInteractio
   if (parsed.action === 'set') {
     await handleSetKeySubmit(interaction, provider);
   } else {
-    await replyError(interaction, '❌ Unknown apikey action');
+    await replyError(interaction, validationReply('Unknown apikey action.'));
   }
 }
 
@@ -56,14 +64,14 @@ async function handleSetKeySubmit(
 
   // Basic validation
   if (apiKey.length === 0) {
-    await replyError(interaction, '❌ API key cannot be empty');
+    await replyError(interaction, validationReply('API key cannot be empty.'));
     return;
   }
 
   // Validate key format based on provider
   const formatError = validateKeyFormat(apiKey, provider);
   if (formatError !== null) {
-    await replyError(interaction, formatError);
+    await replyError(interaction, validationReply(formatError));
     return;
   }
 
@@ -123,8 +131,10 @@ async function handleSetKeySubmit(
 
     await replyError(
       interaction,
-      '❌ An unexpected error occurred while saving your API key.\n' +
-        'Please try again later or contact support if the issue persists.'
+      validationReply(
+        'An unexpected error occurred while saving your API key.\n' +
+          'Please try again later or contact support if the issue persists.'
+      )
     );
   }
 }
@@ -142,49 +152,53 @@ function getErrorMessage(
   switch (status) {
     case 400:
       // Validation error (includes scoped-key permission errors)
-      return (
-        '❌ **Validation Error**\n\n' +
-        (errorData.message ?? errorData.error ?? 'The request was invalid.') +
-        '\n\nPlease check your API key and try again.'
+      return validationReply(
+        '**Validation Error**\n\n' +
+          (errorData.message ?? errorData.error ?? 'The request was invalid.') +
+          '\n\nPlease check your API key and try again.'
       );
 
     case 401:
     case 403:
       // Invalid/unauthorized key
-      return (
-        '❌ **Invalid API Key**\n\n' +
-        'The API key you provided is not valid. Please check:\n' +
-        '• The key is copied correctly (no extra spaces)\n' +
-        '• The key has not expired or been revoked\n' +
-        `• You're using a key for ${providerName}`
+      return validationReply(
+        '**Invalid API Key**\n\n' +
+          'The API key you provided is not valid. Please check:\n' +
+          '• The key is copied correctly (no extra spaces)\n' +
+          '• The key has not expired or been revoked\n' +
+          `• You're using a key for ${providerName}`
       );
 
     case 402:
       // Insufficient credits
-      return (
-        '❌ **Insufficient Credits**\n\n' +
-        'Your API key is valid but has insufficient credits.\n' +
-        'Please add funds to your account and try again.'
+      return validationReply(
+        '**Insufficient Credits**\n\n' +
+          'Your API key is valid but has insufficient credits.\n' +
+          'Please add funds to your account and try again.'
       );
 
     case 429:
       // Rate limited
-      return (
-        '⏳ **Too Many Requests**\n\n' +
-        'You have made too many API key operations recently.\n' +
-        'Please wait a few minutes and try again.'
-      );
+      // Rate limited — transient (⚠️), not a definitive ❌ rejection.
+      return renderSpec({
+        severity: 'warning',
+        outcome: 'failed',
+        text:
+          '**Too Many Requests**\n\n' +
+          'You have made too many API key operations recently.\n' +
+          'Please wait a few minutes and try again.',
+      } satisfies MessageSpec);
 
     case 500:
     case 502:
     case 503:
     case 504:
       // Server errors
-      return (
-        '❌ **Server Error**\n\n' +
-        'The server encountered an error while processing your request.\n' +
-        'This is usually temporary. Please try again in a few minutes.\n\n' +
-        'If the problem persists, contact support.'
+      return validationReply(
+        '**Server Error**\n\n' +
+          'The server encountered an error while processing your request.\n' +
+          'This is usually temporary. Please try again in a few minutes.\n\n' +
+          'If the problem persists, contact support.'
       );
 
     case 0:
@@ -192,21 +206,26 @@ function getErrorMessage(
       // provider validation can outlast the client timeout while the gateway
       // still completes the save, so point the user at browse to confirm rather
       // than blindly retrying and creating churn.
-      return (
-        '⏳ **Request Timed Out**\n\n' +
-        "The request didn't complete in time. Your key may already have been saved —\n" +
-        'check `/settings apikey browse` before trying again.'
-      );
+      // Outcome-uncertain (⏳): the save may have applied — steer to verify,
+      // never invite a blind retry (the write-uncertain shape's whole point).
+      return renderSpec({
+        severity: 'progress',
+        outcome: 'uncertain',
+        text:
+          '**Request Timed Out**\n\n' +
+          "The request didn't complete in time. Your key may already have been saved —\n" +
+          'check `/settings apikey browse` before trying again.',
+      } satisfies MessageSpec);
 
     default:
       // Unknown error - still provide friendly message
-      return (
-        '❌ **Unable to Save API Key**\n\n' +
-        'An unexpected error occurred while saving your API key.\n' +
-        (errorData.message !== undefined && errorData.message.length > 0
-          ? `Details: ${errorData.message}\n\n`
-          : '') +
-        'Please try again later or contact support if the issue persists.'
+      return validationReply(
+        '**Unable to Save API Key**\n\n' +
+          'An unexpected error occurred while saving your API key.\n' +
+          (errorData.message !== undefined && errorData.message.length > 0
+            ? `Details: ${errorData.message}\n\n`
+            : '') +
+          'Please try again later or contact support if the issue persists.'
       );
   }
 }
@@ -220,7 +239,7 @@ function validateKeyFormat(apiKey: string, provider: AIProvider): string | null 
       // OpenRouter keys start with 'sk-or-' or 'sk-or-v1-'
       if (!apiKey.startsWith(API_KEY_FORMATS.OPENROUTER_PREFIX)) {
         return (
-          '❌ **Invalid OpenRouter Key Format**\n\n' +
+          '**Invalid OpenRouter Key Format**\n\n' +
           `OpenRouter API keys should start with \`${API_KEY_FORMATS.OPENROUTER_PREFIX}\`.\n` +
           'Get your key at: https://openrouter.ai/keys'
         );

@@ -22,6 +22,8 @@ import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { type UserClient } from '@tzurot/clients';
 import { clientsFor } from '../../../utils/gatewayClients.js';
+import { classifyGatewayFailure } from '../../../ux/catalog/classify.js';
+import { renderSpec } from '../../../ux/render/render.js';
 import {
   type SettingsDashboardConfig,
   type SettingsDashboardSession,
@@ -94,7 +96,12 @@ export async function handleDefaultsEdit(context: DeferredCommandContext): Promi
 
     if (!context.interaction.replied) {
       await context.editReply({
-        content: '❌ An error occurred while opening the default settings dashboard.',
+        content: renderSpec(
+          classifyGatewayFailure(error, 'default settings', {
+            operation: 'read',
+            failedAction: 'open the default settings dashboard',
+          })
+        ),
       });
     }
   }
