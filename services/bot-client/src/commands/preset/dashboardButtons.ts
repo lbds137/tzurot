@@ -203,7 +203,11 @@ export async function handleToggleGlobalButton(
   } catch (error) {
     logger.error({ err: error, entityId }, 'Failed to toggle preset global status');
     await interaction.followUp({
-      content: '❌ Failed to update preset visibility. Please try again.',
+      content: renderSpec(
+        classifyGatewayFailure(error, 'preset visibility', {
+          failedAction: 'update the preset visibility',
+        })
+      ),
       flags: MessageFlags.Ephemeral,
     });
   }
@@ -296,7 +300,14 @@ export async function handleConfirmDeleteButton(
       await renderPostActionScreen({
         interaction,
         session: postActionSession,
-        outcome: { kind: 'error', content: `❌ Failed to delete preset: ${result.error}` },
+        outcome: {
+          kind: 'error',
+          // Classify the fail-arm — a delete is a WRITE; a timeout here is
+          // outcome-uncertain, never a flat definitive rejection.
+          content: renderSpec(
+            classifyGatewayFailure(result, 'preset', { failedAction: 'delete the preset' })
+          ),
+        },
       });
       return;
     }
@@ -315,7 +326,9 @@ export async function handleConfirmDeleteButton(
       session: postActionSession,
       outcome: {
         kind: 'error',
-        content: '❌ An error occurred while deleting the preset. Please try again.',
+        content: renderSpec(
+          classifyGatewayFailure(error, 'preset', { failedAction: 'delete the preset' })
+        ),
       },
     });
   }

@@ -11,6 +11,9 @@ import type { DeferredCommandContext } from '../../utils/commandContext/types.js
 import { clientsFor } from '../../utils/gatewayClients.js';
 import { createJsonAttachment } from '../../utils/jsonFileUtils.js';
 import type { PresetData } from './types.js';
+import { CATALOG } from '../../ux/catalog/catalog.js';
+import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
+import { renderSpec } from '../../ux/render/render.js';
 
 const logger = createLogger('preset-export');
 
@@ -132,11 +135,11 @@ export async function handleExport(context: DeferredCommandContext): Promise<voi
 
     if (!result.ok) {
       if (result.status === 404) {
-        await context.editReply(`❌ Preset not found.`);
+        await context.editReply(renderSpec(CATALOG.error.notFound('Preset')));
         return;
       }
       if (result.status === 403) {
-        await context.editReply(`❌ You don't have access to this preset.`);
+        await context.editReply(renderSpec(CATALOG.error.permissionDenied('access this preset')));
         return;
       }
       throw new Error(`API error: ${result.status}`);
@@ -150,8 +153,9 @@ export async function handleExport(context: DeferredCommandContext): Promise<voi
     // Check ownership - only preset owner or bot owner can export
     if (!preset.permissions.canEdit && !isBotOwner(userId)) {
       await context.editReply(
-        `❌ You don't have permission to export this preset.\n` +
-          'You can only export presets you own.'
+        renderSpec(
+          CATALOG.error.permissionDenied('export this preset — you can only export presets you own')
+        )
       );
       return;
     }
@@ -177,6 +181,13 @@ export async function handleExport(context: DeferredCommandContext): Promise<voi
     logger.info({ presetId, userId, presetName: preset.name }, 'Preset exported');
   } catch (error) {
     logger.error({ err: error, presetId }, 'Error exporting preset');
-    await context.editReply('❌ An unexpected error occurred while exporting the preset.');
+    await context.editReply(
+      renderSpec(
+        classifyGatewayFailure(error, 'preset', {
+          operation: 'read',
+          failedAction: 'export the preset',
+        })
+      )
+    );
   }
 }

@@ -15,6 +15,9 @@ import {
   isAutocompleteErrorSentinel,
 } from '../../utils/apiCheck.js';
 import { clientsFor } from '../../utils/gatewayClients.js';
+import { CATALOG } from '../../ux/catalog/catalog.js';
+import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
+import { renderSpec } from '../../ux/render/render.js';
 
 const logger = createLogger('persona-default');
 
@@ -38,14 +41,18 @@ export async function handleSetDefaultPersona(context: DeferredCommandContext): 
     if (!result.ok) {
       if (result.error.includes('not found') || result.error.includes('Not found')) {
         await context.editReply({
-          content: '❌ Persona not found. Use `/persona browse` to see your personas.',
+          content: renderSpec(
+            CATALOG.error.notFound('Persona', {
+              hint: 'Use `/persona browse` to see your personas.',
+            })
+          ),
         });
         return;
       }
 
       logger.warn({ userId: discordId, personaId, error: result.error }, 'Failed to set default');
       await context.editReply({
-        content: '❌ Failed to set default persona. Please try again later.',
+        content: renderSpec(classifyGatewayFailure(result, 'default persona')),
       });
       return;
     }
@@ -68,7 +75,11 @@ export async function handleSetDefaultPersona(context: DeferredCommandContext): 
   } catch (error) {
     logger.error({ err: error, userId: discordId }, 'Failed to set default');
     await context.editReply({
-      content: '❌ Failed to set default persona. Please try again later.',
+      content: renderSpec(
+        classifyGatewayFailure(error, 'default persona', {
+          failedAction: 'set the default persona',
+        })
+      ),
     });
   }
 }

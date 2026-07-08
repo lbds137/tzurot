@@ -54,6 +54,8 @@ import {
 // Side-effect import: registers the preset browse rebuilder used by
 // renderPostActionScreen + handleSharedBackButton.
 import './browse.js';
+import { CATALOG } from '../../ux/catalog/catalog.js';
+import { renderSpec } from '../../ux/render/render.js';
 
 const logger = createLogger('preset-dashboard');
 
@@ -85,7 +87,7 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction): Pr
 
   logger.warn({ customId }, 'Unknown modal submission');
   await interaction.reply({
-    content: '❌ Unknown form submission.',
+    content: renderSpec(CATALOG.error.validation('Unknown form submission.')),
     flags: MessageFlags.Ephemeral,
   });
 }

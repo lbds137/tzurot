@@ -22,6 +22,9 @@ import {
 } from './config.js';
 import { clientsFor } from '../../utils/gatewayClients.js';
 import { fetchPreset } from './api.js';
+import { CATALOG } from '../../ux/catalog/catalog.js';
+import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
+import { renderSpec } from '../../ux/render/render.js';
 
 const logger = createLogger('preset-edit');
 
@@ -40,7 +43,7 @@ export async function handleEdit(context: DeferredCommandContext): Promise<void>
     const preset = await fetchPreset(presetId, userClient);
 
     if (!preset) {
-      await context.editReply({ content: '❌ Preset not found.' });
+      await context.editReply({ content: renderSpec(CATALOG.error.notFound('Preset')) });
       return;
     }
 
@@ -51,13 +54,15 @@ export async function handleEdit(context: DeferredCommandContext): Promise<void>
       if (preset.isGlobal) {
         await context.editReply({
           content:
-            '❌ Global presets can only be edited by the bot owner.\n' +
+            renderSpec(CATALOG.error.permissionDenied('edit global presets — bot owner only')) +
+            '\n' +
             'Use `/preset create` to create your own copy based on this preset.',
         });
       } else {
         await context.editReply({
           content:
-            '❌ You can only edit your own presets.\n' +
+            renderSpec(CATALOG.error.permissionDenied('edit presets you do not own')) +
+            '\n' +
             'Use `/preset create` to create a copy of this preset.',
         });
       }
@@ -94,6 +99,8 @@ export async function handleEdit(context: DeferredCommandContext): Promise<void>
     logger.info({ userId, presetId, name: preset.name }, 'Opened preset edit dashboard');
   } catch (error) {
     logger.error({ err: error, presetId }, 'Failed to open preset edit dashboard');
-    await context.editReply({ content: '❌ Failed to load preset. Please try again.' });
+    await context.editReply({
+      content: renderSpec(classifyGatewayFailure(error, 'preset', { operation: 'read' })),
+    });
   }
 }

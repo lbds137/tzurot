@@ -172,7 +172,7 @@ describe('handleOverrideSet', () => {
     expect(mockDeferReply).not.toHaveBeenCalled();
     expect(mockEditReply).not.toHaveBeenCalled();
     expect(mockReply).toHaveBeenCalledWith({
-      content: expect.stringContaining('Failed to set persona override'),
+      content: expect.stringContaining('Failed to set the persona override'),
       flags: MessageFlags.Ephemeral,
     });
   });
@@ -184,8 +184,9 @@ describe('handleOverrideSet', () => {
 
     await handleOverrideSet(createMockContext('lilith', 'persona-123'));
 
+    // Fail-arm 500 → the classifier surfaces the gateway's own message.
     expect(mockEditReply).toHaveBeenCalledWith({
-      content: expect.stringContaining('Failed to set persona override'),
+      content: expect.stringContaining('Internal server error'),
     });
   });
 
@@ -226,7 +227,7 @@ describe('handleOverrideSet', () => {
 
     // setPersonaOverride threw after the deferReply, so the catch is post-defer → editReply.
     expect(mockEditReply).toHaveBeenCalledWith({
-      content: expect.stringContaining('Failed to set persona override'),
+      content: expect.stringContaining('Failed to set the persona override'),
     });
   });
 
@@ -420,7 +421,7 @@ describe('handleOverrideCreateModalSubmit', () => {
     );
 
     expect(mockEditReply).toHaveBeenCalledWith({
-      content: expect.stringContaining('Failed to create persona'),
+      content: expect.stringContaining('Failed to create the persona'),
     });
   });
 });

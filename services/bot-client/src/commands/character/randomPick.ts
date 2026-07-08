@@ -13,6 +13,9 @@ import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { getCachedPersonalities } from '../../utils/autocomplete/autocompleteCache.js';
 import { clientsFor } from '../../utils/gatewayClients.js';
+import { CATALOG } from '../../ux/catalog/catalog.js';
+import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
+import { renderSpec } from '../../ux/render/render.js';
 
 const logger = createLogger('character-random-pick');
 
@@ -58,7 +61,12 @@ export async function resolveCharacterSlug(
       { err: result.error, userId: context.user.id },
       'Personalities lookup failed during random-pick resolve'
     );
-    return { kind: 'error', message: '❌ Unable to load characters. Please try again.' };
+    return {
+      kind: 'error',
+      message: renderSpec(
+        classifyGatewayFailure(result.error, 'characters', { operation: 'read' })
+      ),
+    };
   }
 
   const excludePrivate = options.excludePrivate === true;
@@ -90,7 +98,11 @@ export async function resolveCharacterSlug(
         : 'Use `/character create` to make one, or check that public characters exist.';
     return {
       kind: 'error',
-      message: `❌ No characters available to chat with${filtersClause}. ${suggestion}`,
+      message: renderSpec(
+        CATALOG.error.validation(
+          `No characters available to chat with${filtersClause}. ${suggestion}`
+        )
+      ),
     };
   }
   // Index lands in [0, length-1] — Math.random() is half-open so floor() never

@@ -163,15 +163,17 @@ describe('handleEditPersona', () => {
       });
     });
 
-    it('shows "try again" (not "no personas") when the persona-list fetch fails (infra)', async () => {
+    it('surfaces the gateway failure (never "no personas") when the persona-list fetch fails', async () => {
       // Previously a 500 here read as "you have no personas" — the conflation
       // this epic fixes. fetchDefaultPersona now throws → edit.ts catch.
       stub.listPersonas.mockResolvedValue(makeErr(500, 'Gateway error'));
 
       await handleEditPersona(createMockContext(), null);
 
+      // The classifier surfaces the gateway's own message — still never the
+      // misleading "you have no personas" empty-state this test guards against.
       expect(mockEditReply).toHaveBeenCalledWith({
-        content: expect.stringContaining('try again'),
+        content: expect.stringContaining('Gateway error'),
       });
     });
   });
@@ -183,7 +185,7 @@ describe('handleEditPersona', () => {
       await handleEditPersona(createMockContext(), TEST_PERSONA_ID);
 
       expect(mockEditReply).toHaveBeenCalledWith({
-        content: expect.stringContaining('Failed to load persona'),
+        content: expect.stringContaining('Failed to load the persona'),
       });
     });
   });

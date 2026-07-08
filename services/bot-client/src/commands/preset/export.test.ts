@@ -230,7 +230,7 @@ describe('Preset Export', () => {
       await handleExport(mockContext);
 
       expect(mockContext.editReply).toHaveBeenCalledWith(
-        "❌ You don't have access to this preset."
+        '❌ You do not have permission to access this preset.'
       );
     });
 
@@ -248,7 +248,7 @@ describe('Preset Export', () => {
       await handleExport(mockContext);
 
       expect(mockContext.editReply).toHaveBeenCalledWith(
-        expect.stringContaining("don't have permission to export")
+        expect.stringContaining('do not have permission to export')
       );
     });
 
@@ -281,7 +281,7 @@ describe('Preset Export', () => {
       await handleExport(mockContext);
 
       expect(mockContext.editReply).toHaveBeenCalledWith(
-        '❌ An unexpected error occurred while exporting the preset.'
+        '❌ Failed to export the preset. Please try again.'
       );
     });
 
@@ -293,7 +293,7 @@ describe('Preset Export', () => {
       await handleExport(mockContext);
 
       expect(mockContext.editReply).toHaveBeenCalledWith(
-        '❌ An unexpected error occurred while exporting the preset.'
+        '❌ Failed to export the preset. Please try again.'
       );
     });
 

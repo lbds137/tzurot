@@ -386,7 +386,7 @@ describe('handleBrowse', () => {
     await handleBrowse(context);
 
     expect(mockEditReply).toHaveBeenCalledWith({
-      content: '❌ Failed to get presets. Please try again later.',
+      content: "⚠️ Couldn't load your presets right now. Please try again later.",
     });
   });
 
@@ -398,7 +398,7 @@ describe('handleBrowse', () => {
     await handleBrowse(context);
 
     expect(mockEditReply).toHaveBeenCalledWith({
-      content: '❌ An error occurred. Please try again later.',
+      content: '❌ Failed to load the presets. Please try again.',
     });
   });
 });
@@ -678,7 +678,7 @@ describe('handleBrowseSelect', () => {
 
     expect(mockDeferUpdate).toHaveBeenCalled();
     expect(mockEditReply).toHaveBeenCalledWith({
-      content: '❌ Failed to load preset. Please try again.',
+      content: '❌ Failed to load the preset. Please try again.',
       embeds: [],
       components: [],
     });

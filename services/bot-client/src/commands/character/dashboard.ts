@@ -36,6 +36,8 @@ import {
   type CharacterSessionData,
 } from './config.js';
 import { clientsFor } from '../../utils/gatewayClients.js';
+import { CATALOG } from '../../ux/catalog/catalog.js';
+import { renderSpec } from '../../ux/render/render.js';
 import { updateCharacter } from './api.js';
 import { handleAction } from './dashboardActions.js';
 import { handleSeedModalSubmit } from './create.js';
@@ -89,7 +91,7 @@ export async function handleModalSubmit(
 
   logger.warn({ customId }, 'Unknown modal submission');
   await interaction.reply({
-    content: '❌ Unknown form submission.',
+    content: renderSpec(CATALOG.error.validation('Unknown form submission.')),
     flags: MessageFlags.Ephemeral,
   });
 }
@@ -222,7 +224,9 @@ export async function handleSelectMenu(interaction: StringSelectMenuInteraction)
         'Non-admin attempted to select admin section'
       );
       await interaction.reply({
-        content: '❌ This section is restricted to bot administrators.',
+        content: renderSpec(
+          CATALOG.error.permissionDenied('edit this section — bot administrators only')
+        ),
         flags: MessageFlags.Ephemeral,
       });
       return;

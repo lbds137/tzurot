@@ -25,6 +25,9 @@ import {
 } from './config.js';
 import { clientsFor } from '../../utils/gatewayClients.js';
 import { fetchPersona, fetchDefaultPersona } from './api.js';
+import { CATALOG } from '../../ux/catalog/catalog.js';
+import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
+import { renderSpec } from '../../ux/render/render.js';
 
 const logger = createLogger('persona-edit');
 
@@ -50,7 +53,11 @@ export async function handleEditPersona(
 
       if (!persona) {
         await context.editReply({
-          content: '❌ Persona not found. Use `/persona browse` to see your personas.',
+          content: renderSpec(
+            CATALOG.error.notFound('Persona', {
+              hint: 'Use `/persona browse` to see your personas.',
+            })
+          ),
         });
         return;
       }
@@ -59,9 +66,11 @@ export async function handleEditPersona(
 
       if (!persona) {
         await context.editReply({
-          content:
-            "❌ You don't have any personas yet.\n\n" +
-            'Use `/persona create` to create your first persona.',
+          content: renderSpec(
+            CATALOG.error.notFound('Persona', {
+              hint: "You don't have any personas yet — use `/persona create` to make your first.",
+            })
+          ),
         });
         return;
       }
@@ -96,6 +105,8 @@ export async function handleEditPersona(
     logger.info({ userId, personaId: persona.id, name: persona.name }, 'Opened persona dashboard');
   } catch (error) {
     logger.error({ err: error, personaId }, 'Failed to open persona dashboard');
-    await context.editReply({ content: '❌ Failed to load persona. Please try again.' });
+    await context.editReply({
+      content: renderSpec(classifyGatewayFailure(error, 'persona', { operation: 'read' })),
+    });
   }
 }

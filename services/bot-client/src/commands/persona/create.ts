@@ -18,6 +18,9 @@ import type { ModalCommandContext } from '../../utils/commandContext/types.js';
 import { buildPersonaModalFields } from './utils/modalBuilder.js';
 import { PersonaCustomIds } from '../../utils/customIds.js';
 import { clientsFor } from '../../utils/gatewayClients.js';
+import { CATALOG } from '../../ux/catalog/catalog.js';
+import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
+import { renderSpec } from '../../ux/render/render.js';
 
 const logger = createLogger('persona-create');
 
@@ -41,7 +44,7 @@ export async function handleCreatePersona(context: ModalCommandContext): Promise
   } catch (error) {
     logger.error({ err: error, userId: context.user.id }, 'Failed to show create modal');
     await context.reply({
-      content: '❌ Failed to open create dialog. Please try again later.',
+      content: renderSpec(CATALOG.error.operationFailed('open the create dialog')),
       flags: MessageFlags.Ephemeral,
     });
   }
@@ -73,7 +76,9 @@ export async function handleCreateModalSubmit(interaction: ModalSubmitInteractio
 
     // Persona name is required
     if (personaName.length === 0) {
-      await interaction.editReply({ content: '❌ Persona name is required.' });
+      await interaction.editReply({
+        content: renderSpec(CATALOG.error.validation('Persona name is required.')),
+      });
       return;
     }
 
@@ -89,7 +94,11 @@ export async function handleCreateModalSubmit(interaction: ModalSubmitInteractio
     if (!result.ok) {
       if (result.code === API_ERROR_SUBCODE.NAME_COLLISION) {
         await interaction.editReply({
-          content: `❌ You already have a persona named "${personaName}". Pick a different name, or edit the existing one with \`/persona edit\`.`,
+          content: renderSpec(
+            CATALOG.error.validation(
+              `You already have a persona named "${personaName}". Pick a different name, or edit the existing one with \`/persona edit\`.`
+            )
+          ),
         });
         return;
       }
@@ -98,7 +107,9 @@ export async function handleCreateModalSubmit(interaction: ModalSubmitInteractio
         'Failed to create persona via gateway'
       );
       await interaction.editReply({
-        content: '❌ Failed to create persona. Please try again later.',
+        content: renderSpec(
+          classifyGatewayFailure(result, 'persona', { failedAction: 'create the persona' })
+        ),
       });
       return;
     }
@@ -136,7 +147,9 @@ export async function handleCreateModalSubmit(interaction: ModalSubmitInteractio
     // Post-defer: deferReply ran (and succeeded) before the try, so the
     // interaction is acked by the time any error reaches here.
     await interaction.editReply({
-      content: '❌ Failed to create persona. Please try again later.',
+      content: renderSpec(
+        classifyGatewayFailure(error, 'persona', { failedAction: 'create the persona' })
+      ),
     });
   }
 }

@@ -15,6 +15,10 @@ import {
   isAutocompleteErrorSentinel,
 } from '../../../utils/apiCheck.js';
 import { clientsFor } from '../../../utils/gatewayClients.js';
+import { CATALOG } from '../../../ux/catalog/catalog.js';
+import { classifyGatewayFailure } from '../../../ux/catalog/classify.js';
+import { renderSpec } from '../../../ux/render/render.js';
+import { escapeMarkdown } from 'discord.js';
 
 const logger = createLogger('persona-override-clear');
 
@@ -38,15 +42,20 @@ export async function handleOverrideClear(context: DeferredCommandContext): Prom
     if (!result.ok) {
       if (result.error.includes('Personality not found') || result.error.includes('not found')) {
         await context.editReply({
-          content: `❌ Character "${personalitySlug}" not found.`,
+          content: renderSpec(
+            CATALOG.error.notFound('Character', { name: escapeMarkdown(personalitySlug) })
+          ),
         });
         return;
       }
 
       if (result.error.includes('no account') || result.error.includes('User')) {
         await context.editReply({
-          content:
-            "❌ You don't have an account yet. Send a message to any character to create one!",
+          content: renderSpec(
+            CATALOG.error.validation(
+              "You don't have an account yet. Send a message to any character to create one!"
+            )
+          ),
         });
         return;
       }
@@ -56,7 +65,7 @@ export async function handleOverrideClear(context: DeferredCommandContext): Prom
         'Failed to clear override via gateway'
       );
       await context.editReply({
-        content: '❌ Failed to clear persona override. Please try again later.',
+        content: renderSpec(classifyGatewayFailure(result, 'persona override')),
       });
       return;
     }
@@ -79,7 +88,11 @@ export async function handleOverrideClear(context: DeferredCommandContext): Prom
   } catch (error) {
     logger.error({ err: error, userId: discordId }, 'Failed to clear override');
     await context.editReply({
-      content: '❌ Failed to clear persona override. Please try again later.',
+      content: renderSpec(
+        classifyGatewayFailure(error, 'persona override', {
+          failedAction: 'clear the persona override',
+        })
+      ),
     });
   }
 }

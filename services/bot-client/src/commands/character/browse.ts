@@ -24,6 +24,9 @@ import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import type { UserClient } from '@tzurot/clients';
 import { clientsFor } from '../../utils/gatewayClients.js';
+import { CATALOG } from '../../ux/catalog/catalog.js';
+import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
+import { renderSpec } from '../../ux/render/render.js';
 import {
   fetchUserCharacters,
   fetchPublicCharacters,
@@ -286,7 +289,9 @@ export async function handleBrowse(
     );
   } catch (error) {
     logger.error({ err: error, userId }, 'Failed to browse characters');
-    await context.editReply('❌ Failed to load characters. Please try again.');
+    await context.editReply(
+      renderSpec(classifyGatewayFailure(error, 'characters', { operation: 'read' }))
+    );
   }
 }
 
@@ -454,7 +459,7 @@ export async function handleBrowseSelect(
 
     if (!character) {
       await interaction.editReply({
-        content: '❌ Character not found or you do not have access.',
+        content: renderSpec(CATALOG.error.notFound('Character')),
         embeds: [],
         components: [],
       });
@@ -518,7 +523,7 @@ export async function handleBrowseSelect(
   } catch (error) {
     logger.error({ err: error, slug }, 'Failed to open dashboard from browse');
     await interaction.editReply({
-      content: '❌ Failed to load character. Please try again.',
+      content: renderSpec(classifyGatewayFailure(error, 'character', { operation: 'read' })),
       embeds: [],
       components: [],
     });
