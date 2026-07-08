@@ -109,7 +109,12 @@ export const CATALOG = {
       text: `You do not have permission to ${action}.`,
     }),
 
-    /** Input validation failure (pre-gateway). */
+    /**
+     * Definitive-failure error carrying a caller-supplied body verbatim.
+     * Primary use is pre-gateway input validation, but it's also the
+     * passthrough for any rich, hand-formatted `❌` message whose body is too
+     * specific for a dedicated intent (e.g. the apikey save-error guidance).
+     */
     validation: (detail: string): MessageSpec => ({
       severity: 'error',
       outcome: 'failed',

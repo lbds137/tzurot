@@ -15,6 +15,9 @@ import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
 import { clientsFor } from '../../../utils/gatewayClients.js';
 import { getProviderDisplayName } from '../../../utils/providers.js';
+import { CATALOG } from '../../../ux/catalog/catalog.js';
+import { classifyGatewayFailure } from '../../../ux/catalog/classify.js';
+import { renderSpec } from '../../../ux/render/render.js';
 
 const logger = createLogger('settings-apikey-remove');
 
@@ -37,12 +40,20 @@ export async function handleRemoveKey(context: DeferredCommandContext): Promise<
     if (!result.ok) {
       if (result.status === 404) {
         await context.editReply({
-          content: `❌ You don't have an API key configured for **${getProviderDisplayName(provider)}**.`,
+          content: renderSpec(
+            CATALOG.error.validation(
+              `You don't have an API key configured for **${getProviderDisplayName(provider)}**.`
+            )
+          ),
         });
         return;
       }
 
-      await context.editReply({ content: `❌ Failed to remove API key: ${result.error}` });
+      await context.editReply({
+        content: renderSpec(
+          classifyGatewayFailure(result, 'API key', { failedAction: 'remove the API key' })
+        ),
+      });
       return;
     }
 
@@ -61,6 +72,10 @@ export async function handleRemoveKey(context: DeferredCommandContext): Promise<
     logger.info({ provider, userId }, 'API key removed');
   } catch (error) {
     logger.error({ err: error, userId, provider }, 'Unexpected error');
-    await context.editReply({ content: '❌ An unexpected error occurred. Please try again.' });
+    await context.editReply({
+      content: renderSpec(
+        classifyGatewayFailure(error, 'API key', { failedAction: 'remove the API key' })
+      ),
+    });
   }
 }
