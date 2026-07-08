@@ -1,65 +1,36 @@
 /**
- * Shared dashboard save-error handling.
- *
- * Every fetch-edit-PUT dashboard (preset, character, persona) shares two failure
- * shapes that need honest user-facing messaging:
+ * Shared dashboard save-error handling — now a thin adapter over the ux/catalog
+ * outcome-honesty classifier (`classifyGatewayFailure`), which generalizes this
+ * module's original dispatcher to every gateway write:
  *
  *  - **Outcome-uncertain abort (transport kind `'timeout'`/`'network'`)** — the
- *    gateway exceeded its write budget under load (or the connection dropped) and
- *    the request aborted, even though the write frequently commits server-side a
- *    moment later. Claiming outright failure (and nudging "try again", which risks
- *    a duplicate write) is wrong; tell the user it may still be applying. A
- *    `'schema'` failure also carries `status: 0` but is NOT uncertain (the write
- *    committed), so it falls through to the genuine-rejection branch.
+ *    write frequently commits server-side a moment later; claiming failure (and
+ *    nudging "try again", which risks a duplicate write) is wrong.
+ *  - **Committed-unconfirmed (kind `'schema'`)** — the gateway returned 200 OK,
+ *    only the read-back body failed to parse; "saved, refresh to verify".
  *  - **Genuine HTTP rejection (4xx/5xx)** — surface the gateway's actual message
  *    so the reason is visible instead of masked behind a generic "try again".
  *    The masked-400 failure mode is exactly what hid the `avatarData` null
  *    round-trip bug behind "Failed to update character. Please try again."
  */
 
-import type { GatewayFailureKind } from '@tzurot/clients';
-
-/** Conservative limit — leaves room for the "❌ " prefix and Discord's 2000-char cap */
-const MAX_DISCORD_CONTENT = 1800;
-
-/**
- * Notice shown when a dashboard write aborts client-side (transport status 0).
- * Reused across dashboards so the honest "may still be applying" wording stays
- * consistent. The **🔄 Refresh** label must stay in sync with the dashboards'
- * refresh control (`buildBrowseButtons` / the dashboard refresh handlers); if
- * that button's emoji/label changes, update this notice too.
- */
-export const SAVE_TIMEOUT_NOTICE =
-  '⏳ This is taking longer than usual — your change may still be applying. ' +
-  'Give it a moment, then tap **🔄 Refresh** to confirm before saving again.';
-
-/**
- * Notice shown when a write committed (gateway returned 200 OK) but the response
- * body couldn't be read back (transport kind `'schema'`). The outcome is certain —
- * the change saved — so "try again" would be wrong (it risks a duplicate write);
- * tell the user it saved and to refresh to confirm. Keep the **🔄 Refresh** label
- * in sync with the dashboards' refresh control, same as SAVE_TIMEOUT_NOTICE.
- */
-export const SAVE_UNCONFIRMED_NOTICE =
-  "✅ Your change was saved, but I couldn't read the confirmation back. " +
-  'Tap **🔄 Refresh** to verify — no need to save again.';
+import { GatewayApiError, type GatewayFailureKind } from '@tzurot/clients';
+import { classifyGatewayFailure, MAX_SURFACED_LENGTH } from '../../ux/catalog/classify.js';
+import { renderSpec } from '../../ux/render/render.js';
 
 /**
  * Error thrown by dashboard writes, carrying the gateway response `status` and
- * the transport `kind` so the caller can tell a genuine rejection (HTTP 4xx/5xx)
- * apart from an outcome-uncertain client-side abort (`'timeout'`/`'network'`).
+ * the transport `kind` so a genuine rejection (HTTP 4xx/5xx) is distinguishable
+ * from an outcome-uncertain client-side abort (`'timeout'`/`'network'`).
  *
- * `kind` is what `isSaveTimeout` keys on — `status: 0` alone is ambiguous because
- * a `'schema'` failure (gateway returned 200 OK but the response body didn't
- * parse — the write DID commit) also carries `status: 0`, yet is NOT uncertain.
+ * Extends `GatewayApiError` so the ux/catalog classifier narrows it with zero
+ * special-casing. TRANSITIONAL: full retirement onto plain `GatewayApiError`
+ * (updating the five dashboard api.ts throw sites) lands with the substrate
+ * migration PR; new code should throw `GatewayApiError` directly.
  */
-export class DashboardUpdateError extends Error {
-  constructor(
-    message: string,
-    readonly status: number,
-    readonly kind: GatewayFailureKind
-  ) {
-    super(message);
+export class DashboardUpdateError extends GatewayApiError {
+  constructor(message: string, status: number, kind: GatewayFailureKind) {
+    super(message, status, kind);
     this.name = 'DashboardUpdateError';
   }
 }
@@ -83,47 +54,19 @@ export function extractApiErrorMessage(error: unknown): string | null {
     return null;
   }
   const msg = match[1];
-  return msg.length > MAX_DISCORD_CONTENT ? msg.slice(0, MAX_DISCORD_CONTENT) + '…' : msg;
+  return msg.length > MAX_SURFACED_LENGTH ? msg.slice(0, MAX_SURFACED_LENGTH) + '…' : msg;
 }
 
 /**
- * True when the error is a dashboard write whose server-side outcome is genuinely
- * UNCERTAIN — a client-side `'timeout'` or `'network'` abort (the write may have
- * committed before the connection dropped). Deliberately NOT keyed on `status: 0`:
- * a `'schema'` failure also has `status: 0` but the write definitively committed
- * (the gateway returned 200 OK; only the read-back body failed to parse), so the
- * "may still be applying" notice would be a lie there.
- */
-export function isSaveTimeout(error: unknown): boolean {
-  return (
-    error instanceof DashboardUpdateError && (error.kind === 'timeout' || error.kind === 'network')
-  );
-}
-
-/**
- * Build the user-facing content for a failed dashboard save:
- *  - outcome-uncertain abort (timeout/network) → the honest "may still be applying" notice
- *  - write-committed-but-unconfirmed (kind 'schema') → the "saved, refresh to verify" notice
- *  - genuine HTTP rejection → the extracted gateway message
- *  - anything else → a generic per-resource failure
+ * Build the user-facing content for a failed dashboard save. Delegates to the
+ * ux/catalog classifier — outcome classification is a function of the error,
+ * never a call-site choice — with the dashboard **🔄 Refresh** affordance named
+ * in the uncertain/unconfirmed shapes (dashboards have a refresh control; keep
+ * the label in sync with the refresh handlers if its emoji/label changes).
  *
  * @param error    the caught error
- * @param resource the resource noun for the generic fallback, e.g. 'character'
+ * @param resource the resource noun, e.g. 'character'
  */
 export function buildDashboardSaveErrorContent(error: unknown, resource: string): string {
-  if (isSaveTimeout(error)) {
-    return SAVE_TIMEOUT_NOTICE;
-  }
-  // A 'schema' failure means the gateway returned 200 OK (the write committed) but
-  // the body couldn't be read back — "try again" would be wrong (risks a duplicate
-  // write), and the generic fallback would fire anyway since extractApiErrorMessage
-  // requires a 3-digit status the status-0 message can't supply.
-  if (error instanceof DashboardUpdateError && error.kind === 'schema') {
-    return SAVE_UNCONFIRMED_NOTICE;
-  }
-  // 'http' (4xx/5xx) and 'config' (empty baseUrl) intentionally fall through here:
-  // HTTP rejections surface the gateway's own message via extractApiErrorMessage,
-  // and a 'config' failure means the service is misconfigured — not a user error,
-  // so the generic "try again" fallback is the honest, harmless default.
-  return `❌ ${extractApiErrorMessage(error) ?? `Failed to update ${resource}. Please try again.`}`;
+  return renderSpec(classifyGatewayFailure(error, resource, { refreshAffordance: true }));
 }

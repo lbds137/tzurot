@@ -45,6 +45,12 @@ export class InfraError extends Error {
   readonly kind: GatewayFailureKind;
   /** HTTP status for a `'http'` failure (a 5xx); `0` for non-HTTP kinds. */
   readonly status: number;
+  /**
+   * The gateway's own error string, as a FIELD — consumers (the ux/catalog
+   * classifier) read this directly instead of regex-scraping it back out of
+   * the prose `message`, whose wrapper format is not parse-stable.
+   */
+  readonly gatewayMessage: string;
 
   constructor(failure: GatewayFailure) {
     super(
@@ -53,6 +59,7 @@ export class InfraError extends Error {
     this.name = 'InfraError';
     this.kind = failure.kind;
     this.status = failure.status;
+    this.gatewayMessage = failure.error;
   }
 }
 

@@ -5,7 +5,8 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { CommandHandler, infraAwareErrorText } from './CommandHandler.js';
+import { CommandHandler, topLevelErrorSpec } from './CommandHandler.js';
+import { CATALOG } from '../ux/catalog/catalog.js';
 import { InfraError } from '@tzurot/clients';
 import { Collection, MessageFlags, type SlashCommandBuilder } from 'discord.js';
 import type {
@@ -41,21 +42,22 @@ vi.mock('node:fs', () => ({
 
 import { readdirSync, statSync } from 'node:fs';
 
-describe('infraAwareErrorText', () => {
-  const fallback = 'There was an error executing this command!';
+describe('topLevelErrorSpec', () => {
+  const fallback = CATALOG.error.commandFailed();
 
-  it('returns a "try again" message for an InfraError (transient gateway failure)', () => {
+  it('returns the transient shape for an InfraError (transient gateway failure)', () => {
     const err = new InfraError({ ok: false, kind: 'timeout', error: 'timed out', status: 0 });
-    expect(infraAwareErrorText(err, fallback)).toContain('try again');
-    expect(infraAwareErrorText(err, fallback)).not.toBe(fallback);
+    const spec = topLevelErrorSpec(err, fallback);
+    expect(spec.text).toContain('try again later');
+    expect(spec).not.toBe(fallback);
   });
 
-  it('returns the command-specific fallback for a non-infra Error', () => {
-    expect(infraAwareErrorText(new Error('boom'), fallback)).toBe(fallback);
+  it('returns the surface-specific fallback for a non-infra Error', () => {
+    expect(topLevelErrorSpec(new Error('boom'), fallback)).toBe(fallback);
   });
 
   it('returns the fallback for a non-Error throwable', () => {
-    expect(infraAwareErrorText('string error', fallback)).toBe(fallback);
+    expect(topLevelErrorSpec('string error', fallback)).toBe(fallback);
   });
 });
 
@@ -452,7 +454,7 @@ describe('CommandHandler', () => {
       await handler.handleInteraction(mockInteraction);
 
       expect(mockInteraction.reply).toHaveBeenCalledWith({
-        content: 'There was an error executing this command!',
+        content: '❌ There was an error executing this command!',
         flags: MessageFlags.Ephemeral,
       });
     });
@@ -481,13 +483,16 @@ describe('CommandHandler', () => {
       await handler.handleInteraction(mockInteraction);
 
       expect(mockInteraction.followUp).toHaveBeenCalledWith({
-        content: 'There was an error executing this command!',
+        content: '❌ There was an error executing this command!',
         flags: MessageFlags.Ephemeral,
       });
       expect(mockInteraction.reply).not.toHaveBeenCalled();
     });
 
-    it('should handle command execution error with followUp when deferred', async () => {
+    it('fills the deferral placeholder via editReply when deferred (fixed: was followUp)', async () => {
+      // Deliberate behavior change: the old sendErrorReply followUp'd a
+      // deferred-but-unreplied interaction, stranding the "Thinking…"
+      // placeholder forever. The unified replySpec path edits it instead.
       const mockCommand: Command = {
         data: {
           name: 'failing',
@@ -504,16 +509,17 @@ describe('CommandHandler', () => {
         commandName: 'failing',
         reply: vi.fn().mockResolvedValue(undefined),
         followUp: vi.fn().mockResolvedValue(undefined),
+        editReply: vi.fn().mockResolvedValue(undefined),
         replied: false,
         deferred: true, // Deferred
       } as unknown as ChatInputCommandInteraction;
 
       await handler.handleInteraction(mockInteraction);
 
-      expect(mockInteraction.followUp).toHaveBeenCalledWith({
-        content: 'There was an error executing this command!',
-        flags: MessageFlags.Ephemeral,
+      expect(mockInteraction.editReply).toHaveBeenCalledWith({
+        content: '❌ There was an error executing this command!',
       });
+      expect(mockInteraction.followUp).not.toHaveBeenCalled();
       expect(mockInteraction.reply).not.toHaveBeenCalled();
     });
 

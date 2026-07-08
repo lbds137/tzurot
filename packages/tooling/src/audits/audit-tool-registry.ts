@@ -96,6 +96,11 @@ export const AUDIT_TOOL_REGISTRY: readonly AuditToolEntry[] = [
     description: 'Line-count ratchet over always-loaded context surfaces (rules + CURRENT.md)',
   },
   {
+    command: 'ux:literals',
+    whyPath: 'packages/tooling/src/audits/ux-literals-check.WHY.md',
+    description: 'Raw user-facing literal ratchet over bot-client commands (ux/catalog adoption)',
+  },
+  {
     command: 'voice-refs:audit',
     whyPath: 'packages/tooling/src/voice/audit-references.WHY.md',
     description: 'Voice reference durations vs Mistral 30s cap',

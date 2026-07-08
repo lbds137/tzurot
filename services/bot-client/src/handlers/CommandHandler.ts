@@ -16,6 +16,9 @@ import {
   type ButtonInteraction,
   MessageFlags,
 } from 'discord.js';
+import { CATALOG } from '../ux/catalog/catalog.js';
+import type { MessageSpec } from '../ux/catalog/types.js';
+import { replySpecSafe } from '../ux/render/reply.js';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join } from 'node:path';
 import type { Command } from '../types.js';
@@ -24,20 +27,17 @@ import { getCommandFromCustomId } from '../utils/customIds.js';
 import { getCommandFiles } from '../utils/commandFileUtils.js';
 
 const logger = createLogger('CommandHandler');
-const ERROR_REPLY_FAILED_MSG =
-  '[CommandHandler] Could not send error reply (interaction likely already acknowledged)';
 
 /**
- * User-facing text for a top-level command/interaction error. An `InfraError`
- * (a gateway call failed for an infrastructure reason — timeout/network/5xx,
- * surfaced via the Pattern-B result helpers in `@tzurot/clients`) gets a
- * "try again" message, so a transient blip never reads to the user as a
- * definitive failure of the command. Everything else keeps the
- * command-specific fallback.
+ * Spec for a top-level command/interaction error. An `InfraError` (a gateway
+ * call failed for an infrastructure reason — timeout/network/5xx, surfaced
+ * via the Pattern-B result helpers in `@tzurot/clients`) gets the transient
+ * shape, so a blip never reads to the user as a definitive failure of the
+ * command. Everything else keeps the surface-specific fallback spec.
  */
-export function infraAwareErrorText(error: unknown, fallback: string): string {
+export function topLevelErrorSpec(error: unknown, fallback: MessageSpec): MessageSpec {
   return error instanceof InfraError
-    ? "⚠️ Couldn't reach the server right now — please try again in a moment."
+    ? CATALOG.error.transient("Couldn't reach the server right now.")
     : fallback;
 }
 
@@ -60,24 +60,6 @@ export class CommandHandler {
   constructor() {
     this.commands = new Collection();
     this.prefixToCommand = new Map();
-  }
-
-  /**
-   * Send an ephemeral error reply, using followUp if already replied/deferred
-   */
-  private async sendErrorReply(
-    interaction:
-      | ChatInputCommandInteraction
-      | ModalSubmitInteraction
-      | ButtonInteraction
-      | StringSelectMenuInteraction,
-    errorMessage: string
-  ): Promise<void> {
-    if (interaction.replied || interaction.deferred) {
-      await interaction.followUp({ content: errorMessage, flags: MessageFlags.Ephemeral });
-    } else {
-      await interaction.reply({ content: errorMessage, flags: MessageFlags.Ephemeral });
-    }
   }
 
   /**
@@ -221,14 +203,9 @@ export class CommandHandler {
       await execute(interaction);
     } catch (error) {
       logger.error({ err: error, commandName }, 'Error executing command');
-      try {
-        await this.sendErrorReply(
-          interaction,
-          infraAwareErrorText(error, 'There was an error executing this command!')
-        );
-      } catch (replyError) {
-        logger.debug({ err: replyError }, ERROR_REPLY_FAILED_MSG);
-      }
+      await replySpecSafe(interaction, topLevelErrorSpec(error, CATALOG.error.commandFailed()), {
+        logContext: { commandName },
+      });
     }
   }
 
@@ -272,14 +249,13 @@ export class CommandHandler {
       }
     } catch (error) {
       logger.error({ err: error, customId }, `Error in modal: ${commandName}`);
-      try {
-        await this.sendErrorReply(
-          interaction,
-          infraAwareErrorText(error, 'There was an error processing this interaction!')
-        );
-      } catch (replyError) {
-        logger.debug({ err: replyError, customId }, ERROR_REPLY_FAILED_MSG);
-      }
+      await replySpecSafe(
+        interaction,
+        topLevelErrorSpec(error, CATALOG.error.interactionFailed()),
+        {
+          logContext: { customId },
+        }
+      );
     }
   }
 
@@ -355,14 +331,13 @@ export class CommandHandler {
       }
     } catch (error) {
       logger.error({ err: error, customId, commandName }, 'Error in component interaction');
-      try {
-        await this.sendErrorReply(
-          interaction,
-          infraAwareErrorText(error, 'There was an error processing this interaction!')
-        );
-      } catch (replyError) {
-        logger.debug({ err: replyError, customId }, ERROR_REPLY_FAILED_MSG);
-      }
+      await replySpecSafe(
+        interaction,
+        topLevelErrorSpec(error, CATALOG.error.interactionFailed()),
+        {
+          logContext: { customId },
+        }
+      );
     }
   }
 
