@@ -11,6 +11,8 @@ import {
   type ButtonBuilder,
 } from 'discord.js';
 import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
+import { classifyGatewayFailure } from '../../../ux/catalog/classify.js';
+import { renderSpec } from '../../../ux/render/render.js';
 import { type AudioProviderId } from '@tzurot/common-types/types/audio-provider';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
@@ -168,7 +170,9 @@ export async function handleBrowseVoices(context: DeferredCommandContext): Promi
     const result = await userClient.listVoices();
 
     if (!result.ok) {
-      await context.editReply({ content: `❌ ${result.error}` });
+      await context.editReply({
+        content: renderSpec(classifyGatewayFailure(result, 'voices', { operation: 'read' })),
+      });
       return;
     }
 
@@ -178,7 +182,9 @@ export async function handleBrowseVoices(context: DeferredCommandContext): Promi
     logger.info({ userId, voiceCount: result.data.voices.length }, 'Listed voices');
   } catch (error) {
     logger.error({ err: error, userId }, 'Unexpected error');
-    await context.editReply({ content: '❌ An unexpected error occurred. Please try again.' });
+    await context.editReply({
+      content: renderSpec(classifyGatewayFailure(error, 'voices', { operation: 'read' })),
+    });
   }
 }
 
@@ -204,7 +210,11 @@ export async function handleVoiceBrowsePagination(interaction: ButtonInteraction
     const result = await userClient.listVoices();
 
     if (!result.ok) {
-      await interaction.editReply({ content: `❌ ${result.error}`, embeds: [], components: [] });
+      await interaction.editReply({
+        content: renderSpec(classifyGatewayFailure(result, 'voices', { operation: 'read' })),
+        embeds: [],
+        components: [],
+      });
       return;
     }
 

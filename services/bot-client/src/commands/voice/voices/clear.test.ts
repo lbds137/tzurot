@@ -176,7 +176,7 @@ describe('handleClearVoices', () => {
     await handleClearVoices(createMockContext());
 
     expect(mockEditReply).toHaveBeenCalledWith({
-      content: '❌ An unexpected error occurred. Please try again.',
+      content: '❌ Failed to clear your voices. Please try again.',
     });
   });
 });

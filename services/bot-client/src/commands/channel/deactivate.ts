@@ -10,6 +10,8 @@
  */
 
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
+import { renderSpec } from '../../ux/render/render.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { clientsFor } from '../../utils/gatewayClients.js';
 import { requireManageMessagesContext } from '../../utils/permissions.js';
@@ -46,7 +48,11 @@ export async function handleDeactivate(context: DeferredCommandContext): Promise
         'Deactivation failed'
       );
 
-      await context.editReply(`❌ Failed to deactivate: ${result.error}`);
+      await context.editReply(
+        renderSpec(
+          classifyGatewayFailure(result, 'channel', { failedAction: 'deactivate the channel' })
+        )
+      );
       return;
     }
 
@@ -95,6 +101,10 @@ export async function handleDeactivate(context: DeferredCommandContext): Promise
       },
       'Deactivation error'
     );
-    await context.editReply('❌ An unexpected error occurred while deactivating the channel.');
+    await context.editReply(
+      renderSpec(
+        classifyGatewayFailure(error, 'channel', { failedAction: 'deactivate the channel' })
+      )
+    );
   }
 }

@@ -148,7 +148,7 @@ describe('handleDeleteVoice', () => {
     await handleDeleteVoice(createMockContext('elevenlabs:voice-1'));
 
     expect(mockEditReply).toHaveBeenCalledWith({
-      content: '❌ An unexpected error occurred. Please try again.',
+      content: '❌ Failed to delete the voice. Please try again.',
     });
   });
 });

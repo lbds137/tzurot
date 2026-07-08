@@ -195,7 +195,9 @@ describe('handleShapesModalSubmit', () => {
       const interaction = createMockInteraction('shapes::auth');
       await handleShapesModalSubmit(interaction);
 
-      expect(mockEditReply).toHaveBeenCalledWith(expect.stringContaining('unexpected error'));
+      expect(mockEditReply).toHaveBeenCalledWith(
+        expect.stringContaining('Failed to save your credentials')
+      );
     });
   });
 });

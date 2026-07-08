@@ -10,6 +10,8 @@
  */
 
 import { EmbedBuilder, type ButtonInteraction, type ModalSubmitInteraction } from 'discord.js';
+import { classifyGatewayFailure } from '../../../ux/catalog/classify.js';
+import { renderSpec } from '../../../ux/render/render.js';
 import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
@@ -26,6 +28,9 @@ import { invalidateVoiceCache } from './voiceCache.js';
 
 const logger = createLogger('voice-voices-clear');
 
+/** Shared failedAction verb for the clear-voices classify paths. */
+const CLEAR_VOICES_ACTION = 'clear your voices';
+
 /** Operation name for destructive confirmation custom IDs */
 export const VOICE_CLEAR_OPERATION = 'voice-clear';
 
@@ -41,7 +46,11 @@ export async function handleClearVoices(context: DeferredCommandContext): Promis
     const result = await userClient.listVoices();
 
     if (!result.ok) {
-      await context.editReply({ content: `❌ ${result.error}` });
+      await context.editReply({
+        content: renderSpec(
+          classifyGatewayFailure(result, 'voices', { failedAction: CLEAR_VOICES_ACTION })
+        ),
+      });
       return;
     }
 
@@ -75,7 +84,11 @@ export async function handleClearVoices(context: DeferredCommandContext): Promis
     logger.info({ userId, voiceCount: count }, 'Showing confirmation');
   } catch (error) {
     logger.error({ err: error, userId }, 'Unexpected error');
-    await context.editReply({ content: '❌ An unexpected error occurred. Please try again.' });
+    await context.editReply({
+      content: renderSpec(
+        classifyGatewayFailure(error, 'voices', { failedAction: CLEAR_VOICES_ACTION })
+      ),
+    });
   }
 }
 
@@ -108,7 +121,12 @@ export async function handleVoiceClearModalSubmit(
     const result = await userClient.clearVoices();
 
     if (!result.ok) {
-      return { success: false, errorMessage: `❌ ${result.error}` };
+      return {
+        success: false,
+        errorMessage: renderSpec(
+          classifyGatewayFailure(result, 'voices', { failedAction: CLEAR_VOICES_ACTION })
+        ),
+      };
     }
 
     const { deleted, total, errors } = result.data;
