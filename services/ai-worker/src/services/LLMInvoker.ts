@@ -34,6 +34,7 @@ import {
 } from './ModelFactory.js';
 import { extractAndPopulateOpenRouterReasoning } from './modelFactory/extractOpenRouterReasoning.js';
 import { withRetry, RetryError } from '../utils/retry.js';
+import { classifyQuotaFailure } from './quotaFallback.js';
 import {
   shouldRetryError,
   getErrorLogContext,
@@ -250,6 +251,12 @@ export class LLMInvoker {
           operationName: `LLM invocation (${modelName})`,
           shouldRetry: shouldRetryError,
           getErrorContext: getErrorLogContext,
+          // A quota-class attempt error (429/quota/credit) must survive as the
+          // terminal `lastError` even when a LATER attempt dies of the
+          // per-attempt abort (TIMEOUT) — during a 429 storm the abort is the
+          // symptom, the rate limit is the cause, and the reactive quota
+          // retarget only fires on quota-class classification.
+          preferTerminalError: error => classifyQuotaFailure(error) !== null,
         }
       );
     } catch (err) {
