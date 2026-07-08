@@ -73,8 +73,8 @@ Implementation plan council-passed 2026-07-07 (GLM 5.2 · Kimi K2.7-code · Qwen
 | B (#1551) | `DASHBOARD_MESSAGES`→catalog, `replyError`→`replyContent` delegate, `DashboardUpdateError` + `extractApiErrorMessage` retired, dead `commandHelpers` deleted, PersonalityMessageHandler raw-leak FIXED, classifier `failedAction` override | ✅ MERGED |
 | C (#1552) | Shape-B wrappers → nullOn404 honest-absence contracts; classifier `operation: 'read'` axis; `followUpSpec` (deferUpdate clobber guard); list-collapse class exempted w/ follow-ups row | ✅ MERGED |
 | D1 (#1554) | Character family sweep (avatar/voice/view/export/create/import/dashboardShared); read/write-phase catch split; saveCharacter fail-arm preserved; ratchet 441→370 | ✅ MERGED |
-| D2 | Remaining character files (browse/chat/dashboard/randomPick/edit) + persona + preset families; riders: plain-Error kind-loss follow-up, split-helper threshold | Next |
-| D3 | memory/settings/shapes/channel/admin/models families | Pending |
+| D2 (#1555) | Persona/preset families + character stragglers (~73 sites); notFound `hint` option; preset-import fail-arm preserved; ratchet 370→269 | ✅ MERGED |
+| D3 | memory/settings/shapes/channel/admin/models families; riders: deletePersona + getCachedPersonalities wrapper widening, plain-Error kind-loss | Next |
 | E | `SlotOutcome` discriminated union, per-persona multi-tag canned error delivery, STT/MessageHandler/truncation wording, in-character upgrade | Pending |
 
 _Audit detail: 5 Explore-agent reports (2026-06-28) distilled above; re-grounded 2026-07-04 by a 3-agent code sweep (deltas: 9 modal sites not 8; 3 button-order violations incl. one in shared `destructiveConfirmation.ts`; generation-path errors already in-character via webhook — the "100% system-voiced" audit row was wrong for that path; three parallel custom-ID conventions)._
