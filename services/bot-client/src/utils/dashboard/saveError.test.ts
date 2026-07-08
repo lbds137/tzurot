@@ -1,15 +1,15 @@
 /**
- * Tests for shared dashboard save-error handling.
+ * Tests for shared dashboard save-error handling (adapter over ux/catalog's
+ * classifier — the honest-outcome semantics are pinned HERE at the dashboard
+ * seam; the classifier's own truth table lives in ux/catalog/classify.test.ts).
  */
 
 import { describe, it, expect } from 'vitest';
+import { GatewayApiError } from '@tzurot/clients';
 import {
   DashboardUpdateError,
   extractApiErrorMessage,
-  isSaveTimeout,
   buildDashboardSaveErrorContent,
-  SAVE_TIMEOUT_NOTICE,
-  SAVE_UNCONFIRMED_NOTICE,
 } from './saveError.js';
 
 describe('DashboardUpdateError', () => {
@@ -25,32 +25,10 @@ describe('DashboardUpdateError', () => {
     expect(err.kind).toBe('timeout');
     expect(err.message).toContain('Request timeout');
   });
-});
 
-describe('isSaveTimeout', () => {
-  it('is true for an outcome-uncertain timeout abort', () => {
-    expect(isSaveTimeout(new DashboardUpdateError('boom', 0, 'timeout'))).toBe(true);
-  });
-
-  it('is true for a network abort (outcome also uncertain)', () => {
-    expect(isSaveTimeout(new DashboardUpdateError('boom', 0, 'network'))).toBe(true);
-  });
-
-  it('is FALSE for a schema failure despite status 0 — the write committed', () => {
-    // A 'schema' failure means the gateway returned 200 OK but the response body
-    // didn't parse; the write definitively committed, so "may still be applying"
-    // would be a lie. This is the gap the kind discriminant closes.
-    expect(isSaveTimeout(new DashboardUpdateError('boom', 0, 'schema'))).toBe(false);
-  });
-
-  it('is false for a DashboardUpdateError with a real HTTP status', () => {
-    expect(isSaveTimeout(new DashboardUpdateError('boom: 400 - bad', 400, 'http'))).toBe(false);
-  });
-
-  it('is false for a plain Error or non-error value', () => {
-    expect(isSaveTimeout(new Error('boom'))).toBe(false);
-    expect(isSaveTimeout('string error')).toBe(false);
-    expect(isSaveTimeout(null)).toBe(false);
+  it('extends GatewayApiError so the ux/catalog classifier narrows it directly', () => {
+    const err = new DashboardUpdateError('boom', 0, 'timeout');
+    expect(err).toBeInstanceOf(GatewayApiError);
   });
 });
 
@@ -101,8 +79,9 @@ describe('buildDashboardSaveErrorContent', () => {
       'timeout'
     );
     const content = buildDashboardSaveErrorContent(error, 'character');
-    expect(content).toBe(SAVE_TIMEOUT_NOTICE);
     expect(content).toContain('may still be applying');
+    expect(content).toContain('🔄 Refresh'); // dashboards HAVE the refresh control
+    expect(content).not.toMatch(/try again/i); // uncertain outcome never invites a retry
     expect(content).not.toContain('❌');
   });
 
@@ -116,9 +95,20 @@ describe('buildDashboardSaveErrorContent', () => {
       'schema'
     );
     const content = buildDashboardSaveErrorContent(error, 'character');
-    expect(content).toBe(SAVE_UNCONFIRMED_NOTICE);
-    expect(content).not.toBe(SAVE_TIMEOUT_NOTICE);
+    expect(content).toContain('was saved');
+    expect(content).toContain('🔄 Refresh');
+    expect(content).not.toContain('may still be applying');
+    expect(content).not.toMatch(/try again/i);
     expect(content).not.toContain('❌'); // not a failure framing — the write committed
+  });
+
+  it('is outcome-uncertain for a network abort too', () => {
+    const error = new DashboardUpdateError(
+      'Failed to update preset: 0 - fetch failed',
+      0,
+      'network'
+    );
+    expect(buildDashboardSaveErrorContent(error, 'preset')).toContain('may still be applying');
   });
 
   it('surfaces the real gateway message on a genuine HTTP rejection', () => {

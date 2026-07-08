@@ -284,3 +284,56 @@ describe('audit-canary: mutation:check', () => {
     }
   });
 });
+
+describe('audit-canary: ux:literals', () => {
+  it('detects the deliberate raw user-facing literals in the fixture', async () => {
+    const { mkdtemp, writeFile, rm } = await import('node:fs/promises');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const { runUxLiteralsCheck, getUxLiteralsConfigFingerprint } =
+      await import('./ux-literals-check.js');
+    const { buildBaselineMeta, hashConfigSlice } = await import('./baseline-meta.js');
+
+    // Zero-total baseline built at test time so its configHash tracks the
+    // CURRENT fingerprint (a hardcoded hash would turn every legitimate
+    // fingerprint change into a drift failure instead of literal detection).
+    const tmp = await mkdtemp(join(tmpdir(), 'ux-literals-canary-'));
+    const baselinePath = join(tmp, 'baseline.json');
+    await writeFile(
+      baselinePath,
+      JSON.stringify({
+        total: 0,
+        graceMargin: 0,
+        meta: buildBaselineMeta(
+          'ux-literals-check/canary',
+          hashConfigSlice(getUxLiteralsConfigFingerprint())
+        ),
+      })
+    );
+
+    const captured: string[] = [];
+    const logSpy = vi.spyOn(console, 'log').mockImplementation((...args: unknown[]) => {
+      captured.push(args.map(a => String(a)).join(' '));
+    });
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    try {
+      const status = runUxLiteralsCheck({
+        rootDir: `${FIXTURES_ROOT}/ux-literals`,
+        baseline: baselinePath,
+        summary: true,
+        noFail: true,
+      });
+
+      expect(status).toBe('fail');
+      const summary = parseSummary(captured[captured.length - 1]);
+      expect(summary.tool).toBe('ux:literals');
+      expect(summary.status).toBe('fail');
+      expect(summary.findings).toBeGreaterThan(0);
+    } finally {
+      logSpy.mockRestore();
+      errorSpy.mockRestore();
+      await rm(tmp, { recursive: true, force: true });
+    }
+  });
+});
