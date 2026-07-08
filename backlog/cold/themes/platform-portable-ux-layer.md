@@ -63,4 +63,16 @@ Both the in-character directive and platform portability resolve at the same sea
 
 Phase 0 (triage + design) completed 2026-07-04. The phase plan now lives in the artifact's §5 (1: catalog + voice · 2: components · 3: vocabulary + enforcement · 4: adapter, trigger-gated); every open design call is decided in its §6. Do not re-derive here — plan-mode for each phase starts from the artifact.
 
+#### Phase 1 — IN PROGRESS (started 2026-07-07, five-PR train)
+
+Implementation plan council-passed 2026-07-07 (GLM 5.2 · Kimi K2.7-code · Qwen 3.7 Max; record in the PR-A body + plan file). Ratchet baseline at start: **448** raw literals (`pnpm ops ux:literals`).
+
+| PR | Scope | Status |
+| --- | --- | --- |
+| A (#1550) | `ux/catalog/` + `ux/render/` + total classifier + `ux:literals` ratchet (audit-class) + depcruise boundary + pilot consumers (CommandHandler catch-alls, saveError adapter) | In review |
+| B | `DASHBOARD_MESSAGES`→catalog (15 consumers), `replyError` (8 consumers)→`replySpec`, retire `DashboardUpdateError` (3 api.ts throw-site files), delete dead `commandHelpers` trio, `PersonalityMessageHandler.ts:79` raw-leak fix. Note: classifier generic fallback hardcodes "update" — add an action-phrase override for non-write contexts | Next |
+| C | Shape-B wrapper conversions (null-collapse → `GatewayApiError`), per-wrapper caller audit, atomic | Pending |
+| D | G2 sweep: ~50–70 Shape A/C catch blocks → classifier (split if >30/PR); big ratchet drop | Pending |
+| E | `SlotOutcome` discriminated union, per-persona multi-tag canned error delivery, STT/MessageHandler/truncation wording, in-character upgrade | Pending |
+
 _Audit detail: 5 Explore-agent reports (2026-06-28) distilled above; re-grounded 2026-07-04 by a 3-agent code sweep (deltas: 9 modal sites not 8; 3 button-order violations incl. one in shared `destructiveConfirmation.ts`; generation-path errors already in-character via webhook — the "100% system-voiced" audit row was wrong for that path; three parallel custom-ID conventions)._
