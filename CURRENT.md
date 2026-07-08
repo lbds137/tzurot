@@ -12,7 +12,7 @@
 
 ## Next Session Goal
 
-**Continue the UX Phase 1 train**: **PR-D3b** (settings family — done + stashed, unstash onto fresh develop), then **D3c** (shapes/channel/voice/admin/models/history/help/inspect/deny), then **PR-E** (#85 in-character). Standing procedure rule (task #87): ask read-vs-write at EVERY converted catch; when a reviewer names a bug class, grep+fix all instances that round (SlotOutcome discriminated union, per-persona multi-tag canned errors, in-character upgrade — carries the PR-B review note about the message-path uncertain wording). Plan file: `~/.claude/plans/mutable-doodling-thunder.md`; train map in the theme file's Phase 1 table. Exempted list-collapse class filed in `cold/follow-ups.md`. Phase 2 later absorbs privacy-epic Part 2 (view/browse unification) + browse isAdmin follow-ups. Memory epic gates mature in background.
+**Continue the UX Phase 1 train**: **PR-D3c** (task #88 — shapes/channel/voice/admin/models/history/help/inspect/deny; carries the 5-rule sweep checklist) (shapes/channel/voice/admin/models/history/help/inspect/deny), then **PR-E** (#85 in-character). Standing procedure rule (task #87): ask read-vs-write at EVERY converted catch; when a reviewer names a bug class, grep+fix all instances that round (SlotOutcome discriminated union, per-persona multi-tag canned errors, in-character upgrade — carries the PR-B review note about the message-path uncertain wording). Plan file: `~/.claude/plans/mutable-doodling-thunder.md`; train map in the theme file's Phase 1 table. Exempted list-collapse class filed in `cold/follow-ups.md`. Phase 2 later absorbs privacy-epic Part 2 (view/browse unification) + browse isAdmin follow-ups. Memory epic gates mature in background.
 
 ## Next Session Goal
 
