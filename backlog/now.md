@@ -6,6 +6,8 @@ _The hot surface — loaded at session start alongside `BACKLOG.md`, `active-epi
 
 ### 🚨 Production Issues
 
+- 🐛 `[FIX]` **First z.ai→OpenRouter fallback response lacks the footer breadcrumb** — Surfaced 2026-07-07 (owner, prod screenshots). The REACTIVE auto-promotion swap (`autoPromotionFallback.ts:144`, fires on the first mid-request 429) returns `effectiveProviderUsed` (footer says "via OpenRouter") but attaches no `quotaFallback` annotation, so the `glm-5.2 → z-ai/glm-5.2 (rate limited)` arrow is missing on the FIRST fallback response; subsequent requests take the proactive demotion (`promotionDemotion.ts`, doom-cache hit) which does attach it. Fix: swap-success path returns QuotaFallbackInfo (category classified from the ORIGINAL error — honest for 429 vs catalog-drift) and `GenerationStep.ts:355` composer folds it in as a third source. ~30 lines + tests. Cosmetic/observability severity — routing itself works.
+
 _Active bugs observed in production. Fix before new features. Cleared issues are removed once released — see git history + the GitHub release notes._
 
 _Recently resolved items move to the GitHub release notes at ship time — this section stays empty between incidents (history: git + releases)._
