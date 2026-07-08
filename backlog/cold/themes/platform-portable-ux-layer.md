@@ -69,10 +69,12 @@ Implementation plan council-passed 2026-07-07 (GLM 5.2 · Kimi K2.7-code · Qwen
 
 | PR | Scope | Status |
 | --- | --- | --- |
-| A (#1550) | `ux/catalog/` + `ux/render/` + total classifier + `ux:literals` ratchet (audit-class) + depcruise boundary + pilot consumers (CommandHandler catch-alls, saveError adapter) | In review |
-| B | `DASHBOARD_MESSAGES`→catalog (15 consumers), `replyError` (8 consumers)→`replySpec`, retire `DashboardUpdateError` (3 api.ts throw-site files), delete dead `commandHelpers` trio, `PersonalityMessageHandler.ts:79` raw-leak fix. Note: classifier generic fallback hardcodes "update" — add an action-phrase override for non-write contexts | Next |
-| C | Shape-B wrapper conversions (null-collapse → `GatewayApiError`), per-wrapper caller audit, atomic | Pending |
-| D | G2 sweep: ~50–70 Shape A/C catch blocks → classifier (split if >30/PR); big ratchet drop | Pending |
+| A (#1550) | `ux/catalog/` + `ux/render/` + total classifier + `ux:literals` ratchet (audit-class) + depcruise boundary + pilot consumers (CommandHandler catch-alls, saveError adapter) | ✅ MERGED |
+| B (#1551) | `DASHBOARD_MESSAGES`→catalog, `replyError`→`replyContent` delegate, `DashboardUpdateError` + `extractApiErrorMessage` retired, dead `commandHelpers` deleted, PersonalityMessageHandler raw-leak FIXED, classifier `failedAction` override | ✅ MERGED |
+| C (#1552) | Shape-B wrappers → nullOn404 honest-absence contracts; classifier `operation: 'read'` axis; `followUpSpec` (deferUpdate clobber guard); list-collapse class exempted w/ follow-ups row | ✅ MERGED |
+| D1 (#1554) | Character family sweep (avatar/voice/view/export/create/import/dashboardShared); read/write-phase catch split; saveCharacter fail-arm preserved; ratchet 441→370 | ✅ MERGED |
+| D2 | Remaining character files (browse/chat/dashboard/randomPick/edit) + persona + preset families; riders: plain-Error kind-loss follow-up, split-helper threshold | Next |
+| D3 | memory/settings/shapes/channel/admin/models families | Pending |
 | E | `SlotOutcome` discriminated union, per-persona multi-tag canned error delivery, STT/MessageHandler/truncation wording, in-character upgrade | Pending |
 
 _Audit detail: 5 Explore-agent reports (2026-06-28) distilled above; re-grounded 2026-07-04 by a 3-agent code sweep (deltas: 9 modal sites not 8; 3 button-order violations incl. one in shared `destructiveConfirmation.ts`; generation-path errors already in-character via webhook — the "100% system-voiced" audit row was wrong for that path; three parallel custom-ID conventions)._

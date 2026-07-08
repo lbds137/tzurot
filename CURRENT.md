@@ -7,12 +7,12 @@
 ## Unreleased on Develop
 
 - **UX boulder Phase 1 train (2026-07-07/08)**: PR-A #1550 (ux/catalog + ux/render + total classifier + `ux:literals` ratchet, audit-class; resurrected the dead `ai-worker-no-discord` depcruise rule), PR-B #1551 (DASHBOARD_MESSAGES/replyError onto catalog, DashboardUpdateError + extractApiErrorMessage retired, dead commandHelpers deleted, PersonalityMessageHandler raw-`Error:` leak FIXED), PR-C #1552 (Shape-B wrappers → nullOn404 honest-absence contracts; classifier gained `operation: 'read'` after review caught write-copy on read paths; `followUpSpec` for deferUpdate'd handlers — editReply would clobber the component message). **#1553 footer fix** (owner-reported prod bug: first z.ai→OpenRouter fallback lacked the breadcrumb; reactive swap now announces + audit-logs). Ratchet 448 → 370.
-- **PR-D1 #1554 IN REVIEW** (character family sweep: avatar/voice/view/export/create/import/dashboardShared; monitor armed).
+- **PR-D1 #1554 MERGED** (character family sweep; 4 review rounds — round 3 caught a real read-phase-classified-as-write bug, fixed with the phase-split pattern now codified in the D2 task; ratchet 448 → 370 total on the train).
 - **Memory Phase 1a remains PARKED** on `feat/memory-hybrid-retrieval` (evidence gate: real-scale goldens).
 
 ## Next Session Goal
 
-**Continue the UX Phase 1 train**: land #1554 (D1), then **PR-D2** (remaining character files browse/chat/dashboard/randomPick/edit + persona/preset family), then further D-slices (memory/settings/shapes/channel/admin), then **PR-E** (SlotOutcome discriminated union, per-persona multi-tag canned errors, in-character upgrade — carries the PR-B review note about the message-path uncertain wording). Plan file: `~/.claude/plans/mutable-doodling-thunder.md`; train map in the theme file's Phase 1 table. Exempted list-collapse class filed in `cold/follow-ups.md`. Phase 2 later absorbs privacy-epic Part 2 (view/browse unification) + browse isAdmin follow-ups. Memory epic gates mature in background.
+**Continue the UX Phase 1 train**: **PR-D2** (remaining character files browse/chat/dashboard/randomPick/edit + persona/preset family), then further D-slices (memory/settings/shapes/channel/admin), then **PR-E** (SlotOutcome discriminated union, per-persona multi-tag canned errors, in-character upgrade — carries the PR-B review note about the message-path uncertain wording). Plan file: `~/.claude/plans/mutable-doodling-thunder.md`; train map in the theme file's Phase 1 table. Exempted list-collapse class filed in `cold/follow-ups.md`. Phase 2 later absorbs privacy-epic Part 2 (view/browse unification) + browse isAdmin follow-ups. Memory epic gates mature in background.
 
 ## Next Session Goal
 
