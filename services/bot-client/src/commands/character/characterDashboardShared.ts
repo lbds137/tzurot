@@ -15,6 +15,9 @@ import type { createLogger } from '@tzurot/common-types/utils/logger';
 import type { UserClient } from '@tzurot/clients';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { clientsFor } from '../../utils/gatewayClients.js';
+import { CATALOG } from '../../ux/catalog/catalog.js';
+import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
+import { renderSpec } from '../../ux/render/render.js';
 import {
   type SettingsDashboardConfig,
   createSettingsDashboard,
@@ -56,13 +59,14 @@ export async function openCharacterCascadeDashboard(
     if (!result.ok) {
       if (result.status === 404) {
         await context.editReply({
-          content: `❌ Character "${characterSlug}" not found.`,
+          content: renderSpec(CATALOG.error.notFound('Character', { name: characterSlug })),
         });
         return;
       }
       logger.warn({ error: result.error, characterSlug }, 'Fetch failed');
+      // The fail-arm carries the transport kind — classify it directly.
       await context.editReply({
-        content: '❌ Failed to load character data.',
+        content: renderSpec(classifyGatewayFailure(result, 'character', { operation: 'read' })),
       });
       return;
     }
@@ -79,7 +83,9 @@ export async function openCharacterCascadeDashboard(
         'Cascade resolve failed'
       );
       await context.editReply({
-        content: '❌ Failed to fetch config settings.',
+        content: renderSpec(
+          classifyGatewayFailure(cascadeResult, 'config settings', { operation: 'read' })
+        ),
       });
       return;
     }
@@ -99,7 +105,12 @@ export async function openCharacterCascadeDashboard(
     logger.error({ err: error, characterSlug }, 'Error opening dashboard');
 
     await context.editReply({
-      content: `❌ An error occurred while opening the ${noun} dashboard.`,
+      content: renderSpec(
+        classifyGatewayFailure(error, 'character', {
+          operation: 'read',
+          failedAction: `open the ${noun} dashboard`,
+        })
+      ),
     });
   }
 }

@@ -22,6 +22,9 @@ import { characterViewOptions } from '@tzurot/common-types/generated/commandOpti
 import { formatDateShort } from '@tzurot/common-types/utils/dateFormatting';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { GatewayApiError, type UserClient } from '@tzurot/clients';
+import { CATALOG } from '../../ux/catalog/catalog.js';
+import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
+import { renderSpec } from '../../ux/render/render.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import type { CharacterData } from './characterTypes.js';
 import { CharacterCustomIds } from '../../utils/customIds.js';
@@ -31,8 +34,11 @@ import { toCharacterData } from './api.js';
 import { VIEW_TOTAL_PAGES, VIEW_PAGE_TITLES, EXPANDABLE_FIELDS } from './viewTypes.js';
 import { sendChunkedReply } from '../../utils/chunkedReply.js';
 
-// Re-export for backward compatibility
 const logger = createLogger('character-view');
+
+/** Rendered read-failure line for this view's fetch catches. */
+const readFailure = (error: unknown, resource: string): string =>
+  renderSpec(classifyGatewayFailure(error, resource, { operation: 'read' }));
 
 /** Field info for tracking truncation */
 interface FieldInfo {
@@ -418,7 +424,7 @@ export async function handleView(
     const { userClient } = clientsFor(context.interaction);
     const character = await fetchCharacterForView(slug, userClient);
     if (!character) {
-      await context.editReply(`❌ Character \`${slug}\` not found or not accessible.`);
+      await context.editReply(renderSpec(CATALOG.error.notFound('Character', { name: slug })));
       return;
     }
 
@@ -432,7 +438,7 @@ export async function handleView(
     await context.editReply({ embeds: [embed], components });
   } catch (error) {
     logger.error({ err: error, slug }, 'Failed to view character');
-    await context.editReply('❌ Failed to load character. Please try again.');
+    await context.editReply(readFailure(error, 'character'));
   }
 }
 
@@ -452,7 +458,7 @@ export async function handleViewPagination(
     const character = await fetchCharacterForView(slug, userClient);
     if (!character) {
       await interaction.editReply({
-        content: '❌ Character not found.',
+        content: renderSpec(CATALOG.error.notFound('Character')),
         embeds: [],
         components: [],
       });
@@ -488,14 +494,14 @@ export async function handleExpandField(
     const { userClient } = clientsFor(interaction);
     const character = await fetchCharacterForView(slug, userClient);
     if (!character) {
-      await replyError(interaction, '❌ Character not found.');
+      await replyError(interaction, renderSpec(CATALOG.error.notFound('Character')));
       return;
     }
 
     // Get field info
     const fieldInfo = EXPANDABLE_FIELDS[fieldName];
     if (fieldInfo === undefined) {
-      await replyError(interaction, '❌ Unknown field.');
+      await replyError(interaction, renderSpec(CATALOG.error.validation('Unknown field.')));
       return;
     }
 
@@ -523,7 +529,7 @@ export async function handleExpandField(
     logger.info({ slug, fieldName }, 'Expanded field content shown');
   } catch (error) {
     logger.error({ err: error, slug, fieldName }, 'Failed to expand field');
-    await replyError(interaction, '❌ Failed to load field content. Please try again.');
+    await replyError(interaction, readFailure(error, 'field content'));
   }
 }
 
