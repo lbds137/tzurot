@@ -62,6 +62,19 @@ module.exports = {
       to: { circular: true },
     },
 
+    {
+      name: 'ux-catalog-no-discord',
+      comment:
+        'ux/catalog is the platform-neutral message-intent layer (design: ' +
+        'platform-portable-ux-design §4.6) — only ux/render may touch discord.js. ' +
+        'This boundary IS the portability posture; an adapter for a second ' +
+        'platform renders the same catalog. Same discord.js-vs-discord-named-' +
+        'module collision handling as ai-worker-no-discord below.',
+      severity: 'error',
+      from: { path: '^services/bot-client/src/ux/catalog/' },
+      to: { path: 'discord\\.js', pathNot: '^packages/common-types/' },
+    },
+
     // === WARNINGS ===
     {
       name: 'ai-worker-no-discord',
@@ -101,6 +114,13 @@ module.exports = {
       strategy: 'content',
       folder: 'node_modules/.cache/dependency-cruiser',
     },
-    includeOnly: ['^services/', '^packages/'],
+    // node_modules/discord.js is deliberately IN the graph (as a leaf —
+    // doNotFollow stops traversal): the ai-worker-no-discord and
+    // ux-catalog-no-discord rules ban importing the library, and includeOnly
+    // filters dependency TARGETS out of the graph, so without this entry the
+    // discord.js edge is never recorded and both rules are dead — verified
+    // empirically with a canary import that produced zero violations.
+    // Unanchored: pnpm resolves to node_modules/.pnpm/discord.js@…/node_modules/discord.js/…
+    includeOnly: ['^services/', '^packages/', 'node_modules/discord\\.js'],
   },
 };

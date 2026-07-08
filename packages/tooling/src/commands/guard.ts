@@ -8,6 +8,8 @@ import type { CAC } from 'cac';
 
 const SUMMARY_OPTION_DESC =
   'Output only the standardized JSONL audit-summary line (for the audit-aggregator)';
+const BASELINE_OPTION = '--baseline <path>';
+const BASELINE_OPTION_DESC = 'Path to baseline JSON';
 
 export function registerGuardCommands(cli: CAC): void {
   cli
@@ -106,6 +108,7 @@ export function registerGuardCommands(cli: CAC): void {
 
   registerMetaGuards(cli);
   registerLinesCommands(cli);
+  registerUxLiteralsCommands(cli);
   registerHealthCommand(cli);
 }
 
@@ -145,7 +148,7 @@ function registerLinesCommands(cli: CAC): void {
       'lines:check',
       'Fail if an always-loaded context surface exceeded its line budget (CI gate)'
     )
-    .option('--baseline <path>', 'Path to baseline JSON', {
+    .option(BASELINE_OPTION, BASELINE_OPTION_DESC, {
       default: '.github/baselines/lines-baseline.json',
     })
     .option('--summary', SUMMARY_OPTION_DESC)
@@ -161,7 +164,7 @@ function registerLinesCommands(cli: CAC): void {
       'lines:update-baseline',
       'Write current surface line counts to the baseline (run after intentional growth or a trim)'
     )
-    .option('--baseline <path>', 'Path to baseline JSON', {
+    .option(BASELINE_OPTION, BASELINE_OPTION_DESC, {
       default: '.github/baselines/lines-baseline.json',
     })
     .option('--dry-run', 'Show the diff without writing the file')
@@ -169,6 +172,44 @@ function registerLinesCommands(cli: CAC): void {
     .action(async (options: { baseline: string; dryRun?: boolean }) => {
       const { runLinesUpdateBaseline } = await import('../audits/lines-check.js');
       runLinesUpdateBaseline(options);
+    });
+}
+
+/**
+ * UX literal-adoption ratchet (audit-class; see ux-literals-check.WHY.md).
+ * The Phase-1 regression brake for ux/catalog adoption — retires when the
+ * Phase-3 AST ESLint rule lands.
+ */
+function registerUxLiteralsCommands(cli: CAC): void {
+  cli
+    .command(
+      'ux:literals',
+      'Fail if raw user-facing literals in bot-client commands grew past the baseline (CI gate)'
+    )
+    .option(BASELINE_OPTION, BASELINE_OPTION_DESC, {
+      default: '.github/baselines/ux-literals-baseline.json',
+    })
+    .option('--summary', SUMMARY_OPTION_DESC)
+    .example('ops ux:literals')
+    .example('ops ux:literals --summary')
+    .action(async (options: { baseline: string; summary?: boolean }) => {
+      const { runUxLiteralsCheck } = await import('../audits/ux-literals-check.js');
+      runUxLiteralsCheck(options);
+    });
+
+  cli
+    .command(
+      'ux:literals:update-baseline',
+      'Write the current raw-literal count to the baseline (run after catalog adoption drops it)'
+    )
+    .option(BASELINE_OPTION, BASELINE_OPTION_DESC, {
+      default: '.github/baselines/ux-literals-baseline.json',
+    })
+    .option('--dry-run', 'Show the diff without writing the file')
+    .example('ops ux:literals:update-baseline --dry-run')
+    .action(async (options: { baseline: string; dryRun?: boolean }) => {
+      const { runUxLiteralsUpdateBaseline } = await import('../audits/ux-literals-check.js');
+      runUxLiteralsUpdateBaseline(options);
     });
 }
 

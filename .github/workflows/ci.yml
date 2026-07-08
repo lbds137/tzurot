@@ -164,6 +164,11 @@ jobs:
         # also runs on the pre-push docs-only fast path and in pnpm quality.
         run: pnpm ops lines:check
 
+      - name: Enforce UX literal-adoption ratchet
+        # Raw user-facing literal count in bot-client commands must not grow —
+        # new messages come from ux/catalog (platform-portable-ux-design §4.5).
+        run: pnpm ops ux:literals
+
       - name: Check local/CI gate parity
         run: pnpm ops guard:gate-parity
 
