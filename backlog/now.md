@@ -6,7 +6,6 @@ _The hot surface — loaded at session start alongside `BACKLOG.md`, `active-epi
 
 ### 🚨 Production Issues
 
-- 🐛 `[FIX]` **Free-model 429 storms classify as TIMEOUT and dodge the quota retarget** — Surfaced 2026-07-08 (owner screenshot, ref mrbu72xdaps; runtime-confirmed from prod logs, job llm-01925d35, 534s burn). Chain: OpenRouter free-pool 429 storm → the SDK's internal retry absorbs 429s inside our 3-min per-attempt window until OUR abort fires → last attempt classifies TIMEOUT (AbortError, per the retry-storm fix — working as designed) → terminal RetryError carries only lastError's category → `classifyQuotaFailure(TIMEOUT)` = null → **reactive quota retarget never fires** → user gets the in-character timeout error. Minutes later the doom cache (populated by a mid-ladder rate_limit attempt) proactively retargets a FRESH request fine — proving the machinery works when the category is honest. Fix shape (two parts): (a) aggregate categories across retry attempts — a quota-class category seen on ANY attempt wins over a terminal timeout (carry it on RetryError or pick that attempt's error as lastError), so the reactive retarget fires; (b) cap the ChatOpenAI SDK's internal retries (maxRetries: 0) so 429s surface to OUR ladder immediately — kills the masking at the source AND the ~9-minute burn. Blast radius: ai-worker LLMInvoker/retry.ts + ModelFactory.
 
 
 _Active bugs observed in production. Fix before new features. Cleared issues are removed once released — see git history + the GitHub release notes._
