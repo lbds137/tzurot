@@ -116,6 +116,16 @@ describe('handlePresence', () => {
     });
   });
 
+  it('renders a friendly error when the Redis read fails (catch branch)', async () => {
+    mockRedisGet.mockRejectedValue(new Error('Redis down'));
+    const context = createMockContext();
+    await handlePresence(context);
+
+    expect(context.editReply).toHaveBeenCalledWith({
+      content: expect.stringContaining('Failed to read the current presence'),
+    });
+  });
+
   it('should set presence with type and text', async () => {
     const context = createMockContext({ type: ActivityType.Watching, text: 'the world burn' });
     await handlePresence(context);

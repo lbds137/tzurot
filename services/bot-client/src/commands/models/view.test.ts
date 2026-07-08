@@ -95,7 +95,7 @@ describe('handleView', () => {
     catalogMock.fetchCatalogModelById.mockResolvedValue(null);
     const context = ctx();
     await handleView(context);
-    expect(context.editReply).toHaveBeenCalledWith(expect.stringContaining('No model found'));
+    expect(context.editReply).toHaveBeenCalledWith(expect.stringContaining('not found'));
   });
 
   it('reports a friendly error when the lookup throws', async () => {
@@ -103,7 +103,7 @@ describe('handleView', () => {
     const context = ctx();
     await handleView(context);
     expect(context.editReply).toHaveBeenCalledWith(
-      '❌ Failed to load that model. Please try again.'
+      '❌ Failed to load the model. Please try again.'
     );
   });
 });

@@ -191,7 +191,7 @@ describe('Admin Servers Browse', () => {
       await handleServers(context);
 
       expect(context.editReply).toHaveBeenCalledWith({
-        content: '❌ Failed to retrieve server list.',
+        content: '❌ Failed to retrieve the server list. Please try again.',
       });
     });
   });
@@ -293,7 +293,7 @@ describe('Admin Servers Browse', () => {
       await handleServersSelect(interaction);
 
       expect(interaction.editReply).toHaveBeenCalledWith({
-        content: '❌ Server not found. It may have been removed.',
+        content: expect.stringContaining('Server not found'),
         embeds: [],
         components: [],
       });

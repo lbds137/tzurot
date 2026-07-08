@@ -11,6 +11,8 @@
  */
 
 import { SlashCommandBuilder, EmbedBuilder, type AutocompleteInteraction } from 'discord.js';
+import { CATALOG } from '../../ux/catalog/catalog.js';
+import { renderSpec } from '../../ux/render/render.js';
 import { getConfig } from '@tzurot/common-types/config/config';
 import { DISCORD_COLORS, DISCORD_LIMITS } from '@tzurot/common-types/constants/discord';
 import { helpOptions } from '@tzurot/common-types/generated/commandOptions';
@@ -74,7 +76,7 @@ async function execute(ctx: SafeCommandContext): Promise<void> {
   if (commands === undefined || commands.size === 0) {
     logger.error('Commands collection not available on client');
     await context.editReply({
-      content: '❌ Unable to load commands list. Please try again later.',
+      content: renderSpec(CATALOG.error.transient("Couldn't load the commands list right now.")),
     });
     return;
   }
@@ -182,7 +184,12 @@ async function showCommandDetails(
 
   if (target.kind === 'unknown') {
     await context.editReply({
-      content: `❌ Unknown command: \`/${value}\`\n\nUse \`/help\` to see all available commands.`,
+      content: renderSpec(
+        CATALOG.error.notFound('Command', {
+          name: `/${value}`,
+          hint: 'Use `/help` to see all available commands.',
+        })
+      ),
     });
     return;
   }

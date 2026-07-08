@@ -6,6 +6,9 @@
  */
 
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { CATALOG } from '../../ux/catalog/catalog.js';
+import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
+import { renderSpec } from '../../ux/render/render.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { clientsFor } from '../../utils/gatewayClients.js';
 import { checkDenyPermission } from './permissions.js';
@@ -32,9 +35,13 @@ export async function handleRemove(context: DeferredCommandContext): Promise<voi
 
     if (!result.ok) {
       if (result.status === 404) {
-        await context.editReply('❌ No matching denial entry found.');
+        await context.editReply(renderSpec(CATALOG.error.notFound('Denial entry')));
       } else {
-        await context.editReply(`❌ Failed: ${result.error}`);
+        await context.editReply(
+          renderSpec(
+            classifyGatewayFailure(result, 'denial', { failedAction: 'remove the denial' })
+          )
+        );
       }
       return;
     }
@@ -45,6 +52,8 @@ export async function handleRemove(context: DeferredCommandContext): Promise<voi
     );
   } catch (error) {
     logger.error({ err: error }, 'Failed to remove denial');
-    await context.editReply('❌ Failed to remove denial. Please try again.');
+    await context.editReply(
+      renderSpec(classifyGatewayFailure(error, 'denial', { failedAction: 'remove the denial' }))
+    );
   }
 }

@@ -8,6 +8,8 @@
  */
 
 import { escapeMarkdown } from 'discord.js';
+import { CATALOG } from '../../ux/catalog/catalog.js';
+import { renderSpec } from '../../ux/render/render.js';
 import { isBotOwner } from '@tzurot/common-types/utils/ownerMiddleware';
 import { isInfraFailure } from '@tzurot/clients';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
@@ -41,7 +43,11 @@ export async function checkDenyPermission(
   // BOT scope: owner only
   if (scope === 'BOT') {
     if (!isOwner) {
-      await context.editReply('❌ Only the bot owner can manage bot-wide denials.');
+      await context.editReply(
+        renderSpec(
+          CATALOG.error.permissionDenied('manage bot-wide denials — only the bot owner can')
+        )
+      );
       return DENIED;
     }
     return { allowed: true, scopeId: '*' };
@@ -60,7 +66,7 @@ export async function checkDenyPermission(
     return checkPersonalityPermission(context, isOwner, personalitySlug);
   }
 
-  await context.editReply('❌ Invalid scope.');
+  await context.editReply(renderSpec(CATALOG.error.validation('Invalid scope.')));
   return DENIED;
 }
 
@@ -71,7 +77,9 @@ async function resolveModScopeId(
 ): Promise<PermissionResult> {
   if (scope === 'GUILD') {
     if (context.guildId === null) {
-      await context.editReply('❌ Guild scope requires being in a server.');
+      await context.editReply(
+        renderSpec(CATALOG.error.validation('Guild scope requires being in a server.'))
+      );
       return DENIED;
     }
     return { allowed: true, scopeId: context.guildId };
@@ -79,7 +87,9 @@ async function resolveModScopeId(
 
   // CHANNEL scope
   if (channelId === null) {
-    await context.editReply('❌ Channel scope requires the `channel` option.');
+    await context.editReply(
+      renderSpec(CATALOG.error.validation('Channel scope requires the `channel` option.'))
+    );
     return DENIED;
   }
   return { allowed: true, scopeId: channelId };
@@ -91,7 +101,9 @@ async function checkPersonalityPermission(
   personalitySlug: string | null
 ): Promise<PermissionResult> {
   if (personalitySlug === null || personalitySlug.length === 0) {
-    await context.editReply('❌ Personality scope requires the `personality` option.');
+    await context.editReply(
+      renderSpec(CATALOG.error.validation('Personality scope requires the `personality` option.'))
+    );
     return DENIED;
   }
 
@@ -109,14 +121,20 @@ async function checkPersonalityPermission(
     // exist" — fail safe (still DENIED) but tell the user to retry.
     await context.editReply(
       isInfraFailure(result)
-        ? "⚠️ Couldn't reach the server right now — please try again in a moment."
-        : `❌ Character "${escapeMarkdown(personalitySlug)}" not found.`
+        ? renderSpec(CATALOG.error.transient("Couldn't reach the server right now."))
+        : renderSpec(CATALOG.error.notFound('Character', { name: escapeMarkdown(personalitySlug) }))
     );
     return DENIED;
   }
 
   if (!isOwner && !result.data.canEdit) {
-    await context.editReply('❌ You can only manage denials for characters you own.');
+    await context.editReply(
+      renderSpec(
+        CATALOG.error.permissionDenied(
+          'manage denials for this character — you can only manage characters you own'
+        )
+      )
+    );
     return DENIED;
   }
 

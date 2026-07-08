@@ -6,6 +6,9 @@
  */
 
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { CATALOG } from '../../ux/catalog/catalog.js';
+import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
+import { renderSpec } from '../../ux/render/render.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { clientsFor } from '../../utils/gatewayClients.js';
 import { checkDenyPermission } from './permissions.js';
@@ -24,7 +27,9 @@ export async function handleAdd(context: DeferredCommandContext): Promise<void> 
 
   // GUILD type can only use BOT scope
   if (type === 'GUILD' && scope !== 'BOT') {
-    await context.editReply('❌ Server denials only support Bot scope.');
+    await context.editReply(
+      renderSpec(CATALOG.error.validation('Server denials only support Bot scope.'))
+    );
     return;
   }
 
@@ -46,7 +51,9 @@ export async function handleAdd(context: DeferredCommandContext): Promise<void> 
     });
 
     if (!result.ok) {
-      await context.editReply(`❌ Failed: ${result.error}`);
+      await context.editReply(
+        renderSpec(classifyGatewayFailure(result, 'denial', { failedAction: 'add the denial' }))
+      );
       return;
     }
 
@@ -63,6 +70,8 @@ export async function handleAdd(context: DeferredCommandContext): Promise<void> 
     await context.editReply(`✅ ${label} ${targetDisplay} denied (${scopeDesc}${modeDesc}).`);
   } catch (error) {
     logger.error({ err: error }, 'Failed to add denial');
-    await context.editReply('❌ Failed to add denial. Please try again.');
+    await context.editReply(
+      renderSpec(classifyGatewayFailure(error, 'denial', { failedAction: 'add the denial' }))
+    );
   }
 }

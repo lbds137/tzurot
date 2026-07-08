@@ -7,6 +7,8 @@
  */
 
 import { ActivityType, type Client } from 'discord.js';
+import { CATALOG } from '../../ux/catalog/catalog.js';
+import { renderSpec } from '../../ux/render/render.js';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { redis } from '../../redis.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
@@ -47,7 +49,11 @@ export async function handlePresence(context: DeferredCommandContext): Promise<v
 
   // Type + text → set presence
   if (textOption === null || textOption.length === 0) {
-    await context.editReply({ content: '❌ Text is required when setting a presence type.' });
+    await context.editReply({
+      content: renderSpec(
+        CATALOG.error.validation('Text is required when setting a presence type.')
+      ),
+    });
     return;
   }
 
@@ -67,7 +73,9 @@ async function showCurrentPresence(context: DeferredCommandContext): Promise<voi
     await context.editReply({ content: `📋 Current presence: **${label}** ${data.text}` });
   } catch (error) {
     logger.error({ err: error }, 'Failed to read presence from Redis');
-    await context.editReply({ content: '❌ Failed to read current presence.' });
+    await context.editReply({
+      content: renderSpec(CATALOG.error.operationFailed('read the current presence')),
+    });
   }
 }
 
@@ -101,7 +109,9 @@ async function setPresence(
     logger.info({ type, text }, 'Presence set');
   } catch (error) {
     logger.error({ err: error }, 'Failed to set presence');
-    await context.editReply({ content: '❌ Failed to set presence.' });
+    await context.editReply({
+      content: renderSpec(CATALOG.error.operationFailed('set the presence')),
+    });
   }
 }
 
@@ -116,7 +126,9 @@ async function clearPresence(context: DeferredCommandContext): Promise<void> {
     logger.info('Presence cleared');
   } catch (error) {
     logger.error({ err: error }, 'Failed to clear presence');
-    await context.editReply({ content: '❌ Failed to clear presence.' });
+    await context.editReply({
+      content: renderSpec(CATALOG.error.operationFailed('clear the presence')),
+    });
   }
 }
 

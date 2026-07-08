@@ -16,6 +16,9 @@ import {
   type StringSelectMenuInteraction,
 } from 'discord.js';
 import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
+import { CATALOG } from '../../ux/catalog/catalog.js';
+import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
+import { renderSpec } from '../../ux/render/render.js';
 import { modelsBrowseOptions } from '@tzurot/common-types/generated/commandOptions';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
@@ -314,7 +317,9 @@ export async function handleBrowse(context: DeferredCommandContext): Promise<voi
     logger.info({ count: models.length, capability, query, sort }, 'Browse models');
   } catch (error) {
     logger.error({ err: error }, 'Failed to browse models');
-    await context.editReply('❌ Failed to load models. Please try again.');
+    await context.editReply(
+      renderSpec(classifyGatewayFailure(error, 'models', { operation: 'read' }))
+    );
   }
 }
 
@@ -341,7 +346,7 @@ export async function handleBrowsePagination(interaction: ButtonInteraction): Pr
   } catch (error) {
     logger.error({ err: error, ...parsed }, 'Failed to load model browse page');
     await interaction.followUp({
-      content: '❌ Failed to load that page. Please try again.',
+      content: renderSpec(classifyGatewayFailure(error, 'page', { operation: 'read' })),
       flags: MessageFlags.Ephemeral,
     });
   }
@@ -361,7 +366,7 @@ export async function handleBrowseSelect(interaction: StringSelectMenuInteractio
     ]);
     if (model === null) {
       await interaction.followUp({
-        content: `❌ Model \`${escapeMarkdown(modelId)}\` not found.`,
+        content: renderSpec(CATALOG.error.notFound('Model', { name: escapeMarkdown(modelId) })),
         flags: MessageFlags.Ephemeral,
       });
       return;
@@ -376,7 +381,7 @@ export async function handleBrowseSelect(interaction: StringSelectMenuInteractio
   } catch (error) {
     logger.error({ err: error, modelId }, 'Failed to render model card from browse');
     await interaction.followUp({
-      content: '❌ Failed to load that model. Please try again.',
+      content: renderSpec(classifyGatewayFailure(error, 'model', { operation: 'read' })),
       flags: MessageFlags.Ephemeral,
     });
   }

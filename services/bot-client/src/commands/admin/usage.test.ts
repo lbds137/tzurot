@@ -180,7 +180,7 @@ describe('handleUsage', () => {
     await handleUsage(context);
 
     expect(context.editReply).toHaveBeenCalledWith({
-      content: expect.stringContaining('❌ Error retrieving usage statistics'),
+      content: expect.stringContaining('❌ Failed to retrieve usage statistics'),
     });
   });
 
