@@ -215,7 +215,7 @@ describe('/channel activate', () => {
 
     await handleActivate(context);
 
-    expect(context.editReply).toHaveBeenCalledWith(expect.stringContaining("don't have access"));
+    expect(context.editReply).toHaveBeenCalledWith(expect.stringContaining('permission to access'));
   });
 
   it('should handle generic API errors', async () => {
@@ -224,7 +224,9 @@ describe('/channel activate', () => {
 
     await handleActivate(context);
 
-    expect(context.editReply).toHaveBeenCalledWith(expect.stringContaining('Failed to activate'));
+    expect(context.editReply).toHaveBeenCalledWith(
+      expect.stringContaining('Internal server error')
+    );
   });
 
   it('should handle unexpected errors', async () => {
@@ -233,7 +235,7 @@ describe('/channel activate', () => {
 
     await handleActivate(context);
 
-    expect(context.editReply).toHaveBeenCalledWith(expect.stringContaining('unexpected error'));
+    expect(context.editReply).toHaveBeenCalledWith(expect.stringContaining('Failed to activate'));
   });
 
   it('rejects the autocomplete-error sentinel before calling the gateway', async () => {

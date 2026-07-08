@@ -99,7 +99,7 @@ describe('handleLogout', () => {
     await handleLogout(context);
 
     expect(mockEditReply).toHaveBeenCalledWith({
-      content: expect.stringContaining('Failed to remove'),
+      content: expect.stringContaining('Server error'),
     });
   });
 
@@ -110,7 +110,7 @@ describe('handleLogout', () => {
     await handleLogout(context);
 
     expect(mockEditReply).toHaveBeenCalledWith({
-      content: expect.stringContaining('unexpected error'),
+      content: expect.stringContaining('Failed to remove your credentials'),
     });
   });
 });

@@ -258,9 +258,7 @@ describe('handleBrowse', () => {
     const context = createMockContext();
     await handleBrowse(context);
 
-    expect(mockEditReply).toHaveBeenCalledWith(
-      expect.stringContaining('Failed to browse channels')
-    );
+    expect(mockEditReply).toHaveBeenCalledWith(expect.stringContaining('Internal error'));
   });
 
   it('should handle unexpected errors', async () => {
@@ -269,7 +267,9 @@ describe('handleBrowse', () => {
     const context = createMockContext();
     await handleBrowse(context);
 
-    expect(mockEditReply).toHaveBeenCalledWith(expect.stringContaining('unexpected error'));
+    expect(mockEditReply).toHaveBeenCalledWith(
+      expect.stringContaining('Failed to load the channels')
+    );
   });
 });
 

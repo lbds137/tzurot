@@ -171,7 +171,7 @@ describe('/channel deactivate', () => {
 
     await handleDeactivate(context);
 
-    expect(context.editReply).toHaveBeenCalledWith(expect.stringContaining('Failed to deactivate'));
+    expect(context.editReply).toHaveBeenCalledWith(expect.stringContaining('Database error'));
   });
 
   it('should handle unexpected errors', async () => {
@@ -180,6 +180,6 @@ describe('/channel deactivate', () => {
 
     await handleDeactivate(context);
 
-    expect(context.editReply).toHaveBeenCalledWith(expect.stringContaining('unexpected error'));
+    expect(context.editReply).toHaveBeenCalledWith(expect.stringContaining('Failed to deactivate'));
   });
 });

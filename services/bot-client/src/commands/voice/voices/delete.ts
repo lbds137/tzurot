@@ -8,6 +8,9 @@
  */
 
 import { EmbedBuilder, type AutocompleteInteraction } from 'discord.js';
+import { CATALOG } from '../../../ux/catalog/catalog.js';
+import { classifyGatewayFailure } from '../../../ux/catalog/classify.js';
+import { renderSpec } from '../../../ux/render/render.js';
 import { DISCORD_COLORS, DISCORD_LIMITS } from '@tzurot/common-types/constants/discord';
 import { isAudioProviderId, type AudioProviderId } from '@tzurot/common-types/types/audio-provider';
 import { createLogger } from '@tzurot/common-types/utils/logger';
@@ -45,8 +48,11 @@ export async function handleDeleteVoice(context: DeferredCommandContext): Promis
   const parsed = parseVoiceOption(optionValue);
   if (parsed === null) {
     await context.editReply({
-      content:
-        '❌ Invalid voice selection. Please re-run the command and pick a voice from the autocomplete list.',
+      content: renderSpec(
+        CATALOG.error.validation(
+          'Invalid voice selection. Please re-run the command and pick a voice from the autocomplete list.'
+        )
+      ),
     });
     return;
   }
@@ -56,7 +62,11 @@ export async function handleDeleteVoice(context: DeferredCommandContext): Promis
     const result = await userClient.deleteVoice(parsed.provider, parsed.voiceId);
 
     if (!result.ok) {
-      await context.editReply({ content: `❌ ${result.error}` });
+      await context.editReply({
+        content: renderSpec(
+          classifyGatewayFailure(result, 'voice', { failedAction: 'delete the voice' })
+        ),
+      });
       return;
     }
 
@@ -77,7 +87,11 @@ export async function handleDeleteVoice(context: DeferredCommandContext): Promis
     );
   } catch (error) {
     logger.error({ err: error, userId }, 'Unexpected error');
-    await context.editReply({ content: '❌ An unexpected error occurred. Please try again.' });
+    await context.editReply({
+      content: renderSpec(
+        classifyGatewayFailure(error, 'voice', { failedAction: 'delete the voice' })
+      ),
+    });
   }
 }
 

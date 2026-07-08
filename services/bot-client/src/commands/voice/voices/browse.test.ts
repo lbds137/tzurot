@@ -261,7 +261,7 @@ describe('handleBrowseVoices', () => {
     await handleBrowseVoices(createMockContext());
 
     expect(mockEditReply).toHaveBeenCalledWith({
-      content: '❌ An unexpected error occurred. Please try again.',
+      content: '❌ Failed to load the voices. Please try again.',
     });
   });
 });
