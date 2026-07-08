@@ -15,6 +15,7 @@ import {
   handleIncognitoForget,
 } from './incognito.js';
 import { makeOk, makeErr, asUserClient } from '../../test/gatewayClientStubs.js';
+import { GatewayApiError } from '@tzurot/clients';
 
 vi.mock('@tzurot/common-types/utils/logger', async () => {
   const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
@@ -238,7 +239,7 @@ describe('Memory Incognito Handlers', () => {
       await handleIncognitoEnable(context);
 
       expect(mockEditReply).toHaveBeenCalledWith({
-        content: expect.stringContaining('Failed to enable incognito mode'),
+        content: expect.stringContaining('Server error'),
       });
     });
 
@@ -250,8 +251,26 @@ describe('Memory Incognito Handlers', () => {
       await handleIncognitoEnable(context);
 
       expect(mockEditReply).toHaveBeenCalledWith({
-        content: expect.stringContaining('unexpected error'),
+        content: expect.stringContaining('Failed to enable incognito mode'),
       });
+    });
+
+    it('a WRITE timeout renders the uncertain-write shape, never "try again"', async () => {
+      // enableIncognito is a write inside the catch's try — a typed timeout
+      // must render "may still be applying", not invite a duplicate write.
+      mockResolvePersonalityId.mockResolvedValue({ kind: 'found', id: 'p1' });
+      stub.enableIncognito.mockRejectedValue(
+        new GatewayApiError('Failed to enable: 0 - timed out', 0, 'timeout')
+      );
+
+      const context = createMockContext({ character: 'lilith' });
+      await handleIncognitoEnable(context);
+
+      const reply = (mockEditReply as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0] as {
+        content: string;
+      };
+      expect(reply.content).toContain('may still be applying');
+      expect(reply.content).not.toMatch(/try again(?! later)/i);
     });
 
     it('rejects the autocomplete-error sentinel before calling resolver or gateway', async () => {
@@ -354,7 +373,7 @@ describe('Memory Incognito Handlers', () => {
       await handleIncognitoDisable(context);
 
       expect(mockEditReply).toHaveBeenCalledWith({
-        content: expect.stringContaining('Failed to disable incognito mode'),
+        content: expect.stringContaining('Server error'),
       });
     });
 
@@ -366,7 +385,7 @@ describe('Memory Incognito Handlers', () => {
       await handleIncognitoDisable(context);
 
       expect(mockEditReply).toHaveBeenCalledWith({
-        content: expect.stringContaining('unexpected error'),
+        content: expect.stringContaining('Failed to disable incognito mode'),
       });
     });
 
@@ -511,7 +530,7 @@ describe('Memory Incognito Handlers', () => {
       await handleIncognitoStatus(context);
 
       expect(mockEditReply).toHaveBeenCalledWith({
-        content: expect.stringContaining('Failed to check incognito status'),
+        content: expect.stringContaining('Server error'),
       });
     });
 
@@ -523,7 +542,7 @@ describe('Memory Incognito Handlers', () => {
       await handleIncognitoStatus(context);
 
       expect(mockEditReply).toHaveBeenCalledWith({
-        content: expect.stringContaining('unexpected error'),
+        content: expect.stringContaining('Failed to load the incognito status'),
       });
     });
   });
@@ -624,7 +643,7 @@ describe('Memory Incognito Handlers', () => {
       await handleIncognitoForget(context);
 
       expect(mockEditReply).toHaveBeenCalledWith({
-        content: expect.stringContaining('Failed to delete recent memories'),
+        content: expect.stringContaining('Server error'),
       });
     });
 
@@ -636,7 +655,7 @@ describe('Memory Incognito Handlers', () => {
       await handleIncognitoForget(context);
 
       expect(mockEditReply).toHaveBeenCalledWith({
-        content: expect.stringContaining('unexpected error'),
+        content: expect.stringContaining('Failed to delete recent memories'),
       });
     });
 

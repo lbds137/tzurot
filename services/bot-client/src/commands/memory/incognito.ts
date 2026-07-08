@@ -36,14 +36,18 @@ import {
   createWarningEmbed,
 } from '../../utils/commandHelpers.js';
 import { resolvePersonalityId, getPersonalityName } from './autocomplete.js';
+import { CATALOG } from '../../ux/catalog/catalog.js';
+import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
+import { renderSpec } from '../../ux/render/render.js';
 
 const logger = createLogger('memory-incognito');
 
 /** Shared message for catch-all error logs in this module's four handlers. */
 const UNEXPECTED_ERROR_LOG_MESSAGE = 'Unexpected error';
+/** Shared resource noun for the incognito classify paths. */
+const INCOGNITO_RESOURCE = 'incognito mode';
 
 const ALL_PERSONALITIES_LABEL = 'all characters';
-const UNEXPECTED_ERROR_MESSAGE = '❌ An unexpected error occurred. Please try again.';
 
 /** Local alias for the schema-derived session-with-time-remaining shape. */
 type SessionWithTime = IncognitoSessionWithRemaining;
@@ -95,7 +99,12 @@ async function resolveIncognitoTargetOrReply(
       return null;
     case 'not-found':
       await context.editReply({
-        content: `❌ Character "${escapeMarkdown(personalityInput)}" not found. Use autocomplete to select a valid character, or type "all" for all characters.`,
+        content: renderSpec(
+          CATALOG.error.notFound('Character', {
+            name: escapeMarkdown(personalityInput),
+            hint: 'Use autocomplete to select a valid character, or type "all" for all characters.',
+          })
+        ),
       });
       return null;
     default: {
@@ -126,7 +135,13 @@ export async function handleIncognitoEnable(context: DeferredCommandContext): Pr
 
     if (!result.ok) {
       logger.warn({ userId, personalityInput, duration, status: result.status }, 'Enable failed');
-      await context.editReply({ content: '❌ Failed to enable incognito mode. Please try again.' });
+      await context.editReply({
+        content: renderSpec(
+          classifyGatewayFailure(result, INCOGNITO_RESOURCE, {
+            failedAction: 'enable incognito mode',
+          })
+        ),
+      });
       return;
     }
 
@@ -150,7 +165,11 @@ export async function handleIncognitoEnable(context: DeferredCommandContext): Pr
     );
   } catch (error) {
     logger.error({ err: error, userId }, UNEXPECTED_ERROR_LOG_MESSAGE);
-    await context.editReply({ content: UNEXPECTED_ERROR_MESSAGE });
+    await context.editReply({
+      content: renderSpec(
+        classifyGatewayFailure(error, INCOGNITO_RESOURCE, { failedAction: 'enable incognito mode' })
+      ),
+    });
   }
 }
 
@@ -174,7 +193,11 @@ export async function handleIncognitoDisable(context: DeferredCommandContext): P
     if (!result.ok) {
       logger.warn({ userId, personalityInput, status: result.status }, 'Disable failed');
       await context.editReply({
-        content: '❌ Failed to disable incognito mode. Please try again.',
+        content: renderSpec(
+          classifyGatewayFailure(result, INCOGNITO_RESOURCE, {
+            failedAction: 'disable incognito mode',
+          })
+        ),
       });
       return;
     }
@@ -196,7 +219,13 @@ export async function handleIncognitoDisable(context: DeferredCommandContext): P
     logger.info({ userId, personalityId: resolved.id, wasActive: data.disabled }, 'Mode disabled');
   } catch (error) {
     logger.error({ err: error, userId }, UNEXPECTED_ERROR_LOG_MESSAGE);
-    await context.editReply({ content: UNEXPECTED_ERROR_MESSAGE });
+    await context.editReply({
+      content: renderSpec(
+        classifyGatewayFailure(error, INCOGNITO_RESOURCE, {
+          failedAction: 'disable incognito mode',
+        })
+      ),
+    });
   }
 }
 
@@ -213,7 +242,9 @@ export async function handleIncognitoStatus(context: DeferredCommandContext): Pr
     if (!result.ok) {
       logger.warn({ userId, status: result.status }, 'Status check failed');
       await context.editReply({
-        content: '❌ Failed to check incognito status. Please try again.',
+        content: renderSpec(
+          classifyGatewayFailure(result, 'incognito status', { operation: 'read' })
+        ),
       });
       return;
     }
@@ -250,7 +281,10 @@ export async function handleIncognitoStatus(context: DeferredCommandContext): Pr
     logger.info({ userId, sessionCount: data.sessions.length }, 'Status checked');
   } catch (error) {
     logger.error({ err: error, userId }, UNEXPECTED_ERROR_LOG_MESSAGE);
-    await context.editReply({ content: UNEXPECTED_ERROR_MESSAGE });
+    // handleIncognitoStatus only READS — never claim a write.
+    await context.editReply({
+      content: renderSpec(classifyGatewayFailure(error, 'incognito status', { operation: 'read' })),
+    });
   }
 }
 
@@ -279,7 +313,9 @@ export async function handleIncognitoForget(context: DeferredCommandContext): Pr
     if (!timeframeParse.success) {
       logger.warn({ userId, personalityInput, timeframe }, 'Invalid incognito timeframe');
       await context.editReply({
-        content: '❌ Invalid timeframe. Please pick one of the provided choices.',
+        content: renderSpec(
+          CATALOG.error.validation('Invalid timeframe. Please pick one of the provided choices.')
+        ),
       });
       return;
     }
@@ -292,7 +328,9 @@ export async function handleIncognitoForget(context: DeferredCommandContext): Pr
     if (!result.ok) {
       logger.warn({ userId, personalityInput, timeframe, status: result.status }, 'Forget failed');
       await context.editReply({
-        content: '❌ Failed to delete recent memories. Please try again.',
+        content: renderSpec(
+          classifyGatewayFailure(result, 'memories', { failedAction: 'delete recent memories' })
+        ),
       });
       return;
     }
@@ -318,6 +356,10 @@ export async function handleIncognitoForget(context: DeferredCommandContext): Pr
     );
   } catch (error) {
     logger.error({ err: error, userId }, UNEXPECTED_ERROR_LOG_MESSAGE);
-    await context.editReply({ content: UNEXPECTED_ERROR_MESSAGE });
+    await context.editReply({
+      content: renderSpec(
+        classifyGatewayFailure(error, 'memories', { failedAction: 'delete recent memories' })
+      ),
+    });
   }
 }

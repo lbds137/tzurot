@@ -45,6 +45,9 @@ import { resolveOptionalPersonality } from './resolveHelpers.js';
 import { buildMemoryActionId, handleMemorySelect } from './detail.js';
 import { handleMemoryDetailAction } from './detailActionRouter.js';
 import { truncateContent } from './formatters.js';
+import { CATALOG } from '../../ux/catalog/catalog.js';
+import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
+import { renderSpec } from '../../ux/render/render.js';
 import {
   saveMemoryListSession,
   findMemoryListSessionByMessage,
@@ -226,7 +229,9 @@ export async function handleBrowse(context: DeferredCommandContext): Promise<voi
 
     if (data === null) {
       logger.warn({ userId }, 'Browse failed');
-      await context.editReply({ content: '❌ Failed to load memories. Please try again later.' });
+      await context.editReply({
+        content: renderSpec(CATALOG.error.transient("Couldn't load your memories right now.")),
+      });
       return;
     }
 
@@ -262,7 +267,7 @@ export async function handleBrowse(context: DeferredCommandContext): Promise<voi
   } catch (error) {
     logger.error({ err: error, userId }, 'Browse error');
     await context.editReply({
-      content: '❌ An unexpected error occurred. Please try again later.',
+      content: renderSpec(classifyGatewayFailure(error, 'memories', { operation: 'read' })),
     });
   }
 }
@@ -317,7 +322,7 @@ export async function handleBrowsePagination(interaction: ButtonInteraction): Pr
   );
   if (data === null) {
     await interaction.followUp({
-      content: '❌ Failed to load page. Please try again.',
+      content: renderSpec(CATALOG.error.transient("Couldn't load that page right now.")),
       flags: MessageFlags.Ephemeral,
     });
     return;

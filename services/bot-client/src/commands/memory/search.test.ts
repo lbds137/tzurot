@@ -315,7 +315,7 @@ describe('handleSearch', () => {
     await handleSearch(context as unknown as DeferredCommandContext);
 
     expect(context.editReply).toHaveBeenCalledWith(
-      expect.objectContaining({ content: expect.stringContaining('Failed') })
+      expect.objectContaining({ content: expect.stringContaining("Couldn't search your memories") })
     );
     expect(mockSaveMemoryListSession).not.toHaveBeenCalled();
   });
@@ -327,7 +327,7 @@ describe('handleSearch', () => {
     await handleSearch(context as unknown as DeferredCommandContext);
 
     expect(context.editReply).toHaveBeenCalledWith(
-      expect.objectContaining({ content: expect.stringContaining('unexpected error') })
+      expect.objectContaining({ content: expect.stringContaining('Failed to search memories') })
     );
   });
 });

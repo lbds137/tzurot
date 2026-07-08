@@ -11,6 +11,9 @@ import type { DeferredCommandContext } from '../../utils/commandContext/types.js
 import { clientsFor } from '../../utils/gatewayClients.js';
 import { createInfoEmbed } from '../../utils/commandHelpers.js';
 import { resolveRequiredPersonality } from './resolveHelpers.js';
+import { CATALOG } from '../../ux/catalog/catalog.js';
+import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
+import { renderSpec } from '../../ux/render/render.js';
 
 const logger = createLogger('memory-stats');
 
@@ -38,12 +41,15 @@ export async function handleStats(context: DeferredCommandContext): Promise<void
     const result = await userClient.getStats({ personalityId });
 
     if (!result.ok) {
-      const errorMessage =
-        result.status === 404
-          ? `Character "${personalityInput}" not found.`
-          : 'Failed to get stats. Please try again later.';
       logger.warn({ userId, personalityInput, status: result.status }, 'Stats failed');
-      await context.editReply({ content: `❌ ${errorMessage}` });
+      await context.editReply({
+        content:
+          result.status === 404
+            ? renderSpec(
+                CATALOG.error.notFound('Character', { name: escapeMarkdown(personalityInput) })
+              )
+            : renderSpec(classifyGatewayFailure(result, 'memory stats', { operation: 'read' })),
+      });
       return;
     }
 
@@ -104,6 +110,8 @@ export async function handleStats(context: DeferredCommandContext): Promise<void
     );
   } catch (error) {
     logger.error({ err: error, userId }, 'Unexpected error');
-    await context.editReply({ content: '❌ An unexpected error occurred. Please try again.' });
+    await context.editReply({
+      content: renderSpec(classifyGatewayFailure(error, 'memory stats', { operation: 'read' })),
+    });
   }
 }

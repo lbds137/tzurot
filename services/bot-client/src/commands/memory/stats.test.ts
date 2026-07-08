@@ -212,7 +212,7 @@ describe('handleStats', () => {
     await handleStats(context);
 
     expect(mockEditReply).toHaveBeenCalledWith({
-      content: expect.stringContaining('Failed to get stats'),
+      content: expect.stringContaining('Server error'),
     });
   });
 
@@ -223,7 +223,7 @@ describe('handleStats', () => {
     await handleStats(context);
 
     expect(mockEditReply).toHaveBeenCalledWith({
-      content: expect.stringContaining('unexpected error'),
+      content: expect.stringContaining('Failed to load the memory stats'),
     });
   });
 });

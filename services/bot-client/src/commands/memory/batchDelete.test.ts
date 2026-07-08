@@ -12,6 +12,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { handleBatchDelete } from './batchDelete.js';
 import type { ButtonInteraction } from 'discord.js';
 import { makeOk, makeErr, asUserClient } from '../../test/gatewayClientStubs.js';
+import { GatewayApiError } from '@tzurot/clients';
 
 vi.mock('@tzurot/common-types/utils/logger', async () => {
   const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
@@ -376,7 +377,7 @@ describe('handleBatchDelete', () => {
       await handleBatchDelete(context);
 
       expect(buttonInteraction.editReply).toHaveBeenCalledWith({
-        content: expect.stringContaining('❌ Failed to delete'),
+        content: expect.stringContaining('Database error'),
         embeds: [],
         components: [],
       });
@@ -422,8 +423,25 @@ describe('handleBatchDelete', () => {
       await handleBatchDelete(context);
 
       expect(mockEditReply).toHaveBeenCalledWith({
-        content: expect.stringContaining('unexpected error'),
+        content: expect.stringContaining('Failed to load the memories'),
       });
+    });
+
+    it('a READ-phase timeout renders the load-failure copy, never write-uncertain', async () => {
+      // The outer catch only wraps the resolve/preview READ phase — a typed
+      // timeout there must NOT claim a delete "may still be applying".
+      mockResolvePersonalityId.mockRejectedValue(
+        new GatewayApiError('Failed to resolve: 0 - timed out', 0, 'timeout')
+      );
+
+      const context = createMockContext();
+      await handleBatchDelete(context);
+
+      const reply = (mockEditReply as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0] as {
+        content: string;
+      };
+      expect(reply.content).toContain("Couldn't load the memories");
+      expect(reply.content).not.toContain('may still be applying');
     });
 
     it('rejects the autocomplete-error sentinel before calling resolver or gateway', async () => {
