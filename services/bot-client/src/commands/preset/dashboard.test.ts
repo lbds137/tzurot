@@ -13,7 +13,6 @@ import {
 import { handleDashboardClose } from '../../utils/dashboard/closeHandler.js';
 import { formatSessionExpiredMessage } from '../../utils/dashboard/messages.js';
 import type { PresetData } from './config.js';
-import { DashboardUpdateError } from '../../utils/dashboard/saveError.js';
 import { GatewayApiError } from '@tzurot/clients';
 
 // Sentinel passed by the migrated dashboard handler — `clientsFor(interaction)`
@@ -477,11 +476,11 @@ describe('handleModalSubmit', () => {
     mockSessionManagerGet.mockResolvedValue({
       data: { id: 'preset-123', name: 'Test', isGlobal: false, isOwned: true },
     });
-    // A client-side timeout surfaces as a DashboardUpdateError with status 0 — the
+    // A client-side timeout surfaces as a GatewayApiError with status 0 — the
     // write may have committed server-side, so the user gets the honest notice
     // rather than a hard "Failed, try again".
     mockUpdatePreset.mockRejectedValue(
-      new DashboardUpdateError('Failed to update preset: 0 - Request timeout', 0, 'timeout')
+      new GatewayApiError('Failed to update preset: 0 - Request timeout', 0, 'timeout')
     );
 
     await handleModalSubmit(createMockModalInteraction('preset::modal::preset-123::identity'));
@@ -1066,7 +1065,7 @@ describe('handleButton', () => {
       await handleButton(createCloneButtonInteraction('preset::clone::preset-123'));
 
       expect(mockFollowUp).toHaveBeenCalledWith({
-        content: '❌ Failed to clone preset. Please try again.',
+        content: '❌ Failed to clone the preset. Please try again.',
         flags: MessageFlags.Ephemeral,
       });
     });

@@ -1,49 +1,59 @@
 /**
  * Dashboard Messages
  *
- * Standard message constants used across dashboard implementations.
- * Ensures consistent user-facing messages for common states.
+ * Standard message constants used across dashboard implementations. The
+ * user-facing MESSAGE keys are rendered views of ux/catalog intents — the
+ * catalog owns the wording and the renderer owns the glyphs; this module is
+ * a convenience surface so dashboard call sites keep working unchanged.
+ * New code should prefer building the intent and calling `replySpec`.
+ *
+ * The component-vocabulary keys (embed titles, button labels) are NOT
+ * messages — they stay literal here until the component phase of the UX
+ * design system gives them a home.
  */
+
+import { CATALOG } from '../../ux/catalog/catalog.js';
+import { renderSpec } from '../../ux/render/render.js';
 
 /**
  * Standard dashboard messages
  */
 export const DASHBOARD_MESSAGES = {
   /** Message shown when session has expired */
-  SESSION_EXPIRED: '⏰ Session expired. Please run the command again.',
+  SESSION_EXPIRED: renderSpec(CATALOG.progress.sessionExpired()),
 
   /** Message shown when dashboard is closed */
-  DASHBOARD_CLOSED: '✅ Dashboard closed.',
+  DASHBOARD_CLOSED: renderSpec(CATALOG.success.done('Dashboard closed.')),
 
   /** Message shown when entity is not found */
-  NOT_FOUND: (entityType: string) => `❌ ${entityType} not found.`,
+  NOT_FOUND: (entityType: string): string => renderSpec(CATALOG.error.notFound(entityType)),
 
   /** Message shown when user lacks permission */
-  NO_PERMISSION: (action: string) => `❌ You do not have permission to ${action}.`,
+  NO_PERMISSION: (action: string): string => renderSpec(CATALOG.error.permissionDenied(action)),
 
   /** Message shown when edit permission is denied */
-  CANNOT_EDIT: '❌ You do not have permission to edit this.',
+  CANNOT_EDIT: renderSpec(CATALOG.error.permissionDenied('edit this')),
 
   /** Message shown when delete permission is denied */
-  CANNOT_DELETE: '❌ You do not have permission to delete this.',
+  CANNOT_DELETE: renderSpec(CATALOG.error.permissionDenied('delete this')),
 
   /** Generic failure message */
-  OPERATION_FAILED: (action: string) => `❌ Failed to ${action}. Please try again.`,
+  OPERATION_FAILED: (action: string): string => renderSpec(CATALOG.error.operationFailed(action)),
 
   /** Message shown when unknown section is selected */
-  UNKNOWN_SECTION: '❌ Unknown section.',
+  UNKNOWN_SECTION: renderSpec(CATALOG.error.validation('Unknown section.')),
 
   /** Message shown when unknown form is submitted */
-  UNKNOWN_FORM: '❌ Unknown form submission.',
+  UNKNOWN_FORM: renderSpec(CATALOG.error.validation('Unknown form submission.')),
 
   /** Message shown during loading/processing */
-  LOADING: (action: string) => `🔄 ${action}...`,
+  LOADING: (action: string): string => renderSpec(CATALOG.progress.working(action)),
 
   /** Message shown on successful action */
-  SUCCESS: (action: string) => `✅ ${action}`,
+  SUCCESS: (action: string): string => renderSpec(CATALOG.success.done(action)),
 
   /** Message for delete confirmation title */
-  DELETE_CONFIRM_TITLE: (entityType: string) => `🗑️ Delete ${entityType}?`,
+  DELETE_CONFIRM_TITLE: (entityType: string): string => `🗑️ Delete ${entityType}?`,
 
   /** Warning message for delete action */
   DELETE_WARNING: 'This action cannot be undone.',
@@ -62,17 +72,14 @@ export const DASHBOARD_MESSAGES = {
  * Format a session expired message with command hint
  */
 export function formatSessionExpiredMessage(command: string): string {
-  return `⏰ Session expired. Please run \`${command}\` again.`;
+  return renderSpec(CATALOG.progress.sessionExpired(command));
 }
 
 /**
  * Format a not found message for a specific entity
  */
 export function formatNotFoundMessage(entityType: string, entityName?: string): string {
-  if (entityName !== undefined) {
-    return `❌ ${entityType} "${entityName}" not found.`;
-  }
-  return `❌ ${entityType} not found.`;
+  return renderSpec(CATALOG.error.notFound(entityType, { name: entityName }));
 }
 
 /**
@@ -87,5 +94,5 @@ export function formatNotFoundMessage(entityType: string, entityName?: string): 
  *   formatSuccessBanner('Deleted', 'MyPreset') // '✅ **Deleted** · MyPreset'
  */
 export function formatSuccessBanner(verb: string, entityName: string): string {
-  return `✅ **${verb}** · ${entityName}`;
+  return renderSpec(CATALOG.success.banner(verb, entityName));
 }

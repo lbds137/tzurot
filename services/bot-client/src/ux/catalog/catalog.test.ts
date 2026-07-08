@@ -41,8 +41,8 @@ describe('CATALOG', () => {
   it('OUTCOME-HONESTY INVARIANT: uncertain/committed-unconfirmed specs never invite a retry', () => {
     // The core rule of the catalog (design §4.2): a write whose outcome is
     // unknown must never render a retry invitation — that's the duplicate-write
-    // bug. The regex covers synonyms (review-caught: "trying again" dodged a
-    // bare /try again/ while carrying the exact same invitation).
+    // bug. The regex covers synonyms: "trying again" carries the exact same
+    // invitation as "try again" and must not dodge on morphology.
     const RETRY_INVITATION = /try(?:ing)?\s+again|retry|re-?submit/i;
     for (const { path, spec } of allSpecs()) {
       if (spec.outcome === 'uncertain' || spec.outcome === 'committed-unconfirmed') {

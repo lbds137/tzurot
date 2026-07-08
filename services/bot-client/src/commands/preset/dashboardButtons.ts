@@ -32,7 +32,8 @@ import {
   buildPresetDashboardOptions,
 } from './config.js';
 import { fetchPreset, updatePreset, fetchGlobalPreset } from './api.js';
-import { extractApiErrorMessage } from '../../utils/dashboard/saveError.js';
+import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
+import { renderSpec } from '../../ux/render/render.js';
 import { createClonedPreset } from './cloneName.js';
 
 // Re-export for backward compatibility
@@ -439,7 +440,9 @@ export async function handleCloneButton(
     logger.error({ err: error, entityId }, 'Failed to clone preset');
 
     await interaction.followUp({
-      content: `❌ ${extractApiErrorMessage(error) ?? 'Failed to clone preset. Please try again.'}`,
+      content: renderSpec(
+        classifyGatewayFailure(error, 'preset', { failedAction: 'clone the preset' })
+      ),
       flags: MessageFlags.Ephemeral,
     });
   }

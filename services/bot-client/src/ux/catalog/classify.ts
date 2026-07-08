@@ -37,6 +37,12 @@ export interface GatewayResultFailure {
 /** Options forwarded to the uncertain/committed shapes (dashboard Refresh hint). */
 export interface ClassifyOptions {
   refreshAffordance?: boolean;
+  /**
+   * Verb phrase for the generic-failure fallback (`Failed to {failedAction}.`).
+   * Defaults to `update {resource}` — override for non-write contexts
+   * ("process your message", "load the character").
+   */
+  failedAction?: string;
 }
 
 function isGatewayResultFailure(input: unknown): input is GatewayResultFailure {
@@ -94,14 +100,14 @@ function specForKind(
     case 'http':
       return gatewayMessage !== null
         ? CATALOG.error.gatewayRejection(gatewayMessage)
-        : CATALOG.error.operationFailed(`update ${resource}`);
+        : CATALOG.error.operationFailed(opts.failedAction ?? `update ${resource}`);
     case 'config':
       return CATALOG.error.transient("Couldn't reach the server right now.");
     default:
       // Unreachable for the typed carriers, but the fail-arm guard only
       // verifies `kind` is a string — a malformed object with an off-union
       // kind must degrade to the generic failure, not return undefined.
-      return CATALOG.error.operationFailed(`update ${resource}`);
+      return CATALOG.error.operationFailed(opts.failedAction ?? `update ${resource}`);
   }
 }
 
@@ -121,8 +127,8 @@ export function classifyGatewayFailure(
 ): MessageSpec {
   if (input instanceof InfraError) {
     // InfraError carries the gateway string as a FIELD — its prose wrapper
-    // format matches neither extraction regex (review-caught: a real 5xx via
-    // nullOn404 would silently lose its gateway detail behind the generic).
+    // format matches neither extraction regex, so scraping `message` would
+    // silently lose a real 5xx's gateway detail behind the generic fallback.
     return specForKind(input.kind, truncateSurfaced(input.gatewayMessage), resource, opts);
   }
 
@@ -136,14 +142,14 @@ export function classifyGatewayFailure(
     const gatewayMessage = extractGatewayMessage(input.message);
     return gatewayMessage !== null
       ? CATALOG.error.gatewayRejection(gatewayMessage)
-      : CATALOG.error.operationFailed(`update ${resource}`);
+      : CATALOG.error.operationFailed(opts.failedAction ?? `update ${resource}`);
   }
 
   if (isGatewayResultFailure(input)) {
     // The fail-arm's `error` IS the gateway message for http kinds (no
     // wrapper prefix to strip) — but it needs the same truncation every other
-    // carrier gets (review-caught: a verbose gateway validation error would
-    // blow Discord's content cap and the reply would fail to send).
+    // carrier gets: a verbose gateway validation error would blow Discord's
+    // content cap and the reply would fail to send.
     const gatewayMessage = input.kind === 'http' ? truncateSurfaced(input.error) : null;
     return specForKind(input.kind, gatewayMessage, resource, opts);
   }
@@ -161,5 +167,5 @@ export function classifyGatewayFailure(
 
   // Unknown error shape: generic definitive failure. Deliberately does NOT
   // surface `error.message` — unrecognized internals never reach users.
-  return CATALOG.error.operationFailed(`update ${resource}`);
+  return CATALOG.error.operationFailed(opts.failedAction ?? `update ${resource}`);
 }

@@ -33,11 +33,7 @@ vi.mock('../../utils/gatewayClients.js', () => ({
   clientsFor: clientsForMock,
 }));
 
-const mockReplyWithError = vi.fn();
-const mockHandleCommandError = vi.fn();
 vi.mock('../../utils/commandHelpers.js', () => ({
-  replyWithError: (...args: unknown[]) => mockReplyWithError(...args),
-  handleCommandError: (...args: unknown[]) => mockHandleCommandError(...args),
   createWarningEmbed: vi.fn((_title: string, _description: string) => ({
     toJSON: () => ({ title: 'Test Warning' }),
   })),

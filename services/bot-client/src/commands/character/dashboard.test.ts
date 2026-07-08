@@ -11,7 +11,7 @@ import {
 } from './dashboard.js';
 import { handleDashboardClose } from '../../utils/dashboard/closeHandler.js';
 import * as api from './api.js';
-import { DashboardUpdateError } from '../../utils/dashboard/saveError.js';
+import { GatewayApiError } from '@tzurot/clients';
 import * as createModule from './create.js';
 import * as viewModule from './view.js';
 import * as truncationWarning from './truncationWarning.js';
@@ -254,7 +254,7 @@ describe('Character Dashboard', () => {
       // A 400 validation error is surfaced as the real gateway message, not
       // masked behind a generic retry prompt.
       vi.mocked(api.updateCharacter).mockRejectedValue(
-        new DashboardUpdateError(
+        new GatewayApiError(
           'Failed to update character: 400 - avatarData: Invalid input: expected string, received null',
           400,
           'http'

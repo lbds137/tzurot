@@ -11,7 +11,6 @@ import {
   type LlmConfigUpdateInput,
 } from '@tzurot/common-types/schemas/api/llm-config';
 import { GatewayApiError, type OwnerClient, type UserClient } from '@tzurot/clients';
-import { DashboardUpdateError } from '../../utils/dashboard/saveError.js';
 import type { PresetData } from './types.js';
 
 /**
@@ -80,7 +79,7 @@ export async function updatePreset(
   const result = await userClient.updateUserLlmConfig(presetId, data);
 
   if (!result.ok) {
-    throw new DashboardUpdateError(
+    throw new GatewayApiError(
       `Failed to update preset: ${result.status} - ${result.error ?? 'Unknown'}`,
       result.status,
       result.kind
@@ -103,7 +102,7 @@ export async function updateGlobalPreset(
   const result = await ownerClient.updateGlobalLlmConfig(presetId, data);
 
   if (!result.ok) {
-    throw new DashboardUpdateError(
+    throw new GatewayApiError(
       `Failed to update global preset: ${result.status} - ${result.error ?? 'Unknown'}`,
       result.status,
       result.kind

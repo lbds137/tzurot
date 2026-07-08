@@ -14,6 +14,8 @@
 import type { Message } from 'discord.js';
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { classifyGatewayFailure } from '../ux/catalog/classify.js';
+import { renderSpec } from '../ux/render/render.js';
 import { type JobTracker } from './JobTracker.js';
 import { type PersonalityChatManager } from './character/PersonalityChatManager.js';
 
@@ -75,8 +77,13 @@ export class PersonalityMessageHandler {
     } catch (error) {
       logger.error({ err: error }, 'Error handling personality message');
 
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      await message.reply(`Error: ${errorMessage}`).catch(replyError => {
+      // Classified catalog line — never the raw error.message (internals like
+      // stack fragments and connection errors must not reach users). The
+      // in-character delivery upgrade for this path is a separate step.
+      const spec = classifyGatewayFailure(error, 'message', {
+        failedAction: 'process your message',
+      });
+      await message.reply(renderSpec(spec)).catch(replyError => {
         logger.warn(
           { err: replyError, messageId: message.id },
           'Failed to send error message to user'
