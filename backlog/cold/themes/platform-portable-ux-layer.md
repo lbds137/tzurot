@@ -76,7 +76,8 @@ Implementation plan council-passed 2026-07-07 (GLM 5.2 · Kimi K2.7-code · Qwen
 | D2 (#1555) | Persona/preset families + character stragglers (~73 sites); notFound `hint` option; preset-import fail-arm preserved; ratchet 370→269 | ✅ MERGED |
 | D3a (#1557) | Memory family (9 files); read/write catch split (5 rounds — 2 on the same class); batchDelete/purge-handshake thrown-write gaps filed; ratchet 269→208 | ✅ MERGED |
 | D3b (#1558) | Settings family; apikey rich-errors → correct per-status severity (429→⚠️ transient, timeout→⏳ uncertain-write; round-1 double-emoji fixed); ratchet 208→193 | ✅ MERGED |
-| D3c | shapes/channel/voice/admin/models/history/help/inspect/deny | Next |
+| D3c (#1559) | shapes/channel/voice families (12 files); markdown-injection-via-slug closed; ratchet 193→153 | ✅ MERGED |
+| D3d | admin/models/history/help/inspect/deny families | In progress |
 | E | `SlotOutcome` discriminated union, per-persona multi-tag canned error delivery, STT/MessageHandler/truncation wording, in-character upgrade | Pending |
 
 _Audit detail: 5 Explore-agent reports (2026-06-28) distilled above; re-grounded 2026-07-04 by a 3-agent code sweep (deltas: 9 modal sites not 8; 3 button-order violations incl. one in shared `destructiveConfirmation.ts`; generation-path errors already in-character via webhook — the "100% system-voiced" audit row was wrong for that path; three parallel custom-ID conventions)._
