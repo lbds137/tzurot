@@ -363,6 +363,7 @@ describe('findContentRefs (against real repo)', () => {
       'release:draft-notes',
       'release:finalize',
       'release:premigrate',
+      'release:publish',
       'release:verify-notes',
       'run',
       'session:clear',
