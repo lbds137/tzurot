@@ -1,7 +1,7 @@
 ---
 name: tzurot-git-workflow
 description: 'Git workflow procedures. Invoke with /tzurot-git-workflow for commit, PR, and release procedures.'
-lastUpdated: '2026-07-05'
+lastUpdated: '2026-07-08'
 ---
 
 # Git Workflow Procedures
@@ -319,54 +319,39 @@ git rebase origin/main
 git push origin develop --force-with-lease
 ```
 
-### 7. Tag and Push
+### 7–8. Tag + Create the GitHub Release — `pnpm ops release:publish`
 
-Git tag + GitHub Release are **separate** things. The merge does neither — you must:
-
-```bash
-# On main (after the pull above)
-git checkout main
-git tag -a v3.0.0-beta.XX -m "Release v3.0.0-beta.XX: Description"
-git push origin v3.0.0-beta.XX
-```
-
-### 8. Create GitHub Release
-
-The tag is git metadata; the GitHub Release is the user-facing page with notes.
-Both are needed. Use the same release notes prepared in step 2.
-
-**Release-channel convention**: the **newest** release holds GitHub's **`latest`**
-badge (`prerelease=false`); **every older** beta is `prerelease=true`. The `latest`
-badge is how users/tooling find the current build, and a prerelease can't hold it.
-This is NOT automatic — without the two commands below the newest tag stays a plain
-release and the previous one keeps `latest`, so both steps are required each release.
+Git tag and GitHub Release are **separate** things and the merge does neither.
+The flag dance around them (newest holds `latest`; a prerelease-channel version
+also demotes the previous tag) is error-prone from memory, so it's automated —
+**use the command, not the raw steps**:
 
 ```bash
-# Create the newest release as `latest` (NOT --prerelease — they're mutually exclusive)
-gh release create v3.0.0-beta.XX \
-  --title "v3.0.0-beta.XX" \
-  --latest \
-  --notes "$(cat <<'EOF'
-### Bug Fixes
-- ...
-
-### Improvements
-- ...
-
-**Full Changelog**: https://github.com/lbds137/tzurot/compare/v3.0.0-beta.YY...v3.0.0-beta.XX
-EOF
-)"
-
-# Flip the PREVIOUS newest to prerelease. Creating vXX as --latest removes vYY's
-# latest badge but leaves it a plain release, so this explicit flip is required.
-gh release edit v3.0.0-beta.YY --prerelease
+# Prepare notes first (step 2 output), then one shot:
+pnpm ops release:publish 3.0.0-beta.XX --notes-file /tmp/notes.md
+pnpm ops release:publish 3.0.0-beta.XX --notes-file /tmp/notes.md --dry-run  # preview
 ```
 
-Verify with `gh release list --limit 5 --json tagName,isPrerelease,isLatest --jq '.[] | {tagName, isPrerelease, isLatest}'`:
-the newest must read `prerelease=false / latest=true`, every older beta `prerelease=true / latest=false`.
-Older betas (beyond the immediately-previous) are already prerelease from past releases —
-only the immediately-previous tag needs flipping each time. **Do NOT** mark the newest
-tag `--prerelease`; that's the old (wrong) instruction this step replaces.
+What it does (release-flow steps 7–8):
+
+1. Creates + pushes an annotated tag on `main` (idempotent — reuses an existing tag).
+2. Creates the GitHub Release holding the **`latest`** badge (never `--prerelease`
+   — the newest release always holds `latest`, stable or beta).
+3. **Only for a prerelease-channel version (`-alpha`/`-beta`/`-rc`):** demotes the
+   immediately-previous release to `--prerelease` (found via `gh release list`, the
+   authoritative GitHub state — NOT local `git tag`, which drifts because
+   `gh release create` mints the tag server-side). A **stable** `X.Y.Z` release
+   skips the demote — a GA release doesn't demote its predecessor.
+
+**Release-channel convention** (what the command enforces): the newest release holds
+`latest` (`prerelease=false`); every older beta is `prerelease=true`. **Do NOT** mark
+the newest tag `--prerelease` — that's mutually exclusive with `latest`.
+
+Verify: `gh release list --limit 5 --json tagName,isPrerelease,isLatest --jq '.[] | {tagName, isPrerelease, isLatest}'`
+— the newest must read `prerelease=false / latest=true`, every older beta `prerelease=true / latest=false`.
+(If `gh`/tooling is unavailable, the raw fallback is `git tag -a vXX -m … && git push origin vXX`,
+then `gh release create vXX --title vXX --latest --notes-file …`, then — betas only —
+`gh release edit v<PREV> --prerelease`.)
 
 ### 9. Reset CURRENT.md Unreleased Section
 

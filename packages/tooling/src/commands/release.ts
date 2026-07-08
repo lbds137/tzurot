@@ -68,6 +68,8 @@ export function registerReleaseCommands(cli: CAC): void {
       await finalizeRelease(options);
     });
 
+  registerPublishCommand(cli);
+
   // Apply prod migrations BEFORE merging the release PR — closes the
   // breaking-migration deploy window. Full rationale in `premigrate.ts`.
   cli
@@ -93,6 +95,46 @@ export function registerReleaseCommands(cli: CAC): void {
       }) => {
         const { premigrate } = await import('../release/premigrate.js');
         await premigrate(options);
+      }
+    );
+}
+
+/**
+ * Tag + publish the GitHub Release with the correct latest/prerelease flags
+ * (release-flow steps 7–8). Extracted from `registerReleaseCommands` to keep
+ * that function under the max-lines-per-function limit. Automates the flag
+ * dance a from-memory run drops: the newest always holds `latest`; a
+ * prerelease-channel (alpha/beta/rc) version also demotes the immediately-
+ * previous tag to prerelease, while a stable release leaves its predecessor
+ * untouched. Full rationale in `publish.ts` module-level JSDoc.
+ */
+function registerPublishCommand(cli: CAC): void {
+  cli
+    .command(
+      'release:publish <version>',
+      'Tag + create the GitHub Release with correct latest/prerelease flags'
+    )
+    .option('--notes-file <path>', 'Path to the release-notes markdown (required)')
+    .option('--target <branch>', 'Branch the tag/release points at (default: main)')
+    .option('--dry-run', 'Preview the steps without tagging, releasing, or flipping')
+    .example('pnpm ops release:publish 3.0.0-beta.155 --notes-file /tmp/notes.md')
+    .example('pnpm ops release:publish 3.0.0 --notes-file /tmp/notes.md   # stable: no demote')
+    .action(
+      async (
+        version: string,
+        options: { notesFile?: string; target?: string; dryRun?: boolean }
+      ) => {
+        if (options.notesFile === undefined || options.notesFile.length === 0) {
+          throw new Error(
+            '--notes-file <path> is required (prepare notes first, e.g. release:draft-notes).'
+          );
+        }
+        const { publishRelease } = await import('../release/publish.js');
+        publishRelease(version, {
+          notesFile: options.notesFile,
+          target: options.target,
+          dryRun: options.dryRun,
+        });
       }
     );
 }
