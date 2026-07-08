@@ -401,7 +401,7 @@ describe('handleShapesButton', () => {
 
       expect(mockUpdate).toHaveBeenCalledWith(
         expect.objectContaining({
-          content: expect.stringContaining('unexpected error'),
+          content: expect.stringContaining('Failed to complete that'),
         })
       );
     });

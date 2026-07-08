@@ -10,6 +10,9 @@
  */
 
 import { channelActivateOptions } from '@tzurot/common-types/generated/commandOptions';
+import { CATALOG } from '../../ux/catalog/catalog.js';
+import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
+import { renderSpec } from '../../ux/render/render.js';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import {
@@ -20,6 +23,7 @@ import { clientsFor } from '../../utils/gatewayClients.js';
 import { requireManageMessagesContext } from '../../utils/permissions.js';
 import { invalidateChannelSettingsCache } from '../../utils/gatewayServiceCalls.js';
 import { getChannelActivationCacheInvalidationService } from '../../services/serviceRegistry.js';
+import { escapeMarkdown } from 'discord.js';
 
 const logger = createLogger('channel-activate');
 
@@ -59,7 +63,9 @@ export async function handleActivate(context: DeferredCommandContext): Promise<v
 
   // Guild ID is required (permission check ensures we're in a guild)
   if (guildId === null) {
-    await context.editReply('❌ This command can only be used in a server.');
+    await context.editReply(
+      renderSpec(CATALOG.error.validation('This command can only be used in a server.'))
+    );
     return;
   }
 
@@ -86,21 +92,32 @@ export async function handleActivate(context: DeferredCommandContext): Promise<v
       // Handle specific error cases
       if (result.status === 404) {
         await context.editReply(
-          `❌ Character **${personalitySlug}** not found.\n\n` +
-            'Use the autocomplete to select a valid character.'
+          renderSpec(
+            CATALOG.error.notFound('Character', {
+              name: escapeMarkdown(personalitySlug),
+              autocomplete: true,
+            })
+          )
         );
         return;
       }
 
       if (result.status === 403) {
         await context.editReply(
-          `❌ You don't have access to **${personalitySlug}**.\n\n` +
-            'You can only activate characters that are public or that you own.'
+          renderSpec(
+            CATALOG.error.permissionDenied(
+              `access **${escapeMarkdown(personalitySlug)}** — you can only activate characters that are public or that you own`
+            )
+          )
         );
         return;
       }
 
-      await context.editReply(`❌ Failed to activate: ${result.error}`);
+      await context.editReply(
+        renderSpec(
+          classifyGatewayFailure(result, 'channel', { failedAction: 'activate the channel' })
+        )
+      );
       return;
     }
 
@@ -136,6 +153,8 @@ export async function handleActivate(context: DeferredCommandContext): Promise<v
       },
       'Activation error'
     );
-    await context.editReply('❌ An unexpected error occurred while activating the channel.');
+    await context.editReply(
+      renderSpec(classifyGatewayFailure(error, 'channel', { failedAction: 'activate the channel' }))
+    );
   }
 }

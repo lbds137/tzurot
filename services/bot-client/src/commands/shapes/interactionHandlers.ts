@@ -23,6 +23,8 @@ import {
   type ActionRowBuilder,
 } from 'discord.js';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { CATALOG } from '../../ux/catalog/catalog.js';
+import { renderSpec } from '../../ux/render/render.js';
 import { ShapesCustomIds } from '../../utils/customIds.js';
 import { clientsFor } from '../../utils/gatewayClients.js';
 import { buildBrowsePage, fetchShapesList, shapesBrowseIds } from './browse.js';
@@ -41,7 +43,7 @@ import {
 const logger = createLogger('shapes-interactions');
 
 const UNEXPECTED_ERROR_PAYLOAD = {
-  content: '❌ An unexpected error occurred.',
+  content: renderSpec(CATALOG.error.operationFailed('complete that')),
   embeds: [],
   components: [],
 } as const;

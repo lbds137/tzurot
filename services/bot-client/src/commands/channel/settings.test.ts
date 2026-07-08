@@ -369,7 +369,7 @@ describe('Channel Settings Dashboard', () => {
       await handleChannelSettings(context);
 
       expect(context.editReply).toHaveBeenCalledWith({
-        content: '❌ An error occurred while opening the context settings dashboard.',
+        content: '❌ Failed to open the context settings dashboard. Please try again.',
       });
     });
 

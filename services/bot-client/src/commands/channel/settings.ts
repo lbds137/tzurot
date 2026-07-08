@@ -18,6 +18,9 @@ import {
   PermissionFlagsBits,
 } from 'discord.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
+import { CATALOG } from '../../ux/catalog/catalog.js';
+import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
+import { renderSpec } from '../../ux/render/render.js';
 import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
 import { type ResolvedConfigOverrides } from '@tzurot/common-types/schemas/api/configOverrides';
 import { createLogger } from '@tzurot/common-types/utils/logger';
@@ -84,7 +87,11 @@ export async function handleChannelSettings(context: DeferredCommandContext): Pr
   // Check permissions: Manage Messages required
   if (member?.permissions.has(PermissionFlagsBits.ManageMessages) !== true) {
     await context.editReply({
-      content: '❌ You need the **Manage Messages** permission to manage channel context settings.',
+      content: renderSpec(
+        CATALOG.error.permissionDenied(
+          'manage channel context settings — you need the **Manage Messages** permission'
+        )
+      ),
     });
     return;
   }
@@ -126,7 +133,12 @@ export async function handleChannelSettings(context: DeferredCommandContext): Pr
     // Check if already replied via interaction (dashboard may have responded)
     if (!interaction.replied) {
       await context.editReply({
-        content: '❌ An error occurred while opening the context settings dashboard.',
+        content: renderSpec(
+          classifyGatewayFailure(error, 'context settings', {
+            operation: 'read',
+            failedAction: 'open the context settings dashboard',
+          })
+        ),
       });
     }
   }

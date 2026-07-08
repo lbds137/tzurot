@@ -28,6 +28,9 @@ import {
   type BrowseSortType,
 } from '../../utils/browse/index.js';
 import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
+import { CATALOG } from '../../ux/catalog/catalog.js';
+import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
+import { renderSpec } from '../../ux/render/render.js';
 import { channelBrowseOptions } from '@tzurot/common-types/generated/commandOptions';
 import { type ChannelSettings } from '@tzurot/common-types/schemas/api/channel';
 import { formatDateShort } from '@tzurot/common-types/utils/dateFormatting';
@@ -408,7 +411,13 @@ export async function handleBrowse(context: DeferredCommandContext): Promise<voi
 
   // Check owner permission for 'all' filter
   if (filter === 'all' && !isBotOwner(context.user.id)) {
-    await context.editReply('❌ The "All Servers" filter is only available to bot owners.');
+    await context.editReply(
+      renderSpec(
+        CATALOG.error.permissionDenied(
+          'use the "All Servers" filter — it is only available to bot owners'
+        )
+      )
+    );
     return;
   }
 
@@ -428,7 +437,9 @@ export async function handleBrowse(context: DeferredCommandContext): Promise<voi
         { userId: context.user.id, error: result.error, status: result.status },
         'Browse failed'
       );
-      await context.editReply(`❌ Failed to browse channels: ${result.error}`);
+      await context.editReply(
+        renderSpec(classifyGatewayFailure(result, 'channels', { operation: 'read' }))
+      );
       return;
     }
 
@@ -471,7 +482,9 @@ export async function handleBrowse(context: DeferredCommandContext): Promise<voi
     );
   } catch (error) {
     logger.error({ err: error, userId: context.user.id }, 'Browse error');
-    await context.editReply('❌ An unexpected error occurred while browsing channels.');
+    await context.editReply(
+      renderSpec(classifyGatewayFailure(error, 'channels', { operation: 'read' }))
+    );
   }
 }
 

@@ -11,6 +11,9 @@
  */
 
 import { type ModalSubmitInteraction, MessageFlags, EmbedBuilder } from 'discord.js';
+import { CATALOG } from '../../ux/catalog/catalog.js';
+import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
+import { renderSpec } from '../../ux/render/render.js';
 import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
 import { parseShapesSessionCookieInput } from '@tzurot/common-types/types/shapes-import';
 import { createLogger } from '@tzurot/common-types/utils/logger';
@@ -18,6 +21,11 @@ import { clientsFor } from '../../utils/gatewayClients.js';
 import { ShapesCustomIds } from '../../utils/customIds.js';
 
 const logger = createLogger('shapes-modal');
+
+/** Render a rich validation body through the catalog (❌ glyph from the renderer). */
+function validationReply(body: string): string {
+  return renderSpec(CATALOG.error.validation(body));
+}
 
 /**
  * Handle shapes modal submissions
@@ -27,7 +35,7 @@ export async function handleShapesModalSubmit(interaction: ModalSubmitInteractio
   const parsed = ShapesCustomIds.parse(interaction.customId);
   if (parsed === null) {
     await interaction.reply({
-      content: '❌ Unknown shapes modal submission',
+      content: validationReply('Unknown shapes modal submission.'),
       flags: MessageFlags.Ephemeral,
     });
     return;
@@ -37,7 +45,7 @@ export async function handleShapesModalSubmit(interaction: ModalSubmitInteractio
     await handleAuthSubmit(interaction);
   } else {
     await interaction.reply({
-      content: '❌ Unknown shapes action',
+      content: validationReply('Unknown shapes action.'),
       flags: MessageFlags.Ephemeral,
     });
   }
@@ -53,7 +61,7 @@ async function handleAuthSubmit(interaction: ModalSubmitInteraction): Promise<vo
   const parsed = parseShapesSessionCookieInput(rawInput);
 
   if (!parsed.ok) {
-    await interaction.editReply(getInputValidationMessage(parsed.reason));
+    await interaction.editReply(validationReply(getInputValidationMessage(parsed.reason)));
     return;
   }
 
@@ -68,7 +76,7 @@ async function handleAuthSubmit(interaction: ModalSubmitInteraction): Promise<vo
         { status: result.status, userId: interaction.user.id, error: result.error },
         'Failed to store session cookie'
       );
-      await interaction.editReply(getAuthErrorMessage(result.status));
+      await interaction.editReply(validationReply(getAuthErrorMessage(result.status)));
       return;
     }
 
@@ -97,7 +105,9 @@ async function handleAuthSubmit(interaction: ModalSubmitInteraction): Promise<vo
   } catch (error) {
     logger.error({ err: error, userId: interaction.user.id }, 'Error storing cookie');
     await interaction.editReply(
-      '❌ An unexpected error occurred while saving your credentials.\n' + 'Please try again later.'
+      renderSpec(
+        classifyGatewayFailure(error, 'credentials', { failedAction: 'save your credentials' })
+      )
     );
   }
 }
@@ -106,16 +116,16 @@ function getAuthErrorMessage(status: number): string {
   switch (status) {
     case 400:
       return (
-        '❌ **Invalid Cookie**\n\n' +
+        '**Invalid Cookie**\n\n' +
         'The session cookie format is invalid. Please re-run `/shapes auth` and paste the value ' +
         'of `__Secure-better-auth.session_token` from your browser DevTools.'
       );
     case 500:
     case 502:
     case 503:
-      return '❌ **Server Error**\n\nThe server encountered an error. Please try again in a few minutes.';
+      return '**Server Error**\n\nThe server encountered an error. Please try again in a few minutes.';
     default:
-      return '❌ **Unable to Save Credentials**\n\nAn unexpected error occurred. Please try again later.';
+      return '**Unable to Save Credentials**\n\nAn unexpected error occurred. Please try again later.';
   }
 }
 
@@ -126,10 +136,10 @@ function getAuthErrorMessage(status: number): string {
 function getInputValidationMessage(reason: 'empty' | 'wrong-cookie' | 'malformed-value'): string {
   switch (reason) {
     case 'empty':
-      return '❌ Cookie value is required.';
+      return 'Cookie value is required.';
     case 'wrong-cookie':
       return (
-        "❌ **That doesn't look like the right cookie.**\n\n" +
+        "**That doesn't look like the right cookie.**\n\n" +
         'The input contained cookies, but not `__Secure-better-auth.session_token`. ' +
         'Common mistake: copying the whole `Cookie:` header from the Network tab instead ' +
         'of a single cookie value from the Application tab. ' +
@@ -137,7 +147,7 @@ function getInputValidationMessage(reason: 'empty' | 'wrong-cookie' | 'malformed
       );
     case 'malformed-value':
       return (
-        '❌ **Cookie value looks malformed.**\n\n' +
+        '**Cookie value looks malformed.**\n\n' +
         'Better Auth tokens are opaque strings (typically 32+ characters, no whitespace). ' +
         'Please re-run `/shapes auth` and copy the exact value of ' +
         '`__Secure-better-auth.session_token` from DevTools — make sure you got the ' +

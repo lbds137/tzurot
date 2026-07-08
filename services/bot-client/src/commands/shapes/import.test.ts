@@ -162,7 +162,7 @@ describe('handleImport', () => {
     await handleImport(context);
 
     expect(mockEditReply).toHaveBeenCalledWith({
-      content: expect.stringContaining('unexpected error'),
+      content: expect.stringContaining('Failed to load the shapes import'),
     });
   });
 

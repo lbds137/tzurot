@@ -14,6 +14,8 @@ import {
   type MessageComponentInteraction,
 } from 'discord.js';
 import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
+import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
+import { renderSpec } from '../../ux/render/render.js';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { clientsFor } from '../../utils/gatewayClients.js';
@@ -171,6 +173,8 @@ export async function handleImport(context: DeferredCommandContext): Promise<voi
     await context.editReply({ embeds: [confirmEmbed], components: [row] });
   } catch (error) {
     logger.error({ err: error, userId, slug }, 'Unexpected error starting import');
-    await context.editReply({ content: '❌ An unexpected error occurred. Please try again.' });
+    await context.editReply({
+      content: renderSpec(classifyGatewayFailure(error, 'shapes import', { operation: 'read' })),
+    });
   }
 }

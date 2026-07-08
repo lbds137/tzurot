@@ -17,6 +17,8 @@ import {
   type StringSelectMenuInteraction,
 } from 'discord.js';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { CATALOG } from '../../ux/catalog/catalog.js';
+import { renderSpec } from '../../ux/render/render.js';
 import { defineCommand } from '../../utils/defineCommand.js';
 import { createTypedSubcommandRouter } from '../../utils/subcommandRouter.js';
 import type {
@@ -121,7 +123,9 @@ async function execute(context: SafeCommandContext): Promise<void> {
   }
 
   logger.warn({ group, subcommand }, 'Unknown voice subcommand');
-  await deferredCtx.editReply({ content: '❌ Unknown voice subcommand.' });
+  await deferredCtx.editReply({
+    content: renderSpec(CATALOG.error.validation('Unknown voice subcommand.')),
+  });
 }
 
 async function autocomplete(interaction: AutocompleteInteraction): Promise<void> {
