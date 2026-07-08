@@ -63,9 +63,9 @@ Both the in-character directive and platform portability resolve at the same sea
 
 Phase 0 (triage + design) completed 2026-07-04. The phase plan now lives in the artifact's §5 (1: catalog + voice · 2: components · 3: vocabulary + enforcement · 4: adapter, trigger-gated); every open design call is decided in its §6. Do not re-derive here — plan-mode for each phase starts from the artifact.
 
-#### Phase 1 — IN PROGRESS (started 2026-07-07, five-PR train)
+#### Phase 1 — ✅ COMPLETE (2026-07-07 → 2026-07-08, ten-PR train)
 
-Implementation plan council-passed 2026-07-07 (GLM 5.2 · Kimi K2.7-code · Qwen 3.7 Max; record in the PR-A body + plan file). Ratchet baseline at start: **448** raw literals (`pnpm ops ux:literals`).
+Implementation plan council-passed 2026-07-07 (GLM 5.2 · Kimi K2.7-code · Qwen 3.7 Max; record in the PR-A body + plan file). Ratchet: **448 → 92** raw literals (`pnpm ops ux:literals`, -79%). The residual 92 are documented exemption classes — embed titles/status-glyphs, operator diagnostic surfaces, doc-comment glyphs — none user-error copy. Every user-facing gateway-error surface across the command tree now routes through the honest-outcome classifier; multi-tag all-errored delivers each character in its own voice. Open follow-ups (all filed in `cold/follow-ups.md`): system-voice straggler wording (STT/top-catch/truncation), partial-failure errored-slot delivery, `maxRetries:0` metrics watch, `deletePersona`/`getCachedPersonalities` wrapper widening.
 
 | PR | Scope | Status |
 | --- | --- | --- |
@@ -78,6 +78,6 @@ Implementation plan council-passed 2026-07-07 (GLM 5.2 · Kimi K2.7-code · Qwen
 | D3b (#1558) | Settings family; apikey rich-errors → correct per-status severity (429→⚠️ transient, timeout→⏳ uncertain-write; round-1 double-emoji fixed); ratchet 208→193 | ✅ MERGED |
 | D3c (#1559) | shapes/channel/voice families (12 files); markdown-injection-via-slug closed; ratchet 193→153 | ✅ MERGED |
 | D3d (#1560) | admin/models/history/help/deny families (~17 files); markdown-escaping + presence Redis-failure coverage added; ratchet 153→92 | ✅ MERGED |
-| E | `SlotOutcome` discriminated union, per-persona multi-tag canned error delivery, STT/MessageHandler/truncation wording, in-character upgrade | Pending |
+| E (#1561) | `SlotOutcome` discriminated union; all-errored → per-persona in-character delivery (errored speak, denied silent); PersonalityMessageHandler in-character upgrade + copy fix; `deliverErrorNoPersist` + shared `buildSyntheticErrorResult`. (STT/MessageHandler/truncation wording split to a follow-up.) | ✅ MERGED |
 
 _Audit detail: 5 Explore-agent reports (2026-06-28) distilled above; re-grounded 2026-07-04 by a 3-agent code sweep (deltas: 9 modal sites not 8; 3 button-order violations incl. one in shared `destructiveConfirmation.ts`; generation-path errors already in-character via webhook — the "100% system-voiced" audit row was wrong for that path; three parallel custom-ID conventions)._
