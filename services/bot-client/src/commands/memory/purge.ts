@@ -34,6 +34,9 @@ import type { DeferredCommandContext } from '../../utils/commandContext/types.js
 import { clientsFor } from '../../utils/gatewayClients.js';
 import { createDangerEmbed, createSuccessEmbed } from '../../utils/commandHelpers.js';
 import { resolveRequiredPersonality } from './resolveHelpers.js';
+import { CATALOG } from '../../ux/catalog/catalog.js';
+import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
+import { renderSpec } from '../../ux/render/render.js';
 
 const logger = createLogger('memory-purge');
 
@@ -82,14 +85,20 @@ async function assertInvokerOwnership(
   if (invokerIdFromCustomId === undefined || invokerIdFromCustomId === '') {
     logger.warn({ customId: interaction.customId }, 'Purge interaction missing invoker ID');
     await interaction.reply({
-      content: '❌ Malformed purge interaction (missing invoker ID).',
+      content: renderSpec(
+        CATALOG.error.validation('Malformed purge interaction (missing invoker ID).')
+      ),
       flags: MessageFlags.Ephemeral,
     });
     return false;
   }
   if (interaction.user.id !== invokerIdFromCustomId) {
     await interaction.reply({
-      content: '❌ Only the person who ran this command can confirm or cancel the purge.',
+      content: renderSpec(
+        CATALOG.error.permissionDenied(
+          'confirm or cancel this purge — only the original command invoker can'
+        )
+      ),
       flags: MessageFlags.Ephemeral,
     });
     return false;
@@ -116,12 +125,17 @@ export async function handlePurge(context: DeferredCommandContext): Promise<void
     const statsResult = await userClient.getStats({ personalityId });
 
     if (!statsResult.ok) {
-      const errorMessage =
-        statsResult.status === 404
-          ? `Character "${personalityInput}" not found.`
-          : 'Failed to get memory stats. Please try again later.';
       logger.warn({ userId, personalityInput, status: statsResult.status }, 'Purge stats failed');
-      await context.editReply({ content: `❌ ${errorMessage}` });
+      await context.editReply({
+        content:
+          statsResult.status === 404
+            ? renderSpec(
+                CATALOG.error.notFound('Character', { name: escapeMarkdown(personalityInput) })
+              )
+            : renderSpec(
+                classifyGatewayFailure(statsResult, 'memory stats', { operation: 'read' })
+              ),
+      });
       return;
     }
 
@@ -168,7 +182,13 @@ export async function handlePurge(context: DeferredCommandContext): Promise<void
     await context.editReply({ embeds: [embed], components: [row] });
   } catch (error) {
     logger.error({ err: error, userId }, 'Unexpected error');
-    await context.editReply({ content: '❌ An unexpected error occurred. Please try again.' });
+    await context.editReply({
+      content: renderSpec(
+        // handlePurge's catch only wraps the READ phase (resolve + getStats);
+        // the purge WRITE has its own error path in the handshake.
+        classifyGatewayFailure(error, 'memories', { operation: 'read' })
+      ),
+    });
   }
 }
 
@@ -200,7 +220,7 @@ export async function handlePurgeButton(interaction: ButtonInteraction): Promise
   if (action !== 'proceed') {
     logger.warn({ customId: interaction.customId }, 'Unknown purge button action');
     await interaction.reply({
-      content: '❌ Unknown interaction.',
+      content: renderSpec(CATALOG.error.validation('Unknown interaction.')),
       flags: MessageFlags.Ephemeral,
     });
     return;
@@ -210,7 +230,9 @@ export async function handlePurgeButton(interaction: ButtonInteraction): Promise
   if (personalityId === undefined || personalityId === '') {
     logger.warn({ customId: interaction.customId }, 'Purge proceed button missing personalityId');
     await interaction.reply({
-      content: '❌ Malformed purge button (missing character ID).',
+      content: renderSpec(
+        CATALOG.error.validation('Malformed purge button (missing character ID).')
+      ),
       flags: MessageFlags.Ephemeral,
     });
     return;
@@ -224,8 +246,11 @@ export async function handlePurgeButton(interaction: ButtonInteraction): Promise
   if (personalityName === null) {
     logger.warn({ customId: interaction.customId }, 'Purge proceed button missing footer name');
     await interaction.reply({
-      content:
-        '❌ This confirmation prompt is missing required state. Please run `/memory purge` again.',
+      content: renderSpec(
+        CATALOG.error.validation(
+          'This confirmation prompt is missing required state. Please run `/memory purge` again.'
+        )
+      ),
       flags: MessageFlags.Ephemeral,
     });
     return;
@@ -276,7 +301,9 @@ async function executePurgeHandshake(
 
   if (!tokenResult.ok) {
     await interaction.editReply({
-      content: `❌ Failed to confirm purge: ${tokenResult.error ?? 'Unknown error'}`,
+      content: renderSpec(
+        classifyGatewayFailure(tokenResult, 'purge', { failedAction: 'confirm the purge' })
+      ),
       embeds: [],
       components: [],
     });
@@ -287,7 +314,9 @@ async function executePurgeHandshake(
 
   if (!purgeResult.ok) {
     await interaction.editReply({
-      content: `❌ Failed to purge memories: ${purgeResult.error ?? 'Unknown error'}`,
+      content: renderSpec(
+        classifyGatewayFailure(purgeResult, 'memories', { failedAction: 'purge the memories' })
+      ),
       embeds: [],
       components: [],
     });
@@ -308,7 +337,9 @@ export async function handlePurgeModal(interaction: ModalSubmitInteraction): Pro
   if (personalityId === undefined || personalityId === '') {
     logger.warn({ customId: interaction.customId }, 'Purge modal missing personalityId');
     await interaction.reply({
-      content: '❌ Malformed purge modal (missing character ID).',
+      content: renderSpec(
+        CATALOG.error.validation('Malformed purge modal (missing character ID).')
+      ),
       flags: MessageFlags.Ephemeral,
     });
     return;
@@ -322,7 +353,9 @@ export async function handlePurgeModal(interaction: ModalSubmitInteraction): Pro
   if (personalityName === null) {
     logger.warn({ customId: interaction.customId }, 'Purge modal missing footer name');
     await interaction.reply({
-      content: '❌ Confirmation state lost. Please run `/memory purge` again.',
+      content: renderSpec(
+        CATALOG.error.validation('Confirmation state lost. Please run `/memory purge` again.')
+      ),
       flags: MessageFlags.Ephemeral,
     });
     return;
@@ -365,7 +398,7 @@ export async function handlePurgeModal(interaction: ModalSubmitInteraction): Pro
     logger.warn({ customId: interaction.customId }, 'Purge modal submitted without parent message');
     // eslint-disable-next-line @tzurot/component-handler-ack-first -- Branch-leak FP: on the phrase-matched path that reaches here, no real async precedes this ack (assertInvokerOwnership is exempt; the rest is sync). The rule's source-order sawRealAsync leaked from the phrase-MISMATCH branch's interaction.message.edit above, which returns before this point.
     await interaction.reply({
-      content: '❌ Internal error: malformed modal context.',
+      content: renderSpec(CATALOG.error.validation('Internal error: malformed modal context.')),
       flags: MessageFlags.Ephemeral,
     });
     return;

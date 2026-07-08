@@ -13,6 +13,8 @@ import {
 } from '../../utils/apiCheck.js';
 import type { UserClient } from '@tzurot/clients';
 import { resolvePersonalityId } from './autocomplete.js';
+import { CATALOG } from '../../ux/catalog/catalog.js';
+import { renderSpec } from '../../ux/render/render.js';
 
 /**
  * Shared resolve-or-reply core. Maps a {@link ResolvedPersonality} to either the
@@ -47,7 +49,12 @@ async function resolveOrReply(
       return null;
     case 'not-found':
       await context.editReply({
-        content: `❌ Character "${escapeMarkdown(personalityInput)}" not found. Use autocomplete to select a valid character.`,
+        content: renderSpec(
+          CATALOG.error.notFound('Character', {
+            name: escapeMarkdown(personalityInput),
+            autocomplete: true,
+          })
+        ),
       });
       return null;
     default: {

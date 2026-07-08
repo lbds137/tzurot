@@ -269,7 +269,7 @@ describe('handleBrowse', () => {
     await handleBrowse(context as unknown as DeferredCommandContext);
 
     expect(context.editReply).toHaveBeenCalledWith(
-      expect.objectContaining({ content: expect.stringContaining('Failed to load') })
+      expect.objectContaining({ content: expect.stringContaining("Couldn't load your memories") })
     );
     expect(mockSaveMemoryListSession).not.toHaveBeenCalled();
   });
@@ -281,7 +281,7 @@ describe('handleBrowse', () => {
     await handleBrowse(context as unknown as DeferredCommandContext);
 
     expect(context.editReply).toHaveBeenCalledWith(
-      expect.objectContaining({ content: expect.stringContaining('unexpected error') })
+      expect.objectContaining({ content: expect.stringContaining('Failed to load the memories') })
     );
   });
 });
