@@ -1,15 +1,15 @@
 {
-  "total": 441,
+  "total": 370,
   "byPattern": {
-    "emoji-prefixed": 314,
-    "try-again": 127
+    "emoji-prefixed": 259,
+    "try-again": 111
   },
   "graceMargin": 10,
   "meta": {
     "toolVersion": "ux-literals-check/1",
     "configHash": "4b12eb65e0c6",
     "nodeVersion": "v24.11.1",
-    "generatedFromSha": "719c818d7c3ff533da74de80b0e19ccb0f8f579e",
-    "generatedAt": "2026-07-08T02:57:28.811Z"
+    "generatedFromSha": "d4eae6ab23fff1510e8aede72f09087342133833",
+    "generatedAt": "2026-07-08T04:31:30.120Z"
   }
 }

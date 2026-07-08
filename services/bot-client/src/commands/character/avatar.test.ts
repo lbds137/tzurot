@@ -11,6 +11,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { GatewayApiError } from '@tzurot/clients';
 import { handleAvatar } from './avatar.js';
 import {
   VALID_IMAGE_TYPES,
@@ -288,9 +289,79 @@ describe('Character Avatar Handler', () => {
         expect.stringContaining('Failed to update the avatar')
       );
     });
+
+    it('renders the outcome-uncertain shape on a write timeout (never "try again")', async () => {
+      // Wiring proof for the sweep's headline claim: a typed timeout from
+      // updateCharacter reaches the classifier and renders verify-first copy.
+      const attachment = createMockAttachment();
+      const mockContext = createMockContext('my-char', attachment);
+      vi.mocked(api.fetchCharacter).mockResolvedValue(createMockCharacter({ slug: 'my-char' }));
+      vi.mocked(api.updateCharacter).mockRejectedValue(
+        new GatewayApiError('Failed to update personality: 0 - timed out', 0, 'timeout')
+      );
+
+      await handleAvatar(mockContext, mockConfig);
+
+      const reply = vi.mocked(mockContext.editReply).mock.calls.at(-1)?.[0] as string;
+      expect(reply).toContain('may still be applying');
+      expect(reply).not.toMatch(/try again/i);
+    });
+  });
+
+  it('rejects an unknown avatar subcommand with the catalog validation line', async () => {
+    const mockContext = createMockContext('my-char', createMockAttachment(), 'avatar-nonsense');
+
+    await handleAvatar(mockContext, mockConfig);
+
+    expect(mockContext.editReply).toHaveBeenCalledWith('❌ Unknown avatar command.');
+  });
+
+  it('classifies a READ-phase failure as a load error, never write-uncertain', async () => {
+    // The permission-check fetch failing must not claim "your avatar change
+    // may still be applying" — nothing was submitted yet.
+    const mockContext = createMockContext('my-char', createMockAttachment());
+    vi.mocked(api.fetchCharacter).mockRejectedValue(
+      new GatewayApiError('Failed to fetch character: 0 - timed out', 0, 'timeout')
+    );
+
+    await handleAvatar(mockContext, mockConfig);
+
+    const reply = vi.mocked(mockContext.editReply).mock.calls.at(-1)?.[0] as string;
+    expect(reply).toContain("Couldn't load the character right now");
+    expect(reply).not.toContain('may still be applying');
+    expect(vi.mocked(api.updateCharacter)).not.toHaveBeenCalled();
+  });
+
+  it('renders the retry-honest timeout line when the CDN download aborts', async () => {
+    const attachment = createMockAttachment();
+    const mockContext = createMockContext('my-char', attachment);
+    vi.mocked(api.fetchCharacter).mockResolvedValue(createMockCharacter({ slug: 'my-char' }));
+    const abortError = new Error('aborted');
+    abortError.name = 'AbortError';
+    mockFetch.mockRejectedValue(abortError);
+
+    await handleAvatar(mockContext, mockConfig);
+
+    expect(mockContext.editReply).toHaveBeenCalledWith(
+      expect.stringContaining('Avatar download timed out')
+    );
   });
 
   describe('avatar-clear', () => {
+    it('classifies a clear-write timeout as outcome-uncertain', async () => {
+      const mockContext = createMockContext('my-char', createMockAttachment(), 'avatar-clear');
+      vi.mocked(api.fetchCharacter).mockResolvedValue(createMockCharacter({ slug: 'my-char' }));
+      vi.mocked(api.updateCharacter).mockRejectedValue(
+        new GatewayApiError('Failed to update personality: 0 - timed out', 0, 'timeout')
+      );
+
+      await handleAvatar(mockContext, mockConfig);
+
+      const reply = vi.mocked(mockContext.editReply).mock.calls.at(-1)?.[0] as string;
+      expect(reply).toContain('may still be applying');
+      expect(reply).not.toMatch(/try again/i);
+    });
+
     it('nulls avatarData and confirms removal on success', async () => {
       const attachment = createMockAttachment();
       const mockContext = createMockContext('my-char', attachment, 'avatar-clear');

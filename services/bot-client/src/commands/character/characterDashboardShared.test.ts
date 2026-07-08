@@ -109,7 +109,7 @@ describe('openCharacterCascadeDashboard', () => {
     });
 
     expect(context.editReply).toHaveBeenCalledWith({
-      content: '❌ An error occurred while opening the settings dashboard.',
+      content: '❌ Failed to open the settings dashboard. Please try again.',
     });
   });
 
@@ -119,17 +119,26 @@ describe('openCharacterCascadeDashboard', () => {
     await openCharacterCascadeDashboard(context, 'ivy', {
       dashboardConfig,
       sourceTier: 'user-personality',
-      resolveCascade: vi.fn().mockResolvedValue({ ok: false, error: 'gateway timeout' }),
+      resolveCascade: vi
+        .fn()
+        .mockResolvedValue({
+          ok: false,
+          kind: 'http',
+          error: 'Cascade resolve broke',
+          status: 500,
+        }),
       noun: 'overrides',
       logger,
     });
 
+    // The real fail-arm carries kind/status — the classifier surfaces the
+    // gateway's own message, not a hand-written generic.
     expect(context.editReply).toHaveBeenCalledWith({
-      content: '❌ Failed to fetch config settings.',
+      content: '❌ Cascade resolve broke',
     });
     expect(mockCreateDashboard).not.toHaveBeenCalled();
     expect(vi.mocked((logger as { warn: unknown }).warn)).toHaveBeenCalledWith(
-      expect.objectContaining({ error: 'gateway timeout' }),
+      expect.objectContaining({ error: 'Cascade resolve broke' }),
       'Cascade resolve failed'
     );
   });

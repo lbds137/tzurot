@@ -40,6 +40,9 @@ import {
   buildCharacterDashboardOptions,
 } from './config.js';
 import { clientsFor } from '../../utils/gatewayClients.js';
+import { CATALOG } from '../../ux/catalog/catalog.js';
+import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
+import { renderSpec } from '../../ux/render/render.js';
 import { createCharacter } from './api.js';
 
 const logger = createLogger('character-create');
@@ -90,15 +93,21 @@ export async function handleSeedModalSubmit(
   // instead of a raw 400 after submit.
   if (!SLUG_PATTERN.test(values.slug)) {
     await interaction.editReply(
-      `❌ Invalid slug format. ${SLUG_REQUIREMENTS_MESSAGE}\n` +
-        `Example: \`${suggestSlugExample(values.name)}\``
+      renderSpec(
+        CATALOG.error.validation(
+          `Invalid slug format. ${SLUG_REQUIREMENTS_MESSAGE}\nExample: \`${suggestSlugExample(values.name)}\``
+        )
+      )
     );
     return;
   }
   if (values.slug.length < SLUG_MIN_LENGTH || values.slug.length > DISCORD_LIMITS.SLUG_MAX_LENGTH) {
     await interaction.editReply(
-      `❌ Slug must be ${SLUG_MIN_LENGTH}–${DISCORD_LIMITS.SLUG_MAX_LENGTH} characters ` +
-        `(yours is ${values.slug.length}).`
+      renderSpec(
+        CATALOG.error.validation(
+          `Slug must be ${SLUG_MIN_LENGTH}–${DISCORD_LIMITS.SLUG_MAX_LENGTH} characters (yours is ${values.slug.length}).`
+        )
+      )
     );
     return;
   }
@@ -162,12 +171,19 @@ export async function handleSeedModalSubmit(
     // Check for duplicate slug error
     if (error instanceof Error && error.message.includes('409')) {
       await interaction.editReply(
-        `❌ A character with slug \`${normalizedSlug}\` already exists.\n` +
-          'Please choose a different slug.'
+        renderSpec(
+          CATALOG.error.validation(
+            `A character with slug \`${normalizedSlug}\` already exists.\nPlease choose a different slug.`
+          )
+        )
       );
       return;
     }
 
-    await interaction.editReply('❌ Failed to create character. Please try again.');
+    await interaction.editReply(
+      renderSpec(
+        classifyGatewayFailure(error, 'character', { failedAction: 'create the character' })
+      )
+    );
   }
 }
