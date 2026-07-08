@@ -119,7 +119,7 @@ describe('handleVoice', () => {
       await handleVoice(context, mockConfig);
 
       expect(context.editReply).toHaveBeenCalledWith(
-        expect.stringContaining("don't have permission")
+        expect.stringContaining('do not have permission')
       );
     });
 
@@ -275,7 +275,7 @@ describe('handleVoice', () => {
       await handleVoice(context, mockConfig);
 
       expect(context.editReply).toHaveBeenCalledWith(
-        expect.stringContaining("don't have permission")
+        expect.stringContaining('do not have permission')
       );
     });
 

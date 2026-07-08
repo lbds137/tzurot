@@ -21,6 +21,9 @@ import { clientsFor } from '../../utils/gatewayClients.js';
 import { validateDiscordCdnUrl } from '../../utils/discordCdnGuard.js';
 import { validateAudioAttachment } from './mediaValidation.js';
 import { fetchCharacter, updateCharacter, type FetchedCharacter } from './api.js';
+import { CATALOG } from '../../ux/catalog/catalog.js';
+import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
+import { renderSpec } from '../../ux/render/render.js';
 
 const logger = createLogger('character-voice');
 
@@ -37,14 +40,17 @@ async function fetchEditableCharacter(
   const character = await fetchCharacter(slug, config, userClient);
   if (!character) {
     await context.editReply(
-      `❌ Character \`${escapeMarkdown(slug)}\` not found or not accessible.`
+      renderSpec(CATALOG.error.notFound('Character', { name: escapeMarkdown(slug) }))
     );
     return null;
   }
   if (!character.canEdit) {
     await context.editReply(
-      `❌ You don't have permission to edit \`${escapeMarkdown(slug)}\`.\n` +
-        'You can only edit characters you own.'
+      renderSpec(
+        CATALOG.error.permissionDenied(
+          `edit \`${escapeMarkdown(slug)}\` — you can only edit characters you own`
+        )
+      )
     );
     return null;
   }
@@ -77,7 +83,7 @@ async function handleVoiceUpload(
   // Validate attachment URL is from Discord CDN (SSRF defense-in-depth)
   const cdnGuard = validateDiscordCdnUrl(attachment.url, logger);
   if (!cdnGuard.ok) {
-    await context.editReply('❌ Invalid attachment URL.');
+    await context.editReply(renderSpec(CATALOG.error.validation('Invalid attachment URL.')));
     return;
   }
 
@@ -99,7 +105,7 @@ async function handleVoiceUpload(
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
         await context.editReply(
-          '❌ Voice download timed out. Discord may be slow — please try again.'
+          renderSpec(CATALOG.error.userRetryable('Voice download timed out — Discord may be slow.'))
         );
         return;
       }
@@ -108,7 +114,7 @@ async function handleVoiceUpload(
       clearTimeout(timeout);
     }
     if (!audioResponse.ok) {
-      await context.editReply('❌ Failed to download the audio file. Please try again.');
+      await context.editReply(renderSpec(CATALOG.error.operationFailed('download the audio file')));
       return;
     }
 
@@ -133,7 +139,13 @@ async function handleVoiceUpload(
     );
   } catch (error) {
     logger.error({ err: error, slug }, 'Failed to upload voice reference');
-    await context.editReply('❌ Failed to upload voice reference. Please try again.');
+    await context.editReply(
+      renderSpec(
+        classifyGatewayFailure(error, 'voice reference', {
+          failedAction: 'upload the voice reference',
+        })
+      )
+    );
   }
 }
 
@@ -173,7 +185,13 @@ async function handleVoiceClear(context: DeferredCommandContext, config: EnvConf
     logger.info({ slug, userId }, 'Character voice reference cleared');
   } catch (error) {
     logger.error({ err: error, slug }, 'Failed to clear voice reference');
-    await context.editReply('❌ Failed to clear voice reference. Please try again.');
+    await context.editReply(
+      renderSpec(
+        classifyGatewayFailure(error, 'voice reference', {
+          failedAction: 'clear the voice reference',
+        })
+      )
+    );
   }
 }
 
@@ -194,6 +212,6 @@ export async function handleVoice(
     await handleVoiceClear(context, config);
   } else {
     logger.warn({ subcommand }, 'Unexpected voice subcommand');
-    await context.editReply('❌ Unknown voice command.');
+    await context.editReply(renderSpec(CATALOG.error.validation('Unknown voice command.')));
   }
 }

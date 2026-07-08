@@ -521,7 +521,7 @@ describe('handleView / handleViewPagination', () => {
 
     await handleView(viewContext(), config);
 
-    expect(editReply).toHaveBeenCalledWith(expect.stringContaining('not found or not accessible'));
+    expect(editReply).toHaveBeenCalledWith(expect.stringContaining('not found'));
   });
 
   it('renders the private-definition state with NO components when redacted', async () => {
@@ -560,13 +560,14 @@ describe('handleView / handleViewPagination', () => {
     expect(call.embeds[0].toJSON().description).toContain('definition is private');
   });
 
-  it('shows a generic error when the fetch fails with a non-404 status', async () => {
-    // fetchCharacterForView throws on non-404/403 → handleView's catch fires.
+  it('surfaces the gateway message when the fetch fails with a non-404 status', async () => {
+    // fetchCharacterForView throws typed GatewayApiError on non-404/403 →
+    // handleView's catch classifies and surfaces the gateway's own message.
     stub.getPersonality.mockResolvedValue(makeErr(500, 'boom'));
 
     await handleView(viewContext(), config);
 
-    expect(editReply).toHaveBeenCalledWith(expect.stringContaining('Failed to load character'));
+    expect(editReply).toHaveBeenCalledWith(expect.stringContaining('boom'));
   });
 
   it('paginates: defers, re-fetches, and renders the requested page', async () => {
@@ -683,7 +684,7 @@ describe('handleExpandField', () => {
     await handleExpandField(expandInteraction(), 'test-character', 'characterInfo', config);
 
     expect(editReply).toHaveBeenCalledWith({
-      content: expect.stringContaining('Failed to load field content'),
+      content: expect.stringContaining('boom'),
     });
     expect(sendChunkedReply).not.toHaveBeenCalled();
   });
