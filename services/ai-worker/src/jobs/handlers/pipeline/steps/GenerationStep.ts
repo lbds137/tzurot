@@ -340,6 +340,7 @@ export class GenerationStep implements IPipelineStep {
         leakedThinkingRetries,
         effectiveProviderUsed,
         quotaFallback: reactiveQuotaFallback,
+        autoPromotionFallback,
       } = await runWithQuotaFallback({
         primary: () =>
           runWithAutoPromotionFallback(
@@ -352,7 +353,14 @@ export class GenerationStep implements IPipelineStep {
         userId: jobContext.userId,
         deps: this.quotaFallbackDeps,
       });
-      const quotaFallbackInfo = composeQuotaFallbackInfo(reactiveQuotaFallback, auth.quotaFallback);
+      // Three announce sources, pairwise-exclusive with the swap: the proactive
+      // demotion clears `auth.fallback` (so no swap can fire), and a quota
+      // retarget only fires when the whole primary FAILED (so a swap that
+      // served can't coexist with it). The swap breadcrumb is therefore a
+      // fallback of the existing composition, never a conflict.
+      const quotaFallbackInfo =
+        composeQuotaFallbackInfo(reactiveQuotaFallback, auth.quotaFallback) ??
+        autoPromotionFallback;
 
       // Store memory ONCE after retry loop completes with a valid response.
       // This prevents duplicate memories when retries occur (the fix for the

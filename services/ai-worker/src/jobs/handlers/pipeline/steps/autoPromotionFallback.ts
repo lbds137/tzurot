@@ -25,6 +25,12 @@ import type {
 import type { DiagnosticCollector } from '../../../../services/DiagnosticCollector.js';
 import type { GenerationContext } from '../types.js';
 import { RetryError } from '../../../../utils/retry.js';
+import {
+  classifyQuotaFailure,
+  logQuotaFallbackAudit,
+  type QuotaFallbackInfo,
+} from '../../../../services/quotaFallback.js';
+import { deriveCacheKeyId } from '../../../../services/RateLimitCache.js';
 
 const logger = createLogger('AutoPromotionFallback');
 
@@ -64,6 +70,17 @@ export interface GenerateAttemptResult {
    * OpenRouter model card, not the z.ai docs page.
    */
   effectiveProviderUsed?: AIProvider;
+  /**
+   * Footer announce info for a swap that SERVED the response, set only when
+   * the promoted attempt's failure classifies as a quota-class category (the
+   * three the footer renders). Without this, the FIRST fallback response of
+   * a doom window showed "via OpenRouter" with no `from → to (reason)`
+   * breadcrumb — only subsequent requests (proactive demotion off the doom
+   * cache) carried it. Non-quota swap reasons (catalog drift) stay
+   * unannotated: "via OpenRouter" is accurate and the annotation vocabulary
+   * is quota-shaped.
+   */
+  autoPromotionFallback?: QuotaFallbackInfo;
 }
 
 type GenerateAttempt = (opts: GenerateAttemptOpts) => Promise<GenerateAttemptResult>;
@@ -140,8 +157,34 @@ export async function runWithAutoPromotionFallback(
         effectiveProvider: AIProvider.OpenRouter,
       });
       // OpenRouter actually served this request (the promoted z.ai call failed),
-      // so report it as the effective provider for the footer model-info link.
-      return { ...fallbackResult, effectiveProviderUsed: AIProvider.OpenRouter };
+      // so report it as the effective provider for the footer model-info link —
+      // and, for quota-class failures, the announce breadcrumb (same shape the
+      // proactive demotion attaches from the doom cache). classifyQuotaFailure
+      // (not a hand-rolled parseApiError) because it trusts an ApiError's own
+      // .info.category — the rate-limit-cache short-circuit throws a synthetic
+      // ApiError whose generic message would regex-parse to the WRONG category.
+      const category = classifyQuotaFailure(originalError);
+      if (category === null) {
+        return { ...fallbackResult, effectiveProviderUsed: AIProvider.OpenRouter };
+      }
+      const info: QuotaFallbackInfo = {
+        fromModel: opts.personality.model,
+        toModel: fallback.model,
+        category,
+        mode: 'reactive',
+      };
+      // Audit-log parity with the other two announce sources (module
+      // invariant: every fire is announced AND audit-logged) — the fallback
+      // route's key is the one that actually served the rescued request.
+      logQuotaFallbackAudit(info, {
+        jobId: opts.jobId,
+        cacheKeyId: deriveCacheKeyId(fallback.apiKey, opts.conversationContext.userId),
+      });
+      return {
+        ...fallbackResult,
+        effectiveProviderUsed: AIProvider.OpenRouter,
+        autoPromotionFallback: info,
+      };
     } catch (fallbackError) {
       logger.error(
         { jobId: opts.jobId, err: originalError, fallbackErr: fallbackError },

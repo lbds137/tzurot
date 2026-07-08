@@ -10,6 +10,8 @@
 import { describe, it, expect, vi } from 'vitest';
 import { AIProvider } from '@tzurot/common-types/constants/ai';
 import { RetryError } from '../../../../utils/retry.js';
+import { ApiErrorCategory, ApiErrorType } from '@tzurot/common-types/constants/error';
+import { ApiError } from '../../../../utils/apiErrorParser.js';
 import {
   runWithAutoPromotionFallback,
   getFallbackFailureSummary,
@@ -157,6 +159,87 @@ describe('runWithAutoPromotionFallback', () => {
     // Result is the fallback's, tagged with the effective provider (OpenRouter)
     // so the response footer links to the OpenRouter model card, not z.ai docs.
     expect(result).toEqual({ ...fallbackResult, effectiveProviderUsed: AIProvider.OpenRouter });
+  });
+
+  it('attaches the reactive footer breadcrumb when the swap rescues a quota-class failure', async () => {
+    // The first-fallback footer gap: the response said "via OpenRouter" but
+    // carried no `from → to (rate limited)` annotation — only SUBSEQUENT
+    // requests (proactive demotion off the doom cache) showed it.
+    const attempt = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('429 Too Many Requests: rate limit exceeded'))
+      .mockResolvedValueOnce(successResult);
+
+    const result = await runWithAutoPromotionFallback(attempt, baseOpts, {
+      apiKey: 'sk-or-fallback',
+      provider: 'openrouter',
+      model: 'z-ai/glm-5.1',
+      isGuestMode: false,
+    });
+
+    expect(result.autoPromotionFallback).toEqual({
+      fromModel: 'glm-5.1',
+      toModel: 'z-ai/glm-5.1',
+      category: ApiErrorCategory.RATE_LIMIT,
+      mode: 'reactive',
+    });
+  });
+
+  it('attaches NO breadcrumb for a non-quota swap reason (catalog drift stays unannotated)', async () => {
+    const attempt = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('model not found: glm-5.1'))
+      .mockResolvedValueOnce(successResult);
+
+    const result = await runWithAutoPromotionFallback(attempt, baseOpts, {
+      apiKey: 'sk-or-fallback',
+      provider: 'openrouter',
+      model: 'z-ai/glm-5.1',
+      isGuestMode: false,
+    });
+
+    expect(result.autoPromotionFallback).toBeUndefined();
+    expect(result.effectiveProviderUsed).toBe(AIProvider.OpenRouter);
+  });
+
+  it('classifies the UNWRAPPED error for the breadcrumb when the failure is RetryError-wrapped', async () => {
+    const wrapped = new RetryError('LLM invocation failed', 1, new Error('too many requests'));
+    const attempt = vi.fn().mockRejectedValueOnce(wrapped).mockResolvedValueOnce(successResult);
+
+    const result = await runWithAutoPromotionFallback(attempt, baseOpts, {
+      apiKey: 'sk-or-fallback',
+      provider: 'openrouter',
+      model: 'z-ai/glm-5.1',
+      isGuestMode: false,
+    });
+
+    expect(result.autoPromotionFallback?.category).toBe(ApiErrorCategory.RATE_LIMIT);
+    expect(result.autoPromotionFallback?.mode).toBe('reactive');
+  });
+
+  it("honors a synthetic ApiError's authoritative category over its generic message", async () => {
+    // The rate-limit-cache short-circuit throws ApiError('Rate limit cached',
+    // { category: QUOTA_EXCEEDED, ... }) — regex-parsing that message would
+    // mislabel the breadcrumb RATE_LIMIT. classifyQuotaFailure trusts the
+    // instance's own category.
+    const synthetic = new ApiError('Rate limit cached', {
+      type: ApiErrorType.PERMANENT,
+      category: ApiErrorCategory.QUOTA_EXCEEDED,
+      userMessage: 'x',
+      technicalMessage: 'x',
+      referenceId: 'ref',
+      shouldRetry: false,
+    });
+    const attempt = vi.fn().mockRejectedValueOnce(synthetic).mockResolvedValueOnce(successResult);
+
+    const result = await runWithAutoPromotionFallback(attempt, baseOpts, {
+      apiKey: 'sk-or-fallback',
+      provider: 'openrouter',
+      model: 'z-ai/glm-5.1',
+      isGuestMode: false,
+    });
+
+    expect(result.autoPromotionFallback?.category).toBe(ApiErrorCategory.QUOTA_EXCEEDED);
   });
 
   it('propagates the ORIGINAL error untouched with the fallback summary attached separately', async () => {

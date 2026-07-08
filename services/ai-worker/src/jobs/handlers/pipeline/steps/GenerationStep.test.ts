@@ -1728,6 +1728,61 @@ describe('GenerationStep', () => {
         expect(secondCallOpts?.userApiKey).toBe('sk-or-user-key');
       });
 
+      it('threads the reactive breadcrumb to result metadata when the swap rescues a quota-class failure (the first-fallback footer gap)', async () => {
+        // The seam this pins: a rate-limited z.ai primary + successful
+        // OpenRouter swap must surface `quotaFallback` in the RESULT metadata
+        // — the info was previously computed nowhere on this path, so the
+        // first fallback response of a doom window rendered no breadcrumb.
+        vi.mocked(mockRAGService.generateResponse)
+          .mockRejectedValueOnce(new Error('429 Too Many Requests: rate limit exceeded'))
+          .mockResolvedValueOnce({
+            content: 'rescued',
+            retrievedMemories: 0,
+            tokensIn: 1,
+            tokensOut: 1,
+            modelUsed: 'z-ai/glm-5.1',
+          } as RAGResponse);
+
+        const result = await step.process({
+          job: createMockJob(),
+          startTime: Date.now(),
+          config: promotedConfig,
+          auth: promotedAuth,
+          preparedContext: basePreparedContext,
+        });
+
+        expect(result.result?.success).toBe(true);
+        expect(result.result?.metadata?.quotaFallback).toEqual({
+          fromModel: 'glm-5.1',
+          toModel: 'z-ai/glm-5.1',
+          category: ApiErrorCategory.RATE_LIMIT,
+          mode: 'reactive',
+        });
+      });
+
+      it('non-quota swap reasons leave quotaFallback absent (catalog drift stays unannotated)', async () => {
+        vi.mocked(mockRAGService.generateResponse)
+          .mockRejectedValueOnce(new Error('z.ai 404: model not found'))
+          .mockResolvedValueOnce({
+            content: 'rescued',
+            retrievedMemories: 0,
+            tokensIn: 1,
+            tokensOut: 1,
+            modelUsed: 'z-ai/glm-5.1',
+          } as RAGResponse);
+
+        const result = await step.process({
+          job: createMockJob(),
+          startTime: Date.now(),
+          config: promotedConfig,
+          auth: promotedAuth,
+          preparedContext: basePreparedContext,
+        });
+
+        expect(result.result?.success).toBe(true);
+        expect(result.result?.metadata?.quotaFallback).toBeUndefined();
+      });
+
       it('propagates the ORIGINAL error enriched with the fallback failure when both fail', async () => {
         // Both z.ai and OpenRouter fail — the root cause leads, but the message
         // carries BOTH halves so the user knows a fallback was attempted and why
