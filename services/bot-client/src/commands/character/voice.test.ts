@@ -31,6 +31,7 @@ vi.mock('./api.js', () => ({
   updateCharacter: vi.fn(),
 }));
 
+import { GatewayApiError } from '@tzurot/clients';
 import { handleVoice } from './voice.js';
 import { fetchCharacter, updateCharacter } from './api.js';
 import type { EnvConfig } from '@tzurot/common-types/config/config';
@@ -166,6 +167,43 @@ describe('handleVoice', () => {
       );
     });
 
+    it('renders the outcome-uncertain shape on an upload timeout (never "try again")', async () => {
+      // Wiring proof: a typed timeout from updateCharacter reaches the
+      // classifier and renders the verify-first copy.
+      const mockAudioBuffer = Buffer.from('fake-audio-data');
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue({
+          ok: true,
+          arrayBuffer: vi.fn().mockResolvedValue(mockAudioBuffer.buffer),
+        })
+      );
+      const context = createMockContext('voice', {
+        character: 'test-char',
+        audio: {
+          contentType: 'audio/wav',
+          size: mockAudioBuffer.length,
+          url: 'https://cdn.discordapp.com/file.wav',
+        },
+      });
+      (fetchCharacter as ReturnType<typeof vi.fn>).mockResolvedValue({
+        name: 'Test',
+        displayName: 'Test Character',
+        canEdit: true,
+      });
+      (updateCharacter as ReturnType<typeof vi.fn>).mockRejectedValue(
+        new GatewayApiError('Failed to update personality: 0 - timed out', 0, 'timeout')
+      );
+
+      await handleVoice(context, mockConfig);
+
+      const reply = (context.editReply as ReturnType<typeof vi.fn>).mock.calls.at(
+        -1
+      )?.[0] as string;
+      expect(reply).toContain('may still be applying');
+      expect(reply).not.toMatch(/try again/i);
+    });
+
     it('should handle download failure', async () => {
       vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false }));
 
@@ -252,7 +290,96 @@ describe('handleVoice', () => {
     });
   });
 
+  it('classifies a READ-phase failure as a load error, never write-uncertain', async () => {
+    const context = createMockContext('voice', {
+      character: 'test-char',
+      audio: {
+        contentType: 'audio/wav',
+        size: 1024,
+        url: 'https://cdn.discordapp.com/file.wav',
+      },
+    });
+    (fetchCharacter as ReturnType<typeof vi.fn>).mockRejectedValue(
+      new GatewayApiError('Failed to fetch character: 0 - timed out', 0, 'timeout')
+    );
+
+    await handleVoice(context, mockConfig);
+
+    const reply = (context.editReply as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0] as string;
+    expect(reply).toContain("Couldn't load the character right now");
+    expect(reply).not.toContain('may still be applying');
+    expect(updateCharacter).not.toHaveBeenCalled();
+  });
+
+  it('renders the retry-honest timeout line when the CDN download aborts', async () => {
+    const abortError = new Error('aborted');
+    abortError.name = 'AbortError';
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(abortError));
+    const context = createMockContext('voice', {
+      character: 'test-char',
+      audio: {
+        contentType: 'audio/wav',
+        size: 1024,
+        url: 'https://cdn.discordapp.com/file.wav',
+      },
+    });
+    (fetchCharacter as ReturnType<typeof vi.fn>).mockResolvedValue({
+      name: 'Test',
+      displayName: 'Test Character',
+      canEdit: true,
+    });
+
+    await handleVoice(context, mockConfig);
+
+    expect(context.editReply).toHaveBeenCalledWith(
+      expect.stringContaining('Voice download timed out')
+    );
+  });
+
+  it('renders the download-failure line on a non-OK CDN response', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 502 }));
+    const context = createMockContext('voice', {
+      character: 'test-char',
+      audio: {
+        contentType: 'audio/wav',
+        size: 1024,
+        url: 'https://cdn.discordapp.com/file.wav',
+      },
+    });
+    (fetchCharacter as ReturnType<typeof vi.fn>).mockResolvedValue({
+      name: 'Test',
+      displayName: 'Test Character',
+      canEdit: true,
+    });
+
+    await handleVoice(context, mockConfig);
+
+    expect(context.editReply).toHaveBeenCalledWith(
+      expect.stringContaining('Failed to download the audio file')
+    );
+  });
+
   describe('voice-clear', () => {
+    it('classifies a clear-write timeout as outcome-uncertain', async () => {
+      const context = createMockContext('voice-clear', { character: 'test-char' });
+      (fetchCharacter as ReturnType<typeof vi.fn>).mockResolvedValue({
+        name: 'Test',
+        displayName: 'Test Character',
+        canEdit: true,
+      });
+      (updateCharacter as ReturnType<typeof vi.fn>).mockRejectedValue(
+        new GatewayApiError('Failed to update personality: 0 - timed out', 0, 'timeout')
+      );
+
+      await handleVoice(context, mockConfig);
+
+      const reply = (context.editReply as ReturnType<typeof vi.fn>).mock.calls.at(
+        -1
+      )?.[0] as string;
+      expect(reply).toContain('may still be applying');
+      expect(reply).not.toMatch(/try again/i);
+    });
+
     it('should reject if character not found', async () => {
       const context = createMockContext('voice-clear', { character: 'nonexistent' });
 

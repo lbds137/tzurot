@@ -11,6 +11,9 @@ import { createLogger } from '@tzurot/common-types/utils/logger';
 import { isBotOwner } from '@tzurot/common-types/utils/ownerMiddleware';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { clientsFor } from '../../utils/gatewayClients.js';
+import { CATALOG } from '../../ux/catalog/catalog.js';
+import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
+import { renderSpec } from '../../ux/render/render.js';
 import { toCharacterData } from './api.js';
 import type { CharacterData } from './characterTypes.js';
 
@@ -132,14 +135,21 @@ export async function handleExport(
 
     if (!result.ok) {
       if (result.status === 404) {
-        await context.editReply(`❌ Character \`${slug}\` not found.`);
+        await context.editReply(renderSpec(CATALOG.error.notFound('Character', { name: slug })));
         return;
       }
       if (result.status === 403) {
-        await context.editReply(`❌ You don't have access to character \`${slug}\`.`);
+        await context.editReply(
+          renderSpec(CATALOG.error.permissionDenied(`access character \`${slug}\``))
+        );
         return;
       }
-      throw new Error(`API error: ${result.status}`);
+      // Fail-arm carries the transport kind — classify directly (a timeout
+      // must not read as a definitive export failure).
+      await context.editReply(
+        renderSpec(classifyGatewayFailure(result, 'character', { operation: 'read' }))
+      );
+      return;
     }
 
     // Coerce schema-derived `personality` into the `ExportCharacterData` shape
@@ -159,8 +169,11 @@ export async function handleExport(
     // Check ownership - only character owner or bot owner can export
     if (!canEdit && !isBotOwner(userId)) {
       await context.editReply(
-        `❌ You don't have permission to export \`${slug}\`.\n` +
-          'You can only export characters you own.'
+        renderSpec(
+          CATALOG.error.permissionDenied(
+            `export \`${slug}\` — you can only export characters you own`
+          )
+        )
       );
       return;
     }
@@ -203,6 +216,13 @@ export async function handleExport(
     );
   } catch (error) {
     logger.error({ err: error, slug }, 'Error exporting character');
-    await context.editReply('❌ An unexpected error occurred while exporting the character.');
+    await context.editReply(
+      renderSpec(
+        classifyGatewayFailure(error, 'character', {
+          operation: 'read',
+          failedAction: 'export the character',
+        })
+      )
+    );
   }
 }

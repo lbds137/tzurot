@@ -408,7 +408,7 @@ describe('Character Create', () => {
       await handleSeedModalSubmit(mockInteraction, mockConfig);
 
       expect(mockInteraction.editReply).toHaveBeenCalledWith(
-        '❌ Failed to create character. Please try again.'
+        '❌ Failed to create the character. Please try again.'
       );
     });
 

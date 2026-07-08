@@ -89,13 +89,24 @@ async function handleVoiceUpload(
 
   const { userClient } = clientsFor(context.interaction);
 
+  // Read phase gets its own catch: a transient failure while CHECKING the
+  // character must never render the write-uncertain "may still be applying"
+  // copy — nothing has been submitted yet.
+  let character: FetchedCharacter | null;
   try {
-    // Check permissions
-    const character = await fetchEditableCharacter(slug, config, userClient, context);
-    if (!character) {
-      return;
-    }
+    character = await fetchEditableCharacter(slug, config, userClient, context);
+  } catch (error) {
+    logger.error({ err: error, slug }, 'Failed to load character for voice upload');
+    await context.editReply(
+      renderSpec(classifyGatewayFailure(error, 'character', { operation: 'read' }))
+    );
+    return;
+  }
+  if (!character) {
+    return;
+  }
 
+  try {
     // Download audio from Discord CDN (30s timeout to avoid holding the deferred interaction)
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 30_000);
@@ -163,13 +174,21 @@ async function handleVoiceClear(context: DeferredCommandContext, config: EnvConf
 
   const { userClient } = clientsFor(context.interaction);
 
+  let character: FetchedCharacter | null;
   try {
-    // Check permissions
-    const character = await fetchEditableCharacter(slug, config, userClient, context);
-    if (!character) {
-      return;
-    }
+    character = await fetchEditableCharacter(slug, config, userClient, context);
+  } catch (error) {
+    logger.error({ err: error, slug }, 'Failed to load character for voice clear');
+    await context.editReply(
+      renderSpec(classifyGatewayFailure(error, 'character', { operation: 'read' }))
+    );
+    return;
+  }
+  if (!character) {
+    return;
+  }
 
+  try {
     // Clear voice reference and disable voice
     await updateCharacter(
       slug,

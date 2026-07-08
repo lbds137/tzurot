@@ -257,7 +257,7 @@ describe('Character Settings Dashboard', () => {
       await handleSettings(context, mockConfig);
 
       expect(context.editReply).toHaveBeenCalledWith({
-        content: expect.stringContaining('Failed to load character data'),
+        content: expect.stringContaining('Failed to load the character'),
       });
     });
 
@@ -269,7 +269,7 @@ describe('Character Settings Dashboard', () => {
       await handleSettings(context, mockConfig);
 
       expect(context.editReply).toHaveBeenCalledWith({
-        content: '❌ Failed to fetch config settings.',
+        content: '❌ Failed to load the config settings. Please try again.',
       });
     });
 
@@ -280,7 +280,7 @@ describe('Character Settings Dashboard', () => {
       await handleSettings(context, mockConfig);
 
       expect(context.editReply).toHaveBeenCalledWith({
-        content: '❌ An error occurred while opening the settings dashboard.',
+        content: '❌ Failed to open the settings dashboard. Please try again.',
       });
     });
 
@@ -291,7 +291,7 @@ describe('Character Settings Dashboard', () => {
       await handleSettings(context, mockConfig);
 
       expect(context.editReply).toHaveBeenCalledWith({
-        content: '❌ An error occurred while opening the settings dashboard.',
+        content: '❌ Failed to open the settings dashboard. Please try again.',
       });
     });
   });
