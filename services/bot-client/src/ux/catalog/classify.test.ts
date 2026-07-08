@@ -52,7 +52,7 @@ describe('classifyGatewayFailure', () => {
       });
     }
 
-    it('http (5xx via nullOn404) SURFACES the gateway message — review-caught: the prose wrapper matches neither regex', () => {
+    it('http (5xx via nullOn404) SURFACES the gateway message even though the prose wrapper matches neither regex', () => {
       const err = new InfraError({
         ok: false,
         kind: 'http',
@@ -95,6 +95,31 @@ describe('classifyGatewayFailure', () => {
     expect(spec.text).not.toContain('Failed to update preset: 400'); // only the clean suffix
   });
 
+  it('preserves dashes inside the extracted gateway message', () => {
+    const err = new Error('Failed to update preset: 400 - limit is 4096 - not 131072');
+    expect(classifyGatewayFailure(err, 'preset').text).toContain('limit is 4096 - not 131072');
+  });
+
+  it('does not extract from a single-digit status (status-0 abort prose falls to generic)', () => {
+    const spec = classifyGatewayFailure(
+      new Error('Failed to update character: 0 - timeout'),
+      'character'
+    );
+    expect(spec.text).toBe('Failed to update character. Please try again.');
+  });
+
+  it('does not extract from prose that merely contains dashes (no wrapper format)', () => {
+    const spec = classifyGatewayFailure(new Error('Request timed out - after 30s'), 'preset');
+    expect(spec.text).toBe('Failed to update preset. Please try again.');
+  });
+
+  it('the failedAction override rewrites the generic fallback for non-write contexts', () => {
+    const spec = classifyGatewayFailure(new Error('boom'), 'message', {
+      failedAction: 'process your message',
+    });
+    expect(spec.text).toBe('Failed to process your message. Please try again.');
+  });
+
   it('TOTAL: unknown error shapes → generic failure, never leaking the raw message', () => {
     const inputs: unknown[] = [
       new Error('ECONNRESET at internal/stream.js:451 SECRET-INTERNAL'),
@@ -135,7 +160,7 @@ describe('classifyGatewayFailure', () => {
     expect(spec.text.endsWith('…')).toBe(true);
   });
 
-  it('truncates oversize messages on the fail-arm carrier too (review-caught gap)', () => {
+  it('truncates oversize messages on the fail-arm carrier too', () => {
     const spec = classifyGatewayFailure(failArm('http', 'y'.repeat(3000), 400), 'preset');
     expect(spec.text.length).toBeLessThan(2000);
     expect(spec.text.endsWith('…')).toBe(true);

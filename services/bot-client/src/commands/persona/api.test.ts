@@ -195,7 +195,7 @@ describe('updatePersona', () => {
     expect(result?.name).toBe('Updated Name');
   });
 
-  it('throws DashboardUpdateError carrying the gateway status on failure', async () => {
+  it('throws GatewayApiError carrying the gateway status on failure', async () => {
     stub.updatePersona.mockResolvedValue(makeErr(500, 'Update failed'));
 
     await expect(
@@ -212,7 +212,7 @@ describe('updatePersona', () => {
         TEST_USER_ID
       )
     ).rejects.toMatchObject({
-      name: 'DashboardUpdateError',
+      name: 'GatewayApiError',
       status: 500,
       message: 'Failed to update persona: 500 - Update failed',
     });
@@ -234,7 +234,7 @@ describe('updatePersona', () => {
         asUserClient(stub),
         TEST_USER_ID
       )
-    ).rejects.toMatchObject({ name: 'DashboardUpdateError', status: 0, kind: 'timeout' });
+    ).rejects.toMatchObject({ name: 'GatewayApiError', status: 0, kind: 'timeout' });
   });
 });
 

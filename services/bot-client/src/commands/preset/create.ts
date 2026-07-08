@@ -33,8 +33,9 @@ import {
 } from './config.js';
 import { clientsFor } from '../../utils/gatewayClients.js';
 import { createPreset } from './api.js';
-import { extractApiErrorMessage } from '../../utils/dashboard/saveError.js';
-import { replyError } from '../../utils/dashboard/replyError.js';
+import { CATALOG } from '../../ux/catalog/catalog.js';
+import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
+import { replySpec } from '../../ux/render/reply.js';
 
 const logger = createLogger('preset-create');
 
@@ -81,12 +82,12 @@ export async function handleSeedModalSubmit(interaction: ModalSubmitInteraction)
 
   // Validate required fields
   if (!values.name || values.name.trim().length === 0) {
-    await replyError(interaction, '❌ Preset name is required.');
+    await replySpec(interaction, CATALOG.error.validation('Preset name is required.'));
     return;
   }
 
   if (!values.model || values.model.trim().length === 0) {
-    await replyError(interaction, '❌ Model ID is required.');
+    await replySpec(interaction, CATALOG.error.validation('Model ID is required.'));
     return;
   }
 
@@ -137,17 +138,18 @@ export async function handleSeedModalSubmit(interaction: ModalSubmitInteraction)
 
     // Check for duplicate name error (match structured format to avoid false positives)
     if (error instanceof Error && error.message.includes(': 409 ')) {
-      await replyError(
+      await replySpec(
         interaction,
-        `❌ A preset with name "${values.name}" already exists.\n` +
-          'Please choose a different name.'
+        CATALOG.error.validation(
+          `A preset with name "${values.name}" already exists.\nPlease choose a different name.`
+        )
       );
       return;
     }
 
-    await replyError(
+    await replySpec(
       interaction,
-      `❌ ${extractApiErrorMessage(error) ?? 'Failed to create preset. Please try again.'}`
+      classifyGatewayFailure(error, 'preset', { failedAction: 'create the preset' })
     );
   }
 }

@@ -53,21 +53,30 @@ export function ackMethodFor(state: { deferred: boolean; replied: boolean }): Ac
 }
 
 /**
- * Deliver a MessageSpec to an interaction, selecting the correct ack method
- * for its current state. followUp/reply branches are always ephemeral;
- * editReply inherits the deferral's visibility (callers of deferred flows own
- * that choice — a public deferral getting a public error is deliberate).
+ * Deliver rendered content to an interaction, selecting the correct ack
+ * method for its current state. followUp/reply branches are always ephemeral;
+ * editReply inherits the deferral's visibility.
+ *
+ * PRECONDITION (deferred path): callers taking `deferred && !replied` must
+ * have deferred ephemerally when the content is an error — `editReply`
+ * inherits the deferral's flags, so a non-ephemeral deferral exposes the
+ * content publicly. That misuse emits a runtime `warn` (it can't be prevented
+ * here — the deferral already happened — but it won't pass silently).
  */
-export async function replySpec(
+export async function replyContent(
   interaction: RepliableInteraction,
-  spec: MessageSpec,
-  opts: RenderOptions = {}
+  content: string
 ): Promise<void> {
-  const content = renderSpec(spec, opts);
   const method = ackMethodFor({ deferred: interaction.deferred, replied: interaction.replied });
 
   switch (method) {
     case 'editReply':
+      if (interaction.ephemeral === false) {
+        logger.warn(
+          { interactionId: interaction.id },
+          'Catalog reply took the deferred path on a non-ephemeral interaction; content will be publicly visible. Defer with MessageFlags.Ephemeral.'
+        );
+      }
       await interaction.editReply({ content });
       return;
     case 'followUp':
@@ -77,6 +86,18 @@ export async function replySpec(
       await interaction.reply({ content, flags: MessageFlags.Ephemeral });
       return;
   }
+}
+
+/**
+ * Deliver a MessageSpec to an interaction (render + ack-state-adaptive send).
+ * THE reply path for catalog messages.
+ */
+export async function replySpec(
+  interaction: RepliableInteraction,
+  spec: MessageSpec,
+  opts: RenderOptions = {}
+): Promise<void> {
+  await replyContent(interaction, renderSpec(spec, opts));
 }
 
 /**

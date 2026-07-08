@@ -2,65 +2,13 @@
  * Command Helpers
  * Shared utilities for Discord slash command handlers
  *
- * Provides:
- * - Consistent ephemeral reply patterns
- * - Standardized error handling
- * - Common interaction utilities
+ * Provides the shared embed factories (success/info/error/warning/danger)
+ * with consistent DISCORD_COLORS styling. Error-reply helpers formerly here
+ * were dead code; error messaging now flows through ux/catalog + replySpec.
  */
 
-import { EmbedBuilder, type ChatInputCommandInteraction } from 'discord.js';
+import { EmbedBuilder } from 'discord.js';
 import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
-import { createLogger } from '@tzurot/common-types/utils/logger';
-import { isGatewayConfigured } from './gatewayClients.js';
-
-const logger = createLogger('command-helpers');
-
-/**
- * Reply with a simple error message
- */
-export async function replyWithError(
-  interaction: ChatInputCommandInteraction,
-  message: string
-): Promise<void> {
-  await interaction.editReply({ content: `❌ ${message}` });
-}
-
-/**
- * Reply with a configuration error (gateway not configured)
- */
-export async function replyConfigError(interaction: ChatInputCommandInteraction): Promise<void> {
-  await interaction.editReply({
-    content: '❌ Service configuration error. Please try again later.',
-  });
-}
-
-/**
- * Check if gateway is configured, reply with error if not
- * Returns true if configured, false if error was sent
- */
-export async function ensureGatewayConfigured(
-  interaction: ChatInputCommandInteraction
-): Promise<boolean> {
-  if (!isGatewayConfigured()) {
-    await replyConfigError(interaction);
-    return false;
-  }
-  return true;
-}
-
-/**
- * Handle a generic command error (catch block)
- */
-export async function handleCommandError(
-  interaction: ChatInputCommandInteraction,
-  error: unknown,
-  context: { userId: string; command: string }
-): Promise<void> {
-  logger.error({ err: error, ...context }, `Error`);
-  await interaction.editReply({
-    content: '❌ An error occurred. Please try again later.',
-  });
-}
 
 /**
  * Create a success embed with consistent styling
@@ -119,56 +67,4 @@ export function createDangerEmbed(title: string, description: string): EmbedBuil
     .setColor(DISCORD_COLORS.ERROR)
     .setDescription(description)
     .setTimestamp();
-}
-
-/**
- * Handler function type for safe wrapper
- */
-type CommandHandler<T extends ChatInputCommandInteraction = ChatInputCommandInteraction> = (
-  interaction: T
-) => Promise<void>;
-
-/**
- * Options for createSafeHandler
- */
-interface SafeHandlerOptions {
-  /** Command name for logging (e.g., 'Wallet List') */
-  commandName: string;
-}
-
-/**
- * Wraps a command handler with consistent error handling.
- *
- * This is a higher-order function that:
- * - Catches any errors thrown by the handler
- * - Logs the error with context
- * - Replies to the user with a friendly error message
- *
- * Note: Interactions are always deferred at the top-level interactionCreate handler,
- * so error handling only needs to use editReply().
- *
- * @example
- * ```typescript
- * export const handleListKeys = createSafeHandler(
- *   async (interaction) => {
- *     // ... handler logic (no need to defer, already done)
- *   },
- *   { commandName: 'Wallet List' }
- * );
- * ```
- */
-export function createSafeHandler<
-  T extends ChatInputCommandInteraction = ChatInputCommandInteraction,
->(handler: CommandHandler<T>, options: SafeHandlerOptions): CommandHandler<T> {
-  const { commandName } = options;
-
-  return async (interaction: T): Promise<void> => {
-    try {
-      await handler(interaction);
-    } catch (error) {
-      const userId = interaction.user.id;
-      logger.error({ err: error, userId, command: commandName }, `Error`);
-      await interaction.editReply({ content: '❌ An error occurred. Please try again later.' });
-    }
-  };
 }

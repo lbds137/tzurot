@@ -1,8 +1,10 @@
 /**
- * Tests for commandHelpers utilities
+ * Tests for commandHelpers utilities (the shared embed factories — the
+ * error-reply helpers formerly here were dead code and are gone; error
+ * messaging flows through ux/catalog + replySpec).
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { EmbedBuilder } from 'discord.js';
 
 // Mock dependencies
@@ -21,109 +23,15 @@ vi.mock('@tzurot/common-types/constants/discord', async () => {
   };
 });
 
-vi.mock('@tzurot/common-types/utils/logger', async () => {
-  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
-    '@tzurot/common-types/utils/logger'
-  );
-  return {
-    ...actual,
-    createLogger: () => ({
-      debug: vi.fn(),
-      info: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-    }),
-  };
-});
-
-vi.mock('./gatewayClients.js', async () => {
-  const actual = await vi.importActual<typeof import('./gatewayClients.js')>('./gatewayClients.js');
-  return {
-    ...actual,
-    isGatewayConfigured: vi.fn().mockReturnValue(true),
-  };
-});
-
 import {
-  replyWithError,
-  replyConfigError,
-  ensureGatewayConfigured,
-  handleCommandError,
   createSuccessEmbed,
   createInfoEmbed,
   createErrorEmbed,
   createWarningEmbed,
-  createSafeHandler,
+  createDangerEmbed,
 } from './commandHelpers.js';
-import { isGatewayConfigured } from './gatewayClients.js';
-import type { ChatInputCommandInteraction } from 'discord.js';
 
 describe('commandHelpers', () => {
-  let mockInteraction: ChatInputCommandInteraction;
-
-  beforeEach(() => {
-    vi.clearAllMocks();
-
-    mockInteraction = {
-      deferReply: vi.fn(),
-      editReply: vi.fn(),
-      user: { id: 'test-user-id' },
-    } as unknown as ChatInputCommandInteraction;
-  });
-
-  describe('replyWithError', () => {
-    it('should edit reply with error message', async () => {
-      await replyWithError(mockInteraction, 'Test error');
-
-      expect(mockInteraction.editReply).toHaveBeenCalledWith({
-        content: '❌ Test error',
-      });
-    });
-  });
-
-  describe('replyConfigError', () => {
-    it('should edit reply with config error message', async () => {
-      await replyConfigError(mockInteraction);
-
-      expect(mockInteraction.editReply).toHaveBeenCalledWith({
-        content: '❌ Service configuration error. Please try again later.',
-      });
-    });
-  });
-
-  describe('ensureGatewayConfigured', () => {
-    it('should return true when gateway is configured', async () => {
-      vi.mocked(isGatewayConfigured).mockReturnValue(true);
-
-      const result = await ensureGatewayConfigured(mockInteraction);
-
-      expect(result).toBe(true);
-      expect(mockInteraction.editReply).not.toHaveBeenCalled();
-    });
-
-    it('should return false and send error when gateway is not configured', async () => {
-      vi.mocked(isGatewayConfigured).mockReturnValue(false);
-
-      const result = await ensureGatewayConfigured(mockInteraction);
-
-      expect(result).toBe(false);
-      expect(mockInteraction.editReply).toHaveBeenCalled();
-    });
-  });
-
-  describe('handleCommandError', () => {
-    it('should edit reply with generic error message', async () => {
-      await handleCommandError(mockInteraction, new Error('Test'), {
-        userId: 'test-user',
-        command: 'TestCommand',
-      });
-
-      expect(mockInteraction.editReply).toHaveBeenCalledWith({
-        content: '❌ An error occurred. Please try again later.',
-      });
-    });
-  });
-
   describe('embed creators', () => {
     it('createSuccessEmbed should create success colored embed', () => {
       const embed = createSuccessEmbed('Test Title', 'Test Description');
@@ -161,35 +69,12 @@ describe('commandHelpers', () => {
       expect(embed).toBeInstanceOf(EmbedBuilder);
       expect(embed.data.color).toBe(0xfee75c); // WARNING color
     });
-  });
 
-  describe('createSafeHandler', () => {
-    it('should call handler normally when no error', async () => {
-      const mockHandler = vi.fn().mockResolvedValue(undefined);
-      const safeHandler = createSafeHandler(mockHandler, { commandName: 'Test' });
+    it('createDangerEmbed should use the ERROR color (destructive intent)', () => {
+      const embed = createDangerEmbed('Delete Everything?', 'This cannot be undone.');
 
-      await safeHandler(mockInteraction);
-
-      expect(mockHandler).toHaveBeenCalledWith(mockInteraction);
-    });
-
-    it('should catch errors and use editReply (interaction always deferred at top-level)', async () => {
-      const mockHandler = vi.fn().mockRejectedValue(new Error('Handler failed'));
-      const safeHandler = createSafeHandler(mockHandler, { commandName: 'Test' });
-
-      // Interactions are always deferred at top-level interactionCreate handler
-      const deferredInteraction = {
-        ...mockInteraction,
-        deferred: true,
-        replied: false,
-        editReply: vi.fn(),
-      } as unknown as ChatInputCommandInteraction;
-
-      await safeHandler(deferredInteraction);
-
-      expect(deferredInteraction.editReply).toHaveBeenCalledWith({
-        content: '❌ An error occurred. Please try again later.',
-      });
+      expect(embed).toBeInstanceOf(EmbedBuilder);
+      expect(embed.data.color).toBe(0xed4245); // ERROR color, semantically danger
     });
   });
 });
