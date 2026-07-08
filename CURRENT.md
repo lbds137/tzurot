@@ -1,18 +1,17 @@
 # Current
 
-> **Version**: v3.0.0-beta.153 (released 2026-07-07) — **prompt-injection hardening** headline. A deep audit found the escapeXmlContent allowlist had drifted from the emitted tags, opening a **universal `</message></chat_log>` breakout** (any user message) + 5 more seams (public-personality `<character>`, raw-interpolated names in `<role>`/constraints, LLM-unsafe CDATA `<about>`, transcript history-path, attachment filenames). New `guard:prompt-tags` fails closed on unclassified structural tags (#1538). Also: rate-limit in-turn rescue (#1539), guest paid-vision leak + failure signal (#1534), gateway connection-drain (#1535), NULL-vector self-healing sweep (#1536), error-spoiler trim (#1537), voice-at-import + `/character` UX sweep (#1541). Additive `add_null_embedding_sweep_index` premigrated. Release review: "nothing that should hold up this release." _Prior: beta.152 (2026-07-07, fallback chain)._
+> **Version**: v3.0.0-beta.154 (released 2026-07-07) — **character definition privacy**: per-character 📖 Card Visibility toggle (SpicyChat-style); card fields redacted to null for non-owners unless opted public; `/character view`/browse show a 🔒 private state; existing public characters DEFAULT PRIVATE (owner-decided). Import/export round-trips the flag. Riders: customFields schema-strip fix (typed client was deleting the field from every response), admin-route voice fix, updated_at heal fix, premigrate same-file exemption + comma-list gate fix, guard:prompt-tags unconditional scan (+`<current_conversation>` PROTECTED), quota-category single-source. Additive `add_definition_public` premigrated. Holistic review: "Nothing blocking." _Prior: beta.153 (2026-07-07, prompt-injection hardening)._
 
 ---
 
 ## Unreleased on Develop
 
-- **Character-definition-privacy epic Part 1 COMPLETE** (#1546 schema+redaction, #1547 toggle+redacted rendering, #1548 import/export round-trip + customFields schema-strip fix). Additive `add_definition_public` migration applied to dev; prod premigrate at the beta.154 cut. **User-visible: existing public characters' card internals go dark for non-owners until the owner flips 📖 Card Public.**
-- **Review follow-up batch** (#1542 updated_at heal + admin voice + sanitizer docs, #1543 quota-category single-source, #1544 premigrate same-file-create exemption + comma-list gate fix, #1545 guard:prompt-tags unconditional scan + `<current_conversation>` PROTECTED + EmbedParser pin).
 - **Memory Phase 1a remains PARKED** on `feat/memory-hybrid-retrieval` (evidence gate: real-scale goldens).
+- _(queue flushed by beta.154)_
 
 ## Next Session Goal
 
-**beta.154 character-definition-privacy epic** (filed `cold/ideas.md`): definition-visibility toggle (private-default for everyone), view/browse detail DRY unification, import/export field audit (found: customFields export gap, voice export asymmetry). Council pass recommended before plan-mode. Plus open pending-input items: fair-share quota design (answers filed), items 4/5 already shipped, GLM eval + real-scale goldens owner sessions.
+**UX boulder Phase 1 (catalog + voice)** — owner-picked 2026-07-07. Start from the accepted artifact `docs/proposals/backlog/platform-portable-ux-design.md` §5 Phase 1: `ux/catalog` + `ux/render`, migrate DASHBOARD_MESSAGES/commandHelpers/saveError, outcome-honesty on gateway writes (G2 audit), in-character straggler sites, ratchet baseline. Plan-mode + council at build time per the boulder protocol. Phase 2 later absorbs privacy-epic Part 2 (view/browse unification) + the browse isAdmin/option-idiom follow-ups. Memory epic gates mature in background (slice-4 shadow observations accumulating; 1a goldens session whenever owner wants interactive).
 
 ## Next Session Goal
 
