@@ -156,6 +156,8 @@ describe('handleAdd', () => {
 
     await handleAdd(context);
 
-    expect(context.editReply).toHaveBeenCalledWith('❌ Failed: Cannot deny the bot owner');
+    expect(context.editReply).toHaveBeenCalledWith(
+      expect.stringContaining('Cannot deny the bot owner')
+    );
   });
 });

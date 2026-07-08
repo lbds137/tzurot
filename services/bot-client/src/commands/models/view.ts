@@ -5,6 +5,9 @@
  */
 
 import { escapeMarkdown } from 'discord.js';
+import { CATALOG } from '../../ux/catalog/catalog.js';
+import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
+import { renderSpec } from '../../ux/render/render.js';
 import { modelsViewOptions } from '@tzurot/common-types/generated/commandOptions';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
@@ -29,7 +32,12 @@ export async function handleView(context: DeferredCommandContext): Promise<void>
 
     if (model === null) {
       await context.editReply(
-        `❌ No model found matching \`${escapeMarkdown(modelId)}\`. Try \`/models browse\` to discover what's available.`
+        renderSpec(
+          CATALOG.error.notFound('Model', {
+            name: escapeMarkdown(modelId),
+            hint: 'Try `/models browse` to discover what is available.',
+          })
+        )
       );
       return;
     }
@@ -42,6 +50,8 @@ export async function handleView(context: DeferredCommandContext): Promise<void>
     logger.info({ modelId, usability: annotated.usability }, 'Viewed model card');
   } catch (error) {
     logger.error({ err: error, modelId }, 'Failed to view model');
-    await context.editReply('❌ Failed to load that model. Please try again.');
+    await context.editReply(
+      renderSpec(classifyGatewayFailure(error, 'model', { operation: 'read' }))
+    );
   }
 }

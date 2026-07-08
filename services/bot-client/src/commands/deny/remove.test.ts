@@ -84,7 +84,7 @@ describe('handleRemove', () => {
 
     await handleRemove(context);
 
-    expect(context.editReply).toHaveBeenCalledWith('❌ No matching denial entry found.');
+    expect(context.editReply).toHaveBeenCalledWith('❌ Denial entry not found.');
   });
 
   it('should strip Discord mention wrapper from target', async () => {

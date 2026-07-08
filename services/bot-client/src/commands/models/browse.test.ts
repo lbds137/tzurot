@@ -130,7 +130,9 @@ describe('handleBrowse', () => {
     catalogMock.fetchModelCatalog.mockRejectedValue(new Error('boom'));
     const context = ctx();
     await handleBrowse(context);
-    expect(context.editReply).toHaveBeenCalledWith('❌ Failed to load models. Please try again.');
+    expect(context.editReply).toHaveBeenCalledWith(
+      '❌ Failed to load the models. Please try again.'
+    );
   });
 
   it('passes capability + search through to the catalog fetch', async () => {
@@ -188,7 +190,7 @@ describe('handleBrowsePagination', () => {
 
     await handleBrowsePagination(interaction);
     const call = followUp.mock.calls[0][0] as { content: string };
-    expect(call.content).toContain('Failed to load that page');
+    expect(call.content).toContain('Failed to load the page');
   });
 });
 

@@ -168,7 +168,7 @@ describe('handleUndo', () => {
     await handleUndo(context);
 
     expect(context.editReply).toHaveBeenCalledWith({
-      content: '❌ Failed to undo. Please try again later.',
+      content: '❌ Server error',
     });
   });
 
@@ -179,7 +179,7 @@ describe('handleUndo', () => {
     await handleUndo(context);
 
     expect(context.editReply).toHaveBeenCalledWith({
-      content: '❌ An error occurred. Please try again later.',
+      content: '❌ Failed to undo. Please try again.',
     });
   });
 

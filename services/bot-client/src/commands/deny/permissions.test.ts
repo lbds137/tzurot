@@ -93,7 +93,7 @@ describe('checkDenyPermission', () => {
 
       expect(result.allowed).toBe(false);
       expect(context.editReply).toHaveBeenCalledWith(
-        '❌ Only the bot owner can manage bot-wide denials.'
+        expect.stringContaining('permission to manage bot-wide denials')
       );
     });
   });
@@ -212,7 +212,7 @@ describe('checkDenyPermission', () => {
 
       expect(result.allowed).toBe(false);
       expect(context.editReply).toHaveBeenCalledWith(
-        '❌ You can only manage denials for characters you own.'
+        expect.stringContaining('permission to manage denials for this character')
       );
     });
 
@@ -223,7 +223,9 @@ describe('checkDenyPermission', () => {
       const result = await checkDenyPermission(context, 'PERSONALITY', null, 'missing-character');
 
       expect(result.allowed).toBe(false);
-      expect(context.editReply).toHaveBeenCalledWith('❌ Character "missing-character" not found.');
+      expect(context.editReply).toHaveBeenCalledWith(
+        expect.stringContaining('Character "missing-character" not found')
+      );
     });
 
     it('denies with a "try again" message (not "not found") on an infra failure', async () => {
@@ -235,7 +237,7 @@ describe('checkDenyPermission', () => {
 
       expect(result.allowed).toBe(false);
       expect(context.editReply).toHaveBeenCalledWith(
-        expect.stringContaining('please try again in a moment')
+        expect.stringContaining("Couldn't reach the server right now")
       );
       expect(context.editReply).not.toHaveBeenCalledWith(expect.stringContaining('not found'));
     });

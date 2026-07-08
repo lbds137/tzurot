@@ -7,6 +7,8 @@
  */
 
 import { adminUsageOptions } from '@tzurot/common-types/generated/commandOptions';
+import { CATALOG } from '../../ux/catalog/catalog.js';
+import { renderSpec } from '../../ux/render/render.js';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { clientsFor } from '../../utils/gatewayClients.js';
 import { buildAdminUsageEmbed } from '../../utils/usageFormatter.js';
@@ -30,7 +32,11 @@ export async function handleUsage(context: DeferredCommandContext): Promise<void
       logger.error({ status: result.status, error: result.error }, 'Usage query failed');
 
       await context.editReply({
-        content: `❌ Failed to retrieve usage statistics (HTTP ${result.status}):\n\`\`\`\n${result.error}\n\`\`\``,
+        content: renderSpec(
+          CATALOG.error.validation(
+            `Failed to retrieve usage statistics (HTTP ${result.status}):\n\`\`\`\n${result.error}\n\`\`\``
+          )
+        ),
       });
       return;
     }
@@ -47,7 +53,7 @@ export async function handleUsage(context: DeferredCommandContext): Promise<void
   } catch (error) {
     logger.error({ err: error }, 'Error retrieving usage statistics');
     await context.editReply({
-      content: '❌ Error retrieving usage statistics. Please try again later.',
+      content: renderSpec(CATALOG.error.operationFailed('retrieve usage statistics')),
     });
   }
 }

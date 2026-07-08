@@ -7,6 +7,9 @@
  */
 
 import { EmbedBuilder } from 'discord.js';
+import { CATALOG } from '../../ux/catalog/catalog.js';
+import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
+import { renderSpec } from '../../ux/render/render.js';
 import { DISCORD_COLORS, TEXT_LIMITS } from '@tzurot/common-types/constants/discord';
 import { adminDbSyncOptions } from '@tzurot/common-types/generated/commandOptions';
 import { createLogger } from '@tzurot/common-types/utils/logger';
@@ -136,7 +139,11 @@ export async function handleDbSync(context: DeferredCommandContext): Promise<voi
       logger.error({ status: apiResult.status, error: apiResult.error }, 'DB sync failed');
 
       await context.editReply({
-        content: `❌ Database sync failed (HTTP ${apiResult.status}):\n\`\`\`\n${apiResult.error}\n\`\`\``,
+        content: renderSpec(
+          CATALOG.error.validation(
+            `Database sync failed (HTTP ${apiResult.status}):\n\`\`\`\n${apiResult.error}\n\`\`\``
+          )
+        ),
       });
       return;
     }
@@ -172,7 +179,9 @@ export async function handleDbSync(context: DeferredCommandContext): Promise<voi
   } catch (error) {
     logger.error({ err: error }, 'Error during database sync');
     await context.editReply({
-      content: '❌ Error during database sync.\nCheck API gateway logs for details.',
+      content: renderSpec(
+        classifyGatewayFailure(error, 'database sync', { failedAction: 'run the database sync' })
+      ),
     });
   }
 }

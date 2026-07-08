@@ -7,6 +7,9 @@
  */
 
 import { CLEANUP_DEFAULTS } from '@tzurot/common-types/constants/timing';
+import { CATALOG } from '../../ux/catalog/catalog.js';
+import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
+import { renderSpec } from '../../ux/render/render.js';
 import { adminCleanupOptions } from '@tzurot/common-types/generated/commandOptions';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { clientsFor } from '../../utils/gatewayClients.js';
@@ -30,7 +33,11 @@ export async function handleCleanup(context: DeferredCommandContext): Promise<vo
     if (!result.ok) {
       logger.error({ status: result.status, error: result.error }, 'Cleanup failed');
       await context.editReply({
-        content: `❌ Cleanup failed (HTTP ${result.status}):\n\`\`\`\n${result.error}\n\`\`\``,
+        content: renderSpec(
+          CATALOG.error.validation(
+            `Cleanup failed (HTTP ${result.status}):\n\`\`\`\n${result.error}\n\`\`\``
+          )
+        ),
       });
       return;
     }
@@ -61,6 +68,10 @@ export async function handleCleanup(context: DeferredCommandContext): Promise<vo
     );
   } catch (error) {
     logger.error({ err: error }, 'Error running cleanup');
-    await context.editReply({ content: '❌ Error running cleanup. Please try again later.' });
+    await context.editReply({
+      content: renderSpec(
+        classifyGatewayFailure(error, 'cleanup', { failedAction: 'run cleanup' })
+      ),
+    });
   }
 }

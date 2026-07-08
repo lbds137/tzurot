@@ -6,7 +6,11 @@
  * because the parent command uses deferralMode: 'ephemeral'.
  */
 
+import { escapeMarkdown } from 'discord.js';
 import { historyClearOptions } from '@tzurot/common-types/generated/commandOptions';
+import { CATALOG } from '../../ux/catalog/catalog.js';
+import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
+import { renderSpec } from '../../ux/render/render.js';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import {
@@ -44,12 +48,17 @@ export async function handleClear(context: DeferredCommandContext): Promise<void
     const result = await userClient.clearHistory(body);
 
     if (!result.ok) {
-      const errorMessage =
-        result.status === 404
-          ? `Character "${personalitySlug}" not found.`
-          : 'Failed to clear history. Please try again later.';
       logger.warn({ userId, personalitySlug, status: result.status }, 'Clear failed');
-      await context.editReply({ content: `❌ ${errorMessage}` });
+      await context.editReply({
+        content:
+          result.status === 404
+            ? renderSpec(
+                CATALOG.error.notFound('Character', { name: escapeMarkdown(personalitySlug) })
+              )
+            : renderSpec(
+                classifyGatewayFailure(result, 'history', { failedAction: 'clear history' })
+              ),
+      });
       return;
     }
 
@@ -72,6 +81,10 @@ export async function handleClear(context: DeferredCommandContext): Promise<void
     logger.info({ userId, personalitySlug, epoch: data.epoch }, 'Context cleared successfully');
   } catch (error) {
     logger.error({ err: error, userId, command: 'History Clear' }, 'Error');
-    await context.editReply({ content: '❌ An error occurred. Please try again later.' });
+    await context.editReply({
+      content: renderSpec(
+        classifyGatewayFailure(error, 'history', { failedAction: 'clear history' })
+      ),
+    });
   }
 }

@@ -331,7 +331,7 @@ describe('handleStats', () => {
     await handleStats(context);
 
     expect(context.editReply).toHaveBeenCalledWith({
-      content: '❌ Failed to get stats. Please try again later.',
+      content: '❌ Server error',
     });
   });
 
@@ -342,7 +342,7 @@ describe('handleStats', () => {
     await handleStats(context);
 
     expect(context.editReply).toHaveBeenCalledWith({
-      content: '❌ An error occurred. Please try again later.',
+      content: '❌ Failed to load the history stats. Please try again.',
     });
   });
 
