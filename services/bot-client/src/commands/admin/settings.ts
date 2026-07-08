@@ -25,7 +25,10 @@ import type { DeferredCommandContext } from '../../utils/commandContext/types.js
 import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
 import { type GetAdminSettingsResponse } from '@tzurot/common-types/schemas/api/adminSettings';
 import { createLogger } from '@tzurot/common-types/utils/logger';
-import { type OwnerClient } from '@tzurot/clients';
+import { nullOn404, type OwnerClient } from '@tzurot/clients';
+import { CATALOG } from '../../ux/catalog/catalog.js';
+import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
+import { renderSpec } from '../../ux/render/render.js';
 import { clientsFor } from '../../utils/gatewayClients.js';
 import { invalidateAdminSettingsCache } from '../../utils/gatewayServiceCalls.js';
 import {
@@ -85,8 +88,9 @@ export async function handleSettings(context: DeferredCommandContext): Promise<v
     const settings = await fetchAdminSettings(ownerClient);
 
     if (settings === null) {
+      // Genuine 404 only — infra failures throw to the catch below.
       await context.editReply({
-        content: '❌ Failed to fetch admin settings.',
+        content: renderSpec(CATALOG.error.notFound('Admin settings')),
       });
       return;
     }
@@ -111,7 +115,12 @@ export async function handleSettings(context: DeferredCommandContext): Promise<v
     // Only respond if we haven't already (createSettingsDashboard may have replied)
     if (!context.interaction.replied) {
       await context.editReply({
-        content: 'An error occurred while opening the settings dashboard.',
+        content: renderSpec(
+          classifyGatewayFailure(error, 'admin settings', {
+            operation: 'read',
+            failedAction: 'open the settings dashboard',
+          })
+        ),
       });
     }
   }
@@ -166,10 +175,9 @@ async function fetchAdminSettings(
   ownerClient: OwnerClient
 ): Promise<GetAdminSettingsResponse | null> {
   const result = await ownerClient.getAdminSettings();
-  if (!result.ok) {
-    return null;
-  }
-  return result.data;
+  // null ONLY on a genuine 404; infra failures throw so a transient blip
+  // can't read as "settings missing" (nullOn404 contract).
+  return nullOn404(result);
 }
 
 /**

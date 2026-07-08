@@ -21,7 +21,9 @@ import { formatDateTimeCompact } from '@tzurot/common-types/utils/dateFormatting
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { CUSTOM_ID_DELIMITER } from '../../utils/customIds.js';
 import { clientsFor } from '../../utils/gatewayClients.js';
-import { replyError } from '../../utils/dashboard/replyError.js';
+import { CATALOG } from '../../ux/catalog/catalog.js';
+import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
+import { followUpSpec, replySpec } from '../../ux/render/reply.js';
 
 import { fetchMemory, setMemoryLock, deleteMemory } from './detailApi.js';
 import { EMBED_DESCRIPTION_SAFE_LIMIT } from './formatters.js';
@@ -219,12 +221,16 @@ export async function handleMemorySelect(interaction: StringSelectMenuInteractio
   await interaction.deferUpdate();
 
   const { userClient } = clientsFor(interaction);
-  const memory = await fetchMemory(userClient, memoryId, interaction.user.id);
+  let memory: MemoryItem | null;
+  try {
+    memory = await fetchMemory(userClient, memoryId, interaction.user.id);
+  } catch (error) {
+    await followUpSpec(interaction, classifyGatewayFailure(error, 'memory', { operation: 'read' }));
+    return;
+  }
   if (memory === null) {
-    await interaction.followUp({
-      content: '❌ Failed to load memory details. It may have been deleted.',
-      flags: MessageFlags.Ephemeral,
-    });
+    // Genuine 404 — the memory really is gone (infra failures throw above).
+    await followUpSpec(interaction, CATALOG.error.notFound('Memory'));
     return;
   }
 
@@ -256,12 +262,17 @@ export async function handleLockButton(
   await interaction.deferUpdate();
 
   const { userClient } = clientsFor(interaction);
-  const updatedMemory = await setMemoryLock(userClient, memoryId, desiredState, userId);
+  let updatedMemory: MemoryItem | null;
+  try {
+    updatedMemory = await setMemoryLock(userClient, memoryId, desiredState, userId);
+  } catch (error) {
+    // A timeout here is outcome-UNCERTAIN (the lock may have applied) — the
+    // classifier renders the honest shape instead of the old "try again" lie.
+    await followUpSpec(interaction, classifyGatewayFailure(error, 'memory lock'));
+    return;
+  }
   if (updatedMemory === null) {
-    await interaction.followUp({
-      content: '❌ Failed to update lock status. Please try again.',
-      flags: MessageFlags.Ephemeral,
-    });
+    await followUpSpec(interaction, CATALOG.error.notFound('Memory'));
     return;
   }
 
@@ -287,12 +298,15 @@ export async function handleDeleteButton(
   await interaction.deferUpdate();
 
   const { userClient } = clientsFor(interaction);
-  const memory = await fetchMemory(userClient, memoryId, interaction.user.id);
+  let memory: MemoryItem | null;
+  try {
+    memory = await fetchMemory(userClient, memoryId, interaction.user.id);
+  } catch (error) {
+    await followUpSpec(interaction, classifyGatewayFailure(error, 'memory', { operation: 'read' }));
+    return;
+  }
   if (memory === null) {
-    await interaction.followUp({
-      content: '❌ Failed to load memory. It may have already been deleted.',
-      flags: MessageFlags.Ephemeral,
-    });
+    await followUpSpec(interaction, CATALOG.error.notFound('Memory'));
     return;
   }
 
@@ -333,12 +347,19 @@ export async function handleDeleteConfirm(
   }
 
   const { userClient } = clientsFor(interaction);
-  const success = await deleteMemory(userClient, memoryId, userId);
+  let success: boolean;
+  try {
+    success = await deleteMemory(userClient, memoryId, userId);
+  } catch (error) {
+    await followUpSpec(
+      interaction,
+      classifyGatewayFailure(error, 'memory', { failedAction: 'delete the memory' })
+    );
+    return false;
+  }
   if (!success) {
-    await interaction.followUp({
-      content: '❌ Failed to delete memory. Please try again.',
-      flags: MessageFlags.Ephemeral,
-    });
+    // Genuine 404 — already gone; surface as absence, not a retryable failure.
+    await followUpSpec(interaction, CATALOG.error.notFound('Memory'));
     return false;
   }
 
@@ -358,9 +379,15 @@ export async function handleViewFullButton(
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   const { userClient } = clientsFor(interaction);
-  const memory = await fetchMemory(userClient, memoryId, userId);
+  let memory: MemoryItem | null;
+  try {
+    memory = await fetchMemory(userClient, memoryId, userId);
+  } catch (error) {
+    await replySpec(interaction, classifyGatewayFailure(error, 'memory', { operation: 'read' }));
+    return;
+  }
   if (memory === null) {
-    await replyError(interaction, '❌ Failed to load memory. It may have been deleted.');
+    await replySpec(interaction, CATALOG.error.notFound('Memory'));
     return;
   }
 

@@ -91,6 +91,12 @@ export async function replyContent(
 /**
  * Deliver a MessageSpec to an interaction (render + ack-state-adaptive send).
  * THE reply path for catalog messages.
+ *
+ * NOT for `deferUpdate`d component handlers: `deferred` is true after BOTH
+ * `deferReply` (editReply fills a "Thinking…" placeholder — correct) and
+ * `deferUpdate` (editReply CLOBBERS the original component message — wrong).
+ * Discord.js exposes no flag distinguishing them, so a handler that called
+ * `deferUpdate` must use `followUpSpec` instead.
  */
 export async function replySpec(
   interaction: RepliableInteraction,
@@ -98,6 +104,20 @@ export async function replySpec(
   opts: RenderOptions = {}
 ): Promise<void> {
   await replyContent(interaction, renderSpec(spec, opts));
+}
+
+/**
+ * Ephemeral follow-up delivery for `deferUpdate`d component handlers, where
+ * the ack matrix's editReply branch would overwrite the component message
+ * (the browse list, the dashboard) instead of filling a placeholder. The
+ * caller owns knowing which defer it performed — see replySpec's JSDoc.
+ */
+export async function followUpSpec(
+  interaction: RepliableInteraction,
+  spec: MessageSpec,
+  opts: RenderOptions = {}
+): Promise<void> {
+  await interaction.followUp({ content: renderSpec(spec, opts), flags: MessageFlags.Ephemeral });
 }
 
 /**

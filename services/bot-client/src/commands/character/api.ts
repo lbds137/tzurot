@@ -101,9 +101,19 @@ export async function fetchCharacter(
 
   if (!result.ok) {
     if (result.status === 404 || result.status === 403) {
+      // 403 collapses to absence deliberately: "not visible to you" must be
+      // indistinguishable from "does not exist" (privacy — same rationale as
+      // the definition-redaction seam).
       return null;
     }
-    throw new Error(`Failed to fetch character: ${result.status}`);
+    // Typed throw preserves the transport kind so classifyGatewayFailure
+    // renders the honest shape (a plain Error here collapsed a timeout into
+    // the generic failure line).
+    throw new GatewayApiError(
+      `Failed to fetch character: ${result.status} - ${result.error}`,
+      result.status,
+      result.kind
+    );
   }
 
   return {
@@ -123,7 +133,11 @@ export async function fetchAllCharacters(
   const result = await userClient.listPersonalities();
 
   if (!result.ok) {
-    throw new Error(`Failed to fetch characters: ${result.status}`);
+    throw new GatewayApiError(
+      `Failed to fetch characters: ${result.status} - ${result.error}`,
+      result.status,
+      result.kind
+    );
   }
 
   const data = result.data;

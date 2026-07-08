@@ -65,6 +65,52 @@ describe('classifyGatewayFailure', () => {
     });
   });
 
+  describe("operation: 'read' — write-copy must never render for a failed fetch", () => {
+    // A schema-kind failure on a READ previously rendered "✅ Your memory
+    // change was saved" to a user who had merely clicked Edit — a confidently
+    // false claim (the exact bug class the catalog exists to eliminate).
+    it('schema on a read renders a load-failure, never "was saved"', () => {
+      const err = new InfraError({ ok: false, kind: 'schema', error: 'bad body', status: 0 });
+      const spec = classifyGatewayFailure(err, 'memory', { operation: 'read' });
+      expect(spec.outcome).toBe('failed');
+      expect(spec.text).not.toMatch(/saved|applying/i);
+      expect(spec.text).toContain("Couldn't read the memory data.");
+    });
+
+    it('timeout/network on a read renders transient (retry-honest — nothing was submitted)', () => {
+      for (const kind of ['timeout', 'network'] as const) {
+        const err = new InfraError({ ok: false, kind, error: 'slow', status: 0 });
+        const spec = classifyGatewayFailure(err, 'memory', { operation: 'read' });
+        expect(spec.outcome).toBe('failed');
+        expect(spec.text).not.toMatch(/applying|resend|saved/i);
+        expect(spec.text).toContain("Couldn't load the memory right now.");
+        expect(spec.text).toMatch(/try again later/i);
+      }
+    });
+
+    it('http on a read still surfaces the gateway message', () => {
+      const err = new InfraError({
+        ok: false,
+        kind: 'http',
+        error: 'Service temporarily unavailable',
+        status: 503,
+      });
+      expect(classifyGatewayFailure(err, 'memory', { operation: 'read' }).text).toContain(
+        'Service temporarily unavailable'
+      );
+    });
+
+    it('the generic fallback verb is load-shaped on reads', () => {
+      const spec = classifyGatewayFailure(new Error('boom'), 'memory', { operation: 'read' });
+      expect(spec.text).toBe('Failed to load the memory. Please try again.');
+    });
+
+    it('write default is unchanged (timeout → uncertain shape)', () => {
+      const err = new InfraError({ ok: false, kind: 'timeout', error: 'slow', status: 0 });
+      expect(classifyGatewayFailure(err, 'memory').outcome).toBe('uncertain');
+    });
+  });
+
   it('GatewayClientError (4xx, no kind) → definitive rejection surfacing the gateway message', () => {
     const err = new GatewayClientError({
       ok: false,
