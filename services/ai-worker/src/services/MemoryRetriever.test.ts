@@ -604,7 +604,11 @@ describe('MemoryRetriever', () => {
         context
       );
 
-      expect(result).toEqual({ memories: mockMemories, focusModeEnabled: false });
+      expect(result).toEqual({
+        memories: mockMemories,
+        focusModeEnabled: false,
+        personaId: 'persona-123',
+      });
       // Should query memories when focus mode is off
       expect(mockMemoryManager.queryMemories).toHaveBeenCalled();
     });
@@ -627,7 +631,9 @@ describe('MemoryRetriever', () => {
         context
       );
 
-      expect(result).toEqual({ memories: [], focusModeEnabled: false });
+      // No memory manager → no episodes, but the persona still resolves (facts
+      // path in ConversationalRAGService inherits this personaId).
+      expect(result).toEqual({ memories: [], focusModeEnabled: false, personaId: 'persona-123' });
     });
 
     it('should query memories with correct parameters', async () => {
@@ -663,7 +669,11 @@ describe('MemoryRetriever', () => {
         context
       );
 
-      expect(result).toEqual({ memories: mockMemories, focusModeEnabled: false });
+      expect(result).toEqual({
+        memories: mockMemories,
+        focusModeEnabled: false,
+        personaId: 'persona-123',
+      });
       expect(mockMemoryManager.queryMemories).toHaveBeenCalledWith('What food do I like?', {
         personaId: 'persona-123',
         personalityId: 'personality-123',

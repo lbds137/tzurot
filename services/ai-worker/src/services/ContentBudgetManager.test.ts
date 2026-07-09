@@ -354,4 +354,51 @@ describe('ContentBudgetManager', () => {
       expect(call[4]).toBeUndefined(); // 5th arg = undefined when no environment
     });
   });
+
+  // Fixed mocks: calculateMemoryBudget → 1000, countTokens → 100 for every
+  // string. So the fact sub-budget = min(600, floor(1000*0.3)) = 300; wrapper
+  // (100) + fact (100) each → exactly 2 facts fit (100+100+100=300), episodes
+  // get 1000-300 = 700.
+  describe('reserved fact sub-budget (Phase 2 slice 4a)', () => {
+    const withFacts = (n: number): BudgetAllocationOptions => ({
+      personality: mockPersonality,
+      processedPersonality: mockPersonality,
+      participantPersonas: new Map(),
+      retrievedMemories: [],
+      facts: Array.from({ length: n }, (_, i) => ({ statement: `fact ${i}` })),
+      context: { userId: 'u', channelId: 'c' },
+      userMessage: 'hi',
+      processedAttachments: [],
+      referencedMessagesDescriptions: undefined,
+      effectiveContextWindowTokens: 8000,
+    });
+
+    it('selects facts within the reserved slice and reduces the episode budget by exactly that cost', () => {
+      const result = budgetManager.allocate(withFacts(3));
+
+      // 2 of 3 facts fit the 300-token slice; factTokensUsed = 300.
+      expect(result.selectedFacts).toHaveLength(2);
+      expect(result.factTokensUsed).toBe(300);
+      // Episodes got the remainder (1000 - 300 = 700), NOT the full 1000 —
+      // facts don't come for free but also don't starve episodes.
+      const episodeBudget = vi.mocked(mockContextWindowManager.selectMemoriesWithinBudget).mock
+        .calls[0][1];
+      expect(episodeBudget).toBe(700);
+      // The selected facts cross the seam into the prompt build.
+      const promptFacts = vi
+        .mocked(mockPromptBuilder.buildFullSystemPrompt)
+        .mock.calls.at(-1)?.[0].facts;
+      expect(promptFacts).toHaveLength(2);
+    });
+
+    it('no facts → episodes keep the full memory budget, factTokensUsed 0', () => {
+      const result = budgetManager.allocate(withFacts(0));
+
+      expect(result.selectedFacts).toEqual([]);
+      expect(result.factTokensUsed).toBe(0);
+      const episodeBudget = vi.mocked(mockContextWindowManager.selectMemoriesWithinBudget).mock
+        .calls[0][1];
+      expect(episodeBudget).toBe(1000); // untouched
+    });
+  });
 });
