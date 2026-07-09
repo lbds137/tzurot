@@ -245,12 +245,25 @@ export interface PersonaLoadResult {
   processedPersonality: LoadedPersonality;
 }
 
+/**
+ * A distilled fact for prompt rendering — just the atomic statement. Minimal
+ * by design (decoupled from the retrieval-layer `SimilarFact`) so the formatter
+ * and budget manager only depend on what they render. Phase 2 slice 4a.
+ */
+export interface FactForPrompt {
+  statement: string;
+}
+
 /** Result of token budget calculation and content selection */
 export interface BudgetAllocationResult {
   relevantMemories: MemoryDocument[];
+  /** Facts selected within the reserved fact sub-budget (Phase 2 slice 4a). */
+  selectedFacts: FactForPrompt[];
   serializedHistory: string;
   systemPrompt: BaseMessage;
   memoryTokensUsed: number;
+  /** Tokens consumed by the `<facts>` block (wrapper + statements). */
+  factTokensUsed: number;
   historyTokensUsed: number;
   memoriesDroppedCount: number;
   messagesDropped: number;
@@ -280,6 +293,8 @@ export interface BudgetAllocationOptions {
   processedPersonality: LoadedPersonality;
   participantPersonas: Map<string, ParticipantInfo>;
   retrievedMemories: MemoryDocument[];
+  /** Retrieved active facts (Phase 2 slice 4a); the reserved fact sub-budget trims them. */
+  facts?: FactForPrompt[];
   context: ConversationContext;
   userMessage: string;
   processedAttachments: ProcessedAttachment[];

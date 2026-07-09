@@ -45,6 +45,10 @@ export const PROTECTED_TAGS = [
   'character',
   'identity_constraints',
   'constraint',
+  // Distilled-fact block (Phase 2 slice 4a) — a user statement escaping <facts>
+  // reaches top-level system scope, same boundary class as memory_archive.
+  'facts',
+  'fact',
   // Conversation-history ancestors (a user message must not forge these)
   'prior_conversations',
   'channel_history',

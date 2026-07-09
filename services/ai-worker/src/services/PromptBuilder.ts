@@ -12,10 +12,11 @@ import type {
   MemoryDocument,
   ConversationContext,
   ParticipantInfo,
+  FactForPrompt,
 } from './ConversationalRAGTypes.js';
 import type { ProcessedAttachment } from './MultimodalProcessor.js';
 import { formatParticipantsContext } from './prompt/ParticipantFormatter.js';
-import { formatMemoriesContext } from './prompt/MemoryFormatter.js';
+import { formatMemoriesContext, formatFactsContext } from './prompt/MemoryFormatter.js';
 import { formatPersonalityFields } from './prompt/PersonalityFieldsFormatter.js';
 import { formatEnvironmentContext } from './prompt/EnvironmentFormatter.js';
 import { extractContentDescriptions } from './RAGUtils.js';
@@ -41,6 +42,8 @@ interface BuildFullSystemPromptOptions {
   personality: LoadedPersonality;
   participantPersonas: Map<string, ParticipantInfo>;
   relevantMemories: MemoryDocument[];
+  /** Distilled active facts for the `<facts>` block (Phase 2 slice 4a; empty/absent = no block). */
+  facts?: FactForPrompt[];
   context: ConversationContext;
   referencedMessagesFormatted?: string;
   serializedHistory?: string;
@@ -245,6 +248,9 @@ ${locationXml}
       context.activePersonaName
     );
 
+    // Distilled active facts (Phase 2), rendered ahead of the historical archive.
+    const factsContext = formatFactsContext(options.facts ?? []);
+
     // Relevant memories from past interactions
     const memoryContext = formatMemoriesContext(relevantMemories, context.userTimezone);
 
@@ -279,7 +285,7 @@ ${serializedHistory}
     const outputConstraintsSection = `\n\n${OUTPUT_CONSTRAINTS}`;
 
     // Assemble in correct order using Sandwich Method
-    const fullSystemPrompt = `${identitySection}\n\n${identityConstraintsSection}\n\n${PLATFORM_CONSTRAINTS}${contextSection}${participantsContext}${memoryContext}${referencesContext}${chatLogSection}${protocolSection}${outputConstraintsSection}`;
+    const fullSystemPrompt = `${identitySection}\n\n${identityConstraintsSection}\n\n${PLATFORM_CONSTRAINTS}${contextSection}${participantsContext}${factsContext}${memoryContext}${referencesContext}${chatLogSection}${protocolSection}${outputConstraintsSection}`;
 
     // Basic prompt composition logging
     const historyLength = serializedHistory?.length ?? 0;

@@ -23,6 +23,8 @@ import { validateAIProvider } from '../utils/providerValidation.js';
 import { ReferencedMessageFormatter } from './ReferencedMessageFormatter.js';
 import { LLMInvoker } from './LLMInvoker.js';
 import { MemoryRetriever } from './MemoryRetriever.js';
+import type { FactRetriever } from './FactRetriever.js';
+import { retrieveFactsForPrompt, createFactRetriever } from './factRetrievalHelper.js';
 import { PromptBuilder } from './PromptBuilder.js';
 import { LongTermMemoryService } from './LongTermMemoryService.js';
 import type { ExtractionTrigger } from './extraction/ExtractionTrigger.js';
@@ -61,6 +63,7 @@ const logger = createLogger('ConversationalRAGService');
 export class ConversationalRAGService {
   private llmInvoker: LLMInvoker;
   private memoryRetriever: MemoryRetriever;
+  private factRetriever?: FactRetriever;
   private promptBuilder: PromptBuilder;
   private referencedMessageFormatter: ReferencedMessageFormatter;
   private contextWindowManager: ContextWindowManager;
@@ -79,6 +82,9 @@ export class ConversationalRAGService {
   ) {
     this.llmInvoker = new LLMInvoker();
     this.memoryRetriever = new MemoryRetriever(prisma, memoryManager, personaResolver);
+    // Fact retrieval (Phase 2 slice 4a); undefined without a memory manager,
+    // gated at call time by FACTS_IN_PROMPT_ENABLED.
+    this.factRetriever = createFactRetriever(prisma, memoryManager);
     this.promptBuilder = new PromptBuilder();
     const longTermMemory = new LongTermMemoryService(prisma, memoryManager, extractionTrigger);
     this.referencedMessageFormatter = new ReferencedMessageFormatter();
@@ -376,13 +382,30 @@ export class ConversationalRAGService {
       const qTruncated = inputs.searchQuery.length > TEXT_LIMITS.LOG_PREVIEW;
       logger.info({ queryPreview: qPreview, truncated: qTruncated }, 'Memory search query');
       diagnosticCollector?.markMemoryRetrievalStart();
-      const { memories: retrievedMemories, focusModeEnabled } =
-        await this.memoryRetriever.retrieveRelevantMemories(
-          personality,
-          inputs.searchQuery,
-          context,
-          configOverrides
-        );
+      const {
+        memories: retrievedMemories,
+        focusModeEnabled,
+        personaId,
+      } = await this.memoryRetriever.retrieveRelevantMemories(
+        personality,
+        inputs.searchQuery,
+        context,
+        configOverrides
+      );
+
+      // Retrieve distilled facts for the same scope (Phase 2 slice 4a). Inherits
+      // the retriever's skip decisions: `personaId` is undefined when LTM was
+      // skipped (incognito/focus/no-persona), so facts are skipped too.
+      // NOTE: facts always scope to `personality.id`, deliberately NOT widened by
+      // `shareLtmAcrossPersonalities` the way EPISODE retrieval is — facts stay
+      // private persona×personality in Phase 2; cross-personality fact sharing is
+      // a later phase, not a bug to "fix".
+      const facts = await retrieveFactsForPrompt(
+        this.factRetriever,
+        personality.id,
+        personaId,
+        inputs.searchQuery
+      );
 
       // Step 4: Allocate token budgets and select content
       // Note: Image descriptions and stored reference hydration are handled by
@@ -396,6 +419,7 @@ export class ConversationalRAGService {
         processedPersonality,
         participantPersonas,
         retrievedMemories,
+        facts,
         context,
         userMessage: inputs.userMessage,
         processedAttachments: inputs.processedAttachments,

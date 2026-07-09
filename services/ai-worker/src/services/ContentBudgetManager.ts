@@ -11,13 +11,25 @@ import { createLogger } from '@tzurot/common-types/utils/logger';
 import { contentToText } from '../utils/baseMessageContent.js';
 import type { PromptBuilder } from './PromptBuilder.js';
 import type { ContextWindowManager } from './context/ContextWindowManager.js';
+import { formatSingleFact, getFactsWrapperOverheadText } from './prompt/MemoryFormatter.js';
 import type {
   BudgetAllocationOptions,
   BudgetAllocationResult,
+  FactForPrompt,
   MemoryDocument,
 } from './ConversationalRAGTypes.js';
 
 const logger = createLogger('ContentBudgetManager');
+
+/**
+ * Reserved fact sub-budget (Phase 2 slice 4a). Facts are short/dense and would
+ * otherwise crowd verbose episodes out of the shared memory budget (council).
+ * They get a capped slice — at most `FACT_BUDGET_MAX_TOKENS`, and never more
+ * than `FACT_BUDGET_MAX_FRACTION` of the memory budget — so episodes always
+ * keep the majority; the rest of the memory budget goes to episodes.
+ */
+const FACT_BUDGET_MAX_TOKENS = 600;
+const FACT_BUDGET_MAX_FRACTION = 0.3;
 
 export class ContentBudgetManager {
   constructor(
@@ -48,8 +60,14 @@ export class ContentBudgetManager {
       contentToText(currentMessage.content)
     );
 
-    // Select memories within budget
-    const { relevantMemories, memoryTokensUsed, memoriesDroppedCount } = this.selectMemories(
+    // Select memories + facts within budget (facts get a reserved sub-budget)
+    const {
+      relevantMemories,
+      memoryTokensUsed,
+      memoriesDroppedCount,
+      selectedFacts,
+      factTokensUsed,
+    } = this.selectMemories(
       opts,
       contextWindowTokens,
       systemPromptBaseTokens,
@@ -71,6 +89,7 @@ export class ContentBudgetManager {
       personality: processedPersonality,
       participantPersonas,
       relevantMemories,
+      facts: selectedFacts,
       context,
       referencedMessagesFormatted: opts.referencedMessagesDescriptions,
       serializedHistory,
@@ -91,9 +110,11 @@ export class ContentBudgetManager {
 
     return {
       relevantMemories,
+      selectedFacts,
       serializedHistory,
       systemPrompt,
       memoryTokensUsed,
+      factTokensUsed,
       historyTokensUsed,
       memoriesDroppedCount,
       messagesDropped,
@@ -156,6 +177,8 @@ export class ContentBudgetManager {
     relevantMemories: MemoryDocument[];
     memoryTokensUsed: number;
     memoriesDroppedCount: number;
+    selectedFacts: FactForPrompt[];
+    factTokensUsed: number;
   } {
     const { personality, retrievedMemories, context } = opts;
     const historyTokens = this.contextWindowManager.countHistoryTokens(
@@ -170,6 +193,11 @@ export class ContentBudgetManager {
       historyTokens
     );
 
+    // Facts take their reserved slice FIRST; episodes get the remainder — so a
+    // dense cluster of short facts can't starve verbose episodes, and vice versa.
+    const { selectedFacts, factTokensUsed } = this.selectFacts(opts.facts ?? [], memoryBudget);
+    const episodeBudget = Math.max(0, memoryBudget - factTokensUsed);
+
     const {
       selectedMemories: relevantMemories,
       tokensUsed: memoryTokensUsed,
@@ -177,25 +205,69 @@ export class ContentBudgetManager {
       droppedDueToSize,
     } = this.contextWindowManager.selectMemoriesWithinBudget(
       retrievedMemories,
-      memoryBudget,
+      episodeBudget,
       context.userTimezone
     );
 
-    if (memoriesDroppedCount > 0) {
+    if (memoriesDroppedCount > 0 || selectedFacts.length > 0) {
       logger.info(
         {
           kept: relevantMemories.length,
           total: retrievedMemories.length,
           tokensUsed: memoryTokensUsed,
           budget: memoryBudget,
+          episodeBudget,
           dropped: memoriesDroppedCount,
           oversized: droppedDueToSize,
+          factsKept: selectedFacts.length,
+          factsRetrieved: opts.facts?.length ?? 0,
+          factTokensUsed,
         },
         'Memory budget applied'
       );
     }
 
-    return { relevantMemories, memoryTokensUsed, memoriesDroppedCount };
+    return {
+      relevantMemories,
+      memoryTokensUsed,
+      memoriesDroppedCount,
+      selectedFacts,
+      factTokensUsed,
+    };
+  }
+
+  /**
+   * Select facts within the reserved fact sub-budget (capped fraction of the
+   * memory budget). Greedy by retrieval order (already sorted by
+   * distance→recency→salience), counting the `<facts>` wrapper overhead so the
+   * block never overflows its slice. Zero facts selected → zero tokens (the
+   * empty block renders nothing).
+   */
+  private selectFacts(
+    facts: FactForPrompt[],
+    memoryBudget: number
+  ): { selectedFacts: FactForPrompt[]; factTokensUsed: number } {
+    if (facts.length === 0) {
+      return { selectedFacts: [], factTokensUsed: 0 };
+    }
+    const factBudget = Math.min(
+      FACT_BUDGET_MAX_TOKENS,
+      Math.floor(memoryBudget * FACT_BUDGET_MAX_FRACTION)
+    );
+    const wrapperOverhead = this.promptBuilder.countTokens(getFactsWrapperOverheadText());
+    const selected: FactForPrompt[] = [];
+    let used = wrapperOverhead;
+    for (const fact of facts) {
+      const factTokens = this.promptBuilder.countTokens(formatSingleFact(fact));
+      if (used + factTokens > factBudget) {
+        break;
+      }
+      selected.push(fact);
+      used += factTokens;
+    }
+    return selected.length > 0
+      ? { selectedFacts: selected, factTokensUsed: used }
+      : { selectedFacts: [], factTokensUsed: 0 };
   }
 
   private selectHistory(

@@ -547,6 +547,29 @@ describe('PromptBuilder', () => {
         expect(content).toContain('&lt;/character&gt;&lt;/system_identity&gt;');
       });
 
+      it('renders a <facts> block when facts are provided (Phase 2 slice 4a)', () => {
+        const result = promptBuilder.buildFullSystemPrompt({
+          personality: minimalPersonality,
+          participantPersonas: new Map(),
+          relevantMemories: [],
+          facts: [{ statement: 'user is allergic to shellfish' }],
+          context: minimalContext,
+        });
+        const content = result.content as string;
+        expect(content).toContain('<facts');
+        expect(content).toContain('<fact>user is allergic to shellfish</fact>');
+      });
+
+      it('omits the <facts> block entirely when no facts are provided', () => {
+        const result = promptBuilder.buildFullSystemPrompt({
+          personality: minimalPersonality,
+          participantPersonas: new Map(),
+          relevantMemories: [],
+          context: minimalContext,
+        });
+        expect(result.content as string).not.toContain('<facts');
+      });
+
       it('a malicious personality NAME cannot forge a top-level safety constraint', () => {
         // personality.name was previously interpolated raw into <role> and the
         // identity constraints. <role> is single-pass protected and <constraint>

@@ -159,9 +159,11 @@ describe('DiagnosticRecorders', () => {
       const memories: MemoryDocument[] = [{ pageContent: 'a memory', metadata: {} }];
       const budgetResult: BudgetAllocationResult = {
         relevantMemories: memories,
+        selectedFacts: [],
         serializedHistory: '',
         systemPrompt: new SystemMessage('system prompt text'),
         memoryTokensUsed: 50,
+        factTokensUsed: 0,
         historyTokensUsed: 200,
         memoriesDroppedCount: 1,
         messagesDropped: 2,
