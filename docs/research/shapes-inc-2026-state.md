@@ -6,8 +6,8 @@ _Open-source research (official docs/blog, press, community archives); [V] = ver
 
 - **[V] Discord mass-terminated shapes.inc and ~100k of its user-hosted bots on 2025-05-01.** Cited violations: improper bot-token handling, unauthorized use of message content for AI training, failure to honor data-deletion requests, inadequate child-safety moderation. Shapes disputed; community investigation supported Discord's account.
 - **[V] Pivoted to a standalone "multiplayer AI" group-chat app** (web/iOS/Android, humans + AIs in shared chats). Re-emerged 2026-04-29 with an $8M Lightspeed-led seed; 400k+ MAU (Mar 2026), 6× growth since January ([TechCrunch](https://techcrunch.com/2026/04/29/meet-shapes-the-app-bringing-humans-and-ai-into-the-same-group-chats/)).
-- **[V] Their OpenAI-compatible persona API launched ~Apr 2025 and was discontinued Sept 2025**; repo archived June 2026. Developer-facing persona APIs were not where their traction was.
-- **Implication: Discord is an open field.** The #1 Discord persona platform was ejected and did not return. Their ban reasons are our compliance checklist: token handling, no training on message content, data-deletion compliance, child-safety moderation.
+- **[V] Their OpenAI-compatible persona API launched ~Apr 2025 and was discontinued Sept 2025**; repo archived June 2026. Developer-facing persona APIs were not where their traction was. **Tzurot history note (owner)**: that API is why Tzurot v1/v2 existed — v1/v2 were built on it, and its shutdown is what birthed v3 as a fully independent stack.
+- **Implication: the Discord field is more open, not empty.** The #1 Discord persona platform was ejected and did not return — but successors exist: **Verba.ink**, **Aurinfer Labs**, and likely others (owner-known, 2026-07; not yet researched). Their ban reasons are our compliance checklist: token handling, no training on message content, data-deletion compliance, child-safety moderation. A follow-up competitive pass on the successor bots would be worth its own research session.
 
 ## Memory system (current, per [docs.shapes.inc/memory](https://docs.shapes.inc/memory))
 
