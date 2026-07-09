@@ -62,8 +62,15 @@ ${episodesBlock}
 ---
 
 Extract NEW durable facts from the excerpts. Rules:
-- A fact is an atomic, self-contained, third-person statement that will still matter in future conversations (names, relationships, preferences, decisions, world details).
-- Do NOT extract scene narration, one-off actions, or transient emotional states — the conversation itself is already stored verbatim.
+- A DURABLE fact is atomic, self-contained, third-person, and would still be true and worth knowing months from now: names, relationships, occupation, location, preferences, allergies, lasting decisions, stable world/canon details.
+- ONE fact per statement. If a sentence carries two facts ("has a severe peanut allergy AND learned it in childhood", "fears water AND survived a shipwreck"), split it into separate statements — do not join them with "and".
+- Apply the durability test — "will this still be true and relevant in six months?" If no, do NOT extract it. In particular, do NOT extract:
+  - transient states: current mood, tiredness, hunger, an illness or headache today
+  - time-bound plans or upcoming events: a trip next week, a deadline tomorrow, tonight's dinner, an appointment
+  - one-off actions and scene/setting narration: walking into a room, the furniture, the weather right now
+  - hypotheticals, wishes, or what-ifs: what someone would do if they won the lottery
+  - facts about the assistant or the AI itself
+  A past event counts as durable ONLY if it leaves a lasting truth ("moved to Denver", "had knee surgery last year"), not if it merely describes a passing moment.
 - Do NOT restate an existing known fact unless the excerpts CHANGE it.
 - If a new fact updates or contradicts a numbered known fact, set "supersedesIndex" to that fact's number; otherwise null.
 - ${isFictionScope ? 'This is an in-character fiction scope: extract in-story canon facts.' : 'Extract facts about the real user and their world; ignore in-story fiction.'}

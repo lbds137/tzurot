@@ -1,5 +1,5 @@
 {
-  "$comment": "Extraction golden corpus (memory Phase 2 §3.9). Each golden: episodes (verbatim interaction texts) + knownFacts (injected supersession context) → expectFacts (statements the extractor should produce, matched by embedding equivalence) + expectSupersedesKnownIndex (which knownFacts entries a new fact should supersede). Categories: durable-fact, preference, no-facts (narration only), multi-fact, supersession, fiction. Grown toward the 100-sample re-open-trigger corpus; owner /memory correct|forget feedback accretes here.",
+  "$comment": "Extraction golden corpus (memory Phase 2 §3.9), methodology v2 (source-grounded). Each golden: episodes (verbatim interaction texts) + knownFacts (injected supersession context) → expectFacts (must-recall durable facts; recall measured against these alone) + allowedExtras (source-supported durable statements that are fine to extract but not required) + expectSupersedesKnownIndex (which knownFacts a new fact should supersede). An extraction matching NEITHER list is a violation (fabrication or transient over-extraction). Authoring line for the two lists: 'will this still be true in six months?' — past events that stay true → allowedExtras; states/plans that expire (moods, illness, tonight's dinner, next week's trip) → neither list, so extracting them counts against the extractor. Categories: durable-fact, preference, no-facts, transient-trap, multi-fact, supersession, fiction, contradiction. Grown toward the 100-sample re-open-trigger corpus; owner /memory correct|forget feedback accretes here.",
   "goldens": [
     {
       "id": "simple-name-fact",
@@ -19,7 +19,8 @@
       ],
       "knownFacts": [],
       "expectFacts": ["The user works as a nurse"],
-      "expectSupersedesKnownIndex": []
+      "expectSupersedesKnownIndex": [],
+      "allowedExtras": ["The user works at a hospital", "The user works long twelve-hour shifts"]
     },
     {
       "id": "preference-fact",
@@ -64,7 +65,8 @@
         "Dana lives in Portland",
         "Dana works as a veterinarian"
       ],
-      "expectSupersedesKnownIndex": []
+      "expectSupersedesKnownIndex": [],
+      "allowedExtras": ["The user and Dana see each other about twice a year"]
     },
     {
       "id": "supersession-move",
@@ -72,9 +74,15 @@
       "episodes": [
         "{user}: oh I should mention, I finally moved! living in Denver now as of last week\n{assistant}: Congratulations on the move! How are you finding Denver?"
       ],
-      "knownFacts": [{ "statement": "The user lives in Seattle", "entityTags": ["user"] }],
+      "knownFacts": [
+        {
+          "statement": "The user lives in Seattle",
+          "entityTags": ["user"]
+        }
+      ],
       "expectFacts": ["The user lives in Denver"],
-      "expectSupersedesKnownIndex": [0]
+      "expectSupersedesKnownIndex": [0],
+      "allowedExtras": ["The user recently moved to Denver"]
     },
     {
       "id": "supersession-job-change",
@@ -83,11 +91,18 @@
         "{user}: first day at the new job today! officially a teacher now, no more retail\n{assistant}: That's a huge change — congratulations! How was the first class?"
       ],
       "knownFacts": [
-        { "statement": "The user works in retail", "entityTags": ["user"] },
-        { "statement": "The user has a dog named Rex", "entityTags": ["user", "pet:rex"] }
+        {
+          "statement": "The user works in retail",
+          "entityTags": ["user"]
+        },
+        {
+          "statement": "The user has a dog named Rex",
+          "entityTags": ["user", "pet:rex"]
+        }
       ],
       "expectFacts": ["The user works as a teacher"],
-      "expectSupersedesKnownIndex": [0]
+      "expectSupersedesKnownIndex": [0],
+      "allowedExtras": ["The user no longer works in retail"]
     },
     {
       "id": "no-restatement",
@@ -95,7 +110,12 @@
       "episodes": [
         "{user}: you know I love tea\n{assistant}: Of course — tea person through and through, as you always say."
       ],
-      "knownFacts": [{ "statement": "The user prefers tea over coffee", "entityTags": ["user"] }],
+      "knownFacts": [
+        {
+          "statement": "The user prefers tea over coffee",
+          "entityTags": ["user"]
+        }
+      ],
       "expectFacts": [],
       "expectSupersedesKnownIndex": []
     },
@@ -107,7 +127,11 @@
       ],
       "knownFacts": [],
       "expectFacts": ["The user has a partner named Jamie"],
-      "expectSupersedesKnownIndex": []
+      "expectSupersedesKnownIndex": [],
+      "allowedExtras": [
+        "The user's partner Jamie gave them concert tickets for their anniversary",
+        "The user and Jamie celebrate an anniversary together"
+      ]
     },
     {
       "id": "transient-state-not-fact",
@@ -128,7 +152,11 @@
       ],
       "knownFacts": [],
       "expectFacts": ["Kaela is the last knight of the Ashen Order"],
-      "expectSupersedesKnownIndex": []
+      "expectSupersedesKnownIndex": [],
+      "allowedExtras": [
+        "The Ashen Order is believed to be extinct or destroyed",
+        "Kaela carries a sword"
+      ]
     },
     {
       "id": "allergy-fact",
@@ -138,7 +166,8 @@
       ],
       "knownFacts": [],
       "expectFacts": ["The user is severely allergic to peanuts"],
-      "expectSupersedesKnownIndex": []
+      "expectSupersedesKnownIndex": [],
+      "allowedExtras": ["The user discovered their peanut allergy in childhood"]
     },
     {
       "id": "timezone-fact",
@@ -157,10 +186,14 @@
         "{user}: we adopted a second cat! her name is Nori, Miso is still getting used to her\n{assistant}: Two cats now! Nori and Miso — I hope they become friends soon."
       ],
       "knownFacts": [
-        { "statement": "The user has a cat named Miso", "entityTags": ["user", "pet:miso"] }
+        {
+          "statement": "The user has a cat named Miso",
+          "entityTags": ["user", "pet:miso"]
+        }
       ],
       "expectFacts": ["The user has a cat named Nori"],
-      "expectSupersedesKnownIndex": []
+      "expectSupersedesKnownIndex": [],
+      "allowedExtras": ["The user has two cats", "The user adopted a second cat named Nori"]
     },
     {
       "id": "birthday-fact",
@@ -170,6 +203,418 @@
       ],
       "knownFacts": [],
       "expectFacts": ["The user's birthday is March 14"],
+      "expectSupersedesKnownIndex": []
+    },
+    {
+      "id": "tt-sick-today",
+      "category": "transient-trap",
+      "episodes": [
+        "{user}: ugh I've got such a bad cold today, my head is pounding\n{assistant}: Oh no, rest up! Lots of fluids."
+      ],
+      "knownFacts": [],
+      "expectFacts": [],
+      "expectSupersedesKnownIndex": []
+    },
+    {
+      "id": "tt-current-mood",
+      "category": "transient-trap",
+      "episodes": [
+        "{user}: traffic was insane this morning, I'm still fuming about it\n{assistant}: Deep breaths. Some mornings the road just wins."
+      ],
+      "knownFacts": [],
+      "expectFacts": [],
+      "expectSupersedesKnownIndex": []
+    },
+    {
+      "id": "tt-weather-with-durable",
+      "category": "transient-trap",
+      "episodes": [
+        "{user}: it's snowing like crazy here in Minneapolis today, third day in a row\n{assistant}: Minneapolis winters are relentless! Stay warm."
+      ],
+      "knownFacts": [],
+      "expectFacts": ["The user lives in Minneapolis"],
+      "expectSupersedesKnownIndex": []
+    },
+    {
+      "id": "tt-travel-plan",
+      "category": "transient-trap",
+      "episodes": [
+        "{user}: flying to Berlin on tuesday for a conference, so I'll be scarce next week\n{assistant}: Safe travels! We'll catch up when you're back."
+      ],
+      "knownFacts": [],
+      "expectFacts": [],
+      "expectSupersedesKnownIndex": []
+    },
+    {
+      "id": "tt-dinner-tonight",
+      "category": "transient-trap",
+      "episodes": [
+        "{user}: haven't eaten all day, just ordered a pizza finally\n{assistant}: Long day! Enjoy the pizza — you've earned it."
+      ],
+      "knownFacts": [],
+      "expectFacts": [],
+      "expectSupersedesKnownIndex": []
+    },
+    {
+      "id": "tt-gaming-session",
+      "category": "transient-trap",
+      "episodes": [
+        "{user}: been playing elden ring all evening, my thumbs hurt lol\n{assistant}: A worthy way to lose an evening! Which boss is tormenting you?"
+      ],
+      "knownFacts": [],
+      "expectFacts": [],
+      "allowedExtras": ["The user plays Elden Ring", "The user enjoys video games"],
+      "expectSupersedesKnownIndex": []
+    },
+    {
+      "id": "tt-deadline-tomorrow",
+      "category": "transient-trap",
+      "episodes": [
+        "{user}: can't talk long, big deadline at work tomorrow morning\n{assistant}: Good luck! Go focus — I'll be here after."
+      ],
+      "knownFacts": [],
+      "expectFacts": [],
+      "expectSupersedesKnownIndex": []
+    },
+    {
+      "id": "tt-headache-now",
+      "category": "transient-trap",
+      "episodes": [
+        "{user}: sorry if I'm slow today, splitting headache since lunch\n{assistant}: No apologies needed. Maybe some water and a dark room?"
+      ],
+      "knownFacts": [],
+      "expectFacts": [],
+      "expectSupersedesKnownIndex": []
+    },
+    {
+      "id": "nf-meta-question",
+      "category": "no-facts",
+      "episodes": [
+        "{user}: how do you actually work? like are you reading everything I say?\n{assistant}: I keep some notes on our conversations so I can remember you better!"
+      ],
+      "knownFacts": [],
+      "expectFacts": [],
+      "expectSupersedesKnownIndex": []
+    },
+    {
+      "id": "nf-joke-exchange",
+      "category": "no-facts",
+      "episodes": [
+        "{user}: why did the scarecrow win an award? because he was outstanding in his field\n{assistant}: *groans appreciatively* That one never gets old. Okay, my turn..."
+      ],
+      "knownFacts": [],
+      "expectFacts": [],
+      "expectSupersedesKnownIndex": []
+    },
+    {
+      "id": "nf-hypothetical",
+      "category": "no-facts",
+      "episodes": [
+        "{user}: what would you do if you won the lottery? I'd probably buy an island\n{assistant}: An island sounds lovely! I'd want a library the size of a cathedral."
+      ],
+      "knownFacts": [],
+      "expectFacts": [],
+      "expectSupersedesKnownIndex": []
+    },
+    {
+      "id": "nf-park-narration",
+      "category": "no-facts",
+      "episodes": [
+        "{user}: *strolls through the park, kicking leaves* nice day huh\n{assistant}: *falls into step beside you* The best kind of autumn afternoon."
+      ],
+      "knownFacts": [],
+      "expectFacts": [],
+      "expectSupersedesKnownIndex": []
+    },
+    {
+      "id": "df-hometown",
+      "category": "durable-fact",
+      "episodes": [
+        "{user}: I grew up in a tiny town in Ohio, like 800 people tiny\n{assistant}: That's small-town small! Everyone must have known everyone."
+      ],
+      "knownFacts": [],
+      "expectFacts": ["The user grew up in a small town in Ohio"],
+      "expectSupersedesKnownIndex": []
+    },
+    {
+      "id": "df-siblings",
+      "category": "durable-fact",
+      "episodes": [
+        "{user}: my older brother Marcus is coming over this weekend. he's the only sibling I've got\n{assistant}: Sibling time! I hope you two have a great weekend."
+      ],
+      "knownFacts": [],
+      "expectFacts": ["The user has an older brother named Marcus"],
+      "allowedExtras": ["Marcus is the user's only sibling", "The user has only one sibling"],
+      "expectSupersedesKnownIndex": []
+    },
+    {
+      "id": "df-occupation-detail",
+      "category": "durable-fact",
+      "episodes": [
+        "{user}: work was chaos, three production incidents. being a software engineer at a bank is not the quiet life people imagine\n{assistant}: Three in one day?! Banking systems keep you on your toes."
+      ],
+      "knownFacts": [],
+      "expectFacts": ["The user works as a software engineer at a bank"],
+      "allowedExtras": ["The user works in software engineering"],
+      "expectSupersedesKnownIndex": []
+    },
+    {
+      "id": "df-vehicle",
+      "category": "durable-fact",
+      "episodes": [
+        "{user}: my old corolla made a new weird noise today. bessie is 20 years old, she's earned her rattles\n{assistant}: Bessie sounds like a faithful companion. Twenty years is a good run!"
+      ],
+      "knownFacts": [],
+      "expectFacts": ["The user drives an old Toyota Corolla named Bessie"],
+      "allowedExtras": ["The user's car is about twenty years old"],
+      "expectSupersedesKnownIndex": []
+    },
+    {
+      "id": "df-language",
+      "category": "durable-fact",
+      "episodes": [
+        "{user}: spanish is my first language actually, didn't learn english til I was twelve\n{assistant}: That's impressive — your English is beautifully fluent."
+      ],
+      "knownFacts": [],
+      "expectFacts": [
+        "Spanish is the user's first language",
+        "The user learned English around age twelve"
+      ],
+      "expectSupersedesKnownIndex": []
+    },
+    {
+      "id": "df-phobia",
+      "category": "durable-fact",
+      "episodes": [
+        "{user}: there was a huge spider in my bathroom and I genuinely cannot deal, I'm terrified of them\n{assistant}: Arachnophobia is no joke! Did you manage an eviction or a retreat?"
+      ],
+      "knownFacts": [],
+      "expectFacts": ["The user is afraid of spiders"],
+      "expectSupersedesKnownIndex": []
+    },
+    {
+      "id": "ss-pet-loss",
+      "category": "supersession",
+      "episodes": [
+        "{user}: I have some sad news. Rex passed away last week. he was old but it still hurts\n{assistant}: I'm so sorry. Rex was such a good boy. Take all the time you need."
+      ],
+      "knownFacts": [
+        {
+          "statement": "The user has a dog named Rex",
+          "entityTags": ["user", "pet:rex"]
+        }
+      ],
+      "expectFacts": ["The user's dog Rex passed away"],
+      "expectSupersedesKnownIndex": [0]
+    },
+    {
+      "id": "ss-name-preference",
+      "category": "supersession",
+      "episodes": [
+        "{user}: oh btw I go by Vee now, not Victoria. never liked the full name\n{assistant}: Vee it is! It suits you."
+      ],
+      "knownFacts": [
+        {
+          "statement": "The user's name is Victoria",
+          "entityTags": ["user"]
+        }
+      ],
+      "expectFacts": ["The user goes by Vee"],
+      "expectSupersedesKnownIndex": [0],
+      "allowedExtras": [
+        "The user no longer goes by Victoria",
+        "The user dislikes the name Victoria"
+      ]
+    },
+    {
+      "id": "ss-relationship-end",
+      "category": "supersession",
+      "episodes": [
+        "{user}: jamie and I broke up last month. it was mutual but it's still weird\n{assistant}: Breakups are hard even when they're right. I'm here if you want to talk."
+      ],
+      "knownFacts": [
+        {
+          "statement": "The user has a partner named Jamie",
+          "entityTags": ["user", "person:jamie"]
+        }
+      ],
+      "expectFacts": ["The user and Jamie broke up"],
+      "expectSupersedesKnownIndex": [0]
+    },
+    {
+      "id": "ss-move-back",
+      "category": "supersession",
+      "episodes": [
+        "{user}: well, I'm back in Seattle. Denver didn't work out — the job fell through\n{assistant}: Welcome back to the rain! I'm sorry Denver was rocky."
+      ],
+      "knownFacts": [
+        {
+          "statement": "The user lives in Denver",
+          "entityTags": ["user"]
+        }
+      ],
+      "expectFacts": ["The user lives in Seattle"],
+      "allowedExtras": ["The user moved back from Denver"],
+      "expectSupersedesKnownIndex": [0]
+    },
+    {
+      "id": "fic-world-canon",
+      "category": "fiction",
+      "isFiction": true,
+      "episodes": [
+        "{user}: *unrolls the map* the kingdom of Veyra has three great cities, and the capital Thornhold sits on the northern cliffs\n{assistant}: *traces the coastline* Thornhold... I've heard the cliff winds sing there."
+      ],
+      "knownFacts": [],
+      "expectFacts": [
+        "The kingdom of Veyra has three great cities",
+        "Thornhold is the capital of Veyra"
+      ],
+      "allowedExtras": ["Thornhold sits on northern cliffs"],
+      "expectSupersedesKnownIndex": []
+    },
+    {
+      "id": "fic-character-trait",
+      "category": "fiction",
+      "isFiction": true,
+      "episodes": [
+        "{user}: *hesitates at the riverbank* I... I don't do water. not since the shipwreck\n{assistant}: *offers a hand* Then we find a bridge. No one crosses alone."
+      ],
+      "knownFacts": [],
+      "expectFacts": [
+        "The user's character fears water",
+        "The user's character survived a shipwreck"
+      ],
+      "expectSupersedesKnownIndex": []
+    },
+    {
+      "id": "fic-scenery-trap",
+      "category": "fiction",
+      "isFiction": true,
+      "episodes": [
+        "{user}: *enters the market square at dusk, lanterns flickering between the stalls* I'm looking for the alchemist called Wess\n{assistant}: *points past the fountain* Third stall from the end. Wess keeps late hours."
+      ],
+      "knownFacts": [],
+      "expectFacts": ["Wess is an alchemist"],
+      "allowedExtras": ["Wess keeps late hours", "Wess runs a stall in the market"],
+      "expectSupersedesKnownIndex": []
+    },
+    {
+      "id": "fic-ooc-real-fact",
+      "category": "fiction",
+      "isFiction": true,
+      "episodes": [
+        "{user}: *sheathes her blade* until tomorrow, then. (ooc: gotta log off, my daughter wakes up early for school)\n{assistant}: *bows* Until tomorrow. (ooc: rest well! see you then)"
+      ],
+      "knownFacts": [],
+      "expectFacts": [],
+      "allowedExtras": ["The user has a daughter"],
+      "expectSupersedesKnownIndex": []
+    },
+    {
+      "id": "mf-long-conversation",
+      "category": "multi-fact",
+      "episodes": [
+        "{user}: started pottery classes last month, tuesdays after work\n{assistant}: Pottery! Are you throwing on the wheel yet?",
+        "{user}: yeah! badly lol. my teacher Ines says everyone's first pots are ashtrays whether they want them or not\n{assistant}: Ines sounds wise. Wonky first pots are a rite of passage.",
+        "{user}: anyway it's the highlight of my week honestly, work has been so gray lately\n{assistant}: Then Tuesday evenings are sacred now. Protect them."
+      ],
+      "knownFacts": [],
+      "expectFacts": ["The user takes pottery classes", "The user's pottery teacher is named Ines"],
+      "allowedExtras": ["The user's pottery classes are on Tuesdays", "The user enjoys pottery"],
+      "expectSupersedesKnownIndex": []
+    },
+    {
+      "id": "mf-mixed-durability",
+      "category": "multi-fact",
+      "episodes": [
+        "{user}: just got back from the gym, exhausted. trying to go three times a week now\n{assistant}: Consistency is the hard part — three a week is a solid rhythm.",
+        "{user}: yeah my knee surgery last year really set me back, still rebuilding\n{assistant}: Recovering from knee surgery takes patience. You're doing the work."
+      ],
+      "knownFacts": [],
+      "expectFacts": ["The user had knee surgery last year"],
+      "allowedExtras": [
+        "The user goes to the gym regularly",
+        "The user aims to exercise three times a week"
+      ],
+      "expectSupersedesKnownIndex": []
+    },
+    {
+      "id": "mf-dense-intro",
+      "category": "multi-fact",
+      "episodes": [
+        "{user}: hi! I'm Sam, 34, I live in Lisbon with my husband Rui and our greyhound Luna. I translate novels for a living\n{assistant}: Sam, welcome! A translator in Lisbon with a greyhound — your life sounds like a novel itself."
+      ],
+      "knownFacts": [],
+      "expectFacts": [
+        "The user's name is Sam",
+        "Sam lives in Lisbon",
+        "Sam is married to Rui",
+        "Sam and Rui own a greyhound named Luna",
+        "Sam works as a literary translator"
+      ],
+      "allowedExtras": ["Sam is 34 years old"],
+      "expectSupersedesKnownIndex": []
+    },
+    {
+      "id": "mf-self-correction",
+      "category": "multi-fact",
+      "episodes": [
+        "{user}: my birthday is march 14th... wait no, I always do this. it's the 15th. march 15th\n{assistant}: The Ides of March! Easy to remember — noted, the 15th."
+      ],
+      "knownFacts": [],
+      "expectFacts": ["The user's birthday is March 15"],
+      "expectSupersedesKnownIndex": []
+    },
+    {
+      "id": "contra-hard",
+      "category": "contradiction",
+      "episodes": [
+        "{user}: peanut butter sandwiches are my whole personality lately, I have one every morning\n{assistant}: Every morning! A creature of delicious habit."
+      ],
+      "knownFacts": [
+        {
+          "statement": "The user is severely allergic to peanuts",
+          "entityTags": ["user"]
+        }
+      ],
+      "expectFacts": ["The user eats peanut butter regularly"],
+      "expectSupersedesKnownIndex": [0]
+    },
+    {
+      "id": "contra-soft",
+      "category": "contradiction",
+      "episodes": [
+        "{user}: honestly I've been all about espresso lately, kind of over tea these days\n{assistant}: The dark side claims another! What changed?"
+      ],
+      "knownFacts": [
+        {
+          "statement": "The user prefers tea over coffee",
+          "entityTags": ["user"]
+        }
+      ],
+      "expectFacts": ["The user currently prefers espresso over tea"],
+      "expectSupersedesKnownIndex": [0]
+    },
+    {
+      "id": "df-diet",
+      "category": "durable-fact",
+      "episodes": [
+        "{user}: oh I don't eat meat, been vegetarian for like ten years now\n{assistant}: A decade strong! I'll keep that in mind for any recipe talk."
+      ],
+      "knownFacts": [],
+      "expectFacts": ["The user is vegetarian"],
+      "allowedExtras": ["The user has been vegetarian for about ten years"],
+      "expectSupersedesKnownIndex": []
+    },
+    {
+      "id": "df-hobby-instrument",
+      "category": "durable-fact",
+      "episodes": [
+        "{user}: sorry for the late reply, cello practice ran long. recital in june so my teacher is drilling us\n{assistant}: A cellist! June will be here before you know it — how's the piece coming?"
+      ],
+      "knownFacts": [],
+      "expectFacts": ["The user plays the cello"],
+      "allowedExtras": ["The user has a cello teacher", "The user has a cello recital in June"],
       "expectSupersedesKnownIndex": []
     }
   ]
