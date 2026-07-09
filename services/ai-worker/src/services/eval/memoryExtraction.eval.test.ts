@@ -3,14 +3,15 @@
  *
  * Runs the REAL extraction prompt + REAL cheap model (costs money, needs the
  * system OpenRouter key in env) against the golden corpus, parses with the
- * production schema (fail-to-skip), and scores precision / recall /
- * hallucination-rate via embedding fact-equivalence. Invoked manually:
- * `pnpm eval:extraction`. Results land in extraction-eval-results.json; copy
- * to phase2-baseline.json when establishing the slice-2 baseline.
+ * production schema (fail-to-skip), and scores recall / violation-rate via
+ * source-grounded embedding fact-equivalence (methodology v2 — see
+ * `scoreExtraction`). Invoked manually: `pnpm eval:extraction`. Results land
+ * in extraction-eval-results.json; copy to phase2-extraction-baseline.json
+ * when establishing a baseline.
  *
- * Gate semantics (per the phase plan): slice 2 ships at >=80% mean precision;
- * slice 4 (retrieval integration) requires >=95% precision / <=5%
- * hallucination on the grown corpus.
+ * Gate semantics: prod-enable of facts-in-prompt requires the corpus-level
+ * violationRate under the owner-decided bar (candidates: 5% strict / 10%
+ * pragmatic-with-correction-surface) on the grown corpus.
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
@@ -24,7 +25,7 @@ import {
   extractJsonPayload,
 } from '../extraction/extractionPrompt.js';
 import { invokeExtractionModel } from '../extraction/FactExtractionService.js';
-import { matchFacts } from './factEquivalence.js';
+import { scoreExtraction } from './factEquivalence.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -34,7 +35,15 @@ interface ExtractionGolden {
   isFiction?: boolean;
   episodes: string[];
   knownFacts: { statement: string; entityTags: string[] }[];
+  /** Must-recall durable facts — recall is measured against these alone. */
   expectFacts: string[];
+  /**
+   * Source-supported durable facts that are FINE to extract but not required
+   * (methodology v2). Transient states the source supports but that must NOT
+   * be extracted are deliberately absent from both lists, so extracting them
+   * counts as a violation.
+   */
+  allowedExtras?: string[];
   expectSupersedesKnownIndex: number[];
 }
 
@@ -43,7 +52,10 @@ interface GoldenResult {
   precision: number;
   recall: number;
   extractedCount: number;
-  hallucinations: string[];
+  /** Everything the model produced — the eyeballing source for recall misses / tuning. */
+  extracted: string[];
+  /** Extractions supported by neither list: fabrications OR transient over-extractions. */
+  violations: string[];
   supersessionHit: boolean | null;
 }
 
@@ -67,22 +79,45 @@ describe('memory extraction eval (real model — manual run only)', () => {
     const scored = Object.values(results);
     const mean = (xs: number[]): number =>
       xs.length === 0 ? 0 : xs.reduce((a, b) => a + b, 0) / xs.length;
-    const allHallucinations = scored.flatMap(r => r.hallucinations);
+    const allViolations = scored.flatMap(r => r.violations);
     const totalExtracted = scored.reduce((a, r) => a + r.extractedCount, 0);
     const supersessionGoldens = scored.filter(r => r.supersessionHit !== null);
+    // Per-category breakdown — the tuning loop reads this to see WHICH failure
+    // mode the prompt is making (transient-trap vs fiction vs durable etc).
+    // NOTE: these per-category rates are an UNWEIGHTED per-golden macro-average
+    // (each golden counts equally), deliberately distinct from
+    // `totals.violationRate` above, which is volume-weighted (total violations /
+    // total extracted). Macro is the right lens per category (one high-extraction
+    // golden shouldn't dominate a category); micro is the right lens for the gate
+    // number. Don't compare the two side-by-side expecting them to match.
+    const byCategory: Record<string, { goldens: number; violationRate: number; recall: number }> =
+      {};
+    for (const r of scored) {
+      const c = (byCategory[r.category] ??= { goldens: 0, violationRate: 0, recall: 0 });
+      c.goldens += 1;
+      c.violationRate += r.violations.length / Math.max(1, r.extractedCount);
+      c.recall += r.recall;
+    }
+    for (const c of Object.values(byCategory)) {
+      c.violationRate /= c.goldens;
+      c.recall /= c.goldens;
+    }
     const summary = {
       generatedForPhase: 'set-at-baseline-time',
+      methodology:
+        'v2 source-grounded: recall vs expectFacts; violation = extraction matching neither expectFacts nor allowedExtras',
       totals: {
         goldens: scored.length,
         meanPrecision: mean(scored.map(r => r.precision)),
         meanRecall: mean(scored.map(r => r.recall)),
-        hallucinationRate: totalExtracted === 0 ? 0 : allHallucinations.length / totalExtracted,
+        violationRate: totalExtracted === 0 ? 0 : allViolations.length / totalExtracted,
         supersessionHitRate:
           supersessionGoldens.length === 0
             ? null
             : supersessionGoldens.filter(r => r.supersessionHit === true).length /
               supersessionGoldens.length,
       },
+      byCategory,
       results,
     };
     writeFileSync(
@@ -118,7 +153,12 @@ describe('memory extraction eval (real model — manual run only)', () => {
       }
 
       const extractedStatements = parsed.data.facts.map(f => f.statement);
-      const match = await matchFacts(extractedStatements, golden.expectFacts, embeddings);
+      const score = await scoreExtraction(
+        extractedStatements,
+        golden.expectFacts,
+        golden.allowedExtras ?? [],
+        embeddings
+      );
 
       // Supersession scoring: did any extracted fact name each expected index?
       let supersessionHit: boolean | null = null;
@@ -131,10 +171,11 @@ describe('memory extraction eval (real model — manual run only)', () => {
 
       results[golden.id] = {
         category: golden.category,
-        precision: match.precision,
-        recall: match.recall,
+        precision: score.precision,
+        recall: score.recall,
         extractedCount: extractedStatements.length,
-        hallucinations: match.unmatchedExtracted,
+        extracted: extractedStatements,
+        violations: score.violations,
         supersessionHit,
       };
 
