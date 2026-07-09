@@ -30,6 +30,11 @@ import { type ApiErrorInfo } from '@tzurot/common-types/types/schemas/generation
  * Patterns to detect specific error types from error messages
  */
 const ERROR_PATTERNS = {
+  // Our OWN shared-free-key fair-share quota (FreeTierRequestQuota throws an
+  // ApiError with this distinctive sentinel). Listed FIRST so it wins over the
+  // broad QUOTA_EXCEEDED patterns below (`free tier.*limit`, `daily.*limit`) —
+  // the sentinel avoids those words to stay unambiguous either way.
+  FREE_TIER_QUOTA: [/free-tier fair-share/i],
   // OpenRouter quota/payment errors
   QUOTA_EXCEEDED: [
     /quota.*exceeded/i,
@@ -243,6 +248,8 @@ function detectCategoryFromMessage(message: string): ApiErrorCategory | null {
       if (pattern.test(message)) {
         // Map pattern key to ApiErrorCategory
         switch (category) {
+          case 'FREE_TIER_QUOTA':
+            return ApiErrorCategory.FREE_TIER_QUOTA;
           case 'QUOTA_EXCEEDED':
             return ApiErrorCategory.QUOTA_EXCEEDED;
           case 'RATE_LIMIT':

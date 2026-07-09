@@ -5,7 +5,12 @@
  * preserving the failure-mode messaging that downstream debugging relies on.
  */
 
+import { isBotOwner } from '@tzurot/common-types/utils/ownerMiddleware';
 import type { GenerationContext } from '../types.js';
+import {
+  type FreeTierRequestQuota,
+  FREE_TIER_QUOTA_ERROR_MESSAGE,
+} from '../../../../services/FreeTierRequestQuota.js';
 
 /**
  * GenerationContext narrowed to the shape that's guaranteed after
@@ -38,5 +43,29 @@ export function validatePrerequisites(
   }
   if (!context.preparedContext) {
     throw new Error('[GenerationStep] ContextStep must run before GenerationStep');
+  }
+}
+
+/**
+ * Site 1 of the shared-free-key fair-share meter: a guest (no BYOK key) runs on
+ * the SHARED system key, so the rolling-window cap applies. The owner is never
+ * limited; a BYOK user (`isGuestMode` false) is metered instead on the
+ * credit-exhausted fallback path inside `runWithQuotaFallback` (mutually
+ * exclusive with this branch — no double-count). `requestId` is the
+ * retry-stable idempotency member. Over-share throws the FREE_TIER_QUOTA
+ * sentinel, which GenerationStep's catch turns into an in-character failure.
+ * A missing quota (test fixtures) is a no-op; `tryConsume` itself fails open.
+ */
+export async function enforceGuestFreeTierQuota(
+  freeTierQuota: FreeTierRequestQuota | undefined,
+  isGuestMode: boolean,
+  userId: string,
+  requestId: string
+): Promise<void> {
+  if (isGuestMode && freeTierQuota !== undefined && !isBotOwner(userId)) {
+    const verdict = await freeTierQuota.tryConsume(userId, requestId);
+    if (!verdict.allowed) {
+      throw new Error(FREE_TIER_QUOTA_ERROR_MESSAGE);
+    }
   }
 }

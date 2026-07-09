@@ -52,6 +52,10 @@ vi.mock('../redis.js', () => ({
     isRateLimited: vi.fn().mockResolvedValue({ rateLimited: false }),
     markRateLimited: vi.fn(),
   },
+  // Free-tier fair-share quota — default to "allowed" so component flows run.
+  freeTierRequestQuota: {
+    tryConsume: vi.fn().mockResolvedValue({ allowed: true, reason: 'ok' }),
+  },
 }));
 
 // Mock cleanup function to avoid background processing during tests

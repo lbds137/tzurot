@@ -18,7 +18,9 @@
 
 import { AIProvider } from '@tzurot/common-types/constants/ai';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { isBotOwner } from '@tzurot/common-types/utils/ownerMiddleware';
 import type { LlmConfigResolver } from '@tzurot/config-resolver';
+import type { FreeTierRequestQuota } from '../../../../services/FreeTierRequestQuota.js';
 import {
   applyConfigToPersonality,
   classifyQuotaFailure,
@@ -75,8 +77,25 @@ export async function runWithQuotaFallback(options: {
   opts: GenerateAttemptOpts;
   userId: string;
   deps: QuotaFallbackDeps | undefined;
+  /**
+   * Shared-free-key fair-share meter. Charged here on ANY BYOK → system-key
+   * downgrade with guest semantics — credit-exhaustion is the common trigger,
+   * but the degraded-beats-failed path can force a previously-BYOK user onto the
+   * system key for other quota categories too, and all of those should be
+   * metered. The pure-guest path is metered upstream in GenerationStep; the
+   * `!wasGuest && nowGuest` guard keeps the two mutually exclusive (no
+   * double-count).
+   */
+  freeTierQuota?: FreeTierRequestQuota;
+  /**
+   * The logical-message id — the free-tier meter's idempotency member. A
+   * required, retry-stable `job.data.requestId` (NOT the optional `job.id`);
+   * both meter sites use it so counting is consistent and never collapses to a
+   * per-user member that would silently disable the cap.
+   */
+  requestId: string;
 }): Promise<QuotaFallbackRunResult> {
-  const { primary, retry, opts, userId, deps } = options;
+  const { primary, retry, opts, userId, deps, freeTierQuota, requestId } = options;
 
   if (deps === undefined) {
     return primary();
@@ -103,33 +122,29 @@ export async function runWithQuotaFallback(options: {
       throw originalError;
     }
 
-    let effectiveTarget = target;
-    let credentials = await resolveRetryCredentials(target, opts, deps, userId);
-    if (credentials === null) {
-      // Degraded-beats-failed (owner policy): the retarget's credential
-      // resolution came up empty (typically: paid target needs the user's own
-      // OpenRouter key and they have none). Downgrade to the FREE default on
-      // the system key — zero owner cost — rather than failing the turn.
-      // Wrapped so a throwing dep can never REPLACE the pristine original
-      // (same guarantee resolveRetryCredentials holds for itself).
-      try {
-        const guestTarget = await selectQuotaFallbackTarget({
-          category,
-          isGuestMode: true,
-          failingModel: opts.personality.model,
-          cacheKeyId,
-          configResolver: deps.configResolver,
-          caches: deps.caches,
-        });
-        const systemKey = await deps.resolveSystemKey();
-        if (guestTarget === null || systemKey === undefined) {
-          throw originalError;
-        }
-        effectiveTarget = guestTarget;
-        credentials = { apiKey: systemKey, isGuestMode: true };
-      } catch {
-        throw originalError;
-      }
+    const { effectiveTarget, credentials } = await resolveTargetAndCredentials({
+      target,
+      opts,
+      deps,
+      userId,
+      category,
+      cacheKeyId,
+      originalError,
+    });
+
+    // Meter the credit-exhausted-BYOK → shared-system-key transition. Over-share
+    // → surface the ORIGINAL error (their own key is out of credits; "top up" is
+    // the actionable fix, not "bring your own key").
+    if (
+      !(await meterForcedFallback({
+        freeTierQuota,
+        opts,
+        nowGuest: credentials.isGuestMode,
+        userId,
+        requestId,
+      }))
+    ) {
+      throw originalError;
     }
 
     const info: QuotaFallbackInfo = {
@@ -158,6 +173,78 @@ export async function runWithQuotaFallback(options: {
       originalError,
     });
   }
+}
+
+/**
+ * Resolve the retarget's effective target + credentials, applying the
+ * degraded-beats-failed downgrade (owner policy): when the primary target's
+ * credential resolution comes up empty (typically a paid target needs the
+ * user's own OpenRouter key and they have none), downgrade to the FREE default
+ * on the system key — zero owner cost — rather than failing the turn. Always
+ * throws the PRISTINE `originalError` (never a dep's throw) when even the
+ * downgrade can't resolve, so classification stays stable.
+ */
+async function resolveTargetAndCredentials(params: {
+  target: NonNullable<Awaited<ReturnType<typeof selectQuotaFallbackTarget>>>;
+  opts: GenerateAttemptOpts;
+  deps: QuotaFallbackDeps;
+  userId: string;
+  category: NonNullable<ReturnType<typeof classifyQuotaFailure>>;
+  cacheKeyId: string;
+  originalError: unknown;
+}): Promise<{
+  effectiveTarget: NonNullable<Awaited<ReturnType<typeof selectQuotaFallbackTarget>>>;
+  credentials: { apiKey: string | undefined; isGuestMode: boolean };
+}> {
+  const { target, opts, deps, userId, category, cacheKeyId, originalError } = params;
+  const credentials = await resolveRetryCredentials(target, opts, deps, userId);
+  if (credentials !== null) {
+    return { effectiveTarget: target, credentials };
+  }
+  // Wrapped so a throwing dep can never REPLACE the pristine original.
+  try {
+    const guestTarget = await selectQuotaFallbackTarget({
+      category,
+      isGuestMode: true,
+      failingModel: opts.personality.model,
+      cacheKeyId,
+      configResolver: deps.configResolver,
+      caches: deps.caches,
+    });
+    const systemKey = await deps.resolveSystemKey();
+    if (guestTarget === null || systemKey === undefined) {
+      throw originalError;
+    }
+    return { effectiveTarget: guestTarget, credentials: { apiKey: systemKey, isGuestMode: true } };
+  } catch {
+    throw originalError;
+  }
+}
+
+/**
+ * Fair-share meter for the BYOK → shared-system-key downgrade (owner: "meter
+ * the fallback too"). Returns `true` (proceed) unless a metered user is over
+ * their share.
+ *
+ * Fires ONLY when a NON-guest is now forced onto the system key with guest
+ * semantics (`!wasGuest && nowGuest`) — this excludes a pure guest's free-model
+ * retarget (already metered upstream in GenerationStep), so the two meter sites
+ * never double-count. The owner bypasses; a missing quota (test fixtures) is a
+ * no-op; `tryConsume` fails open, so a Redis blip returns allowed.
+ */
+async function meterForcedFallback(params: {
+  freeTierQuota: FreeTierRequestQuota | undefined;
+  opts: GenerateAttemptOpts;
+  nowGuest: boolean;
+  userId: string;
+  requestId: string;
+}): Promise<boolean> {
+  const { freeTierQuota, opts, nowGuest, userId, requestId } = params;
+  if (opts.isGuestMode || !nowGuest || freeTierQuota === undefined || isBotOwner(userId)) {
+    return true;
+  }
+  const verdict = await freeTierQuota.tryConsume(userId, requestId);
+  return verdict.allowed;
 }
 
 /**

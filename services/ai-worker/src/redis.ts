@@ -16,6 +16,8 @@ import { RedisService } from './services/RedisService.js';
 import { RateLimitCache } from './services/RateLimitCache.js';
 import { CreditExhaustionCache } from './services/CreditExhaustionCache.js';
 import { VisionFallbackQuota } from './services/VisionFallbackQuota.js';
+import { FreeTierRequestQuota } from './services/FreeTierRequestQuota.js';
+import { getConfig } from '@tzurot/common-types/config/config';
 import {
   modelSupportsVision,
   modelSupportsReasoning,
@@ -49,6 +51,17 @@ export const creditExhaustionCache = new CreditExhaustionCache(redis);
 // system-key free-vision fallbacks (bounds the broad-fallback freeloading surface).
 // eslint-disable-next-line @tzurot/no-singleton-export -- Intentional: shared Redis client; multiple instances would each maintain a separate per-user counter and undercount the shared cap.
 export const visionFallbackQuota = new VisionFallbackQuota(redis);
+
+// Export singleton FreeTierRequestQuota — rolling-window fair share for the
+// shared system OpenRouter free-tier key (guests + credit-exhausted-BYOK
+// fallback). Env-tuned budget/window/floor/ceiling.
+// eslint-disable-next-line @tzurot/no-singleton-export -- Intentional: shared Redis client; multiple instances would each keep a separate view of the shared-key contention set and undercount the fair-share cap.
+export const freeTierRequestQuota = new FreeTierRequestQuota(redis, {
+  globalDailyBudget: getConfig().FREE_TIER_GLOBAL_DAILY_BUDGET,
+  windowMinutes: getConfig().FREE_TIER_WINDOW_MINUTES,
+  minPerWindow: getConfig().FREE_TIER_MIN_PER_WINDOW,
+  maxPerWindow: getConfig().FREE_TIER_MAX_PER_WINDOW,
+});
 
 /**
  * Check if a model supports vision input using OpenRouter's cached model data.
