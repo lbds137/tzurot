@@ -135,6 +135,7 @@ describe('memory extraction eval (real model — manual run only)', () => {
         statement: f.statement,
         entityTags: f.entityTags,
         isLocked: false,
+        tier: 'observed',
       }));
       const prompt = buildExtractionPrompt(
         golden.episodes,

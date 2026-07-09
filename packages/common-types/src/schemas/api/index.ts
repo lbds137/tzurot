@@ -366,6 +366,9 @@ export {
   FactListResponseSchema,
   FactTierSchema,
   ForgetFactResponseSchema,
+  GetFactResponseSchema,
+  SetFactLockRequestSchema,
+  SetFactLockResponseSchema,
 } from './fact.js';
 
 // History input schemas

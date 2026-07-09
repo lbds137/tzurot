@@ -15,6 +15,7 @@ import { internalFixtures } from './internal.js';
 import { userConfigFixtures } from './userConfigs.js';
 import { userConfigOverrideFixtures } from './userConfigOverrides.js';
 import { userMemoryFixtures } from './userMemory.js';
+import { userFactFixtures } from './userFacts.js';
 import { userOwnershipFixtures } from './userOwnership.js';
 import { userResourceFixtures } from './userResources.js';
 import { userDiagnosticFixtures, userShapesFixtures } from './userShapesAndDiagnostics.js';
@@ -27,6 +28,7 @@ export const CONFORMANCE_REGISTRY: Record<string, ConformanceEntry> = {
   ...userConfigFixtures,
   ...userConfigOverrideFixtures,
   ...userMemoryFixtures,
+  ...userFactFixtures,
   ...userShapesFixtures,
   ...userDiagnosticFixtures,
 };

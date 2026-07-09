@@ -1729,6 +1729,104 @@ export class UserClient {
 
   /**
    * @safeRead Server-side has no observable mutation — safe to cache client-side.
+   * @softDeleteAware Resource has a soft-delete column; soft-deleted rows may be returned or filtered depending on handler semantics.
+   */
+  async listFacts(options: { personalityId: string; limit?: string; offset?: string }): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.listFacts.output>>> {
+    const fullPath = '/api/user/fact/list' + buildQueryString([['personalityId', options.personalityId], ['limit', options.limit], ['offset', options.offset]]);
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'GET',
+      path: fullPath,
+      headers: {
+        'X-User-Id': this.actor,
+        'X-User-Username': encodeURIComponent(this.user.username),
+        'X-User-DisplayName': encodeURIComponent(this.user.displayName),
+        'X-User-Is-Bot': String(this.user.isBot),
+      },
+      outputSchema: ROUTE_MANIFEST.listFacts.output,
+    });
+  }
+
+  /**
+   * @safeRead Server-side has no observable mutation — safe to cache client-side.
+   * @softDeleteAware Resource has a soft-delete column; soft-deleted rows may be returned or filtered depending on handler semantics.
+   */
+  async getFact(id: string): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.getFact.output>>> {
+    const fullPath = `/api/user/fact/${encodeURIComponent(id)}`;
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'GET',
+      path: fullPath,
+      headers: {
+        'X-User-Id': this.actor,
+        'X-User-Username': encodeURIComponent(this.user.username),
+        'X-User-DisplayName': encodeURIComponent(this.user.displayName),
+        'X-User-Is-Bot': String(this.user.isBot),
+      },
+      outputSchema: ROUTE_MANIFEST.getFact.output,
+    });
+  }
+
+  async correctFact(id: string, input: z.infer<typeof ROUTE_MANIFEST.correctFact.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.correctFact.output>>> {
+    const fullPath = `/api/user/fact/${encodeURIComponent(id)}`;
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'PATCH',
+      path: fullPath,
+      headers: {
+        'X-User-Id': this.actor,
+        'X-User-Username': encodeURIComponent(this.user.username),
+        'X-User-DisplayName': encodeURIComponent(this.user.displayName),
+        'X-User-Is-Bot': String(this.user.isBot),
+      },
+      body: input,
+      outputSchema: ROUTE_MANIFEST.correctFact.output,
+    });
+  }
+
+  async forgetFact(id: string): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.forgetFact.output>>> {
+    const fullPath = `/api/user/fact/${encodeURIComponent(id)}`;
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'DELETE',
+      path: fullPath,
+      headers: {
+        'X-User-Id': this.actor,
+        'X-User-Username': encodeURIComponent(this.user.username),
+        'X-User-DisplayName': encodeURIComponent(this.user.displayName),
+        'X-User-Is-Bot': String(this.user.isBot),
+      },
+      outputSchema: ROUTE_MANIFEST.forgetFact.output,
+    });
+  }
+
+  /**
+   * @idempotent Replaying the exact same request lands the same final state — safe to retry on network failure.
+   */
+  async setFactLock(id: string, input: z.infer<typeof ROUTE_MANIFEST.setFactLock.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.setFactLock.output>>> {
+    const fullPath = `/api/user/fact/${encodeURIComponent(id)}/lock`;
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'PUT',
+      path: fullPath,
+      headers: {
+        'X-User-Id': this.actor,
+        'X-User-Username': encodeURIComponent(this.user.username),
+        'X-User-DisplayName': encodeURIComponent(this.user.displayName),
+        'X-User-Is-Bot': String(this.user.isBot),
+      },
+      body: input,
+      outputSchema: ROUTE_MANIFEST.setFactLock.output,
+    });
+  }
+
+  /**
+   * @safeRead Server-side has no observable mutation — safe to cache client-side.
    */
   async resolveUserDefaults(): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.resolveUserDefaults.output>>> {
     const fullPath = '/api/user/config-overrides/resolve-defaults';

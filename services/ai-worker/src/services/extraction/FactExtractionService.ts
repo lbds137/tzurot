@@ -22,7 +22,12 @@ import { generateFactExtractionJobUuid } from '@tzurot/common-types/utils/determ
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { createChatModel } from '../ModelFactory.js';
 import type { ExtractionBudget } from './ExtractionBudget.js';
-import type { FactStore, FactForContext, NewFact } from './FactStore.js';
+import {
+  isProtectedFromAutoSupersession,
+  type FactStore,
+  type FactForContext,
+  type NewFact,
+} from './FactStore.js';
 import {
   buildExtractionPrompt,
   extractionResponseSchema,
@@ -218,11 +223,12 @@ export class FactExtractionService {
     const supersededIds = new Set<string>();
 
     // LLM-named target: index into the injected list, bounds-checked (an
-    // out-of-range index is model noise, not a crash). Locked facts are never
-    // auto-superseded — user lock protection holds against extraction too.
+    // out-of-range index is model noise, not a crash). Locked facts and
+    // user-authored corrections are never auto-superseded — user state
+    // outranks the model.
     if (fact.supersedesIndex !== null && fact.supersedesIndex < knownFacts.length) {
       const target = knownFacts[fact.supersedesIndex];
-      if (!target.isLocked) {
+      if (!isProtectedFromAutoSupersession(target)) {
         supersededIds.add(target.id);
       }
     }
@@ -251,7 +257,7 @@ export class FactExtractionService {
       group.personaId
     );
     for (const candidate of candidates) {
-      if (supersededIds.has(candidate.id) || candidate.isLocked) {
+      if (supersededIds.has(candidate.id) || isProtectedFromAutoSupersession(candidate)) {
         continue;
       }
       if (candidate.similarity < SIMILARITY_SUPERSESSION_THRESHOLD) {

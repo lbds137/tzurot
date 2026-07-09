@@ -29,7 +29,7 @@ export const EXCLUDED_TABLES: Record<string, string> = {
 
   // Transient/ephemeral data
   memory_facts:
-    'Memory Phase 2 shadow-mode table (extraction disabled by default; nothing reads it yet). Facts are non-regenerable user data like memories, so this exclusion is temporary — join SYNC_CONFIG when retrieval integration ships (tracked in backlog/cold/follow-ups.md)',
+    'Memory Phase 2. Facts are now written (dev), read into prompts (slice 4a), and user-mutable via /memory correct|forget (correction slice) — non-regenerable user data like memories, so this table SHOULD sync. Still excluded pending a focused db-sync PR: memory_facts has a vector embedding column and a self-referencing supersededById FK that need sync ordering handled (tracked in backlog/cold/follow-ups.md).',
   pending_memories: 'Transient queue data for memory processing',
   llm_diagnostic_logs: 'Ephemeral debug logs (auto-deleted after 24h)',
   usage_logs: 'Environment-specific usage tracking',
