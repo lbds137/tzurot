@@ -324,6 +324,20 @@
       ]
     },
     {
+      "id": "client:api-gateway:correctFact",
+      "kind": "http-route",
+      "producer": "client",
+      "consumer": "api-gateway",
+      "schemaRef": "PATCH /fact/:id",
+      "mechanism": "route-conformance",
+      "requiredTiers": [
+        "component"
+      ],
+      "actualTiers": [
+        "component"
+      ]
+    },
+    {
       "id": "client:api-gateway:createGlobalLlmConfig",
       "kind": "http-route",
       "producer": "client",
@@ -646,6 +660,20 @@
       ]
     },
     {
+      "id": "client:api-gateway:forgetFact",
+      "kind": "http-route",
+      "producer": "client",
+      "consumer": "api-gateway",
+      "schemaRef": "DELETE /fact/:id",
+      "mechanism": "route-conformance",
+      "requiredTiers": [
+        "component"
+      ],
+      "actualTiers": [
+        "component"
+      ]
+    },
+    {
       "id": "client:api-gateway:getAdminSettings",
       "kind": "http-route",
       "producer": "client",
@@ -777,6 +805,20 @@
       "producer": "client",
       "consumer": "api-gateway",
       "schemaRef": "GET /diagnostic/by-response/:messageId",
+      "mechanism": "route-conformance",
+      "requiredTiers": [
+        "component"
+      ],
+      "actualTiers": [
+        "component"
+      ]
+    },
+    {
+      "id": "client:api-gateway:getFact",
+      "kind": "http-route",
+      "producer": "client",
+      "consumer": "api-gateway",
+      "schemaRef": "GET /fact/:id",
       "mechanism": "route-conformance",
       "requiredTiers": [
         "component"
@@ -1183,6 +1225,20 @@
       "producer": "client",
       "consumer": "api-gateway",
       "schemaRef": "GET /denylist",
+      "mechanism": "route-conformance",
+      "requiredTiers": [
+        "component"
+      ],
+      "actualTiers": [
+        "component"
+      ]
+    },
+    {
+      "id": "client:api-gateway:listFacts",
+      "kind": "http-route",
+      "producer": "client",
+      "consumer": "api-gateway",
+      "schemaRef": "GET /fact/list",
       "mechanism": "route-conformance",
       "requiredTiers": [
         "component"
@@ -1631,6 +1687,20 @@
       "producer": "client",
       "consumer": "api-gateway",
       "schemaRef": "POST /channel/dm-session/set",
+      "mechanism": "route-conformance",
+      "requiredTiers": [
+        "component"
+      ],
+      "actualTiers": [
+        "component"
+      ]
+    },
+    {
+      "id": "client:api-gateway:setFactLock",
+      "kind": "http-route",
+      "producer": "client",
+      "consumer": "api-gateway",
+      "schemaRef": "PUT /fact/:id/lock",
       "mechanism": "route-conformance",
       "requiredTiers": [
         "component"

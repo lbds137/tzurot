@@ -11,6 +11,7 @@ function makeFacts(...statements: string[]): SimilarFact[] {
     entityTags: [],
     similarity: 0.9 - i * 0.01,
     isLocked: false,
+    tier: 'observed',
   }));
 }
 

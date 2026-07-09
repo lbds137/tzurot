@@ -27,6 +27,7 @@ import { userConfigRoutes } from './configs.js';
 import { userOwnershipRoutes } from './ownership.js';
 import { userResourceRoutes } from './resources.js';
 import { userMemoryRoutes } from './memory.js';
+import { userFactRoutes } from './facts.js';
 import { userConfigOverrideRoutes } from './config-overrides.js';
 import { userShapesRoutes } from './shapes.js';
 import { userDiagnosticRoutes } from './diagnostics.js';
@@ -36,6 +37,7 @@ export const userRoutes = {
   ...userOwnershipRoutes,
   ...userResourceRoutes,
   ...userMemoryRoutes,
+  ...userFactRoutes,
   ...userConfigOverrideRoutes,
   ...userShapesRoutes,
   ...userDiagnosticRoutes,
@@ -47,6 +49,7 @@ export {
   userOwnershipRoutes,
   userResourceRoutes,
   userMemoryRoutes,
+  userFactRoutes,
   userConfigOverrideRoutes,
   userShapesRoutes,
   userDiagnosticRoutes,

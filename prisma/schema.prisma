@@ -661,7 +661,10 @@ model MemoryFact {
   isFiction    Boolean @default(false) @map("is_fiction")
   /// 'normal' (live) | 'deleted' (soft-deleted, excluded from retrieval).
   visibility   String  @default("normal") @map("visibility") @db.VarChar(20)
-  /// Protected facts that reject /memory correct and /memory forget.
+  /// Hard freeze, same semantics as Memory.isLocked (one word, one meaning):
+  /// rejects /memory correct and /memory forget (unlock first) AND is never
+  /// auto-superseded by extraction. Corrections need no lock — the 'corrected'
+  /// tier itself shields them from automatic supersession.
   isLocked     Boolean @default(false) @map("is_locked")
 
   // Fact core

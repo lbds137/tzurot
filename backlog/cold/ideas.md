@@ -480,3 +480,9 @@ When the planned `ops:health` aggregator exists, add per-personality extraction-
 ## Eval: does GLM execute PLATFORM_CONSTRAINTS as written?
 
 The permissive-ambiguity calibration in `HardcodedConstraints.ts` is a deliberate owner decision, but the volume tier is GLM — a prose constraint is only as good as the model reading it. Build a small manual eval suite (rides `vitest.eval.config.ts`, never CI) feeding boundary cases and scoring whether the "explicitly frames as a minor" test is applied AS WRITTEN, measuring BOTH failure directions (false-block and false-pass). **Design the case set with the owner before writing it.** Filed 2026-07-07 (external Fable review, optional/design-first).
+
+## `/memory good|bad` lightweight feedback → eval corpus
+
+_Surfaced 2026-07-09 (correction slice). The architecture doc §3.6a names lightweight feedback (`/memory good|bad` or message reactions) that feeds the extraction eval corpus — distinct from the heavier `/memory correct|forget` curation._
+
+When a user marks a fact (or a reply drawing on facts) good/bad, capture it as a labeled example that flows into the extraction golden corpus, closing the loop between real usage and the eval that gates prod-enable. **Scoping needed**: reaction vs slash-command surface; how a thumbs-down maps to a golden (is it a forget, a violation label, or a recall miss?); storage (a feedback table vs. appending to goldens); privacy (real user statements into a git-tracked corpus — same public-repo concern as the retrieval goldens). Depends on the correction slice (shipped) for the fact-selection surface.

@@ -36,8 +36,15 @@ function makeSetup(options: {
   episodes?: unknown[];
   modelResponse?: string | Error;
   budgetAllowed?: boolean;
-  similarFacts?: SimilarFact[];
-  knownFacts?: { id: string; statement: string; entityTags: string[]; isLocked: boolean }[];
+  /** tier defaults to 'observed' — set 'corrected' to exercise the tier shield. */
+  similarFacts?: (Omit<SimilarFact, 'tier'> & { tier?: string })[];
+  knownFacts?: {
+    id: string;
+    statement: string;
+    entityTags: string[];
+    isLocked: boolean;
+    tier?: string;
+  }[];
 }): Setup {
   const episodes = options.episodes ?? [
     { id: MEM(1), content: '{user}: my cat is Miso', personaId: PERSONA_A, isFiction: false },
@@ -48,9 +55,11 @@ function makeSetup(options: {
   } as unknown as PrismaClient;
 
   const writeMock = vi.fn().mockResolvedValue('new-fact-id');
+  const withTier = <T extends { tier?: string }>(facts: T[]): (T & { tier: string })[] =>
+    facts.map(f => ({ ...f, tier: f.tier ?? 'observed' }));
   const factStore = {
-    getRecentActiveFacts: vi.fn().mockResolvedValue(options.knownFacts ?? []),
-    findSimilarActiveFacts: vi.fn().mockResolvedValue(options.similarFacts ?? []),
+    getRecentActiveFacts: vi.fn().mockResolvedValue(withTier(options.knownFacts ?? [])),
+    findSimilarActiveFacts: vi.fn().mockResolvedValue(withTier(options.similarFacts ?? [])),
     embedStatement: vi.fn().mockResolvedValue(new Array(384).fill(0.1)),
     writeFactWithSupersessions: writeMock,
   } as unknown as FactStore;
@@ -220,6 +229,46 @@ describe('FactExtractionService', () => {
             entityTags: ['user:alice'],
             salience: 0.7,
             supersedesIndex: 0, // names the locked fact — must be ignored
+          },
+        ],
+      }),
+    });
+
+    await s.service.processBatch(job);
+
+    expect(s.writeMock).toHaveBeenCalledWith(expect.anything(), [], expect.any(Array));
+  });
+
+  it('never auto-supersedes a user-authored CORRECTED fact — by index or by similarity', async () => {
+    // Corrections are unlocked (no unlock ceremony to re-correct), so the TIER
+    // is the shield that must hold at target-resolution time.
+    const s = makeSetup({
+      knownFacts: [
+        {
+          id: 'corrected-fact',
+          statement: 'User-corrected fact',
+          entityTags: ['user:alice'],
+          isLocked: false,
+          tier: 'corrected',
+        },
+      ],
+      similarFacts: [
+        {
+          id: 'corrected-similar',
+          statement: 'Alice has a cat',
+          entityTags: ['user:alice'],
+          similarity: 0.95,
+          isLocked: false,
+          tier: 'corrected',
+        },
+      ],
+      modelResponse: JSON.stringify({
+        facts: [
+          {
+            statement: "Alice's cat is named Miso",
+            entityTags: ['user:alice'],
+            salience: 0.7,
+            supersedesIndex: 0, // names the corrected fact — must be ignored
           },
         ],
       }),

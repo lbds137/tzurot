@@ -14,6 +14,7 @@ import {
   userOwnershipRoutes,
   userResourceRoutes,
   userMemoryRoutes,
+  userFactRoutes,
   userConfigOverrideRoutes,
   userShapesRoutes,
   userDiagnosticRoutes,
@@ -105,6 +106,7 @@ describe('user route manifest', () => {
       ['ownership', userOwnershipRoutes],
       ['resources', userResourceRoutes],
       ['memory', userMemoryRoutes],
+      ['facts', userFactRoutes],
       ['config-overrides', userConfigOverrideRoutes],
       ['shapes', userShapesRoutes],
       ['diagnostics', userDiagnosticRoutes],
@@ -127,6 +129,7 @@ describe('user route manifest', () => {
         Object.keys(userOwnershipRoutes).length +
         Object.keys(userResourceRoutes).length +
         Object.keys(userMemoryRoutes).length +
+        Object.keys(userFactRoutes).length +
         Object.keys(userConfigOverrideRoutes).length +
         Object.keys(userShapesRoutes).length +
         Object.keys(userDiagnosticRoutes).length
