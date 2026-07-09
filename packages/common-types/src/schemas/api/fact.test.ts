@@ -13,6 +13,9 @@ import {
   CorrectFactRequestSchema,
   CorrectFactResponseSchema,
   ForgetFactResponseSchema,
+  GetFactResponseSchema,
+  SetFactLockRequestSchema,
+  SetFactLockResponseSchema,
 } from './fact.js';
 
 const validFact = {
@@ -118,5 +121,35 @@ describe('ForgetFactResponseSchema', () => {
     expect(ForgetFactResponseSchema.safeParse({ id: validFact.id, forgotten: false }).success).toBe(
       false
     );
+  });
+});
+
+describe('GetFactResponseSchema', () => {
+  it('accepts a single-fact wrapper', () => {
+    expect(GetFactResponseSchema.safeParse({ fact: validFact }).success).toBe(true);
+  });
+
+  it('rejects a bare fact (must be wrapped)', () => {
+    expect(GetFactResponseSchema.safeParse(validFact).success).toBe(false);
+  });
+});
+
+describe('SetFactLockRequestSchema', () => {
+  it('accepts an explicit boolean lock state', () => {
+    expect(SetFactLockRequestSchema.safeParse({ locked: true }).success).toBe(true);
+    expect(SetFactLockRequestSchema.safeParse({ locked: false }).success).toBe(true);
+  });
+
+  it('rejects a non-boolean (explicit state is the idempotency contract)', () => {
+    expect(SetFactLockRequestSchema.safeParse({ locked: 'yes' }).success).toBe(false);
+    expect(SetFactLockRequestSchema.safeParse({}).success).toBe(false);
+  });
+});
+
+describe('SetFactLockResponseSchema', () => {
+  it('accepts the updated-fact wrapper', () => {
+    expect(
+      SetFactLockResponseSchema.safeParse({ fact: { ...validFact, isLocked: true } }).success
+    ).toBe(true);
   });
 });

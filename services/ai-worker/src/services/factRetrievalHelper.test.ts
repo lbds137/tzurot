@@ -12,7 +12,14 @@ function setFlag(value: 'true' | 'false' | undefined): void {
 
 function mockRetriever(): FactRetriever {
   const facts: SimilarFact[] = [
-    { id: '1', statement: 'user likes tea', entityTags: [], similarity: 0.9, isLocked: false },
+    {
+      id: '1',
+      statement: 'user likes tea',
+      entityTags: [],
+      similarity: 0.9,
+      isLocked: false,
+      tier: 'observed',
+    },
   ];
   return { retrieveFacts: vi.fn().mockResolvedValue(facts) } as unknown as FactRetriever;
 }

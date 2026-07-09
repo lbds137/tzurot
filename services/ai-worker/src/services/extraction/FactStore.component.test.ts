@@ -101,6 +101,7 @@ describe('FactStore.findSimilarActiveFacts (component, PGLite)', () => {
     forgotten?: boolean;
     visibility?: string;
     isLocked?: boolean;
+    tier?: string;
   }
 
   async function seedFact(opts: SeedOpts): Promise<string> {
@@ -111,9 +112,9 @@ describe('FactStore.findSimilarActiveFacts (component, PGLite)', () => {
     await prisma.$executeRawUnsafe(
       `INSERT INTO memory_facts
          (id, personality_id, persona_id, statement, embedding, salience, valid_from,
-          superseded_at, forgotten, visibility, is_locked, created_at, updated_at)
+          superseded_at, forgotten, visibility, is_locked, tier, created_at, updated_at)
        VALUES ($1::uuid, $2::uuid, $3::uuid, $4, '${vecLiteral}'::vector, $5, $6::timestamptz,
-          $7::timestamptz, $8, $9, $10, NOW(), NOW())`,
+          $7::timestamptz, $8, $9, $10, $11, NOW(), NOW())`,
       id,
       PERSONALITY,
       personaId,
@@ -123,7 +124,8 @@ describe('FactStore.findSimilarActiveFacts (component, PGLite)', () => {
       opts.supersededAt ?? null,
       opts.forgotten ?? false,
       opts.visibility ?? 'normal',
-      opts.isLocked ?? false
+      opts.isLocked ?? false,
+      opts.tier ?? 'observed'
     );
     return id;
   }
@@ -238,5 +240,67 @@ describe('FactStore.findSimilarActiveFacts (component, PGLite)', () => {
     const hits = await queryFor('a locked fact');
 
     expect(hits[0].isLocked).toBe(true);
+  });
+
+  // The updateMany lock/forgotten guard (correction slice): once user correction
+  // produces locked facts, extraction must NEVER auto-supersede one. Exercises
+  // the real transaction against the DB — a mocked $queryRaw can't catch a
+  // dropped WHERE predicate.
+  async function extractionSupersede(newStatement: string, targetId: string): Promise<void> {
+    const vec = await embeddings.getEmbedding(newStatement);
+    await factStore.writeFactWithSupersessions(
+      {
+        personalityId: PERSONALITY,
+        personaId: PERSONA,
+        statement: newStatement,
+        entityTags: ['user'],
+        salience: 0.5,
+        isFiction: false,
+        sourceMemoryIds: [],
+        extractionJobId: 'job-guard',
+      },
+      [targetId],
+      Array.from(vec ?? [])
+    );
+  }
+
+  it('extraction never supersedes a LOCKED fact (updateMany guard holds)', async () => {
+    const lockedId = await seedFact({
+      statement: 'The user lives in Seattle',
+      embedText: 'The user lives in Seattle',
+      isLocked: true,
+    });
+
+    await extractionSupersede('The user lives in Denver', lockedId);
+
+    const locked = await prisma.memoryFact.findUnique({ where: { id: lockedId } });
+    expect(locked?.supersededAt).toBeNull(); // still active — the lock protected it
+  });
+
+  it('extraction supersedes an UNLOCKED fact normally (guard is scoped)', async () => {
+    const unlockedId = await seedFact({
+      statement: 'The user lives in Boston',
+      embedText: 'The user lives in Boston',
+    });
+
+    await extractionSupersede('The user lives in Austin', unlockedId);
+
+    const unlocked = await prisma.memoryFact.findUnique({ where: { id: unlockedId } });
+    expect(unlocked?.supersededAt).not.toBeNull(); // superseded — guard only shields protected rows
+  });
+
+  it('extraction never supersedes a user-authored CORRECTED fact (tier guard holds)', async () => {
+    // A correction is unlocked (no unlock ceremony to re-correct), so the TIER
+    // is what must hold at the DB level against extraction supersession.
+    const correctedId = await seedFact({
+      statement: 'The user lives in Denver',
+      embedText: 'The user lives in Denver',
+      tier: 'corrected',
+    });
+
+    await extractionSupersede('The user lives in Chicago', correctedId);
+
+    const corrected = await prisma.memoryFact.findUnique({ where: { id: correctedId } });
+    expect(corrected?.supersededAt).toBeNull(); // still active — user assertion outranks the model
   });
 });

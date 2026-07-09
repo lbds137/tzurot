@@ -115,9 +115,18 @@ describe('FactStore', () => {
       const ops = m.transactionMock.mock.calls[0][0] as unknown[];
       expect(ops).toHaveLength(2);
 
-      // The supersession arm: only still-active rows, stamped with the new id.
+      // The supersession arm: only still-active, UNLOCKED, non-forgotten rows,
+      // stamped with the new id. The lock/forgotten predicates are the
+      // defense-in-depth guard — extraction must never auto-supersede a
+      // user-locked or forgotten fact even if caller pre-filtering regresses.
       expect(m.updateManyMock).toHaveBeenCalledWith({
-        where: { id: { in: supersededIds }, supersededAt: null },
+        where: {
+          id: { in: supersededIds },
+          supersededAt: null,
+          isLocked: false,
+          forgotten: false,
+          tier: { not: 'corrected' },
+        },
         data: { supersededAt: new Date('2026-07-06T12:00:00.000Z'), supersededById: id },
       });
 

@@ -21,14 +21,18 @@ import { createLogger } from '@tzurot/common-types/utils/logger';
 const logger = createLogger('FactStore');
 
 /** A fact as injected into the extraction prompt's supersession context.
- * Locked facts stay IN the context (so the extractor doesn't re-extract
- * duplicates) but are excluded from supersession-target resolution — user
- * lock protection must hold against automatic supersession too. */
+ * Locked and corrected-tier facts stay IN the context (so the extractor
+ * doesn't re-extract duplicates) but are excluded from supersession-target
+ * resolution — user lock protection AND user corrections must hold against
+ * automatic supersession. */
 export interface FactForContext {
   id: string;
   statement: string;
   entityTags: string[];
   isLocked: boolean;
+  /** 'observed' | 'inferred' | 'corrected' — corrected facts are user-authored
+   * and permanently shielded from automatic supersession. */
+  tier: string;
 }
 
 /** A similarity-fallback candidate. */
@@ -38,6 +42,16 @@ export interface SimilarFact {
   entityTags: string[];
   similarity: number;
   isLocked: boolean;
+  tier: string;
+}
+
+/** User protections extraction must honor when resolving supersession targets:
+ * an explicit lock, or a user-authored correction (tier outranks the model). */
+export function isProtectedFromAutoSupersession(fact: {
+  isLocked: boolean;
+  tier: string;
+}): boolean {
+  return fact.isLocked || fact.tier === 'corrected';
 }
 
 /** Input for a new fact write. */
@@ -80,7 +94,7 @@ export class FactStore {
         visibility: 'normal',
       },
       orderBy: { validFrom: 'desc' },
-      select: { id: true, statement: true, entityTags: true, isLocked: true },
+      select: { id: true, statement: true, entityTags: true, isLocked: true, tier: true },
       take: 100, // hard ceiling before the token trim
     });
 
@@ -124,13 +138,14 @@ export class FactStore {
         statement: string;
         entity_tags: string[];
         is_locked: boolean;
+        tier: string;
         similarity: number;
       }[]
     >(
       Prisma.join(
         [
           Prisma.sql`
-        SELECT f.id, f.statement, f.entity_tags, f.is_locked,
+        SELECT f.id, f.statement, f.entity_tags, f.is_locked, f.tier,
                1 - (f.embedding <=> `,
           Prisma.raw(`'${embeddingVector}'::vector`),
           Prisma.sql`) AS similarity
@@ -158,6 +173,7 @@ export class FactStore {
       entityTags: r.entity_tags,
       similarity: r.similarity,
       isLocked: r.is_locked,
+      tier: r.tier,
     }));
   }
 
@@ -175,8 +191,9 @@ export class FactStore {
    * previously-SUPERSEDED statement collides with its dead row — the conflict
    * branch REACTIVATES it (clears the supersession marks), otherwise a
    * Seattle→Denver→Seattle sequence would end with no active fact at all.
-   * FORGOTTEN facts stay dead (user removal is terminal) and locked rows are
-   * never touched; a same-batch retry of an ACTIVE fact no-ops as before.
+   * FORGOTTEN facts stay dead (user removal is terminal), and locked or
+   * corrected-tier rows are never touched (user-authored state outranks the
+   * model); a same-batch retry of an ACTIVE fact no-ops as before.
    *
    * @returns the new fact's id
    */
@@ -215,13 +232,24 @@ export class FactStore {
           WHERE memory_facts.superseded_at IS NOT NULL
             AND memory_facts.forgotten = false
             AND memory_facts.is_locked = false
+            AND memory_facts.tier != 'corrected'
         `,
           ],
           ''
         )
       ),
       this.prisma.memoryFact.updateMany({
-        where: { id: { in: supersededIds }, supersededAt: null },
+        // DB-level protection guard: the callers already pre-filter protected
+        // candidates out of supersededIds, but extraction must NEVER
+        // auto-supersede a user-locked fact or a user-authored correction even
+        // if that pre-filtering regresses — the invariant is enforced here too.
+        where: {
+          id: { in: supersededIds },
+          supersededAt: null,
+          isLocked: false,
+          forgotten: false,
+          tier: { not: 'corrected' },
+        },
         data: { supersededAt: now, supersededById: id },
       }),
     ]);

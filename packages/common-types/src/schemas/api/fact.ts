@@ -44,6 +44,11 @@ export const FactListResponseSchema = z.object({
   hasMore: z.boolean(),
 });
 
+/** GET /user/fact/:id — single fact for the detail view. */
+export const GetFactResponseSchema = z.object({
+  fact: FactItemSchema,
+});
+
 /** PATCH /user/fact/:id (the /memory correct path) — request body. */
 export const CorrectFactRequestSchema = z.object({
   statement: z
@@ -63,4 +68,19 @@ export const CorrectFactResponseSchema = z.object({
 export const ForgetFactResponseSchema = z.object({
   id: z.string(),
   forgotten: z.literal(true),
+});
+
+/**
+ * PUT /user/fact/:id/lock — request. Explicit `locked` (not a toggle) is the
+ * idempotency contract, mirroring the episode SetMemoryLockSchema: replaying
+ * the same body lands the same final state. A locked fact rejects auto
+ * supersession by extraction (protects a user-blessed fact).
+ */
+export const SetFactLockRequestSchema = z.object({
+  locked: z.boolean({ error: 'locked must be a boolean' }),
+});
+
+/** PUT /user/fact/:id/lock — response: the updated fact. */
+export const SetFactLockResponseSchema = z.object({
+  fact: FactItemSchema,
 });

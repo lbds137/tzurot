@@ -59,8 +59,20 @@ describe('buildExtractionPrompt', () => {
     const prompt = buildExtractionPrompt(
       episodes,
       [
-        { id: 'a', statement: 'Alice has a cat', entityTags: [], isLocked: false },
-        { id: 'b', statement: 'Alice lives in Seattle', entityTags: [], isLocked: false },
+        {
+          id: 'a',
+          statement: 'Alice has a cat',
+          entityTags: [],
+          isLocked: false,
+          tier: 'observed',
+        },
+        {
+          id: 'b',
+          statement: 'Alice lives in Seattle',
+          entityTags: [],
+          isLocked: false,
+          tier: 'observed',
+        },
       ],
       false
     );

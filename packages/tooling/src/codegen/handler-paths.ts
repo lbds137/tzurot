@@ -37,6 +37,7 @@ const USER_MEMORY_INCOGNITO = '../user/memoryIncognito.js';
 const USER_MEMORY_LIST = '../user/memoryList.js';
 const USER_MEMORY_SEARCH = '../user/memorySearch.js';
 const USER_MEMORY_SINGLE = '../user/memorySingle.js';
+const USER_MEMORY_FACTS = '../user/memoryFacts.js';
 const USER_CONFIG_OVERRIDES = '../user/config-overrides.js';
 const USER_PERSONALITY_CONFIG_OVERRIDES = '../user/personality-config-overrides.js';
 const USER_SHAPES_AUTH = '../user/shapes/auth.js';
@@ -230,6 +231,13 @@ const PATH_MAP: Readonly<Record<string, string>> = {
   updateMemory: USER_MEMORY_SINGLE,
   deleteMemory: USER_MEMORY_SINGLE,
   setMemoryLock: USER_MEMORY_SINGLE,
+
+  // User memory facts (correction slice)
+  listFacts: USER_MEMORY_FACTS,
+  getFact: USER_MEMORY_FACTS,
+  correctFact: USER_MEMORY_FACTS,
+  forgetFact: USER_MEMORY_FACTS,
+  setFactLock: USER_MEMORY_FACTS,
 
   // User config-overrides (user-tier endpoints)
   resolveUserDefaults: USER_CONFIG_OVERRIDES,

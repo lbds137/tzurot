@@ -91,6 +91,7 @@ import { handleSearch } from '../user/memorySearch.js';
 import { handleBatchDeletePreview, handleBatchDelete, handleIssuePurgeToken, handlePurge } from '../user/memoryBatch.js';
 import { handleGetMemory, handleUpdateMemory, handleDeleteMemory, handleSetMemoryLock } from '../user/memorySingle.js';
 import { handleGetIncognitoStatus, handleEnableIncognito, handleDisableIncognito, handleIncognitoForget } from '../user/memoryIncognito.js';
+import { handleListFacts, handleGetFact, handleCorrectFact, handleForgetFact, handleSetFactLock } from '../user/memoryFacts.js';
 import { handleResolveUserDefaults, handleGetUserDefaults, handleUpdateUserDefaults, handleClearUserDefaults, handleResolveCascade, handleUpdatePersonalityOverrides, handleClearPersonalityOverrides } from '../user/config-overrides.js';
 import { handleResolvePersonalityCascade, handleUpdatePersonalityConfigDefaults } from '../user/personality-config-overrides.js';
 import { handleStoreShapesAuth, handleDeleteShapesAuth, handleGetShapesAuthStatus } from '../user/shapes/auth.js';
@@ -204,6 +205,7 @@ export function mountUserRoutes(app: Express, deps: RouteDeps): void {
   app.post('/api/user/memory/incognito', requireUserAuth(), requireProvisionedUser(deps.prisma), handleEnableIncognito(deps));
   app.delete('/api/user/memory/incognito', requireUserAuth(), requireProvisionedUser(deps.prisma), handleDisableIncognito(deps));
   app.post('/api/user/memory/incognito/forget', requireUserAuth(), requireProvisionedUser(deps.prisma), handleIncognitoForget(deps));
+  app.get('/api/user/fact/list', requireUserAuth(), requireProvisionedUser(deps.prisma), handleListFacts(deps));
   app.get('/api/user/config-overrides/resolve-defaults', requireUserAuth(), requireProvisionedUser(deps.prisma), handleResolveUserDefaults(deps));
   app.get('/api/user/config-overrides/defaults', requireUserAuth(), requireProvisionedUser(deps.prisma), handleGetUserDefaults(deps));
   app.patch('/api/user/config-overrides/defaults', requireUserAuth(), requireProvisionedUser(deps.prisma), handleUpdateUserDefaults(deps));
@@ -246,6 +248,10 @@ export function mountUserRoutes(app: Express, deps: RouteDeps): void {
   app.patch('/api/user/memory/:id', requireUserAuth(), requireProvisionedUser(deps.prisma), handleUpdateMemory(deps));
   app.delete('/api/user/memory/:id', requireUserAuth(), requireProvisionedUser(deps.prisma), handleDeleteMemory(deps));
   app.put('/api/user/memory/:id/lock', requireUserAuth(), requireProvisionedUser(deps.prisma), handleSetMemoryLock(deps));
+  app.get('/api/user/fact/:id', requireUserAuth(), requireProvisionedUser(deps.prisma), handleGetFact(deps));
+  app.patch('/api/user/fact/:id', requireUserAuth(), requireProvisionedUser(deps.prisma), handleCorrectFact(deps));
+  app.delete('/api/user/fact/:id', requireUserAuth(), requireProvisionedUser(deps.prisma), handleForgetFact(deps));
+  app.put('/api/user/fact/:id/lock', requireUserAuth(), requireProvisionedUser(deps.prisma), handleSetFactLock(deps));
   app.get('/api/user/config-overrides/resolve/:personalityId', requireUserAuth(), requireProvisionedUser(deps.prisma), handleResolveCascade(deps));
   app.patch('/api/user/config-overrides/:personalityId', requireUserAuth(), requireProvisionedUser(deps.prisma), handleUpdatePersonalityOverrides(deps));
   app.delete('/api/user/config-overrides/:personalityId', requireUserAuth(), requireProvisionedUser(deps.prisma), handleClearPersonalityOverrides(deps));
