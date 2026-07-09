@@ -147,6 +147,16 @@ export enum ApiErrorCategory {
    * credits, not the request as exceeding a per-request budget.
    */
   CREDIT_EXHAUSTION = 'credit_exhaustion',
+  /**
+   * The user has used their fair share of the SHARED system free-tier key for
+   * now (rolling-window quota — see ai-worker/FreeTierRequestQuota). Distinct
+   * from QUOTA_EXCEEDED (a provider-side per-request/daily limit) and
+   * CREDIT_EXHAUSTION (a paid account out of credits): the remediation is
+   * "bring your own key" so the user stops depending on the shared pool. NOT a
+   * retargetable provider failure — deliberately absent from
+   * QUOTA_FALLBACK_CATEGORIES.
+   */
+  FREE_TIER_QUOTA = 'free_tier_quota',
   /** 403 - Content policy violation or forbidden */
   CONTENT_POLICY = 'content_policy',
   /** 400 - Bad request (context window exceeded, invalid params) */
@@ -213,6 +223,8 @@ export const USER_ERROR_MESSAGES: Record<ApiErrorCategory, string> = {
     "You've reached your API usage limit. Please add credits to your OpenRouter account or wait until your limit resets.",
   [ApiErrorCategory.CREDIT_EXHAUSTION]:
     'Your OpenRouter account has no credits. Top up at https://openrouter.ai/settings/credits to continue.',
+  [ApiErrorCategory.FREE_TIER_QUOTA]:
+    "You've used your share of the shared free tier for now. To keep chatting, add your own OpenRouter API key with `/settings apikey set` — grab a free one at https://openrouter.ai/keys.",
   [ApiErrorCategory.CONTENT_POLICY]:
     'The AI declined to respond due to content guidelines. Please try rephrasing your message.',
   [ApiErrorCategory.BAD_REQUEST]:
@@ -266,6 +278,7 @@ export const PERMANENT_ERROR_CATEGORIES: ReadonlySet<ApiErrorCategory> = new Set
   ApiErrorCategory.AUTHENTICATION,
   ApiErrorCategory.QUOTA_EXCEEDED,
   ApiErrorCategory.CREDIT_EXHAUSTION,
+  ApiErrorCategory.FREE_TIER_QUOTA,
   ApiErrorCategory.CONTENT_POLICY,
   ApiErrorCategory.MODEL_NOT_FOUND,
   ApiErrorCategory.MEDIA_NOT_FOUND,
@@ -313,6 +326,10 @@ export const VISION_FAILURE_CACHE_POLICY: Record<ApiErrorCategory, { l1TtlSecond
   // recovers when the user tops up; long cooldown would block legitimate
   // recovery for hours.
   [ApiErrorCategory.CREDIT_EXHAUSTION]: { l1TtlSeconds: INTERVALS.VISION_FAILURE_TTL_SHORT },
+  // FREE_TIER_QUOTA: same SHORT cooldown — the rolling-window share recovers
+  // quickly, and it's a generation-path error that shouldn't linger in the
+  // vision negative cache (present here only for Record exhaustiveness).
+  [ApiErrorCategory.FREE_TIER_QUOTA]: { l1TtlSeconds: INTERVALS.VISION_FAILURE_TTL_SHORT },
 
   // Genuinely attachment-property failures — longer cooldown.
   // CENSORED belongs here too: when the vision model returns the "ext"-sentinel

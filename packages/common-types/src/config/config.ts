@@ -63,6 +63,14 @@ export const envSchema = z.object({
     .optional()
     .or(z.literal('').transform(() => undefined)), // 'true' enables async fact extraction (memory Phase 2 shadow mode; default off)
   EXTRACTION_BATCH_THRESHOLD: z.coerce.number().int().min(1).max(50).default(6), // episodes per (channel, personality) before an extraction batch enqueues
+  // Fair-share quota for the SHARED system OpenRouter free-tier key (guests +
+  // credit-exhausted-BYOK fallback). Rolling-window per-user cap that shrinks as
+  // concurrent users rise, bounded by a floor/ceiling; a daily global counter is
+  // the hard key-protection ceiling. See ai-worker/FreeTierRequestQuota.
+  FREE_TIER_GLOBAL_DAILY_BUDGET: z.coerce.number().int().min(1).default(1000), // the shared free key's daily free-request allowance (the pie)
+  FREE_TIER_WINDOW_MINUTES: z.coerce.number().int().min(1).max(1440).default(60), // rolling contention window
+  FREE_TIER_MIN_PER_WINDOW: z.coerce.number().int().min(1).default(5), // per-user floor: everyone gets at least this per window when budget permits
+  FREE_TIER_MAX_PER_WINDOW: z.coerce.number().int().min(1).default(30), // per-user ceiling: a lone user can't drain the whole pie
   BOT_OWNER_ID: optionalDiscordId(), // Discord user ID of bot owner for admin commands
   BOT_MENTION_CHAR: z.string().length(1).default('@'), // Character used for personality mentions (@personality or &personality)
   INTERNAL_SERVICE_SECRET: optionalNonEmptyString(), // Shared secret for service-to-service auth (bot-client -> api-gateway)
@@ -229,6 +237,10 @@ export function createTestConfig(overrides: Partial<EnvConfig> = {}): EnvConfig 
     AUTO_TRANSCRIBE_VOICE: undefined,
     EXTRACTION_ENABLED: undefined,
     EXTRACTION_BATCH_THRESHOLD: 6,
+    FREE_TIER_GLOBAL_DAILY_BUDGET: 1000,
+    FREE_TIER_WINDOW_MINUTES: 60,
+    FREE_TIER_MIN_PER_WINDOW: 5,
+    FREE_TIER_MAX_PER_WINDOW: 30,
     BOT_OWNER_ID: undefined,
     BOT_MENTION_CHAR: '@',
     INTERNAL_SERVICE_SECRET: undefined,
