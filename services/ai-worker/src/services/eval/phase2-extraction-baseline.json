@@ -1,11 +1,54 @@
 {
-  "generatedForPhase": "phase2-slice2-shadow-baseline (fence-fix run; precision gap = over-extraction to tune in shadow + golden under-enumeration; recall and supersession perfect)",
+  "generatedForPhase": "phase2-quality-slice baseline (methodology v2, source-grounded, 50 goldens). Prompt tuned for durability + atomicity. Residual violations are genuine transient-leak / editorializing (zero fabrications); the transient-trap tail (~25%) is the honest cheap-model floor, not overfit to zero. Gate bar (5% strict vs 10% pragmatic-with-correction-surface) is the owner call.",
+  "methodology": "v2 source-grounded: recall vs expectFacts; violation = extraction matching neither expectFacts nor allowedExtras",
   "totals": {
-    "goldens": 15,
-    "meanPrecision": 0.6722222222222223,
-    "meanRecall": 1,
-    "hallucinationRate": 0.39285714285714285,
+    "goldens": 50,
+    "meanPrecision": 0.91,
+    "meanRecall": 0.996,
+    "violationRate": 0.10294117647058823,
     "supersessionHitRate": 1
+  },
+  "byCategory": {
+    "durable-fact": {
+      "goldens": 14,
+      "violationRate": 0.07142857142857142,
+      "recall": 1
+    },
+    "preference": {
+      "goldens": 1,
+      "violationRate": 0,
+      "recall": 1
+    },
+    "no-facts": {
+      "goldens": 8,
+      "violationRate": 0,
+      "recall": 1
+    },
+    "multi-fact": {
+      "goldens": 5,
+      "violationRate": 0,
+      "recall": 0.96
+    },
+    "supersession": {
+      "goldens": 7,
+      "violationRate": 0.14285714285714285,
+      "recall": 1
+    },
+    "fiction": {
+      "goldens": 5,
+      "violationRate": 0.1,
+      "recall": 1
+    },
+    "transient-trap": {
+      "goldens": 8,
+      "violationRate": 0.25,
+      "recall": 1
+    },
+    "contradiction": {
+      "goldens": 2,
+      "violationRate": 0,
+      "recall": 1
+    }
   },
   "results": {
     "simple-name-fact": {
@@ -13,17 +56,17 @@
       "precision": 1,
       "recall": 1,
       "extractedCount": 1,
-      "hallucinations": [],
+      "extracted": ["The user has a cat named Miso."],
+      "violations": [],
       "supersessionHit": null
     },
     "job-fact": {
       "category": "durable-fact",
-      "precision": 0.5,
+      "precision": 1,
       "recall": 1,
       "extractedCount": 2,
-      "hallucinations": [
-        "The user sometimes works long shifts (at least twelve hours) that are physically and mentally exhausting."
-      ],
+      "extracted": ["The user works as a nurse.", "The user works at a hospital."],
+      "violations": [],
       "supersessionHit": null
     },
     "preference-fact": {
@@ -31,19 +74,17 @@
       "precision": 1,
       "recall": 1,
       "extractedCount": 1,
-      "hallucinations": [],
+      "extracted": ["The user dislikes coffee and prefers tea."],
+      "violations": [],
       "supersessionHit": null
     },
     "narration-only": {
       "category": "no-facts",
-      "precision": 0,
+      "precision": 1,
       "recall": 1,
-      "extractedCount": 3,
-      "hallucinations": [
-        "There is a tavern with a bar and a fireplace.",
-        "A bartender works at the tavern.",
-        "It is a cold night in the world of this roleplay."
-      ],
+      "extractedCount": 0,
+      "extracted": [],
+      "violations": [],
       "supersessionHit": null
     },
     "smalltalk-only": {
@@ -51,15 +92,22 @@
       "precision": 1,
       "recall": 1,
       "extractedCount": 0,
-      "hallucinations": [],
+      "extracted": [],
+      "violations": [],
       "supersessionHit": null
     },
     "multi-fact-batch": {
       "category": "multi-fact",
-      "precision": 0.75,
+      "precision": 1,
       "recall": 1,
       "extractedCount": 4,
-      "hallucinations": ["The user and Dana see each other approximately twice a year."],
+      "extracted": [
+        "The user has a sister named Dana.",
+        "Dana lives in Portland.",
+        "Dana is a veterinarian.",
+        "The user and Dana see each other approximately twice a year."
+      ],
+      "violations": [],
       "supersessionHit": null
     },
     "supersession-move": {
@@ -67,55 +115,82 @@
       "precision": 1,
       "recall": 1,
       "extractedCount": 1,
-      "hallucinations": [],
+      "extracted": ["The user moved to Denver last week"],
+      "violations": [],
       "supersessionHit": true
     },
     "supersession-job-change": {
       "category": "supersession",
       "precision": 1,
       "recall": 1,
-      "extractedCount": 2,
-      "hallucinations": [],
+      "extractedCount": 1,
+      "extracted": ["The user is now a teacher"],
+      "violations": [],
       "supersessionHit": true
+    },
+    "no-restatement": {
+      "category": "no-facts",
+      "precision": 1,
+      "recall": 1,
+      "extractedCount": 0,
+      "extracted": [],
+      "violations": [],
+      "supersessionHit": null
     },
     "relationship-fact": {
       "category": "durable-fact",
-      "precision": 0.6666666666666666,
+      "precision": 1,
       "recall": 1,
       "extractedCount": 3,
-      "hallucinations": ["Jamie gave the user concert tickets as an anniversary gift."],
+      "extracted": [
+        "The user has a partner named Jamie.",
+        "The user and Jamie are in an anniversary relationship.",
+        "Jamie gave the user concert tickets as an anniversary gift."
+      ],
+      "violations": [],
       "supersessionHit": null
     },
     "transient-state-not-fact": {
       "category": "no-facts",
-      "precision": 0,
+      "precision": 1,
       "recall": 1,
-      "extractedCount": 1,
-      "hallucinations": ["The user had insufficient sleep the previous night."],
+      "extractedCount": 0,
+      "extracted": [],
+      "violations": [],
       "supersessionHit": null
     },
     "fiction-canon": {
       "category": "fiction",
-      "precision": 0.6666666666666666,
+      "precision": 1,
       "recall": 1,
       "extractedCount": 3,
-      "hallucinations": ["The Ashen Order is believed to be extinct or destroyed"],
+      "extracted": [
+        "Kaela is a knight of the Ashen Order.",
+        "Kaela is the last knight of the Ashen Order.",
+        "The Ashen Order is believed to be extinct or destroyed."
+      ],
+      "violations": [],
       "supersessionHit": null
     },
     "allergy-fact": {
       "category": "durable-fact",
       "precision": 1,
       "recall": 1,
-      "extractedCount": 1,
-      "hallucinations": [],
+      "extractedCount": 2,
+      "extracted": [
+        "The user has a severe peanut allergy.",
+        "The user discovered their peanut allergy in childhood."
+      ],
+      "violations": [],
       "supersessionHit": null
     },
     "timezone-fact": {
       "category": "durable-fact",
-      "precision": 0.5,
+      "precision": 1,
       "recall": 1,
-      "extractedCount": 2,
-      "hallucinations": ["The user experiences nighttime at 2am Tokyo time."],
+      "extractedCount": 1,
+      "extracted": ["The user is in Tokyo."],
+      "violations": [],
       "supersessionHit": null
     },
     "pet-addition-not-supersession": {
@@ -123,15 +198,376 @@
       "precision": 0.5,
       "recall": 1,
       "extractedCount": 2,
-      "hallucinations": ["Miso and Nori are still adjusting to living together"],
+      "extracted": [
+        "The user adopted a second cat named Nori",
+        "Miso and Nori are still in the process of adjusting to living together"
+      ],
+      "violations": ["Miso and Nori are still in the process of adjusting to living together"],
       "supersessionHit": null
     },
     "birthday-fact": {
       "category": "durable-fact",
+      "precision": 1,
+      "recall": 1,
+      "extractedCount": 1,
+      "extracted": ["The user's birthday is on March 14th."],
+      "violations": [],
+      "supersessionHit": null
+    },
+    "tt-sick-today": {
+      "category": "transient-trap",
+      "precision": 1,
+      "recall": 1,
+      "extractedCount": 0,
+      "extracted": [],
+      "violations": [],
+      "supersessionHit": null
+    },
+    "tt-current-mood": {
+      "category": "transient-trap",
+      "precision": 1,
+      "recall": 1,
+      "extractedCount": 0,
+      "extracted": [],
+      "violations": [],
+      "supersessionHit": null
+    },
+    "tt-weather-with-durable": {
+      "category": "transient-trap",
+      "precision": 1,
+      "recall": 1,
+      "extractedCount": 1,
+      "extracted": ["The user is located in Minneapolis."],
+      "violations": [],
+      "supersessionHit": null
+    },
+    "tt-travel-plan": {
+      "category": "transient-trap",
+      "precision": 0,
+      "recall": 1,
+      "extractedCount": 1,
+      "extracted": ["The user has a conference in Berlin scheduled for Tuesday."],
+      "violations": ["The user has a conference in Berlin scheduled for Tuesday."],
+      "supersessionHit": null
+    },
+    "tt-dinner-tonight": {
+      "category": "transient-trap",
+      "precision": 1,
+      "recall": 1,
+      "extractedCount": 0,
+      "extracted": [],
+      "violations": [],
+      "supersessionHit": null
+    },
+    "tt-gaming-session": {
+      "category": "transient-trap",
+      "precision": 1,
+      "recall": 1,
+      "extractedCount": 1,
+      "extracted": ["The user plays Elden Ring."],
+      "violations": [],
+      "supersessionHit": null
+    },
+    "tt-deadline-tomorrow": {
+      "category": "transient-trap",
+      "precision": 0,
+      "recall": 1,
+      "extractedCount": 1,
+      "extracted": ["The user has a work deadline tomorrow morning."],
+      "violations": ["The user has a work deadline tomorrow morning."],
+      "supersessionHit": null
+    },
+    "tt-headache-now": {
+      "category": "transient-trap",
+      "precision": 1,
+      "recall": 1,
+      "extractedCount": 0,
+      "extracted": [],
+      "violations": [],
+      "supersessionHit": null
+    },
+    "nf-meta-question": {
+      "category": "no-facts",
+      "precision": 1,
+      "recall": 1,
+      "extractedCount": 0,
+      "extracted": [],
+      "violations": [],
+      "supersessionHit": null
+    },
+    "nf-joke-exchange": {
+      "category": "no-facts",
+      "precision": 1,
+      "recall": 1,
+      "extractedCount": 0,
+      "extracted": [],
+      "violations": [],
+      "supersessionHit": null
+    },
+    "nf-hypothetical": {
+      "category": "no-facts",
+      "precision": 1,
+      "recall": 1,
+      "extractedCount": 0,
+      "extracted": [],
+      "violations": [],
+      "supersessionHit": null
+    },
+    "nf-park-narration": {
+      "category": "no-facts",
+      "precision": 1,
+      "recall": 1,
+      "extractedCount": 0,
+      "extracted": [],
+      "violations": [],
+      "supersessionHit": null
+    },
+    "df-hometown": {
+      "category": "durable-fact",
+      "precision": 1,
+      "recall": 1,
+      "extractedCount": 1,
+      "extracted": [
+        "The user grew up in a tiny town in Ohio with a population of around 800 people."
+      ],
+      "violations": [],
+      "supersessionHit": null
+    },
+    "df-siblings": {
+      "category": "durable-fact",
+      "precision": 1,
+      "recall": 1,
+      "extractedCount": 2,
+      "extracted": [
+        "The user has an older brother named Marcus.",
+        "The user has only one sibling."
+      ],
+      "violations": [],
+      "supersessionHit": null
+    },
+    "df-occupation-detail": {
+      "category": "durable-fact",
       "precision": 0.5,
       "recall": 1,
       "extractedCount": 2,
-      "hallucinations": ["The user is planning a small dinner for their birthday."],
+      "extracted": [
+        "The user works as a software engineer at a bank.",
+        "The user's work involves managing production incidents."
+      ],
+      "violations": ["The user's work involves managing production incidents."],
+      "supersessionHit": null
+    },
+    "df-vehicle": {
+      "category": "durable-fact",
+      "precision": 0.5,
+      "recall": 1,
+      "extractedCount": 2,
+      "extracted": [
+        "The user owns a Toyota Corolla named Bessie that is approximately 20 years old.",
+        "The user has a habit of giving their vehicle a personal name and referring to it affectionately."
+      ],
+      "violations": [
+        "The user has a habit of giving their vehicle a personal name and referring to it affectionately."
+      ],
+      "supersessionHit": null
+    },
+    "df-language": {
+      "category": "durable-fact",
+      "precision": 1,
+      "recall": 1,
+      "extractedCount": 2,
+      "extracted": [
+        "Spanish is the user's first language.",
+        "The user learned English starting at age twelve."
+      ],
+      "violations": [],
+      "supersessionHit": null
+    },
+    "df-phobia": {
+      "category": "durable-fact",
+      "precision": 1,
+      "recall": 1,
+      "extractedCount": 1,
+      "extracted": ["The user has arachnophobia (fear of spiders)."],
+      "violations": [],
+      "supersessionHit": null
+    },
+    "ss-pet-loss": {
+      "category": "supersession",
+      "precision": 0.5,
+      "recall": 1,
+      "extractedCount": 2,
+      "extracted": ["Rex passed away last week", "Rex was old"],
+      "violations": ["Rex was old"],
+      "supersessionHit": true
+    },
+    "ss-name-preference": {
+      "category": "supersession",
+      "precision": 1,
+      "recall": 1,
+      "extractedCount": 2,
+      "extracted": ["The user goes by Vee, not Victoria.", "Vee dislikes the name Victoria."],
+      "violations": [],
+      "supersessionHit": true
+    },
+    "ss-relationship-end": {
+      "category": "supersession",
+      "precision": 1,
+      "recall": 1,
+      "extractedCount": 2,
+      "extracted": [
+        "The user and Jamie broke up last month",
+        "The user and Jamie's breakup was mutual"
+      ],
+      "violations": [],
+      "supersessionHit": true
+    },
+    "ss-move-back": {
+      "category": "supersession",
+      "precision": 1,
+      "recall": 1,
+      "extractedCount": 2,
+      "extracted": [
+        "The user is now in Seattle",
+        "The user moved to Denver for a job that fell through"
+      ],
+      "violations": [],
+      "supersessionHit": true
+    },
+    "fic-world-canon": {
+      "category": "fiction",
+      "precision": 1,
+      "recall": 1,
+      "extractedCount": 3,
+      "extracted": [
+        "The kingdom of Veyra has three great cities.",
+        "Thornhold is the capital of Veyra.",
+        "Thornhold sits on northern cliffs."
+      ],
+      "violations": [],
+      "supersessionHit": null
+    },
+    "fic-character-trait": {
+      "category": "fiction",
+      "precision": 0.5,
+      "recall": 1,
+      "extractedCount": 2,
+      "extracted": [
+        "The user has a fear of water stemming from a shipwreck they survived.",
+        "The assistant is willing to help the user find alternative routes rather than forcing them to confront their fears."
+      ],
+      "violations": [
+        "The assistant is willing to help the user find alternative routes rather than forcing them to confront their fears."
+      ],
+      "supersessionHit": null
+    },
+    "fic-scenery-trap": {
+      "category": "fiction",
+      "precision": 1,
+      "recall": 1,
+      "extractedCount": 3,
+      "extracted": [
+        "Wess is an alchemist.",
+        "Wess's stall is located in the market square, third stall from the end.",
+        "Wess keeps late hours."
+      ],
+      "violations": [],
+      "supersessionHit": null
+    },
+    "fic-ooc-real-fact": {
+      "category": "fiction",
+      "precision": 1,
+      "recall": 1,
+      "extractedCount": 0,
+      "extracted": [],
+      "violations": [],
+      "supersessionHit": null
+    },
+    "mf-long-conversation": {
+      "category": "multi-fact",
+      "precision": 1,
+      "recall": 1,
+      "extractedCount": 3,
+      "extracted": [
+        "The user started pottery classes last month, attending on Tuesday evenings after work.",
+        "The user's pottery teacher is named Ines.",
+        "The user is learning to throw pottery on a wheel."
+      ],
+      "violations": [],
+      "supersessionHit": null
+    },
+    "mf-mixed-durability": {
+      "category": "multi-fact",
+      "precision": 1,
+      "recall": 1,
+      "extractedCount": 2,
+      "extracted": [
+        "The user had knee surgery last year and is still in the rebuilding phase of recovery.",
+        "The user is aiming to go to the gym three times per week."
+      ],
+      "violations": [],
+      "supersessionHit": null
+    },
+    "mf-dense-intro": {
+      "category": "multi-fact",
+      "precision": 1,
+      "recall": 0.8,
+      "extractedCount": 5,
+      "extracted": [
+        "Sam is 34 years old.",
+        "Sam lives in Lisbon.",
+        "Sam is married to Rui.",
+        "Sam and Rui own a greyhound named Luna.",
+        "Sam works as a translator of novels."
+      ],
+      "violations": [],
+      "supersessionHit": null
+    },
+    "mf-self-correction": {
+      "category": "multi-fact",
+      "precision": 1,
+      "recall": 1,
+      "extractedCount": 1,
+      "extracted": ["User's birthday is March 15th."],
+      "violations": [],
+      "supersessionHit": null
+    },
+    "contra-hard": {
+      "category": "contradiction",
+      "precision": 1,
+      "recall": 1,
+      "extractedCount": 1,
+      "extracted": ["The user eats peanut butter sandwiches every morning as a regular habit"],
+      "violations": [],
+      "supersessionHit": true
+    },
+    "contra-soft": {
+      "category": "contradiction",
+      "precision": 1,
+      "recall": 1,
+      "extractedCount": 1,
+      "extracted": [
+        "The user has recently shifted their beverage preference to espresso and is no longer interested in tea"
+      ],
+      "violations": [],
+      "supersessionHit": true
+    },
+    "df-diet": {
+      "category": "durable-fact",
+      "precision": 1,
+      "recall": 1,
+      "extractedCount": 1,
+      "extracted": ["The user has been vegetarian for approximately ten years."],
+      "violations": [],
+      "supersessionHit": null
+    },
+    "df-hobby-instrument": {
+      "category": "durable-fact",
+      "precision": 1,
+      "recall": 1,
+      "extractedCount": 2,
+      "extracted": ["The user plays cello.", "The user takes cello lessons with a teacher."],
+      "violations": [],
       "supersessionHit": null
     }
   }

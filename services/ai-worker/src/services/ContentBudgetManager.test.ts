@@ -400,5 +400,25 @@ describe('ContentBudgetManager', () => {
         .calls[0][1];
       expect(episodeBudget).toBe(1000); // untouched
     });
+
+    it('wrapper overhead alone exceeding the fact slice selects nothing (zero facts, zero tokens)', () => {
+      // Tiny memory budget → factBudget = min(600, floor(300 * 0.3)) = 90, which is
+      // below the 100-token wrapper overhead. The FIRST fact can never fit, so the
+      // block collapses to empty rather than emitting a wrapper with no facts inside.
+      vi.mocked(mockContextWindowManager.calculateMemoryBudget).mockReturnValue(300);
+      const result = budgetManager.allocate(withFacts(3));
+
+      expect(result.selectedFacts).toEqual([]);
+      expect(result.factTokensUsed).toBe(0);
+      // Episodes keep the whole (small) budget — facts took nothing.
+      const episodeBudget = vi.mocked(mockContextWindowManager.selectMemoriesWithinBudget).mock
+        .calls[0][1];
+      expect(episodeBudget).toBe(300);
+      // Nothing crosses the seam into the prompt build.
+      const promptFacts = vi
+        .mocked(mockPromptBuilder.buildFullSystemPrompt)
+        .mock.calls.at(-1)?.[0].facts;
+      expect(promptFacts).toEqual([]);
+    });
   });
 });

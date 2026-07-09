@@ -80,6 +80,65 @@ export async function matchFacts(
   return { matchedExpected: [...matchedExpected], unmatchedExtracted, precision, recall };
 }
 
+export interface ExtractionScore {
+  /** expectFacts entries matched by at least one extraction (drives recall). */
+  matchedExpected: string[];
+  /**
+   * Extractions matching NEITHER expectFacts NOR allowedExtras — each is a
+   * fabrication (unsupported by the source) or a transient/policy
+   * over-extraction. The distinction is a human read during tuning; the
+   * statements are surfaced verbatim for that purpose.
+   */
+  violations: string[];
+  /** matched expectFacts / expectFacts (1 when none expected). */
+  recall: number;
+  /** violations / extracted (0 when nothing extracted). */
+  violationRate: number;
+  /** 1 − violationRate — kept for baseline comparability. */
+  precision: number;
+}
+
+/**
+ * Source-grounded extraction scoring (eval methodology v2).
+ *
+ * The v1 eval scored precision against `expectFacts` alone, so a CORRECT
+ * extraction the golden author didn't enumerate counted as a hallucination —
+ * inflating the rate with measurement artifacts. v2 splits the golden into
+ * `expectFacts` (must-recall) and `allowedExtras` (source-supported, durable,
+ * optional): recall is measured against expectFacts alone; a violation is an
+ * extraction matching NEITHER list. Transient states the source supports but
+ * that must not be extracted are deliberately left out of BOTH lists, so
+ * over-extraction keeps counting against the extractor. Deterministic
+ * (embedding cosine, same matcher) — the golden author enumerates support
+ * instead of an LLM judge deciding at eval time.
+ */
+export async function scoreExtraction(
+  extracted: string[],
+  expectFacts: string[],
+  allowedExtras: string[],
+  embeddings: LocalEmbeddingService,
+  threshold = FACT_EQUIVALENCE_THRESHOLD
+): Promise<ExtractionScore> {
+  const recallMatch = await matchFacts(extracted, expectFacts, embeddings, threshold);
+  const supportMatch = await matchFacts(
+    extracted,
+    [...expectFacts, ...allowedExtras],
+    embeddings,
+    threshold
+  );
+
+  const violationRate =
+    extracted.length === 0 ? 0 : supportMatch.unmatchedExtracted.length / extracted.length;
+
+  return {
+    matchedExpected: recallMatch.matchedExpected,
+    violations: supportMatch.unmatchedExtracted,
+    recall: recallMatch.recall,
+    violationRate,
+    precision: 1 - violationRate,
+  };
+}
+
 /** Indexes of expected vectors the given vector matches at/above threshold. */
 function matchesForVector(
   vec: Float32Array | undefined,
