@@ -8,6 +8,26 @@ import {
   type QuotaFallbackDeps,
 } from './quotaFallbackRunner.js';
 import { type QuotaFallbackInfo } from '../../../../services/quotaFallback.js';
+import { type FreeTierRequestQuota } from '../../../../services/FreeTierRequestQuota.js';
+
+// The bot owner (`owner-1`) bypasses the free-tier meter entirely.
+vi.mock('@tzurot/common-types/utils/ownerMiddleware', () => ({
+  isBotOwner: (id: string) => id === 'owner-1',
+}));
+
+/** Mock free-tier quota; `allowed` drives whether the forced fallback proceeds. */
+function mockQuota(allowed = true): FreeTierRequestQuota {
+  return {
+    tryConsume: vi.fn().mockResolvedValue({
+      allowed,
+      reason: allowed ? 'ok' : 'user',
+      windowCap: 30,
+      activeUsers: 0,
+      userCount: 0,
+      globalCount: 0,
+    }),
+  } as unknown as FreeTierRequestQuota;
+}
 
 function quotaError(category: ApiErrorCategory): ApiError {
   return new ApiError(`synthetic ${category}`, {
@@ -89,6 +109,7 @@ describe('runWithQuotaFallback', () => {
       retry,
       opts: buildOpts(),
       userId: '123',
+      requestId: 'req-1',
       deps: undefined,
     });
 
@@ -106,6 +127,7 @@ describe('runWithQuotaFallback', () => {
         retry,
         opts: buildOpts(),
         userId: '123',
+        requestId: 'req-1',
         deps: buildDeps({ global: { model: 'paid/default' } }),
       })
     ).rejects.toThrow('connection reset');
@@ -122,6 +144,7 @@ describe('runWithQuotaFallback', () => {
       retry,
       opts: buildOpts(),
       userId: '123',
+      requestId: 'req-1',
       deps: buildDeps({ global: { model: 'paid/default', temperature: 0.5 } as never }),
     });
 
@@ -155,6 +178,7 @@ describe('runWithQuotaFallback', () => {
       retry,
       opts: buildOpts(),
       userId: '123',
+      requestId: 'req-1',
       deps: buildDeps({ global: { model: 'paid/default' } }),
     });
 
@@ -181,6 +205,7 @@ describe('runWithQuotaFallback', () => {
       retry,
       opts: buildOpts(),
       userId: '123',
+      requestId: 'req-1',
       deps: buildDeps({ free: { model: 'free/model' }, systemKey: 'sk-system-key' }),
     });
 
@@ -191,6 +216,87 @@ describe('runWithQuotaFallback', () => {
         personality: expect.objectContaining({ model: 'free/model' }),
       })
     );
+  });
+
+  it('meters the credit-exhausted BYOK → shared-system-key transition exactly once', async () => {
+    const primary = vi.fn().mockRejectedValue(quotaError(ApiErrorCategory.CREDIT_EXHAUSTION));
+    const retry = vi.fn().mockResolvedValue(okResult);
+    const freeTierQuota = mockQuota(true);
+
+    await runWithQuotaFallback({
+      primary,
+      retry,
+      opts: buildOpts(), // isGuestMode: false (BYOK)
+      userId: '123',
+      requestId: 'req-1',
+      deps: buildDeps({ free: { model: 'free/model' }, systemKey: 'sk-system-key' }),
+      freeTierQuota,
+    });
+
+    // Metered once, keyed by userId + jobId (jobId is the retry-stable idempotency member).
+    expect(freeTierQuota.tryConsume).toHaveBeenCalledTimes(1);
+    expect(freeTierQuota.tryConsume).toHaveBeenCalledWith('123', 'req-1');
+    expect(retry).toHaveBeenCalled(); // allowed → fallback proceeds
+  });
+
+  it('over-quota on the forced fallback surfaces the ORIGINAL error (top-up), not a free-tier one', async () => {
+    const original = quotaError(ApiErrorCategory.CREDIT_EXHAUSTION);
+    const primary = vi.fn().mockRejectedValue(original);
+    const retry = vi.fn().mockResolvedValue(okResult);
+    const freeTierQuota = mockQuota(false); // over the shared-key share
+
+    await expect(
+      runWithQuotaFallback({
+        primary,
+        retry,
+        opts: buildOpts(),
+        userId: '123',
+        requestId: 'req-1',
+        deps: buildDeps({ free: { model: 'free/model' }, systemKey: 'sk-system-key' }),
+        freeTierQuota,
+      })
+    ).rejects.toBe(original);
+
+    expect(retry).not.toHaveBeenCalled(); // fallback aborted — the shared key is not spent
+  });
+
+  it('does NOT meter the bot owner on the forced fallback (owner bypass)', async () => {
+    const primary = vi.fn().mockRejectedValue(quotaError(ApiErrorCategory.CREDIT_EXHAUSTION));
+    const retry = vi.fn().mockResolvedValue(okResult);
+    const freeTierQuota = mockQuota(true);
+
+    await runWithQuotaFallback({
+      primary,
+      retry,
+      opts: buildOpts(), // BYOK → would meter, but the owner is exempt
+      userId: 'owner-1',
+      requestId: 'req-1',
+      deps: buildDeps({ free: { model: 'free/model' }, systemKey: 'sk-system-key' }),
+      freeTierQuota,
+    });
+
+    expect(freeTierQuota.tryConsume).not.toHaveBeenCalled();
+    expect(retry).toHaveBeenCalled(); // the fallback still proceeds, just unmetered
+  });
+
+  it('does NOT meter a pure guest (already metered upstream in GenerationStep) — no double-count', async () => {
+    const primary = vi.fn().mockRejectedValue(quotaError(ApiErrorCategory.CREDIT_EXHAUSTION));
+    const retry = vi.fn().mockResolvedValue(okResult);
+    const freeTierQuota = mockQuota(true);
+
+    // isGuestMode: true → the transition guard (`!opts.isGuestMode`) is false, so
+    // the site-2 meter never fires regardless of whether a retarget happens.
+    await runWithQuotaFallback({
+      primary,
+      retry,
+      opts: buildOpts({ isGuestMode: true }),
+      userId: '123',
+      requestId: 'req-1',
+      deps: buildDeps({ free: { model: 'free/model' }, systemKey: 'sk-system-key' }),
+      freeTierQuota,
+    }).catch(() => undefined);
+
+    expect(freeTierQuota.tryConsume).not.toHaveBeenCalled();
   });
 
   it('rethrows the original when the forced system key is unavailable', async () => {
@@ -204,6 +310,7 @@ describe('runWithQuotaFallback', () => {
         retry,
         opts: buildOpts(),
         userId: '123',
+        requestId: 'req-1',
         deps: buildDeps({ free: { model: 'free/model' }, systemKey: undefined }),
       })
     ).rejects.toBe(original);
@@ -221,6 +328,7 @@ describe('runWithQuotaFallback', () => {
         retry,
         opts: buildOpts(),
         userId: '123',
+        requestId: 'req-1',
         deps: buildDeps({ global: { model: 'paid/default' } }),
       })
     ).rejects.toBe(original);
@@ -250,6 +358,7 @@ describe('runWithQuotaFallback', () => {
         apiKey: 'sk-zai-key',
       }),
       userId: '123',
+      requestId: 'req-1',
       deps: buildDeps({ global: { model: 'paid/default' }, userOpenRouterKey: 'sk-user-or-key' }),
     });
 
@@ -291,6 +400,7 @@ describe('runWithQuotaFallback', () => {
         apiKey: 'sk-zai-key',
       }),
       userId: '123',
+      requestId: 'req-1',
       deps: buildDeps({
         global: { model: 'paid/default' },
         free: { model: 'free/default' },
@@ -328,6 +438,7 @@ describe('runWithQuotaFallback', () => {
           apiKey: 'sk-zai-key',
         }),
         userId: '123',
+        requestId: 'req-1',
         deps: buildDeps({
           global: { model: 'paid/default' },
           free: { model: 'free/default' },
@@ -358,6 +469,7 @@ describe('runWithQuotaFallback', () => {
         retry,
         opts: buildOpts(),
         userId: '123',
+        requestId: 'req-1',
         deps: buildDeps({ global: { model: 'paid/default' } }),
       })
     ).rejects.toBe(original);
@@ -378,7 +490,14 @@ describe('runWithQuotaFallback', () => {
     deps.resolveSystemKey = vi.fn().mockRejectedValue(new Error('resolver blew up'));
 
     await expect(
-      runWithQuotaFallback({ primary, retry, opts: buildOpts(), userId: '123', deps })
+      runWithQuotaFallback({
+        primary,
+        retry,
+        opts: buildOpts(),
+        userId: '123',
+        requestId: 'req-1',
+        deps,
+      })
     ).rejects.toBe(original);
     expect(retry).not.toHaveBeenCalled();
   });
@@ -394,6 +513,7 @@ describe('runWithQuotaFallback', () => {
         retry,
         opts: buildOpts(),
         userId: '123',
+        requestId: 'req-1',
         deps: buildDeps({}),
       })
     ).rejects.toBe(original);

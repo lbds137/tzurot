@@ -41,7 +41,7 @@ import { PrismaContextDataSource } from '../../services/context/PrismaContextDat
 import { ContextAssembler } from '../../services/context/ContextAssembler.js';
 import { VisionDescriptionWriter } from '../../services/context/visionDescriptionWriter.js';
 import { type ApiKeyResolver } from '../../services/ApiKeyResolver.js';
-import { creditExhaustionCache, rateLimitCache } from '../../redis.js';
+import { creditExhaustionCache, rateLimitCache, freeTierRequestQuota } from '../../redis.js';
 import { type QuotaFallbackCaches } from '../../services/quotaFallback.js';
 import { type QuotaFallbackDeps } from './pipeline/steps/quotaFallbackRunner.js';
 import type { EmbeddingServiceInterface } from '../../utils/duplicateDetection.js';
@@ -181,7 +181,13 @@ export class LLMGenerationHandler {
       // startup — the data source, assembler, and their wrapped services are
       // constructed once here, not re-allocated per job.
       this.buildContextStep(prisma),
-      new GenerationStep(ragService, prisma, embeddingService, quotaFallbackDeps),
+      new GenerationStep(
+        ragService,
+        prisma,
+        embeddingService,
+        quotaFallbackDeps,
+        freeTierRequestQuota
+      ),
       new TTSStep(ttsConfigResolver),
     ];
   }

@@ -17,6 +17,7 @@ import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import { type MessageContent } from '@tzurot/common-types/types/ai';
 import { type SttDispatch } from '@tzurot/common-types/types/sttProvider';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { type FreeTierRequestQuota } from '../../../../services/FreeTierRequestQuota.js';
 import { createDiagnosticCollectorForRequest } from '../../../../services/diagnostics/personalityOwnerResolver.js';
 import type { ConversationalRAGService } from '../../../../services/ConversationalRAGService.js';
 import type {
@@ -36,7 +37,7 @@ import {
   type QuotaFallbackDeps,
 } from './quotaFallbackRunner.js';
 import { composeGenerationFailureResult } from './generationFailureResult.js';
-import { validatePrerequisites } from './generationStepValidation.js';
+import { validatePrerequisites, enforceGuestFreeTierQuota } from './generationStepValidation.js';
 import { getRecentAssistantMessages } from '../../../../utils/conversationHistoryUtils.js';
 import { type DiagnosticCollector } from '../../../../services/DiagnosticCollector.js';
 import {
@@ -63,7 +64,8 @@ export class GenerationStep implements IPipelineStep {
     private readonly ragService: ConversationalRAGService,
     private readonly prisma: PrismaClient,
     private readonly embeddingService?: EmbeddingServiceInterface,
-    private readonly quotaFallbackDeps?: QuotaFallbackDeps
+    private readonly quotaFallbackDeps?: QuotaFallbackDeps,
+    private readonly freeTierQuota?: FreeTierRequestQuota
   ) {}
 
   /**
@@ -289,6 +291,16 @@ export class GenerationStep implements IPipelineStep {
     context.diagnosticCollector = diagnosticCollector;
 
     try {
+      // Fair-share pre-flight for the SHARED free key (guests only). Throws the
+      // FREE_TIER_QUOTA sentinel on over-share → the catch renders it
+      // in-character with a bring-your-own-key CTA.
+      await enforceGuestFreeTierQuota(
+        this.freeTierQuota,
+        isGuestMode,
+        jobContext.userId,
+        requestId
+      );
+
       // Build conversation context once (reused for retry if needed)
       const conversationContext = buildConversationContext(
         jobContext,
@@ -352,6 +364,8 @@ export class GenerationStep implements IPipelineStep {
         opts: attemptOpts,
         userId: jobContext.userId,
         deps: this.quotaFallbackDeps,
+        freeTierQuota: this.freeTierQuota,
+        requestId,
       });
       // Three announce sources, pairwise-exclusive with the swap: the proactive
       // demotion clears `auth.fallback` (so no swap can fire), and a quota

@@ -29,6 +29,27 @@ export const CACHE_KEY_PREFIXES = {
    */
   VISION_SYSTEM_FALLBACK_QUOTA: 'visionfallback:system:',
   /**
+   * Rolling-window contention set for the shared-free-key fair-share quota — a
+   * ZSET of userId→last-request-ms for users who consumed the free key within
+   * the window. Its cardinality is the divisor N that shrinks each user's cap.
+   * A single set (prefix + a fixed suffix; see `FREE_TIER_ACTIVE_KEY`).
+   * Consumers: `ai-worker/FreeTierRequestQuota`.
+   */
+  FREE_TIER_ACTIVE: 'freeq:active:',
+  /**
+   * Per-user rolling request set for the shared-free-key quota — a ZSET of
+   * requestId→ms for one user's recent free-key requests (requestId membership
+   * makes counting idempotent across job retries). Prefix + userId.
+   * Consumers: `ai-worker/FreeTierRequestQuota`.
+   */
+  FREE_TIER_USER_REQUESTS: 'freeq:ureq:',
+  /**
+   * Per-UTC-day global counter for the shared-free-key quota — the absolute
+   * key-protection ceiling (INCR per allowed request, 25h TTL). Prefix + day.
+   * Consumers: `ai-worker/FreeTierRequestQuota`.
+   */
+  FREE_TIER_GLOBAL: 'freeq:global:',
+  /**
    * Per-(channel, personality) turn counter + pending episode-id list driving
    * extraction batching (memory Phase 2). Consumers: `ai-worker` extraction
    * trigger (slice 2).

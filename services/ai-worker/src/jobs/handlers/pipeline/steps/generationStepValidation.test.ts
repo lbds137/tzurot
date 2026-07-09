@@ -6,14 +6,29 @@
  * is missing"). These tests pin down the helper's contract directly.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import type { Job } from 'bullmq';
 import { AIProvider } from '@tzurot/common-types/constants/ai';
 import { type LLMGenerationJobData } from '@tzurot/common-types/types/jobs';
-import { validatePrerequisites } from './generationStepValidation.js';
+import { validatePrerequisites, enforceGuestFreeTierQuota } from './generationStepValidation.js';
+import {
+  type FreeTierRequestQuota,
+  FREE_TIER_QUOTA_ERROR_MESSAGE,
+} from '../../../../services/FreeTierRequestQuota.js';
 import type { GenerationContext } from '../types.js';
 
+// The bot owner (`owner-1`) bypasses the guest free-tier meter.
+vi.mock('@tzurot/common-types/utils/ownerMiddleware', () => ({
+  isBotOwner: (id: string) => id === 'owner-1',
+}));
+
 const fakeJob = {} as Job<LLMGenerationJobData>;
+
+function mockQuota(allowed = true): FreeTierRequestQuota {
+  return {
+    tryConsume: vi.fn().mockResolvedValue({ allowed, reason: allowed ? 'ok' : 'user' }),
+  } as unknown as FreeTierRequestQuota;
+}
 
 describe('validatePrerequisites', () => {
   it('should throw when config is missing', () => {
@@ -83,5 +98,39 @@ describe('validatePrerequisites', () => {
         preparedContext: { conversationHistory: [], rawConversationHistory: [], participants: [] },
       } satisfies GenerationContext)
     ).not.toThrow();
+  });
+});
+
+describe('enforceGuestFreeTierQuota', () => {
+  it('is a no-op when the quota is unwired (undefined) — never throws, never consumes', async () => {
+    // The wiring-absent path (test fixtures / quota not injected).
+    await expect(
+      enforceGuestFreeTierQuota(undefined, true, 'user-1', 'req-1')
+    ).resolves.toBeUndefined();
+  });
+
+  it('meters a guest with (userId, requestId) and does not throw when allowed', async () => {
+    const quota = mockQuota(true);
+    await enforceGuestFreeTierQuota(quota, true, 'user-1', 'req-1');
+    expect(quota.tryConsume).toHaveBeenCalledWith('user-1', 'req-1');
+  });
+
+  it('throws the FREE_TIER_QUOTA sentinel when a guest is over their share', async () => {
+    const quota = mockQuota(false);
+    await expect(enforceGuestFreeTierQuota(quota, true, 'user-1', 'req-1')).rejects.toThrow(
+      FREE_TIER_QUOTA_ERROR_MESSAGE
+    );
+  });
+
+  it('does NOT meter a non-guest (BYOK runs on the user’s own key)', async () => {
+    const quota = mockQuota(true);
+    await enforceGuestFreeTierQuota(quota, false, 'user-1', 'req-1');
+    expect(quota.tryConsume).not.toHaveBeenCalled();
+  });
+
+  it('does NOT meter the bot owner even as a guest', async () => {
+    const quota = mockQuota(true);
+    await enforceGuestFreeTierQuota(quota, true, 'owner-1', 'req-1');
+    expect(quota.tryConsume).not.toHaveBeenCalled();
   });
 });

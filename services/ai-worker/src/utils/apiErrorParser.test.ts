@@ -17,9 +17,29 @@ import {
   ApiErrorCategory,
   ERROR_MESSAGES,
   MAX_ERROR_MESSAGE_LENGTH,
+  USER_ERROR_MESSAGES,
 } from '@tzurot/common-types/constants/error';
+import { FREE_TIER_QUOTA_ERROR_MESSAGE } from '../services/FreeTierRequestQuota.js';
 
 describe('parseApiError', () => {
+  describe('free-tier fair-share sentinel', () => {
+    it('classifies the exact message the quota throws as FREE_TIER_QUOTA (non-retryable, BYOK CTA)', () => {
+      // Locks the sentinel ↔ /free-tier fair-share/i pattern ↔ user-message chain:
+      // if the thrown constant drifts out of the pattern, this fails.
+      const info = parseApiError(new Error(FREE_TIER_QUOTA_ERROR_MESSAGE));
+      expect(info.category).toBe(ApiErrorCategory.FREE_TIER_QUOTA);
+      expect(info.shouldRetry).toBe(false); // window hasn't rolled — retrying won't help
+      expect(info.userMessage).toBe(USER_ERROR_MESSAGES[ApiErrorCategory.FREE_TIER_QUOTA]);
+      expect(info.userMessage).toContain('/settings apikey set');
+    });
+
+    it('does NOT collide with the broad QUOTA_EXCEEDED patterns', () => {
+      // The sentinel deliberately avoids "limit"/"daily"/"exceeded" wording.
+      expect(parseApiError(new Error(FREE_TIER_QUOTA_ERROR_MESSAGE)).category).not.toBe(
+        ApiErrorCategory.QUOTA_EXCEEDED
+      );
+    });
+  });
   describe('HTTP status code extraction', () => {
     it('should extract status from error.status', () => {
       const error = { status: 429, message: 'Rate limited' };

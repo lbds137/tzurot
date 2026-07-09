@@ -17,7 +17,22 @@ import { GenerationStep } from './GenerationStep.js';
 import type { GenerationContext, ResolvedConfig, ResolvedAuth, PreparedContext } from '../types.js';
 import type { ConversationalRAGService } from '../../../../services/ConversationalRAGService.js';
 import type { RAGResponse } from '../../../../services/ConversationalRAGTypes.js';
+import { type FreeTierRequestQuota } from '../../../../services/FreeTierRequestQuota.js';
 import { RetryError } from '../../../../utils/retry.js';
+
+/** Mock free-tier quota; `allowed` drives whether the guest request proceeds. */
+function mockQuota(allowed = true): FreeTierRequestQuota {
+  return {
+    tryConsume: vi.fn().mockResolvedValue({
+      allowed,
+      reason: allowed ? 'ok' : 'user',
+      windowCap: 30,
+      activeUsers: 0,
+      userCount: 0,
+      globalCount: 0,
+    }),
+  } as unknown as FreeTierRequestQuota;
+}
 
 // Mock common-types logger
 vi.mock('@tzurot/common-types/utils/logger', async () => {
@@ -34,6 +49,11 @@ vi.mock('@tzurot/common-types/utils/logger', async () => {
     }),
   };
 });
+
+// The bot owner (`owner-discord-id`) bypasses the guest free-tier meter.
+vi.mock('@tzurot/common-types/utils/ownerMiddleware', () => ({
+  isBotOwner: (id: string) => id === 'owner-discord-id',
+}));
 
 const TEST_PERSONALITY: LoadedPersonality = {
   id: 'personality-123',
@@ -198,6 +218,112 @@ describe('GenerationStep', () => {
       expect(result.result?.metadata?.tokensIn).toBe(100);
       expect(result.result?.metadata?.tokensOut).toBe(50);
       expect(result.result?.metadata?.modelUsed).toBe('anthropic/claude-sonnet-4');
+    });
+
+    describe('free-tier quota (guest pre-flight, site 1)', () => {
+      const ragResponse: RAGResponse = {
+        content: 'ok',
+        retrievedMemories: 0,
+        tokensIn: 1,
+        tokensOut: 1,
+        modelUsed: 'free/model',
+      };
+      const guestAuth: ResolvedAuth = { ...baseAuth, isGuestMode: true };
+
+      it('meters a guest request (userId, requestId) and proceeds when allowed', async () => {
+        const quota = mockQuota(true);
+        const guestStep = new GenerationStep(
+          mockRAGService,
+          createMockPrisma(),
+          undefined,
+          undefined,
+          quota
+        );
+        vi.mocked(mockRAGService.generateResponse).mockResolvedValue(ragResponse);
+
+        await guestStep.process({
+          job: createMockJob(),
+          startTime: Date.now(),
+          config: baseConfig,
+          auth: guestAuth,
+          preparedContext: basePreparedContext,
+        });
+
+        // Assert the args crossing the meter seam — not just that generation ran.
+        expect(quota.tryConsume).toHaveBeenCalledWith('user-456', 'test-req-001');
+        expect(mockRAGService.generateResponse).toHaveBeenCalled();
+      });
+
+      it('short-circuits an over-quota guest with a FREE_TIER_QUOTA failure (no generation)', async () => {
+        const quota = mockQuota(false);
+        const guestStep = new GenerationStep(
+          mockRAGService,
+          createMockPrisma(),
+          undefined,
+          undefined,
+          quota
+        );
+
+        const result = await guestStep.process({
+          job: createMockJob(),
+          startTime: Date.now(),
+          config: baseConfig,
+          auth: guestAuth,
+          preparedContext: basePreparedContext,
+        });
+
+        expect(quota.tryConsume).toHaveBeenCalled();
+        // The key never gets spent — generation is skipped entirely.
+        expect(mockRAGService.generateResponse).not.toHaveBeenCalled();
+        expect(result.result?.success).toBe(false);
+        expect(result.result?.errorInfo?.category).toBe(ApiErrorCategory.FREE_TIER_QUOTA);
+      });
+
+      it('does NOT meter the bot owner even as a guest (owner bypass)', async () => {
+        const quota = mockQuota(true);
+        const ownerStep = new GenerationStep(
+          mockRAGService,
+          createMockPrisma(),
+          undefined,
+          undefined,
+          quota
+        );
+        vi.mocked(mockRAGService.generateResponse).mockResolvedValue(ragResponse);
+
+        await ownerStep.process({
+          job: createMockJob({
+            context: { userId: 'owner-discord-id', userName: 'Owner', channelId: 'channel-789' },
+          }),
+          startTime: Date.now(),
+          config: baseConfig,
+          auth: guestAuth, // guest, but the owner is exempt
+          preparedContext: basePreparedContext,
+        });
+
+        expect(quota.tryConsume).not.toHaveBeenCalled();
+      });
+
+      it('does NOT meter a BYOK (non-guest) request', async () => {
+        const quota = mockQuota(true);
+        const byokStep = new GenerationStep(
+          mockRAGService,
+          createMockPrisma(),
+          undefined,
+          undefined,
+          quota
+        );
+        vi.mocked(mockRAGService.generateResponse).mockResolvedValue(ragResponse);
+
+        await byokStep.process({
+          job: createMockJob(),
+          startTime: Date.now(),
+          config: baseConfig,
+          auth: baseAuth, // isGuestMode: false
+          preparedContext: basePreparedContext,
+        });
+
+        expect(quota.tryConsume).not.toHaveBeenCalled();
+      });
     });
 
     it('should include processing time in metadata', async () => {
