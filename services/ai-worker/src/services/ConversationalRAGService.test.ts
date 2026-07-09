@@ -90,6 +90,13 @@ vi.mock('./storedReferenceHydrator.js', () => ({
 vi.mock('./multimodal/visionAuthResolver.js', () => ({
   resolveVisionConfig: mockResolveVisionConfig,
 }));
+// Fact-retrieval gate mocked so the wiring (personaId in, facts out) is
+// assertable without the flag/embedding/DB path. Default: no facts (existing
+// tests see facts: []).
+vi.mock('./factRetrievalHelper.js', () => ({
+  retrieveFactsForPrompt: vi.fn().mockResolvedValue([]),
+  createFactRetriever: vi.fn().mockReturnValue(undefined),
+}));
 
 // Import mock accessors and fixtures (after vi.mock declarations)
 import {
@@ -107,6 +114,7 @@ import {
   resetAllMocks,
 } from '../test/mocks/index.js';
 import { checkModelContextLength } from '../redis.js';
+import { retrieveFactsForPrompt } from './factRetrievalHelper.js';
 
 // Prisma is injected into the constructor, but every DB-touching child
 // (MemoryRetriever, LongTermMemoryService, UserReferenceResolver) is mocked
@@ -120,6 +128,9 @@ describe('ConversationalRAGService', () => {
     vi.clearAllMocks();
     // Restore default mock implementations after mockReset clears them
     resetAllMocks();
+    // clearAllMocks resets call history but NOT implementations — restore the
+    // no-facts default so a test that opts into facts can't leak into the next.
+    vi.mocked(retrieveFactsForPrompt).mockResolvedValue([]);
     // Create service - this populates the mock instances via constructors
     service = new ConversationalRAGService(mockPrisma);
   });
@@ -322,11 +333,42 @@ describe('ConversationalRAGService', () => {
         personality,
         participantPersonas: expect.any(Map),
         relevantMemories: memories,
+        facts: [],
         context,
         referencedMessagesFormatted: undefined,
         serializedHistory: expect.anything(),
       });
       expect(result.retrievedMemories).toBe(2);
+    });
+
+    it('flag-ON wiring: resolved personaId flows into fact retrieval; returned facts reach the prompt', async () => {
+      // The seam that every other test leaves at facts:[] — a dropped facts
+      // field, a wrong personaId, or an arg-order mismatch would pass them all.
+      const facts = [{ statement: 'user is allergic to shellfish' }];
+      vi.mocked(retrieveFactsForPrompt).mockResolvedValue(facts);
+      getMemoryRetrieverMock().retrieveRelevantMemories.mockResolvedValue({
+        memories: [],
+        focusModeEnabled: false,
+        personaId: 'persona-x',
+      });
+      const personality = createMockPersonality();
+      const context = createMockContext();
+
+      await service.generateResponse(personality, 'what am i allergic to?', context);
+
+      // personality.id + the MemoryRetriever-resolved personaId + the query cross
+      // into the gate in the right order.
+      expect(retrieveFactsForPrompt).toHaveBeenCalledWith(
+        undefined, // factRetriever (createFactRetriever mocked → undefined)
+        personality.id,
+        'persona-x',
+        expect.any(String)
+      );
+      // The non-empty facts flow through the REAL ContentBudgetManager into the
+      // prompt's <facts> block (default budget mocks let one fact fit).
+      expect(getPromptBuilderMock().buildFullSystemPrompt).toHaveBeenCalledWith(
+        expect.objectContaining({ facts })
+      );
     });
 
     it('should include participant personas in system prompt', async () => {
@@ -344,6 +386,7 @@ describe('ConversationalRAGService', () => {
         personality,
         participantPersonas: participantMap,
         relevantMemories: expect.any(Array),
+        facts: [],
         context,
         referencedMessagesFormatted: undefined,
         serializedHistory: expect.anything(),
@@ -745,6 +788,7 @@ describe('ConversationalRAGService', () => {
         personality,
         participantPersonas: expect.any(Map),
         relevantMemories: expect.any(Array),
+        facts: [],
         context,
         referencedMessagesFormatted: 'formatted references',
         serializedHistory: expect.anything(),

@@ -54,6 +54,15 @@ export class PgvectorMemoryAdapter {
   }
 
   /**
+   * The shared local embedding service, so sibling retrievers (e.g. the
+   * generation-side `FactRetriever`, slice 4a) can reuse the same embedder
+   * without a second instance.
+   */
+  getEmbeddingService(): IEmbeddingService {
+    return this.embeddingService;
+  }
+
+  /**
    * Query memories using vector similarity search
    */
   async queryMemories(

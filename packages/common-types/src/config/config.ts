@@ -62,6 +62,10 @@ export const envSchema = z.object({
     .enum(['true', 'false'])
     .optional()
     .or(z.literal('').transform(() => undefined)), // 'true' enables async fact extraction (memory Phase 2 shadow mode; default off)
+  FACTS_IN_PROMPT_ENABLED: z
+    .enum(['true', 'false'])
+    .optional()
+    .or(z.literal('').transform(() => undefined)), // 'true' injects extracted facts into the generation prompt (memory Phase 2 slice 4a; dev-on/prod-off until the quality gate + correction surface land)
   EXTRACTION_BATCH_THRESHOLD: z.coerce.number().int().min(1).max(50).default(6), // episodes per (channel, personality) before an extraction batch enqueues
   // Fair-share quota for the SHARED system OpenRouter free-tier key (guests +
   // credit-exhausted-BYOK fallback). Rolling-window per-user cap that shrinks as
@@ -236,6 +240,7 @@ export function createTestConfig(overrides: Partial<EnvConfig> = {}): EnvConfig 
     AUTO_DEPLOY_COMMANDS: undefined,
     AUTO_TRANSCRIBE_VOICE: undefined,
     EXTRACTION_ENABLED: undefined,
+    FACTS_IN_PROMPT_ENABLED: undefined,
     EXTRACTION_BATCH_THRESHOLD: 6,
     FREE_TIER_GLOBAL_DAILY_BUDGET: 1000,
     FREE_TIER_WINDOW_MINUTES: 60,

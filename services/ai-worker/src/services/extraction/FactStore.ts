@@ -13,7 +13,7 @@
  */
 
 import { Prisma, type PrismaClient } from '@tzurot/common-types/services/prisma';
-import { LOCAL_EMBEDDING_DIMENSIONS, type LocalEmbeddingService } from '@tzurot/embeddings';
+import { LOCAL_EMBEDDING_DIMENSIONS, type IEmbeddingService } from '@tzurot/embeddings';
 import { generateMemoryFactUuid } from '@tzurot/common-types/utils/deterministicUuid';
 import { countTextTokens } from '@tzurot/common-types/utils/tokenCounter';
 import { createLogger } from '@tzurot/common-types/utils/logger';
@@ -55,7 +55,10 @@ export interface NewFact {
 export class FactStore {
   constructor(
     private readonly prisma: PrismaClient,
-    private readonly embeddingService: LocalEmbeddingService
+    // Interface, not the concrete LocalEmbeddingService — the generation-side
+    // FactRetriever (slice 4a) reuses this store with the shared adapter's
+    // embedder; only isServiceReady/getEmbedding are used.
+    private readonly embeddingService: IEmbeddingService
   ) {}
 
   /**
@@ -95,9 +98,18 @@ export class FactStore {
   }
 
   /**
-   * Top-K active facts by cosine similarity to `embedding` — the always-on
-   * supersession fallback (catches targets that fell outside the injected
-   * context window). Returns similarity as 1 - cosine distance.
+   * Top-K active facts by cosine similarity to `embedding`. Two callers:
+   * (1) the extraction supersession fallback (catches near-dup targets that
+   * fell outside the injected context window); (2) generation-time fact
+   * retrieval (`FactRetriever`, Phase 2 slice 4a). Returns similarity as
+   * 1 - cosine distance.
+   *
+   * Ordered by cosine distance, then `valid_from DESC, salience DESC` as
+   * tiebreakers so that among near-equidistant facts the most RECENT and most
+   * SALIENT wins — a stale-but-similar fact can't beat a recent correction.
+   * (This is a tiebreak, not composite scoring; full type/salience weighting
+   * is a later phase.) The tiebreak only reorders equal-distance rows, so it's
+   * inert for the supersession-fallback caller.
    */
   async findSimilarActiveFacts(
     embedding: number[],
@@ -133,7 +145,7 @@ export class FactStore {
           AND f.embedding IS NOT NULL
         ORDER BY f.embedding <=> `,
           Prisma.raw(`'${embeddingVector}'::vector`),
-          Prisma.sql` ASC
+          Prisma.sql` ASC, f.valid_from DESC, f.salience DESC
         LIMIT ${limit}
       `,
         ],

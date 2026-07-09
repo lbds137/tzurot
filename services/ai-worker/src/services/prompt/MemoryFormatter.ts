@@ -14,7 +14,7 @@
 import { formatPromptTimestamp } from '@tzurot/common-types/utils/dateFormatting';
 import { escapeXmlContent } from '@tzurot/common-types/utils/promptSanitizer';
 import { escapeXml } from '@tzurot/common-types/utils/xmlBuilder';
-import type { MemoryDocument } from '../ConversationalRAGTypes.js';
+import type { MemoryDocument, FactForPrompt } from '../ConversationalRAGTypes.js';
 
 /**
  * Instruction text explaining that memories are historical archives.
@@ -133,4 +133,53 @@ export function formatMemoriesContext(
     .join('\n');
 
   return '\n\n' + buildMemoryArchiveXml(formattedMemories);
+}
+
+/**
+ * Instruction framing the `<facts>` block as DISTILLED, CURRENT knowledge —
+ * distinct from the verbatim historical `<memory_archive>`. Positive framing
+ * (LLMs handle negation poorly), same as the archive instruction.
+ * Exported so the budget manager can account for wrapper overhead.
+ */
+export const FACTS_INSTRUCTION =
+  'These are durable KNOWN FACTS about the user and world, distilled from past ' +
+  'interactions. Treat them as current background knowledge when responding.';
+
+/** Build the `<facts>` XML wrapper — single source of truth for the block. */
+function buildFactsXml(content?: string): string {
+  const parts = [
+    '<facts usage="known_background_do_not_repeat">',
+    `<instruction>${FACTS_INSTRUCTION}</instruction>`,
+  ];
+  if (content !== undefined && content.length > 0) {
+    parts.push(content);
+  }
+  parts.push('</facts>');
+  return parts.join('\n');
+}
+
+/**
+ * The `<facts>` wrapper text without content — for `ContentBudgetManager` to
+ * count the block's fixed overhead (mirrors `getMemoryWrapperOverheadText`).
+ */
+export function getFactsWrapperOverheadText(): string {
+  return buildFactsXml();
+}
+
+/** Format a single fact as `<fact>statement</fact>` (content escaped for injection safety). */
+export function formatSingleFact(fact: FactForPrompt): string {
+  return `<fact>${escapeXmlContent(fact.statement)}</fact>`;
+}
+
+/**
+ * Format retrieved facts as a `<facts>` XML block, or empty string if none.
+ * Kept a SEPARATE block from `<memory_archive>` (council: distilled knowledge
+ * vs verbatim archive — interleaving confuses the model's temporal framing).
+ */
+export function formatFactsContext(facts: FactForPrompt[]): string {
+  if (facts.length === 0) {
+    return '';
+  }
+  const formatted = facts.map(formatSingleFact).join('\n');
+  return '\n\n' + buildFactsXml(formatted);
 }

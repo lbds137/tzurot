@@ -30,6 +30,13 @@ const logger = createLogger('MemoryRetriever');
 interface MemoryRetrievalResult {
   memories: MemoryDocument[];
   focusModeEnabled: boolean;
+  /**
+   * The resolved persona for this turn — present ONLY when LTM retrieval
+   * actually ran. Undefined when retrieval was skipped (incognito, focus mode,
+   * or no persona), so the fact-retrieval path (Phase 2 slice 4a) inherits the
+   * exact same scope AND the same skip decisions from one source of truth.
+   */
+  personaId?: string;
 }
 
 export class MemoryRetriever {
@@ -232,7 +239,7 @@ export class MemoryRetriever {
 
     this.logRetrievedMemories(relevantMemories, personality.name);
 
-    return { memories: relevantMemories, focusModeEnabled: false };
+    return { memories: relevantMemories, focusModeEnabled: false, personaId };
   }
 
   /**
