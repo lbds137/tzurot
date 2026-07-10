@@ -36,6 +36,21 @@ import {
   isMemorySearchPagination,
 } from './search.js';
 import { MEMORY_PURGE_PREFIX, handlePurgeButton, handlePurgeModal } from './purge.js';
+import {
+  factBrowseHelpers,
+  isFactBrowsePagination,
+  handleFactsPagination,
+  refreshFactsList,
+} from './factsBrowse.js';
+import {
+  parseFactActionId,
+  handleFactSelect,
+  handleCorrectButton,
+  handleCorrectModalSubmit,
+  handleFactLockButton,
+  handleForgetButton,
+  handleForgetConfirm,
+} from './factsDetail.js';
 import { CATALOG } from '../../ux/catalog/catalog.js';
 import { renderSpec } from '../../ux/render/render.js';
 
@@ -81,6 +96,20 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
   // Purge confirmation buttons (memory-purge::proceed::... or memory-purge::cancel)
   if (customId.startsWith(`${MEMORY_PURGE_PREFIX}::`)) {
     await handlePurgeButton(interaction);
+    return;
+  }
+
+  // Fact browse pagination (memory-fact-browse::browse::...) — checked before
+  // the fact detail parse because the prefixes share the 'memory-fact' stem.
+  if (isFactBrowsePagination(customId)) {
+    await handleFactsPagination(interaction);
+    return;
+  }
+
+  // Fact detail buttons (memory-fact::...)
+  const factAction = parseFactActionId(customId);
+  if (factAction !== null) {
+    await routeFactButton(interaction, factAction);
     return;
   }
 
@@ -150,6 +179,53 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
 }
 
 /**
+ * Route a parsed fact-detail button to its handler.
+ *
+ * Ack discipline: 'correct' must NOT be deferred here — it opens a modal, and
+ * showModal must be the interaction's first response. 'lock' and 'forget'
+ * self-defer. 'back' and 'confirm-forget' are deferred here because they
+ * refresh the list view (their handlers guard against double-acking).
+ */
+async function routeFactButton(
+  interaction: ButtonInteraction,
+  parsed: { action: string; factId?: string; extra?: string }
+): Promise<void> {
+  const { action, factId, extra } = parsed;
+
+  if (action === 'correct' && factId !== undefined) {
+    await handleCorrectButton(interaction, factId);
+    return;
+  }
+  if (action === 'lock' && factId !== undefined) {
+    await handleFactLockButton(interaction, factId, extra === '1');
+    return;
+  }
+  if (action === 'forget' && factId !== undefined) {
+    await handleForgetButton(interaction, factId);
+    return;
+  }
+  if (action === 'back') {
+    await interaction.deferUpdate();
+    await refreshFactsList(interaction);
+    return;
+  }
+  if (action === 'confirm-forget' && factId !== undefined) {
+    await interaction.deferUpdate();
+    const forgotten = await handleForgetConfirm(interaction, factId);
+    if (forgotten) {
+      await refreshFactsList(interaction);
+    }
+    return;
+  }
+
+  logger.warn({ customId: interaction.customId }, 'Unhandled fact action');
+  await interaction.reply({
+    content: renderSpec(CATALOG.error.validation('Unknown action.')),
+    flags: MessageFlags.Ephemeral,
+  });
+}
+
+/**
  * Handle modal submit interactions for memory editing.
  *
  * Every path must acknowledge the interaction (reply or defer) — unacknowledged
@@ -162,6 +238,13 @@ export async function handleModal(interaction: ModalSubmitInteraction): Promise<
   // Purge confirmation modal (memory-purge::confirm::<personalityId>)
   if (customId.startsWith(`${MEMORY_PURGE_PREFIX}::`)) {
     await handlePurgeModal(interaction);
+    return;
+  }
+
+  // Fact correction modal (memory-fact::correct::<factId>)
+  const factParsed = parseFactActionId(customId);
+  if (factParsed?.action === 'correct' && factParsed.factId !== undefined) {
+    await handleCorrectModalSubmit(interaction, factParsed.factId);
     return;
   }
 
@@ -204,6 +287,16 @@ export async function handleSelectMenu(interaction: StringSelectMenuInteraction)
   // Search select (memory-search::browse-select::...)
   if (searchHelpers.isBrowseSelect(customId)) {
     await handleSearchSelect(interaction);
+    return;
+  }
+
+  // Fact browse select (memory-fact-browse::browse-select) or the detail
+  // select id (memory-fact::select) — both open the fact detail view.
+  if (
+    factBrowseHelpers.isBrowseSelect(customId) ||
+    parseFactActionId(customId)?.action === 'select'
+  ) {
+    await handleFactSelect(interaction);
     return;
   }
 

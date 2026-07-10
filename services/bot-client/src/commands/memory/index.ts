@@ -39,6 +39,8 @@ import { handleBatchDelete } from './batchDelete.js';
 import { handlePurge, MEMORY_PURGE_PREFIX } from './purge.js';
 import { handlePersonalityAutocomplete } from './autocomplete.js';
 import { MEMORY_DETAIL_PREFIX } from './detail.js';
+import { handleFacts, FACT_BROWSE_PREFIX } from './factsBrowse.js';
+import { FACT_DETAIL_PREFIX } from './factsDetail.js';
 import { handleButton, handleModal, handleSelectMenu } from './interactionHandlers.js';
 
 const logger = createLogger('memory-command');
@@ -88,6 +90,8 @@ async function execute(ctx: SafeCommandContext): Promise<void> {
     await handleStats(context);
   } else if (subcommand === 'browse') {
     await handleBrowse(context);
+  } else if (subcommand === 'facts') {
+    await handleFacts(context);
   } else if (subcommand === 'search') {
     await handleSearch(context);
   } else if (subcommand === 'delete') {
@@ -144,6 +148,18 @@ export default defineCommand({
             .setName('character')
             .setDescription('Filter by character (optional)')
             .setRequired(false)
+            .setAutocomplete(true)
+        )
+    )
+    .addSubcommand(subcommand =>
+      subcommand
+        .setName('facts')
+        .setDescription('Browse and correct the facts a character has learned about you')
+        .addStringOption(option =>
+          option
+            .setName('character')
+            .setDescription('The character whose facts to manage')
+            .setRequired(true)
             .setAutocomplete(true)
         )
     )
@@ -328,5 +344,7 @@ export default defineCommand({
     MEMORY_SEARCH_PREFIX,
     MEMORY_DETAIL_PREFIX,
     MEMORY_PURGE_PREFIX,
+    FACT_BROWSE_PREFIX,
+    FACT_DETAIL_PREFIX,
   ],
 });

@@ -27,6 +27,17 @@ const {
   mockHandleMemorySelect,
   mockHandleEditModalSubmit,
   mockFindMemoryListSessionByMessage,
+  mockIsFactBrowsePagination,
+  mockFactBrowseHelpers,
+  mockHandleFactsPagination,
+  mockRefreshFactsList,
+  mockParseFactActionId,
+  mockHandleFactSelect,
+  mockHandleCorrectButton,
+  mockHandleCorrectModalSubmit,
+  mockHandleFactLockButton,
+  mockHandleForgetButton,
+  mockHandleForgetConfirm,
 } = vi.hoisted(() => ({
   mockHandleBrowsePagination: vi.fn(),
   mockHandleBrowseSelect: vi.fn(),
@@ -46,6 +57,17 @@ const {
   mockHandleMemorySelect: vi.fn(),
   mockHandleEditModalSubmit: vi.fn(),
   mockFindMemoryListSessionByMessage: vi.fn(),
+  mockIsFactBrowsePagination: vi.fn(),
+  mockFactBrowseHelpers: { isBrowseSelect: vi.fn() },
+  mockHandleFactsPagination: vi.fn(),
+  mockRefreshFactsList: vi.fn(),
+  mockParseFactActionId: vi.fn(),
+  mockHandleFactSelect: vi.fn(),
+  mockHandleCorrectButton: vi.fn(),
+  mockHandleCorrectModalSubmit: vi.fn(),
+  mockHandleFactLockButton: vi.fn(),
+  mockHandleForgetButton: vi.fn(),
+  mockHandleForgetConfirm: vi.fn(),
 }));
 
 vi.mock('@tzurot/common-types/utils/logger', async () => {
@@ -86,6 +108,23 @@ vi.mock('./search.js', () => ({
   handleSearchSelect: (...args: unknown[]) => mockHandleSearchSelect(...args),
   handleSearchDetailAction: (...args: unknown[]) => mockHandleSearchDetailAction(...args),
   isMemorySearchPagination: (...args: unknown[]) => mockIsMemorySearchPagination(...args),
+}));
+
+vi.mock('./factsBrowse.js', () => ({
+  factBrowseHelpers: mockFactBrowseHelpers,
+  isFactBrowsePagination: (...args: unknown[]) => mockIsFactBrowsePagination(...args),
+  handleFactsPagination: (...args: unknown[]) => mockHandleFactsPagination(...args),
+  refreshFactsList: (...args: unknown[]) => mockRefreshFactsList(...args),
+}));
+
+vi.mock('./factsDetail.js', () => ({
+  parseFactActionId: (...args: unknown[]) => mockParseFactActionId(...args),
+  handleFactSelect: (...args: unknown[]) => mockHandleFactSelect(...args),
+  handleCorrectButton: (...args: unknown[]) => mockHandleCorrectButton(...args),
+  handleCorrectModalSubmit: (...args: unknown[]) => mockHandleCorrectModalSubmit(...args),
+  handleFactLockButton: (...args: unknown[]) => mockHandleFactLockButton(...args),
+  handleForgetButton: (...args: unknown[]) => mockHandleForgetButton(...args),
+  handleForgetConfirm: (...args: unknown[]) => mockHandleForgetConfirm(...args),
 }));
 
 import { handleButton, handleModal, handleSelectMenu } from './interactionHandlers.js';
@@ -147,6 +186,9 @@ describe('handleButton', () => {
     mockIsMemoryBrowsePagination.mockReturnValue(false);
     mockIsMemorySearchPagination.mockReturnValue(false);
     mockParseMemoryActionId.mockReturnValue(null);
+    mockParseFactActionId.mockReturnValue(null);
+    mockIsFactBrowsePagination.mockReturnValue(false);
+    mockFactBrowseHelpers.isBrowseSelect.mockReturnValue(false);
   });
 
   it('routes to browse pagination when custom ID matches', async () => {
@@ -280,6 +322,9 @@ describe('handleButton', () => {
 
   it('shows error for unknown button interactions', async () => {
     mockParseMemoryActionId.mockReturnValue(null);
+    mockParseFactActionId.mockReturnValue(null);
+    mockIsFactBrowsePagination.mockReturnValue(false);
+    mockFactBrowseHelpers.isBrowseSelect.mockReturnValue(false);
     const interaction = createButtonInteraction('unrelated::button');
 
     await handleButton(interaction as never);
@@ -336,6 +381,9 @@ describe('handleModal', () => {
 
   it('acknowledges modal submissions with no parseable custom ID', async () => {
     mockParseMemoryActionId.mockReturnValue(null);
+    mockParseFactActionId.mockReturnValue(null);
+    mockIsFactBrowsePagination.mockReturnValue(false);
+    mockFactBrowseHelpers.isBrowseSelect.mockReturnValue(false);
     const interaction = createModalInteraction('unparseable');
 
     await handleModal(interaction as never);
@@ -365,6 +413,9 @@ describe('handleSelectMenu', () => {
     mockBrowseHelpers.isBrowseSelect.mockReturnValue(false);
     mockSearchHelpers.isBrowseSelect.mockReturnValue(false);
     mockParseMemoryActionId.mockReturnValue(null);
+    mockParseFactActionId.mockReturnValue(null);
+    mockIsFactBrowsePagination.mockReturnValue(false);
+    mockFactBrowseHelpers.isBrowseSelect.mockReturnValue(false);
   });
 
   it('routes browse select custom IDs to browse handler', async () => {
@@ -409,6 +460,9 @@ describe('handleSelectMenu', () => {
 
   it('shows "unknown" message for unknown select custom IDs', async () => {
     mockParseMemoryActionId.mockReturnValue(null);
+    mockParseFactActionId.mockReturnValue(null);
+    mockIsFactBrowsePagination.mockReturnValue(false);
+    mockFactBrowseHelpers.isBrowseSelect.mockReturnValue(false);
     const interaction = createSelectInteraction('unknown::select');
 
     await handleSelectMenu(interaction as never);
@@ -418,5 +472,119 @@ describe('handleSelectMenu', () => {
     expect(interaction.reply).toHaveBeenCalledWith(
       expect.objectContaining({ content: expect.stringContaining('Unknown') })
     );
+  });
+});
+
+describe('fact routing (correction slice)', () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+    mockIsMemoryBrowsePagination.mockReturnValue(false);
+    mockIsMemorySearchPagination.mockReturnValue(false);
+    mockParseMemoryActionId.mockReturnValue(null);
+    mockParseFactActionId.mockReturnValue(null);
+    mockIsFactBrowsePagination.mockReturnValue(false);
+    mockFactBrowseHelpers.isBrowseSelect.mockReturnValue(false);
+    mockBrowseHelpers.isBrowseSelect.mockReturnValue(false);
+    mockSearchHelpers.isBrowseSelect.mockReturnValue(false);
+  });
+
+  it('routes fact pagination buttons to handleFactsPagination', async () => {
+    mockIsFactBrowsePagination.mockReturnValue(true);
+    const interaction = createButtonInteraction('memory-fact-browse::browse::1::all');
+
+    await handleButton(interaction as never);
+
+    expect(mockHandleFactsPagination).toHaveBeenCalledWith(interaction);
+    expect(mockParseFactActionId).not.toHaveBeenCalled();
+  });
+
+  it('routes the correct button WITHOUT deferring (showModal must be first response)', async () => {
+    mockParseFactActionId.mockReturnValue({ action: 'correct', factId: 'fact-1' });
+    const interaction = createButtonInteraction('memory-fact::correct::fact-1');
+
+    await handleButton(interaction as never);
+
+    expect(mockHandleCorrectButton).toHaveBeenCalledWith(interaction, 'fact-1');
+    expect(interaction.deferUpdate).not.toHaveBeenCalled();
+  });
+
+  it('routes lock with the decoded TARGET state from the extra slot', async () => {
+    mockParseFactActionId.mockReturnValue({ action: 'lock', factId: 'fact-1', extra: '1' });
+    const interaction = createButtonInteraction('memory-fact::lock::fact-1::1');
+
+    await handleButton(interaction as never);
+
+    expect(mockHandleFactLockButton).toHaveBeenCalledWith(interaction, 'fact-1', true);
+  });
+
+  it('routes forget to the confirmation view', async () => {
+    mockParseFactActionId.mockReturnValue({ action: 'forget', factId: 'fact-1' });
+    const interaction = createButtonInteraction('memory-fact::forget::fact-1');
+
+    await handleButton(interaction as never);
+
+    expect(mockHandleForgetButton).toHaveBeenCalledWith(interaction, 'fact-1');
+  });
+
+  it('back defers then refreshes the facts list', async () => {
+    mockParseFactActionId.mockReturnValue({ action: 'back' });
+    const interaction = createButtonInteraction('memory-fact::back');
+
+    await handleButton(interaction as never);
+
+    expect(interaction.deferUpdate).toHaveBeenCalled();
+    expect(mockRefreshFactsList).toHaveBeenCalledWith(interaction);
+  });
+
+  it('confirm-forget refreshes the list ONLY when the forget succeeded', async () => {
+    mockParseFactActionId.mockReturnValue({ action: 'confirm-forget', factId: 'fact-1' });
+    mockHandleForgetConfirm.mockResolvedValue(true);
+    const interaction = createButtonInteraction('memory-fact::confirm-forget::fact-1');
+
+    await handleButton(interaction as never);
+
+    expect(mockHandleForgetConfirm).toHaveBeenCalledWith(interaction, 'fact-1');
+    expect(mockRefreshFactsList).toHaveBeenCalledWith(interaction);
+
+    // Failure path: no refresh (the error was already surfaced via followUp).
+    mockRefreshFactsList.mockClear();
+    mockHandleForgetConfirm.mockResolvedValue(false);
+    await handleButton(createButtonInteraction('memory-fact::confirm-forget::fact-1') as never);
+    expect(mockRefreshFactsList).not.toHaveBeenCalled();
+  });
+
+  it('rejects an unknown fact action with a validation reply', async () => {
+    mockParseFactActionId.mockReturnValue({ action: 'mystery', factId: 'fact-1' });
+    const interaction = createButtonInteraction('memory-fact::mystery::fact-1');
+
+    await handleButton(interaction as never);
+
+    expect(interaction.reply).toHaveBeenCalledWith(
+      expect.objectContaining({ content: expect.any(String) })
+    );
+  });
+
+  it('routes the correct MODAL submit by fact customId', async () => {
+    mockParseFactActionId.mockReturnValue({ action: 'correct', factId: 'fact-1' });
+    const interaction = createModalInteraction('memory-fact::correct::fact-1');
+
+    await handleModal(interaction as never);
+
+    expect(mockHandleCorrectModalSubmit).toHaveBeenCalledWith(interaction, 'fact-1');
+    expect(mockHandleEditModalSubmit).not.toHaveBeenCalled();
+  });
+
+  it('routes fact select menus (both the browse-select and detail select ids)', async () => {
+    mockFactBrowseHelpers.isBrowseSelect.mockReturnValue(true);
+    const browseSelect = createSelectInteraction('memory-fact-browse::browse-select');
+    await handleSelectMenu(browseSelect as never);
+    expect(mockHandleFactSelect).toHaveBeenCalledWith(browseSelect);
+
+    mockHandleFactSelect.mockClear();
+    mockFactBrowseHelpers.isBrowseSelect.mockReturnValue(false);
+    mockParseFactActionId.mockReturnValue({ action: 'select' });
+    const detailSelect = createSelectInteraction('memory-fact::select');
+    await handleSelectMenu(detailSelect as never);
+    expect(mockHandleFactSelect).toHaveBeenCalledWith(detailSelect);
   });
 });
