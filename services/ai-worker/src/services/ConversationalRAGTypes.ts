@@ -334,6 +334,9 @@ export interface ModelInvocationOptions {
   context: ConversationContext;
   referencedMessagesDescriptions: string | undefined;
   userApiKey?: string;
+  /** True when this route bills the SYSTEM key (guests + quota retargets) —
+   * drives cache-identity provenance so a retarget never scopes as the user. */
+  isGuestMode?: boolean;
   /** Retry configuration for escalating duplicate detection retries */
   retryConfig?: DuplicateRetryConfig;
   /** Diagnostic collector for the "flight recorder" system */
