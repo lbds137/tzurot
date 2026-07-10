@@ -60,7 +60,7 @@ export function setupFactExtraction(
   });
 
   const factStore = new FactStore(prisma, embeddingService);
-  const budget = new ExtractionBudget(redis);
+  const budget = new ExtractionBudget(redis, config.EXTRACTION_DAILY_LIMIT);
   const extractionService = new FactExtractionService(prisma, factStore, budget);
   const trigger = new ExtractionTrigger(redis, queue, config.EXTRACTION_BATCH_THRESHOLD);
 

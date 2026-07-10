@@ -20,6 +20,10 @@ import type { FactExtractionJobData } from '@tzurot/common-types/types/jobs';
 import { deterministicMemoryUuid } from '@tzurot/common-types/constants/memory';
 import type { Redis } from 'ioredis';
 import { FactExtractionService } from './FactExtractionService.js';
+
+/** Wrap raw model content in the ExtractionModelResult shape the invoker now returns. */
+const mockInvoker = (content: string) =>
+  vi.fn().mockResolvedValue({ content, tokensIn: 10, tokensOut: 5 });
 import { FactStore } from './FactStore.js';
 import { ExtractionBudget } from './ExtractionBudget.js';
 
@@ -110,7 +114,7 @@ describe('FactExtractionService (component, PGLite)', () => {
 
   it('extracts a fact end-to-end: real episode rows → real memory_facts row', async () => {
     const ep = await seedEpisode('{user}: my cat is named Miso\n{assistant}: Lovely name!');
-    const invoker = vi.fn().mockResolvedValue(
+    const invoker = mockInvoker(
       JSON.stringify({
         facts: [
           {
@@ -155,7 +159,7 @@ describe('FactExtractionService (component, PGLite)', () => {
     );
 
     const ep = await seedEpisode('{user}: I moved to Denver last week!\n{assistant}: Congrats!');
-    const invoker = vi.fn().mockResolvedValue(
+    const invoker = mockInvoker(
       JSON.stringify({
         facts: [
           {
@@ -186,7 +190,7 @@ describe('FactExtractionService (component, PGLite)', () => {
 
   it('re-running the same batch is idempotent (content-hash ids, ON CONFLICT no-op)', async () => {
     const ep = await seedEpisode('{user}: I am a nurse\n{assistant}: A demanding job!');
-    const invoker = vi.fn().mockResolvedValue(
+    const invoker = mockInvoker(
       JSON.stringify({
         facts: [
           {
@@ -243,7 +247,7 @@ describe('FactExtractionService (component, PGLite)', () => {
     // The user moves back: the extractor re-asserts Seattle VERBATIM and
     // names Denver (index 0 of the active-facts context) as superseded.
     const ep = await seedEpisode('{user}: moved back to Seattle!\n{assistant}: Welcome home!');
-    const invoker = vi.fn().mockResolvedValue(
+    const invoker = mockInvoker(
       JSON.stringify({
         facts: [
           {
@@ -295,7 +299,7 @@ describe('FactExtractionService (component, PGLite)', () => {
     });
 
     const ep = await seedEpisode('{user}: I live in Seattle btw\n{assistant}: Noted!');
-    const invoker = vi.fn().mockResolvedValue(
+    const invoker = mockInvoker(
       JSON.stringify({
         facts: [
           {
@@ -330,7 +334,7 @@ describe('FactExtractionService (component, PGLite)', () => {
 
   it('fail-to-skip: a non-JSON model response writes nothing', async () => {
     const ep = await seedEpisode('{user}: hello\n{assistant}: hi');
-    const invoker = vi.fn().mockResolvedValue('I cannot help with that.');
+    const invoker = mockInvoker('I cannot help with that.');
     const service = new FactExtractionService(prisma, factStore, makeBudget(), invoker);
 
     const written = await service.processBatch(makeJob([ep]));
