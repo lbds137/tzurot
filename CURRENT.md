@@ -6,7 +6,7 @@
 
 ## Unreleased on Develop
 
-- Nothing — beta.155 shipped the full UX Phase 1 train + both prod fixes; develop is SHA-aligned with main.
+- Nothing — beta.156 shipped the memory correction surface (quality + correction slices), fair-share quota, extraction cost knobs, and the credit-exhaustion fallback fix; develop is SHA-aligned with main.
 - **Memory Phase 1a remains PARKED** on `feat/memory-hybrid-retrieval` (evidence gate: real-scale goldens).
 
 ## Next Session Goal
