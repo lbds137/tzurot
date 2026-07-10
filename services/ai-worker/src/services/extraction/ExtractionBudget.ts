@@ -85,6 +85,27 @@ export class ExtractionBudget {
     }
   }
 
+  /**
+   * Return one unit consumed by a call that turned out to spend nothing (the
+   * provider answered BUSY before any tokens were billed). Keeps sustained
+   * busy windows budget-neutral — otherwise 30-minute requeue cycles burn the
+   * daily cap for zero written facts and the tripwire then skips REAL batches
+   * once the provider recovers. Plain DECR, fail-open like the rest of the
+   * class; a refund landing just after UTC rollover decrements the new day's
+   * key to -1, harmlessly granting that day one extra unit.
+   */
+  async refund(personalityId: string): Promise<void> {
+    const key = this.buildKey(personalityId);
+    try {
+      await this.redis.decr(key);
+    } catch (error) {
+      logger.warn(
+        { err: error, personalityId },
+        'Extraction budget refund failed — continuing (fail-open)'
+      );
+    }
+  }
+
   /** Build the per-(personality, UTC-day) counter key. */
   private buildKey(personalityId: string): string {
     const utcDay = new Date().toISOString().slice(0, 10); // YYYY-MM-DD (UTC)
