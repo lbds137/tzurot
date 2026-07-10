@@ -354,6 +354,13 @@ export const memoryBrowseOptions = defineTypedOptions({
 });
 
 /**
+ * /memory facts <character>
+ */
+export const memoryFactsOptions = defineTypedOptions({
+  character: { type: 'string', required: true },
+});
+
+/**
  * /memory search <query, character, limit>
  */
 export const memorySearchOptions = defineTypedOptions({

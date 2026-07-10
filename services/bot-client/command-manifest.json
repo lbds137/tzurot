@@ -997,7 +997,9 @@
         "memory-browse",
         "memory-search",
         "memory-detail",
-        "memory-purge"
+        "memory-purge",
+        "memory-fact-browse",
+        "memory-fact"
       ],
       "data": {
         "options": [
@@ -1026,6 +1028,20 @@
                 "name": "character",
                 "description": "Filter by character (optional)",
                 "required": false
+              }
+            ]
+          },
+          {
+            "type": 1,
+            "name": "facts",
+            "description": "Browse and correct the facts a character has learned about you",
+            "options": [
+              {
+                "autocomplete": true,
+                "type": 3,
+                "name": "character",
+                "description": "The character whose facts to manage",
+                "required": true
               }
             ]
           },
