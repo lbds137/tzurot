@@ -17,6 +17,9 @@
 import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 import { HumanMessage } from '@langchain/core/messages';
 import { getConfig } from '@tzurot/common-types/config/config';
+import { AIProvider, ZAI_MODEL_PREFIX } from '@tzurot/common-types/constants/ai';
+import { ApiErrorCategory } from '@tzurot/common-types/constants/error';
+import { parseApiError } from '../../utils/apiErrorParser.js';
 import type { FactExtractionJobData } from '@tzurot/common-types/types/jobs';
 import {
   generateFactExtractionJobUuid,
@@ -67,6 +70,72 @@ export interface ExtractionModelResult {
   content: string;
   tokensIn: number;
   tokensOut: number;
+  /** The provider the call ACTUALLY billed — carried into the usage row so an
+   * injected invoker (eval harness, tests) can never mislabel provenance. */
+  provider: AIProvider;
+}
+
+/**
+ * The extraction provider is BUSY (rate limit, server error, timeout — any
+ * transient shape). Extraction's response is DELAY, never downgrade: facts are
+ * not time-sensitive, so unlike completions (which fall back to OpenRouter to
+ * keep a waiting user responsive), the batch requeues until the provider
+ * window recovers — extraction never bills a fallback provider. The worker
+ * catches this and pauses the queue (owner directive: z.ai peak hours delay
+ * extraction rather than costing OpenRouter money).
+ */
+export class ExtractionProviderBusyError extends Error {
+  constructor(
+    readonly category: string,
+    cause: unknown,
+    /**
+     * Episode ids for the groups NOT yet completed when the provider went
+     * busy (the busy group + all unprocessed groups). The worker shrinks the
+     * requeued job's sourceMemoryIds to exactly these, so groups that already
+     * succeeded are never re-run — re-running them would re-bill the model
+     * call, re-consume budget, and write duplicate usage rows on every retry
+     * of a sustained busy window.
+     */
+    readonly remainingMemoryIds: string[] = []
+  ) {
+    super(`Extraction provider busy (${category})`);
+    this.name = 'ExtractionProviderBusyError';
+    this.cause = cause;
+  }
+}
+
+/**
+ * Error categories that mean "provider busy — delay and retry", not "give up".
+ *
+ * QUOTA_EXCEEDED and CREDIT_EXHAUSTION are DELIBERATE divergences from
+ * `PERMANENT_ERROR_CATEGORIES` (common-types error.ts), where both fail fast —
+ * correct for completions, where a user is waiting and a drained key can't
+ * serve them. Extraction is a background queue with the opposite trade-off:
+ * fail-to-skip LOSES the batch's facts forever, while delaying costs nothing
+ * and resumes automatically once the human remedy lands (credits topped up,
+ * quota window reset). A sustained loop on these categories is escalated to
+ * an error log by the worker (SUSTAINED_BUSY_ERROR_THRESHOLD) so a stuck
+ * system key can't sit unnoticed at info level for days.
+ */
+const BUSY_CATEGORIES = new Set<string>([
+  ApiErrorCategory.RATE_LIMIT,
+  ApiErrorCategory.SERVER_ERROR,
+  ApiErrorCategory.TIMEOUT,
+  ApiErrorCategory.QUOTA_EXCEEDED,
+  ApiErrorCategory.CREDIT_EXHAUSTION,
+]);
+
+/**
+ * Resolve the provider extraction bills to. 'zai-coding' requires the system
+ * coding-plan key — without it we fall back to OpenRouter (the boot-time check
+ * in factExtractionSetup logs the misconfiguration loudly once).
+ */
+export function resolveExtractionProvider(): { provider: AIProvider; apiKey?: string } {
+  const cfg = getConfig();
+  if (cfg.EXTRACTION_PROVIDER === 'zai-coding' && cfg.ZAI_CODING_API_KEY !== undefined) {
+    return { provider: AIProvider.ZaiCoding, apiKey: cfg.ZAI_CODING_API_KEY };
+  }
+  return { provider: AIProvider.OpenRouter };
 }
 
 /** Model invocation seam — injectable for tests/eval (defaults to the real call). */
@@ -74,11 +143,23 @@ export type ExtractionModelInvoker = (prompt: string) => Promise<ExtractionModel
 
 /** The real model call — exported for the eval harness (same code path as prod). */
 export async function invokeExtractionModel(prompt: string): Promise<ExtractionModelResult> {
+  const cfg = getConfig();
+  const route = resolveExtractionProvider();
+  // z.ai-direct takes the bare model id ('z-ai/glm-5.2' → 'glm-5.2'), same
+  // mapping ProviderRouter applies to promoted completions.
+  const modelName =
+    route.provider === AIProvider.ZaiCoding && cfg.EXTRACTION_MODEL.startsWith(ZAI_MODEL_PREFIX)
+      ? cfg.EXTRACTION_MODEL.slice(ZAI_MODEL_PREFIX.length)
+      : cfg.EXTRACTION_MODEL;
   const { model } = createChatModel({
-    modelName: getConfig().EXTRACTION_MODEL,
+    modelName,
     temperature: 0,
     responseFormat: { type: 'json_object' },
+    // OpenRouter-only attribution header; inert on z.ai-direct (no analog —
+    // usage_logs requestType is the insight surface there).
     appTitleSuffix: 'Extraction',
+    provider: route.provider,
+    ...(route.apiKey !== undefined ? { apiKey: route.apiKey } : {}),
   });
   const response = await model.invoke([new HumanMessage(prompt)], {
     timeout: EXTRACTION_TIMEOUT_MS,
@@ -88,6 +169,7 @@ export async function invokeExtractionModel(prompt: string): Promise<ExtractionM
       typeof response.content === 'string' ? response.content : JSON.stringify(response.content),
     tokensIn: response.usage_metadata?.input_tokens ?? 0,
     tokensOut: response.usage_metadata?.output_tokens ?? 0,
+    provider: route.provider,
   };
 }
 
@@ -142,8 +224,21 @@ export class FactExtractionService {
     }
 
     let written = 0;
-    for (const group of groups.values()) {
-      written += await this.processGroup(job, group);
+    const pending = [...groups.values()];
+    for (let i = 0; i < pending.length; i++) {
+      try {
+        written += await this.processGroup(job, pending[i]);
+      } catch (error) {
+        if (error instanceof ExtractionProviderBusyError) {
+          // Provider busy: stop immediately (it's busy for the remaining
+          // groups too) and hand the worker exactly the unfinished work —
+          // the busy group plus everything after it. Completed groups stay
+          // out of the requeue so they can't be re-billed.
+          const remaining = pending.slice(i).flatMap(g => g.ids);
+          throw new ExtractionProviderBusyError(error.category, error.cause, remaining);
+        }
+        throw error;
+      }
     }
     return written;
   }
@@ -170,13 +265,28 @@ export class FactExtractionService {
     try {
       modelResult = await this.invokeModel(prompt);
     } catch (error) {
+      // Transient provider failures (rate limit / 5xx / timeout / quota) mean
+      // BUSY, not broken: propagate so the worker delays the whole batch —
+      // facts aren't time-sensitive, and extraction never downgrades to a
+      // fallback provider (owner directive). Permanent shapes keep
+      // fail-to-skip.
+      const category = parseApiError(error).category;
+      if (BUSY_CATEGORIES.has(category)) {
+        // Busy spent zero tokens — refund the unit so a sustained busy window
+        // (30-min requeue cycles for hours) can't burn the daily cap and make
+        // the tripwire skip real batches once the provider recovers.
+        await this.budget.refund(job.personalityId);
+        throw new ExtractionProviderBusyError(category, error);
+      }
       logger.warn({ err: error, ...scope }, 'Extraction model call failed — skipping group');
       return 0;
     }
 
-    await this.logExtractionUsage(group.personaId, modelResult, scope);
-
     const parsed = this.parseResponse(modelResult.content, scope);
+    // Usage is logged only once the call is known non-busy (the busy path
+    // throws above, before any row) so a delayed-and-requeued batch can't
+    // double-count. Parse failures DO log usage — the tokens were spent.
+    await this.logExtractionUsage(group.personaId, modelResult, scope);
     if (parsed === null || parsed.length === 0) {
       return 0;
     }
@@ -222,12 +332,13 @@ export class FactExtractionService {
         return;
       }
       const model = getConfig().EXTRACTION_MODEL;
+      const provider = modelResult.provider;
       const createdAt = new Date();
       await this.prisma.usageLog.create({
         data: {
           id: generateUsageLogUuid(persona.ownerId, model, createdAt),
           userId: persona.ownerId,
-          provider: 'openrouter',
+          provider,
           model,
           tokensIn: modelResult.tokensIn,
           tokensOut: modelResult.tokensOut,

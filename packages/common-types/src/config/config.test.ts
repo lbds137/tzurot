@@ -143,6 +143,19 @@ describe('config', () => {
       expect(result.LOG_LEVEL).toBe('debug');
     });
 
+    it('should validate EXTRACTION_PROVIDER enum (defaults to openrouter)', () => {
+      expect(() =>
+        envSchema.parse({
+          EXTRACTION_PROVIDER: 'zai', // must be the full 'zai-coding' literal
+        })
+      ).toThrow();
+
+      expect(envSchema.parse({}).EXTRACTION_PROVIDER).toBe('openrouter');
+      expect(envSchema.parse({ EXTRACTION_PROVIDER: 'zai-coding' }).EXTRACTION_PROVIDER).toBe(
+        'zai-coding'
+      );
+    });
+
     it('should validate NODE_ENV enum', () => {
       expect(() =>
         envSchema.parse({
