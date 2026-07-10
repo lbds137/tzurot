@@ -102,6 +102,11 @@
       "action": "remove"
     },
     {
+      "pattern": "ALTER TABLE.*memory_facts.*ALTER CONSTRAINT.*memory_facts_superseded_by_id_fkey.*NOT DEFERRABLE",
+      "reason": "Self-FK made DEFERRABLE INITIALLY IMMEDIATE in migration 20260710183055 so db-sync can upsert fact rows in arbitrary order (supersession pointers are not creation-ordered — the revive path points newer→older). Prisma schema can't express DEFERRABLE.",
+      "action": "remove"
+    },
+    {
       "pattern": "ALTER TABLE.*users.*ALTER CONSTRAINT.*users_default_vision_config_id_fkey.*NOT DEFERRABLE",
       "reason": "FK made DEFERRABLE INITIALLY IMMEDIATE in migration vision_config_kind so db-sync can copy a user row with non-NULL default_vision_config_id before the matching (vision-kind) llm_configs row arrives (mirrors the LLM/TTS circular-FK pattern). Prisma schema can't express DEFERRABLE.",
       "action": "remove"

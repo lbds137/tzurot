@@ -50,7 +50,8 @@ import { checkSchemaVersions, validateSyncConfig } from './sync/utils/syncValida
 import { loadTombstoneIds, deleteMessagesWithTombstones } from './sync/utils/tombstoneUtils.js';
 import {
   fetchAllRows,
-  resolveMemoriesSyncColumns,
+  resolveVectorSyncColumns,
+  VECTOR_SYNC_TABLES,
   buildRowMap,
   compareTimestamps,
   upsertRow,
@@ -233,14 +234,18 @@ export class DatabaseSyncService {
         // we don't want to silently soften those inside the sync. The names
         // here must stay in sync with the DEFERRABLE-marking migrations
         // (20260418010642 for the original 4, 20260504065151 for
-        // users_default_tts_config_id_fkey).
+        // users_default_tts_config_id_fkey, 20260710183055 for the
+        // memory_facts supersession self-FK — its pointers are not
+        // creation-ordered, so rows upsert in arbitrary order and Postgres
+        // validates the chain at COMMIT).
         await tx.$executeRawUnsafe(
           `SET CONSTRAINTS
             "users_default_persona_id_fkey",
             "users_default_llm_config_id_fkey",
             "users_default_tts_config_id_fkey",
             "personas_owner_id_fkey",
-            "llm_configs_owner_id_fkey"
+            "llm_configs_owner_id_fkey",
+            "memory_facts_superseded_by_id_fkey"
           DEFERRED`
         );
         for (const w of writes) {
@@ -275,15 +280,16 @@ export class DatabaseSyncService {
     devBoundWrites: PendingWrite[],
     prodBoundWrites: PendingWrite[]
   ): Promise<{ devToProd: number; prodToDev: number; conflicts: number }> {
-    // Memories: resolve the skew-tolerant column set once per run so a
-    // migration-soak window (schema ahead on one side) degrades to a WARN +
-    // skipped columns instead of breaking the whole sync.
-    const memoriesColumns =
-      tableName === 'memories'
-        ? await resolveMemoriesSyncColumns(this.devClient, this.prodClient)
+    // Vector tables (memories, memory_facts): resolve the skew-tolerant
+    // column set once per run so a migration-soak window (schema ahead on
+    // one side) degrades to a WARN + skipped columns instead of breaking
+    // the whole sync.
+    const resolvedColumns =
+      tableName in VECTOR_SYNC_TABLES
+        ? await resolveVectorSyncColumns(this.devClient, this.prodClient, tableName)
         : undefined;
-    const devRows = await fetchAllRows(this.devClient, tableName, memoriesColumns);
-    const prodRows = await fetchAllRows(this.prodClient, tableName, memoriesColumns);
+    const devRows = await fetchAllRows(this.devClient, tableName, resolvedColumns);
+    const prodRows = await fetchAllRows(this.prodClient, tableName, resolvedColumns);
 
     const devMap = buildRowMap(devRows, config.pk);
     const prodMap = buildRowMap(prodRows, config.pk);

@@ -982,3 +982,4 @@ ALTER TABLE "personas" ALTER CONSTRAINT "personas_owner_id_fkey" DEFERRABLE INIT
 ALTER TABLE "llm_configs" ALTER CONSTRAINT "llm_configs_owner_id_fkey" DEFERRABLE INITIALLY IMMEDIATE;
 ALTER TABLE "users" ALTER CONSTRAINT "users_default_tts_config_id_fkey" DEFERRABLE INITIALLY IMMEDIATE;
 ALTER TABLE "users" ALTER CONSTRAINT "users_default_vision_config_id_fkey" DEFERRABLE INITIALLY IMMEDIATE;
+ALTER TABLE "memory_facts" ALTER CONSTRAINT "memory_facts_superseded_by_id_fkey" DEFERRABLE INITIALLY IMMEDIATE;

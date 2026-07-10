@@ -28,8 +28,6 @@ export const EXCLUDED_TABLES: Record<string, string> = {
     'Character-level vision preset defaults - dev/prod may use different vision models for testing (mirrors personality_default_configs/tts)',
 
   // Transient/ephemeral data
-  memory_facts:
-    'Memory Phase 2. Facts are now written (dev), read into prompts (slice 4a), and user-mutable via /memory correct|forget (correction slice) — non-regenerable user data like memories, so this table SHOULD sync. Still excluded pending a focused db-sync PR: memory_facts has a vector embedding column and a self-referencing supersededById FK that need sync ordering handled (tracked in backlog/cold/follow-ups.md).',
   pending_memories: 'Transient queue data for memory processing',
   llm_diagnostic_logs: 'Ephemeral debug logs (auto-deleted after 24h)',
   usage_logs: 'Environment-specific usage tracking',
@@ -82,6 +80,7 @@ export type SyncTableName =
   // NOTE: activated_channels intentionally NOT synced - dev/prod have different bot instances
   // and syncing would cause double-responses in channels where both bots are present
   | 'memories'
+  | 'memory_facts'
   | 'shapes_persona_mappings';
 
 /**
@@ -246,6 +245,24 @@ export const SYNC_CONFIG: Record<SyncTableName, TableSyncConfig> = {
     ],
     timestampColumns: ['created_at', 'updated_at', 'summarized_at'],
   },
+  memory_facts: {
+    pk: 'id',
+    createdAt: 'created_at',
+    // updated_at is genuinely mutated (corrections, /memory forget, lock
+    // toggles, supersession flips) — last-write-wins needs it, so every
+    // user-facing removal/edit verb propagates as column values. Hard row
+    // deletes do NOT propagate (same as every synced table — the general
+    // fix is the sync_tombstones design in backlog/cold/ideas.md).
+    updatedAt: 'updated_at',
+    uuidColumns: ['id', 'personality_id', 'persona_id', 'canon_group_id', 'superseded_by_id'],
+    timestampColumns: ['valid_from', 'superseded_at', 'created_at', 'updated_at'],
+    // superseded_by_id is a self-FK whose pointers are NOT creation-ordered
+    // (the revive path points newer→older), so rows sync in arbitrary order
+    // under the DEFERRABLE constraint named in DatabaseSyncService's
+    // SET CONSTRAINTS list (migration 20260710183055). Content-hash fact ids
+    // mean the same fact extracted independently in both envs converges to
+    // one row on conflict instead of duplicating.
+  },
   shapes_persona_mappings: {
     pk: 'id',
     createdAt: 'mapped_at',
@@ -316,5 +333,8 @@ export const SYNC_TABLE_ORDER: SyncTableName[] = [
   'conversation_history',
   // NOTE: activated_channels intentionally NOT synced (different bot instances per environment)
   'memories',
+  // memory_facts references personalities + personas (both earlier) and
+  // itself (superseded_by_id — deferred; see the config entry note)
+  'memory_facts',
   'shapes_persona_mappings',
 ];

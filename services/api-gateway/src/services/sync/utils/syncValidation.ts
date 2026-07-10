@@ -51,8 +51,8 @@ export async function checkSchemaVersions(
       );
     }
     // Conscious override for migration-soak windows: proceed, loudly. The
-    // memories column intersection (resolveMemoriesSyncColumns) handles that
-    // table's skew; any OTHER structurally-diverged table will fail its own
+    // vector-table column intersection (resolveVectorSyncColumns) handles
+    // those tables' skew; any OTHER structurally-diverged table will fail its own
     // fetch/upsert with a clear SQL error rather than corrupting silently.
     logger.warn(
       { devVersion, prodVersion },

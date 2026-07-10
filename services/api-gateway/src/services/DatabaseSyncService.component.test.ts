@@ -207,7 +207,9 @@ describe('DatabaseSyncService Integration (Ouroboros pattern)', () => {
         await tx.$executeRawUnsafe('SET CONSTRAINTS ALL DEFERRED');
         await tx.$executeRawUnsafe(`DELETE FROM "user_personality_configs"`);
         await tx.$executeRawUnsafe(`DELETE FROM "personality_default_configs"`);
+        await tx.$executeRawUnsafe(`DELETE FROM "memory_facts"`);
         await tx.$executeRawUnsafe(`DELETE FROM "personalities"`);
+        await tx.$executeRawUnsafe(`DELETE FROM "system_prompts"`);
         await tx.$executeRawUnsafe(`DELETE FROM "llm_configs"`);
         await tx.$executeRawUnsafe(`DELETE FROM "users"`);
         await tx.$executeRawUnsafe(`DELETE FROM "personas"`);
@@ -323,10 +325,11 @@ describe('DatabaseSyncService Integration (Ouroboros pattern)', () => {
           'users_default_tts_config_id_fkey',
           'users_default_vision_config_id_fkey',
           'personas_owner_id_fkey',
-          'llm_configs_owner_id_fkey'
+          'llm_configs_owner_id_fkey',
+          'memory_facts_superseded_by_id_fkey'
         )
       `);
-      expect(rows.length).toBe(6);
+      expect(rows.length).toBe(7);
       for (const r of rows) {
         expect(r.is_deferrable, `${r.constraint_name} should be DEFERRABLE`).toBe('YES');
       }
@@ -385,6 +388,108 @@ describe('DatabaseSyncService Integration (Ouroboros pattern)', () => {
     expect(devUser).toBeNull();
     const devPersona = await devPrisma.persona.findUnique({ where: { id: personaId } });
     expect(devPersona).toBeNull();
+  }, 30000);
+
+  /**
+   * memory_facts sync: the revive-shaped supersession chain is the
+   * adversarial case for the self-FK. After Seattle→Denver→moved-back,
+   * the NEWER fact (Denver) carries superseded_by_id → the OLDER fact
+   * (Seattle), so no creation-order insert sequence satisfies an immediate
+   * FK check. We force the pointer-carrying row FIRST in prod's heap order
+   * (fetchAllRows has no ORDER BY → PGLite returns insertion order), so
+   * sync upserts it before its target exists on dev. Without the
+   * DEFERRABLE self-FK in the SET CONSTRAINTS list this fails with an FK
+   * violation at upsert time; with it, Postgres validates the chain at
+   * COMMIT. Also proves the vector and array columns survive the roundtrip.
+   */
+  it('syncs memory_facts with a revive-shaped chain (newer→older pointer, pointer row first)', async () => {
+    const discordId = '77777777777777777777';
+    const userId = generateUserUuid(discordId);
+    const personaId = generatePersonaUuid('fact-sync-user', userId);
+    const systemPromptId = '4f9b0f66-aaaa-4000-8000-000000000001';
+    const personalityId = '4f9b0f66-aaaa-4000-8000-000000000002';
+    const seattleId = '4f9b0f66-aaaa-4000-8000-00000000000a';
+    const denverId = '4f9b0f66-aaaa-4000-8000-00000000000b';
+
+    await seedUserWithPersona(prodPrisma, {
+      userId,
+      personaId,
+      discordId,
+      username: 'fact-sync-user',
+      personaName: 'fact-sync-user',
+    });
+    await prodPrisma.$executeRawUnsafe(
+      `INSERT INTO system_prompts (id, name, content, updated_at)
+       VALUES ($1::uuid, 'Fact Sync Prompt', 'prompt', NOW())`,
+      systemPromptId
+    );
+    await prodPrisma.$executeRawUnsafe(
+      `INSERT INTO personalities (id, name, display_name, slug, system_prompt_id, character_info, personality_traits, owner_id, updated_at)
+       VALUES ($1::uuid, 'FactSyncBot', 'Fact Sync Bot', 'fact-sync-bot', $2::uuid, 'c', 'p', $3::uuid, NOW())`,
+      personalityId,
+      systemPromptId,
+      userId
+    );
+
+    // Force the pointer-carrying row FIRST in heap order. MVCC subtlety: an
+    // UPDATE appends a new tuple version, so "insert Denver first" is not
+    // enough — flipping Denver's pointer moves its tuple to the heap's end.
+    // The final touch on Seattle moves ITS tuple last instead, leaving heap
+    // order [denver(with pointer), seattle]: sync upserts the pointer before
+    // its target exists on dev. (Verified: without the DEFERRABLE self-FK in
+    // the SET CONSTRAINTS list, this ordering fails with an FK violation.)
+    await prodPrisma.$executeRawUnsafe(
+      `INSERT INTO memory_facts (id, personality_id, persona_id, statement, embedding, entity_tags, source_memory_ids, superseded_at, updated_at)
+       VALUES ($1::uuid, $2::uuid, $3::uuid, 'The user lives in Denver', '[0.1,0.2,0.3]'::vector, ARRAY['user','city:denver'], ARRAY['4f9b0f66-aaaa-4000-8000-0000000000f1'], NOW(), NOW())`,
+      denverId,
+      personalityId,
+      personaId
+    );
+    await prodPrisma.$executeRawUnsafe(
+      `INSERT INTO memory_facts (id, personality_id, persona_id, statement, embedding, entity_tags, updated_at)
+       VALUES ($1::uuid, $2::uuid, $3::uuid, 'The user lives in Seattle', '[0.4,0.5,0.6]'::vector, ARRAY['user','city:seattle'], NOW())`,
+      seattleId,
+      personalityId,
+      personaId
+    );
+    await prodPrisma.$executeRawUnsafe(
+      `UPDATE memory_facts SET superseded_by_id = $1::uuid WHERE id = $2::uuid`,
+      seattleId,
+      denverId
+    );
+    await prodPrisma.$executeRawUnsafe(
+      `UPDATE memory_facts SET updated_at = NOW() WHERE id = $1::uuid`,
+      seattleId
+    );
+
+    await service.sync({ dryRun: false });
+
+    // Both rows landed on dev with the newer→older pointer intact.
+    const devFacts = await devPrisma.$queryRawUnsafe<
+      {
+        id: string;
+        statement: string;
+        superseded_by_id: string | null;
+        superseded_at: Date | null;
+        embedding: string | null;
+        entity_tags: string[];
+        source_memory_ids: string[];
+      }[]
+    >(
+      `SELECT id, statement, superseded_by_id, superseded_at, embedding::text as embedding, entity_tags, source_memory_ids
+       FROM memory_facts ORDER BY statement`
+    );
+    expect(devFacts).toHaveLength(2);
+    const [denver, seattle] = devFacts;
+    expect(denver.statement).toBe('The user lives in Denver');
+    expect(denver.superseded_by_id).toBe(seattleId); // the revive pointer survived
+    expect(denver.superseded_at).not.toBeNull();
+    expect(denver.embedding).toBe('[0.1,0.2,0.3]'); // vector roundtrip
+    expect(denver.entity_tags).toEqual(['user', 'city:denver']);
+    expect(denver.source_memory_ids).toEqual(['4f9b0f66-aaaa-4000-8000-0000000000f1']);
+    expect(seattle.superseded_by_id).toBeNull(); // active (revived) fact
+    expect(seattle.superseded_at).toBeNull();
+    expect(seattle.embedding).toBe('[0.4,0.5,0.6]');
   }, 30000);
 
   /**
