@@ -33,11 +33,12 @@ export class FactRetriever {
   /**
    * Top active facts most similar to `query`, scoped to persona×personality.
    * Returns `[]` on any failure (fail-soft). `personaId` null = world/canon
-   * facts (no persona).
+   * facts (no persona). `personalityId` null = all of the persona's
+   * personalities (the shareLtmAcrossPersonalities widening).
    */
   async retrieveFacts(
     query: string,
-    personalityId: string,
+    personalityId: string | null,
     personaId: string | null,
     limit: number = FACT_RETRIEVAL_LIMIT
   ): Promise<SimilarFact[]> {

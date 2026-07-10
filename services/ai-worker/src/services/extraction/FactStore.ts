@@ -127,7 +127,9 @@ export class FactStore {
    */
   async findSimilarActiveFacts(
     embedding: number[],
-    personalityId: string,
+    /** null = ALL personalities for this persona (the shareLtmAcrossPersonalities
+     * widening — retrieval only; extraction callers always pass a concrete id). */
+    personalityId: string | null,
     personaId: string | null,
     limit = 5
   ): Promise<SimilarFact[]> {
@@ -150,7 +152,7 @@ export class FactStore {
           Prisma.raw(`'${embeddingVector}'::vector`),
           Prisma.sql`) AS similarity
         FROM memory_facts f
-        WHERE f.personality_id = ${personalityId}::uuid
+        WHERE (${personalityId}::uuid IS NULL OR f.personality_id = ${personalityId}::uuid)
           AND f.persona_id `,
           personaId === null ? Prisma.sql`IS NULL` : Prisma.sql`= ${personaId}::uuid`,
           Prisma.sql`

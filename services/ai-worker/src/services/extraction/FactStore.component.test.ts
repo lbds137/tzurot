@@ -29,6 +29,7 @@ const PERSONA = '5a1c0f66-0000-4000-8000-00000000c002';
 const OTHER_PERSONA = '5a1c0f66-0000-4000-8000-00000000c005';
 const OTHER_USER = '5a1c0f66-0000-4000-8000-00000000c006';
 const PERSONALITY = '5a1c0f66-0000-4000-8000-00000000c003';
+const PERSONALITY_B = '5a1c0f66-0000-4000-8000-00000000c007';
 const SYSTEM_PROMPT = '5a1c0f66-0000-4000-8000-00000000c004';
 
 let seq = 0;
@@ -72,6 +73,10 @@ describe('FactStore.findSimilarActiveFacts (component, PGLite)', () => {
       INSERT INTO personalities (id, name, display_name, slug, system_prompt_id, character_info, personality_traits, owner_id, updated_at)
       VALUES (${PERSONALITY}::uuid, 'QBot', 'Q Bot', 'qbot', ${SYSTEM_PROMPT}::uuid, 'Q character', 'Precise', ${USER}::uuid, NOW())
     `;
+    await prisma.$executeRaw`
+      INSERT INTO personalities (id, name, display_name, slug, system_prompt_id, character_info, personality_traits, owner_id, updated_at)
+      VALUES (${PERSONALITY_B}::uuid, 'QBotB', 'Q Bot B', 'qbot-b', ${SYSTEM_PROMPT}::uuid, 'Second character', 'Precise', ${USER}::uuid, NOW())
+    `;
 
     embeddings = new LocalEmbeddingService();
     const ready = await embeddings.initialize();
@@ -95,6 +100,7 @@ describe('FactStore.findSimilarActiveFacts (component, PGLite)', () => {
     /** Text whose embedding becomes this fact's vector (controls distance). */
     embedText: string;
     personaId?: string | null;
+    personalityId?: string;
     salience?: number;
     validFrom?: string;
     supersededAt?: string | null;
@@ -116,7 +122,7 @@ describe('FactStore.findSimilarActiveFacts (component, PGLite)', () => {
        VALUES ($1::uuid, $2::uuid, $3::uuid, $4, '${vecLiteral}'::vector, $5, $6::timestamptz,
           $7::timestamptz, $8, $9, $10, $11, NOW(), NOW())`,
       id,
-      PERSONALITY,
+      opts.personalityId ?? PERSONALITY,
       personaId,
       opts.statement,
       opts.salience ?? 0.5,
@@ -134,6 +140,32 @@ describe('FactStore.findSimilarActiveFacts (component, PGLite)', () => {
     const vec = await embeddings.getEmbedding(text);
     return factStore.findSimilarActiveFacts(Array.from(vec ?? []), PERSONALITY, personaId, limit);
   }
+
+  it("personalityId=null widens to ALL of the persona's personalities (sharing flag)", async () => {
+    await seedFact({
+      statement: 'The user has a cat named Miso',
+      embedText: 'The user has a cat named Miso',
+    });
+    await seedFact({
+      statement: 'The user has a cat that likes yarn',
+      embedText: 'The user has a cat that likes yarn',
+      personalityId: PERSONALITY_B,
+    });
+    const vec = await embeddings.getEmbedding('cat facts about the user');
+    const scoped = await factStore.findSimilarActiveFacts(
+      Array.from(vec ?? []),
+      PERSONALITY,
+      PERSONA,
+      5
+    );
+    expect(scoped.map(f => f.statement)).toEqual(['The user has a cat named Miso']);
+
+    const widened = await factStore.findSimilarActiveFacts(Array.from(vec ?? []), null, PERSONA, 5);
+    expect(widened.map(f => f.statement).sort()).toEqual([
+      'The user has a cat named Miso',
+      'The user has a cat that likes yarn',
+    ]);
+  });
 
   it('ranks by cosine similarity and returns similarity in [0,1]', async () => {
     await seedFact({

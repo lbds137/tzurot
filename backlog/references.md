@@ -8,6 +8,8 @@
 
 ## Claude Code / process resources (2026-07-05 links ingest)
 
+- **claude-code-from-source** (github.com/alejandrobalderas/claude-code-from-source — owner link 2026-07-10, "worth looking through soonish") — may inform the Tzurot agentic plans (governing artifact: `docs/proposals/backlog/agentic-scaffolding.md` — hand-rolled loop, three shims, recall/search/image v1). **Evaluate-when**: before the agentic scaffolding build starts — one read-through session comparing its loop/tool-dispatch/context-management mechanics against the artifact's decided design; adopt-a-piece or record the decline.
+
 - **Claudeception** (github.com/blader/Claudeception, 2.4k★) — self-writing skills: agent persists non-obvious solutions as auto-loaded skills (Voyager-inspired). Directly adjacent to our memory→rules/skills promotion workflow — the boulder-process skill shipped 2026-07-05 (`/tzurot-design-boulder`); mine Claudeception's auto-persistence mechanics if we ever automate skill creation.
 - **Anthropic "Complete Guide to Building Skills for Claude"** (resources.anthropic.com PDF, ~32pp, late-Jan 2026) — skill authoring: frontmatter, progressive disclosure (~50-100 tokens/skill at startup), testing/distribution. Reference for any skill-writing session.
 - **everything-claude-code** (github.com/affaan-m/everything-claude-code) — viral mega-collection of harness config (67 agents, 277+ skills, 34 rule files, hooks, MCP). Browse-for-patterns, not adopt.
