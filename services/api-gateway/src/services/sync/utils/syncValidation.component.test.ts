@@ -10,7 +10,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { MEMORIES_SYNC_COLUMNS } from '../SyncUpsertBuilder.js';
+import { VECTOR_SYNC_TABLES } from '../SyncUpsertBuilder.js';
 import { PrismaClient } from '@tzurot/common-types/services/prisma';
 import type { PGlite } from '@electric-sql/pglite';
 import { PrismaPGlite } from 'pglite-prisma-adapter';
@@ -53,14 +53,17 @@ describe('syncValidation guard — SYNC_CONFIG covers the live schema', () => {
     expect(info.length).toBeGreaterThan(0);
   });
 
-  describe('MEMORIES_SYNC_COLUMNS guard — the explicit SELECT list matches the live schema', () => {
-    it('lists every memories column exactly once (a new column must be added here to sync)', async () => {
-      const rows = (await prisma.$queryRawUnsafe(
-        `SELECT column_name FROM information_schema.columns WHERE table_name = 'memories' ORDER BY column_name`
-      )) as { column_name: string }[];
-      const schemaColumns = rows.map(r => r.column_name).sort();
-      const listed = [...MEMORIES_SYNC_COLUMNS].sort();
-      expect(listed).toEqual(schemaColumns);
-    });
+  describe('vector-table column-list guards — each explicit SELECT list matches the live schema', () => {
+    it.each(Object.keys(VECTOR_SYNC_TABLES))(
+      '%s lists every column exactly once (a new column must be added to its list to sync)',
+      async tableName => {
+        const rows = (await prisma.$queryRawUnsafe(
+          `SELECT column_name FROM information_schema.columns WHERE table_name = '${tableName}' ORDER BY column_name`
+        )) as { column_name: string }[];
+        const schemaColumns = rows.map(r => r.column_name).sort();
+        const listed = [...VECTOR_SYNC_TABLES[tableName].columns].sort();
+        expect(listed).toEqual(schemaColumns);
+      }
+    );
   });
 });

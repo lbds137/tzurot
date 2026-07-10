@@ -764,14 +764,15 @@ describe('DatabaseSyncService', () => {
       devClient.$queryRawUnsafe.mockImplementation(async query => {
         const queryStr = String(query);
         // Match SELECT * FROM "tablename" pattern (full row fetches during sync)
-        // Also match the special memories query (uses explicit columns due to vector type)
-        // Excludes: SELECT id FROM (tombstone loading)
+        // Also match the vector-table queries (explicit column lists starting
+        // with id, due to the embedding::text cast — memories, memory_facts)
+        // Excludes: SELECT id FROM (tombstone loading), information_schema
         const selectStarMatch = queryStr.match(/SELECT \* FROM "([^"]+)"/);
-        const memoriesMatch = queryStr.match(/SELECT\s+id,.*FROM "memories"/s);
+        const vectorTableMatch = queryStr.match(/SELECT\s+id,.*FROM "([^"]+)"/s);
         if (selectStarMatch) {
           syncedTables.push(selectStarMatch[1]);
-        } else if (memoriesMatch) {
-          syncedTables.push('memories');
+        } else if (vectorTableMatch) {
+          syncedTables.push(vectorTableMatch[1]);
         }
         return [];
       });

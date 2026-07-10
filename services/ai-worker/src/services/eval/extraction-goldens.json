@@ -30,7 +30,8 @@
       ],
       "knownFacts": [],
       "expectFacts": ["The user prefers tea over coffee"],
-      "expectSupersedesKnownIndex": []
+      "expectSupersedesKnownIndex": [],
+      "allowedExtras": ["The user dislikes coffee"]
     },
     {
       "id": "narration-only",

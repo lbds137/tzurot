@@ -54,6 +54,47 @@ export const MEMORIES_SYNC_COLUMNS = [
   'is_fiction',
 ] as const;
 
+/** Every memory_facts column — same explicit-list contract (and the same
+ * schema guard in syncValidation.component.test.ts) as MEMORIES_SYNC_COLUMNS. */
+export const MEMORY_FACTS_SYNC_COLUMNS = [
+  'id',
+  'personality_id',
+  'persona_id',
+  'pool',
+  'canon_group_id',
+  'is_fiction',
+  'visibility',
+  'is_locked',
+  'statement',
+  'embedding',
+  'entity_tags',
+  'salience',
+  'tier',
+  'valid_from',
+  'superseded_at',
+  'superseded_by_id',
+  'forgotten',
+  'source_memory_ids',
+  'extraction_job_id',
+  'created_at',
+  'updated_at',
+] as const;
+
+/**
+ * Tables carrying a pgvector column. These can't use `SELECT *` (the vector
+ * needs a ::text cast to survive Prisma deserialization) so each declares an
+ * explicit column list, and their upserts cast the vector param back with
+ * ::vector. Adding a vector table to sync = one entry here + a schema-guard
+ * test; the fetch/upsert/skew machinery is shared.
+ */
+export const VECTOR_SYNC_TABLES: Record<
+  string,
+  { columns: readonly string[]; vectorColumn: string }
+> = {
+  memories: { columns: MEMORIES_SYNC_COLUMNS, vectorColumn: 'embedding' },
+  memory_facts: { columns: MEMORY_FACTS_SYNC_COLUMNS, vectorColumn: 'embedding' },
+};
+
 const logger = createLogger('db-sync');
 
 /**
@@ -103,40 +144,50 @@ export interface UpsertRowOptions {
 }
 
 /**
- * Resolve the memories sync column set for THIS run: the canonical list
+ * Resolve a vector table's sync column set for THIS run: the canonical list
  * intersected with the columns both databases actually have. Migration-soak
  * windows (a column added on dev but not yet released to prod, or dropped on
  * one side first) would otherwise break db-sync outright for the whole table;
  * with the intersection, sync keeps working and the skew is WARNed loudly —
  * the skipped columns simply don't mirror until both sides agree.
  */
-export async function resolveMemoriesSyncColumns(
+export async function resolveVectorSyncColumns(
   devClient: PrismaClient,
-  prodClient: PrismaClient
+  prodClient: PrismaClient,
+  /** Must be a key of VECTOR_SYNC_TABLES (Record<string,…> erases that at the
+   * type level); assertValidTableName + the registry lookup guard at runtime. */
+  tableName: string
 ): Promise<readonly string[]> {
+  // Defense-in-depth: validate before interpolating into the introspection query
+  assertValidTableName(tableName);
+  const registryEntry = VECTOR_SYNC_TABLES[tableName];
+  if (registryEntry === undefined) {
+    throw new Error(`${tableName} is not a vector sync table — use SELECT * via fetchAllRows`);
+  }
+  const canonical = registryEntry.columns;
   const fetchCols = async (client: PrismaClient): Promise<Set<string>> => {
     const rows = await client.$queryRawUnsafe<{ column_name: string }[]>(
-      `SELECT column_name FROM information_schema.columns WHERE table_name = 'memories'`
+      `SELECT column_name FROM information_schema.columns WHERE table_name = '${tableName}'`
     );
     return new Set(rows.map(r => r.column_name));
   };
   const [devCols, prodCols] = await Promise.all([fetchCols(devClient), fetchCols(prodClient)]);
   // Fail open: an empty introspection result means we couldn't determine the
-  // schema (not that memories has zero columns) — use the canonical list
+  // schema (not that the table has zero columns) — use the canonical list
   // rather than emitting a zero-column SELECT.
   if (devCols.size === 0 || prodCols.size === 0) {
     logger.warn(
-      { devColumns: devCols.size, prodColumns: prodCols.size },
-      'memories schema introspection returned no columns — falling back to the canonical sync list'
+      { tableName, devColumns: devCols.size, prodColumns: prodCols.size },
+      'schema introspection returned no columns — falling back to the canonical sync list'
     );
-    return MEMORIES_SYNC_COLUMNS;
+    return canonical;
   }
-  const usable = MEMORIES_SYNC_COLUMNS.filter(c => devCols.has(c) && prodCols.has(c));
-  const skipped = MEMORIES_SYNC_COLUMNS.filter(c => !devCols.has(c) || !prodCols.has(c));
+  const usable = canonical.filter(c => devCols.has(c) && prodCols.has(c));
+  const skipped = canonical.filter(c => !devCols.has(c) || !prodCols.has(c));
   if (skipped.length > 0) {
     logger.warn(
-      { skipped, usableCount: usable.length },
-      'memories schema skew between environments — skipped columns will not sync until both sides have them (expected during a migration soak window)'
+      { tableName, skipped, usableCount: usable.length },
+      'schema skew between environments — skipped columns will not sync until both sides have them (expected during a migration soak window)'
     );
   }
   return usable;
@@ -144,23 +195,26 @@ export async function resolveMemoriesSyncColumns(
 
 /**
  * Fetch all rows from a table using raw SQL.
- * For memories, callers must pass the run's resolved column set (see
- * resolveMemoriesSyncColumns) so both fetch AND the row-key-derived upsert
+ * For vector tables, callers must pass the run's resolved column set (see
+ * resolveVectorSyncColumns) so both fetch AND the row-key-derived upsert
  * use columns that exist on BOTH databases.
  */
 export async function fetchAllRows(
   client: PrismaClient,
   tableName: string,
-  memoriesSyncColumns: readonly string[] = MEMORIES_SYNC_COLUMNS
+  resolvedColumns?: readonly string[]
 ): Promise<unknown[]> {
   // Defense-in-depth: validate table name before SQL interpolation
   assertValidTableName(tableName);
 
-  // Special handling for memories table - cast vector to text for Prisma deserialization
-  if (tableName === 'memories') {
+  // Vector tables: explicit column list with the vector cast to text for
+  // Prisma deserialization (SELECT * can't express the cast)
+  const vectorConfig = VECTOR_SYNC_TABLES[tableName];
+  if (vectorConfig !== undefined) {
+    const columns = resolvedColumns ?? vectorConfig.columns;
     const rows = await client.$queryRawUnsafe(`
-      SELECT ${memoriesSyncColumns.map(c => (c === 'embedding' ? 'embedding::text as embedding' : c)).join(', ')}
-      FROM "memories"
+      SELECT ${columns.map(c => (c === vectorConfig.vectorColumn ? `${c}::text as ${c}` : c)).join(', ')}
+      FROM "${tableName}"
     `);
     return Array.isArray(rows) ? (rows as unknown[]) : [];
   }
@@ -290,7 +344,7 @@ export async function upsertRow(options: UpsertRowOptions): Promise<void> {
   const placeholders = columns
     .map((col, i) => {
       const placeholder = `$${i + 1}`;
-      if (tableName === 'memories' && col === 'embedding') {
+      if (VECTOR_SYNC_TABLES[tableName]?.vectorColumn === col) {
         return `${placeholder}::vector`;
       }
       if (uuidColumns.includes(col)) {

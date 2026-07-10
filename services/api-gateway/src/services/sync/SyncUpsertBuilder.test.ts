@@ -23,8 +23,12 @@ vi.mock('./utils/syncValidation.js', () => ({
 import {
   buildRowMap,
   compareTimestamps,
-  resolveMemoriesSyncColumns,
+  resolveVectorSyncColumns,
+  upsertRow,
   MEMORIES_SYNC_COLUMNS,
+  MEMORY_FACTS_SYNC_COLUMNS,
+  VECTOR_SYNC_TABLES,
+  type SyncExecutor,
 } from './SyncUpsertBuilder.js';
 import type { SYNC_CONFIG } from './config/syncTables.js';
 import type { PrismaClient } from '@tzurot/common-types/services/prisma';
@@ -115,7 +119,7 @@ describe('SyncUpsertBuilder', () => {
   });
 });
 
-describe('resolveMemoriesSyncColumns — skew tolerance', () => {
+describe('resolveVectorSyncColumns — skew tolerance', () => {
   const clientWith = (cols: string[]) =>
     ({
       $queryRawUnsafe: vi.fn().mockResolvedValue(cols.map(c => ({ column_name: c }))),
@@ -123,16 +127,71 @@ describe('resolveMemoriesSyncColumns — skew tolerance', () => {
 
   it('returns the full canonical list when both sides match', async () => {
     const all = [...MEMORIES_SYNC_COLUMNS];
-    const result = await resolveMemoriesSyncColumns(clientWith(all), clientWith(all));
+    const result = await resolveVectorSyncColumns(clientWith(all), clientWith(all), 'memories');
     expect(result).toEqual(all);
   });
 
   it('drops columns missing on either side (soak window) instead of failing', async () => {
     const all = [...MEMORIES_SYNC_COLUMNS];
     const prodMissingNew = all.filter(c => c !== 'pool' && c !== 'is_fiction');
-    const result = await resolveMemoriesSyncColumns(clientWith(all), clientWith(prodMissingNew));
+    const result = await resolveVectorSyncColumns(
+      clientWith(all),
+      clientWith(prodMissingNew),
+      'memories'
+    );
     expect(result).not.toContain('pool');
     expect(result).not.toContain('is_fiction');
     expect(result).toContain('visibility');
+  });
+
+  it('resolves memory_facts against its own canonical list', async () => {
+    const all = [...MEMORY_FACTS_SYNC_COLUMNS];
+    const result = await resolveVectorSyncColumns(clientWith(all), clientWith(all), 'memory_facts');
+    expect(result).toEqual(all);
+    expect(result).toContain('superseded_by_id');
+  });
+});
+
+describe('vector-table upserts — the ::vector cast crosses the SQL seam', () => {
+  const capturingClient = (): { client: SyncExecutor; queries: string[] } => {
+    const queries: string[] = [];
+    const client = {
+      $executeRawUnsafe: vi.fn(async (q: string) => {
+        queries.push(q);
+        return 1;
+      }),
+      $queryRawUnsafe: vi.fn(async () => []),
+    } as unknown as SyncExecutor;
+    return { queries, client };
+  };
+
+  it.each(Object.keys(VECTOR_SYNC_TABLES))(
+    '%s: embedding param is cast ::vector, others are not',
+    async tableName => {
+      const { client, queries } = capturingClient();
+      await upsertRow({
+        client,
+        tableName,
+        row: { id: 'x', embedding: '[0.1,0.2]', statement: 's' },
+        pkField: 'id',
+        uuidColumns: ['id'],
+      });
+      expect(queries).toHaveLength(1);
+      expect(queries[0]).toMatch(/\$2::vector/); // embedding is the 2nd column
+      expect(queries[0]).toMatch(/\$1::uuid/);
+      expect(queries[0]).not.toMatch(/\$3::vector/);
+    }
+  );
+
+  it('non-vector tables never get a ::vector cast even with an embedding-named column', async () => {
+    const { client, queries } = capturingClient();
+    await upsertRow({
+      client,
+      tableName: 'users',
+      row: { id: 'x', embedding: 'not-a-vector-table' },
+      pkField: 'id',
+      uuidColumns: ['id'],
+    });
+    expect(queries[0]).not.toContain('::vector');
   });
 });
