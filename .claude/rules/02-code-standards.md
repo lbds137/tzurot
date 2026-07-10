@@ -151,6 +151,8 @@ Don't file Zod schema tests under "contract."
 
    **Why this rule exists**: a feature shipped with green coverage but two real bugs (a dropped forwarded field between two functions, and a wrong output for an untested failure _sequence_) that every unit test missed — because they each mocked the seam. Line coverage marks the buggy lines "covered" (they executed); it has no concept of "this covered line forwarded the wrong thing." The only gate that catches a seam bug is a test that _asserts across the seam_ or runs the seam for real. Established 2026-07-01 after PR #1429's review caught the seam bugs by hand.
 
+8. **Interface changes must sweep UNTYPED fixtures — and new fixtures should be typed** - When a shared type's shape changes, grep by a distinctive FIELD name in addition to the type name: untyped mock payloads (`vi.fn().mockResolvedValue({...})`) never reference the type, so both a type-name grep AND the compiler miss them — and a fail-soft catch downstream can hide the breakage entirely (a PGLite suite's usage-log writes silently no-oped this way). Prevent the class at authoring time by typing fixture payloads: `mockResolvedValue({...} satisfies ExtractionModelResult)` makes the compiler break the test when the interface moves.
+
 **All packages are enforced by `structure.test.ts`** — services, common-types, embeddings, AND tooling. Adding a new `.ts` file without a colocated `.test.ts` will fail the test suite unless the file matches an exclusion pattern (types, constants, thin CLI wrappers, etc.).
 
 ### Fake Timers (ALWAYS Use)

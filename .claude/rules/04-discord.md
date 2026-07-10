@@ -226,6 +226,22 @@ const choices = items.map(item =>
 **Retryable:** Network timeouts, rate limits (429), server errors (5xx)
 **Non-retryable:** Validation errors (400), not found (404), auth (401)
 
+### Spend-Idempotent Retries (money/budget/usage side effects)
+
+A retried or requeued job re-executes its handler. Any job that bills a model
+call, consumes a budget counter, or writes a usage row must stay correct
+across that re-execution:
+
+- **Partial completion shrinks the retry payload** — completed sub-units must
+  not re-bill on every retry cycle (reference: fact-extraction's busy path
+  carries `remainingMemoryIds` and `job.updateData` shrinks `sourceMemoryIds`).
+- **Zero-spend failures are counter-neutral** — a rate-limit/busy failure that
+  spent no tokens must not consume budget (consume-then-refund, and any
+  exemption flag must gate consume and refund SYMMETRICALLY).
+- **Usage rows write only past the point of no return** — after the response
+  is in hand (parse failures still spent tokens; busy throws did not), never
+  before a retryable throw.
+
 ### Queue Configuration
 
 ```typescript
