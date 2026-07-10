@@ -6,8 +6,7 @@
 
 ## Unreleased on Develop
 
-- **PR #1572** — extraction on the z.ai system key with delay-not-downgrade. Dev is LIVE on the plan (vars set 2026-07-10; boot clean; z.ai confirmation eval 50/50 parse, 0/52 effective fabrication).
-- **PR #1573** — `memory_facts` joins db-sync (DEFERRABLE self-FK migration — applied to dev — + `VECTOR_SYNC_TABLES` registry; corrections/forgets/locks propagate as columns, hard deletes don't pending the `sync_tombstones` design in `cold/ideas.md`).
+- **PRs #1572–#1578** (7 substantive) — the full z.ai/memory train: extraction on the system plan with delay-not-downgrade (#1572), memory_facts db-sync (#1573), the backfill command (#1574), review-cycle rules (#1575), db-sync soak-window fix (#1576), facts sharing parity (#1577), and the delay-mechanism fix + poison-batch cap (#1578 — the backfill's first busy window exposed worker.rateLimit as a deprecated no-op; moveToDelayed+DelayedError now, 180s timeout, busyCycles cap). All flag-gated dark on prod. **Release-cut proposal pending owner approval.**
 - **Memory Phase 1a remains PARKED** on `feat/memory-hybrid-retrieval` (evidence gate: real-scale goldens).
 
 ## Next Session Goal
