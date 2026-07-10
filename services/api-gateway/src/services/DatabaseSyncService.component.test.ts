@@ -391,6 +391,45 @@ describe('DatabaseSyncService Integration (Ouroboros pattern)', () => {
   }, 30000);
 
   /**
+   * The migration-soak-window regression: a DEFERRABLE migration reaches dev
+   * before prod on every release cycle, so the sync must NOT name a
+   * constraint the target can't defer (SET CONSTRAINTS throws 42809 and
+   * breaks the whole sync — observed in prod the day the memory_facts
+   * deferral shipped to dev only). Simulate the window by reverting one
+   * side's constraint to NOT DEFERRABLE and assert the sync still completes,
+   * deferring only what that side supports.
+   */
+  it('survives a target whose constraint is not yet deferrable (soak window)', async () => {
+    await prodPrisma.$executeRawUnsafe(
+      `ALTER TABLE "memory_facts" ALTER CONSTRAINT "memory_facts_superseded_by_id_fkey" NOT DEFERRABLE`
+    );
+    try {
+      const discordId = '88888888888888888888';
+      const userId = generateUserUuid(discordId);
+      const personaId = generatePersonaUuid('soak-window-user', userId);
+      await seedUserWithPersona(devPrisma, {
+        userId,
+        personaId,
+        discordId,
+        username: 'soak-window-user',
+        personaName: 'soak-window-user',
+      });
+
+      // Pre-fix this threw 42809 ("constraint ... is not deferrable") before
+      // flushing ANYTHING prod-bound; post-fix the user+persona sync through.
+      await service.sync({ dryRun: false });
+
+      const prodUser = await prodPrisma.user.findUnique({ where: { id: userId } });
+      expect(prodUser).not.toBeNull();
+      expect(prodUser?.defaultPersonaId).toBe(personaId);
+    } finally {
+      await prodPrisma.$executeRawUnsafe(
+        `ALTER TABLE "memory_facts" ALTER CONSTRAINT "memory_facts_superseded_by_id_fkey" DEFERRABLE INITIALLY IMMEDIATE`
+      );
+    }
+  }, 30000);
+
+  /**
    * memory_facts sync: the revive-shaped supersession chain is the
    * adversarial case for the self-FK. After Seattle→Denver→moved-back,
    * the NEWER fact (Denver) carries superseded_by_id → the OLDER fact
