@@ -1271,6 +1271,27 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
     "type": 1,
   },
   {
+    "description": "Browse and correct the facts a character has learned about you",
+    "description_localizations": undefined,
+    "name": "facts",
+    "name_localizations": undefined,
+    "options": [
+      {
+        "autocomplete": true,
+        "choices": undefined,
+        "description": "The character whose facts to manage",
+        "description_localizations": undefined,
+        "max_length": undefined,
+        "min_length": undefined,
+        "name": "character",
+        "name_localizations": undefined,
+        "required": true,
+        "type": 3,
+      },
+    ],
+    "type": 1,
+  },
+  {
     "description": "Search your memories semantically",
     "description_localizations": undefined,
     "name": "search",
