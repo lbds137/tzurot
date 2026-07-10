@@ -357,12 +357,14 @@ describe('ConversationalRAGService', () => {
       await service.generateResponse(personality, 'what am i allergic to?', context);
 
       // personality.id + the MemoryRetriever-resolved personaId + the query cross
-      // into the gate in the right order.
+      // into the gate in the right order, plus the resolved sharing flag
+      // (false here — no configOverrides in this fixture).
       expect(retrieveFactsForPrompt).toHaveBeenCalledWith(
         undefined, // factRetriever (createFactRetriever mocked → undefined)
         personality.id,
         'persona-x',
-        expect.any(String)
+        expect.any(String),
+        false
       );
       // The non-empty facts flow through the REAL ContentBudgetManager into the
       // prompt's <facts> block (default budget mocks let one fact fit).

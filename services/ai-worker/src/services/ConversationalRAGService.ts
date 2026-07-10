@@ -400,15 +400,15 @@ export class ConversationalRAGService {
       // Retrieve distilled facts for the same scope (Phase 2 slice 4a). Inherits
       // the retriever's skip decisions: `personaId` is undefined when LTM was
       // skipped (incognito/focus/no-persona), so facts are skipped too.
-      // NOTE: facts always scope to `personality.id`, deliberately NOT widened by
-      // `shareLtmAcrossPersonalities` the way EPISODE retrieval is — facts stay
-      // private persona×personality in Phase 2; cross-personality fact sharing is
-      // a later phase, not a bug to "fix".
+      // `shareLtmAcrossPersonalities` widens facts EXACTLY like episode
+      // retrieval (owner call: one flag, both channels — a character that can
+      // recall another character's episodes must know its facts too).
       const facts = await retrieveFactsForPrompt(
         this.factRetriever,
         personality.id,
         personaId,
-        inputs.searchQuery
+        inputs.searchQuery,
+        configOverrides?.shareLtmAcrossPersonalities ?? false
       );
 
       // Step 4: Allocate token budgets and select content

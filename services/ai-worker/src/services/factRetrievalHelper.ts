@@ -34,13 +34,16 @@ export function createFactRetriever(
  * persona×personality (the private pool — Phase 2). Returns `[]` unless ALL of:
  * a retriever is wired, `FACTS_IN_PROMPT_ENABLED` is on (dev-on/prod-off), and
  * a `personaId` resolved (undefined = LTM was skipped this turn → facts skipped
- * too). The retriever itself fails soft on top of this.
+ * too). When `shareLtmAcrossPersonalities` is on, the personality filter drops
+ * — facts follow the same widening as episode retrieval (owner call: the two
+ * channels must not diverge under one flag). The retriever itself fails soft.
  */
 export async function retrieveFactsForPrompt(
   factRetriever: FactRetriever | undefined,
   personalityId: string,
   personaId: string | undefined,
-  searchQuery: string
+  searchQuery: string,
+  shareLtmAcrossPersonalities: boolean
 ): Promise<FactForPrompt[]> {
   if (
     factRetriever === undefined ||
@@ -49,9 +52,16 @@ export async function retrieveFactsForPrompt(
   ) {
     return [];
   }
-  const facts = await factRetriever.retrieveFacts(searchQuery, personalityId, personaId);
+  const facts = await factRetriever.retrieveFacts(
+    searchQuery,
+    shareLtmAcrossPersonalities ? null : personalityId,
+    personaId
+  );
   if (facts.length > 0) {
-    logger.info({ personalityId, factCount: facts.length }, 'Facts retrieved for prompt injection');
+    logger.info(
+      { personalityId, factCount: facts.length, sharedScope: shareLtmAcrossPersonalities },
+      'Facts retrieved for prompt injection'
+    );
   }
   return facts;
 }
