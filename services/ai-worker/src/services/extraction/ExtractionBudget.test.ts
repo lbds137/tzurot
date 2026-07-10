@@ -68,4 +68,27 @@ describe('ExtractionBudget', () => {
   it('the config schema default limit stays generous (single source of truth)', () => {
     expect(createTestConfig().EXTRACTION_DAILY_LIMIT).toBeGreaterThanOrEqual(50);
   });
+
+  describe('refund (busy calls are budget-neutral)', () => {
+    it('DECRs the same UTC-day-scoped key tryConsume charged', async () => {
+      const decr = vi.fn().mockResolvedValue(0);
+      const redis = { eval: vi.fn().mockResolvedValue(1), decr } as unknown as Redis;
+      const budget = new ExtractionBudget(redis, 10);
+
+      await budget.refund('personality-1');
+
+      expect(decr).toHaveBeenCalledWith(
+        `${CACHE_KEY_PREFIXES.FACT_EXTRACTION_BUDGET}personality-1:2026-07-06`
+      );
+    });
+
+    it('fails open on Redis errors (never throws into the busy path)', async () => {
+      const redis = {
+        decr: vi.fn().mockRejectedValue(new Error('redis down')),
+      } as unknown as Redis;
+      const budget = new ExtractionBudget(redis, 10);
+
+      await expect(budget.refund('p')).resolves.toBeUndefined();
+    });
+  });
 });

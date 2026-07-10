@@ -23,7 +23,7 @@ import { FactExtractionService } from './FactExtractionService.js';
 
 /** Wrap raw model content in the ExtractionModelResult shape the invoker now returns. */
 const mockInvoker = (content: string) =>
-  vi.fn().mockResolvedValue({ content, tokensIn: 10, tokensOut: 5 });
+  vi.fn().mockResolvedValue({ content, tokensIn: 10, tokensOut: 5, provider: 'openrouter' });
 import { FactStore } from './FactStore.js';
 import { ExtractionBudget } from './ExtractionBudget.js';
 
@@ -77,6 +77,7 @@ describe('FactExtractionService (component, PGLite)', () => {
   beforeEach(async () => {
     await prisma.$executeRaw`DELETE FROM memory_facts`;
     await prisma.$executeRaw`DELETE FROM memories`;
+    await prisma.$executeRaw`DELETE FROM usage_logs`;
   });
 
   function makeBudget(allowed = true): ExtractionBudget {
@@ -138,6 +139,15 @@ describe('FactExtractionService (component, PGLite)', () => {
     expect(rows[0].tier).toBe('observed');
     expect(rows[0].supersededAt).toBeNull();
     expect(rows[0].sourceMemoryIds).toEqual([ep]);
+
+    // The usage row must REALLY insert (logExtractionUsage is fail-soft, so a
+    // shape drift in the invoker result would otherwise no-op silently here —
+    // this assertion is what catches that class of regression).
+    const usage = await prisma.usageLog.findMany({ where: { userId: USER } });
+    expect(usage).toHaveLength(1);
+    expect(usage[0].provider).toBe('openrouter');
+    expect(usage[0].requestType).toBe('fact_extraction');
+    expect(usage[0].tokensIn).toBe(10);
   });
 
   it('supersession end-to-end: an indexed target gets its columns flipped in the same write', async () => {

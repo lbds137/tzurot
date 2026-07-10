@@ -2,7 +2,12 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 import { JobType } from '@tzurot/common-types/constants/queue';
 import type { FactExtractionJobData } from '@tzurot/common-types/types/jobs';
-import { FactExtractionService, hasEntityOverlap } from './FactExtractionService.js';
+import {
+  FactExtractionService,
+  hasEntityOverlap,
+  ExtractionProviderBusyError,
+  resolveExtractionProvider,
+} from './FactExtractionService.js';
 import { generateFactExtractionJobUuid } from '@tzurot/common-types/utils/deterministicUuid';
 import type { FactStore, SimilarFact } from './FactStore.js';
 import type { ExtractionBudget } from './ExtractionBudget.js';
@@ -71,6 +76,7 @@ function makeSetup(options: {
 
   const budget = {
     tryConsume: vi.fn().mockResolvedValue(options.budgetAllowed ?? true),
+    refund: vi.fn().mockResolvedValue(undefined),
   } as unknown as ExtractionBudget;
 
   const invokeModel =
@@ -91,6 +97,7 @@ function makeSetup(options: {
             }),
           tokensIn: 120,
           tokensOut: 40,
+          provider: 'openrouter',
         });
 
   const service = new FactExtractionService(prisma, factStore, budget, invokeModel);
@@ -398,6 +405,25 @@ describe('extraction usage rows (cost visibility)', () => {
     );
   });
 
+  it("carries the invoker's ACTUAL provider into the row (no independent re-resolution)", async () => {
+    const s = makeSetup({});
+    // An injected invoker (eval harness, future routing) may bill a different
+    // provider than a fresh config resolution would claim — the row must
+    // reflect what was billed, not what config says now.
+    s.invokeModel.mockResolvedValue({
+      content: JSON.stringify({ facts: [] }),
+      tokensIn: 10,
+      tokensOut: 2,
+      provider: 'zai-coding',
+    });
+
+    await s.service.processBatch(job);
+
+    expect(s.usageCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ provider: 'zai-coding' }) })
+    );
+  });
+
   it('a usage-row failure never costs the extraction batch (fail-soft)', async () => {
     const s = makeSetup({});
     s.usageCreateMock.mockRejectedValue(new Error('db hiccup'));
@@ -425,5 +451,105 @@ describe('extraction usage rows (cost visibility)', () => {
     await s.service.processBatch(job);
 
     expect(s.usageCreateMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('delay-not-downgrade (provider busy)', () => {
+  function rejectingSetup(status: number, message: string) {
+    return makeSetup({
+      modelResponse: Object.assign(new Error(message), { status }),
+    });
+  }
+
+  it('a 429 (rate limit) THROWS ExtractionProviderBusyError instead of skipping', async () => {
+    const s = rejectingSetup(429, 'Too many requests');
+    await expect(s.service.processBatch(job)).rejects.toThrow(ExtractionProviderBusyError);
+    expect(s.writeMock).not.toHaveBeenCalled();
+    expect(s.usageCreateMock).not.toHaveBeenCalled(); // busy batches never count usage
+  });
+
+  it('multi-persona batch: only UNFINISHED groups ride the requeue — completed groups are never re-billed', async () => {
+    // Group A (mem 1-2) succeeds; group B (mem 3) hits the busy provider. The
+    // rethrown error must carry ONLY group B's ids — this is the guarantee
+    // that a sustained busy window can't re-bill already-extracted groups on
+    // every 30-min retry.
+    const s = makeSetup({
+      episodes: [
+        { id: MEM(1), content: '{user}: my cat is Miso', personaId: PERSONA_A, isFiction: false },
+        { id: MEM(2), content: '{user}: I love tea', personaId: PERSONA_A, isFiction: false },
+        {
+          id: MEM(3),
+          content: '{user}: I moved to Berlin',
+          personaId: PERSONA_B,
+          isFiction: false,
+        },
+      ],
+    });
+    s.invokeModel
+      .mockResolvedValueOnce({
+        content: JSON.stringify({ facts: [] }),
+        tokensIn: 50,
+        tokensOut: 5,
+        provider: 'openrouter',
+      })
+      .mockRejectedValueOnce(Object.assign(new Error('Too many requests'), { status: 429 }));
+
+    const multiJob = { ...job, sourceMemoryIds: [MEM(1), MEM(2), MEM(3)] };
+    await expect(s.service.processBatch(multiJob)).rejects.toMatchObject({
+      name: 'ExtractionProviderBusyError',
+      remainingMemoryIds: [MEM(3)],
+    });
+
+    // Group A's completed call billed usage once; group B's busy call did not.
+    expect(s.usageCreateMock).toHaveBeenCalledTimes(1);
+    // Only the busy group's consume is refunded — group A's spend stands.
+    expect(s.budget.tryConsume).toHaveBeenCalledTimes(2);
+    expect(s.budget.refund).toHaveBeenCalledTimes(1);
+  });
+
+  it('busy REFUNDS the consumed budget unit — retries of a sustained window are budget-neutral', async () => {
+    const s = rejectingSetup(429, 'Too many requests');
+    await expect(s.service.processBatch(job)).rejects.toThrow(ExtractionProviderBusyError);
+    // Without the refund, each 30-min requeue burns a unit for zero facts and
+    // the tripwire eventually skips REAL batches after the provider recovers.
+    expect(s.budget.tryConsume).toHaveBeenCalledTimes(1);
+    expect(s.budget.refund).toHaveBeenCalledTimes(1);
+    expect(s.budget.refund).toHaveBeenCalledWith(PERSONALITY);
+  });
+
+  it('a 5xx THROWS busy (transient — the batch delays rather than losing facts)', async () => {
+    const s = rejectingSetup(503, 'Service overloaded');
+    await expect(s.service.processBatch(job)).rejects.toThrow(ExtractionProviderBusyError);
+    expect(s.budget.refund).toHaveBeenCalledTimes(1);
+  });
+
+  it('a 402 (quota) THROWS busy — deliberate divergence from the completions fail-fast', async () => {
+    // Completions fail fast on QUOTA_EXCEEDED (a user is waiting); extraction
+    // delays instead, because fail-to-skip would LOSE the batch's facts on a
+    // state a human fixes by topping up.
+    const s = rejectingSetup(402, 'Payment required');
+    await expect(s.service.processBatch(job)).rejects.toThrow(ExtractionProviderBusyError);
+    expect(s.budget.refund).toHaveBeenCalledTimes(1);
+  });
+
+  it('account-level credit exhaustion (402 sub-classified) also delays — the drained-key shape', async () => {
+    const s = rejectingSetup(402, 'Insufficient credits. Add more using https://openrouter.ai');
+    await expect(s.service.processBatch(job)).rejects.toThrow(ExtractionProviderBusyError);
+    expect(s.usageCreateMock).not.toHaveBeenCalled();
+  });
+
+  it('a permanent 400 keeps fail-to-skip (writes nothing, does not throw)', async () => {
+    const s = rejectingSetup(400, 'Invalid API parameter');
+    const written = await s.service.processBatch(job);
+    expect(written).toBe(0);
+    // Permanent failures spent the attempt legitimately — no refund.
+    expect(s.budget.refund).not.toHaveBeenCalled();
+  });
+});
+
+describe('resolveExtractionProvider', () => {
+  it('defaults to OpenRouter with no key attached', () => {
+    const route = resolveExtractionProvider();
+    expect(route).toEqual({ provider: 'openrouter' });
   });
 });
