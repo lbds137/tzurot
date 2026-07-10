@@ -1,17 +1,17 @@
 # Current
 
-> **Version**: v3.0.0-beta.155 (released 2026-07-08) — **UX Phase 1**: honest-outcome message layer (`ux/catalog` + `ux/render` + total gateway-failure classifier) swept across the entire bot-client command tree (raw literals 448 → 92); writes that time out now say "may still be applying" instead of a false "try again"; multi-tag all-errored delivers each character's error in its own voice (errored speak, denied silent). Prod fixes rode along: 429-storm-masked-as-timeout retarget bypass (#1556), first-z.ai-fallback footer (#1553). 10-PR train #1550–1561; residual 92 literals = documented exemptions (embed titles/status-glyphs, diagnostic surfaces). Holistic review: "no blocking issues." _Prior: beta.154 (2026-07-07, character-definition privacy)._
+> **Version**: v3.0.0-beta.156 (released 2026-07-10) — memory correction surface (`/memory facts` quality + correction slices), extraction cost knobs, fair-share quota, credit-exhaustion fallback fix. _Prior: beta.155 (2026-07-08, UX Phase 1 honest-outcome layer)._
 
 ---
 
 ## Unreleased on Develop
 
-- Nothing — beta.156 shipped the memory correction surface (quality + correction slices), fair-share quota, extraction cost knobs, and the credit-exhaustion fallback fix; develop is SHA-aligned with main.
+- **PR #1572** — extraction rides the z.ai system key with delay-not-downgrade (`ZAI_CODING_API_KEY` + `EXTRACTION_PROVIDER`; busy → `Worker.RateLimitError` requeue, budget-neutral refunds, requeue shrinks to unfinished groups, sustained-busy escalation at ~6h). Defaults unchanged until env flips.
 - **Memory Phase 1a remains PARKED** on `feat/memory-hybrid-retrieval` (evidence gate: real-scale goldens).
 
 ## Next Session Goal
 
-UX Phase 1 shipped. Prod is the soak for the two runtime-unverified paths — **multi-tag all-errored delivery** and the **`maxRetries:0` retry-timing change** — both log-observable if they misbehave.
+**beta.157 chain = Memory Phase 2 goes live in prod.** In order: (1) **OWNER: set `ZAI_CODING_API_KEY` + `EXTRACTION_PROVIDER=zai-coding` on dev ai-worker** (I never touch secrets) → one free confirmation eval via the z.ai endpoint; (2) `memory_facts` into db-sync SYNC_CONFIG (vector col + self-FK ordering + deliberate cascade answer — focused PR); (3) fact backfill ops command (now unblocked by #1572 pending the env vars; content-hash idempotent, dev first); (4) prod-enable (`EXTRACTION_ENABLED`, `FACTS_IN_PROMPT_ENABLED`, `EXTRACTION_MODEL=z-ai/glm-5.2` + provider vars). Owner dev smoke of `/memory facts` still outstanding.
 
 **Open follow-ups from Phase 1** (all in `cold/follow-ups.md` with promote-when triggers): system-voice straggler wording (STT / MessageHandler top-catch / truncation notices), partial-failure errored-slot delivery, admin/kick `serverId` escaping, `deletePersona`/`getCachedPersonalities` wrapper widening, `maxRetries:0` metrics watch.
 
@@ -27,8 +27,8 @@ UX Phase 1 shipped. Prod is the soak for the two runtime-unverified paths — **
 6. **LLM legacy-column retirement (Phase A DROP + Phase B)** — both destructive-migration-bearing (`release:premigrate --allow-destructive`); a focused moment, not a filler slot.
 7. **Follow-ups table sweep** — oldest rows (aging escalates; `pnpm ops backlog` surfaces them).
 
-## Last Session — UX Phase 1 + beta.155 (2026-07-07 → 07-08)
+## Last Session — beta.156 + extraction z.ai track slice 1 (2026-07-10)
 
-10-PR train (#1550–1561) built the `ux/catalog`/`ux/render` honest-outcome message layer and swept it across the whole bot-client command tree (ratchet 448 → 92, -79%), finishing with PR-E's in-character multi-tag error delivery (SlotOutcome discriminated union + `deliverErrorNoPersist` + shared `buildSyntheticErrorResult`). Two prod bugs fixed en route: 429-storm-masked-as-timeout (#1556 — cause-over-symptom retry + `maxRetries:0`) and the first-z.ai-fallback footer (#1553). Shipped as beta.155; develop finalized onto main. Process lessons that stuck by the later slices: sweep a bug CLASS across the file family in one round (not per-instance); run the grep that PROVES a completeness claim before writing it; ask read-vs-write at every converted catch.
+Cut beta.156 (memory correction surface + cost knobs + credit-exhaustion fix). Ran the 8-model extraction sweep → **GLM-5.2 selected** (0% violation both runs vs Haiku's 10.3%; dev flipped, burn-in live). Built + merged **PR #1572** (z.ai system key, delay-not-downgrade) through six review rounds — the reviewer caught three real defects the tests missed (partial-batch re-billing, busy retries burning the daily budget, a stale PGLite fixture silently no-oping usage-log coverage), each fixed with a seam test. z.ai quota research distilled into `free-tier-zai-piggyback.md` (quota endpoint + 429 business-code classifier). Process lesson: sweep interface changes by SHAPE, not type name — an untyped `vi.fn()` fixture is invisible to a type-name grep.
 
 _Older session logs live in git history (this file previously carried the 2026-07-03 handoff-refit and beta.146 entries + the full boulder-agenda wall — all shipped/accepted; the artifacts in `docs/proposals/backlog/` are the durable record)._

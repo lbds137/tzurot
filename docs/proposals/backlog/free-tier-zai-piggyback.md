@@ -25,7 +25,7 @@ change itself is small.
 
 | Area | Change |
 | --- | --- |
-| Config | New system env var `ZAI_CODING_API_KEY` (the z.ai analogue of `OPENROUTER_API_KEY`). Today there is no system z.ai key — `ModelFactory.ts` notes the system `OPENROUTER_API_KEY` belongs to OpenRouter, not z.ai. |
+| Config | ~~New system env var `ZAI_CODING_API_KEY`~~ **SHIPPED in PR #1572** (2026-07-10) along with `EXTRACTION_PROVIDER` routing and busy-vs-permanent error classification — extraction is the first consumer. This slice reuses the same key. |
 | Routing | In `ApiKeyResolver` / `ProviderRouter`: when a user has **no z.ai BYOK key** AND the requested model is **`glm-4.5-air`** (bare or `z-ai/`-prefixed), resolve the **system z.ai key** and route to z.ai-direct — instead of the OpenRouter guest fallback. All other models keep existing free-OpenRouter behavior. |
 | Model gating | `glm-4.5-air` isn't a `:free` OpenRouter model, so guest model-allowlist logic (`GUEST_MODE` / `isFreeModel`) needs a carve-out for this specific z.ai-direct case. |
 | Abuse/quota | New guards (see below) before any free traffic touches the owner's key. |
@@ -128,3 +128,54 @@ two keys):
 4. **Observability**: per-window usage split (owner vs free-tier, per-user
    top-N) visible via an admin command or the weekly audit, so quota-eating
    is diagnosable before it's an incident.
+
+## Quota API + error-code research (2026-07-10 — answers the dynamic-ceiling open question)
+
+Researched off the slice-1 work (PR #1572, which shipped the shared foundation:
+`ZAI_CODING_API_KEY` config + `EXTRACTION_PROVIDER` routing + busy-vs-permanent
+error classification via `parseApiError`). Two findings, both [V] verified
+against z.ai's own client tooling rather than public docs (their documented API
+surface remains thin). Re-verify shapes at slice-2 build time — the endpoint is
+first-party-used but undocumented, so treat it as semi-stable.
+
+### 1. Quota status IS queryable — dynamic ceilings are feasible
+
+`GET https://api.z.ai/api/monitor/usage/quota/limit` returns the coding plan's
+live meters. Auth quirk: the key goes in `Authorization` RAW — **no `Bearer`
+prefix** (matches z.ai's official coding-plan plugin behavior). Code a fallback
+to static ceilings if it 404s or changes shape.
+
+Response carries both windows — the **5-hour window** and the **weekly window**
+— as percentage-consumed meters with reset timestamps. That's exactly the input
+the "per-user fair share, dynamic" constraint needs: free-tier budgets derive
+from `(100% − consumed%)` of the tighter window, with owner-first headroom
+subtracted before allocation. Poll on a slow cadence (minutes-level freshness
+suffices) and cache — never per-request.
+
+### 2. 429 business codes split into three actionable classes
+
+z.ai multiplexes distinct conditions onto HTTP 429 + a JSON `code` field. The
+classifier the allocator (and extraction's delay path) should use:
+
+| Business code(s)              | Meaning                             | Correct response                                                         |
+| ----------------------------- | ----------------------------------- | ------------------------------------------------------------------------ |
+| `1302`, `1305`, `1313`        | Concurrency/rate busy (transient)   | Brief backoff + retry; for free tier, momentary fallback to `:free` OR   |
+| `1308`, `1310`, `1316`–`1321` | Window exhausted (5h or weekly)     | Stop routing until `next_flush_time` — retrying earlier is futile        |
+| `1113`, `1309`                | Account problem (arrears/disabled)  | Kill switch: stop all free-tier routing, surface to owner immediately    |
+
+Slice-1's `ExtractionProviderBusyError` treats all of these as generic BUSY via
+`parseApiError` categories (correct for extraction — delay is the right answer
+to every one of them; a fixed 30-min requeue just retries a few times more than
+strictly needed on an exhausted window). The piggyback slice should add the
+code-aware classifier so window-exhaustion uses `next_flush_time` instead of a
+fixed cooldown, and account-problem codes trip the kill switch instead of
+cycling retries.
+
+### Slice-1 foundation shipped (PR #1572)
+
+`ZAI_CODING_API_KEY` + `EXTRACTION_PROVIDER` config, z.ai-direct routing with
+the `z-ai/` prefix strip, busy classification, and delay-not-downgrade worker
+mechanics all exist now — extraction is the first consumer and this slice
+reuses them. Extraction's `usage_logs` rows (`provider: 'zai-coding'`,
+`requestType: 'fact_extraction'`) are the first in-system measurement of plan
+consumption — the observability constraint's starting data.
