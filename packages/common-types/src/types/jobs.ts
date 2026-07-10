@@ -490,6 +490,11 @@ export const factExtractionJobDataSchema = baseJobDataSchema.extend({
   sourceMemoryIds: z.array(z.string().uuid()).min(1),
   /** First pending episode id — the deterministic-jobId anchor, for traceability. */
   windowStart: z.string().uuid(),
+  /** Owner-initiated backfill jobs skip the per-personality daily budget: the
+   * tripwire bounds MALFUNCTIONS (runaway loops), not deliberate finite work —
+   * a backfill's job set is fixed at enqueue time. The worker gates both
+   * tryConsume and the busy-path refund on this flag. */
+  budgetExempt: z.boolean().optional(),
 });
 
 export type FactExtractionJobData = z.infer<typeof factExtractionJobDataSchema>;

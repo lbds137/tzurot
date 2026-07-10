@@ -11,6 +11,44 @@ const ENV_OPTION = '--env <env>';
 const ENV_OPTION_DESC = 'Environment: local, dev, or prod';
 const ENV_OPTION_DEFAULT = { default: 'dev' } as const;
 
+/** Backfill fact extraction over historical memories (memory Phase 2). */
+function registerBackfillFactsCommand(cli: CAC): void {
+  cli
+    .command(
+      'memory:backfill-facts',
+      'Enqueue fact-extraction jobs for memories that predate the live trigger'
+    )
+    .option(ENV_OPTION, ENV_OPTION_DESC, ENV_OPTION_DEFAULT)
+    .option('--dry-run', 'Report scope (groups/windows) without enqueueing')
+    .option('--limit <n>', 'Cap enqueued windows (canary runs)')
+    .option('--personality-id <id>', 'Filter to a specific personality UUID')
+    .option('--window-size <n>', 'Episodes per extraction window (default 6, the live threshold)')
+    .option('--include-covered', 'Also re-enqueue memories already cited by existing facts')
+    .option('--force', 'Skip production confirmation prompt')
+    .action(
+      async (options: {
+        env?: Environment;
+        dryRun?: boolean;
+        limit?: string;
+        personalityId?: string;
+        windowSize?: string;
+        includeCovered?: boolean;
+        force?: boolean;
+      }) => {
+        const { backfillFacts } = await import('../memory/backfill-facts.js');
+        await backfillFacts({
+          env: options.env ?? 'dev',
+          dryRun: options.dryRun,
+          limit: options.limit === undefined ? undefined : Number(options.limit),
+          personalityId: options.personalityId,
+          windowSize: options.windowSize === undefined ? undefined : Number(options.windowSize),
+          includeCovered: options.includeCovered,
+          force: options.force,
+        });
+      }
+    );
+}
+
 export function registerMemoryCommands(cli: CAC): void {
   // Analyze duplicate memories
   cli
@@ -58,6 +96,8 @@ export function registerMemoryCommands(cli: CAC): void {
         });
       }
     );
+
+  registerBackfillFactsCommand(cli);
 
   // Cleanup duplicate memories
   cli
