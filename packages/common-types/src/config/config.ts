@@ -67,6 +67,8 @@ export const envSchema = z.object({
     .optional()
     .or(z.literal('').transform(() => undefined)), // 'true' injects extracted facts into the generation prompt (memory Phase 2 slice 4a; dev-on/prod-off until the quality gate + correction surface land)
   EXTRACTION_BATCH_THRESHOLD: z.coerce.number().int().min(1).max(50).default(6), // episodes per (channel, personality) before an extraction batch enqueues
+  EXTRACTION_MODEL: z.string().default(MODEL_DEFAULTS.FACT_EXTRACTION), // extraction engine — switching models MUST re-run pnpm eval:extraction first (the quality gate is model-specific)
+  EXTRACTION_DAILY_LIMIT: z.coerce.number().int().min(1).default(100), // per-personality daily ceiling on extraction model calls (cost tripwire)
   // Fair-share quota for the SHARED system OpenRouter free-tier key (guests +
   // credit-exhausted-BYOK fallback). Rolling-window per-user cap that shrinks as
   // concurrent users rise, bounded by a floor/ceiling; a daily global counter is
@@ -242,6 +244,8 @@ export function createTestConfig(overrides: Partial<EnvConfig> = {}): EnvConfig 
     EXTRACTION_ENABLED: undefined,
     FACTS_IN_PROMPT_ENABLED: undefined,
     EXTRACTION_BATCH_THRESHOLD: 6,
+    EXTRACTION_MODEL: MODEL_DEFAULTS.FACT_EXTRACTION,
+    EXTRACTION_DAILY_LIMIT: 100,
     FREE_TIER_GLOBAL_DAILY_BUDGET: 1000,
     FREE_TIER_WINDOW_MINUTES: 60,
     FREE_TIER_MIN_PER_WINDOW: 5,

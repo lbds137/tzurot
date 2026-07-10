@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { Redis } from 'ioredis';
-import { ExtractionBudget, FACT_EXTRACTION_DAILY_LIMIT } from './ExtractionBudget.js';
+import { createTestConfig } from '@tzurot/common-types/config/config';
+import { ExtractionBudget } from './ExtractionBudget.js';
 import { CACHE_KEY_PREFIXES } from '@tzurot/common-types/constants/redis-keys';
 
 function makeRedis(evalResult: number | Error): Redis {
@@ -53,7 +54,7 @@ describe('ExtractionBudget', () => {
 
   it('scopes keys by UTC day so the count resets at midnight', async () => {
     const redis = makeRedis(1);
-    const budget = new ExtractionBudget(redis);
+    const budget = new ExtractionBudget(redis, 100);
 
     await budget.tryConsume('p');
     vi.setSystemTime(new Date('2026-07-07T00:00:01.000Z'));
@@ -64,7 +65,7 @@ describe('ExtractionBudget', () => {
     expect(keys[1]).toContain('2026-07-07');
   });
 
-  it('exposes a generous default limit', () => {
-    expect(FACT_EXTRACTION_DAILY_LIMIT).toBeGreaterThanOrEqual(50);
+  it('the config schema default limit stays generous (single source of truth)', () => {
+    expect(createTestConfig().EXTRACTION_DAILY_LIMIT).toBeGreaterThanOrEqual(50);
   });
 });

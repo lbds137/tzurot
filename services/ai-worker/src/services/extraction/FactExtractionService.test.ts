@@ -30,6 +30,8 @@ interface Setup {
   budget: ExtractionBudget;
   invokeModel: ReturnType<typeof vi.fn>;
   writeMock: ReturnType<typeof vi.fn>;
+  usageCreateMock: ReturnType<typeof vi.fn>;
+  prisma: PrismaClient;
 }
 
 function makeSetup(options: {
@@ -50,8 +52,11 @@ function makeSetup(options: {
     { id: MEM(1), content: '{user}: my cat is Miso', personaId: PERSONA_A, isFiction: false },
     { id: MEM(2), content: '{user}: I love tea', personaId: PERSONA_A, isFiction: false },
   ];
+  const usageCreateMock = vi.fn().mockResolvedValue({});
   const prisma = {
     memory: { findMany: vi.fn().mockResolvedValue(episodes) },
+    persona: { findUnique: vi.fn().mockResolvedValue({ ownerId: 'user-uuid-1' }) },
+    usageLog: { create: usageCreateMock },
   } as unknown as PrismaClient;
 
   const writeMock = vi.fn().mockResolvedValue('new-fact-id');
@@ -71,8 +76,9 @@ function makeSetup(options: {
   const invokeModel =
     options.modelResponse instanceof Error
       ? vi.fn().mockRejectedValue(options.modelResponse)
-      : vi.fn().mockResolvedValue(
-          options.modelResponse ??
+      : vi.fn().mockResolvedValue({
+          content:
+            options.modelResponse ??
             JSON.stringify({
               facts: [
                 {
@@ -82,11 +88,13 @@ function makeSetup(options: {
                   supersedesIndex: null,
                 },
               ],
-            })
-        );
+            }),
+          tokensIn: 120,
+          tokensOut: 40,
+        });
 
   const service = new FactExtractionService(prisma, factStore, budget, invokeModel);
-  return { service, factStore, budget, invokeModel, writeMock };
+  return { service, factStore, budget, invokeModel, writeMock, usageCreateMock, prisma };
 }
 
 describe('FactExtractionService', () => {
@@ -367,5 +375,55 @@ describe('hasEntityOverlap', () => {
     expect(hasEntityOverlap(['user:alice'], ['user:bob'])).toBe(false);
     expect(hasEntityOverlap([], ['user:alice'])).toBe(false);
     expect(hasEntityOverlap(['user:alice'], [])).toBe(false);
+  });
+});
+
+describe('extraction usage rows (cost visibility)', () => {
+  it("writes one usage_logs row per model call, attributed to the persona's owner", async () => {
+    const s = makeSetup({});
+
+    await s.service.processBatch(job);
+
+    expect(s.usageCreateMock).toHaveBeenCalledTimes(1);
+    expect(s.usageCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          userId: 'user-uuid-1',
+          provider: 'openrouter',
+          requestType: 'fact_extraction',
+          tokensIn: 120,
+          tokensOut: 40,
+        }),
+      })
+    );
+  });
+
+  it('a usage-row failure never costs the extraction batch (fail-soft)', async () => {
+    const s = makeSetup({});
+    s.usageCreateMock.mockRejectedValue(new Error('db hiccup'));
+
+    const written = await s.service.processBatch(job);
+
+    expect(written).toBeGreaterThan(0); // facts still written
+  });
+
+  it('skips the usage row (without failing) when the persona has no owner row', async () => {
+    const s = makeSetup({});
+    (
+      s.prisma as unknown as { persona: { findUnique: ReturnType<typeof vi.fn> } }
+    ).persona.findUnique.mockResolvedValue(null);
+
+    const written = await s.service.processBatch(job);
+
+    expect(s.usageCreateMock).not.toHaveBeenCalled();
+    expect(written).toBeGreaterThan(0);
+  });
+
+  it('writes NO usage row when the model call itself failed', async () => {
+    const s = makeSetup({ modelResponse: new Error('model down') });
+
+    await s.service.processBatch(job);
+
+    expect(s.usageCreateMock).not.toHaveBeenCalled();
   });
 });

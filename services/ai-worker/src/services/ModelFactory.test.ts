@@ -967,6 +967,17 @@ describe('ModelFactory', () => {
       expect(callArgs?.configuration?.defaultHeaders).toEqual({ 'X-Title': 'MyBot' });
     });
 
+    it('appends appTitleSuffix so background workloads attribute as a distinct app', () => {
+      mockConfigData.OPENROUTER_APP_TITLE = 'MyBot';
+
+      createChatModel({ modelName: 'test-model', appTitleSuffix: 'Extraction' });
+
+      const callArgs = mockChatOpenAI.mock.calls[0]?.[0] as {
+        configuration?: { defaultHeaders?: Record<string, string> };
+      };
+      expect(callArgs?.configuration?.defaultHeaders).toEqual({ 'X-Title': 'MyBot Extraction' });
+    });
+
     it('should strip non-Latin characters from X-Title header', () => {
       mockConfigData.OPENROUTER_APP_TITLE = 'צורות Bot';
 

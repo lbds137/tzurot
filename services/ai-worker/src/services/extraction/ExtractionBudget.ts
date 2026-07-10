@@ -26,14 +26,6 @@ const logger = createLogger('ExtractionBudget');
 
 const KEY_PREFIX = CACHE_KEY_PREFIXES.FACT_EXTRACTION_BUDGET;
 
-/**
- * Default per-personality daily ceiling on extraction model calls. At the
- * default batch threshold (one call per ~6 stored interactions) this allows
- * ~600 interactions/personality/day before throttling — far above organic
- * roleplay volume, low enough to bound a runaway loop or an abuse pattern.
- */
-export const FACT_EXTRACTION_DAILY_LIMIT = 100;
-
 /** TTL for the per-day counter key — 25h gives margin past the UTC rollover. */
 const BUDGET_KEY_TTL_SECONDS = 25 * 60 * 60;
 
@@ -47,9 +39,16 @@ return count
 `;
 
 export class ExtractionBudget {
+  /**
+   * `dailyLimit` is the per-personality daily ceiling on extraction model
+   * calls — single source of truth is config.EXTRACTION_DAILY_LIMIT (default
+   * 100: at the default batch threshold that allows ~600 interactions/
+   * personality/day before throttling — far above organic roleplay volume,
+   * low enough to bound a runaway loop or an abuse pattern).
+   */
   constructor(
     private readonly redis: Redis,
-    private readonly dailyLimit: number = FACT_EXTRACTION_DAILY_LIMIT
+    private readonly dailyLimit: number
   ) {}
 
   /**
