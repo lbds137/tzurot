@@ -351,6 +351,13 @@ describe('RateLimitCache', () => {
 });
 
 describe('deriveCacheKeyId', () => {
+  it('returns system when the route is system-key even though a key STRING is present', () => {
+    // Provenance beats presence: a quota retarget passes the system key as a
+    // plain string; deriving user:<id> from it re-attaches the user's doom
+    // marks to a route billing a different account (prod ref mrecl8grjuc).
+    expect(deriveCacheKeyId('sk-or-system-key', '278863839632818186', true)).toBe('system');
+  });
+
   it('returns user:<userId> when BYOK key + userId both present', () => {
     expect(deriveCacheKeyId('any-byok-key-value', '278863839632818186')).toBe(
       'user:278863839632818186'
