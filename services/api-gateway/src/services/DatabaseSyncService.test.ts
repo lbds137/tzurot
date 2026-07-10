@@ -923,6 +923,59 @@ describe('DatabaseSyncService', () => {
       }
     });
 
+    it('defers only the constraints the target reports deferrable (migration-soak window)', async () => {
+      const executedQueries: string[] = [];
+      const userId = '4f9b0f66-0000-4000-8000-0000000000d1';
+      const personaId = '4f9b0f66-0000-4000-8000-0000000000d2';
+
+      devClient.$queryRawUnsafe.mockImplementation(async query => {
+        const queryStr = String(query);
+        if (queryStr.includes('FROM "users"') && !queryStr.includes('UPDATE')) {
+          return [
+            {
+              id: userId,
+              discord_id: '123456789',
+              username: 'soakuser',
+              default_persona_id: personaId,
+              created_at: new Date('2024-01-01'),
+              updated_at: new Date('2024-01-02'),
+            },
+          ];
+        }
+        return [];
+      });
+      // Prod reports every wanted constraint EXCEPT the memory_facts self-FK
+      // as deferrable — the exact shape of a dev-ahead soak window.
+      prodClient.$queryRawUnsafe.mockImplementation(async query => {
+        if (String(query).includes('table_constraints')) {
+          return [
+            { constraint_name: 'users_default_persona_id_fkey' },
+            { constraint_name: 'users_default_llm_config_id_fkey' },
+            { constraint_name: 'users_default_tts_config_id_fkey' },
+            { constraint_name: 'personas_owner_id_fkey' },
+            { constraint_name: 'llm_configs_owner_id_fkey' },
+          ];
+        }
+        return [];
+      });
+      prodClient.$executeRawUnsafe.mockImplementation(async (query: unknown) => {
+        executedQueries.push(String(query));
+        return { count: 1 };
+      });
+
+      await service.sync({ dryRun: false });
+
+      const setConstraints = executedQueries.find(
+        q => q.includes('SET CONSTRAINTS') && q.includes('DEFERRED')
+      );
+      expect(setConstraints, 'expected SET CONSTRAINTS on the prod flush').toBeDefined();
+      // The not-yet-deferrable constraint must be OMITTED — naming it throws
+      // Postgres 42809 and breaks the whole sync for the soak window.
+      expect(setConstraints).not.toContain('memory_facts_superseded_by_id_fkey');
+      expect(setConstraints).toContain('users_default_persona_id_fkey');
+      expect(setConstraints).toContain('llm_configs_owner_id_fkey');
+    });
+
     it('should return stats for all tables in SYNC_TABLE_ORDER', async () => {
       devClient.$queryRawUnsafe.mockResolvedValue([]);
       prodClient.$queryRawUnsafe.mockResolvedValue([]);

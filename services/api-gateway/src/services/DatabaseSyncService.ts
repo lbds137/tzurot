@@ -60,6 +60,24 @@ import {
 const logger = createLogger('db-sync');
 
 /**
+ * Constraints the flush transaction wants deferred. Must stay in sync with
+ * the DEFERRABLE-marking migrations (20260418010642 for the original 4,
+ * 20260504065151 for users_default_tts_config_id_fkey, 20260710183055 for
+ * the memory_facts supersession self-FK — its pointers are not
+ * creation-ordered, so rows upsert in arbitrary order and Postgres validates
+ * the chain at COMMIT). Each flush target defers only the subset it reports
+ * as deferrable (see resolveDeferrableConstraints).
+ */
+const SYNC_DEFERRED_CONSTRAINTS = [
+  'users_default_persona_id_fkey',
+  'users_default_llm_config_id_fkey',
+  'users_default_tts_config_id_fkey',
+  'personas_owner_id_fkey',
+  'llm_configs_owner_id_fkey',
+  'memory_facts_superseded_by_id_fkey',
+] as const;
+
+/**
  * Prisma interactive-transaction timeout in milliseconds. Defaults to 5s,
  * which is not enough for a real dev↔prod sync across all tables. 10 min
  * gives comfortable headroom for large row counts without being so long
@@ -226,28 +244,25 @@ export class DatabaseSyncService {
       return;
     }
     logger.info({ label, count: writes.length }, 'Phase 2: Flushing writes');
+    // Resolve which of the wanted constraints THIS target can actually defer.
+    // A DEFERRABLE-marking migration reaches dev before prod on every release
+    // cycle; naming a not-yet-deferrable constraint makes SET CONSTRAINTS
+    // throw 42809 and break the whole sync for the soak window. Skew-tolerant
+    // instead: defer the intersection, WARN the skips (rows that genuinely
+    // need the skipped deferral fail their own FK check with a clear error;
+    // everything else syncs normally).
+    const deferrable = await this.resolveDeferrableConstraints(client, label);
     await client.$transaction(
       async tx => {
         // Defer exactly the named circular FKs, not ALL deferrable
         // constraints in the transaction — future migrations might add
         // unrelated deferrable constraints (e.g., deferred uniqueness) and
-        // we don't want to silently soften those inside the sync. The names
-        // here must stay in sync with the DEFERRABLE-marking migrations
-        // (20260418010642 for the original 4, 20260504065151 for
-        // users_default_tts_config_id_fkey, 20260710183055 for the
-        // memory_facts supersession self-FK — its pointers are not
-        // creation-ordered, so rows upsert in arbitrary order and Postgres
-        // validates the chain at COMMIT).
-        await tx.$executeRawUnsafe(
-          `SET CONSTRAINTS
-            "users_default_persona_id_fkey",
-            "users_default_llm_config_id_fkey",
-            "users_default_tts_config_id_fkey",
-            "personas_owner_id_fkey",
-            "llm_configs_owner_id_fkey",
-            "memory_facts_superseded_by_id_fkey"
-          DEFERRED`
-        );
+        // we don't want to silently soften those inside the sync.
+        if (deferrable.length > 0) {
+          await tx.$executeRawUnsafe(
+            `SET CONSTRAINTS ${deferrable.map(c => `"${c}"`).join(', ')} DEFERRED`
+          );
+        }
         for (const w of writes) {
           // `tx` structurally satisfies `SyncExecutor` — both the full
           // PrismaClient and Prisma's transaction client expose
@@ -265,6 +280,46 @@ export class DatabaseSyncService {
       },
       { timeout: SYNC_TX_TIMEOUT_MS, maxWait: SYNC_TX_MAX_WAIT_MS }
     );
+  }
+
+  /**
+   * Intersect the wanted deferred-constraint list with what THIS database
+   * reports as deferrable. During a migration-soak window (a DEFERRABLE
+   * migration applied on dev, not yet released to prod) the two sides
+   * genuinely differ; the skipped names are WARNed so the degraded deferral
+   * is visible, mirroring the vector-table column-intersection philosophy.
+   */
+  private async resolveDeferrableConstraints(
+    client: PrismaClient,
+    label: 'dev' | 'prod'
+  ): Promise<string[]> {
+    const wanted = [...SYNC_DEFERRED_CONSTRAINTS];
+    const rows = await client.$queryRawUnsafe<{ constraint_name: string }[]>(
+      `SELECT constraint_name FROM information_schema.table_constraints
+       WHERE is_deferrable = 'YES' AND constraint_name IN (${wanted.map((_, i) => `$${i + 1}`).join(', ')})`,
+      ...wanted
+    );
+    const deferrableSet = new Set(rows.map(r => r.constraint_name));
+    // Fail open on an EMPTY result: every real database has had most of these
+    // deferrable since the original Ouroboros migration, so zero matches means
+    // the introspection itself is suspect — use the full list rather than
+    // silently dropping all deferral (mirrors resolveVectorSyncColumns).
+    if (deferrableSet.size === 0) {
+      logger.warn(
+        { label },
+        'Deferrable-constraint introspection returned nothing — falling back to the full named list'
+      );
+      return wanted;
+    }
+    const usable = wanted.filter(c => deferrableSet.has(c));
+    const skipped = wanted.filter(c => !deferrableSet.has(c));
+    if (skipped.length > 0) {
+      logger.warn(
+        { label, skipped },
+        'Constraints not deferrable on this database — skipping their deferral (expected during a migration-soak window; rows that need it will fail their own FK check instead of breaking the whole sync)'
+      );
+    }
+    return usable;
   }
 
   /**
