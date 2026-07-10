@@ -22,6 +22,10 @@ const createMockPrismaClient = () => {
     // route to the same $executeRawUnsafe the rest of the test asserts on.
     $transaction: ReturnType<typeof vi.fn>;
     conversationHistoryTombstone: { findMany: ReturnType<typeof vi.fn> };
+    syncTombstone: {
+      findMany: ReturnType<typeof vi.fn>;
+      deleteMany: ReturnType<typeof vi.fn>;
+    };
     conversationHistory: { deleteMany: ReturnType<typeof vi.fn> };
     llmConfig: {
       findMany: ReturnType<typeof vi.fn>;
@@ -43,6 +47,10 @@ const createMockPrismaClient = () => {
     $transaction: vi.fn(),
     conversationHistoryTombstone: {
       findMany: vi.fn().mockResolvedValue([]),
+    },
+    syncTombstone: {
+      findMany: vi.fn().mockResolvedValue([]),
+      deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
     },
     conversationHistory: {
       deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
@@ -974,6 +982,97 @@ describe('DatabaseSyncService', () => {
       expect(setConstraints).not.toContain('memory_facts_superseded_by_id_fkey');
       expect(setConstraints).toContain('users_default_persona_id_fkey');
       expect(setConstraints).toContain('llm_configs_owner_id_fkey');
+    });
+
+    it('a tombstoned one-sided row queues a DELETE on the holding side instead of copying', async () => {
+      const aliasId = '4f9b0f66-0000-4000-8000-0000000000f1';
+      const executed: string[] = [];
+      // personality_aliases is created_at-only (immutable) — exercises the
+      // createdAt fallback of the tombstone comparison.
+      prodClient.$queryRawUnsafe.mockImplementation(async query => {
+        const queryStr = String(query);
+        if (queryStr.includes('FROM "personality_aliases"')) {
+          return [
+            {
+              id: aliasId,
+              personality_id: '4f9b0f66-0000-4000-8000-0000000000f2',
+              alias: 'doomed',
+              created_at: new Date('2026-07-01T00:00:00Z'),
+            },
+          ];
+        }
+        return [];
+      });
+      prodClient.syncTombstone.findMany
+        .mockResolvedValueOnce([
+          {
+            tableName: 'personality_aliases',
+            rowPk: aliasId,
+            deletedAt: new Date('2026-07-09T00:00:00Z'), // newer than created_at
+          },
+        ])
+        .mockResolvedValue([]);
+      prodClient.$executeRawUnsafe.mockImplementation(async (query: unknown) => {
+        executed.push(String(query));
+        return 1;
+      });
+
+      const result = await service.sync({ dryRun: false });
+
+      // The row was NOT copied to dev …
+      const inserts = vi
+        .mocked(devClient.$executeRawUnsafe)
+        .mock.calls.filter(c => String(c[0]).includes('INSERT INTO "personality_aliases"'));
+      expect(inserts).toHaveLength(0);
+      // … it was DELETED from prod (the side still holding it).
+      expect(executed.some(q => q.includes('DELETE FROM "personality_aliases"'))).toBe(true);
+      expect(result.stats.personality_aliases.deleted).toBe(1);
+    });
+
+    it('a failed delete propagation SKIPS tombstone pruning (protects the unpropagated deletion)', async () => {
+      const aliasId = '4f9b0f66-0000-4000-8000-0000000000f3';
+      prodClient.$queryRawUnsafe.mockImplementation(async query => {
+        if (String(query).includes('FROM "personality_aliases"')) {
+          return [
+            {
+              id: aliasId,
+              personality_id: '4f9b0f66-0000-4000-8000-0000000000f4',
+              alias: 'stuck',
+              created_at: new Date('2026-07-01T00:00:00Z'),
+            },
+          ];
+        }
+        return [];
+      });
+      prodClient.syncTombstone.findMany
+        .mockResolvedValueOnce([
+          {
+            tableName: 'personality_aliases',
+            rowPk: aliasId,
+            deletedAt: new Date('2026-07-09T00:00:00Z'),
+          },
+        ])
+        .mockResolvedValue([]);
+      // The propagated DELETE fails (RESTRICT-divergence shape).
+      prodClient.$executeRawUnsafe.mockImplementation(async (query: unknown) => {
+        if (String(query).includes('DELETE FROM "personality_aliases"')) {
+          throw new Error('violates foreign key constraint');
+        }
+        return 1;
+      });
+
+      const result = await service.sync({ dryRun: false });
+
+      // Pruning must NOT run — the failed deletion's tombstone is all that
+      // prevents the row from resurrecting after the retention window.
+      expect(prodClient.syncTombstone.deleteMany).not.toHaveBeenCalled();
+      expect(devClient.syncTombstone.deleteMany).not.toHaveBeenCalled();
+      expect(result.warnings.some(w => w.includes('pruning skipped'))).toBe(true);
+      expect(result.warnings.some(w => w.includes('personality_aliases'))).toBe(true);
+      // Stats report the ACTUAL flush outcome (0 rows deleted — it failed),
+      // not the scan-time candidate count (1) — the embed and the warning
+      // must never disagree.
+      expect(result.stats.personality_aliases.deleted).toBe(0);
     });
 
     it('should return stats for all tables in SYNC_TABLE_ORDER', async () => {

@@ -52,6 +52,18 @@ const DEFERRABLE_CONSTRAINT_BANNER = [
   '-- SET CONSTRAINTS ALL DEFERRED for atomic circular-FK inserts.)',
 ].join('\n');
 
+/**
+ * Header preceding appended plpgsql functions + triggers. Same shape as the
+ * banners above.
+ */
+const TRIGGER_BANNER = [
+  '-- plpgsql functions + triggers harvested from prisma/migrations/**/migration.sql',
+  "-- (Prisma's migrate diff cannot see functions or triggers at all, so the",
+  '-- hand-written ones are merged back in here. sync_tombstone_capture backs',
+  "-- db-sync's deletion propagation; the cache-invalidation triggers' pg_notify",
+  '-- calls are listener-less no-ops under PGLite.)',
+].join('\n');
+
 interface GenerateSchemaOptions {
   output?: string;
 }
@@ -269,6 +281,84 @@ export function extractDeferrableConstraints(migrationsDir: string): string[] {
 }
 
 /**
+ * plpgsql function definitions can't go through the `;`-split path — their
+ * dollar-quoted bodies contain raw `;`. These regexes run against the WHOLE
+ * uncommented file text instead. Trigger statements never contain `;`, so
+ * the non-greedy terminator match is safe for them.
+ */
+// Linear-time by construction (regexp/no-super-linear-backtracking): the
+// header segment excludes '$' outright, and the body matcher only lets a
+// lone '$' through when it is NOT opening the closing '$$' — no two
+// quantifiers can exchange characters.
+const CREATE_FUNCTION_REGEX =
+  /CREATE\s+(?:OR\s+REPLACE\s+)?FUNCTION\s+([A-Za-z_][A-Za-z0-9_]*)\s*\([^)]*\)[^$]*\$\$(?:[^$]|\$(?!\$))*\$\$\s+LANGUAGE\s+plpgsql\s*;/gi;
+const DROP_FUNCTION_REGEX = /DROP\s+FUNCTION\s+(?:IF\s+EXISTS\s+)?([A-Za-z_][A-Za-z0-9_]*)/gi;
+const CREATE_TRIGGER_REGEX = /CREATE\s+TRIGGER\s+([A-Za-z_][A-Za-z0-9_]*)\b[^;]*;/gi;
+const DROP_TRIGGER_REGEX = /DROP\s+TRIGGER\s+(?:IF\s+EXISTS\s+)?([A-Za-z_][A-Za-z0-9_]*)/gi;
+
+/**
+ * Whole-file variant of the harvest: collects add/drop matches WITH their
+ * file positions so within-file ordering holds — trigger migrations use the
+ * idempotent `DROP TRIGGER IF EXISTS x; CREATE TRIGGER x ...` pattern, and a
+ * position-blind pass would apply the drop after the add and lose it.
+ * Last-wins by name across chronologically-sorted migration files, exactly
+ * like `harvestLastWins`.
+ */
+function harvestWholeFileLastWins(
+  migrationsDir: string,
+  addRegex: RegExp,
+  dropRegex: RegExp
+): string[] {
+  if (!existsSync(migrationsDir)) {
+    return [];
+  }
+  const migrationFolders = readdirSync(migrationsDir, { withFileTypes: true })
+    .filter(d => d.isDirectory())
+    .map(d => d.name)
+    .sort();
+
+  const byName = new Map<string, string>();
+  for (const folder of migrationFolders) {
+    const sqlPath = join(migrationsDir, folder, 'migration.sql');
+    if (!existsSync(sqlPath)) continue;
+    const raw = readFileSync(sqlPath, 'utf-8');
+    const uncommented = raw.replace(/\/\*[\s\S]*?\*\//g, '').replace(/--[^\n]*/g, '');
+
+    const ops: { index: number; kind: 'add' | 'drop'; name: string; statement?: string }[] = [];
+    for (const match of uncommented.matchAll(addRegex)) {
+      ops.push({
+        index: match.index ?? 0,
+        kind: 'add',
+        name: match[1],
+        statement: match[0].trim(),
+      });
+    }
+    for (const match of uncommented.matchAll(dropRegex)) {
+      ops.push({ index: match.index ?? 0, kind: 'drop', name: match[1] });
+    }
+    ops.sort((a, b) => a.index - b.index);
+    for (const op of ops) {
+      if (op.kind === 'add' && op.statement !== undefined) {
+        byName.set(op.name, op.statement);
+      } else {
+        byName.delete(op.name);
+      }
+    }
+  }
+  return Array.from(byName.values());
+}
+
+/** All plpgsql `CREATE FUNCTION` bodies, last-wins deduped by function name. */
+export function extractPlpgsqlFunctions(migrationsDir: string): string[] {
+  return harvestWholeFileLastWins(migrationsDir, CREATE_FUNCTION_REGEX, DROP_FUNCTION_REGEX);
+}
+
+/** All `CREATE TRIGGER` statements, last-wins deduped by trigger name. */
+export function extractTriggers(migrationsDir: string): string[] {
+  return harvestWholeFileLastWins(migrationsDir, CREATE_TRIGGER_REGEX, DROP_TRIGGER_REGEX);
+}
+
+/**
  * Generate PGLite-compatible SQL schema from Prisma
  */
 export async function generateSchema(options: GenerateSchemaOptions = {}): Promise<void> {
@@ -308,6 +398,9 @@ export async function generateSchema(options: GenerateSchemaOptions = {}): Promi
     // Appended AFTER the base diff, which contains every ADD CONSTRAINT the
     // ALTERs reference — so the harvested statements always find their target.
     const deferrableStatements = extractDeferrableConstraints(migrationsDir);
+    // Functions BEFORE triggers — triggers reference them.
+    const functionStatements = extractPlpgsqlFunctions(migrationsDir);
+    const triggerStatements = extractTriggers(migrationsDir);
 
     const harvestedSections: string[] = [];
     if (checkStatements.length > 0) {
@@ -320,6 +413,11 @@ export async function generateSchema(options: GenerateSchemaOptions = {}): Promi
     }
     if (deferrableStatements.length > 0) {
       harvestedSections.push(`${DEFERRABLE_CONSTRAINT_BANNER}\n${deferrableStatements.join('\n')}`);
+    }
+    if (functionStatements.length > 0 || triggerStatements.length > 0) {
+      harvestedSections.push(
+        `${TRIGGER_BANNER}\n${[...functionStatements, ...triggerStatements].join('\n\n')}`
+      );
     }
 
     // Only reshape the base SQL when there's something to append — otherwise

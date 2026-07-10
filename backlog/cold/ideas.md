@@ -493,13 +493,9 @@ When a user marks a fact (or a reply drawing on facts) good/bad, capture it as a
 
 **Decoupled ride-along, still filed**: `ops run --service <name>` enhancement — pull the named service's full Railway variable set (via `railway variables --json`), overlay the pgvector public `DATABASE_URL`, keep env validation + prod confirm gate. NOT load-bearing for the backfill after all (the Railway worker holds the keys; the command only reads DB + enqueues) — standalone nice-to-have for future probes needing service secrets locally; raw `railway run` covers it today but silently defaults to the linked env (no prod gate) and injects unresolvable internal hostnames.
 
-## db-sync deletion tombstones — stop resurrecting hard-deleted rows (owner pain 2026-07-10)
+## db-sync deletion tombstones — SHIPPED (build 2026-07-10, entry leaves at merge)
 
-**Problem**: sync's scan can't distinguish "row never synced" from "row deliberately deleted," so a hard delete on one side is resurrected from the other on every resync. Owner has hit this repeatedly with presets ("I would have to delete them twice, both in dev and prod, because otherwise one of them will refill the other"). Affects every synced table; `conversation_history_tombstones` is the existing bespoke proof-of-pattern that never got generalized.
-
-**Design shape**: trigger-based deletion ledger — `sync_tombstones(table_name, row_pk, deleted_at)` populated by `AFTER DELETE` triggers on synced tables (captures dashboard SQL, Prisma, and cascade deletes with no app-code sweep), itself synced append-only. Scan consults it: missing-with-tombstone → propagate the DELETE; missing-without → genuine new row, copy; re-created same-PK row with `updated_at > deleted_at` → row wins. Retention prune after both sides have synced past `deleted_at`. Long-term: may absorb the bespoke conversation_history_tombstones path. Needs FK-order care for propagated deletes (children before parents — reverse of SYNC_TABLE_ORDER).
-
-**Promote when**: right after beta.157's memory-facts chain lands (owner wants it "addressed"), or the next time a preset cleanup gets resurrected.
+Built per the design sketch (trigger ledger, delete propagation, recreation-wins, 30-day prune, PGLite trigger harvester). Remaining future note only: the bespoke conversation_history tombstone write-paths could consolidate onto the generic triggers someday (bulk-delete perf on the retention path is why they stayed separate).
 
 ## BYOK-first extraction billing — offload extraction cost to the persona owner's own keys (owner directive 2026-07-10)
 

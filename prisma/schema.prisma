@@ -518,6 +518,28 @@ model ConversationHistoryTombstone {
   @@map("conversation_history_tombstones")
 }
 
+/// Generalized deletion ledger for db-sync: one row per hard-deleted row of a
+/// synced table, written by the sync_tombstone_capture() AFTER DELETE trigger
+/// (see migration 20260710230428). Sync consults it so a row deleted in one
+/// environment is DELETE-propagated to the other instead of resurrected.
+/// row_pk encodes composite keys with '|' (matching SyncUpsertBuilder's
+/// getPrimaryKey). Deliberately NO relations — a tombstone must survive the
+/// deletion of everything it references. Rows are pruned after the retention
+/// window once both sides have synced past them.
+model SyncTombstone {
+  /// Snake_case table name as reported by TG_TABLE_NAME.
+  tableName String   @map("table_name") @db.VarChar(64)
+  /// The deleted row's SYNC_CONFIG primary key, '|'-joined when composite.
+  rowPk     String   @map("row_pk") @db.VarChar(255)
+  /// Latest deletion time — a delete→recreate→delete sequence keeps the
+  /// newest (trigger upserts on conflict).
+  deletedAt DateTime @default(now()) @map("deleted_at")
+
+  @@id([tableName, rowPk])
+  @@index([deletedAt]) // retention pruning
+  @@map("sync_tombstones")
+}
+
 model PendingMemory {
   id                    String               @id @db.Uuid
   conversationHistoryId String?              @unique @map("conversation_history_id") @db.Uuid

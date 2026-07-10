@@ -49,6 +49,13 @@ import { SYNC_CONFIG, SYNC_TABLE_ORDER, type TableSyncConfig } from './sync/conf
 import { checkSchemaVersions, validateSyncConfig } from './sync/utils/syncValidation.js';
 import { loadTombstoneIds, deleteMessagesWithTombstones } from './sync/utils/tombstoneUtils.js';
 import {
+  loadSyncTombstones,
+  flushPendingDeletes,
+  pruneSyncTombstones,
+  tombstoneKey,
+  type PendingDelete,
+} from './sync/utils/syncTombstoneUtils.js';
+import {
   fetchAllRows,
   resolveVectorSyncColumns,
   VECTOR_SYNC_TABLES,
@@ -88,7 +95,10 @@ const SYNC_TX_MAX_WAIT_MS = 10_000;
 
 interface SyncResult {
   schemaVersion: string;
-  stats: Record<string, { devToProd: number; prodToDev: number; conflicts: number }>;
+  stats: Record<
+    string,
+    { devToProd: number; prodToDev: number; conflicts: number; deleted: number }
+  >;
   warnings: string[];
   info: string[];
   changes?: unknown;
@@ -154,11 +164,18 @@ export class DatabaseSyncService {
 
       const configValidation = await validateSyncConfig(this.devClient, SYNC_CONFIG);
 
-      const stats: Record<string, { devToProd: number; prodToDev: number; conflicts: number }> = {};
+      const stats: Record<
+        string,
+        { devToProd: number; prodToDev: number; conflicts: number; deleted: number }
+      > = {};
       const warnings: string[] = [...configValidation.warnings];
       const info: string[] = [...configValidation.info];
 
       const tombstoneIds = await loadTombstoneIds(this.devClient, this.prodClient);
+      // Generalized deletion ledger (union of both sides, latest wins): a row
+      // present on only one side whose tombstone is NEWER than the row gets
+      // DELETE-propagated instead of resurrected.
+      const syncTombstones = await loadSyncTombstones(this.devClient, this.prodClient);
 
       // Scan phase — collect pending writes without executing them.
       //
@@ -175,6 +192,8 @@ export class DatabaseSyncService {
       // is observed.
       const devBoundWrites: PendingWrite[] = [];
       const prodBoundWrites: PendingWrite[] = [];
+      const devBoundDeletes: PendingDelete[] = [];
+      const prodBoundDeletes: PendingDelete[] = [];
 
       logger.info('Phase 1: Scanning tables and accumulating pending writes');
       for (const tableName of SYNC_TABLE_ORDER) {
@@ -195,19 +214,22 @@ export class DatabaseSyncService {
           }
         }
 
-        const tableStats = await this.scanTable(
-          tableName,
-          config,
-          tombstoneIds,
+        const tableStats = await this.scanTable(tableName, config, tombstoneIds, {
           devBoundWrites,
-          prodBoundWrites
-        );
+          prodBoundWrites,
+          devBoundDeletes,
+          prodBoundDeletes,
+          syncTombstones,
+        });
         stats[tableName] = tableStats;
 
         if (tableStats.conflicts > 0) {
           warnings.push(
             `${tableName}: ${tableStats.conflicts} conflicts resolved using last-write-wins`
           );
+        }
+        if (tableStats.deleted > 0) {
+          info.push(`${tableName}: ${tableStats.deleted} deletion(s) will propagate (tombstoned)`);
         }
       }
 
@@ -218,6 +240,31 @@ export class DatabaseSyncService {
       if (!options.dryRun) {
         await this.flushWrites(this.devClient, devBoundWrites, 'dev');
         await this.flushWrites(this.prodClient, prodBoundWrites, 'prod');
+        // Propagated deletions run AFTER the upserts, per table in reverse
+        // FK order, fail-soft per table (see flushPendingDeletes).
+        const devDeletes = await flushPendingDeletes(
+          this.devClient,
+          devBoundDeletes,
+          'dev',
+          warnings
+        );
+        const prodDeletes = await flushPendingDeletes(
+          this.prodClient,
+          prodBoundDeletes,
+          'prod',
+          warnings
+        );
+        reconcileDeletedStats(stats, devDeletes.counts, prodDeletes.counts);
+        // Prune ONLY after a fully-clean delete pass: a failed propagation's
+        // tombstone must survive past retention or the protected row silently
+        // resurrects once the tombstone ages out.
+        if (!devDeletes.anyFailed && !prodDeletes.anyFailed) {
+          await pruneSyncTombstones(this.devClient, this.prodClient);
+        } else {
+          warnings.push(
+            'sync_tombstones: pruning skipped this run — delete propagation had failures; tombstones retained until a clean pass'
+          );
+        }
       }
 
       logger.info({ stats }, 'Sync complete');
@@ -332,9 +379,16 @@ export class DatabaseSyncService {
     tableName: string,
     config: TableSyncConfig,
     tombstoneIds: Set<string> | undefined,
-    devBoundWrites: PendingWrite[],
-    prodBoundWrites: PendingWrite[]
-  ): Promise<{ devToProd: number; prodToDev: number; conflicts: number }> {
+    buckets: {
+      devBoundWrites: PendingWrite[];
+      prodBoundWrites: PendingWrite[];
+      devBoundDeletes: PendingDelete[];
+      prodBoundDeletes: PendingDelete[];
+      syncTombstones: Map<string, Date>;
+    }
+  ): Promise<{ devToProd: number; prodToDev: number; conflicts: number; deleted: number }> {
+    const { devBoundWrites, prodBoundWrites, devBoundDeletes, prodBoundDeletes, syncTombstones } =
+      buckets;
     // Vector tables (memories, memory_facts): resolve the skew-tolerant
     // column set once per run so a migration-soak window (schema ahead on
     // one side) degrades to a WARN + skipped columns instead of breaking
@@ -360,19 +414,24 @@ export class DatabaseSyncService {
       excludeColumns: config.excludeColumns ?? [],
     };
 
-    const totals = { devToProd: 0, prodToDev: 0, conflicts: 0 };
+    const totals = { devToProd: 0, prodToDev: 0, conflicts: 0, deleted: 0 };
 
     for (const key of allKeys) {
       if (shouldSkipTombstones && tombstoneIds?.has(key) === true) {
         continue;
       }
       classifyAndQueueRow({
+        tableName,
+        rowKey: key,
         devRow: devMap.get(key),
         prodRow: prodMap.get(key),
         config,
         writeBase,
         devBoundWrites,
         prodBoundWrites,
+        devBoundDeletes,
+        prodBoundDeletes,
+        syncTombstones,
         totals,
       });
     }
@@ -382,28 +441,107 @@ export class DatabaseSyncService {
 }
 
 /**
+ * Overwrite the scan-phase CANDIDATE delete counts with the ACTUAL rows the
+ * flush deleted — a partial failure must not report "5 deleted" next to a
+ * warning saying it stopped after 3. Only called on non-dry runs: for dryRun
+ * no flush happens and the candidate count IS the answer.
+ */
+function reconcileDeletedStats(
+  stats: Record<string, { deleted: number }>,
+  devCounts: Record<string, number>,
+  prodCounts: Record<string, number>
+): void {
+  for (const [tableName, tableStat] of Object.entries(stats)) {
+    if (tableStat.deleted > 0) {
+      tableStat.deleted = (devCounts[tableName] ?? 0) + (prodCounts[tableName] ?? 0);
+    }
+  }
+}
+
+/**
+ * A one-sided row is normally copied to the missing side — UNLESS the
+ * generalized deletion ledger says the row was deliberately deleted more
+ * recently than it was last written. Then the side still HOLDING the row
+ * gets a PendingDelete and the copy is skipped (the "delete presets twice"
+ * resurrection killer). A row NEWER than its tombstone was re-created after
+ * deletion and wins — it syncs normally and the tombstone goes inert. A
+ * missing/non-Date timestamp fails SAFE toward preservation (copy, don't
+ * delete). Comparison field mirrors compareTimestamps (updatedAt ?? createdAt).
+ */
+function tombstoneSaysDelete(args: {
+  tableName: string;
+  rowKey: string;
+  row: unknown;
+  config: TableSyncConfig;
+  syncTombstones: Map<string, Date>;
+}): boolean {
+  const { tableName, rowKey, row, config, syncTombstones } = args;
+  const deletedAt = syncTombstones.get(tombstoneKey(tableName, rowKey));
+  if (deletedAt === undefined) {
+    return false;
+  }
+  const field = config.updatedAt ?? config.createdAt;
+  if (field === undefined) {
+    return false;
+  }
+  const rowTime = (row as Record<string, unknown>)[field];
+  if (!(rowTime instanceof Date)) {
+    return false;
+  }
+  return deletedAt > rowTime;
+}
+
+/**
  * Decide which direction a single pk-key's row-pair flows (or neither)
  * and push into the matching bucket. Extracted from `scanTable` to keep
  * that method under sonarjs's cognitive-complexity cap; the five-branch
  * dispatch plus the totals-mutation reads more clearly as a helper.
  */
 function classifyAndQueueRow(args: {
+  tableName: string;
+  rowKey: string;
   devRow: unknown;
   prodRow: unknown;
   config: TableSyncConfig;
   writeBase: Omit<PendingWrite, 'row'>;
   devBoundWrites: PendingWrite[];
   prodBoundWrites: PendingWrite[];
-  totals: { devToProd: number; prodToDev: number; conflicts: number };
+  devBoundDeletes: PendingDelete[];
+  prodBoundDeletes: PendingDelete[];
+  syncTombstones: Map<string, Date>;
+  totals: { devToProd: number; prodToDev: number; conflicts: number; deleted: number };
 }): void {
-  const { devRow, prodRow, config, writeBase, devBoundWrites, prodBoundWrites, totals } = args;
+  const {
+    tableName,
+    rowKey,
+    devRow,
+    prodRow,
+    config,
+    writeBase,
+    devBoundWrites,
+    prodBoundWrites,
+    devBoundDeletes,
+    prodBoundDeletes,
+    syncTombstones,
+    totals,
+  } = args;
 
   if (devRow === undefined && prodRow !== undefined) {
+    if (tombstoneSaysDelete({ tableName, rowKey, row: prodRow, config, syncTombstones })) {
+      prodBoundDeletes.push({ tableName, rowKey });
+      totals.deleted += 1;
+      return;
+    }
     devBoundWrites.push({ ...writeBase, row: prodRow });
     totals.prodToDev += 1;
     return;
   }
   if (devRow !== undefined && prodRow === undefined) {
+    if (tombstoneSaysDelete({ tableName, rowKey, row: devRow, config, syncTombstones })) {
+      devBoundDeletes.push({ tableName, rowKey });
+      totals.deleted += 1;
+      return;
+    }
     prodBoundWrites.push({ ...writeBase, row: devRow });
     totals.devToProd += 1;
     return;

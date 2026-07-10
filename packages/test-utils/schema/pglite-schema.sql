@@ -291,6 +291,15 @@ CREATE TABLE "conversation_history_tombstones" (
 );
 
 -- CreateTable
+CREATE TABLE "sync_tombstones" (
+    "table_name" VARCHAR(64) NOT NULL,
+    "row_pk" VARCHAR(255) NOT NULL,
+    "deleted_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "sync_tombstones_pkey" PRIMARY KEY ("table_name","row_pk")
+);
+
+-- CreateTable
 CREATE TABLE "pending_memories" (
     "id" UUID NOT NULL,
     "conversation_history_id" UUID,
@@ -652,6 +661,9 @@ CREATE INDEX "conversation_history_tombstones_channel_id_personality_id_p_idx" O
 CREATE INDEX "conversation_history_tombstones_deleted_at_idx" ON "conversation_history_tombstones"("deleted_at");
 
 -- CreateIndex
+CREATE INDEX "sync_tombstones_deleted_at_idx" ON "sync_tombstones"("deleted_at");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "pending_memories_conversation_history_id_key" ON "pending_memories"("conversation_history_id");
 
 -- CreateIndex
@@ -983,3 +995,117 @@ ALTER TABLE "llm_configs" ALTER CONSTRAINT "llm_configs_owner_id_fkey" DEFERRABL
 ALTER TABLE "users" ALTER CONSTRAINT "users_default_tts_config_id_fkey" DEFERRABLE INITIALLY IMMEDIATE;
 ALTER TABLE "users" ALTER CONSTRAINT "users_default_vision_config_id_fkey" DEFERRABLE INITIALLY IMMEDIATE;
 ALTER TABLE "memory_facts" ALTER CONSTRAINT "memory_facts_superseded_by_id_fkey" DEFERRABLE INITIALLY IMMEDIATE;
+
+-- plpgsql functions + triggers harvested from prisma/migrations/**/migration.sql
+-- (Prisma's migrate diff cannot see functions or triggers at all, so the
+-- hand-written ones are merged back in here. sync_tombstone_capture backs
+-- db-sync's deletion propagation; the cache-invalidation triggers' pg_notify
+-- calls are listener-less no-ops under PGLite.)
+CREATE OR REPLACE FUNCTION notify_personality_cache_invalidation()
+RETURNS TRIGGER AS $$
+DECLARE
+  personality_ids UUID[];
+  pid UUID;
+BEGIN
+  
+  IF TG_TABLE_NAME = 'personalities' THEN
+    personality_ids := ARRAY[COALESCE(NEW.id, OLD.id)];
+
+  ELSIF TG_TABLE_NAME = 'llm_configs' THEN
+    
+    
+    PERFORM pg_notify(
+      'cache_invalidation',
+      json_build_object('type', 'all')::text
+    );
+    RETURN NULL; 
+
+  ELSIF TG_TABLE_NAME = 'personality_default_configs' THEN
+    personality_ids := ARRAY[COALESCE(NEW.personality_id, OLD.personality_id)];
+
+  ELSIF TG_TABLE_NAME = 'user_personality_configs' THEN
+    personality_ids := ARRAY[COALESCE(NEW.personality_id, OLD.personality_id)];
+  END IF;
+
+  
+  IF personality_ids IS NOT NULL THEN
+    FOREACH pid IN ARRAY personality_ids
+    LOOP
+      IF pid IS NOT NULL THEN
+        PERFORM pg_notify(
+          'cache_invalidation',
+          json_build_object('type', 'personality', 'personalityId', pid::text)::text
+        );
+      END IF;
+    END LOOP;
+  END IF;
+
+  RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION sync_tombstone_capture() RETURNS trigger AS $$
+DECLARE
+  pk text := '';
+  col text;
+BEGIN
+  FOREACH col IN ARRAY TG_ARGV LOOP
+    IF pk <> '' THEN
+      pk := pk || '|';
+    END IF;
+    pk := pk || COALESCE(to_jsonb(OLD) ->> col, '');
+  END LOOP;
+  INSERT INTO sync_tombstones (table_name, row_pk, deleted_at)
+  VALUES (TG_TABLE_NAME, pk, NOW())
+  ON CONFLICT (table_name, row_pk) DO UPDATE SET deleted_at = EXCLUDED.deleted_at;
+  RETURN OLD;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trigger_personality_cache_invalidation
+  AFTER UPDATE ON personalities
+  FOR EACH ROW
+  WHEN (OLD.updated_at IS DISTINCT FROM NEW.updated_at)
+  EXECUTE FUNCTION notify_personality_cache_invalidation();
+
+CREATE TRIGGER trigger_llm_config_cache_invalidation
+  AFTER UPDATE ON llm_configs
+  FOR EACH ROW
+  WHEN (OLD.updated_at IS DISTINCT FROM NEW.updated_at)
+  EXECUTE FUNCTION notify_personality_cache_invalidation();
+
+CREATE TRIGGER trigger_personality_default_config_cache_invalidation
+  AFTER INSERT OR UPDATE OR DELETE ON personality_default_configs
+  FOR EACH ROW
+  EXECUTE FUNCTION notify_personality_cache_invalidation();
+
+CREATE TRIGGER trigger_user_personality_config_cache_invalidation
+  AFTER INSERT OR UPDATE OR DELETE ON user_personality_configs
+  FOR EACH ROW
+  EXECUTE FUNCTION notify_personality_cache_invalidation();
+
+CREATE TRIGGER sync_tombstone_users AFTER DELETE ON "users" FOR EACH ROW EXECUTE FUNCTION sync_tombstone_capture('id');
+
+CREATE TRIGGER sync_tombstone_personas AFTER DELETE ON "personas" FOR EACH ROW EXECUTE FUNCTION sync_tombstone_capture('id');
+
+CREATE TRIGGER sync_tombstone_system_prompts AFTER DELETE ON "system_prompts" FOR EACH ROW EXECUTE FUNCTION sync_tombstone_capture('id');
+
+CREATE TRIGGER sync_tombstone_llm_configs AFTER DELETE ON "llm_configs" FOR EACH ROW EXECUTE FUNCTION sync_tombstone_capture('id');
+
+CREATE TRIGGER sync_tombstone_tts_configs AFTER DELETE ON "tts_configs" FOR EACH ROW EXECUTE FUNCTION sync_tombstone_capture('id');
+
+CREATE TRIGGER sync_tombstone_personalities AFTER DELETE ON "personalities" FOR EACH ROW EXECUTE FUNCTION sync_tombstone_capture('id');
+
+CREATE TRIGGER sync_tombstone_personality_owners AFTER DELETE ON "personality_owners" FOR EACH ROW EXECUTE FUNCTION sync_tombstone_capture('personality_id', 'user_id');
+
+CREATE TRIGGER sync_tombstone_personality_aliases AFTER DELETE ON "personality_aliases" FOR EACH ROW EXECUTE FUNCTION sync_tombstone_capture('id');
+
+CREATE TRIGGER sync_tombstone_user_personality_configs AFTER DELETE ON "user_personality_configs" FOR EACH ROW EXECUTE FUNCTION sync_tombstone_capture('user_id', 'personality_id');
+
+CREATE TRIGGER sync_tombstone_user_persona_history_configs AFTER DELETE ON "user_persona_history_configs" FOR EACH ROW EXECUTE FUNCTION sync_tombstone_capture('id');
+
+CREATE TRIGGER sync_tombstone_memories AFTER DELETE ON "memories" FOR EACH ROW EXECUTE FUNCTION sync_tombstone_capture('id');
+
+CREATE TRIGGER sync_tombstone_memory_facts AFTER DELETE ON "memory_facts" FOR EACH ROW EXECUTE FUNCTION sync_tombstone_capture('id');
+
+CREATE TRIGGER sync_tombstone_shapes_persona_mappings AFTER DELETE ON "shapes_persona_mappings" FOR EACH ROW EXECUTE FUNCTION sync_tombstone_capture('id');

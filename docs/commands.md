@@ -68,3 +68,5 @@ TTS + STT provider selection and cloned-voice library lifecycle. Per-character T
 | `/admin` | `ping` `health` `servers` `kick` `usage`                   | Monitoring and management        |
 |          | `cleanup` `db-sync` `settings` `presence` `stop-sequences` | Maintenance and configuration    |
 | `/deny`  | `add` `remove` `browse` `view`                             | User and guild denial management |
+
+> **`db-sync` deletion semantics**: hard deletes on synced tables PROPAGATE — deleting a row (preset, character, persona…) in either environment deletes it in the other on the next sync, instead of the old resurrect-from-the-other-side behavior. Corollary for one-off cleanup scripts: an accidental `DELETE` on one side now applies to both on the next sync (clear the matching `sync_tombstones` row to undo before syncing). Re-creating a row after deleting it wins over its tombstone.
