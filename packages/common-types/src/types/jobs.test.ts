@@ -133,6 +133,12 @@ describe('BullMQ Job Contract Tests', () => {
       if (withFlag.success) {
         expect(withFlag.data.budgetExempt).toBe(true); // must not be stripped (strip-mode pin)
       }
+
+      const withCycles = factExtractionJobDataSchema.safeParse({ ...base, busyCycles: 3 });
+      expect(withCycles.success).toBe(true);
+      if (withCycles.success) {
+        expect(withCycles.data.busyCycles).toBe(3); // poison-cap counter survives the parse
+      }
     });
 
     it('should reject an empty sourceMemoryIds batch', () => {

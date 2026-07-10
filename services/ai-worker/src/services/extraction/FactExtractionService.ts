@@ -53,8 +53,12 @@ const SUPERSESSION_CONTEXT_TOKEN_BUDGET = 1500;
  */
 const SIMILARITY_SUPERSESSION_THRESHOLD = 0.88;
 
-/** Model-call timeout — extraction is background work, generous is fine. */
-const EXTRACTION_TIMEOUT_MS = 60_000;
+/** Model-call timeout — extraction is background work, generous is fine.
+ * GLM-5.2's reasoning on dense multi-episode batches was observed exceeding
+ * 60s consistently (a too-tight timeout turns a slow batch into a poison
+ * batch: timeout → busy → delay cycle, never completing). The eval harness
+ * runs the same calls at 120s; 180s adds headroom for the heaviest windows. */
+const EXTRACTION_TIMEOUT_MS = 180_000;
 
 interface EpisodeGroup {
   personaId: string;
