@@ -495,6 +495,11 @@ export const factExtractionJobDataSchema = baseJobDataSchema.extend({
    * a backfill's job set is fixed at enqueue time. The worker gates both
    * tryConsume and the busy-path refund on this flag. */
   budgetExempt: z.boolean().optional(),
+  /** Count of provider-busy delay cycles this job has been through. The worker
+   * increments it on each busy requeue and ejects the batch (fail-to-skip)
+   * past the cap — a batch that times out on EVERY attempt is a poison batch,
+   * and unbounded delay cycles would block it in the queue forever. */
+  busyCycles: z.number().int().min(0).optional(),
 });
 
 export type FactExtractionJobData = z.infer<typeof factExtractionJobDataSchema>;

@@ -8,7 +8,7 @@
  * callers treat that as "feature absent" and today's behavior is unchanged.
  */
 
-import { Queue, Worker } from 'bullmq';
+import { Queue, Worker, DelayedError } from 'bullmq';
 import type { Redis } from 'ioredis';
 import type { BullMQRedisConfig } from '@tzurot/common-types/utils/redis';
 import type { PrismaClient } from '@tzurot/common-types/services/prisma';
@@ -29,12 +29,27 @@ import {
 const logger = createLogger('FactExtractionSetup');
 
 /**
- * Queue pause when the extraction provider is busy (z.ai peak hours,
+ * Per-job delay when the extraction provider is busy (z.ai peak hours,
  * OpenRouter 429/5xx). Peak windows last hours — the 5s-exponential job
- * backoff is the wrong scale, so busy conditions pause the whole queue for
- * this window instead. Requeues consume no retry attempts (Worker.RateLimitError).
+ * backoff is the wrong scale, so the busy job moves to the DELAYED set for
+ * this window (moveToDelayed + DelayedError: no retry attempt consumed, and
+ * other jobs keep flowing — a single slow batch can't block the queue head).
+ * worker.rateLimit()-based whole-queue pausing is NOT used: it is deprecated
+ * in BullMQ v5 and its pause was observed as a no-op at runtime (busy cycles
+ * ~90s apart instead of 30 min).
  */
 const EXTRACTION_BUSY_DELAY_MS = 30 * 60 * 1000;
+
+/**
+ * Per-JOB cap on busy-delay cycles (tracked on the payload, surviving
+ * restarts). A batch that fails EVERY attempt — e.g. one whose extraction
+ * call reliably exceeds the model timeout — is a poison batch: without a cap
+ * it would cycle in the queue forever. Past the cap it fail-to-skips (its
+ * episodes stay eligible for a future backfill re-run via skip-covered).
+ * 48 cycles × 30 min ≈ 24h of genuine-outage tolerance before a batch is
+ * given up on.
+ */
+const MAX_BUSY_CYCLES_PER_JOB = 48;
 
 /**
  * Consecutive busy cycles before the per-cycle info log escalates to error.
@@ -124,7 +139,7 @@ export function setupFactExtraction(
 
   const worker = new Worker(
     FACT_EXTRACTION_QUEUE_NAME,
-    async job => {
+    async (job, token) => {
       const parsed = factExtractionJobDataSchema.safeParse(job.data);
       if (!parsed.success) {
         // fail-to-skip: a malformed payload is dead on arrival, not retryable
@@ -141,24 +156,37 @@ export function setupFactExtraction(
       } catch (error) {
         if (error instanceof ExtractionProviderBusyError) {
           // Delay, never downgrade: facts aren't time-sensitive, so a busy
-          // provider (z.ai peak hours, OpenRouter 429/5xx) pauses the queue and
-          // requeues WITHOUT consuming a retry attempt. The requeued payload is
-          // shrunk to the UNFINISHED groups' episode ids so completed groups
-          // are never re-billed on retries of a sustained busy window.
-          if (error.remainingMemoryIds.length > 0) {
-            await job.updateData({
-              ...parsed.data,
-              sourceMemoryIds: error.remainingMemoryIds,
-            });
-          }
+          // provider (z.ai peak hours, OpenRouter 429/5xx) moves THIS job to
+          // the delayed set WITHOUT consuming a retry attempt. The requeued
+          // payload is shrunk to the UNFINISHED groups' episode ids so
+          // completed groups are never re-billed, and busyCycles rides the
+          // payload so the poison-batch cap survives worker restarts.
+          const busyCycles = (parsed.data.busyCycles ?? 0) + 1;
           consecutiveBusyCycles += 1;
           const logFields = {
             jobId: job.id,
             category: error.category,
             delayMs: EXTRACTION_BUSY_DELAY_MS,
             remaining: error.remainingMemoryIds.length,
+            busyCycles,
             consecutiveBusyCycles,
           };
+          if (busyCycles > MAX_BUSY_CYCLES_PER_JOB) {
+            // Poison batch (or a >24h outage): stop cycling it. Its episodes
+            // remain uncovered, so a later backfill re-run retries them.
+            logger.error(
+              logFields,
+              'Extraction batch exceeded the busy-cycle cap — skipping it (episodes stay eligible for a future backfill re-run)'
+            );
+            return { written: 0 };
+          }
+          await job.updateData({
+            ...parsed.data,
+            ...(error.remainingMemoryIds.length > 0
+              ? { sourceMemoryIds: error.remainingMemoryIds }
+              : {}),
+            busyCycles,
+          });
           if (consecutiveBusyCycles >= SUSTAINED_BUSY_ERROR_THRESHOLD) {
             logger.error(
               logFields,
@@ -170,8 +198,8 @@ export function setupFactExtraction(
               'Extraction provider busy — delaying remaining batch (never downgrading provider)'
             );
           }
-          await worker.rateLimit(EXTRACTION_BUSY_DELAY_MS);
-          throw Worker.RateLimitError();
+          await job.moveToDelayed(Date.now() + EXTRACTION_BUSY_DELAY_MS, token);
+          throw new DelayedError();
         }
         throw error;
       }
