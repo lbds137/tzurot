@@ -247,10 +247,14 @@ export class FactExtractionService {
   private async processGroup(job: FactExtractionJobData, group: EpisodeGroup): Promise<number> {
     const scope = { personalityId: job.personalityId, personaId: group.personaId };
 
-    // Cost tripwire FIRST — shadow mode already spends money.
-    const allowed = await this.budget.tryConsume(job.personalityId);
-    if (!allowed) {
-      return 0;
+    // Cost tripwire FIRST — shadow mode already spends money. Owner-initiated
+    // backfill jobs are exempt (finite job set, deliberate consumption); the
+    // busy-path refund below mirrors this gate so the counter stays balanced.
+    if (job.budgetExempt !== true) {
+      const allowed = await this.budget.tryConsume(job.personalityId);
+      if (!allowed) {
+        return 0;
+      }
     }
 
     const knownFacts = await this.factStore.getRecentActiveFacts(
@@ -274,8 +278,12 @@ export class FactExtractionService {
       if (BUSY_CATEGORIES.has(category)) {
         // Busy spent zero tokens — refund the unit so a sustained busy window
         // (30-min requeue cycles for hours) can't burn the daily cap and make
-        // the tripwire skip real batches once the provider recovers.
-        await this.budget.refund(job.personalityId);
+        // the tripwire skip real batches once the provider recovers. Gated on
+        // the same flag as tryConsume: an exempt job never consumed a unit,
+        // so refunding one would corrupt the counter downward.
+        if (job.budgetExempt !== true) {
+          await this.budget.refund(job.personalityId);
+        }
         throw new ExtractionProviderBusyError(category, error);
       }
       logger.warn({ err: error, ...scope }, 'Extraction model call failed — skipping group');

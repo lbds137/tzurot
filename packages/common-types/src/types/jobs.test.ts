@@ -111,6 +111,30 @@ describe('BullMQ Job Contract Tests', () => {
       expect(result.success).toBe(true);
     });
 
+    it('budgetExempt is optional and survives the parse (backfill jobs set it true)', () => {
+      const base = {
+        requestId: 'req-fact-extract-exempt',
+        jobType: JobType.FactExtraction,
+        responseDestination: DISCORD_DESTINATION,
+        channelId: 'backfill',
+        personalityId: UUID_A,
+        sourceMemoryIds: [UUID_B],
+        windowStart: UUID_B,
+      };
+
+      const without = factExtractionJobDataSchema.safeParse(base);
+      expect(without.success).toBe(true);
+      if (without.success) {
+        expect(without.data.budgetExempt).toBeUndefined();
+      }
+
+      const withFlag = factExtractionJobDataSchema.safeParse({ ...base, budgetExempt: true });
+      expect(withFlag.success).toBe(true);
+      if (withFlag.success) {
+        expect(withFlag.data.budgetExempt).toBe(true); // must not be stripped (strip-mode pin)
+      }
+    });
+
     it('should reject an empty sourceMemoryIds batch', () => {
       const invalidJob = {
         requestId: 'req-fact-extract-2',

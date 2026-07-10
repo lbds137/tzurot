@@ -144,6 +144,28 @@ describe('FactExtractionService', () => {
     expect(s.writeMock).not.toHaveBeenCalled();
   });
 
+  it('budgetExempt jobs (backfill) bypass the tripwire entirely — even a denied budget', async () => {
+    const s = makeSetup({ budgetAllowed: false }); // would deny if consulted
+
+    const written = await s.service.processBatch({ ...job, budgetExempt: true });
+
+    expect(s.budget.tryConsume).not.toHaveBeenCalled();
+    expect(written).toBe(1); // extraction proceeded
+  });
+
+  it('budgetExempt busy path refunds NOTHING (no unit was consumed)', async () => {
+    const s = makeSetup({
+      modelResponse: Object.assign(new Error('Too many requests'), { status: 429 }),
+    });
+
+    await expect(s.service.processBatch({ ...job, budgetExempt: true })).rejects.toThrow(
+      ExtractionProviderBusyError
+    );
+
+    expect(s.budget.tryConsume).not.toHaveBeenCalled();
+    expect(s.budget.refund).not.toHaveBeenCalled(); // asymmetric refund would corrupt the counter
+  });
+
   it('fail-to-skip: malformed JSON writes nothing', async () => {
     const s = makeSetup({ modelResponse: 'sorry, I cannot do that' });
 
