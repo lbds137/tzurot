@@ -498,7 +498,9 @@ export const factExtractionJobDataSchema = baseJobDataSchema.extend({
   /** Count of provider-busy delay cycles this job has been through. The worker
    * increments it on each busy requeue and ejects the batch (fail-to-skip)
    * past the cap — a batch that times out on EVERY attempt is a poison batch,
-   * and unbounded delay cycles would block it in the queue forever. */
+   * and unbounded delay cycles would block it in the queue forever. No schema
+   * upper bound: the cap is application logic (MAX_BUSY_CYCLES_PER_JOB in
+   * factExtractionSetup), not a validity constraint on the payload. */
   busyCycles: z.number().int().min(0).optional(),
 });
 
