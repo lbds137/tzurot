@@ -6,12 +6,13 @@
 
 ## Unreleased on Develop
 
-- **PR #1572** — extraction rides the z.ai system key with delay-not-downgrade (`ZAI_CODING_API_KEY` + `EXTRACTION_PROVIDER`; busy → `Worker.RateLimitError` requeue, budget-neutral refunds, requeue shrinks to unfinished groups, sustained-busy escalation at ~6h). Defaults unchanged until env flips.
+- **PR #1572** — extraction on the z.ai system key with delay-not-downgrade. Dev is LIVE on the plan (vars set 2026-07-10; boot clean; z.ai confirmation eval 50/50 parse, 0/52 effective fabrication).
+- **PR #1573** — `memory_facts` joins db-sync (DEFERRABLE self-FK migration — applied to dev — + `VECTOR_SYNC_TABLES` registry; corrections/forgets/locks propagate as columns, hard deletes don't pending the `sync_tombstones` design in `cold/ideas.md`).
 - **Memory Phase 1a remains PARKED** on `feat/memory-hybrid-retrieval` (evidence gate: real-scale goldens).
 
 ## Next Session Goal
 
-**beta.157 chain = Memory Phase 2 goes live in prod.** In order: (1) **OWNER: set `ZAI_CODING_API_KEY` + `EXTRACTION_PROVIDER=zai-coding` on dev ai-worker** (I never touch secrets) → one free confirmation eval via the z.ai endpoint; (2) `memory_facts` into db-sync SYNC_CONFIG (vector col + self-FK ordering + deliberate cascade answer — focused PR); (3) fact backfill ops command (now unblocked by #1572 pending the env vars; content-hash idempotent, dev first); (4) prod-enable (`EXTRACTION_ENABLED`, `FACTS_IN_PROMPT_ENABLED`, `EXTRACTION_MODEL=z-ai/glm-5.2` + provider vars). Owner dev smoke of `/memory facts` still outstanding.
+**beta.157 chain = Memory Phase 2 goes live in prod.** ~~(1) dev env vars + confirmation eval~~ ✅ · ~~(2) memory_facts db-sync~~ ✅ (#1573) · **(3) NEXT: fact backfill ops command** (`ops memory:backfill-facts` — content-hash idempotent, dev first, reuses the whole extraction pipeline; ride-along: `ops run --service <name>` full-var injection, design agreed with owner — see the backfill entry in `cold/ideas.md`) · (4) prod-enable (`EXTRACTION_ENABLED`, `FACTS_IN_PROMPT_ENABLED`, `EXTRACTION_MODEL=z-ai/glm-5.2` + provider vars; prod release needs `release:premigrate` for the deferral migration). Owner dev smoke of `/memory facts` still outstanding. Queued right behind the chain: db-sync deletion tombstones (owner pain, design filed).
 
 **Open follow-ups from Phase 1** (all in `cold/follow-ups.md` with promote-when triggers): system-voice straggler wording (STT / MessageHandler top-catch / truncation notices), partial-failure errored-slot delivery, admin/kick `serverId` escaping, `deletePersona`/`getCachedPersonalities` wrapper widening, `maxRetries:0` metrics watch.
 
