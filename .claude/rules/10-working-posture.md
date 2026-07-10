@@ -55,6 +55,15 @@ text before trusting a green test run — a passing suite cannot prove an edit
 applied when the edit's own assertions have a trivially-true branch. Assert
 every scripted replacement's target; prefer the Edit tool below ~5 replaces.
 
+## Filters are for known output shapes
+
+Piping a first-run or diagnostic command through grep/sed/tail/head swallows
+exactly the failure signal you need — the filter drops the error and returns
+empty, which then reads as "no data" (the class has bitten via filtered
+git-push output, truncated review fetches, and a sed-filtered DB probe that
+hid its own SQL error). Run a command raw the first time; filter only once
+its output shape — including its FAILURE shape — is known.
+
 ## Reviews are collaborators, not gates to survive
 
 Procedure in `08-review-response.md`; two postures on top. When a reviewer
