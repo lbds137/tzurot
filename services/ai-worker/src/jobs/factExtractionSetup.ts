@@ -1,5 +1,5 @@
 /**
- * Fact-extraction wiring (memory Phase 2 slice 2 — shadow mode)
+ * Fact-extraction wiring (memory Phase 2)
  *
  * Constructs the whole extraction assembly behind the EXTRACTION_ENABLED kill
  * switch: the dedicated queue, its worker (concurrency 1 — background work
@@ -14,8 +14,12 @@ import type { BullMQRedisConfig } from '@tzurot/common-types/utils/redis';
 import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 import type { LocalEmbeddingService } from '@tzurot/embeddings';
 import { FACT_EXTRACTION_QUEUE_NAME, QUEUE_CONFIG } from '@tzurot/common-types/constants/queue';
+import { TIMEOUTS } from '@tzurot/common-types/constants/timing';
 import { getZaiCodingPlanContextLength } from '@tzurot/common-types/constants/ai';
-import { factExtractionJobDataSchema } from '@tzurot/common-types/types/jobs';
+import {
+  factExtractionJobDataSchema,
+  type FactExtractionJobData,
+} from '@tzurot/common-types/types/jobs';
 import { getConfig } from '@tzurot/common-types/config/config';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { ExtractionBudget } from '../services/extraction/ExtractionBudget.js';
@@ -60,6 +64,66 @@ const MAX_BUSY_CYCLES_PER_JOB = 48;
  * if the condition persists.
  */
 const SUSTAINED_BUSY_ERROR_THRESHOLD = 12;
+
+interface BusyJobContext {
+  job: {
+    id?: string;
+    updateData: (data: unknown) => Promise<void>;
+    moveToDelayed: (timestamp: number, token?: string) => Promise<void>;
+  };
+  token: string | undefined;
+  data: FactExtractionJobData;
+  error: ExtractionProviderBusyError;
+  consecutiveBusyCycles: number;
+}
+
+/**
+ * Delay, never downgrade: facts aren't time-sensitive, so a busy provider
+ * (z.ai peak hours, OpenRouter 429/5xx) moves THIS job to the delayed set
+ * WITHOUT consuming a retry attempt (moveToDelayed + DelayedError). The
+ * requeued payload is shrunk to the UNFINISHED groups' episode ids so
+ * completed groups are never re-billed, and busyCycles rides the payload so
+ * the poison-batch cap survives worker restarts. Past the cap the batch
+ * fail-to-skips — its episodes remain uncovered, so a later backfill re-run
+ * retries them.
+ */
+async function delayOrEjectBusyJob(ctx: BusyJobContext): Promise<{ written: number }> {
+  const { job, token, data, error, consecutiveBusyCycles } = ctx;
+  const busyCycles = (data.busyCycles ?? 0) + 1;
+  const logFields = {
+    jobId: job.id,
+    category: error.category,
+    delayMs: EXTRACTION_BUSY_DELAY_MS,
+    remaining: error.remainingMemoryIds.length,
+    busyCycles,
+    consecutiveBusyCycles,
+  };
+  if (busyCycles > MAX_BUSY_CYCLES_PER_JOB) {
+    logger.error(
+      logFields,
+      'Extraction batch exceeded the busy-cycle cap — skipping it (episodes stay eligible for a future backfill re-run)'
+    );
+    return { written: 0 };
+  }
+  await job.updateData({
+    ...data,
+    ...(error.remainingMemoryIds.length > 0 ? { sourceMemoryIds: error.remainingMemoryIds } : {}),
+    busyCycles,
+  });
+  if (consecutiveBusyCycles >= SUSTAINED_BUSY_ERROR_THRESHOLD) {
+    logger.error(
+      logFields,
+      'Extraction provider busy far past a normal peak window — the system key may need human attention (credits/quota/account)'
+    );
+  } else {
+    logger.info(
+      logFields,
+      'Extraction provider busy — delaying remaining batch (never downgrading provider)'
+    );
+  }
+  await job.moveToDelayed(Date.now() + EXTRACTION_BUSY_DELAY_MS, token);
+  throw new DelayedError();
+}
 
 /**
  * Boot-time coherence checks for the zai-coding route — both fail-loud-but-
@@ -155,56 +219,27 @@ export function setupFactExtraction(
         return { written };
       } catch (error) {
         if (error instanceof ExtractionProviderBusyError) {
-          // Delay, never downgrade: facts aren't time-sensitive, so a busy
-          // provider (z.ai peak hours, OpenRouter 429/5xx) moves THIS job to
-          // the delayed set WITHOUT consuming a retry attempt. The requeued
-          // payload is shrunk to the UNFINISHED groups' episode ids so
-          // completed groups are never re-billed, and busyCycles rides the
-          // payload so the poison-batch cap survives worker restarts.
-          const busyCycles = (parsed.data.busyCycles ?? 0) + 1;
           consecutiveBusyCycles += 1;
-          const logFields = {
-            jobId: job.id,
-            category: error.category,
-            delayMs: EXTRACTION_BUSY_DELAY_MS,
-            remaining: error.remainingMemoryIds.length,
-            busyCycles,
+          return delayOrEjectBusyJob({
+            job,
+            token,
+            data: parsed.data,
+            error,
             consecutiveBusyCycles,
-          };
-          if (busyCycles > MAX_BUSY_CYCLES_PER_JOB) {
-            // Poison batch (or a >24h outage): stop cycling it. Its episodes
-            // remain uncovered, so a later backfill re-run retries them.
-            logger.error(
-              logFields,
-              'Extraction batch exceeded the busy-cycle cap — skipping it (episodes stay eligible for a future backfill re-run)'
-            );
-            return { written: 0 };
-          }
-          await job.updateData({
-            ...parsed.data,
-            ...(error.remainingMemoryIds.length > 0
-              ? { sourceMemoryIds: error.remainingMemoryIds }
-              : {}),
-            busyCycles,
           });
-          if (consecutiveBusyCycles >= SUSTAINED_BUSY_ERROR_THRESHOLD) {
-            logger.error(
-              logFields,
-              'Extraction provider busy far past a normal peak window — the system key may need human attention (credits/quota/account)'
-            );
-          } else {
-            logger.info(
-              logFields,
-              'Extraction provider busy — delaying remaining batch (never downgrading provider)'
-            );
-          }
-          await job.moveToDelayed(Date.now() + EXTRACTION_BUSY_DELAY_MS, token);
-          throw new DelayedError();
         }
         throw error;
       }
     },
-    { connection: bullmqConnection, concurrency: 1 }
+    {
+      connection: bullmqConnection,
+      concurrency: 1,
+      // Explicit rather than BullMQ's 30s default: the extraction call may
+      // legitimately run to EXTRACTION_TIMEOUT_MS (180s). Auto-renewal covers
+      // I/O-bound waits, but after one timing surprise in this worker the
+      // safety margin should be self-documenting (mirrors index.ts).
+      lockDuration: TIMEOUTS.WORKER_LOCK_DURATION,
+    }
   );
 
   worker.on('failed', (job, err) => {
@@ -219,7 +254,7 @@ export function setupFactExtraction(
 
   logger.info(
     { batchThreshold: config.EXTRACTION_BATCH_THRESHOLD },
-    'Fact extraction enabled (shadow mode — facts written, nothing reads them yet)'
+    'Fact extraction enabled (reads are gated separately by FACTS_IN_PROMPT_ENABLED)'
   );
   return { queue, worker, trigger };
 }

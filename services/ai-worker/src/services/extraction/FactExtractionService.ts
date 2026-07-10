@@ -85,8 +85,8 @@ export interface ExtractionModelResult {
  * not time-sensitive, so unlike completions (which fall back to OpenRouter to
  * keep a waiting user responsive), the batch requeues until the provider
  * window recovers — extraction never bills a fallback provider. The worker
- * catches this and pauses the queue (owner directive: z.ai peak hours delay
- * extraction rather than costing OpenRouter money).
+ * catches this and moves the job to the delayed set (owner directive: z.ai
+ * peak hours delay extraction rather than costing OpenRouter money).
  */
 export class ExtractionProviderBusyError extends Error {
   constructor(
