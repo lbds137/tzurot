@@ -11,34 +11,31 @@ const {
   workerCloseMock,
   getConfigMock,
   processBatchMock,
-  rateLimitMock,
-  rateLimitErrorSentinel,
   loggerErrorMock,
+  MockDelayedError,
 } = vi.hoisted(() => ({
   addMock: vi.fn(),
   queueCloseMock: vi.fn(),
   workerCloseMock: vi.fn(),
   getConfigMock: vi.fn(),
   processBatchMock: vi.fn().mockResolvedValue(2),
-  rateLimitMock: vi.fn().mockResolvedValue(undefined),
-  rateLimitErrorSentinel: new Error('bullmq-rate-limit'),
   loggerErrorMock: vi.fn(),
+  MockDelayedError: class MockDelayedError extends Error {},
 }));
-let capturedProcessor: ((job: { id: string; data: unknown }) => Promise<unknown>) | undefined;
+let capturedProcessor:
+  ((job: { id: string; data: unknown }, token?: string) => Promise<unknown>) | undefined;
 
 vi.mock('bullmq', () => ({
   Queue: vi.fn().mockImplementation(function () {
     return { add: addMock, close: queueCloseMock };
   }),
-  Worker: Object.assign(
-    vi.fn().mockImplementation(function (_name: string, processor: typeof capturedProcessor) {
-      capturedProcessor = processor;
-      return { on: vi.fn(), close: workerCloseMock, rateLimit: rateLimitMock };
-    }),
-    // BullMQ's static sentinel: throwing it after worker.rateLimit() requeues
-    // the job without consuming an attempt.
-    { RateLimitError: () => rateLimitErrorSentinel }
-  ),
+  Worker: vi.fn().mockImplementation(function (_name: string, processor: typeof capturedProcessor) {
+    capturedProcessor = processor;
+    return { on: vi.fn(), close: workerCloseMock };
+  }),
+  // The worker throws `new DelayedError()` after job.moveToDelayed — BullMQ's
+  // documented per-job manual-delay pattern (no retry attempt consumed).
+  DelayedError: MockDelayedError,
 }));
 
 vi.mock('../services/extraction/FactExtractionService.js', async importOriginal => ({
@@ -202,24 +199,55 @@ describe('delay-not-downgrade (provider busy at the BullMQ seam)', () => {
     windowStart: '4f9b0f66-0000-4000-8000-000000000001',
   };
 
-  it('busy error → shrinks the requeued payload, pauses the queue, throws the no-attempt sentinel', async () => {
+  it('busy error → shrinks payload, tracks busyCycles, moves THIS job to delayed (no attempt consumed)', async () => {
     setupFactExtraction(prisma, redis, bullmqConnection, embeddings);
     const remaining = ['4f9b0f66-0000-4000-8000-000000000002'];
     processBatchMock.mockRejectedValueOnce(
       new ExtractionProviderBusyError('rate_limit', new Error('429'), remaining)
     );
     const updateData = vi.fn().mockResolvedValue(undefined);
+    const moveToDelayed = vi.fn().mockResolvedValue(undefined);
+    const before = Date.now();
 
     await expect(
-      capturedProcessor?.({ id: 'j-busy', data: busyJob, updateData } as never)
-    ).rejects.toBe(rateLimitErrorSentinel);
+      capturedProcessor?.(
+        { id: 'j-busy', data: busyJob, updateData, moveToDelayed } as never,
+        'tok-1'
+      )
+    ).rejects.toBeInstanceOf(MockDelayedError);
 
     // Completed groups never re-run: the requeued job carries ONLY the
-    // unfinished episode ids.
+    // unfinished episode ids, plus the busy-cycle count for the poison cap.
     expect(updateData).toHaveBeenCalledWith(
-      expect.objectContaining({ sourceMemoryIds: remaining })
+      expect.objectContaining({ sourceMemoryIds: remaining, busyCycles: 1 })
     );
-    expect(rateLimitMock).toHaveBeenCalledWith(30 * 60 * 1000);
+    // Per-job delay ~30 min out, with the worker's lock token — the whole-queue
+    // rateLimit pause is deprecated and was a runtime no-op.
+    expect(moveToDelayed).toHaveBeenCalledWith(expect.any(Number), 'tok-1');
+    const delayedUntil = moveToDelayed.mock.calls[0][0] as number;
+    expect(delayedUntil).toBeGreaterThanOrEqual(before + 30 * 60 * 1000 - 1000);
+  });
+
+  it('past the busy-cycle cap the batch is SKIPPED, not delayed again (poison-batch ejection)', async () => {
+    setupFactExtraction(prisma, redis, bullmqConnection, embeddings);
+    processBatchMock.mockRejectedValueOnce(
+      new ExtractionProviderBusyError('timeout', new Error('timeout'), [])
+    );
+    const updateData = vi.fn();
+    const moveToDelayed = vi.fn();
+
+    const result = await capturedProcessor?.(
+      { id: 'j-poison', data: { ...busyJob, busyCycles: 48 }, updateData, moveToDelayed } as never,
+      'tok-p'
+    );
+
+    expect(result).toEqual({ written: 0 }); // fail-to-skip: episodes stay uncovered for a re-run
+    expect(moveToDelayed).not.toHaveBeenCalled();
+    expect(updateData).not.toHaveBeenCalled();
+    expect(loggerErrorMock).toHaveBeenCalledWith(
+      expect.objectContaining({ busyCycles: 49 }),
+      expect.stringContaining('busy-cycle cap')
+    );
   });
 
   it('a sustained busy loop escalates to logger.error past the threshold (stuck-key visibility)', async () => {
@@ -229,10 +257,11 @@ describe('delay-not-downgrade (provider busy at the BullMQ seam)', () => {
     );
     const updateData = vi.fn();
 
+    const moveToDelayed = vi.fn().mockResolvedValue(undefined);
     for (let cycle = 1; cycle <= 12; cycle++) {
       await expect(
-        capturedProcessor?.({ id: `j-${cycle}`, data: busyJob, updateData } as never)
-      ).rejects.toBe(rateLimitErrorSentinel);
+        capturedProcessor?.({ id: `j-${cycle}`, data: busyJob, updateData, moveToDelayed } as never)
+      ).rejects.toBeInstanceOf(MockDelayedError);
       if (cycle < 12) {
         expect(loggerErrorMock).not.toHaveBeenCalled(); // ordinary peak-window delay stays at info
       }
@@ -247,6 +276,7 @@ describe('delay-not-downgrade (provider busy at the BullMQ seam)', () => {
   it('a successful batch RESETS the consecutive-busy counter', async () => {
     setupFactExtraction(prisma, redis, bullmqConnection, embeddings);
     const updateData = vi.fn();
+    const moveToDelayed = vi.fn().mockResolvedValue(undefined);
     const busyOnce = (): void => {
       processBatchMock.mockRejectedValueOnce(
         new ExtractionProviderBusyError('rate_limit', new Error('429'), [])
@@ -256,15 +286,15 @@ describe('delay-not-downgrade (provider busy at the BullMQ seam)', () => {
     for (let i = 0; i < 11; i++) {
       busyOnce();
       await expect(
-        capturedProcessor?.({ id: `j-${i}`, data: busyJob, updateData } as never)
-      ).rejects.toBe(rateLimitErrorSentinel);
+        capturedProcessor?.({ id: `j-${i}`, data: busyJob, updateData, moveToDelayed } as never)
+      ).rejects.toBeInstanceOf(MockDelayedError);
     }
     processBatchMock.mockResolvedValueOnce(1); // success resets the streak
-    await capturedProcessor?.({ id: 'j-ok', data: busyJob, updateData } as never);
+    await capturedProcessor?.({ id: 'j-ok', data: busyJob, updateData, moveToDelayed } as never);
     busyOnce();
     await expect(
-      capturedProcessor?.({ id: 'j-after', data: busyJob, updateData } as never)
-    ).rejects.toBe(rateLimitErrorSentinel);
+      capturedProcessor?.({ id: 'j-after', data: busyJob, updateData, moveToDelayed } as never)
+    ).rejects.toBeInstanceOf(MockDelayedError);
 
     expect(loggerErrorMock).not.toHaveBeenCalled(); // streak never reached 12 consecutively
   });
@@ -274,11 +304,12 @@ describe('delay-not-downgrade (provider busy at the BullMQ seam)', () => {
     processBatchMock.mockRejectedValueOnce(new Error('db exploded'));
     const updateData = vi.fn();
 
+    const moveToDelayed = vi.fn();
     await expect(
-      capturedProcessor?.({ id: 'j-err', data: busyJob, updateData } as never)
+      capturedProcessor?.({ id: 'j-err', data: busyJob, updateData, moveToDelayed } as never)
     ).rejects.toThrow('db exploded');
 
-    expect(rateLimitMock).not.toHaveBeenCalled();
+    expect(moveToDelayed).not.toHaveBeenCalled();
     expect(updateData).not.toHaveBeenCalled();
   });
 });
