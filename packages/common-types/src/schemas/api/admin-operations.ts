@@ -35,6 +35,12 @@ export const DbSyncResponseSchema = z.object({
       devToProd: z.number(),
       prodToDev: z.number(),
       conflicts: z.number(),
+      /** Tombstone-propagated deletions executed for this table. Declared
+       * here or Zod strip-mode silently drops it from the parsed response —
+       * the exact class the strip-pin tests exist for. Defaulted (not bare
+       * required) so a response from a not-yet-redeployed gateway still
+       * parses during the parallel-deploy window. */
+      deleted: z.number().default(0),
     })
   ),
   warnings: z.array(z.string()),

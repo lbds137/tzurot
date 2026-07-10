@@ -20,7 +20,10 @@ const logger = createLogger('admin-db-sync');
 
 interface SyncResult {
   schemaVersion?: string;
-  stats?: Record<string, { devToProd?: number; prodToDev?: number; conflicts?: number }>;
+  stats?: Record<
+    string,
+    { devToProd?: number; prodToDev?: number; conflicts?: number; deleted?: number }
+  >;
   warnings?: string[];
   info?: string[];
   changes?: unknown;
@@ -103,12 +106,16 @@ function buildSyncSummary(result: SyncResult, dryRun: boolean): string {
   if (result.stats) {
     summary.push('\n**Sync Statistics**:');
     for (const [table, stats] of Object.entries(result.stats)) {
+      const deleted =
+        stats.deleted !== undefined && stats.deleted !== null && stats.deleted > 0
+          ? `, ${stats.deleted} deleted`
+          : '';
       const conflicts =
         stats.conflicts !== undefined && stats.conflicts !== null && stats.conflicts > 0
           ? `, ${stats.conflicts} conflicts`
           : '';
       summary.push(
-        `\`${table}\`: ${stats.devToProd ?? 0} dev→prod, ${stats.prodToDev ?? 0} prod→dev${conflicts}`
+        `\`${table}\`: ${stats.devToProd ?? 0} dev→prod, ${stats.prodToDev ?? 0} prod→dev${conflicts}${deleted}`
       );
     }
   }

@@ -10,7 +10,7 @@ describe('DbSyncResponseSchema', () => {
     success: true,
     timestamp: '2026-05-23T12:00:00Z',
     schemaVersion: '20260523120000',
-    stats: { users: { devToProd: 2, prodToDev: 0, conflicts: 1 } },
+    stats: { users: { devToProd: 2, prodToDev: 0, conflicts: 1, deleted: 0 } },
     warnings: ['table foo skipped'],
     info: ['table bar excluded by config'],
   };
@@ -30,6 +30,28 @@ describe('DbSyncResponseSchema', () => {
     expect(
       DbSyncResponseSchema.safeParse({ success: true, timestamp: '2026-05-23T12:00:00Z' }).success
     ).toBe(false);
+  });
+
+  it('deleted survives the parse (strip-mode pin — the embed renders it)', () => {
+    const parsed = DbSyncResponseSchema.safeParse({
+      ...validResponse,
+      stats: { llm_configs: { devToProd: 0, prodToDev: 0, conflicts: 0, deleted: 3 } },
+    });
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      expect(parsed.data.stats.llm_configs.deleted).toBe(3);
+    }
+  });
+
+  it('an old-gateway response WITHOUT deleted still parses (deploy-window default)', () => {
+    const parsed = DbSyncResponseSchema.safeParse({
+      ...validResponse,
+      stats: { users: { devToProd: 2, prodToDev: 0, conflicts: 1 } },
+    });
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      expect(parsed.data.stats.users.deleted).toBe(0);
+    }
   });
 
   it('rejects malformed stats entries', () => {

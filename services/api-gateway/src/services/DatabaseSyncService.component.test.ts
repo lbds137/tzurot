@@ -213,6 +213,10 @@ describe('DatabaseSyncService Integration (Ouroboros pattern)', () => {
         await tx.$executeRawUnsafe(`DELETE FROM "llm_configs"`);
         await tx.$executeRawUnsafe(`DELETE FROM "users"`);
         await tx.$executeRawUnsafe(`DELETE FROM "personas"`);
+        // LAST among table deletes: the deletes above fire the
+        // sync_tombstone_capture trigger, so clearing the ledger afterwards
+        // (same transaction) keeps tests tombstone-isolated.
+        await tx.$executeRawUnsafe(`DELETE FROM "sync_tombstones"`);
         await tx.$executeRawUnsafe(`DELETE FROM "_prisma_migrations"`);
         await tx.$executeRawUnsafe(buildSeedMigrationRow());
       });
@@ -388,6 +392,167 @@ describe('DatabaseSyncService Integration (Ouroboros pattern)', () => {
     expect(devUser).toBeNull();
     const devPersona = await devPrisma.persona.findUnique({ where: { id: personaId } });
     expect(devPersona).toBeNull();
+  }, 30000);
+
+  /**
+   * THE RESURRECTION KILLER — the owner's exact recurring pain ("I would
+   * have to delete presets twice, both in dev and prod, because otherwise
+   * one of them will refill the other"). A synced llm_config is deleted on
+   * dev only; pre-tombstones, sync would copy it right back from prod.
+   * Post-tombstones, the trigger-captured deletion propagates: prod's copy
+   * is deleted, dev stays clean.
+   */
+  it('a preset deleted on ONE side is deleted on the other — not resurrected', async () => {
+    const discordId = '33333333333333333333';
+    const userId = generateUserUuid(discordId);
+    const personaId = generatePersonaUuid('tombstone-user', userId);
+    const configId = '4f9b0f66-bbbb-4000-8000-000000000001';
+
+    for (const prisma of [devPrisma, prodPrisma]) {
+      await seedUserWithPersona(prisma, {
+        userId,
+        personaId,
+        discordId,
+        username: 'tombstone-user',
+        personaName: 'tombstone-user',
+      });
+      await prisma.$executeRawUnsafe(
+        `INSERT INTO llm_configs (id, name, owner_id, model, updated_at)
+         VALUES ($1::uuid, 'old-preset', $2::uuid, 'dead/model', NOW())`,
+        configId,
+        userId
+      );
+    }
+
+    // Owner deletes the dead preset on dev — the AFTER DELETE trigger
+    // captures it into dev's sync_tombstones.
+    await devPrisma.$executeRawUnsafe(`DELETE FROM llm_configs WHERE id = $1::uuid`, configId);
+    const devTombs = await devPrisma.syncTombstone.findMany({
+      where: { tableName: 'llm_configs' },
+    });
+    expect(devTombs.map(t => t.rowPk)).toContain(configId); // trigger fired
+
+    const result = await service.sync({ dryRun: false });
+
+    // Deleted on prod too, NOT resurrected on dev.
+    expect(await devPrisma.llmConfig.findUnique({ where: { id: configId } })).toBeNull();
+    expect(await prodPrisma.llmConfig.findUnique({ where: { id: configId } })).toBeNull();
+    expect(result.stats.llm_configs.deleted).toBe(1);
+    // The tombstone itself synced to prod (ledger convergence).
+    const prodTombs = await prodPrisma.syncTombstone.findMany({
+      where: { tableName: 'llm_configs' },
+    });
+    expect(prodTombs.map(t => t.rowPk)).toContain(configId);
+  }, 30000);
+
+  /**
+   * Recreation wins: delete a row, then re-create the same logical row
+   * (deterministic UUIDs collide on id) AFTER the deletion — the row's newer
+   * timestamp beats the tombstone, so it syncs normally instead of being
+   * re-deleted.
+   */
+  it('a row re-created after its deletion WINS over the tombstone', async () => {
+    const discordId = '44444444444444444444';
+    const userId = generateUserUuid(discordId);
+    const personaId = generatePersonaUuid('phoenix-user', userId);
+    const configId = '4f9b0f66-bbbb-4000-8000-000000000002';
+
+    await seedUserWithPersona(devPrisma, {
+      userId,
+      personaId,
+      discordId,
+      username: 'phoenix-user',
+      personaName: 'phoenix-user',
+    });
+    await devPrisma.$executeRawUnsafe(
+      `INSERT INTO llm_configs (id, name, owner_id, model, updated_at)
+       VALUES ($1::uuid, 'phoenix', $2::uuid, 'a/model', NOW() - INTERVAL '1 hour')`,
+      configId,
+      userId
+    );
+    // Delete (tombstone at NOW) …
+    await devPrisma.$executeRawUnsafe(`DELETE FROM llm_configs WHERE id = $1::uuid`, configId);
+    // … then re-create the same id with a NEWER updated_at.
+    await devPrisma.$executeRawUnsafe(
+      `INSERT INTO llm_configs (id, name, owner_id, model, updated_at)
+       VALUES ($1::uuid, 'phoenix-reborn', $2::uuid, 'a/model', NOW() + INTERVAL '1 second')`,
+      configId,
+      userId
+    );
+
+    await service.sync({ dryRun: false });
+
+    // The re-created row reached prod; nothing got deleted anywhere.
+    const prodConfig = await prodPrisma.llmConfig.findUnique({ where: { id: configId } });
+    expect(prodConfig?.name).toBe('phoenix-reborn');
+    expect(await devPrisma.llmConfig.findUnique({ where: { id: configId } })).not.toBeNull();
+  }, 30000);
+
+  /**
+   * Cascade coverage: deleting a USER fans out through the Cascade web
+   * (personas, configs, personalities, owners…) and the trigger captures
+   * EVERY cascaded row. Sync then converges the other side — including the
+   * composite-PK personality_owners row — with the target's own cascades
+   * mopping up as no-ops where the propagated parent delete already
+   * removed children.
+   */
+  it('a user deletion cascades, tombstones every row, and the whole tree propagates', async () => {
+    const discordId = '66666666666666666666';
+    const userId = generateUserUuid(discordId);
+    const personaId = generatePersonaUuid('cascade-user', userId);
+    const systemPromptId = '4f9b0f66-bbbb-4000-8000-000000000003';
+    const personalityId = '4f9b0f66-bbbb-4000-8000-000000000004';
+
+    for (const prisma of [devPrisma, prodPrisma]) {
+      await seedUserWithPersona(prisma, {
+        userId,
+        personaId,
+        discordId,
+        username: 'cascade-user',
+        personaName: 'cascade-user',
+      });
+      await prisma.$executeRawUnsafe(
+        `INSERT INTO system_prompts (id, name, content, updated_at)
+         VALUES ($1::uuid, 'cascade-prompt', 'p', NOW())
+         ON CONFLICT (id) DO NOTHING`,
+        systemPromptId
+      );
+      await prisma.$executeRawUnsafe(
+        `INSERT INTO personalities (id, name, display_name, slug, system_prompt_id, character_info, personality_traits, owner_id, updated_at)
+         VALUES ($1::uuid, 'CascadeBot', 'Cascade Bot', 'cascade-bot', $2::uuid, 'c', 'p', $3::uuid, NOW())`,
+        personalityId,
+        systemPromptId,
+        userId
+      );
+      await prisma.$executeRawUnsafe(
+        `INSERT INTO personality_owners (personality_id, user_id, created_at, updated_at)
+         VALUES ($1::uuid, $2::uuid, NOW(), NOW())`,
+        personalityId,
+        userId
+      );
+    }
+
+    // Delete the user on dev: cascades personas + personalities + owners,
+    // each cascade firing the tombstone trigger.
+    await devPrisma.$transaction(async tx => {
+      await tx.$executeRawUnsafe('SET CONSTRAINTS ALL DEFERRED');
+      await tx.$executeRawUnsafe(`DELETE FROM users WHERE id = $1::uuid`, userId);
+    });
+    const devTombs = await devPrisma.syncTombstone.findMany();
+    const tombTables = new Set(devTombs.map(t => t.tableName));
+    expect(tombTables).toContain('users');
+    expect(tombTables).toContain('personas');
+    expect(tombTables).toContain('personalities');
+    expect(tombTables).toContain('personality_owners'); // composite-PK capture
+    const ownerTomb = devTombs.find(t => t.tableName === 'personality_owners');
+    expect(ownerTomb?.rowPk).toBe([personalityId, userId].join('|')); // SYNC_CONFIG pk order
+
+    await service.sync({ dryRun: false });
+
+    // The whole tree is gone on prod too.
+    expect(await prodPrisma.user.findUnique({ where: { id: userId } })).toBeNull();
+    expect(await prodPrisma.persona.findUnique({ where: { id: personaId } })).toBeNull();
+    expect(await prodPrisma.personality.findUnique({ where: { id: personalityId } })).toBeNull();
   }, 30000);
 
   /**

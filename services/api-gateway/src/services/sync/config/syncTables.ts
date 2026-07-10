@@ -63,6 +63,7 @@ export interface TableSyncConfig {
 }
 
 export type SyncTableName =
+  | 'sync_tombstones'
   | 'users'
   | 'personas'
   | 'system_prompts'
@@ -87,6 +88,17 @@ export type SyncTableName =
  * Tables to sync with their primary key field(s), timestamp fields, and UUID columns
  */
 export const SYNC_CONFIG: Record<SyncTableName, TableSyncConfig> = {
+  sync_tombstones: {
+    // The generalized deletion ledger (trigger-written — see migration
+    // 20260710230428). Synced FIRST so both sides converge on the same
+    // deletion knowledge before any table's rows are classified; the
+    // trigger's ON CONFLICT keeps the LATEST deleted_at, and last-write-wins
+    // on deleted_at resolves cross-env divergence the same way.
+    pk: ['table_name', 'row_pk'],
+    createdAt: 'deleted_at',
+    uuidColumns: [],
+    timestampColumns: ['deleted_at'],
+  },
   users: {
     pk: 'id',
     createdAt: 'created_at',
@@ -251,8 +263,8 @@ export const SYNC_CONFIG: Record<SyncTableName, TableSyncConfig> = {
     // updated_at is genuinely mutated (corrections, /memory forget, lock
     // toggles, supersession flips) — last-write-wins needs it, so every
     // user-facing removal/edit verb propagates as column values. Hard row
-    // deletes do NOT propagate (same as every synced table — the general
-    // fix is the sync_tombstones design in backlog/cold/ideas.md).
+    // deletes ALSO propagate via the sync_tombstones ledger (the
+    // sync_tombstone_memory_facts trigger), like every synced table.
     updatedAt: 'updated_at',
     uuidColumns: ['id', 'personality_id', 'persona_id', 'canon_group_id', 'superseded_by_id'],
     timestampColumns: ['valid_from', 'superseded_at', 'created_at', 'updated_at'],
@@ -311,6 +323,8 @@ export const SYNC_CONFIG: Record<SyncTableName, TableSyncConfig> = {
  * If you change this order, sync will fail with FK constraint violations!
  */
 export const SYNC_TABLE_ORDER: SyncTableName[] = [
+  // Deletion ledger first — every later table's classification consults it
+  'sync_tombstones',
   // Base tables - users first because llm_configs/personas/personalities.owner_id is REQUIRED
   'system_prompts',
   'users',
