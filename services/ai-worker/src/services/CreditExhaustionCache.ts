@@ -15,8 +15,12 @@
  * **Distinction from `RateLimitCache`**:
  * - **Scope**: per-account, not per-model. A 402 on one OpenRouter model
  *   means the account has no credits across ALL OpenRouter models.
- * - **TTL**: no provider-supplied reset signal. Default 1h is a "re-check
- *   eventually" — users top up at unpredictable cadence.
+ * - **TTL**: no provider-supplied reset signal, so the TTL is the ONLY path
+ *   by which a credit top-up propagates — a user who tops up stays cached as
+ *   broke until expiry. Default 10min bounds that staleness window; the cost
+ *   of a shorter TTL is just one doomed 402 round-trip per window while the
+ *   account is genuinely empty (the quota fallback serves the turn either
+ *   way).
  * - **Semantics**: 402 is a permanent state for the account until the user
  *   tops up; not a time-bounded transient block like 429.
  *
@@ -40,7 +44,7 @@ const logger = createLogger('CreditExhaustionCache');
 const KEY_PREFIX = CACHE_KEY_PREFIXES.CREDIT_EXHAUSTION_OPENROUTER;
 const MIN_TTL_SECONDS = 60;
 const MAX_TTL_SECONDS = 24 * 60 * 60;
-const DEFAULT_TTL_SECONDS = 60 * 60; // 1 hour
+const DEFAULT_TTL_SECONDS = 10 * 60; // 10 minutes — the top-up staleness bound (see header)
 
 interface MarkOptions {
   /**
@@ -50,7 +54,7 @@ interface MarkOptions {
    */
   cacheKeyId: string;
   /**
-   * Optional TTL override. Defaults to 1 hour. Clamped to [60s, 24h].
+   * Optional TTL override. Defaults to 10 minutes. Clamped to [60s, 24h].
    */
   ttlSeconds?: number;
 }

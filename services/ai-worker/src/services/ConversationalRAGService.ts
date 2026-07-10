@@ -114,6 +114,7 @@ export class ConversationalRAGService {
       context,
       referencedMessagesDescriptions,
       userApiKey,
+      isGuestMode,
       retryConfig,
       maxLlmAttempts,
       diagnosticCollector: diagnosticCollectorRef,
@@ -202,8 +203,11 @@ export class ConversationalRAGService {
       diagnosticCollector.markLlmInvocationStart();
     }
 
-    // cacheKeyId scopes rate-limit cache by user identity (not API key value); see InvokeWithRetryOptions JSDoc.
-    const cacheKeyId = deriveCacheKeyId(userApiKey, context.userId);
+    // cacheKeyId scopes doom caches by BILLING identity: guest/system-key
+    // routes (including quota retargets, which pass the system key as a
+    // string with isGuestMode=true) must scope as 'system', or the user's own
+    // cached 402 vetoes the fallback that was chosen to dodge it.
+    const cacheKeyId = deriveCacheKeyId(userApiKey, context.userId, isGuestMode);
     const response = await this.llmInvoker.invokeWithRetry({
       model,
       messages,
@@ -449,6 +453,7 @@ export class ConversationalRAGService {
         context,
         referencedMessagesDescriptions: inputs.referencedMessagesDescriptions,
         userApiKey,
+        isGuestMode,
         retryConfig,
         maxLlmAttempts: options.maxLlmAttempts,
         diagnosticCollector,

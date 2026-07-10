@@ -321,8 +321,18 @@ function parseStoredValue(raw: string): StoredValue | null {
  * than risking cross-account false-blocks. The empty-string sentinel is
  * recognized by `LLMInvoker.invokeWithRetry`'s cache-skip guard.
  */
-export function deriveCacheKeyId(userApiKey: string | undefined, userId: string): string {
-  const hasByokKey = userApiKey !== undefined && userApiKey.length > 0;
+export function deriveCacheKeyId(
+  userApiKey: string | undefined,
+  userId: string,
+  // Cache identity must follow the key's PROVENANCE, not its presence: a
+  // quota retarget hands the SYSTEM key to the invocation as a plain string,
+  // and deriving `user:<id>` from it re-attaches the user's own doom marks
+  // (credit exhaustion / rate limit) to a route that bills a different
+  // account — the cached 402 then vetoes the very fallback that was chosen
+  // to dodge it. Callers on a system-key route (guest semantics) pass true.
+  isSystemKeyRoute = false
+): string {
+  const hasByokKey = !isSystemKeyRoute && userApiKey !== undefined && userApiKey.length > 0;
   let result: string;
   if (hasByokKey) {
     result = userId.length > 0 ? `user:${userId}` : '';

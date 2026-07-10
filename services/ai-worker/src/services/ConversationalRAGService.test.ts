@@ -1252,13 +1252,48 @@ describe('ConversationalRAGService', () => {
         model: expect.anything(),
         messages: expect.any(Array),
         modelName: 'test-model',
-        // Tighter than `expect.any(String)`: catches a regression where
-        // `deriveCacheKeyId` silently returns an unexpected string shape
-        // (e.g., the raw API key value) instead of `system` or `user:<snowflake>`.
-        cacheKeyId: expect.stringMatching(/^(user:\d+|system)$/),
+        // Exact, not a union: this call passes no userApiKey and no
+        // isGuestMode, so the identity is deterministically 'system'. The old
+        // (user:|system) union was the blind spot that let a retargeted call
+        // scope as the wrong identity while staying green.
+        cacheKeyId: 'system',
         imageCount: 2,
         audioCount: 1,
       });
+    });
+
+    it('scopes cacheKeyId to the BILLING identity: a system-key retarget (isGuestMode) crosses as system, never user', async () => {
+      // Prod regression (ref mrecl8grjuc): the quota fallback rerouted a
+      // credit-exhausted user to openrouter/free on the SYSTEM key, but the
+      // invocation derived its cache identity from key PRESENCE and scoped as
+      // user:<id> — so the user's own cached 402 short-circuited the very
+      // fallback chosen to dodge it. This asserts what actually crosses the
+      // LLMInvoker seam on a retargeted call.
+      const context = createMockContext();
+      const personality = createMockPersonality();
+
+      await service.generateResponse(personality, 'Test', context, {
+        userApiKey: 'sk-or-system-key-passed-as-string',
+        isGuestMode: true,
+      });
+
+      expect(getLLMInvokerMock().invokeWithRetry).toHaveBeenCalledWith(
+        expect.objectContaining({ cacheKeyId: 'system' })
+      );
+    });
+
+    it('scopes cacheKeyId as user:<id> for a genuine BYOK route (isGuestMode false)', async () => {
+      const context = createMockContext();
+      const personality = createMockPersonality();
+
+      await service.generateResponse(personality, 'Test', context, {
+        userApiKey: 'sk-or-users-own-key',
+        isGuestMode: false,
+      });
+
+      expect(getLLMInvokerMock().invokeWithRetry).toHaveBeenCalledWith(
+        expect.objectContaining({ cacheKeyId: `user:${context.userId}` })
+      );
     });
 
     it('should propagate LLMInvoker errors', async () => {

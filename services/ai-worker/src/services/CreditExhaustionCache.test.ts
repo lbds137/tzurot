@@ -37,10 +37,10 @@ describe('CreditExhaustionCache', () => {
       const [key, ttl, value] = mockRedis.setex.mock.calls[0];
       // No model dimension in the key — credits are account-wide.
       expect(key).toBe('nocredits:openrouter:user:278863839632818186');
-      expect(ttl).toBe(3600); // default 1h
+      expect(ttl).toBe(600); // default 10min — the top-up staleness bound
       // JSON value carries timestamp AND original write TTL so reads can
       // compute accurate remaining-time without a second redis.ttl() call.
-      expect(JSON.parse(value)).toEqual({ ts: FIXED_NOW_MS, ttl: 3600 });
+      expect(JSON.parse(value)).toEqual({ ts: FIXED_NOW_MS, ttl: 600 });
     });
 
     it('persists the post-clamp TTL in the JSON value, not the raw caller value', async () => {
