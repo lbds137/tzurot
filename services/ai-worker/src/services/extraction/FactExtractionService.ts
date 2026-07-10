@@ -16,9 +16,12 @@
 
 import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 import { HumanMessage } from '@langchain/core/messages';
-import { MODEL_DEFAULTS } from '@tzurot/common-types/constants/ai';
+import { getConfig } from '@tzurot/common-types/config/config';
 import type { FactExtractionJobData } from '@tzurot/common-types/types/jobs';
-import { generateFactExtractionJobUuid } from '@tzurot/common-types/utils/deterministicUuid';
+import {
+  generateFactExtractionJobUuid,
+  generateUsageLogUuid,
+} from '@tzurot/common-types/utils/deterministicUuid';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { createChatModel } from '../ModelFactory.js';
 import type { ExtractionBudget } from './ExtractionBudget.js';
@@ -59,20 +62,33 @@ interface EpisodeGroup {
   texts: string[];
 }
 
+/** One extraction model call's outcome — content plus token usage for cost rows. */
+export interface ExtractionModelResult {
+  content: string;
+  tokensIn: number;
+  tokensOut: number;
+}
+
 /** Model invocation seam — injectable for tests/eval (defaults to the real call). */
-export type ExtractionModelInvoker = (prompt: string) => Promise<string>;
+export type ExtractionModelInvoker = (prompt: string) => Promise<ExtractionModelResult>;
 
 /** The real model call — exported for the eval harness (same code path as prod). */
-export async function invokeExtractionModel(prompt: string): Promise<string> {
+export async function invokeExtractionModel(prompt: string): Promise<ExtractionModelResult> {
   const { model } = createChatModel({
-    modelName: MODEL_DEFAULTS.FACT_EXTRACTION,
+    modelName: getConfig().EXTRACTION_MODEL,
     temperature: 0,
     responseFormat: { type: 'json_object' },
+    appTitleSuffix: 'Extraction',
   });
   const response = await model.invoke([new HumanMessage(prompt)], {
     timeout: EXTRACTION_TIMEOUT_MS,
   });
-  return typeof response.content === 'string' ? response.content : JSON.stringify(response.content);
+  return {
+    content:
+      typeof response.content === 'string' ? response.content : JSON.stringify(response.content),
+    tokensIn: response.usage_metadata?.input_tokens ?? 0,
+    tokensOut: response.usage_metadata?.output_tokens ?? 0,
+  };
 }
 
 export class FactExtractionService {
@@ -150,15 +166,17 @@ export class FactExtractionService {
 
     const prompt = buildExtractionPrompt(group.texts, knownFacts, group.isFiction);
 
-    let rawResponse: string;
+    let modelResult: ExtractionModelResult;
     try {
-      rawResponse = await this.invokeModel(prompt);
+      modelResult = await this.invokeModel(prompt);
     } catch (error) {
       logger.warn({ err: error, ...scope }, 'Extraction model call failed — skipping group');
       return 0;
     }
 
-    const parsed = this.parseResponse(rawResponse, scope);
+    await this.logExtractionUsage(group.personaId, modelResult, scope);
+
+    const parsed = this.parseResponse(modelResult.content, scope);
     if (parsed === null || parsed.length === 0) {
       return 0;
     }
@@ -180,6 +198,46 @@ export class FactExtractionService {
       'Extraction group complete'
     );
     return written;
+  }
+
+  /**
+   * Record one usage_logs row per extraction model call, attributed to the
+   * persona's owning user (their conversation generated the batch) — the same
+   * ledger chat completions write to, so extraction spend is queryable
+   * in-system instead of only on the provider dashboard. Fail-soft: a usage
+   * bookkeeping failure must never cost an extraction batch.
+   */
+  private async logExtractionUsage(
+    personaId: string,
+    modelResult: ExtractionModelResult,
+    scope: { personalityId: string; personaId: string }
+  ): Promise<void> {
+    try {
+      const persona = await this.prisma.persona.findUnique({
+        where: { id: personaId },
+        select: { ownerId: true },
+      });
+      if (persona === null) {
+        logger.warn({ ...scope }, 'Extraction usage row skipped — persona row not found');
+        return;
+      }
+      const model = getConfig().EXTRACTION_MODEL;
+      const createdAt = new Date();
+      await this.prisma.usageLog.create({
+        data: {
+          id: generateUsageLogUuid(persona.ownerId, model, createdAt),
+          userId: persona.ownerId,
+          provider: 'openrouter',
+          model,
+          tokensIn: modelResult.tokensIn,
+          tokensOut: modelResult.tokensOut,
+          requestType: 'fact_extraction',
+          createdAt,
+        },
+      });
+    } catch (error) {
+      logger.warn({ err: error, ...scope }, 'Extraction usage row failed — continuing');
+    }
   }
 
   /** JSON.parse + zod safeParse; null on ANY malformation (fail-to-skip). */

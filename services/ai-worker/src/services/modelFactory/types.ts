@@ -24,6 +24,13 @@ export interface ModelConfig extends ConvertedLlmParams {
    */
   provider?: AIProvider;
   /**
+   * Appended to the X-Title OpenRouter attribution header so background
+   * workloads (e.g. fact extraction) show as a distinct app in the dashboard
+   * instead of blending into chat-completion traffic. OpenRouter-only; other
+   * providers ignore it.
+   */
+  appTitleSuffix?: string;
+  /**
    * Whether the model supports reasoning parameters.
    * Resolved async by caller via checkModelReasoningSupport().
    * When false, reasoning params are silently skipped with a log warning.

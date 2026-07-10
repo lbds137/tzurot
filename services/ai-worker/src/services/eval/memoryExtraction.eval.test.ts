@@ -143,7 +143,7 @@ describe('memory extraction eval (real model — manual run only)', () => {
         golden.isFiction === true
       );
 
-      const raw = await invokeExtractionModel(prompt);
+      const { content: raw } = await invokeExtractionModel(prompt);
       const parsed = extractionResponseSchema.safeParse(JSON.parse(extractJsonPayload(raw)));
       // A schema-invalid response is a HARD failure: production would skip the
       // batch entirely, which for a golden means the extractor produced nothing

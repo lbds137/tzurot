@@ -290,10 +290,15 @@ function getEffectiveMaxTokens(
 
 /**
  * Build the OpenRouter client configuration (baseURL, headers, custom fetch).
+ *
+ * `appTitleSuffix` appends to the X-Title attribution header so background
+ * workloads (e.g. fact extraction) show as a distinct app in the OpenRouter
+ * dashboard instead of blending into chat-completion traffic.
  */
 function buildOpenRouterClientConfig(
   extraParams: OpenRouterExtraParams,
-  needsCustomFetch: boolean
+  needsCustomFetch: boolean,
+  appTitleSuffix?: string
 ): { baseURL: string; defaultHeaders?: Record<string, string>; fetch?: typeof fetch } {
   const clientConfig: {
     baseURL: string;
@@ -313,9 +318,13 @@ function buildOpenRouterClientConfig(
   }
 
   if (config.OPENROUTER_APP_TITLE !== undefined) {
+    const rawTitle =
+      appTitleSuffix === undefined
+        ? config.OPENROUTER_APP_TITLE
+        : `${config.OPENROUTER_APP_TITLE} ${appTitleSuffix}`;
     // HTTP headers only accept printable ASCII (chars 0x20-0x7E). Strip non-ASCII
     // and control characters to prevent "Cannot convert argument to a ByteString" errors.
-    const safeTitle = config.OPENROUTER_APP_TITLE.replace(/[^\x20-\x7E]/g, '').trim();
+    const safeTitle = rawTitle.replace(/[^\x20-\x7E]/g, '').trim();
     if (safeTitle.length > 0) {
       headers['X-Title'] = safeTitle;
     }
@@ -400,7 +409,11 @@ function buildOpenRouterModel(
       // ladder owns retries; a 429 must surface to it immediately.
       maxRetries: 0,
       modelKwargs: shared.hasModelKwargs ? shared.modelKwargs : undefined,
-      configuration: buildOpenRouterClientConfig(extraParams, needsCustomFetch),
+      configuration: buildOpenRouterClientConfig(
+        extraParams,
+        needsCustomFetch,
+        modelConfig.appTitleSuffix
+      ),
       // Surfaces the raw OpenRouter response under additional_kwargs.__raw_response,
       // which extractAndPopulateOpenRouterReasoning() in LLMInvoker reads to populate
       // additional_kwargs.reasoning + response_metadata.reasoning_details. This
