@@ -69,6 +69,30 @@ interface ValidationResult {
   info: string[];
 }
 
+/** Both directions of uuid-column agreement between schema and SYNC_CONFIG. */
+function checkUuidColumnParity(
+  tableName: string,
+  config: TableSyncConfig,
+  actualColumns: Set<string>,
+  warnings: string[]
+): void {
+  const configColumns = config.uuidColumns as readonly string[];
+  for (const actualColumn of actualColumns) {
+    if (!configColumns.includes(actualColumn)) {
+      warnings.push(
+        `Table '${tableName}' has UUID column '${actualColumn}' in schema but not in SYNC_CONFIG.uuidColumns`
+      );
+    }
+  }
+  for (const configColumn of config.uuidColumns) {
+    if (!actualColumns.has(configColumn)) {
+      warnings.push(
+        `Table '${tableName}' has '${configColumn}' in SYNC_CONFIG.uuidColumns but it's not a UUID column in schema (or doesn't exist)`
+      );
+    }
+  }
+}
+
 /**
  * Validate that SYNC_CONFIG matches actual database schema
  * @returns Object with warnings (problems) and info (expected exclusions)
@@ -92,6 +116,17 @@ export async function validateSyncConfig(
     ORDER BY table_name, column_name
   `;
 
+  // Table EXISTENCE comes from information_schema.tables — a table with no
+  // uuid columns at all (sync_tombstones: varchar + timestamp) is still a
+  // real table; inferring existence from the uuid-column map alone would
+  // false-flag it as missing.
+  const actualTables = await devClient.$queryRaw<{ table_name: string }[]>`
+    SELECT table_name
+    FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
+  `;
+  const existingTables = new Set(actualTables.map(row => row.table_name));
+
   // Build map of table -> UUID columns
   const schemaMap = new Map<string, Set<string>>();
   for (const row of actualUuidColumns) {
@@ -105,31 +140,11 @@ export async function validateSyncConfig(
 
   // Check each table in SYNC_CONFIG
   for (const [tableName, config] of Object.entries(syncConfig)) {
-    const actualColumns = schemaMap.get(tableName);
-
-    if (!actualColumns) {
+    if (!existingTables.has(tableName)) {
       warnings.push(`SYNC_CONFIG has table '${tableName}' but it doesn't exist in database schema`);
       continue;
     }
-
-    // Check for missing UUID columns in SYNC_CONFIG
-    const configColumns = config.uuidColumns as readonly string[];
-    for (const actualColumn of actualColumns) {
-      if (!configColumns.includes(actualColumn)) {
-        warnings.push(
-          `Table '${tableName}' has UUID column '${actualColumn}' in schema but not in SYNC_CONFIG.uuidColumns`
-        );
-      }
-    }
-
-    // Check for extra UUID columns in SYNC_CONFIG
-    for (const configColumn of config.uuidColumns) {
-      if (!actualColumns.has(configColumn)) {
-        warnings.push(
-          `Table '${tableName}' has '${configColumn}' in SYNC_CONFIG.uuidColumns but it's not a UUID column in schema (or doesn't exist)`
-        );
-      }
-    }
+    checkUuidColumnParity(tableName, config, schemaMap.get(tableName) ?? new Set(), warnings);
   }
 
   // Check for tables in schema but not in SYNC_CONFIG

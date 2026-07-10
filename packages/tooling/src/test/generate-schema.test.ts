@@ -712,6 +712,109 @@ describe('generateSchema', () => {
     });
   });
 
+  describe('plpgsql function + trigger preservation', () => {
+    function mockMigrations(migrations: Record<string, string>): void {
+      fsMock.existsSync.mockImplementation((path: string) => {
+        if (path.endsWith('prisma/migrations')) return true;
+        for (const name of Object.keys(migrations)) {
+          if (path.endsWith(`${name}/migration.sql`)) return true;
+        }
+        return false;
+      });
+      fsMock.readdirSync.mockImplementation(() =>
+        Object.keys(migrations).map(name => ({
+          name,
+          isDirectory: () => true,
+        }))
+      );
+      fsMock.readFileSync.mockImplementation((path: string) => {
+        for (const [name, sql] of Object.entries(migrations)) {
+          if (path.endsWith(`${name}/migration.sql`)) return sql;
+        }
+        return '';
+      });
+    }
+
+    const CAPTURE_FN = `
+      CREATE OR REPLACE FUNCTION sync_tombstone_capture() RETURNS trigger AS $$
+      DECLARE
+        pk text := '';
+      BEGIN
+        -- body comments are stripped; semicolons inside the body must survive
+        pk := COALESCE(to_jsonb(OLD) ->> 'id', '');
+        INSERT INTO sync_tombstones (table_name, row_pk) VALUES (TG_TABLE_NAME, pk);
+        RETURN OLD;
+      END;
+      $$ LANGUAGE plpgsql;
+      CREATE TRIGGER sync_tombstone_users AFTER DELETE ON "users" FOR EACH ROW EXECUTE FUNCTION sync_tombstone_capture('id');
+    `;
+
+    it('harvests a function (semicolons in its body intact) plus its trigger', async () => {
+      mockMigrations({ '20260710230428_add_sync_tombstones': CAPTURE_FN });
+
+      const { generateSchema } = await import('./generate-schema.js');
+      await generateSchema();
+
+      const [, content] = fsMock.writeFileSync.mock.calls[0] as [string, string];
+      expect(content).toContain('CREATE OR REPLACE FUNCTION sync_tombstone_capture()');
+      expect(content).toContain('LANGUAGE plpgsql;');
+      expect(content).toContain('INSERT INTO sync_tombstones (table_name, row_pk)'); // body ; survived
+      expect(content).toContain('CREATE TRIGGER sync_tombstone_users AFTER DELETE ON "users"');
+      expect(content).toContain('plpgsql functions + triggers harvested from');
+    });
+
+    it('within-file DROP-then-CREATE (idempotency pattern) keeps the CREATE', async () => {
+      mockMigrations({
+        '20251119154500_add_cache_invalidation_triggers': `
+          DROP TRIGGER IF EXISTS trigger_personality_cache ON personalities;
+          CREATE TRIGGER trigger_personality_cache AFTER UPDATE ON personalities FOR EACH ROW EXECUTE FUNCTION notify_cache();
+        `,
+      });
+
+      const { generateSchema } = await import('./generate-schema.js');
+      await generateSchema();
+
+      const [, content] = fsMock.writeFileSync.mock.calls[0] as [string, string];
+      expect(content).toContain('CREATE TRIGGER trigger_personality_cache');
+    });
+
+    it('a later migration replacing a function wins (last-wins by name)', async () => {
+      mockMigrations({
+        '20260101000000_v1': `
+          CREATE FUNCTION my_fn() RETURNS trigger AS $$ BEGIN RETURN OLD; END; $$ LANGUAGE plpgsql;
+        `,
+        '20260102000000_v2': `
+          DROP FUNCTION IF EXISTS my_fn() CASCADE;
+          CREATE FUNCTION my_fn() RETURNS trigger AS $$ BEGIN RETURN NEW; END; $$ LANGUAGE plpgsql;
+        `,
+      });
+
+      const { generateSchema } = await import('./generate-schema.js');
+      await generateSchema();
+
+      const [, content] = fsMock.writeFileSync.mock.calls[0] as [string, string];
+      expect(content).toContain('RETURN NEW');
+      expect(content).not.toContain('RETURN OLD');
+    });
+
+    it('a drop WITHOUT re-create removes the trigger from the harvest', async () => {
+      mockMigrations({
+        '20260101000000_add': `
+          CREATE TRIGGER doomed_trigger AFTER DELETE ON "users" FOR EACH ROW EXECUTE FUNCTION f();
+        `,
+        '20260102000000_drop': `
+          DROP TRIGGER IF EXISTS doomed_trigger ON "users";
+        `,
+      });
+
+      const { generateSchema } = await import('./generate-schema.js');
+      await generateSchema();
+
+      const [, content] = fsMock.writeFileSync.mock.calls[0] as [string, string];
+      expect(content).not.toContain('doomed_trigger');
+    });
+  });
+
   describe('error handling', () => {
     it('should handle prisma command failure', async () => {
       execFileSyncMock.mockImplementation(() => {
