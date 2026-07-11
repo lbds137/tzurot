@@ -99,6 +99,25 @@ describe('collectSecuritySurface', () => {
     });
   });
 
+  it('reports the FIRST stderr line of a multi-line gh hint (not the trailing example)', () => {
+    vi.mocked(execFileSync).mockImplementation(() => {
+      const error = new Error('Command failed: gh pr list') as Error & { stderr: string };
+      error.stderr =
+        'gh: To use GitHub CLI in a GitHub Actions workflow, set the GH_TOKEN environment variable. Example:\n' +
+        '  env:\n' +
+        '    GH_TOKEN: ${{ github.token }}\n';
+      throw error;
+    });
+
+    const result = collectSecuritySurface();
+
+    expect(result.available).toBe(false);
+    if (!result.available) {
+      expect(result.reason).toContain('set the GH_TOKEN environment variable');
+      expect(result.reason).not.toContain('${{ github.token }}');
+    }
+  });
+
   it('degrades to unavailable when gh emits something non-numeric', () => {
     vi.mocked(execFileSync).mockReturnValue('not a count');
 
