@@ -476,6 +476,40 @@ describe('handleAutocomplete', () => {
       expect(choices[1]).toEqual({ name: '✨ Unlock All Models...', value: UNLOCK_MODELS_VALUE });
     });
 
+    it('shows the z.ai piggyback preset to guests (conditionally free)', async () => {
+      // GLM-4.5-Air is not literally free on OpenRouter but IS free-tier
+      // eligible — the guest picker must offer it (this exact absence was the
+      // reported bug: not selectable in /settings preset set-default).
+      vi.mocked(mockInteraction.options.getFocused).mockReturnValue({
+        name: 'preset',
+        value: '',
+      } as unknown as string);
+      mockConfigApis(
+        [
+          mockLlmConfigSummary({
+            id: '00000000-0000-4000-8000-0000000000c3',
+            name: 'GLM 4.5 Air',
+            model: 'z-ai/glm-4.5-air',
+            provider: 'openrouter',
+            isGlobal: true,
+            isOwned: false,
+          }),
+        ],
+        false // no wallet = guest mode
+      );
+
+      await handleAutocomplete(mockInteraction);
+
+      const choices = vi.mocked(mockInteraction.respond).mock.calls[0][0] as {
+        name: string;
+        value: string;
+      }[];
+      // The piggyback preset + the upsell option
+      expect(choices).toHaveLength(2);
+      expect(choices[0].value).toBe('00000000-0000-4000-8000-0000000000c3');
+      expect(choices[0].name).toContain('GLM 4.5 Air');
+    });
+
     it('should add upsell option at the end for guest users', async () => {
       vi.mocked(mockInteraction.options.getFocused).mockReturnValue({
         name: 'preset',

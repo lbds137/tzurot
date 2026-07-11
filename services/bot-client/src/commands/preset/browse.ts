@@ -16,7 +16,7 @@ import {
   type ButtonInteraction,
   type StringSelectMenuInteraction,
 } from 'discord.js';
-import { isFreeModel } from '@tzurot/common-types/constants/ai';
+import { isFreeModel, isFreeTierEligibleModel } from '@tzurot/common-types/constants/ai';
 import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
 import { presetBrowseOptions } from '@tzurot/common-types/generated/commandOptions';
 import { type LlmConfigSummary } from '@tzurot/common-types/schemas/api/llm-config';
@@ -120,7 +120,7 @@ function buildPresetBadges(preset: LlmConfigSummary): string {
  */
 function buildPresetDescription(preset: LlmConfigSummary, isGuestMode: boolean): string {
   let description = shortModelName(preset.model);
-  if (isGuestMode && !isFreeModel(preset.model)) {
+  if (isGuestMode && !isFreeTierEligibleModel(preset.model)) {
     description += ' (requires API key)';
   }
   return description;
@@ -186,7 +186,8 @@ function formatPresetLine(c: LlmConfigSummary, isGuestMode: boolean, index: numb
   const safeName = escapeMarkdown(c.name);
 
   // In guest mode, dim paid presets
-  const nameStyle = isGuestMode && !isFreeModel(c.model) ? `~~${safeName}~~` : `**${safeName}**`;
+  const nameStyle =
+    isGuestMode && !isFreeTierEligibleModel(c.model) ? `~~${safeName}~~` : `**${safeName}**`;
 
   return `${index + 1}. ${badgeStr} ${nameStyle}\n   └ \`${shortModel}\``;
 }

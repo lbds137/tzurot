@@ -135,6 +135,41 @@ describe('handleBrowse', () => {
     } as unknown as Parameters<typeof handleBrowse>[0];
   }
 
+  it('renders the z.ai piggyback preset as available (not struck) for guests', async () => {
+    // GLM-4.5-Air is free-tier ELIGIBLE: a guest's browse must not strike it
+    // through or claim it "(requires API key)" — same class as the picker gate.
+    configurePresets(
+      stub,
+      [
+        {
+          id: '00000000-0000-4000-8000-00000000000a',
+          name: 'GLM Air',
+          model: 'z-ai/glm-4.5-air',
+          provider: 'openrouter',
+          isGlobal: true,
+          isDefault: false,
+          isOwned: false,
+        },
+      ],
+      false // no wallet = guest mode
+    );
+
+    await handleBrowse(createMockContext());
+
+    const payload = mockEditReply.mock.calls[0][0] as {
+      embeds: { data: { description?: string } }[];
+      components: { components: { data: { options?: { description?: string }[] } }[] }[];
+    };
+    const description = payload.embeds[0].data.description ?? '';
+    expect(description).toContain('**GLM Air**');
+    expect(description).not.toContain('~~GLM Air~~');
+    const selectOptions = payload.components
+      .flatMap(row => row.components)
+      .flatMap(c => c.data.options ?? []);
+    const airOption = selectOptions.find(o => o.description?.includes('glm-4.5-air'));
+    expect(airOption?.description ?? '').not.toContain('requires API key');
+  });
+
   it('should browse presets with default settings (no filter, no query)', async () => {
     configurePresets(stub, [
       {
