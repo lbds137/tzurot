@@ -416,9 +416,13 @@ describe('DatabaseSyncService Integration (Ouroboros pattern)', () => {
         username: 'tombstone-user',
         personaName: 'tombstone-user',
       });
+      // Backdated: deleted_at is stamped NOW() by the trigger, and the LWW
+      // tie at TIMESTAMP(3) precision fails safe toward preservation — a
+      // same-millisecond seed+delete (easy on a fast CI box) would flake
+      // this test into a "resurrection". Same class as the users bump above.
       await prisma.$executeRawUnsafe(
         `INSERT INTO llm_configs (id, name, owner_id, model, updated_at)
-         VALUES ($1::uuid, 'old-preset', $2::uuid, 'dead/model', NOW())`,
+         VALUES ($1::uuid, 'old-preset', $2::uuid, 'dead/model', NOW() - INTERVAL '1 minute')`,
         configId,
         userId
       );
@@ -511,22 +515,35 @@ describe('DatabaseSyncService Integration (Ouroboros pattern)', () => {
         username: 'cascade-user',
         personaName: 'cascade-user',
       });
+      // The seeder stamps users/personas with NOW() — backdate them too, or
+      // the cascade's same-instant tombstones tie the LWW comparison.
+      await prisma.$executeRawUnsafe(
+        `UPDATE "users" SET updated_at = NOW() - INTERVAL '1 minute' WHERE id = $1::uuid`,
+        userId
+      );
+      await prisma.$executeRawUnsafe(
+        `UPDATE "personas" SET updated_at = NOW() - INTERVAL '1 minute' WHERE id = $1::uuid`,
+        personaId
+      );
+      // Backdated throughout: the cascade delete stamps every tombstone with
+      // NOW(); a same-millisecond seed would tie the LWW comparison and
+      // fail safe toward resurrection (see the llm_configs test above).
       await prisma.$executeRawUnsafe(
         `INSERT INTO system_prompts (id, name, content, updated_at)
-         VALUES ($1::uuid, 'cascade-prompt', 'p', NOW())
+         VALUES ($1::uuid, 'cascade-prompt', 'p', NOW() - INTERVAL '1 minute')
          ON CONFLICT (id) DO NOTHING`,
         systemPromptId
       );
       await prisma.$executeRawUnsafe(
         `INSERT INTO personalities (id, name, display_name, slug, system_prompt_id, character_info, personality_traits, owner_id, updated_at)
-         VALUES ($1::uuid, 'CascadeBot', 'Cascade Bot', 'cascade-bot', $2::uuid, 'c', 'p', $3::uuid, NOW())`,
+         VALUES ($1::uuid, 'CascadeBot', 'Cascade Bot', 'cascade-bot', $2::uuid, 'c', 'p', $3::uuid, NOW() - INTERVAL '1 minute')`,
         personalityId,
         systemPromptId,
         userId
       );
       await prisma.$executeRawUnsafe(
         `INSERT INTO personality_owners (personality_id, user_id, created_at, updated_at)
-         VALUES ($1::uuid, $2::uuid, NOW(), NOW())`,
+         VALUES ($1::uuid, $2::uuid, NOW() - INTERVAL '1 minute', NOW() - INTERVAL '1 minute')`,
         personalityId,
         userId
       );
