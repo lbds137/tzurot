@@ -80,16 +80,42 @@ describe('buildPipelineHealthView', () => {
     });
 
     const result = buildPipelineHealthView(payload, 'req-1', OWNER_CTX);
-    expect(result.files).toHaveLength(1);
-    const file = result.files![0];
-    const text = file.attachment.toString();
+    expect(result.files).toBeUndefined();
+    const text = result.chunkedText!.text;
 
     expect(text).toContain('# Pipeline Health');
-    expect(text).toContain('| `duplicate_removal` | ✅ success | removed 6 chars |');
-    expect(text).toContain('| `thinking_extraction` | ⏭️ skipped | no reasoning content found |');
-    expect(text).toContain('| `artifact_strip` | ❌ error | regex failed |');
+    // Fixed-width rows in a code fence (Discord renders no pipe-tables);
+    // names pad to the longest ('thinking_extraction', 19 chars)
+    expect(text).toContain('```');
+    expect(text).toContain('duplicate_removal    ✅ success removed 6 chars');
+    expect(text).toContain('thinking_extraction  ⏭️ skipped no reasoning content found');
+    expect(text).toContain('artifact_strip       ❌ error   regex failed');
     expect(text).toContain('## Context');
-    expect(file.name).toBe('pipeline-health-req-1.md');
+  });
+
+  it('neutralizes embedded triple-backticks in step reasons', () => {
+    // Reasons can carry content-derived text; a ``` inside one must not
+    // close the table fence or mis-pair splitMessage's code-block detection.
+    const payload = createMockPayload({
+      postProcessing: {
+        transformsApplied: [],
+        duplicateDetected: false,
+        thinkingExtracted: false,
+        thinkingContent: null,
+        artifactsStripped: [],
+        finalContent: 'Hi',
+        pipelineSteps: [
+          { name: 'artifact_strip', status: 'error', reason: 'choked on ```xml block```' },
+        ],
+      },
+    });
+
+    const result = buildPipelineHealthView(payload, 'req-1', OWNER_CTX);
+    const text = result.chunkedText!.text;
+
+    // Only the table's own fence pair survives as raw triple-backticks
+    expect(text.match(/```/g)).toHaveLength(2);
+    expect(text.replace(/\u200b/g, '')).toContain('choked on ```xml block```');
   });
 
   it('falls back to transformsApplied when pipelineSteps is missing (legacy log)', () => {
@@ -106,7 +132,7 @@ describe('buildPipelineHealthView', () => {
     });
 
     const result = buildPipelineHealthView(payload, 'req-2', OWNER_CTX);
-    const text = result.files![0].attachment.toString();
+    const text = result.chunkedText!.text;
 
     expect(text).toContain('predates structured pipeline step tracking');
     expect(text).toContain('- ✅ `duplicate_removal`');
@@ -116,7 +142,7 @@ describe('buildPipelineHealthView', () => {
   it('reports "No transforms applied" when both pipelineSteps and transformsApplied are empty', () => {
     const payload = createMockPayload(); // default postProcessing has empty arrays
     const result = buildPipelineHealthView(payload, 'req-3', OWNER_CTX);
-    const text = result.files![0].attachment.toString();
+    const text = result.chunkedText!.text;
     expect(text).toContain('No transforms applied');
   });
 
@@ -134,7 +160,7 @@ describe('buildPipelineHealthView', () => {
     });
 
     const result = buildPipelineHealthView(payload, 'req-4', OWNER_CTX);
-    const text = result.files![0].attachment.toString();
+    const text = result.chunkedText!.text;
 
     expect(text).toContain('**Final content:** 2,048 chars');
     expect(text).toContain('**Thinking content:** 1,063 chars');
@@ -155,7 +181,7 @@ describe('buildPipelineHealthView', () => {
     });
 
     const result = buildPipelineHealthView(newLogEmpty, 'req-empty', OWNER_CTX);
-    const text = result.files![0].attachment.toString();
+    const text = result.chunkedText!.text;
 
     expect(text).toContain('No pipeline steps recorded');
     // Should NOT show the legacy-log fallback message — this log is new, just empty

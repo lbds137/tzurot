@@ -12,14 +12,17 @@
 import {
   type ActionRowBuilder,
   AttachmentBuilder,
+  EmbedBuilder,
   MessageFlags,
   type MessageActionRowComponentBuilder,
 } from 'discord.js';
+import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
 import type {
   DiagnosticPayload,
   DiagnosticMemoryEntry,
 } from '@tzurot/common-types/types/diagnostic';
 import type { ViewContext } from './viewContext.js';
+import { escapeFenceBreaks } from '../../utils/fenceEscape.js';
 import {
   DEFAULT_MEMORY_STATE,
   applyMemoryFilter,
@@ -32,6 +35,12 @@ import {
 /** Return type for view builders — content string, file attachments, and optional component rows. */
 export interface DebugViewResult {
   content?: string;
+  /** Long-form TEXT rendered inline via chunked ephemeral replies (owner
+   * decision: no file-download dance for readable content — files are for
+   * structured data like JSON/XML only). The dispatcher hands this to
+   * `sendChunkedReply`; `components` ride the first chunk. */
+  chunkedText?: { text: string; continuedHeader: string };
+  embeds?: EmbedBuilder[];
   files?: AttachmentBuilder[];
   flags?: MessageFlags;
   components?: ActionRowBuilder<MessageActionRowComponentBuilder>[];
@@ -188,11 +197,9 @@ export function buildSystemPromptView(
 // Reasoning
 // ---------------------------------------------------------------------------
 
-/** Discord message content limit; reasoning longer than this is sent as a .md file attachment */
-const REASONING_INLINE_LIMIT = 2000;
-
 /**
- * Reasoning content as either inline markdown or a .md file.
+ * Reasoning content, always inline — chunked across ephemeral messages when
+ * long (owner decision: reading text must never require a file download).
  *
  * Reasoning content is shown to non-owners by design (per project decision —
  * model thinking is genuinely interesting and the user already saw the
@@ -203,7 +210,7 @@ const REASONING_INLINE_LIMIT = 2000;
  */
 export function buildReasoningView(
   payload: DiagnosticPayload,
-  requestId: string,
+  _requestId: string,
   // intentionally unused — uniform VIEW_BUILDERS signature
   _ctx: ViewContext
 ): DebugViewResult {
@@ -216,23 +223,11 @@ export function buildReasoningView(
     };
   }
 
-  const formatted = `## Reasoning\n\n${thinking}`;
-
-  if (formatted.length < REASONING_INLINE_LIMIT) {
-    return {
-      content: formatted,
-      flags: MessageFlags.Ephemeral,
-    };
-  }
-
   return {
-    content: `Reasoning content (${thinking.length.toLocaleString()} chars) attached as file:`,
-    files: [
-      new AttachmentBuilder(Buffer.from(formatted), {
-        name: `reasoning-${requestId}.md`,
-        description: 'LLM reasoning / thinking content',
-      }),
-    ],
+    chunkedText: {
+      text: `## Reasoning\n\n${thinking}`,
+      continuedHeader: '_(reasoning continued)_\n',
+    },
     flags: MessageFlags.Ephemeral,
   };
 }
@@ -241,16 +236,26 @@ export function buildReasoningView(
 // Memory Inspector
 // ---------------------------------------------------------------------------
 
+/** Preview budget per row: the whole view must stay one in-place message so
+ * the filter buttons keep editing it (chunked follow-ups would go stale on
+ * refresh). Full previews live in the JSON views. */
+const MEMORY_PREVIEW_MAX = 60;
+
 function formatMemoryRow(
   m: DiagnosticMemoryEntry,
   index: number,
   canViewCharacter: boolean
 ): string {
-  const status = m.includedInPrompt ? 'Included' : 'Dropped (budget)';
-  const preview = canViewCharacter
-    ? m.preview.replace(/\\/g, '\\\\').replace(/\|/g, '\\|').replace(/\n/g, ' ')
-    : REDACTED_MEMORY_PREVIEW;
-  return `| ${index + 1} | ${m.score.toFixed(2)} | ${status} | ${preview} |`;
+  const status = m.includedInPrompt ? '✓ in' : '✗ drop';
+  let preview = canViewCharacter ? m.preview.replace(/\s+/g, ' ').trim() : REDACTED_MEMORY_PREVIEW;
+  if (preview.length > MEMORY_PREVIEW_MAX) {
+    preview = `${preview.slice(0, MEMORY_PREVIEW_MAX - 1)}…`;
+  }
+  // Escape AFTER truncation: a cut can split ``` into a harmless ``, and any
+  // surviving run still gets neutralized before entering the fence.
+  preview = escapeFenceBreaks(preview);
+  // Score pads to 5 to align under the 'Score' header label
+  return `${String(index + 1).padStart(2)} ${m.score.toFixed(2).padEnd(5)} ${status.padEnd(6)} ${preview}`;
 }
 
 function renderMemoryTable(
@@ -271,15 +276,38 @@ function renderMemoryTable(
     lines.push('');
     lines.push('🔒 _Memory previews redacted — this character is owned by another user._');
   }
-  lines.push('', '| # | Score | Status | Preview |', '|---|-------|--------|---------|');
+  // Fixed-width rows in a code fence — Discord doesn't render markdown
+  // tables, and the fence keeps columns aligned on mobile.
+  lines.push('', '```', ' # Score Status Preview');
   for (let i = 0; i < memories.length; i++) {
     lines.push(formatMemoryRow(memories[i], i, canViewCharacter));
   }
-  lines.push('');
+  lines.push('```', '');
   lines.push(
     `**Token Budget:** ${tokenBudget.memoryTokensUsed} tokens allocated, ${budgetDropped} memories dropped for budget`
   );
   return lines;
+}
+
+/** Trim table rows from the tail until the view fits one Discord message,
+ * keeping everything after the closing fence (the token-budget summary line)
+ * and appending a notice pointing at Top-N (the existing knob) for narrowing.
+ * The view must stay a single in-place message — the filter buttons re-edit
+ * it, so spilling into chunked follow-ups would go stale. */
+function trimToSingleMessage(content: string): string {
+  const limit = 1900; // headroom under Discord's 2000 for the trim notice
+  if (content.length <= limit) {
+    return content;
+  }
+  const trimNotice = '_…rows trimmed to fit — lower Top-N or filter to narrow._';
+  const fenceEnd = content.lastIndexOf('\n```');
+  // Tail = closing fence + the token-budget summary; both must survive the trim.
+  const tail = fenceEnd > 0 ? content.slice(fenceEnd) : '';
+  let head = fenceEnd > 0 ? content.slice(0, fenceEnd) : content;
+  while (head.length + tail.length + trimNotice.length + 1 > limit && head.includes('\n')) {
+    head = head.slice(0, head.lastIndexOf('\n'));
+  }
+  return `${head}${tail}\n${trimNotice}`;
 }
 
 /** Scored memories table with inclusion status. Applies filter → sort → Top-N. */
@@ -318,14 +346,9 @@ export function buildMemoryInspectorView(
     }
   }
 
-  const content = lines.join('\n');
+  // Single in-place message (owner decision: inline, no file download).
   return {
-    files: [
-      new AttachmentBuilder(Buffer.from(content), {
-        name: `memory-inspector-${requestId}.md`,
-        description: 'Memory retrieval details',
-      }),
-    ],
+    content: trimToSingleMessage(lines.join('\n')),
     components: allMemories.length > 0 ? [buildMemoryFilterButtons(requestId, state)] : [],
     flags: MessageFlags.Ephemeral,
   };
@@ -336,7 +359,10 @@ export function buildMemoryInspectorView(
 // ---------------------------------------------------------------------------
 
 /**
- * ASCII breakdown of context window allocation.
+ * Context-window allocation as an embed — bars in a code fence for mobile
+ * alignment, numbers as fields (owner decision: a text view, not a .txt
+ * download). Voice attribution moved to its own view (it was buried here
+ * and is about pipeline routing, not token consumption).
  *
  * Token-budget data is purely numeric and contains no character-internal
  * information; the `_ctx` parameter is kept on the signature for uniformity
@@ -344,7 +370,7 @@ export function buildMemoryInspectorView(
  */
 export function buildTokenBudgetView(
   payload: DiagnosticPayload,
-  requestId: string,
+  _requestId: string,
   // intentionally unused — uniform VIEW_BUILDERS signature
   _ctx: ViewContext
 ): DebugViewResult {
@@ -359,49 +385,37 @@ export function buildTokenBudgetView(
   const remaining = Math.max(0, total - usedTokens);
   const remainingPct = (remaining / total) * 100;
 
-  const bar = (pct: number): string => {
-    const blocks = Math.round(pct / 2.5);
-    return '█'.repeat(blocks);
-  };
+  const bar = (pct: number): string => '█'.repeat(Math.round(pct / 4)).padEnd(25, '░');
+  const row = (label: string, tokens: number, pct: number): string =>
+    `${label.padEnd(8)}${bar(pct)} ${pct.toFixed(0).padStart(3)}% ${tokens.toLocaleString().padStart(8)}`;
 
-  const warn = (pct: number): string => (pct > 70 ? '  ⚠️ >70%' : '');
+  const chart = [
+    '```',
+    row('System', tokenBudget.systemPromptTokens, systemPct),
+    row('Memory', tokenBudget.memoryTokensUsed, memoryPct),
+    row('History', tokenBudget.historyTokensUsed, historyPct),
+    row('Free', remaining, remainingPct),
+    '```',
+  ].join('\n');
 
-  const pad = (label: string): string => label.padEnd(16);
+  const embed = new EmbedBuilder()
+    .setTitle('📊 Token Budget')
+    .setColor(historyPct > 70 ? DISCORD_COLORS.WARNING : DISCORD_COLORS.BLURPLE)
+    .setDescription(`**Context window:** ${total.toLocaleString()} tokens\n${chart}`);
 
-  const lines = [
-    'Token Budget Breakdown',
-    '═'.repeat(40),
-    `Context Window: ${total.toLocaleString()} tokens`,
-    '',
-    `  ${pad('System Prompt:')}${tokenBudget.systemPromptTokens.toLocaleString().padStart(8)} tokens (${systemPct.toFixed(0).padStart(2)}%)  ${bar(systemPct)}`,
-    `  ${pad('Memory:')}${tokenBudget.memoryTokensUsed.toLocaleString().padStart(8)} tokens (${memoryPct.toFixed(0).padStart(2)}%)  ${bar(memoryPct)}`,
-    `  ${pad('History:')}${tokenBudget.historyTokensUsed.toLocaleString().padStart(8)} tokens (${historyPct.toFixed(0).padStart(2)}%)  ${bar(historyPct)}${warn(historyPct)}`,
-    `  ${'─── Available ───'.padEnd(40, '─')}`,
-    `  ${pad('Remaining:')}${remaining.toLocaleString().padStart(8)} tokens (${remainingPct.toFixed(0).padStart(2)}%)`,
-  ];
-
+  const notes: string[] = [];
+  if (historyPct > 70) {
+    notes.push('⚠️ History is using over 70% of the window.');
+  }
   // Cross-channel disclosure: surfaces "0 cross-channel msgs" when the user
   // has crossChannelHistory enabled but the time-filter / personality-history
   // combination produced nothing. Without this line, the silent-skip case is
-  // indistinguishable from "feature disabled" in the embed.
+  // indistinguishable from "feature disabled".
   if (tokenBudget.crossChannelMessagesIncluded !== undefined) {
-    lines.push('');
-    lines.push(
+    notes.push(
       `Cross-channel: ${tokenBudget.crossChannelMessagesIncluded} msgs included from other channels`
     );
   }
-
-  // TTS provider attribution: reports the provider that ACTUALLY produced
-  // the audio. The "(via fallback)" suffix surfaces silent dispatcher
-  // fall-throughs where the user's configured provider failed and the
-  // dispatcher selected a backup — the exact diagnostic gap that hid the
-  // sister Mistral STT misattribution.
-  if (tokenBudget.ttsProviderUsed !== undefined) {
-    lines.push('');
-    const fallbackSuffix = tokenBudget.ttsUsedFallback === true ? ' (via fallback)' : '';
-    lines.push(`TTS: ${tokenBudget.ttsProviderUsed}${fallbackSuffix}`);
-  }
-
   const dropped: string[] = [];
   if (tokenBudget.memoriesDropped > 0) {
     dropped.push(`${tokenBudget.memoriesDropped} memories`);
@@ -410,18 +424,69 @@ export function buildTokenBudgetView(
     dropped.push(`${tokenBudget.historyMessagesDropped} history messages`);
   }
   if (dropped.length > 0) {
-    lines.push('');
-    lines.push(`Dropped: ${dropped.join(', ')}`);
+    notes.push(`Dropped for budget: ${dropped.join(', ')}`);
+  }
+  if (notes.length > 0) {
+    embed.addFields({ name: 'Notes', value: notes.join('\n'), inline: false });
   }
 
-  const content = lines.join('\n');
+  return { embeds: [embed], flags: MessageFlags.Ephemeral };
+}
+
+// ---------------------------------------------------------------------------
+// Voice Attribution
+// ---------------------------------------------------------------------------
+
+/**
+ * Voice-pipeline routing for this request — extracted from the Token Budget
+ * view where it was buried ("that's very unintuitive"). Renders what the
+ * payload carries today: the TTS provider that ACTUALLY produced audio (with
+ * the silent-fallback annotation) and the voice-message transcript. STT
+ * provider attribution isn't in the payload yet — that gap stays tracked in
+ * the voice-inspect-ux-polish theme.
+ */
+export function buildVoiceAttributionView(
+  payload: DiagnosticPayload,
+  _requestId: string,
+  // intentionally unused — uniform VIEW_BUILDERS signature
+  _ctx: ViewContext
+): DebugViewResult {
+  const { tokenBudget, inputProcessing } = payload;
+  const lines: string[] = ['## Voice Attribution', ''];
+
+  const hasTts = tokenBudget.ttsProviderUsed !== undefined;
+  const hasTranscript =
+    inputProcessing.voiceTranscript !== null && inputProcessing.voiceTranscript.length > 0;
+
+  if (!hasTts && !hasTranscript) {
+    return {
+      content: 'No voice activity (TTS or voice-message input) on this request.',
+      flags: MessageFlags.Ephemeral,
+    };
+  }
+
+  if (hasTts) {
+    // The "(via fallback)" suffix surfaces silent dispatcher fall-throughs
+    // where the configured provider failed and a backup produced the audio —
+    // the exact diagnostic gap that hid the Mistral STT misattribution.
+    const fallbackSuffix = tokenBudget.ttsUsedFallback === true ? ' _(via fallback)_' : '';
+    lines.push(`**TTS provider:** ${tokenBudget.ttsProviderUsed}${fallbackSuffix}`);
+  }
+  if (hasTranscript) {
+    // Discord blockquotes need '> ' on EVERY line — a bare continuation line
+    // drops out of the quote (unlike GitHub markdown).
+    const quoted = (inputProcessing.voiceTranscript ?? '')
+      .split('\n')
+      .map(line => `> ${line}`)
+      .join('\n');
+    lines.push('', '**Voice transcript:**', quoted);
+  }
+
   return {
-    files: [
-      new AttachmentBuilder(Buffer.from(content), {
-        name: `token-budget-${requestId}.txt`,
-        description: 'Token budget breakdown',
-      }),
-    ],
+    chunkedText: {
+      text: lines.join('\n'),
+      continuedHeader: '_(voice attribution continued)_\n',
+    },
     flags: MessageFlags.Ephemeral,
   };
 }

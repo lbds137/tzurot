@@ -84,9 +84,15 @@ export function buildInspectComponents(
       },
       {
         label: 'Token Budget',
-        description: 'ASCII breakdown of context window allocation',
+        description: 'Context window allocation breakdown',
         value: DebugViewType.TokenBudget,
         emoji: '📊',
+      },
+      {
+        label: 'Voice Attribution',
+        description: 'TTS provider used (incl. fallbacks) + voice transcript',
+        value: DebugViewType.VoiceAttribution,
+        emoji: '🎙️',
       },
       {
         label: 'Pipeline Health',

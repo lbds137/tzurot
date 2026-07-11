@@ -224,7 +224,9 @@ describe('handleExpandContent', () => {
     await handleExpandContent(createMockButtonInteraction(), TEST_PERSONA_ID, 'content');
 
     expect(mockDeferReply).toHaveBeenCalledWith({ flags: MessageFlags.Ephemeral });
-    expect(mockEditReply).toHaveBeenCalledWith(expect.stringContaining('Short content'));
+    expect(mockEditReply).toHaveBeenCalledWith(
+      expect.objectContaining({ content: expect.stringContaining('Short content') })
+    );
     expect(mockFollowUp).not.toHaveBeenCalled();
   });
 
