@@ -5,6 +5,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   isFreeModel,
+  isFreeModelForUser,
   GUEST_MODE,
   buildModelInfoUrl,
   isZaiCodingPlanModel,
@@ -200,6 +201,26 @@ describe('buildModelInfoUrl', () => {
         'https://openrouter.ai/some-model'
       );
     });
+  });
+});
+
+describe('isFreeModelForUser', () => {
+  it('treats the piggyback model as free for GUESTS only', () => {
+    expect(isFreeModelForUser('z-ai/glm-4.5-air', true)).toBe(true);
+    expect(isFreeModelForUser('glm-4.5-air', true)).toBe(true);
+    // Key-holders are billed on their own key — not free for them
+    expect(isFreeModelForUser('z-ai/glm-4.5-air', false)).toBe(false);
+  });
+
+  it('literal free models are free for every audience', () => {
+    expect(isFreeModelForUser('x-ai/grok-4.1-fast:free', true)).toBe(true);
+    expect(isFreeModelForUser('x-ai/grok-4.1-fast:free', false)).toBe(true);
+    expect(isFreeModelForUser('openrouter/free', false)).toBe(true);
+  });
+
+  it('paid models are never free', () => {
+    expect(isFreeModelForUser('anthropic/claude-sonnet-4', true)).toBe(false);
+    expect(isFreeModelForUser('anthropic/claude-sonnet-4', false)).toBe(false);
   });
 });
 
