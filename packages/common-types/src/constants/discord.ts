@@ -114,6 +114,16 @@ export const GATEWAY_TIMEOUTS = {
   /** Extended timeout for bulk operations (e.g., clearing all cloned voices).
    *  These involve multiple sequential/batched external API calls. */
   BULK_OPERATION: 30_000,
+  /** Data-scaled owner maintenance sync (db-sync, cleanup): duration grows
+   *  with table size — a fact-carrying db-sync exceeded BULK_OPERATION and
+   *  succeeded AFTER the client aborted (false-failure UX). 5 min sits well
+   *  inside Discord's 15-min deferred-interaction window, and verified
+   *  client-binding: the gateway sets no server timeouts (Node leaves
+   *  in-flight response duration unlimited by default) and bot→gateway
+   *  rides the Railway-INTERNAL domain, bypassing the public edge proxy.
+   *  Owner decision: raise now; the async-job refactor is filed with a
+   *  promote-when trigger (sync past ~2 min) rather than improvised. */
+  LONG_SYNC: 300_000,
   /** Client timeout for a route whose handler makes a SINGLE synchronous
    *  external-provider call (key validation, voice-provider list, shapes fetch).
    *  Must exceed the handler's internal call budget (the VALIDATION_TIMEOUTS.* —
