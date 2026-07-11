@@ -1,6 +1,6 @@
 {
   "name": "@tzurot/conversation-history",
-  "version": "3.0.0-beta.157",
+  "version": "3.0.0-beta.158",
   "private": true,
   "type": "module",
   "description": "Prisma-backed conversation persistence: history retrieval, channel sync, and reference-image-description writes",
