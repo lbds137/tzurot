@@ -1,19 +1,14 @@
 # Current
 
-> **Version**: v3.0.0-beta.157 (released 2026-07-10) — fact extraction on z.ai with delay-not-downgrade, memory_facts db-sync, historical backfill command, db-sync deletion tombstones (hard deletes propagate). **Prod extraction is LIVE** (owner flipped all four flags + key on prod ai-worker 2026-07-11; boot clean, zero error logs, z.ai-direct serving). _Prior: beta.156 (2026-07-10, memory correction surface + cost knobs)._
+> **Version**: v3.0.0-beta.158 (released 2026-07-11) — /inspect inline chunked views (no more file downloads for readable text; token budget embed, voice attribution view), db-sync inline report + row-level deletions + tombstone drift guard, z.ai GLM-4.5-Air free-tier piggyback (conditionally-free cascade, #1590 held the release), LONG_SYNC timeout tier, commit-filter guard hook. **z.ai free tier is LIVE in dev AND prod** (owner flipped `ZAI_FREE_TIER_ENABLED` + key on both, 2026-07-11; defaults = 75% headroom / 1000 daily). Prod extraction remains live. _Prior: beta.157 (2026-07-10, fact extraction + tombstones)._
 
 ---
 
 ## Unreleased on Develop
 
-- **PR #1581** — db-sync output rework (summary embed + attached `db-sync-report.md`, row-level deletion detail, dead `changes` field removed) + tombstone-trigger drift guard (`validateTombstoneTriggers`, sync-time AND build-time via PGLite) + dead `softDeleteMessage` deleted. Consolidation verdict recorded in the PR body: the two tombstone systems stay distinct (soft-delete capture point + bulk write amplification).
-- **PR #1582** — `commands:audit` vocabulary registrations (`facts`, `avatar-clear`); weekly-audit WARN cleared.
-- **PR #1583** — weekly-audit security surface: `GH_TOKEN` env + first-informative-stderr-line fix. Watch next Saturday's run (403 → fine-grained PAT; follow-up row filed).
-- **PR #1584** — z.ai GLM-4.5-Air free-tier piggyback, SHIPS DARK behind `ZAI_FREE_TIER_ENABLED`. Admission chain (kill switch / window-exhausted cooldown / 75% live-meter headroom / zaifreeq:* fair share), silent degrade to `openrouter/free`, paid-leak guard on all guest paths, /admin usage plan meters, glm-4.5-air selectable as free default. **Owner dev-enable steps**: `/preset free-default` → pick the GLM-4.5-Air preset; set `ZAI_FREE_TIER_ENABLED=true` on dev ai-worker; guest smoke + watch `/admin usage`. Structure-test exclusion narrowed: `jobs/handlers/pipeline/**` now enforces colocated tests (the gap the round-2 review exposed).
-- **PR #1585** — LONG_SYNC 5-min timeout tier for db-sync/cleanup (a fact-carrying sync false-failed at 30s while succeeding server-side, delivering 3,722 facts to prod); async-job refactor filed with triggers.
-- **PR #1586** — PreToolUse hook blocking filtered `git commit`/`git push` output (4x recurring failure class), 19-case CI test matrix in tooling.
-- **PR #1587** — tombstone component-test determinism (same-ms LWW tie backdated; had flaked two unrelated PRs in one hour).
-- Docs: four orphaned reference docs linked from the docs index (audit report-only item).
+- **PR #1591** — z.ai admission chain wiring test (real overrides → admission → meter + quota over fake Redis; only the z.ai HTTP boundary mocked). Closed the release-review rule-7 gap; en-route finding: the per-user window cap denies same-request retries under tight config, so the global-counter double-count needs user headroom to occur.
+- **PR #1592** — guest pickers honor the conditionally-free piggyback model (owner-reported: not selectable in `/settings preset set-default`). Availability gates → `isFreeTierEligibleModel`; NEW `isFreeModelForUser` audience predicate (owner call: free for guests, paid for key-holders) across 🆓 badge / free-count / 'free' scope / models usability; review-caught `models/view.ts` wallet-failure empty-Set→null contract fix.
+- **PR #1593** — fact tokens surfaced in /inspect token budget (owner-reported: facts invisible). Facts get their own bar subtracted out of System (they render inside the system prompt), included/dropped counts in Notes; `recordBudgetDiagnostics` was the seam that dropped `factTokensUsed`. Older logs render the legacy chart. Step-3 retrieval extracted to `factRetrievalHelper.retrieveMemoriesAndFacts` (line cap).
 - **Memory Phase 1a remains PARKED** on `feat/memory-hybrid-retrieval` (evidence gate: real-scale goldens).
 
 ## Next Session Goal
