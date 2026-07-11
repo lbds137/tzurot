@@ -55,13 +55,15 @@ function runGhCount(args: string[]): number {
 /** Compose a one-line degradation reason, preferring gh's own stderr. */
 function describeGhFailure(error: unknown): string {
   const execError = error as { stderr?: string | Buffer };
+  // FIRST non-empty line: gh's multi-line hints lead with the explanation
+  // ("set the GH_TOKEN environment variable") and trail with an example
+  // snippet — .at(-1) once reported the bare snippet as the whole reason.
   const stderrLine =
     typeof execError.stderr === 'string'
       ? execError.stderr
           .trim()
           .split('\n')
-          .filter(l => l.length > 0)
-          .at(-1)
+          .find(l => l.trim().length > 0)
       : undefined;
   if (stderrLine !== undefined && stderrLine.length > 0) {
     return stderrLine;
