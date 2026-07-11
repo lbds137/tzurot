@@ -176,6 +176,7 @@ describe('DiagnosticRecorders', () => {
         retrievedMemories: memories,
         focusModeEnabled: true,
         budgetResult,
+        retrievedFactsCount: 0,
         contextWindowSize: 24576,
         countTokens: text => text.length,
       });
@@ -192,8 +193,51 @@ describe('DiagnosticRecorders', () => {
         historyTokensUsed: 200,
         memoriesDropped: 1,
         historyMessagesDropped: 2,
+        factTokensUsed: 0,
+        factsIncluded: 0,
+        factsDropped: 0,
         crossChannelMessagesIncluded: 3,
       });
+    });
+
+    it('forwards fact accounting across the collector seam', () => {
+      // The exact seam that dropped fact tokens before: budgetResult carried
+      // factTokensUsed but the recorder never passed it to the collector, so
+      // /inspect's token budget silently absorbed facts into "System".
+      const mockCollector = {
+        recordMemoryRetrieval: vi.fn(),
+        recordTokenBudget: vi.fn(),
+      } as unknown as DiagnosticCollector;
+      const budgetResult: BudgetAllocationResult = {
+        relevantMemories: [],
+        selectedFacts: [{ statement: 'fact a' }, { statement: 'fact b' }],
+        serializedHistory: '',
+        systemPrompt: new SystemMessage('sys'),
+        memoryTokensUsed: 10,
+        factTokensUsed: 42,
+        historyTokensUsed: 20,
+        memoriesDroppedCount: 0,
+        messagesDropped: 0,
+        contentForStorage: '',
+      };
+
+      recordBudgetDiagnostics({
+        collector: mockCollector,
+        retrievedMemories: [],
+        focusModeEnabled: false,
+        budgetResult,
+        retrievedFactsCount: 5,
+        contextWindowSize: 24576,
+        countTokens: () => 0,
+      });
+
+      expect(mockCollector.recordTokenBudget).toHaveBeenCalledWith(
+        expect.objectContaining({
+          factTokensUsed: 42,
+          factsIncluded: 2,
+          factsDropped: 3,
+        })
+      );
     });
   });
 

@@ -93,10 +93,49 @@ vi.mock('./multimodal/visionAuthResolver.js', () => ({
 // Fact-retrieval gate mocked so the wiring (personaId in, facts out) is
 // assertable without the flag/embedding/DB path. Default: no facts (existing
 // tests see facts: []).
-vi.mock('./factRetrievalHelper.js', () => ({
-  retrieveFactsForPrompt: vi.fn().mockResolvedValue([]),
-  createFactRetriever: vi.fn().mockReturnValue(undefined),
-}));
+vi.mock('./factRetrievalHelper.js', () => {
+  const retrieveFactsForPrompt = vi.fn().mockResolvedValue([]);
+  return {
+    retrieveFactsForPrompt,
+    createFactRetriever: vi.fn().mockReturnValue(undefined),
+    // Delegating mock: preserves this suite's two seam assertions (the
+    // MemoryRetriever call args and the fact-gate call args) across the
+    // Step-3 extraction. The REAL retrieveMemoriesAndFacts wiring is
+    // covered directly in factRetrievalHelper.test.ts.
+    retrieveMemoriesAndFacts: vi.fn(
+      async (opts: {
+        memoryRetriever: {
+          retrieveRelevantMemories: (
+            p: unknown,
+            q: string,
+            c: unknown,
+            o: unknown
+          ) => Promise<{ memories: unknown[]; focusModeEnabled: boolean; personaId?: string }>;
+        };
+        factRetriever: unknown;
+        personality: { id: string };
+        searchQuery: string;
+        context: unknown;
+        configOverrides?: { shareLtmAcrossPersonalities?: boolean };
+      }) => {
+        const retrieval = await opts.memoryRetriever.retrieveRelevantMemories(
+          opts.personality,
+          opts.searchQuery,
+          opts.context,
+          opts.configOverrides
+        );
+        const facts = await retrieveFactsForPrompt(
+          opts.factRetriever,
+          opts.personality.id,
+          retrieval.personaId,
+          opts.searchQuery,
+          opts.configOverrides?.shareLtmAcrossPersonalities ?? false
+        );
+        return { ...retrieval, facts };
+      }
+    ),
+  };
+});
 
 // Import mock accessors and fixtures (after vi.mock declarations)
 import {
