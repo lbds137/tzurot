@@ -4,7 +4,7 @@
  */
 
 import type { AutocompleteInteraction } from 'discord.js';
-import { isFreeModel, isFreeTierEligibleModel } from '@tzurot/common-types/constants/ai';
+import { isFreeModelForUser, isFreeTierEligibleModel } from '@tzurot/common-types/constants/ai';
 import { DISCORD_LIMITS } from '@tzurot/common-types/constants/discord';
 import {
   AUTOCOMPLETE_BADGES,
@@ -125,7 +125,7 @@ async function handlePresetAutocomplete(
   const choices = filtered.map(c => {
     // Build status badges (free / default / vision-capable)
     const statusBadges: AutocompleteBadge[] = [];
-    if (isFreeModel(c.model)) {
+    if (isFreeModelForUser(c.model, isGuestMode)) {
       statusBadges.push(AUTOCOMPLETE_BADGES.FREE);
     }
     if (c.isDefault) {

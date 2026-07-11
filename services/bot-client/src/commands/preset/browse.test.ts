@@ -163,11 +163,73 @@ describe('handleBrowse', () => {
     const description = payload.embeds[0].data.description ?? '';
     expect(description).toContain('**GLM Air**');
     expect(description).not.toContain('~~GLM Air~~');
+    // Guest-aware 🆓: the piggyback model IS the guest's free experience
+    expect(description).toContain('🆓');
     const selectOptions = payload.components
       .flatMap(row => row.components)
       .flatMap(c => c.data.options ?? []);
     const airOption = selectOptions.find(o => o.description?.includes('glm-4.5-air'));
     expect(airOption?.description ?? '').not.toContain('requires API key');
+  });
+
+  it('does NOT badge the piggyback preset 🆓 for key-holders (billed on their key)', async () => {
+    configurePresets(
+      stub,
+      [
+        {
+          id: '00000000-0000-4000-8000-00000000000b',
+          name: 'GLM Air',
+          model: 'z-ai/glm-4.5-air',
+          provider: 'openrouter',
+          isGlobal: true,
+          isDefault: false,
+          isOwned: false,
+        },
+      ],
+      true // wallet present = key-holder
+    );
+
+    await handleBrowse(createMockContext());
+
+    const payload = mockEditReply.mock.calls[0][0] as {
+      embeds: { data: { description?: string } }[];
+    };
+    expect(payload.embeds[0].data.description ?? '').not.toContain('🆓');
+  });
+
+  it("includes the piggyback preset in a guest's 'free' scope filter", async () => {
+    configurePresets(
+      stub,
+      [
+        {
+          id: '00000000-0000-4000-8000-00000000000c',
+          name: 'GLM Air',
+          model: 'z-ai/glm-4.5-air',
+          provider: 'openrouter',
+          isGlobal: true,
+          isDefault: false,
+          isOwned: false,
+        },
+        {
+          id: '00000000-0000-4000-8000-00000000000d',
+          name: 'Claude Paid',
+          model: 'anthropic/claude-sonnet-4',
+          provider: 'openrouter',
+          isGlobal: true,
+          isDefault: false,
+          isOwned: false,
+        },
+      ],
+      false // guest
+    );
+
+    await handleBrowse(createMockContext(null, 'free'));
+
+    const description =
+      (mockEditReply.mock.calls[0][0] as { embeds: { data: { description?: string } }[] }).embeds[0]
+        .data.description ?? '';
+    expect(description).toContain('GLM Air');
+    expect(description).not.toContain('Claude Paid');
   });
 
   it('should browse presets with default settings (no filter, no query)', async () => {
