@@ -94,8 +94,15 @@ export async function runWithQuotaFallback(options: {
    * per-user member that would silently disable the cap.
    */
   requestId: string;
+  /**
+   * Fired (fail-soft) when a z.ai free-tier attempt fails, BEFORE any
+   * retarget — the window-exhausted/kill-switch reactions must see the
+   * original error even when the degrade then succeeds.
+   */
+  onZaiFreeTierFailure?: (error: unknown) => Promise<void>;
 }): Promise<QuotaFallbackRunResult> {
-  const { primary, retry, opts, userId, deps, freeTierQuota, requestId } = options;
+  const { primary, retry, opts, userId, deps, freeTierQuota, requestId, onZaiFreeTierFailure } =
+    options;
 
   if (deps === undefined) {
     return primary();
@@ -104,6 +111,14 @@ export async function runWithQuotaFallback(options: {
   try {
     return await primary();
   } catch (originalError) {
+    if (
+      opts.isGuestMode &&
+      opts.effectiveProvider === AIProvider.ZaiCoding &&
+      onZaiFreeTierFailure !== undefined
+    ) {
+      // Reaction is fail-soft by contract; never let it mask the real error.
+      await onZaiFreeTierFailure(originalError).catch(() => undefined);
+    }
     const category = classifyQuotaFailure(originalError);
     if (category === null) {
       throw originalError;
@@ -226,11 +241,14 @@ async function resolveTargetAndCredentials(params: {
  * the fallback too"). Returns `true` (proceed) unless a metered user is over
  * their share.
  *
- * Fires ONLY when a NON-guest is now forced onto the system key with guest
- * semantics (`!wasGuest && nowGuest`) — this excludes a pure guest's free-model
- * retarget (already metered upstream in GenerationStep), so the two meter sites
- * never double-count. The owner bypasses; a missing quota (test fixtures) is a
- * no-op; `tryConsume` fails open, so a Redis blip returns allowed.
+ * Fires when a NON-guest is now forced onto the system key with guest
+ * semantics (`!wasGuest && nowGuest`) — excluding a pure guest's free-model
+ * retarget, which GenerationStep already metered — OR when a z.ai-free-tier
+ * guest degrades onto the OpenRouter pool: that request billed the zai pool
+ * at admission and GenerationStep therefore SKIPPED the OpenRouter meter, so
+ * the retarget is this pool's first (and only) charge. The owner bypasses; a
+ * missing quota (test fixtures) is a no-op; `tryConsume` fails open, so a
+ * Redis blip returns allowed.
  */
 async function meterForcedFallback(params: {
   freeTierQuota: FreeTierRequestQuota | undefined;
@@ -240,7 +258,10 @@ async function meterForcedFallback(params: {
   requestId: string;
 }): Promise<boolean> {
   const { freeTierQuota, opts, nowGuest, userId, requestId } = params;
-  if (opts.isGuestMode || !nowGuest || freeTierQuota === undefined || isBotOwner(userId)) {
+  const byokDowngrade = !opts.isGuestMode && nowGuest;
+  const zaiGuestDegrade =
+    opts.isGuestMode && opts.effectiveProvider === AIProvider.ZaiCoding && nowGuest;
+  if ((!byokDowngrade && !zaiGuestDegrade) || freeTierQuota === undefined || isBotOwner(userId)) {
     return true;
   }
   const verdict = await freeTierQuota.tryConsume(userId, requestId);

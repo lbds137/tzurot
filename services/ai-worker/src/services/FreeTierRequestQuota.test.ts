@@ -4,6 +4,7 @@ import { CACHE_KEY_PREFIXES } from '@tzurot/common-types/constants/redis-keys';
 import {
   FreeTierRequestQuota,
   FREE_TIER_ACTIVE_KEY,
+  ZAI_FREE_TIER_KEYS,
   type FreeTierQuotaConfig,
 } from './FreeTierRequestQuota.js';
 
@@ -130,5 +131,41 @@ describe('tryConsume — rolling window pruning', () => {
     const windowStart = NOW - CONFIG.windowMinutes * 60_000;
     expect(mocks.zremrangebyscore).toHaveBeenCalledWith(ACTIVE_KEY, '-inf', windowStart);
     expect(mocks.zremrangebyscore).toHaveBeenCalledWith(USER_KEY, '-inf', windowStart);
+  });
+});
+
+describe('key-pool parameterization (z.ai piggyback instance)', () => {
+  it('operates on the zaifreeq:* keys so the two pools never share counters', async () => {
+    const calls: string[] = [];
+    const redis = {
+      zremrangebyscore: vi.fn(async (key: string) => calls.push(key)),
+      zcard: vi.fn(async (key: string) => {
+        calls.push(key);
+        return 0;
+      }),
+      get: vi.fn(async (key: string) => {
+        calls.push(key);
+        return null;
+      }),
+      zadd: vi.fn(async (key: string) => calls.push(key)),
+      incr: vi.fn(async (key: string) => {
+        calls.push(key);
+        return 1;
+      }),
+      expire: vi.fn(async (key: string) => calls.push(key)),
+    } as unknown as Redis;
+
+    const quota = new FreeTierRequestQuota(
+      redis,
+      { globalDailyBudget: 1000, windowMinutes: 60, minPerWindow: 5, maxPerWindow: 30 },
+      () => Date.parse('2026-07-11T12:00:00Z'),
+      ZAI_FREE_TIER_KEYS
+    );
+
+    const verdict = await quota.tryConsume('user-1', 'req-1');
+
+    expect(verdict.allowed).toBe(true);
+    expect(calls.some(k => k.startsWith('zaifreeq:'))).toBe(true);
+    expect(calls.every(k => !k.startsWith('freeq:'))).toBe(true);
   });
 });

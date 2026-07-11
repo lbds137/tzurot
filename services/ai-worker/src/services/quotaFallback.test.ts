@@ -94,7 +94,7 @@ describe('selectQuotaFallbackTarget — the tier matrix', () => {
       ...base,
       category: ApiErrorCategory.CREDIT_EXHAUSTION,
       isGuestMode: true,
-      configResolver: buildResolver({ free: { model: 'free/model' } }) as never,
+      configResolver: buildResolver({ free: { model: 'freebie/model:free' } }) as never,
       caches: buildCaches(),
     });
     expect(target).toBeNull();
@@ -105,10 +105,10 @@ describe('selectQuotaFallbackTarget — the tier matrix', () => {
       ...base,
       category: ApiErrorCategory.CREDIT_EXHAUSTION,
       isGuestMode: false,
-      configResolver: buildResolver({ free: { model: 'free/model' } }) as never,
+      configResolver: buildResolver({ free: { model: 'freebie/model:free' } }) as never,
       caches: buildCaches(),
     });
-    expect(target?.config.model).toBe('free/model');
+    expect(target?.config.model).toBe('freebie/model:free');
     expect(target?.forceSystemKey).toBe(true);
   });
 
@@ -119,7 +119,7 @@ describe('selectQuotaFallbackTarget — the tier matrix', () => {
       ...base,
       category: ApiErrorCategory.CREDIT_EXHAUSTION,
       isGuestMode: false,
-      configResolver: buildResolver({ free: { model: 'free/model' } }) as never,
+      configResolver: buildResolver({ free: { model: 'freebie/model:free' } }) as never,
       caches: buildCaches({ exhausted: true }),
     });
     expect(target?.forceSystemKey).toBe(true);
@@ -142,11 +142,38 @@ describe('selectQuotaFallbackTarget — the tier matrix', () => {
       ...base,
       category: ApiErrorCategory.QUOTA_EXCEEDED,
       isGuestMode: true,
-      configResolver: buildResolver({ free: { model: 'free/model' } }) as never,
+      configResolver: buildResolver({ free: { model: 'freebie/model:free' } }) as never,
       caches: buildCaches(),
     });
-    expect(target?.config.model).toBe('free/model');
+    expect(target?.config.model).toBe('freebie/model:free');
     expect(target?.forceSystemKey).toBe(false);
+  });
+
+  it('a NON-free free-default (the z.ai piggyback preset) degrades guest targets to the free router', async () => {
+    // The admin free default may be z-ai/glm-4.5-air — paid on OpenRouter. A
+    // guest retarget must never bill it to the system key; the dynamic router
+    // substitutes (the z.ai upgrade happens only at AuthStep admission).
+    const target = await selectQuotaFallbackTarget({
+      ...base,
+      category: ApiErrorCategory.QUOTA_EXCEEDED,
+      isGuestMode: true,
+      configResolver: buildResolver({ free: { model: 'z-ai/glm-4.5-air' } }) as never,
+      caches: buildCaches(),
+    });
+    expect(target?.config.model).toBe('openrouter/free');
+    expect(target?.config.provider).toBe('openrouter');
+  });
+
+  it('the forced-system-key BYOK downgrade gets the same guest-safe substitution', async () => {
+    const target = await selectQuotaFallbackTarget({
+      ...base,
+      category: ApiErrorCategory.CREDIT_EXHAUSTION,
+      isGuestMode: false,
+      configResolver: buildResolver({ free: { model: 'z-ai/glm-4.5-air' } }) as never,
+      caches: buildCaches(),
+    });
+    expect(target?.config.model).toBe('openrouter/free');
+    expect(target?.forceSystemKey).toBe(true);
   });
 
   it('terminal when no default pointer is set', async () => {
@@ -209,12 +236,12 @@ describe('applyConfigToPersonality', () => {
     } as unknown as LoadedPersonality;
 
     const result = applyConfigToPersonality(personality, {
-      model: 'free/model',
+      model: 'freebie/model:free',
       temperature: 0.7,
       // topP/maxTokens/showThinking deliberately unset on the target config
     });
 
-    expect(result.model).toBe('free/model');
+    expect(result.model).toBe('freebie/model:free');
     expect(result.temperature).toBe(0.7);
     // The primary preset's params were tuned for a different model — they
     // must NOT leak onto the fallback (provider defaults apply instead).

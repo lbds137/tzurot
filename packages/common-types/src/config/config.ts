@@ -79,6 +79,16 @@ export const envSchema = z.object({
   FREE_TIER_WINDOW_MINUTES: z.coerce.number().int().min(1).max(1440).default(60), // rolling contention window
   FREE_TIER_MIN_PER_WINDOW: z.coerce.number().int().min(1).default(5), // per-user floor: everyone gets at least this per window when budget permits
   FREE_TIER_MAX_PER_WINDOW: z.coerce.number().int().min(1).default(30), // per-user ceiling: a lone user can't drain the whole pie
+  // z.ai free-tier piggyback: guests get GLM-4.5-Air on the owner's coding
+  // plan while the plan has headroom; over-budget/closed degrades silently to
+  // the FREE_ROUTER_MODEL dynamic router. Ships dark. Reuses the FREE_TIER_*
+  // window/floor/ceiling knobs above for its per-user fair share.
+  ZAI_FREE_TIER_ENABLED: z
+    .enum(['true', 'false'])
+    .optional()
+    .or(z.literal('').transform(() => undefined)), // 'true' shares GLM-4.5-Air with guests via the system coding-plan key
+  ZAI_FREE_TIER_HEADROOM_PERCENT: z.coerce.number().int().min(1).max(99).default(75), // guests shut off when the plan's tighter window is this % consumed (owner+extraction always keep the rest)
+  ZAI_FREE_TIER_GLOBAL_DAILY_BUDGET: z.coerce.number().int().min(1).default(1000), // static daily request ceiling for guest z.ai traffic (works even if the live meter breaks)
   BOT_OWNER_ID: optionalDiscordId(), // Discord user ID of bot owner for admin commands
   BOT_MENTION_CHAR: z.string().length(1).default('@'), // Character used for personality mentions (@personality or &personality)
   INTERNAL_SERVICE_SECRET: optionalNonEmptyString(), // Shared secret for service-to-service auth (bot-client -> api-gateway)
@@ -245,6 +255,9 @@ export function createTestConfig(overrides: Partial<EnvConfig> = {}): EnvConfig 
     AUTO_TRANSCRIBE_VOICE: undefined,
     EXTRACTION_ENABLED: undefined,
     FACTS_IN_PROMPT_ENABLED: undefined,
+    ZAI_FREE_TIER_ENABLED: undefined,
+    ZAI_FREE_TIER_HEADROOM_PERCENT: 75,
+    ZAI_FREE_TIER_GLOBAL_DAILY_BUDGET: 1000,
     EXTRACTION_BATCH_THRESHOLD: 6,
     EXTRACTION_MODEL: MODEL_DEFAULTS.FACT_EXTRACTION,
     EXTRACTION_DAILY_LIMIT: 100,

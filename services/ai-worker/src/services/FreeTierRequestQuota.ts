@@ -67,6 +67,32 @@ const GLOBAL_TTL_SECONDS = 25 * 60 * 60;
  */
 export const FREE_TIER_ACTIVE_KEY = `${CACHE_KEY_PREFIXES.FREE_TIER_ACTIVE}window`;
 
+/**
+ * The three Redis key roots one quota instance operates on. Defaults to the
+ * shared-OpenRouter-key set; the z.ai piggyback instance passes the
+ * `zaifreeq:*` counterparts so the two pools never share counters.
+ */
+export interface FreeTierQuotaKeys {
+  /** The single contention-set ZSET key (fixed, not a prefix). */
+  activeKey: string;
+  /** Per-user rolling request ZSET prefix (+ userId). */
+  userRequestsPrefix: string;
+  /** Per-UTC-day global counter prefix (+ YYYY-MM-DD). */
+  globalPrefix: string;
+}
+
+export const OPENROUTER_FREE_TIER_KEYS: FreeTierQuotaKeys = {
+  activeKey: FREE_TIER_ACTIVE_KEY,
+  userRequestsPrefix: CACHE_KEY_PREFIXES.FREE_TIER_USER_REQUESTS,
+  globalPrefix: CACHE_KEY_PREFIXES.FREE_TIER_GLOBAL,
+};
+
+export const ZAI_FREE_TIER_KEYS: FreeTierQuotaKeys = {
+  activeKey: `${CACHE_KEY_PREFIXES.ZAI_FREE_TIER_ACTIVE}window`,
+  userRequestsPrefix: CACHE_KEY_PREFIXES.ZAI_FREE_TIER_USER_REQUESTS,
+  globalPrefix: CACHE_KEY_PREFIXES.ZAI_FREE_TIER_GLOBAL,
+};
+
 export interface FreeTierQuotaConfig {
   /** The shared free key's daily free-request allowance (the pie). */
   globalDailyBudget: number;
@@ -100,7 +126,9 @@ export class FreeTierRequestQuota {
     private readonly redis: Redis,
     private readonly config: FreeTierQuotaConfig,
     /** Injectable clock (ms) for deterministic tests; defaults to wall time. */
-    private readonly now: () => number = () => Date.now()
+    private readonly now: () => number = () => Date.now(),
+    /** Which pool's counters this instance operates on. */
+    private readonly keys: FreeTierQuotaKeys = OPENROUTER_FREE_TIER_KEYS
   ) {}
 
   /**
@@ -116,9 +144,9 @@ export class FreeTierRequestQuota {
       const windowStart = now - windowMs;
       const day = new Date(now).toISOString().slice(0, 10); // YYYY-MM-DD (UTC)
 
-      const activeKey = FREE_TIER_ACTIVE_KEY;
-      const userKey = `${CACHE_KEY_PREFIXES.FREE_TIER_USER_REQUESTS}${userId}`;
-      const globalKey = `${CACHE_KEY_PREFIXES.FREE_TIER_GLOBAL}${day}`;
+      const activeKey = this.keys.activeKey;
+      const userKey = `${this.keys.userRequestsPrefix}${userId}`;
+      const globalKey = `${this.keys.globalPrefix}${day}`;
 
       // Contention N: prune expired, count recent consumers. Excludes the
       // current user pre-decision (added only on allow), so N is "others".
