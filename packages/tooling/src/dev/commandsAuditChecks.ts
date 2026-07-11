@@ -71,6 +71,7 @@ const KNOWN_SUBCOMMAND_NAMES = new Set<string>([
   'cleanup',
   'presence',
   'avatar',
+  'avatar-clear',
   'voice',
   'voice-clear',
   'kick',
@@ -81,6 +82,9 @@ const KNOWN_SUBCOMMAND_NAMES = new Set<string>([
   'hard-delete',
   'test',
   'set',
+  // noun subcommands opening a second browsable entity under one command
+  // (/memory browse = episodes, /memory facts = extracted facts)
+  'facts',
   // domain-specific verbs with no canonical CRUD equivalent
   'forget', // memory: retroactive/incognito deletion, distinct from `delete`
   'auth', // shapes: third-party integration sign-in
