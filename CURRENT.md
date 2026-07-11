@@ -1,6 +1,6 @@
 # Current
 
-> **Version**: v3.0.0-beta.157 (released 2026-07-10) — fact extraction on z.ai with delay-not-downgrade, memory_facts db-sync, historical backfill command, db-sync deletion tombstones (hard deletes propagate). Extraction flags still DARK on prod (env flip is a separate step after the dev backfill). _Prior: beta.156 (2026-07-10, memory correction surface + cost knobs)._
+> **Version**: v3.0.0-beta.157 (released 2026-07-10) — fact extraction on z.ai with delay-not-downgrade, memory_facts db-sync, historical backfill command, db-sync deletion tombstones (hard deletes propagate). **Prod extraction is LIVE** (owner flipped all four flags + key on prod ai-worker 2026-07-11; boot clean, zero error logs, z.ai-direct serving). _Prior: beta.156 (2026-07-10, memory correction surface + cost knobs)._
 
 ---
 
@@ -15,7 +15,7 @@
 
 ## Next Session Goal
 
-**beta.157 SHIPPED — remaining chain = prod-enable.** ~~(1) dev env vars + eval~~ ✅ · ~~(2) memory_facts db-sync~~ ✅ · ~~(3) backfill command~~ ✅ · ~~db-sync deletion tombstones~~ ✅ (#1579; drift-guard follow-up filed in `cold/follow-ups.md`) · ~~release cut~~ ✅ (beta.157, 2026-07-10; both migrations pre-applied to prod). **Still open**: ~~(a) owner smoke of db-sync~~ ✅ PASSED (owner, 2026-07-10 post-release); (b) **full dev backfill run IN FLIGHT** since 2026-07-10 ~16:45 ET — 6,196 windows, self-paced 1-3 days, persistent monitor reporting every 30 min; progress: `pnpm ops memory:backfill-facts --env dev --dry-run` (remaining shrinks to 0); (c) **prod-enable after the run + owner smoke of `/memory facts`**: `EXTRACTION_ENABLED`, `FACTS_IN_PROMPT_ENABLED`, `EXTRACTION_MODEL=z-ai/glm-5.2`, `EXTRACTION_PROVIDER` + `ZAI_CODING_API_KEY` on prod (owner pastes secrets).
+**beta.157 SHIPPED — remaining chain = prod-enable.** ~~(1) dev env vars + eval~~ ✅ · ~~(2) memory_facts db-sync~~ ✅ · ~~(3) backfill command~~ ✅ · ~~db-sync deletion tombstones~~ ✅ (#1579; drift-guard follow-up filed in `cold/follow-ups.md`) · ~~release cut~~ ✅ (beta.157, 2026-07-10; both migrations pre-applied to prod). **Still open**: ~~(a) owner smoke of db-sync~~ ✅ PASSED (owner, 2026-07-10 post-release); (b) **full dev backfill run IN FLIGHT** since 2026-07-10 ~16:45 ET — 6,196 windows, self-paced 1-3 days, persistent monitor reporting every 30 min; progress: `pnpm ops memory:backfill-facts --env dev --dry-run` (remaining shrinks to 0); ~~(c) prod-enable~~ ✅ **DONE (owner, 2026-07-11)** — all four flags + key live on prod ai-worker; discovered via the env-var audit, verified healthy (no coherence errors, z.ai-direct serving). Remaining: owner smoke of `/memory facts` on prod once db-sync carries backfilled facts over.
 
 **Open follow-ups from Phase 1** (all in `cold/follow-ups.md` with promote-when triggers): system-voice straggler wording (STT / MessageHandler top-catch / truncation notices), partial-failure errored-slot delivery, admin/kick `serverId` escaping, `deletePersona`/`getCachedPersonalities` wrapper widening, `maxRetries:0` metrics watch.
 
