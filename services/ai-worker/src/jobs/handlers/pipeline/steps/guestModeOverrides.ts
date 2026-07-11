@@ -2,13 +2,15 @@
  * Guest-mode model overrides — extracted from AuthStep.
  *
  * A guest (no BYOK key) never runs a non-free model on the system OpenRouter
- * key. The admin free-default preset may be the z.ai piggyback model
- * (`z-ai/glm-4.5-air` — deliberately selectable, NOT free on OpenRouter):
- * per-request admission decides whether the guest rides it on the system
- * coding-plan key, and every denial degrades SILENTLY to the
- * FREE_ROUTER_MODEL dynamic router. A misconfigured paid free-default gets
- * the same router substitution — the paid-model-on-system-key class is
- * unrepresentable through this path.
+ * key. The z.ai piggyback model (`z-ai/glm-4.5-air` — NOT free on OpenRouter)
+ * is CONDITIONALLY free (owner semantics): while per-request admission holds
+ * (flag + key + kill switch + plan headroom + quota), it behaves like any
+ * free model at every resolution step — personal selection or global
+ * free-default. When admission fails, the model leaves the pool for the
+ * whole request and resolution continues down the normal guest ladder:
+ * personal selection → global free-default → FREE_ROUTER_MODEL last resort.
+ * A misconfigured paid free-default gets the same router substitution — the
+ * paid-model-on-system-key class is unrepresentable through this path.
  */
 
 import {
@@ -63,29 +65,38 @@ export async function applyGuestModeOverrides(
     return { personality };
   }
 
-  // Override to guest default
-  let guestModel: string = GUEST_MODE.DEFAULT_MODEL;
+  // Once admission denies, the piggyback model is out of the pool for the
+  // REST of this request's resolution — and admit() must not run twice
+  // (admission consumes the guest's quota share when it admits).
+  let zaiUnavailable = false;
 
-  // Try to get free default from database
-  if (deps.configResolver) {
-    try {
-      const freeConfig = await deps.configResolver.getFreeDefaultConfig();
-      if (freeConfig !== null) {
-        guestModel = freeConfig.model;
-        logger.debug({ model: guestModel }, 'Using database free default config');
-      }
-    } catch (error) {
-      logger.warn({ err: error }, 'Failed to get free default config, using hardcoded fallback');
-    }
-  }
-
-  // Guests never run a non-free model on the system OpenRouter key. The
-  // piggyback model upgrades to z.ai when admitted; everything else (or a
-  // denial) lands on the dynamic free router.
-  if (isZaiFreeTierModel(guestModel)) {
+  // A personally-selected piggyback model is conditionally free: admitted →
+  // serve it; denied → it leaves the pool and resolution falls through to
+  // the global free-default like any other unavailable model.
+  if (isZaiFreeTierModel(currentModel)) {
     const upgrade = await tryZaiFreeTierUpgrade(deps, personality, userId, requestId);
     if (upgrade !== null) {
       return upgrade;
+    }
+    zaiUnavailable = true;
+    logger.info(
+      { userId, originalModel: currentModel },
+      'Guest-selected piggyback model unavailable — continuing down the free-model ladder'
+    );
+  }
+
+  // Next ladder step: the global free default
+  let guestModel = await fetchFreeDefaultModel(deps.configResolver);
+
+  // Guests never run a non-free model on the system OpenRouter key. The
+  // piggyback model upgrades to z.ai when admitted; a denial (or an earlier
+  // denial this request) removes it from the pool → last-resort router.
+  if (isZaiFreeTierModel(guestModel)) {
+    if (!zaiUnavailable) {
+      const upgrade = await tryZaiFreeTierUpgrade(deps, personality, userId, requestId);
+      if (upgrade !== null) {
+        return upgrade;
+      }
     }
     guestModel = GUEST_MODE.DEFAULT_MODEL;
   } else if (!isFreeModel(guestModel)) {
@@ -114,10 +125,30 @@ export async function applyGuestModeOverrides(
   };
 }
 
+/** The global free-default ladder step; the hardcoded router when the
+ * resolver is absent, `getFreeDefaultConfig()` resolves to null, or the
+ * lookup errors. */
+async function fetchFreeDefaultModel(configResolver?: LlmConfigResolver): Promise<string> {
+  if (!configResolver) {
+    return GUEST_MODE.DEFAULT_MODEL;
+  }
+  try {
+    const freeConfig = await configResolver.getFreeDefaultConfig();
+    if (freeConfig !== null) {
+      logger.debug({ model: freeConfig.model }, 'Using database free default config');
+      return freeConfig.model;
+    }
+  } catch (error) {
+    logger.warn({ err: error }, 'Failed to get free default config, using hardcoded fallback');
+  }
+  return GUEST_MODE.DEFAULT_MODEL;
+}
+
 /**
  * The z.ai free-tier upgrade: admitted guests get the bare piggyback model on
  * the coding-plan key with `provider: zai-coding` so ModelFactory routes
- * z.ai-direct. Null (degrade to the router) on any denial.
+ * z.ai-direct. Null on any denial — the model leaves the pool and the caller
+ * continues down the free-model ladder.
  */
 async function tryZaiFreeTierUpgrade(
   deps: GuestOverrideDeps,
@@ -130,9 +161,11 @@ async function tryZaiFreeTierUpgrade(
   }
   const verdict = await deps.zaiFreeTierAdmission.admit(userId, requestId);
   if (!verdict.admitted) {
+    // Destination is the caller's to log — a personal-selection denial
+    // cascades to the global free-default, not straight to the router.
     logger.info(
       { userId, reason: verdict.reason },
-      'z.ai free-tier denied — guest degrades to the free router'
+      'z.ai free-tier denied — piggyback model leaves the pool for this request'
     );
     return null;
   }
