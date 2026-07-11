@@ -25,6 +25,11 @@ on:
 
 permissions:
   contents: read
+  # The security-surface section counts open Dependabot PRs (gh pr list) and
+  # alerts (gh api). Without a token, gh exits with its set-GH_TOKEN hint and
+  # the section degrades to "unavailable".
+  pull-requests: read
+  security-events: read
 
 jobs:
   audit-health:
@@ -55,6 +60,8 @@ jobs:
 
       - name: Run audit-health aggregator
         id: health
+        env:
+          GH_TOKEN: ${{ github.token }}
         # Capture the report for the Discord step; the aggregator's exit code
         # still fails the job so a red run is visible in the Actions UI.
         run: |
