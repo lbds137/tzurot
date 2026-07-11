@@ -377,7 +377,17 @@ export function buildTokenBudgetView(
   const { tokenBudget } = payload;
   const total = tokenBudget.contextWindowSize || 1;
 
-  const systemPct = (tokenBudget.systemPromptTokens / total) * 100;
+  // Facts render INSIDE the system prompt, so systemPromptTokens already
+  // includes them — subtract them out for their own row (older logs predate
+  // fact accounting and render the legacy three-row chart).
+  const factTokens = tokenBudget.factTokensUsed;
+  const systemTokens =
+    factTokens !== undefined
+      ? Math.max(0, tokenBudget.systemPromptTokens - factTokens)
+      : tokenBudget.systemPromptTokens;
+
+  const systemPct = (systemTokens / total) * 100;
+  const factsPct = ((factTokens ?? 0) / total) * 100;
   const memoryPct = (tokenBudget.memoryTokensUsed / total) * 100;
   const historyPct = (tokenBudget.historyTokensUsed / total) * 100;
   const usedTokens =
@@ -391,7 +401,8 @@ export function buildTokenBudgetView(
 
   const chart = [
     '```',
-    row('System', tokenBudget.systemPromptTokens, systemPct),
+    row('System', systemTokens, systemPct),
+    ...(factTokens !== undefined ? [row('Facts', factTokens, factsPct)] : []),
     row('Memory', tokenBudget.memoryTokensUsed, memoryPct),
     row('History', tokenBudget.historyTokensUsed, historyPct),
     row('Free', remaining, remainingPct),
@@ -416,9 +427,15 @@ export function buildTokenBudgetView(
       `Cross-channel: ${tokenBudget.crossChannelMessagesIncluded} msgs included from other channels`
     );
   }
+  if (tokenBudget.factsIncluded !== undefined) {
+    notes.push(`Facts: ${tokenBudget.factsIncluded} included in the prompt`);
+  }
   const dropped: string[] = [];
   if (tokenBudget.memoriesDropped > 0) {
     dropped.push(`${tokenBudget.memoriesDropped} memories`);
+  }
+  if ((tokenBudget.factsDropped ?? 0) > 0) {
+    dropped.push(`${tokenBudget.factsDropped} facts`);
   }
   if (tokenBudget.historyMessagesDropped > 0) {
     dropped.push(`${tokenBudget.historyMessagesDropped} history messages`);

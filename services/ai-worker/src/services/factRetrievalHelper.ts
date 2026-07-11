@@ -7,11 +7,14 @@
 
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { getConfig } from '@tzurot/common-types/config/config';
+import { TEXT_LIMITS } from '@tzurot/common-types/constants/discord';
 import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 import { FactRetriever } from './FactRetriever.js';
 import { FactStore } from './extraction/FactStore.js';
 import type { PgvectorMemoryAdapter } from './PgvectorMemoryAdapter.js';
 import type { FactForPrompt } from './ConversationalRAGTypes.js';
+import type { MemoryRetriever, MemoryRetrievalResult } from './MemoryRetriever.js';
+import type { DiagnosticCollector } from './DiagnosticCollector.js';
 
 const logger = createLogger('FactRetrieval');
 
@@ -64,4 +67,47 @@ export async function retrieveFactsForPrompt(
     );
   }
   return facts;
+}
+
+/** Options for {@link retrieveMemoriesAndFacts} — the orchestrator's Step 3. */
+export interface MemoriesAndFactsOptions {
+  memoryRetriever: MemoryRetriever;
+  factRetriever: FactRetriever | undefined;
+  personality: Parameters<MemoryRetriever['retrieveRelevantMemories']>[0];
+  searchQuery: string;
+  context: Parameters<MemoryRetriever['retrieveRelevantMemories']>[2];
+  configOverrides: Parameters<MemoryRetriever['retrieveRelevantMemories']>[3];
+  diagnosticCollector?: DiagnosticCollector;
+}
+
+/**
+ * Retrieve episodic memories and distilled facts for one generation turn —
+ * facts inherit the episode retriever's scope decisions via `personaId`
+ * (see {@link retrieveFactsForPrompt} for the gate semantics).
+ */
+export async function retrieveMemoriesAndFacts(
+  opts: MemoriesAndFactsOptions
+): Promise<MemoryRetrievalResult & { facts: FactForPrompt[] }> {
+  const { searchQuery } = opts;
+  const qPreview = searchQuery.substring(0, TEXT_LIMITS.LOG_PREVIEW);
+  const qTruncated = searchQuery.length > TEXT_LIMITS.LOG_PREVIEW;
+  logger.info({ queryPreview: qPreview, truncated: qTruncated }, 'Memory search query');
+
+  opts.diagnosticCollector?.markMemoryRetrievalStart();
+  const retrieval = await opts.memoryRetriever.retrieveRelevantMemories(
+    opts.personality,
+    searchQuery,
+    opts.context,
+    opts.configOverrides
+  );
+
+  const facts = await retrieveFactsForPrompt(
+    opts.factRetriever,
+    opts.personality.id,
+    retrieval.personaId,
+    searchQuery,
+    opts.configOverrides?.shareLtmAcrossPersonalities ?? false
+  );
+
+  return { ...retrieval, facts };
 }

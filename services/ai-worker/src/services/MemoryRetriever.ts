@@ -27,7 +27,7 @@ const logger = createLogger('MemoryRetriever');
 /**
  * Result of memory retrieval including metadata
  */
-interface MemoryRetrievalResult {
+export interface MemoryRetrievalResult {
   memories: MemoryDocument[];
   focusModeEnabled: boolean;
   /**

@@ -149,6 +149,18 @@ export interface DiagnosticTokenBudget {
   historyTokensUsed: number;
   /** Number of memories dropped due to budget */
   memoriesDropped: number;
+  /**
+   * Tokens consumed by the `<facts>` block (wrapper + statements). Facts take
+   * a reserved slice of the memory budget FIRST (episodes get the remainder)
+   * and render INSIDE the system prompt — so `systemPromptTokens` includes
+   * this number; the UI subtracts it out to attribute facts their own line.
+   * `undefined` on logs written before fact accounting existed.
+   */
+  factTokensUsed?: number;
+  /** Facts included in the prompt. `undefined` on pre-fact-accounting logs. */
+  factsIncluded?: number;
+  /** Facts retrieved but dropped for budget. `undefined` on pre-fact-accounting logs. */
+  factsDropped?: number;
   /** Number of history messages dropped due to budget */
   historyMessagesDropped: number;
   /**

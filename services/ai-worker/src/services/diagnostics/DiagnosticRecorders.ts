@@ -143,6 +143,8 @@ interface BudgetDiagnosticOptions {
   retrievedMemories: MemoryDocument[];
   focusModeEnabled: boolean;
   budgetResult: BudgetAllocationResult;
+  /** How many facts retrieval produced BEFORE the budget's fact slice applied */
+  retrievedFactsCount: number;
   /** The effective (model-clamped) context window the budget ran against */
   contextWindowSize: number;
   countTokens: (text: string) => number;
@@ -162,6 +164,9 @@ export function recordBudgetDiagnostics(opts: BudgetDiagnosticOptions): void {
     memoryTokensUsed: budgetResult.memoryTokensUsed,
     historyTokensUsed: budgetResult.historyTokensUsed,
     memoriesDropped: budgetResult.memoriesDroppedCount,
+    factTokensUsed: budgetResult.factTokensUsed,
+    factsIncluded: budgetResult.selectedFacts.length,
+    factsDropped: Math.max(0, opts.retrievedFactsCount - budgetResult.selectedFacts.length),
     historyMessagesDropped: budgetResult.messagesDropped,
     crossChannelMessagesIncluded: budgetResult.crossChannelMessagesIncluded,
   });
