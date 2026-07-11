@@ -42,9 +42,12 @@ export async function handleView(context: DeferredCommandContext): Promise<void>
       return;
     }
 
-    const activeProviders = new Set(
-      walletResult.ok ? walletResult.data.keys.filter(k => k.isActive).map(k => k.provider) : []
-    );
+    // null = wallet fetch failed (keys UNKNOWN) — distinct from an empty Set
+    // (confirmed keyless guest). annotateUsability's guest branch relies on
+    // the distinction; browse.ts's getActiveProviders makes the same call.
+    const activeProviders = walletResult.ok
+      ? new Set(walletResult.data.keys.filter(k => k.isActive).map(k => k.provider))
+      : null;
     const [annotated] = annotateUsability([model], activeProviders);
     await context.editReply({ embeds: [buildModelCard(annotated)] });
     logger.info({ modelId, usability: annotated.usability }, 'Viewed model card');

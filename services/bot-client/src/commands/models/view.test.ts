@@ -7,7 +7,7 @@ import type { ChatInputCommandInteraction } from 'discord.js';
 import type { UserClient } from '@tzurot/clients';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import type { CatalogModel } from '../../utils/modelCatalog.js';
-import { makeOk } from '../../test/gatewayClientStubs.js';
+import { makeOk, makeErr } from '../../test/gatewayClientStubs.js';
 import { mockListWalletKeysResponse } from '@tzurot/test-factories';
 
 let viewModelId = 'anthropic/claude-sonnet-4';
@@ -88,6 +88,40 @@ describe('handleView', () => {
       embeds: { data: { title: string } }[];
     };
     expect(call.embeds[0].data.title).toBe('Claude Sonnet 4');
+  });
+
+  it('renders the piggyback model as UNKNOWN (not free) when the wallet fetch fails', async () => {
+    // A failed wallet fetch means keys are UNKNOWN — a key-holder viewing the
+    // conditionally-free model mid-blip must not be told it is free (they are
+    // billed on their own key). Empty-Set-on-failure regressed exactly this.
+    viewModelId = 'z-ai/glm-4.5-air';
+    catalogMock.fetchCatalogModelById.mockResolvedValue(
+      catalogModel({ id: 'z-ai/glm-4.5-air', name: 'GLM 4.5 Air', source: 'both' })
+    );
+    walletStub.listWalletKeys.mockResolvedValue(makeErr(500, 'wallet down'));
+    const context = ctx();
+    await handleView(context);
+
+    const call = vi.mocked(context.editReply).mock.calls[0][0] as {
+      embeds: { data: { fields?: { name: string; value: string }[] } }[];
+    };
+    const rendered = JSON.stringify(call.embeds[0].data);
+    expect(rendered).not.toContain('Free');
+  });
+
+  it('renders the piggyback model as free for a CONFIRMED keyless user', async () => {
+    viewModelId = 'z-ai/glm-4.5-air';
+    catalogMock.fetchCatalogModelById.mockResolvedValue(
+      catalogModel({ id: 'z-ai/glm-4.5-air', name: 'GLM 4.5 Air', source: 'both' })
+    );
+    // beforeEach default: wallet fetch OK with zero keys = confirmed guest
+    const context = ctx();
+    await handleView(context);
+
+    const call = vi.mocked(context.editReply).mock.calls[0][0] as {
+      embeds: { data: unknown }[];
+    };
+    expect(JSON.stringify(call.embeds[0].data)).toContain('Free');
   });
 
   it('reports a not-found message for an unknown slug', async () => {

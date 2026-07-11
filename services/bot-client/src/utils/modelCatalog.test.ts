@@ -187,6 +187,27 @@ describe('annotateUsability', () => {
     expect(r.canUse).toBe(true);
   });
 
+  it('marks the piggyback model free/usable for a KEYLESS (guest) user', () => {
+    const [r] = annotateUsability([cat({ id: 'z-ai/glm-4.5-air', source: 'both' })], new Set());
+    expect(r.usability).toBe('free');
+    expect(r.canUse).toBe(true);
+  });
+
+  it('keeps key-based verdicts for the piggyback model when the user HAS a key', () => {
+    // Key-holders are billed on their own key — normal source-based routing
+    const [r] = annotateUsability(
+      [cat({ id: 'z-ai/glm-4.5-air', source: 'both' })],
+      new Set(['openrouter'])
+    );
+    expect(r.usability).toBe('usable');
+    expect(r.canUse).toBe(true);
+  });
+
+  it('keeps the unknown verdict for the piggyback model when the wallet fetch failed', () => {
+    const [r] = annotateUsability([cat({ id: 'z-ai/glm-4.5-air', source: 'both' })], null);
+    expect(r.usability).toBe('unknown');
+  });
+
   it('marks an OpenRouter model usable when the user has an openrouter key', () => {
     const [r] = annotateUsability(
       [cat({ id: 'anthropic/claude-sonnet-4' })],

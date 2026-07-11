@@ -624,3 +624,16 @@ export function isZaiFreeTierModel(modelId: string): boolean {
 export function isFreeTierEligibleModel(modelId: string): boolean {
   return isFreeModel(modelId) || isZaiFreeTierModel(modelId);
 }
+
+/**
+ * May this model serve THIS user for free? Guests (no active key) get the
+ * conditionally-free piggyback model — admission decides at runtime and a
+ * denial degrades to the free router — so it presents as free to them.
+ * Key-holders are billed on their own key (OpenRouter or z.ai coding plan),
+ * so only literally-free models qualify. Use this for audience-facing
+ * presentation (badges, counts, filters); use isFreeTierEligibleModel for
+ * pure eligibility gates and isFreeModel for system-key runtime checks.
+ */
+export function isFreeModelForUser(modelId: string, isGuestMode: boolean): boolean {
+  return isGuestMode ? isFreeTierEligibleModel(modelId) : isFreeModel(modelId);
+}

@@ -16,7 +16,7 @@ import {
   type ButtonInteraction,
   type StringSelectMenuInteraction,
 } from 'discord.js';
-import { isFreeModel, isFreeTierEligibleModel } from '@tzurot/common-types/constants/ai';
+import { isFreeModelForUser, isFreeTierEligibleModel } from '@tzurot/common-types/constants/ai';
 import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
 import { presetBrowseOptions } from '@tzurot/common-types/generated/commandOptions';
 import { type LlmConfigSummary } from '@tzurot/common-types/schemas/api/llm-config';
@@ -88,7 +88,7 @@ export function isPresetBrowseSelectInteraction(customId: string): boolean {
  * Badge sequence for a preset (scope → vision → default → free). Shared by the
  * select-menu label and the embed line so the two can't drift.
  */
-function presetBadgeArray(preset: LlmConfigSummary): string[] {
+function presetBadgeArray(preset: LlmConfigSummary, isGuestMode: boolean): string[] {
   const badges: string[] = [];
   if (preset.isGlobal) {
     badges.push('🌐');
@@ -103,14 +103,16 @@ function presetBadgeArray(preset: LlmConfigSummary): string[] {
   if (preset.isDefault) {
     badges.push('⭐');
   }
-  if (isFreeModel(preset.model)) {
+  // 🆓 is audience-aware: guests see the conditionally-free piggyback model
+  // as free (it is their free experience); key-holders pay on their own key.
+  if (isFreeModelForUser(preset.model, isGuestMode)) {
     badges.push('🆓');
   }
   return badges;
 }
 
-function buildPresetBadges(preset: LlmConfigSummary): string {
-  return presetBadgeArray(preset).join('') + ' ';
+function buildPresetBadges(preset: LlmConfigSummary, isGuestMode: boolean): string {
+  return presetBadgeArray(preset, isGuestMode).join('') + ' ';
 }
 
 /**
@@ -135,7 +137,8 @@ function filterPresets(
   presets: LlmConfigSummary[],
   scope: PresetScopeFilter,
   capability: PresetCapabilityFilter,
-  query: string | null
+  query: string | null,
+  isGuestMode: boolean
 ): LlmConfigSummary[] {
   let filtered = presets;
 
@@ -155,7 +158,9 @@ function filterPresets(
       filtered = filtered.filter(c => c.isOwned);
       break;
     case 'free':
-      filtered = filtered.filter(c => isFreeModel(c.model));
+      // Audience-aware: a guest's 'free' scope means "what I can use for
+      // free" and includes the conditionally-free piggyback model.
+      filtered = filtered.filter(c => isFreeModelForUser(c.model, isGuestMode));
       break;
     case 'all':
     default:
@@ -181,7 +186,7 @@ function filterPresets(
  * Format a preset line with badges
  */
 function formatPresetLine(c: LlmConfigSummary, isGuestMode: boolean, index: number): string {
-  const badgeStr = presetBadgeArray(c).join('');
+  const badgeStr = presetBadgeArray(c, isGuestMode).join('');
   const shortModel = shortModelName(c.model);
   const safeName = escapeMarkdown(c.name);
 
@@ -224,7 +229,7 @@ function buildBrowsePage(
   isGuestMode: boolean
 ): { embed: EmbedBuilder; components: BrowseActionRow[] } {
   const { scope, capability } = splitBrowseFilter(filter);
-  const filtered = filterPresets(allPresets, scope, capability, query);
+  const filtered = filterPresets(allPresets, scope, capability, query, isGuestMode);
   const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
   const safePage = Math.min(Math.max(0, page), totalPages - 1);
 
@@ -267,7 +272,7 @@ function buildBrowsePage(
   embed.setDescription(lines.join('\n'));
 
   // Footer with legend
-  const freeCount = filtered.filter(c => isFreeModel(c.model)).length;
+  const freeCount = filtered.filter(c => isFreeModelForUser(c.model, isGuestMode)).length;
   const visionCount = filtered.filter(c => c.supportsVision).length;
   embed.setFooter({
     text: joinFooter(
@@ -287,7 +292,7 @@ function buildBrowsePage(
     placeholder: 'Select a preset to view...',
     startIndex: startIdx,
     formatItem: preset => ({
-      label: `${buildPresetBadges(preset)}${preset.name}`,
+      label: `${buildPresetBadges(preset, isGuestMode)}${preset.name}`,
       value: preset.id,
       description: buildPresetDescription(preset, isGuestMode),
     }),

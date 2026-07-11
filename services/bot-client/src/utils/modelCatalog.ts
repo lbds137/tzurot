@@ -16,6 +16,7 @@ import {
   AIProvider,
   ZAI_MODEL_PREFIX,
   isFreeModel,
+  isZaiFreeTierModel,
   isZaiCodingPlanModel,
   listZaiCodingPlanModels,
 } from '@tzurot/common-types/constants/ai';
@@ -252,6 +253,13 @@ export function annotateUsability(
 
   return models.map(model => {
     if (isFreeModel(model.id)) {
+      return { ...model, usability: 'free', canUse: true };
+    }
+    // The conditionally-free piggyback model: a KEYLESS (guest) user runs it
+    // via free-tier admission (denial degrades to the free router), so it
+    // presents as free to them. Key-holders fall through to the key-based
+    // verdicts below — they are billed on their own key.
+    if (isZaiFreeTierModel(model.id) && activeProviders !== null && activeProviders.size === 0) {
       return { ...model, usability: 'free', canUse: true };
     }
     if (keysUnknown) {
