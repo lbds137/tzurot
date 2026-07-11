@@ -5,14 +5,15 @@
  * Receives DeferredCommandContext (no deferReply method!)
  * because the parent command uses deferralMode: 'ephemeral'.
  *
- * Output shape: a tight summary embed (totals + tables with activity) plus an
- * attached `db-sync-report.md` carrying the FULL untruncated report — per-table
- * stats, row-level deletion detail, every warning and info line. Discord embed
- * caps forced the old single-embed layout to truncate lists; the report file
- * has no such limit (house pattern: /inspect's view attachments).
+ * Output shape: a tight summary embed (totals + tables with activity) plus the
+ * FULL untruncated report — per-table stats, row-level deletion detail, every
+ * warning and info line — rendered inline as chunked ephemeral follow-ups
+ * (owner decision: readable text never ships as a file download; house
+ * pattern: /inspect's chunked views). Discord embed caps forced the old
+ * single-embed layout to truncate lists; chunking has no such limit.
  */
 
-import { AttachmentBuilder, EmbedBuilder } from 'discord.js';
+import { EmbedBuilder, MessageFlags } from 'discord.js';
 import { CATALOG } from '../../ux/catalog/catalog.js';
 import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
 import { renderSpec } from '../../ux/render/render.js';
@@ -20,6 +21,7 @@ import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
 import { adminDbSyncOptions } from '@tzurot/common-types/generated/commandOptions';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { clientsFor } from '../../utils/gatewayClients.js';
+import { sendChunkedReply } from '../../utils/chunkedReply.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 
 const logger = createLogger('admin-db-sync');
@@ -86,8 +88,8 @@ function buildActiveTableLines(stats: Record<string, TableStats>): string[] {
 
 /**
  * The tight embed description: totals line + tables with activity only.
- * Full per-table detail (including quiet tables) lives in the report file,
- * so the embed can never outgrow Discord's description cap.
+ * Full per-table detail (including quiet tables) lives in the chunked
+ * follow-up report, so the embed can never outgrow Discord's description cap.
  */
 export function buildSyncSummary(result: SyncResult, dryRun: boolean): string {
   const lines: string[] = [];
@@ -109,7 +111,7 @@ export function buildSyncSummary(result: SyncResult, dryRun: boolean): string {
 
   const warningCount = result.warnings?.length ?? 0;
   if (warningCount > 0) {
-    lines.push('', `⚠️ ${warningCount} warning(s) — full list in the attached report`);
+    lines.push('', `⚠️ ${warningCount} warning(s) — full list in the report below`);
   }
   if (dryRun) {
     lines.push('', '*Dry run — no changes were applied.*');
@@ -118,7 +120,10 @@ export function buildSyncSummary(result: SyncResult, dryRun: boolean): string {
   return lines.join('\n');
 }
 
-/** The `## Per-table stats` markdown table — every table, active or not. */
+/** The `## Per-table stats` section — every table, active or not. Fixed-width
+ * rows in a code fence: Discord doesn't render markdown pipe-tables, and the
+ * fence keeps columns aligned on mobile (same solve as /inspect's memory
+ * inspector). */
 function buildStatsSection(stats: Record<string, TableStats>): string[] {
   const entries = Object.entries(stats);
   const lines = ['', '## Per-table stats', ''];
@@ -126,13 +131,15 @@ function buildStatsSection(stats: Record<string, TableStats>): string[] {
     lines.push('_No table stats returned._');
     return lines;
   }
-  lines.push('| Table | dev→prod | prod→dev | Conflicts | Deleted |');
-  lines.push('| --- | ---: | ---: | ---: | ---: |');
+  const tableWidth = Math.max(5, ...entries.map(([table]) => table.length));
+  lines.push('```');
+  lines.push(`${'Table'.padEnd(tableWidth)} dev→prod prod→dev conflicts deleted`);
   for (const [table, s] of entries) {
     lines.push(
-      `| ${table} | ${s.devToProd ?? 0} | ${s.prodToDev ?? 0} | ${s.conflicts ?? 0} | ${s.deleted ?? 0} |`
+      `${table.padEnd(tableWidth)} ${String(s.devToProd ?? 0).padStart(8)} ${String(s.prodToDev ?? 0).padStart(8)} ${String(s.conflicts ?? 0).padStart(9)} ${String(s.deleted ?? 0).padStart(7)}`
     );
   }
+  lines.push('```');
   return lines;
 }
 
@@ -178,11 +185,11 @@ function buildListSection(title: string, items: string[]): string[] {
 }
 
 /**
- * The full untruncated report attached as `db-sync-report.md`: every table's
- * stats row, row-level deletion detail, and the complete warnings/info lists.
- * Exported for unit tests.
+ * The full untruncated report sent inline below the summary embed: every
+ * table's stats row, row-level deletion detail, and the complete
+ * warnings/info lists. Exported for unit tests.
  */
-export function buildSyncReportMarkdown(result: SyncResult, dryRun: boolean): string {
+export function buildSyncReportText(result: SyncResult, dryRun: boolean): string {
   const lines: string[] = [`# Database Sync Report${dryRun ? ' (dry run)' : ''}`, ''];
 
   lines.push(`- Run: ${result.timestamp ?? new Date().toISOString()}`);
@@ -234,12 +241,34 @@ export async function handleDbSync(context: DeferredCommandContext): Promise<voi
       .setTimestamp()
       .setDescription(buildSyncSummary(result, dryRun));
 
-    const report = new AttachmentBuilder(Buffer.from(buildSyncReportMarkdown(result, dryRun)), {
-      name: 'db-sync-report.md',
-      description: 'Full untruncated sync report',
-    });
+    await context.editReply({ embeds: [embed] });
 
-    await context.editReply({ embeds: [embed], files: [report] });
+    // Full report flows below the summary as chunked ephemeral follow-ups —
+    // 'followUp' mode leaves the embed message untouched. Report delivery
+    // failing must not reach the outer catch: the sync itself already
+    // succeeded, so "Database sync failed" would be a false claim.
+    try {
+      await sendChunkedReply({
+        interaction: context,
+        content: buildSyncReportText(result, dryRun),
+        header: '',
+        continuedHeader: '_(report continued)_\n',
+        via: 'followUp',
+      });
+    } catch (error) {
+      logger.error({ err: error }, 'Sync succeeded but report delivery failed');
+      // The recovery notice failing too must ALSO not reach the outer catch —
+      // it would report "sync failed" for a sync that succeeded. Nothing is
+      // left to tell the user at that point except the log.
+      await context
+        .followUp({
+          content: '⚠️ Full report delivery failed part-way — the summary above is complete.',
+          flags: MessageFlags.Ephemeral,
+        })
+        .catch((followUpError: unknown) => {
+          logger.error({ err: followUpError }, 'Report-failure notice also failed to send');
+        });
+    }
   } catch (error) {
     logger.error({ err: error }, 'Error during database sync');
     await context.editReply({
