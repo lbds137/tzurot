@@ -4,7 +4,8 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Job } from 'bullmq';
-import { AIProvider, GUEST_MODE } from '@tzurot/common-types/constants/ai';
+import { AIProvider, GUEST_MODE, ZAI_FREE_TIER_MODEL } from '@tzurot/common-types/constants/ai';
+import type { ZaiFreeTierAdmission } from '../../../../services/ZaiFreeTierAdmission.js';
 import { JobType } from '@tzurot/common-types/constants/queue';
 import { type LLMGenerationJobData } from '@tzurot/common-types/types/jobs';
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
@@ -311,13 +312,9 @@ describe('AuthStep', () => {
           rateLimitedModels: [TEST_PERSONALITY.model],
         });
 
-        step = new AuthStep(
-          mockApiKeyResolver,
-          resolverWithGlobal,
-          undefined,
-          undefined,
-          caches as never
-        );
+        step = new AuthStep(mockApiKeyResolver, resolverWithGlobal, undefined, undefined, {
+          quotaFallbackCaches: caches as never,
+        });
         const result = await step.process(buildContext());
 
         // Seam assertions: the personality actually got rewritten and the swap announced.
@@ -343,13 +340,9 @@ describe('AuthStep', () => {
         } as unknown as LlmConfigResolver;
         const caches = buildCaches({ exhausted: true });
 
-        step = new AuthStep(
-          mockApiKeyResolver,
-          resolverWithFree,
-          undefined,
-          undefined,
-          caches as never
-        );
+        step = new AuthStep(mockApiKeyResolver, resolverWithFree, undefined, undefined, {
+          quotaFallbackCaches: caches as never,
+        });
         const result = await step.process(buildContext());
 
         expect(result.config?.effectivePersonality.model).toBe('free/model');
@@ -363,13 +356,9 @@ describe('AuthStep', () => {
         vi.mocked(mockApiKeyResolver.resolveApiKey).mockResolvedValue(BYOK_RESULT);
         const caches = buildCaches();
 
-        step = new AuthStep(
-          mockApiKeyResolver,
-          mockConfigResolver,
-          undefined,
-          undefined,
-          caches as never
-        );
+        step = new AuthStep(mockApiKeyResolver, mockConfigResolver, undefined, undefined, {
+          quotaFallbackCaches: caches as never,
+        });
         const result = await step.process(buildContext());
 
         expect(result.config?.effectivePersonality.model).toBe(TEST_PERSONALITY.model);
@@ -405,13 +394,9 @@ describe('AuthStep', () => {
         // the demotion-tier describe block).
         const caches = buildCaches({ rateLimitedModels: ['glm-5.2', 'z-ai/glm-5.2'] });
 
-        step = new AuthStep(
-          mockApiKeyResolver,
-          resolverWithGlobal,
-          undefined,
-          undefined,
-          caches as never
-        );
+        step = new AuthStep(mockApiKeyResolver, resolverWithGlobal, undefined, undefined, {
+          quotaFallbackCaches: caches as never,
+        });
         const context: GenerationContext = {
           job: createMockJob({
             personality: { ...TEST_PERSONALITY, model: 'z-ai/glm-5.2', provider: 'openrouter' },
@@ -595,13 +580,9 @@ describe('AuthStep', () => {
         const injectedRouter = (router ?? {
           resolveRoute: vi.fn().mockResolvedValue(PROMOTED_ROUTE),
         }) as import('../../../../services/ProviderRouter.js').ProviderRouter;
-        return new AuthStep(
-          mockApiKeyResolver,
-          mockConfigResolver,
-          injectedRouter,
-          undefined,
-          buildDemotionCaches(rateLimitedModels) as never
-        );
+        return new AuthStep(mockApiKeyResolver, mockConfigResolver, injectedRouter, undefined, {
+          quotaFallbackCaches: buildDemotionCaches(rateLimitedModels) as never,
+        });
       }
 
       function makeContext(): GenerationContext {
@@ -645,13 +626,9 @@ describe('AuthStep', () => {
         vi.mocked(mockApiKeyResolver.resolveUserOpenRouterKey).mockResolvedValue(
           'sk-openrouter-key'
         );
-        step = new AuthStep(
-          mockApiKeyResolver,
-          resolverWithGlobal,
-          injectedRouter,
-          undefined,
-          buildDemotionCaches(['glm-5.2', 'z-ai/glm-5.2']) as never
-        );
+        step = new AuthStep(mockApiKeyResolver, resolverWithGlobal, injectedRouter, undefined, {
+          quotaFallbackCaches: buildDemotionCaches(['glm-5.2', 'z-ai/glm-5.2']) as never,
+        });
 
         const result = await step.process(makeContext());
 
@@ -677,13 +654,9 @@ describe('AuthStep', () => {
         vi.mocked(mockApiKeyResolver.resolveUserOpenRouterKey).mockResolvedValue(
           'sk-openrouter-key'
         );
-        step = new AuthStep(
-          mockApiKeyResolver,
-          resolverWithGlobal,
-          injectedRouter,
-          undefined,
-          buildDemotionCaches(['glm-5.2']) as never
-        );
+        step = new AuthStep(mockApiKeyResolver, resolverWithGlobal, injectedRouter, undefined, {
+          quotaFallbackCaches: buildDemotionCaches(['glm-5.2']) as never,
+        });
 
         const result = await step.process(makeContext());
 
@@ -709,13 +682,9 @@ describe('AuthStep', () => {
         } as unknown as import('../../../../services/ProviderRouter.js').ProviderRouter;
         vi.mocked(mockApiKeyResolver.resolveUserOpenRouterKey).mockResolvedValue(undefined);
         vi.mocked(mockApiKeyResolver.resolveSystemOpenRouterKey).mockResolvedValue('sk-system');
-        step = new AuthStep(
-          mockApiKeyResolver,
-          resolverWithDefaults,
-          injectedRouter,
-          undefined,
-          buildDemotionCaches(['glm-5.2']) as never
-        );
+        step = new AuthStep(mockApiKeyResolver, resolverWithDefaults, injectedRouter, undefined, {
+          quotaFallbackCaches: buildDemotionCaches(['glm-5.2']) as never,
+        });
 
         const result = await step.process(makeContext());
 
@@ -1117,6 +1086,93 @@ describe('AuthStep', () => {
 
       // Should clear non-free vision model
       expect(result.config?.effectivePersonality.visionModel).toBeUndefined();
+    });
+  });
+
+  describe('z.ai free-tier upgrade (guest piggyback)', () => {
+    const GUEST_KEY_RESULT: ApiKeyResolutionResult = {
+      apiKey: 'system-openrouter-key',
+      provider: AIProvider.OpenRouter,
+      source: 'system',
+      isGuestMode: true,
+    };
+
+    function admissionStub(admitted: boolean): ZaiFreeTierAdmission {
+      return {
+        admit: vi.fn().mockResolvedValue({ admitted, reason: admitted ? 'ok' : 'quota' }),
+        systemKey: vi.fn().mockReturnValue(admitted ? 'sk-coding-plan' : undefined),
+        isEnabled: vi.fn().mockReturnValue(true),
+      } as unknown as ZaiFreeTierAdmission;
+    }
+
+    function guestContext(): GenerationContext {
+      return {
+        job: createMockJob(),
+        startTime: Date.now(),
+        config: { effectivePersonality: TEST_PERSONALITY, configSource: 'personality' },
+      };
+    }
+
+    beforeEach(() => {
+      vi.mocked(mockApiKeyResolver.resolveApiKey).mockResolvedValue(GUEST_KEY_RESULT);
+      // The owner's free default IS the piggyback preset (z-ai/glm-4.5-air on OpenRouter).
+      vi.mocked(mockConfigResolver.getFreeDefaultConfig).mockResolvedValue({
+        model: 'z-ai/glm-4.5-air',
+        provider: 'openrouter',
+      } as never);
+    });
+
+    it('admitted guest crosses into ModelFactory as BARE glm-4.5-air on zai-coding with the plan key', async () => {
+      const admission = admissionStub(true);
+      step = new AuthStep(mockApiKeyResolver, mockConfigResolver, undefined, undefined, {
+        zaiFreeTierAdmission: admission,
+      });
+
+      const result = await step.process(guestContext());
+
+      // The seam that matters: model/provider/key exactly as buildZaiCodingModel needs them.
+      expect(result.config?.effectivePersonality.model).toBe(ZAI_FREE_TIER_MODEL);
+      expect(result.config?.effectivePersonality.provider).toBe(AIProvider.ZaiCoding);
+      expect(result.auth?.apiKey).toBe('sk-coding-plan');
+      expect(result.auth?.provider).toBe(AIProvider.ZaiCoding);
+      expect(result.auth?.isGuestMode).toBe(true);
+      // requestId is the retry-stable idempotency member the allocator counts by.
+      expect(vi.mocked(admission.admit)).toHaveBeenCalledWith('user-456', 'test-req-001');
+    });
+
+    it('denied guest degrades SILENTLY to the dynamic free router on the OpenRouter system key', async () => {
+      step = new AuthStep(mockApiKeyResolver, mockConfigResolver, undefined, undefined, {
+        zaiFreeTierAdmission: admissionStub(false),
+      });
+
+      const result = await step.process(guestContext());
+
+      expect(result.config?.effectivePersonality.model).toBe(GUEST_MODE.DEFAULT_MODEL);
+      expect(result.auth?.apiKey).toBe('system-openrouter-key');
+      expect(result.auth?.provider).toBe(AIProvider.OpenRouter);
+    });
+
+    it('without an admission service the piggyback free-default degrades to the router (ships dark)', async () => {
+      step = new AuthStep(mockApiKeyResolver, mockConfigResolver);
+
+      const result = await step.process(guestContext());
+
+      expect(result.config?.effectivePersonality.model).toBe(GUEST_MODE.DEFAULT_MODEL);
+      expect(result.auth?.provider).toBe(AIProvider.OpenRouter);
+    });
+
+    it('a misconfigured PAID (non-eligible) free default never reaches the system OpenRouter key', async () => {
+      vi.mocked(mockConfigResolver.getFreeDefaultConfig).mockResolvedValue({
+        model: 'anthropic/claude-sonnet-4',
+        provider: 'openrouter',
+      } as never);
+      step = new AuthStep(mockApiKeyResolver, mockConfigResolver, undefined, undefined, {
+        zaiFreeTierAdmission: admissionStub(true),
+      });
+
+      const result = await step.process(guestContext());
+
+      expect(result.config?.effectivePersonality.model).toBe(GUEST_MODE.DEFAULT_MODEL);
     });
   });
 });

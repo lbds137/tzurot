@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { AIProvider } from '@tzurot/common-types/constants/ai';
 import { ApiErrorCategory, ApiErrorType } from '@tzurot/common-types/constants/error';
 import { ApiError } from '../../../../utils/apiErrorParser.js';
 import { getFallbackFailureSummary, type GenerateAttemptOpts } from './autoPromotionFallback.js';
@@ -206,14 +207,14 @@ describe('runWithQuotaFallback', () => {
       opts: buildOpts(),
       userId: '123',
       requestId: 'req-1',
-      deps: buildDeps({ free: { model: 'free/model' }, systemKey: 'sk-system-key' }),
+      deps: buildDeps({ free: { model: 'freebie/model:free' }, systemKey: 'sk-system-key' }),
     });
 
     expect(retry).toHaveBeenCalledWith(
       expect.objectContaining({
         apiKey: 'sk-system-key',
         isGuestMode: true,
-        personality: expect.objectContaining({ model: 'free/model' }),
+        personality: expect.objectContaining({ model: 'freebie/model:free' }),
       })
     );
   });
@@ -229,7 +230,7 @@ describe('runWithQuotaFallback', () => {
       opts: buildOpts(), // isGuestMode: false (BYOK)
       userId: '123',
       requestId: 'req-1',
-      deps: buildDeps({ free: { model: 'free/model' }, systemKey: 'sk-system-key' }),
+      deps: buildDeps({ free: { model: 'freebie/model:free' }, systemKey: 'sk-system-key' }),
       freeTierQuota,
     });
 
@@ -252,7 +253,7 @@ describe('runWithQuotaFallback', () => {
         opts: buildOpts(),
         userId: '123',
         requestId: 'req-1',
-        deps: buildDeps({ free: { model: 'free/model' }, systemKey: 'sk-system-key' }),
+        deps: buildDeps({ free: { model: 'freebie/model:free' }, systemKey: 'sk-system-key' }),
         freeTierQuota,
       })
     ).rejects.toBe(original);
@@ -271,12 +272,92 @@ describe('runWithQuotaFallback', () => {
       opts: buildOpts(), // BYOK → would meter, but the owner is exempt
       userId: 'owner-1',
       requestId: 'req-1',
-      deps: buildDeps({ free: { model: 'free/model' }, systemKey: 'sk-system-key' }),
+      deps: buildDeps({ free: { model: 'freebie/model:free' }, systemKey: 'sk-system-key' }),
       freeTierQuota,
     });
 
     expect(freeTierQuota.tryConsume).not.toHaveBeenCalled();
     expect(retry).toHaveBeenCalled(); // the fallback still proceeds, just unmetered
+  });
+
+  it('meters a z.ai free-tier GUEST degrading onto the OpenRouter pool (its first charge there)', async () => {
+    // A zai-upgraded guest billed the CODING-PLAN pool at admission, so
+    // GenerationStep skipped the OpenRouter meter — the mid-turn degrade is
+    // that pool's first and only charge for this request.
+    const primary = vi.fn().mockRejectedValue(quotaError(ApiErrorCategory.RATE_LIMIT));
+    const retry = vi.fn().mockResolvedValue(okResult);
+    const freeTierQuota = mockQuota(true);
+
+    await runWithQuotaFallback({
+      primary,
+      retry,
+      opts: buildOpts({ isGuestMode: true, effectiveProvider: AIProvider.ZaiCoding }),
+      userId: '123',
+      requestId: 'req-1',
+      deps: buildDeps({ free: { model: 'freebie/model:free' } }),
+      freeTierQuota,
+    });
+
+    expect(freeTierQuota.tryConsume).toHaveBeenCalledTimes(1);
+    expect(freeTierQuota.tryConsume).toHaveBeenCalledWith('123', 'req-1');
+    expect(retry).toHaveBeenCalled();
+  });
+
+  it('does NOT double-meter a plain OpenRouter guest retarget (GenerationStep already charged it)', async () => {
+    const primary = vi.fn().mockRejectedValue(quotaError(ApiErrorCategory.RATE_LIMIT));
+    const retry = vi.fn().mockResolvedValue(okResult);
+    const freeTierQuota = mockQuota(true);
+
+    await runWithQuotaFallback({
+      primary,
+      retry,
+      opts: buildOpts({ isGuestMode: true, effectiveProvider: AIProvider.OpenRouter }),
+      userId: '123',
+      requestId: 'req-1',
+      deps: buildDeps({ free: { model: 'freebie/model:free' } }),
+      freeTierQuota,
+    });
+
+    expect(freeTierQuota.tryConsume).not.toHaveBeenCalled();
+  });
+
+  it('fires the z.ai failure reactor with the ORIGINAL error before any retarget', async () => {
+    const original = quotaError(ApiErrorCategory.RATE_LIMIT);
+    const primary = vi.fn().mockRejectedValue(original);
+    const retry = vi.fn().mockResolvedValue(okResult);
+    const onZaiFreeTierFailure = vi.fn().mockResolvedValue(undefined);
+
+    await runWithQuotaFallback({
+      primary,
+      retry,
+      opts: buildOpts({ isGuestMode: true, effectiveProvider: AIProvider.ZaiCoding }),
+      userId: '123',
+      requestId: 'req-1',
+      deps: buildDeps({ free: { model: 'freebie/model:free' } }),
+      freeTierQuota: mockQuota(true),
+      onZaiFreeTierFailure,
+    });
+
+    expect(onZaiFreeTierFailure).toHaveBeenCalledWith(original);
+    expect(retry).toHaveBeenCalled(); // a throwing reactor must never block the degrade
+  });
+
+  it('does not fire the reactor for non-z.ai failures', async () => {
+    const primary = vi.fn().mockRejectedValue(quotaError(ApiErrorCategory.RATE_LIMIT));
+    const retry = vi.fn().mockResolvedValue(okResult);
+    const onZaiFreeTierFailure = vi.fn();
+
+    await runWithQuotaFallback({
+      primary,
+      retry,
+      opts: buildOpts({ isGuestMode: false }),
+      userId: '123',
+      requestId: 'req-1',
+      deps: buildDeps({ global: { model: 'paid/default' } }),
+      onZaiFreeTierFailure,
+    });
+
+    expect(onZaiFreeTierFailure).not.toHaveBeenCalled();
   });
 
   it('does NOT meter a pure guest (already metered upstream in GenerationStep) — no double-count', async () => {
@@ -292,7 +373,7 @@ describe('runWithQuotaFallback', () => {
       opts: buildOpts({ isGuestMode: true }),
       userId: '123',
       requestId: 'req-1',
-      deps: buildDeps({ free: { model: 'free/model' }, systemKey: 'sk-system-key' }),
+      deps: buildDeps({ free: { model: 'freebie/model:free' }, systemKey: 'sk-system-key' }),
       freeTierQuota,
     }).catch(() => undefined);
 
@@ -311,7 +392,7 @@ describe('runWithQuotaFallback', () => {
         opts: buildOpts(),
         userId: '123',
         requestId: 'req-1',
-        deps: buildDeps({ free: { model: 'free/model' }, systemKey: undefined }),
+        deps: buildDeps({ free: { model: 'freebie/model:free' }, systemKey: undefined }),
       })
     ).rejects.toBe(original);
     expect(retry).not.toHaveBeenCalled();
@@ -403,7 +484,7 @@ describe('runWithQuotaFallback', () => {
       requestId: 'req-1',
       deps: buildDeps({
         global: { model: 'paid/default' },
-        free: { model: 'free/default' },
+        free: { model: 'freebie/default:free' },
         systemKey: 'sk-system-key',
         userOpenRouterKey: undefined,
       }),
@@ -413,10 +494,10 @@ describe('runWithQuotaFallback', () => {
       expect.objectContaining({
         apiKey: 'sk-system-key',
         isGuestMode: true,
-        personality: expect.objectContaining({ model: 'free/default' }),
+        personality: expect.objectContaining({ model: 'freebie/default:free' }),
       })
     );
-    expect(result.quotaFallback?.toModel).toBe('free/default');
+    expect(result.quotaFallback?.toModel).toBe('freebie/default:free');
   });
 
   it('z.ai-promoted personality without OpenRouter key AND no system key: terminal', async () => {
@@ -441,7 +522,7 @@ describe('runWithQuotaFallback', () => {
         requestId: 'req-1',
         deps: buildDeps({
           global: { model: 'paid/default' },
-          free: { model: 'free/default' },
+          free: { model: 'freebie/default:free' },
           systemKey: undefined,
           userOpenRouterKey: undefined,
         }),
@@ -486,7 +567,7 @@ describe('runWithQuotaFallback', () => {
     const original = quotaError(ApiErrorCategory.CREDIT_EXHAUSTION);
     const primary = vi.fn().mockRejectedValue(original);
     const retry = vi.fn();
-    const deps = buildDeps({ free: { model: 'free/model' } });
+    const deps = buildDeps({ free: { model: 'freebie/model:free' } });
     deps.resolveSystemKey = vi.fn().mockRejectedValue(new Error('resolver blew up'));
 
     await expect(

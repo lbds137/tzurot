@@ -14,7 +14,7 @@
 
 import { Router, type Response, type Request, type RequestHandler } from 'express';
 import { StatusCodes } from 'http-status-codes';
-import { isFreeModel } from '@tzurot/common-types/constants/ai';
+import { isFreeTierEligibleModel } from '@tzurot/common-types/constants/ai';
 import { ADMIN_SETTINGS_SINGLETON_ID } from '@tzurot/common-types/schemas/api/adminSettings';
 import {
   LlmConfigCreateSchema,
@@ -290,11 +290,11 @@ function createSetFreeDefaultHandler(
       return;
     }
 
-    if (!isFreeModel(config.model)) {
+    if (!isFreeTierEligibleModel(config.model)) {
       return sendError(
         res,
         ErrorResponses.validationError(
-          'Only presets using free models (model ID ending in :free, or the openrouter/free router) can be set as free tier default'
+          'Only free-tier-eligible presets can be set as free tier default: free models (model ID ending in :free, or the openrouter/free router) or the z.ai piggyback model (glm-4.5-air)'
         )
       );
     }

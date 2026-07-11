@@ -16,7 +16,10 @@ import { RedisService } from './services/RedisService.js';
 import { RateLimitCache } from './services/RateLimitCache.js';
 import { CreditExhaustionCache } from './services/CreditExhaustionCache.js';
 import { VisionFallbackQuota } from './services/VisionFallbackQuota.js';
-import { FreeTierRequestQuota } from './services/FreeTierRequestQuota.js';
+import { FreeTierRequestQuota, ZAI_FREE_TIER_KEYS } from './services/FreeTierRequestQuota.js';
+import { ZaiPlanMeter } from './services/ZaiPlanMeter.js';
+import { ZaiFreeTierAdmission } from './services/ZaiFreeTierAdmission.js';
+import { reactToZaiFreeTierFailure } from './services/zaiBusinessCodes.js';
 import { getConfig } from '@tzurot/common-types/config/config';
 import {
   modelSupportsVision,
@@ -62,6 +65,40 @@ export const freeTierRequestQuota = new FreeTierRequestQuota(redis, {
   minPerWindow: getConfig().FREE_TIER_MIN_PER_WINDOW,
   maxPerWindow: getConfig().FREE_TIER_MAX_PER_WINDOW,
 });
+
+// z.ai free-tier piggyback singletons: the plan meter (owner-protection input,
+// also mirrored to Redis for /admin usage), a second fair-share quota over the
+// zaifreeq:* pool (same window/floor/ceiling knobs, its own daily budget), and
+// the admission gate composing flag + kill switch + headroom + fair share.
+// eslint-disable-next-line @tzurot/no-singleton-export -- Intentional: caches the plan reading process-wide; per-instance caches would multiply endpoint calls.
+export const zaiPlanMeter = new ZaiPlanMeter(getConfig().ZAI_CODING_API_KEY, redis);
+// eslint-disable-next-line @tzurot/no-singleton-export -- Intentional: shared Redis client; a second instance would keep a separate view of the zai contention set and undercount the fair-share cap.
+export const zaiFreeTierQuota = new FreeTierRequestQuota(
+  redis,
+  {
+    globalDailyBudget: getConfig().ZAI_FREE_TIER_GLOBAL_DAILY_BUDGET,
+    windowMinutes: getConfig().FREE_TIER_WINDOW_MINUTES,
+    minPerWindow: getConfig().FREE_TIER_MIN_PER_WINDOW,
+    maxPerWindow: getConfig().FREE_TIER_MAX_PER_WINDOW,
+  },
+  undefined,
+  ZAI_FREE_TIER_KEYS
+);
+// eslint-disable-next-line @tzurot/no-singleton-export -- Intentional: composes the singleton meter/quota above; a second instance would split their shared state.
+export const zaiFreeTierAdmission = new ZaiFreeTierAdmission(
+  redis,
+  zaiFreeTierQuota,
+  zaiPlanMeter,
+  {
+    enabled: getConfig().ZAI_FREE_TIER_ENABLED === 'true',
+    apiKey: getConfig().ZAI_CODING_API_KEY,
+    headroomPercent: getConfig().ZAI_FREE_TIER_HEADROOM_PERCENT,
+  }
+);
+
+/** Pre-wired z.ai failure reactor (keeps the raw redis client module-private). */
+export const zaiFreeTierFailureReactor = (error: unknown): Promise<void> =>
+  reactToZaiFreeTierFailure(redis, zaiPlanMeter, error);
 
 /**
  * Check if a model supports vision input using OpenRouter's cached model data.

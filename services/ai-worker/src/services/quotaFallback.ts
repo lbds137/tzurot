@@ -25,7 +25,7 @@
  * model and must not leak onto the fallback.
  */
 
-import { AIProvider } from '@tzurot/common-types/constants/ai';
+import { AIProvider, FREE_ROUTER_MODEL, isFreeModel } from '@tzurot/common-types/constants/ai';
 import { ApiErrorCategory } from '@tzurot/common-types/constants/error';
 import { LLM_CONFIG_OVERRIDE_KEYS } from '@tzurot/common-types/schemas/llmAdvancedParams';
 import { type ResolvedLlmConfig } from '@tzurot/common-types/types/configResolution';
@@ -105,6 +105,28 @@ export async function checkModelViability(options: {
 }
 
 /**
+ * The GUEST-safe free default. The admin free-default config may point at the
+ * z.ai piggyback preset (`z-ai/glm-4.5-air`) — a model that is NOT free on
+ * OpenRouter. A guest retarget that ran it on the system OpenRouter key would
+ * bill a paid model to the owner, so any non-actually-free config degrades to
+ * the FREE_ROUTER_MODEL dynamic router here (the z.ai upgrade happens only at
+ * AuthStep admission, never on the retarget path).
+ */
+async function resolveGuestSafeFreeDefault(
+  configResolver: LlmConfigResolver
+): Promise<ResolvedLlmConfig | null> {
+  const config = await configResolver.getFreeDefaultConfig();
+  if (config === null || isFreeModel(config.model)) {
+    return config;
+  }
+  logger.debug(
+    { configuredModel: config.model },
+    'Guest retarget: free-default model is not OpenRouter-free — using the free router'
+  );
+  return { model: FREE_ROUTER_MODEL, provider: AIProvider.OpenRouter };
+}
+
+/**
  * Pick the tier-aware retarget for a quota-class failure, or null when the
  * turn should fail exactly as it does today (no target, same model, target
  * also doomed, or no different billing entity exists).
@@ -127,11 +149,11 @@ export async function selectQuotaFallbackTarget(options: {
       // The system key itself is broke — no different billing entity exists.
       return null;
     }
-    config = await configResolver.getFreeDefaultConfig();
+    config = await resolveGuestSafeFreeDefault(configResolver);
     forceSystemKey = true;
   } else {
     config = isGuestMode
-      ? await configResolver.getFreeDefaultConfig()
+      ? await resolveGuestSafeFreeDefault(configResolver)
       : await configResolver.getGlobalDefaultConfig();
   }
 

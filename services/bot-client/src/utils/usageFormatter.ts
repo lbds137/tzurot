@@ -189,9 +189,32 @@ export function buildAdminUsageEmbed(stats: AdminUsageStats): EmbedBuilder {
     addTopUsersBreakdown(embed, stats.topUsers);
   }
 
+  addZaiPlanSection(embed, stats.zaiPlan);
+
   embed.setFooter({
     text: 'Global statistics across all users',
   });
 
   return embed;
+}
+
+/**
+ * Live z.ai coding-plan pressure (the free-tier headroom gate's input and the
+ * owner's tuning instrument for ZAI_FREE_TIER_HEADROOM_PERCENT). Rendered only
+ * when ai-worker has published a recent meter snapshot; the reading covers the
+ * WHOLE plan — owner coding, fact extraction, and guest traffic combined.
+ */
+function addZaiPlanSection(embed: EmbedBuilder, zaiPlan: AdminUsageStats['zaiPlan']): void {
+  if (zaiPlan === undefined) {
+    return;
+  }
+  const resetLine =
+    zaiPlan.resetAt !== null
+      ? `\nResets <t:${Math.floor(new Date(zaiPlan.resetAt).getTime() / 1000)}:R>`
+      : '';
+  embed.addFields({
+    name: '🧮 z.ai Coding Plan',
+    value: `Tighter window: **${zaiPlan.tighterWindowConsumedPct}%** consumed${resetLine}\nRead <t:${Math.floor(new Date(zaiPlan.fetchedAt).getTime() / 1000)}:R>`,
+    inline: false,
+  });
 }

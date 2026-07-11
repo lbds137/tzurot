@@ -5,7 +5,7 @@
  * API keys are NEVER passed through BullMQ jobs - they're resolved at runtime.
  */
 
-import { AIProvider, GUEST_MODE, isFreeModel } from '@tzurot/common-types/constants/ai';
+import { AIProvider } from '@tzurot/common-types/constants/ai';
 import { type AudioProviderId } from '@tzurot/common-types/types/audio-provider';
 import { type SttDispatch } from '@tzurot/common-types/types/sttProvider';
 import { createLogger } from '@tzurot/common-types/utils/logger';
@@ -24,6 +24,8 @@ import {
 import { deriveCacheKeyId } from '../../../../services/RateLimitCache.js';
 import { tryPromotionDemotion } from './promotionDemotion.js';
 import { resolveRetargetRoute } from './retargetRoute.js';
+import type { ZaiFreeTierAdmission } from '../../../../services/ZaiFreeTierAdmission.js';
+import { applyGuestModeOverrides } from './guestModeOverrides.js';
 import type { IPipelineStep, GenerationContext } from '../types.js';
 
 const logger = createLogger('AuthStep');
@@ -31,14 +33,23 @@ const logger = createLogger('AuthStep');
 export class AuthStep implements IPipelineStep {
   readonly name = 'AuthResolution';
   private readonly providerRouter: ProviderRouter | undefined;
+  private readonly quotaFallbackCaches: QuotaFallbackCaches | undefined;
+  private readonly zaiFreeTierAdmission: ZaiFreeTierAdmission | undefined;
 
   constructor(
     private readonly apiKeyResolver?: ApiKeyResolver,
     private readonly configResolver?: LlmConfigResolver,
     providerRouter?: ProviderRouter,
     private readonly sttResolver?: SttResolver,
-    private readonly quotaFallbackCaches?: QuotaFallbackCaches
+    /** Quota-adjacent extras, bundled to keep the DI surface at five params. */
+    extras?: {
+      quotaFallbackCaches?: QuotaFallbackCaches;
+      /** z.ai free-tier piggyback gate; absent (tests/dark) means never upgrade. */
+      zaiFreeTierAdmission?: ZaiFreeTierAdmission;
+    }
   ) {
+    this.quotaFallbackCaches = extras?.quotaFallbackCaches;
+    this.zaiFreeTierAdmission = extras?.zaiFreeTierAdmission;
     // ProviderRouter wraps ApiKeyResolver to encode the auto-fallthrough
     // routing rule for `zai-coding` (and any future provider that needs it).
     // The optional `providerRouter` parameter lets tests inject a mock to
@@ -62,7 +73,8 @@ export class AuthStep implements IPipelineStep {
     const llmAuth = await this.resolveLlmAuthWithQuotaCheck(
       config.effectivePersonality,
       jobContext.userId,
-      job.id
+      job.id,
+      job.data.requestId
     );
     const {
       resolvedApiKey,
@@ -119,11 +131,12 @@ export class AuthStep implements IPipelineStep {
   private async resolveLlmAuthWithQuotaCheck(
     initialPersonality: NonNullable<GenerationContext['config']>['effectivePersonality'],
     userId: string,
-    jobId: string | undefined
+    jobId: string | undefined,
+    requestId: string
   ): Promise<
     Awaited<ReturnType<AuthStep['resolveLlmAuth']>> & { quotaFallback?: QuotaFallbackInfo }
   > {
-    const llmAuth = await this.resolveLlmAuth(initialPersonality, userId);
+    const llmAuth = await this.resolveLlmAuth(initialPersonality, userId, requestId);
 
     // One viability check for the resolved route, shared by the demotion tier
     // and the quota retarget — they'd otherwise each hit the doom caches for
@@ -366,7 +379,8 @@ export class AuthStep implements IPipelineStep {
    */
   private async resolveLlmAuth(
     initialPersonality: NonNullable<GenerationContext['config']>['effectivePersonality'],
-    userId: string
+    userId: string,
+    requestId: string
   ): Promise<{
     resolvedApiKey: string | undefined;
     resolvedProvider: AIProvider | undefined;
@@ -422,9 +436,27 @@ export class AuthStep implements IPipelineStep {
         'Resolved provider route'
       );
 
-      // Guest Mode: enforce free-model-only on top of any router decision.
+      // Guest Mode: enforce free-model-only on top of any router decision —
+      // or, when the free default is the z.ai piggyback preset and admission
+      // passes, upgrade to GLM-4.5-Air on the system coding-plan key.
       if (route.isGuestMode) {
-        effectivePersonality = await this.applyGuestModeOverrides(effectivePersonality, userId);
+        const guest = await applyGuestModeOverrides(
+          { configResolver: this.configResolver, zaiFreeTierAdmission: this.zaiFreeTierAdmission },
+          effectivePersonality,
+          userId,
+          requestId
+        );
+        effectivePersonality = guest.personality;
+        if (guest.zaiSystemKey !== undefined) {
+          return {
+            resolvedApiKey: guest.zaiSystemKey,
+            resolvedProvider: AIProvider.ZaiCoding,
+            isGuestMode: true,
+            effectivePersonality,
+            wasAutoPromoted: route.wasAutoPromoted,
+            fallback: route.fallback,
+          };
+        }
       }
 
       return {
@@ -439,66 +471,19 @@ export class AuthStep implements IPipelineStep {
       // Resolution failure is unexpected (normal guest mode is signaled via
       // isGuestMode=true, not by throwing). Recover by falling back to guest.
       logger.error({ err: error, userId }, 'Failed to resolve API key, falling back to guest mode');
-      effectivePersonality = await this.applyGuestModeOverrides(effectivePersonality, userId);
+      const guest = await applyGuestModeOverrides(
+        { configResolver: this.configResolver, zaiFreeTierAdmission: this.zaiFreeTierAdmission },
+        effectivePersonality,
+        userId,
+        requestId
+      );
+      effectivePersonality = guest.personality;
       return {
-        resolvedApiKey: undefined,
-        resolvedProvider: undefined,
+        resolvedApiKey: guest.zaiSystemKey,
+        resolvedProvider: guest.zaiSystemKey !== undefined ? AIProvider.ZaiCoding : undefined,
         isGuestMode: true,
         effectivePersonality,
       };
     }
-  }
-
-  /**
-   * Apply guest mode model overrides
-   */
-  private async applyGuestModeOverrides(
-    personality: NonNullable<GenerationContext['config']>['effectivePersonality'],
-    userId: string
-  ): Promise<NonNullable<GenerationContext['config']>['effectivePersonality']> {
-    const currentModel = personality.model;
-
-    // If current model is already free, no change needed
-    if (isFreeModel(currentModel)) {
-      logger.info({ userId, model: personality.model }, 'Guest mode active - using free model');
-      return personality;
-    }
-
-    // Override to guest default
-    let guestModel: string = GUEST_MODE.DEFAULT_MODEL;
-
-    // Try to get free default from database
-    if (this.configResolver) {
-      try {
-        const freeConfig = await this.configResolver.getFreeDefaultConfig();
-        if (freeConfig !== null) {
-          guestModel = freeConfig.model;
-          logger.debug({ model: guestModel }, 'Using database free default config');
-        }
-      } catch (error) {
-        logger.warn({ err: error }, 'Failed to get free default config, using hardcoded fallback');
-      }
-    }
-
-    logger.info(
-      {
-        userId,
-        originalModel: currentModel,
-        guestModel,
-      },
-      'Guest mode: overriding paid model with free model'
-    );
-
-    return {
-      ...personality,
-      model: guestModel,
-      // Clear vision model if not free
-      visionModel:
-        personality.visionModel !== undefined &&
-        personality.visionModel.length > 0 &&
-        isFreeModel(personality.visionModel)
-          ? personality.visionModel
-          : undefined,
-    };
   }
 }

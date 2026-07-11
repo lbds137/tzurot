@@ -102,6 +102,16 @@ describe('validatePrerequisites', () => {
 });
 
 describe('enforceGuestFreeTierQuota', () => {
+  it('SKIPS the OpenRouter meter for a z.ai-served guest (the coding-plan pool was charged at admission)', async () => {
+    const quota = {
+      tryConsume: vi.fn(),
+    } as unknown as FreeTierRequestQuota;
+
+    await enforceGuestFreeTierQuota(quota, true, 'user-1', 'req-1', AIProvider.ZaiCoding);
+
+    expect(vi.mocked(quota.tryConsume)).not.toHaveBeenCalled();
+  });
+
   it('is a no-op when the quota is unwired (undefined) — never throws, never consumes', async () => {
     // The wiring-absent path (test fixtures / quota not injected).
     await expect(

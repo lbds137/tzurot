@@ -4,7 +4,7 @@
  */
 
 import type { AutocompleteInteraction } from 'discord.js';
-import { isFreeModel } from '@tzurot/common-types/constants/ai';
+import { isFreeTierEligibleModel } from '@tzurot/common-types/constants/ai';
 import { DISCORD_LIMITS } from '@tzurot/common-types/constants/discord';
 import { type LlmConfigSummary } from '@tzurot/common-types/schemas/api/llm-config';
 import {
@@ -298,8 +298,11 @@ async function handleGlobalConfigAutocomplete(
         if (!c.isGlobal) {
           return false;
         }
-        // If freeOnly, model must be a free model (a :free-suffixed model or the openrouter/free router)
-        if (freeOnly && !isFreeModel(c.model)) {
+        // If freeOnly, the model must be free-tier ELIGIBLE: a :free-suffixed
+        // model, the openrouter/free router, or the z.ai piggyback model
+        // (glm-4.5-air — served on the system coding plan when admitted,
+        // degrading to the free router otherwise; never billed as paid).
+        if (freeOnly && !isFreeTierEligibleModel(c.model)) {
           return false;
         }
         // Must match query

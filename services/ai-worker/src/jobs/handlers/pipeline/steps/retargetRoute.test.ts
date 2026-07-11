@@ -75,10 +75,10 @@ describe('resolveRetargetRoute', () => {
       userId: 'u1',
       category: CATEGORY,
       cacheKeyId: 'ck',
-      deps: makeDeps({ systemKey: 'sk-system', freeConfig: { model: 'free/default' } }),
+      deps: makeDeps({ systemKey: 'sk-system', freeConfig: { model: 'freebie/default:free' } }),
     });
     expect(route).toEqual({
-      config: { model: 'free/default' },
+      config: { model: 'freebie/default:free' },
       apiKey: 'sk-system',
       isGuestMode: true,
     });
@@ -93,7 +93,7 @@ describe('resolveRetargetRoute', () => {
       userId: 'u1',
       category: CATEGORY,
       cacheKeyId: 'ck',
-      deps: makeDeps({ freeConfig: { model: 'free/default' } }),
+      deps: makeDeps({ freeConfig: { model: 'freebie/default:free' } }),
     });
     expect(noSystem).toBeNull();
 
@@ -112,7 +112,7 @@ describe('resolveRetargetRoute', () => {
 
   it('forced system-key target (credit exhaustion) uses the system key with guest semantics', async () => {
     const route = await resolveRetargetRoute({
-      target: { config: { model: 'free/default' }, forceSystemKey: true } as never,
+      target: { config: { model: 'freebie/default:free' }, forceSystemKey: true } as never,
       personality: { model: 'some/model', provider: 'openrouter' },
       apiKey: 'sk-user',
       isGuestMode: false,
@@ -122,7 +122,7 @@ describe('resolveRetargetRoute', () => {
       deps: makeDeps({ systemKey: 'sk-system' }),
     });
     expect(route).toEqual({
-      config: { model: 'free/default' },
+      config: { model: 'freebie/default:free' },
       apiKey: 'sk-system',
       isGuestMode: true,
     });

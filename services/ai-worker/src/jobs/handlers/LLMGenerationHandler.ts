@@ -41,7 +41,13 @@ import { PrismaContextDataSource } from '../../services/context/PrismaContextDat
 import { ContextAssembler } from '../../services/context/ContextAssembler.js';
 import { VisionDescriptionWriter } from '../../services/context/visionDescriptionWriter.js';
 import { type ApiKeyResolver } from '../../services/ApiKeyResolver.js';
-import { creditExhaustionCache, rateLimitCache, freeTierRequestQuota } from '../../redis.js';
+import {
+  creditExhaustionCache,
+  rateLimitCache,
+  freeTierRequestQuota,
+  zaiFreeTierAdmission,
+  zaiFreeTierFailureReactor,
+} from '../../redis.js';
 import { type QuotaFallbackCaches } from '../../services/quotaFallback.js';
 import { type QuotaFallbackDeps } from './pipeline/steps/quotaFallbackRunner.js';
 import type { EmbeddingServiceInterface } from '../../utils/duplicateDetection.js';
@@ -174,20 +180,20 @@ export class LLMGenerationHandler {
       new ValidationStep(),
       new NormalizationStep(),
       new ConfigStep(cascadeResolver),
-      new AuthStep(apiKeyResolver, configResolver, undefined, sttResolver, quotaFallbackCaches),
+      new AuthStep(apiKeyResolver, configResolver, undefined, sttResolver, {
+        quotaFallbackCaches,
+        zaiFreeTierAdmission,
+      }),
       new DownloadAttachmentsStep(),
       new DependencyStep(apiKeyResolver, visionDescriptionWriter),
       // Handler (and thus this pipeline) is constructed once at worker
       // startup — the data source, assembler, and their wrapped services are
       // constructed once here, not re-allocated per job.
       this.buildContextStep(prisma),
-      new GenerationStep(
-        ragService,
-        prisma,
-        embeddingService,
-        quotaFallbackDeps,
-        freeTierRequestQuota
-      ),
+      new GenerationStep(ragService, prisma, embeddingService, quotaFallbackDeps, {
+        freeTierQuota: freeTierRequestQuota,
+        onZaiFreeTierFailure: zaiFreeTierFailureReactor,
+      }),
       new TTSStep(ttsConfigResolver),
     ];
   }

@@ -128,6 +128,81 @@ describe('Admin Usage Routes', () => {
       expect(response.body.timeframe).toBe('30d');
     });
 
+    describe('zaiPlan snapshot section', () => {
+      function appWithRedis(redisGet: ReturnType<typeof vi.fn>): express.Express {
+        const withRedis = express();
+        withRedis.use(express.json());
+        withRedis.use(
+          '/admin/usage',
+          createAdminUsageRoutes({
+            ...stubRouteResolvers(),
+            prisma: mockPrisma as unknown as PrismaClient,
+            redis: { get: redisGet } as never,
+          })
+        );
+        return withRedis;
+      }
+
+      beforeEach(() => {
+        mockPrisma.usageLog.findMany.mockResolvedValue([]);
+        mockPrisma.user.findMany.mockResolvedValue([]);
+      });
+
+      it('surfaces a valid ai-worker meter snapshot as zaiPlan', async () => {
+        const snapshot = JSON.stringify({
+          tighterWindowConsumedPct: 29,
+          resetAt: '2026-08-01T00:00:00.000Z',
+          fetchedAt: '2026-07-31T23:00:00.000Z',
+        });
+        const response = await request(appWithRedis(vi.fn().mockResolvedValue(snapshot))).get(
+          '/admin/usage'
+        );
+
+        expect(response.status).toBe(200);
+        expect(response.body.zaiPlan).toEqual({
+          tighterWindowConsumedPct: 29,
+          resetAt: '2026-08-01T00:00:00.000Z',
+          fetchedAt: '2026-07-31T23:00:00.000Z',
+        });
+      });
+
+      it('omits zaiPlan when no snapshot key exists', async () => {
+        const response = await request(appWithRedis(vi.fn().mockResolvedValue(null))).get(
+          '/admin/usage'
+        );
+
+        expect(response.status).toBe(200);
+        expect(response.body.zaiPlan).toBeUndefined();
+      });
+
+      it('omits zaiPlan on malformed JSON without failing the request', async () => {
+        const response = await request(appWithRedis(vi.fn().mockResolvedValue('not-json{'))).get(
+          '/admin/usage'
+        );
+
+        expect(response.status).toBe(200);
+        expect(response.body.zaiPlan).toBeUndefined();
+      });
+
+      it('omits zaiPlan when the snapshot shape drifted (missing fields)', async () => {
+        const response = await request(
+          appWithRedis(vi.fn().mockResolvedValue(JSON.stringify({ somethingElse: true })))
+        ).get('/admin/usage');
+
+        expect(response.status).toBe(200);
+        expect(response.body.zaiPlan).toBeUndefined();
+      });
+
+      it('omits zaiPlan when redis itself errors (fail-soft)', async () => {
+        const response = await request(
+          appWithRedis(vi.fn().mockRejectedValue(new Error('redis down')))
+        ).get('/admin/usage');
+
+        expect(response.status).toBe(200);
+        expect(response.body.zaiPlan).toBeUndefined();
+      });
+    });
+
     it('should aggregate by provider', async () => {
       mockPrisma.usageLog.findMany.mockResolvedValue([
         {

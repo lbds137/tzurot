@@ -41,6 +41,14 @@ vi.mock('../../redis.js', () => ({
   freeTierRequestQuota: {
     tryConsume: vi.fn().mockResolvedValue({ allowed: true, reason: 'ok' }),
   },
+  // z.ai free-tier piggyback singletons — default to "disabled" so existing
+  // generation tests never take the upgrade path.
+  zaiFreeTierAdmission: {
+    admit: vi.fn().mockResolvedValue({ admitted: false, reason: 'disabled' }),
+    systemKey: vi.fn().mockReturnValue(undefined),
+    isEnabled: vi.fn().mockReturnValue(false),
+  },
+  zaiFreeTierFailureReactor: vi.fn().mockResolvedValue(undefined),
 }));
 
 // Mock conversationUtils

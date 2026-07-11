@@ -10,6 +10,7 @@ import { createLogger } from '@tzurot/common-types/utils/logger';
 import { shortModelName } from '@tzurot/common-types/utils/modelNames';
 import { requireOwnerAuth } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
+import { ZAI_PLAN_METER_SNAPSHOT_KEY } from '@tzurot/common-types/constants/redis-keys';
 import { sendCustomSuccess } from '../../utils/responseHelpers.js';
 import type { RouteDeps } from '../routeDeps.js';
 
@@ -52,6 +53,48 @@ interface AdminUsageStats {
   topUsers: { discordId: string; requests: number; tokens: number }[];
   /** True if results were truncated due to query limits */
   limitReached?: boolean;
+  /** Live z.ai plan meters from the ai-worker snapshot; absent when none. */
+  zaiPlan?: {
+    tighterWindowConsumedPct: number;
+    resetAt: string | null;
+    fetchedAt: string;
+  };
+}
+
+/**
+ * Live z.ai coding-plan meters — ai-worker mirrors its ZaiPlanMeter reading to
+ * a short-TTL Redis snapshot so this route can render plan pressure without
+ * holding the coding-plan key. Absent/stale/no-redis ⇒ undefined (omitted).
+ */
+async function readZaiPlanSnapshot(redis: RouteDeps['redis']): Promise<AdminUsageStats['zaiPlan']> {
+  if (redis === undefined) {
+    return undefined;
+  }
+  try {
+    const snapshot = await redis.get(ZAI_PLAN_METER_SNAPSHOT_KEY);
+    if (snapshot === null) {
+      return undefined;
+    }
+    const parsed = JSON.parse(snapshot) as {
+      tighterWindowConsumedPct?: number;
+      resetAt?: string | null;
+      fetchedAt?: string;
+    };
+    if (
+      typeof parsed.tighterWindowConsumedPct !== 'number' ||
+      typeof parsed.fetchedAt !== 'string'
+    ) {
+      return undefined;
+    }
+    return {
+      tighterWindowConsumedPct: parsed.tighterWindowConsumedPct,
+      resetAt: parsed.resetAt ?? null,
+      fetchedAt: parsed.fetchedAt,
+    };
+  } catch (error) {
+    logger.warn({ err: error }, 'Failed to read z.ai plan meter snapshot');
+    return undefined;
+  }
 }
 
 /**
@@ -59,7 +102,7 @@ interface AdminUsageStats {
  * Query params: timeframe ('24h', '7d', '30d', etc.; default '7d')
  */
 export const handleGetAdminUsageStats = (deps: RouteDeps): RequestHandler => {
-  const { prisma } = deps;
+  const { prisma, redis } = deps;
   return asyncHandler(async (req: Request, res: Response) => {
     const timeframe = (req.query.timeframe as string) ?? '7d';
     const periodStart = parseTimeframe(timeframe);
@@ -167,6 +210,8 @@ export const handleGetAdminUsageStats = (deps: RouteDeps): RequestHandler => {
       },
       'Returned global usage stats'
     );
+
+    stats.zaiPlan = await readZaiPlanSnapshot(redis);
 
     sendCustomSuccess(res, stats, StatusCodes.OK);
   });
