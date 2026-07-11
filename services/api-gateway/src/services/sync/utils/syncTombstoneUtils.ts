@@ -9,8 +9,11 @@
  * (the "delete presets twice" failure this system exists to kill).
  *
  * The bespoke conversation_history tombstone path (tombstoneUtils.ts) stays
- * separate: messages delete in bulk on the retention path and already have
- * working protection. Future consolidation is possible, not planned.
+ * separate — adjudicated, not just deferred: its tombstones are written at
+ * SOFT-delete time (app-level intent a DB trigger can't see), and the bulk
+ * retention path (1000-row createMany batches, unbounded total) would suffer
+ * per-row trigger amplification for zero benefit. Consolidation would DRY
+ * only the storage table while keeping both write disciplines.
  */
 
 import { type PrismaClient } from '@tzurot/common-types/services/prisma';

@@ -201,30 +201,6 @@ export class ConversationSyncService {
   }
 
   /**
-   * Soft delete a message by setting deletedAt timestamp
-   * Used when Discord message is detected as deleted during extended context fetch
-   *
-   * @param messageId Internal database message ID
-   * @returns true if message was soft deleted
-   */
-  async softDeleteMessage(messageId: string): Promise<boolean> {
-    try {
-      const row = await this.prisma.conversationHistory.update({
-        where: { id: messageId },
-        data: { deletedAt: new Date() },
-        select: { discordMessageId: true },
-      });
-
-      logger.debug({ messageId }, 'Soft deleted message');
-      await this.propagateDeletionToMemories(row.discordMessageId);
-      return true;
-    } catch (error) {
-      logger.error({ err: error, messageId }, 'Failed to soft delete message');
-      return false;
-    }
-  }
-
-  /**
    * Propagate source-message deletion to linked long-term memories
    * (memory-architecture Phase 0, R8: deletion means deletion). Memories carry
    * the triggering Discord message id in `messageIds`; when that turn is

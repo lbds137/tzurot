@@ -175,7 +175,11 @@ export const SYNC_CONFIG: Record<SyncTableName, TableSyncConfig> = {
   },
   // NOTE: personality_default_configs moved to EXCLUDED_TABLES - settings table, not raw data
   personality_owners: {
-    pk: ['personality_id', 'user_id'], // Composite key
+    // Composite key — ORDER IS FROZEN: the sync_tombstone_personality_owners
+    // trigger's TG_ARGV (migration 20260710230428) joins OLD values in this
+    // exact order to build row_pk; reordering here silently mismatches every
+    // tombstone key. validateTombstoneTriggers enforces the parity at sync time.
+    pk: ['personality_id', 'user_id'],
     createdAt: 'created_at',
     updatedAt: 'updated_at',
     uuidColumns: ['personality_id', 'user_id'],
@@ -192,6 +196,9 @@ export const SYNC_CONFIG: Record<SyncTableName, TableSyncConfig> = {
     // Use composite unique key for sync - the business key is (user_id, personality_id),
     // not the surrogate id. This prevents duplicate key errors when dev and prod have
     // different UUIDs for the same user+personality combination.
+    // ORDER IS FROZEN: the sync_tombstone_user_personality_configs trigger's
+    // TG_ARGV (migration 20260710230428) joins OLD values in this exact order;
+    // validateTombstoneTriggers enforces the parity at sync time.
     pk: ['user_id', 'personality_id'],
     createdAt: 'created_at',
     updatedAt: 'updated_at',

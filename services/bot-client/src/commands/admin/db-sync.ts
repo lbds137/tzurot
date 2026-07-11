@@ -4,13 +4,19 @@
  *
  * Receives DeferredCommandContext (no deferReply method!)
  * because the parent command uses deferralMode: 'ephemeral'.
+ *
+ * Output shape: a tight summary embed (totals + tables with activity) plus an
+ * attached `db-sync-report.md` carrying the FULL untruncated report — per-table
+ * stats, row-level deletion detail, every warning and info line. Discord embed
+ * caps forced the old single-embed layout to truncate lists; the report file
+ * has no such limit (house pattern: /inspect's view attachments).
  */
 
-import { EmbedBuilder } from 'discord.js';
+import { AttachmentBuilder, EmbedBuilder } from 'discord.js';
 import { CATALOG } from '../../ux/catalog/catalog.js';
 import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
 import { renderSpec } from '../../ux/render/render.js';
-import { DISCORD_COLORS, TEXT_LIMITS } from '@tzurot/common-types/constants/discord';
+import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
 import { adminDbSyncOptions } from '@tzurot/common-types/generated/commandOptions';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { clientsFor } from '../../utils/gatewayClients.js';
@@ -18,119 +24,180 @@ import type { DeferredCommandContext } from '../../utils/commandContext/types.js
 
 const logger = createLogger('admin-db-sync');
 
+interface TableStats {
+  devToProd?: number;
+  prodToDev?: number;
+  conflicts?: number;
+  deleted?: number;
+}
+
+interface DeletionDetail {
+  table: string;
+  rowKey: string;
+  target: 'dev' | 'prod';
+}
+
 interface SyncResult {
+  timestamp?: string;
   schemaVersion?: string;
-  stats?: Record<
-    string,
-    { devToProd?: number; prodToDev?: number; conflicts?: number; deleted?: number }
-  >;
+  stats?: Record<string, TableStats>;
   warnings?: string[];
   info?: string[];
-  changes?: unknown;
-  totalPoints?: number;
-  totalCollections?: number;
+  deletions?: DeletionDetail[];
+  deletionsTruncated?: boolean;
 }
 
-/**
- * Build the truncation suffix line emitted when a list overflows the embed
- * field limit. Returns the bare suffix string with no surrounding whitespace —
- * the caller is responsible for any leading newline that separates the suffix
- * from surviving items.
- */
-function buildTruncationSuffix(omittedCount: number): string {
-  return `…and ${omittedCount} more`;
+function sumCounters(stats: Record<string, TableStats>): Required<TableStats> {
+  const totals = { devToProd: 0, prodToDev: 0, conflicts: 0, deleted: 0 };
+  for (const s of Object.values(stats)) {
+    totals.devToProd += s.devToProd ?? 0;
+    totals.prodToDev += s.prodToDev ?? 0;
+    totals.conflicts += s.conflicts ?? 0;
+    totals.deleted += s.deleted ?? 0;
+  }
+  return totals;
 }
 
-/**
- * Format an array of strings as a newline-joined embed-field value, dropping
- * trailing items at line boundaries until the result fits within `fieldLimit`.
- *
- * Without this helper, a naive `.join('\n').slice(0, 1024)` chops mid-string —
- * the last entry visible to the user is silently truncated and any items past
- * the cut are invisible. The reader can't tell whether they're seeing the full
- * list or a fragment. With this helper, surviving items are intact and the
- * overflow is explicitly counted in the trailing `…and N more` line.
- *
- * **Precondition**: `fieldLimit` must exceed the maximum suffix length (a few
- * dozen bytes — `…and <count> more`). True in practice with Discord's 1024
- * embed-field cap; pathologically small limits (e.g., `fieldLimit < 30`) may
- * produce output that exceeds `fieldLimit`. No real caller violates this.
- */
-export function formatListForEmbedField(items: readonly string[], fieldLimit: number): string {
-  if (items.length === 0) {
-    return '';
-  }
-  const joined = items.join('\n');
-  if (joined.length <= fieldLimit) {
-    return joined;
-  }
-
-  // Drop items from the tail until we have enough room for the survivors plus
-  // a "…and N more" suffix. We size the suffix against the worst case (all
-  // items omitted) up front so the loop's budget never tightens further as
-  // omittedCount grows.
-  const worstCaseSuffix = `\n${buildTruncationSuffix(items.length)}`;
-  const survivorBudget = fieldLimit - worstCaseSuffix.length;
-
-  const survivors: string[] = [];
-  let runningLength = 0;
-  for (const item of items) {
-    const nextLength = runningLength === 0 ? item.length : runningLength + 1 + item.length;
-    if (nextLength > survivorBudget) {
-      break;
-    }
-    survivors.push(item);
-    runningLength = nextLength;
-  }
-  const omittedCount = items.length - survivors.length;
-  const survivorJoin = survivors.join('\n');
-  return survivors.length === 0
-    ? buildTruncationSuffix(omittedCount)
-    : `${survivorJoin}\n${buildTruncationSuffix(omittedCount)}`;
+function hasActivity(s: TableStats): boolean {
+  return (
+    (s.devToProd ?? 0) > 0 ||
+    (s.prodToDev ?? 0) > 0 ||
+    (s.conflicts ?? 0) > 0 ||
+    (s.deleted ?? 0) > 0
+  );
 }
 
-/**
- * Build the summary description for the sync result embed
- */
-function buildSyncSummary(result: SyncResult, dryRun: boolean): string {
-  const summary: string[] = [];
-
-  if (
-    result.schemaVersion !== undefined &&
-    result.schemaVersion !== null &&
-    result.schemaVersion.length > 0
-  ) {
-    summary.push(`**Schema Version**: \`${result.schemaVersion}\``);
+/** One `table: N dev→prod, M prod→dev[, ...]` line per table with activity. */
+function buildActiveTableLines(stats: Record<string, TableStats>): string[] {
+  const active = Object.entries(stats).filter(([, s]) => hasActivity(s));
+  if (active.length === 0) {
+    return ['', 'No changes — databases already in sync.'];
   }
-
-  if (result.stats) {
-    summary.push('\n**Sync Statistics**:');
-    for (const [table, stats] of Object.entries(result.stats)) {
-      const deleted =
-        stats.deleted !== undefined && stats.deleted !== null && stats.deleted > 0
-          ? `, ${stats.deleted} deleted`
-          : '';
-      const conflicts =
-        stats.conflicts !== undefined && stats.conflicts !== null && stats.conflicts > 0
-          ? `, ${stats.conflicts} conflicts`
-          : '';
-      summary.push(
-        `\`${table}\`: ${stats.devToProd ?? 0} dev→prod, ${stats.prodToDev ?? 0} prod→dev${conflicts}${deleted}`
-      );
-    }
-  }
-
-  if (dryRun && result.changes !== undefined && result.changes !== null) {
-    summary.push('\n**Changes Preview**:');
-    summary.push('```');
-    summary.push(
-      JSON.stringify(result.changes, null, 2).slice(0, TEXT_LIMITS.ADMIN_SUMMARY_TRUNCATE)
+  const lines = [''];
+  for (const [table, s] of active) {
+    const conflicts = (s.conflicts ?? 0) > 0 ? `, ${s.conflicts} conflicts` : '';
+    const deleted = (s.deleted ?? 0) > 0 ? `, ${s.deleted} deleted` : '';
+    lines.push(
+      `\`${table}\`: ${s.devToProd ?? 0} dev→prod, ${s.prodToDev ?? 0} prod→dev${conflicts}${deleted}`
     );
-    summary.push('```');
-    summary.push('\n*Run without `--dry-run` to apply these changes.*');
+  }
+  return lines;
+}
+
+/**
+ * The tight embed description: totals line + tables with activity only.
+ * Full per-table detail (including quiet tables) lives in the report file,
+ * so the embed can never outgrow Discord's description cap.
+ */
+export function buildSyncSummary(result: SyncResult, dryRun: boolean): string {
+  const lines: string[] = [];
+
+  if (result.schemaVersion !== undefined && result.schemaVersion.length > 0) {
+    lines.push(`**Schema Version**: \`${result.schemaVersion}\``);
   }
 
-  return summary.join('\n');
+  const stats = result.stats ?? {};
+  const tableCount = Object.keys(stats).length;
+  if (tableCount > 0) {
+    const totals = sumCounters(stats);
+    lines.push(
+      '',
+      `**${tableCount} tables** · ${totals.devToProd} dev→prod · ${totals.prodToDev} prod→dev · ${totals.conflicts} conflicts · ${totals.deleted} deleted`
+    );
+    lines.push(...buildActiveTableLines(stats));
+  }
+
+  const warningCount = result.warnings?.length ?? 0;
+  if (warningCount > 0) {
+    lines.push('', `⚠️ ${warningCount} warning(s) — full list in the attached report`);
+  }
+  if (dryRun) {
+    lines.push('', '*Dry run — no changes were applied.*');
+  }
+
+  return lines.join('\n');
+}
+
+/** The `## Per-table stats` markdown table — every table, active or not. */
+function buildStatsSection(stats: Record<string, TableStats>): string[] {
+  const entries = Object.entries(stats);
+  const lines = ['', '## Per-table stats', ''];
+  if (entries.length === 0) {
+    lines.push('_No table stats returned._');
+    return lines;
+  }
+  lines.push('| Table | dev→prod | prod→dev | Conflicts | Deleted |');
+  lines.push('| --- | ---: | ---: | ---: | ---: |');
+  for (const [table, s] of entries) {
+    lines.push(
+      `| ${table} | ${s.devToProd ?? 0} | ${s.prodToDev ?? 0} | ${s.conflicts ?? 0} | ${s.deleted ?? 0} |`
+    );
+  }
+  return lines;
+}
+
+/** The row-level deletions section, with dry-run framing and cap notes. */
+function buildDeletionsSection(result: SyncResult, dryRun: boolean): string[] {
+  const deletions = result.deletions ?? [];
+  const heading = dryRun ? 'Deletions that would propagate' : 'Deletions queued for propagation';
+  const capped = result.deletionsTruncated === true;
+  const lines = ['', `## ${heading} (${deletions.length}${capped ? '+' : ''})`, ''];
+  if (deletions.length === 0) {
+    lines.push('None.');
+    return lines;
+  }
+  for (const d of deletions) {
+    lines.push(`- \`${d.table}\` · \`${d.rowKey}\` → ${d.target}`);
+  }
+  if (capped) {
+    lines.push(
+      '',
+      '_Row detail capped by the gateway; the per-table Deleted counts above are complete._'
+    );
+  }
+  if (!dryRun) {
+    lines.push(
+      '',
+      '_Rows listed were queued; the per-table Deleted counts reflect what actually executed (a propagation warning explains any gap)._'
+    );
+  }
+  return lines;
+}
+
+/** A counted `## <title> (N)` bullet-list section; explicit `None.` when empty. */
+function buildListSection(title: string, items: string[]): string[] {
+  const lines = ['', `## ${title} (${items.length})`, ''];
+  if (items.length === 0) {
+    lines.push('None.');
+    return lines;
+  }
+  for (const item of items) {
+    lines.push(`- ${item}`);
+  }
+  return lines;
+}
+
+/**
+ * The full untruncated report attached as `db-sync-report.md`: every table's
+ * stats row, row-level deletion detail, and the complete warnings/info lists.
+ * Exported for unit tests.
+ */
+export function buildSyncReportMarkdown(result: SyncResult, dryRun: boolean): string {
+  const lines: string[] = [`# Database Sync Report${dryRun ? ' (dry run)' : ''}`, ''];
+
+  lines.push(`- Run: ${result.timestamp ?? new Date().toISOString()}`);
+  lines.push(`- Mode: ${dryRun ? 'DRY RUN — no changes applied' : 'LIVE'}`);
+  if (result.schemaVersion !== undefined && result.schemaVersion.length > 0) {
+    lines.push(`- Schema version: ${result.schemaVersion}`);
+  }
+
+  lines.push(...buildStatsSection(result.stats ?? {}));
+  lines.push(...buildDeletionsSection(result, dryRun));
+  lines.push(...buildListSection('Warnings', result.warnings ?? []));
+  lines.push(...buildListSection('Info', result.info ?? []));
+
+  lines.push('');
+  return lines.join('\n');
 }
 
 export async function handleDbSync(context: DeferredCommandContext): Promise<void> {
@@ -155,34 +222,24 @@ export async function handleDbSync(context: DeferredCommandContext): Promise<voi
       return;
     }
 
-    // `DbSyncResponse` (now a tightened, enumerated schema) is structurally
-    // assignable to the lenient display interface below — annotated assignment,
-    // no type assertion. SyncResult keeps every field optional so the truthy
-    // guards in buildSyncSummary read naturally.
+    // `DbSyncResponse` (tightened, enumerated schema) is structurally
+    // assignable to the lenient display interface above — annotated
+    // assignment, no type assertion. SyncResult keeps every field optional
+    // so the render guards read naturally.
     const result: SyncResult = apiResult.data;
 
-    // Build result embed
     const embed = new EmbedBuilder()
       .setColor(dryRun ? DISCORD_COLORS.WARNING : DISCORD_COLORS.SUCCESS)
       .setTitle(dryRun ? '🔍 Database Sync Preview (Dry Run)' : '✅ Database Sync Complete')
       .setTimestamp()
       .setDescription(buildSyncSummary(result, dryRun));
 
-    if (result.warnings && result.warnings.length > 0) {
-      embed.addFields({
-        name: '⚠️ Warnings',
-        value: formatListForEmbedField(result.warnings, TEXT_LIMITS.DISCORD_EMBED_FIELD),
-      });
-    }
+    const report = new AttachmentBuilder(Buffer.from(buildSyncReportMarkdown(result, dryRun)), {
+      name: 'db-sync-report.md',
+      description: 'Full untruncated sync report',
+    });
 
-    if (result.info && result.info.length > 0) {
-      embed.addFields({
-        name: 'ℹ️ Excluded Tables',
-        value: formatListForEmbedField(result.info, TEXT_LIMITS.DISCORD_EMBED_FIELD),
-      });
-    }
-
-    await context.editReply({ embeds: [embed] });
+    await context.editReply({ embeds: [embed], files: [report] });
   } catch (error) {
     logger.error({ err: error }, 'Error during database sync');
     await context.editReply({
@@ -192,7 +249,3 @@ export async function handleDbSync(context: DeferredCommandContext): Promise<voi
     });
   }
 }
-
-/**
- * Handle /admin servers subcommand
- */
