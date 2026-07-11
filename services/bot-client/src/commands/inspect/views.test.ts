@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { MessageFlags } from 'discord.js';
+import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
 import type { DiagnosticPayload } from '@tzurot/common-types/types/diagnostic';
 import {
   buildFullJsonView,
@@ -8,6 +9,7 @@ import {
   buildReasoningView,
   buildMemoryInspectorView,
   buildTokenBudgetView,
+  buildVoiceAttributionView,
 } from './views.js';
 import type { ViewContext } from './viewContext.js';
 
@@ -200,54 +202,52 @@ describe('buildReasoningView', () => {
     expect(result.content).toContain('No reasoning content captured');
   });
 
-  it('should return inline message for short reasoning', () => {
+  it('should return inline chunked text for short reasoning', () => {
     const payload = createMockPayload();
     payload.postProcessing.thinkingContent = 'The user asked about castles...';
     const result = buildReasoningView(payload, 'req-123', OWNER_CTX);
 
-    expect(result.content).toContain('## Reasoning');
-    expect(result.content).toContain('castles');
+    expect(result.chunkedText!.text).toContain('## Reasoning');
+    expect(result.chunkedText!.text).toContain('castles');
     expect(result.files).toBeUndefined();
   });
 
-  it('should return .md file for long reasoning', () => {
+  it('should return inline chunked text (never a file) for long reasoning', () => {
     const payload = createMockPayload();
     payload.postProcessing.thinkingContent = 'x'.repeat(2500);
     const result = buildReasoningView(payload, 'req-123', OWNER_CTX);
 
-    expect(result.files).toHaveLength(1);
-    expect(result.files![0].name).toContain('.md');
-    expect(result.content).toContain('2,500 chars');
+    expect(result.files).toBeUndefined();
+    expect(result.chunkedText!.text).toContain('x'.repeat(2500));
+    expect(result.chunkedText!.continuedHeader).toContain('reasoning continued');
   });
 });
 
 describe('buildMemoryInspectorView', () => {
-  it('should return a .md file', () => {
+  it('should return inline content with no file attachment', () => {
     const payload = createMockPayload();
     const result = buildMemoryInspectorView(payload, 'req-123', OWNER_CTX);
 
-    expect(result.files).toHaveLength(1);
-    expect(result.files![0].name).toContain('memory-inspector');
+    expect(result.files).toBeUndefined();
+    expect(result.content).toContain('# Memory Inspector');
   });
 
   it('should include search query and focus mode status', () => {
     const payload = createMockPayload();
     const result = buildMemoryInspectorView(payload, 'req-123', OWNER_CTX);
 
-    const content = result.files![0].attachment.toString();
-    expect(content).toContain('"hello"');
-    expect(content).toContain('Disabled');
+    expect(result.content).toContain('"hello"');
+    expect(result.content).toContain('Disabled');
   });
 
   it('should include memory table with scores and status', () => {
     const payload = createMockPayload();
     const result = buildMemoryInspectorView(payload, 'req-123', OWNER_CTX);
 
-    const content = result.files![0].attachment.toString();
-    expect(content).toContain('0.95');
-    expect(content).toContain('Included');
-    expect(content).toContain('0.52');
-    expect(content).toContain('Dropped (budget)');
+    expect(result.content).toContain('0.95');
+    expect(result.content).toContain('✓ in');
+    expect(result.content).toContain('0.52');
+    expect(result.content).toContain('✗ drop');
   });
 
   it('should show message when no memories found', () => {
@@ -255,19 +255,42 @@ describe('buildMemoryInspectorView', () => {
     payload.memoryRetrieval.memoriesFound = [];
     const result = buildMemoryInspectorView(payload, 'req-123', OWNER_CTX);
 
-    const content = result.files![0].attachment.toString();
-    expect(content).toContain('No memories retrieved');
+    expect(result.content).toContain('No memories retrieved');
   });
 
-  it('should escape pipes and backslashes in memory previews', () => {
+  it('should collapse whitespace and truncate long previews to the row budget', () => {
     const payload = createMockPayload();
     payload.memoryRetrieval.memoriesFound = [
-      { id: 'mem-1', score: 0.9, preview: 'has | pipe and \\ backslash', includedInPrompt: true },
+      {
+        id: 'mem-1',
+        score: 0.9,
+        preview: 'line one\nline\ttwo  ' + 'y'.repeat(80),
+        includedInPrompt: true,
+      },
     ];
     const result = buildMemoryInspectorView(payload, 'req-123', OWNER_CTX);
 
-    const content = result.files![0].attachment.toString();
-    expect(content).toContain('has \\| pipe and \\\\ backslash');
+    // Newlines/tabs collapse to single spaces so one memory = one table row
+    expect(result.content).toContain('line one line two');
+    expect(result.content).not.toContain('line one\nline');
+    // 60-char row budget with ellipsis
+    expect(result.content).toContain('…');
+    expect(result.content).not.toContain('y'.repeat(80));
+  });
+
+  it('neutralizes embedded triple-backticks so previews cannot close the fence', () => {
+    // Discord closes a fence at ANY ``` occurrence (not just line start) —
+    // a pasted code block in a memory must not spill the table out of it.
+    const payload = createMockPayload();
+    payload.memoryRetrieval.memoriesFound = [
+      { id: 'mem-1', score: 0.9, preview: 'pasted ```js x``` code', includedInPrompt: true },
+    ];
+    const result = buildMemoryInspectorView(payload, 'req-123', OWNER_CTX);
+
+    // Only the table's own fence pair survives as raw triple-backticks
+    expect(result.content!.match(/```/g)).toHaveLength(2);
+    // Visible backticks still present (zero-width-separated)
+    expect(result.content!.replace(/\u200b/g, '')).toContain('```js x```');
   });
 
   it('should show "none" for null search query', () => {
@@ -275,8 +298,28 @@ describe('buildMemoryInspectorView', () => {
     payload.inputProcessing.searchQuery = null;
     const result = buildMemoryInspectorView(payload, 'req-123', OWNER_CTX);
 
-    const content = result.files![0].attachment.toString();
-    expect(content).toContain('_none_');
+    expect(result.content).toContain('_none_');
+  });
+
+  it('trims table rows from the tail when content would exceed one message', () => {
+    const payload = createMockPayload();
+    payload.memoryRetrieval.memoriesFound = Array.from({ length: 40 }, (_, i) => ({
+      id: `mem-${i}`,
+      score: 0.9,
+      preview: `row ${i} ` + 'z'.repeat(50),
+      includedInPrompt: true,
+    }));
+    const result = buildMemoryInspectorView(payload, 'req-123', OWNER_CTX);
+
+    expect(result.content!.length).toBeLessThanOrEqual(1900);
+    expect(result.content).toContain('rows trimmed to fit');
+    // The token-budget summary after the closing fence survives the trim —
+    // it matters most in exactly this high-memory-count case
+    expect(result.content).toContain('**Token Budget:** 1000 tokens allocated');
+    // Fence stays balanced (one open, one close)
+    expect(result.content!.match(/```/g)).toHaveLength(2);
+    // Filter buttons survive the trim — the view stays interactive
+    expect(result.components).toHaveLength(1);
   });
 
   describe('filter / sort / Top-N state', () => {
@@ -294,7 +337,7 @@ describe('buildMemoryInspectorView', () => {
 
     it('default state matches existing behavior (regression)', () => {
       const result = buildMemoryInspectorView(memoryPayload(), 'req-1', OWNER_CTX);
-      const text = result.files![0].attachment.toString();
+      const text = result.content!;
       // All 5 rows shown
       expect(text).toContain('p1');
       expect(text).toContain('p5');
@@ -312,7 +355,7 @@ describe('buildMemoryInspectorView', () => {
       const payload = memoryPayload();
       payload.memoryRetrieval.memoriesFound = [];
       const result = buildMemoryInspectorView(payload, 'req-1', OWNER_CTX);
-      const text = result.files![0].attachment.toString();
+      const text = result.content!;
 
       expect(result.components).toEqual([]);
       // State annotation should not appear — there's nothing to filter
@@ -326,7 +369,7 @@ describe('buildMemoryInspectorView', () => {
         topN: 0,
         sort: 'score-desc',
       });
-      const text = result.files![0].attachment.toString();
+      const text = result.content!;
       expect(text).toContain('p1');
       expect(text).not.toContain('p2');
       expect(text).toContain('p3');
@@ -340,7 +383,7 @@ describe('buildMemoryInspectorView', () => {
         topN: 0,
         sort: 'score-desc',
       });
-      const text = result.files![0].attachment.toString();
+      const text = result.content!;
       expect(text).not.toContain('p1');
       expect(text).toContain('p2');
       expect(text).not.toContain('p3');
@@ -354,7 +397,7 @@ describe('buildMemoryInspectorView', () => {
         topN: 5,
         sort: 'score-desc',
       });
-      const text = result.files![0].attachment.toString();
+      const text = result.content!;
       expect(text).toContain('showing 5');
     });
 
@@ -364,9 +407,9 @@ describe('buildMemoryInspectorView', () => {
         topN: 0,
         sort: 'score-asc',
       });
-      const text = result.files![0].attachment.toString();
+      const text = result.content!;
       // First row index is 1, lowest-scored memory (p5 with 0.50) should be there
-      const firstRowMatch = text.match(/\| 1 \| (\d+\.\d+) \|/);
+      const firstRowMatch = text.match(/^ 1 (\d+\.\d+) /m);
       expect(firstRowMatch?.[1]).toBe('0.50');
     });
 
@@ -376,7 +419,7 @@ describe('buildMemoryInspectorView', () => {
         topN: 0,
         sort: 'included-first',
       });
-      const text = result.files![0].attachment.toString();
+      const text = result.content!;
       const p1Idx = text.indexOf('p1'); // included
       const p3Idx = text.indexOf('p3'); // included
       const p5Idx = text.indexOf('p5'); // included
@@ -392,7 +435,7 @@ describe('buildMemoryInspectorView', () => {
         topN: 5,
         sort: 'score-asc',
       });
-      const text = result.files![0].attachment.toString();
+      const text = result.content!;
       // Included memories sorted by ascending score: p5 (0.5), p3 (0.7), p1 (0.9)
       // topN=5 covers all 3
       const p5Idx = text.indexOf('p5');
@@ -414,7 +457,7 @@ describe('buildMemoryInspectorView', () => {
         topN: 0,
         sort: 'score-desc',
       });
-      const text = result.files![0].attachment.toString();
+      const text = result.content!;
       expect(text).toContain('No memories match filter');
     });
 
@@ -424,7 +467,7 @@ describe('buildMemoryInspectorView', () => {
         topN: 0,
         sort: 'score-desc',
       });
-      const text = result.files![0].attachment.toString();
+      const text = result.content!;
       expect(text).toContain('[REDACTED]');
       expect(text).not.toContain('p1');
       expect(text).not.toContain('p3');
@@ -433,49 +476,68 @@ describe('buildMemoryInspectorView', () => {
 });
 
 describe('buildTokenBudgetView', () => {
-  it('should return a .txt file', () => {
+  /** Pull the Notes field value off the embed (empty string when absent) */
+  function notesOf(result: ReturnType<typeof buildTokenBudgetView>): string {
+    const field = result.embeds![0].data.fields?.find(f => f.name === 'Notes');
+    return field?.value ?? '';
+  }
+
+  it('should return an embed with no file attachment', () => {
     const payload = createMockPayload();
     const result = buildTokenBudgetView(payload, 'req-123', OWNER_CTX);
 
-    expect(result.files).toHaveLength(1);
-    expect(result.files![0].name).toContain('token-budget');
-    expect(result.files![0].name).toContain('.txt');
+    expect(result.files).toBeUndefined();
+    expect(result.embeds).toHaveLength(1);
+    expect(result.embeds![0].data.title).toBe('\u{1F4CA} Token Budget');
   });
 
-  it('should include context window size', () => {
+  it('should include context window size and a bar per allocation', () => {
     const payload = createMockPayload();
     const result = buildTokenBudgetView(payload, 'req-123', OWNER_CTX);
 
-    const content = result.files![0].attachment.toString();
-    expect(content).toContain('128,000');
+    const desc = result.embeds![0].data.description ?? '';
+    expect(desc).toContain('128,000');
+    expect(desc).toContain('System');
+    expect(desc).toContain('Memory');
+    expect(desc).toContain('History');
+    expect(desc).toContain('Free');
+    expect(desc).toContain('\u2588'); // at least one filled bar segment
   });
 
-  it('should show history warning when > 70%', () => {
+  it('should warn in Notes and switch to the warning color when history > 70%', () => {
     const payload = createMockPayload();
     // 92000 / 128000 = 71.9%
     const result = buildTokenBudgetView(payload, 'req-123', OWNER_CTX);
 
-    const content = result.files![0].attachment.toString();
-    expect(content).toContain('>70%');
+    expect(notesOf(result)).toContain('over 70%');
+    expect(result.embeds![0].data.color).toBe(DISCORD_COLORS.WARNING);
   });
 
-  it('should show dropped counts', () => {
+  it('should use the default color when history is under the warning threshold', () => {
+    const payload = createMockPayload();
+    payload.tokenBudget.historyTokensUsed = 10000;
+    const result = buildTokenBudgetView(payload, 'req-123', OWNER_CTX);
+
+    expect(notesOf(result)).not.toContain('over 70%');
+    expect(result.embeds![0].data.color).toBe(DISCORD_COLORS.BLURPLE);
+  });
+
+  it('should show dropped counts in Notes', () => {
     const payload = createMockPayload();
     const result = buildTokenBudgetView(payload, 'req-123', OWNER_CTX);
 
-    const content = result.files![0].attachment.toString();
-    expect(content).toContain('1 memories');
-    expect(content).toContain('5 history messages');
+    const notes = notesOf(result);
+    expect(notes).toContain('1 memories');
+    expect(notes).toContain('5 history messages');
   });
 
-  it('should not show dropped line when nothing dropped', () => {
+  it('should not show the dropped line when nothing was dropped', () => {
     const payload = createMockPayload();
     payload.tokenBudget.memoriesDropped = 0;
     payload.tokenBudget.historyMessagesDropped = 0;
     const result = buildTokenBudgetView(payload, 'req-123', OWNER_CTX);
 
-    const content = result.files![0].attachment.toString();
-    expect(content).not.toContain('Dropped:');
+    expect(notesOf(result)).not.toContain('Dropped for budget');
   });
 
   it('renders the cross-channel line when crossChannelMessagesIncluded is set', () => {
@@ -483,8 +545,7 @@ describe('buildTokenBudgetView', () => {
     payload.tokenBudget.crossChannelMessagesIncluded = 3;
     const result = buildTokenBudgetView(payload, 'req-123', OWNER_CTX);
 
-    const content = result.files![0].attachment.toString();
-    expect(content).toContain('Cross-channel: 3 msgs included from other channels');
+    expect(notesOf(result)).toContain('Cross-channel: 3 msgs included from other channels');
   });
 
   it('renders "0 msgs" when cross-channel was enabled but produced no eligible messages', () => {
@@ -495,8 +556,7 @@ describe('buildTokenBudgetView', () => {
     payload.tokenBudget.crossChannelMessagesIncluded = 0;
     const result = buildTokenBudgetView(payload, 'req-123', OWNER_CTX);
 
-    const content = result.files![0].attachment.toString();
-    expect(content).toContain('Cross-channel: 0 msgs included from other channels');
+    expect(notesOf(result)).toContain('Cross-channel: 0 msgs included from other channels');
   });
 
   it('omits the cross-channel line when the feature was disabled this turn', () => {
@@ -504,41 +564,51 @@ describe('buildTokenBudgetView', () => {
     // crossChannelMessagesIncluded intentionally undefined
     const result = buildTokenBudgetView(payload, 'req-123', OWNER_CTX);
 
-    const content = result.files![0].attachment.toString();
-    expect(content).not.toContain('Cross-channel:');
+    expect(notesOf(result)).not.toContain('Cross-channel:');
   });
 
-  it('renders the TTS line when ttsProviderUsed is set and no fallback fired', () => {
+  it('does not render voice attribution (moved to its own view)', () => {
+    const payload = createMockPayload();
+    payload.tokenBudget.ttsProviderUsed = 'mistral';
+    payload.tokenBudget.ttsUsedFallback = true;
+    const result = buildTokenBudgetView(payload, 'req-123', OWNER_CTX);
+
+    const desc = result.embeds![0].data.description ?? '';
+    expect(desc).not.toContain('mistral');
+    expect(notesOf(result)).not.toContain('mistral');
+  });
+});
+
+describe('buildVoiceAttributionView', () => {
+  it('reports no voice activity when neither TTS nor a transcript is present', () => {
+    const payload = createMockPayload();
+    const result = buildVoiceAttributionView(payload, 'req-123', OWNER_CTX);
+
+    expect(result.content).toContain('No voice activity');
+    expect(result.chunkedText).toBeUndefined();
+  });
+
+  it('renders the TTS provider without a fallback suffix when no fallback fired', () => {
     const payload = createMockPayload();
     payload.tokenBudget.ttsProviderUsed = 'mistral';
     payload.tokenBudget.ttsUsedFallback = false;
-    const result = buildTokenBudgetView(payload, 'req-123', OWNER_CTX);
+    const result = buildVoiceAttributionView(payload, 'req-123', OWNER_CTX);
 
-    const content = result.files![0].attachment.toString();
-    expect(content).toContain('TTS: mistral');
-    expect(content).not.toContain('(via fallback)');
+    const text = result.chunkedText!.text;
+    expect(text).toContain('**TTS provider:** mistral');
+    expect(text).not.toContain('(via fallback)');
   });
 
-  it('annotates the TTS line with "(via fallback)" when the dispatcher fell through', () => {
+  it('annotates "(via fallback)" when the dispatcher fell through', () => {
     // Regression contract for the silent-fallback misattribution class —
     // user configures Mistral, Mistral fails, voice-engine produces audio,
     // diagnostic UI must surface the divergence so the user can tell.
     const payload = createMockPayload();
     payload.tokenBudget.ttsProviderUsed = 'self-hosted';
     payload.tokenBudget.ttsUsedFallback = true;
-    const result = buildTokenBudgetView(payload, 'req-123', OWNER_CTX);
+    const result = buildVoiceAttributionView(payload, 'req-123', OWNER_CTX);
 
-    const content = result.files![0].attachment.toString();
-    expect(content).toContain('TTS: self-hosted (via fallback)');
-  });
-
-  it('omits the TTS line when ttsProviderUsed is undefined (TTS disabled or failed)', () => {
-    const payload = createMockPayload();
-    // ttsProviderUsed intentionally undefined
-    const result = buildTokenBudgetView(payload, 'req-123', OWNER_CTX);
-
-    const content = result.files![0].attachment.toString();
-    expect(content).not.toContain('TTS:');
+    expect(result.chunkedText!.text).toContain('**TTS provider:** self-hosted _(via fallback)_');
   });
 
   it('omits the "(via fallback)" suffix when ttsUsedFallback is undefined', () => {
@@ -549,11 +619,42 @@ describe('buildTokenBudgetView', () => {
     const payload = createMockPayload();
     payload.tokenBudget.ttsProviderUsed = 'mistral';
     payload.tokenBudget.ttsUsedFallback = undefined;
-    const result = buildTokenBudgetView(payload, 'req-123', OWNER_CTX);
+    const result = buildVoiceAttributionView(payload, 'req-123', OWNER_CTX);
 
-    const content = result.files![0].attachment.toString();
-    expect(content).toContain('TTS: mistral');
-    expect(content).not.toContain('(via fallback)');
+    const text = result.chunkedText!.text;
+    expect(text).toContain('**TTS provider:** mistral');
+    expect(text).not.toContain('(via fallback)');
+  });
+
+  it('renders the voice transcript as a blockquote', () => {
+    const payload = createMockPayload();
+    payload.inputProcessing.voiceTranscript = 'hello from a voice note';
+    const result = buildVoiceAttributionView(payload, 'req-123', OWNER_CTX);
+
+    const text = result.chunkedText!.text;
+    expect(text).toContain('**Voice transcript:**');
+    expect(text).toContain('> hello from a voice note');
+  });
+
+  it('quotes every line of a multi-line transcript', () => {
+    // Discord drops unprefixed continuation lines out of a blockquote
+    const payload = createMockPayload();
+    payload.inputProcessing.voiceTranscript = 'first line\nsecond line';
+    const result = buildVoiceAttributionView(payload, 'req-123', OWNER_CTX);
+
+    const text = result.chunkedText!.text;
+    expect(text).toContain('> first line\n> second line');
+  });
+
+  it('renders transcript-only requests (voice input, no TTS reply)', () => {
+    const payload = createMockPayload();
+    payload.inputProcessing.voiceTranscript = 'transcript only';
+    // ttsProviderUsed intentionally undefined
+    const result = buildVoiceAttributionView(payload, 'req-123', OWNER_CTX);
+
+    const text = result.chunkedText!.text;
+    expect(text).toContain('> transcript only');
+    expect(text).not.toContain('**TTS provider:**');
   });
 });
 
@@ -651,12 +752,12 @@ describe('non-owner redaction', () => {
     it('redacts memory previews while keeping IDs/scores/inclusion visible', () => {
       const payload = createMockPayload();
       const result = buildMemoryInspectorView(payload, 'req-123', NON_OWNER_CTX);
-      const content = result.files![0].attachment.toString();
+      const content = result.content!;
       // Each memory row contains [REDACTED] in the preview column
       expect(content).toContain('[REDACTED]');
       // Score and status remain
       expect(content).toContain('0.95');
-      expect(content).toContain('Included');
+      expect(content).toContain('✓ in');
       // Banner explaining the redaction
       expect(content).toContain('🔒');
       expect(content).toContain('redacted');
@@ -665,7 +766,7 @@ describe('non-owner redaction', () => {
     it('does not show memory preview text when canViewCharacter is false', () => {
       const payload = createMockPayload();
       const result = buildMemoryInspectorView(payload, 'req-123', NON_OWNER_CTX);
-      const content = result.files![0].attachment.toString();
+      const content = result.content!;
       expect(content).not.toContain('Memory preview text');
       expect(content).not.toContain('Low score memory');
     });
@@ -676,7 +777,7 @@ describe('non-owner redaction', () => {
       const payload = createMockPayload();
       payload.postProcessing.thinkingContent = 'I considered the user request and decided to...';
       const result = buildReasoningView(payload, 'req-123', NON_OWNER_CTX);
-      expect(result.content).toContain('considered the user request');
+      expect(result.chunkedText!.text).toContain('considered the user request');
     });
   });
 
@@ -684,12 +785,14 @@ describe('non-owner redaction', () => {
     it('shows full token-budget breakdown even when canViewCharacter is false (purely numeric)', () => {
       const payload = createMockPayload();
       const result = buildTokenBudgetView(payload, 'req-123', NON_OWNER_CTX);
-      const content = result.files![0].attachment.toString();
-      expect(content).toContain('Context Window');
-      expect(content).toContain('System Prompt:');
+      const desc = result.embeds![0].data.description ?? '';
+      expect(desc).toContain('Context window:');
+      expect(desc).toContain('System');
     });
+  });
 
-    it('renders the TTS attribution line for non-owners as well (no ownership gate)', () => {
+  describe('buildVoiceAttributionView', () => {
+    it('renders TTS attribution for non-owners as well (no ownership gate)', () => {
       // Pins the intentional design: TTS provider attribution is a non-sensitive
       // numeric/categorical field, same class as the other token-budget lines,
       // so non-owners also see it. Without this assertion, a future contributor
@@ -698,9 +801,8 @@ describe('non-owner redaction', () => {
       const payload = createMockPayload();
       payload.tokenBudget.ttsProviderUsed = 'mistral';
       payload.tokenBudget.ttsUsedFallback = false;
-      const result = buildTokenBudgetView(payload, 'req-123', NON_OWNER_CTX);
-      const content = result.files![0].attachment.toString();
-      expect(content).toContain('TTS: mistral');
+      const result = buildVoiceAttributionView(payload, 'req-123', NON_OWNER_CTX);
+      expect(result.chunkedText!.text).toContain('**TTS provider:** mistral');
     });
   });
 });

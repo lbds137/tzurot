@@ -1,9 +1,10 @@
 // Extracted from views.ts to stay under the 400-line ESLint limit.
 
-import { AttachmentBuilder, MessageFlags } from 'discord.js';
+import { MessageFlags } from 'discord.js';
 import type { DiagnosticPayload, PipelineStep } from '@tzurot/common-types/types/diagnostic';
 import type { ViewContext } from './viewContext.js';
 import type { DebugViewResult } from './views.js';
+import { escapeFenceBreaks } from '../../utils/fenceEscape.js';
 
 // ---------------------------------------------------------------------------
 // Pipeline Health
@@ -15,13 +16,18 @@ const STATUS_ICON: Record<PipelineStep['status'], string> = {
   error: '❌',
 };
 
+/** Fixed-width rows in a code fence — Discord doesn't render markdown
+ * pipe-tables inline (same solve as the memory inspector / db-sync stats). */
 function renderStepRows(steps: readonly PipelineStep[]): string[] {
-  const rows = ['| Step | Status | Detail |', '|---|---|---|'];
+  const nameWidth = Math.max(...steps.map(s => s.name.length));
+  const rows = ['```'];
   for (const step of steps) {
     const icon = STATUS_ICON[step.status];
-    const reason = step.reason ?? '—';
-    rows.push(`| \`${step.name}\` | ${icon} ${step.status} | ${reason} |`);
+    // Reasons can carry model/content-derived text — fence-escape them
+    const reason = escapeFenceBreaks(step.reason ?? '—');
+    rows.push(`${step.name.padEnd(nameWidth)}  ${icon} ${step.status.padEnd(7)} ${reason}`);
   }
+  rows.push('```');
   return rows;
 }
 
@@ -57,7 +63,7 @@ function renderContextSection(payload: DiagnosticPayload): string[] {
 /** Markdown checklist of post-processing pipeline outcomes. */
 export function buildPipelineHealthView(
   payload: DiagnosticPayload,
-  requestId: string,
+  _requestId: string,
   // intentionally unused — uniform VIEW_BUILDERS signature
   _ctx: ViewContext
 ): DebugViewResult {
@@ -74,14 +80,11 @@ export function buildPipelineHealthView(
 
   lines.push(...renderContextSection(payload));
 
-  const content = lines.join('\n');
   return {
-    files: [
-      new AttachmentBuilder(Buffer.from(content), {
-        name: `pipeline-health-${requestId}.md`,
-        description: 'Post-processing pipeline step outcomes',
-      }),
-    ],
+    chunkedText: {
+      text: lines.join('\n'),
+      continuedHeader: '_(pipeline health continued)_\n',
+    },
     flags: MessageFlags.Ephemeral,
   };
 }
