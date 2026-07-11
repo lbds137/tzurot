@@ -4,7 +4,7 @@
  */
 
 import type { AutocompleteInteraction } from 'discord.js';
-import { isFreeModel } from '@tzurot/common-types/constants/ai';
+import { isFreeModel, isFreeTierEligibleModel } from '@tzurot/common-types/constants/ai';
 import { DISCORD_LIMITS } from '@tzurot/common-types/constants/discord';
 import {
   AUTOCOMPLETE_BADGES,
@@ -104,8 +104,10 @@ async function handlePresetAutocomplete(
       return false;
     }
 
-    // For guests, only show free models
-    if (isGuestMode && !isFreeModel(c.model)) {
+    // For guests, only show models a free user may run — literal free
+    // models plus the conditionally-free z.ai piggyback model (admission
+    // decides at runtime; denial degrades to the free router).
+    if (isGuestMode && !isFreeTierEligibleModel(c.model)) {
       return false;
     }
 
