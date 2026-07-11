@@ -7,7 +7,7 @@
  */
 
 import { EmbedBuilder } from 'discord.js';
-import { isFreeModel } from '@tzurot/common-types/constants/ai';
+import { isFreeTierEligibleModel } from '@tzurot/common-types/constants/ai';
 import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { type UserClient } from '@tzurot/clients';
@@ -112,7 +112,7 @@ export async function checkGuestModePremiumAccess(
   }
 
   const selectedConfig = configsResult.data.configs.find(c => c.id === configId);
-  if (selectedConfig && !isFreeModel(selectedConfig.model)) {
+  if (selectedConfig && !isFreeTierEligibleModel(selectedConfig.model)) {
     const embed = new EmbedBuilder()
       .setTitle('❌ Premium Model Not Available')
       .setColor(DISCORD_COLORS.ERROR)

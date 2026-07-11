@@ -17,16 +17,6 @@ vi.mock('./autocomplete.js', () => ({
   UNLOCK_MODELS_VALUE: '__UNLOCK_ALL_MODELS__',
 }));
 
-vi.mock('@tzurot/common-types/constants/ai', async () => {
-  const actual = await vi.importActual<typeof import('@tzurot/common-types/constants/ai')>(
-    '@tzurot/common-types/constants/ai'
-  );
-  return {
-    ...actual,
-    isFreeModel: vi.fn((model: string) => model.startsWith('free-')),
-  };
-});
-
 vi.mock('@tzurot/common-types/utils/logger', async () => {
   const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
     '@tzurot/common-types/utils/logger'
@@ -96,7 +86,9 @@ describe('guestModeValidation', () => {
     it('should not block guest user selecting free model', async () => {
       stub.listWalletKeys.mockResolvedValue(makeOk({ keys: [] }));
       stub.listUserLlmConfigs.mockResolvedValue(
-        makeOk({ configs: [{ id: 'config-1', name: 'Free Config', model: 'free-gpt' }] })
+        makeOk({
+          configs: [{ id: 'config-1', name: 'Free Config', model: 'meta/llama-scout:free' }],
+        })
       );
 
       const result = await checkGuestModePremiumAccess(
@@ -106,6 +98,23 @@ describe('guestModeValidation', () => {
       );
       expect(result.blocked).toBe(false);
       expect(result).toMatchObject({ blocked: false, reason: 'guest-free-model' });
+    });
+
+    it('does not block a guest selecting the z.ai piggyback preset (conditionally free)', async () => {
+      // GLM-4.5-Air is free-tier ELIGIBLE (admission decides at runtime) —
+      // the picker gate must not bounce it as premium.
+      stub.listWalletKeys.mockResolvedValue(makeOk({ keys: [] }));
+      stub.listUserLlmConfigs.mockResolvedValue(
+        makeOk({ configs: [{ id: 'config-1', name: 'GLM 4.5 Air', model: 'z-ai/glm-4.5-air' }] })
+      );
+
+      const result = await checkGuestModePremiumAccess(
+        createMockContext(),
+        'config-1',
+        userClient()
+      );
+      expect(result.blocked).toBe(false);
+      expect(mockEditReply).not.toHaveBeenCalled();
     });
 
     it('should block guest user selecting premium model', async () => {
