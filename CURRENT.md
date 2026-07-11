@@ -8,7 +8,8 @@
 
 - **PR #1581** — db-sync output rework (summary embed + attached `db-sync-report.md`, row-level deletion detail, dead `changes` field removed) + tombstone-trigger drift guard (`validateTombstoneTriggers`, sync-time AND build-time via PGLite) + dead `softDeleteMessage` deleted. Consolidation verdict recorded in the PR body: the two tombstone systems stay distinct (soft-delete capture point + bulk write amplification).
 - **PR #1582** — `commands:audit` vocabulary registrations (`facts`, `avatar-clear`); weekly-audit WARN cleared.
-- **PR #1583 (open)** — weekly-audit security surface: `GH_TOKEN` env + first-informative-stderr-line fix. Watch next Saturday's run: if the Dependabot ALERTS call still 403s under GITHUB_TOKEN, switch that call to a fine-grained PAT secret.
+- **PR #1583** — weekly-audit security surface: `GH_TOKEN` env + first-informative-stderr-line fix. Watch next Saturday's run (403 → fine-grained PAT; follow-up row filed).
+- **PR #1584** — z.ai GLM-4.5-Air free-tier piggyback, SHIPS DARK behind `ZAI_FREE_TIER_ENABLED`. Admission chain (kill switch / window-exhausted cooldown / 75% live-meter headroom / zaifreeq:* fair share), silent degrade to `openrouter/free`, paid-leak guard on all guest paths, /admin usage plan meters, glm-4.5-air selectable as free default. **Owner dev-enable steps**: `/preset free-default` → pick the GLM-4.5-Air preset; set `ZAI_FREE_TIER_ENABLED=true` on dev ai-worker; guest smoke + watch `/admin usage`. Structure-test exclusion narrowed: `jobs/handlers/pipeline/**` now enforces colocated tests (the gap the round-2 review exposed).
 - Docs: four orphaned reference docs linked from the docs index (audit report-only item).
 - **Memory Phase 1a remains PARKED** on `feat/memory-hybrid-retrieval` (evidence gate: real-scale goldens).
 

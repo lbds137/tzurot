@@ -370,25 +370,6 @@ Several behaviors are coupled to "personal mode" (persona present): cross-channe
 **Why icebox (not a quick win)**: this is an architectural addition, not a tweak — new schema, new cascade-resolution semantics in `historyCutoff.ts`, a new command surface, and a migration. The weigh-in bug is fixed independently (epoch → `undefined` for weigh-in); this item is the _generalization_, only worth doing if channel/server-level reset becomes a real user need. **Promote when**: a user asks for channel/server-wide context reset, OR a second channel-scoped operation needs an epoch and the "no coarse epoch exists" gap bites again. Surfaced 2026-06-09 (user) during the weigh-in epoch-semantics fix.
 
 
-#### `[FEAT]` Free-tier piggyback on the owner's z.ai coding plan — GLM-4.5-Air only
-
-**Problem / motivation**: Free (guest) users currently fall back to the system `OPENROUTER_API_KEY` restricted to `:free` OpenRouter models (`ApiKeyResolver.resolveApiKey` → system key + `isGuestMode: true`). GLM-4.5-Air is a meaningfully better model than the free OpenRouter tier, and the owner's z.ai coding-plan subscription bills it at the cheapest 1× quota multiplier — so letting free users reach **only** GLM-4.5-Air via the owner's z.ai subscription is a low-cost quality bump for the free tier.
-
-**Action**:
-1. Add a **system z.ai coding key** env var (e.g. `ZAI_CODING_API_KEY`), the z.ai analogue of `OPENROUTER_API_KEY`. Today there is no system z.ai key — `ModelFactory.ts:430` explicitly notes the system `OPENROUTER_API_KEY` belongs to OpenRouter, not z.ai.
-2. In the routing layer (`ProviderRouter` / `ApiKeyResolver`), when a user has **no z.ai BYOK key** AND the requested model is **`glm-4.5-air`** (bare or `z-ai/`-prefixed), resolve the system z.ai key and route to z.ai-direct — instead of the OpenRouter guest fallback. All other models keep the existing free-OpenRouter behavior.
-3. Hard-restrict to `glm-4.5-air` only (NOT the 200K/1M GLM-5 tiers) so the owner's quota/cost exposure stays bounded to the cheapest model.
-
-**Constraints / things to design**:
-- **Quota/cost exposure**: free users consume the owner's paid z.ai quota. 1× multiplier + single-model restriction bounds per-request cost, but volume is unbounded without limits — reuse the existing OpenRouter abuse guards (`RateLimitCache`, `CreditExhaustionCache`) for the system z.ai key, and decide a per-user/global ceiling.
-- **Secret handling**: the z.ai key is a secret — Railway env var, never logged (same discipline as `OPENROUTER_API_KEY`).
-- **Interaction with shipped routing**: the catalog already has `glm-4.5-air` (128000) and the promotion machinery exists; this adds a *guest* path that uses the system z.ai key rather than a user BYOK key, and should set `isGuestMode` appropriately so other free-model restrictions still apply.
-- **Model gating**: `glm-4.5-air` isn't a `:free` OpenRouter model, so guest model-allowlist logic (`GUEST_MODE` / `isFreeModel`) needs a carve-out for this specific z.ai-direct case.
-
-**Design proposal**: [`docs/proposals/backlog/free-tier-zai-piggyback.md`](../../docs/proposals/backlog/free-tier-zai-piggyback.md) — full design (system key, routing carve-out, per-user + global ceilings, credit-exhaustion handling, `isGuestMode` interaction, rollout behind a default-off flag).
-
-**SHIPPED (build 2026-07-11, entry leaves at merge)**: admission-gated guest upgrade in AuthStep (75% headroom vs the live plan meter, 1000/day static budget, fair-share allocator over `zaifreeq:*`, kill switch + window-exhausted cooldown from the 429 business-code classifier, silent degrade to `openrouter/free`). Ships dark behind `ZAI_FREE_TIER_ENABLED`. Owner decisions + verified quota-endpoint shape recorded in the proposal.
-
 #### `[LIFT]` Structural guard for the eslint flat-config block-ordering contract
 
 **Problem / motivation**: The `*.int.test.ts` block in `eslint.config.js` (sets `no-restricted-syntax: 'off'`) relies on being the **last** block matching `*.int.test.ts` — flat config is last-match-wins per rule, and it must override the routes-scoped block that would otherwise re-apply the identity/discordId bans to int tests. The invariant is documented in a comment but enforced by convention only: if a future block is appended that matches `*.int.test.ts` and sets `no-restricted-syntax`, the bans silently reassert and int-test fixtures start failing lint in a confusing way. Flagged twice by `claude-review` on PR #1226 ("probably overkill right now, just flagging it").
