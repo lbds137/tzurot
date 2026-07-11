@@ -122,22 +122,27 @@ describe('central route manifest', () => {
     }
   });
 
-  it('timeoutMs values are integers in [1000, 60_000]', () => {
+  it('timeoutMs values are integers in [1000, 60_000] (LONG_SYNC exemptions aside)', () => {
     // Bounds:
     //   - lower 1000ms: catches the "typed seconds instead of ms"
     //     mistake (`timeoutMs: 30` → meant 30s, got 30ms)
     //   - upper 60_000ms (1 min): catches the inverse mistake AND
-    //     the "this should really be async/streaming" anti-pattern;
-    //     largest named constant is GATEWAY_TIMEOUTS.BULK_OPERATION
-    //     = 30s, so 60s is 2x headroom for one-off future cases
+    //     the "this should really be async/streaming" anti-pattern
     //   - Number.isInteger: rejects NaN, decimals, Infinity
-    // A route that genuinely needs >60s should be a BullMQ job, not
-    // a sync gateway request.
+    // A route that genuinely needs >60s should be a BullMQ job, not a
+    // sync gateway request. The two DATA-SCALED owner maintenance routes
+    // are the deliberate exception (owner decision after a fact-carrying
+    // db-sync outgrew 30s and false-failed): they get LONG_SYNC (5 min,
+    // inside Discord's 15-min deferred window), and the async-job
+    // refactor is filed with a promote-when trigger. Adding a THIRD
+    // route here is that trigger firing — build the job instead.
+    const LONG_SYNC_EXEMPT = new Set(['dbSync', 'cleanup']);
     for (const [key, route] of entries) {
       if (route.timeoutMs !== undefined) {
+        const cap = LONG_SYNC_EXEMPT.has(key) ? GATEWAY_TIMEOUTS.LONG_SYNC : 60_000;
         expect(Number.isInteger(route.timeoutMs), `${key} timeoutMs integer`).toBe(true);
         expect(route.timeoutMs, `${key} timeoutMs >= 1000`).toBeGreaterThanOrEqual(1000);
-        expect(route.timeoutMs, `${key} timeoutMs <= 60_000`).toBeLessThanOrEqual(60_000);
+        expect(route.timeoutMs, `${key} timeoutMs <= ${cap}`).toBeLessThanOrEqual(cap);
       }
     }
   });

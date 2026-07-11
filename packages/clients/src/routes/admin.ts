@@ -89,11 +89,10 @@ export const adminRoutes = {
   // ============================================================================
 
   /**
-   * POST /api/admin/db-sync — Apply pending Prisma migrations.
+   * POST /api/admin/db-sync — Bidirectional dev↔prod data sync.
    *
-   * Matches the legacy `adminFetch('admin/db-sync')` budget so the typed-client
-   * cutover preserves the existing timeout headroom (the explicit
-   * BULK_OPERATION tier is explained at the timeoutMs field below).
+   * LONG_SYNC tier (see the timeoutMs field below) — duration scales with
+   * table size, so this route outgrew the write-tier budgets.
    */
   dbSync: {
     audience: 'admin',
@@ -102,26 +101,28 @@ export const adminRoutes = {
     id: 'dbSync',
     input: DbSyncSchema,
     output: DbSyncResponseSchema,
-    // db-sync scans every table + flushes writes, so its duration scales with
-    // data and can exceed the DEFERRED budget under real load. If it ever
-    // approaches the bulk-operation budget, make db-sync an async job rather
-    // than raising this further.
-    timeoutMs: GATEWAY_TIMEOUTS.BULK_OPERATION,
+    // db-sync scans every table + flushes writes, so its duration scales
+    // with data: a fact-carrying sync outgrew BULK_OPERATION (succeeded
+    // server-side after the client aborted). LONG_SYNC covers the realistic
+    // horizon; past ~2 min observed, the filed async-job refactor takes over
+    // (backlog/cold/follow-ups.md) — do not raise this again.
+    timeoutMs: GATEWAY_TIMEOUTS.LONG_SYNC,
   },
 
   /**
    * POST /api/admin/cleanup — Purge orphan history rows + tombstones.
    *
-   * Slow route — duration is data-dependent (could span tens of seconds
-   * for large purges). Uses BULK_OPERATION (30s) so the typed-client
-   * cutover doesn't silently truncate the orphan-sweep work.
+   * Slow route — duration is data-dependent: the retention sweep loops
+   * unbounded over aged rows, so large purges scale past tens of seconds.
+   * Same data-scaled class as db-sync — shares LONG_SYNC and the same
+   * filed async-job escape hatch.
    */
   cleanup: {
     audience: 'admin',
     method: 'post',
     path: '/cleanup',
     id: 'cleanup',
-    timeoutMs: GATEWAY_TIMEOUTS.BULK_OPERATION,
+    timeoutMs: GATEWAY_TIMEOUTS.LONG_SYNC,
     // Inline schema (not extracted to schemas/api/) because the shape is
     // route-local and there's no second consumer; extracting would add
     // an indirection without buying reusability.
