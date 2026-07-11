@@ -4,8 +4,12 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import { checkSchemaVersions, validateSyncConfig } from './syncValidation.js';
-import { EXCLUDED_TABLES } from '../config/syncTables.js';
+import {
+  checkSchemaVersions,
+  validateSyncConfig,
+  validateTombstoneTriggers,
+} from './syncValidation.js';
+import { EXCLUDED_TABLES, SYNC_CONFIG } from '../config/syncTables.js';
 import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 
 const clientAt = (migration: string) =>
@@ -135,5 +139,88 @@ describe('validateSyncConfig — table existence + uuid-column parity', () => {
     expect(warnings).toContain(
       "Table 'personas' has 'owner_id' in SYNC_CONFIG.uuidColumns but it's not a UUID column in schema (or doesn't exist)"
     );
+  });
+});
+
+describe('validateTombstoneTriggers — per-table trigger existence + pk-arg-order parity', () => {
+  const EXEMPT = ['conversation_history', 'conversation_history_tombstones', 'sync_tombstones'];
+
+  /** The healthy inventory: one trigger row per non-exempt SYNC_CONFIG table,
+   * TG_ARGV in SYNC_CONFIG.pk order — what a correctly-migrated DB reports. */
+  function healthyTriggerRows(): { event_object_table: string; action_statement: string }[] {
+    return Object.entries(SYNC_CONFIG)
+      .filter(([table]) => !EXEMPT.includes(table))
+      .map(([table, config]) => ({
+        event_object_table: table,
+        action_statement: `EXECUTE FUNCTION sync_tombstone_capture(${(typeof config.pk === 'string'
+          ? [config.pk]
+          : config.pk
+        )
+          .map(col => `'${col}'`)
+          .join(', ')})`,
+      }));
+  }
+
+  function triggerClient(
+    rows: { event_object_table: string; action_statement: string }[]
+  ): PrismaClient {
+    return {
+      $queryRaw: vi.fn().mockImplementation((strings: TemplateStringsArray) => {
+        const query = strings.join('');
+        if (query.includes('information_schema.triggers')) {
+          return Promise.resolve(rows);
+        }
+        return Promise.resolve([]);
+      }),
+    } as unknown as PrismaClient;
+  }
+
+  it('stays silent when every table has its trigger in pk order on both sides', async () => {
+    const warnings = await validateTombstoneTriggers(
+      triggerClient(healthyTriggerRows()),
+      triggerClient(healthyTriggerRows())
+    );
+    expect(warnings).toEqual([]);
+  });
+
+  it('warns naming the SIDE when a trigger is missing on prod only', async () => {
+    const prodRows = healthyTriggerRows().filter(r => r.event_object_table !== 'personas');
+    const warnings = await validateTombstoneTriggers(
+      triggerClient(healthyTriggerRows()),
+      triggerClient(prodRows)
+    );
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain('personas: no sync_tombstone trigger on prod');
+    expect(warnings[0]).toContain('resurrection risk');
+  });
+
+  it('warns on TG_ARGV order not matching SYNC_CONFIG.pk (composite table)', async () => {
+    const devRows = healthyTriggerRows().map(r =>
+      r.event_object_table === 'personality_owners'
+        ? {
+            ...r,
+            action_statement:
+              "EXECUTE FUNCTION sync_tombstone_capture('user_id', 'personality_id')",
+          }
+        : r
+    );
+    const warnings = await validateTombstoneTriggers(
+      triggerClient(devRows),
+      triggerClient(healthyTriggerRows())
+    );
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain(
+      'personality_owners: trigger pk order on dev is (user_id, personality_id)'
+    );
+    expect(warnings[0]).toContain('SYNC_CONFIG.pk is (personality_id, user_id)');
+  });
+
+  it('never flags the exempt tables (bespoke conversation_history path + the ledgers)', async () => {
+    // Healthy inventory deliberately contains NO rows for the exempt tables.
+    const warnings = await validateTombstoneTriggers(
+      triggerClient(healthyTriggerRows()),
+      triggerClient(healthyTriggerRows())
+    );
+    expect(warnings.filter(w => EXEMPT.some(t => w.startsWith(`${t}:`)))).toEqual([]);
   });
 });

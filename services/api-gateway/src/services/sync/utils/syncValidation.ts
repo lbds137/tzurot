@@ -171,16 +171,9 @@ export async function validateSyncConfig(
   // Phantom EXCLUDED_TABLES: an entry whose table no longer exists in the schema.
   // It produces neither a warning (the exclusion suppresses the uncategorized-table
   // check above) nor an info line (info only fires for excluded tables that DO exist),
-  // so a stale exclusion rots silently. Detect it against the FULL table list — not the
-  // UUID-only schemaMap, which would false-flag a real excluded table that happens to
-  // have no UUID column.
-  const allTables = await devClient.$queryRaw<{ table_name: string }[]>`
-    SELECT table_name
-    FROM information_schema.tables
-    WHERE table_schema = 'public'
-      AND table_type = 'BASE TABLE'
-  `;
-  const schemaTableNames = new Set(allTables.map(r => r.table_name));
+  // so a stale exclusion rots silently. Detect it against the FULL table list
+  // (existingTables above) — not the UUID-only schemaMap, which would false-flag
+  // a real excluded table that happens to have no UUID column.
   for (const tableName of Object.keys(EXCLUDED_TABLES)) {
     // Skip Prisma internal tables, mirroring the uncategorized-table loop above —
     // they're never synced, so an `_prisma_*` exclusion (were one ever added) is a
@@ -188,7 +181,7 @@ export async function validateSyncConfig(
     if (tableName.startsWith('_prisma')) {
       continue;
     }
-    if (!schemaTableNames.has(tableName)) {
+    if (!existingTables.has(tableName)) {
       warnings.push(`Table '${tableName}' is in EXCLUDED_TABLES but doesn't exist in the schema`);
     }
   }
@@ -204,6 +197,91 @@ export async function validateSyncConfig(
   }
 
   return { warnings, info };
+}
+
+/** Synced tables that intentionally carry NO sync_tombstone trigger:
+ * conversation_history keeps its bespoke soft-delete-time tombstones (a DB
+ * trigger can't see soft-deletes), and the two tombstone tables are the
+ * ledgers themselves. */
+const TOMBSTONE_TRIGGER_EXEMPT = new Set<string>([
+  'conversation_history',
+  'conversation_history_tombstones',
+  'sync_tombstones',
+]);
+
+/** Extract the pk-column args from a trigger's
+ * `EXECUTE FUNCTION sync_tombstone_capture('col_a', 'col_b')` statement. */
+function parseTriggerArgs(actionStatement: string): string[] {
+  const match = /sync_tombstone_capture\s*\(([^)]*)\)/.exec(actionStatement);
+  if (match === null) {
+    return [];
+  }
+  return match[1]
+    .split(',')
+    .map(arg => arg.trim().replace(/^'|'$/g, ''))
+    .filter(arg => arg.length > 0);
+}
+
+async function loadTombstoneTriggers(client: PrismaClient): Promise<Map<string, string[]>> {
+  const rows = await client.$queryRaw<{ event_object_table: string; action_statement: string }[]>`
+    SELECT event_object_table, action_statement
+    FROM information_schema.triggers
+    WHERE trigger_schema = 'public'
+      AND event_manipulation = 'DELETE'
+      AND trigger_name LIKE 'sync_tombstone_%'
+  `;
+  return new Map(rows.map(row => [row.event_object_table, parseTriggerArgs(row.action_statement)]));
+}
+
+/**
+ * Drift guard for the deletion-tombstone system: every synced table (minus
+ * the exempt three) must have its sync_tombstone_<table> AFTER DELETE trigger
+ * on BOTH sides, with TG_ARGV column order matching SYNC_CONFIG.pk. A table
+ * added to SYNC_CONFIG without a hand-written trigger migration — or a pk
+ * array reordered without its migration — silently regresses to the
+ * pre-tombstone resurrection behavior; this check makes that loud on every
+ * sync instead. Checks both clients because the trigger must fire wherever
+ * the delete happens.
+ */
+export async function validateTombstoneTriggers(
+  devClient: PrismaClient,
+  prodClient: PrismaClient
+): Promise<string[]> {
+  const warnings: string[] = [];
+  const [devTriggers, prodTriggers] = await Promise.all([
+    loadTombstoneTriggers(devClient),
+    loadTombstoneTriggers(prodClient),
+  ]);
+
+  for (const [tableName, config] of Object.entries(SYNC_CONFIG)) {
+    if (TOMBSTONE_TRIGGER_EXEMPT.has(tableName)) {
+      continue;
+    }
+    const expected = typeof config.pk === 'string' ? [config.pk] : [...config.pk];
+    const sides: [string, Map<string, string[]>][] = [
+      ['dev', devTriggers],
+      ['prod', prodTriggers],
+    ];
+    for (const [side, triggers] of sides) {
+      const args = triggers.get(tableName);
+      if (args === undefined) {
+        warnings.push(
+          `${tableName}: no sync_tombstone trigger on ${side} — hard deletes there will NOT propagate (resurrection risk); add the trigger in a migration`
+        );
+        continue;
+      }
+      if (args.join('|') !== expected.join('|')) {
+        warnings.push(
+          `${tableName}: trigger pk order on ${side} is (${args.join(', ')}) but SYNC_CONFIG.pk is (${expected.join(', ')}) — tombstone keys will mismatch; align migration and config`
+        );
+      }
+    }
+  }
+
+  if (warnings.length > 0) {
+    logger.warn({ warnings }, 'Tombstone trigger validation warnings');
+  }
+  return warnings;
 }
 
 /**

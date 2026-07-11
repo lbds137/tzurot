@@ -19,9 +19,36 @@ describe('DbSyncResponseSchema', () => {
     expect(DbSyncResponseSchema.safeParse(validResponse).success).toBe(true);
   });
 
-  it('accepts an optional dry-run changes preview', () => {
-    const withChanges = { ...validResponse, changes: { users: { willInsert: 2 } } };
-    expect(DbSyncResponseSchema.safeParse(withChanges).success).toBe(true);
+  it('deletions survive the parse (strip-mode pin — the report file renders them)', () => {
+    const parsed = DbSyncResponseSchema.safeParse({
+      ...validResponse,
+      deletions: [{ table: 'personas', rowKey: 'aaaa-1111', target: 'prod' }],
+      deletionsTruncated: true,
+    });
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      expect(parsed.data.deletions).toEqual([
+        { table: 'personas', rowKey: 'aaaa-1111', target: 'prod' },
+      ]);
+      expect(parsed.data.deletionsTruncated).toBe(true);
+    }
+  });
+
+  it('an old-gateway response WITHOUT deletions still parses (deploy-window default)', () => {
+    const parsed = DbSyncResponseSchema.safeParse(validResponse);
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      expect(parsed.data.deletions).toEqual([]);
+      expect(parsed.data.deletionsTruncated).toBe(false);
+    }
+  });
+
+  it('rejects a deletion entry with an unknown target side', () => {
+    const bad = {
+      ...validResponse,
+      deletions: [{ table: 'personas', rowKey: 'aaaa-1111', target: 'staging' }],
+    };
+    expect(DbSyncResponseSchema.safeParse(bad).success).toBe(false);
   });
 
   it('rejects the old minimal shape (stats/warnings/info now required)', () => {

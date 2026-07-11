@@ -46,7 +46,11 @@
 import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { SYNC_CONFIG, SYNC_TABLE_ORDER, type TableSyncConfig } from './sync/config/syncTables.js';
-import { checkSchemaVersions, validateSyncConfig } from './sync/utils/syncValidation.js';
+import {
+  checkSchemaVersions,
+  validateSyncConfig,
+  validateTombstoneTriggers,
+} from './sync/utils/syncValidation.js';
 import { loadTombstoneIds, deleteMessagesWithTombstones } from './sync/utils/tombstoneUtils.js';
 import {
   loadSyncTombstones,
@@ -93,6 +97,13 @@ const SYNC_DEFERRED_CONSTRAINTS = [
 const SYNC_TX_TIMEOUT_MS = 600_000;
 const SYNC_TX_MAX_WAIT_MS = 10_000;
 
+/** One row a tombstone marks for removal, named by the side that loses it. */
+interface DeletionDetail {
+  table: string;
+  rowKey: string;
+  target: 'dev' | 'prod';
+}
+
 interface SyncResult {
   schemaVersion: string;
   stats: Record<
@@ -101,7 +112,11 @@ interface SyncResult {
   >;
   warnings: string[];
   info: string[];
-  changes?: unknown;
+  /** Per-row deletion preview/record — the destructive class gets row-level
+   * visibility (dry-run: would-deletes; real run: the same queued set). */
+  deletions: DeletionDetail[];
+  /** True when `deletions` was capped at DELETION_DETAIL_CAP rows. */
+  deletionsTruncated: boolean;
 }
 
 interface SyncOptions {
@@ -163,12 +178,16 @@ export class DatabaseSyncService {
       logger.info({ schemaVersion }, 'Schema versions verified');
 
       const configValidation = await validateSyncConfig(this.devClient, SYNC_CONFIG);
+      // Drift guard: every synced table's tombstone trigger present on BOTH
+      // sides with SYNC_CONFIG.pk arg order — a miss means silent resurrection
+      // regression for that table, so it warns on every sync until fixed.
+      const triggerWarnings = await validateTombstoneTriggers(this.devClient, this.prodClient);
 
       const stats: Record<
         string,
         { devToProd: number; prodToDev: number; conflicts: number; deleted: number }
       > = {};
-      const warnings: string[] = [...configValidation.warnings];
+      const warnings: string[] = [...configValidation.warnings, ...triggerWarnings];
       const info: string[] = [...configValidation.info];
 
       const tombstoneIds = await loadTombstoneIds(this.devClient, this.prodClient);
@@ -269,7 +288,11 @@ export class DatabaseSyncService {
 
       logger.info({ stats }, 'Sync complete');
 
-      return { schemaVersion, stats, warnings, info };
+      const { deletions, deletionsTruncated } = buildDeletionDetails(
+        devBoundDeletes,
+        prodBoundDeletes
+      );
+      return { schemaVersion, stats, warnings, info, deletions, deletionsTruncated };
     } finally {
       await this.devClient.$disconnect();
       await this.prodClient.$disconnect();
@@ -438,6 +461,31 @@ export class DatabaseSyncService {
 
     return totals;
   }
+}
+
+/** Response-size backstop for the per-row deletion detail. Realistic delete
+ * sets are tiny (a handful of presets/personas); the cap only bites on a
+ * pathological run, and the flag + log make the truncation loud. */
+const DELETION_DETAIL_CAP = 500;
+
+/** Flatten the two per-direction delete queues into the response's row-level
+ * detail, capped at DELETION_DETAIL_CAP (never silently). */
+function buildDeletionDetails(
+  devBound: PendingDelete[],
+  prodBound: PendingDelete[]
+): { deletions: DeletionDetail[]; deletionsTruncated: boolean } {
+  const all: DeletionDetail[] = [
+    ...devBound.map(d => ({ table: d.tableName, rowKey: d.rowKey, target: 'dev' as const })),
+    ...prodBound.map(d => ({ table: d.tableName, rowKey: d.rowKey, target: 'prod' as const })),
+  ];
+  const deletionsTruncated = all.length > DELETION_DETAIL_CAP;
+  if (deletionsTruncated) {
+    logger.warn(
+      { total: all.length, cap: DELETION_DETAIL_CAP },
+      'Deletion detail truncated in sync response'
+    );
+  }
+  return { deletions: all.slice(0, DELETION_DETAIL_CAP), deletionsTruncated };
 }
 
 /**

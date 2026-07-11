@@ -86,8 +86,8 @@ describe('ConversationSyncService Integration Test', () => {
     await pglite.close();
   }, 30000);
 
-  describe('softDeleteMessage', () => {
-    it('should soft delete a single message', async () => {
+  describe('softDeleteMessages (single row)', () => {
+    it('should soft delete a single message and write its tombstone', async () => {
       // Add a message
       await historyService.addMessage({
         channelId: testChannelId,
@@ -103,21 +103,32 @@ describe('ConversationSyncService Integration Test', () => {
       const history = await historyService.getChannelHistory(testChannelId, 10);
       const messageId = history[0].id;
 
-      // Soft delete
-      const result = await syncService.softDeleteMessage(messageId);
+      // Soft delete via the production path (the plural is the only writer;
+      // the tombstone-less singular was deleted as a resurrection landmine)
+      const result = await syncService.softDeleteMessages([messageId]);
 
-      expect(result).toBe(true);
+      expect(result).toBe(1);
 
       // Verify message is soft deleted (deleted_at is set)
       const rows = await prisma.$queryRaw<{ deleted_at: Date | null }[]>`
         SELECT deleted_at FROM conversation_history WHERE id = ${messageId}::uuid
       `;
       expect(rows[0].deleted_at).not.toBeNull();
+
+      // And the anti-resurrection tombstone exists
+      const tombstones = await prisma.$queryRaw<{ id: string }[]>`
+        SELECT id FROM conversation_history_tombstones WHERE id = ${messageId}::uuid
+      `;
+      expect(tombstones).toHaveLength(1);
     });
 
-    it('should return false for non-existent message', async () => {
-      const result = await syncService.softDeleteMessage('00000000-0000-0000-0000-000000000099');
-      expect(result).toBe(false);
+    it('no-ops (no phantom tombstone) for a non-existent message', async () => {
+      await syncService.softDeleteMessages(['00000000-0000-0000-0000-000000000099']);
+      const tombstones = await prisma.$queryRaw<{ id: string }[]>`
+        SELECT id FROM conversation_history_tombstones
+        WHERE id = ${'00000000-0000-0000-0000-000000000099'}::uuid
+      `;
+      expect(tombstones).toHaveLength(0);
     });
   });
 
@@ -167,8 +178,8 @@ describe('ConversationSyncService Integration Test', () => {
       const row = history.find(m => m.content === 'Turn whose deletion must propagate');
       if (row === undefined) throw new Error('seed row missing');
 
-      const result = await syncService.softDeleteMessage(row.id);
-      expect(result).toBe(true);
+      const result = await syncService.softDeleteMessages([row.id]);
+      expect(result).toBe(1);
 
       const memories = await prisma.memory.findMany({
         where: {
@@ -378,7 +389,7 @@ describe('ConversationSyncService Integration Test', () => {
 
       // Soft delete it
       const history = await historyService.getChannelHistory(testChannelId, 10);
-      await syncService.softDeleteMessage(history[0].id);
+      await syncService.softDeleteMessages([history[0].id]);
 
       // Should still find it by Discord ID
       const result = await syncService.getMessagesByDiscordIds(['discord-deleted']);
@@ -481,7 +492,7 @@ describe('ConversationSyncService Integration Test', () => {
       // Soft delete first message
       const history = await historyService.getChannelHistory(testChannelId, 10);
       const deleteMsg = history.find(h => h.content === 'Will be deleted');
-      await syncService.softDeleteMessage(deleteMsg!.id);
+      await syncService.softDeleteMessages([deleteMsg!.id]);
 
       // Query time window
       const result = await syncService.getMessagesInTimeWindow(

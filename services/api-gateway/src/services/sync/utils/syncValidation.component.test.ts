@@ -15,7 +15,7 @@ import { PrismaClient } from '@tzurot/common-types/services/prisma';
 import type { PGlite } from '@electric-sql/pglite';
 import { PrismaPGlite } from 'pglite-prisma-adapter';
 import { createTestPGlite, loadPGliteSchema } from '@tzurot/test-utils';
-import { validateSyncConfig } from './syncValidation.js';
+import { validateSyncConfig, validateTombstoneTriggers } from './syncValidation.js';
 import { SYNC_CONFIG } from '../config/syncTables.js';
 
 describe('syncValidation guard — SYNC_CONFIG covers the live schema', () => {
@@ -51,6 +51,20 @@ describe('syncValidation guard — SYNC_CONFIG covers the live schema', () => {
     // schema. A non-empty array confirms the exclusion list isn't ENTIRELY phantom;
     // individual phantom entries are caught by the zero-warnings assertion above.
     expect(info.length).toBeGreaterThan(0);
+  });
+
+  it('every synced table has its sync_tombstone trigger in SYNC_CONFIG.pk order (real triggers)', async () => {
+    // BUILD-TIME version of the runtime drift guard: a table added to
+    // SYNC_CONFIG without a hand-written trigger migration — or a composite pk
+    // reordered without its migration — fails HERE in CI, not just as a
+    // warning when someone next runs /admin db-sync. PGLite carries the real
+    // triggers via the generate-schema harvester, so this checks the same
+    // information_schema.triggers surface production does.
+    const warnings = await validateTombstoneTriggers(prisma, prisma);
+    expect(
+      warnings,
+      `tombstone triggers out of sync with SYNC_CONFIG:\n  ${warnings.join('\n  ')}`
+    ).toEqual([]);
   });
 
   describe('vector-table column-list guards — each explicit SELECT list matches the live schema', () => {
