@@ -17,6 +17,10 @@
           {
             "type": "command",
             "command": ".claude/hooks/pr-merge-review-check.sh"
+          },
+          {
+            "type": "command",
+            "command": ".claude/hooks/git-commit-filter-guard.sh"
           }
         ]
       }
