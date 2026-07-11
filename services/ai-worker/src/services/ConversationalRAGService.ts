@@ -24,7 +24,7 @@ import { ReferencedMessageFormatter } from './ReferencedMessageFormatter.js';
 import { LLMInvoker } from './LLMInvoker.js';
 import { MemoryRetriever } from './MemoryRetriever.js';
 import type { FactRetriever } from './FactRetriever.js';
-import { retrieveFactsForPrompt, createFactRetriever } from './factRetrievalHelper.js';
+import { retrieveMemoriesAndFacts, createFactRetriever } from './factRetrievalHelper.js';
 import { PromptBuilder } from './PromptBuilder.js';
 import { LongTermMemoryService } from './LongTermMemoryService.js';
 import type { ExtractionTrigger } from './extraction/ExtractionTrigger.js';
@@ -381,35 +381,20 @@ export class ConversationalRAGService {
         context
       );
 
-      // Step 3: Retrieve relevant memories
-      const qPreview = inputs.searchQuery.substring(0, TEXT_LIMITS.LOG_PREVIEW);
-      const qTruncated = inputs.searchQuery.length > TEXT_LIMITS.LOG_PREVIEW;
-      logger.info({ queryPreview: qPreview, truncated: qTruncated }, 'Memory search query');
-      diagnosticCollector?.markMemoryRetrievalStart();
+      // Step 3: Retrieve memories + facts (gate/scope semantics live on the helper)
       const {
         memories: retrievedMemories,
         focusModeEnabled,
-        personaId,
-      } = await this.memoryRetriever.retrieveRelevantMemories(
+        facts,
+      } = await retrieveMemoriesAndFacts({
+        memoryRetriever: this.memoryRetriever,
+        factRetriever: this.factRetriever,
         personality,
-        inputs.searchQuery,
+        searchQuery: inputs.searchQuery,
         context,
-        configOverrides
-      );
-
-      // Retrieve distilled facts for the same scope (Phase 2 slice 4a). Inherits
-      // the retriever's skip decisions: `personaId` is undefined when LTM was
-      // skipped (incognito/focus/no-persona), so facts are skipped too.
-      // `shareLtmAcrossPersonalities` widens facts EXACTLY like episode
-      // retrieval (owner call: one flag, both channels — a character that can
-      // recall another character's episodes must know its facts too).
-      const facts = await retrieveFactsForPrompt(
-        this.factRetriever,
-        personality.id,
-        personaId,
-        inputs.searchQuery,
-        configOverrides?.shareLtmAcrossPersonalities ?? false
-      );
+        configOverrides,
+        diagnosticCollector,
+      });
 
       // Step 4: Allocate token budgets and select content
       // Note: Image descriptions and stored reference hydration are handled by
@@ -439,6 +424,7 @@ export class ConversationalRAGService {
           retrievedMemories,
           focusModeEnabled,
           budgetResult,
+          retrievedFactsCount: facts.length,
           contextWindowSize: effectiveContextWindowTokens,
           countTokens: text => this.promptBuilder.countTokens(text),
         });

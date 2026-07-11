@@ -540,6 +540,40 @@ describe('buildTokenBudgetView', () => {
     expect(notesOf(result)).not.toContain('Dropped for budget');
   });
 
+  it('gives facts their own bar, subtracted out of System (no double-count)', () => {
+    const payload = createMockPayload();
+    payload.tokenBudget.factTokensUsed = 1000;
+    payload.tokenBudget.factsIncluded = 4;
+    const result = buildTokenBudgetView(payload, 'req-123', OWNER_CTX);
+
+    const desc = result.embeds![0].data.description ?? '';
+    // System renders 4000 - 1000 = 3,000; Facts renders its own 1,000
+    expect(desc).toMatch(/^System.*3,000$/m);
+    expect(desc).toMatch(/^Facts.*1,000$/m);
+    expect(notesOf(result)).toContain('Facts: 4 included in the prompt');
+  });
+
+  it('lists dropped facts alongside the other budget drops', () => {
+    const payload = createMockPayload();
+    payload.tokenBudget.factTokensUsed = 500;
+    payload.tokenBudget.factsIncluded = 2;
+    payload.tokenBudget.factsDropped = 7;
+    const result = buildTokenBudgetView(payload, 'req-123', OWNER_CTX);
+
+    expect(notesOf(result)).toContain('7 facts');
+  });
+
+  it('renders the legacy chart (no Facts row) for logs predating fact accounting', () => {
+    const payload = createMockPayload();
+    // factTokensUsed / factsIncluded / factsDropped intentionally undefined
+    const result = buildTokenBudgetView(payload, 'req-123', OWNER_CTX);
+
+    const desc = result.embeds![0].data.description ?? '';
+    expect(desc).not.toMatch(/^Facts/m);
+    expect(desc).toMatch(/^System.*4,000$/m);
+    expect(notesOf(result)).not.toContain('Facts:');
+  });
+
   it('renders the cross-channel line when crossChannelMessagesIncluded is set', () => {
     const payload = createMockPayload();
     payload.tokenBudget.crossChannelMessagesIncluded = 3;
