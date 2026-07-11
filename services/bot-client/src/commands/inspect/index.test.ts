@@ -308,6 +308,7 @@ describe('handleButton', () => {
       deferReply: vi.fn().mockResolvedValue(undefined),
       deferUpdate: vi.fn().mockResolvedValue(undefined),
       editReply: vi.fn().mockResolvedValue(undefined),
+      followUp: vi.fn().mockResolvedValue(undefined),
     } as unknown as import('discord.js').ButtonInteraction;
   }
 
@@ -336,6 +337,31 @@ describe('handleButton', () => {
       expect.objectContaining({
         files: expect.arrayContaining([expect.any(Object)]),
       })
+    );
+  });
+
+  it('routes chunkedText views through the chunked-reply path (button dispatch)', async () => {
+    // renderViewResult is shared with handleSelectMenu, but this pins the
+    // BUTTON path's wiring through sendChunkedReply — Reasoning is reachable
+    // via the button row, and long reasoning follows up past the first chunk.
+    const mockPayload = createMockDiagnosticPayload();
+    mockPayload.postProcessing.thinkingContent = 'z'.repeat(2500);
+    stub.getDiagnosticByRequestId.mockResolvedValue(
+      createSuccessResponse('test-req-123', mockPayload)
+    );
+
+    const interaction = createMockButtonInteraction(DebugViewType.Reasoning);
+    await inspectCommand.handleButton!(interaction);
+
+    const editArg = vi.mocked(interaction.editReply).mock.calls[0][0] as {
+      content?: string;
+      files?: unknown;
+    };
+    expect(editArg.content).toContain('## Reasoning');
+    expect(editArg.files).toBeUndefined();
+    // 2500 chars splits past one message — the tail arrives as a follow-up
+    expect(interaction.followUp).toHaveBeenCalledWith(
+      expect.objectContaining({ content: expect.stringContaining('reasoning continued') })
     );
   });
 
@@ -442,9 +468,32 @@ describe('handleSelectMenu', () => {
     expect(interaction.deferReply).toHaveBeenCalledWith({ flags: MessageFlags.Ephemeral });
     expect(interaction.editReply).toHaveBeenCalledWith(
       expect.objectContaining({
-        files: expect.arrayContaining([expect.any(Object)]),
+        embeds: expect.arrayContaining([expect.any(Object)]),
       })
     );
+  });
+
+  it('routes chunkedText views through the chunked-reply path', async () => {
+    const mockPayload = createMockDiagnosticPayload();
+    mockPayload.postProcessing.thinkingContent = 'Short reasoning body';
+    stub.getDiagnosticByRequestId.mockResolvedValue(
+      createSuccessResponse('test-req-123', mockPayload)
+    );
+
+    const interaction = createMockSelectInteraction(DebugViewType.Reasoning);
+    await inspectCommand.handleSelectMenu!(interaction);
+
+    // Single chunk: sendChunkedReply edits the deferred reply with inline text,
+    // never a file attachment.
+    expect(interaction.editReply).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: expect.stringContaining('Short reasoning body'),
+      })
+    );
+    const editArg = (interaction.editReply as ReturnType<typeof vi.fn>).mock.calls[0][0] as {
+      files?: unknown;
+    };
+    expect(editArg.files).toBeUndefined();
   });
 
   it('should reject unknown view types', async () => {

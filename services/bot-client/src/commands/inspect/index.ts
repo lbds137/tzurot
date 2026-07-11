@@ -44,11 +44,43 @@ import {
   buildReasoningView,
   buildMemoryInspectorView,
   buildTokenBudgetView,
+  buildVoiceAttributionView,
+  type DebugViewResult,
 } from './views.js';
+import { sendChunkedReply } from '../../utils/chunkedReply.js';
 import { buildPipelineHealthView, buildQuickCopySummaryView } from './extendedViews.js';
 import { computeViewContext } from './viewContext.js';
 
 const logger = createLogger('inspect');
+
+/**
+ * Render one view result onto an already-acked component interaction.
+ * `chunkedText` goes through the chunked-reply path (inline text, split
+ * across ephemeral follow-ups when long — components ride the first chunk);
+ * everything else is a single editReply. Passing components: [] clears any
+ * prior rows when the user switches views on the same message.
+ */
+async function renderViewResult(
+  interaction: StringSelectMenuInteraction | ButtonInteraction,
+  viewResult: DebugViewResult
+): Promise<void> {
+  if (viewResult.chunkedText !== undefined) {
+    await sendChunkedReply({
+      interaction,
+      content: viewResult.chunkedText.text,
+      header: '',
+      continuedHeader: viewResult.chunkedText.continuedHeader,
+      components: viewResult.components ?? [],
+    });
+    return;
+  }
+  await interaction.editReply({
+    content: viewResult.content,
+    embeds: viewResult.embeds ?? [],
+    files: viewResult.files,
+    components: viewResult.components ?? [],
+  });
+}
 
 /** Map view type to its builder function */
 const VIEW_BUILDERS = {
@@ -58,6 +90,7 @@ const VIEW_BUILDERS = {
   [DebugViewType.Reasoning]: buildReasoningView,
   [DebugViewType.MemoryInspector]: buildMemoryInspectorView,
   [DebugViewType.TokenBudget]: buildTokenBudgetView,
+  [DebugViewType.VoiceAttribution]: buildVoiceAttributionView,
   [DebugViewType.PipelineHealth]: buildPipelineHealthView,
   [DebugViewType.QuickCopy]: buildQuickCopySummaryView,
 } as const;
@@ -153,13 +186,7 @@ async function handleSelectMenu(interaction: StringSelectMenuInteraction): Promi
     // Filter / sort / Top-N state is only preserved when navigating between memory-inspector
     // buttons (handleButton below threads parsed.memoryState through).
     const viewResult = VIEW_BUILDERS[viewType](result.log.data, parsed.requestId, ctx);
-    await interaction.editReply({
-      content: viewResult.content,
-      files: viewResult.files,
-      // Pass [] for views without components so any prior component row is cleared
-      // when the user picks a different view from the same select menu.
-      components: viewResult.components ?? [],
-    });
+    await renderViewResult(interaction, viewResult);
   } catch (error) {
     logger.error(
       { err: error, requestId: parsed.requestId, viewType },
@@ -214,11 +241,7 @@ async function handleButton(interaction: ButtonInteraction): Promise<void> {
       parsed.viewType === DebugViewType.MemoryInspector
         ? buildMemoryInspectorView(result.log.data, parsed.requestId, ctx, parsed.memoryState)
         : VIEW_BUILDERS[parsed.viewType](result.log.data, parsed.requestId, ctx);
-    await interaction.editReply({
-      content: viewResult.content,
-      files: viewResult.files,
-      components: viewResult.components ?? [],
-    });
+    await renderViewResult(interaction, viewResult);
   } catch (error) {
     logger.error(
       { err: error, requestId: parsed.requestId, viewType: parsed.viewType },
