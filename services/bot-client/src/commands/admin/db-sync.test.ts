@@ -8,7 +8,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { makeErr } from '../../test/gatewayClientStubs.js';
 import type { GatewayResult, OwnerClient } from '@tzurot/clients';
-import { handleDbSync, buildSyncSummary, buildSyncReportMarkdown } from './db-sync.js';
+import { handleDbSync, buildSyncSummary, buildSyncReportText } from './db-sync.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 
 vi.mock('@tzurot/common-types/utils/logger', async () => {
@@ -121,7 +121,7 @@ describe('handleDbSync', () => {
     expect(stub.dbSync).toHaveBeenCalledWith({ dryRun: true, allowSchemaSkew: false });
   });
 
-  it('replies with a summary embed AND an attached report file', async () => {
+  it('replies with a summary embed AND the full report as chunked follow-ups', async () => {
     stub.dbSync.mockResolvedValue(
       ok({
         success: true,
@@ -136,8 +136,13 @@ describe('handleDbSync', () => {
 
     const payload = replyPayload(context);
     expect(payload.embeds).toHaveLength(1);
-    expect(payload.files).toHaveLength(1);
+    expect(payload.files).toBeUndefined();
     expect(payload.embeds?.[0].data.title).toContain('Database Sync Complete');
+    // The report rides follow-ups, never the embed message — 'followUp' mode
+    // keeps the summary embed untouched.
+    expect(context.followUp).toHaveBeenCalledWith(
+      expect.objectContaining({ content: expect.stringContaining('# Database Sync Report') })
+    );
   });
 
   it('uses the dry-run title and warning framing on dry runs', async () => {
@@ -156,7 +161,7 @@ describe('handleDbSync', () => {
     const payload = replyPayload(context);
     expect(payload.embeds?.[0].data.title).toContain('Dry Run');
     expect(payload.embeds?.[0].data.description).toContain('Dry run — no changes were applied');
-    expect(payload.files).toHaveLength(1);
+    expect(payload.files).toBeUndefined();
   });
 
   it('summarizes totals and shows only tables with activity', async () => {
@@ -180,7 +185,7 @@ describe('handleDbSync', () => {
       '**2 tables** · 10 dev→prod · 5 prod→dev · 1 conflicts · 0 deleted'
     );
     expect(description).toContain('`users`:');
-    // Quiet tables stay out of the embed — they live in the report file.
+    // Quiet tables stay out of the embed — they live in the follow-up report.
     expect(description).not.toContain('`personas`:');
   });
 
@@ -199,7 +204,7 @@ describe('handleDbSync', () => {
     await handleDbSync(context);
 
     const description = replyPayload(context).embeds?.[0].data.description ?? '';
-    expect(description).toContain('⚠️ 2 warning(s) — full list in the attached report');
+    expect(description).toContain('⚠️ 2 warning(s) — full list in the report below');
     // The warning bodies themselves must NOT be in the embed.
     expect(description).not.toContain('Table mismatch detected');
   });
@@ -234,7 +239,61 @@ describe('handleDbSync', () => {
 
     const payload = replyPayload(context);
     expect(payload.embeds).toHaveLength(1);
-    expect(payload.files).toHaveLength(1);
+    expect(context.followUp).toHaveBeenCalled();
+  });
+
+  it('does not report sync failure when only report delivery fails', async () => {
+    // The sync itself succeeded; a follow-up chunk failing must produce the
+    // honest partial-delivery note, never the "Database sync failed" banner.
+    stub.dbSync.mockResolvedValue(
+      ok({
+        success: true,
+        timestamp: 'now',
+        schemaVersion: '1.0.0',
+        stats: { users: { devToProd: 5, prodToDev: 2, conflicts: 0, deleted: 0 } },
+      })
+    );
+
+    const context = createMockContext(false);
+    vi.mocked(context.followUp)
+      .mockRejectedValueOnce(new Error('Discord API hiccup'))
+      .mockResolvedValue(undefined as never);
+
+    await handleDbSync(context);
+
+    // Summary embed reply stays; the outer catch's error editReply never fires
+    expect(context.editReply).toHaveBeenCalledTimes(1);
+    expect(replyPayload(context).embeds).toHaveLength(1);
+    // Second followUp is the honest partial-delivery note
+    expect(context.followUp).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(context.followUp).mock.calls[1][0]).toEqual(
+      expect.objectContaining({
+        content: expect.stringContaining('report delivery failed'),
+      })
+    );
+  });
+
+  it('still never reports sync failure when the recovery notice also fails', async () => {
+    // Double Discord API failure: report chunk AND the partial-delivery
+    // notice both throw. The outer catch must still not fire — the sync
+    // succeeded, and the log is the terminal path.
+    stub.dbSync.mockResolvedValue(
+      ok({
+        success: true,
+        timestamp: 'now',
+        schemaVersion: '1.0.0',
+        stats: { users: { devToProd: 5, prodToDev: 2, conflicts: 0, deleted: 0 } },
+      })
+    );
+
+    const context = createMockContext(false);
+    vi.mocked(context.followUp).mockRejectedValue(new Error('Discord API down'));
+
+    await handleDbSync(context);
+
+    // Only the summary-embed editReply — no "Database sync failed" banner
+    expect(context.editReply).toHaveBeenCalledTimes(1);
+    expect(replyPayload(context).embeds).toHaveLength(1);
   });
 
   it('should handle 403 unauthorized response', async () => {
@@ -279,7 +338,7 @@ describe('buildSyncSummary', () => {
   });
 });
 
-describe('buildSyncReportMarkdown', () => {
+describe('buildSyncReportText', () => {
   const baseResult = {
     timestamp: '2026-07-11T00:00:00.000Z',
     schemaVersion: '20260710230428_add_sync_tombstones',
@@ -297,14 +356,16 @@ describe('buildSyncReportMarkdown', () => {
   };
 
   it('includes EVERY table in the stats table, active or not', () => {
-    const report = buildSyncReportMarkdown(baseResult, false);
+    const report = buildSyncReportText(baseResult, false);
 
-    expect(report).toContain('| users | 3 | 1 | 0 | 0 |');
-    expect(report).toContain('| personas | 0 | 0 | 0 | 2 |');
+    // Fixed-width rows in a code fence (Discord renders no pipe-tables)
+    expect(report).toContain('```');
+    expect(report).toMatch(/^users\s+3\s+1\s+0\s+0$/m);
+    expect(report).toMatch(/^personas\s+0\s+0\s+0\s+2$/m);
   });
 
   it('lists each deletion row with its losing side', () => {
-    const report = buildSyncReportMarkdown(baseResult, false);
+    const report = buildSyncReportText(baseResult, false);
 
     expect(report).toContain('## Deletions queued for propagation (2)');
     expect(report).toContain('- `personas` · `aaaa-1111` → prod');
@@ -312,7 +373,7 @@ describe('buildSyncReportMarkdown', () => {
   });
 
   it('uses would-propagate framing under dry run', () => {
-    const report = buildSyncReportMarkdown(baseResult, true);
+    const report = buildSyncReportText(baseResult, true);
 
     expect(report).toContain('# Database Sync Report (dry run)');
     expect(report).toContain('- Mode: DRY RUN — no changes applied');
@@ -320,7 +381,7 @@ describe('buildSyncReportMarkdown', () => {
   });
 
   it('marks a gateway-capped deletion list loudly', () => {
-    const report = buildSyncReportMarkdown({ ...baseResult, deletionsTruncated: true }, false);
+    const report = buildSyncReportText({ ...baseResult, deletionsTruncated: true }, false);
 
     expect(report).toContain('## Deletions queued for propagation (2+)');
     expect(report).toContain('Row detail capped by the gateway');
@@ -328,7 +389,7 @@ describe('buildSyncReportMarkdown', () => {
 
   it('carries full warnings and info without truncation', () => {
     const manyWarnings = Array.from({ length: 60 }, (_, i) => `warning line ${i}`);
-    const report = buildSyncReportMarkdown({ ...baseResult, warnings: manyWarnings }, false);
+    const report = buildSyncReportText({ ...baseResult, warnings: manyWarnings }, false);
 
     expect(report).toContain('## Warnings (60)');
     expect(report).toContain('- warning line 0');
@@ -337,7 +398,7 @@ describe('buildSyncReportMarkdown', () => {
   });
 
   it('renders explicit None sections for an empty result', () => {
-    const report = buildSyncReportMarkdown({}, false);
+    const report = buildSyncReportText({}, false);
 
     expect(report).toContain('_No table stats returned._');
     expect(report).toContain('## Deletions queued for propagation (0)');
