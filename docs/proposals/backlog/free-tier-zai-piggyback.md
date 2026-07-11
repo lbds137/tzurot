@@ -3,9 +3,15 @@
 Let free (guest) users reach **GLM-4.5-Air** via the bot owner's z.ai coding-plan
 subscription, instead of only the `:free` OpenRouter tier.
 
-**Status**: Backlogged design. Spends the owner's paid z.ai quota on anonymous
-traffic, so it must not ship without the abuse/quota design below being built —
-not just the routing change. Surfaced 2026-06-14 (owner), off the GLM-5 z.ai work.
+**Status**: **SHIPPED (slice 2, 2026-07-11)** — admission-gated guest upgrade
+behind `ZAI_FREE_TIER_ENABLED` (default off). Owner decisions: headroom
+shutoff **75%** of the tighter plan window (`ZAI_FREE_TIER_HEADROOM_PERCENT`,
+revisit with the /admin usage meters); static global budget **1000/day**
+(`ZAI_FREE_TIER_GLOBAL_DAILY_BUDGET`); **silent degrade** to `openrouter/free`
+(the free default preset may BE the piggyback model — selectable in
+/preset free-default; guests only ever run it z.ai-direct or get the router).
+Daily reset = UTC-day counters. Surfaced 2026-06-14 (owner), off the GLM-5
+z.ai work.
 
 ## Motivation
 
@@ -144,6 +150,13 @@ first-party-used but undocumented, so treat it as semi-stable.
 live meters. Auth quirk: the key goes in `Authorization` RAW — **no `Bearer`
 prefix** (matches z.ai's official coding-plan plugin behavior). Code a fallback
 to static ceilings if it 404s or changes shape.
+
+**Shape verified by live probe (2026-07-11, HTTP 200)**: `data.limits[]` mixes
+`TIME_LIMIT` and `TOKENS_LIMIT` entries; the `TOKENS_LIMIT` rows are the plan's
+usage windows (observed: 5-hour at `unit:3, number:5` and weekly at
+`unit:6, number:1`), each with an integer `percentage` consumed and an epoch-ms
+`nextResetTime`. `ZaiPlanMeter` takes max(percentage) over `TOKENS_LIMIT` rows
+as the binding window — no unit decoding required.
 
 Response carries both windows — the **5-hour window** and the **weekly window**
 — as percentage-consumed meters with reset timestamps. That's exactly the input

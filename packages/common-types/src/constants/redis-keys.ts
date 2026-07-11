@@ -50,6 +50,15 @@ export const CACHE_KEY_PREFIXES = {
    */
   FREE_TIER_GLOBAL: 'freeq:global:',
   /**
+   * z.ai free-tier piggyback counterparts of the three freeq:* keys above —
+   * same fair-share mechanics, separate pool (the owner's coding plan, not the
+   * shared OpenRouter key). Consumers: `ai-worker/FreeTierRequestQuota` (second
+   * instance) via `ZaiFreeTierAdmission`.
+   */
+  ZAI_FREE_TIER_ACTIVE: 'zaifreeq:active:',
+  ZAI_FREE_TIER_USER_REQUESTS: 'zaifreeq:ureq:',
+  ZAI_FREE_TIER_GLOBAL: 'zaifreeq:global:',
+  /**
    * Per-(channel, personality) turn counter + pending episode-id list driving
    * extraction batching (memory Phase 2). Consumers: `ai-worker` extraction
    * trigger (slice 2).
@@ -62,6 +71,23 @@ export const CACHE_KEY_PREFIXES = {
    */
   FACT_EXTRACTION_BUDGET: 'factextract:budget:',
 } as const;
+
+/**
+ * z.ai free-tier singleton keys (fixed names, no dynamic suffix — hence not in
+ * CACHE_KEY_PREFIXES, mirroring the maintenance flag below).
+ *
+ * KILL_SWITCH: present => all guest z.ai routing stops (set on account-problem
+ * business codes 1113/1309; value = ISO timestamp). Manual reset: DEL the key.
+ * EXHAUSTED: present => the plan window is exhausted (business codes
+ * 1308/1310/1316-1321); TTL to the window's next_flush_time. Guests degrade
+ * instantly instead of hammering a tapped-out plan.
+ * METER_SNAPSHOT: last ZaiPlanMeter reading as JSON, written by ai-worker so
+ * api-gateway's /admin usage can render live plan meters without holding the
+ * coding-plan key. Short TTL; absence renders as "no recent reading".
+ */
+export const ZAI_FREE_TIER_KILL_SWITCH_KEY = 'zaifreeq:killswitch';
+export const ZAI_FREE_TIER_EXHAUSTED_KEY = 'zaifreeq:exhausted';
+export const ZAI_PLAN_METER_SNAPSHOT_KEY = 'zaifreeq:meter';
 
 /**
  * Maintenance-mode flag — a singleton key (no dynamic suffix, hence not in

@@ -237,7 +237,7 @@ describe('GenerationStep', () => {
           createMockPrisma(),
           undefined,
           undefined,
-          quota
+          { freeTierQuota: quota }
         );
         vi.mocked(mockRAGService.generateResponse).mockResolvedValue(ragResponse);
 
@@ -261,7 +261,7 @@ describe('GenerationStep', () => {
           createMockPrisma(),
           undefined,
           undefined,
-          quota
+          { freeTierQuota: quota }
         );
 
         const result = await guestStep.process({
@@ -286,7 +286,7 @@ describe('GenerationStep', () => {
           createMockPrisma(),
           undefined,
           undefined,
-          quota
+          { freeTierQuota: quota }
         );
         vi.mocked(mockRAGService.generateResponse).mockResolvedValue(ragResponse);
 
@@ -310,7 +310,7 @@ describe('GenerationStep', () => {
           createMockPrisma(),
           undefined,
           undefined,
-          quota
+          { freeTierQuota: quota }
         );
         vi.mocked(mockRAGService.generateResponse).mockResolvedValue(ragResponse);
 

@@ -17,6 +17,7 @@ import { AIJobProcessor } from './jobs/AIJobProcessor.js';
 import { PendingMemoryProcessor } from './jobs/PendingMemoryProcessor.js';
 import { NullVectorReembedder } from './jobs/NullVectorReembedder.js';
 import { setupFactExtraction } from './jobs/factExtractionSetup.js';
+import { logZaiFreeTierBootCoherence } from './services/ZaiFreeTierAdmission.js';
 import { cleanupDiagnosticLogs } from './jobs/CleanupDiagnosticLogs.js';
 import { cleanupStuckImportJobs } from './jobs/cleanupStuckImportJobs.js';
 import { cleanupStuckExportJobs } from './jobs/cleanupStuckExportJobs.js';
@@ -361,6 +362,8 @@ async function main(): Promise<void> {
 
   // Fact extraction (memory Phase 2, shadow mode) — undefined unless
   // EXTRACTION_ENABLED=true AND the embedding service is up.
+  logZaiFreeTierBootCoherence(getConfig());
+
   const factExtraction = setupFactExtraction(
     prisma,
     cacheRedis,

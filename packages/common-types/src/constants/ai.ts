@@ -174,7 +174,7 @@ const FREE_MULTIMODAL_MODEL = 'google/gemma-4-31b-it:free';
  * `isFreeModel` must recognize it explicitly (otherwise it's wrongly excluded
  * from free-tier defaults, guest-mode eligibility, and free-model badges).
  */
-const FREE_ROUTER_MODEL = 'openrouter/free';
+export const FREE_ROUTER_MODEL = 'openrouter/free';
 
 /**
  * Centralized Model Configuration
@@ -597,4 +597,30 @@ export const GUEST_MODE = {
  */
 export function isFreeModel(modelId: string): boolean {
   return modelId === FREE_ROUTER_MODEL || modelId.endsWith(GUEST_MODE.FREE_MODEL_SUFFIX);
+}
+
+/**
+ * The ONE coding-plan model shareable with free users (the z.ai free-tier
+ * piggyback): GLM-4.5-Air bills at the plan's cheapest 1x multiplier. Scope
+ * is deliberately a single model — widening it is an owner decision, not a
+ * config knob.
+ */
+export const ZAI_FREE_TIER_MODEL = 'glm-4.5-air';
+
+/** True for the piggyback model in bare or `z-ai/`-prefixed form. */
+export function isZaiFreeTierModel(modelId: string): boolean {
+  const lower = modelId.toLowerCase();
+  const bare = lower.startsWith(ZAI_MODEL_PREFIX) ? lower.slice(ZAI_MODEL_PREFIX.length) : lower;
+  return bare === ZAI_FREE_TIER_MODEL;
+}
+
+/**
+ * May this model serve FREE-tier users? True OpenRouter-free models always;
+ * the z.ai piggyback model too, because the guest path upgrades it to the
+ * system coding-plan key when admitted and degrades to the FREE_ROUTER_MODEL
+ * dynamic router otherwise — it is never billed as a paid OpenRouter model.
+ * Gates the free-default preset pickers (gateway validation + autocomplete).
+ */
+export function isFreeTierEligibleModel(modelId: string): boolean {
+  return isFreeModel(modelId) || isZaiFreeTierModel(modelId);
 }

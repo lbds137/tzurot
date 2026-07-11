@@ -50,8 +50,12 @@ const EXCLUDE_PATTERNS = [
   /vitest\.config\.ts$/,
   /setupTests\.ts$/,
   /testSetup\.ts$/,
-  // Job handlers (thin wrappers, tested via integration)
-  /\/jobs\/handlers\//,
+  // Job handler WRAPPERS only (thin dispatch shells, tested via integration).
+  // Deliberately does NOT cover jobs/handlers/pipeline/** — the pipeline steps
+  // grew into substantive logic modules, and a blanket exclusion let an
+  // extracted module ship without its colocated test (caught by review, not
+  // by this gate). Direct children only.
+  /\/jobs\/handlers\/[^/]+\.ts$/,
   // CLI scripts
   /\/scripts\//,
   // Legacy code

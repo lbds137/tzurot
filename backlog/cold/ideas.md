@@ -387,7 +387,7 @@ Several behaviors are coupled to "personal mode" (persona present): cross-channe
 
 **Design proposal**: [`docs/proposals/backlog/free-tier-zai-piggyback.md`](../../docs/proposals/backlog/free-tier-zai-piggyback.md) — full design (system key, routing carve-out, per-user + global ceilings, credit-exhaustion handling, `isGuestMode` interaction, rollout behind a default-off flag).
 
-**Why icebox**: a genuine free-tier improvement we'd do eventually, but it spends real money (owner's subscription) on anonymous traffic, so it needs a deliberate abuse/quota design pass before it's safe to ship — not a quick win. Surfaced 2026-06-14 (owner), off the back of the z.ai GLM-5 work. (The abuse/quota half is part of the fair-share quota design — see the proposal's § Quota fairness section, the owner entry.)
+**SHIPPED (build 2026-07-11, entry leaves at merge)**: admission-gated guest upgrade in AuthStep (75% headroom vs the live plan meter, 1000/day static budget, fair-share allocator over `zaifreeq:*`, kill switch + window-exhausted cooldown from the 429 business-code classifier, silent degrade to `openrouter/free`). Ships dark behind `ZAI_FREE_TIER_ENABLED`. Owner decisions + verified quota-endpoint shape recorded in the proposal.
 
 #### `[LIFT]` Structural guard for the eslint flat-config block-ordering contract
 

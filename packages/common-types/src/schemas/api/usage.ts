@@ -81,6 +81,16 @@ export const AdminUsageStatsSchema = z.object({
   timeframe: z.string(),
   uniqueUsers: z.number().int().nonnegative(),
   topUsers: z.array(TopUserUsageSchema),
+  /** Live z.ai coding-plan meters (ai-worker's ZaiPlanMeter snapshot via
+   * Redis). Absent when no snapshot exists — key unset, meter failing, or no
+   * admission traffic recently. Declared or Zod strip-mode drops it. */
+  zaiPlan: z
+    .object({
+      tighterWindowConsumedPct: z.number(),
+      resetAt: z.string().nullable(),
+      fetchedAt: z.string(),
+    })
+    .optional(),
 });
 
 export type AdminUsageStats = z.infer<typeof AdminUsageStatsSchema>;
