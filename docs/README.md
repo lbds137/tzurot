@@ -31,6 +31,7 @@ Root-level reference files: `DOCUMENTATION_PHILOSOPHY.md`, `STATIC_ANALYSIS.md`,
 **Key docs:**
 
 - `reference/architecture/ARCHITECTURE_DECISIONS.md` - Core architectural choices
+- [`model-selection-pipeline.md`](reference/architecture/model-selection-pipeline.md) - How a request resolves to a model, key, and provider
 - `reference/deployment/RAILWAY_OPERATIONS.md` - Primary deployment and operations guide
 - `reference/standards/FOLDER_STRUCTURE.md` - File organization standards
 
@@ -41,6 +42,11 @@ Root-level reference files: `DOCUMENTATION_PHILOSOPHY.md`, `STATIC_ANALYSIS.md`,
 - [`PRISMA_PGVECTOR_REFERENCE.md`](reference/operations/PRISMA_PGVECTOR_REFERENCE.md) - Prisma + pgvector operations reference
 - [`REDIS_MAINTENANCE.md`](reference/operations/REDIS_MAINTENANCE.md) - Redis health maintenance procedures
 - [`REDIS_TIMEOUT_ANALYSIS.md`](reference/operations/REDIS_TIMEOUT_ANALYSIS.md) - Redis timeout root-cause analysis
+
+**Database:**
+
+- [`PRISMA_DRIFT_ISSUES.md`](reference/database/PRISMA_DRIFT_ISSUES.md) - Intentional schema/Prisma divergences (do NOT apply the drops Prisma generates)
+- [`MANUAL_DATA_MIGRATIONS.md`](reference/database/MANUAL_DATA_MIGRATIONS.md) - One-time SQL data migrations applied outside Prisma
 
 **Caching:**
 
@@ -58,6 +64,7 @@ Root-level reference files: `DOCUMENTATION_PHILOSOPHY.md`, `STATIC_ANALYSIS.md`,
 - [`CHANNEL_ACTIVATION.md`](reference/features/CHANNEL_ACTIVATION.md) - Channel activation feature
 - [`MIGRATION_TEMPLATE.md`](reference/templates/MIGRATION_TEMPLATE.md) - Template for multi-phase migration plans
 - [`BYOK_MANUAL_TESTING.md`](reference/testing/BYOK_MANUAL_TESTING.md) - BYOK manual testing guide
+- [`MEMORY_EVAL.md`](reference/testing/MEMORY_EVAL.md) - Memory-retrieval eval harness (the memory design's phase gates)
 
 > Local dev setup lives in the root [`README.md`](../README.md) ([Quick Start](../README.md#quick-start) and [Development](../README.md#development) sections), not in this directory.
 
