@@ -5,7 +5,27 @@
 
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { DatabaseSyncService } from './DatabaseSyncService.js';
-import { SYNC_TABLE_ORDER } from './sync/config/syncTables.js';
+import { SYNC_CONFIG, SYNC_TABLE_ORDER } from './sync/config/syncTables.js';
+
+// Healthy trigger inventory derived from SYNC_CONFIG so the tombstone-trigger
+// drift guard stays quiet in these tests (its scenario matrix lives in
+// syncValidation.test.ts). Derivation keeps this in step when tables change.
+const HEALTHY_TRIGGER_ROWS = Object.entries(SYNC_CONFIG)
+  .filter(
+    ([table]) =>
+      !['conversation_history', 'conversation_history_tombstones', 'sync_tombstones'].includes(
+        table
+      )
+  )
+  .map(([table, config]) => ({
+    event_object_table: table,
+    action_statement: `EXECUTE FUNCTION sync_tombstone_capture(${(typeof config.pk === 'string'
+      ? [config.pk]
+      : config.pk
+    )
+      .map(col => `'${col}'`)
+      .join(', ')})`,
+  }));
 import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 
 // Mock Prisma clients
@@ -121,6 +141,9 @@ describe('DatabaseSyncService', () => {
         }
 
         // UUID columns query (information_schema)
+        if (queryStr.includes('information_schema.triggers')) {
+          return HEALTHY_TRIGGER_ROWS;
+        }
         if (queryStr.includes('information_schema')) {
           return [
             { table_name: 'users', column_name: 'id' },
@@ -142,6 +165,9 @@ describe('DatabaseSyncService', () => {
         }
 
         // UUID columns query (information_schema) - prod doesn't need this, but return empty array
+        if (queryStr.includes('information_schema.triggers')) {
+          return HEALTHY_TRIGGER_ROWS;
+        }
         if (queryStr.includes('information_schema')) {
           return [];
         }
@@ -188,6 +214,9 @@ describe('DatabaseSyncService', () => {
         const queryStr = String(query);
         if (queryStr.includes('_prisma_migrations')) {
           return [{ migration_name: '20251117155350_update_memories_index_to_lists_50' }];
+        }
+        if (queryStr.includes('information_schema.triggers')) {
+          return HEALTHY_TRIGGER_ROWS;
         }
         if (queryStr.includes('information_schema')) {
           return [{ table_name: 'users', column_name: 'id' }];
@@ -331,6 +360,9 @@ describe('DatabaseSyncService', () => {
         const queryStr = String(query);
         if (queryStr.includes('_prisma_migrations')) {
           return [{ migration_name: '20251117155350_update_memories_index_to_lists_50' }];
+        }
+        if (queryStr.includes('information_schema.triggers')) {
+          return HEALTHY_TRIGGER_ROWS;
         }
         if (queryStr.includes('information_schema')) {
           return [
@@ -746,6 +778,9 @@ describe('DatabaseSyncService', () => {
         if (queryStr.includes('_prisma_migrations')) {
           return [{ migration_name: '20251117155350_update_memories_index_to_lists_50' }];
         }
+        if (queryStr.includes('information_schema.triggers')) {
+          return HEALTHY_TRIGGER_ROWS;
+        }
         if (queryStr.includes('information_schema')) {
           return [
             { table_name: 'users', column_name: 'id' },
@@ -1027,6 +1062,52 @@ describe('DatabaseSyncService', () => {
       // … it was DELETED from prod (the side still holding it).
       expect(executed.some(q => q.includes('DELETE FROM "personality_aliases"'))).toBe(true);
       expect(result.stats.personality_aliases.deleted).toBe(1);
+      // Row-level detail names the exact row and the losing side.
+      expect(result.deletions).toEqual([
+        { table: 'personality_aliases', rowKey: aliasId, target: 'prod' },
+      ]);
+      expect(result.deletionsTruncated).toBe(false);
+    });
+
+    it('caps row-level deletion detail at 500 and flags the truncation loudly', async () => {
+      // 501 tombstoned one-sided rows: the response-size backstop must slice
+      // the detail to 500 and set the flag, while the per-table stats keep
+      // the COMPLETE candidate count (dry run — no flush reconciliation).
+      const rows = Array.from({ length: 501 }, (_, i) => ({
+        id: `id-${i}`,
+        personality_id: '4f9b0f66-0000-4000-8000-0000000000f9',
+        alias: `doomed-${i}`,
+        created_at: new Date('2026-07-01T00:00:00Z'),
+      }));
+      prodClient.$queryRawUnsafe.mockImplementation(async query => {
+        if (String(query).includes('FROM "personality_aliases"')) {
+          return rows;
+        }
+        return [];
+      });
+      prodClient.syncTombstone.findMany
+        .mockResolvedValueOnce(
+          rows.map(row => ({
+            tableName: 'personality_aliases',
+            rowPk: row.id,
+            deletedAt: new Date('2026-07-09T00:00:00Z'),
+          }))
+        )
+        .mockResolvedValue([]);
+
+      const result = await service.sync({ dryRun: true });
+
+      expect(result.deletions).toHaveLength(500);
+      expect(result.deletionsTruncated).toBe(true);
+      // The slice keeps the head of the queue — first row present, 501st cut.
+      expect(result.deletions[0]).toEqual({
+        table: 'personality_aliases',
+        rowKey: 'id-0',
+        target: 'prod',
+      });
+      expect(result.deletions.some(d => d.rowKey === 'id-500')).toBe(false);
+      // Per-table counts stay complete; only the row-level DETAIL is capped.
+      expect(result.stats.personality_aliases.deleted).toBe(501);
     });
 
     it('a failed delete propagation SKIPS tombstone pruning (protects the unpropagated deletion)', async () => {

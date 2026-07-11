@@ -20,10 +20,10 @@ import { z } from 'zod';
  * Response for POST /admin/db-sync — schema/data sync between dev and prod.
  *
  * The gateway spreads a `SyncResult` into the body: per-table `stats`,
- * `warnings`/`info` string lists, the `schemaVersion`, and (dry-run only) a
- * `changes` preview of arbitrary shape. The bot-client renders these into an
- * embed. Enumerated explicitly so the consumer reads a typed shape instead of
- * casting; `changes` stays `unknown` (dry-run-only, free-form preview).
+ * `warnings`/`info` string lists, the `schemaVersion`, and row-level
+ * `deletions` detail. The bot-client renders a summary embed plus an
+ * attached full report. Enumerated explicitly so the consumer reads a
+ * typed shape instead of casting.
  */
 export const DbSyncResponseSchema = z.object({
   success: z.literal(true),
@@ -45,7 +45,19 @@ export const DbSyncResponseSchema = z.object({
   ),
   warnings: z.array(z.string()),
   info: z.array(z.string()),
-  changes: z.unknown().optional(),
+  /** Row-level deletion preview/record (table + '|'-joined pk + losing side).
+   * Defaulted for the parallel-deploy window, same class as `deleted`. */
+  deletions: z
+    .array(
+      z.object({
+        table: z.string(),
+        rowKey: z.string(),
+        target: z.enum(['dev', 'prod']),
+      })
+    )
+    .default([]),
+  /** True when the gateway capped `deletions` (response-size backstop). */
+  deletionsTruncated: z.boolean().default(false),
 });
 
 /**

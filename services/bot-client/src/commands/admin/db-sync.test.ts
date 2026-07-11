@@ -8,7 +8,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { makeErr } from '../../test/gatewayClientStubs.js';
 import type { GatewayResult, OwnerClient } from '@tzurot/clients';
-import { handleDbSync, formatListForEmbedField } from './db-sync.js';
+import { handleDbSync, buildSyncSummary, buildSyncReportMarkdown } from './db-sync.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 
 vi.mock('@tzurot/common-types/utils/logger', async () => {
@@ -95,6 +95,14 @@ describe('handleDbSync', () => {
     } as unknown as DeferredCommandContext;
   }
 
+  /** The first editReply call's payload, typed loosely for inspection. */
+  function replyPayload(context: DeferredCommandContext): {
+    embeds?: { data: { description?: string; title?: string } }[];
+    files?: unknown[];
+  } {
+    return vi.mocked(context.editReply).mock.calls[0][0] as never;
+  }
+
   it('should default dry-run to false when not provided', async () => {
     stub.dbSync.mockResolvedValue(ok({ success: true, timestamp: 'now', schemaVersion: '1.0' }));
 
@@ -113,47 +121,53 @@ describe('handleDbSync', () => {
     expect(stub.dbSync).toHaveBeenCalledWith({ dryRun: true, allowSchemaSkew: false });
   });
 
-  it('should display success embed for dry run', async () => {
+  it('replies with a summary embed AND an attached report file', async () => {
     stub.dbSync.mockResolvedValue(
       ok({
         success: true,
         timestamp: 'now',
         schemaVersion: '1.0.0',
-        stats: { users: { devToProd: 5, prodToDev: 2, conflicts: 0 } },
-      })
-    );
-
-    const context = createMockContext(true);
-    await handleDbSync(context);
-
-    expect(context.editReply).toHaveBeenCalledWith({ embeds: [expect.any(Object)] });
-  });
-
-  it('should display success embed for actual sync', async () => {
-    stub.dbSync.mockResolvedValue(
-      ok({
-        success: true,
-        timestamp: 'now',
-        schemaVersion: '1.0.0',
-        stats: { users: { devToProd: 5, prodToDev: 2, conflicts: 0 } },
+        stats: { users: { devToProd: 5, prodToDev: 2, conflicts: 0, deleted: 0 } },
       })
     );
 
     const context = createMockContext(false);
     await handleDbSync(context);
 
-    expect(context.editReply).toHaveBeenCalledWith({ embeds: [expect.any(Object)] });
+    const payload = replyPayload(context);
+    expect(payload.embeds).toHaveLength(1);
+    expect(payload.files).toHaveLength(1);
+    expect(payload.embeds?.[0].data.title).toContain('Database Sync Complete');
   });
 
-  it('should display sync statistics', async () => {
+  it('uses the dry-run title and warning framing on dry runs', async () => {
+    stub.dbSync.mockResolvedValue(
+      ok({
+        success: true,
+        timestamp: 'now',
+        schemaVersion: '1.0.0',
+        stats: { users: { devToProd: 5, prodToDev: 2, conflicts: 0, deleted: 0 } },
+      })
+    );
+
+    const context = createMockContext(true);
+    await handleDbSync(context);
+
+    const payload = replyPayload(context);
+    expect(payload.embeds?.[0].data.title).toContain('Dry Run');
+    expect(payload.embeds?.[0].data.description).toContain('Dry run — no changes were applied');
+    expect(payload.files).toHaveLength(1);
+  });
+
+  it('summarizes totals and shows only tables with activity', async () => {
     stub.dbSync.mockResolvedValue(
       ok({
         success: true,
         timestamp: 'now',
         schemaVersion: '2.0.0',
         stats: {
-          users: { devToProd: 10, prodToDev: 5, conflicts: 1 },
-          personas: { devToProd: 3, prodToDev: 0, conflicts: 0 },
+          users: { devToProd: 10, prodToDev: 5, conflicts: 1, deleted: 0 },
+          personas: { devToProd: 0, prodToDev: 0, conflicts: 0, deleted: 0 },
         },
       })
     );
@@ -161,24 +175,33 @@ describe('handleDbSync', () => {
     const context = createMockContext(false);
     await handleDbSync(context);
 
-    expect(context.editReply).toHaveBeenCalledWith({ embeds: [expect.any(Object)] });
+    const description = replyPayload(context).embeds?.[0].data.description ?? '';
+    expect(description).toContain(
+      '**2 tables** · 10 dev→prod · 5 prod→dev · 1 conflicts · 0 deleted'
+    );
+    expect(description).toContain('`users`:');
+    // Quiet tables stay out of the embed — they live in the report file.
+    expect(description).not.toContain('`personas`:');
   });
 
-  it('should display warnings when present', async () => {
+  it('surfaces the warning COUNT in the embed (full list lives in the report)', async () => {
     stub.dbSync.mockResolvedValue(
       ok({
         success: true,
         timestamp: 'now',
         schemaVersion: '1.0.0',
         stats: {},
-        warnings: ['⚠️ Table mismatch detected', '⚠️ Schema version mismatch'],
+        warnings: ['Table mismatch detected', 'Schema version mismatch'],
       })
     );
 
     const context = createMockContext(false);
     await handleDbSync(context);
 
-    expect(context.editReply).toHaveBeenCalledWith({ embeds: [expect.any(Object)] });
+    const description = replyPayload(context).embeds?.[0].data.description ?? '';
+    expect(description).toContain('⚠️ 2 warning(s) — full list in the attached report');
+    // The warning bodies themselves must NOT be in the embed.
+    expect(description).not.toContain('Table mismatch detected');
   });
 
   it('should handle HTTP errors', async () => {
@@ -203,30 +226,15 @@ describe('handleDbSync', () => {
     });
   });
 
-  it('should handle changes preview in dry run', async () => {
-    stub.dbSync.mockResolvedValue(
-      ok({
-        success: true,
-        timestamp: 'now',
-        schemaVersion: '1.0.0',
-        stats: {},
-        changes: { users: [{ id: '1', action: 'insert' }] },
-      })
-    );
-
-    const context = createMockContext(true);
-    await handleDbSync(context);
-
-    expect(context.editReply).toHaveBeenCalledWith({ embeds: [expect.any(Object)] });
-  });
-
   it('should handle empty stats gracefully', async () => {
     stub.dbSync.mockResolvedValue(ok({ success: true, timestamp: 'now', schemaVersion: '1.0.0' }));
 
     const context = createMockContext(false);
     await handleDbSync(context);
 
-    expect(context.editReply).toHaveBeenCalledWith({ embeds: [expect.any(Object)] });
+    const payload = replyPayload(context);
+    expect(payload.embeds).toHaveLength(1);
+    expect(payload.files).toHaveLength(1);
   });
 
   it('should handle 403 unauthorized response', async () => {
@@ -241,67 +249,99 @@ describe('handleDbSync', () => {
   });
 });
 
-describe('formatListForEmbedField', () => {
-  // Discord's embed-field hard cap; matches `TEXT_LIMITS.DISCORD_EMBED_FIELD`.
-  const FIELD_LIMIT = 1024;
-
-  it('returns empty string for an empty list', () => {
-    expect(formatListForEmbedField([], FIELD_LIMIT)).toBe('');
-  });
-
-  it('joins items with newlines when the result fits in the limit', () => {
-    const items = ['users', 'posts', 'comments'];
-    expect(formatListForEmbedField(items, FIELD_LIMIT)).toBe('users\nposts\ncomments');
-  });
-
-  it('preserves whole items at the cut, never slicing mid-string', () => {
-    // Construct a list that would overflow a naive `.join('\n').slice(0, limit)`.
-    // Each entry is 50 chars; with newlines that's 51 per row. At limit=255
-    // (~5 rows + change), naive slicing would chop the 6th entry mid-string.
-    const items = Array.from({ length: 12 }, (_, i) =>
-      `table-name-${String(i).padStart(3, '0')}-`.padEnd(50, 'x')
+describe('buildSyncSummary', () => {
+  it('reports the in-sync state when no table has activity', () => {
+    const summary = buildSyncSummary(
+      {
+        schemaVersion: 'v1',
+        stats: { users: { devToProd: 0, prodToDev: 0, conflicts: 0, deleted: 0 } },
+      },
+      false
     );
-    const result = formatListForEmbedField(items, 255);
 
-    // No surviving line should be a prefix-only fragment of an original item.
-    const lines = result.split('\n');
-    const trailingSuffix = lines[lines.length - 1];
-    expect(trailingSuffix).toMatch(/^…and \d+ more$/);
-    for (const survivor of lines.slice(0, -1)) {
-      expect(items).toContain(survivor);
-    }
-    expect(result.length).toBeLessThanOrEqual(255);
+    expect(summary).toContain('No changes — databases already in sync.');
   });
 
-  it('appends a "…and N more" suffix counting omitted items', () => {
-    const items = ['short-1', 'short-2', 'short-3', 'short-4', 'short-5'];
-    // 5 items × 7 chars + 4 newlines = 39, doesn't fit in 30. The helper
-    // sizes its suffix reservation against the worst case (all items
-    // omitted → "\n…and 5 more" = 12 chars; `…` is U+2026, a single code
-    // point), so the survivor budget is 30 − 12 = 18 chars. That fits
-    // "short-1" + "\n" + "short-2" = 15 chars; "short-3" at +1+7=23 exceeds
-    // 18 and is dropped. The conservative sizing means we omit one more
-    // item than strictly necessary in the suffix-shrinks-as-omitted-grows
-    // case — accepted trade-off for predictable per-call sizing.
-    const result = formatListForEmbedField(items, 30);
-    expect(result).toBe('short-1\nshort-2\n…and 3 more');
-    expect(result.length).toBeLessThanOrEqual(30);
+  it('appends conflict and deleted suffixes only when nonzero', () => {
+    const summary = buildSyncSummary(
+      {
+        stats: {
+          users: { devToProd: 1, prodToDev: 0, conflicts: 2, deleted: 3 },
+          personas: { devToProd: 4, prodToDev: 0, conflicts: 0, deleted: 0 },
+        },
+      },
+      false
+    );
+
+    expect(summary).toContain('`users`: 1 dev→prod, 0 prod→dev, 2 conflicts, 3 deleted');
+    expect(summary).toContain('`personas`: 4 dev→prod, 0 prod→dev');
+    expect(summary).not.toContain('`personas`: 4 dev→prod, 0 prod→dev,');
+  });
+});
+
+describe('buildSyncReportMarkdown', () => {
+  const baseResult = {
+    timestamp: '2026-07-11T00:00:00.000Z',
+    schemaVersion: '20260710230428_add_sync_tombstones',
+    stats: {
+      users: { devToProd: 3, prodToDev: 1, conflicts: 0, deleted: 0 },
+      personas: { devToProd: 0, prodToDev: 0, conflicts: 0, deleted: 2 },
+    },
+    warnings: ['personas: 2 conflicts resolved using last-write-wins'],
+    info: ["Table 'audit_log' excluded: local-only audit trail"],
+    deletions: [
+      { table: 'personas', rowKey: 'aaaa-1111', target: 'prod' as const },
+      { table: 'personas', rowKey: 'bbbb-2222', target: 'dev' as const },
+    ],
+    deletionsTruncated: false,
+  };
+
+  it('includes EVERY table in the stats table, active or not', () => {
+    const report = buildSyncReportMarkdown(baseResult, false);
+
+    expect(report).toContain('| users | 3 | 1 | 0 | 0 |');
+    expect(report).toContain('| personas | 0 | 0 | 0 | 2 |');
   });
 
-  it('produces just the suffix when no single item fits', () => {
-    // The first item alone exceeds the survivor budget — fall back to a
-    // pure suffix rather than dropping the suffix and slicing.
-    const huge = 'x'.repeat(2000);
-    const result = formatListForEmbedField([huge, 'small'], 50);
-    expect(result).toBe('…and 2 more');
+  it('lists each deletion row with its losing side', () => {
+    const report = buildSyncReportMarkdown(baseResult, false);
+
+    expect(report).toContain('## Deletions queued for propagation (2)');
+    expect(report).toContain('- `personas` · `aaaa-1111` → prod');
+    expect(report).toContain('- `personas` · `bbbb-2222` → dev');
   });
 
-  it('handles a single oversized item by emitting only the suffix', () => {
-    expect(formatListForEmbedField(['x'.repeat(2000)], 50)).toBe('…and 1 more');
+  it('uses would-propagate framing under dry run', () => {
+    const report = buildSyncReportMarkdown(baseResult, true);
+
+    expect(report).toContain('# Database Sync Report (dry run)');
+    expect(report).toContain('- Mode: DRY RUN — no changes applied');
+    expect(report).toContain('## Deletions that would propagate (2)');
   });
 
-  it('returns the joined result intact when it equals the limit exactly', () => {
-    const items = ['a', 'b', 'c'];
-    expect(formatListForEmbedField(items, 5)).toBe('a\nb\nc');
+  it('marks a gateway-capped deletion list loudly', () => {
+    const report = buildSyncReportMarkdown({ ...baseResult, deletionsTruncated: true }, false);
+
+    expect(report).toContain('## Deletions queued for propagation (2+)');
+    expect(report).toContain('Row detail capped by the gateway');
+  });
+
+  it('carries full warnings and info without truncation', () => {
+    const manyWarnings = Array.from({ length: 60 }, (_, i) => `warning line ${i}`);
+    const report = buildSyncReportMarkdown({ ...baseResult, warnings: manyWarnings }, false);
+
+    expect(report).toContain('## Warnings (60)');
+    expect(report).toContain('- warning line 0');
+    expect(report).toContain('- warning line 59');
+    expect(report).toContain("- Table 'audit_log' excluded: local-only audit trail");
+  });
+
+  it('renders explicit None sections for an empty result', () => {
+    const report = buildSyncReportMarkdown({}, false);
+
+    expect(report).toContain('_No table stats returned._');
+    expect(report).toContain('## Deletions queued for propagation (0)');
+    expect(report).toContain('## Warnings (0)');
+    expect(report).toContain('None.');
   });
 });

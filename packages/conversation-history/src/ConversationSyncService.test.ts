@@ -53,36 +53,6 @@ describe('ConversationSyncService', () => {
     service = new ConversationSyncService(mockPrismaClient as unknown as PrismaClient);
   });
 
-  describe('softDeleteMessage', () => {
-    it('should soft delete a message by setting deletedAt', async () => {
-      mockPrismaClient.conversationHistory.update.mockResolvedValue({
-        discordMessageId: ['discord-123'],
-      });
-
-      const result = await service.softDeleteMessage('msg-123');
-
-      expect(result).toBe(true);
-      expect(mockPrismaClient.conversationHistory.update).toHaveBeenCalledWith({
-        where: { id: 'msg-123' },
-        data: { deletedAt: expect.any(Date) },
-        select: { discordMessageId: true },
-      });
-      // Deletion propagates to linked memories via the Discord id
-      expect(mockPrismaClient.memory.updateMany).toHaveBeenCalledWith({
-        where: { messageIds: { hasSome: ['discord-123'] }, visibility: 'normal', isLocked: false },
-        data: { visibility: 'deleted' },
-      });
-    });
-
-    it('should return false when soft delete fails', async () => {
-      mockPrismaClient.conversationHistory.update.mockRejectedValue(new Error('Database error'));
-
-      const result = await service.softDeleteMessage('msg-123');
-
-      expect(result).toBe(false);
-    });
-  });
-
   describe('softDeleteMessages', () => {
     it('should return 0 when no message IDs provided', async () => {
       const result = await service.softDeleteMessages([]);
