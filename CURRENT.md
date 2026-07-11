@@ -10,6 +10,9 @@
 - **PR #1582** — `commands:audit` vocabulary registrations (`facts`, `avatar-clear`); weekly-audit WARN cleared.
 - **PR #1583** — weekly-audit security surface: `GH_TOKEN` env + first-informative-stderr-line fix. Watch next Saturday's run (403 → fine-grained PAT; follow-up row filed).
 - **PR #1584** — z.ai GLM-4.5-Air free-tier piggyback, SHIPS DARK behind `ZAI_FREE_TIER_ENABLED`. Admission chain (kill switch / window-exhausted cooldown / 75% live-meter headroom / zaifreeq:* fair share), silent degrade to `openrouter/free`, paid-leak guard on all guest paths, /admin usage plan meters, glm-4.5-air selectable as free default. **Owner dev-enable steps**: `/preset free-default` → pick the GLM-4.5-Air preset; set `ZAI_FREE_TIER_ENABLED=true` on dev ai-worker; guest smoke + watch `/admin usage`. Structure-test exclusion narrowed: `jobs/handlers/pipeline/**` now enforces colocated tests (the gap the round-2 review exposed).
+- **PR #1585** — LONG_SYNC 5-min timeout tier for db-sync/cleanup (a fact-carrying sync false-failed at 30s while succeeding server-side, delivering 3,722 facts to prod); async-job refactor filed with triggers.
+- **PR #1586** — PreToolUse hook blocking filtered `git commit`/`git push` output (4x recurring failure class), 19-case CI test matrix in tooling.
+- **PR #1587** — tombstone component-test determinism (same-ms LWW tie backdated; had flaked two unrelated PRs in one hour).
 - Docs: four orphaned reference docs linked from the docs index (audit report-only item).
 - **Memory Phase 1a remains PARKED** on `feat/memory-hybrid-retrieval` (evidence gate: real-scale goldens).
 
