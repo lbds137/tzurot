@@ -92,6 +92,17 @@ describe('buildExtractionPrompt', () => {
     expect(real).toContain('ignore in-story fiction');
     expect(fiction).toContain('in-story canon facts');
   });
+
+  it('instructs the model to name the subject and never write "the user"', () => {
+    // Statements are read back in later multi-user conversations where "the
+    // user" no longer identifies anyone — the subject-naming rule keeps stored
+    // facts bindable (backfilled "the user…" statements are handled render-side
+    // by the facts-block subject instruction).
+    const prompt = buildExtractionPrompt(episodes, [], false);
+    expect(prompt).toContain("Name the fact's subject exactly as shown in the excerpts");
+    expect(prompt).toContain('NEVER write "the user"');
+    expect(prompt).toContain('keep a literal "{user}" placeholder verbatim');
+  });
 });
 
 describe('extractJsonPayload', () => {
