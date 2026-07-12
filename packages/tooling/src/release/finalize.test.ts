@@ -18,23 +18,25 @@ import { finalizeRelease } from './finalize.js';
  * Individual tests override specific subcommands via a nested map.
  */
 function mockGit(overrides: Record<string, string | (() => string)> = {}): void {
-  mockedExec.mockImplementation(((_cmd: string, args: readonly string[]) => {
-    // The first arg after 'git' identifies the subcommand (e.g. 'status',
-    // 'rev-list', 'rebase'); the second arg disambiguates for subcommands
-    // that share a name across cases.
-    const key = args.slice(0, 2).join(' ');
+  mockedExec.mockImplementation(((cmd: string, args: readonly string[]) => {
+    // The first arg after 'git'/'gh' identifies the subcommand (e.g.
+    // 'status', 'rev-list', 'release'); the second arg disambiguates for
+    // subcommands that share a name across cases. gh keys are prefixed
+    // ('gh release list') so they can't collide with git subcommands.
+    const key = (cmd === 'gh' ? 'gh ' : '') + args.slice(0, 2).join(' ');
     const subKey = args[0];
     if (key in overrides) {
       const v = overrides[key];
       return typeof v === 'function' ? v() : v;
     }
-    if (subKey in overrides) {
+    if (cmd !== 'gh' && subKey in overrides) {
       const v = overrides[subKey];
       return typeof v === 'function' ? v() : v;
     }
-    // Defaults: clean working tree (tracked-only check), zero-commit rev-list.
+    // Defaults: clean working tree, zero-commit rev-list, empty release list.
     if (subKey === 'status') return '';
     if (key === 'rev-list --count') return '0\n';
+    if (key === 'gh release list') return '[]';
     return '';
   }) as unknown as typeof execFileSync);
 }
@@ -88,6 +90,111 @@ describe('finalizeRelease', () => {
       expect(pullDevIdx).toBeGreaterThan(checkoutDevIdx);
       expect(rebaseIdx).toBeGreaterThan(pullDevIdx);
       expect(pushIdx).toBeGreaterThan(rebaseIdx);
+    });
+  });
+
+  describe('prerelease sweep', () => {
+    const RELEASES = JSON.stringify([
+      { tagName: 'v3.0.0-beta.159', isPrerelease: false, isLatest: true },
+      { tagName: 'v3.0.0-beta.158', isPrerelease: false, isLatest: false },
+      { tagName: 'v3.0.0-beta.157', isPrerelease: true, isLatest: false },
+    ]);
+
+    it('flips every non-latest, non-prerelease release (and only those)', async () => {
+      mockGit({ 'gh release list': RELEASES });
+
+      await finalizeRelease({ yes: true });
+
+      const ghEdits = mockedExec.mock.calls
+        .filter(c => c[0] === 'gh' && (c[1] as string[])[1] === 'edit')
+        .map(c => (c[1] as string[]).join(' '));
+      expect(ghEdits).toEqual(['release edit v3.0.0-beta.158 --prerelease']);
+    });
+
+    it('never flips a STABLE release, even when older and unmarked', async () => {
+      // Owner rule: the flip is scoped to alpha/beta/rc streams only —
+      // regular releases keep full-release status regardless of age.
+      mockGit({
+        'gh release list': JSON.stringify([
+          { tagName: 'v3.1.0', isPrerelease: false, isLatest: true },
+          { tagName: 'v3.0.0', isPrerelease: false, isLatest: false },
+          { tagName: 'v3.0.0-rc.2', isPrerelease: false, isLatest: false },
+          { tagName: 'v3.0.0-alpha.1', isPrerelease: false, isLatest: false },
+        ]),
+      });
+
+      await finalizeRelease({ yes: true });
+
+      const ghEdits = mockedExec.mock.calls
+        .filter(c => c[0] === 'gh' && (c[1] as string[])[1] === 'edit')
+        .map(c => (c[1] as string[])[2]);
+      // rc + alpha flip; the stable v3.0.0 does NOT
+      expect(ghEdits.sort()).toEqual(['v3.0.0-alpha.1', 'v3.0.0-rc.2']);
+    });
+
+    it('is a no-op when flags are already in order', async () => {
+      mockGit({
+        'gh release list': JSON.stringify([
+          { tagName: 'v3.0.0-beta.159', isPrerelease: false, isLatest: true },
+          { tagName: 'v3.0.0-beta.158', isPrerelease: true, isLatest: false },
+        ]),
+      });
+
+      await finalizeRelease({ yes: true });
+
+      expect(
+        mockedExec.mock.calls.some(c => c[0] === 'gh' && (c[1] as string[])[1] === 'edit')
+      ).toBe(false);
+    });
+
+    it('previews (never edits) in dry-run', async () => {
+      mockGit({ 'gh release list': RELEASES, 'rev-list --count': '2\n' });
+
+      await finalizeRelease({ dryRun: true });
+
+      expect(
+        mockedExec.mock.calls.some(c => c[0] === 'gh' && (c[1] as string[])[1] === 'edit')
+      ).toBe(false);
+    });
+
+    it('fails SOFT when gh errors — the finalize sequence still completes', async () => {
+      mockGit({
+        'gh release list': () => {
+          throw new Error('gh not authenticated');
+        },
+        'rev-list --count': '3\n',
+      });
+
+      await finalizeRelease({ yes: true });
+
+      const invocations = mockedExec.mock.calls.map(c => (c[1] as string[]).join(' '));
+      expect(invocations).toContain('push --force-with-lease origin develop');
+    });
+
+    it('fails SOFT on a non-array gh payload (gh error text on stdout with exit 0)', async () => {
+      mockGit({
+        'gh release list': '{"message": "API rate limit exceeded"}',
+        'rev-list --count': '3\n',
+      });
+
+      await finalizeRelease({ yes: true });
+
+      const invocations = mockedExec.mock.calls.map(c => (c[1] as string[]).join(' '));
+      expect(invocations).toContain('push --force-with-lease origin develop');
+      expect(
+        mockedExec.mock.calls.some(c => c[0] === 'gh' && (c[1] as string[])[1] === 'edit')
+      ).toBe(false);
+    });
+
+    it('runs even on the git no-op path (heals flags on re-runs)', async () => {
+      mockGit({ 'gh release list': RELEASES, 'rev-list --count': '0\n' });
+
+      await finalizeRelease({ yes: true });
+
+      const ghEdits = mockedExec.mock.calls.filter(
+        c => c[0] === 'gh' && (c[1] as string[])[1] === 'edit'
+      );
+      expect(ghEdits).toHaveLength(1);
     });
   });
 
