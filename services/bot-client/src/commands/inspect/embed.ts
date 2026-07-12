@@ -136,6 +136,28 @@ export function buildReasoningField(
   };
 }
 
+/** Strip the provider prefix and lowercase — the comparable model base. */
+function bareModel(id: string): string {
+  const lower = id.toLowerCase();
+  const slash = lower.indexOf('/');
+  return slash >= 0 ? lower.slice(slash + 1) : lower;
+}
+
+/** Same model modulo provider prefix and a date/version STAMP suffix.
+ * Only `-<digits>` counts as a stamp (`claude-3-5-sonnet-20241022`) — dotted
+ * or named suffixes (`-4.5`, `-turbo`, `-air`, `:free`) are DIFFERENT models
+ * and must flag. A false "Served" line is honest info; a false negative
+ * hides exactly the substitution this field exists to surface. */
+function isSameModel(requested: string, served: string): boolean {
+  const a = bareModel(requested);
+  const b = bareModel(served);
+  if (a === b) {
+    return true;
+  }
+  const [shorter, longer] = a.length <= b.length ? [a, b] : [b, a];
+  return longer.startsWith(shorter) && /^-\d+$/.test(longer.slice(shorter.length));
+}
+
 /**
  * Build the Model field. "Family" is the namespace prefix from the model name
  * (e.g. "z-ai" from "z-ai/glm-4.7") — this is NOT the actual upstream OpenRouter
@@ -147,7 +169,17 @@ function buildModelField(
   llmConfig: DiagnosticPayload['llmConfig'],
   llmResponse: DiagnosticPayload['llmResponse']
 ): { name: string; value: string; inline: boolean } {
-  const lines: string[] = [`**Model:** ${llmConfig.model}`, `**Family:** ${llmConfig.provider}`];
+  // Silent model substitution is a diagnosis blind spot — when the model
+  // that actually served differs from the requested one (guest overrides,
+  // fallback retargets), show BOTH prominently. Normalized comparison:
+  // provider prefixes ('z-ai/…' → bare) and version-suffixed variants
+  // ('…-sonnet' served as '…-sonnet-20241022') are the SAME model.
+  const served = llmResponse.modelUsed;
+  const substituted = served.length > 0 && !isSameModel(llmConfig.model, served);
+  const lines: string[] = substituted
+    ? [`**Requested:** ${llmConfig.model}`, `⚠️ **Served:** ${served}`]
+    : [`**Model:** ${llmConfig.model}`];
+  lines.push(`**Family:** ${llmConfig.provider}`);
   const upstreamProvider = llmResponse.reasoningDebug?.upstreamProvider;
   if (upstreamProvider !== undefined) {
     lines.push(`**Upstream:** ${upstreamProvider}`);

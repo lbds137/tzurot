@@ -1,6 +1,7 @@
 // Extracted from views.ts to stay under the 400-line ESLint limit.
 
-import { MessageFlags } from 'discord.js';
+import { EmbedBuilder, MessageFlags } from 'discord.js';
+import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
 import type { DiagnosticPayload, PipelineStep } from '@tzurot/common-types/types/diagnostic';
 import type { ViewContext } from './viewContext.js';
 import type { DebugViewResult } from './views.js';
@@ -16,18 +17,19 @@ const STATUS_ICON: Record<PipelineStep['status'], string> = {
   error: '❌',
 };
 
-/** Fixed-width rows in a code fence — Discord doesn't render markdown
- * pipe-tables inline (same solve as the memory inspector / db-sync stats). */
+/** Two lines per step (emoji-status + indented reason) — no fixed-width
+ * columns means no fence, so emoji glyph-width can't skew alignment on
+ * mobile and step names never truncate. */
 function renderStepRows(steps: readonly PipelineStep[]): string[] {
-  const nameWidth = Math.max(...steps.map(s => s.name.length));
-  const rows = ['```'];
+  const rows: string[] = [];
   for (const step of steps) {
     const icon = STATUS_ICON[step.status];
-    // Reasons can carry model/content-derived text — fence-escape them
+    // Reasons can carry model/content-derived text — a ``` inside one would
+    // open a code block mid-description; keep the neutralizer.
     const reason = escapeFenceBreaks(step.reason ?? '—');
-    rows.push(`${step.name.padEnd(nameWidth)}  ${icon} ${step.status.padEnd(7)} ${reason}`);
+    rows.push(`${icon} \`${step.name}\``);
+    rows.push(`-# ${reason}`);
   }
-  rows.push('```');
   return rows;
 }
 
@@ -46,21 +48,7 @@ function renderLegacyTransforms(transformsApplied: readonly string[]): string[] 
   return rows;
 }
 
-function renderContextSection(payload: DiagnosticPayload): string[] {
-  const { finalContent, thinkingContent, artifactsStripped } = payload.postProcessing;
-  const thinkingLabel =
-    thinkingContent !== null ? `${thinkingContent.length.toLocaleString()} chars` : '_none_';
-  const artifactsLabel = artifactsStripped.length > 0 ? artifactsStripped.join(', ') : '_none_';
-  return [
-    '',
-    '## Context',
-    `- **Final content:** ${finalContent.length.toLocaleString()} chars`,
-    `- **Thinking content:** ${thinkingLabel}`,
-    `- **Artifacts stripped:** ${artifactsLabel}`,
-  ];
-}
-
-/** Markdown checklist of post-processing pipeline outcomes. */
+/** Post-processing pipeline outcomes as an informational embed. */
 export function buildPipelineHealthView(
   payload: DiagnosticPayload,
   _requestId: string,
@@ -68,7 +56,7 @@ export function buildPipelineHealthView(
   _ctx: ViewContext
 ): DebugViewResult {
   const steps = payload.postProcessing.pipelineSteps;
-  const lines: string[] = ['# Pipeline Health', ''];
+  const lines: string[] = [];
 
   if (steps === undefined) {
     lines.push(...renderLegacyTransforms(payload.postProcessing.transformsApplied));
@@ -78,42 +66,23 @@ export function buildPipelineHealthView(
     lines.push(...renderStepRows(steps));
   }
 
-  lines.push(...renderContextSection(payload));
+  const { finalContent, thinkingContent, artifactsStripped } = payload.postProcessing;
+  const thinkingLabel =
+    thinkingContent !== null ? `${thinkingContent.length.toLocaleString()} chars` : '_none_';
+  const artifactsLabel = artifactsStripped.length > 0 ? artifactsStripped.join(', ') : '_none_';
 
-  return {
-    chunkedText: {
-      text: lines.join('\n'),
-      continuedHeader: '_(pipeline health continued)_\n',
-    },
-    flags: MessageFlags.Ephemeral,
-  };
-}
+  // Informational surface: BLURPLE always (design system). The step list has
+  // a hard practical bound (a handful of pipeline stages), so the 4096
+  // description cap is never in play.
+  const embed = new EmbedBuilder()
+    .setTitle('🩺 Pipeline Health')
+    .setColor(DISCORD_COLORS.BLURPLE)
+    .setDescription(lines.join('\n'))
+    .addFields({
+      name: 'Content',
+      value: `**Final:** ${finalContent.length.toLocaleString()} chars · **Thinking:** ${thinkingLabel}\n**Artifacts stripped:** ${artifactsLabel}`,
+      inline: false,
+    });
 
-// ---------------------------------------------------------------------------
-// Quick-copy summary
-// ---------------------------------------------------------------------------
-
-/** One-line summary like `z-ai/glm-4.7 via DekaLLM · 9.6s · 47 tok · thinking 1063 chars`. */
-export function buildQuickCopySummaryView(
-  payload: DiagnosticPayload,
-  _requestId: string,
-  // intentionally unused — uniform VIEW_BUILDERS signature
-  _ctx: ViewContext
-): DebugViewResult {
-  const { llmConfig, llmResponse, timing, postProcessing } = payload;
-
-  const upstreamProvider = llmResponse.reasoningDebug?.upstreamProvider;
-  const modelLine =
-    upstreamProvider !== undefined ? `${llmConfig.model} via ${upstreamProvider}` : llmConfig.model;
-
-  const durationSec = (timing.totalDurationMs / 1000).toFixed(1);
-  const thinkingLen = postProcessing.thinkingContent?.length ?? 0;
-  const thinkingPart = thinkingLen > 0 ? ` · thinking ${thinkingLen.toLocaleString()} chars` : '';
-
-  const summary = `\`${modelLine} · ${durationSec}s · ${llmResponse.completionTokens} tok${thinkingPart}\``;
-
-  return {
-    content: `**Quick copy:**\n${summary}`,
-    flags: MessageFlags.Ephemeral,
-  };
+  return { embeds: [embed], flags: MessageFlags.Ephemeral };
 }

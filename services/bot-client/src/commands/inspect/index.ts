@@ -48,7 +48,7 @@ import {
   type DebugViewResult,
 } from './views.js';
 import { sendChunkedReply } from '../../utils/chunkedReply.js';
-import { buildPipelineHealthView, buildQuickCopySummaryView } from './extendedViews.js';
+import { buildPipelineHealthView } from './extendedViews.js';
 import { computeViewContext } from './viewContext.js';
 
 const logger = createLogger('inspect');
@@ -92,7 +92,6 @@ const VIEW_BUILDERS = {
   [DebugViewType.TokenBudget]: buildTokenBudgetView,
   [DebugViewType.VoiceAttribution]: buildVoiceAttributionView,
   [DebugViewType.PipelineHealth]: buildPipelineHealthView,
-  [DebugViewType.QuickCopy]: buildQuickCopySummaryView,
 } as const;
 
 /**
