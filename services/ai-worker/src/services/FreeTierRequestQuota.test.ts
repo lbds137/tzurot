@@ -40,6 +40,8 @@ function makeRedis(state: { activeN?: number; userCount?: number; globalCount?: 
     zcard,
     get,
     zadd: vi.fn().mockResolvedValue(1),
+    // SET … NX for the global-counter dedup marker: 'OK' = first consume
+    set: vi.fn().mockResolvedValue('OK'),
     incr: vi.fn().mockResolvedValue(1),
     expire: vi.fn().mockResolvedValue(1),
   };
@@ -78,8 +80,30 @@ describe('tryConsume — allow path', () => {
     // Counters advance only on allow, keyed correctly, scored with the clock.
     expect(mocks.zadd).toHaveBeenCalledWith(ACTIVE_KEY, NOW, 'user-1');
     expect(mocks.zadd).toHaveBeenCalledWith(USER_KEY, NOW, 'req-1');
+    // The global increment is guarded by the day-scoped NX dedup marker
+    expect(mocks.set).toHaveBeenCalledWith(
+      `${GLOBAL_KEY}:req:req-1`,
+      '1',
+      'EX',
+      25 * 60 * 60,
+      'NX'
+    );
     expect(mocks.incr).toHaveBeenCalledWith(GLOBAL_KEY);
     expect(mocks.incr).toHaveBeenCalledTimes(1);
+  });
+
+  it('a BullMQ retry (same requestId) does NOT re-increment the global counter', async () => {
+    const { quota, mocks } = build({ activeN: 0, userCount: 0, globalCount: 1 });
+    // NX marker already present from the first consume
+    mocks.set.mockResolvedValue(null);
+
+    const v = await quota.tryConsume('user-1', 'req-1');
+
+    expect(v.allowed).toBe(true);
+    // Per-user ZSET re-add is harmless (idempotent by member identity)…
+    expect(mocks.zadd).toHaveBeenCalledWith(USER_KEY, NOW, 'req-1');
+    // …but the global budget is not double-billed
+    expect(mocks.incr).not.toHaveBeenCalled();
   });
 });
 
@@ -148,6 +172,10 @@ describe('key-pool parameterization (z.ai piggyback instance)', () => {
         return null;
       }),
       zadd: vi.fn(async (key: string) => calls.push(key)),
+      set: vi.fn(async (key: string) => {
+        calls.push(key);
+        return 'OK';
+      }),
       incr: vi.fn(async (key: string) => {
         calls.push(key);
         return 1;
@@ -164,7 +192,10 @@ describe('key-pool parameterization (z.ai piggyback instance)', () => {
 
     const verdict = await quota.tryConsume('user-1', 'req-1');
 
-    expect(verdict.allowed).toBe(true);
+    // 'ok' (not 'fail-open') proves the REAL allow path ran — a missing mock
+    // command would throw inside tryConsume and silently convert to fail-open,
+    // satisfying a bare allowed:true while exercising nothing.
+    expect(verdict).toMatchObject({ allowed: true, reason: 'ok' });
     expect(calls.some(k => k.startsWith('zaifreeq:'))).toBe(true);
     expect(calls.every(k => !k.startsWith('freeq:'))).toBe(true);
   });

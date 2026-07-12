@@ -63,7 +63,10 @@ class FakeRedis {
     return this.strings.get(key) ?? null;
   }
 
-  async set(key: string, value: string, ..._args: unknown[]): Promise<'OK'> {
+  async set(key: string, value: string, ...args: unknown[]): Promise<'OK' | null> {
+    if (args.includes('NX') && this.strings.has(key)) {
+      return null;
+    }
     this.strings.set(key, value);
     return 'OK';
   }
@@ -321,16 +324,14 @@ describe('z.ai admission chain (wiring: real overrides → admission → meter +
     expect(result.zaiSystemKey).toBe(PLAN_KEY);
   });
 
-  it('same-requestId retry: per-user count is idempotent; the global counter double-counts', async () => {
-    // The per-user ZSET dedups by requestId (retry-safe); the global daily
-    // counter is a plain INCR with no idempotency key — the over-count fails
-    // SAFE (guests shut off early, the plan never overspends). Tracked in
-    // backlog/cold/follow-ups.md; this pins CURRENT behavior so a fix there
-    // must consciously update this expectation.
+  it('same-requestId retry: BOTH counters are idempotent (per-user ZSET + NX-guarded global)', async () => {
+    // The per-user ZSET dedups by requestId (member identity); the global
+    // daily counter is guarded by a day-scoped NX marker so a stalled-and-
+    // reprocessed BullMQ job cannot double-bill the plan budget.
     //
     // Quota config is loosened so the retry is ALLOWED (windowCap > 1): under
-    // the default tight config the per-user cap denies the retry first — the
-    // double-count only occurs when a retried request passes the user check.
+    // the default tight config the per-user cap denies the retry before the
+    // global counter is even reached.
     const fetchImpl = fetchReturning(40);
     const admission = buildChain(fetchImpl, {
       globalDailyBudget: 100,
@@ -353,6 +354,46 @@ describe('z.ai admission chain (wiring: real overrides → admission → meter +
     );
 
     expect(await redis.zcard(`${CACHE_KEY_PREFIXES.ZAI_FREE_TIER_USER_REQUESTS}guest-1`)).toBe(1);
-    expect(redis.strings.get(GLOBAL_KEY)).toBe('2');
+    expect(redis.strings.get(GLOBAL_KEY)).toBe('1');
+  });
+
+  it('the chain NEVER throws: hostile Redis + rejecting endpoint still resolve to the ladder', async () => {
+    // AuthStep's recovery path calls applyGuestModeOverrides from a catch
+    // block — an exception here would fail the whole job instead of
+    // degrading to guest. Every stage is fail-open by construction: the
+    // blocking-flag check catches, the meter's refresh catches, the quota
+    // fails open. This pins that composition against a Redis whose every
+    // command rejects AND a rejecting quota endpoint.
+    const hostileRedis = new Proxy(
+      {},
+      { get: () => () => Promise.reject(new Error('redis down')) }
+    ) as unknown as Redis;
+    const meter = new ZaiPlanMeter(
+      PLAN_KEY,
+      hostileRedis,
+      vi.fn().mockRejectedValue(new Error('endpoint down')) as unknown as typeof fetch,
+      () => NOW
+    );
+    const quota = new FreeTierRequestQuota(
+      hostileRedis,
+      { globalDailyBudget: 3, windowMinutes: 60, minPerWindow: 1, maxPerWindow: 5 },
+      () => NOW,
+      ZAI_FREE_TIER_KEYS
+    );
+    const admission = new ZaiFreeTierAdmission(hostileRedis, quota, meter, {
+      enabled: true,
+      apiKey: PLAN_KEY,
+      headroomPercent: 75,
+    });
+
+    // Fail-open all the way down: the guest is ADMITTED (static caps are the
+    // last line and they failed open too) — and nothing threw.
+    const result = await applyGuestModeOverrides(
+      { configResolver, zaiFreeTierAdmission: admission },
+      PERSONAL_ZAI,
+      'guest-1',
+      'req-1'
+    );
+    expect(result.personality.model).toBe(ZAI_FREE_TIER_MODEL);
   });
 });
