@@ -8,6 +8,7 @@
 import { execFileSync } from 'node:child_process';
 import { createInterface } from 'node:readline/promises';
 import chalk from 'chalk';
+import { isPrereleaseVersion } from './publish.js';
 
 export interface FinalizeOptions {
   dryRun?: boolean;
@@ -223,6 +224,59 @@ function runCheckoutRebasePushSequence(dryRun: boolean): void {
 }
 
 /**
+ * Flip every non-latest, non-prerelease, PRE-STABLE (alpha/beta/rc) GitHub
+ * release to pre-release. Only pre-stable tags are ever flipped (owner rule):
+ * the flip exists so the alpha/beta/rc stream shows a single "latest" — an
+ * older STABLE release keeps its full-release status regardless of age
+ * (channel membership via `isPrereleaseVersion`, shared with publish's
+ * one-back demote). Fail-soft: a gh error warns and never fails the
+ * finalize — the sweep re-runs on every subsequent release, so a transient
+ * miss self-heals. The window is bounded to the 20 most recent releases;
+ * anything staler stays as-is until fixed by hand.
+ */
+function sweepPrereleaseFlags(dryRun: boolean): void {
+  try {
+    const raw = execFileSync(
+      'gh',
+      ['release', 'list', '--limit', '20', '--json', 'tagName,isPrerelease,isLatest'],
+      { encoding: 'utf-8' }
+    );
+    const parsed: unknown = JSON.parse(raw);
+    // gh can exit 0 while writing an error message to stdout instead of JSON
+    // (see github-prs.ts) — surface the payload instead of a generic warning.
+    if (!Array.isArray(parsed)) {
+      throw new Error(`unexpected gh release list payload: ${raw.slice(0, 200)}`);
+    }
+    const releases = parsed as {
+      tagName: string;
+      isPrerelease: boolean;
+      isLatest: boolean;
+    }[];
+    const stale = releases.filter(
+      r => !r.isLatest && !r.isPrerelease && isPrereleaseVersion(r.tagName)
+    );
+    if (stale.length === 0) {
+      console.log(chalk.dim('Prerelease flags already in order.'));
+      return;
+    }
+    for (const r of stale) {
+      if (dryRun) {
+        console.log(chalk.dim(`[dry-run] gh release edit ${r.tagName} --prerelease`));
+      } else {
+        execFileSync('gh', ['release', 'edit', r.tagName, '--prerelease'], { encoding: 'utf-8' });
+        console.log(chalk.green(`✓ Marked ${r.tagName} as pre-release`));
+      }
+    }
+  } catch (err) {
+    console.log(
+      chalk.yellow(
+        `⚠ Prerelease sweep failed — flip manually with \`gh release edit <tag> --prerelease\`: ${String(err)}`
+      )
+    );
+  }
+}
+
+/**
  * Execute or preview the finalize sequence. When `dryRun` is true, all
  * git commands are printed instead of executed — useful for reviewing
  * what the command will do before committing to the force-push.
@@ -250,12 +304,19 @@ export async function finalizeRelease(options: FinalizeOptions): Promise<void> {
   console.log(chalk.dim('Fetching remote refs...'));
   git(['fetch', '--all']);
 
-  // Step 2: detect no-op against the freshly-fetched refs (accurate in dry-run).
+  // Step 2: prerelease sweep. House convention: only the NEWEST release
+  // stays un-marked; every older release is a pre-release. Runs as an
+  // idempotent sweep before the no-op check so a re-run heals flags even
+  // when develop is already aligned, and it self-heals releases missed by
+  // past manual flows (the recurring miss this step exists to kill).
+  sweepPrereleaseFlags(dryRun);
+
+  // Step 3: detect no-op against the freshly-fetched refs (accurate in dry-run).
   if (checkAheadCount() === 'noop') {
     return;
   }
 
-  // Step 3: confirm the force-push branch. Rebase itself is safe (local
+  // Step 4: confirm the force-push branch. Rebase itself is safe (local
   // only, reversible via --abort); the force-push needs explicit sign-off.
   if (!dryRun && !(await shouldProceedWithForcePush(yes))) {
     console.log(chalk.dim('Aborted by user.'));
