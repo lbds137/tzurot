@@ -49,6 +49,10 @@ export const PROTECTED_TAGS = [
   // reaches top-level system scope, same boundary class as memory_archive.
   'facts',
   'fact',
+  // Instruction elements interpolate user-authored names (facts subject
+  // binding, chat_log role legend) — a name containing </instruction> must
+  // not break out of the element it's framing.
+  'instruction',
   // Conversation-history ancestors (a user message must not forge these)
   'prior_conversations',
   'channel_history',

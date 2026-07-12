@@ -63,6 +63,7 @@ ${episodesBlock}
 
 Extract NEW durable facts from the excerpts. Rules:
 - A DURABLE fact is atomic, self-contained, third-person, and would still be true and worth knowing months from now: names, relationships, occupation, location, preferences, allergies, lasting decisions, stable world/canon details.
+- Name the fact's subject exactly as shown in the excerpts ("Alice lives in Denver", "{user} is a pastor" — keep a literal "{user}" placeholder verbatim). NEVER write "the user" or "the speaker" as a subject: facts are read back in later conversations with multiple people present, where "the user" no longer identifies anyone.
 - ONE fact per statement. If a sentence carries two facts ("has a severe peanut allergy AND learned it in childhood", "fears water AND survived a shipwreck"), split it into separate statements — do not join them with "and".
 - Apply the durability test — "will this still be true and relevant in six months?" If no, do NOT extract it. In particular, do NOT extract:
   - transient states: current mood, tiredness, hunger, an illness or headache today

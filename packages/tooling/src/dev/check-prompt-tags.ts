@@ -65,7 +65,8 @@ const PROTOCOL_FIELD =
 
 export const KNOWN_UNPROTECTED_TAGS: Record<string, string> = {
   // Hardcoded system text — no user content ever interpolated.
-  instruction: 'Hardcoded instruction strings (memory/participants/references).',
+  // (`instruction` moved to PROTECTED_TAGS when the facts subject binding and
+  // chat_log role legend began interpolating user-authored names into it.)
   platform_constraints: 'Hardcoded safety constraints (HardcodedConstraints).',
   output_constraints: 'Hardcoded output-format constraints (HardcodedConstraints).',
   context:

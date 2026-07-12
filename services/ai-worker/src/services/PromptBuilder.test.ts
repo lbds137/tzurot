@@ -927,6 +927,24 @@ describe('PromptBuilder', () => {
       expect(content).toContain('**Referenced**: Some earlier context');
     });
 
+    it('threads activePersonaName into the rendered facts block (seam assertion)', () => {
+      // The leaf formatter is unit-tested in MemoryFormatter.test.ts; this pins
+      // the WIRING — context.activePersonaName must actually reach the block,
+      // and statement placeholders must resolve with the threaded names.
+      const result = promptBuilder.buildFullSystemPrompt({
+        personality: minimalPersonality,
+        participantPersonas: new Map(),
+        relevantMemories: [],
+        facts: [{ statement: '{user} is a bot developer' }],
+        context: { ...minimalContext, activePersonaName: 'Lila' },
+      });
+
+      const content = result.content as string;
+      expect(content).toContain('KNOWN FACTS about Lila — the author of the message');
+      expect(content).toContain('is a bot developer</fact>');
+      expect(content).not.toContain('{user}');
+    });
+
     it('includes a chat_log role legend naming the responding persona', () => {
       const result = promptBuilder.buildFullSystemPrompt({
         personality: minimalPersonality,
