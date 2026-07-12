@@ -51,6 +51,9 @@ const mockStoreFailure = vi.fn();
 const mockCheckModelVisionSupport = vi.fn().mockResolvedValue(false);
 vi.mock('../redis.js', () => ({
   visionDescriptionCache: {
+    tryAcquireInflight: vi.fn().mockResolvedValue(true),
+    isInflight: vi.fn().mockResolvedValue(false),
+    releaseInflight: vi.fn().mockResolvedValue(undefined),
     storeFailure: (...args: unknown[]) => mockStoreFailure(...args),
   },
   visionFallbackQuota: {

@@ -60,6 +60,9 @@ const mockVisionCacheGet = vi.fn().mockResolvedValue(null); // Default: cache mi
 const mockVisionCacheStore = vi.fn().mockResolvedValue(undefined);
 const mockVisionCacheGetFailure = vi.fn().mockResolvedValue(null); // Default: no failure cached
 const mockVisionCacheStoreFailure = vi.fn().mockResolvedValue(undefined);
+const mockTryAcquireInflight = vi.fn().mockResolvedValue(true); // Default: single-flight winner
+const mockIsInflight = vi.fn().mockResolvedValue(false);
+const mockReleaseInflight = vi.fn().mockResolvedValue(undefined);
 
 vi.mock('../../redis.js', () => ({
   checkModelVisionSupport: (modelId: string) => mockCheckModelVisionSupport(modelId),
@@ -71,6 +74,11 @@ vi.mock('../../redis.js', () => ({
       mockVisionCacheGetFailure(options),
     storeFailure: (options: { attachmentId?: string; url: string; category: string }) =>
       mockVisionCacheStoreFailure(options),
+    tryAcquireInflight: (options: { attachmentId?: string; url: string }) =>
+      mockTryAcquireInflight(options),
+    isInflight: (options: { attachmentId?: string; url: string }) => mockIsInflight(options),
+    releaseInflight: (options: { attachmentId?: string; url: string }) =>
+      mockReleaseInflight(options),
   },
 }));
 
@@ -118,6 +126,10 @@ describe('VisionProcessor', () => {
     mockVisionCacheStore.mockResolvedValue(undefined);
     // Default failure cache behavior - no failure cached
     mockVisionCacheGetFailure.mockResolvedValue(null);
+    // Default single-flight behavior - this caller is the winner
+    mockTryAcquireInflight.mockResolvedValue(true);
+    mockIsInflight.mockResolvedValue(false);
+    mockReleaseInflight.mockResolvedValue(undefined);
     mockVisionCacheStoreFailure.mockResolvedValue(undefined);
     // Default: download succeeds, returning a small fake data URL.
     mockDownloadImageToDataUrl.mockResolvedValue({
@@ -403,6 +415,81 @@ describe('VisionProcessor', () => {
         // Empty model is treated as "not provided" → self-selection runs.
         expect(mockCheckModelVisionSupport).toHaveBeenCalledWith('gpt-4');
         expect(mockModelInvoke).toHaveBeenCalledTimes(1);
+      });
+    });
+
+    describe('single-flight coalescing (multi-character fan-out)', () => {
+      beforeEach(() => {
+        mockCheckModelVisionSupport.mockResolvedValue(true);
+      });
+
+      it('a loser coalesces onto the concurrent describe — zero provider calls (model/tier-agnostic by design)', async () => {
+        // Deliberate: the loser returns the winner's description regardless of
+        // either side's model TIER — the same accepted property canonical-cache
+        // READS already have (a paid request reuses a free-tier-produced entry).
+        const personality = createMockPersonality({ model: 'gpt-4o', visionModel: undefined });
+        mockTryAcquireInflight.mockResolvedValue(false);
+        // First poll: winner's cache write already landed.
+        mockVisionCacheGet
+          .mockResolvedValueOnce(null) // describeImage's own initial cache check
+          .mockResolvedValue('A detailed description of the shared image from the winner');
+
+        const result = await describeImage(mockAttachment, personality);
+
+        expect(result).toBe('A detailed description of the shared image from the winner');
+        expect(mockCreateChatModel).not.toHaveBeenCalled();
+        // A loser never owns the marker — it must not release the winner's.
+        expect(mockReleaseInflight).not.toHaveBeenCalled();
+      });
+
+      it('a loser falls through to its own call when the winner dies without writing', async () => {
+        const personality = createMockPersonality({ model: 'gpt-4o', visionModel: undefined });
+        mockTryAcquireInflight.mockResolvedValue(false);
+        mockVisionCacheGet.mockResolvedValue(null);
+        // Marker gone on first check → winner failed → own call (pre-feature path).
+        mockIsInflight.mockResolvedValue(false);
+
+        const result = await describeImage(mockAttachment, personality);
+
+        expect(result).toBe('Mocked image description');
+        expect(mockCreateChatModel).toHaveBeenCalledTimes(1);
+        expect(mockReleaseInflight).not.toHaveBeenCalled();
+      });
+
+      it('the winner releases the marker after caching (success path)', async () => {
+        const personality = createMockPersonality({ model: 'gpt-4o', visionModel: undefined });
+
+        await describeImage(mockAttachment, personality);
+
+        expect(mockTryAcquireInflight).toHaveBeenCalledTimes(1);
+        expect(mockReleaseInflight).toHaveBeenCalledTimes(1);
+        // Store-before-release: waiters must find the cache written when the
+        // marker disappears (call order across the two mocks).
+        const storeOrder = mockVisionCacheStore.mock.invocationCallOrder[0];
+        const releaseOrder = mockReleaseInflight.mock.invocationCallOrder[0];
+        expect(storeOrder).toBeLessThan(releaseOrder);
+      });
+
+      it('the winner releases the marker even when the provider call throws', async () => {
+        const personality = createMockPersonality({ model: 'gpt-4o', visionModel: undefined });
+        mockModelInvoke.mockRejectedValue(new Error('provider exploded'));
+
+        // The throw propagates to the caller — the finally must still release
+        // so waiters stop polling and run their own attempts.
+        await expect(describeImage(mockAttachment, personality)).rejects.toThrow(
+          'provider exploded'
+        );
+
+        expect(mockReleaseInflight).toHaveBeenCalledTimes(1);
+      });
+
+      it('skipCache bypasses single-flight entirely', async () => {
+        const personality = createMockPersonality({ model: 'gpt-4o', visionModel: undefined });
+
+        await describeImage(mockAttachment, personality, false, undefined, { skipCache: true });
+
+        expect(mockTryAcquireInflight).not.toHaveBeenCalled();
+        expect(mockReleaseInflight).not.toHaveBeenCalled();
       });
     });
 

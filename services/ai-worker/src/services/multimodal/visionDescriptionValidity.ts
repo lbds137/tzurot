@@ -9,8 +9,15 @@
  * (a previously-cached error-shaped entry gets a fresh attempt).
  *
  * Extracted from VisionProcessor.ts (max-lines) — also gives the pattern
- * list its own direct tests.
+ * list its own direct tests. Also home to the Redis-backed validated cache
+ * read (`readValidCachedDescription`), which applies the validity rule to
+ * cached entries — the module is validity-centric, no longer purely pure.
  */
+
+import { createLogger } from '@tzurot/common-types/utils/logger';
+import { visionDescriptionCache } from '../../redis.js';
+
+const logger = createLogger('VisionDescriptionValidity');
 
 /** Below this length a "description" carries no usable signal. */
 export const VISION_MIN_DESCRIPTION_LENGTH = 10;
@@ -72,4 +79,36 @@ export function isValidVisionDescription(description: string): boolean {
     !trimmed.startsWith(VISION_PLACEHOLDER_PREFIX) &&
     !isLikelyErrorDescription(trimmed)
   );
+}
+
+/**
+ * Read the canonical cached description, filtering QUALITY failures: some
+ * models cache error text ("I cannot access the image URL") that parses as a
+ * description but isn't useful — an invalid entry reads as a miss so the
+ * caller re-processes with a fresh attempt.
+ */
+export async function readValidCachedDescription(
+  cacheKeyOptions: { attachmentId?: string; url: string; model?: string },
+  attachment: { id?: string; name?: string | null }
+): Promise<string | null> {
+  const cachedDescription = await visionDescriptionCache.get(cacheKeyOptions);
+  if (cachedDescription === null) {
+    return null;
+  }
+  if (isValidVisionDescription(cachedDescription)) {
+    logger.debug(
+      { attachmentName: attachment.name, attachmentId: attachment.id },
+      'Using cached vision description - avoiding duplicate API call'
+    );
+    return cachedDescription;
+  }
+  logger.warn(
+    {
+      attachmentId: attachment.id,
+      cachedLength: cachedDescription.length,
+      preview: cachedDescription.substring(0, 80),
+    },
+    'Cached vision description appears invalid — re-processing image'
+  );
+  return null;
 }
