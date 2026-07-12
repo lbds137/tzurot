@@ -31,7 +31,7 @@ import {
   type ApiErrorCategory,
 } from '@tzurot/common-types/constants/error';
 import { REDIS_KEY_PREFIXES } from '@tzurot/common-types/constants/queue';
-import { INTERVALS } from '@tzurot/common-types/constants/timing';
+import { INTERVALS, TIMEOUTS } from '@tzurot/common-types/constants/timing';
 import { deriveAttachmentCacheKey } from '@tzurot/common-types/utils/attachmentCacheKey';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 
@@ -56,9 +56,12 @@ const MAX_CANONICAL_AGE_MS = 24 * 60 * 60 * 1000;
  *
  * Extracted as a pure function so the promotion matrix is unit-testable without a
  * Lua-capable Redis. The store's read→decide→setex is not atomic, so two
- * concurrent stores for the SAME image race to last-writer-wins — rare (the
- * per-request describe flow means one describe per image at a time) and
- * low-impact (a lower-tier description survives at most one TTL cycle).
+ * concurrent stores for the SAME image race to last-writer-wins — rare
+ * (single-flight coalesces concurrent describes onto one winner; a second
+ * store needs the ceiling-timeout edge, where a waiter fell through past a
+ * crashed winner's marker and both eventually complete) and low-impact (a
+ * lower-tier description survives at most one TTL cycle; tier promotion still
+ * blocks a weaker overwrite).
  */
 export function shouldPromoteCanonical(
   existing: { tier: number; ts: number } | null,
@@ -131,8 +134,83 @@ interface CanonicalEntry {
   ts: number;
 }
 
+/**
+ * How long an in-flight marker lives without release — derived from the vision
+ * invoke's own timeout (`TIMEOUTS.VISION_MODEL`) with headroom for the image
+ * download (fetch + retry) and cache write layered around the call, and
+ * strictly ABOVE the waiters' ceiling: a still-working winner's marker must
+ * never expire first, or waiters read a false "winner died" and duplicate the
+ * call. A crashed winner's marker self-expires here so future callers are
+ * never blocked longer than this.
+ */
+const INFLIGHT_TTL_SECONDS = Math.ceil((TIMEOUTS.VISION_MODEL + 60_000) / 1000);
+
 export class VisionDescriptionCache {
   constructor(private redis: Redis) {}
+
+  /**
+   * Try to become the single-flight WINNER for this image (multi-character
+   * fan-out sends N simultaneous describes for the same attachment; only the
+   * winner should burn a provider request). Fail-OPEN: any Redis error returns
+   * true — the caller proceeds exactly as it would without the feature.
+   */
+  async tryAcquireInflight(options: VisionCacheKeyOptions): Promise<boolean> {
+    try {
+      const acquired = await this.redis.set(
+        this.getInflightKey(options),
+        '1',
+        'EX',
+        INFLIGHT_TTL_SECONDS,
+        'NX'
+      );
+      return acquired === 'OK';
+    } catch (error) {
+      logger.warn(
+        { err: error },
+        '[VisionDescriptionCache] Inflight acquire failed — proceeding without single-flight'
+      );
+      return true;
+    }
+  }
+
+  /**
+   * Whether a describe is still in flight for this image. Fail-open: a Redis
+   * error reads as "not in flight" so a waiter stops waiting and proceeds.
+   */
+  async isInflight(options: VisionCacheKeyOptions): Promise<boolean> {
+    try {
+      return (await this.redis.exists(this.getInflightKey(options))) === 1;
+    } catch (error) {
+      logger.warn({ err: error }, '[VisionDescriptionCache] Inflight check failed');
+      return false;
+    }
+  }
+
+  /** Release the single-flight marker (winner only — win or lose the provider call). */
+  async releaseInflight(options: VisionCacheKeyOptions): Promise<void> {
+    try {
+      await this.redis.del(this.getInflightKey(options));
+    } catch (error) {
+      // The EX TTL is the backstop; a failed DEL only delays waiters briefly.
+      logger.warn({ err: error }, '[VisionDescriptionCache] Inflight release failed');
+    }
+  }
+
+  /**
+   * Same identity derivation as the canonical key — one marker per image,
+   * deliberately model-AGNOSTIC: coalescing across tiers (a paid request
+   * receiving a free-tier winner's description) is the same accepted property
+   * the canonical cache already has on READS — any sequential paid request
+   * reuses whatever description is cached regardless of producing tier; only
+   * WRITES are tier-gated (shouldPromoteCanonical). Single-flight extends the
+   * read behavior to the simultaneous window, it doesn't introduce it.
+   */
+  private getInflightKey(options: VisionCacheKeyOptions): string {
+    return deriveAttachmentCacheKey(REDIS_KEY_PREFIXES.VISION_INFLIGHT, {
+      id: options.attachmentId,
+      url: options.url,
+    });
+  }
 
   /**
    * Store a vision description in the model-agnostic canonical cache, tier-promoted

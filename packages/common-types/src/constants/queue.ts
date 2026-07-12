@@ -81,6 +81,9 @@ export const REDIS_KEY_PREFIXES = {
    * retired legacy per-model `vision:` prefix, whose entries just aged out.
    */
   VISION_CANONICAL: 'vision:canon:',
+  /** Single-flight marker: a describe for this image is in flight — concurrent
+   *  callers (multi-character fan-out) coalesce onto the winner's result. */
+  VISION_INFLIGHT: 'vision:inflight:',
   /** Key for OpenRouter models cache */
   OPENROUTER_MODELS: 'openrouter:models',
   /** Prefix for request deduplication cache */

@@ -49,7 +49,13 @@ describe('shouldPromoteCanonical (pure promotion decision)', () => {
 });
 
 describe('VisionDescriptionCache', () => {
-  let mockRedis: { setex: ReturnType<typeof vi.fn>; get: ReturnType<typeof vi.fn> };
+  let mockRedis: {
+    setex: ReturnType<typeof vi.fn>;
+    get: ReturnType<typeof vi.fn>;
+    set: ReturnType<typeof vi.fn>;
+    exists: ReturnType<typeof vi.fn>;
+    del: ReturnType<typeof vi.fn>;
+  };
   let cache: VisionDescriptionCache;
 
   beforeEach(() => {
@@ -57,8 +63,51 @@ describe('VisionDescriptionCache', () => {
     mockRedis = {
       setex: vi.fn().mockResolvedValue('OK'),
       get: vi.fn().mockResolvedValue(null),
+      set: vi.fn().mockResolvedValue('OK'),
+      exists: vi.fn().mockResolvedValue(0),
+      del: vi.fn().mockResolvedValue(1),
     };
     cache = new VisionDescriptionCache(mockRedis as unknown as Redis);
+  });
+
+  describe('single-flight inflight marker', () => {
+    const options = { attachmentId: 'att-1', url: 'https://cdn.example/img.png' };
+
+    it('acquires with NX + TTL and reports winner on OK', async () => {
+      mockRedis.set.mockResolvedValueOnce('OK');
+      await expect(cache.tryAcquireInflight(options)).resolves.toBe(true);
+      expect(mockRedis.set).toHaveBeenCalledWith(
+        expect.stringContaining('vision:inflight:'),
+        '1',
+        'EX',
+        expect.any(Number),
+        'NX'
+      );
+    });
+
+    it('reports loser when the marker already exists (NX returns null)', async () => {
+      mockRedis.set.mockResolvedValueOnce(null);
+      await expect(cache.tryAcquireInflight(options)).resolves.toBe(false);
+    });
+
+    it('fails OPEN on a Redis error — caller proceeds as winner (no coalescing)', async () => {
+      mockRedis.set.mockRejectedValueOnce(new Error('redis down'));
+      await expect(cache.tryAcquireInflight(options)).resolves.toBe(true);
+    });
+
+    it('isInflight reflects EXISTS and fails open to false on error', async () => {
+      mockRedis.exists.mockResolvedValueOnce(1);
+      await expect(cache.isInflight(options)).resolves.toBe(true);
+      mockRedis.exists.mockRejectedValueOnce(new Error('redis down'));
+      await expect(cache.isInflight(options)).resolves.toBe(false);
+    });
+
+    it('releaseInflight deletes the marker and never throws', async () => {
+      await cache.releaseInflight(options);
+      expect(mockRedis.del).toHaveBeenCalledWith(expect.stringContaining('vision:inflight:'));
+      mockRedis.del.mockRejectedValueOnce(new Error('redis down'));
+      await expect(cache.releaseInflight(options)).resolves.toBeUndefined();
+    });
   });
 
   describe('store / get — canonical (model-agnostic) success cache', () => {
