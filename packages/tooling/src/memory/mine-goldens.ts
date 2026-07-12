@@ -26,6 +26,7 @@ import {
   type CorpusRawRow,
   type SwapMap,
 } from './goldens-anonymize.js';
+import { pickEvenlySpaced } from './sampling.js';
 
 /** Metadata row used for stratification (content deliberately absent). */
 export interface MemoryMetaRow {
@@ -79,29 +80,8 @@ export function stratifySample(rows: MemoryMetaRow[], options: StratifyOptions):
       pool.length,
       Math.max(1, Math.round((pool.length / eligible.length) * sampleSize))
     );
-    const bucketSize = Math.ceil(pool.length / STRATA_BUCKETS);
-    const buckets: MemoryMetaRow[][] = [];
-    for (let start = 0; start < pool.length; start += bucketSize) {
-      buckets.push(pool.slice(start, start + bucketSize));
-    }
-
-    // Distribute the quota over buckets (earlier buckets absorb the
-    // remainder), then pick each bucket's k rows at even spacing.
-    const perBucketBase = Math.floor(quota / buckets.length);
-    let remainder = quota - perBucketBase * buckets.length;
-    const picked: string[] = [];
-    for (const bucketRows of buckets) {
-      let k = perBucketBase;
-      if (remainder > 0) {
-        k += 1;
-        remainder -= 1;
-      }
-      k = Math.min(k, bucketRows.length);
-      for (let i = 0; i < k; i++) {
-        picked.push(bucketRows[Math.floor((i * bucketRows.length) / k)].id);
-      }
-    }
-    selected.push(...picked.slice(0, quota));
+    // Even-spaced pick across time buckets (shared with mine-conversation-goldens).
+    selected.push(...pickEvenlySpaced(pool, quota, STRATA_BUCKETS).map(row => row.id));
   }
   return selected.slice(0, sampleSize);
 }

@@ -21,6 +21,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import type { Environment } from '../utils/env-runner.js';
+import { pickEvenlySpaced } from './sampling.js';
 
 /** One prior turn in a target's fold window (the shape `extractRecentHistoryWindow` reads). */
 export interface ConversationTurn {
@@ -111,39 +112,6 @@ export interface StyleCandidate {
 }
 
 /**
- * Pick `quota` items spread evenly across `buckets` equal-count time buckets of a
- * chronologically-sorted pool, so old and recent turns both survive. Earlier
- * buckets absorb the remainder; within a bucket, picks are evenly spaced. No RNG
- * — the same pool always yields the same sample.
- */
-export function pickEvenlySpaced<T>(sortedPool: T[], quota: number, buckets: number): T[] {
-  if (quota <= 0 || sortedPool.length === 0) {
-    return [];
-  }
-  const target = Math.min(quota, sortedPool.length);
-  const bucketSize = Math.ceil(sortedPool.length / buckets);
-  const bucketList: T[][] = [];
-  for (let start = 0; start < sortedPool.length; start += bucketSize) {
-    bucketList.push(sortedPool.slice(start, start + bucketSize));
-  }
-  const perBucketBase = Math.floor(target / bucketList.length);
-  let remainder = target - perBucketBase * bucketList.length;
-  const picked: T[] = [];
-  for (const bucket of bucketList) {
-    let take = perBucketBase;
-    if (remainder > 0) {
-      take += 1;
-      remainder -= 1;
-    }
-    take = Math.min(take, bucket.length);
-    for (let i = 0; i < take; i++) {
-      picked.push(bucket[Math.floor((i * bucket.length) / take)]);
-    }
-  }
-  return picked.slice(0, target);
-}
-
-/**
  * Per-style time-stratified sample. Each style is sampled independently up to
  * `perStyleQuota`, so every style is represented even when one dominates the raw
  * distribution. Returns selected candidate ids in style-then-time order.
@@ -179,7 +147,9 @@ export interface MineConversationGoldensOptions {
   personaId: string;
   /** Target golden count across all styles (default 40). */
   sampleSize?: number;
-  /** Prior turns to capture per golden (default 50 — matches production's maxMessages default). */
+  /** Raw prior-turn POOL captured per golden (default 50 = production's DEFAULT_MAX_MESSAGES
+   * over-fetch bound). The fold slices only its tail (LTM_SEARCH_HISTORY_TURNS=3), so this is
+   * the pool the fold draws from, NOT the fold size itself. */
   historyWindow?: number;
   outDir?: string;
 }
@@ -240,7 +210,7 @@ async function fetchPriorHistory(
     FROM conversation_history
     WHERE channel_id = ${candidate.channelId}
       AND deleted_at IS NULL
-      AND created_at < ${candidate.createdAt}
+      AND (created_at, id) < (${candidate.createdAt}, ${candidate.id}::uuid)
     ORDER BY created_at DESC, id DESC
     LIMIT ${historyWindow}
   `;
