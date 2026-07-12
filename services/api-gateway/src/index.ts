@@ -34,7 +34,9 @@ import {
   SttResolverCacheInvalidationService,
   DenylistCacheInvalidationService,
   ConfigCascadeCacheInvalidationService,
+  SystemSettingsCacheInvalidationService,
 } from '@tzurot/cache-invalidation';
+import { SystemSettingsService } from '@tzurot/common-types/services/SystemSettingsService';
 import { PersonalityService } from '@tzurot/identity';
 import {
   ConfigCascadeResolver,
@@ -83,6 +85,7 @@ import {
 } from './services/EmbeddingService.js';
 
 // Bootstrap
+import { seedSystemSettingsIfUnset } from './bootstrap/systemSettingsSeed.js';
 import {
   validateByokConfiguration,
   ensureAvatarDirectory,
@@ -126,6 +129,8 @@ interface ServicesContext {
   sttResolverCacheInvalidation: SttResolverCacheInvalidationService;
   denylistInvalidation: DenylistCacheInvalidationService;
   cascadeInvalidation: ConfigCascadeCacheInvalidationService;
+  systemSettingsInvalidation: SystemSettingsCacheInvalidationService;
+  systemSettings: SystemSettingsService;
   cascadeResolver: ConfigCascadeResolver;
   llmConfigResolver: LlmConfigResolver;
   visionConfigResolver: VisionConfigResolver;
@@ -221,6 +226,19 @@ async function initializeServices(prisma: PrismaClient): Promise<ServicesContext
   });
   logger.info('LlmConfigResolver + VisionConfigResolver initialized with cache invalidation');
 
+  // System settings: seed absent keys from env (race-safe, never clobbers an
+  // explicit admin write), then a cached read service that SELF-SUBSCRIBES to
+  // the invalidation channel — the gateway must see its own writes promptly,
+  // not after a TTL.
+  await seedSystemSettingsIfUnset(prisma);
+  const systemSettings = new SystemSettingsService(prisma);
+  const systemSettingsInvalidation = new SystemSettingsCacheInvalidationService(cacheRedis);
+  await systemSettingsInvalidation.subscribe(() => {
+    systemSettings.invalidate();
+  });
+  await systemSettings.prime();
+  logger.info('SystemSettingsService seeded, primed, and subscribed to invalidation');
+
   const modelCache = new OpenRouterModelCache(cacheRedis);
 
   // Initialize local embedding service for memory search
@@ -253,6 +271,8 @@ async function initializeServices(prisma: PrismaClient): Promise<ServicesContext
     sttResolverCacheInvalidation,
     denylistInvalidation,
     cascadeInvalidation,
+    systemSettingsInvalidation,
+    systemSettings,
     cascadeResolver,
     llmConfigResolver,
     visionConfigResolver,
@@ -280,6 +300,7 @@ function registerRoutes(
     sttResolverCacheInvalidation,
     denylistInvalidation,
     cascadeInvalidation,
+    systemSettingsInvalidation,
     cascadeResolver,
     llmConfigResolver,
     visionConfigResolver,
@@ -372,6 +393,7 @@ function registerRoutes(
     llmConfigResolver,
     visionConfigResolver,
     modelCache,
+    systemSettingsInvalidation,
     redis: cacheRedis,
     aiQueue,
     queueEvents,
@@ -523,6 +545,8 @@ async function main(): Promise<void> {
       stopDbNotificationListener: () => services.dbNotificationListener.stop(),
       unsubscribeCacheInvalidation: () => services.cacheInvalidationService.unsubscribe(),
       unsubscribeCascadeInvalidation: () => services.cascadeInvalidation.unsubscribe(),
+      unsubscribeSystemSettingsInvalidation: () =>
+        services.systemSettingsInvalidation.unsubscribe(),
       stopCascadeResolverCleanup: () => services.cascadeResolver.stopCleanup(),
       disconnectCacheRedis: () => services.cacheRedis.disconnect(),
       shutdownEmbeddingService,

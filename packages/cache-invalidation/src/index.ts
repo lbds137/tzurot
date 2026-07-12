@@ -54,3 +54,8 @@ export {
 } from './DenylistCacheInvalidationService.js';
 export { TtsConfigCacheInvalidationService } from './TtsConfigCacheInvalidationService.js';
 export { SttResolverCacheInvalidationService } from './SttResolverCacheInvalidationService.js';
+export {
+  SystemSettingsCacheInvalidationService,
+  type SystemSettingsInvalidationEvent,
+  isValidSystemSettingsInvalidationEvent,
+} from './SystemSettingsCacheInvalidationService.js';

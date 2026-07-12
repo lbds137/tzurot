@@ -32,6 +32,7 @@ export interface ShutdownSteps {
   stopDbNotificationListener: () => Promise<void>;
   unsubscribeCacheInvalidation: () => Promise<void>;
   unsubscribeCascadeInvalidation: () => Promise<void>;
+  unsubscribeSystemSettingsInvalidation: () => Promise<void>;
   stopCascadeResolverCleanup: () => void;
   disconnectCacheRedis: () => void;
   shutdownEmbeddingService: () => Promise<void>;
@@ -64,6 +65,7 @@ export function createShutdownHandler(
 
     await steps.unsubscribeCacheInvalidation();
     await steps.unsubscribeCascadeInvalidation();
+    await steps.unsubscribeSystemSettingsInvalidation();
     steps.stopCascadeResolverCleanup();
     steps.disconnectCacheRedis();
     logger.info('Cache invalidation services closed');
