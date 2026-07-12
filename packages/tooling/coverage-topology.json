@@ -1038,6 +1038,20 @@
       ]
     },
     {
+      "id": "client:api-gateway:getSystemSettings",
+      "kind": "http-route",
+      "producer": "client",
+      "consumer": "api-gateway",
+      "schemaRef": "GET /settings/system",
+      "mechanism": "route-conformance",
+      "requiredTiers": [
+        "component"
+      ],
+      "actualTiers": [
+        "component"
+      ]
+    },
+    {
       "id": "client:api-gateway:getTimezone",
       "kind": "http-route",
       "producer": "client",
@@ -2163,6 +2177,20 @@
       "producer": "client",
       "consumer": "api-gateway",
       "schemaRef": "PATCH /config-overrides/:personalityId",
+      "mechanism": "route-conformance",
+      "requiredTiers": [
+        "component"
+      ],
+      "actualTiers": [
+        "component"
+      ]
+    },
+    {
+      "id": "client:api-gateway:updateSystemSettings",
+      "kind": "http-route",
+      "producer": "client",
+      "consumer": "api-gateway",
+      "schemaRef": "PATCH /settings/system",
       "mechanism": "route-conformance",
       "requiredTiers": [
         "component"

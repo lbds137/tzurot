@@ -17,7 +17,9 @@ import {
   ConfigCascadeCacheInvalidationService,
   TtsConfigCacheInvalidationService,
   SttResolverCacheInvalidationService,
+  SystemSettingsCacheInvalidationService,
 } from '@tzurot/cache-invalidation';
+import { SystemSettingsService } from '@tzurot/common-types/services/SystemSettingsService';
 import { PersonalityService, PersonaResolver } from '@tzurot/identity';
 import {
   ConfigCascadeResolver,
@@ -46,6 +48,7 @@ export interface CacheInvalidationResult {
   sttResolver: SttResolver;
   personaResolver: PersonaResolver;
   cascadeResolver: ConfigCascadeResolver;
+  systemSettings: SystemSettingsService;
   cleanupFns: (() => Promise<void>)[];
 }
 
@@ -146,6 +149,8 @@ export async function setupCacheInvalidation(
   cleanupFns.push(() => cascadeCacheInvalidation.unsubscribe());
   logger.info('ConfigCascadeResolver initialized with cache invalidation');
 
+  const systemSettings = await wireSystemSettings(prisma, cacheRedis, cleanupFns);
+
   return {
     personalityService,
     cacheInvalidationService,
@@ -155,6 +160,7 @@ export async function setupCacheInvalidation(
     sttResolver,
     personaResolver,
     cascadeResolver,
+    systemSettings,
     cleanupFns,
   };
 }
@@ -189,6 +195,32 @@ async function wireApiKeyInvalidation(
   });
   cleanupFns.push(() => apiKeyCacheInvalidation.unsubscribe());
   logger.info('ApiKeyResolver initialized with cache invalidation');
+}
+
+/**
+ * Wire the SystemSettingsService to its invalidation channel and prime it.
+ * No readers in this service yet (consumer swaps are a later slice); wiring +
+ * boot prime now makes those swaps mechanical. Both event types clear the
+ * whole tiny cache.
+ */
+async function wireSystemSettings(
+  prisma: PrismaClient,
+  cacheRedis: Redis,
+  cleanupFns: (() => Promise<void>)[]
+): Promise<SystemSettingsService> {
+  const systemSettings = new SystemSettingsService(prisma);
+  const systemSettingsInvalidation = new SystemSettingsCacheInvalidationService(cacheRedis);
+  await systemSettingsInvalidation.subscribe(event => {
+    systemSettings.invalidate();
+    logger.info(
+      event.type === 'keys' ? { keys: event.keys } : {},
+      'Refreshing system settings (invalidation event)'
+    );
+  });
+  cleanupFns.push(() => systemSettingsInvalidation.unsubscribe());
+  await systemSettings.prime();
+  logger.info('SystemSettingsService initialized with cache invalidation');
+  return systemSettings;
 }
 
 /**

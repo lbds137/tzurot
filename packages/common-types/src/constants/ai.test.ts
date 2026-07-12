@@ -243,6 +243,15 @@ describe('isZaiCodingPlanModel', () => {
     expect(isZaiCodingPlanModel('GLM-4.5-AIR')).toBe(true);
   });
 
+  it('should accept the routable z-ai/-prefixed slug form (what validation surfaces receive)', () => {
+    // The catalog keys are bare, but user-facing config values carry the
+    // routable prefix — the predicate must accept both, like every other
+    // catalog accessor.
+    expect(isZaiCodingPlanModel('z-ai/glm-5.2')).toBe(true);
+    expect(isZaiCodingPlanModel('Z-AI/GLM-5')).toBe(true);
+    expect(isZaiCodingPlanModel('z-ai/not-a-real-model')).toBe(false);
+  });
+
   it('should reject models not in the catalog', () => {
     expect(isZaiCodingPlanModel('glm-99-future')).toBe(false);
     expect(isZaiCodingPlanModel('glm-4.5-flash')).toBe(false); // hallucinated name from PR #921

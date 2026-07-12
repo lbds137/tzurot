@@ -434,6 +434,38 @@ export class OwnerClient {
     });
   }
 
+  /**
+   * @safeRead Server-side has no observable mutation — safe to cache client-side.
+   */
+  async getSystemSettings(): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.getSystemSettings.output>>> {
+    const fullPath = '/api/admin/settings/system';
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'GET',
+      path: fullPath,
+      headers: {
+        'X-User-Id': this.actor,
+      },
+      outputSchema: ROUTE_MANIFEST.getSystemSettings.output,
+    });
+  }
+
+  async updateSystemSettings(input: z.infer<typeof ROUTE_MANIFEST.updateSystemSettings.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.updateSystemSettings.output>>> {
+    const fullPath = '/api/admin/settings/system';
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'PATCH',
+      path: fullPath,
+      headers: {
+        'X-User-Id': this.actor,
+      },
+      body: input,
+      outputSchema: ROUTE_MANIFEST.updateSystemSettings.output,
+    });
+  }
+
   async clearAdminSettings(): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.clearAdminSettings.output>>> {
     const fullPath = '/api/admin/settings/config-defaults';
     return callGateway({

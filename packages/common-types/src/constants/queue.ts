@@ -158,6 +158,8 @@ export const REDIS_CHANNELS = {
   DENYLIST_CACHE_INVALIDATION: 'cache:denylist-invalidation',
   /** Channel for broadcasting STT resolver cache invalidation events across services */
   STT_RESOLVER_CACHE_INVALIDATION: 'cache:stt-resolver-invalidation',
+  /** Channel for broadcasting system-settings (admin_settings.system_settings) invalidation events across services */
+  SYSTEM_SETTINGS_CACHE_INVALIDATION: 'cache:system-settings-invalidation',
 } as const;
 
 /**

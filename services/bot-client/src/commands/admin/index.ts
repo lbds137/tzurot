@@ -49,6 +49,11 @@ import {
   handleAdminSettingsModal,
   isAdminSettingsInteraction,
 } from './settings.js';
+import {
+  handleSettingsSet,
+  handleSettingNameAutocomplete,
+  handleSettingValueAutocomplete,
+} from './settingsSet.js';
 
 const logger = createLogger('admin-command');
 
@@ -67,9 +72,20 @@ const adminRouter = createSubcommandContextRouter(
     health: handleHealth,
     metrics: handleMetrics,
     presence: handlePresence,
-    settings: handleSettings,
   },
   { logger, logPrefix: '[Admin]' }
+);
+
+/**
+ * Router for the `settings` subcommand GROUP: `edit` opens the dashboard
+ * (the pre-group `/admin settings` behavior), `set` is the direct setter.
+ */
+const settingsGroupRouter = createSubcommandContextRouter(
+  {
+    edit: handleSettings,
+    set: handleSettingsSet,
+  },
+  { logger, logPrefix: '[Admin/Settings]' }
 );
 
 /**
@@ -87,6 +103,10 @@ async function execute(ctx: SafeCommandContext): Promise<void> {
     return;
   }
 
+  if (context.getSubcommandGroup() === 'settings') {
+    await settingsGroupRouter(context);
+    return;
+  }
   await adminRouter(context);
 }
 
@@ -100,6 +120,10 @@ async function autocomplete(interaction: AutocompleteInteraction): Promise<void>
     if (focusedOption.name === 'server-id') {
       // Autocomplete for kick command
       await handleServerAutocomplete(interaction, focusedOption.value);
+    } else if (focusedOption.name === 'setting') {
+      await handleSettingNameAutocomplete(interaction, focusedOption.value);
+    } else if (focusedOption.name === 'value') {
+      await handleSettingValueAutocomplete(interaction, focusedOption.value);
     } else {
       await interaction.respond([]);
     }
@@ -276,8 +300,32 @@ export default defineCommand({
             )
         )
     )
-    .addSubcommand(subcommand =>
-      subcommand.setName('settings').setDescription('Open global settings dashboard')
+    .addSubcommandGroup(group =>
+      group
+        .setName('settings')
+        .setDescription('Global settings (dashboard + direct setter)')
+        .addSubcommand(subcommand =>
+          subcommand.setName('edit').setDescription('Open global settings dashboard')
+        )
+        .addSubcommand(subcommand =>
+          subcommand
+            .setName('set')
+            .setDescription('Set a system setting directly')
+            .addStringOption(option =>
+              option
+                .setName('setting')
+                .setDescription('Which setting to change')
+                .setRequired(true)
+                .setAutocomplete(true)
+            )
+            .addStringOption(option =>
+              option
+                .setName('value')
+                .setDescription('The new value (validated against the model catalogs)')
+                .setRequired(true)
+                .setAutocomplete(true)
+            )
+        )
     )
     .addSubcommand(subcommand =>
       subcommand.setName('health').setDescription('Check bot health and connected services')

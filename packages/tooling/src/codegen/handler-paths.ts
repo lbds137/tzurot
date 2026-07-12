@@ -26,6 +26,7 @@ const ADMIN_DENYLIST = '../admin/denylist.js';
 const ADMIN_DIAGNOSTIC = '../admin/diagnostic.js';
 const ADMIN_LLM_CONFIG = '../admin/llm-config.js';
 const ADMIN_SETTINGS = '../admin/settings.js';
+const SYSTEM_SETTINGS = '../admin/systemSettings.js';
 const ADMIN_TTS_CONFIG = '../admin/tts-config.js';
 const USER_CHANNEL_GET = '../user/channel/get.js';
 const USER_CHANNEL_CONFIG_OVERRIDES = '../user/channel/configOverrides.js';
@@ -91,6 +92,10 @@ const PATH_MAP: Readonly<Record<string, string>> = {
   updateAdminSettings: ADMIN_SETTINGS,
   // Internal service-read alias for AdminSettings — reuses the admin handler.
   getAdminSettingsInternal: ADMIN_SETTINGS,
+
+  // Admin system settings (the non-cascading operational bag)
+  getSystemSettings: SYSTEM_SETTINGS,
+  updateSystemSettings: SYSTEM_SETTINGS,
 
   // Admin diagnostic
   getDiagnosticByMessage: ADMIN_DIAGNOSTIC,

@@ -177,6 +177,15 @@ const FREE_MULTIMODAL_MODEL = 'google/gemma-4-31b-it:free';
 export const FREE_ROUTER_MODEL = 'openrouter/free';
 
 /**
+ * OpenRouter's paid auto-router — a meta-model that routes each request to an
+ * available model chosen by OpenRouter. Maximally resilient against
+ * single-model deprecation/outage, which is why it seeds the paid fallback
+ * floors (`fallbackTextModel`/`fallbackVisionModel`); the accepted trade is
+ * per-request model variance and routed-cost unpredictability.
+ */
+export const AUTO_ROUTER_MODEL = 'openrouter/auto';
+
+/**
  * Centralized Model Configuration
  *
  * Single source of truth for all AI model defaults.
@@ -383,10 +392,15 @@ const ZAI_CODING_OVERVIEW_URL = 'https://docs.z.ai/devpack/overview';
 
 /**
  * Membership check for the z.ai coding-plan catalog. Case-normalizes the
- * input — preset configs are user-typed strings and may use any case.
+ * input and strips an optional `z-ai/` prefix — preset configs are user-typed
+ * strings that may use any case and either the routable slug (`z-ai/glm-5`)
+ * or the bare catalog form (`glm-5`), same tolerance as every other catalog
+ * accessor in this file.
  */
 export function isZaiCodingPlanModel(model: string): boolean {
-  return model.toLowerCase() in ZAI_MODEL_CATALOG;
+  const lower = model.toLowerCase();
+  const bare = lower.startsWith(ZAI_MODEL_PREFIX) ? lower.slice(ZAI_MODEL_PREFIX.length) : lower;
+  return bare in ZAI_MODEL_CATALOG;
 }
 
 /**

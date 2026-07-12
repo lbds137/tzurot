@@ -35,6 +35,11 @@ import {
 import { AdminSettingsSchema } from '@tzurot/common-types/schemas/api/adminSettings';
 import { ConfigOverridesSchema } from '@tzurot/common-types/schemas/api/configOverrides';
 import {
+  GetSystemSettingsResponseSchema,
+  UpdateSystemSettingsRequestSchema,
+  UpdateSystemSettingsResponseSchema,
+} from '@tzurot/common-types/schemas/api/systemSettings';
+import {
   AddDenylistResponseSchema,
   DenylistAddSchema,
   denylistEntityTypeSchema,
@@ -424,6 +429,29 @@ export const adminRoutes = {
     // ignored if present.
     input: ConfigOverridesSchema.partial(),
     output: AdminSettingsSchema,
+  },
+
+  /** GET /api/admin/settings/system — Read the system-settings bag + concurrency token. */
+  getSystemSettings: {
+    audience: 'admin',
+    method: 'get',
+    path: '/settings/system',
+    id: 'getSystemSettings',
+    output: GetSystemSettingsResponseSchema,
+    meta: { safeRead: true },
+  },
+
+  /** PATCH /api/admin/settings/system — Validated partial write (registry-driven). */
+  updateSystemSettings: {
+    audience: 'admin',
+    method: 'patch',
+    path: '/settings/system',
+    id: 'updateSystemSettings',
+    // Envelope body (NOT flat like the cascade PATCH): the write carries the
+    // optimistic-concurrency token alongside the patch, and the handler's
+    // validation is registry-driven (catalog checks, coherence, floor rules).
+    input: UpdateSystemSettingsRequestSchema,
+    output: UpdateSystemSettingsResponseSchema,
   },
 
   /** DELETE /api/admin/settings/config-defaults — Clear all cascade defaults. */
