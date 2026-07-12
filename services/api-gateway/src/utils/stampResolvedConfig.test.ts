@@ -20,22 +20,35 @@ const llmResolver = (
     resolveConfig: vi.fn().mockResolvedValue({ config: { model, ...extraConfig }, source }),
   }) as unknown as LlmConfigResolver;
 
+// Mirrors the REAL ResolvedVisionConfig contract: explicit params arrive
+// NESTED on `params` (picked at resolution time by VisionConfigResolver via
+// pickVisionTierParams), never as flat sampling fields — the round-1 review
+// caught the double drifting from the real shape and hiding a dead feature.
 const visionResolver = (
   model: string,
   source: string,
-  fallbacks: { global?: string; free?: string } = {}
+  fallbacks: { global?: string; free?: string } = {},
+  params: {
+    primary?: Record<string, number>;
+    global?: Record<string, number>;
+    free?: Record<string, number>;
+  } = {}
 ): VisionConfigResolver =>
   ({
-    resolveConfig: vi.fn().mockResolvedValue({ config: { model }, source }),
+    resolveConfig: vi.fn().mockResolvedValue({ config: { model, params: params.primary }, source }),
     getGlobalDefaultConfig: vi
       .fn()
       .mockResolvedValue(
-        fallbacks.global !== undefined ? { model: fallbacks.global, source: 'personality' } : null
+        fallbacks.global !== undefined
+          ? { model: fallbacks.global, source: 'personality', params: params.global }
+          : null
       ),
     getFreeDefaultVisionConfig: vi
       .fn()
       .mockResolvedValue(
-        fallbacks.free !== undefined ? { model: fallbacks.free, source: 'personality' } : null
+        fallbacks.free !== undefined
+          ? { model: fallbacks.free, source: 'personality', params: params.free }
+          : null
       ),
   }) as unknown as VisionConfigResolver;
 
@@ -166,6 +179,69 @@ describe('stampResolvedConfig', () => {
         visionResolver('qwen/hardcoded-fallback', 'hardcoded')
       );
       expect(personality.visionModel).toBeUndefined();
+    });
+
+    it('stamps explicitly-set vision-config params keyed by model, per tier', async () => {
+      // Each tier's entry carries ITS config's explicit params — the worker
+      // looks them up by the resolved tier model at invoke time.
+      const { personality } = await stampResolvedConfig(
+        basePersonality,
+        'u',
+        'r',
+        undefined,
+        visionResolver(
+          'primary-vision',
+          'personality',
+          { global: 'g-default', free: 'f-default' },
+          {
+            primary: { temperature: 0.7, maxTokens: 512 },
+            global: { temperature: 0.2 },
+            // free config sets nothing explicit → no entry
+          }
+        )
+      );
+      expect(personality.visionConfigParams).toEqual({
+        'primary-vision': { temperature: 0.7, maxTokens: 512 },
+        'g-default': { temperature: 0.2 },
+      });
+    });
+
+    it('omits visionConfigParams entirely when no config sets explicit params', async () => {
+      const { personality } = await stampResolvedConfig(
+        basePersonality,
+        'u',
+        'r',
+        undefined,
+        visionResolver('primary-vision', 'personality', { global: 'g-default' })
+      );
+      expect(personality.visionConfigParams).toBeUndefined();
+    });
+
+    it('primary config params win a same-model collision with a fallback tier', async () => {
+      const { personality } = await stampResolvedConfig(
+        basePersonality,
+        'u',
+        'r',
+        undefined,
+        visionResolver(
+          'shared-model',
+          'personality',
+          { global: 'shared-model' },
+          { primary: { temperature: 0.7 }, global: { temperature: 0.1 } }
+        )
+      );
+      expect(personality.visionConfigParams).toEqual({ 'shared-model': { temperature: 0.7 } });
+    });
+
+    it('does not stamp params from a hardcoded-source primary (bootstrap window)', async () => {
+      const { personality } = await stampResolvedConfig(
+        basePersonality,
+        'u',
+        'r',
+        undefined,
+        visionResolver('fallback-model', 'hardcoded', {}, { primary: { temperature: 0.9 } })
+      );
+      expect(personality.visionConfigParams).toBeUndefined();
     });
 
     it('fails open on a vision-resolver throw (seed vision left unstamped)', async () => {

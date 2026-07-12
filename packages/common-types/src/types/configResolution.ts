@@ -11,6 +11,7 @@
 
 import type { ConvertedLlmParams } from '../schemas/llmAdvancedParams.js';
 import type { ResolvedConfigOverrides } from '../schemas/api/configOverrides.js';
+import type { VisionTierParams } from './schemas/personality.js';
 
 /**
  * Source tier that provided the resolved config.
@@ -93,11 +94,20 @@ export interface LoadedVisionPersonality {
 
 /**
  * Effective resolved VISION config. Vision-description calls consume only the
- * model name (no sampling params apply), so this is minimal — plus the cascade
- * source/name for diagnostics and the BaseConfigResolver source-tracking contract.
+ * model name plus the cascade source/name for diagnostics and the
+ * BaseConfigResolver source-tracking contract — and the row's explicitly-set
+ * vision-callable params (see `params`).
  */
 export interface ResolvedVisionConfig {
   model: string;
   source: ConfigResolutionSource;
   configName?: string;
+  /**
+   * Explicitly-SET vision-callable params of the resolved config row (picked
+   * via `pickVisionTierParams` at resolution time). Absent when the row sets
+   * none — the vision invoke path falls back to system defaults. This is the
+   * carrier the gateway stamp reads into `personality.visionConfigParams`;
+   * without it, dashboard-set vision-preset params are decorative.
+   */
+  params?: VisionTierParams;
 }
