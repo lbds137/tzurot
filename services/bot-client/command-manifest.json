@@ -31,7 +31,8 @@
       },
       "componentPrefixes": [
         "admin-settings",
-        "admin-servers"
+        "admin-servers",
+        "admin-dbsync"
       ],
       "data": {
         "options": [
