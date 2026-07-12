@@ -100,6 +100,16 @@ export const MAIN_POOL_DEFAULTS = {
   /** Server GUC. Safe pool-wide: legit ops don't wait seconds on locks; a 55P03
    *  names the cause instead of an unbounded invisible queue. */
   LOCK_TIMEOUT_MS: 3_000,
+  /** Server GUC. A wedged transaction (opened, then the app code hangs or leaks
+   *  without commit/rollback) holds its row locks INDEFINITELY at the server
+   *  (`idle_in_transaction_session_timeout=0` server-side), starving every
+   *  writer that needs those rows — observed as an hour-plus prod lock storm
+   *  where only the victims' lock_timeouts contained the damage. 60s is far
+   *  beyond any legitimate idle-between-statements gap (Prisma's interactive
+   *  transactions default to a ~5s client-side ceiling), so this only ever
+   *  reaps genuinely wedged sessions. Transient clients (db-sync, CLI) carry
+   *  no GUC string and are deliberately unaffected. */
+  IDLE_IN_TX_TIMEOUT_MS: 60_000,
   /** Evict idle connections on our schedule (pg-pool's own default, made
    *  explicit) — paired with keepAlive so a retained idle socket is genuinely
    *  alive, not a middlebox-reaped husk waiting to hang the next query. */
@@ -152,6 +162,19 @@ export function resolveMainLockTimeoutMs(env: NodeJS.ProcessEnv = process.env): 
 }
 
 /**
+ * Resolve the main-pool server-side `idle_in_transaction_session_timeout` in
+ * ms. 0 = disabled (the GUC is omitted from the startup options) — the escape
+ * hatch if the reaper ever bites a legitimate flow; tune via env, no redeploy.
+ */
+export function resolveMainIdleInTxTimeoutMs(env: NodeJS.ProcessEnv = process.env): number {
+  return parseIntEnv(
+    env.DB_MAIN_IDLE_IN_TX_TIMEOUT_MS,
+    MAIN_POOL_DEFAULTS.IDLE_IN_TX_TIMEOUT_MS,
+    0
+  );
+}
+
+/**
  * Main-pool hardening options, applied as the BASE pool config for every
  * `createPrismaClient` pool (fast-pool `poolOverrides` spread after this, so
  * its tighter ladder — including its own `options` string — fully wins there).
@@ -168,11 +191,16 @@ export function mainPoolConnectionOptions(env: NodeJS.ProcessEnv = process.env):
   idleTimeoutMillis: number;
   options: string;
 } {
+  const idleInTxMs = resolveMainIdleInTxTimeoutMs(env);
+  const gucs = [`-c lock_timeout=${resolveMainLockTimeoutMs(env)}`];
+  if (idleInTxMs > 0) {
+    gucs.push(`-c idle_in_transaction_session_timeout=${idleInTxMs}`);
+  }
   return {
     keepAlive: true,
     keepAliveInitialDelayMillis: MAIN_POOL_DEFAULTS.KEEPALIVE_INITIAL_DELAY_MS,
     idleTimeoutMillis: MAIN_POOL_DEFAULTS.IDLE_TIMEOUT_MS,
-    options: `-c lock_timeout=${resolveMainLockTimeoutMs(env)}`,
+    options: gucs.join(' '),
   };
 }
 

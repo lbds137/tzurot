@@ -11,6 +11,7 @@ import {
   resolveConnectionTimeoutMs,
   resolvePoolStatsIntervalMs,
   resolveMainLockTimeoutMs,
+  resolveMainIdleInTxTimeoutMs,
   mainPoolConnectionOptions,
   resolveFastPoolMax,
   resolveFastLockTimeoutMs,
@@ -75,12 +76,14 @@ describe('transientPoolOptions', () => {
 });
 
 describe('mainPoolConnectionOptions', () => {
-  it('builds keepAlive + explicit idle eviction + the lock_timeout GUC with defaults', () => {
+  it('builds keepAlive + explicit idle eviction + the GUC pair with defaults', () => {
     expect(mainPoolConnectionOptions({})).toEqual({
       keepAlive: true,
       keepAliveInitialDelayMillis: MAIN_POOL_DEFAULTS.KEEPALIVE_INITIAL_DELAY_MS,
       idleTimeoutMillis: MAIN_POOL_DEFAULTS.IDLE_TIMEOUT_MS,
-      options: `-c lock_timeout=${MAIN_POOL_DEFAULTS.LOCK_TIMEOUT_MS}`,
+      options:
+        `-c lock_timeout=${MAIN_POOL_DEFAULTS.LOCK_TIMEOUT_MS} ` +
+        `-c idle_in_transaction_session_timeout=${MAIN_POOL_DEFAULTS.IDLE_IN_TX_TIMEOUT_MS}`,
     });
   });
 
@@ -92,7 +95,7 @@ describe('mainPoolConnectionOptions', () => {
   });
 
   it('honors a DB_MAIN_LOCK_TIMEOUT_MS override and falls back on garbage', () => {
-    expect(mainPoolConnectionOptions({ DB_MAIN_LOCK_TIMEOUT_MS: '5000' }).options).toBe(
+    expect(mainPoolConnectionOptions({ DB_MAIN_LOCK_TIMEOUT_MS: '5000' }).options).toContain(
       '-c lock_timeout=5000'
     );
     expect(resolveMainLockTimeoutMs({ DB_MAIN_LOCK_TIMEOUT_MS: 'nope' })).toBe(
@@ -101,6 +104,22 @@ describe('mainPoolConnectionOptions', () => {
     expect(resolveMainLockTimeoutMs({ DB_MAIN_LOCK_TIMEOUT_MS: '0' })).toBe(
       MAIN_POOL_DEFAULTS.LOCK_TIMEOUT_MS
     );
+  });
+
+  it('reaps wedged transactions: idle_in_transaction GUC rides the startup options', () => {
+    expect(mainPoolConnectionOptions({ DB_MAIN_IDLE_IN_TX_TIMEOUT_MS: '30000' }).options).toContain(
+      '-c idle_in_transaction_session_timeout=30000'
+    );
+    expect(resolveMainIdleInTxTimeoutMs({})).toBe(MAIN_POOL_DEFAULTS.IDLE_IN_TX_TIMEOUT_MS);
+    expect(resolveMainIdleInTxTimeoutMs({ DB_MAIN_IDLE_IN_TX_TIMEOUT_MS: 'nope' })).toBe(
+      MAIN_POOL_DEFAULTS.IDLE_IN_TX_TIMEOUT_MS
+    );
+  });
+
+  it('0 disables the idle-in-transaction reaper (GUC omitted, lock_timeout intact)', () => {
+    const options = mainPoolConnectionOptions({ DB_MAIN_IDLE_IN_TX_TIMEOUT_MS: '0' }).options;
+    expect(options).not.toContain('idle_in_transaction_session_timeout');
+    expect(options).toBe(`-c lock_timeout=${MAIN_POOL_DEFAULTS.LOCK_TIMEOUT_MS}`);
   });
 });
 
