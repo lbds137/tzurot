@@ -13,21 +13,17 @@
 
 ## Next Session Goal
 
-**beta.157 SHIPPED — remaining chain = prod-enable.** ~~(1) dev env vars + eval~~ ✅ · ~~(2) memory_facts db-sync~~ ✅ · ~~(3) backfill command~~ ✅ · ~~db-sync deletion tombstones~~ ✅ (#1579; drift-guard follow-up filed in `cold/follow-ups.md`) · ~~release cut~~ ✅ (beta.157, 2026-07-10; both migrations pre-applied to prod). **Still open**: ~~(a) owner smoke of db-sync~~ ✅ PASSED (owner, 2026-07-10 post-release); (b) **full dev backfill run IN FLIGHT** since 2026-07-10 ~16:45 ET — 6,196 windows, self-paced 1-3 days, persistent monitor reporting every 30 min; progress: `pnpm ops memory:backfill-facts --env dev --dry-run` (remaining shrinks to 0); ~~(c) prod-enable~~ ✅ **DONE (owner, 2026-07-11)** — all four flags + key live on prod ai-worker; discovered via the env-var audit, verified healthy (no coherence errors, z.ai-direct serving). ~~Owner smoke of `/memory facts` on prod~~ ✅ PASSED (owner, 2026-07-11 — 3,722 facts arrived via the first fact-carrying db-sync). Optional residual check: facts visible in the assembled system prompt via prod `/inspect`.
+**beta.158 SHIPPED + z.ai free tier LIVE (both envs) — the prod-enable chain is COMPLETE.** Remaining watches: (a) **dev backfill IN FLIGHT** (~37%, self-paced, monitor every 30 min); (b) first real guest traffic through the z.ai admission chain — glance at `/admin usage` plan meters; (c) Saturday's weekly-audit run (Dependabot-403 trigger). **Owner-directed next (2026-07-11, pre-beta.159): the /inspect view-inventory Q&A (theme item 6) and the admin-settings runtime-config design pass — both land before the next release cut**, which carries #1591–#1593 (wiring test, guest-picker eligibility + guest-aware badging, facts in token budget — the picker fix is user-facing).
 
 **Open follow-ups from Phase 1** (all in `cold/follow-ups.md` with promote-when triggers): system-voice straggler wording (STT / MessageHandler top-catch / truncation notices), partial-failure errored-slot delivery, admin/kick `serverId` escaping, `deletePersona`/`getCachedPersonalities` wrapper widening, `maxRetries:0` metrics watch.
 
 **Next design/build candidates** (nine accepted artifacts on the books — `docs/proposals/backlog/`): memory Phase 1a (hybrid retrieval, eval-harness-gated), agentic contract-suite prerequisite, profiles Phase 0 (tier-aware quota fallback — closes the live BYOK-dumped-to-error gap), config-cascade Phase 0, or the mechanical queue below. UX Phase 2 later absorbs privacy-epic Part 2 (view/browse unification) + browse isAdmin follow-ups.
 
-**Mechanical work queue (Opus-suitable — build-sized, decisions already written down):**
+**Mechanical work queue (Opus-suitable — build-sized, decisions already written down):** _(swept 2026-07-11: Stryker five-package expansion, CPD campaigns, and DB-perf Phase 1 verified SHIPPED against the code/CI; job-payload contract suite verified shipped (BullMQJobChain.contract.test.ts, 11 tests, real-producer fixture) — the board had rotted)_
 
-1. **Stryker per-package expansion** — recipe in the deterministic-test-quality theme; order: conversation-history → identity → cache-invalidation → clients (services need the viability measurement first).
-2. **Job-payload contract suite** (agentic prerequisite) — every context shape → job-chain → worker consumption; consider fast-check.
-3. **CPD campaign 1** (`LlmConfigService` ↔ `TtsConfigService`) — council pass first, then extraction under the 2-callback ceiling.
-4. **Database-performance-audit Phase 1** (prevention-rule PR) — cheap, marked NEXT in its theme.
-5. **shapes-inc fetcher hardening** — 6 small well-specified items.
-6. **LLM legacy-column retirement (Phase A DROP + Phase B)** — both destructive-migration-bearing (`release:premigrate --allow-destructive`); a focused moment, not a filler slot.
-7. **Follow-ups table sweep** — oldest rows (aging escalates; `pnpm ops backlog` surfaces them).
+1. **shapes-inc fetcher hardening** — 6 small well-specified items.
+2. **LLM legacy-column retirement (Phase A DROP + Phase B)** — both destructive-migration-bearing (`release:premigrate --allow-destructive`); a focused moment, not a filler slot.
+3. **Follow-ups table sweep** — oldest rows (aging escalates; `pnpm ops backlog` surfaces them).
 
 ## Last Session — beta.156 + extraction z.ai track slice 1 (2026-07-10)
 
