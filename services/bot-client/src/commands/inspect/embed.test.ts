@@ -382,6 +382,53 @@ describe('buildDiagnosticEmbed', () => {
     expect(modelField?.value).not.toContain('Provider:** z-ai');
   });
 
+  it('flags model substitution prominently when served differs from requested', () => {
+    // Silent substitution (guest override, fallback retarget) is a diagnosis
+    // blind spot — the Model field must show BOTH models.
+    const payload = createMockPayload();
+    payload.llmConfig.model = 'z-ai/glm-4.5-air';
+    payload.llmResponse.modelUsed = 'openrouter/free';
+
+    const embed = buildDiagnosticEmbed(payload);
+    const modelField = embed.toJSON().fields?.find(f => f.name.includes('Model'));
+    expect(modelField?.value).toContain('**Requested:** z-ai/glm-4.5-air');
+    expect(modelField?.value).toContain('⚠️ **Served:** openrouter/free');
+  });
+
+  it('flags a same-family DIFFERENT model (bare prefix is not a version stamp)', () => {
+    // A fallback retarget from claude-sonnet-4.5 down to claude-sonnet-4 is a
+    // real quality regression — a bare startsWith would silently miss it.
+    const payload = createMockPayload();
+    payload.llmConfig.model = 'anthropic/claude-sonnet-4.5';
+    payload.llmResponse.modelUsed = 'anthropic/claude-sonnet-4';
+
+    const embed = buildDiagnosticEmbed(payload);
+    const modelField = embed.toJSON().fields?.find(f => f.name.includes('Model'));
+    expect(modelField?.value).toContain('⚠️ **Served:** anthropic/claude-sonnet-4');
+  });
+
+  it('does NOT flag a version-suffixed variant of the same model', () => {
+    const payload = createMockPayload();
+    payload.llmConfig.model = 'claude-3-5-sonnet';
+    payload.llmResponse.modelUsed = 'claude-3-5-sonnet-20241022';
+
+    const embed = buildDiagnosticEmbed(payload);
+    const modelField = embed.toJSON().fields?.find(f => f.name.includes('Model'));
+    expect(modelField?.value).toContain('**Model:** claude-3-5-sonnet');
+    expect(modelField?.value).not.toContain('Served');
+  });
+
+  it('does NOT flag a provider-prefix-stripped serve of the same model (z.ai promotion)', () => {
+    const payload = createMockPayload();
+    payload.llmConfig.model = 'z-ai/glm-4.5-air';
+    payload.llmResponse.modelUsed = 'glm-4.5-air';
+
+    const embed = buildDiagnosticEmbed(payload);
+    const modelField = embed.toJSON().fields?.find(f => f.name.includes('Model'));
+    expect(modelField?.value).toContain('**Model:** z-ai/glm-4.5-air');
+    expect(modelField?.value).not.toContain('Served');
+  });
+
   it('shows finish reason with emoji decoration in Response field', () => {
     const payload = createMockPayload();
     payload.llmResponse.finishReason = 'length';

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { DiagnosticPayload, PipelineStep } from '@tzurot/common-types/types/diagnostic';
-import { buildPipelineHealthView, buildQuickCopySummaryView } from './extendedViews.js';
+import { buildPipelineHealthView } from './extendedViews.js';
 import type { ViewContext } from './viewContext.js';
 
 const OWNER_CTX: ViewContext = { canViewCharacter: true };
@@ -81,16 +81,18 @@ describe('buildPipelineHealthView', () => {
 
     const result = buildPipelineHealthView(payload, 'req-1', OWNER_CTX);
     expect(result.files).toBeUndefined();
-    const text = result.chunkedText!.text;
+    const text = result.embeds![0].data.description ?? '';
 
-    expect(text).toContain('# Pipeline Health');
-    // Fixed-width rows in a code fence (Discord renders no pipe-tables);
-    // names pad to the longest ('thinking_extraction', 19 chars)
-    expect(text).toContain('```');
-    expect(text).toContain('duplicate_removal    ✅ success removed 6 chars');
-    expect(text).toContain('thinking_extraction  ⏭️ skipped no reasoning content found');
-    expect(text).toContain('artifact_strip       ❌ error   regex failed');
-    expect(text).toContain('## Context');
+    expect(result.embeds![0].data.title).toBe('🩺 Pipeline Health');
+    // Two lines per step: emoji + name, then the reason as a subtext line
+    expect(text).toContain('✅ `duplicate_removal`');
+    expect(text).toContain('-# removed 6 chars');
+    expect(text).toContain('⏭️ `thinking_extraction`');
+    expect(text).toContain('-# no reasoning content found');
+    expect(text).toContain('❌ `artifact_strip`');
+    expect(text).toContain('-# regex failed');
+    const content = result.embeds![0].data.fields?.find(f => f.name === 'Content');
+    expect(content).toBeDefined();
   });
 
   it('neutralizes embedded triple-backticks in step reasons', () => {
@@ -111,10 +113,11 @@ describe('buildPipelineHealthView', () => {
     });
 
     const result = buildPipelineHealthView(payload, 'req-1', OWNER_CTX);
-    const text = result.chunkedText!.text;
+    const text = result.embeds![0].data.description ?? '';
 
-    // Only the table's own fence pair survives as raw triple-backticks
-    expect(text.match(/```/g)).toHaveLength(2);
+    // No fence wraps the steps anymore — a raw ``` in a reason would OPEN a
+    // block mid-description, so the neutralizer must leave zero raw runs
+    expect(text.match(/```/g)).toBeNull();
     expect(text.replace(/\u200b/g, '')).toContain('choked on ```xml block```');
   });
 
@@ -132,7 +135,7 @@ describe('buildPipelineHealthView', () => {
     });
 
     const result = buildPipelineHealthView(payload, 'req-2', OWNER_CTX);
-    const text = result.chunkedText!.text;
+    const text = result.embeds![0].data.description ?? '';
 
     expect(text).toContain('predates structured pipeline step tracking');
     expect(text).toContain('- ✅ `duplicate_removal`');
@@ -142,7 +145,7 @@ describe('buildPipelineHealthView', () => {
   it('reports "No transforms applied" when both pipelineSteps and transformsApplied are empty', () => {
     const payload = createMockPayload(); // default postProcessing has empty arrays
     const result = buildPipelineHealthView(payload, 'req-3', OWNER_CTX);
-    const text = result.chunkedText!.text;
+    const text = result.embeds![0].data.description ?? '';
     expect(text).toContain('No transforms applied');
   });
 
@@ -160,11 +163,10 @@ describe('buildPipelineHealthView', () => {
     });
 
     const result = buildPipelineHealthView(payload, 'req-4', OWNER_CTX);
-    const text = result.chunkedText!.text;
-
-    expect(text).toContain('**Final content:** 2,048 chars');
-    expect(text).toContain('**Thinking content:** 1,063 chars');
-    expect(text).toContain('**Artifacts stripped:** <reasoning>');
+    const content = result.embeds![0].data.fields?.find(f => f.name === 'Content');
+    expect(content?.value).toContain('**Final:** 2,048 chars');
+    expect(content?.value).toContain('**Thinking:** 1,063 chars');
+    expect(content?.value).toContain('**Artifacts stripped:** <reasoning>');
   });
 
   it('distinguishes empty pipelineSteps (new log, no steps) from missing pipelineSteps (legacy log)', () => {
@@ -181,64 +183,10 @@ describe('buildPipelineHealthView', () => {
     });
 
     const result = buildPipelineHealthView(newLogEmpty, 'req-empty', OWNER_CTX);
-    const text = result.chunkedText!.text;
+    const text = result.embeds![0].data.description ?? '';
 
     expect(text).toContain('No pipeline steps recorded');
     // Should NOT show the legacy-log fallback message — this log is new, just empty
     expect(text).not.toContain('predates structured pipeline step tracking');
-  });
-});
-
-describe('buildQuickCopySummaryView', () => {
-  it('formats a single-line summary with provider, duration, tokens, thinking', () => {
-    const payload = createMockPayload({
-      llmResponse: {
-        rawContent: 'Hi',
-        finishReason: 'stop',
-        promptTokens: 100,
-        completionTokens: 47,
-        modelUsed: 'z-ai/glm-4.7',
-        reasoningDebug: {
-          additionalKwargsKeys: [],
-          hasReasoningInKwargs: true,
-          reasoningKwargsLength: 1063,
-          responseMetadataKeys: [],
-          hasReasoningDetails: false,
-          hasReasoningTagsInContent: false,
-          rawContentPreview: 'Hi',
-          upstreamProvider: 'DekaLLM',
-        },
-      },
-      postProcessing: {
-        transformsApplied: [],
-        duplicateDetected: false,
-        thinkingExtracted: true,
-        thinkingContent: 'a'.repeat(1063),
-        artifactsStripped: [],
-        finalContent: 'Hi',
-      },
-      timing: { totalDurationMs: 9600 },
-    });
-
-    const result = buildQuickCopySummaryView(payload, 'req-5', OWNER_CTX);
-    expect(result.content).toBeDefined();
-    expect(result.content).toContain('**Quick copy:**');
-    expect(result.content).toContain('z-ai/glm-4.7 via DekaLLM');
-    expect(result.content).toContain('9.6s');
-    expect(result.content).toContain('47 tok');
-    expect(result.content).toContain('thinking 1,063 chars');
-  });
-
-  it('omits the upstream-provider segment when reasoningDebug is absent', () => {
-    const payload = createMockPayload();
-    const result = buildQuickCopySummaryView(payload, 'req-6', OWNER_CTX);
-    expect(result.content).toContain('z-ai/glm-4.7 ·');
-    expect(result.content).not.toContain('via');
-  });
-
-  it('omits the thinking segment when thinkingContent is empty', () => {
-    const payload = createMockPayload();
-    const result = buildQuickCopySummaryView(payload, 'req-7', OWNER_CTX);
-    expect(result.content).not.toContain('thinking');
   });
 });

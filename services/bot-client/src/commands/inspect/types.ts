@@ -49,5 +49,4 @@ export enum DebugViewType {
   TokenBudget = 'token-budget',
   VoiceAttribution = 'voice-attribution',
   PipelineHealth = 'pipeline-health',
-  QuickCopy = 'quick-copy',
 }

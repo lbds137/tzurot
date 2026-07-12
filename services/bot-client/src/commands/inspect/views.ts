@@ -236,17 +236,17 @@ export function buildReasoningView(
 // Memory Inspector
 // ---------------------------------------------------------------------------
 
-/** Preview budget per row: the whole view must stay one in-place message so
- * the filter buttons keep editing it (chunked follow-ups would go stale on
- * refresh). Full previews live in the JSON views. */
-const MEMORY_PREVIEW_MAX = 60;
+/** Preview budget per row — sized for the narrower monospace width embeds get
+ * on mobile (~38 chars/row incl. the index/score/status prefix). Full
+ * previews live in the JSON views. */
+const MEMORY_PREVIEW_MAX = 26;
 
 function formatMemoryRow(
   m: DiagnosticMemoryEntry,
   index: number,
   canViewCharacter: boolean
 ): string {
-  const status = m.includedInPrompt ? '✓ in' : '✗ drop';
+  const status = m.includedInPrompt ? '✓' : '✗';
   let preview = canViewCharacter ? m.preview.replace(/\s+/g, ' ').trim() : REDACTED_MEMORY_PREVIEW;
   if (preview.length > MEMORY_PREVIEW_MAX) {
     preview = `${preview.slice(0, MEMORY_PREVIEW_MAX - 1)}…`;
@@ -255,53 +255,33 @@ function formatMemoryRow(
   // surviving run still gets neutralized before entering the fence.
   preview = escapeFenceBreaks(preview);
   // Score pads to 5 to align under the 'Score' header label
-  return `${String(index + 1).padStart(2)} ${m.score.toFixed(2).padEnd(5)} ${status.padEnd(6)} ${preview}`;
+  return `${String(index + 1).padStart(2)} ${m.score.toFixed(2).padEnd(5)} ${status} ${preview}`;
 }
 
+/** The fenced score table — fence keeps columns aligned; ✓/✗ marks inclusion. */
 function renderMemoryTable(
   memories: readonly DiagnosticMemoryEntry[],
-  allMemories: readonly DiagnosticMemoryEntry[],
-  tokenBudget: { memoryTokensUsed: number },
   canViewCharacter: boolean
 ): string[] {
-  const includedTotal = allMemories.filter(m => m.includedInPrompt).length;
-  // Budget drops happened over the full unfiltered retrieval, not the filtered view —
-  // hence allMemories rather than memories. Variable name is explicit to avoid
-  // confusion with filter-induced row exclusion.
-  const budgetDropped = allMemories.length - includedTotal;
-  const lines = [
-    `## Retrieved Memories (${allMemories.length} total, ${includedTotal} included, showing ${memories.length})`,
-  ];
-  if (!canViewCharacter) {
-    lines.push('');
-    lines.push('🔒 _Memory previews redacted — this character is owned by another user._');
-  }
-  // Fixed-width rows in a code fence — Discord doesn't render markdown
-  // tables, and the fence keeps columns aligned on mobile.
-  lines.push('', '```', ' # Score Status Preview');
+  const lines = ['```', ' # Score ✓ Preview'];
   for (let i = 0; i < memories.length; i++) {
     lines.push(formatMemoryRow(memories[i], i, canViewCharacter));
   }
-  lines.push('```', '');
-  lines.push(
-    `**Token Budget:** ${tokenBudget.memoryTokensUsed} tokens allocated, ${budgetDropped} memories dropped for budget`
-  );
+  lines.push('```');
   return lines;
 }
 
-/** Trim table rows from the tail until the view fits one Discord message,
- * keeping everything after the closing fence (the token-budget summary line)
- * and appending a notice pointing at Top-N (the existing knob) for narrowing.
- * The view must stay a single in-place message — the filter buttons re-edit
- * it, so spilling into chunked follow-ups would go stale. */
-function trimToSingleMessage(content: string): string {
-  const limit = 1900; // headroom under Discord's 2000 for the trim notice
+/** Trim table rows from the tail until the description fits the embed cap,
+ * keeping the closing fence and appending a notice pointing at Top-N (the
+ * existing knob). The view must stay a single in-place message — the filter
+ * buttons re-edit it, so spilling into follow-ups would go stale. */
+function trimToEmbedDescription(content: string): string {
+  const limit = 3900; // headroom under Discord's 4096 embed-description cap
   if (content.length <= limit) {
     return content;
   }
   const trimNotice = '_…rows trimmed to fit — lower Top-N or filter to narrow._';
   const fenceEnd = content.lastIndexOf('\n```');
-  // Tail = closing fence + the token-budget summary; both must survive the trim.
   const tail = fenceEnd > 0 ? content.slice(fenceEnd) : '';
   let head = fenceEnd > 0 ? content.slice(0, fenceEnd) : content;
   while (head.length + tail.length + trimNotice.length + 1 > limit && head.includes('\n')) {
@@ -323,11 +303,13 @@ export function buildMemoryInspectorView(
   const sorted = applySort(filtered, state.sort);
   const memories = applyTopN(sorted, state.topN);
 
+  const includedTotal = allMemories.filter(m => m.includedInPrompt).length;
+  // Budget drops happened over the full unfiltered retrieval, not the filtered
+  // view — hence allMemories rather than memories.
+  const budgetDropped = allMemories.length - includedTotal;
+
   const lines: string[] = [
-    '# Memory Inspector',
-    '',
-    `**Search Query:** ${inputProcessing.searchQuery !== null ? `"${inputProcessing.searchQuery}"` : '_none_'}`,
-    `**Focus Mode:** ${memoryRetrieval.focusModeEnabled ? 'Enabled' : 'Disabled'}`,
+    `**Search Query:** ${inputProcessing.searchQuery !== null ? `"${inputProcessing.searchQuery}"` : '_none_'} · **Focus:** ${memoryRetrieval.focusModeEnabled ? 'on' : 'off'}`,
   ];
 
   // State annotation and filter buttons only make sense when there's something
@@ -336,19 +318,36 @@ export function buildMemoryInspectorView(
     lines.push('', '_No memories retrieved for this request._');
   } else {
     lines.push(
-      `**Filter:** ${state.filter} · **Sort:** ${state.sort} · **Top-N:** ${state.topN === 0 ? 'all' : state.topN}`,
-      ''
+      `**Filter:** ${state.filter} · **Sort:** ${state.sort} · **Top-N:** ${state.topN === 0 ? 'all' : state.topN}`
     );
-    if (memories.length === 0) {
-      lines.push(`_No memories match filter "${state.filter}"._`);
-    } else {
-      lines.push(...renderMemoryTable(memories, allMemories, tokenBudget, ctx.canViewCharacter));
+    if (!ctx.canViewCharacter) {
+      lines.push('🔒 _Previews redacted — this character is owned by another user._');
     }
+    if (memories.length === 0) {
+      lines.push('', `_No memories match filter "${state.filter}"._`);
+    } else {
+      lines.push('', ...renderMemoryTable(memories, ctx.canViewCharacter));
+    }
+  }
+
+  // Informational surface: BLURPLE always (design system — color encodes
+  // surface kind, never state).
+  const embed = new EmbedBuilder()
+    .setTitle('🧠 Memory Inspector')
+    .setColor(DISCORD_COLORS.BLURPLE)
+    .setDescription(trimToEmbedDescription(lines.join('\n')));
+
+  if (allMemories.length > 0) {
+    embed.addFields({
+      name: 'Retrieved',
+      value: `${allMemories.length} total · ${includedTotal} included · showing ${memories.length}\n${tokenBudget.memoryTokensUsed} tokens allocated · ${budgetDropped} dropped for budget`,
+      inline: false,
+    });
   }
 
   // Single in-place message (owner decision: inline, no file download).
   return {
-    content: trimToSingleMessage(lines.join('\n')),
+    embeds: [embed],
     components: allMemories.length > 0 ? [buildMemoryFilterButtons(requestId, state)] : [],
     flags: MessageFlags.Ephemeral,
   };
@@ -395,7 +394,9 @@ export function buildTokenBudgetView(
   const remaining = Math.max(0, total - usedTokens);
   const remainingPct = (remaining / total) * 100;
 
-  const bar = (pct: number): string => '█'.repeat(Math.round(pct / 4)).padEnd(25, '░');
+  // 15-cell bars: embeds render a narrower monospace column on mobile than
+  // plain messages — the full row must fit ~38 chars.
+  const bar = (pct: number): string => '█'.repeat(Math.round(pct / (100 / 15))).padEnd(15, '░');
   const row = (label: string, tokens: number, pct: number): string =>
     `${label.padEnd(8)}${bar(pct)} ${pct.toFixed(0).padStart(3)}% ${tokens.toLocaleString().padStart(8)}`;
 
@@ -409,9 +410,11 @@ export function buildTokenBudgetView(
     '```',
   ].join('\n');
 
+  // Informational surface: BLURPLE always (design system — color encodes
+  // surface kind, never state; the >70% condition speaks via the ⚠️ note).
   const embed = new EmbedBuilder()
     .setTitle('📊 Token Budget')
-    .setColor(historyPct > 70 ? DISCORD_COLORS.WARNING : DISCORD_COLORS.BLURPLE)
+    .setColor(DISCORD_COLORS.BLURPLE)
     .setDescription(`**Context window:** ${total.toLocaleString()} tokens\n${chart}`);
 
   const notes: string[] = [];
@@ -469,17 +472,19 @@ export function buildVoiceAttributionView(
   _ctx: ViewContext
 ): DebugViewResult {
   const { tokenBudget, inputProcessing } = payload;
-  const lines: string[] = ['## Voice Attribution', ''];
 
   const hasTts = tokenBudget.ttsProviderUsed !== undefined;
   const hasTranscript =
     inputProcessing.voiceTranscript !== null && inputProcessing.voiceTranscript.length > 0;
 
+  // Informational surface: BLURPLE always (design system).
+  const embed = new EmbedBuilder()
+    .setTitle('🎙️ Voice Attribution')
+    .setColor(DISCORD_COLORS.BLURPLE);
+
   if (!hasTts && !hasTranscript) {
-    return {
-      content: 'No voice activity (TTS or voice-message input) on this request.',
-      flags: MessageFlags.Ephemeral,
-    };
+    embed.setDescription('_No voice activity (TTS or voice-message input) on this request._');
+    return { embeds: [embed], flags: MessageFlags.Ephemeral };
   }
 
   if (hasTts) {
@@ -487,23 +492,30 @@ export function buildVoiceAttributionView(
     // where the configured provider failed and a backup produced the audio —
     // the exact diagnostic gap that hid the Mistral STT misattribution.
     const fallbackSuffix = tokenBudget.ttsUsedFallback === true ? ' _(via fallback)_' : '';
-    lines.push(`**TTS provider:** ${tokenBudget.ttsProviderUsed}${fallbackSuffix}`);
+    embed.addFields({
+      name: 'TTS provider',
+      value: `${tokenBudget.ttsProviderUsed}${fallbackSuffix}`,
+      inline: true,
+    });
   }
   if (hasTranscript) {
     // Discord blockquotes need '> ' on EVERY line — a bare continuation line
-    // drops out of the quote (unlike GitHub markdown).
-    const quoted = (inputProcessing.voiceTranscript ?? '')
+    // drops out of the quote (unlike GitHub markdown). ASR output is
+    // content-derived text: neutralize ``` runs (they'd open a code block
+    // mid-description). The cap measures the QUOTED text — per-line '> '
+    // overhead can outgrow the raw length on many-short-line transcripts —
+    // and the full text lives in Full JSON.
+    const quoted = escapeFenceBreaks(inputProcessing.voiceTranscript ?? '')
       .split('\n')
       .map(line => `> ${line}`)
       .join('\n');
-    lines.push('', '**Voice transcript:**', quoted);
+    const body = `**Voice transcript:**\n${quoted}`;
+    embed.setDescription(
+      body.length > 3900
+        ? `${body.slice(0, 3800)}…\n_(truncated — full transcript in Full JSON)_`
+        : body
+    );
   }
 
-  return {
-    chunkedText: {
-      text: lines.join('\n'),
-      continuedHeader: '_(voice attribution continued)_\n',
-    },
-    flags: MessageFlags.Ephemeral,
-  };
+  return { embeds: [embed], flags: MessageFlags.Ephemeral };
 }

@@ -66,7 +66,7 @@ describe('buildInspectComponents', () => {
     const rows = buildInspectComponents('test-req');
     const selectMenu = rows[1].components[0].toJSON();
     // Compact JSON, System Prompt, Memory Inspector, Token Budget,
-    // Voice Attribution, Pipeline Health, Quick Copy
-    expect('options' in selectMenu && selectMenu.options).toHaveLength(7);
+    // Voice Attribution, Pipeline Health (Quick Copy removed — never used)
+    expect('options' in selectMenu && selectMenu.options).toHaveLength(6);
   });
 });
