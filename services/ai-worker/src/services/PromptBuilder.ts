@@ -51,6 +51,25 @@ interface BuildFullSystemPromptOptions {
   // injected inline into serializedHistory entries for better context colocation
 }
 
+/**
+ * Build the `<chat_log>` section with its role legend. The legend is stated
+ * where the roles are used: sibling personas render as role="character"
+ * (never "assistant"), so the model can't mistake another character's lines
+ * for its own in multi-persona channels. Empty history → empty string.
+ */
+function buildChatLogSection(
+  serializedHistory: string | undefined,
+  personalityName: string
+): string {
+  if (serializedHistory === undefined || serializedHistory.length === 0) {
+    return '';
+  }
+  return `\n\n<chat_log>
+<instruction>The conversation so far. Each message's role says who wrote it: role="assistant" marks your own earlier lines (${escapeXmlContent(personalityName)}); role="user" marks humans (match from_id to <participants>); role="character" marks a different AI character — a conversation peer, never you.</instruction>
+${serializedHistory}
+</chat_log>`;
+}
+
 export class PromptBuilder {
   /**
    * Build search query for memory retrieval
@@ -267,13 +286,8 @@ ${locationXml}
       );
     }
 
-    // Conversation history as XML
-    const chatLogSection =
-      serializedHistory !== undefined && serializedHistory.length > 0
-        ? `\n\n<chat_log>
-${serializedHistory}
-</chat_log>`
-        : '';
+    // Conversation history as XML (legend lives in buildChatLogSection)
+    const chatLogSection = buildChatLogSection(serializedHistory, personality.name);
 
     // Protocol (near END of prompt - recency bias for highest impact). Outer
     // escape kept: it also covers the LEGACY raw-systemPrompt path (author XML),

@@ -6,11 +6,10 @@
  * Extracted from conversationUtils.ts for better modularity.
  */
 
-import { MessageRole } from '@tzurot/common-types/constants/message';
 import { type StoredReferencedMessage } from '@tzurot/common-types/types/schemas/message';
 import { formatPromptTimestamp } from '@tzurot/common-types/utils/dateFormatting';
 import type { RawHistoryEntry } from './conversationTypes.js';
-import { isRoleMatch } from './participantUtils.js';
+import { resolveSpeakerInfo, type ChatLogRole } from './participantUtils.js';
 
 /**
  * Estimate character length for a stored reference
@@ -44,47 +43,28 @@ function estimateReferenceLength(ref: StoredReferencedMessage): number {
  */
 interface SpeakerInfo {
   speakerName: string;
-  role: 'user' | 'assistant';
+  role: ChatLogRole;
   isUser: boolean;
 }
 
 /**
- * Resolve speaker name for length estimation, including disambiguation
+ * Resolve speaker name for length estimation. Delegates to the formatter's
+ * own `resolveSpeakerInfo` so the estimated shape can't drift from the
+ * rendered shape (this used to be a simplified local copy).
  */
 function resolveSpeakerForEstimation(
   msg: RawHistoryEntry,
   personalityName: string
 ): SpeakerInfo | null {
-  const isUser = isRoleMatch(msg.role, MessageRole.User);
-  const isAssistant = isRoleMatch(msg.role, MessageRole.Assistant);
-
-  if (!isUser && !isAssistant) {
+  const resolved = resolveSpeakerInfo(msg, personalityName);
+  if (resolved === null) {
     return null;
   }
-
-  const role: 'user' | 'assistant' = isUser ? 'user' : 'assistant';
-
-  if (isUser) {
-    let speakerName =
-      msg.personaName !== undefined && msg.personaName.length > 0 ? msg.personaName : 'User';
-
-    // Account for disambiguation when persona name matches personality name
-    if (
-      speakerName.toLowerCase() === personalityName.toLowerCase() &&
-      msg.discordUsername !== undefined &&
-      msg.discordUsername.length > 0
-    ) {
-      speakerName = `${speakerName} (@${msg.discordUsername})`;
-    }
-    return { speakerName, role, isUser: true };
-  }
-
-  // For assistant messages, use the AI personality's name from the message
-  const speakerName =
-    msg.personalityName !== undefined && msg.personalityName.length > 0
-      ? msg.personalityName
-      : personalityName;
-  return { speakerName, role, isUser: false };
+  return {
+    speakerName: resolved.speakerName,
+    role: resolved.role,
+    isUser: resolved.role === 'user',
+  };
 }
 
 /**

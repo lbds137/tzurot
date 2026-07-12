@@ -303,16 +303,16 @@ describe('ReferencedMessageFormatter', () => {
       expect(result).toContain('Second message');
     });
 
-    it('renders authorRole="assistant" on a non-deduped quote', async () => {
-      // The worker renders the role stamped at classification time (bot-client) — it
-      // no longer derives it. authorRole="assistant" = one of our own personas.
+    it('renders role="assistant" on a non-deduped quote from the responding persona', async () => {
+      // The stamp says "one of our personas"; the render resolves WHICH — the
+      // responding persona's own line keeps role="assistant".
       const references: ReferencedMessage[] = [
         {
           referenceNumber: 1,
           discordMessageId: 'msg-bot-1',
           discordUserId: 'bot-user-id',
-          authorUsername: 'Lilith',
-          authorDisplayName: 'Lilith',
+          authorUsername: 'Test Bot',
+          authorDisplayName: 'Test Bot',
           content: 'Something I said earlier',
           embeds: '',
           timestamp: '2025-11-04T00:00:00Z',
@@ -325,9 +325,45 @@ describe('ReferencedMessageFormatter', () => {
       const result = await formatter.formatReferencedMessages(references, mockPersonality);
 
       expect(result).toContain(
-        '<quote number="1" from="Lilith" username="Lilith" role="assistant">'
+        '<quote number="1" from="Test Bot" username="Test Bot" role="assistant">'
       );
       expect(result).toContain('<content>Something I said earlier</content>');
+    });
+
+    it('demotes a stamped-assistant quote from a SIBLING persona to role="character"', async () => {
+      // The bot-client stamp says "one of our personas" (applicationId match) — it
+      // can't know which persona responds. A sibling's quote must not render as
+      // the responding persona's own line.
+      const references: ReferencedMessage[] = [
+        {
+          referenceNumber: 1,
+          discordMessageId: 'msg-sibling-1',
+          discordUserId: 'bot-user-id',
+          authorUsername: 'Ha-Shem',
+          authorDisplayName: 'Ha-Shem',
+          content: 'A sibling persona said this',
+          embeds: '',
+          timestamp: '2025-11-04T00:00:00Z',
+          locationContext: '',
+          authorRole: 'assistant',
+        },
+      ];
+
+      const result = await formatter.formatReferencedMessages(
+        references,
+        mockPersonality,
+        false,
+        undefined,
+        // Demotion requires positive sibling evidence — the caller threads the
+        // personalities seen in history (ConversationInputProcessor does this).
+        { allPersonalityNames: new Set(['Ha-Shem', 'Test Bot']) }
+      );
+
+      expect(result).toContain(
+        '<quote number="1" from="Ha-Shem" username="Ha-Shem" role="character">'
+      );
+      // The legend text mentions role="assistant"; assert on the quote attribute shape.
+      expect(result).not.toContain('from="Ha-Shem" username="Ha-Shem" role="assistant"');
     });
 
     it('renders authorRole="bot" on a non-deduped quote (non-persona automation)', async () => {
@@ -446,22 +482,23 @@ describe('ReferencedMessageFormatter', () => {
       ];
       const result = await formatter.formatReferencedMessages(references, mockPersonality);
       expect(result).toContain('<instruction>');
-      // Assert all three role clauses — a future edit dropping one would otherwise
+      // Assert all four role clauses — a future edit dropping one would otherwise
       // pass undetected since the assistant clause's substring stays present.
       expect(result).toContain('role="assistant" is one of your own earlier lines');
       expect(result).toContain('role="user" is a person');
-      expect(result).toContain('role="bot" is a different bot or automated webhook');
+      expect(result).toContain('role="character" is a different AI character');
+      expect(result).toContain('role="bot" is a non-character bot or automated webhook');
     });
 
-    it('renders authorRole="assistant" on a deduped reply-target (marker-only)', async () => {
-      // Deduped stub from our own persona: role="assistant", marker-only content.
+    it('renders role="assistant" on a deduped reply-target from the responding persona', async () => {
+      // Deduped stub of the responding persona's own line: role="assistant", marker-only.
       const references: ReferencedMessage[] = [
         {
           referenceNumber: 1,
           discordMessageId: 'm',
           discordUserId: 'u',
-          authorUsername: 'Lilith',
-          authorDisplayName: 'Lilith',
+          authorUsername: 'Test Bot',
+          authorDisplayName: 'Test Bot',
           authorRole: 'assistant',
           content: '',
           embeds: '',
@@ -472,7 +509,7 @@ describe('ReferencedMessageFormatter', () => {
       ];
       const result = await formatter.formatReferencedMessages(references, mockPersonality);
       expect(result).toContain(
-        '<quote number="1" from="Lilith" username="Lilith" role="assistant">'
+        '<quote number="1" from="Test Bot" username="Test Bot" role="assistant">'
       );
       expect(result).toContain('[Referenced message — full text in the chat log]');
     });

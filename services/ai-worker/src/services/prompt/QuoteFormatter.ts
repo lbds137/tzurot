@@ -11,7 +11,7 @@
  * to provide context about the quote source.
  */
 
-import { type ReferenceAuthorRole } from '@tzurot/common-types/types/schemas/message';
+import { type RenderedQuoteRole } from './referenceRole.js';
 import {
   escapeXmlContent,
   neutralizeWrapperClosingTags,
@@ -33,8 +33,8 @@ export interface QuoteElementOptions {
   fromId?: string;
   /** Author username */
   username?: string;
-  /** Speaker role: assistant (our persona), user (a person), or bot (other automation) */
-  role?: ReferenceAuthorRole;
+  /** Speaker role: assistant (the responding persona's own line), character (a sibling persona), user (a person), or bot (other automation) */
+  role?: RenderedQuoteRole;
   /** Pre-formatted timestamp string (for t="" attribute on <quote>) */
   timeFormatted?: string;
   /** Structured timestamp (for <time> child element) */
@@ -58,7 +58,7 @@ export interface QuoteElementOptions {
  *
  * Output format:
  * ```xml
- * <quote [number="N"] [type="forward"] [from="Name"] [username="user"] [role="user|assistant"] [t="..."]>
+ * <quote [number="N"] [type="forward"] [from="Name"] [username="user"] [role="user|assistant|character|bot"] [t="..."]>
  *   <time absolute="..." relative="..."/>     (if timestamp provided)
  *   <content>text</content>                   (if content provided and non-empty)
  *   locationContext XML                        (if provided and non-empty)
@@ -200,8 +200,8 @@ export interface DedupedQuoteOptions {
   from: string;
   /** Author username (real-time refs only) */
   username?: string;
-  /** Speaker role — `assistant` (our persona), `user` (a person), `bot` (other automation). */
-  role?: ReferenceAuthorRole;
+  /** Speaker role — `assistant` (the responding persona's own line), `character` (a sibling persona), `user` (a person), `bot` (other automation). */
+  role?: RenderedQuoteRole;
   /** Structured timestamp as child element */
   timestamp?: { absolute: string; relative: string };
   /** Pre-formatted timestamp as attribute */
