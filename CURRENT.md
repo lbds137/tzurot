@@ -1,19 +1,17 @@
 # Current
 
-> **Version**: v3.0.0-beta.158 (released 2026-07-11) — /inspect inline chunked views (no more file downloads for readable text; token budget embed, voice attribution view), db-sync inline report + row-level deletions + tombstone drift guard, z.ai GLM-4.5-Air free-tier piggyback (conditionally-free cascade, #1590 held the release), LONG_SYNC timeout tier, commit-filter guard hook. **z.ai free tier is LIVE in dev AND prod** (owner flipped `ZAI_FREE_TIER_ENABLED` + key on both, 2026-07-11; defaults = 75% headroom / 1000 daily). Prod extraction remains live. _Prior: beta.157 (2026-07-10, fact extraction + tombstones)._
+> **Version**: v3.0.0-beta.159 (released 2026-07-11, late) — guest picker fix (GLM-4.5-Air selectable for free users), /inspect design-system embeds + facts token-budget bar + model-substitution flag, fence-aware message splitting (long AI code replies render valid markdown), z.ai budget retry-idempotency + admission wiring test. **z.ai free tier LIVE in both envs.** _Prior: beta.158 (2026-07-11, inline inspect views + piggyback)._
 
 ---
 
 ## Unreleased on Develop
 
-- **PR #1591** — z.ai admission chain wiring test (real overrides → admission → meter + quota over fake Redis; only the z.ai HTTP boundary mocked). Closed the release-review rule-7 gap; en-route finding: the per-user window cap denies same-request retries under tight config, so the global-counter double-count needs user headroom to occur.
-- **PR #1592** — guest pickers honor the conditionally-free piggyback model (owner-reported: not selectable in `/settings preset set-default`). Availability gates → `isFreeTierEligibleModel`; NEW `isFreeModelForUser` audience predicate (owner call: free for guests, paid for key-holders) across 🆓 badge / free-count / 'free' scope / models usability; review-caught `models/view.ts` wallet-failure empty-Set→null contract fix.
-- **PR #1593** — fact tokens surfaced in /inspect token budget (owner-reported: facts invisible). Facts get their own bar subtracted out of System (they render inside the system prompt), included/dropped counts in Notes; `recordBudgetDiagnostics` was the seam that dropped `factTokensUsed`. Older logs render the legacy chart. Step-3 retrieval extracted to `factRetrievalHelper.retrieveMemoriesAndFacts` (line cap).
-- **Memory Phase 1a remains PARKED** on `feat/memory-hybrid-retrieval` (evidence gate: real-scale goldens).
+- (empty — beta.159 shipped everything; develop == main)
+- **Memory Phase 1a remains PARKED** on `feat/memory-hybrid-retrieval` (resume gate: the goldens session — design DECIDED: committed anonymized set from the owner's own memories, entity-swap + owner review gate).
 
 ## Next Session Goal
 
-**beta.158 SHIPPED + z.ai free tier LIVE (both envs) — the prod-enable chain is COMPLETE.** Remaining watches: (a) **dev backfill IN FLIGHT** (~37%, self-paced, monitor every 30 min); (b) first real guest traffic through the z.ai admission chain — glance at `/admin usage` plan meters; (c) Saturday's weekly-audit run (Dependabot-403 trigger). **Owner-directed next (2026-07-11, pre-beta.159): the /inspect view-inventory Q&A (theme item 6) and the admin-settings runtime-config design pass — both land before the next release cut**, which carries #1591–#1593 (wiring test, guest-picker eligibility + guest-aware badging, facts in token budget — the picker fix is user-facing).
+**beta.159 SHIPPED (owner smoke pending: long-code character reply, /inspect embeds pass, guest picker).** Queued owner-direction: (1) **admin-settings runtime-config BOULDER** — full cadence with trio council; scope decisions recorded in `cold/ideas.md` (two-axis UX, case-by-case flag fates, FULL ~15-var migration set in one slice); (2) **goldens prep** (mining/anonymization script + harness plumbing, then the ~90-min owner labeling session) → unparks memory Phase 1a. Watches: dev backfill (~40%), first guest z.ai traffic (`/admin usage`), Saturday weekly-audit run.
 
 **Open follow-ups from Phase 1** (all in `cold/follow-ups.md` with promote-when triggers): system-voice straggler wording (STT / MessageHandler top-catch / truncation notices), partial-failure errored-slot delivery, admin/kick `serverId` escaping, `deletePersona`/`getCachedPersonalities` wrapper widening, `maxRetries:0` metrics watch.
 
