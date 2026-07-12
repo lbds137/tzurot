@@ -253,17 +253,30 @@ export function injectImageDescriptions(
  * providing recent topic context to the embedding model.
  *
  * @param rawHistory The raw conversation history array
+ * @param turnsToInclude How many turns (user+assistant pairs) to fold in. Defaults to
+ *   AI_DEFAULTS.LTM_SEARCH_HISTORY_TURNS — the production value; callers pass nothing and
+ *   get byte-identical behavior. The retrieval eval passes explicit counts to sweep the
+ *   fold depth (3/5/8) without touching the production default.
  * @returns Formatted string of recent history, or undefined if no history
  */
 export function extractRecentHistoryWindow(
-  rawHistory?: { role: string; content: string; tokenCount?: number }[]
+  rawHistory?: { role: string; content: string; tokenCount?: number }[],
+  turnsToInclude: number = AI_DEFAULTS.LTM_SEARCH_HISTORY_TURNS
 ): string | undefined {
   if (!rawHistory || rawHistory.length === 0) {
     return undefined;
   }
 
+  // Guard the public contract: turnsToInclude <= 0 means "no fold". Without this,
+  // `slice(-0)` (since -0 === 0) would return the ENTIRE history and a negative
+  // count would slice from the front — both silently the OPPOSITE of the intent,
+  // and a corrupted fold window would poison the retrieval re-baseline this param
+  // exists to serve.
+  if (turnsToInclude <= 0) {
+    return undefined;
+  }
+
   // Get the last N turns (each turn = 2 messages: user + assistant)
-  const turnsToInclude = AI_DEFAULTS.LTM_SEARCH_HISTORY_TURNS;
   const messagesToInclude = turnsToInclude * 2;
 
   // Take the last N messages (they're already in chronological order)
