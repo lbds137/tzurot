@@ -68,6 +68,9 @@ vi.mock('./multimodal/AudioProcessor.js', () => ({
 vi.mock('../redis.js', () => ({
   checkModelVisionSupport: mockCheckModelVisionSupport,
   visionDescriptionCache: {
+    tryAcquireInflight: vi.fn().mockResolvedValue(true),
+    isInflight: vi.fn().mockResolvedValue(false),
+    releaseInflight: vi.fn().mockResolvedValue(undefined),
     get: mockVisionCacheGet,
     store: mockVisionCacheStore,
     getFailure: mockVisionCacheGetFailure,

@@ -29,12 +29,14 @@ import { createChatModel } from '../ModelFactory.js';
 import { detectVisionProvider } from '../ProviderRouter.js';
 import { parseApiError } from '../../utils/apiErrorParser.js';
 import { checkModelVisionSupport, visionDescriptionCache } from '../../redis.js';
+import { enterSingleFlight, exitSingleFlight } from './visionSingleFlight.js';
 import { isDataUrl } from '../../utils/attachmentFetch.js';
 import { downloadImageToDataUrl } from '../../utils/imageToDataUrl.js';
 import {
   VISION_PLACEHOLDER_PREFIX,
   isValidVisionDescription,
   VISION_MIN_DESCRIPTION_LENGTH,
+  readValidCachedDescription,
 } from './visionDescriptionValidity.js';
 
 const logger = createLogger('VisionProcessor');
@@ -690,26 +692,9 @@ export async function describeImage(
   // free-tier requests that could never produce one themselves.
   const cacheKeyOptions = { attachmentId: attachment.id, url: attachment.url, model: usedModel };
   if (options?.skipCache !== true) {
-    const cachedDescription = await visionDescriptionCache.get(cacheKeyOptions);
+    const cachedDescription = await readValidCachedDescription(cacheKeyOptions, attachment);
     if (cachedDescription !== null) {
-      // Validate cached description quality — some models cache error text
-      // (e.g., "I cannot access the image URL") that looks valid but isn't useful.
-      // Re-processing gives the vision model a chance to succeed with a fresh attempt.
-      if (isValidVisionDescription(cachedDescription)) {
-        logger.debug(
-          { attachmentName: attachment.name, attachmentId: attachment.id },
-          'Using cached vision description - avoiding duplicate API call'
-        );
-        return cachedDescription;
-      }
-      logger.warn(
-        {
-          attachmentId: attachment.id,
-          cachedLength: cachedDescription.length,
-          preview: cachedDescription.substring(0, 80),
-        },
-        'Cached vision description appears invalid — re-processing image'
-      );
+      return cachedDescription;
     }
   }
 
@@ -734,46 +719,58 @@ export async function describeImage(
     return buildFailureFallback(cachedCategory, loggingContext.apiKeySource, attachment.name);
   }
 
-  const systemPrompt =
-    personality.systemPrompt !== undefined && personality.systemPrompt.length > 0
-      ? personality.systemPrompt
-      : undefined;
-
-  // Derive the provider from the RESOLVED vision model when the caller didn't
-  // supply one. An undefined provider makes createChatModel fall back to the
-  // env-default AI_PROVIDER, which misroutes cross-provider personalities (e.g.
-  // an OpenRouter vision model paired with a z.ai-coding main model) → wrong
-  // route → 401 Missing Authentication. detectVisionProvider maps the actual
-  // model name to its route, so key resolution and routing stay aligned.
-  const provider = options.provider ?? detectVisionProvider(usedModel);
-  // Resolve the image to inline bytes so the vision PROVIDER never has to fetch
-  // a URL it may be unable to reach (Discord's external-image proxy 403s
-  // OpenRouter; signed Discord-CDN URLs expire). We pass the ORIGINAL attachment
-  // (for cache keys) plus the resolved imageUrl separately.
-  const imageUrl = await resolveVisionImageUrl(attachment, loggingContext);
-  const description = await invokeVisionModelForDescribe(
-    attachment,
-    usedModel,
-    {
-      systemPrompt,
-      userApiKey,
-      provider,
-      imageUrl,
-      loggingContext,
-      personalityName: personality.name,
-      // Per-TIER params: the fallback chain re-enters describeImage with each
-      // tier's model forced via options.model, so this lookup naturally gives
-      // every tier ITS OWN config's params.
-      visionParams: personality.visionConfigParams?.[usedModel],
-    },
-    options.throwOnFailure === true
-  );
-
-  // Cache the description for future use (Redis L1 only).
-  // Uses shared validation to prevent error-like descriptions from polluting the cache.
-  if (isValidVisionDescription(description)) {
-    await visionDescriptionCache.store(cacheKeyOptions, description);
+  // Single-flight: coalesce concurrent describes of the same image (see
+  // visionSingleFlight.ts — multi-character fan-out burns N provider calls
+  // without it). Coalesced → return the winner's description, zero calls.
+  const flight = await enterSingleFlight(cacheKeyOptions, attachment, options?.skipCache === true);
+  if (flight.coalesced !== null) {
+    return flight.coalesced;
   }
 
-  return description;
+  try {
+    const systemPrompt =
+      personality.systemPrompt !== undefined && personality.systemPrompt.length > 0
+        ? personality.systemPrompt
+        : undefined;
+
+    // Derive the provider from the RESOLVED vision model when the caller didn't
+    // supply one. An undefined provider makes createChatModel fall back to the
+    // env-default AI_PROVIDER, which misroutes cross-provider personalities (e.g.
+    // an OpenRouter vision model paired with a z.ai-coding main model) → wrong
+    // route → 401 Missing Authentication. detectVisionProvider maps the actual
+    // model name to its route, so key resolution and routing stay aligned.
+    const provider = options.provider ?? detectVisionProvider(usedModel);
+    // Resolve the image to inline bytes so the vision PROVIDER never has to fetch
+    // a URL it may be unable to reach (Discord's external-image proxy 403s
+    // OpenRouter; signed Discord-CDN URLs expire). We pass the ORIGINAL attachment
+    // (for cache keys) plus the resolved imageUrl separately.
+    const imageUrl = await resolveVisionImageUrl(attachment, loggingContext);
+    const description = await invokeVisionModelForDescribe(
+      attachment,
+      usedModel,
+      {
+        systemPrompt,
+        userApiKey,
+        provider,
+        imageUrl,
+        loggingContext,
+        personalityName: personality.name,
+        // Per-TIER params: the fallback chain re-enters describeImage with each
+        // tier's model forced via options.model, so this lookup naturally gives
+        // every tier ITS OWN config's params.
+        visionParams: personality.visionConfigParams?.[usedModel],
+      },
+      options.throwOnFailure === true
+    );
+
+    // Cache the description for future use (Redis L1 only).
+    // Uses shared validation to prevent error-like descriptions from polluting the cache.
+    if (isValidVisionDescription(description)) {
+      await visionDescriptionCache.store(cacheKeyOptions, description);
+    }
+
+    return description;
+  } finally {
+    await exitSingleFlight(flight, cacheKeyOptions);
+  }
 }

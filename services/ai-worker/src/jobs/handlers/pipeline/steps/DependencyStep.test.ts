@@ -44,6 +44,9 @@ vi.mock('../../../../redis.js', () => ({
     getJobResult: (...args: unknown[]) => mockGetJobResult(...args),
   },
   visionDescriptionCache: {
+    tryAcquireInflight: vi.fn().mockResolvedValue(true),
+    isInflight: vi.fn().mockResolvedValue(false),
+    releaseInflight: vi.fn().mockResolvedValue(undefined),
     storeFailure: (...args: unknown[]) => mockStoreFailure(...args),
   },
   visionFallbackQuota: {

@@ -79,6 +79,9 @@ vi.mock('../redis.js', () => ({
     isIncognitoActive: vi.fn().mockResolvedValue(false),
   },
   visionDescriptionCache: {
+    tryAcquireInflight: vi.fn().mockResolvedValue(true),
+    isInflight: vi.fn().mockResolvedValue(false),
+    releaseInflight: vi.fn().mockResolvedValue(undefined),
     get: vi.fn().mockResolvedValue(null),
   },
   checkModelReasoningSupport: vi.fn().mockResolvedValue(true),
