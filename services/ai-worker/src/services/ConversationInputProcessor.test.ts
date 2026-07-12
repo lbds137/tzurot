@@ -324,7 +324,13 @@ describe('ConversationInputProcessor', () => {
         mockPersonality,
         true,
         undefined,
-        { userApiKey: undefined, elevenlabsApiKey: undefined }
+        {
+          userApiKey: undefined,
+          sttDispatch: undefined,
+          visionProvider: undefined,
+          visionModel: undefined,
+          allPersonalityNames: new Set(['Test Bot']),
+        }
       );
       expect(result.referencedMessagesDescriptions).toBe('<references>formatted</references>');
     });
@@ -453,7 +459,13 @@ describe('ConversationInputProcessor', () => {
         mockPersonality,
         false,
         preprocessedReferenceAttachments,
-        { userApiKey: 'api-key', elevenlabsApiKey: undefined }
+        {
+          userApiKey: 'api-key',
+          sttDispatch: undefined,
+          visionProvider: undefined,
+          visionModel: undefined,
+          allPersonalityNames: new Set(['Test Bot']),
+        }
       );
     });
 

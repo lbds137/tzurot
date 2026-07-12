@@ -6,7 +6,7 @@ _The hot surface — loaded at session start alongside `BACKLOG.md`, `active-epi
 
 ### 🚨 Production Issues
 
-
+- 🐛 [FIX] **User-preset LLM params silently ignored except `model` (since 2026-06-17, a8bb9b00a)** — `stampResolvedConfig` (api-gateway) stamps ONLY `resolved.config.model` onto the job personality; ConfigStep deliberately no longer re-runs the LLM cascade ("gateway stamped it"). Every OTHER preset field of the user-default / user-personality tiers — `contextWindowTokens`, `minP`, `temperature`, `topP`, `topK`, `reasoning`, `maxTokens`, all of `LLM_CONFIG_OVERRIDE_KEYS` — silently falls back to the SEED personality (personality-bound config, else admin global default). Runtime-confirmed 2026-07-12: owner's GLM 5.2 preset (ctx=500K, minP=0.01) served a request budgeted at ctx=100,000 (the admin-default preset's value) with no minP (`/inspect` debug + prod DB probe + git archaeology). Invisible until now because owner presets share house sampling with the seeds. **Fix shape**: stamp the full merged config at the gateway (restore pre-a8bb9b00a `applyConfigToPersonality` semantics at the stamp site — iterate `LLM_CONFIG_OVERRIDE_KEYS`), keeping the resolve-once-share-across-chain design. Regression test: user-default preset with distinct ctx/minP → job personality carries them.
 
 _Active bugs observed in production. Fix before new features. Cleared issues are removed once released — see git history + the GitHub release notes._
 

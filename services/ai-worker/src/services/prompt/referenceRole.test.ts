@@ -1,33 +1,72 @@
 import { describe, it, expect } from 'vitest';
-import { isAuthorAssistant, deriveRefRole } from './referenceRole.js';
+import { deriveRefRole } from './referenceRole.js';
 
-describe('isAuthorAssistant', () => {
+describe('deriveRefRole name matching (fallback path)', () => {
   it('matches when the author name is prefixed by the active personality name', () => {
     // Webhook usernames are `${displayName}${botSuffix}`, so the personality name is a prefix.
-    expect(isAuthorAssistant('Lilith ▽', 'Lilith')).toBe(true);
+    expect(deriveRefRole(undefined, 'Lilith ▽', 'Lilith')).toBe('assistant');
   });
 
   it('is case-insensitive', () => {
-    expect(isAuthorAssistant('lilith ▽', 'Lilith')).toBe(true);
+    expect(deriveRefRole(undefined, 'lilith ▽', 'Lilith')).toBe('assistant');
   });
 
   it('does not match an unrelated author', () => {
-    expect(isAuthorAssistant('Some Human', 'Lilith')).toBe(false);
+    expect(deriveRefRole(undefined, 'Some Human', 'Lilith')).toBe('user');
   });
 
-  it('matches a sibling persona via allPersonalityNames', () => {
-    expect(isAuthorAssistant('Lila ▽', 'Lilith', new Set(['Lila', 'Lilith']))).toBe(true);
-  });
-
-  it('returns false for a non-persona author even with a personality set', () => {
-    expect(isAuthorAssistant('Some Human', 'Lilith', new Set(['Lila', 'Lilith']))).toBe(false);
+  it('resolves a non-persona author to user even with a personality set', () => {
+    expect(deriveRefRole(undefined, 'Some Human', 'Lilith', new Set(['Lila', 'Lilith']))).toBe(
+      'user'
+    );
   });
 });
 
 describe('deriveRefRole', () => {
-  it('returns the stamped authorRole verbatim when present (assistant)', () => {
-    // The classifier is authoritative — name-matching is never consulted when set.
-    expect(deriveRefRole('assistant', 'irrelevant', 'Lilith')).toBe('assistant');
+  it('resolves a stamped assistant to assistant when the author is the responding persona', () => {
+    // The stamp says "one of our personas" — the render-time split decides WHICH.
+    expect(deriveRefRole('assistant', 'Lilith ▽', 'Lilith')).toBe('assistant');
+  });
+
+  it('demotes a stamped assistant to character on a positive sibling match', () => {
+    // A sibling's line must never render as the responding persona's own words.
+    expect(deriveRefRole('assistant', 'Ha-Shem ▽', 'Yeshua', new Set(['Ha-Shem', 'Yeshua']))).toBe(
+      'character'
+    );
+  });
+
+  it('keeps a stamped assistant WITHOUT a positive sibling match (conservative default)', () => {
+    // Name vocabularies differ across call sites (stored name vs displayName), so
+    // an unmatched author keeps assistant rather than misfiring on the persona's
+    // own line — demotion requires positive evidence.
+    expect(deriveRefRole('assistant', 'Ha-Shem ▽', 'Yeshua')).toBe('assistant');
+  });
+
+  it("does not demote the persona's own line when the set carries its stored-name variant", () => {
+    // Stored rows carry personality.name ("Yeshua") while the live path matches
+    // displayName ("Yeshua ben Yosef") — the name-variant entry must read as SELF.
+    expect(
+      deriveRefRole(
+        'assistant',
+        'Yeshua ▽',
+        'Yeshua ben Yosef',
+        new Set(['Yeshua', 'Ha-Shem', 'Yeshua ben Yosef'])
+      )
+    ).toBe('assistant');
+  });
+
+  it('fallback: own line under a stored-name variant resolves to assistant, not character', () => {
+    // Mirror of the stamped self-variant pin with NO stamp — the fallback must
+    // route through the same self-variant guard (round-2 review catch: it
+    // previously matched the bare set entry and misread the persona's own line).
+    expect(
+      deriveRefRole(
+        undefined,
+        'Yeshua ▽',
+        'Yeshua ben Yosef',
+        new Set(['Yeshua', 'Ha-Shem', 'Yeshua ben Yosef'])
+      )
+    ).toBe('assistant');
   });
 
   it('returns the stamped authorRole verbatim when present (user)', () => {
@@ -46,9 +85,9 @@ describe('deriveRefRole', () => {
     expect(deriveRefRole(undefined, 'Lilith ▽', 'Lilith')).toBe('assistant');
   });
 
-  it('falls back to assistant for a sibling persona when allPersonalityNames is provided', () => {
+  it('falls back to character for a sibling persona when allPersonalityNames is provided', () => {
     expect(deriveRefRole(undefined, 'Lila ▽', 'Lilith', new Set(['Lila', 'Lilith']))).toBe(
-      'assistant'
+      'character'
     );
   });
 

@@ -751,7 +751,10 @@ describe('ConversationalRAGService', () => {
         personality,
         false,
         undefined,
-        { userApiKey: undefined, elevenlabsApiKey: undefined }
+        expect.objectContaining({
+          userApiKey: undefined,
+          allPersonalityNames: new Set(['Test Bot']),
+        })
       );
     });
 
