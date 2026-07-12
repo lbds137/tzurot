@@ -7,19 +7,48 @@
  * module under the line limit and to give the resolve-and-stamp logic its own test surface.
  */
 
+import { LLM_CONFIG_OVERRIDE_KEYS } from '@tzurot/common-types/schemas/llmAdvancedParams';
 import { type ConfigSourceId } from '@tzurot/common-types/types/schemas/generation';
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
+import { type ResolvedLlmConfig } from '@tzurot/common-types/types/configResolution';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { LlmConfigResolver, VisionConfigResolver } from '@tzurot/config-resolver';
 
 const logger = createLogger('ConfigStamping');
 
 /**
- * Resolve the user's effective TEXT model AND vision model ONCE and stamp both onto
+ * Apply a resolved (already-merged) LLM config onto the personality — model plus
+ * EVERY override key (`contextWindowTokens`, sampling, `reasoning`, `maxTokens`,
+ * …). This mirrors the pre-stamp ConfigStep merge: stamping only `model` silently
+ * reverts every other preset field to the SEED personality (personality-bound
+ * config, else the admin global default), which shipped as a real regression —
+ * a user's 500K-context preset generated against the seed's 100K budget with the
+ * preset's minP dropped. ai-worker's ConfigStep deliberately does not re-run the
+ * cascade, so what's stamped here is ALL the job chain ever sees.
+ */
+function applyResolvedConfig(
+  personality: LoadedPersonality,
+  config: ResolvedLlmConfig
+): LoadedPersonality {
+  const result = { ...personality, model: config.model };
+  for (const key of LLM_CONFIG_OVERRIDE_KEYS) {
+    const value = config[key];
+    if (value !== undefined) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access -- Dynamic key assignment from LLM_CONFIG_OVERRIDE_KEYS requires runtime indexing
+      (result as any)[key] = value;
+    }
+  }
+  return result;
+}
+
+/**
+ * Resolve the user's effective TEXT config AND vision model ONCE and stamp both onto
  * the personality, so every job in the chain (the conversation job AND the
- * image-description child job) shares the same user-cascaded values. Without this,
- * the image-description job would consume the personality SEED values (the load-time
- * defaults) because it never runs ai-worker's `ConfigStep` cascade.
+ * image-description child job) shares the same user-cascaded values. The TEXT stamp
+ * carries the FULL merged config — model plus every `LLM_CONFIG_OVERRIDE_KEYS` field
+ * (contextWindowTokens, sampling, reasoning, …) — because nothing downstream re-runs
+ * the cascade: ai-worker's `ConfigStep` trusts the stamp, and the image-description
+ * job never runs the cascade at all.
  *
  * The TEXT model (`personality.model`) and the VISION model (`personality.visionModel`,
  * the carrier `selectVisionModel` reads at priority 1) resolve through INDEPENDENT
@@ -61,8 +90,9 @@ export async function stampResolvedConfig(
           'LlmConfigResolver returned a TTS-only config source — using personality seed'
         );
       } else if (resolved.source !== 'personality') {
-        // user-personality | user-default → stamp the resolved (already-merged) model.
-        stamped = { ...stamped, model: resolved.config.model };
+        // user-personality | user-default → stamp the FULL resolved (already-merged)
+        // config, not just the model (see applyResolvedConfig).
+        stamped = applyResolvedConfig(stamped, resolved.config);
         configSource = resolved.source;
       }
     } catch (error) {
