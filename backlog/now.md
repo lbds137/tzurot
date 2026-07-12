@@ -6,8 +6,6 @@ _The hot surface — loaded at session start alongside `BACKLOG.md`, `active-epi
 
 ### 🚨 Production Issues
 
-- 🐛 [FIX] **User-preset LLM params silently ignored except `model` (since 2026-06-17, a8bb9b00a)** — **FIXED on develop 2026-07-12 (PR #1600); awaiting the next release to reach prod.** `stampResolvedConfig` now stamps the full merged config (every `LLM_CONFIG_OVERRIDE_KEYS` field), regression-tested. Prod re-verification at release: the owner's original 100K context-window `/inspect` report should show the preset's 500K. Remove this entry at ship time per the section rule. (Original mechanism: only `resolved.config.model` crossed the stamp while ConfigStep deliberately skipped the cascade — all other preset fields fell back to the seed personality. Runtime-confirmed via `/inspect` debug + prod DB probe + git archaeology.)
-
 _Active bugs observed in production. Fix before new features. Cleared issues are removed once released — see git history + the GitHub release notes._
 
 _Recently resolved items move to the GitHub release notes at ship time — this section stays empty between incidents (history: git + releases)._
