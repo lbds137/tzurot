@@ -55,6 +55,7 @@
     "ops": "tsx packages/tooling/src/cli.ts",
     "with-env": "pnpm ops run --env",
     "eval:memory": "vitest run --config vitest.eval.config.ts services/ai-worker/src/services/eval/memoryRetrieval.eval.test.ts",
+    "eval:pool-goldens": "vitest run --config vitest.eval.config.ts services/ai-worker/src/services/eval/goldensPooling.eval.test.ts",
     "eval:extraction": "vitest run --config vitest.eval.config.ts services/ai-worker/src/services/eval/memoryExtraction.eval.test.ts"
   },
   "devDependencies": {
