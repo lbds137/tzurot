@@ -13,6 +13,7 @@
 
 import { formatPromptTimestamp } from '@tzurot/common-types/utils/dateFormatting';
 import { escapeXmlContent } from '@tzurot/common-types/utils/promptSanitizer';
+import { replacePromptPlaceholders } from '../../utils/promptPlaceholders.js';
 import { escapeXml } from '@tzurot/common-types/utils/xmlBuilder';
 import type { MemoryDocument, FactForPrompt } from '../ConversationalRAGTypes.js';
 
@@ -139,17 +140,35 @@ export function formatMemoriesContext(
  * Instruction framing the `<facts>` block as DISTILLED, CURRENT knowledge —
  * distinct from the verbatim historical `<memory_archive>`. Positive framing
  * (LLMs handle negation poorly), same as the archive instruction.
- * Exported so the budget manager can account for wrapper overhead.
+ *
+ * Fact retrieval is scoped to ONE persona (the author of the triggering
+ * message), so every fact in the block shares that subject — but statements
+ * distilled from earlier conversations often say "the user", which in a
+ * multi-user channel the model naturally binds to the WRONG person (the
+ * thread's most prominent human rather than the message author). Naming the
+ * subject here binds the whole block. Exported for tests; the budget manager
+ * accounts wrapper overhead via {@link getFactsWrapperOverheadText}.
  */
-export const FACTS_INSTRUCTION =
-  'These are durable KNOWN FACTS about the user and world, distilled from past ' +
-  'interactions. Treat them as current background knowledge when responding.';
+export function factsInstruction(subjectName?: string): string {
+  const hasSubject = subjectName !== undefined && subjectName.length > 0;
+  const safeName = hasSubject ? escapeXmlContent(subjectName) : undefined;
+  const subject =
+    safeName !== undefined
+      ? `${safeName} — the author of the message you are replying to —`
+      : 'the user';
+  const binding = safeName ?? 'that same person';
+  return (
+    `These are durable KNOWN FACTS about ${subject} and their world, distilled from past ` +
+    `interactions. A fact that says "the user" means ${binding}, not anyone else in the ` +
+    `conversation. Treat them as current background knowledge when responding.`
+  );
+}
 
 /** Build the `<facts>` XML wrapper — single source of truth for the block. */
-function buildFactsXml(content?: string): string {
+function buildFactsXml(content?: string, subjectName?: string): string {
   const parts = [
     '<facts usage="known_background_do_not_repeat">',
-    `<instruction>${FACTS_INSTRUCTION}</instruction>`,
+    `<instruction>${factsInstruction(subjectName)}</instruction>`,
   ];
   if (content !== undefined && content.length > 0) {
     parts.push(content);
@@ -161,25 +180,60 @@ function buildFactsXml(content?: string): string {
 /**
  * The `<facts>` wrapper text without content — for `ContentBudgetManager` to
  * count the block's fixed overhead (mirrors `getMemoryWrapperOverheadText`).
+ * Pass the same `subjectName` the render path uses, or the count drifts by
+ * the interpolated name's tokens.
  */
-export function getFactsWrapperOverheadText(): string {
-  return buildFactsXml();
+export function getFactsWrapperOverheadText(subjectName?: string): string {
+  return buildFactsXml(undefined, subjectName);
 }
 
-/** Format a single fact as `<fact>statement</fact>` (content escaped for injection safety). */
-export function formatSingleFact(fact: FactForPrompt): string {
-  return `<fact>${escapeXmlContent(fact.statement)}</fact>`;
+/** Names used to resolve `{user}`/`{assistant}` placeholders in fact statements. */
+export interface FactRenderNames {
+  /** The persona the retrieval was scoped to (the triggering message's author). */
+  subjectName?: string;
+  /** The responding personality's name (resolves `{assistant}`). */
+  personalityName?: string;
+  /** Discord username — disambiguates when the persona name collides with the personality name (episode-path parity). */
+  discordUsername?: string;
+}
+
+/**
+ * Format a single fact as `<fact>statement</fact>` (content escaped for
+ * injection safety). Extraction episodes are `{user}`/`{assistant}`-templated
+ * (LongTermMemoryService), so extracted statements can carry those literal
+ * placeholders — resolve them to real names exactly like the episode render
+ * path does (`mapQueryResultToDocument`), so a fact reads "Lila is a pastor",
+ * never "{user} is a pastor". No names → statement passes through unchanged
+ * (raw placeholders are still better escaped than substituted wrongly).
+ */
+export function formatSingleFact(fact: FactForPrompt, names?: FactRenderNames): string {
+  const resolved =
+    names?.subjectName !== undefined &&
+    names.subjectName.length > 0 &&
+    names.personalityName !== undefined &&
+    names.personalityName.length > 0
+      ? replacePromptPlaceholders(
+          fact.statement,
+          names.subjectName,
+          names.personalityName,
+          names.discordUsername
+        )
+      : fact.statement;
+  return `<fact>${escapeXmlContent(resolved)}</fact>`;
 }
 
 /**
  * Format retrieved facts as a `<facts>` XML block, or empty string if none.
  * Kept a SEPARATE block from `<memory_archive>` (council: distilled knowledge
  * vs verbatim archive — interleaving confuses the model's temporal framing).
+ * `names.subjectName` binds the block's instruction (see
+ * {@link factsInstruction}); both names resolve statement placeholders (see
+ * {@link formatSingleFact}).
  */
-export function formatFactsContext(facts: FactForPrompt[]): string {
+export function formatFactsContext(facts: FactForPrompt[], names?: FactRenderNames): string {
   if (facts.length === 0) {
     return '';
   }
-  const formatted = facts.map(formatSingleFact).join('\n');
-  return '\n\n' + buildFactsXml(formatted);
+  const formatted = facts.map(f => formatSingleFact(f, names)).join('\n');
+  return '\n\n' + buildFactsXml(formatted, names?.subjectName);
 }

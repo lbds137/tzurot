@@ -11,7 +11,11 @@ import { createLogger } from '@tzurot/common-types/utils/logger';
 import { contentToText } from '../utils/baseMessageContent.js';
 import type { PromptBuilder } from './PromptBuilder.js';
 import type { ContextWindowManager } from './context/ContextWindowManager.js';
-import { formatSingleFact, getFactsWrapperOverheadText } from './prompt/MemoryFormatter.js';
+import {
+  formatSingleFact,
+  getFactsWrapperOverheadText,
+  type FactRenderNames,
+} from './prompt/MemoryFormatter.js';
 import type {
   BudgetAllocationOptions,
   BudgetAllocationResult,
@@ -195,7 +199,11 @@ export class ContentBudgetManager {
 
     // Facts take their reserved slice FIRST; episodes get the remainder — so a
     // dense cluster of short facts can't starve verbose episodes, and vice versa.
-    const { selectedFacts, factTokensUsed } = this.selectFacts(opts.facts ?? [], memoryBudget);
+    const { selectedFacts, factTokensUsed } = this.selectFacts(opts.facts ?? [], memoryBudget, {
+      subjectName: context.activePersonaName,
+      personalityName: personality.name,
+      discordUsername: context.discordUsername,
+    });
     const episodeBudget = Math.max(0, memoryBudget - factTokensUsed);
 
     const {
@@ -245,7 +253,8 @@ export class ContentBudgetManager {
    */
   private selectFacts(
     facts: FactForPrompt[],
-    memoryBudget: number
+    memoryBudget: number,
+    names?: FactRenderNames
   ): { selectedFacts: FactForPrompt[]; factTokensUsed: number } {
     if (facts.length === 0) {
       return { selectedFacts: [], factTokensUsed: 0 };
@@ -254,11 +263,15 @@ export class ContentBudgetManager {
       FACT_BUDGET_MAX_TOKENS,
       Math.floor(memoryBudget * FACT_BUDGET_MAX_FRACTION)
     );
-    const wrapperOverhead = this.promptBuilder.countTokens(getFactsWrapperOverheadText());
+    // Same names the render path uses — the overhead count and the per-fact
+    // counts must be of the same text the render emits (placeholder-resolved).
+    const wrapperOverhead = this.promptBuilder.countTokens(
+      getFactsWrapperOverheadText(names?.subjectName)
+    );
     const selected: FactForPrompt[] = [];
     let used = wrapperOverhead;
     for (const fact of facts) {
-      const factTokens = this.promptBuilder.countTokens(formatSingleFact(fact));
+      const factTokens = this.promptBuilder.countTokens(formatSingleFact(fact, names));
       if (used + factTokens > factBudget) {
         break;
       }

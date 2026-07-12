@@ -268,7 +268,15 @@ ${locationXml}
     );
 
     // Distilled active facts (Phase 2), rendered ahead of the historical archive.
-    const factsContext = formatFactsContext(options.facts ?? []);
+    // Subject-bound to the triggering message's author — fact retrieval is scoped
+    // to that persona, and unbound "the user" statements misattribute in
+    // multi-user channels. Both names also resolve {user}/{assistant} statement
+    // placeholders (extraction episodes are placeholder-templated).
+    const factsContext = formatFactsContext(options.facts ?? [], {
+      subjectName: context.activePersonaName,
+      personalityName: personality.name,
+      discordUsername: context.discordUsername,
+    });
 
     // Relevant memories from past interactions
     const memoryContext = formatMemoriesContext(relevantMemories, context.userTimezone);

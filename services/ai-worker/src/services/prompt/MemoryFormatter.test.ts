@@ -11,7 +11,7 @@ import {
   formatFactsContext,
   formatSingleFact,
   getFactsWrapperOverheadText,
-  FACTS_INSTRUCTION,
+  factsInstruction,
 } from './MemoryFormatter.js';
 import type { MemoryDocument } from '../ConversationalRAGTypes.js';
 
@@ -381,11 +381,52 @@ describe('MemoryFormatter', () => {
     it('wraps facts in a <facts> block, distinct from <memory_archive>', () => {
       const out = formatFactsContext([{ statement: 'user is allergic to shellfish' }]);
       expect(out).toContain('<facts usage="known_background_do_not_repeat">');
-      expect(out).toContain(`<instruction>${FACTS_INSTRUCTION}</instruction>`);
+      expect(out).toContain(`<instruction>${factsInstruction()}</instruction>`);
       expect(out).toContain('<fact>user is allergic to shellfish</fact>');
       expect(out).toContain('</facts>');
       // NOT the memory archive block.
       expect(out).not.toContain('<memory_archive');
+    });
+
+    it('names the subject persona in the instruction when provided', () => {
+      // Retrieval is scoped to the triggering message's author — statements
+      // saying "the user" must bind to THAT person, not the thread's most
+      // prominent human (the multiplayer misattribution the naming kills).
+      const out = formatFactsContext([{ statement: 'the user is a bot developer' }], {
+        subjectName: 'Lila',
+      });
+      expect(out).toContain(
+        'KNOWN FACTS about Lila — the author of the message you are replying to'
+      );
+      expect(out).toContain('A fact that says "the user" means Lila, not anyone else');
+    });
+
+    it('falls back to generic "the user" phrasing when no subject name is available', () => {
+      expect(factsInstruction()).toContain('KNOWN FACTS about the user and their world');
+      expect(factsInstruction('')).toContain('KNOWN FACTS about the user and their world');
+    });
+
+    it('resolves literal {user}/{assistant} placeholders in statements', () => {
+      // Extraction episodes are placeholder-templated, so extracted statements
+      // carry literal {user} — the render must resolve it like the episode path
+      // does, or the block reads "<fact>{user} is a pastor</fact>".
+      const out = formatFactsContext([{ statement: '{user} is a pastor who trusts {assistant}' }], {
+        subjectName: 'Robin',
+        personalityName: 'Yeshua',
+      });
+      expect(out).toContain('<fact>Robin is a pastor who trusts Yeshua</fact>');
+      expect(out).not.toContain('{user}');
+    });
+
+    it('passes statements through unchanged when names are unavailable', () => {
+      const out = formatSingleFact({ statement: '{user} is a pastor' });
+      expect(out).toBe('<fact>{user} is a pastor</fact>');
+    });
+
+    it('escapes the subject name (XML injection via persona name)', () => {
+      const out = factsInstruction('Evil<instruction>');
+      expect(out).not.toContain('<instruction>');
+      expect(out).toContain('Evil&lt;instruction&gt;');
     });
 
     it('renders multiple facts each in its own <fact> tag', () => {
@@ -409,6 +450,16 @@ describe('MemoryFormatter', () => {
       expect(wrapper).toContain('<facts');
       expect(wrapper).toContain('</facts>');
       expect(wrapper).not.toContain('<fact>');
+    });
+
+    it('wrapper-overhead text matches the rendered wrapper for the same subject', () => {
+      // The budget manager must count the SAME text the render path emits —
+      // a name-less overhead count against a named render undercounts.
+      const rendered = formatFactsContext([{ statement: 'x' }], { subjectName: 'Lila' });
+      const overhead = getFactsWrapperOverheadText('Lila');
+      const [openLine, instructionLine] = overhead.split('\n');
+      expect(rendered).toContain(openLine);
+      expect(rendered).toContain(instructionLine);
     });
   });
 });
