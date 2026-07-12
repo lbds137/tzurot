@@ -6,12 +6,14 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { AttachmentType } from '@tzurot/common-types/constants/media';
 import type { AttachmentMetadata } from '@tzurot/common-types/types/schemas/discord';
 import type { StoredReferencedMessage } from '@tzurot/common-types/types/schemas/message';
+import { AI_DEFAULTS } from '@tzurot/common-types/constants/ai';
 import {
   buildAttachmentDescriptions,
   extractContentDescriptions,
   injectImageDescriptions,
   countMediaAttachments,
   enrichConversationHistory,
+  extractRecentHistoryWindow,
   type RawHistoryEntry,
 } from './RAGUtils.js';
 import type { ProcessedAttachment } from './MultimodalProcessor.js';
@@ -631,6 +633,76 @@ describe('RAGUtils', () => {
       await expect(
         enrichConversationHistory(history, undefined, mockPrisma, mockVisionCache)
       ).resolves.toBeUndefined();
+    });
+  });
+
+  describe('extractRecentHistoryWindow', () => {
+    const mkHistory = (n: number) =>
+      Array.from({ length: n }, (_, i) => ({
+        role: i % 2 === 0 ? 'user' : 'assistant',
+        content: `msg-${i}`,
+      }));
+
+    it('folds the last LTM_SEARCH_HISTORY_TURNS turns by default', () => {
+      const history = mkHistory(20);
+      const expectedCount = AI_DEFAULTS.LTM_SEARCH_HISTORY_TURNS * 2;
+      const lines = extractRecentHistoryWindow(history)?.split('\n') ?? [];
+      expect(lines).toHaveLength(expectedCount);
+      expect(lines[0]).toBe(`msg-${20 - expectedCount}`);
+      expect(lines.at(-1)).toBe('msg-19');
+    });
+
+    it('default is byte-identical to passing the production turn count explicitly', () => {
+      const history = mkHistory(20);
+      expect(extractRecentHistoryWindow(history)).toBe(
+        extractRecentHistoryWindow(history, AI_DEFAULTS.LTM_SEARCH_HISTORY_TURNS)
+      );
+    });
+
+    it.each([
+      [5, 10],
+      [8, 16],
+    ])('folds the last %i turns (%i messages) when asked', (turns, msgs) => {
+      const history = mkHistory(40);
+      const lines = extractRecentHistoryWindow(history, turns)?.split('\n') ?? [];
+      expect(lines).toHaveLength(msgs);
+      expect(lines[0]).toBe(`msg-${40 - msgs}`);
+      expect(lines.at(-1)).toBe('msg-39');
+    });
+
+    it('returns all messages when history is shorter than the requested window', () => {
+      const lines = extractRecentHistoryWindow(mkHistory(4), 3)?.split('\n') ?? [];
+      expect(lines).toHaveLength(4);
+    });
+
+    it('returns undefined for empty or missing history', () => {
+      expect(extractRecentHistoryWindow(undefined)).toBeUndefined();
+      expect(extractRecentHistoryWindow([])).toBeUndefined();
+    });
+
+    it('treats a zero or negative turn count as "no fold" (not the slice(-0) whole-array footgun)', () => {
+      const history = mkHistory(10);
+      // slice(-0) === slice(0) would return the ENTIRE history; the guard returns undefined.
+      expect(extractRecentHistoryWindow(history, 0)).toBeUndefined();
+      // A negative count would slice from the FRONT; the guard returns undefined.
+      expect(extractRecentHistoryWindow(history, -3)).toBeUndefined();
+    });
+
+    it('truncates long messages to LTM_SEARCH_MESSAGE_PREVIEW with an ellipsis', () => {
+      const long = 'x'.repeat(AI_DEFAULTS.LTM_SEARCH_MESSAGE_PREVIEW + 50);
+      const result = extractRecentHistoryWindow([{ role: 'user', content: long }], 3);
+      expect(result).toBe('x'.repeat(AI_DEFAULTS.LTM_SEARCH_MESSAGE_PREVIEW) + '...');
+    });
+
+    it('formats content only (no role labels), joined by newlines', () => {
+      const result = extractRecentHistoryWindow(
+        [
+          { role: 'user', content: 'hello' },
+          { role: 'assistant', content: 'hi there' },
+        ],
+        3
+      );
+      expect(result).toBe('hello\nhi there');
     });
   });
 });
