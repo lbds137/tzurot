@@ -45,6 +45,8 @@ vi.mock('../../utils/commandContext/index.js', async () => {
 // Mock subcommand handlers
 vi.mock('./db-sync.js', () => ({
   handleDbSync: vi.fn().mockResolvedValue(undefined),
+  handleDbSyncDetailsButton: vi.fn().mockResolvedValue(undefined),
+  isDbSyncDetailsButton: (customId: string) => customId.startsWith('admin-dbsync::details::'),
 }));
 
 vi.mock('./servers.js', () => ({
@@ -67,7 +69,7 @@ vi.mock('./usage.js', () => ({
   handleUsage: vi.fn().mockResolvedValue(undefined),
 }));
 
-import { handleDbSync } from './db-sync.js';
+import { handleDbSync, handleDbSyncDetailsButton } from './db-sync.js';
 import { handleServers, handleServersBrowsePagination, handleServersSelect } from './servers.js';
 import { handleKick } from './kick.js';
 import { handleUsage } from './usage.js';
@@ -270,6 +272,18 @@ describe('admin command', () => {
 
       await adminCommand.handleButton?.(interaction);
 
+      expect(handleServersBrowsePagination).not.toHaveBeenCalled();
+      expect(handleDbSyncDetailsButton).not.toHaveBeenCalled();
+    });
+
+    it('routes db-sync details clicks to handleDbSyncDetailsButton', async () => {
+      const interaction = {
+        customId: 'admin-dbsync::details::key-123',
+      } as unknown as Parameters<NonNullable<typeof adminCommand.handleButton>>[0];
+
+      await adminCommand.handleButton?.(interaction);
+
+      expect(handleDbSyncDetailsButton).toHaveBeenCalledWith(interaction);
       expect(handleServersBrowsePagination).not.toHaveBeenCalled();
     });
   });

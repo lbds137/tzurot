@@ -28,7 +28,7 @@ import { requireBotOwnerContext } from '../../utils/commandContext/index.js';
 
 // Import subcommand handlers
 import { handlePing } from './ping.js';
-import { handleDbSync } from './db-sync.js';
+import { handleDbSync, handleDbSyncDetailsButton, isDbSyncDetailsButton } from './db-sync.js';
 import {
   handleServers,
   handleServersBrowsePagination,
@@ -188,6 +188,13 @@ async function handleSelectMenu(interaction: StringSelectMenuInteraction): Promi
  */
 async function handleButton(interaction: ButtonInteraction): Promise<void> {
   const customId = interaction.customId;
+
+  // db-sync "Show details" reveal — narrowly matches its prefix.
+  if (isDbSyncDetailsButton(customId)) {
+    // Owner check: the button only exists on the owner-gated db-sync reply.
+    await handleDbSyncDetailsButton(interaction);
+    return;
+  }
 
   // Servers browse pagination — narrowly matches the browse prefix.
   // After the Session 5 Part B migration, the "Back to List" button on
@@ -366,5 +373,5 @@ export default defineCommand({
   handleSelectMenu,
   handleButton,
   handleModal,
-  componentPrefixes: ['admin-settings', 'admin-servers'],
+  componentPrefixes: ['admin-settings', 'admin-servers', 'admin-dbsync'],
 });
