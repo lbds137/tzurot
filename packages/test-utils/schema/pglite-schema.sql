@@ -47,6 +47,7 @@ CREATE TABLE "admin_settings" (
     "id" UUID NOT NULL,
     "updated_by" UUID,
     "config_defaults" JSONB,
+    "system_settings" JSONB,
     "global_default_llm_config_id" UUID,
     "global_default_vision_config_id" UUID,
     "free_default_llm_config_id" UUID,

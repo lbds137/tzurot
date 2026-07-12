@@ -94,6 +94,11 @@ model AdminSettings {
   updatedBy                   String?  @map("updated_by") @db.Uuid
   /// JSONB config cascade defaults (admin tier). Validated against ConfigOverridesSchema at runtime.
   configDefaults              Json?    @map("config_defaults")
+  /// JSONB owner-only operational settings (non-cascading; quota budgets, feature flags,
+  /// fallback models). Validated against SystemSettingsSchema at runtime. NULL until the
+  /// boot seed pass populates it; readers fall back to per-key registry seed constants.
+  /// Unknown keys are PRESERVED on read-merge-write (rolling-deploy clobber protection).
+  systemSettings              Json?    @map("system_settings")
   /// Default-fallback: the global (paid) default config for the chat slot. NULL means
   /// "no admin-set chat default" — the resolver cascade falls through to the hardcoded floor.
   globalDefaultLlmConfigId    String?  @map("global_default_llm_config_id") @db.Uuid

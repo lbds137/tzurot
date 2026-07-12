@@ -55,6 +55,7 @@ import { handleCreateGlobalPersonality } from '../admin/createPersonality.js';
 import { handleUpdateGlobalPersonality } from '../admin/updatePersonality.js';
 import { handleListGlobalLlmConfigs, handleGetGlobalLlmConfig, handleCreateGlobalLlmConfig, handleUpdateGlobalLlmConfig, handleSetGlobalLlmConfigDefault, handleSetGlobalLlmConfigFreeDefault, handleDeleteGlobalLlmConfig } from '../admin/llm-config.js';
 import { handleListGlobalTtsConfigs, handleGetGlobalTtsConfig, handleCreateGlobalTtsConfig, handleUpdateGlobalTtsConfig, handleSetGlobalTtsConfigDefault, handleSetGlobalTtsConfigFreeDefault, handleDeleteGlobalTtsConfig } from '../admin/tts-config.js';
+import { handleGetSystemSettings, handleUpdateSystemSettings } from '../admin/systemSettings.js';
 import { handleGetAdminUsageStats } from '../admin/usage.js';
 import { handleGetTimezone, handleSetTimezone } from '../user/timezone.js';
 import { handleListUserLlmConfigs, handleGetUserLlmConfig, handleCreateUserLlmConfig, handleUpdateUserLlmConfig, handleDeleteUserLlmConfig, handleResolveUserLlmConfig } from '../user/llm-config.js';
@@ -132,6 +133,8 @@ export function mountAdminRoutes(app: Express, deps: RouteDeps): void {
   app.post('/api/admin/tts-config', requireUserAuth(), requireOwnerAuth(), handleCreateGlobalTtsConfig(deps));
   app.get('/api/admin/settings', requireUserAuth(), requireOwnerAuth(), handleGetAdminSettings(deps));
   app.patch('/api/admin/settings/config-defaults', requireUserAuth(), requireOwnerAuth(), handleUpdateAdminSettings(deps));
+  app.get('/api/admin/settings/system', requireUserAuth(), requireOwnerAuth(), handleGetSystemSettings(deps));
+  app.patch('/api/admin/settings/system', requireUserAuth(), requireOwnerAuth(), handleUpdateSystemSettings(deps));
   app.delete('/api/admin/settings/config-defaults', requireUserAuth(), requireOwnerAuth(), handleClearAdminSettings(deps));
   app.get('/api/admin/usage', requireUserAuth(), requireOwnerAuth(), handleGetAdminUsageStats(deps));
   app.patch('/api/admin/personality/:slug', requireUserAuth(), requireOwnerAuth(), handleUpdateGlobalPersonality(deps));

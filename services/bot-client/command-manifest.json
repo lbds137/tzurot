@@ -143,10 +143,38 @@
             ]
           },
           {
-            "type": 1,
+            "type": 2,
             "name": "settings",
-            "description": "Open global settings dashboard",
-            "options": []
+            "description": "Global settings (dashboard + direct setter)",
+            "options": [
+              {
+                "type": 1,
+                "name": "edit",
+                "description": "Open global settings dashboard",
+                "options": []
+              },
+              {
+                "type": 1,
+                "name": "set",
+                "description": "Set a system setting directly",
+                "options": [
+                  {
+                    "autocomplete": true,
+                    "type": 3,
+                    "name": "setting",
+                    "description": "Which setting to change",
+                    "required": true
+                  },
+                  {
+                    "autocomplete": true,
+                    "type": 3,
+                    "name": "value",
+                    "description": "The new value (validated against the model catalogs)",
+                    "required": true
+                  }
+                ]
+              }
+            ]
           },
           {
             "type": 1,

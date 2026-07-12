@@ -210,4 +210,25 @@ export const adminFixtures: Record<string, ConformanceEntry> = {
   getAdminUsageStats: {
     query: { timeframe: '7d' },
   },
+
+  // ---- Admin system settings (non-cascading operational bag) ----------------------------
+
+  getSystemSettings: {},
+
+  updateSystemSettings: {
+    // The write carries an optimistic-concurrency token, so the fixture reads
+    // the live row first. An integer setting avoids the model-catalog
+    // validators (no OpenRouter cache in the harness).
+    seed: async ctx => {
+      const current = (await ctx.call('get', '/api/admin/settings/system')) as {
+        updatedAt: string;
+      };
+      return {
+        body: {
+          expectedUpdatedAt: current.updatedAt,
+          patch: { zaiHeadroomPercent: 60 },
+        },
+      };
+    },
+  },
 };

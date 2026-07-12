@@ -36,6 +36,7 @@ import type {
   DenylistCacheInvalidationService,
   LlmConfigCacheInvalidationService,
   SttResolverCacheInvalidationService,
+  SystemSettingsCacheInvalidationService,
   TtsConfigCacheInvalidationService,
 } from '@tzurot/cache-invalidation';
 import type {
@@ -76,6 +77,8 @@ export interface RouteDeps {
   readonly sttResolverCacheInvalidation?: SttResolverCacheInvalidationService;
   /** BYOK key cache pub/sub — user wallet routes. */
   readonly apiKeyCacheInvalidation?: ApiKeyCacheInvalidationService;
+  /** System-settings cache pub/sub — the admin system-settings write route. */
+  readonly systemSettingsInvalidation?: SystemSettingsCacheInvalidationService;
 
   // ---- Cross-cutting services -------------------------------------------
 

@@ -16,6 +16,7 @@ const capturedCallbacks = {
   stt: null as SubscribeCallback | null,
   persona: null as SubscribeCallback | null,
   cascade: null as SubscribeCallback | null,
+  systemSettings: null as SubscribeCallback | null,
 };
 
 const mockUnsubscribe = vi.fn().mockResolvedValue(undefined);
@@ -94,6 +95,23 @@ vi.mock('@tzurot/cache-invalidation', () => ({
       return Promise.resolve();
     });
     unsubscribe = mockUnsubscribe;
+  },
+  SystemSettingsCacheInvalidationService: class {
+    subscribe = vi.fn().mockImplementation((cb: SubscribeCallback) => {
+      capturedCallbacks.systemSettings = cb;
+      return Promise.resolve();
+    });
+    unsubscribe = mockUnsubscribe;
+  },
+}));
+
+// SystemSettingsService: mocked so setup's prime() never touches Prisma.
+const mockSystemSettingsInvalidate = vi.fn();
+const mockSystemSettingsPrime = vi.fn().mockResolvedValue(undefined);
+vi.mock('@tzurot/common-types/services/SystemSettingsService', () => ({
+  SystemSettingsService: class {
+    invalidate = mockSystemSettingsInvalidate;
+    prime = mockSystemSettingsPrime;
   },
 }));
 
@@ -174,7 +192,7 @@ describe('setupCacheInvalidation', () => {
     expect(result.sttResolver).toBeDefined();
     expect(result.personaResolver).toBeDefined();
     expect(result.cascadeResolver).toBeDefined();
-    expect(result.cleanupFns).toHaveLength(7);
+    expect(result.cleanupFns).toHaveLength(8);
   });
 
   it('should provide cleanup functions that unsubscribe', async () => {
@@ -185,7 +203,7 @@ describe('setupCacheInvalidation', () => {
 
     await Promise.all(result.cleanupFns.map(fn => fn()));
 
-    expect(mockUnsubscribe).toHaveBeenCalledTimes(7);
+    expect(mockUnsubscribe).toHaveBeenCalledTimes(8);
   });
 
   describe('API key cache invalidation events', () => {
@@ -314,6 +332,25 @@ describe('setupCacheInvalidation', () => {
       await setupCacheInvalidation({ cacheRedis: mockRedis, prisma: mockPrisma });
       capturedCallbacks.cascade?.({ type: 'channel', channelId: 'channel-789' });
       expect(mockCascadeResolver.invalidateChannelCache).toHaveBeenCalledWith('channel-789');
+    });
+  });
+
+  describe('system settings invalidation events', () => {
+    it('primes the settings cache at setup', async () => {
+      await setupCacheInvalidation({ cacheRedis: mockRedis, prisma: mockPrisma });
+      expect(mockSystemSettingsPrime).toHaveBeenCalledTimes(1);
+    });
+
+    it('refreshes the settings cache on a "keys" event', async () => {
+      await setupCacheInvalidation({ cacheRedis: mockRedis, prisma: mockPrisma });
+      capturedCallbacks.systemSettings?.({ type: 'keys', keys: ['zaiHeadroomPercent'] });
+      expect(mockSystemSettingsInvalidate).toHaveBeenCalled();
+    });
+
+    it('refreshes the settings cache on an "all" event', async () => {
+      await setupCacheInvalidation({ cacheRedis: mockRedis, prisma: mockPrisma });
+      capturedCallbacks.systemSettings?.({ type: 'all' });
+      expect(mockSystemSettingsInvalidate).toHaveBeenCalled();
     });
   });
 });

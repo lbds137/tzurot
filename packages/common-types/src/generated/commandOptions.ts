@@ -23,6 +23,14 @@ import { defineTypedOptions } from '../utils/typedOptions.js';
 // =============================================================================
 
 /**
+ * /admin settings set <setting, value>
+ */
+export const adminSettingsSetOptions = defineTypedOptions({
+  setting: { type: 'string', required: true },
+  value: { type: 'string', required: true },
+});
+
+/**
  * /admin db-sync <dry-run, allow-schema-skew>
  */
 export const adminDbSyncOptions = defineTypedOptions({
