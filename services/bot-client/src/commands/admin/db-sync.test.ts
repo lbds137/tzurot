@@ -8,7 +8,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { makeErr } from '../../test/gatewayClientStubs.js';
 import type { GatewayResult, OwnerClient } from '@tzurot/clients';
-import { handleDbSync, buildSyncSummary, buildSyncReportText } from './db-sync.js';
+import {
+  handleDbSync,
+  handleDbSyncDetailsButton,
+  isDbSyncDetailsButton,
+  buildSyncSummary,
+  buildSyncReportText,
+} from './db-sync.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 
 vi.mock('@tzurot/common-types/utils/logger', async () => {
@@ -29,6 +35,16 @@ vi.mock('@tzurot/common-types/utils/logger', async () => {
 const clientsForMock = vi.hoisted(() => vi.fn());
 vi.mock('../../utils/gatewayClients.js', () => ({
   clientsFor: clientsForMock,
+}));
+
+// Report stash mocked at the module seam — importing the real store would pull
+// in bot-client's live Redis client. Default (null) = stash unavailable, which
+// exercises the inline-fallback path the pre-button tests were written against.
+const mockStoreReport = vi.hoisted(() => vi.fn());
+const mockFetchReport = vi.hoisted(() => vi.fn());
+vi.mock('./dbSyncReportStore.js', () => ({
+  storeDbSyncReport: mockStoreReport,
+  fetchDbSyncReport: mockFetchReport,
 }));
 
 interface StubClient {
@@ -54,6 +70,8 @@ describe('handleDbSync', () => {
     vi.clearAllMocks();
     stub = createStubClient();
     clientsForMock.mockReturnValue({ ownerClient: asOwnerClient(stub) });
+    mockStoreReport.mockResolvedValue(null);
+    mockFetchReport.mockResolvedValue(null);
   });
 
   afterEach(() => {
@@ -119,6 +137,35 @@ describe('handleDbSync', () => {
     await handleDbSync(context);
 
     expect(stub.dbSync).toHaveBeenCalledWith({ dryRun: true, allowSchemaSkew: false });
+  });
+
+  it('stashes the report behind a Show details button by default (no inline follow-ups)', async () => {
+    mockStoreReport.mockResolvedValue('key-123');
+    stub.dbSync.mockResolvedValue(
+      ok({
+        success: true,
+        timestamp: 'now',
+        schemaVersion: '1.0.0',
+        stats: { users: { devToProd: 5, prodToDev: 2, conflicts: 0, deleted: 0 } },
+      })
+    );
+
+    const context = createMockContext(false);
+    await handleDbSync(context);
+
+    // The stash received the FULL rendered report.
+    expect(mockStoreReport).toHaveBeenCalledWith(expect.stringContaining('# Database Sync Report'));
+    // One editReply carrying the embed + the details button; nothing inline.
+    const payload = vi.mocked(context.editReply).mock.calls[0][0] as {
+      embeds?: unknown[];
+      components?: { components: { data: { custom_id?: string; label?: string } }[] }[];
+    };
+    expect(payload.embeds).toHaveLength(1);
+    expect(payload.components).toHaveLength(1);
+    expect(payload.components?.[0].components[0].data.custom_id).toBe(
+      'admin-dbsync::details::key-123'
+    );
+    expect(context.followUp).not.toHaveBeenCalled();
   });
 
   it('replies with a summary embed AND the full report as chunked follow-ups', async () => {
@@ -432,5 +479,91 @@ describe('buildSyncReportText', () => {
     expect(report).toContain('## Deletions queued for propagation (0)');
     expect(report).toContain('## Warnings (0)');
     expect(report).toContain('None.');
+  });
+});
+
+describe('handleDbSyncDetailsButton', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockFetchReport.mockResolvedValue(null);
+  });
+
+  function createButtonInteraction(callLog: string[]): {
+    customId: string;
+    deferUpdate: ReturnType<typeof vi.fn>;
+    followUp: ReturnType<typeof vi.fn>;
+  } {
+    return {
+      customId: 'admin-dbsync::details::key-123',
+      deferUpdate: vi.fn(async () => {
+        callLog.push('ack');
+      }),
+      followUp: vi.fn().mockResolvedValue(undefined),
+    };
+  }
+
+  it('acks BEFORE the Redis fetch (3-second rule)', async () => {
+    const callLog: string[] = [];
+    mockFetchReport.mockImplementation(async () => {
+      callLog.push('fetch');
+      return '# Database Sync Report';
+    });
+    const interaction = createButtonInteraction(callLog);
+
+    await handleDbSyncDetailsButton(interaction as never);
+
+    expect(callLog).toEqual(['ack', 'fetch']);
+  });
+
+  it('reveals the stashed report as ephemeral follow-ups', async () => {
+    mockFetchReport.mockResolvedValue('# Database Sync Report\n\ndetails here');
+    const interaction = createButtonInteraction([]);
+
+    await handleDbSyncDetailsButton(interaction as never);
+
+    expect(mockFetchReport).toHaveBeenCalledWith('key-123');
+    expect(interaction.followUp).toHaveBeenCalledWith(
+      expect.objectContaining({ content: expect.stringContaining('# Database Sync Report') })
+    );
+  });
+
+  it('answers with an expiry notice when the stash is gone', async () => {
+    const interaction = createButtonInteraction([]);
+
+    await handleDbSyncDetailsButton(interaction as never);
+
+    expect(interaction.followUp).toHaveBeenCalledWith(
+      expect.objectContaining({ content: expect.stringContaining('expired') })
+    );
+  });
+
+  it('never lets a first-chunk delivery failure escape (the catch-all would clobber the embed)', async () => {
+    mockFetchReport.mockResolvedValue('# Database Sync Report');
+    const interaction = createButtonInteraction([]);
+    interaction.followUp.mockRejectedValueOnce(new Error('Discord API hiccup'));
+
+    await expect(handleDbSyncDetailsButton(interaction as never)).resolves.toBeUndefined();
+
+    // Second followUp is the best-effort failure notice.
+    expect(interaction.followUp).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(interaction.followUp).mock.calls[1][0]).toEqual(
+      expect.objectContaining({ content: expect.stringContaining('delivery failed') })
+    );
+  });
+
+  it('stays silent-but-safe when the failure notice also fails', async () => {
+    mockFetchReport.mockResolvedValue('# Database Sync Report');
+    const interaction = createButtonInteraction([]);
+    interaction.followUp.mockRejectedValue(new Error('Discord API down'));
+
+    await expect(handleDbSyncDetailsButton(interaction as never)).resolves.toBeUndefined();
+  });
+});
+
+describe('isDbSyncDetailsButton', () => {
+  it('matches only its own prefix', () => {
+    expect(isDbSyncDetailsButton('admin-dbsync::details::abc')).toBe(true);
+    expect(isDbSyncDetailsButton('admin-servers::browse::1')).toBe(false);
+    expect(isDbSyncDetailsButton('admin-settings::edit::x')).toBe(false);
   });
 });
