@@ -11,6 +11,25 @@ const ENV_OPTION = '--env <env>';
 const ENV_OPTION_DESC = 'Environment: local, dev, or prod';
 const ENV_OPTION_DEFAULT = { default: 'dev' } as const;
 
+/**
+ * Parse an optional positive-integer CLI flag. Returns the number, `undefined`
+ * if the flag is absent, or `null` if it's present-but-invalid (having already
+ * printed the error + set exitCode — the caller returns on null). Shared by the
+ * mining commands' `--sample` / `--history-window` validation.
+ */
+function parsePositiveIntOption(raw: string | undefined, flag: string): number | undefined | null {
+  if (raw === undefined) {
+    return undefined;
+  }
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value < 1) {
+    console.error(`${flag} must be a positive integer (got '${raw}')`);
+    process.exitCode = 1;
+    return null;
+  }
+  return value;
+}
+
 /** Backfill fact extraction over historical memories (memory Phase 2). */
 function registerBackfillFactsCommand(cli: CAC): void {
   cli
@@ -76,10 +95,8 @@ function registerGoldensCommands(cli: CAC): void {
         }
         // Fail loudly on a garbage --sample: NaN comparisons are all false, so
         // it would otherwise degrade into nonsense quota math silently.
-        const sampleSize = options.sample === undefined ? undefined : Number(options.sample);
-        if (sampleSize !== undefined && (!Number.isInteger(sampleSize) || sampleSize < 1)) {
-          console.error(`--sample must be a positive integer (got '${options.sample}')`);
-          process.exitCode = 1;
+        const sampleSize = parsePositiveIntOption(options.sample, '--sample');
+        if (sampleSize === null) {
           return;
         }
         const { mineGoldens } = await import('../memory/mine-goldens.js');
@@ -115,6 +132,51 @@ function registerGoldensCommands(cli: CAC): void {
         outFile: options.out,
       });
     });
+}
+
+/** The conversation-goldens miner — its own registrar so registerGoldensCommands stays under the line cap. */
+function registerConversationGoldensCommand(cli: CAC): void {
+  cli
+    .command(
+      'memory:mine-conversation-goldens',
+      'Mine real user turns + their preceding conversation window (the fold input) for the retrieval re-baseline'
+    )
+    .option(ENV_OPTION, ENV_OPTION_DESC, ENV_OPTION_DEFAULT)
+    .option('--persona-id <uuid>', 'Persona UUID to mine (required)')
+    .option('--sample <n>', 'Target golden count across all styles (default 40)')
+    .option('--history-window <n>', 'Prior turns to capture per golden (default 50)')
+    .option('--out <dir>', 'Output dir (default reports/goldens-mining — gitignored)')
+    .action(
+      async (options: {
+        env?: Environment;
+        personaId?: string;
+        sample?: string;
+        historyWindow?: string;
+        out?: string;
+      }) => {
+        if (options.personaId === undefined) {
+          console.error('--persona-id is required');
+          process.exitCode = 1;
+          return;
+        }
+        const sampleSize = parsePositiveIntOption(options.sample, '--sample');
+        if (sampleSize === null) {
+          return;
+        }
+        const historyWindow = parsePositiveIntOption(options.historyWindow, '--history-window');
+        if (historyWindow === null) {
+          return;
+        }
+        const { mineConversationGoldens } = await import('../memory/mine-conversation-goldens.js');
+        await mineConversationGoldens({
+          env: options.env ?? 'dev',
+          personaId: options.personaId,
+          sampleSize,
+          historyWindow,
+          outDir: options.out,
+        });
+      }
+    );
 }
 
 export function registerMemoryCommands(cli: CAC): void {
@@ -167,6 +229,7 @@ export function registerMemoryCommands(cli: CAC): void {
 
   registerBackfillFactsCommand(cli);
   registerGoldensCommands(cli);
+  registerConversationGoldensCommand(cli);
 
   // Cleanup duplicate memories
   cli
