@@ -49,6 +49,74 @@ function registerBackfillFactsCommand(cli: CAC): void {
     );
 }
 
+/** Goldens mining + anonymization — builds the retrieval-eval corpus from real persona data. */
+function registerGoldensCommands(cli: CAC): void {
+  cli
+    .command(
+      'memory:mine-goldens',
+      "Mine a stratified sample of a persona's memories for retrieval-eval goldens"
+    )
+    .option(ENV_OPTION, ENV_OPTION_DESC, ENV_OPTION_DEFAULT)
+    .option('--persona-id <uuid>', 'Persona UUID to mine (required)')
+    .option('--personality-ids <csv>', 'Personality UUIDs to include (default: top 2 by count)')
+    .option('--sample <n>', 'Target sample size (default 800)')
+    .option('--out <dir>', 'Output dir (default reports/goldens-mining — gitignored)')
+    .action(
+      async (options: {
+        env?: Environment;
+        personaId?: string;
+        personalityIds?: string;
+        sample?: string;
+        out?: string;
+      }) => {
+        if (options.personaId === undefined) {
+          console.error('--persona-id is required');
+          process.exitCode = 1;
+          return;
+        }
+        // Fail loudly on a garbage --sample: NaN comparisons are all false, so
+        // it would otherwise degrade into nonsense quota math silently.
+        const sampleSize = options.sample === undefined ? undefined : Number(options.sample);
+        if (sampleSize !== undefined && (!Number.isInteger(sampleSize) || sampleSize < 1)) {
+          console.error(`--sample must be a positive integer (got '${options.sample}')`);
+          process.exitCode = 1;
+          return;
+        }
+        const { mineGoldens } = await import('../memory/mine-goldens.js');
+        await mineGoldens({
+          env: options.env ?? 'dev',
+          personaId: options.personaId,
+          personalityIds: options.personalityIds
+            ?.split(',')
+            .map(id => id.trim())
+            .filter(id => id.length > 0),
+          sampleSize,
+          outDir: options.out,
+        });
+      }
+    );
+
+  cli
+    .command(
+      'memory:anonymize-goldens',
+      'Apply an owner-reviewed swap map to the mined corpus (emits the LOCAL, gitignored eval corpus)'
+    )
+    .option('--in <dir>', 'Working dir with corpus-raw.json (default reports/goldens-mining)')
+    .option(
+      '--swap-map <file>',
+      'Reviewed swap-map filename in the working dir (default swap-map.json)'
+    )
+    .option('--out <file>', 'Output file (default reports/goldens-mining/retrieval-corpus.json)')
+    .action(async (options: { in?: string; swapMap?: string; out?: string }) => {
+      const { anonymizeGoldens } = await import('../memory/goldens-anonymize.js');
+      await anonymizeGoldens({
+        inDir: options.in,
+        swapMapFile: options.swapMap,
+        outFile: options.out,
+      });
+    });
+}
+
 export function registerMemoryCommands(cli: CAC): void {
   // Analyze duplicate memories
   cli
@@ -98,6 +166,7 @@ export function registerMemoryCommands(cli: CAC): void {
     );
 
   registerBackfillFactsCommand(cli);
+  registerGoldensCommands(cli);
 
   // Cleanup duplicate memories
   cli
