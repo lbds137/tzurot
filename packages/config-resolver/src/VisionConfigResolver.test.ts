@@ -43,13 +43,16 @@ function createMockPrisma(): MockPrisma {
 /**
  * A complete `kind='vision'` LlmConfig row in the shape the shared LLM mapper
  * (`LLM_CONFIG_SELECT_WITH_NAME`) reads. Vision configs ARE LlmConfig rows, so the
- * resolver reuses that mapper — only `model` + `name` end up in the resolved result.
+ * resolver reuses that mapper — `model` + `name` + the row's explicitly-set
+ * vision-callable params end up in the resolved result.
  */
-function visionRow(over: { model?: string; name?: string } = {}): Record<string, unknown> {
+function visionRow(
+  over: { model?: string; name?: string; advancedParameters?: Record<string, unknown> } = {}
+): Record<string, unknown> {
   return {
     model: over.model ?? 'qwen/qwen3-vl-235b-a22b-instruct',
     provider: 'openrouter',
-    advancedParameters: null,
+    advancedParameters: over.advancedParameters ?? null,
     memoryScoreThreshold: null,
     memoryLimit: null,
     contextWindowTokens: 8192,
@@ -98,6 +101,45 @@ describe('VisionConfigResolver', () => {
       expect(result.config.source).toBe('user-personality');
       expect(result.config.model).toBe('user-pers-vision');
       expect(result.configName).toBe('user-pers-override');
+    });
+
+    it("carries the row's explicitly-set params through the REAL mapper (tier 1)", async () => {
+      // The round-1 review of the vision-params feature found the resolver
+      // discarding every sampling field — this pins the real end-to-end path
+      // (DB row JSONB → mapper → ResolvedVisionConfig.params) so contract
+      // drift between the resolver and the gateway stamp can't recur silently.
+      mockPrisma.user.findFirst.mockResolvedValue({
+        id: 'internal-x',
+        defaultVisionConfigId: null,
+        defaultVisionConfig: null,
+      });
+      mockPrisma.userPersonalityConfig.findFirst.mockResolvedValue({
+        visionConfig: visionRow({
+          model: 'user-pers-vision',
+          name: 'user-pers-override',
+          // JSONB is snake_case; the mapper converts to camelCase
+          advancedParameters: { temperature: 0.7, max_tokens: 2048, seed: 42 },
+        }),
+      });
+
+      const result = await resolver.resolveConfig('user-x', 'p-uuid-123', FAKE_PERSONALITY);
+
+      expect(result.config.params).toEqual({ temperature: 0.7, maxTokens: 2048, seed: 42 });
+    });
+
+    it('omits params when the row sets none (no empty-object noise)', async () => {
+      mockPrisma.user.findFirst.mockResolvedValue({
+        id: 'internal-x',
+        defaultVisionConfigId: null,
+        defaultVisionConfig: null,
+      });
+      mockPrisma.userPersonalityConfig.findFirst.mockResolvedValue({
+        visionConfig: visionRow({ model: 'user-pers-vision', name: 'user-pers-override' }),
+      });
+
+      const result = await resolver.resolveConfig('user-x', 'p-uuid-123', FAKE_PERSONALITY);
+
+      expect(result.config.params).toBeUndefined();
     });
 
     it('returns the user global default when no per-personality override (tier 2)', async () => {
