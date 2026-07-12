@@ -30,6 +30,28 @@ function parsePositiveIntOption(raw: string | undefined, flag: string): number |
   return value;
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Validate a required `--persona-id` UUID. Returns the id, or `null` when it's
+ * absent or malformed (error printed + exitCode set — the caller returns on null).
+ * Catches a bad id before it hits a raw `::uuid` cast, which would otherwise
+ * surface as a raw Postgres error instead of a clean CLI message.
+ */
+function requirePersonaId(raw: string | undefined): string | null {
+  if (raw === undefined) {
+    console.error('--persona-id is required');
+    process.exitCode = 1;
+    return null;
+  }
+  if (!UUID_RE.test(raw)) {
+    console.error(`--persona-id must be a UUID (got '${raw}')`);
+    process.exitCode = 1;
+    return null;
+  }
+  return raw;
+}
+
 /** Backfill fact extraction over historical memories (memory Phase 2). */
 function registerBackfillFactsCommand(cli: CAC): void {
   cli
@@ -88,9 +110,8 @@ function registerGoldensCommands(cli: CAC): void {
         sample?: string;
         out?: string;
       }) => {
-        if (options.personaId === undefined) {
-          console.error('--persona-id is required');
-          process.exitCode = 1;
+        const personaId = requirePersonaId(options.personaId);
+        if (personaId === null) {
           return;
         }
         // Fail loudly on a garbage --sample: NaN comparisons are all false, so
@@ -102,7 +123,7 @@ function registerGoldensCommands(cli: CAC): void {
         const { mineGoldens } = await import('../memory/mine-goldens.js');
         await mineGoldens({
           env: options.env ?? 'dev',
-          personaId: options.personaId,
+          personaId,
           personalityIds: options.personalityIds
             ?.split(',')
             .map(id => id.trim())
@@ -154,9 +175,8 @@ function registerConversationGoldensCommand(cli: CAC): void {
         historyWindow?: string;
         out?: string;
       }) => {
-        if (options.personaId === undefined) {
-          console.error('--persona-id is required');
-          process.exitCode = 1;
+        const personaId = requirePersonaId(options.personaId);
+        if (personaId === null) {
           return;
         }
         const sampleSize = parsePositiveIntOption(options.sample, '--sample');
@@ -170,7 +190,7 @@ function registerConversationGoldensCommand(cli: CAC): void {
         const { mineConversationGoldens } = await import('../memory/mine-conversation-goldens.js');
         await mineConversationGoldens({
           env: options.env ?? 'dev',
-          personaId: options.personaId,
+          personaId,
           sampleSize,
           historyWindow,
           outDir: options.out,
