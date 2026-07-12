@@ -5,8 +5,14 @@ import type { ZaiFreeTierAdmission } from '../../../../services/ZaiFreeTierAdmis
 import { applyGuestModeOverrides } from './guestModeOverrides.js';
 import type { GenerationContext } from '../types.js';
 
+const mockLogger = vi.hoisted(() => ({
+  info: vi.fn(),
+  debug: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+}));
 vi.mock('@tzurot/common-types/utils/logger', () => ({
-  createLogger: () => ({ info: vi.fn(), debug: vi.fn(), warn: vi.fn(), error: vi.fn() }),
+  createLogger: () => mockLogger,
 }));
 
 type EffectivePersonality = NonNullable<GenerationContext['config']>['effectivePersonality'];
@@ -158,6 +164,12 @@ describe('applyGuestModeOverrides', () => {
       // Fall-through continues the cascade to the global free default
       expect(result.personality.model).toBe('gemma/other-model:free');
       expect(result.zaiSystemKey).toBeUndefined();
+      // Quota was consumed by the successful admit — the fall-through must be
+      // OBSERVABLE, not indistinguishable from a plain denial
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        { userId: 'u1' },
+        expect.stringContaining('system key vanished')
+      );
     });
 
     it('clears a non-free vision model on the fall-through override', async () => {

@@ -30,9 +30,12 @@
  * RateLimitCache/CreditExhaustionCache doom-caches (the real key limit sits
  * above the configured budget), so atomicity isn't worth the machinery here.
  *
- * **requestId as the per-user ZSET member** makes counting idempotent across
- * BullMQ job retries (a retried job carries the same id → ZADD updates the
- * member's score, ZCARD is unchanged).
+ * **Retry idempotency**: `requestId` as the per-user ZSET member makes the
+ * per-user count idempotent across BullMQ job retries (a retried job carries
+ * the same id → ZADD updates the member's score, ZCARD is unchanged), and a
+ * day-scoped NX marker gives the global daily counter the same property —
+ * only the FIRST consume of a requestId advances it. A retry that crosses
+ * UTC midnight counts once per day (acceptable; the day rolled anyway).
  *
  * **Fail-open**: any Redis error logs a warn and ALLOWS the request. A counter
  * blip must not break generation for legitimate users.
@@ -176,7 +179,14 @@ export class FreeTierRequestQuota {
       const windowTtl = Math.ceil(windowMs / 1000) + WINDOW_TTL_MARGIN_SECONDS;
       await this.redis.zadd(activeKey, now, userId);
       await this.redis.zadd(userKey, now, requestId);
-      await this.redis.incr(globalKey);
+      // NX marker: a stalled-and-reprocessed job re-runs tryConsume with the
+      // SAME requestId — only the first consume advances the day's counter.
+      // Plain SET-NX per the house counter contract (no Lua).
+      const dedupKey = `${globalKey}:req:${requestId}`;
+      const firstConsume = await this.redis.set(dedupKey, '1', 'EX', GLOBAL_TTL_SECONDS, 'NX');
+      if (firstConsume === 'OK') {
+        await this.redis.incr(globalKey);
+      }
       await this.redis.expire(activeKey, windowTtl);
       await this.redis.expire(userKey, windowTtl);
       await this.redis.expire(globalKey, GLOBAL_TTL_SECONDS);

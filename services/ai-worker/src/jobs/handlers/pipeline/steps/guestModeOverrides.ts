@@ -171,6 +171,12 @@ async function tryZaiFreeTierUpgrade(
   }
   const zaiSystemKey = deps.zaiFreeTierAdmission.systemKey();
   if (zaiSystemKey === undefined) {
+    // Admission already consumed the guest's quota share; without this line
+    // the key-vanished fall-through is indistinguishable from a plain denial.
+    logger.warn(
+      { userId },
+      'z.ai admitted but the system key vanished — falling through with quota consumed'
+    );
     return null;
   }
   logger.info({ userId }, 'Guest upgraded to GLM-4.5-Air on the system coding plan');
