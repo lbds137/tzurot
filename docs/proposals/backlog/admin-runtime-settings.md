@@ -1,6 +1,6 @@
 # Admin Runtime Settings — env-var migration + two-axis settings dashboards
 
-**Status**: ACCEPTED 2026-07-12 — full trio council (GLM-5.2 · Kimi-K2.7-code · Qwen-3.7-Max) + owner sign-off on all open calls (O1 JSONB+amendments · O5 single-command page groups · O7 openrouter/auto seeds · confirm-all on the council-adopted set) · **Amended 2026-07-12** (owner, post-acceptance): all four floors configurable — free floors join the registry (O8/D10)
+**Status**: ACCEPTED 2026-07-12 — full trio council (GLM-5.2 · Kimi-K2.7-code · Qwen-3.7-Max) + owner sign-off on all open calls (O1 JSONB+amendments · O5 single-command page groups · O7 openrouter/auto seeds · confirm-all on the council-adopted set) · **Amended 2026-07-12** (owner, post-acceptance): all four floors configurable — free floors join the registry (O8/D10) · runtime text-generation fallback descent added (O9/D12, PR 4)
 **Extends**: [`config-cascade-semantics.md`](config-cascade-semantics.md) (ACCEPTED — this occupies its named "env-var migration" follow-on slot, §3 + phasing row 3+) · [`ux-design-system-spec.md`](ux-design-system-spec.md) §3.3/D14 (pagination-by-concern — this builds the mechanism) · [`platform-portable-ux-design.md`](platform-portable-ux-design.md) §4.4 Phase 2
 **Supersedes**: nothing (the `cold/ideas.md` settings-dashboard entry is absorbed at acceptance)
 
@@ -14,6 +14,7 @@
 6. The admin model settings are named **fallback models**, not defaults — *"these are the ultimate last tier fallback so they need to be rock solid"* (2026-07-12).
 7. **Fallback seeds are OpenRouter router aliases** (2026-07-12): free users → `openrouter/free` (already the structural guest floor in code); paid floors seed **`openrouter/auto`** for both text and vision. Consciously accepted for a rare floor hit: per-message model variance (voice drift) and unpredictable routed cost — the floor's job is to always answer, not to be the everyday model. Owner's own fit-check research cited both caveats before choosing.
 8. **All four floors are configurable** (2026-07-12, post-acceptance amendment): *"amend please, I want all of them configurable"* — the free floors become registry settings too (`fallbackTextModelFree`/`fallbackVisionModelFree`, seeded `openrouter/free`), not code constants. The draft's keep-as-constant call was design economy, not an owner directive. The write path accepts only free-route models, so a free-floor misconfiguration can never bill the system key (D9/D10).
+9. **Runtime text fallback like vision** (2026-07-12, post-acceptance amendment): *"I feel like we should have runtime fallback like with vision"* — text generation gets a bounded runtime descent ending at the floors (D12). Content-policy refinement (owner): *"if it fails Tzurot's content policy, don't fallback. if it's a censored model being an asshole, then fall back"* — the descend/surface axis is WHOSE policy fired, not the HTTP category.
 
 ## Grounding provenance
 
@@ -124,6 +125,16 @@ Renamed from "default" to **fallback** to distinguish from the global-default pr
 | `ZAI_CODING_API_KEY` + all secrets/infra | **stay env forever** | — | — | owner taxonomy |
 | Dead bot-client strays (`DATABASE_URL`, `OPENROUTER_API_KEY`, `AI_PROVIDER`, `DEFAULT_AI_MODEL`, `VISION_FALLBACK_MODEL`) | **delete from Railway** | — | — | verify-by-removal on dev first |
 
+### D12 — Runtime text-generation fallback descent (owner directive 9, 2026-07-12)
+
+Text gets vision-style runtime fallback — **as two extensions of the existing quota-fallback machinery** (`quotaFallback.ts` / `quotaFallbackRunner.ts`: catch-classify-retarget with tier-aware target selection, coherent FULL-param swap per hop, per-target context-cap re-derivation, doom-cache viability, footer announcement, structured audit), not a new subsystem. "Degraded beats failed" is already named owner policy in that code; this widens its reach.
+
+1. **Trigger widening**: the retargetable set grows from quota-class ({QUOTA_EXCEEDED, CREDIT_EXHAUSTION, RATE_LIMIT}) to include **availability-class**: `MODEL_NOT_FOUND` (prefer-terminal in the in-attempt retry loop like quota-class — retrying a 404'd model is hopeless), `SERVER_ERROR`, `TIMEOUT`, `NETWORK`, `EMPTY_RESPONSE` (these four descend only after in-attempt retries exhaust). **Censorship (owner-refined)**: provider/model-side refusals (`CENSORED`, provider-403 `CONTENT_POLICY`) DESCEND — a censored model refusing content Tzurot permits gets routed around; a rejection by Tzurot's OWN policy layer must NEVER descend. Build-time verification: confirm both categories are exclusively provider-emitted today; any future internal moderation rejection gets a distinct, non-retargetable category so it can't silently inherit fallback. **Never descend**: `AUTHENTICATION` (the user's key is broken — surface the actionable fix), `BAD_REQUEST` (config bug to surface, not availability), `FREE_TIER_QUOTA` (remediation is BYOK — already excluded by design).
+2. **Depth**: one hop → a bounded TWO-hop descent: resolved model → tier-aware default (the existing `selectQuotaFallbackTarget` selection) → **floor** (`fallbackTextModelFree` for free users / `fallbackTextModel` for paid — D10), each hop dedup'd against the failing model and viability-checked against the doom caches. This is what makes the D10 floors runtime-live for text, matching vision's semantics (free failures descend to the free floor, never into a system-key-billed model — same firewall as D9/D10).
+
+Carried invariants: params never leak across hops (the target's full set applies, unset keys explicitly cleared); context caps re-derive per target; every hop is footer-announced and audit-logged; guest metering rules unchanged.
+*Rejected*: descending on every category (auth/bad-request fallbacks hide actionable problems); unbounded chains (two hops, mirroring vision's tier cap).
+
 ## What this deliberately does NOT do
 
 - **No cascade changes**: tier order, sentinel semantics, the System-A/B split, and the guild tier are ACCEPTED elsewhere and untouched.
@@ -137,6 +148,7 @@ Renamed from "default" to **fallback** to distinguish from the global-default pr
 1. **PR 1 — plumbing + minimal control plane**: `system_settings` column (additive migration) + registry + `SystemSettingsService` (both services) + race-safe seed pass + NEW invalidation channel + write route & validations (D7/D9/D10) + **the `/admin settings set` slash setter** — so a validated write surface exists from day one.
 2. **PR 2 — dashboards**: settings-stack groups/pagination mechanism + Defaults page group + System page group + ride-alongs (D18 Close removal, BLURPLE fix, 25-cap).
 3. **PR 3 — consumer swaps + env deletion**: per-var read-path swaps (D5: provider-fns, module-const unhoisting, extraction boot-gate dissolution). Env vars deleted from the zod schema; Railway cleanup **dev first, prod after a soak window** — deletion is LAST, after the DB path is proven live, so rollback of any earlier PR never strands config.
+4. **PR 4 — runtime text fallback descent (D12)**: trigger-set widening + two-hop descent to the floors. Depends on PR 1 (floors exist in the registry) and PR 3 (floor reads are live); generation-path change, so it ships alone with its own review cycle.
 
 ## Council record (trio pass, 2026-07-12: GLM-5.2 · Kimi-K2.7-code · Qwen-3.7-Max)
 
@@ -156,3 +168,4 @@ Renamed from "default" to **fallback** to distinguish from the global-default pr
 | O6 | Keep `'restart'` liveness tier? | accept / amend-if-actionable / reject(YAGNI) | **DECIDED**: keep + mandatory write-warning banner (D2) |
 | O7 | Paid floor seeds = `openrouter/auto` (both slots)? | — (owner research, post-council) | **CONFIRMED (owner 2026-07-12)**: auto for both (D10) |
 | O8 | Free floors: constants or settings? | — (post-acceptance owner amendment) | **DECIDED (owner 2026-07-12)**: configurable — `fallbackTextModelFree`/`fallbackVisionModelFree`, seeded `openrouter/free`, free-route-only validation (D9/D10) |
+| O9 | Text fallback descent: trigger categories? | — (post-acceptance owner amendment) | **DECIDED (owner 2026-07-12, refined)**: availability set descends; provider/model censorship descends, Tzurot's own policy never; auth/bad-request/fair-share surface (D12) |
