@@ -46,16 +46,18 @@ pnpm ops run --env <env> <command> [args...]
 
 Commands for analyzing and managing pgvector memories:
 
-| Command                                              | Description                                         |
-| ---------------------------------------------------- | --------------------------------------------------- |
-| `pnpm ops memory:analyze --env dev`                  | Analyze duplicate memories                          |
-| `pnpm ops memory:analyze --verbose`                  | Show detailed breakdown                             |
-| `pnpm ops memory:cleanup --env dev`                  | Remove duplicate memories                           |
-| `pnpm ops memory:cleanup --dry-run`                  | Preview what would be deleted                       |
-| `pnpm ops memory:cleanup --force`                    | Skip confirmation (required for prod)               |
-| `pnpm ops memory:backfill-facts --env dev --dry-run` | Report fact-backfill scope (groups/windows)         |
-| `pnpm ops memory:backfill-facts --env dev --limit 5` | Canary: enqueue the first N extraction windows      |
-| `pnpm ops memory:backfill-facts --env dev`           | Enqueue fact extraction over all uncovered memories |
+| Command                                                      | Description                                                                                         |
+| ------------------------------------------------------------ | --------------------------------------------------------------------------------------------------- |
+| `pnpm ops memory:analyze --env dev`                          | Analyze duplicate memories                                                                          |
+| `pnpm ops memory:analyze --verbose`                          | Show detailed breakdown                                                                             |
+| `pnpm ops memory:cleanup --env dev`                          | Remove duplicate memories                                                                           |
+| `pnpm ops memory:cleanup --dry-run`                          | Preview what would be deleted                                                                       |
+| `pnpm ops memory:cleanup --force`                            | Skip confirmation (required for prod)                                                               |
+| `pnpm ops memory:backfill-facts --env dev --dry-run`         | Report fact-backfill scope (groups/windows)                                                         |
+| `pnpm ops memory:backfill-facts --env dev --limit 5`         | Canary: enqueue the first N extraction windows                                                      |
+| `pnpm ops memory:backfill-facts --env dev`                   | Enqueue fact extraction over all uncovered memories                                                 |
+| `pnpm ops memory:mine-goldens --env dev --persona-id <uuid>` | Mine a stratified retrieval-eval sample (LOCAL-ONLY output in gitignored `reports/goldens-mining/`) |
+| `pnpm ops memory:anonymize-goldens`                          | Apply the owner-promoted swap map (`swap-map.json`); refuses on surviving entities                  |
 
 **Use case:** After migrations or data imports, check for and clean up duplicate memory embeddings.
 
