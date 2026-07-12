@@ -18,6 +18,7 @@ import {
   type ProcessedAttachment,
 } from './MultimodalProcessor.js';
 import { extractRecentHistoryWindow } from './RAGUtils.js';
+import { collectPersonalityNames } from '../jobs/utils/conversationUtils.js';
 import type { PromptBuilder } from './PromptBuilder.js';
 import type { ReferencedMessageFormatter } from './ReferencedMessageFormatter.js';
 import type { ResponsePostProcessor } from './ResponsePostProcessor.js';
@@ -128,7 +129,18 @@ export class ConversationInputProcessor {
             personality,
             isGuestMode,
             context.preprocessedReferenceAttachments,
-            { userApiKey: visionApiKey, sttDispatch, visionProvider, visionModel }
+            {
+              userApiKey: visionApiKey,
+              sttDispatch,
+              visionProvider,
+              visionModel,
+              // Personalities visible in history — enables the sibling-persona
+              // quote demotion (assistant → character) in deriveRefRole.
+              allPersonalityNames: collectPersonalityNames(
+                context.rawConversationHistory ?? [],
+                personality.displayName
+              ),
+            }
           )
         : undefined;
 

@@ -20,6 +20,9 @@ export interface AuthorRoleSignals {
  *
  * - **assistant** — our own bot's webhook (`applicationId === clientUserId`). Covers
  *   every one of our personas; rename-immune and collision-free (no name matching).
+ *   Persona-AGNOSTIC by design: at receive time nobody knows which persona will
+ *   respond. ai-worker's render paths demote a sibling persona's `assistant` to
+ *   `character` relative to the responder (see ai-worker referenceRole.ts).
  * - **user** — a real human (not webhook/bot), OR a message-proxy webhook (PluralKit /
  *   TupperBox) re-posting a human, identified by a known proxy `applicationId`.
  * - **bot** — any other webhook/bot: a non-persona automation. The catch-all for

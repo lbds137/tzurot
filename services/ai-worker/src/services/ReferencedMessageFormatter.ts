@@ -33,20 +33,24 @@ const logger = createLogger('ReferencedMessageFormatter');
  * bot's own words read as a turn to continue. Kept as a named constant so the wording
  * is visible alongside the other prompt-text constants instead of buried inline.
  */
-const CONTEXTUAL_REFERENCES_INSTRUCTION = `<instruction>Messages the user's current message is replying to or quoting — read them only to understand what the user is responding to. A quote's role says who wrote it: role="assistant" is one of your own earlier lines (context, never a turn to continue or extend); role="user" is a person; role="bot" is a different bot or automated webhook — not you, and not the human you're replying to. Respond to the user's current message. A stubbed quote's full text appears in <chat_log>.</instruction>`;
+const CONTEXTUAL_REFERENCES_INSTRUCTION = `<instruction>Messages the user's current message is replying to or quoting — read them only to understand what the user is responding to. A quote's role says who wrote it: role="assistant" is one of your own earlier lines (context, never a turn to continue or extend); role="user" is a person; role="character" is a different AI character — a conversation peer, not you and not the human you're replying to; role="bot" is a non-character bot or automated webhook. Respond to the user's current message. A stubbed quote's full text appears in <chat_log>.</instruction>`;
 
 /**
- * Auth context for reference-attachment processing. `userApiKey` is the key for
+ * Context for reference formatting. `userApiKey` is the key for
  * the VISION provider (resolved upstream), and `visionProvider`/`visionModel`
  * carry the cross-provider vision resolution so reference images use the correct
  * key+model instead of the raw main-model key. `sttDispatch` drives voice
- * transcription independently. All fields optional — legacy callers degrade.
+ * transcription independently. `allPersonalityNames` (personalities seen in the
+ * visible history) enables the sibling-persona quote demotion in `deriveRefRole`
+ * — without it a sibling's stamped-assistant quote renders as the responding
+ * persona's own line. All fields optional — legacy callers degrade.
  */
 interface ReferenceVisionAuth {
   userApiKey?: string;
   sttDispatch?: SttDispatch;
   visionProvider?: AIProvider;
   visionModel?: string;
+  allPersonalityNames?: Set<string>;
 }
 
 /**
@@ -104,7 +108,8 @@ export class ReferencedMessageFormatter {
             role: deriveRefRole(
               ref.authorRole,
               ref.authorDisplayName || ref.authorUsername,
-              personality.displayName
+              personality.displayName,
+              apiKeys?.allPersonalityNames
             ),
             timestamp:
               absolute.length > 0 && relative.length > 0 ? { absolute, relative } : undefined,
@@ -192,7 +197,8 @@ export class ReferencedMessageFormatter {
       role: deriveRefRole(
         ref.authorRole,
         ref.authorDisplayName || ref.authorUsername,
-        personality.displayName
+        personality.displayName,
+        apiKeys?.allPersonalityNames
       ),
       timestamp: absolute.length > 0 && relative.length > 0 ? { absolute, relative } : undefined,
       content: ref.content || undefined,

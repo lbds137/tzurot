@@ -2543,10 +2543,12 @@ describe('Conversation Utilities', () => {
       // When COLD processes this, it should correctly attribute Lila AI's message
       const result = formatConversationHistoryAsXml(history, 'COLD');
 
-      // COLD's message should be attributed to COLD
+      // COLD's own message keeps role="assistant"
       expect(result).toContain('from="COLD" role="assistant"');
-      // Lila AI's message should be attributed to Lila, not COLD
-      expect(result).toContain('from="Lila | תשב" role="assistant"');
+      // Lila AI's message is attributed to Lila AND demoted to role="character" —
+      // a sibling persona's line must never render as COLD's own words
+      expect(result).toContain('from="Lila | תשב" role="character"');
+      expect(result).not.toContain('from="Lila | תשב" role="assistant"');
       // Verify we don't have COLD appearing twice for assistant messages
       const coldAssistantCount = (result.match(/from="COLD" role="assistant"/g) || []).length;
       expect(coldAssistantCount).toBe(1);

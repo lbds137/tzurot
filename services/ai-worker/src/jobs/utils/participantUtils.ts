@@ -7,8 +7,92 @@
 
 import { MessageRole } from '@tzurot/common-types/constants/message';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import type { RawHistoryEntry } from './conversationTypes.js';
 
 const logger = createLogger('participantUtils');
+
+/** The role vocabulary rendered into `<message role="...">` chat-log attributes. */
+export type ChatLogRole = 'user' | 'assistant' | 'character';
+
+/**
+ * Resolve speaker name and role from a history entry.
+ *
+ * Rendered role is relative to the RESPONDING personality: `assistant` is
+ * reserved for its own lines, and a sibling persona's message (same bot,
+ * different character card) renders as `character`. Tagging siblings as
+ * `assistant` tells the model those are its own words, which contradicts its
+ * character identity and derails reasoning in multi-persona channels.
+ *
+ * Single source of truth for both the chat-log formatter and the length
+ * estimator — the estimated shape must not drift from the rendered shape.
+ *
+ * @param msg - The message to resolve
+ * @param personalityName - Current AI personality name (fallback for assistant messages)
+ * @param allPersonalityNames - Set of all AI personality names in the conversation (for collision detection)
+ * @returns Speaker name and role, or null if message should be skipped
+ */
+export function resolveSpeakerInfo(
+  msg: RawHistoryEntry,
+  personalityName: string,
+  allPersonalityNames?: Set<string>
+): { speakerName: string; role: ChatLogRole; normalizedRole: string } | null {
+  const normalizedRole = String(msg.role).toLowerCase();
+
+  if (normalizedRole === 'user') {
+    // User message - use persona name if available
+    let speakerName =
+      msg.personaName !== undefined && msg.personaName.length > 0 ? msg.personaName : 'User';
+
+    // Disambiguate when persona name matches ANY AI personality name in the conversation
+    // This handles multi-AI channels where user "Lila" could be confused with "Lila AI"
+    // Format: "Lila (@lbds137)" to make it clear who is who
+    const speakerLower = speakerName.toLowerCase();
+    const needsDisambiguation =
+      speakerLower === personalityName.toLowerCase() ||
+      (allPersonalityNames !== undefined &&
+        Array.from(allPersonalityNames).some(name => name.toLowerCase() === speakerLower));
+
+    if (
+      needsDisambiguation &&
+      msg.discordUsername !== undefined &&
+      msg.discordUsername.length > 0
+    ) {
+      speakerName = `${speakerName} (@${msg.discordUsername})`;
+    }
+
+    return { speakerName, role: 'user', normalizedRole };
+  }
+
+  if (normalizedRole === 'assistant') {
+    // For assistant messages, use the AI personality's name from the message
+    // This enables correct attribution in multi-AI channels (e.g., COLD seeing Lila AI's messages)
+    // Fall back to the current personalityName for legacy data without personalityName
+    const speakerName =
+      msg.personalityName !== undefined && msg.personalityName.length > 0
+        ? msg.personalityName
+        : personalityName;
+    // Sibling persona → 'character'. Legacy rows without a stored personality
+    // name fall back to the current name above, so they compare equal and keep
+    // rendering as 'assistant' (pre-existing attribution behavior).
+    //
+    // Self-match is prefix-bidirectional, not strict equality: DB-persisted rows
+    // store `personality.name` (same vocabulary as the parameter), but the
+    // extended-context fetch's registry-miss fallback stores the webhook
+    // DISPLAY name (`${displayName}${botSuffix}`) — a strict compare would
+    // demote the persona's OWN rows whenever name !== displayName. Cost: a
+    // sibling whose name is an exact prefix of the responder's reads as self
+    // (same accepted bounded edge as referenceRole.ts's self-variant skip).
+    const speakerLower = speakerName.toLowerCase();
+    const personalityLower = personalityName.toLowerCase();
+    const isSelf =
+      speakerLower.startsWith(personalityLower) || personalityLower.startsWith(speakerLower);
+    const role: ChatLogRole = isSelf ? 'assistant' : 'character';
+    return { speakerName, role, normalizedRole };
+  }
+
+  // System or unknown - skip
+  return null;
+}
 
 /**
  * Check if a role matches the expected role (case-insensitive).

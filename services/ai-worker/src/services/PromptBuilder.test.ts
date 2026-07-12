@@ -927,6 +927,39 @@ describe('PromptBuilder', () => {
       expect(content).toContain('**Referenced**: Some earlier context');
     });
 
+    it('includes a chat_log role legend naming the responding persona', () => {
+      const result = promptBuilder.buildFullSystemPrompt({
+        personality: minimalPersonality,
+        participantPersonas: new Map(),
+        relevantMemories: [],
+        context: minimalContext,
+        serializedHistory: '<message from="Someone" role="user">hi</message>',
+      });
+
+      const content = result.content as string;
+
+      expect(content).toContain('<chat_log>');
+      // All three clauses of the legend — the character clause is the load-bearing
+      // one (sibling personas must never read as the model's own lines).
+      expect(content).toContain(`role="assistant" marks your own earlier lines`);
+      expect(content).toContain(minimalPersonality.name);
+      expect(content).toContain('role="user" marks humans');
+      expect(content).toContain('role="character" marks a different AI character');
+    });
+
+    it('omits the chat_log section (and its legend) when history is empty', () => {
+      const result = promptBuilder.buildFullSystemPrompt({
+        personality: minimalPersonality,
+        participantPersonas: new Map(),
+        relevantMemories: [],
+        context: minimalContext,
+      });
+
+      const content = result.content as string;
+      expect(content).not.toContain('<chat_log>');
+      expect(content).not.toContain('role="character" marks a different AI character');
+    });
+
     it('should include DM environment context in location XML', () => {
       const dmEnvironment: DiscordEnvironment = {
         type: 'dm',

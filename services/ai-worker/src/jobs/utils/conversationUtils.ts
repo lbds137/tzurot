@@ -25,6 +25,7 @@ import { formatForwardedQuote } from '../../services/prompt/QuoteFormatter.js';
 
 // Re-export from extracted modules for backward compatibility
 export { extractParticipants } from './participantUtils.js';
+import { resolveSpeakerInfo } from './participantUtils.js';
 export { convertConversationHistory } from './langchainConverter.js';
 export { getFormattedMessageCharLength } from './conversationLengthEstimator.js';
 export { RawHistoryEntry, InlineImageDescription } from './conversationTypes.js';
@@ -40,67 +41,16 @@ import {
 } from './xmlMetadataFormatters.js';
 
 /**
- * Resolve speaker name and role from a history entry
- * @param msg - The message to resolve
- * @param personalityName - Current AI personality name (fallback for assistant messages)
- * @param allPersonalityNames - Set of all AI personality names in the conversation (for collision detection)
- * @returns Speaker name and role, or null if message should be skipped
- */
-function resolveSpeakerInfo(
-  msg: RawHistoryEntry,
-  personalityName: string,
-  allPersonalityNames?: Set<string>
-): { speakerName: string; role: 'user' | 'assistant'; normalizedRole: string } | null {
-  const normalizedRole = String(msg.role).toLowerCase();
-
-  if (normalizedRole === 'user') {
-    // User message - use persona name if available
-    let speakerName =
-      msg.personaName !== undefined && msg.personaName.length > 0 ? msg.personaName : 'User';
-
-    // Disambiguate when persona name matches ANY AI personality name in the conversation
-    // This handles multi-AI channels where user "Lila" could be confused with "Lila AI"
-    // Format: "Lila (@lbds137)" to make it clear who is who
-    const speakerLower = speakerName.toLowerCase();
-    const needsDisambiguation =
-      speakerLower === personalityName.toLowerCase() ||
-      (allPersonalityNames !== undefined &&
-        Array.from(allPersonalityNames).some(name => name.toLowerCase() === speakerLower));
-
-    if (
-      needsDisambiguation &&
-      msg.discordUsername !== undefined &&
-      msg.discordUsername.length > 0
-    ) {
-      speakerName = `${speakerName} (@${msg.discordUsername})`;
-    }
-
-    return { speakerName, role: 'user', normalizedRole };
-  }
-
-  if (normalizedRole === 'assistant') {
-    // For assistant messages, use the AI personality's name from the message
-    // This enables correct attribution in multi-AI channels (e.g., COLD seeing Lila AI's messages)
-    // Fall back to the current personalityName for legacy data without personalityName
-    const speakerName =
-      msg.personalityName !== undefined && msg.personalityName.length > 0
-        ? msg.personalityName
-        : personalityName;
-    return { speakerName, role: 'assistant', normalizedRole };
-  }
-
-  // System or unknown - skip
-  return null;
-}
-
-/**
  * Format a single history entry as XML
  *
  * This is the single source of truth for history message formatting.
  * Used by both formatConversationHistoryAsXml (for prompt generation) and
  * MemoryBudgetManager (for token counting).
  *
- * Format: <message from="Name" role="user|assistant" time="2m ago">content</message>
+ * Format: <message from="Name" role="user|assistant|character" time="2m ago">content</message>
+ *
+ * Role is relative to the responding personality — a sibling persona's
+ * message renders as role="character" (see resolveSpeakerInfo).
  *
  * When a user's persona name matches ANY AI personality name in the conversation
  * (e.g., user "Lila" in a channel with "Lila AI"), the user's name is disambiguated
@@ -229,8 +179,9 @@ function buildHistoryMessageIdSet(history: RawHistoryEntry[]): Set<string> {
 /**
  * Collect all AI personality names from assistant messages
  * This enables multi-AI name collision detection (e.g., user "Lila" vs "Lila AI")
+ * and sibling-persona quote demotion (see referenceRole.ts).
  */
-function collectPersonalityNames(
+export function collectPersonalityNames(
   history: RawHistoryEntry[],
   currentPersonalityName: string
 ): Set<string> {
