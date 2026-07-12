@@ -99,12 +99,6 @@ export function buildInspectComponents(
         description: 'Per-step post-processing outcomes (checklist)',
         value: DebugViewType.PipelineHealth,
         emoji: '🩺',
-      },
-      {
-        label: 'Quick Copy',
-        description: 'Single-line summary for incident threads',
-        value: DebugViewType.QuickCopy,
-        emoji: '📎',
       }
     );
 
