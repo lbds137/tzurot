@@ -20,7 +20,10 @@ import {
 import { ERROR_MESSAGES, ApiErrorCategory } from '@tzurot/common-types/constants/error';
 import { TIMEOUTS } from '@tzurot/common-types/constants/timing';
 import { type AttachmentMetadata } from '@tzurot/common-types/types/schemas/discord';
-import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
+import {
+  type LoadedPersonality,
+  type VisionTierParams,
+} from '@tzurot/common-types/types/schemas/personality';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { createChatModel } from '../ModelFactory.js';
 import { detectVisionProvider } from '../ProviderRouter.js';
@@ -181,6 +184,12 @@ interface InvokeVisionModelOptions {
   systemPrompt?: string;
   userApiKey?: string;
   /**
+   * Explicitly-set call params of the TIER's vision config (gateway-stamped,
+   * looked up by resolved model in describeImage). Absent → system defaults
+   * (`AI_DEFAULTS.VISION_TEMPERATURE`).
+   */
+  visionParams?: VisionTierParams;
+  /**
    * Explicit provider for the vision call. When provided, overrides the
    * `config.AI_PROVIDER` env-default lookup inside `createChatModel`. Required
    * for cross-provider personalities (e.g., main=z.ai-coding, vision=OpenRouter)
@@ -208,7 +217,8 @@ async function invokeVisionModel(
   modelName: string,
   options: InvokeVisionModelOptions
 ): Promise<string> {
-  const { systemPrompt, userApiKey, provider, loggingContext, personalityName } = options;
+  const { systemPrompt, userApiKey, provider, loggingContext, personalityName, visionParams } =
+    options;
 
   // Single-chokepoint silent-fallback signal: every vision call across every
   // upstream path (DependencyStep, ConversationalRAGService, ConversationInput-
@@ -230,11 +240,16 @@ async function invokeVisionModel(
     );
   }
 
+  // Explicitly-set vision-config params win; the low factual-captioning
+  // temperature stays the default for anything unset (descriptions feed
+  // memory + search, where creative sampling harms). createChatModel's
+  // per-model filtering sanitizes any param the model can't take.
   const { model } = createChatModel({
     modelName,
     apiKey: userApiKey,
     provider,
-    temperature: AI_DEFAULTS.VISION_TEMPERATURE,
+    ...visionParams,
+    temperature: visionParams?.temperature ?? AI_DEFAULTS.VISION_TEMPERATURE,
   });
 
   const messages = [];
@@ -746,6 +761,10 @@ export async function describeImage(
       imageUrl,
       loggingContext,
       personalityName: personality.name,
+      // Per-TIER params: the fallback chain re-enters describeImage with each
+      // tier's model forced via options.model, so this lookup naturally gives
+      // every tier ITS OWN config's params.
+      visionParams: personality.visionConfigParams?.[usedModel],
     },
     options.throwOnFailure === true
   );

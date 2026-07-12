@@ -9,12 +9,46 @@
 
 import { LLM_CONFIG_OVERRIDE_KEYS } from '@tzurot/common-types/schemas/llmAdvancedParams';
 import { type ConfigSourceId } from '@tzurot/common-types/types/schemas/generation';
-import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
-import { type ResolvedLlmConfig } from '@tzurot/common-types/types/configResolution';
+import {
+  type LoadedPersonality,
+  type VisionTierParams,
+} from '@tzurot/common-types/types/schemas/personality';
+import {
+  type ResolvedLlmConfig,
+  type ResolvedVisionConfig,
+} from '@tzurot/common-types/types/configResolution';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { LlmConfigResolver, VisionConfigResolver } from '@tzurot/config-resolver';
 
 const logger = createLogger('ConfigStamping');
+
+/**
+ * Build the model-keyed map of explicitly-set vision-config params, one entry
+ * per resolved TIER config — the worker looks these up by the tier's resolved
+ * model at invoke time, so a fallback tier runs with ITS config's params, not
+ * the primary's. The params themselves are picked at RESOLUTION time
+ * (`VisionConfigResolver` via the shared `pickVisionTierParams`) and carried on
+ * `ResolvedVisionConfig.params` — this function only keys them by model.
+ * Without this carrier, dashboard-set vision-preset params are decorative
+ * (the invoke site falls back to `AI_DEFAULTS.VISION_TEMPERATURE`).
+ * Undefined when no config sets any explicit param.
+ */
+function buildVisionConfigParams(
+  configs: (ResolvedVisionConfig | null | undefined)[]
+): Record<string, VisionTierParams> | undefined {
+  const map: Record<string, VisionTierParams> = {};
+  for (const config of configs) {
+    if (config === null || config === undefined || config.model.length === 0) {
+      continue;
+    }
+    // First writer wins on a model collision: the PRIMARY config's params
+    // must not be clobbered by a same-model fallback tier.
+    if (config.params !== undefined && map[config.model] === undefined) {
+      map[config.model] = config.params;
+    }
+  }
+  return Object.keys(map).length > 0 ? map : undefined;
+}
 
 /**
  * Apply a resolved (already-merged) LLM config onto the personality — model plus
@@ -108,36 +142,7 @@ export async function stampResolvedConfig(
   // vision failure. The worker has no Prisma, so all DB resolution stays here.
   if (visionConfigResolver !== undefined) {
     try {
-      // resolveConfig picks the effective vision model; the two default readers supply the
-      // fallback tiers. Parallel — each is cache-backed after warmup (job-build, not per-token).
-      const [vision, globalDefault, freeDefault] = await Promise.all([
-        visionConfigResolver.resolveConfig(userId, personality.id, personality),
-        visionConfigResolver.getGlobalDefaultConfig(),
-        visionConfigResolver.getFreeDefaultVisionConfig(),
-      ]);
-      // Skip the hardcoded-fallback tier (source='hardcoded' → MODEL_DEFAULTS.VISION_FALLBACK,
-      // the slow model the resolver only returns before the vision globals are seeded).
-      // Stamping it would make selectVisionModel priority-1 fire and force the fallback even
-      // when the main model has native vision — the exact timeout this epic targets. Leaving
-      // it unstamped lets priority-2 (main-model-vision) win during the bootstrap window.
-      // Symmetric with the text leg, which skips the 'personality' (= seed) source.
-      if (vision.source !== 'hardcoded') {
-        stamped = { ...stamped, visionModel: vision.config.model };
-      }
-      // The DB-resolved fallback tiers (global → free), deduped + non-empty. The worker
-      // composes its local native-main + hardcoded tiers around this; only these DB tiers
-      // must cross the boundary. Stamped independently of visionModel — it's for the
-      // runtime-failure path, not the initial pick.
-      const fallbackModels = [
-        ...new Set(
-          [globalDefault?.model, freeDefault?.model].filter(
-            (m): m is string => m !== undefined && m.length > 0
-          )
-        ),
-      ];
-      if (fallbackModels.length > 0) {
-        stamped = { ...stamped, visionFallbackModels: fallbackModels };
-      }
+      stamped = await stampVisionAxis(stamped, personality, userId, visionConfigResolver);
     } catch (error) {
       logger.warn(
         { err: error, requestId, personalityId: personality.id },
@@ -147,4 +152,59 @@ export async function stampResolvedConfig(
   }
 
   return { personality: stamped, configSource };
+}
+
+/**
+ * The vision-axis stamp: primary vision model, DB-resolved fallback tiers, and
+ * the per-tier explicit params map. Throws propagate to the caller's fail-open
+ * catch — this helper only owns the happy-path branching.
+ */
+async function stampVisionAxis(
+  stamped: LoadedPersonality,
+  personality: LoadedPersonality,
+  userId: string,
+  visionConfigResolver: VisionConfigResolver
+): Promise<LoadedPersonality> {
+  // resolveConfig picks the effective vision model; the two default readers supply the
+  // fallback tiers. Parallel — each is cache-backed after warmup (job-build, not per-token).
+  const [vision, globalDefault, freeDefault] = await Promise.all([
+    visionConfigResolver.resolveConfig(userId, personality.id, personality),
+    visionConfigResolver.getGlobalDefaultConfig(),
+    visionConfigResolver.getFreeDefaultVisionConfig(),
+  ]);
+  let result = stamped;
+  // Skip the hardcoded-fallback tier (source='hardcoded' → MODEL_DEFAULTS.VISION_FALLBACK,
+  // the slow model the resolver only returns before the vision globals are seeded).
+  // Stamping it would make selectVisionModel priority-1 fire and force the fallback even
+  // when the main model has native vision — the exact timeout this epic targets. Leaving
+  // it unstamped lets priority-2 (main-model-vision) win during the bootstrap window.
+  // Symmetric with the text leg, which skips the 'personality' (= seed) source.
+  if (vision.source !== 'hardcoded') {
+    result = { ...result, visionModel: vision.config.model };
+  }
+  // The DB-resolved fallback tiers (global → free), deduped + non-empty. The worker
+  // composes its local native-main + hardcoded tiers around this; only these DB tiers
+  // must cross the boundary. Stamped independently of visionModel — it's for the
+  // runtime-failure path, not the initial pick.
+  const fallbackModels = [
+    ...new Set(
+      [globalDefault?.model, freeDefault?.model].filter(
+        (m): m is string => m !== undefined && m.length > 0
+      )
+    ),
+  ];
+  if (fallbackModels.length > 0) {
+    result = { ...result, visionFallbackModels: fallbackModels };
+  }
+  const visionConfigParams = buildVisionConfigParams([
+    // hardcoded-source primary carries the bootstrap fallback, not a user
+    // config — its params must not stamp (same reasoning as visionModel).
+    vision.source !== 'hardcoded' ? vision.config : null,
+    globalDefault,
+    freeDefault,
+  ]);
+  if (visionConfigParams !== undefined) {
+    result = { ...result, visionConfigParams };
+  }
+  return result;
 }

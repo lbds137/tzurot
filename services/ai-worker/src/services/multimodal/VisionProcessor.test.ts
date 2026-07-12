@@ -424,6 +424,54 @@ describe('VisionProcessor', () => {
         );
       });
 
+      it('honors explicitly-set vision-config params for the resolved model (seam assertion)', async () => {
+        // Gateway-stamped visionConfigParams must reach createChatModel — the
+        // decorative-config bug this carrier exists to fix. Explicit temperature
+        // wins over VISION_TEMPERATURE; other set params pass through.
+        mockCheckModelVisionSupport.mockResolvedValue(true);
+
+        const personality = createMockPersonality({
+          model: 'gpt-4o',
+          visionModel: 'custom-vision-model',
+          visionConfigParams: {
+            'custom-vision-model': { temperature: 0.7, maxTokens: 512 },
+          },
+        });
+
+        await describeImage(mockAttachment, personality);
+
+        expect(mockCreateChatModel).toHaveBeenCalledWith(
+          expect.objectContaining({
+            modelName: 'custom-vision-model',
+            temperature: 0.7,
+            maxTokens: 512,
+          })
+        );
+      });
+
+      it('falls back to VISION_TEMPERATURE when the resolved model has no params entry', async () => {
+        mockCheckModelVisionSupport.mockResolvedValue(true);
+
+        const personality = createMockPersonality({
+          model: 'gpt-4o',
+          visionModel: 'custom-vision-model',
+          // Params stamped for a DIFFERENT model (e.g. a fallback tier) must not
+          // leak onto this tier's call.
+          visionConfigParams: {
+            'some-other-model': { temperature: 0.9 },
+          },
+        });
+
+        await describeImage(mockAttachment, personality);
+
+        expect(mockCreateChatModel).toHaveBeenCalledWith(
+          expect.objectContaining({
+            modelName: 'custom-vision-model',
+            temperature: AI_DEFAULTS.VISION_TEMPERATURE,
+          })
+        );
+      });
+
       it('should pass user API key to createChatModel', async () => {
         mockCheckModelVisionSupport.mockResolvedValue(true);
 

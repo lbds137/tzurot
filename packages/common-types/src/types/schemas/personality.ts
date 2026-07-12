@@ -22,6 +22,55 @@ import { crossChannelHistoryGroupSchema, referencedMessageSchema } from './messa
 export const customFieldsSchema = z.record(z.string(), z.unknown()).nullable();
 
 /**
+ * Explicitly-SET call params for one vision model tier. Only the numeric
+ * sampling/output knobs a captioning call can honor — reasoning and
+ * contextWindowTokens are text-generation concepts and deliberately absent.
+ * `createChatModel`'s per-model param filtering sanitizes downstream.
+ */
+export const visionTierParamsSchema = z.object({
+  temperature: z.number().optional(),
+  maxTokens: z.number().optional(),
+  topP: z.number().optional(),
+  topK: z.number().optional(),
+  minP: z.number().optional(),
+  topA: z.number().optional(),
+  frequencyPenalty: z.number().optional(),
+  presencePenalty: z.number().optional(),
+  repetitionPenalty: z.number().optional(),
+  /** Determinism knob — applies to captioning (reproducible descriptions) as much as text. */
+  seed: z.number().optional(),
+});
+
+export type VisionTierParams = z.infer<typeof visionTierParamsSchema>;
+
+/** The vision-callable param keys, derived from the schema so the two can't drift. */
+export const VISION_TIER_PARAM_KEYS = Object.keys(
+  visionTierParamsSchema.shape
+) as (keyof VisionTierParams)[];
+
+/**
+ * Pick the explicitly-SET vision-callable params off any params-bearing config
+ * (a mapped LlmConfig row, a resolved config). Undefined when none are set —
+ * no entry beats an empty object. Single shared picker: the vision resolver
+ * uses it at resolution time so `ResolvedVisionConfig.params` is the ONE
+ * carrier the gateway stamp reads.
+ */
+export function pickVisionTierParams(
+  source: Partial<Record<keyof VisionTierParams, number>>
+): VisionTierParams | undefined {
+  const out: VisionTierParams = {};
+  let found = false;
+  for (const key of VISION_TIER_PARAM_KEYS) {
+    const value = source[key];
+    if (value !== undefined) {
+      out[key] = value;
+      found = true;
+    }
+  }
+  return found ? out : undefined;
+}
+
+/**
  * Loaded Personality Schema
  *
  * This is the SINGLE SOURCE OF TRUTH for the LoadedPersonality type.
@@ -56,6 +105,16 @@ export const loadedPersonalitySchema = z.object({
    * chain; this carries only the tiers it can't compute locally.
    */
   visionFallbackModels: z.array(z.string()).optional(),
+  /**
+   * Explicitly-SET call params of the resolved vision config(s), keyed by model
+   * name — covers the primary vision model AND the fallback-tier models (each
+   * tier uses ITS config's params). Gateway-stamped from the vision cascade
+   * (`stampResolvedConfig`); the worker looks up by the tier's resolved model
+   * at invoke time. Absent key / absent map = no explicit params for that
+   * model — the vision call uses system defaults (`AI_DEFAULTS.VISION_TEMPERATURE`).
+   * Without this carrier, dashboard-set vision-preset params are decorative.
+   */
+  visionConfigParams: z.record(z.string(), visionTierParamsSchema).optional(),
   /**
    * Provider routing key (e.g. 'openrouter', 'zai-coding'). Drives
    * provider-tier baseURL selection in ModelFactory and any auto-fallthrough

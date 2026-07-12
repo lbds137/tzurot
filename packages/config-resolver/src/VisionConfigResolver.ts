@@ -45,6 +45,7 @@ import {
   type ResolvedVisionConfig,
   type LoadedVisionPersonality,
 } from '@tzurot/common-types/types/configResolution';
+import { pickVisionTierParams } from '@tzurot/common-types/types/schemas/personality';
 import { TTLCache } from '@tzurot/common-types/utils/TTLCache';
 
 /**
@@ -152,7 +153,12 @@ export class VisionConfigResolver extends BaseConfigResolver<
       });
       if (personalityDefault?.llmConfig) {
         const mapped = mapLlmConfigFromDbWithName(personalityDefault.llmConfig);
-        return { model: mapped.model, source: 'personality', configName: mapped.name };
+        return {
+          model: mapped.model,
+          source: 'personality',
+          configName: mapped.name,
+          params: pickVisionTierParams(mapped),
+        };
       }
     } catch (error) {
       // ERROR severity: a user-configured personality vision default couldn't be
@@ -178,13 +184,18 @@ export class VisionConfigResolver extends BaseConfigResolver<
     return { ...HARDCODED_FALLBACK };
   }
 
-  /** Tiers 1-2: an override REPLACES (vision has a single dimension — the model). */
+  /** Tiers 1-2: an override REPLACES (model + the row's explicit params — no field merge). */
   protected mergeWithPersonality(
     _personality: LoadedVisionPersonality,
     override: MappedLlmConfigWithName,
     tier: 'user-personality' | 'user-default'
   ): ResolvedVisionConfig {
-    return { model: override.model, source: tier, configName: override.name };
+    return {
+      model: override.model,
+      source: tier,
+      configName: override.name,
+      params: pickVisionTierParams(override),
+    };
   }
 
   /** Surface the actual tier from extractFromPersonality to the outer wrapper. */
@@ -245,6 +256,7 @@ export class VisionConfigResolver extends BaseConfigResolver<
         model: mapped.model,
         source: 'personality',
         configName: mapped.name,
+        params: pickVisionTierParams(mapped),
       };
       this.cache.set(GLOBAL_DEFAULT_CACHE_KEY, {
         config,
@@ -300,6 +312,7 @@ export class VisionConfigResolver extends BaseConfigResolver<
         model: mapped.model,
         source: 'personality',
         configName: mapped.name,
+        params: pickVisionTierParams(mapped),
       };
       this.cache.set(FREE_DEFAULT_CACHE_KEY, {
         config,
