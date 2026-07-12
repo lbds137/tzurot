@@ -308,6 +308,23 @@ describe('handleDbSync', () => {
   });
 });
 
+describe('buildSyncSummary — embed backstop', () => {
+  it('caps the active-table list at 30 lines with a see-report tail', () => {
+    const stats = Object.fromEntries(
+      Array.from({ length: 35 }, (_, i) => [
+        `table_${i}`,
+        { devToProd: 1, prodToDev: 0, conflicts: 0, deleted: 0 },
+      ])
+    );
+    const summary = buildSyncSummary({ stats }, false);
+
+    expect(summary).toContain('`table_0`:');
+    expect(summary).toContain('`table_29`:');
+    expect(summary).not.toContain('`table_30`:');
+    expect(summary).toContain('…and 5 more — see the report below.');
+  });
+});
+
 describe('buildSyncSummary', () => {
   it('reports the in-sync state when no table has activity', () => {
     const summary = buildSyncSummary(
@@ -395,6 +412,17 @@ describe('buildSyncReportText', () => {
     expect(report).toContain('- warning line 0');
     expect(report).toContain('- warning line 59');
     expect(report).toContain("- Table 'audit_log' excluded: local-only audit trail");
+  });
+
+  it('neutralizes triple-backticks in warnings (content-derived text)', () => {
+    const report = buildSyncReportText(
+      { ...baseResult, warnings: ['table dump contained ```sql DROP``` fragment'] },
+      false
+    );
+
+    // Raw fences: exactly the stats table's own pair — the warning's run is neutralized
+    expect(report.match(/```/g)).toHaveLength(2);
+    expect(report.replace(/\u200b/g, '')).toContain('```sql DROP```');
   });
 
   it('renders explicit None sections for an empty result', () => {

@@ -21,6 +21,7 @@ import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
 import { adminDbSyncOptions } from '@tzurot/common-types/generated/commandOptions';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { clientsFor } from '../../utils/gatewayClients.js';
+import { escapeFenceBreaks } from '../../utils/fenceEscape.js';
 import { sendChunkedReply } from '../../utils/chunkedReply.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 
@@ -69,6 +70,10 @@ function hasActivity(s: TableStats): boolean {
   );
 }
 
+/** Embed-cap backstop: the active-table list is otherwise unbounded as the
+ * synced-table set grows; the chunked follow-up report is the full surface. */
+const ACTIVE_TABLE_LINES_MAX = 30;
+
 /** One `table: N dev→prod, M prod→dev[, ...]` line per table with activity. */
 function buildActiveTableLines(stats: Record<string, TableStats>): string[] {
   const active = Object.entries(stats).filter(([, s]) => hasActivity(s));
@@ -76,12 +81,15 @@ function buildActiveTableLines(stats: Record<string, TableStats>): string[] {
     return ['', 'No changes — databases already in sync.'];
   }
   const lines = [''];
-  for (const [table, s] of active) {
+  for (const [table, s] of active.slice(0, ACTIVE_TABLE_LINES_MAX)) {
     const conflicts = (s.conflicts ?? 0) > 0 ? `, ${s.conflicts} conflicts` : '';
     const deleted = (s.deleted ?? 0) > 0 ? `, ${s.deleted} deleted` : '';
     lines.push(
       `\`${table}\`: ${s.devToProd ?? 0} dev→prod, ${s.prodToDev ?? 0} prod→dev${conflicts}${deleted}`
     );
+  }
+  if (active.length > ACTIVE_TABLE_LINES_MAX) {
+    lines.push(`_…and ${active.length - ACTIVE_TABLE_LINES_MAX} more — see the report below._`);
   }
   return lines;
 }
@@ -154,7 +162,11 @@ function buildDeletionsSection(result: SyncResult, dryRun: boolean): string[] {
     return lines;
   }
   for (const d of deletions) {
-    lines.push(`- \`${d.table}\` · \`${d.rowKey}\` → ${d.target}`);
+    // rowKeys are UUID surrogates today; the escape neutralizes 3+ backtick
+    // runs (fence opens / splitMessage mis-pairing). A future free-text pk
+    // with SINGLE backticks could still end the inline-code span early —
+    // cosmetic only, revisit if a non-UUID pk ever joins SYNC_CONFIG.
+    lines.push(`- \`${d.table}\` · \`${escapeFenceBreaks(d.rowKey)}\` → ${d.target}`);
   }
   if (capped) {
     lines.push(
@@ -179,7 +191,8 @@ function buildListSection(title: string, items: string[]): string[] {
     return lines;
   }
   for (const item of items) {
-    lines.push(`- ${item}`);
+    // Warnings/info carry table names and row detail — content-derived text
+    lines.push(`- ${escapeFenceBreaks(item)}`);
   }
   return lines;
 }

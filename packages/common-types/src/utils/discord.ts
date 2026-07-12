@@ -82,7 +82,9 @@ interface ChunkState {
  */
 function splitLongWord(word: string, maxLength: number): string[] {
   const wordChunks: string[] = [];
-  const chunkSize = maxLength - 10; // Leave room for "..."
+  // Floor of 1: a maxLength ≤ 10 would otherwise yield a non-positive step
+  // and loop forever on an unsplittable word.
+  const chunkSize = Math.max(1, maxLength - 10); // Leave room for "..."
   for (let i = 0; i < word.length; i += chunkSize) {
     wordChunks.push(word.slice(i, i + chunkSize) + '...');
   }
@@ -195,6 +197,14 @@ function splitAtNaturalBoundaries(
  * @param content - The content to split
  * @param maxLength - Maximum length per chunk (default: Discord's 2000 char limit)
  */
+/** Budget reserved on fallback re-splits for the markers rebalanceFences adds
+ * (a closing fence plus a re-opening fence with a language tag; tags are
+ * clamped to LANG_TAG_MAX so the budget always covers them). */
+const FENCE_REBALANCE_HEADROOM = 32;
+/** Longest language tag carried onto a continuation chunk (headroom math:
+ * 3 close + newline + 3 open + tag + newline = 8 + tag ≤ 32 - margin). */
+const LANG_TAG_MAX = 16;
+
 export function splitMessage(content: string, maxLength = DISCORD_MAX_MESSAGE_LENGTH): string[] {
   // Defensive check: handle undefined/null/non-string input
   // Utility functions should be robust to bad input
@@ -233,18 +243,55 @@ export function splitMessage(content: string, maxLength = DISCORD_MAX_MESSAGE_LE
   });
 
   // Check if any restored chunks exceed the limit (can happen if code block is large)
-  // If so, re-split those chunks (code block will be split, but that's unavoidable)
+  // If so, re-split those chunks — the block WILL be cut, so the split runs
+  // with headroom for the fence markers rebalanceFences adds, and the
+  // rebalance pass re-closes/re-opens the fence at each boundary so every
+  // chunk renders valid markdown on its own.
   const finalChunks: string[] = [];
   for (const chunk of restoredChunks) {
     if (chunk.length > maxLength) {
-      // Re-split this chunk at natural boundaries (code block protection disabled to avoid infinite loop)
-      finalChunks.push(...splitAtNaturalBoundaries(chunk, maxLength));
+      // Rebalance ONLY this oversized chunk's own fragments — running the
+      // parity heuristic across never-split chunks would let a stray
+      // unpaired ``` elsewhere in the message inject phantom fences into
+      // content the splitter never touched.
+      const budget = Math.max(1, maxLength - FENCE_REBALANCE_HEADROOM);
+      finalChunks.push(...rebalanceFences(splitAtNaturalBoundaries(chunk, budget)));
     } else {
       finalChunks.push(chunk);
     }
   }
 
   return finalChunks;
+}
+
+/**
+ * Re-balance code fences across the FRAGMENTS of one force-split oversized
+ * chunk. A fragment with an ODD number of ``` markers ends inside a fence
+ * (the re-split cut it): close the fence at that fragment's end and re-open
+ * it — carrying the language tag — at the start of the next, so no fragment
+ * renders as an unterminated code block. Scope matters: the parity heuristic
+ * is only sound within a group that genuinely contained a cut fence — it
+ * must never run across untouched chunks, where a stray unpaired ``` would
+ * read as an open fence and earn phantom markers.
+ */
+function rebalanceFences(chunks: string[]): string[] {
+  const out: string[] = [];
+  let openLang: string | null = null; // non-null = the previous chunk ended mid-fence
+  for (const chunk of chunks) {
+    let text: string = openLang !== null ? '```' + openLang + '\n' + chunk : chunk;
+    if ((text.match(/```/g) ?? []).length % 2 === 1) {
+      const lastOpen = text.lastIndexOf('```');
+      openLang = (/^```([A-Za-z0-9+#.-]*)/.exec(text.slice(lastOpen))?.[1] ?? '').slice(
+        0,
+        LANG_TAG_MAX
+      );
+      text = text + '\n```';
+    } else {
+      openLang = null;
+    }
+    out.push(text);
+  }
+  return out;
 }
 
 /**

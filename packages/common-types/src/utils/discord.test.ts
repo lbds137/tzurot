@@ -485,3 +485,95 @@ Another paragraph here with more content.`;
     });
   });
 });
+
+describe('splitMessage — fence rebalancing (oversized code blocks)', () => {
+  it('re-balances fences when a single block exceeds maxLength', () => {
+    // One fenced block far over the limit: the fallback re-split cuts it,
+    // and rebalancing must close/re-open the fence at every boundary.
+    const code = Array.from({ length: 120 }, (_, i) => `const line${i} = ${i};`).join('\n');
+    const content = 'intro text\n\n```ts\n' + code + '\n```\n\ntail text';
+
+    const chunks = splitMessage(content, 500);
+
+    expect(chunks.length).toBeGreaterThan(1);
+    for (const chunk of chunks) {
+      expect(chunk.length).toBeLessThanOrEqual(500);
+      // Every chunk renders valid markdown on its own: balanced fences
+      expect((chunk.match(/```/g) ?? []).length % 2).toBe(0);
+    }
+    // The language tag carries into continuation chunks
+    const fenced = chunks.filter(c => c.includes('```'));
+    expect(fenced.length).toBeGreaterThan(1);
+    for (const chunk of fenced.slice(1)) {
+      expect(chunk.startsWith('```ts')).toBe(true);
+    }
+  });
+
+  it('re-synchronizes across TWO independent oversized blocks with prose between', () => {
+    // The rebalancer threads open-fence state across the whole chunk array —
+    // the second block's chunks must start fresh, not inherit the first's tag.
+    const codeA = Array.from({ length: 80 }, (_, i) => `alpha_${i}();`).join('\n');
+    const codeB = Array.from({ length: 80 }, (_, i) => `beta_${i}();`).join('\n');
+    const content =
+      '```ts\n' +
+      codeA +
+      '\n```\n\nplain prose between the blocks\n\n```python\n' +
+      codeB +
+      '\n```';
+
+    const chunks = splitMessage(content, 400);
+
+    for (const chunk of chunks) {
+      expect(chunk.length).toBeLessThanOrEqual(400);
+      expect((chunk.match(/```/g) ?? []).length % 2).toBe(0);
+    }
+    // Continuations carry the CORRECT tag per block — no cross-contamination
+    const tsContinuations = chunks.filter(c => c.startsWith('```ts') && c.includes('alpha_'));
+    const pyContinuations = chunks.filter(c => c.startsWith('```python') && c.includes('beta_'));
+    expect(tsContinuations.length).toBeGreaterThan(0);
+    expect(pyContinuations.length).toBeGreaterThan(0);
+    expect(chunks.some(c => c.startsWith('```ts') && c.includes('beta_'))).toBe(false);
+  });
+
+  it('leaves already-fitting fenced blocks untouched (no spurious markers)', () => {
+    const content = 'before\n\n```js\nconst x = 1;\n```\n\nafter '.repeat(1) + 'y'.repeat(300);
+    const chunks = splitMessage(content, 2000);
+    expect(chunks.join('')).toContain('```js\nconst x = 1;\n```');
+  });
+
+  it('does NOT add phantom fences to an unsplit message with a stray odd backtick run', () => {
+    // A real fenced block plus prose that MENTIONS ``` (unpaired): the
+    // message fits in one chunk, so the splitter must return it byte-exact —
+    // parity-counting across untouched chunks would append a phantom fence.
+    const content = '```js\nconsole.log(1);\n``` Use triple backtick ``` to start a fence.';
+
+    const chunks = splitMessage(content, 2000);
+
+    expect(chunks).toEqual([content]);
+  });
+
+  it('does NOT inject fence-open prefixes into later chunks after a stray backtick run', () => {
+    // Multi-chunk message where an early, never-force-split chunk carries an
+    // odd ``` count: subsequent chunks must come through unprefixed.
+    const strayPara = 'to open a block type ``` followed by a language tag';
+    const filler = Array.from({ length: 30 }, (_, i) => `paragraph ${i} ` + 'x'.repeat(50)).join(
+      '\n\n'
+    );
+    const content = '```js\nconst a = 1;\n```\n\n' + strayPara + '\n\n' + filler;
+
+    const chunks = splitMessage(content, 400);
+
+    expect(chunks.length).toBeGreaterThan(1);
+    // No chunk gains a fence-open prefix it didn't have in the source
+    for (const chunk of chunks.slice(1)) {
+      expect(chunk.startsWith('```') && !content.includes(chunk)).toBe(false);
+    }
+    expect(chunks.join('\n\n')).toContain(strayPara);
+  });
+
+  it('terminates on unsplittable input with a tiny maxLength (splitLongWord guard)', () => {
+    const chunks = splitMessage('x'.repeat(100), 8);
+    expect(chunks.length).toBeGreaterThan(0);
+    expect(chunks.join('').replace(/\.\.\./g, '')).toHaveLength(100);
+  });
+});

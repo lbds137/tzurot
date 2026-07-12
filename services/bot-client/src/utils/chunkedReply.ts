@@ -37,7 +37,12 @@ export interface ChunkedReplyOptions {
   /** Where the FIRST chunk goes. 'editReply' (default) edits the deferred
    * reply; 'followUp' leaves the deferred reply untouched — for callers whose
    * deferred reply already carries a summary (e.g. an embed) and want the
-   * chunked text appended below it as separate messages. */
+   * chunked text appended below it as separate messages.
+   *
+   * Invariant: in 'editReply' mode the target message must be a FRESH
+   * deferred reply (every current caller defers immediately before calling).
+   * The edit explicitly clears `embeds` so a reused message can never keep a
+   * stale embed above the chunked text. */
   via?: 'editReply' | 'followUp';
 }
 
@@ -63,7 +68,7 @@ export async function sendChunkedReply(options: ChunkedReplyOptions): Promise<vo
       });
       return;
     }
-    await interaction.editReply({ content: firstContent, components: rows });
+    await interaction.editReply({ content: firstContent, embeds: [], components: rows });
   };
 
   // Use the longer header length to ensure all chunks fit

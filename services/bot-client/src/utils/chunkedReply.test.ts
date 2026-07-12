@@ -68,6 +68,7 @@ describe('sendChunkedReply', () => {
 
     expect(interaction.editReply).toHaveBeenCalledWith({
       content: '## Title\n\nShort content',
+      embeds: [],
       components: [],
     });
     expect(interaction.followUp).not.toHaveBeenCalled();
@@ -232,6 +233,7 @@ describe('sendChunkedReply', () => {
 
     expect(interaction.editReply).toHaveBeenCalledWith({
       content: `${header}${fittingContent}`,
+      embeds: [],
       components: [],
     });
     expect(interaction.followUp).not.toHaveBeenCalled();
