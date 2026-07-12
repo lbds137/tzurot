@@ -1,17 +1,17 @@
 # Current
 
-> **Version**: v3.0.0-beta.159 (released 2026-07-11, late) — guest picker fix (GLM-4.5-Air selectable for free users), /inspect design-system embeds + facts token-budget bar + model-substitution flag, fence-aware message splitting (long AI code replies render valid markdown), z.ai budget retry-idempotency + admission wiring test. **z.ai free tier LIVE in both envs.** _Prior: beta.158 (2026-07-11, inline inspect views + piggyback)._
+> **Version**: v3.0.0-beta.160 (released 2026-07-12) — the config/identity sweep: user-preset params restored (prod bug since 06-17), sibling personas render role="character", facts subject-binding, vision-config params honored per tier, vision single-flight coalescing (multi-tag = one provider call), structural prerelease sweep. _Prior: beta.159 (2026-07-11, guest picker + /inspect embeds + fence-aware splitting)._
 
 ---
 
 ## Unreleased on Develop
 
-- **Six PRs (2026-07-12 overnight session)** — release-ready, no migrations: #1598 release:finalize prerelease sweep (structural); **#1600 PROD-BUG FIX: user-preset LLM params silently ignored except model since 2026-06-17** (the owner's 100K-context report; board-annotated, prod re-verify at release); #1599 sibling personas render role="character" never assistant (multi-persona identity confusion, owner-reported reasoning trace); #1601 facts block subject-binding + {user} placeholder resolution + `instruction` → PROTECTED_TAGS; #1602 vision-config params honored per tier (kills the decorative-config class on the vision axis, incl. seed).
+- (empty — beta.160 shipped everything; develop == main)
 - **Memory Phase 1a remains PARKED** on `feat/memory-hybrid-retrieval` (resume gate: the goldens session — design DECIDED: committed anonymized set from the owner's own memories, entity-swap + owner review gate).
 
 ## Next Session Goal
 
-**Cut beta.160** (six unreleased fixes incl. the prod config bug — owner approval + smoke: preset ctx shows 500K in /inspect, a multi-persona thread renders role="character", facts block names its subject; plus the still-pending beta.159 smoke items: long-code reply, /inspect embeds, guest picker). Then queued owner-direction: (1) **admin-settings runtime-config BOULDER** — full cadence with trio council; scope decisions in `cold/ideas.md`; (2) **goldens prep** → unparks memory Phase 1a. Watches: dev backfill (~55%), first guest z.ai traffic (`/admin usage`), Saturday weekly-audit run.
+**beta.160 SHIPPED (owner smoke pending)** — risk-ordered: (1) /inspect Token Budget on the GLM 5.2 preset → Context window 500,000 (the original 100K report is the prod re-verification of the stamp fix); (2) tag TWO characters with one image → one "Coalesced onto concurrent vision describe" log, single provider call; (3) multi-persona thread sanity (role="character"); (4) beta.159 holdovers: long-code reply, /inspect embeds, guest picker. Then queued owner-direction: (1) **admin-settings runtime-config BOULDER** — full cadence with trio council; scope decisions in `cold/ideas.md`; (2) **goldens prep** → unparks memory Phase 1a. Watches: dev backfill (~55%), first guest z.ai traffic (`/admin usage`), Saturday weekly-audit run.
 
 **Open follow-ups from Phase 1** (all in `cold/follow-ups.md` with promote-when triggers): system-voice straggler wording (STT / MessageHandler top-catch / truncation notices), partial-failure errored-slot delivery, admin/kick `serverId` escaping, `deletePersona`/`getCachedPersonalities` wrapper widening, `maxRetries:0` metrics watch.
 
