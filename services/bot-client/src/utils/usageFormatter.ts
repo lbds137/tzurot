@@ -200,7 +200,7 @@ export function buildAdminUsageEmbed(stats: AdminUsageStats): EmbedBuilder {
 
 /**
  * Live z.ai coding-plan pressure (the free-tier headroom gate's input and the
- * owner's tuning instrument for ZAI_FREE_TIER_HEADROOM_PERCENT). Rendered only
+ * owner's tuning instrument for the zaiHeadroomPercent setting). Rendered only
  * when ai-worker has published a recent meter snapshot; the reading covers the
  * WHOLE plan — owner coding, fact extraction, and guest traffic combined.
  */

@@ -15,7 +15,13 @@
  *   (the REAL `MODEL_DEFAULTS` / `ApiErrorCategory` are kept).
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, beforeAll, afterAll } from 'vitest';
+import {
+  registerSystemSettings,
+  resetSystemSettingsRegistration,
+  type SystemSettingsService,
+} from '@tzurot/common-types/services/SystemSettingsService';
+import { SYSTEM_SETTINGS_FALLBACKS } from '@tzurot/common-types/schemas/api/systemSettings';
 import { AIProvider, MODEL_DEFAULTS } from '@tzurot/common-types/constants/ai';
 import { ApiErrorCategory } from '@tzurot/common-types/constants/error';
 import { type AttachmentMetadata } from '@tzurot/common-types/types/schemas/discord';
@@ -33,22 +39,19 @@ import type { ResolveVisionConfigOptions, VisionConfigResult } from './visionAut
 const FALLBACK_PAID_MODEL = 'openrouter/paid-floor';
 
 // common-types: keep everything real except getConfig (we only need
-// config.VISION_FALLBACK_MODEL to be deterministic) and a silent logger.
-// The literal is inlined here (not FALLBACK_PAID_MODEL) because vi.mock factories
-// are hoisted above top-level consts; the exported FALLBACK_PAID_MODEL const below
-// just mirrors it for use in assertions.
-vi.mock('@tzurot/common-types/config/config', async () => {
-  const actual = await vi.importActual<typeof import('@tzurot/common-types/config/config')>(
-    '@tzurot/common-types/config/config'
-  );
-  return {
-    ...actual,
-    getConfig: () => ({
-      ...actual.getConfig(),
-      VISION_FALLBACK_MODEL: 'openrouter/paid-floor',
-    }),
-  };
+// the paid floor (fallbackVisionModel system setting) to be deterministic —
+// registered through the real ambient accessor in beforeAll — and a silent
+// logger. The free floor deliberately stays on its registry fallback.
+beforeAll(() => {
+  registerSystemSettings({
+    get: (key: string) =>
+      key === 'fallbackVisionModel'
+        ? 'openrouter/paid-floor'
+        : SYSTEM_SETTINGS_FALLBACKS[key as keyof typeof SYSTEM_SETTINGS_FALLBACKS],
+  } as unknown as SystemSettingsService);
 });
+
+afterAll(() => resetSystemSettingsRegistration());
 
 vi.mock('@tzurot/common-types/utils/logger', async () => {
   const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(

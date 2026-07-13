@@ -38,7 +38,7 @@ const BACKFILL_CHANNEL_SENTINEL = 'backfill';
 /** BullMQ runs unprioritized (live) jobs before any prioritized job. */
 const BACKFILL_JOB_PRIORITY = 10;
 
-/** Mirrors the live trigger's EXTRACTION_BATCH_THRESHOLD default. */
+/** Mirrors the extractionBatchThreshold setting's registry default. */
 const DEFAULT_WINDOW_SIZE = 6;
 
 /** The worker re-queries a window's episodes with `take: 100` — a larger

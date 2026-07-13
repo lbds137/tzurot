@@ -1,7 +1,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { INTERVALS } from '../constants/timing.js';
 import { SYSTEM_SETTINGS_FALLBACKS } from '../schemas/api/systemSettings.js';
-import { SystemSettingsService } from './SystemSettingsService.js';
+import {
+  SystemSettingsService,
+  registerSystemSettings,
+  getSystemSetting,
+  resetSystemSettingsRegistration,
+} from './SystemSettingsService.js';
 import type { PrismaClient } from '../generated/prisma/client.js';
 
 const mockFindUnique = vi.fn();
@@ -176,5 +181,49 @@ describe('SystemSettingsService', () => {
         SYSTEM_SETTINGS_FALLBACKS.fallbackVisionModelFree
       );
     });
+  });
+});
+
+describe('ambient accessor (registerSystemSettings / getSystemSetting)', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    mockFindUnique.mockReset();
+    resetSystemSettingsRegistration();
+  });
+
+  afterEach(() => {
+    resetSystemSettingsRegistration();
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+  });
+
+  it('serves registry fallbacks before any instance is registered (boot-order tolerance)', () => {
+    expect(getSystemSetting('extractionBatchThreshold')).toBe(
+      SYSTEM_SETTINGS_FALLBACKS.extractionBatchThreshold
+    );
+    expect(getSystemSetting('extractionEnabled')).toBe(SYSTEM_SETTINGS_FALLBACKS.extractionEnabled);
+  });
+
+  it('reads through the registered instance after registration', async () => {
+    mockFindUnique.mockResolvedValue(rowWith({ extractionBatchThreshold: 42 }));
+    const service = new SystemSettingsService(prisma);
+    await service.prime();
+    registerSystemSettings(service);
+
+    expect(getSystemSetting('extractionBatchThreshold')).toBe(42);
+  });
+
+  it('a later registration replaces the earlier one (per-process singleton semantics)', async () => {
+    mockFindUnique.mockResolvedValue(rowWith({ extractionBatchThreshold: 7 }));
+    const first = new SystemSettingsService(prisma);
+    await first.prime();
+    registerSystemSettings(first);
+
+    mockFindUnique.mockResolvedValue(rowWith({ extractionBatchThreshold: 9 }));
+    const second = new SystemSettingsService(prisma);
+    await second.prime();
+    registerSystemSettings(second);
+
+    expect(getSystemSetting('extractionBatchThreshold')).toBe(9);
   });
 });

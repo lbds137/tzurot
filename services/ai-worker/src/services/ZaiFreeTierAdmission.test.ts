@@ -32,7 +32,7 @@ function reading(pct: number): ZaiPlanReading {
   return { tighterWindowConsumedPct: pct, resetAt: null, fetchedAt: new Date(0) };
 }
 
-const HEALTHY = { enabled: true, apiKey: 'sk-plan', headroomPercent: 75 };
+const HEALTHY = { enabled: () => true, apiKey: 'sk-plan', headroomPercent: () => 75 };
 
 describe('ZaiFreeTierAdmission', () => {
   it('admits when every gate passes, consuming the fair share', async () => {
@@ -54,7 +54,7 @@ describe('ZaiFreeTierAdmission', () => {
     const redis = redisWithFlags();
     const admission = new ZaiFreeTierAdmission(redis, quotaAllowing(true), meterAt(reading(0)), {
       ...HEALTHY,
-      enabled: false,
+      enabled: () => false,
     });
 
     expect(await admission.admit('u', 'r')).toEqual({ admitted: false, reason: 'disabled' });
@@ -163,7 +163,7 @@ describe('ZaiFreeTierAdmission', () => {
       meterAt(null),
       {
         ...HEALTHY,
-        enabled: false,
+        enabled: () => false,
       }
     );
 
@@ -173,10 +173,10 @@ describe('ZaiFreeTierAdmission', () => {
 });
 
 describe('logZaiFreeTierBootCoherence', () => {
-  it('runs without throwing for every flag/key combination', () => {
+  it('runs without throwing for every key state (flag now reads the runtime setting)', () => {
     expect(() => {
-      logZaiFreeTierBootCoherence({ ZAI_FREE_TIER_ENABLED: 'true', ZAI_CODING_API_KEY: undefined });
-      logZaiFreeTierBootCoherence({ ZAI_FREE_TIER_ENABLED: 'true', ZAI_CODING_API_KEY: 'k' });
+      logZaiFreeTierBootCoherence({ ZAI_CODING_API_KEY: undefined });
+      logZaiFreeTierBootCoherence({ ZAI_CODING_API_KEY: 'k' });
       logZaiFreeTierBootCoherence({});
     }).not.toThrow();
   });

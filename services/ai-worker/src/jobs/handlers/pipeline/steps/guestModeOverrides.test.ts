@@ -1,5 +1,10 @@
-import { describe, it, expect, vi } from 'vitest';
-import { AIProvider, GUEST_MODE, ZAI_FREE_TIER_MODEL } from '@tzurot/common-types/constants/ai';
+import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
+import { AIProvider, ZAI_FREE_TIER_MODEL } from '@tzurot/common-types/constants/ai';
+import {
+  registerSystemSettings,
+  resetSystemSettingsRegistration,
+  type SystemSettingsService,
+} from '@tzurot/common-types/services/SystemSettingsService';
 import type { LlmConfigResolver } from '@tzurot/config-resolver';
 import type { ZaiFreeTierAdmission } from '../../../../services/ZaiFreeTierAdmission.js';
 import { applyGuestModeOverrides } from './guestModeOverrides.js';
@@ -16,6 +21,21 @@ vi.mock('@tzurot/common-types/utils/logger', () => ({
 }));
 
 type EffectivePersonality = NonNullable<GenerationContext['config']>['effectivePersonality'];
+
+/**
+ * A free floor that DIFFERS from the registry fallback — proves the code reads
+ * the live setting, not a constant that coincidentally equals the fallback
+ * (the retired LIVE_TEXT_FLOOR and the fallback were the same value).
+ */
+const LIVE_TEXT_FLOOR = 'divergent/text-floor:free';
+
+beforeAll(() => {
+  registerSystemSettings({
+    get: (key: string) => (key === 'fallbackTextModelFree' ? LIVE_TEXT_FLOOR : undefined),
+  } as unknown as SystemSettingsService);
+});
+
+afterAll(() => resetSystemSettingsRegistration());
 
 const PAID_PERSONALITY = {
   id: 'p1',
@@ -68,7 +88,7 @@ describe('applyGuestModeOverrides', () => {
       'r1'
     );
 
-    expect(result.personality.model).toBe(GUEST_MODE.DEFAULT_MODEL);
+    expect(result.personality.model).toBe(LIVE_TEXT_FLOOR);
   });
 
   it('clears a non-free vision model on the guest override', async () => {
@@ -128,7 +148,7 @@ describe('applyGuestModeOverrides', () => {
         'r1'
       );
 
-      expect(result.personality.model).toBe(GUEST_MODE.DEFAULT_MODEL);
+      expect(result.personality.model).toBe(LIVE_TEXT_FLOOR);
       expect(vi.mocked(gate.admit)).toHaveBeenCalledTimes(1);
     });
 
@@ -140,13 +160,13 @@ describe('applyGuestModeOverrides', () => {
         'r1'
       );
 
-      expect(result.personality.model).toBe(GUEST_MODE.DEFAULT_MODEL);
+      expect(result.personality.model).toBe(LIVE_TEXT_FLOOR);
     });
 
     it('no admission gate wired (ships dark): falls through the ladder to the router', async () => {
       const result = await applyGuestModeOverrides({}, PERSONAL_ZAI, 'u1', 'r1');
 
-      expect(result.personality.model).toBe(GUEST_MODE.DEFAULT_MODEL);
+      expect(result.personality.model).toBe(LIVE_TEXT_FLOOR);
     });
 
     it('admitted but key vanished (race with config): leaves the pool like any non-admit outcome', async () => {
@@ -211,7 +231,7 @@ describe('applyGuestModeOverrides', () => {
         'r1'
       );
 
-      expect(result.personality.model).toBe(GUEST_MODE.DEFAULT_MODEL);
+      expect(result.personality.model).toBe(LIVE_TEXT_FLOOR);
       expect(result.zaiSystemKey).toBeUndefined();
     });
 
@@ -223,7 +243,7 @@ describe('applyGuestModeOverrides', () => {
         'r1'
       );
 
-      expect(result.personality.model).toBe(GUEST_MODE.DEFAULT_MODEL);
+      expect(result.personality.model).toBe(LIVE_TEXT_FLOOR);
     });
 
     it('admitted but key vanished (race with config): degrades to the router', async () => {
@@ -238,7 +258,7 @@ describe('applyGuestModeOverrides', () => {
         'r1'
       );
 
-      expect(result.personality.model).toBe(GUEST_MODE.DEFAULT_MODEL);
+      expect(result.personality.model).toBe(LIVE_TEXT_FLOOR);
     });
   });
 });

@@ -6,7 +6,7 @@
  */
 
 import { createLogger } from '@tzurot/common-types/utils/logger';
-import { getConfig } from '@tzurot/common-types/config/config';
+import { getSystemSetting } from '@tzurot/common-types/services/SystemSettingsService';
 import { TEXT_LIMITS } from '@tzurot/common-types/constants/discord';
 import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 import { FactRetriever } from './FactRetriever.js';
@@ -35,7 +35,7 @@ export function createFactRetriever(
 /**
  * Retrieve distilled facts for the prompt's `<facts>` block, scoped to
  * persona×personality (the private pool — Phase 2). Returns `[]` unless ALL of:
- * a retriever is wired, `FACTS_IN_PROMPT_ENABLED` is on (dev-on/prod-off), and
+ * a retriever is wired, the runtime `factsInPromptEnabled` setting is on, and
  * a `personaId` resolved (undefined = LTM was skipped this turn → facts skipped
  * too). When `shareLtmAcrossPersonalities` is on, the personality filter drops
  * — facts follow the same widening as episode retrieval (owner call: the two
@@ -51,7 +51,7 @@ export async function retrieveFactsForPrompt(
   if (
     factRetriever === undefined ||
     personaId === undefined ||
-    getConfig().FACTS_IN_PROMPT_ENABLED !== 'true'
+    !getSystemSetting('factsInPromptEnabled')
   ) {
     return [];
   }

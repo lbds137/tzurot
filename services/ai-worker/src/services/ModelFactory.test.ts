@@ -6,13 +6,17 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import {
+  registerSystemSettings,
+  resetSystemSettingsRegistration,
+  type SystemSettingsService,
+} from '@tzurot/common-types/services/SystemSettingsService';
 
 // Mock @langchain/openai - use vi.hoisted for top-level mock reference
 const { mockChatOpenAI, mockConfigData } = vi.hoisted(() => ({
   mockChatOpenAI: vi.fn(),
   mockConfigData: {
     AI_PROVIDER: 'openrouter' as string,
-    DEFAULT_AI_MODEL: 'anthropic/claude-sonnet-4.5',
     OPENROUTER_API_KEY: 'test-openrouter-key',
     OPENROUTER_APP_TITLE: undefined as string | undefined,
     OPENROUTER_APP_URL: undefined as string | undefined,
@@ -118,6 +122,20 @@ describe('ModelFactory', () => {
           temperature: 0.8,
         })
       );
+    });
+
+    it('an absent modelName falls back to the LIVE fallbackTextModel setting (divergent-from-fallback value)', () => {
+      registerSystemSettings({
+        get: (key: string) => (key === 'fallbackTextModel' ? 'divergent/text-model' : undefined),
+      } as unknown as SystemSettingsService);
+      try {
+        createChatModel({ apiKey: 'k' } as ModelConfig);
+        expect(mockChatOpenAI).toHaveBeenCalledWith(
+          expect.objectContaining({ modelName: 'divergent/text-model' })
+        );
+      } finally {
+        resetSystemSettingsRegistration();
+      }
     });
 
     it('disables SDK-internal retries so 429s surface to the LLMInvoker ladder immediately', () => {

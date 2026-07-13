@@ -168,7 +168,7 @@ DISCORD_CLIENT_ID=123456789
 
       const output = consoleLogs.join('\n');
       // Should use defaults
-      expect(output).toContain('VISION_FALLBACK_MODEL: qwen/qwen3.5-397b-a17b');
+      expect(output).toContain('AI_PROVIDER: openrouter');
     });
 
     it('should report 0 variables when .env file is missing', async () => {

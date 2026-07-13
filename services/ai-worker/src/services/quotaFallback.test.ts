@@ -1,4 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import {
+  registerSystemSettings,
+  resetSystemSettingsRegistration,
+  type SystemSettingsService,
+} from '@tzurot/common-types/services/SystemSettingsService';
 import { ApiErrorCategory, ApiErrorType } from '@tzurot/common-types/constants/error';
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import { ApiError } from '../utils/apiErrorParser.js';
@@ -162,6 +167,43 @@ describe('selectQuotaFallbackTarget — the tier matrix', () => {
     });
     expect(target?.config.model).toBe('openrouter/free');
     expect(target?.config.provider).toBe('openrouter');
+  });
+
+  describe('guest-safe floor reads the LIVE fallbackTextModelFree setting', () => {
+    // Divergent-from-fallback values prove the live read (the registry
+    // fallback coincidentally equals the retired constant, so equality with
+    // it proves nothing — reviewer-flagged seam gap).
+    afterEach(() => resetSystemSettingsRegistration());
+
+    function registerFloor(floor: string): void {
+      registerSystemSettings({
+        get: (key: string) => (key === 'fallbackTextModelFree' ? floor : undefined),
+      } as unknown as SystemSettingsService);
+    }
+
+    it('a FREE divergent floor flows through as the substitution target', async () => {
+      registerFloor('divergent/floor:free');
+      const target = await selectQuotaFallbackTarget({
+        ...base,
+        category: ApiErrorCategory.QUOTA_EXCEEDED,
+        isGuestMode: true,
+        configResolver: buildResolver({ free: { model: 'z-ai/glm-4.5-air' } }) as never,
+        caches: buildCaches(),
+      });
+      expect(target?.config.model).toBe('divergent/floor:free');
+    });
+
+    it('a NON-free floor (out-of-band bag edit) still degrades to the static router — never bills the owner', async () => {
+      registerFloor('paid/sneaky-model');
+      const target = await selectQuotaFallbackTarget({
+        ...base,
+        category: ApiErrorCategory.QUOTA_EXCEEDED,
+        isGuestMode: true,
+        configResolver: buildResolver({ free: { model: 'z-ai/glm-4.5-air' } }) as never,
+        caches: buildCaches(),
+      });
+      expect(target?.config.model).toBe('openrouter/free');
+    });
   });
 
   it('the forced-system-key BYOK downgrade gets the same guest-safe substitution', async () => {

@@ -1,5 +1,9 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { getConfig } from '@tzurot/common-types/config/config';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import {
+  registerSystemSettings,
+  resetSystemSettingsRegistration,
+  type SystemSettingsService,
+} from '@tzurot/common-types/services/SystemSettingsService';
 import type { MemoryRetriever } from './MemoryRetriever.js';
 import type { DiagnosticCollector } from './DiagnosticCollector.js';
 import { retrieveMemoriesAndFacts } from './factRetrievalHelper.js';
@@ -7,11 +11,13 @@ import { retrieveFactsForPrompt } from './factRetrievalHelper.js';
 import type { FactRetriever } from './FactRetriever.js';
 import type { SimilarFact } from './extraction/FactStore.js';
 
-vi.mock('@tzurot/common-types/config/config', () => ({ getConfig: vi.fn() }));
-
-function setFlag(value: 'true' | 'false' | undefined): void {
-  vi.mocked(getConfig).mockReturnValue({ FACTS_IN_PROMPT_ENABLED: value } as never);
+function setFlag(value: boolean): void {
+  registerSystemSettings({
+    get: (key: string) => (key === 'factsInPromptEnabled' ? value : undefined),
+  } as unknown as SystemSettingsService);
 }
+
+afterEach(() => resetSystemSettingsRegistration());
 
 function mockRetriever(): FactRetriever {
   const facts: SimilarFact[] = [
@@ -28,10 +34,10 @@ function mockRetriever(): FactRetriever {
 }
 
 describe('retrieveFactsForPrompt (flag/scope gate)', () => {
-  beforeEach(() => setFlag('true'));
+  beforeEach(() => setFlag(true));
 
-  it('returns [] and never queries when the flag is off (prod default)', async () => {
-    setFlag(undefined);
+  it('returns [] and never queries when the flag is off (registry default)', async () => {
+    setFlag(false);
     const retriever = mockRetriever();
     expect(await retrieveFactsForPrompt(retriever, 'pers', 'persona', 'q', false)).toEqual([]);
     expect(retriever.retrieveFacts).not.toHaveBeenCalled();
@@ -73,7 +79,7 @@ describe('retrieveMemoriesAndFacts (Step-3 wiring)', () => {
   // Runs the REAL combined function — the RAG service suite mocks it with a
   // delegating stand-in, so this is where the actual wiring is pinned.
   it('threads the retriever result personaId into the fact gate and merges facts', async () => {
-    setFlag('true');
+    setFlag(true);
     const memoryRetriever = {
       retrieveRelevantMemories: vi.fn().mockResolvedValue({
         memories: [{ pageContent: 'm1', metadata: {} }],
@@ -113,7 +119,7 @@ describe('retrieveMemoriesAndFacts (Step-3 wiring)', () => {
   });
 
   it('returns empty facts when the retrieval resolved no personaId (LTM skipped)', async () => {
-    setFlag('true');
+    setFlag(true);
     const memoryRetriever = {
       retrieveRelevantMemories: vi.fn().mockResolvedValue({
         memories: [],

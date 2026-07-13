@@ -13,12 +13,11 @@
  * the prompt-facing `[Image … couldn't be processed …]` placeholder.
  */
 
-import { getConfig } from '@tzurot/common-types/config/config';
-import { MODEL_DEFAULTS } from '@tzurot/common-types/constants/ai';
 import { ApiErrorCategory } from '@tzurot/common-types/constants/error';
 import { type AttachmentMetadata } from '@tzurot/common-types/types/schemas/discord';
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { getSystemSetting } from '@tzurot/common-types/services/SystemSettingsService';
 import {
   describeImage,
   selectVisionModel,
@@ -36,7 +35,6 @@ import {
 } from './visionAuthResolver.js';
 
 const logger = createLogger('VisionFallbackLoop');
-const config = getConfig();
 
 /** Hard cap on vision attempts per attachment — each tier is a ~1-3s + $ API call. */
 const MAX_VISION_FALLBACK_TIERS = 3;
@@ -129,7 +127,9 @@ export function composeVisionTiers(
   // paid floor is only a MODEL NAME here; when the loop actually reaches it, resolveVisionAuth
   // downgrades a keyless user onto the free model on the system key anyway (broad-free-fallback).
   // So a "wrong" isGuestMode picks a floor model name that auth-time resolution converges to free.
-  const floor = isGuestMode ? MODEL_DEFAULTS.VISION_FALLBACK_FREE : config.VISION_FALLBACK_MODEL;
+  const floor = isGuestMode
+    ? getSystemSetting('fallbackVisionModelFree')
+    : getSystemSetting('fallbackVisionModel');
   const ordered = [primaryModel, ...(personality.visionFallbackModels ?? []), floor];
   const seen = new Set<string>();
   const deduped: string[] = [];

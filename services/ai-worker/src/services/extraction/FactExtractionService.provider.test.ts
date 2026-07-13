@@ -7,7 +7,7 @@
  * and the bare-vs-prefixed model id.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 const getConfigMock = vi.hoisted(() => vi.fn());
 vi.mock('@tzurot/common-types/config/config', async importOriginal => {
@@ -31,10 +31,26 @@ vi.mock('../ModelFactory.js', () => ({
 }));
 
 import { invokeExtractionModel, resolveExtractionProvider } from './FactExtractionService.js';
+import {
+  registerSystemSettings,
+  resetSystemSettingsRegistration,
+  type SystemSettingsService,
+} from '@tzurot/common-types/services/SystemSettingsService';
+
+/** Register extraction model/provider fixtures through the ambient accessor. */
+function setExtractionSettings(settings: { model?: string; provider?: string }): void {
+  const values: Record<string, unknown> = {
+    extractionModel: settings.model ?? 'z-ai/glm-5.2',
+    extractionProvider: settings.provider ?? 'openrouter',
+  };
+  registerSystemSettings({
+    get: (key: string) => values[key],
+  } as unknown as SystemSettingsService);
+}
+
+afterEach(() => resetSystemSettingsRegistration());
 
 const baseConfig = {
-  EXTRACTION_MODEL: 'z-ai/glm-5.2',
-  EXTRACTION_PROVIDER: 'openrouter',
   ZAI_CODING_API_KEY: undefined as string | undefined,
 };
 
@@ -42,11 +58,8 @@ describe('resolveExtractionProvider', () => {
   beforeEach(() => vi.clearAllMocks());
 
   it('routes to z.ai with the system key when configured', () => {
-    getConfigMock.mockReturnValue({
-      ...baseConfig,
-      EXTRACTION_PROVIDER: 'zai-coding',
-      ZAI_CODING_API_KEY: 'zai-system-key',
-    });
+    setExtractionSettings({ provider: 'zai-coding' });
+    getConfigMock.mockReturnValue({ ...baseConfig, ZAI_CODING_API_KEY: 'zai-system-key' });
     expect(resolveExtractionProvider()).toEqual({
       provider: 'zai-coding',
       apiKey: 'zai-system-key',
@@ -54,7 +67,8 @@ describe('resolveExtractionProvider', () => {
   });
 
   it('falls back to OpenRouter when zai-coding is set WITHOUT a key (misconfiguration)', () => {
-    getConfigMock.mockReturnValue({ ...baseConfig, EXTRACTION_PROVIDER: 'zai-coding' });
+    setExtractionSettings({ provider: 'zai-coding' });
+    getConfigMock.mockReturnValue(baseConfig);
     expect(resolveExtractionProvider()).toEqual({ provider: 'openrouter' });
   });
 });
@@ -63,11 +77,8 @@ describe('invokeExtractionModel provider seam', () => {
   beforeEach(() => vi.clearAllMocks());
 
   it('z.ai route: system key attached and the z-ai/ prefix stripped to the bare model id', async () => {
-    getConfigMock.mockReturnValue({
-      ...baseConfig,
-      EXTRACTION_PROVIDER: 'zai-coding',
-      ZAI_CODING_API_KEY: 'zai-system-key',
-    });
+    setExtractionSettings({ provider: 'zai-coding' });
+    getConfigMock.mockReturnValue({ ...baseConfig, ZAI_CODING_API_KEY: 'zai-system-key' });
 
     const result = await invokeExtractionModel('prompt');
 
@@ -87,6 +98,7 @@ describe('invokeExtractionModel provider seam', () => {
   });
 
   it('default route: OpenRouter keeps the prefixed model id and attaches no key', async () => {
+    setExtractionSettings({});
     getConfigMock.mockReturnValue(baseConfig);
 
     await invokeExtractionModel('prompt');

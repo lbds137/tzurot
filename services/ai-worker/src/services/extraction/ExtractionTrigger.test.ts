@@ -46,7 +46,7 @@ describe('ExtractionTrigger', () => {
 
   it('accumulates below threshold without enqueueing', async () => {
     const m = makeMocks(2, []);
-    const trigger = new ExtractionTrigger(m.redis, m.queue, 6);
+    const trigger = new ExtractionTrigger(m.redis, m.queue, () => 6);
 
     await trigger.recordEpisode(CHANNEL, PERSONALITY, MEM(1));
 
@@ -55,10 +55,30 @@ describe('ExtractionTrigger', () => {
     expect(m.delMock).not.toHaveBeenCalled();
   });
 
+  it('the runtime kill switch stops counting AND enqueueing per fire — and re-arms without a rebuild', async () => {
+    const m = makeMocks(6, [MEM(1), MEM(2), MEM(3), MEM(4), MEM(5), MEM(6)]);
+    let enabled = false;
+    const trigger = new ExtractionTrigger(
+      m.redis,
+      m.queue,
+      () => 6,
+      () => enabled
+    );
+
+    await trigger.recordEpisode(CHANNEL, PERSONALITY, MEM(1));
+    expect(m.evalMock).not.toHaveBeenCalled(); // disabled: episode not even counted
+    expect(m.addMock).not.toHaveBeenCalled();
+
+    enabled = true; // admin flips the setting — same instance, next fire is live
+    await trigger.recordEpisode(CHANNEL, PERSONALITY, MEM(6));
+    expect(m.evalMock).toHaveBeenCalledTimes(1);
+    expect(m.addMock).toHaveBeenCalledTimes(1);
+  });
+
   it('enqueues the batch at threshold with a deterministic jobId and clears the list', async () => {
     const ids = [MEM(1), MEM(2), MEM(3), MEM(4), MEM(5), MEM(6)];
     const m = makeMocks(6, ids);
-    const trigger = new ExtractionTrigger(m.redis, m.queue, 6);
+    const trigger = new ExtractionTrigger(m.redis, m.queue, () => 6);
 
     await trigger.recordEpisode(CHANNEL, PERSONALITY, MEM(6));
 
@@ -81,12 +101,12 @@ describe('ExtractionTrigger', () => {
   it('re-enqueue after a crash produces the SAME jobId (idempotency anchor)', async () => {
     const ids = [MEM(1), MEM(2), MEM(3), MEM(4), MEM(5), MEM(6)];
     const first = makeMocks(6, ids);
-    const t1 = new ExtractionTrigger(first.redis, first.queue, 6);
+    const t1 = new ExtractionTrigger(first.redis, first.queue, () => 6);
     await t1.recordEpisode(CHANNEL, PERSONALITY, MEM(6));
 
     // Crash before DEL: next episode sees count 7, list head unchanged.
     const second = makeMocks(7, [...ids, MEM(7)]);
-    const t2 = new ExtractionTrigger(second.redis, second.queue, 6);
+    const t2 = new ExtractionTrigger(second.redis, second.queue, () => 6);
     await t2.recordEpisode(CHANNEL, PERSONALITY, MEM(7));
 
     const jobId1 = first.addMock.mock.calls[0][2].jobId as string;
@@ -96,7 +116,7 @@ describe('ExtractionTrigger', () => {
 
   it('skips cleanly when another process already flushed the batch', async () => {
     const m = makeMocks(6, []);
-    const trigger = new ExtractionTrigger(m.redis, m.queue, 6);
+    const trigger = new ExtractionTrigger(m.redis, m.queue, () => 6);
 
     await trigger.recordEpisode(CHANNEL, PERSONALITY, MEM(6));
 
@@ -108,7 +128,7 @@ describe('ExtractionTrigger', () => {
     const evalMock = vi.fn().mockRejectedValue(new Error('redis down'));
     const redis = { eval: evalMock, lrange: vi.fn(), del: vi.fn() } as unknown as Redis;
     const queue = { add: vi.fn() } as unknown as Queue;
-    const trigger = new ExtractionTrigger(redis, queue, 6);
+    const trigger = new ExtractionTrigger(redis, queue, () => 6);
 
     await expect(trigger.recordEpisode(CHANNEL, PERSONALITY, MEM(1))).resolves.toBeUndefined();
   });
@@ -117,7 +137,7 @@ describe('ExtractionTrigger', () => {
     const ids = [MEM(1), MEM(2), MEM(3), MEM(4), MEM(5), MEM(6)];
     const m = makeMocks(6, ids);
     vi.mocked(m.queue.add).mockRejectedValue(new Error('queue down'));
-    const trigger = new ExtractionTrigger(m.redis, m.queue, 6);
+    const trigger = new ExtractionTrigger(m.redis, m.queue, () => 6);
 
     await expect(trigger.recordEpisode(CHANNEL, PERSONALITY, MEM(6))).resolves.toBeUndefined();
     // The list must NOT be cleared when the enqueue failed — the next episode retries.

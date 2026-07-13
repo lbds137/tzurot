@@ -103,6 +103,37 @@ export class SystemSettingsService {
 }
 
 /**
+ * Ambient accessor for consumers that can't take constructor injection —
+ * module-level singletons (quota instances) and free functions (pipeline
+ * steps, vision floor helpers). Each service registers its wired instance at
+ * boot; until then `getSystemSetting` serves the registry fallback constants,
+ * which IS the D4 designed degraded mode (identical to a pre-prime read).
+ *
+ * This is deliberately the same ambient shape as `getConfig()` — the settings
+ * are its runtime successor, and swapping `getConfig().X` for
+ * `getSystemSetting('x')` is the intended mechanical migration.
+ */
+let ambientInstance: SystemSettingsService | null = null;
+
+/** Register the service's wired instance (called once at boot, per process). */
+export function registerSystemSettings(instance: SystemSettingsService): void {
+  ambientInstance = instance;
+}
+
+/**
+ * Sync read through the registered instance; registry fallback constant when
+ * no instance is registered yet (boot-order tolerance, tests).
+ */
+export function getSystemSetting<K extends keyof SystemSettings>(key: K): SystemSettings[K] {
+  return ambientInstance !== null ? ambientInstance.get(key) : SYSTEM_SETTINGS_FALLBACKS[key];
+}
+
+/** Test-only: clear the ambient registration between suites. */
+export function resetSystemSettingsRegistration(): void {
+  ambientInstance = null;
+}
+
+/**
  * Validate each known key independently against its schema field. Unknown keys
  * are ignored here (read path) — preservation of unknown keys is the WRITE
  * path's contract, enforced in the gateway merge.

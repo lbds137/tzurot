@@ -18,8 +18,12 @@ const logger = createLogger('RedisRateLimiter');
 interface RedisRateLimiterOptions {
   /** Time window in milliseconds (default: 15 minutes) */
   windowMs?: number;
-  /** Maximum requests per window (default: 10) */
-  maxRequests?: number;
+  /**
+   * Maximum requests per window (default: 10). A provider function is
+   * evaluated per check, so a runtime-tunable budget (system settings) takes
+   * effect without rebuilding the limiter — Redis window state is untouched.
+   */
+  maxRequests?: number | (() => number);
   /** Custom message for rate limit exceeded */
   message?: string;
   /** Key generator function - return null to skip rate limiting (default: uses X-User-Id header) */
@@ -57,7 +61,7 @@ return count
 export class RedisRateLimiter {
   private readonly redis: Redis;
   private readonly windowMs: number;
-  private readonly maxRequests: number;
+  private readonly maxRequests: () => number;
   private readonly message: string;
   private readonly keyGenerator: (req: Request) => string | null;
   private readonly keyPrefix: string;
@@ -65,7 +69,8 @@ export class RedisRateLimiter {
   constructor(redis: Redis, options: RedisRateLimiterOptions = {}) {
     this.redis = redis;
     this.windowMs = options.windowMs ?? DEFAULT_WINDOW_MS;
-    this.maxRequests = options.maxRequests ?? DEFAULT_MAX_REQUESTS;
+    const maxRequests = options.maxRequests ?? DEFAULT_MAX_REQUESTS;
+    this.maxRequests = typeof maxRequests === 'function' ? maxRequests : (): number => maxRequests;
     this.message = options.message ?? 'Too many requests, please try again later';
     this.keyGenerator = options.keyGenerator ?? defaultKeyGenerator;
     this.keyPrefix = options.keyPrefix ?? DEFAULT_KEY_PREFIX;
@@ -104,16 +109,14 @@ export class RedisRateLimiter {
       // could leave a key without TTL (permanent rate limit)
       const count = (await this.redis.eval(INCR_WITH_EXPIRE_LUA, 1, key, windowSeconds)) as number;
 
-      // Check if over limit
-      if (count > this.maxRequests) {
+      // Check if over limit (budget resolved per check — see options doc)
+      const maxRequests = this.maxRequests();
+      if (count > maxRequests) {
         // Get remaining TTL for retry-after header
         const ttl = await this.redis.ttl(key);
         const resetTime = ttl > 0 ? ttl : windowSeconds;
 
-        logger.warn(
-          { rateLimitKey: userKey, count, maxRequests: this.maxRequests },
-          'Rate limit exceeded'
-        );
+        logger.warn({ rateLimitKey: userKey, count, maxRequests }, 'Rate limit exceeded');
 
         // RFC 6585 §4: 429 SHOULD include Retry-After (seconds) for client back-off.
         res.set('Retry-After', String(resetTime));
@@ -274,7 +277,7 @@ function publicRouteKeyGenerator(req: Request): string {
  */
 export function createRedisPublicRouteRateLimiter(
   redis: Redis,
-  maxRequestsPerMinute: number
+  maxRequestsPerMinute: () => number
 ): RequestHandler {
   const limiter = new RedisRateLimiter(redis, {
     windowMs: 60 * 1000, // 1 minute

@@ -1,5 +1,4 @@
 import { describe, it, expect } from 'vitest';
-import { createTestConfig } from '../../config/config.js';
 import { AUTO_ROUTER_MODEL, FREE_ROUTER_MODEL, isFreeModel } from '../../constants/ai.js';
 import {
   SystemSettingsSchema,
@@ -94,39 +93,18 @@ describe('fallbacks (the floor beneath the floor)', () => {
 
 describe('buildSystemSettingsSeed', () => {
   it('produces a bag that parses against the resolved schema', () => {
-    const seed = buildSystemSettingsSeed(createTestConfig());
+    const seed = buildSystemSettingsSeed();
     expect(() => SystemSettingsSchema.parse(seed)).not.toThrow();
   });
 
-  it('preserves current env values for migrating settings', () => {
-    const env = createTestConfig({
-      EXTRACTION_ENABLED: 'true',
-      EXTRACTION_BATCH_THRESHOLD: 12,
-      ZAI_FREE_TIER_HEADROOM_PERCENT: 40,
-      EXTRACTION_MODEL: 'custom/extractor',
-      EXTRACTION_PROVIDER: 'zai-coding',
-    });
-    const seed = buildSystemSettingsSeed(env);
-    expect(seed.extractionEnabled).toBe(true);
-    expect(seed.extractionBatchThreshold).toBe(12);
-    expect(seed.zaiHeadroomPercent).toBe(40);
-    expect(seed.extractionModel).toBe('custom/extractor');
-    expect(seed.extractionProvider).toBe('zai-coding');
-  });
-
-  it('flag settings seed false when env is unset (dark by default)', () => {
-    const seed = buildSystemSettingsSeed(createTestConfig());
+  it('seeds the registry fallbacks — flags dark, floors on the router aliases (owner directives 7/8)', () => {
+    // Post env-deletion (admin-runtime PR 3) the seed IS the fallback set;
+    // existing environments keep their env-derived bags (seed never clobbers).
+    const seed = buildSystemSettingsSeed();
+    expect(seed).toEqual(SYSTEM_SETTINGS_FALLBACKS);
     expect(seed.extractionEnabled).toBe(false);
     expect(seed.factsInPromptEnabled).toBe(false);
     expect(seed.zaiFreeTierEnabled).toBe(false);
-  });
-
-  it('floors seed the router aliases, ignoring env values (owner directives 7/8)', () => {
-    const env = createTestConfig({
-      DEFAULT_AI_MODEL: 'anthropic/claude-haiku-4.5',
-      VISION_FALLBACK_MODEL: 'qwen/some-vision-model',
-    });
-    const seed = buildSystemSettingsSeed(env);
     expect(seed.fallbackTextModel).toBe(AUTO_ROUTER_MODEL);
     expect(seed.fallbackVisionModel).toBe(AUTO_ROUTER_MODEL);
     expect(seed.fallbackTextModelFree).toBe(FREE_ROUTER_MODEL);
