@@ -220,7 +220,7 @@ describe('runWithAutoPromotionFallback', () => {
   it("honors a synthetic ApiError's authoritative category over its generic message", async () => {
     // The rate-limit-cache short-circuit throws ApiError('Rate limit cached',
     // { category: QUOTA_EXCEEDED, ... }) — regex-parsing that message would
-    // mislabel the breadcrumb RATE_LIMIT. classifyQuotaFailure trusts the
+    // mislabel the breadcrumb RATE_LIMIT. classifyBillingQuotaFailure trusts the
     // instance's own category.
     const synthetic = new ApiError('Rate limit cached', {
       type: ApiErrorType.PERMANENT,

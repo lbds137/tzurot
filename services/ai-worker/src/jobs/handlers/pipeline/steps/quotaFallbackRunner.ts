@@ -25,6 +25,7 @@ import {
   applyConfigToPersonality,
   classifyQuotaFailure,
   logQuotaFallbackAudit,
+  selectFloorTarget,
   selectQuotaFallbackTarget,
   type QuotaFallbackCaches,
   type QuotaFallbackInfo,
@@ -186,6 +187,9 @@ export async function runWithQuotaFallback(options: {
       },
       info,
       originalError,
+      // Hop-2 (floor descent) context — see executeRetarget's doc.
+      caches: deps.caches,
+      cacheKeyId,
     });
   }
 }
@@ -328,41 +332,129 @@ async function resolveRetryCredentials(
 }
 
 /**
- * Run the retargeted retry; on a second failure, propagate the pristine
- * original with the retry's failure attached out-of-band for the composer.
+ * Run the retargeted retry (hop 1); on a retargetable second failure, attempt
+ * ONE bounded floor hop (hop 2, D12) — the runtime `fallbackTextModel(Free)`
+ * setting, dedup'd against both prior models and doom-cache viability-checked.
+ * Any remaining failure propagates the pristine original with every rescue
+ * attempt's failure attached out-of-band for the composer.
  */
 async function executeRetarget(options: {
   retry: (opts: GenerateAttemptOpts) => Promise<GenerateAttemptResult>;
   opts: GenerateAttemptOpts;
   info: QuotaFallbackInfo;
   originalError: unknown;
+  caches: QuotaFallbackCaches;
+  cacheKeyId: string;
 }): Promise<QuotaFallbackRunResult> {
-  const { retry, opts, info, originalError } = options;
+  const { retry, opts, info, originalError, caches, cacheKeyId } = options;
   try {
     const result = await retry(opts);
     // OpenRouter actually served this request; report it so the footer's
     // provider badge doesn't show the stale pre-retarget provider.
     return { ...result, effectiveProviderUsed: AIProvider.OpenRouter, quotaFallback: info };
   } catch (retryError) {
+    const floorOutcome = await attemptFloorHop({
+      retry,
+      opts,
+      info,
+      retryError,
+      caches,
+      cacheKeyId,
+    });
+    if (floorOutcome.kind === 'success') {
+      return floorOutcome.result;
+    }
     logger.error(
       { jobId: opts.jobId, err: originalError, retryErr: retryError },
       'Quota-fallback retry also failed; propagating original error (summary attached)'
     );
-    // The attachment slot is single-valued and the auto-promotion wrapper may
-    // have already used it (triple-failure: z.ai → its OpenRouter route →
-    // this retarget). Merge rather than clobber, so no rescue attempt goes
-    // unannounced.
-    const retrySummary = summarizeError(
-      retryError instanceof RetryError ? retryError.lastError : retryError
-    );
-    const priorSummary = getFallbackFailureSummary(originalError);
-    attachFallbackFailure(originalError, {
-      summary:
-        priorSummary !== undefined
-          ? `${priorSummary}; quota-fallback retry (${info.toModel}) also failed: ${retrySummary}`
-          : retrySummary,
-      provider: 'OpenRouter',
-    });
+    mergeFallbackFailure(originalError, retryError, info.toModel);
+    if (floorOutcome.kind === 'failed') {
+      mergeFallbackFailure(originalError, floorOutcome.floorError, floorOutcome.floorModel);
+    }
     throw originalError;
   }
+}
+
+/** Outcome of the bounded second hop — the caller owns error-summary merging. */
+type FloorHopOutcome =
+  | { kind: 'success'; result: QuotaFallbackRunResult }
+  | { kind: 'failed'; floorError: unknown; floorModel: string }
+  | { kind: 'not-attempted' };
+
+/**
+ * The bounded second hop (D12). Not attempted when the retry's failure is
+ * not retargetable, the floor is already among this turn's failed models, or
+ * the doom caches veto it. Never throws: a floor-selection error must not
+ * replace the pristine original the caller propagates.
+ */
+async function attemptFloorHop(params: {
+  retry: (opts: GenerateAttemptOpts) => Promise<GenerateAttemptResult>;
+  opts: GenerateAttemptOpts;
+  info: QuotaFallbackInfo;
+  retryError: unknown;
+  caches: QuotaFallbackCaches;
+  cacheKeyId: string;
+}): Promise<FloorHopOutcome> {
+  const { retry, opts, info, retryError, caches, cacheKeyId } = params;
+  if (classifyQuotaFailure(retryError) === null) {
+    return { kind: 'not-attempted' };
+  }
+  const floorTarget = await selectFloorTarget({
+    isGuestMode: opts.isGuestMode,
+    excludeModels: [info.fromModel, info.toModel],
+    cacheKeyId,
+    caches,
+  }).catch(() => null);
+  if (floorTarget === null) {
+    return { kind: 'not-attempted' };
+  }
+  // The footer traces back to the ORIGINAL configured model with the ORIGINAL
+  // failure category (the story's start); the hop chain lives in the audit log.
+  const floorInfo: QuotaFallbackInfo = {
+    fromModel: info.fromModel,
+    toModel: floorTarget.config.model,
+    category: info.category,
+    mode: 'reactive',
+  };
+  logQuotaFallbackAudit(floorInfo, { jobId: opts.jobId, cacheKeyId });
+  logger.info(
+    { jobId: opts.jobId, hop1Model: info.toModel, floorModel: floorTarget.config.model },
+    'Quota-fallback hop-1 target also failed — descending to the floor (hop 2)'
+  );
+  try {
+    const result = await retry({
+      ...opts,
+      personality: applyConfigToPersonality(opts.personality, floorTarget.config),
+    });
+    return {
+      kind: 'success',
+      result: { ...result, effectiveProviderUsed: AIProvider.OpenRouter, quotaFallback: floorInfo },
+    };
+  } catch (floorError) {
+    logger.error(
+      { jobId: opts.jobId, retryErr: retryError, floorErr: floorError },
+      'Floor descent (hop 2) also failed; propagating original error'
+    );
+    return { kind: 'failed', floorError, floorModel: floorInfo.toModel };
+  }
+}
+
+/**
+ * Merge one rescue attempt's failure into the single-valued announce
+ * attachment slot (the auto-promotion wrapper may already have used it —
+ * merge rather than clobber, so no rescue attempt goes unannounced).
+ */
+function mergeFallbackFailure(originalError: unknown, attemptError: unknown, model: string): void {
+  const summary = summarizeError(
+    attemptError instanceof RetryError ? attemptError.lastError : attemptError
+  );
+  const priorSummary = getFallbackFailureSummary(originalError);
+  attachFallbackFailure(originalError, {
+    summary:
+      priorSummary !== undefined
+        ? `${priorSummary}; quota-fallback retry (${model}) also failed: ${summary}`
+        : summary,
+    provider: 'OpenRouter',
+  });
 }
