@@ -173,7 +173,7 @@ async function stampVisionAxis(
     visionConfigResolver.getFreeDefaultVisionConfig(),
   ]);
   let result = stamped;
-  // Skip the hardcoded-fallback tier (source='hardcoded' → MODEL_DEFAULTS.VISION_FALLBACK,
+  // Skip the hardcoded-fallback tier (source='hardcoded' → the fallbackVisionModel setting,
   // the slow model the resolver only returns before the vision globals are seeded).
   // Stamping it would make selectVisionModel priority-1 fire and force the fallback even
   // when the main model has native vision — the exact timeout this epic targets. Leaving

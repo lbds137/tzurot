@@ -7,6 +7,11 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { replacePlaceholders, deriveAvatarUrl, mapToPersonality } from './PersonalityDefaults.js';
 import type { DatabasePersonality } from './PersonalityValidator.js';
 import type { MappedLlmConfig } from '@tzurot/common-types/services/LlmConfigMapper';
+import {
+  registerSystemSettings,
+  resetSystemSettingsRegistration,
+  type SystemSettingsService,
+} from '@tzurot/common-types/services/SystemSettingsService';
 
 /**
  * Factory function to create a complete DatabasePersonality mock with sensible defaults.
@@ -162,6 +167,20 @@ describe('PersonalityDefaults', () => {
     beforeEach(() => {
       process.env.GATEWAY_URL = 'http://localhost:3000';
       vi.clearAllMocks();
+    });
+
+    it('the nothing-configured terminal reads the LIVE fallbackTextModel setting (divergent-from-fallback value)', () => {
+      // A divergent registered value proves the live read — the registry
+      // fallback could coincidentally match a constant and prove nothing.
+      registerSystemSettings({
+        get: (key: string) => (key === 'fallbackTextModel' ? 'divergent/text-terminal' : undefined),
+      } as unknown as SystemSettingsService);
+      try {
+        const result = mapToPersonality(createMockDatabasePersonality(), null, mockLogger);
+        expect(result.model).toBe('divergent/text-terminal');
+      } finally {
+        resetSystemSettingsRegistration();
+      }
     });
 
     it('should map database personality with personality-specific config', () => {

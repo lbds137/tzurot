@@ -11,7 +11,7 @@
  *   (the REAL `VisionModelError` and `VISION_TERMINATE_CATEGORIES` are kept via importOriginal).
  * - `resolveVisionAuth` / `createVisionQuotaTracker` from visionAuthResolver
  *   (the REAL `visionAuthFailFastDescription` is kept).
- * - `getConfig` from common-types so `config.VISION_FALLBACK_MODEL` is deterministic
+ * - the paid floor (fallbackVisionModel setting) to be deterministic
  *   (the REAL `MODEL_DEFAULTS` / `ApiErrorCategory` are kept).
  */
 
@@ -181,7 +181,7 @@ describe('composeVisionTiers', () => {
     expect(tiers).toEqual(['primary/model', 'tier-a', 'tier-b']);
   });
 
-  it('appends the paid floor (config.VISION_FALLBACK_MODEL) when NOT guest mode', () => {
+  it('appends the paid floor (fallbackVisionModel setting) when NOT guest mode', () => {
     const personality = makePersonality({ visionFallbackModels: [] });
     const tiers = composeVisionTiers('primary/model', personality, false);
     expect(tiers).toEqual(['primary/model', FALLBACK_PAID_MODEL]);
