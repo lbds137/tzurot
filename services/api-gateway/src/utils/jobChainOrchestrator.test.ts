@@ -986,7 +986,7 @@ describe('jobChainOrchestrator (FlowProducer)', () => {
     });
 
     it('does NOT stamp the hardcoded-fallback vision model (bootstrap window)', async () => {
-      // source='hardcoded' = the resolver hit MODEL_DEFAULTS.VISION_FALLBACK because no
+      // source='hardcoded' = the resolver hit the fallbackVisionModel terminal because no
       // vision globals are seeded yet. Stamping it would force selectVisionModel priority-1
       // to the slow fallback; leaving visionModel unstamped lets priority-2 (main-model
       // vision) win downstream — the whole point of the guard.

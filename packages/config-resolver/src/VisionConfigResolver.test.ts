@@ -1,6 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { VisionConfigResolver } from './VisionConfigResolver.js';
-import { MODEL_DEFAULTS } from '@tzurot/common-types/constants/ai';
+import {
+  registerSystemSettings,
+  resetSystemSettingsRegistration,
+  type SystemSettingsService,
+} from '@tzurot/common-types/services/SystemSettingsService';
 import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 
 // Hoisted logger spies so tests can assert the WARN→ERROR upgrade for a failed
@@ -66,6 +70,8 @@ function visionRow(
 const FAKE_PERSONALITY = { id: 'p-uuid-123' };
 
 describe('VisionConfigResolver', () => {
+  afterEach(() => resetSystemSettingsRegistration());
+
   let mockPrisma: MockPrisma;
   let resolver: VisionConfigResolver;
 
@@ -200,7 +206,11 @@ describe('VisionConfigResolver', () => {
       expect(result.config.model).toBe('global-vision-default');
     });
 
-    it('falls through to the hardcoded fallback (tier 5) when no DB row at any tier', async () => {
+    it('falls through to the LIVE fallbackVisionModel setting (tier 5) when no DB row at any tier', async () => {
+      registerSystemSettings({
+        get: (key: string) =>
+          key === 'fallbackVisionModel' ? 'divergent/vision-terminal' : undefined,
+      } as unknown as SystemSettingsService);
       mockPrisma.user.findFirst.mockResolvedValue({
         id: 'internal-x',
         defaultVisionConfigId: null,
@@ -214,17 +224,21 @@ describe('VisionConfigResolver', () => {
 
       expect(result.source).toBe('hardcoded');
       expect(result.config.source).toBe('hardcoded');
-      expect(result.config.model).toBe(MODEL_DEFAULTS.VISION_FALLBACK);
+      expect(result.config.model).toBe('divergent/vision-terminal');
     });
 
-    it('returns the hardcoded fallback with no userId, no personality default, no global default', async () => {
+    it('returns the cascade terminal with no userId, no personality default, no global default', async () => {
+      registerSystemSettings({
+        get: (key: string) =>
+          key === 'fallbackVisionModel' ? 'divergent/vision-terminal' : undefined,
+      } as unknown as SystemSettingsService);
       mockPrisma.personalityVisionDefaultConfig.findUnique.mockResolvedValue(null);
       mockPrisma.adminSettings.findUnique.mockResolvedValue({ globalDefaultVisionConfig: null });
 
       const result = await resolver.resolveConfig(undefined, 'p-uuid-123', FAKE_PERSONALITY);
 
       expect(result.source).toBe('hardcoded');
-      expect(result.config.model).toBe(MODEL_DEFAULTS.VISION_FALLBACK);
+      expect(result.config.model).toBe('divergent/vision-terminal');
       // No userId → user-tier lookups skipped.
       expect(mockPrisma.user.findFirst).not.toHaveBeenCalled();
     });
