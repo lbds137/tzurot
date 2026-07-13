@@ -1,6 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { JobStatus } from '@tzurot/common-types/constants/queue';
-import { TimeoutError, AudioTooLongError } from '@tzurot/common-types/utils/errors';
+import {
+  TimeoutError,
+  AudioTooLongError,
+  SttUnavailableError,
+} from '@tzurot/common-types/utils/errors';
 
 // Mock the ServiceClient factory + the service-secret accessor so the helpers
 // run without real config/network. (The context write-path helpers live in
@@ -255,6 +259,24 @@ describe('raw-fetch helpers (allow-listed)', () => {
 
     await expect(transcribe([{ url: 'a', contentType: 'audio/ogg' }], 'user-1')).rejects.toThrow(
       AudioTooLongError
+    );
+  });
+
+  it('transcribe reconstructs an SttUnavailableError from failureReason=unavailable', async () => {
+    // 'unavailable' means every retry layer already ran server-side — the
+    // typed error lets the bot show a retry-aware message instead of the
+    // generic "couldn't transcribe".
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        jobId: 'jt-unavailable',
+        status: JobStatus.Completed,
+        result: { success: false, content: '', failureReason: 'unavailable' },
+      }),
+    } as Response);
+
+    await expect(transcribe([{ url: 'a', contentType: 'audio/ogg' }], 'user-1')).rejects.toThrow(
+      SttUnavailableError
     );
   });
 

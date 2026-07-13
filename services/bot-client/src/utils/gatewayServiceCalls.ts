@@ -22,7 +22,11 @@ import { TIMEOUTS } from '@tzurot/common-types/constants/timing';
 import { type GetAdminSettingsResponse } from '@tzurot/common-types/schemas/api/adminSettings';
 import { type GetChannelSettingsResponse } from '@tzurot/common-types/schemas/api/channel';
 import { type SttProvider } from '@tzurot/common-types/types/sttProvider';
-import { TimeoutError, AudioTooLongError } from '@tzurot/common-types/utils/errors';
+import {
+  TimeoutError,
+  AudioTooLongError,
+  SttUnavailableError,
+} from '@tzurot/common-types/utils/errors';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { TTLCache } from '@tzurot/common-types/utils/TTLCache';
 import type { LoadedPersonality, MessageContext, TranscribeResponse } from '../types.js';
@@ -384,6 +388,12 @@ async function transcribeOnce(
   }
   if (failureReason === 'too_long') {
     throw new AudioTooLongError(data.result?.error);
+  }
+  if (failureReason === 'unavailable') {
+    // The per-provider retries within the cascade already ran server-side
+    // (job-level retries deliberately fast-fail this shape) — surface a
+    // retry-aware message, not the generic one.
+    throw new SttUnavailableError(data.result?.error);
   }
 
   if (
