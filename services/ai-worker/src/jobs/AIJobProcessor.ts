@@ -40,7 +40,7 @@ import {
   type ConfigCascadeResolver,
 } from '@tzurot/config-resolver';
 import { type PersonaResolver } from '@tzurot/identity';
-import { redisService } from '../redis.js';
+import { redisService, shapesFetchGate } from '../redis.js';
 import { cleanupOldJobResults } from './CleanupJobResults.js';
 import { processAudioTranscriptionJob } from './AudioTranscriptionJob.js';
 import { processImageDescriptionJob } from './ImageDescriptionJob.js';
@@ -489,6 +489,7 @@ export class AIJobProcessor {
     return processShapesImportJob(job, {
       prisma: this.prisma,
       memoryAdapter: this.memoryManager,
+      fetchGate: shapesFetchGate,
     });
   }
 
@@ -504,6 +505,7 @@ export class AIJobProcessor {
   ): Promise<ShapesExportJobResult> {
     return processShapesExportJob(job, {
       prisma: this.prisma,
+      fetchGate: shapesFetchGate,
     });
   }
 }

@@ -29,6 +29,14 @@ export const CACHE_KEY_PREFIXES = {
    */
   VISION_SYSTEM_FALLBACK_QUOTA: 'visionfallback:system:',
   /**
+   * Global concurrency counter for shapes.inc fetch jobs (import + export) —
+   * a single counter (prefix + fixed 'active' suffix) capping simultaneous
+   * fetches from one egress IP. Low-and-slow etiquette, not correctness:
+   * fail-open, TTL-bounded against crashed-worker slot leaks.
+   * Consumers: `ai-worker/shapes/shapesFetchGate`.
+   */
+  SHAPES_FETCH_GATE: 'shapes:fetchgate:',
+  /**
    * Rolling-window contention set for the shared-free-key fair-share quota — a
    * ZSET of userId→last-request-ms for users who consumed the free key within
    * the window. Its cardinality is the divisor N that shrinks each user's cap.

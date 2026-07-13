@@ -664,3 +664,76 @@ describe('slug sanitization seam', () => {
     expect(mockNormalizeSlugForUser).toHaveBeenCalledWith('s-123shape', 'discord-123', 'testuser');
   });
 });
+
+describe('ShapesImportJob fetch-concurrency gate', () => {
+  function createMockGate(acquireResult: 'acquired' | 'denied' | 'fail-open'): {
+    gate: import('../services/shapes/shapesFetchGate.js').ShapesFetchGate;
+    tryAcquire: ReturnType<typeof vi.fn>;
+    release: ReturnType<typeof vi.fn>;
+  } {
+    const tryAcquire = vi.fn().mockResolvedValue(acquireResult);
+    const release = vi.fn().mockResolvedValue(undefined);
+    return {
+      gate: {
+        tryAcquire,
+        release,
+        maxConcurrent: 2,
+      } as unknown as import('../services/shapes/shapesFetchGate.js').ShapesFetchGate,
+      tryAcquire,
+      release,
+    };
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('throws retryable busy when the gate denies — no fetch, nothing to release', async () => {
+    const { gate, release } = createMockGate('denied');
+    const job = createMockJob({}, { attemptsMade: 0, attempts: 3 });
+
+    await expect(
+      processShapesImportJob(job, {
+        prisma: mockPrisma as never,
+        memoryAdapter: mockMemoryAdapter as never,
+        fetchGate: gate,
+      })
+    ).rejects.toThrow(/Too many simultaneous shapes\.inc fetches/);
+    expect(mockFetchShapeData).not.toHaveBeenCalled();
+    expect(release).not.toHaveBeenCalled();
+  });
+
+  it('releases the claimed slot even when the fetch throws (finally path)', async () => {
+    const { gate, tryAcquire, release } = createMockGate('acquired');
+    mockFetchShapeData.mockRejectedValue(new Error('boom'));
+    const job = createMockJob({}, { attemptsMade: 0, attempts: 3 });
+
+    await expect(
+      processShapesImportJob(job, {
+        prisma: mockPrisma as never,
+        memoryAdapter: mockMemoryAdapter as never,
+        fetchGate: gate,
+      })
+    ).rejects.toThrow('boom');
+    expect(tryAcquire).toHaveBeenCalledTimes(1);
+    expect(release).toHaveBeenCalledTimes(1);
+  });
+
+  it('proceeds on fail-open but never releases the slot it does not hold', async () => {
+    const { gate, release } = createMockGate('fail-open');
+    mockFetchShapeData.mockRejectedValue(new Error('boom'));
+    const job = createMockJob({}, { attemptsMade: 0, attempts: 3 });
+
+    await expect(
+      processShapesImportJob(job, {
+        prisma: mockPrisma as never,
+        memoryAdapter: mockMemoryAdapter as never,
+        fetchGate: gate,
+      })
+    ).rejects.toThrow('boom');
+    // The fetch ran (fail-open allows the job) but no slot was counted, so
+    // releasing would steal a legitimately-held slot from another job.
+    expect(mockFetchShapeData).toHaveBeenCalledTimes(1);
+    expect(release).not.toHaveBeenCalled();
+  });
+});

@@ -7,6 +7,7 @@ import {
 import {
   ShapesAuthError,
   ShapesBotProtectionError,
+  ShapesFetchBusyError,
   ShapesFetchError,
   ShapesNotFoundError,
 } from '../services/shapes/shapesErrors.js';
@@ -147,6 +148,13 @@ describe('classifyShapesError', () => {
     const result = classifyShapesError(error);
     expect(result.isRetryable).toBe(false);
     expect(result.errorMessage).toContain('bot-detection middleware');
+  });
+
+  it('should classify ShapesFetchBusyError as RETRYABLE (BullMQ backoff waits out the gate)', () => {
+    const error = new ShapesFetchBusyError(2);
+    const result = classifyShapesError(error);
+    expect(result.isRetryable).toBe(true);
+    expect(result.errorMessage).toContain('Too many simultaneous shapes.inc fetches');
   });
 
   it('should classify generic Error as retryable', () => {
