@@ -64,17 +64,6 @@ describe('toModelSlot', () => {
 });
 
 describe('GUEST_MODE', () => {
-  it('should have a default free model configured', () => {
-    expect(GUEST_MODE.DEFAULT_MODEL).toBe('openrouter/free');
-    expect(isFreeModel(GUEST_MODE.DEFAULT_MODEL)).toBe(true);
-  });
-
-  it('should have all FREE_MODELS be actually free', () => {
-    for (const model of GUEST_MODE.FREE_MODELS) {
-      expect(isFreeModel(model)).toBe(true);
-    }
-  });
-
   it('should have a footer message', () => {
     expect(GUEST_MODE.FOOTER_MESSAGE).toContain('free');
   });

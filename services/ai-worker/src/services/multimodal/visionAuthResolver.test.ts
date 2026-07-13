@@ -18,7 +18,7 @@ import {
   resetSystemSettingsRegistration,
   type SystemSettingsService,
 } from '@tzurot/common-types/services/SystemSettingsService';
-import { AIProvider, MODEL_DEFAULTS } from '@tzurot/common-types/constants/ai';
+import { AIProvider, FREE_ROUTER_MODEL } from '@tzurot/common-types/constants/ai';
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import {
   resolveVisionConfig,
@@ -194,7 +194,7 @@ describe('resolveVisionConfig', () => {
   describe('genuine guest', () => {
     it('resolves system key + free model via resolveApiKey when isGuestMode=true', async () => {
       // selectVisionModel returns the free model for guests.
-      mockSelectVisionModel.mockResolvedValue(MODEL_DEFAULTS.VISION_FALLBACK_FREE);
+      mockSelectVisionModel.mockResolvedValue(FREE_ROUTER_MODEL);
       mockResolveApiKey.mockResolvedValue({
         apiKey: 'system-or-key',
         source: 'system',
@@ -217,7 +217,7 @@ describe('resolveVisionConfig', () => {
         config: {
           apiKey: 'system-or-key',
           provider: AIProvider.OpenRouter,
-          model: MODEL_DEFAULTS.VISION_FALLBACK_FREE,
+          model: FREE_ROUTER_MODEL,
           source: 'system',
           isGuestMode: true,
         },
@@ -320,7 +320,7 @@ describe('resolveVisionConfig', () => {
       expect(result.kind).toBe('resolved');
       if (result.kind === 'resolved') {
         // Headline assertions: free model forced, system key, NOT guest.
-        expect(result.config.model).toBe(MODEL_DEFAULTS.VISION_FALLBACK_FREE);
+        expect(result.config.model).toBe(FREE_ROUTER_MODEL);
         expect(result.config.apiKey).toBe('system-or-key');
         expect(result.config.source).toBe('system');
         expect(result.config.isGuestMode).toBe(false);
@@ -382,7 +382,7 @@ describe('resolveVisionConfig', () => {
       expect(result.kind).toBe('resolved');
       if (result.kind === 'resolved') {
         expect(result.config.source).toBe('user');
-        expect(result.config.model).toBe(MODEL_DEFAULTS.VISION_FALLBACK_FREE);
+        expect(result.config.model).toBe(FREE_ROUTER_MODEL);
       }
       expect(mockTryConsume).not.toHaveBeenCalled();
     });
@@ -565,7 +565,7 @@ describe('resolveVisionAuth (direct, model-parameterized)', () => {
 
     expect(result.kind).toBe('resolved');
     if (result.kind === 'resolved') {
-      expect(result.config.model).toBe(MODEL_DEFAULTS.VISION_FALLBACK_FREE);
+      expect(result.config.model).toBe(FREE_ROUTER_MODEL);
       expect(result.config.apiKey).toBe('system-key');
     }
   });
