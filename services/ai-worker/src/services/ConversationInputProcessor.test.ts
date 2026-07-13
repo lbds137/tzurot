@@ -483,4 +483,64 @@ describe('ConversationInputProcessor', () => {
       expect(result.searchQuery).toBe('search query');
     });
   });
+
+  describe('query-fold gate (conditional recent-history fold)', () => {
+    const mockMessage: MessageContent = 'Hello, how are you?';
+    const mockPersonality = createMockPersonality();
+
+    it('folds the recent history window when the unfolded query is content-poor', async () => {
+      // Unfolded query "poke" (1 content word) → below the gate threshold → fold.
+      (mockPromptBuilder.buildSearchQuery as ReturnType<typeof vi.fn>)
+        .mockReturnValueOnce('poke')
+        .mockReturnValueOnce('recent history window\n\npoke');
+      const context = createMockContext({ rawConversationHistory: [{ id: 'history1' }] });
+
+      const result = await processor.processInputs(mockPersonality, mockMessage, context, {
+        isGuestMode: false,
+      });
+
+      // The window is extracted from the raw history and crosses the builder seam.
+      expect(mockExtractRecentHistoryWindow).toHaveBeenCalledWith(context.rawConversationHistory);
+      expect(mockPromptBuilder.buildSearchQuery).toHaveBeenNthCalledWith(
+        1,
+        'formatted user message',
+        [],
+        undefined,
+        undefined
+      );
+      expect(mockPromptBuilder.buildSearchQuery).toHaveBeenNthCalledWith(
+        2,
+        'formatted user message',
+        [],
+        undefined,
+        'recent history window'
+      );
+      expect(result.searchQuery).toBe('recent history window\n\npoke');
+    });
+
+    it('embeds the query bare when the unfolded query is content-rich', async () => {
+      const richQuery =
+        'the echo was a technical bug in the message pipeline, not an intentional repeat of your reply';
+      (mockPromptBuilder.buildSearchQuery as ReturnType<typeof vi.fn>).mockReturnValueOnce(
+        richQuery
+      );
+      const context = createMockContext({ rawConversationHistory: [{ id: 'history1' }] });
+
+      const result = await processor.processInputs(mockPersonality, mockMessage, context, {
+        isGuestMode: false,
+      });
+
+      // No fold: the window is never extracted, the builder is called exactly once
+      // with no window, and the bare query ships as-is.
+      expect(mockExtractRecentHistoryWindow).not.toHaveBeenCalled();
+      expect(mockPromptBuilder.buildSearchQuery).toHaveBeenCalledTimes(1);
+      expect(mockPromptBuilder.buildSearchQuery).toHaveBeenCalledWith(
+        'formatted user message',
+        [],
+        undefined,
+        undefined
+      );
+      expect(result.searchQuery).toBe(richQuery);
+    });
+  });
 });

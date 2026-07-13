@@ -18,6 +18,7 @@ import {
   type ProcessedAttachment,
 } from './MultimodalProcessor.js';
 import { extractRecentHistoryWindow } from './RAGUtils.js';
+import { shouldFoldSearchQuery } from './prompt/queryFoldGate.js';
 import { collectPersonalityNames } from '../jobs/utils/conversationUtils.js';
 import type { PromptBuilder } from './PromptBuilder.js';
 import type { ReferencedMessageFormatter } from './ReferencedMessageFormatter.js';
@@ -150,16 +151,26 @@ export class ConversationInputProcessor {
         ? this.referencedMessageFormatter.extractTextForSearch(referencedMessagesDescriptions)
         : undefined;
 
-    // Extract recent conversation history for context-aware LTM search
-    const recentHistoryWindow = extractRecentHistoryWindow(context.rawConversationHistory);
-
-    // Build search query for memory retrieval
-    const searchQuery = this.promptBuilder.buildSearchQuery(
+    // Build the search query for memory retrieval. The recent conversation
+    // window is folded in ONLY when the unfolded query is content-poor: the
+    // fold rescues reactive turns ("poke") that carry nothing to embed, but
+    // dilutes content-rich ones — recent-context chatter pushes the on-topic
+    // memory out of the top-K (measured on real conversation goldens; the
+    // gate rule and its rationale live in prompt/queryFoldGate.ts).
+    const unfoldedSearchQuery = this.promptBuilder.buildSearchQuery(
       userMessage,
       processedAttachments,
       referencedMessagesTextForSearch,
-      recentHistoryWindow
+      undefined
     );
+    const searchQuery = shouldFoldSearchQuery(unfoldedSearchQuery)
+      ? this.promptBuilder.buildSearchQuery(
+          userMessage,
+          processedAttachments,
+          referencedMessagesTextForSearch,
+          extractRecentHistoryWindow(context.rawConversationHistory)
+        )
+      : unfoldedSearchQuery;
 
     return {
       processedAttachments,
