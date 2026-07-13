@@ -213,13 +213,17 @@ function buildCtxForProvider(
   isPrimaryAttempt: boolean
 ): TtsContext {
   const modelId = isPrimaryAttempt ? baseCtx.modelId : undefined;
+  // The abort signal crosses provider boundaries untouched — unlike modelId /
+  // byokKey it isn't provider-specific, and the self-hosted chunker's
+  // between-batch abort check depends on receiving it here.
+  const signal = baseCtx.signal;
 
   if (!BYOK_PROVIDERS.has(providerId)) {
-    return { slug: baseCtx.slug, modelId };
+    return { slug: baseCtx.slug, modelId, signal };
   }
   const audioId = TTS_TO_AUDIO_PROVIDER.get(providerId);
   const byokKey = audioId !== undefined ? audioProviderKeys.get(audioId) : undefined;
-  return { slug: baseCtx.slug, modelId, byokKey };
+  return { slug: baseCtx.slug, modelId, byokKey, signal };
 }
 
 /**
@@ -424,6 +428,11 @@ export async function dispatchTts(options: DispatchOptions): Promise<DispatchRes
   let primaryAttempted = false;
 
   for (const candidateId of chain) {
+    // An attempt halted by the caller's outer budget must not fall through
+    // to the next provider — a fresh post-timeout synthesis wastes the
+    // fallback's capacity (and BYOK quota) on an already-discarded result.
+    // throwIfAborted rethrows the abort reason (the outer TimeoutError).
+    ctx.signal?.throwIfAborted();
     const isPrimaryAttempt = !primaryAttempted && candidateId === primaryProviderId;
     if (candidateId === primaryProviderId) {
       primaryAttempted = true;
