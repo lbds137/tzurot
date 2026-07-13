@@ -1,6 +1,6 @@
 {
   "name": "@tzurot/test-factories",
-  "version": "3.0.0-beta.161",
+  "version": "3.0.0-beta.162",
   "private": true,
   "type": "module",
   "description": "Validated mock-data factories for Tzurot tests (built on @tzurot/common-types schemas)",
