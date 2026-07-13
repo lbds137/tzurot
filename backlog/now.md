@@ -31,6 +31,10 @@ _Recently resolved items move to the GitHub release notes at ship time — this 
 
 _beta.146 SHIPPED 2026-07-03 (11 PRs #1456–#1466): 2 prod provider-failure fixes, the Stryker pilot arc (config-resolver ratchet at 87.81 + CI `mutation-tests` job; suite-wide expansion still open), **3 themes CLOSED** (human-users-only, railway-log-DX, periodic-audit), weekly audit cron LIVE (maiden dispatch ✅ OK, Discord thread delivery proven end-to-end). Release review: "nothing survived verification as an actionable bug."_
 
+### 📥 New (this session)
+
+- 🐛 `[FIX]` **Prod ConversationRetentionService cleanup failing: "query cannot be executed on an expired transaction"** — observed 2026-07-13 09:10Z (prior ai-worker deployment logs): `prisma.conversationHistory.deleteMany()` inside a Prisma transaction that expired mid-delete. Fail-soft (job logs and moves on) but repeated failures mean old history stops aging out. Two threads to pull: (a) whether retention actually uses an interactive `$transaction` — the #1606 review's "zero $transaction usage" sweep said no, so this may be Prisma's batch-write transaction timing out on a big deleteMany; (b) intersects the idle-in-tx follow-up row's promote-when ("any PR introduces interactive transactions"). Check recurrence frequency in logs before sizing. Filed 2026-07-13.
+
 ### ⚡ Quick Wins (max 5)
 
 _Small tasks that can be done between major features. Good for momentum._
