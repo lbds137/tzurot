@@ -13,11 +13,9 @@
  * **Algorithm** (run BEFORE ResultsListener starts):
  *   1. Scan `multitag:entry:*` Redis keys via `MultiTagPersistence.scanAllEntries`.
  *   2. For each snapshot:
- *      - Fetch Discord channel + source message. If either fails (channel
- *        deleted, message deleted), discard the entry — the user can't be
- *        delivered to anyway.
  *      - For each pending slot: poll BullMQ for the OLD job's authoritative
- *        state via `queue.getJob().getState()`. Routes:
+ *        state via `queue.getJob().getState()` (cheap local Redis reads —
+ *        deliberately BEFORE the rate-limited Discord fetches below). Routes:
  *          • `'completed'` → consume `job.returnvalue` and feed it through
  *            `coordinator.handleJobResult` after adoption (deferred delivery).
  *          • `'failed'` → synthesize an error `LLMGenerationResult` from
@@ -33,6 +31,18 @@
  *      - For each terminal slot in the snapshot: preserve as-is (the result
  *        was never persisted in the snapshot, so the slot will flush as an
  *        error via the existing `deliverError` path — same as before).
+ *      - **Age gate**: an entry older than `MULTI_TAG.COORDINATOR_TIMEOUT_MS`
+ *        is adopted only if a slot recovered a real completed result. The
+ *        old instance would already have safety-flushed such a group, so a
+ *        still-pending slot is wedged (e.g. a `waiting-children` parent
+ *        whose children died with an earlier worker) — adopting it only
+ *        schedules a late synthetic error while blocking the channel's
+ *        ordering. No result → discard silently, BEFORE the Discord fetches
+ *        (a boot recovering several zombies must not spend two API calls
+ *        per entry it's about to throw away).
+ *      - Fetch Discord channel + source message. If either fails (channel
+ *        deleted, message deleted), discard the entry — the user can't be
+ *        delivered to anyway.
  *      - Adopt the rehydrated runtime entry into the coordinator's
  *        in-memory maps + register with orderingService.
  *      - After adoption, dispatch the collected deferred deliveries via
@@ -64,7 +74,6 @@ import type { Client, Message } from 'discord.js';
 import type { Queue } from 'bullmq';
 import { MULTI_TAG } from '@tzurot/common-types/constants/message';
 import { type TypingChannel } from '@tzurot/common-types/types/discord-types';
-import { type LLMGenerationResult } from '@tzurot/common-types/types/schemas/generation';
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { fetchTypingChannel } from '../utils/fetchTypingChannel.js';
@@ -76,7 +85,12 @@ import type {
 } from './MultiTagPersistence.js';
 import type { IPersonalityLoader } from '../types/IPersonalityLoader.js';
 import type { RuntimeEntry, RuntimeSlot } from './multiTagCoordinatorHelpers.js';
-import { pollPriorJobState, synthesizeFailureResult } from './multiTagRecoveryHelpers.js';
+import {
+  pollPriorJobState,
+  synthesizeFailureResult,
+  type DeferredDelivery,
+  type RecoveryStats,
+} from './multiTagRecoveryHelpers.js';
 
 const logger = createLogger('MultiTagRecovery');
 
@@ -94,47 +108,6 @@ export interface MultiTagRecoveryDeps {
   queue: Queue;
 }
 
-export interface RecoveryStats {
-  entriesScanned: number;
-  entriesResumed: number;
-  entriesDiscarded: number;
-  /** Slots whose old job was found completed; result delivered synthetically. */
-  slotsRecoveredCompleted: number;
-  /** Slots whose old job was found failed; error delivered synthetically. */
-  slotsRecoveredFailed: number;
-  /** Slots whose old job was still in flight; adopted as-is, stream will deliver. */
-  slotsTrustedToStream: number;
-  /**
-   * Slots whose old job was evicted from Redis (or whose state poll
-   * returned 'unknown'); error delivered synthetically because the result
-   * is unrecoverable.
-   */
-  slotsUnrecoverable: number;
-  slotsAccessRevoked: number;
-  staleJobIdsMarked: number;
-  /**
-   * Slots that a prior recovery run already delivered (per the
-   * `slot-delivered:{jobId}` marker written by `deliverSlot`). Skipped to
-   * avoid duplicate user-visible delivery on a re-run after a crash
-   * during `deliverGroup`'s post-Discord-send cleanup.
-   */
-  slotsAlreadyDelivered: number;
-}
-
-interface DeferredDelivery {
-  jobId: string;
-  result: LLMGenerationResult;
-  /**
-   * Why this delivery exists — preserves the recovery-outcome category through
-   * the deferred-dispatch loop. The per-entry log emits these as distinct
-   * counters; operators diagnosing eviction frequency need to distinguish
-   * `'unrecoverable'` from `'recoveredFailed'`, since both materialize as
-   * `success: false` results that filtering on `result.success` alone would
-   * collapse together.
-   */
-  kind: 'recoveredCompleted' | 'recoveredFailed' | 'unrecoverable';
-}
-
 export class MultiTagRecovery {
   constructor(private readonly deps: MultiTagRecoveryDeps) {}
 
@@ -143,6 +116,7 @@ export class MultiTagRecovery {
       entriesScanned: 0,
       entriesResumed: 0,
       entriesDiscarded: 0,
+      entriesExpiredSilent: 0,
       slotsRecoveredCompleted: 0,
       slotsRecoveredFailed: 0,
       slotsTrustedToStream: 0,
@@ -207,19 +181,6 @@ export class MultiTagRecovery {
     stats: RecoveryStats
   ): Promise<void> {
     try {
-      // Resolve Discord channel + source message. Either failure means we
-      // can't deliver to the user; discard cleanly.
-      const channel = await this.fetchTypingChannel(snapshot.channelId);
-      if (channel === null) {
-        await this.discardEntry(snapshot, 'channel unavailable', stats);
-        return;
-      }
-      const sourceMessage = await this.fetchSourceMessage(channel, snapshot.sourceMessageId);
-      if (sourceMessage === null) {
-        await this.discardEntry(snapshot, 'source message unavailable', stats);
-        return;
-      }
-
       // Build runtime slots: poll BullMQ state for pending slots, preserve
       // terminal ones. Slots whose personality became inaccessible are
       // kept as errored sentinel slots (not dropped) so the group still
@@ -255,6 +216,22 @@ export class MultiTagRecovery {
         await this.discardEntry(snapshot, 'snapshot has zero slots', stats);
         return;
       }
+
+      if (
+        await this.discardIfExpired(snapshot, deferredDeliveries, entryTrustedToStreamCount, stats)
+      ) {
+        return;
+      }
+
+      // Discord fetches run AFTER the age gate: a boot recovering several
+      // zombie groups (the incident class) must not spend two Discord API
+      // calls per entry it's about to throw away — recovery is sequential
+      // precisely to respect rate limits after heavy-traffic shutdowns.
+      const targets = await this.resolveDeliveryTargets(snapshot, stats);
+      if (targets === null) {
+        return;
+      }
+      const { channel, sourceMessage } = targets;
 
       // Build runtime entry. Safety timer is re-armed from rehydrate time
       // (giving any genuinely-in-flight jobs the full timeout budget)
@@ -462,6 +439,71 @@ export class MultiTagRecovery {
           },
         };
     }
+  }
+
+  /**
+   * Resolve the Discord channel + source message an entry delivers to.
+   * Either failure means the user can't be delivered to; the entry is
+   * discarded cleanly and null is returned (caller stops processing it).
+   */
+  private async resolveDeliveryTargets(
+    snapshot: CoordinatorEntrySnapshot,
+    stats: RecoveryStats
+  ): Promise<{ channel: TypingChannel; sourceMessage: Message } | null> {
+    const channel = await this.fetchTypingChannel(snapshot.channelId);
+    if (channel === null) {
+      await this.discardEntry(snapshot, 'channel unavailable', stats);
+      return null;
+    }
+    const sourceMessage = await this.fetchSourceMessage(channel, snapshot.sourceMessageId);
+    if (sourceMessage === null) {
+      await this.discardEntry(snapshot, 'source message unavailable', stats);
+      return null;
+    }
+    return { channel, sourceMessage };
+  }
+
+  /**
+   * Age gate: an entry older than the coordinator's own safety window is
+   * adopted only when it carries a REAL recovered result. If the old
+   * instance were alive it would already have safety-flushed this group,
+   * so a still-pending slot here is wedged (e.g. a parent job whose
+   * children died with an earlier worker) — re-arming the timer just
+   * schedules a synthetic in-character timeout error long after the user
+   * moved on, while the per-channel ordering hold blocks newer turns'
+   * deliveries. Completed results still deliver (late-but-real is the
+   * point of recovery); late errors alone are pure noise — deliberately
+   * including REAL recovered failures (an authoritative failedReason is
+   * still an error the user stopped waiting for 18+ minutes ago). Gated at
+   * the ENTRY level: once a completed result justifies adoption, sibling
+   * slots' real failures deliver alongside it — an accurate failure isn't
+   * noise when the group is flushing anyway.
+   *
+   * Returns true when the entry was discarded (caller stops processing it).
+   */
+  private async discardIfExpired(
+    snapshot: CoordinatorEntrySnapshot,
+    deferredDeliveries: DeferredDelivery[],
+    trustedToStreamCount: number,
+    stats: RecoveryStats
+  ): Promise<boolean> {
+    const entryAgeMs = Date.now() - snapshot.createdAt;
+    const hasRecoveredResult = deferredDeliveries.some(d => d.kind === 'recoveredCompleted');
+    if (entryAgeMs <= MULTI_TAG.COORDINATOR_TIMEOUT_MS || hasRecoveredResult) {
+      return false;
+    }
+    stats.entriesExpiredSilent++;
+    logger.warn(
+      {
+        groupId: snapshot.groupId,
+        entryAgeMs,
+        trustedToStream: trustedToStreamCount,
+        deferredKinds: deferredDeliveries.map(d => d.kind),
+      },
+      'Multi-tag entry expired past the safety window with no recoverable result — resolving silently'
+    );
+    await this.discardEntry(snapshot, 'expired past safety window, no recoverable result', stats);
+    return true;
   }
 
   /**
