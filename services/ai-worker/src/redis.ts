@@ -21,6 +21,7 @@ import { ZaiPlanMeter } from './services/ZaiPlanMeter.js';
 import { ZaiFreeTierAdmission } from './services/ZaiFreeTierAdmission.js';
 import { reactToZaiFreeTierFailure } from './services/zaiBusinessCodes.js';
 import { getConfig } from '@tzurot/common-types/config/config';
+import { getSystemSetting } from '@tzurot/common-types/services/SystemSettingsService';
 import {
   modelSupportsVision,
   modelSupportsReasoning,
@@ -57,14 +58,16 @@ export const visionFallbackQuota = new VisionFallbackQuota(redis);
 
 // Export singleton FreeTierRequestQuota — rolling-window fair share for the
 // shared system OpenRouter free-tier key (guests + credit-exhausted-BYOK
-// fallback). Env-tuned budget/window/floor/ceiling.
+// fallback). Budget/window/floor/ceiling are runtime-tunable system settings,
+// resolved per decision through the SWR cache (admin edits apply to the next
+// request; the instance's Redis window state is untouched).
 // eslint-disable-next-line @tzurot/no-singleton-export -- Intentional: shared Redis client; multiple instances would each keep a separate view of the shared-key contention set and undercount the fair-share cap.
-export const freeTierRequestQuota = new FreeTierRequestQuota(redis, {
-  globalDailyBudget: getConfig().FREE_TIER_GLOBAL_DAILY_BUDGET,
-  windowMinutes: getConfig().FREE_TIER_WINDOW_MINUTES,
-  minPerWindow: getConfig().FREE_TIER_MIN_PER_WINDOW,
-  maxPerWindow: getConfig().FREE_TIER_MAX_PER_WINDOW,
-});
+export const freeTierRequestQuota = new FreeTierRequestQuota(redis, () => ({
+  globalDailyBudget: getSystemSetting('freeTierGlobalDailyBudget'),
+  windowMinutes: getSystemSetting('freeTierWindowMinutes'),
+  minPerWindow: getSystemSetting('freeTierMinPerWindow'),
+  maxPerWindow: getSystemSetting('freeTierMaxPerWindow'),
+}));
 
 // z.ai free-tier piggyback singletons: the plan meter (owner-protection input,
 // also mirrored to Redis for /admin usage), a second fair-share quota over the
@@ -75,12 +78,12 @@ export const zaiPlanMeter = new ZaiPlanMeter(getConfig().ZAI_CODING_API_KEY, red
 // eslint-disable-next-line @tzurot/no-singleton-export -- Intentional: shared Redis client; a second instance would keep a separate view of the zai contention set and undercount the fair-share cap.
 export const zaiFreeTierQuota = new FreeTierRequestQuota(
   redis,
-  {
-    globalDailyBudget: getConfig().ZAI_FREE_TIER_GLOBAL_DAILY_BUDGET,
-    windowMinutes: getConfig().FREE_TIER_WINDOW_MINUTES,
-    minPerWindow: getConfig().FREE_TIER_MIN_PER_WINDOW,
-    maxPerWindow: getConfig().FREE_TIER_MAX_PER_WINDOW,
-  },
+  () => ({
+    globalDailyBudget: getSystemSetting('zaiGlobalDailyBudget'),
+    windowMinutes: getSystemSetting('freeTierWindowMinutes'),
+    minPerWindow: getSystemSetting('freeTierMinPerWindow'),
+    maxPerWindow: getSystemSetting('freeTierMaxPerWindow'),
+  }),
   undefined,
   ZAI_FREE_TIER_KEYS
 );
@@ -90,9 +93,9 @@ export const zaiFreeTierAdmission = new ZaiFreeTierAdmission(
   zaiFreeTierQuota,
   zaiPlanMeter,
   {
-    enabled: getConfig().ZAI_FREE_TIER_ENABLED === 'true',
+    enabled: () => getSystemSetting('zaiFreeTierEnabled'),
     apiKey: getConfig().ZAI_CODING_API_KEY,
-    headroomPercent: getConfig().ZAI_FREE_TIER_HEADROOM_PERCENT,
+    headroomPercent: () => getSystemSetting('zaiHeadroomPercent'),
   }
 );
 

@@ -83,7 +83,7 @@ export class ConversationalRAGService {
     this.llmInvoker = new LLMInvoker();
     this.memoryRetriever = new MemoryRetriever(prisma, memoryManager, personaResolver);
     // Fact retrieval (Phase 2 slice 4a); undefined without a memory manager,
-    // gated at call time by FACTS_IN_PROMPT_ENABLED.
+    // gated at call time by the runtime factsInPromptEnabled setting.
     this.factRetriever = createFactRetriever(prisma, memoryManager);
     this.promptBuilder = new PromptBuilder();
     const longTermMemory = new LongTermMemoryService(prisma, memoryManager, extractionTrigger);

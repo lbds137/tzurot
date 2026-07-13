@@ -125,14 +125,25 @@ export interface QuotaVerdict {
 }
 
 export class FreeTierRequestQuota {
+  private readonly redis: Redis;
+  /** Normalized per-call config provider (see constructor doc). */
+  private readonly configProvider: () => FreeTierQuotaConfig;
+
   constructor(
-    private readonly redis: Redis,
-    private readonly config: FreeTierQuotaConfig,
+    redis: Redis,
+    config: FreeTierQuotaConfig | (() => FreeTierQuotaConfig),
     /** Injectable clock (ms) for deterministic tests; defaults to wall time. */
     private readonly now: () => number = () => Date.now(),
     /** Which pool's counters this instance operates on. */
     private readonly keys: FreeTierQuotaKeys = OPENROUTER_FREE_TIER_KEYS
-  ) {}
+  ) {
+    this.redis = redis;
+    // A provider is re-evaluated once per decision (tryConsume/cap query), so
+    // runtime-tuned budgets (system settings) apply to the NEXT decision
+    // without touching this instance's Redis window state. A plain object
+    // stays supported for tests and fixed-config callers.
+    this.configProvider = typeof config === 'function' ? config : (): FreeTierQuotaConfig => config;
+  }
 
   /**
    * Evaluate + record one free-key request for `userId`. Returns the verdict;
@@ -142,8 +153,11 @@ export class FreeTierRequestQuota {
    */
   async tryConsume(userId: string, requestId: string): Promise<QuotaVerdict> {
     try {
+      // One config snapshot per decision — request-level consistency even if
+      // an admin edit lands mid-flight.
+      const config = this.configProvider();
       const now = this.now();
-      const windowMs = this.config.windowMinutes * 60_000;
+      const windowMs = config.windowMinutes * 60_000;
       const windowStart = now - windowMs;
       const day = new Date(now).toISOString().slice(0, 10); // YYYY-MM-DD (UTC)
 
@@ -165,7 +179,7 @@ export class FreeTierRequestQuota {
 
       // Check BEFORE any increment (no reject-bleed). Global hard cap first —
       // it overrides the per-user floor (D4).
-      if (globalCount >= this.config.globalDailyBudget) {
+      if (globalCount >= config.globalDailyBudget) {
         this.logDeny('global', userId, { windowCap, activeUsers, userCount, globalCount });
         return { allowed: false, reason: 'global', windowCap, activeUsers, userCount, globalCount };
       }
@@ -210,11 +224,10 @@ export class FreeTierRequestQuota {
 
   /** The dynamic per-user cap for a given concurrent-user count. */
   computeWindowCap(activeUsers: number): number {
-    const windowFraction = this.config.windowMinutes / MINUTES_PER_DAY;
-    const raw = Math.floor(
-      (this.config.globalDailyBudget * windowFraction) / Math.max(activeUsers, 1)
-    );
-    return Math.max(this.config.minPerWindow, Math.min(this.config.maxPerWindow, raw));
+    const config = this.configProvider();
+    const windowFraction = config.windowMinutes / MINUTES_PER_DAY;
+    const raw = Math.floor((config.globalDailyBudget * windowFraction) / Math.max(activeUsers, 1));
+    return Math.max(config.minPerWindow, Math.min(config.maxPerWindow, raw));
   }
 
   private logDeny(
@@ -223,7 +236,7 @@ export class FreeTierRequestQuota {
     fields: { windowCap: number; activeUsers: number; userCount: number; globalCount: number }
   ): void {
     logger.info(
-      { userId, reason, ...fields, dailyBudget: this.config.globalDailyBudget },
+      { userId, reason, ...fields, dailyBudget: this.configProvider().globalDailyBudget },
       reason === 'global'
         ? 'Free-tier daily global budget exhausted — denying free-key request'
         : 'User over rolling free-tier share — denying free-key request'

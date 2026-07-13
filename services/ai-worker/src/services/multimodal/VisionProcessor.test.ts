@@ -12,6 +12,12 @@ import {
 import type { AttachmentMetadata } from '@tzurot/common-types/types/schemas/discord';
 import type { LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import { AI_DEFAULTS, MODEL_DEFAULTS } from '@tzurot/common-types/constants/ai';
+import { SYSTEM_SETTINGS_FALLBACKS } from '@tzurot/common-types/schemas/api/systemSettings';
+import {
+  registerSystemSettings,
+  resetSystemSettingsRegistration,
+  type SystemSettingsService,
+} from '@tzurot/common-types/services/SystemSettingsService';
 import {
   ApiErrorCategory,
   ERROR_MESSAGES,
@@ -308,6 +314,36 @@ describe('VisionProcessor', () => {
         expect(result).toBe('Mocked image description');
         expect(mockModelInvoke).toHaveBeenCalledTimes(1);
         expect(mockCheckModelVisionSupport).toHaveBeenCalledWith('gpt-4');
+      });
+
+      it('reads the LIVE fallbackVisionModel/free-floor settings (divergent-from-fallback values flow through)', async () => {
+        // The registry fallbacks coincidentally equal the retired constants,
+        // so only a DIVERGENT registered value proves the live read.
+        registerSystemSettings({
+          get: (key: string) =>
+            key === 'fallbackVisionModel'
+              ? 'divergent/paid-vision'
+              : key === 'fallbackVisionModelFree'
+                ? 'divergent/free-vision:free'
+                : undefined,
+        } as unknown as SystemSettingsService);
+        try {
+          mockCheckModelVisionSupport.mockResolvedValue(false);
+          const personality = createMockPersonality({ model: 'gpt-4', visionModel: undefined });
+
+          await describeImage(mockAttachment, personality);
+          expect(mockCreateChatModel).toHaveBeenCalledWith(
+            expect.objectContaining({ modelName: 'divergent/paid-vision' })
+          );
+
+          mockCreateChatModel.mockClear();
+          await describeImage(mockAttachment, personality, true);
+          expect(mockCreateChatModel).toHaveBeenCalledWith(
+            expect.objectContaining({ modelName: 'divergent/free-vision:free' })
+          );
+        } finally {
+          resetSystemSettingsRegistration();
+        }
       });
 
       it('should prefer visionModel over main model even if main has vision', async () => {
@@ -743,11 +779,12 @@ describe('VisionProcessor', () => {
 
         expect(result).toBe(cachedDescription);
         // gpt-4o lacks vision in this test (mock unset → false), so selectVisionModel
-        // falls through to the paid fallback; the cache key is namespaced by it.
+        // falls through to the paid floor (fallbackVisionModel setting — the
+        // auto-router registry fallback here); the cache key is namespaced by it.
         expect(mockVisionCacheGet).toHaveBeenCalledWith({
           attachmentId: mockAttachment.id,
           url: mockAttachment.url,
-          model: MODEL_DEFAULTS.VISION_FALLBACK,
+          model: SYSTEM_SETTINGS_FALLBACKS.fallbackVisionModel,
         });
         // Should NOT call the vision API
         expect(mockModelInvoke).not.toHaveBeenCalled();

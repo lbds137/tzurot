@@ -13,7 +13,6 @@
  * configuration, not availability.
  */
 
-import { getConfig } from '@tzurot/common-types/config/config';
 import { ADMIN_SETTINGS_SINGLETON_ID } from '@tzurot/common-types/schemas/api/adminSettings';
 import { buildSystemSettingsSeed } from '@tzurot/common-types/schemas/api/systemSettings';
 import { createLogger } from '@tzurot/common-types/utils/logger';
@@ -22,7 +21,7 @@ import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 const logger = createLogger('SystemSettingsSeed');
 
 export async function seedSystemSettingsIfUnset(prisma: PrismaClient): Promise<void> {
-  const seed = buildSystemSettingsSeed(getConfig());
+  const seed = buildSystemSettingsSeed();
   const seedJson = JSON.stringify(seed);
 
   try {
@@ -30,6 +29,12 @@ export async function seedSystemSettingsIfUnset(prisma: PrismaClient): Promise<v
     // override the seed — per-key insert-if-absent in one atomic statement.
     // created_at/updated_at need explicit values on the INSERT branch (no DB
     // default for updated_at; Prisma's @updatedAt is client-managed).
+    // The UPDATE branch deliberately does NOT bump updated_at: the merge is a
+    // no-op whenever every key already exists (every boot after the first),
+    // and bumping would spuriously 409 any in-flight dashboard write's
+    // optimistic-concurrency token on every replica boot. The residual race
+    // (a seed ADDING a brand-new key between a client's read and write) can't
+    // lose data — writes are single-key server-side merges.
     await prisma.$executeRaw`
       INSERT INTO admin_settings (id, system_settings, created_at, updated_at)
       VALUES (${ADMIN_SETTINGS_SINGLETON_ID}::uuid, ${seedJson}::jsonb, now(), now())

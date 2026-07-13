@@ -29,6 +29,7 @@ import { QUEUE_CONFIG, SCHEDULED_QUEUE_NAME } from '@tzurot/common-types/constan
 import { HealthStatus } from '@tzurot/common-types/constants/service';
 import { TIMEOUTS } from '@tzurot/common-types/constants/timing';
 import { createPrismaClient, type PrismaClient } from '@tzurot/common-types/services/prisma';
+import { registerSystemSettings } from '@tzurot/common-types/services/SystemSettingsService';
 import { type AnyJobData } from '@tzurot/common-types/types/jobs';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { registerProcessLifecycle } from '@tzurot/common-types/utils/processLifecycle';
@@ -343,8 +344,14 @@ async function main(): Promise<void> {
     sttResolver,
     personaResolver,
     cascadeResolver,
+    systemSettings,
     cleanupFns,
   } = cacheResult;
+
+  // Expose the wired instance to module-level singletons and free functions
+  // (quota options, pipeline floors, extraction gates) that can't take
+  // constructor injection — see registerSystemSettings' doc for the contract.
+  registerSystemSettings(systemSettings);
 
   // Initialize local embedding service (required for both vector memory and duplicate detection)
   const localEmbeddingService = await initializeLocalEmbedding();
@@ -360,8 +367,9 @@ async function main(): Promise<void> {
     logger.warn('Embedding service ready but vector memory failed');
   }
 
-  // Fact extraction (memory Phase 2, shadow mode) — undefined unless
-  // EXTRACTION_ENABLED=true AND the embedding service is up.
+  // Fact extraction (memory Phase 2) — assembly always constructs when the
+  // embedding service is up; the runtime `extractionEnabled` system setting is
+  // the kill switch, checked per trigger-fire.
   logZaiFreeTierBootCoherence(getConfig());
 
   const factExtraction = setupFactExtraction(

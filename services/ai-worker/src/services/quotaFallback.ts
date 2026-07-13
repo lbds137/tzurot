@@ -26,6 +26,7 @@
  */
 
 import { AIProvider, FREE_ROUTER_MODEL, isFreeModel } from '@tzurot/common-types/constants/ai';
+import { getSystemSetting } from '@tzurot/common-types/services/SystemSettingsService';
 import { ApiErrorCategory } from '@tzurot/common-types/constants/error';
 import { LLM_CONFIG_OVERRIDE_KEYS } from '@tzurot/common-types/schemas/llmAdvancedParams';
 import { type ResolvedLlmConfig } from '@tzurot/common-types/types/configResolution';
@@ -109,8 +110,11 @@ export async function checkModelViability(options: {
  * z.ai piggyback preset (`z-ai/glm-4.5-air`) — a model that is NOT free on
  * OpenRouter. A guest retarget that ran it on the system OpenRouter key would
  * bill a paid model to the owner, so any non-actually-free config degrades to
- * the FREE_ROUTER_MODEL dynamic router here (the z.ai upgrade happens only at
- * AuthStep admission, never on the retarget path).
+ * the runtime free floor (`fallbackTextModelFree`) here — itself guarded by
+ * isFreeModel with the static router as the last resort, since the floor
+ * setting's write validator enforces free-route-only but an out-of-band bag
+ * edit must still not bill the owner. (The z.ai upgrade happens only at
+ * AuthStep admission, never on the retarget path.)
  */
 async function resolveGuestSafeFreeDefault(
   configResolver: LlmConfigResolver
@@ -123,7 +127,11 @@ async function resolveGuestSafeFreeDefault(
     { configuredModel: config.model },
     'Guest retarget: free-default model is not OpenRouter-free — using the free router'
   );
-  return { model: FREE_ROUTER_MODEL, provider: AIProvider.OpenRouter };
+  const floor = getSystemSetting('fallbackTextModelFree');
+  return {
+    model: isFreeModel(floor) ? floor : FREE_ROUTER_MODEL,
+    provider: AIProvider.OpenRouter,
+  };
 }
 
 /**

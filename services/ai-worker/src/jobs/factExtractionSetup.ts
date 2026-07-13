@@ -1,11 +1,18 @@
 /**
  * Fact-extraction wiring (memory Phase 2)
  *
- * Constructs the whole extraction assembly behind the EXTRACTION_ENABLED kill
- * switch: the dedicated queue, its worker (concurrency 1 — background work
- * must never compete with user-facing generation), and the write-path trigger
- * that LongTermMemoryService tail-calls. Returns undefined when disabled —
- * callers treat that as "feature absent" and today's behavior is unchanged.
+ * Constructs the whole extraction assembly unconditionally (queue, worker at
+ * concurrency 1 — background work must never compete with user-facing
+ * generation, and the write-path trigger that LongTermMemoryService
+ * tail-calls). The kill switch is the RUNTIME `extractionEnabled` system
+ * setting, checked per trigger-fire: when off, no episode is counted and no
+ * batch enqueues, so the worker idles on an empty queue and flipping the
+ * switch needs no restart in either direction. Construction must stay
+ * side-effect-free beyond queue/worker registration — an infra dependency
+ * added here would turn the always-on assembly into a boot risk.
+ *
+ * Returns undefined only when the embedding service is down (an infra
+ * precondition, not configuration).
  */
 
 import { Queue, Worker, DelayedError } from 'bullmq';
@@ -21,6 +28,7 @@ import {
   type FactExtractionJobData,
 } from '@tzurot/common-types/types/jobs';
 import { getConfig } from '@tzurot/common-types/config/config';
+import { getSystemSetting } from '@tzurot/common-types/services/SystemSettingsService';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { ExtractionBudget } from '../services/extraction/ExtractionBudget.js';
 import { ExtractionTrigger } from '../services/extraction/ExtractionTrigger.js';
@@ -136,19 +144,20 @@ async function delayOrEjectBusyJob(ctx: BusyJobContext): Promise<{ written: numb
  *    extraction outage. (The null-context-length lookup is the prefix-tolerant
  *    catalog membership idiom — see modelValidation's z.ai gate.)
  */
-function logZaiCoherenceMisconfigurations(config: ReturnType<typeof getConfig>): void {
-  if (config.EXTRACTION_PROVIDER !== 'zai-coding') {
+function logZaiCoherenceMisconfigurations(): void {
+  if (getSystemSetting('extractionProvider') !== 'zai-coding') {
     return;
   }
-  if (config.ZAI_CODING_API_KEY === undefined) {
+  const model = getSystemSetting('extractionModel');
+  if (getConfig().ZAI_CODING_API_KEY === undefined) {
     logger.error(
       {},
-      'EXTRACTION_PROVIDER=zai-coding but ZAI_CODING_API_KEY is not set — extraction falls back to OpenRouter (paid)'
+      'extractionProvider=zai-coding but ZAI_CODING_API_KEY is not set — extraction falls back to OpenRouter (paid)'
     );
-  } else if (getZaiCodingPlanContextLength(config.EXTRACTION_MODEL) === null) {
+  } else if (getZaiCodingPlanContextLength(model) === null) {
     logger.error(
-      { model: config.EXTRACTION_MODEL },
-      'EXTRACTION_PROVIDER=zai-coding but EXTRACTION_MODEL is not on the z.ai coding-plan catalog — every extraction call will fail until the model is switched'
+      { model },
+      'extractionProvider=zai-coding but extractionModel is not on the z.ai coding-plan catalog — every extraction call will fail until the model is switched (the write path warns on save; this covers a bag edited out-of-band)'
     );
   }
 }
@@ -170,13 +179,8 @@ export function setupFactExtraction(
   bullmqConnection: BullMQRedisConfig,
   embeddingService: LocalEmbeddingService | undefined
 ): FactExtractionAssembly | undefined {
-  const config = getConfig();
-  if (config.EXTRACTION_ENABLED !== 'true') {
-    logger.info('Fact extraction disabled (EXTRACTION_ENABLED != true)');
-    return undefined;
-  }
   if (embeddingService === undefined) {
-    logger.warn('Fact extraction enabled but embedding service unavailable — staying disabled');
+    logger.warn('Embedding service unavailable — fact extraction staying disabled');
     return undefined;
   }
 
@@ -189,11 +193,16 @@ export function setupFactExtraction(
   });
 
   const factStore = new FactStore(prisma, embeddingService);
-  const budget = new ExtractionBudget(redis, config.EXTRACTION_DAILY_LIMIT);
+  const budget = new ExtractionBudget(redis, getConfig().EXTRACTION_DAILY_LIMIT);
   const extractionService = new FactExtractionService(prisma, factStore, budget);
-  const trigger = new ExtractionTrigger(redis, queue, config.EXTRACTION_BATCH_THRESHOLD);
+  const trigger = new ExtractionTrigger(
+    redis,
+    queue,
+    () => getSystemSetting('extractionBatchThreshold'),
+    () => getSystemSetting('extractionEnabled')
+  );
 
-  logZaiCoherenceMisconfigurations(config);
+  logZaiCoherenceMisconfigurations();
 
   // Consecutive-busy tracker (concurrency 1, so no race). Ordinary peak-hours
   // delay logs at info; a loop past SUSTAINED_BUSY_ERROR_THRESHOLD escalates
@@ -253,8 +262,11 @@ export function setupFactExtraction(
   });
 
   logger.info(
-    { batchThreshold: config.EXTRACTION_BATCH_THRESHOLD },
-    'Fact extraction enabled (reads are gated separately by FACTS_IN_PROMPT_ENABLED)'
+    {
+      batchThreshold: getSystemSetting('extractionBatchThreshold'),
+      extractionEnabled: getSystemSetting('extractionEnabled'),
+    },
+    'Fact-extraction assembly constructed (runtime kill switch: extractionEnabled; reads gated separately by factsInPromptEnabled)'
   );
   return { queue, worker, trigger };
 }

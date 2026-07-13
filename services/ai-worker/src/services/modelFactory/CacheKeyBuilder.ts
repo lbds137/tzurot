@@ -7,6 +7,7 @@
 
 import { getConfig } from '@tzurot/common-types/config/config';
 import type { ModelConfig } from './types.js';
+import { getSystemSetting } from '@tzurot/common-types/services/SystemSettingsService';
 
 const config = getConfig();
 
@@ -35,7 +36,7 @@ export function getModelCacheKey(modelConfig: ModelConfig): string {
   const provider = modelConfig.provider ?? config.AI_PROVIDER;
 
   // Resolve model name with fallback chain
-  const modelName = modelConfig.modelName ?? (config.DEFAULT_AI_MODEL || 'default');
+  const modelName = modelConfig.modelName ?? (getSystemSetting('fallbackTextModel') || 'default');
 
   // Use API key prefix for cache isolation (different keys = different instances)
   const apiKey = modelConfig.apiKey;

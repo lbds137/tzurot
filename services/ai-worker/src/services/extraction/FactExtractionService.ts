@@ -17,6 +17,7 @@
 import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 import { HumanMessage } from '@langchain/core/messages';
 import { getConfig } from '@tzurot/common-types/config/config';
+import { getSystemSetting } from '@tzurot/common-types/services/SystemSettingsService';
 import { AIProvider, ZAI_MODEL_PREFIX } from '@tzurot/common-types/constants/ai';
 import { ApiErrorCategory } from '@tzurot/common-types/constants/error';
 import { parseApiError } from '../../utils/apiErrorParser.js';
@@ -135,9 +136,11 @@ const BUSY_CATEGORIES = new Set<string>([
  * in factExtractionSetup logs the misconfiguration loudly once).
  */
 export function resolveExtractionProvider(): { provider: AIProvider; apiKey?: string } {
-  const cfg = getConfig();
-  if (cfg.EXTRACTION_PROVIDER === 'zai-coding' && cfg.ZAI_CODING_API_KEY !== undefined) {
-    return { provider: AIProvider.ZaiCoding, apiKey: cfg.ZAI_CODING_API_KEY };
+  if (
+    getSystemSetting('extractionProvider') === 'zai-coding' &&
+    getConfig().ZAI_CODING_API_KEY !== undefined
+  ) {
+    return { provider: AIProvider.ZaiCoding, apiKey: getConfig().ZAI_CODING_API_KEY };
   }
   return { provider: AIProvider.OpenRouter };
 }
@@ -147,14 +150,14 @@ export type ExtractionModelInvoker = (prompt: string) => Promise<ExtractionModel
 
 /** The real model call — exported for the eval harness (same code path as prod). */
 export async function invokeExtractionModel(prompt: string): Promise<ExtractionModelResult> {
-  const cfg = getConfig();
+  const extractionModel = getSystemSetting('extractionModel');
   const route = resolveExtractionProvider();
   // z.ai-direct takes the bare model id ('z-ai/glm-5.2' → 'glm-5.2'), same
   // mapping ProviderRouter applies to promoted completions.
   const modelName =
-    route.provider === AIProvider.ZaiCoding && cfg.EXTRACTION_MODEL.startsWith(ZAI_MODEL_PREFIX)
-      ? cfg.EXTRACTION_MODEL.slice(ZAI_MODEL_PREFIX.length)
-      : cfg.EXTRACTION_MODEL;
+    route.provider === AIProvider.ZaiCoding && extractionModel.startsWith(ZAI_MODEL_PREFIX)
+      ? extractionModel.slice(ZAI_MODEL_PREFIX.length)
+      : extractionModel;
   const { model } = createChatModel({
     modelName,
     temperature: 0,
@@ -343,7 +346,7 @@ export class FactExtractionService {
         logger.warn({ ...scope }, 'Extraction usage row skipped — persona row not found');
         return;
       }
-      const model = getConfig().EXTRACTION_MODEL;
+      const model = getSystemSetting('extractionModel');
       const provider = modelResult.provider;
       const createdAt = new Date();
       await this.prisma.usageLog.create({

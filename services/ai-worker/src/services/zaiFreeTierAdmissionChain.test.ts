@@ -175,9 +175,9 @@ describe('z.ai admission chain (wiring: real overrides → admission → meter +
       ZAI_FREE_TIER_KEYS
     );
     return new ZaiFreeTierAdmission(redis.asRedis(), quota, meter, {
-      enabled: true,
+      enabled: () => true,
       apiKey: PLAN_KEY,
-      headroomPercent: 75,
+      headroomPercent: () => 75,
     });
   }
 
@@ -381,9 +381,9 @@ describe('z.ai admission chain (wiring: real overrides → admission → meter +
       ZAI_FREE_TIER_KEYS
     );
     const admission = new ZaiFreeTierAdmission(hostileRedis, quota, meter, {
-      enabled: true,
+      enabled: () => true,
       apiKey: PLAN_KEY,
-      headroomPercent: 75,
+      headroomPercent: () => 75,
     });
 
     // Fail-open all the way down: the guest is ADMITTED (static caps are the

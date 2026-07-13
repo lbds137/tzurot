@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { MODEL_DEFAULTS, SERVICE_DEFAULTS, AIProvider } from '../constants/index.js';
+import { SERVICE_DEFAULTS, AIProvider } from '../constants/index.js';
 
 /** Type for optional string schema that accepts undefined or transforms empty string to undefined */
 type OptionalStringSchema = z.ZodType<string | undefined>;
@@ -58,37 +58,12 @@ export const envSchema = z.object({
     .enum(['true', 'false'])
     .optional()
     .or(z.literal('').transform(() => undefined)), // 'true' to automatically transcribe voice messages as bot
-  EXTRACTION_ENABLED: z
-    .enum(['true', 'false'])
-    .optional()
-    .or(z.literal('').transform(() => undefined)), // 'true' enables async fact extraction (memory Phase 2 shadow mode; default off)
-  FACTS_IN_PROMPT_ENABLED: z
-    .enum(['true', 'false'])
-    .optional()
-    .or(z.literal('').transform(() => undefined)), // 'true' injects extracted facts into the generation prompt (memory Phase 2 slice 4a; dev-on/prod-off until the quality gate + correction surface land)
-  EXTRACTION_BATCH_THRESHOLD: z.coerce.number().int().min(1).max(50).default(6), // episodes per (channel, personality) before an extraction batch enqueues
-  EXTRACTION_MODEL: z.string().default(MODEL_DEFAULTS.FACT_EXTRACTION), // extraction engine — switching models MUST re-run pnpm eval:extraction first (the quality gate is model-specific)
+  // Runtime-tunable operational knobs (extraction flags/model/provider, the
+  // free-tier fair-share + z.ai piggyback quotas, model floors, the public
+  // rate limit) live in the system-settings bag (`admin_settings.system_settings`),
+  // NOT here — see SYSTEM_SETTINGS_REGISTRY. Only secrets and infra wiring stay env.
   EXTRACTION_DAILY_LIMIT: z.coerce.number().int().min(1).default(100), // per-personality daily ceiling on extraction model calls (cost tripwire)
-  EXTRACTION_PROVIDER: z.enum(['openrouter', 'zai-coding']).default('openrouter'), // which provider bills extraction; 'zai-coding' requires ZAI_CODING_API_KEY (falls back to openrouter with an error log if absent)
-  ZAI_CODING_API_KEY: optionalNonEmptyString(), // SYSTEM z.ai coding-plan key — extraction-only today (per-user completions stay BYOK); future free-tier piggyback consumer
-  // Fair-share quota for the SHARED system OpenRouter free-tier key (guests +
-  // credit-exhausted-BYOK fallback). Rolling-window per-user cap that shrinks as
-  // concurrent users rise, bounded by a floor/ceiling; a daily global counter is
-  // the hard key-protection ceiling. See ai-worker/FreeTierRequestQuota.
-  FREE_TIER_GLOBAL_DAILY_BUDGET: z.coerce.number().int().min(1).default(1000), // the shared free key's daily free-request allowance (the pie)
-  FREE_TIER_WINDOW_MINUTES: z.coerce.number().int().min(1).max(1440).default(60), // rolling contention window
-  FREE_TIER_MIN_PER_WINDOW: z.coerce.number().int().min(1).default(5), // per-user floor: everyone gets at least this per window when budget permits
-  FREE_TIER_MAX_PER_WINDOW: z.coerce.number().int().min(1).default(30), // per-user ceiling: a lone user can't drain the whole pie
-  // z.ai free-tier piggyback: guests get GLM-4.5-Air on the owner's coding
-  // plan while the plan has headroom; over-budget/closed degrades silently to
-  // the FREE_ROUTER_MODEL dynamic router. Ships dark. Reuses the FREE_TIER_*
-  // window/floor/ceiling knobs above for its per-user fair share.
-  ZAI_FREE_TIER_ENABLED: z
-    .enum(['true', 'false'])
-    .optional()
-    .or(z.literal('').transform(() => undefined)), // 'true' shares GLM-4.5-Air with guests via the system coding-plan key
-  ZAI_FREE_TIER_HEADROOM_PERCENT: z.coerce.number().int().min(1).max(99).default(75), // guests shut off when the plan's tighter window is this % consumed (owner+extraction always keep the rest)
-  ZAI_FREE_TIER_GLOBAL_DAILY_BUDGET: z.coerce.number().int().min(1).default(1000), // static daily request ceiling for guest z.ai traffic (works even if the live meter breaks)
+  ZAI_CODING_API_KEY: optionalNonEmptyString(), // SYSTEM z.ai coding-plan key — secrets never move to the DB bag
   BOT_OWNER_ID: optionalDiscordId(), // Discord user ID of bot owner for admin commands
   BOT_MENTION_CHAR: z.string().length(1).default('@'), // Character used for personality mentions (@personality or &personality)
   INTERNAL_SERVICE_SECRET: optionalNonEmptyString(), // Shared secret for service-to-service auth (bot-client -> api-gateway)
@@ -98,11 +73,8 @@ export const envSchema = z.object({
   OPENROUTER_API_KEY: optionalNonEmptyString(),
   OPENROUTER_APP_TITLE: optionalNonEmptyString(),
   OPENROUTER_APP_URL: optionalNonEmptyString(),
-  DEFAULT_AI_MODEL: optionalNonEmptyString().transform(val => val ?? MODEL_DEFAULTS.DEFAULT_MODEL),
-
-  // AI Model Defaults
-  VISION_FALLBACK_MODEL: z.string().default(MODEL_DEFAULTS.VISION_FALLBACK),
-  // Note: Embeddings are local (Xenova/bge-small-en-v1.5) - no env config needed
+  // Note: model floors (fallbackTextModel/fallbackVisionModel + free floors)
+  // are system settings; embeddings are local (Xenova/bge-small-en-v1.5) - no env config needed
 
   // Redis Configuration
   REDIS_URL: z
@@ -153,14 +125,6 @@ export const envSchema = z.object({
     .optional()
     .transform(val => val?.split(',') ?? ['*'])
     .default(['*']),
-  PUBLIC_RATE_LIMIT_PER_MIN: z
-    .string()
-    .regex(/^\d+$/)
-    .transform(Number)
-    .refine(n => n > 0, {
-      message: 'PUBLIC_RATE_LIMIT_PER_MIN must be a positive integer (0 blocks all traffic)',
-    })
-    .default(60),
 
   // Environment
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
@@ -253,20 +217,8 @@ export function createTestConfig(overrides: Partial<EnvConfig> = {}): EnvConfig 
     GUILD_ID: undefined,
     AUTO_DEPLOY_COMMANDS: undefined,
     AUTO_TRANSCRIBE_VOICE: undefined,
-    EXTRACTION_ENABLED: undefined,
-    FACTS_IN_PROMPT_ENABLED: undefined,
-    ZAI_FREE_TIER_ENABLED: undefined,
-    ZAI_FREE_TIER_HEADROOM_PERCENT: 75,
-    ZAI_FREE_TIER_GLOBAL_DAILY_BUDGET: 1000,
-    EXTRACTION_BATCH_THRESHOLD: 6,
-    EXTRACTION_MODEL: MODEL_DEFAULTS.FACT_EXTRACTION,
     EXTRACTION_DAILY_LIMIT: 100,
-    EXTRACTION_PROVIDER: 'openrouter' as const,
     ZAI_CODING_API_KEY: undefined,
-    FREE_TIER_GLOBAL_DAILY_BUDGET: 1000,
-    FREE_TIER_WINDOW_MINUTES: 60,
-    FREE_TIER_MIN_PER_WINDOW: 5,
-    FREE_TIER_MAX_PER_WINDOW: 30,
     BOT_OWNER_ID: undefined,
     BOT_MENTION_CHAR: '@',
     INTERNAL_SERVICE_SECRET: undefined,
@@ -276,10 +228,6 @@ export function createTestConfig(overrides: Partial<EnvConfig> = {}): EnvConfig 
     OPENROUTER_API_KEY: undefined,
     OPENROUTER_APP_TITLE: undefined,
     OPENROUTER_APP_URL: undefined,
-    DEFAULT_AI_MODEL: MODEL_DEFAULTS.DEFAULT_MODEL,
-
-    // AI Model Defaults
-    VISION_FALLBACK_MODEL: MODEL_DEFAULTS.VISION_FALLBACK,
 
     // Redis
     REDIS_URL: undefined,
@@ -297,7 +245,6 @@ export function createTestConfig(overrides: Partial<EnvConfig> = {}): EnvConfig 
     GATEWAY_URL: `http://localhost:${SERVICE_DEFAULTS.API_GATEWAY_PORT}`,
     PUBLIC_GATEWAY_URL: undefined,
     CORS_ORIGINS: ['*'],
-    PUBLIC_RATE_LIMIT_PER_MIN: 60,
 
     // Environment
     NODE_ENV: 'test',

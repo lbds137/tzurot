@@ -13,6 +13,11 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import {
+  registerSystemSettings,
+  resetSystemSettingsRegistration,
+  type SystemSettingsService,
+} from '@tzurot/common-types/services/SystemSettingsService';
 import { AIProvider, MODEL_DEFAULTS } from '@tzurot/common-types/constants/ai';
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import {
@@ -219,6 +224,43 @@ describe('resolveVisionConfig', () => {
       });
       expect(mockResolveApiKey).toHaveBeenCalledWith(undefined, AIProvider.OpenRouter);
       expect(mockTryResolveUserKey).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('live free-floor read (fallbackVisionModelFree)', () => {
+    it('a divergent-from-fallback registered value flows into the guest floor resolution', async () => {
+      // The registry fallback coincidentally equals the retired constant, so
+      // only a divergent value proves the resolver reads the live setting.
+      registerSystemSettings({
+        get: (key: string) =>
+          key === 'fallbackVisionModelFree' ? 'divergent/guest-vision:free' : undefined,
+      } as unknown as SystemSettingsService);
+      try {
+        mockSelectVisionModel.mockResolvedValue('divergent/guest-vision:free');
+        mockResolveApiKey.mockResolvedValue({
+          apiKey: 'system-or-key',
+          source: 'system',
+          provider: AIProvider.OpenRouter,
+          isGuestMode: true,
+          userId: undefined,
+        });
+
+        const result = await resolveVisionConfig({
+          personality,
+          mainProvider: AIProvider.ZaiCoding,
+          mainApiKey: 'user-zai-key',
+          isGuestMode: false, // zai BYOK cross-provider path — hits the free-floor branch
+          userId: 'user-1',
+          apiKeyResolver: mockResolver,
+        });
+
+        expect(result.kind).toBe('resolved');
+        if (result.kind === 'resolved') {
+          expect(result.config.model).toBe('divergent/guest-vision:free');
+        }
+      } finally {
+        resetSystemSettingsRegistration();
+      }
     });
   });
 

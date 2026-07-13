@@ -44,20 +44,8 @@ const SHARED_VARIABLES: VariableConfig[] = [
     defaultValue: 'openrouter',
   },
   { key: 'OPENROUTER_API_KEY', description: 'OpenRouter API key', isSecret: true, required: true },
-  {
-    key: 'DEFAULT_AI_MODEL',
-    description: 'Default AI model',
-    isSecret: false,
-    required: true,
-    defaultValue: 'anthropic/claude-haiku-4.5',
-  },
-  {
-    key: 'VISION_FALLBACK_MODEL',
-    description: 'Vision model',
-    isSecret: false,
-    required: true,
-    defaultValue: 'qwen/qwen3.5-397b-a17b',
-  },
+  // Model floors + runtime knobs (extraction, free-tier quotas, rate limit)
+  // are system settings (admin_settings.system_settings), not env vars.
   {
     key: 'NODE_ENV',
     description: 'Node environment',

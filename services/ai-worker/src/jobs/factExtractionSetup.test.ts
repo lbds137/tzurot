@@ -10,6 +10,7 @@ const {
   queueCloseMock,
   workerCloseMock,
   getConfigMock,
+  systemSettingsFixture,
   processBatchMock,
   loggerErrorMock,
   MockDelayedError,
@@ -18,6 +19,8 @@ const {
   queueCloseMock: vi.fn(),
   workerCloseMock: vi.fn(),
   getConfigMock: vi.fn(),
+  /** Per-test overrides for getSystemSetting reads (fallbacks otherwise). */
+  systemSettingsFixture: new Map<string, unknown>(),
   processBatchMock: vi.fn().mockResolvedValue(2),
   loggerErrorMock: vi.fn(),
   MockDelayedError: class MockDelayedError extends Error {},
@@ -51,6 +54,18 @@ vi.mock('@tzurot/common-types/config/config', async importOriginal => {
   return { ...actual, getConfig: (): unknown => getConfigMock() };
 });
 
+vi.mock('@tzurot/common-types/services/SystemSettingsService', async importOriginal => {
+  const actual =
+    await importOriginal<typeof import('@tzurot/common-types/services/SystemSettingsService')>();
+  return {
+    ...actual,
+    getSystemSetting: (key: string): unknown =>
+      systemSettingsFixture.has(key)
+        ? systemSettingsFixture.get(key)
+        : actual.getSystemSetting(key as never),
+  };
+});
+
 vi.mock('@tzurot/common-types/utils/logger', () => ({
   createLogger: () => ({
     info: vi.fn(),
@@ -71,20 +86,22 @@ describe('setupFactExtraction', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     capturedProcessor = undefined;
+    systemSettingsFixture.clear();
+    getConfigMock.mockReturnValue({ EXTRACTION_DAILY_LIMIT: 100, ZAI_CODING_API_KEY: undefined });
   });
 
-  it('returns undefined when the kill switch is off (default)', () => {
-    getConfigMock.mockReturnValue({ EXTRACTION_ENABLED: undefined, EXTRACTION_BATCH_THRESHOLD: 6 });
-    expect(setupFactExtraction(prisma, redis, bullmqConnection, embeddings)).toBeUndefined();
+  it('constructs the assembly even with the runtime kill switch off (flip needs no restart)', () => {
+    systemSettingsFixture.set('extractionEnabled', false);
+    const assembly = setupFactExtraction(prisma, redis, bullmqConnection, embeddings);
+    expect(assembly).toBeDefined();
+    expect(assembly?.trigger).toBeDefined();
   });
 
-  it('returns undefined when enabled but the embedding service is unavailable', () => {
-    getConfigMock.mockReturnValue({ EXTRACTION_ENABLED: 'true', EXTRACTION_BATCH_THRESHOLD: 6 });
+  it('returns undefined when the embedding service is unavailable (infra precondition)', () => {
     expect(setupFactExtraction(prisma, redis, bullmqConnection, undefined)).toBeUndefined();
   });
 
-  it('constructs the full assembly when enabled', () => {
-    getConfigMock.mockReturnValue({ EXTRACTION_ENABLED: 'true', EXTRACTION_BATCH_THRESHOLD: 6 });
+  it('constructs the full assembly', () => {
     const assembly = setupFactExtraction(prisma, redis, bullmqConnection, embeddings);
     expect(assembly).toBeDefined();
     expect(assembly?.trigger).toBeDefined();
@@ -92,12 +109,8 @@ describe('setupFactExtraction', () => {
   });
 
   it('logs loudly (but still boots) when zai-coding is configured without the system key', () => {
-    getConfigMock.mockReturnValue({
-      EXTRACTION_ENABLED: 'true',
-      EXTRACTION_BATCH_THRESHOLD: 6,
-      EXTRACTION_PROVIDER: 'zai-coding',
-      ZAI_CODING_API_KEY: undefined,
-    });
+    systemSettingsFixture.set('extractionProvider', 'zai-coding');
+    getConfigMock.mockReturnValue({ ZAI_CODING_API_KEY: undefined });
 
     const assembly = setupFactExtraction(prisma, redis, bullmqConnection, embeddings);
 
@@ -108,14 +121,10 @@ describe('setupFactExtraction', () => {
     );
   });
 
-  it('logs loudly when zai-coding is keyed but EXTRACTION_MODEL is not a coding-plan model', () => {
-    getConfigMock.mockReturnValue({
-      EXTRACTION_ENABLED: 'true',
-      EXTRACTION_BATCH_THRESHOLD: 6,
-      EXTRACTION_PROVIDER: 'zai-coding',
-      ZAI_CODING_API_KEY: 'zai-key',
-      EXTRACTION_MODEL: 'anthropic/claude-haiku-4.5', // not servable by z.ai — would 4xx every call
-    });
+  it('logs loudly when zai-coding is keyed but the extraction model is not a coding-plan model', () => {
+    systemSettingsFixture.set('extractionProvider', 'zai-coding');
+    systemSettingsFixture.set('extractionModel', 'anthropic/claude-haiku-4.5'); // not servable by z.ai — would 4xx every call
+    getConfigMock.mockReturnValue({ ZAI_CODING_API_KEY: 'zai-key' });
 
     const assembly = setupFactExtraction(prisma, redis, bullmqConnection, embeddings);
 
@@ -127,13 +136,9 @@ describe('setupFactExtraction', () => {
   });
 
   it('stays quiet when zai-coding is keyed with a plan model (prefixed form accepted)', () => {
-    getConfigMock.mockReturnValue({
-      EXTRACTION_ENABLED: 'true',
-      EXTRACTION_BATCH_THRESHOLD: 6,
-      EXTRACTION_PROVIDER: 'zai-coding',
-      ZAI_CODING_API_KEY: 'zai-key',
-      EXTRACTION_MODEL: 'z-ai/glm-5.2',
-    });
+    systemSettingsFixture.set('extractionProvider', 'zai-coding');
+    systemSettingsFixture.set('extractionModel', 'z-ai/glm-5.2');
+    getConfigMock.mockReturnValue({ ZAI_CODING_API_KEY: 'zai-key' });
 
     setupFactExtraction(prisma, redis, bullmqConnection, embeddings);
 
@@ -141,7 +146,6 @@ describe('setupFactExtraction', () => {
   });
 
   it('worker handler fail-to-skips a malformed payload without calling the service', async () => {
-    getConfigMock.mockReturnValue({ EXTRACTION_ENABLED: 'true', EXTRACTION_BATCH_THRESHOLD: 6 });
     setupFactExtraction(prisma, redis, bullmqConnection, embeddings);
 
     const result = await capturedProcessor?.({ id: 'j1', data: { nonsense: true } });
@@ -151,7 +155,6 @@ describe('setupFactExtraction', () => {
   });
 
   it('worker handler processes a valid payload through the service', async () => {
-    getConfigMock.mockReturnValue({ EXTRACTION_ENABLED: 'true', EXTRACTION_BATCH_THRESHOLD: 6 });
     setupFactExtraction(prisma, redis, bullmqConnection, embeddings);
 
     const validJob = {
@@ -176,13 +179,8 @@ describe('delay-not-downgrade (provider busy at the BullMQ seam)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     capturedProcessor = undefined;
-    getConfigMock.mockReturnValue({
-      EXTRACTION_ENABLED: 'true',
-      EXTRACTION_BATCH_THRESHOLD: 6,
-      EXTRACTION_DAILY_LIMIT: 100,
-      EXTRACTION_PROVIDER: 'openrouter',
-      ZAI_CODING_API_KEY: undefined,
-    });
+    systemSettingsFixture.clear();
+    getConfigMock.mockReturnValue({ EXTRACTION_DAILY_LIMIT: 100, ZAI_CODING_API_KEY: undefined });
   });
 
   const busyJob = {

@@ -18,7 +18,6 @@ vi.mock('@tzurot/common-types/config/config', async () => {
     ...actual,
     getConfig: () => ({
       AI_PROVIDER: 'openrouter',
-      DEFAULT_AI_MODEL: 'anthropic/claude-sonnet-4.5',
       OPENROUTER_API_KEY: 'test-openrouter-key',
     }),
   };
@@ -40,9 +39,26 @@ vi.mock('@tzurot/common-types/constants/ai', async () => {
 
 import { AIProvider } from '@tzurot/common-types/constants/ai';
 import { getModelCacheKey } from './CacheKeyBuilder.js';
+import {
+  registerSystemSettings,
+  resetSystemSettingsRegistration,
+  type SystemSettingsService,
+} from '@tzurot/common-types/services/SystemSettingsService';
 import type { ModelConfig } from '../ModelFactory.js';
 
 describe('getModelCacheKey', () => {
+  it('an absent modelName keys on the LIVE fallbackTextModel setting (divergent-from-fallback value)', () => {
+    registerSystemSettings({
+      get: (key: string) => (key === 'fallbackTextModel' ? 'divergent/text-model' : undefined),
+    } as unknown as SystemSettingsService);
+    try {
+      const key = getModelCacheKey({ apiKey: 'k' } as never);
+      expect(key).toContain('divergent/text-model');
+    } finally {
+      resetSystemSettingsRegistration();
+    }
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
   });

@@ -143,19 +143,6 @@ describe('config', () => {
       expect(result.LOG_LEVEL).toBe('debug');
     });
 
-    it('should validate EXTRACTION_PROVIDER enum (defaults to openrouter)', () => {
-      expect(() =>
-        envSchema.parse({
-          EXTRACTION_PROVIDER: 'zai', // must be the full 'zai-coding' literal
-        })
-      ).toThrow();
-
-      expect(envSchema.parse({}).EXTRACTION_PROVIDER).toBe('openrouter');
-      expect(envSchema.parse({ EXTRACTION_PROVIDER: 'zai-coding' }).EXTRACTION_PROVIDER).toBe(
-        'zai-coding'
-      );
-    });
-
     it('should validate NODE_ENV enum', () => {
       expect(() =>
         envSchema.parse({
@@ -183,26 +170,12 @@ describe('config', () => {
       expect(result.CORS_ORIGINS).toEqual(['*']);
     });
 
-    it('should default PUBLIC_RATE_LIMIT_PER_MIN to 60', () => {
-      const result = envSchema.parse({});
-
-      expect(result.PUBLIC_RATE_LIMIT_PER_MIN).toBe(60);
-    });
-
-    it('should accept positive integers for PUBLIC_RATE_LIMIT_PER_MIN', () => {
+    it('rejects the migrated runtime knobs from re-entering the env schema (they live in system settings now)', () => {
+      // Deleted in admin-runtime PR 3; parsing IGNORES unknown keys, so the
+      // contract is "no longer typed/validated here" — the registry owns them.
       const result = envSchema.parse({ PUBLIC_RATE_LIMIT_PER_MIN: '30' });
-
-      expect(result.PUBLIC_RATE_LIMIT_PER_MIN).toBe(30);
-    });
-
-    it('should reject PUBLIC_RATE_LIMIT_PER_MIN=0 (would block all traffic)', () => {
-      expect(() => envSchema.parse({ PUBLIC_RATE_LIMIT_PER_MIN: '0' })).toThrow(
-        /must be a positive integer/
-      );
-    });
-
-    it('should reject non-numeric PUBLIC_RATE_LIMIT_PER_MIN', () => {
-      expect(() => envSchema.parse({ PUBLIC_RATE_LIMIT_PER_MIN: 'sixty' })).toThrow();
+      expect('PUBLIC_RATE_LIMIT_PER_MIN' in result).toBe(false);
+      expect('EXTRACTION_MODEL' in envSchema.parse({ EXTRACTION_MODEL: 'x/y' })).toBe(false);
     });
 
     it('should validate encryption key format (64 hex chars)', () => {
