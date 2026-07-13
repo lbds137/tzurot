@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   ShapesAuthError,
+  ShapesBotProtectionError,
   ShapesNotFoundError,
   ShapesRateLimitError,
   ShapesServerError,
@@ -56,6 +57,17 @@ describe('ShapesFetchError', () => {
     expect(error.name).toBe('ShapesFetchError');
     expect(error.message).toBe('Unprocessable');
     expect(error.status).toBe(422);
+    expect(error).toBeInstanceOf(Error);
+  });
+});
+
+describe('ShapesBotProtectionError', () => {
+  it('should set name and weave the detected signal into the guidance message', () => {
+    const error = new ShapesBotProtectionError("'x-datadome: protected' response header");
+    expect(error.name).toBe('ShapesBotProtectionError');
+    expect(error.message).toContain("'x-datadome: protected' response header");
+    expect(error.message).toContain('bot-detection middleware');
+    expect(error.message).toContain('Retrying will not help');
     expect(error).toBeInstanceOf(Error);
   });
 });

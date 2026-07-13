@@ -8,6 +8,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { ShapesDataFetcher } from './ShapesDataFetcher.js';
 import {
   ShapesAuthError,
+  ShapesBotProtectionError,
   ShapesNotFoundError,
   ShapesRateLimitError,
   ShapesServerError,
@@ -38,16 +39,20 @@ global.fetch = mockFetch;
 function createMockResponse(
   status: number,
   body: unknown,
-  setCookieHeaders: string[] = []
+  setCookieHeaders: string[] = [],
+  headerInit: Record<string, string> = {}
 ): Response {
-  const headers = new Headers();
-  // Headers.getSetCookie() needs the raw set-cookie values
+  // Real Headers instance backs get()/forEach() (bot-protection detection
+  // reads both); getSetCookie() is shimmed because undici's extension isn't
+  // on the standard Headers class.
+  const headers = new Headers(headerInit);
   const response = {
     ok: status >= 200 && status < 300,
     status,
     json: vi.fn().mockResolvedValue(body),
     headers: {
-      ...headers,
+      get: (name: string) => headers.get(name),
+      forEach: (callback: (value: string, key: string) => void) => headers.forEach(callback),
       getSetCookie: () => setCookieHeaders,
     },
   } as unknown as Response;
@@ -244,6 +249,116 @@ describe('ShapesDataFetcher', () => {
 
       expect(result.memories).toHaveLength(2);
       expect(result.stats.pagesTraversed).toBe(2);
+    });
+  });
+
+  describe('bot-protection detection', () => {
+    const COOKIE = '__Secure-better-auth.session_token=TEST-FIXTURE-not-a-real-token-abcdef';
+
+    it('throws ShapesBotProtectionError (not AuthError) on a 403 carrying a mitigation header', async () => {
+      // A bot wall often presents as 403 — reporting it as an expired cookie
+      // would send the user re-harvesting for nothing.
+      mockFetch.mockResolvedValueOnce(
+        createMockResponse(403, { error: 'blocked' }, [], { 'x-datadome': 'protected' })
+      );
+
+      const promise = fetcher.fetchShapeData('test-shape', { sessionCookie: COOKIE });
+      const assertion = expect(promise).rejects.toThrow(ShapesBotProtectionError);
+      await vi.advanceTimersByTimeAsync(5000);
+      await assertion;
+    });
+
+    it('throws ShapesBotProtectionError on cf-mitigated even with a 200 status', async () => {
+      mockFetch.mockResolvedValueOnce(
+        createMockResponse(200, {}, [], { 'cf-mitigated': 'challenge' })
+      );
+
+      const promise = fetcher.fetchShapeData('test-shape', { sessionCookie: COOKIE });
+      const assertion = expect(promise).rejects.toThrow(ShapesBotProtectionError);
+      await vi.advanceTimersByTimeAsync(5000);
+      await assertion;
+    });
+
+    it('throws ShapesBotProtectionError on an HTML content-type instead of an HTML-as-JSON parse error', async () => {
+      mockFetch.mockResolvedValueOnce(
+        createMockResponse(200, '<html>challenge</html>', [], {
+          'content-type': 'text/html; charset=utf-8',
+        })
+      );
+
+      const promise = fetcher.fetchShapeData('test-shape', { sessionCookie: COOKIE });
+      const assertion = expect(promise).rejects.toThrow(ShapesBotProtectionError);
+      await vi.advanceTimersByTimeAsync(5000);
+      await assertion;
+    });
+
+    it('does not retry a bot-protection failure (single fetch call)', async () => {
+      mockFetch.mockResolvedValue(
+        createMockResponse(403, { error: 'blocked' }, [], { 'x-datadome': 'protected' })
+      );
+
+      const promise = fetcher.fetchShapeData('test-shape', { sessionCookie: COOKIE });
+      const assertion = expect(promise).rejects.toThrow(ShapesBotProtectionError);
+      await vi.advanceTimersByTimeAsync(30_000);
+      await assertion;
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('phase-aware auth failures', () => {
+    const COOKIE = '__Secure-better-auth.session_token=TEST-FIXTURE-not-a-real-token-abcdef';
+
+    it('reports a FIRST-request 401 as a dead-on-arrival cookie with re-harvest guidance', async () => {
+      mockFetch.mockResolvedValueOnce(createMockResponse(401, { error: 'Unauthorized' }));
+
+      const promise = fetcher.fetchShapeData('test-shape', { sessionCookie: COOKIE });
+      const assertion = expect(promise).rejects.toThrow(/FIRST request.*Re-harvest/s);
+      await vi.advanceTimersByTimeAsync(5000);
+      await assertion;
+    });
+
+    it('reports a mid-job 401 with the successful-request count and the memories page', async () => {
+      mockFetch
+        .mockResolvedValueOnce(createMockResponse(200, SAMPLE_CONFIG)) // config succeeds
+        .mockResolvedValueOnce(createMockResponse(401, { error: 'Unauthorized' })); // page 1 dies
+
+      const promise = fetcher.fetchShapeData('test-shape', { sessionCookie: COOKIE });
+      const assertion = expect(promise).rejects.toThrow(
+        /after 1 successful request\(s\).*expired mid-job.*memories traversal stopped at page 1/s
+      );
+      await vi.advanceTimersByTimeAsync(30_000);
+      await assertion;
+    });
+  });
+
+  describe('raw passthrough (schema-resilience invariant)', () => {
+    it('carries unknown top-level fields through to the fetch result untouched', async () => {
+      // The JSON export is the raw payload BECAUSE nothing on the fetch path
+      // strips fields — this pins that property so a future validator can't
+      // silently start dropping data users are entitled to.
+      const configWithUnknownFields = {
+        ...SAMPLE_CONFIG,
+        brand_new_field_we_have_never_seen: 'must survive',
+        nested_unknown: { keep: ['me'] },
+      };
+      mockFetch
+        .mockResolvedValueOnce(createMockResponse(200, configWithUnknownFields))
+        .mockResolvedValueOnce(
+          createMockResponse(200, { items: [SAMPLE_MEMORY], pagination: { has_next: false } })
+        )
+        .mockResolvedValueOnce(createMockResponse(200, [SAMPLE_STORY]))
+        .mockResolvedValueOnce(createMockResponse(200, SAMPLE_USER_PERSONALIZATION));
+
+      const promise = fetcher.fetchShapeData('test-shape', {
+        sessionCookie:
+          '__Secure-better-auth.session_token=TEST-FIXTURE-not-a-real-session-token-abcdef',
+      });
+      await vi.runAllTimersAsync();
+      const result = await promise;
+
+      const rawConfig = result.config as Record<string, unknown>;
+      expect(rawConfig['brand_new_field_we_have_never_seen']).toBe('must survive');
+      expect(rawConfig['nested_unknown']).toEqual({ keep: ['me'] });
     });
   });
 
