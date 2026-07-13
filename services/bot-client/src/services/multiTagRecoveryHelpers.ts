@@ -17,6 +17,60 @@ import type { SlotSnapshot } from './MultiTagPersistence.js';
 const logger = createLogger('MultiTagRecoveryHelpers');
 
 /**
+ * Note on semantics: the per-slot counters (`slotsRecoveredCompleted`,
+ * `slotsRecoveredFailed`, `slotsTrustedToStream`, `slotsUnrecoverable`) count
+ * COMPUTED poll outcomes, not deliveries — an entry discarded by the age gate
+ * still increments them for its slots. `entriesExpiredSilent` is a SUBSET of
+ * `entriesDiscarded` (the gate's discard also bumps the generic counter).
+ */
+export interface RecoveryStats {
+  entriesScanned: number;
+  entriesResumed: number;
+  entriesDiscarded: number;
+  /** Slots whose old job was found completed; result delivered synthetically. */
+  slotsRecoveredCompleted: number;
+  /** Slots whose old job was found failed; error delivered synthetically. */
+  slotsRecoveredFailed: number;
+  /** Slots whose old job was still in flight; adopted as-is, stream will deliver. */
+  slotsTrustedToStream: number;
+  /**
+   * Slots whose old job was evicted from Redis (or whose state poll
+   * returned 'unknown'); error delivered synthetically because the result
+   * is unrecoverable.
+   */
+  slotsUnrecoverable: number;
+  slotsAccessRevoked: number;
+  staleJobIdsMarked: number;
+  /**
+   * Entries older than the coordinator safety window with no recoverable
+   * completed result — resolved silently at boot instead of adopting a
+   * wedged group whose only possible outcome is a late synthetic error.
+   */
+  entriesExpiredSilent: number;
+  /**
+   * Slots that a prior recovery run already delivered (per the
+   * `slot-delivered:{jobId}` marker written by `deliverSlot`). Skipped to
+   * avoid duplicate user-visible delivery on a re-run after a crash
+   * during `deliverGroup`'s post-Discord-send cleanup.
+   */
+  slotsAlreadyDelivered: number;
+}
+
+export interface DeferredDelivery {
+  jobId: string;
+  result: LLMGenerationResult;
+  /**
+   * Why this delivery exists — preserves the recovery-outcome category through
+   * the deferred-dispatch loop. The per-entry log emits these as distinct
+   * counters; operators diagnosing eviction frequency need to distinguish
+   * `'unrecoverable'` from `'recoveredFailed'`, since both materialize as
+   * `success: false` results that filtering on `result.success` alone would
+   * collapse together.
+   */
+  kind: 'recoveredCompleted' | 'recoveredFailed' | 'unrecoverable';
+}
+
+/**
  * Outcome of polling BullMQ for a slot's job state at recovery time.
  * Discriminated union; consumers `switch` on `kind`.
  */
