@@ -6,7 +6,7 @@
 
 ## Unreleased on Develop
 
-_(empty — reset at beta.163)_
+- **Voice-engine theme CLOSED** (2026-07-13 afternoon): #1633 STT wait-feedback UX (`TakingLongerNotice` "taking longer" notice past 20s, mirroring JobTracker's TAKING_LONGER discipline) + retry-aware `SttUnavailableError` for `failureReason: 'unavailable'`; #1634 parallel TTS chunk synthesis (batches of 2 via `Promise.all`, cap tied to voice-engine's `INFERENCE_CONCURRENCY=2` semaphore). Theme file deleted; shapes-voice import filed as a gated follow-up (promote-when: a voice field/endpoint identified in live shapes.inc data); TEN note relocated to `docs/research/ten-turn-detection.md`.
 
 ## Next Session Goal
 
