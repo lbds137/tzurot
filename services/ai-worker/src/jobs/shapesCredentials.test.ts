@@ -6,6 +6,7 @@ import {
 } from './shapesCredentials.js';
 import {
   ShapesAuthError,
+  ShapesBotProtectionError,
   ShapesFetchError,
   ShapesNotFoundError,
 } from '../services/shapes/shapesErrors.js';
@@ -139,6 +140,13 @@ describe('classifyShapesError', () => {
     const result = classifyShapesError(error);
     expect(result.isRetryable).toBe(false);
     expect(result.errorMessage).toBe('Forbidden');
+  });
+
+  it('should classify ShapesBotProtectionError as non-retryable (a bot wall does not clear on retry)', () => {
+    const error = new ShapesBotProtectionError("'x-datadome: protected' response header");
+    const result = classifyShapesError(error);
+    expect(result.isRetryable).toBe(false);
+    expect(result.errorMessage).toContain('bot-detection middleware');
   });
 
   it('should classify generic Error as retryable', () => {
