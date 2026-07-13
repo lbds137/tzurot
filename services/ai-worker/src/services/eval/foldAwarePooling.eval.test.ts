@@ -28,7 +28,8 @@ import { AI_DEFAULTS } from '@tzurot/common-types/constants/ai';
 import { PgvectorMemoryAdapter } from '../PgvectorMemoryAdapter.js';
 import { buildSearchQuery } from '../prompt/SearchQueryBuilder.js';
 import { extractRecentHistoryWindow } from '../RAGUtils.js';
-import { classifyCandidate, type GuardVerdict } from './nonCircularityGuard.js';
+import { classifyCandidate } from './nonCircularityGuard.js';
+import type { PooledCandidate, GoldenPool } from './qrelsReconciliation.js';
 
 const WORK_DIR = join(process.cwd(), 'reports/goldens-mining');
 const GOLDENS_PATH = join(WORK_DIR, 'conversation-goldens.json');
@@ -64,35 +65,17 @@ interface ConversationGolden {
   priorHistory: ConversationTurn[];
 }
 
-/** A persisted pooled candidate: its rank in each arm + the guard verdict. */
-interface PooledCandidate {
-  corpusId: string;
-  createdAtMs: number;
-  contentPreview: string;
-  ranks: Record<string, number>;
-  verdict: GuardVerdict;
-}
-
 /**
  * Transient during pooling — carries the FULL memory content the guard must see.
  * A truncated preview would let a verbatim fold-window overlap past the cutoff
  * slip through as `eligible`, flattering the folded arm; only the preview is
- * persisted (below), never the full content.
+ * persisted (as `PooledCandidate.contentPreview`), never the full content.
  */
 interface PoolingCandidate {
   corpusId: string;
   createdAtMs: number;
   content: string;
   ranks: Record<string, number>;
-}
-
-interface GoldenPool {
-  goldenId: string;
-  message: string;
-  style: string;
-  oldestHistoryMs: number;
-  arms: string[];
-  candidates: PooledCandidate[];
 }
 
 const ready = DB_URL !== undefined && DB_URL.length > 0 && existsSync(GOLDENS_PATH);
