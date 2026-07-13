@@ -59,11 +59,18 @@ vi.mock('../../utils/dashboard/SessionManager.js', () => ({
 
 interface StubClient {
   getAdminSettings: ReturnType<typeof vi.fn>;
+  getSystemSettings: ReturnType<typeof vi.fn>;
+  updateSystemSettings: ReturnType<typeof vi.fn>;
   updateAdminSettings: ReturnType<typeof vi.fn>;
 }
 
 function createStubClient(): StubClient {
-  return { getAdminSettings: vi.fn(), updateAdminSettings: vi.fn() };
+  return {
+    getAdminSettings: vi.fn(),
+    updateAdminSettings: vi.fn(),
+    getSystemSettings: vi.fn(),
+    updateSystemSettings: vi.fn(),
+  };
 }
 
 function asOwnerClient(stub: StubClient): OwnerClient {
@@ -178,6 +185,14 @@ describe('Admin Settings Dashboard', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     stub = createStubClient();
+    // The mixed dashboard fetches BOTH bags on open; give the system bag a
+    // default so cascade-focused tests don't each have to stub it.
+    stub.getSystemSettings.mockResolvedValue(
+      ok({
+        systemSettings: { extractionEnabled: true, fallbackTextModel: 'openrouter/auto' },
+        updatedAt: '2026-07-12T00:00:00.000Z',
+      })
+    );
     clientsForMock.mockReturnValue({ ownerClient: asOwnerClient(stub) });
   });
 
@@ -207,10 +222,10 @@ describe('Admin Settings Dashboard', () => {
       expect(editReplyCall.embeds).toHaveLength(1);
 
       const embedJson = editReplyCall.embeds[0].toJSON();
-      expect(embedJson.title).toBe('Global Settings');
+      expect(embedJson.title).toBe('Global Settings · Memory');
     });
 
-    it('should include all 11 settings fields', async () => {
+    it('opens on the Memory page with its 5 settings (paged overview)', async () => {
       const context = createMockContext();
       stub.getAdminSettings.mockResolvedValue(ok(mockSettings));
 
@@ -219,25 +234,22 @@ describe('Admin Settings Dashboard', () => {
       const editReplyCall = context.editReply.mock.calls[0][0];
       const embedJson = editReplyCall.embeds[0].toJSON();
 
-      expect(embedJson.fields).toHaveLength(11);
+      // D14 page 1 = Memory (5 settings); the other 12 cascade + 17 system
+      // settings live on later pages.
+      expect(embedJson.fields).toHaveLength(5);
       expect(embedJson.fields.map((f: { name: string }) => f.name)).toEqual(
         expect.arrayContaining([
-          expect.stringContaining('Max Messages'),
-          expect.stringContaining('Max Age'),
-          expect.stringContaining('Max Images'),
           expect.stringContaining('Focus Mode'),
           expect.stringContaining('Cross-Channel History'),
           expect.stringContaining('Share Memories'),
           expect.stringContaining('Memory Relevance'),
           expect.stringContaining('Memory Limit'),
-          expect.stringContaining('Model Footer'),
-          expect.stringContaining('Voice Transcription'),
-          expect.stringContaining('Voice Response Mode'),
         ])
       );
+      expect(embedJson.footer.text).toContain('Page 1/7 · Memory');
     });
 
-    it('should include select menu and close button', async () => {
+    it('should include select menu and pagination row (no Close on paged dashboards)', async () => {
       const context = createMockContext();
       stub.getAdminSettings.mockResolvedValue(ok(mockSettings));
 
@@ -245,6 +257,10 @@ describe('Admin Settings Dashboard', () => {
 
       const editReplyCall = context.editReply.mock.calls[0][0];
       expect(editReplyCall.components).toHaveLength(2);
+      const secondRow = editReplyCall.components[1].toJSON();
+      const labels = secondRow.components.map((c: { label?: string }) => c.label);
+      expect(labels).toEqual(['Prev', 'Page 1/7 · Memory', 'Next']);
+      expect(labels).not.toContain('Close');
     });
 
     it('should handle fetch failure gracefully', async () => {
@@ -417,6 +433,7 @@ describe('Admin Settings Dashboard', () => {
       update: vi.fn(),
       deferUpdate: vi.fn().mockResolvedValue(undefined),
       editReply: vi.fn().mockResolvedValue(undefined),
+      followUp: vi.fn().mockResolvedValue(undefined),
     });
 
     const createSessionWithSetting = (settingId: string) => ({
@@ -553,7 +570,7 @@ describe('Admin Settings Dashboard', () => {
       expect(stub.updateAdminSettings).toHaveBeenCalledWith({ maxMessages: null });
     });
 
-    it('should handle network error gracefully', async () => {
+    it('surfaces an update failure with a Try-again retry button (was silent pre-D15)', async () => {
       const interaction = createMockModalInteraction(
         'admin-settings::modal::global::maxMessages',
         '50'
@@ -565,7 +582,152 @@ describe('Admin Settings Dashboard', () => {
       await handleAdminSettingsModal(interaction as never);
 
       expect(stub.updateAdminSettings).toHaveBeenCalled();
+      // The dashboard itself stays put...
       expect(interaction.editReply).not.toHaveBeenCalled();
+      // ...and the failure is surfaced with the input-preserving retry affordance.
+      expect(interaction.followUp).toHaveBeenCalledWith(
+        expect.objectContaining({
+          content: expect.stringContaining('❌'),
+          components: expect.any(Array),
+        })
+      );
     });
+  });
+});
+
+describe('system-settings dispatch (mixed dashboard)', () => {
+  let stub: ReturnType<typeof createStubClient>;
+
+  const sessionWith = (settingId: string, extraData: Record<string, unknown> = {}) => ({
+    data: {
+      userId: 'user-456',
+      entityId: 'global',
+      data: {
+        maxMessages: {
+          localValue: 50,
+          hasLocalOverride: true,
+          effectiveValue: 50,
+          source: 'admin',
+        },
+        extractionEnabled: {
+          localValue: true,
+          hasLocalOverride: true,
+          effectiveValue: true,
+          source: 'admin',
+        },
+        ...extraData,
+      },
+      view: 'setting',
+      activeSetting: settingId,
+    },
+  });
+
+  const buttonWithFollowUp = (customId: string) =>
+    ({
+      customId,
+      user: { id: 'user-456' },
+      deferUpdate: vi.fn().mockResolvedValue(undefined),
+      editReply: vi.fn().mockResolvedValue(undefined),
+      followUp: vi.fn().mockResolvedValue(undefined),
+      message: { id: 'message-123' },
+    }) as unknown as ButtonInteraction & {
+      deferUpdate: ReturnType<typeof vi.fn>;
+      followUp: ReturnType<typeof vi.fn>;
+    };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    stub = createStubClient();
+    stub.getSystemSettings.mockResolvedValue(
+      ok({
+        systemSettings: { extractionEnabled: true },
+        updatedAt: '2026-07-12T10:00:00.000Z',
+      })
+    );
+    stub.updateSystemSettings.mockResolvedValue(
+      ok({
+        systemSettings: { extractionEnabled: false },
+        updatedAt: '2026-07-12T10:00:01.000Z',
+        warnings: [],
+      })
+    );
+    clientsForMock.mockReturnValue({ ownerClient: asOwnerClient(stub) });
+  });
+
+  it('routes a system settingId to the system write path with a FRESH-READ concurrency token and single-key patch', async () => {
+    mockSessionManager.get.mockReturnValue(sessionWith('extractionEnabled'));
+    const interaction = buttonWithFollowUp('admin-settings::set::global::extractionEnabled:false');
+
+    const { handleAdminSettingsButton } = await import('./settings.js');
+    await handleAdminSettingsButton(interaction as never);
+
+    // Seam assertion: fresh read for the token, then the envelope shape.
+    expect(stub.getSystemSettings).toHaveBeenCalled();
+    expect(stub.updateSystemSettings).toHaveBeenCalledWith({
+      expectedUpdatedAt: '2026-07-12T10:00:00.000Z',
+      patch: { extractionEnabled: false },
+    });
+    // The cascade route must NOT be touched by a system write.
+    expect(stub.updateAdminSettings).not.toHaveBeenCalled();
+  });
+
+  it('routes a cascade settingId to the cascade path and preserves system entries in the refreshed map', async () => {
+    mockSessionManager.get.mockReturnValue(sessionWith('maxMessages'));
+    stub.updateAdminSettings.mockResolvedValue(
+      ok({
+        id: '550e8400-e29b-41d4-a716-446655440001',
+        updatedBy: 'user-123',
+        configDefaults: { maxMessages: 25 },
+        createdAt: '2025-01-15T00:00:00.000Z',
+        updatedAt: '2025-01-15T00:00:00.000Z',
+      })
+    );
+    const interaction = buttonWithFollowUp('admin-settings::set::global::maxMessages:auto');
+
+    const { handleAdminSettingsButton } = await import('./settings.js');
+    await handleAdminSettingsButton(interaction as never);
+
+    expect(stub.updateAdminSettings).toHaveBeenCalled();
+    expect(stub.updateSystemSettings).not.toHaveBeenCalled();
+    // The refreshed session map must keep the system entry (merge, not replace).
+    const stored = mockSessionManager.set.mock.calls.at(-1)?.[0];
+    expect(stored.data.data.extractionEnabled).toBeDefined();
+    expect(stored.data.data.maxMessages).toBeDefined();
+  });
+
+  it('surfaces a 409 as the changed-underneath-you error', async () => {
+    mockSessionManager.get.mockReturnValue(sessionWith('extractionEnabled'));
+    stub.updateSystemSettings.mockResolvedValue(makeErr(409, 'updatedAt mismatch'));
+    const interaction = buttonWithFollowUp('admin-settings::set::global::extractionEnabled:false');
+
+    const { handleAdminSettingsButton } = await import('./settings.js');
+    await handleAdminSettingsButton(interaction as never);
+
+    expect(interaction.followUp).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: expect.stringContaining('Settings changed underneath you'),
+      })
+    );
+  });
+
+  it('relays write warnings to the owner as an ephemeral notice', async () => {
+    mockSessionManager.get.mockReturnValue(sessionWith('extractionEnabled'));
+    stub.updateSystemSettings.mockResolvedValue(
+      ok({
+        systemSettings: { extractionEnabled: false },
+        updatedAt: '2026-07-12T10:00:01.000Z',
+        warnings: ['catalog unavailable — accepted unverified'],
+      })
+    );
+    const interaction = buttonWithFollowUp('admin-settings::set::global::extractionEnabled:false');
+
+    const { handleAdminSettingsButton } = await import('./settings.js');
+    await handleAdminSettingsButton(interaction as never);
+
+    expect(interaction.followUp).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: expect.stringContaining('catalog unavailable'),
+      })
+    );
   });
 });

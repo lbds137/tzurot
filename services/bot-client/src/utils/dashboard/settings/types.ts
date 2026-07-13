@@ -20,6 +20,10 @@ export enum SettingType {
   DURATION = 'duration',
   /** Enum with predefined choices - uses buttons like tri-state */
   ENUM = 'enum',
+  /** Two-state boolean (On/Off, no auto/inherit) - system settings, uses 2 buttons */
+  BOOLEAN = 'boolean',
+  /** Free-text string (model ids etc.) - uses modal, validated server-side */
+  TEXT = 'text',
 }
 
 /**
@@ -42,10 +46,19 @@ interface BaseSettingFields {
   min?: number;
   /** For numeric: max value */
   max?: number;
-  /** For numeric/duration: placeholder hint */
+  /** For numeric/duration/text: placeholder hint */
   placeholder?: string;
   /** Help text for the modal */
   helpText?: string;
+  /** For text: modal input max length (defaults per type in SettingsModalFactory) */
+  maxLength?: number;
+  /**
+   * Render this setting without cascade semantics (no override/inherit status,
+   * no parent value, no Auto affordances). Intrinsic to settings from a
+   * NON-CASCADING bag (system settings) — the property rides the definition so
+   * a mixed dashboard can host both universes.
+   */
+  plainDisplay?: boolean;
 }
 
 /** Enum setting — choices is required */
@@ -56,7 +69,12 @@ interface EnumSettingDefinition extends BaseSettingFields {
 
 /** Non-enum setting — choices must not be provided */
 interface StandardSettingDefinition extends BaseSettingFields {
-  type: SettingType.TRI_STATE | SettingType.NUMERIC | SettingType.DURATION;
+  type:
+    | SettingType.TRI_STATE
+    | SettingType.NUMERIC
+    | SettingType.DURATION
+    | SettingType.BOOLEAN
+    | SettingType.TEXT;
   choices?: never;
 }
 
@@ -82,21 +100,13 @@ export interface SettingValue<T = unknown> {
 }
 
 /**
- * All settings values for the dashboard
+ * All settings values for the dashboard — a keyed map so one dashboard can
+ * carry settings from any universe (cascade config overrides, system settings).
+ * The cascade data builders keep key-completeness internally by constructing
+ * over `CONFIG_FIELDS` as `Record<keyof ConfigOverrides, …>`; the dashboard
+ * machinery reads dynamically and never relied on closed keys.
  */
-export interface SettingsData {
-  maxMessages: SettingValue<number>;
-  maxAge: SettingValue<number | null>; // null = disabled
-  maxImages: SettingValue<number>;
-  focusModeEnabled: SettingValue<boolean>;
-  crossChannelHistoryEnabled: SettingValue<boolean>;
-  shareLtmAcrossPersonalities: SettingValue<boolean>;
-  memoryScoreThreshold: SettingValue<number>;
-  memoryLimit: SettingValue<number>;
-  showModelFooter: SettingValue<boolean>;
-  voiceResponseMode: SettingValue<string>;
-  voiceTranscriptionEnabled: SettingValue<boolean>;
-}
+export type SettingsData = Record<string, SettingValue<unknown>>;
 
 /**
  * Dashboard level determines which entity we're editing.
@@ -133,6 +143,19 @@ export interface SettingsDashboardSession {
   view: DashboardView;
   /** If in setting view, which setting */
   activeSetting?: string;
+  /**
+   * Current concern page (paged configs only). Readers clamp via
+   * `clampPage(config, session.page)` — pre-page sessions rehydrate without the
+   * field (degrade to page 0), and a shrunk page list after a deploy must not
+   * render `Page 6/4`.
+   */
+  page?: number;
+  /**
+   * The last modal input rejected by validation, kept so the Try-again button
+   * can re-open the modal prefilled (design-system D15: never lose typed
+   * input to a validation error). Cleared on the next successful update.
+   */
+  lastRejectedInput?: { settingId: string; value: string };
   /** User ID who owns this session */
   userId: string;
   /** Message ID of the dashboard */
@@ -141,6 +164,21 @@ export interface SettingsDashboardSession {
   channelId: string;
   /** Timestamp of last activity */
   lastActivityAt: Date;
+}
+
+/**
+ * One concern page of a paged dashboard. Pages reference SUBSETS of the
+ * config's authoritative flat `settings` list by id — a single source of
+ * setting definitions, so page composition can never drift from the
+ * definitions themselves.
+ */
+export interface SettingsPage {
+  /** Stable page id (not rendered) */
+  id: string;
+  /** Page label rendered in the `Page N/M · <Label>` indicator */
+  label: string;
+  /** Ids of the settings shown on this page (must exist in config.settings) */
+  settingIds: string[];
 }
 
 /**
@@ -155,8 +193,26 @@ export interface SettingsDashboardConfig {
   titlePrefix: string;
   /** Color for the embed */
   color: number;
-  /** Available settings */
+  /** Available settings — the authoritative flat list (pages reference subsets) */
   settings: SettingDefinition[];
+  /**
+   * Concern pages (§3.3 pagination-by-concern). When present, the overview
+   * renders one page at a time with prev/next navigation and no Close button
+   * (D18 — native dismiss suffices on ephemeral dashboards). When absent, the
+   * dashboard renders flat exactly as before (channel/character dashboards).
+   */
+  pages?: SettingsPage[];
+  /**
+   * How value status renders: 'cascade' (default) shows override/inherit
+   * status + parent values; 'plain' shows just the value — for non-cascading
+   * bags (system settings) where override semantics would be false.
+   */
+  statusDisplay?: 'cascade' | 'plain';
+  /**
+   * Overview embed description. Defaults to the legacy extended-context copy
+   * when absent (flat cascade dashboards).
+   */
+  overviewDescription?: string;
   /** Optional note appended to the overview embed description */
   descriptionNote?: string;
 }
@@ -179,6 +235,50 @@ export type SettingUpdateHandler = (
   settingId: string,
   newValue: unknown
 ) => Promise<SettingUpdateResult>;
+
+/**
+ * Does this setting render plain (no cascade semantics)? True when the
+ * DEFINITION declares it (a non-cascading setting stays plain on a mixed
+ * dashboard) or the whole config does.
+ */
+export function isPlainSetting(
+  config: SettingsDashboardConfig,
+  setting: SettingDefinition
+): boolean {
+  return setting.plainDisplay === true || config.statusDisplay === 'plain';
+}
+
+/**
+ * Clamp a session page index against the config's page list. Handles the two
+ * stale-session shapes: a pre-page session (undefined → 0) and a page index
+ * beyond a SHRUNK page list after a deploy (would render `Page 6/4`).
+ */
+export function clampPage(config: SettingsDashboardConfig, page: number | undefined): number {
+  const pageCount = config.pages?.length ?? 0;
+  if (pageCount === 0) {
+    return 0;
+  }
+  return Math.min(Math.max(page ?? 0, 0), pageCount - 1);
+}
+
+/**
+ * The settings visible on the given page — or the full flat list for an
+ * unpaged config. Page entries reference the authoritative `config.settings`
+ * by id; ids that no longer resolve are skipped (stale page composition after
+ * a definition rename degrades to a shorter page, not a crash).
+ */
+export function getPageSettings(
+  config: SettingsDashboardConfig,
+  page: number
+): SettingDefinition[] {
+  if (config.pages === undefined || config.pages.length === 0) {
+    return config.settings;
+  }
+  const currentPage = config.pages[clampPage(config, page)];
+  return currentPage.settingIds
+    .map(id => config.settings.find(setting => setting.id === id))
+    .filter((setting): setting is SettingDefinition => setting !== undefined);
+}
 
 /**
  * Custom ID delimiter for settings dashboard

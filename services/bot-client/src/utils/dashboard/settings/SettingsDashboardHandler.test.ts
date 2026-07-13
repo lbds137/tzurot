@@ -7,16 +7,17 @@ import {
   createSettingsDashboard,
   handleSettingsSelectMenu,
   handleSettingsButton,
-  handleSettingsModal,
 } from './SettingsDashboardHandler.js';
+import { handleSettingsModal } from './settingsModalSubmit.js';
 import {
   type SettingsDashboardConfig,
   type SettingsData,
+  type SettingDefinition,
   SettingType,
   isSettingsInteraction,
   parseSettingsCustomId,
 } from './types.js';
-import { EXTENDED_CONTEXT_SETTINGS } from './settingsConfig.js';
+import { EXTENDED_CONTEXT_SETTINGS, VOICE_SETTINGS } from './settingsConfig.js';
 import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
 
 // Mock the session manager
@@ -39,7 +40,7 @@ const createTestConfig = (): SettingsDashboardConfig => ({
   entityType: 'test-settings',
   titlePrefix: 'Test',
   color: DISCORD_COLORS.BLURPLE,
-  settings: EXTENDED_CONTEXT_SETTINGS,
+  settings: [...EXTENDED_CONTEXT_SETTINGS, ...VOICE_SETTINGS],
 });
 
 const createTestData = (): SettingsData => ({
@@ -1639,6 +1640,164 @@ describe('SettingsDashboardHandler', () => {
           components: expect.any(Array),
         })
       );
+    });
+  });
+});
+
+describe('PR-2 mechanism: page action, BOOLEAN/TEXT, retry', () => {
+  const BOOLEAN_SETTING: SettingDefinition = {
+    id: 'sysFlag',
+    label: 'Sys Flag',
+    emoji: '🎛️',
+    description: 'A system flag.',
+    type: SettingType.BOOLEAN,
+    plainDisplay: true,
+  };
+  const TEXT_SETTING: SettingDefinition = {
+    id: 'sysModel',
+    label: 'Sys Model',
+    emoji: '🤖',
+    description: 'A system model field.',
+    type: SettingType.TEXT,
+    plainDisplay: true,
+  };
+
+  const mechConfig = (): SettingsDashboardConfig => ({
+    level: 'global',
+    entityType: 'test-settings',
+    titlePrefix: 'Test',
+    color: DISCORD_COLORS.BLURPLE,
+    settings: [...EXTENDED_CONTEXT_SETTINGS, BOOLEAN_SETTING, TEXT_SETTING],
+    pages: [
+      { id: 'context', label: 'Context', settingIds: EXTENDED_CONTEXT_SETTINGS.map(s => s.id) },
+      { id: 'system', label: 'System', settingIds: ['sysFlag', 'sysModel'] },
+    ],
+  });
+
+  const mechData = (): SettingsData => ({
+    ...createTestData(),
+    sysFlag: { localValue: true, hasLocalOverride: true, effectiveValue: true, source: 'admin' },
+    sysModel: {
+      localValue: 'openrouter/auto',
+      hasLocalOverride: true,
+      effectiveValue: 'openrouter/auto',
+      source: 'admin',
+    },
+  });
+
+  const mechSession = (overrides: Record<string, unknown> = {}) => ({
+    data: {
+      userId: 'user-123',
+      entityId: 'entity-1',
+      entityName: 'Entity',
+      data: mechData(),
+      view: 'overview',
+      page: 0,
+      ...overrides,
+    },
+  });
+
+  const button = (customId: string) => ({
+    customId,
+    user: { id: 'user-123' },
+    reply: vi.fn(),
+    update: vi.fn(),
+    showModal: vi.fn(),
+    deferUpdate: vi.fn(),
+    editReply: vi.fn().mockResolvedValue({ id: 'message-123' }),
+    followUp: vi.fn(),
+  });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  describe('page action', () => {
+    it('next advances the stored session page and re-renders the overview', async () => {
+      mockSessionManager.get.mockReturnValue(mechSession({ page: 0 }));
+      const interaction = button('test-settings::page::entity-1::next');
+      const updateHandler = vi.fn();
+
+      await handleSettingsButton(interaction as never, mechConfig(), updateHandler);
+
+      expect(interaction.deferUpdate).toHaveBeenCalled();
+      const stored = mockSessionManager.set.mock.calls.at(-1)?.[0];
+      expect(stored.data.page).toBe(1);
+      expect(interaction.editReply).toHaveBeenCalled();
+      expect(updateHandler).not.toHaveBeenCalled();
+    });
+
+    it('clamps at the last page (stale Next on the edge is a no-op re-render)', async () => {
+      mockSessionManager.get.mockReturnValue(mechSession({ page: 1 }));
+      const interaction = button('test-settings::page::entity-1::next');
+
+      await handleSettingsButton(interaction as never, mechConfig(), vi.fn());
+
+      const stored = mockSessionManager.set.mock.calls.at(-1)?.[0];
+      expect(stored.data.page).toBe(1);
+    });
+
+    it('prev from a stale over-range page clamps into range first', async () => {
+      mockSessionManager.get.mockReturnValue(mechSession({ page: 99 }));
+      const interaction = button('test-settings::page::entity-1::prev');
+
+      await handleSettingsButton(interaction as never, mechConfig(), vi.fn());
+
+      const stored = mockSessionManager.set.mock.calls.at(-1)?.[0];
+      expect(stored.data.page).toBe(0); // clamp(99→1) then -1
+    });
+  });
+
+  describe('BOOLEAN set path', () => {
+    it('passes true/false through to the update handler', async () => {
+      mockSessionManager.get.mockReturnValue(
+        mechSession({ view: 'setting', activeSetting: 'sysFlag' })
+      );
+      const interaction = button('test-settings::set::entity-1::sysFlag:false');
+      const updateHandler = vi.fn().mockResolvedValue({ success: true, newData: mechData() });
+
+      await handleSettingsButton(interaction as never, mechConfig(), updateHandler);
+
+      expect(updateHandler).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.anything(),
+        'sysFlag',
+        false
+      );
+    });
+
+    it('rejects a forged :auto (null) on a plain setting without calling the handler', async () => {
+      mockSessionManager.get.mockReturnValue(mechSession());
+      const interaction = button('test-settings::set::entity-1::sysFlag:auto');
+      const updateHandler = vi.fn();
+
+      await handleSettingsButton(interaction as never, mechConfig(), updateHandler);
+
+      expect(updateHandler).not.toHaveBeenCalled();
+      expect(interaction.followUp).toHaveBeenCalledWith(
+        expect.objectContaining({ content: expect.stringContaining('no Auto') })
+      );
+    });
+  });
+
+  describe('retry action', () => {
+    it('re-opens the modal without deferring (showModal is the ack), prefilled from the session', async () => {
+      mockSessionManager.get.mockReturnValue(
+        mechSession({
+          view: 'setting',
+          activeSetting: 'sysModel',
+          lastRejectedInput: { settingId: 'sysModel', value: 'my-typo/model' },
+        })
+      );
+      const interaction = button('test-settings::retry::entity-1::sysModel');
+
+      await handleSettingsButton(interaction as never, mechConfig(), vi.fn());
+
+      expect(interaction.deferUpdate).not.toHaveBeenCalled();
+      expect(interaction.showModal).toHaveBeenCalledTimes(1);
+      const shownModal = interaction.showModal.mock.calls[0][0].toJSON();
+      const input = shownModal.components[0].components[0];
+      expect(input.value).toBe('my-typo/model');
     });
   });
 });

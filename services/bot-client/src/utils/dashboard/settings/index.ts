@@ -25,7 +25,15 @@ export {
   DISPLAY_SETTINGS,
   VOICE_SETTINGS,
   VOICE_CASCADE_SETTINGS,
+  buildCascadePages,
 } from './settingsConfig.js';
+
+// System-settings pages (registry-derived; owner-only System page group)
+export {
+  SYSTEM_SETTINGS_DEFINITIONS,
+  SYSTEM_SETTINGS_PAGES,
+  isSystemSettingId,
+} from './systemSettingsConfig.js';
 
 // Shared update logic
 export { mapSettingToApiUpdate } from './settingsUpdate.js';
@@ -34,6 +42,7 @@ export { mapSettingToApiUpdate } from './settingsUpdate.js';
 export {
   buildCascadeSettingsData,
   buildFallbackSettingsData,
+  buildSystemSettingsData,
   convertResolveDefaultsResponse,
   type ResolveDefaultsResponse,
 } from './settingsDataBuilder.js';
@@ -45,8 +54,8 @@ export {
   createSettingsDashboard,
   handleSettingsSelectMenu,
   handleSettingsButton,
-  handleSettingsModal,
 } from './SettingsDashboardHandler.js';
+export { handleSettingsModal } from './settingsModalSubmit.js';
 
 // Command Handler Factory — builds the 4-handler bundle (select/button/modal/guard)
 // for entity-ID-based settings dashboards (character/overrides, character/settings,

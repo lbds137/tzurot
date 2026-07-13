@@ -34,10 +34,8 @@ import {
   handleSettingsButton,
   handleSettingsModal,
   isSettingsInteraction,
-  EXTENDED_CONTEXT_SETTINGS,
-  MEMORY_SETTINGS,
-  DISPLAY_SETTINGS,
   VOICE_CASCADE_SETTINGS,
+  buildCascadePages,
   mapSettingToApiUpdate,
   buildCascadeSettingsData,
   buildFallbackSettingsData,
@@ -53,6 +51,9 @@ const logger = createLogger('user-defaults-settings');
  */
 const ENTITY_TYPE = 'user-defaults-settings';
 
+/** The shared D14 page grouping; the user tier's Voice page is the cascade subset. */
+const CASCADE_PAGES = buildCascadePages(VOICE_CASCADE_SETTINGS);
+
 /**
  * Dashboard configuration for user default settings
  */
@@ -60,13 +61,11 @@ const USER_DEFAULTS_CONFIG: SettingsDashboardConfig = {
   level: 'user-default',
   entityType: ENTITY_TYPE,
   titlePrefix: 'Your Default',
-  color: DISCORD_COLORS.SUCCESS,
-  settings: [
-    ...EXTENDED_CONTEXT_SETTINGS,
-    ...MEMORY_SETTINGS,
-    ...DISPLAY_SETTINGS,
-    ...VOICE_CASCADE_SETTINGS,
-  ],
+  // BLURPLE per the design system's button/color vocabulary (green is
+  // reserved) — was SUCCESS-green, the flagged D4 violation.
+  color: DISCORD_COLORS.BLURPLE,
+  settings: CASCADE_PAGES.settings,
+  pages: CASCADE_PAGES.pages,
   descriptionNote: 'These defaults apply across all characters unless overridden.',
 };
 

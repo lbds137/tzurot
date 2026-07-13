@@ -110,7 +110,11 @@ async function validateModelValue(
   }
 
   // z-ai/ models: static catalog, deterministic — a non-member is a typo, not
-  // a cache problem, so it rejects regardless of fail mode.
+  // a cache problem, so it rejects regardless of fail mode. This is a
+  // DELIBERATE divergence from ModelCapabilityService.resolve()'s
+  // "OpenRouter catalog is authoritative" stance: z.ai coding-plan membership
+  // is a fixed plan contract, not a live catalog — don't "fix" this into the
+  // dynamic lookup.
   if (value.toLowerCase().startsWith('z-ai/') && !isZaiCodingPlanModel(value)) {
     return { ok: false, message: `${meta.key}: '${value}' is not in the z.ai coding-plan catalog` };
   }

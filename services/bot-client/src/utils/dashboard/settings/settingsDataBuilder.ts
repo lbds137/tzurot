@@ -49,7 +49,7 @@ export function buildCascadeSettingsData(
   for (const field of CONFIG_FIELDS) {
     result[field] = buildValue(field);
   }
-  return result as unknown as SettingsData;
+  return result;
 }
 
 /** Response shape from GET /user/config-overrides/resolve-defaults */
@@ -110,5 +110,24 @@ export function buildFallbackSettingsData(): SettingsData {
       source: 'hardcoded',
     };
   }
-  return result as unknown as SettingsData;
+  return result;
+}
+
+/**
+ * Build dashboard SettingsData for the NON-CASCADING system-settings bag.
+ * The SettingValue shape is display plumbing only: system settings have no
+ * inherit tier, so the values render in `statusDisplay: 'plain'` mode (no
+ * override/status/parent semantics — those fields are never shown).
+ */
+export function buildSystemSettingsData(bag: Record<string, unknown>): SettingsData {
+  const result: SettingsData = {};
+  for (const [key, value] of Object.entries(bag)) {
+    result[key] = {
+      localValue: value,
+      hasLocalOverride: true,
+      effectiveValue: value,
+      source: 'admin',
+    };
+  }
+  return result;
 }
