@@ -52,6 +52,13 @@ export interface WorkerMessage {
 }
 
 /**
+ * Where the worker will load the embedding model from: the vendored in-repo
+ * copy ('local') or a HuggingFace download ('remote' — the fallback when the
+ * vendored dir is absent, which no packaged environment should hit).
+ */
+export type ModelSource = 'local' | 'remote';
+
+/**
  * Response from the embedding worker
  */
 export interface WorkerResponse {
@@ -60,6 +67,8 @@ export interface WorkerResponse {
   vector?: number[];
   error?: string;
   modelLoaded?: boolean;
+  /** Set on the 'ready' message only — surfaced in the main thread's init log. */
+  modelSource?: ModelSource;
 }
 
 /**
