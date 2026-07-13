@@ -17,14 +17,21 @@ import {
 } from '@tzurot/common-types/types/shapes-import';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { ShapesDataFetcher } from '../services/shapes/ShapesDataFetcher.js';
+import type { ShapesFetchGate } from '../services/shapes/shapesFetchGate.js';
 import { formatExportAsMarkdown, formatExportAsJson } from './ShapesExportFormatters.js';
 import { getDecryptedCookie, persistUpdatedCookie } from './shapesCredentials.js';
-import { handleShapesJobError } from './shapesJobHelpers.js';
+import { claimShapesFetchSlot, handleShapesJobError } from './shapesJobHelpers.js';
 
 const logger = createLogger('ShapesExportJob');
 
 interface ShapesExportJobDeps {
   prisma: PrismaClient;
+  /**
+   * Global fetch-concurrency gate (low-and-slow etiquette). Optional and
+   * fail-open by design — absent means ungated, matching the gate's own
+   * degrade-gracefully posture.
+   */
+  fetchGate?: ShapesFetchGate;
 }
 
 /**
@@ -34,7 +41,7 @@ export async function processShapesExportJob(
   job: Job<ShapesExportJobData>,
   deps: ShapesExportJobDeps
 ): Promise<ShapesExportJobResult> {
-  const { prisma } = deps;
+  const { prisma, fetchGate } = deps;
   const { userId, sourceSlug, exportJobId, format } = job.data;
 
   logger.info({ jobId: job.id, sourceSlug, format, exportJobId }, 'Starting export');
@@ -46,16 +53,21 @@ export async function processShapesExportJob(
   });
 
   let fetcher: ShapesDataFetcher | null = null;
+  let gateHeld = false;
   try {
-    // 2. Decrypt session cookie
+    // 2. Claim a global fetch slot BEFORE any shapes.inc traffic (busy throws
+    // retryable — BullMQ's backoff is the wait; see claimShapesFetchSlot).
+    gateHeld = await claimShapesFetchSlot(fetchGate);
+
+    // 3. Decrypt session cookie
     const sessionCookie = await getDecryptedCookie(prisma, userId);
 
-    // 3. Fetch data from shapes.inc
+    // 4. Fetch data from shapes.inc
     fetcher = new ShapesDataFetcher();
     const fetchResult = await fetcher.fetchShapeData(sourceSlug, { sessionCookie });
     await persistUpdatedCookie(prisma, userId, fetcher.getUpdatedCookie());
 
-    // 4. Format export content
+    // 5. Format export content
     const exportPayload = {
       exportedAt: new Date().toISOString(),
       sourceSlug,
@@ -80,7 +92,7 @@ export async function processShapesExportJob(
     const fileExtension = format === 'markdown' ? 'md' : 'json';
     const fileName = `${sourceSlug}-export.${fileExtension}`;
 
-    // 5. Store result in ExportJob
+    // 6. Store result in ExportJob
     await prisma.exportJob.update({
       where: { id: exportJobId },
       data: {
@@ -133,5 +145,11 @@ export async function processShapesExportJob(
         error: errorMessage,
       }),
     });
+  } finally {
+    // Only release a slot that was actually claimed — a denied acquire holds
+    // nothing, and double-releasing would over-admit the next jobs.
+    if (gateHeld) {
+      await deps.fetchGate?.release();
+    }
   }
 }

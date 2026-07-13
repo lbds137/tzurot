@@ -16,6 +16,7 @@ import { RedisService } from './services/RedisService.js';
 import { RateLimitCache } from './services/RateLimitCache.js';
 import { CreditExhaustionCache } from './services/CreditExhaustionCache.js';
 import { VisionFallbackQuota } from './services/VisionFallbackQuota.js';
+import { ShapesFetchGate } from './services/shapes/shapesFetchGate.js';
 import { FreeTierRequestQuota, ZAI_FREE_TIER_KEYS } from './services/FreeTierRequestQuota.js';
 import { ZaiPlanMeter } from './services/ZaiPlanMeter.js';
 import { ZaiFreeTierAdmission } from './services/ZaiFreeTierAdmission.js';
@@ -45,6 +46,11 @@ export const visionDescriptionCache = new VisionDescriptionCache(redis);
 // (apiKey, model) pair is in a known rate-limit window.
 // eslint-disable-next-line @tzurot/no-singleton-export -- Intentional: shared Redis client; multiple instances would each maintain a separate view of rate-limit state and miss the short-circuit.
 export const rateLimitCache = new RateLimitCache(redis);
+
+// Export singleton ShapesFetchGate — global concurrency etiquette for
+// shapes.inc import/export fetches (one shared counter, one egress IP).
+// eslint-disable-next-line @tzurot/no-singleton-export -- Intentional: shared Redis client; the gate is a single global counter, so separate instances would still agree but waste connections.
+export const shapesFetchGate = new ShapesFetchGate(redis);
 
 // Export singleton CreditExhaustionCache instance — short-circuits LLM calls
 // when a BYOK account is known to be out of credits (per-account 402).

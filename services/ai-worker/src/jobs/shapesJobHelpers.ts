@@ -8,6 +8,8 @@
 
 import type { Job } from 'bullmq';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { ShapesFetchBusyError } from '../services/shapes/shapesErrors.js';
+import type { ShapesFetchGate } from '../services/shapes/shapesFetchGate.js';
 import { classifyShapesError } from './shapesCredentials.js';
 
 const logger = createLogger('shapesJobHelpers');
@@ -79,4 +81,27 @@ export async function handleShapesJobError<TResult>(
 
   await ctx.markFailed(errorMessage);
   return ctx.buildFailureResult(errorMessage);
+}
+
+/**
+ * Claim a slot on the global shapes.inc fetch-concurrency gate.
+ *
+ * Shared by the import and export jobs so the gate semantics can't drift
+ * between them: no gate supplied → ungated (returns false, nothing to
+ * release); gate at capacity → throws the retryable ShapesFetchBusyError
+ * (BullMQ's backoff is the wait); fail-open (Redis error) → the fetch is
+ * allowed but NO slot is held (returns false — never release an uncounted
+ * slot); slot claimed → returns true (caller MUST release in a finally).
+ */
+export async function claimShapesFetchSlot(
+  fetchGate: ShapesFetchGate | undefined
+): Promise<boolean> {
+  if (fetchGate === undefined) {
+    return false;
+  }
+  const outcome = await fetchGate.tryAcquire();
+  if (outcome === 'denied') {
+    throw new ShapesFetchBusyError(fetchGate.maxConcurrent);
+  }
+  return outcome === 'acquired';
 }
