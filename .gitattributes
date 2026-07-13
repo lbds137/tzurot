@@ -1,0 +1,5 @@
+# Vendored embedding model artifacts: keep every file byte-identical to the
+# upstream HuggingFace blobs (sha-verifiable). Without -text, a contributor
+# with core.autocrlf=true would get CRLF-normalized JSON on checkout and
+# their working-tree hashes would drift from the pledged sha256.
+packages/embeddings/models/** -text

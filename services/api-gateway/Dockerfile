@@ -84,6 +84,10 @@ COPY --from=builder /app/packages/identity/dist ./packages/identity/dist
 COPY --from=builder /app/packages/conversation-history/dist ./packages/conversation-history/dist
 COPY --from=builder /app/packages/cache-invalidation/dist ./packages/cache-invalidation/dist
 COPY --from=builder /app/packages/embeddings/dist ./packages/embeddings/dist
+# Vendored embedding model — the worker loads it from ../models relative to
+# dist, so service boot never depends on a HuggingFace download (anonymous
+# fetches 403 from datacenter IPs).
+COPY --from=builder /app/packages/embeddings/models ./packages/embeddings/models
 COPY --from=builder /app/services/api-gateway/dist ./services/api-gateway/dist
 
 EXPOSE 3000

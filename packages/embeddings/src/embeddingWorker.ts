@@ -11,14 +11,49 @@
  */
 
 import { parentPort } from 'node:worker_threads';
+import { existsSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { pipeline, env, type FeatureExtractionPipeline } from '@huggingface/transformers';
 import { MODEL_DEFAULTS } from '@tzurot/common-types/constants/ai';
 import { LOCAL_EMBEDDING_DIMENSIONS } from './constants.js';
-import type { WorkerMessage, WorkerResponse } from './types.js';
+import type { ModelSource, WorkerMessage, WorkerResponse } from './types.js';
 
-// Configure transformers.js for server-side use
-env.allowLocalModels = false; // Download from HuggingFace Hub
-env.useBrowserCache = false; // We're in Node.js, not browser
+/**
+ * Point transformers.js at the vendored in-repo model when present, falling
+ * back to remote download when absent. The model is vendored
+ * (`packages/embeddings/models/`) because anonymous HuggingFace downloads are
+ * unreliable from datacenter IPs (CI runners, Railway builders/boot) — an HF
+ * access change turned the fetch into a platform-wide 403, breaking CI and
+ * making every service (re)boot a gamble. The local copy removes the runtime
+ * network dependency entirely; remote stays as the fallback so a stripped
+ * environment degrades to the old behavior instead of failing outright.
+ *
+ * Exported for unit tests; invoked once at module load with the real `env`.
+ */
+export function configureTransformersEnv(
+  transformersEnv: { allowLocalModels: boolean; useBrowserCache: boolean; localModelPath?: string },
+  modelsDir: string,
+  modelId: string,
+  pathExists: (path: string) => boolean = existsSync
+): ModelSource {
+  transformersEnv.useBrowserCache = false; // We're in Node.js, not browser
+  if (pathExists(join(modelsDir, modelId))) {
+    transformersEnv.allowLocalModels = true;
+    transformersEnv.localModelPath = modelsDir;
+    return 'local';
+  }
+  transformersEnv.allowLocalModels = false;
+  return 'remote';
+}
+
+// `../models` resolves to the package root from BOTH src/ (tsx, vitest) and
+// dist/ (production builds) — the two layouts share the same depth.
+const modelSource = configureTransformersEnv(
+  env,
+  join(dirname(fileURLToPath(import.meta.url)), '..', 'models'),
+  MODEL_DEFAULTS.EMBEDDING
+);
 
 // ============================================================================
 // SINGLETON PIPELINE
@@ -156,6 +191,8 @@ if (parentPort !== null) {
     void handleMessage(message);
   });
 
-  // Signal that worker is ready to receive messages
-  parentPort.postMessage({ id: 0, status: 'ready' });
+  // Signal that worker is ready to receive messages. `modelSource` tells the
+  // main thread (and its logs) whether the vendored model or a remote
+  // download will serve this process — the load itself is lazy.
+  parentPort.postMessage({ id: 0, status: 'ready', modelSource });
 }

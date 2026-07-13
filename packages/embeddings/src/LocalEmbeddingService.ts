@@ -121,6 +121,13 @@ export class LocalEmbeddingService implements IEmbeddingService {
         if (response.status === 'ready') {
           clearTimeout(timeout);
           this.worker?.off('message', readyHandler);
+          // 'remote' here means the vendored model dir is missing and the
+          // worker will fall back to a HuggingFace download — worth noticing
+          // in any packaged environment (repo checkout, CI, Docker all vendor it).
+          logger.info(
+            { modelSource: response.modelSource ?? 'unknown' },
+            '[LocalEmbeddingService] Worker ready'
+          );
           resolve();
         }
       };

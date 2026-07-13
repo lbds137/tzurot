@@ -67,10 +67,11 @@ describe('embeddingWorker', () => {
     return handler;
   }
 
-  it('should send ready signal on startup', async () => {
+  it('should send ready signal on startup, carrying the model source', async () => {
     await loadWorker();
 
-    expect(postedMessages).toContainEqual({ id: 0, status: 'ready' });
+    // The repo checkout vendors the model, so a real-existsSync load reports 'local'.
+    expect(postedMessages).toContainEqual({ id: 0, status: 'ready', modelSource: 'local' });
   });
 
   it('should register a message handler on parentPort', async () => {
@@ -188,6 +189,51 @@ describe('embeddingWorker', () => {
         status: 'error',
         error: expect.stringContaining('Unknown message type'),
       });
+    });
+  });
+
+  describe('configureTransformersEnv', () => {
+    async function loadConfigureFn(): Promise<
+      typeof import('./embeddingWorker.js').configureTransformersEnv
+    > {
+      return (await import('./embeddingWorker.js')).configureTransformersEnv;
+    }
+
+    it('prefers the vendored model dir when it exists', async () => {
+      const configureTransformersEnv = await loadConfigureFn();
+      const fakeEnv = { allowLocalModels: false, useBrowserCache: true };
+      const checked: string[] = [];
+
+      const source = configureTransformersEnv(fakeEnv, '/models', 'Org/model-x', path => {
+        checked.push(path);
+        return true;
+      });
+
+      expect(source).toBe('local');
+      expect(fakeEnv).toMatchObject({
+        allowLocalModels: true,
+        useBrowserCache: false,
+        localModelPath: '/models',
+      });
+      // It must probe the model-id SUBDIRECTORY, not just the models root —
+      // an empty models/ dir must not claim local and then fail the load.
+      expect(checked).toEqual(['/models/Org/model-x']);
+    });
+
+    it('falls back to remote download when the vendored dir is missing', async () => {
+      const configureTransformersEnv = await loadConfigureFn();
+      const fakeEnv = {
+        allowLocalModels: true,
+        useBrowserCache: true,
+        localModelPath: undefined as string | undefined,
+      };
+
+      const source = configureTransformersEnv(fakeEnv, '/models', 'Org/model-x', () => false);
+
+      expect(source).toBe('remote');
+      expect(fakeEnv.allowLocalModels).toBe(false);
+      expect(fakeEnv.useBrowserCache).toBe(false);
+      expect(fakeEnv.localModelPath).toBeUndefined();
     });
   });
 });
