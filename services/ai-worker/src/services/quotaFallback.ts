@@ -40,11 +40,28 @@ import type { RateLimitCache } from './RateLimitCache.js';
 
 const logger = createLogger('QuotaFallback');
 
-/** The retargetable failure classes. Everything else is not our business. */
+/**
+ * The retargetable failure classes (D12: quota-class + availability-class +
+ * provider-side censorship). Deliberately NOT retargetable: AUTHENTICATION
+ * (the user's key is broken — surface the actionable fix), BAD_REQUEST (a
+ * config bug to surface, not availability), FREE_TIER_QUOTA (remediation is
+ * BYOK). Censorship note: CENSORED/CONTENT_POLICY are exclusively
+ * provider-emitted today (verified: the "ext" marker sites + provider-message
+ * regexes); if an internal Tzurot moderation layer is ever added, it MUST
+ * throw a distinct non-retargetable category — a rejection by OUR policy must
+ * never descend to another model.
+ */
 export type QuotaFallbackCategory =
   | ApiErrorCategory.QUOTA_EXCEEDED
   | ApiErrorCategory.CREDIT_EXHAUSTION
-  | ApiErrorCategory.RATE_LIMIT;
+  | ApiErrorCategory.RATE_LIMIT
+  | ApiErrorCategory.MODEL_NOT_FOUND
+  | ApiErrorCategory.SERVER_ERROR
+  | ApiErrorCategory.TIMEOUT
+  | ApiErrorCategory.NETWORK
+  | ApiErrorCategory.EMPTY_RESPONSE
+  | ApiErrorCategory.CENSORED
+  | ApiErrorCategory.CONTENT_POLICY;
 
 /** Announce/audit carrier — rides result metadata to the footer. */
 export interface QuotaFallbackInfo {
@@ -70,23 +87,103 @@ export interface QuotaFallbackTarget {
   forceSystemKey: boolean;
 }
 
+const RETARGETABLE_CATEGORIES: ReadonlySet<ApiErrorCategory> = new Set([
+  ApiErrorCategory.QUOTA_EXCEEDED,
+  ApiErrorCategory.CREDIT_EXHAUSTION,
+  // A live 429 classifies as RATE_LIMIT; retarget the SAME way as
+  // QUOTA_EXCEEDED (different default model, same key) so the FAILING turn is
+  // rescued in-turn instead of only subsequent turns (proactive cache path).
+  ApiErrorCategory.RATE_LIMIT,
+  // Availability-class (D12): the model is unhealthy but the user's key is
+  // fine — retarget with QUOTA_EXCEEDED-like semantics, never an entity swap.
+  // These reach the runner only after the in-attempt retry ladder exhausts
+  // (they are transient in PERMANENT_ERROR_CATEGORIES terms, so the ladder
+  // retries them; see also CAUSE_PRECEDENCE_CATEGORIES below).
+  ApiErrorCategory.MODEL_NOT_FOUND,
+  ApiErrorCategory.SERVER_ERROR,
+  ApiErrorCategory.TIMEOUT,
+  ApiErrorCategory.NETWORK,
+  ApiErrorCategory.EMPTY_RESPONSE,
+  // Provider-side censorship (owner-refined): a censored model refusing
+  // content Tzurot permits gets routed around. See the union's doc note on
+  // the internal-moderation guard.
+  ApiErrorCategory.CENSORED,
+  ApiErrorCategory.CONTENT_POLICY,
+]);
+
+/**
+ * lastError-PRECEDENCE set for the retry ladder (withRetry's
+ * `preferTerminalError`): a later attempt's failure only overwrites the
+ * preserved terminal error when it's in this set, so a CAUSE (429 during a
+ * rate-limit storm) survives a later SYMPTOM (the per-attempt abort's
+ * TIMEOUT). This must stay NARROW even though the retargetable set above is
+ * now wide: withRetry keeps the LAST preferred error, so admitting the
+ * availability/symptom categories here would let a trailing TIMEOUT overwrite
+ * the 429 that should drive the retarget's category. MODEL_NOT_FOUND is
+ * included for completeness (it's PERMANENT → fail-fast, so it's always the
+ * last error anyway).
+ */
+const CAUSE_PRECEDENCE_CATEGORIES: ReadonlySet<ApiErrorCategory> = new Set([
+  ApiErrorCategory.QUOTA_EXCEEDED,
+  ApiErrorCategory.CREDIT_EXHAUSTION,
+  ApiErrorCategory.RATE_LIMIT,
+  ApiErrorCategory.MODEL_NOT_FOUND,
+]);
+
 function isQuotaFallbackCategory(category: ApiErrorCategory): category is QuotaFallbackCategory {
-  return (
-    category === ApiErrorCategory.QUOTA_EXCEEDED ||
-    category === ApiErrorCategory.CREDIT_EXHAUSTION ||
-    // A live 429 classifies as RATE_LIMIT; retarget the SAME way as
-    // QUOTA_EXCEEDED (different default model, same key) so the FAILING turn is
-    // rescued in-turn instead of only subsequent turns (proactive cache path).
-    category === ApiErrorCategory.RATE_LIMIT
-  );
+  return RETARGETABLE_CATEGORIES.has(category);
+}
+
+/**
+ * The original billing-class subset (quota/credit/rate-limit). The
+ * auto-promotion wrapper's announce policy keys off THIS, not the wide
+ * retargetable set: its swap is a same-model provider-route recovery, and a
+ * routing hiccup (catalog-drift 404, flaky 5xx) deliberately stays
+ * unannotated — only billing-relevant reasons earn a footer breadcrumb.
+ */
+export type BillingQuotaCategory =
+  | ApiErrorCategory.QUOTA_EXCEEDED
+  | ApiErrorCategory.CREDIT_EXHAUSTION
+  | ApiErrorCategory.RATE_LIMIT;
+
+const BILLING_CLASS_CATEGORIES: ReadonlySet<ApiErrorCategory> = new Set([
+  ApiErrorCategory.QUOTA_EXCEEDED,
+  ApiErrorCategory.CREDIT_EXHAUSTION,
+  ApiErrorCategory.RATE_LIMIT,
+]);
+
+/** Narrow classifier for billing-class failures (see BillingQuotaCategory). */
+export function classifyBillingQuotaFailure(error: unknown): BillingQuotaCategory | null {
+  const unwrapped = error instanceof RetryError ? error.lastError : error;
+  const category =
+    unwrapped instanceof ApiError ? unwrapped.info.category : parseApiError(unwrapped).category;
+  return BILLING_CLASS_CATEGORIES.has(category) ? (category as BillingQuotaCategory) : null;
+}
+
+/**
+ * Precedence predicate for LLMInvoker's retry ladder. Deliberately distinct
+ * from `classifyQuotaFailure`: the runner's retargetable set is wide (any of
+ * those categories entering the runner may retarget), but only cause-class
+ * failures may DISPLACE an earlier preserved error as the ladder's terminal
+ * one (see CAUSE_PRECEDENCE_CATEGORIES).
+ */
+export function isCausePrecedenceFailure(error: unknown): boolean {
+  const unwrapped = error instanceof RetryError ? error.lastError : error;
+  const category =
+    unwrapped instanceof ApiError ? unwrapped.info.category : parseApiError(unwrapped).category;
+  return CAUSE_PRECEDENCE_CATEGORIES.has(category);
 }
 
 /**
  * The `isViable` seam (design D2): is `model` currently attemptable for this
  * account scope? Consults the same doom-caches the failure path writes.
  * Returns the blocking category on a non-viable model so proactive callers
- * can label the retarget correctly. Cache errors degrade to viable — the
- * caches are an optimisation, never a correctness gate.
+ * can label the retarget correctly. Error semantics are CALLER-specific:
+ * this function itself propagates a throwing cache (no internal catch). The
+ * proactive/hop-1 paths degrade a throw to viable at their own seams (the
+ * caches are an optimisation there); the floor hop (`attemptFloorHop`)
+ * deliberately degrades a throw to NOT-attempted instead — fail-closed is the
+ * safer call for a last-resort hop whose skip just propagates the original.
  */
 export async function checkModelViability(options: {
   model: string;
@@ -103,6 +200,46 @@ export async function checkModelViability(options: {
     return { viable: false, category: ApiErrorCategory.QUOTA_EXCEEDED };
   }
   return { viable: true };
+}
+
+/**
+ * The SECOND descent hop (D12): the floor beneath the tier-aware default.
+ * Free users land on `fallbackTextModelFree` (isFreeModel-guarded so an
+ * out-of-band bag edit can never bill the owner — same firewall as the
+ * guest-safe default below); paid users on `fallbackTextModel` (their own
+ * key; seeded `openrouter/auto` — the floor's job is to always answer).
+ * Null when the floor is already among the models that failed this turn
+ * (nothing new to try) or the doom caches veto it.
+ */
+export async function selectFloorTarget(options: {
+  isGuestMode: boolean;
+  /** Models already attempted this turn (original + hop-1 target). */
+  excludeModels: readonly string[];
+  cacheKeyId: string;
+  caches: QuotaFallbackCaches;
+}): Promise<QuotaFallbackTarget | null> {
+  const { isGuestMode, excludeModels, cacheKeyId, caches } = options;
+  let floor: string;
+  if (isGuestMode) {
+    const configured = getSystemSetting('fallbackTextModelFree');
+    floor = isFreeModel(configured) ? configured : FREE_ROUTER_MODEL;
+  } else {
+    floor = getSystemSetting('fallbackTextModel');
+  }
+  if (floor.length === 0 || excludeModels.includes(floor)) {
+    return null;
+  }
+  const viability = await checkModelViability({ model: floor, cacheKeyId, caches });
+  if (!viability.viable) {
+    return null;
+  }
+  return {
+    config: { model: floor, provider: AIProvider.OpenRouter },
+    // Interface-shape compatibility only — hop-2 reuses hop-1's already-
+    // resolved credentials, so this is never a decision point (entity swaps
+    // stay CREDIT_EXHAUSTION-only, decided at hop-1 selection).
+    forceSystemKey: false,
+  };
 }
 
 /**

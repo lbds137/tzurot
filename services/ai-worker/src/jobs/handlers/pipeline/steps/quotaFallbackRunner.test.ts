@@ -9,6 +9,11 @@ import {
   type QuotaFallbackDeps,
 } from './quotaFallbackRunner.js';
 import { type QuotaFallbackInfo } from '../../../../services/quotaFallback.js';
+import {
+  registerSystemSettings,
+  resetSystemSettingsRegistration,
+  type SystemSettingsService,
+} from '@tzurot/common-types/services/SystemSettingsService';
 import { type FreeTierRequestQuota } from '../../../../services/FreeTierRequestQuota.js';
 
 // The bot owner (`owner-1`) bypasses the free-tier meter entirely.
@@ -599,6 +604,209 @@ describe('runWithQuotaFallback', () => {
       })
     ).rejects.toBe(original);
     expect(retry).not.toHaveBeenCalled();
+  });
+});
+
+describe('D12 availability-class entry + two-hop floor descent', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    // Divergent-from-fallback floors prove the LIVE setting reads.
+    registerSystemSettings({
+      get: (key: string) =>
+        key === 'fallbackTextModel'
+          ? 'divergent/paid-floor'
+          : key === 'fallbackTextModelFree'
+            ? 'divergent/free-floor:free'
+            : undefined,
+    } as unknown as SystemSettingsService);
+  });
+  afterEach(() => {
+    resetSystemSettingsRegistration();
+    vi.restoreAllMocks();
+  });
+
+  it('an availability-class failure (SERVER_ERROR) now enters the retarget', async () => {
+    const primary = vi.fn().mockRejectedValue(quotaError(ApiErrorCategory.SERVER_ERROR));
+    const retry = vi.fn().mockResolvedValue(okResult);
+
+    const result = await runWithQuotaFallback({
+      primary,
+      retry,
+      opts: buildOpts(),
+      userId: '123',
+      requestId: 'req-1',
+      deps: buildDeps({ global: { model: 'paid/default' } }),
+    });
+
+    expect(retry).toHaveBeenCalledTimes(1);
+    expect(result.quotaFallback).toEqual({
+      fromModel: 'expensive/primary',
+      toModel: 'paid/default',
+      category: ApiErrorCategory.SERVER_ERROR,
+      mode: 'reactive',
+    });
+  });
+
+  it('hop 2: a retargetable hop-1 failure descends to the LIVE paid floor (BYOK)', async () => {
+    const primary = vi.fn().mockRejectedValue(quotaError(ApiErrorCategory.SERVER_ERROR));
+    const retry = vi
+      .fn()
+      .mockRejectedValueOnce(quotaError(ApiErrorCategory.TIMEOUT))
+      .mockResolvedValueOnce(okResult);
+
+    const result = await runWithQuotaFallback({
+      primary,
+      retry,
+      opts: buildOpts(),
+      userId: '123',
+      requestId: 'req-1',
+      deps: buildDeps({ global: { model: 'paid/default' } }),
+    });
+
+    expect(retry).toHaveBeenCalledTimes(2);
+    // Hop-2 runs on the floor personality (full-param swap via applyConfigToPersonality).
+    const hop2Opts = retry.mock.calls[1][0] as GenerateAttemptOpts;
+    expect(hop2Opts.personality.model).toBe('divergent/paid-floor');
+    // The footer traces the ORIGINAL model + ORIGINAL category, not the hop chain.
+    expect(result.quotaFallback).toEqual({
+      fromModel: 'expensive/primary',
+      toModel: 'divergent/paid-floor',
+      category: ApiErrorCategory.SERVER_ERROR,
+      mode: 'reactive',
+    });
+  });
+
+  it('guest hop 2 descends to the FREE floor, never the paid one', async () => {
+    const primary = vi.fn().mockRejectedValue(quotaError(ApiErrorCategory.EMPTY_RESPONSE));
+    const retry = vi
+      .fn()
+      .mockRejectedValueOnce(quotaError(ApiErrorCategory.SERVER_ERROR))
+      .mockResolvedValueOnce(okResult);
+
+    const result = await runWithQuotaFallback({
+      primary,
+      retry,
+      opts: buildOpts({ isGuestMode: true, apiKey: 'sk-system-key' }),
+      userId: '123',
+      requestId: 'req-1',
+      deps: buildDeps({ free: { model: 'freebie/model:free' } }),
+    });
+
+    const hop2Opts = retry.mock.calls[1][0] as GenerateAttemptOpts;
+    expect(hop2Opts.personality.model).toBe('divergent/free-floor:free');
+    expect(result.quotaFallback?.toModel).toBe('divergent/free-floor:free');
+  });
+
+  it('hop 2 is skipped when the floor equals the hop-1 target (dedup) — original propagates', async () => {
+    const original = quotaError(ApiErrorCategory.SERVER_ERROR);
+    const primary = vi.fn().mockRejectedValue(original);
+    const retry = vi.fn().mockRejectedValue(quotaError(ApiErrorCategory.TIMEOUT));
+
+    await expect(
+      runWithQuotaFallback({
+        primary,
+        retry,
+        opts: buildOpts(),
+        userId: '123',
+        requestId: 'req-1',
+        deps: buildDeps({ global: { model: 'divergent/paid-floor' } }),
+      })
+    ).rejects.toBe(original);
+    expect(retry).toHaveBeenCalledTimes(1);
+  });
+
+  it('hop 2 is skipped when the hop-1 failure is NOT retargetable (auth surfaces the fix)', async () => {
+    const original = quotaError(ApiErrorCategory.QUOTA_EXCEEDED);
+    const primary = vi.fn().mockRejectedValue(original);
+    const retry = vi.fn().mockRejectedValue(quotaError(ApiErrorCategory.AUTHENTICATION));
+
+    await expect(
+      runWithQuotaFallback({
+        primary,
+        retry,
+        opts: buildOpts(),
+        userId: '123',
+        requestId: 'req-1',
+        deps: buildDeps({ global: { model: 'paid/default' } }),
+      })
+    ).rejects.toBe(original);
+    expect(retry).toHaveBeenCalledTimes(1);
+  });
+
+  it('hop 2 is vetoed by the doom cache (floor already rate-limited for this scope)', async () => {
+    const original = quotaError(ApiErrorCategory.SERVER_ERROR);
+    const primary = vi.fn().mockRejectedValue(original);
+    const retry = vi.fn().mockRejectedValue(quotaError(ApiErrorCategory.TIMEOUT));
+    const deps = buildDeps({ global: { model: 'paid/default' } });
+    (deps.caches.rateLimit.isRateLimited as ReturnType<typeof vi.fn>).mockImplementation(
+      ({ model }: { model: string }) =>
+        Promise.resolve({ rateLimited: model === 'divergent/paid-floor' })
+    );
+
+    await expect(
+      runWithQuotaFallback({
+        primary,
+        retry,
+        opts: buildOpts(),
+        userId: '123',
+        requestId: 'req-1',
+        deps,
+      })
+    ).rejects.toBe(original);
+    expect(retry).toHaveBeenCalledTimes(1);
+  });
+
+  it('a THROWING floor selection degrades to not-attempted — the pristine original still propagates', async () => {
+    const original = quotaError(ApiErrorCategory.SERVER_ERROR);
+    const primary = vi.fn().mockRejectedValue(original);
+    const retry = vi.fn().mockRejectedValue(quotaError(ApiErrorCategory.TIMEOUT));
+    const deps = buildDeps({ global: { model: 'paid/default' } });
+    (deps.caches.rateLimit.isRateLimited as ReturnType<typeof vi.fn>).mockImplementation(
+      ({ model }: { model: string }) =>
+        model === 'divergent/paid-floor'
+          ? Promise.reject(new Error('redis exploded'))
+          : Promise.resolve({ rateLimited: false })
+    );
+
+    await expect(
+      runWithQuotaFallback({
+        primary,
+        retry,
+        opts: buildOpts(),
+        userId: '123',
+        requestId: 'req-1',
+        deps,
+      })
+    ).rejects.toBe(original);
+    expect(retry).toHaveBeenCalledTimes(1);
+  });
+
+  it('three-failure turn: pristine original propagates with BOTH rescue failures merged once each', async () => {
+    const original = quotaError(ApiErrorCategory.SERVER_ERROR);
+    const primary = vi.fn().mockRejectedValue(original);
+    const retry = vi
+      .fn()
+      .mockRejectedValueOnce(quotaError(ApiErrorCategory.TIMEOUT))
+      .mockRejectedValueOnce(quotaError(ApiErrorCategory.NETWORK));
+
+    await expect(
+      runWithQuotaFallback({
+        primary,
+        retry,
+        opts: buildOpts(),
+        userId: '123',
+        requestId: 'req-1',
+        deps: buildDeps({ global: { model: 'paid/default' } }),
+      })
+    ).rejects.toBe(original);
+
+    expect(retry).toHaveBeenCalledTimes(2);
+    // First merge is bare (single-hop composer contract); the floor hop is
+    // labeled. Each failure appears exactly once — no double-merge.
+    const summary = getFallbackFailureSummary(original);
+    expect(summary).toBe(
+      'synthetic timeout; quota-fallback retry (divergent/paid-floor) also failed: synthetic network'
+    );
   });
 });
 

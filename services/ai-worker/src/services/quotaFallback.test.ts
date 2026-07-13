@@ -11,7 +11,10 @@ import { RetryError } from '../utils/retry.js';
 import {
   applyConfigToPersonality,
   checkModelViability,
+  classifyBillingQuotaFailure,
   classifyQuotaFailure,
+  isCausePrecedenceFailure,
+  selectFloorTarget,
   selectQuotaFallbackTarget,
   type QuotaFallbackCaches,
 } from './quotaFallback.js';
@@ -372,5 +375,132 @@ describe('classifyQuotaFailure', () => {
       shouldRetry: true,
     });
     expect(classifyQuotaFailure(rateLimit)).toBe(ApiErrorCategory.RATE_LIMIT);
+  });
+});
+
+describe('D12 category membership', () => {
+  const err = (category: ApiErrorCategory): ApiError =>
+    new ApiError('synthetic', {
+      type: ApiErrorType.TRANSIENT,
+      category,
+      userMessage: 'x',
+      technicalMessage: 'x',
+      referenceId: 'ref',
+      shouldRetry: true,
+    });
+
+  it.each([
+    ApiErrorCategory.MODEL_NOT_FOUND,
+    ApiErrorCategory.SERVER_ERROR,
+    ApiErrorCategory.TIMEOUT,
+    ApiErrorCategory.NETWORK,
+    ApiErrorCategory.EMPTY_RESPONSE,
+    ApiErrorCategory.CENSORED,
+    ApiErrorCategory.CONTENT_POLICY,
+  ])('%s is now retargetable (availability/censorship class)', category => {
+    expect(classifyQuotaFailure(err(category))).toBe(category);
+  });
+
+  it.each([
+    ApiErrorCategory.AUTHENTICATION,
+    ApiErrorCategory.BAD_REQUEST,
+    ApiErrorCategory.FREE_TIER_QUOTA,
+  ])('%s NEVER retargets (actionable problems surface)', category => {
+    expect(classifyQuotaFailure(err(category))).toBeNull();
+  });
+
+  it('the billing classifier stays narrow (auto-promotion announce policy)', () => {
+    expect(classifyBillingQuotaFailure(err(ApiErrorCategory.RATE_LIMIT))).toBe(
+      ApiErrorCategory.RATE_LIMIT
+    );
+    expect(classifyBillingQuotaFailure(err(ApiErrorCategory.MODEL_NOT_FOUND))).toBeNull();
+    expect(classifyBillingQuotaFailure(err(ApiErrorCategory.SERVER_ERROR))).toBeNull();
+  });
+
+  it('cause-precedence stays narrow: a TIMEOUT symptom must not displace a 429 cause', () => {
+    expect(isCausePrecedenceFailure(err(ApiErrorCategory.RATE_LIMIT))).toBe(true);
+    expect(isCausePrecedenceFailure(err(ApiErrorCategory.MODEL_NOT_FOUND))).toBe(true);
+    expect(isCausePrecedenceFailure(err(ApiErrorCategory.TIMEOUT))).toBe(false);
+    expect(isCausePrecedenceFailure(err(ApiErrorCategory.SERVER_ERROR))).toBe(false);
+  });
+});
+
+describe('selectFloorTarget (the D12 second hop)', () => {
+  function caches(vetoModel?: string): QuotaFallbackCaches {
+    return {
+      creditExhaustion: { isCreditExhausted: vi.fn().mockResolvedValue({ exhausted: false }) },
+      rateLimit: {
+        isRateLimited: vi
+          .fn()
+          .mockImplementation(({ model }: { model: string }) =>
+            Promise.resolve({ rateLimited: model === vetoModel })
+          ),
+      },
+    } as unknown as QuotaFallbackCaches;
+  }
+
+  afterEach(() => resetSystemSettingsRegistration());
+
+  function registerFloors(paid: string, free: string): void {
+    registerSystemSettings({
+      get: (key: string) =>
+        key === 'fallbackTextModel' ? paid : key === 'fallbackTextModelFree' ? free : undefined,
+    } as unknown as SystemSettingsService);
+  }
+
+  it('paid users get the LIVE fallbackTextModel (divergent-from-fallback value)', async () => {
+    registerFloors('divergent/paid-floor', 'divergent/free:free');
+    const target = await selectFloorTarget({
+      isGuestMode: false,
+      excludeModels: ['a/b', 'c/d'],
+      cacheKeyId: 'user:1',
+      caches: caches(),
+    });
+    expect(target?.config.model).toBe('divergent/paid-floor');
+    expect(target?.forceSystemKey).toBe(false);
+  });
+
+  it('guests get the FREE floor; a non-free bag value degrades to the static router (billing firewall)', async () => {
+    registerFloors('divergent/paid-floor', 'paid/sneaky');
+    const target = await selectFloorTarget({
+      isGuestMode: true,
+      excludeModels: [],
+      cacheKeyId: 'system',
+      caches: caches(),
+    });
+    expect(target?.config.model).toBe('openrouter/free');
+  });
+
+  it('returns null when the floor is already among the failed models (dedup)', async () => {
+    registerFloors('divergent/paid-floor', 'divergent/free:free');
+    const target = await selectFloorTarget({
+      isGuestMode: false,
+      excludeModels: ['divergent/paid-floor'],
+      cacheKeyId: 'user:1',
+      caches: caches(),
+    });
+    expect(target).toBeNull();
+  });
+
+  it('returns null on an empty-string floor (belt-and-braces over the write validator)', async () => {
+    registerFloors('', 'divergent/free:free');
+    const target = await selectFloorTarget({
+      isGuestMode: false,
+      excludeModels: [],
+      cacheKeyId: 'user:1',
+      caches: caches(),
+    });
+    expect(target).toBeNull();
+  });
+
+  it('returns null when the doom cache vetoes the floor', async () => {
+    registerFloors('divergent/paid-floor', 'divergent/free:free');
+    const target = await selectFloorTarget({
+      isGuestMode: false,
+      excludeModels: [],
+      cacheKeyId: 'user:1',
+      caches: caches('divergent/paid-floor'),
+    });
+    expect(target).toBeNull();
   });
 });

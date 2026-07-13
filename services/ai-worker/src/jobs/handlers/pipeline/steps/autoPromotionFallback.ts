@@ -26,7 +26,7 @@ import type { DiagnosticCollector } from '../../../../services/DiagnosticCollect
 import type { GenerationContext } from '../types.js';
 import { RetryError } from '../../../../utils/retry.js';
 import {
-  classifyQuotaFailure,
+  classifyBillingQuotaFailure,
   logQuotaFallbackAudit,
   type QuotaFallbackInfo,
 } from '../../../../services/quotaFallback.js';
@@ -158,12 +158,15 @@ export async function runWithAutoPromotionFallback(
       });
       // OpenRouter actually served this request (the promoted z.ai call failed),
       // so report it as the effective provider for the footer model-info link —
-      // and, for quota-class failures, the announce breadcrumb (same shape the
-      // proactive demotion attaches from the doom cache). classifyQuotaFailure
-      // (not a hand-rolled parseApiError) because it trusts an ApiError's own
+      // and, for BILLING-class failures, the announce breadcrumb (same shape
+      // the proactive demotion attaches from the doom cache). The narrow
+      // billing classifier — not the wide D12 retargetable set — because this
+      // swap is a same-model route recovery: a routing hiccup (catalog-drift
+      // 404, flaky 5xx) deliberately stays unannotated. Classifier (not a
+      // hand-rolled parseApiError) because it trusts an ApiError's own
       // .info.category — the rate-limit-cache short-circuit throws a synthetic
       // ApiError whose generic message would regex-parse to the WRONG category.
-      const category = classifyQuotaFailure(originalError);
+      const category = classifyBillingQuotaFailure(originalError);
       if (category === null) {
         return { ...fallbackResult, effectiveProviderUsed: AIProvider.OpenRouter };
       }
