@@ -11,7 +11,7 @@
  *   2. User global default (User.defaultVisionConfigId)
  *   3. Personality vision default (PersonalityVisionDefaultConfig — separate join table)
  *   4. Global vision default (AdminSettings.globalDefaultVisionConfigId — the paid default)
- *   5. Hardcoded fallback (MODEL_DEFAULTS.VISION_FALLBACK)
+ *   5. The runtime fallbackVisionModel setting (cascade terminal)
  *
  * The cascade waterfall (tiers 1-2) and cache lifecycle live in `BaseConfigResolver`.
  * This subclass owns the vision-specific Prisma queries and the tier 3-5 fallback.
@@ -32,7 +32,6 @@ import {
   type ConfigOverrideEntry,
   type UserWithDefault,
 } from './BaseConfigResolver.js';
-import { MODEL_DEFAULTS } from '@tzurot/common-types/constants/ai';
 import { INTERVALS } from '@tzurot/common-types/constants/timing';
 import { ADMIN_SETTINGS_SINGLETON_ID } from '@tzurot/common-types/schemas/api/adminSettings';
 import {
@@ -47,16 +46,18 @@ import {
 } from '@tzurot/common-types/types/configResolution';
 import { pickVisionTierParams } from '@tzurot/common-types/types/schemas/personality';
 import { TTLCache } from '@tzurot/common-types/utils/TTLCache';
+import { getSystemSetting } from '@tzurot/common-types/services/SystemSettingsService';
 
 /**
- * Hardcoded fallback when no DB vision config is available at any tier. The bootstrap
- * seeds a global vision default, so this is a true last resort (e.g. a fresh DB before
- * bootstrap runs). Frozen to prevent callers mutating the shared module constant.
+ * Last-resort fallback when no DB vision config is available at any tier. The
+ * bootstrap seeds a global vision default, so this fires only on e.g. a fresh
+ * DB before bootstrap runs. The model is the runtime fallbackVisionModel
+ * setting (owner decision: the cascade terminates at the configured fallback,
+ * not a separate constant) — resolved per call, not frozen at module load.
  */
-const HARDCODED_FALLBACK: ResolvedVisionConfig = Object.freeze({
-  model: MODEL_DEFAULTS.VISION_FALLBACK,
-  source: 'hardcoded',
-});
+function hardcodedFallback(): ResolvedVisionConfig {
+  return { model: getSystemSetting('fallbackVisionModel'), source: 'hardcoded' };
+}
 
 /** Sentinel cache key for the global-default lookup (no userId/personalityId axis). */
 const GLOBAL_DEFAULT_CACHE_KEY = '__vision_global_default__';
@@ -181,7 +182,7 @@ export class VisionConfigResolver extends BaseConfigResolver<
       { personalityId: personality.id },
       'No PersonalityVisionDefaultConfig, no global vision default in DB — using hardcoded fallback'
     );
-    return { ...HARDCODED_FALLBACK };
+    return hardcodedFallback();
   }
 
   /** Tiers 1-2: an override REPLACES (model + the row's explicit params — no field merge). */

@@ -3,7 +3,7 @@
  * Default value merging and placeholder replacement logic for personalities
  */
 
-import { MODEL_DEFAULTS, AI_DEFAULTS } from '@tzurot/common-types/constants/ai';
+import { AI_DEFAULTS } from '@tzurot/common-types/constants/ai';
 import { MESSAGE_LIMITS, PLACEHOLDERS } from '@tzurot/common-types/constants/message';
 import {
   mapLlmConfigFromDb,
@@ -11,6 +11,7 @@ import {
 } from '@tzurot/common-types/services/LlmConfigMapper';
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import type { DatabasePersonality } from './PersonalityValidator.js';
+import { getSystemSetting } from '@tzurot/common-types/services/SystemSettingsService';
 
 /**
  * Get a config value with cascade: personality > global > fallback
@@ -33,10 +34,12 @@ function getRequiredLlmConfig(
   LoadedPersonality,
   'model' | 'temperature' | 'maxTokens' | 'contextWindowTokens' | 'provider'
 > {
+  // Nothing-configured terminal: the cascade lands on the runtime
+  // fallbackTextModel setting (owner decision: no separate everyday-default
+  // constant — the configured fallback IS where the cascade terminates).
+  const fallbackModel = getSystemSetting('fallbackTextModel');
   return {
-    model:
-      getConfigValue(pc?.model, gc?.model, MODEL_DEFAULTS.DEFAULT_MODEL) ??
-      MODEL_DEFAULTS.DEFAULT_MODEL,
+    model: getConfigValue(pc?.model, gc?.model, fallbackModel) ?? fallbackModel,
     // Provider routing key — cascades through personality-specific config
     // → global default → 'openrouter' fallback. Drives ProviderRouter and
     // ModelFactory branch selection at request time.
@@ -231,7 +234,7 @@ export function deriveAvatarUrl(
  * Config cascade priority:
  * 1. Personality-specific default config (db.defaultConfigLink?.llmConfig)
  * 2. Global default config (globalDefaultConfig parameter)
- * 3. Hardcoded env variable fallbacks (MODEL_DEFAULTS.DEFAULT_MODEL, etc.)
+ * 3. The runtime fallback settings (fallbackTextModel, etc.) as the cascade terminal
  *
  * Placeholder handling:
  * - User placeholders ({user}, {{user}}) are normalized to {user}

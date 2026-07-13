@@ -265,7 +265,7 @@ describe('vision fallback chain (wiring / seam test)', () => {
   // throws (its contract): it renders a `[Image …]` placeholder and processAttachments
   // RESOLVES. Proves per-image graceful degradation through the real chain.
   it('all tiers fail retryable → exhaustion placeholder, resolves without throwing', async () => {
-    // The real composeVisionTiers appends the hardcoded floor model (config.VISION_FALLBACK_MODEL)
+    // The real composeVisionTiers appends the paid floor (the fallbackVisionModel system setting)
     // as a 3rd tier after the primary + stamped fallback. Fail EVERY tier — the loop walks all of
     // them and only then renders the exhaustion placeholder. `rejectRateLimited` is the default for
     // any model not listed, so the floor tier fails too without hardcoding its (config-derived) name.
