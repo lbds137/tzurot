@@ -109,6 +109,27 @@ BOT_OWNER_ID=987654321
       expect(output).toContain('[DRY RUN]');
       expect(output).toContain('Would set shared variable');
     });
+
+    it('sets ZAI_CODING_API_KEY on BOTH api-gateway and ai-worker', async () => {
+      // The both-services invariant: the worker bills z.ai calls with the key,
+      // the gateway's write validator checks it before accepting zai-coding
+      // settings. An env carrying it on only one service accepts settings it
+      // cannot serve (the bag mis-seed incident class) — this test pins the
+      // manifest pairing so the key can't quietly drop from either list.
+      mockReadFileSync.mockReturnValue(`
+AI_PROVIDER=openrouter
+OPENROUTER_API_KEY=sk-test-key
+DISCORD_TOKEN=test-discord-token
+DISCORD_CLIENT_ID=123456789
+ZAI_CODING_API_KEY=test-zai-key
+`);
+
+      await setupRailwayVariables({ env: 'dev', dryRun: true, yes: true });
+
+      const output = consoleLogs.join('\n');
+      expect(output).toContain('Would set api-gateway variable: ZAI_CODING_API_KEY');
+      expect(output).toContain('Would set ai-worker variable: ZAI_CODING_API_KEY');
+    });
   });
 
   describe('environment validation', () => {

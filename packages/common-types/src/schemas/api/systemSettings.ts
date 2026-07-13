@@ -40,7 +40,7 @@ export const SystemSettingsSchema = z.object({
   extractionBatchThreshold: z.number().int().min(1).max(50),
   /** Extraction engine — switching models MUST re-run `pnpm eval:extraction` first. */
   extractionModel: z.string().min(1),
-  /** Which provider bills extraction; 'zai-coding' requires ZAI_CODING_API_KEY. */
+  /** Which provider bills extraction; 'zai-coding' requires ZAI_CODING_API_KEY on BOTH ai-worker and api-gateway. */
   extractionProvider: z.enum(['openrouter', 'zai-coding']),
   /** The shared free key's daily free-request allowance (the pie). */
   freeTierGlobalDailyBudget: z.number().int().min(1),
@@ -215,7 +215,8 @@ export const SYSTEM_SETTINGS_REGISTRY: SystemSettingsRegistry = {
   extractionProvider: {
     key: 'extractionProvider',
     label: 'Extraction Provider',
-    description: "Which provider bills extraction; 'zai-coding' requires the system z.ai key.",
+    description:
+      "Which provider bills extraction; 'zai-coding' requires ZAI_CODING_API_KEY on BOTH ai-worker (bills the calls) and api-gateway (validates writes to this setting).",
     group: GROUP_EXTRACTION,
     control: 'enum',
     liveness: 'live',

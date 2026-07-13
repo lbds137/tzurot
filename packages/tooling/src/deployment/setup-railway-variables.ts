@@ -88,6 +88,21 @@ const BOT_CLIENT_VARIABLES: VariableConfig[] = [
   },
 ];
 
+/**
+ * ZAI_CODING_API_KEY belongs on BOTH ai-worker and api-gateway — the worker
+ * bills z.ai extraction/free-tier calls with it, and the gateway's system-
+ * settings write validator checks it before accepting zai-coding values. An
+ * environment that carries it on only one service accepts settings it cannot
+ * serve (the bag mis-seed incident class). Declared once, listed in both
+ * service configs; a manifest test pins the pairing.
+ */
+const ZAI_CODING_KEY_VARIABLE: VariableConfig = {
+  key: 'ZAI_CODING_API_KEY',
+  description: 'z.ai coding-plan API key (extraction billing + guest free tier + write validation)',
+  isSecret: true,
+  required: false,
+};
+
 const API_GATEWAY_VARIABLES: VariableConfig[] = [
   {
     key: 'API_GATEWAY_PORT',
@@ -97,6 +112,7 @@ const API_GATEWAY_VARIABLES: VariableConfig[] = [
     required: true,
     defaultValue: '3000',
   },
+  ZAI_CODING_KEY_VARIABLE,
 ];
 
 const AI_WORKER_VARIABLES: VariableConfig[] = [
@@ -115,6 +131,7 @@ const AI_WORKER_VARIABLES: VariableConfig[] = [
     required: true,
     defaultValue: '3001',
   },
+  ZAI_CODING_KEY_VARIABLE,
 ];
 
 const ALL_SERVICE_CONFIGS: ServiceConfig[] = [
