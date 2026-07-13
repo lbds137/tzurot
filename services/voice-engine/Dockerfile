@@ -49,4 +49,24 @@ EXPOSE ${PORT}
 HEALTHCHECK --interval=30s --timeout=30s --start-period=120s --retries=3 \
     CMD curl -f http://[::1]:8000/health || exit 1
 
-CMD ["python", "server.py"]
+# Model caches live on the Railway volume (when mounted) so downloaded models
+# survive redeploys: a fresh deployment reuses the cached Parakeet/Pocket
+# weights instead of re-downloading multi-GB files from HuggingFace at first
+# wake — HF availability from datacenter IPs is not reliable enough to sit on
+# the boot path (a platform-wide anonymous-download outage froze a dev boot
+# indefinitely at "Loading Parakeet").
+#
+# Shell-form CMD so the env expands at CONTAINER START, before Python exists —
+# huggingface_hub snapshots HF_HOME at import time, and server.py imports the
+# model libraries at module top, so setting these any later is too late.
+# HF_HOME covers huggingface_hub downloads (Parakeet's .nemo via NeMo's HF
+# routing, Pocket TTS weights); NEMO_CACHE_DIR covers NeMo's extraction cache
+# (honored by nemo_toolkit 2.x; harmlessly ignored if a future version drops
+# it — extraction would then redo per fresh container at local-disk speed).
+# No volume mounted (local docker runs) → library-default caches, old behavior.
+# `exec` keeps python as PID 1 for signal handling.
+CMD if [ -n "$RAILWAY_VOLUME_MOUNT_PATH" ]; then \
+      export HF_HOME="$RAILWAY_VOLUME_MOUNT_PATH/model-cache/huggingface" \
+             NEMO_CACHE_DIR="$RAILWAY_VOLUME_MOUNT_PATH/model-cache/nemo"; \
+    fi; \
+    exec python server.py
