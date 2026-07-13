@@ -40,3 +40,8 @@ packages/test-utils/fixtures/contracts/
 # arrays onto single lines, breaking that comparison on every regeneration. Same
 # rationale as the command manifest and contract fixtures above.
 packages/tooling/coverage-topology.json
+
+# Vendored embedding model artifacts (packages/embeddings/models/): upstream
+# HuggingFace files kept byte-identical for sha verification — prettier must
+# not reformat the tokenizer/config JSON.
+packages/embeddings/models/
