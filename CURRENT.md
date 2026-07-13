@@ -1,16 +1,16 @@
 # Current
 
-> **Version**: v3.0.0-beta.162 (released 2026-07-13 morning) — the admin-runtime-settings epic complete: paged settings dashboards (7 admin pages incl. owner-only System pages), all 17 system settings runtime-live through the SWR cache (15 env vars retired), runtime text fallback descent to the configurable floors, and the release-review-caught free-model firewall at every floor read. _Prior: beta.161 (2026-07-12, conditional query-fold + admin-settings plumbing)._
+> **Version**: v3.0.0-beta.163 (released 2026-07-13 evening) — the finishing-first day: multi-tag zombie-group age-gate fix, db-sync silent-hang diagnostics (transport probes NOW LIVE IN PROD — the next prod db-sync run pins the mechanism), shapes-inc fetcher-hardening theme CLOSED (bot-wall detection, drift canary, concurrency gate, GDPR-fallback docs), cascade floor termination, constants/manifest cleanups, dependabot TS-7 unblock (config main-cut #1626). _Prior: beta.162 (2026-07-13 morning, admin-runtime-settings epic)._
 
 ---
 
 ## Unreleased on Develop
 
-_(empty — reset at beta.162)_
+_(empty — reset at beta.163)_
 
 ## Next Session Goal
 
-**Next:** **memory 1b (composite scoring)** — grounding staged in the plan file; needs owner + plan-mode (schema-bearing: episode type/salience deferred from Phase 2 into 1b; weights measured against the 1c judged pool before wiring — the conditional-fold pattern). **beta.162 smoke (observability-first)**: prod boot logs must show `Fact-extraction assembly constructed ... extractionEnabled=true` (bag repaired pre-release, verified); one normal reply proves the generation path; the descent self-reports via footer + audit on its first organic model failure (a real case study exists: Duo's 5:14 AM triple-timeout would have been rescued). Operational tail: Railway env cleanup (15 retired vars — dev first, dashboard op), owner decisions in `cold/follow-ups.md` (floor-vs-default constants, artifact retirement), retention transaction-expiry recurrence check (board § New). Watches: dev backfill (resumed, ~83%), beta.160 holdovers still open, prod lock-storm recurrence, retention-failure recurrence (board). **beta.161 fold-gate watch CLOSED 2026-07-13 with positive evidence**: `Including recent history in memory search` fired exactly on a 4-content-word reactive turn and stayed absent on every content-rich turn in the same prod windows — designed selectivity confirmed on organic traffic. Fable access through July 19.
+**Next:** **memory 1b (composite scoring)** — grounding staged in the plan file; needs owner + plan-mode (schema-bearing: episode type/salience deferred from Phase 2 into 1b; weights measured against the 1c judged pool before wiring — the conditional-fold pattern). **NEW 1b input: prod user feedback filed 2026-07-13 (board § Untriaged)** — wrong-entity fact, repeated fact surfacing, corrections-not-outranking-stale; fold as acceptance criteria. **beta.163 smoke**: one normal reply (generation path); **prod `/admin db-sync` run = the silent-hang diagnostic** (probes live — either a healthy staged trail or the death stage finally named; the 3/3 silent failures + zero-stash evidence live in board § Production Issues); bot-client boot logs for the age gate's first live multi-tag recovery. Watches: dev backfill (~86%), beta.160 holdovers, prod lock-storm recurrence, retention-failure recurrence (board). Fable access through July 19.
 
 **Open follow-ups from Phase 1** (all in `cold/follow-ups.md` with promote-when triggers): system-voice straggler wording (STT / MessageHandler top-catch / truncation notices), partial-failure errored-slot delivery, admin/kick `serverId` escaping, `deletePersona`/`getCachedPersonalities` wrapper widening, `maxRetries:0` metrics watch.
 
