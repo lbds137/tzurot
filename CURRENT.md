@@ -18,9 +18,8 @@ _(empty — reset at beta.162)_
 
 **Mechanical work queue (Opus-suitable — build-sized, decisions already written down):** _(swept 2026-07-11: Stryker five-package expansion, CPD campaigns, and DB-perf Phase 1 verified SHIPPED against the code/CI; job-payload contract suite verified shipped (BullMQJobChain.contract.test.ts, 11 tests, real-producer fixture) — the board had rotted)_
 
-1. **shapes-inc fetcher hardening** — 6 small well-specified items.
-2. **LLM legacy-column retirement (Phase A DROP + Phase B)** — both destructive-migration-bearing (`release:premigrate --allow-destructive`); a focused moment, not a filler slot.
-3. **Follow-ups table sweep** — oldest rows (aging escalates; `pnpm ops backlog` surfaces them).
+1. **LLM legacy-column retirement (Phase A DROP + Phase B)** — both destructive-migration-bearing (`release:premigrate --allow-destructive`); a focused moment, not a filler slot.
+2. **Follow-ups table sweep** — oldest rows (aging escalates; `pnpm ops backlog` surfaces them).
 
 ## Last Session — the honest re-baseline + conditional fold night (2026-07-12 late)
 
