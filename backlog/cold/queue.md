@@ -17,7 +17,6 @@ _Ordered index of future themes. Grep-on-demand — not loaded at session start.
 - [Model Configuration Overhaul](themes/model-configuration-overhaul.md) — first-class vision config + LLM config profiles bundling paid/free/vision
 - [z.ai Catalog + 402 Error-Shape Verification](themes/zai-402-error-shape-verification.md) — capture real provider error shapes (z.ai catalog-drift, z.ai 402 subscription-lapse, OpenRouter 402 credit variants), then narrow the deliberately-broad defensive branches that shipped without samples _(gated on a real probe or production incident producing the error-shape data)_
 - [Next-Gen AI Capabilities](themes/next-gen-ai-capabilities.md) — agentic scaffolding, advanced prompt features, image generation
-- [Voice Engine](themes/voice-engine.md) — two-tier STT/TTS _(partial — reconciled 2026-06-26: phases 1–4.6 + pipeline resilience shipped; shapes voice import + parallel TTS chunking remain)_
 - [Typing Indicator Reliability](themes/typing-indicator-reliability.md) — diagnose and fix intermittent typing-indicator dropouts during long responses _(partial — reconciled 2026-06-26: the typing-send helper shipped; the investigation + 2 sub-items remain)_
 - [Observability & Telemetry](themes/observability-and-telemetry.md) — structured-log telemetry, user analytics, error-serialization audits
 - [`/voice` + `/inspect` UX Polish (mini-epic)](themes/voice-inspect-ux-polish.md) — fix UX rough edges on `/voice` and `/inspect` surfaces
