@@ -134,10 +134,23 @@ describe('SelfHostedTtsProvider', () => {
       expect(mockedSynthesizeWithChunking).toHaveBeenCalledWith(
         regService.client,
         'hello',
-        'emily'
+        'emily',
+        undefined
       );
       expect(buf).toBeInstanceOf(Buffer);
       expect(buf.length).toBeGreaterThan(0);
+    });
+
+    it('forwards the ctx abort signal to the chunker', async () => {
+      const controller = new AbortController();
+      const handle = await provider.prepare({ slug: 'emily' });
+      await provider.synthesize('hello', handle, { slug: 'emily', signal: controller.signal });
+      expect(mockedSynthesizeWithChunking).toHaveBeenCalledWith(
+        regService.client,
+        'hello',
+        'emily',
+        controller.signal
+      );
     });
 
     it('rejects inlineAudio handles', async () => {

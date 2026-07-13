@@ -671,6 +671,12 @@ describe('synthesizeWithChunking', () => {
   });
 });
 
+/** Text long enough to split into at least four ~1500-char chunks. */
+function fourChunkText(): string {
+  const sentences = ['A', 'B', 'C', 'D'].map(letter => letter.repeat(1500) + '.');
+  return sentences.join(' ');
+}
+
 describe('synthesizeWithChunking concurrency', () => {
   let mockClient: VoiceEngineClient;
 
@@ -679,12 +685,6 @@ describe('synthesizeWithChunking concurrency', () => {
       synthesize: vi.fn(),
     } as unknown as VoiceEngineClient;
   });
-
-  /** Text long enough to split into at least four ~1500-char chunks. */
-  function fourChunkText(): string {
-    const sentences = ['A', 'B', 'C', 'D'].map(letter => letter.repeat(1500) + '.');
-    return sentences.join(' ');
-  }
 
   it('never exceeds the concurrency cap (matches voice-engine INFERENCE_CONCURRENCY)', async () => {
     let inFlight = 0;
@@ -747,15 +747,43 @@ describe('synthesizeWithChunking failure propagation', () => {
       }),
     } as unknown as VoiceEngineClient;
 
-    const sentences = ['A', 'B', 'C', 'D'].map(letter => letter.repeat(1500) + '.');
-    const text = sentences.join(' ');
-
-    await expect(synthesizeWithChunking(mockClient, text, 'voice-1')).rejects.toThrow(
+    await expect(synthesizeWithChunking(mockClient, fourChunkText(), 'voice-1')).rejects.toThrow(
       'voice-engine 500 on chunk B'
     );
     // The failing chunk's batch-mate had already been dispatched (calls fire
     // synchronously inside the batch .map), but chunks in LATER batches were
     // never requested — bounded waste, same overall rejection.
     expect(vi.mocked(mockClient.synthesize).mock.calls.length).toBeLessThanOrEqual(2);
+  });
+});
+
+describe('synthesizeWithChunking abort (outer budget expiry)', () => {
+  it('stops dispatching new batches once the signal aborts', async () => {
+    const controller = new AbortController();
+    const budgetExpired = new Error('outer TTS budget expired');
+    const mockClient = {
+      synthesize: vi.fn().mockImplementation(async () => {
+        // The outer budget expires while batch 1 is in flight.
+        controller.abort(budgetExpired);
+        return { audioBuffer: createFakeWav(Buffer.from([0x01])), contentType: 'audio/wav' };
+      }),
+    } as unknown as VoiceEngineClient;
+
+    await expect(
+      synthesizeWithChunking(mockClient, fourChunkText(), 'voice-1', controller.signal)
+    ).rejects.toThrow('outer TTS budget expired');
+    // Batch 1's two calls had already been dispatched; batch 2 must never be.
+    expect(vi.mocked(mockClient.synthesize).mock.calls.length).toBe(2);
+  });
+
+  it('makes no calls at all when the signal is already aborted', async () => {
+    const controller = new AbortController();
+    controller.abort(new Error('already expired'));
+    const mockClient = { synthesize: vi.fn() } as unknown as VoiceEngineClient;
+
+    await expect(
+      synthesizeWithChunking(mockClient, 'short text', 'voice-1', controller.signal)
+    ).rejects.toThrow('already expired');
+    expect(vi.mocked(mockClient.synthesize)).not.toHaveBeenCalled();
   });
 });

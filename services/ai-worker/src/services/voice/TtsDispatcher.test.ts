@@ -574,6 +574,61 @@ describe('dispatchTts — isFallbackEligible semantics', () => {
     });
     expect(result.providerUsed).toBe('self-hosted');
   });
+
+  it('threads the abort signal into every candidate ctx (the chunker check depends on it)', async () => {
+    // Regression: buildCtxForProvider rebuilds the ctx per candidate and once
+    // dropped `signal`, making the chunker's between-batch abort check dead
+    // code in the real dispatch path. Assert the SAME signal instance reaches
+    // both the BYOK branch (primary) and the non-BYOK branch (fallback).
+    const controller = new AbortController();
+    const eleven = makeProvider('elevenlabs', {
+      synthesize: vi.fn(async () => {
+        throw new Error('network blip');
+      }),
+    });
+    const selfHosted = makeProvider('self-hosted');
+
+    await dispatchTts({
+      text: 'hi',
+      resolvedConfig: elevenlabsConfig,
+      ctx: { ...baseCtx, signal: controller.signal },
+      audioProviderKeys: audioKeysOnlyEleven,
+      registry: makeRegistry([eleven, selfHosted]),
+    });
+
+    const elevenCtx = vi.mocked(eleven.synthesize).mock.calls[0]?.[2];
+    const selfHostedCtx = vi.mocked(selfHosted.synthesize).mock.calls[0]?.[2];
+    expect(elevenCtx?.signal).toBe(controller.signal);
+    expect(selfHostedCtx?.signal).toBe(controller.signal);
+  });
+
+  it('does not fall back once the outer-budget signal aborts (post-timeout)', async () => {
+    const controller = new AbortController();
+    const budgetExpired = new Error('outer TTS budget expired');
+    const eleven = makeProvider('elevenlabs', {
+      synthesize: vi.fn(async () => {
+        // The outer budget expires while the primary synthesis is in flight;
+        // the failure itself is a shape that would normally fall back.
+        controller.abort(budgetExpired);
+        throw new Error('network blip');
+      }),
+    });
+    const selfHosted = makeProvider('self-hosted');
+
+    await expect(
+      dispatchTts({
+        text: 'hi',
+        resolvedConfig: elevenlabsConfig,
+        ctx: { ...baseCtx, signal: controller.signal },
+        audioProviderKeys: audioKeysOnlyEleven,
+        registry: makeRegistry([eleven, selfHosted]),
+      })
+    ).rejects.toThrow('outer TTS budget expired');
+
+    // No fresh synthesis may start for a result nobody will receive.
+    expect(selfHosted.prepare).not.toHaveBeenCalled();
+    expect(selfHosted.synthesize).not.toHaveBeenCalled();
+  });
 });
 
 // ===== canHandle skip path ==================================================

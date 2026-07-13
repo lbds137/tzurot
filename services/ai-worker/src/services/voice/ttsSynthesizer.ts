@@ -281,8 +281,12 @@ export function inferSampleRate(wavBuffer: Buffer): number {
 export async function synthesizeWithChunking(
   client: VoiceEngineClient,
   text: string,
-  voiceId: string
+  voiceId: string,
+  signal?: AbortSignal
 ): Promise<SynthesisResult> {
+  // Don't start anything for a result the caller has already discarded.
+  signal?.throwIfAborted();
+
   // splitTextIntoChunks always returns at least one element (even for empty string)
   const chunks = splitTextIntoChunks(text);
 
@@ -319,6 +323,12 @@ export async function synthesizeWithChunking(
   // audioNormalizer downstream, after multi-chunk concatenation.
   const results: SynthesisResult[] = [];
   for (let batchStart = 0; batchStart < chunks.length; batchStart += TTS_CHUNK_CONCURRENCY) {
+    // Between-batch abort check: once the outer budget expires, dispatching
+    // further batches is pure dead work — each one holds both slots of the
+    // shared inference semaphore against live TTS AND STT traffic. In-flight
+    // batch-mates run to completion (server-side inference can't be
+    // interrupted); only NEW dispatches stop.
+    signal?.throwIfAborted();
     const batch = chunks.slice(batchStart, batchStart + TTS_CHUNK_CONCURRENCY);
     const batchResults = await Promise.all(
       batch.map((chunk, offset) => {

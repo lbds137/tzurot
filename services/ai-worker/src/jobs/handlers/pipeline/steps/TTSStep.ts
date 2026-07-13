@@ -183,9 +183,12 @@ export class TTSStep implements IPipelineStep {
 
   /**
    * Wrap the dispatch + normalize + store in the outer 300s budget. When the
-   * timeout wins the race, the underlying work continues in the background;
-   * its result is discarded (ttsAudioKey never written) and the audio expires
-   * via Redis TTL.
+   * timeout wins the race, requests already in flight run to completion in
+   * the background (server-side inference can't be interrupted) and their
+   * result is discarded (ttsAudioKey never written; stored audio expires via
+   * Redis TTL) — but the abort signal stops any NEW dispatches: the chunker
+   * won't start further batches and the dispatcher won't try fallback
+   * providers for a result nobody will receive.
    */
   private async runWithTimeout(
     text: string,
@@ -196,6 +199,7 @@ export class TTSStep implements IPipelineStep {
   ): Promise<TtsResult | null> {
     let timedOut = false;
     let timeoutId: NodeJS.Timeout | undefined;
+    const abortController = new AbortController();
 
     const work = (async () => {
       // BYOK key threading: the base ctx intentionally has no `byokKey` field —
@@ -207,7 +211,11 @@ export class TTSStep implements IPipelineStep {
       const dispatchResult = await dispatchTts({
         text,
         resolvedConfig,
-        ctx: { slug, modelId: resolvedConfig.modelId ?? undefined },
+        ctx: {
+          slug,
+          modelId: resolvedConfig.modelId ?? undefined,
+          signal: abortController.signal,
+        },
         audioProviderKeys,
         registry: ttsProviderRegistry,
       });
@@ -273,7 +281,11 @@ export class TTSStep implements IPipelineStep {
       new Promise<null>((_, reject) => {
         timeoutId = setTimeout(() => {
           timedOut = true;
-          reject(new TimeoutError(TTS_MAX_TOTAL_MS, 'TTS processing'));
+          const timeoutError = new TimeoutError(TTS_MAX_TOTAL_MS, 'TTS processing');
+          // Halt the orphaned work's NEW dispatches (chunk batches, fallback
+          // providers) — its in-flight requests run to completion regardless.
+          abortController.abort(timeoutError);
+          reject(timeoutError);
         }, TTS_MAX_TOTAL_MS);
       }),
     ]);

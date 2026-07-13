@@ -110,6 +110,18 @@ export interface TtsContext {
   byokKey?: string;
   /** Optional model override from the resolved tts_config row. */
   modelId?: string;
+  /**
+   * Cooperative-cancellation signal from the caller's outer time budget
+   * (TTSStep's 300s race). Checked between chunk batches (self-hosted
+   * chunker) and between fallback-chain attempts (dispatcher) so that work
+   * whose result is already discarded stops dispatching NEW requests — the
+   * voice-engine's 2-slot inference semaphore is shared with STT, and a
+   * post-timeout fallback attempt would spend BYOK quota for nothing.
+   * In-flight HTTP requests are deliberately NOT aborted: server-side
+   * inference runs in an executor thread a socket close cannot interrupt,
+   * so aborting them frees nothing.
+   */
+  signal?: AbortSignal;
 }
 
 /**
