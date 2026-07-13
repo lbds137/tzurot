@@ -503,6 +503,77 @@ jobs:
           fail_ci_if_error: true
           verbose: true
 
+  # Path-filtered full image builds. Dockerfiles are otherwise verified only
+  # by the real Railway deploy the merge triggers — post-merge is too late: a
+  # shell-form CMD typo or a turbo-prune/COPY drift ships broken and takes
+  # the service down at deploy time. Each leg builds only when its Dockerfile
+  # or its build-input config changes, so most PRs skip all four. No layer
+  # caching for now — the trigger is rare enough that a cold build per firing
+  # is cheaper than carrying cache plumbing.
+  docker-build-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Node services build from the REPO ROOT context (their pruner
+          # stage COPYs the whole monorepo for turbo prune).
+          - service: ai-worker
+            context: .
+          - service: api-gateway
+            context: .
+          - service: bot-client
+            context: .
+          # voice-engine is self-contained; its context is its own directory.
+          - service: voice-engine
+            context: services/voice-engine
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: dorny/paths-filter@v4
+        id: filter
+        with:
+          filters: |
+            ai-worker:
+              - 'services/ai-worker/Dockerfile'
+              - 'pnpm-workspace.yaml'
+              - 'turbo.json'
+              - 'pnpm-lock.yaml'
+              - 'package.json'
+            api-gateway:
+              - 'services/api-gateway/Dockerfile'
+              - 'pnpm-workspace.yaml'
+              - 'turbo.json'
+              - 'pnpm-lock.yaml'
+              - 'package.json'
+            bot-client:
+              - 'services/bot-client/Dockerfile'
+              - 'pnpm-workspace.yaml'
+              - 'turbo.json'
+              - 'pnpm-lock.yaml'
+              - 'package.json'
+            voice-engine:
+              - 'services/voice-engine/Dockerfile'
+              - 'services/voice-engine/requirements.txt'
+
+      - name: Build image
+        if: steps.filter.outputs[matrix.service] == 'true'
+        run: docker build ${{ matrix.context }} -f services/${{ matrix.service }}/Dockerfile -t smoke/${{ matrix.service }}:ci
+
+  # Join job: one stable check name aggregating the matrix legs, so branch
+  # protection can require "docker-build-smoke-ok" instead of four
+  # matrix-suffixed contexts. A skipped leg still reports success (its build
+  # step was gated, the job itself passed), so this only fails when a fired
+  # build genuinely failed.
+  docker-build-smoke-ok:
+    runs-on: ubuntu-latest
+    needs: docker-build-smoke
+    if: always()
+    steps:
+      - name: All fired legs built successfully
+        run: test "${{ needs.docker-build-smoke.result }}" = "success"
+
   build:
     runs-on: ubuntu-latest
     steps:

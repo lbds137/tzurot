@@ -6,6 +6,8 @@
 # `dist` MANUALLY (one COPY per runtime dependency, see Stage 4). When adding a
 # new `@tzurot/*` runtime dependency, you MUST add its dist COPY there too, or
 # the runtime image will be missing it and crash with ERR_MODULE_NOT_FOUND.
+# The `docker-build-smoke` CI job builds this image whenever this file (or the
+# prune-affecting workspace config) changes, so that class fails pre-merge.
 # =============================================================================
 
 # -----------------------------------------------------------------------------
