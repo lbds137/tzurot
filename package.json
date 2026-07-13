@@ -57,6 +57,7 @@
     "eval:memory": "vitest run --config vitest.eval.config.ts services/ai-worker/src/services/eval/memoryRetrieval.eval.test.ts",
     "eval:pool-goldens": "vitest run --config vitest.eval.config.ts services/ai-worker/src/services/eval/goldensPooling.eval.test.ts",
     "eval:fold-goldens": "vitest run --config vitest.eval.config.ts services/ai-worker/src/services/eval/foldAwarePooling.eval.test.ts",
+    "eval:fold-score": "vitest run --config vitest.eval.config.ts services/ai-worker/src/services/eval/foldAwareScoring.eval.test.ts",
     "eval:extraction": "vitest run --config vitest.eval.config.ts services/ai-worker/src/services/eval/memoryExtraction.eval.test.ts"
   },
   "devDependencies": {
