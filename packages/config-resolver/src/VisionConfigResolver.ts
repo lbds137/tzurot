@@ -17,7 +17,8 @@
  * This subclass owns the vision-specific Prisma queries and the tier 3-5 fallback.
  *
  * Phase-1 scope: this resolves the PAID vision default for the no-override case. The
- * GUEST downgrade stays downstream (AuthStep + selectVisionModel → VISION_FALLBACK_FREE);
+ * GUEST downgrade stays downstream (AuthStep + selectVisionModel → the free floor,
+ * the `fallbackVisionModelFree` setting);
  * guest-aware DB resolution (consulting the free-default vision pointer) is deferred
  * alongside the vision editing surface.
  *
@@ -279,9 +280,9 @@ export class VisionConfigResolver extends BaseConfigResolver<
    * Get the free-tier vision default via the AdminSettings pointer
    * (`freeDefaultVisionConfigId`) — the vision analogue of
    * `LlmConfigResolver.getFreeDefaultConfig`. This is the admin-set free-tier
-   * fallback the worker's vision path consults before the hardcoded
-   * `VISION_FALLBACK_FREE` floor. Returns null if no pointer is set
-   * (callers fall through to the hardcoded floor). `source` is 'personality' (the
+   * fallback the worker's vision path consults before the free floor (the
+   * `fallbackVisionModelFree` setting). Returns null if no pointer is set
+   * (callers fall through to the floor). `source` is 'personality' (the
    * "system default" tier), matching `getGlobalDefaultConfig`.
    */
   async getFreeDefaultVisionConfig(): Promise<ResolvedVisionConfig | null> {

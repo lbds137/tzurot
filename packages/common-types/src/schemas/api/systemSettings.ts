@@ -354,7 +354,7 @@ export const SYSTEM_SETTINGS_REGISTRY: SystemSettingsRegistry = {
     control: 'model',
     liveness: 'live',
     fallback: FREE_ROUTER_MODEL,
-    seedSource: 'GUEST_MODE.DEFAULT_MODEL (constant)',
+    seedSource: 'FREE_ROUTER_MODEL (constant; formerly aliased as GUEST_MODE.DEFAULT_MODEL)',
     model: {
       slot: 'text',
       aliasAllowlist: [FREE_ROUTER_MODEL],
@@ -370,7 +370,8 @@ export const SYSTEM_SETTINGS_REGISTRY: SystemSettingsRegistry = {
     control: 'model',
     liveness: 'live',
     fallback: FREE_ROUTER_MODEL,
-    seedSource: 'MODEL_DEFAULTS.VISION_FALLBACK_FREE (constant)',
+    seedSource:
+      'FREE_ROUTER_MODEL (constant; formerly aliased as MODEL_DEFAULTS.VISION_FALLBACK_FREE)',
     model: {
       slot: 'vision',
       aliasAllowlist: [FREE_ROUTER_MODEL],
