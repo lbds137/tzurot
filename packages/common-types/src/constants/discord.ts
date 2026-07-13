@@ -323,7 +323,7 @@ export interface ModelFooterOptions {
   withAutoBadge?: boolean;
   /**
    * Tier-aware quota fallback that fired for this turn. Renders the swap as
-   * "• <from> → <to> (out of credit | rate limited)" — a model swap is never
+   * "• <from> → <to> (<per-category reason>)" — see QUOTA_FALLBACK_REASON; a model swap is never
    * silent (an unexplained voice shift reads as a bug, and "why did I get
    * the free model" must be answerable from the reply itself). `modelUsed`
    * already IS the target model; this names where the request started.
@@ -333,6 +333,20 @@ export interface ModelFooterOptions {
     category: QuotaFallbackCategoryValue;
   };
 }
+
+/** Footer wording per retargetable failure category (D12 descent included). */
+const QUOTA_FALLBACK_REASON: Record<QuotaFallbackCategoryValue, string> = {
+  quota_exceeded: 'rate limited',
+  rate_limit: 'rate limited',
+  credit_exhaustion: 'out of credit',
+  model_not_found: 'model unavailable',
+  server_error: 'provider error',
+  timeout: 'timed out',
+  network: 'network error',
+  empty_response: 'empty response',
+  censored: 'model refused',
+  content_policy: 'model refused',
+};
 
 /**
  * Build a model footer line for Discord messages.
@@ -354,9 +368,7 @@ export function buildModelFooterText(
   let text = `Model: [${sanitizedModel}](<${modelUrl}>)`;
   if (quotaFallback !== undefined) {
     const sanitizedFrom = quotaFallback.fromModel.replace(/[[\]()<>]/g, '');
-    const reason =
-      quotaFallback.category === 'credit_exhaustion' ? 'out of credit' : 'rate limited';
-    text += ` • ${sanitizedFrom} → ${sanitizedModel} (${reason})`;
+    text += ` • ${sanitizedFrom} → ${sanitizedModel} (${QUOTA_FALLBACK_REASON[quotaFallback.category]})`;
   }
   const providerLabel = provider !== undefined ? PROVIDER_FOOTER_LABEL[provider] : undefined;
   const fallbackLabel =

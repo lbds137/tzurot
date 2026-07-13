@@ -193,6 +193,24 @@ describe('Bot Footer Text Constants', () => {
       );
     });
 
+    it('renders per-category wording for the D12 descent categories (map completeness)', () => {
+      const cases: Array<[string, string]> = [
+        ['model_not_found', 'model unavailable'],
+        ['server_error', 'provider error'],
+        ['timeout', 'timed out'],
+        ['network', 'network error'],
+        ['empty_response', 'empty response'],
+        ['censored', 'model refused'],
+        ['content_policy', 'model refused'],
+      ];
+      for (const [category, wording] of cases) {
+        const result = buildModelFooterText('floor-model', 'https://example.com/m', {
+          quotaFallback: { fromModel: 'expensive/primary', category: category as never },
+        });
+        expect(result, category).toContain(`(${wording})`);
+      }
+    });
+
     it('sanitizes markdown-hostile characters in the quota-fallback source model', () => {
       const result = buildModelFooterText('free-model', 'https://example.com/m', {
         quotaFallback: { fromModel: 'bad[model](x)', category: 'quota_exceeded' },

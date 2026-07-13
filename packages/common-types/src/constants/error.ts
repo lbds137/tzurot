@@ -208,6 +208,14 @@ export const QUOTA_FALLBACK_CATEGORIES = [
   'quota_exceeded',
   'credit_exhaustion',
   'rate_limit',
+  // Availability-class + provider-side censorship (D12 runtime text descent).
+  'model_not_found',
+  'server_error',
+  'timeout',
+  'network',
+  'empty_response',
+  'censored',
+  'content_policy',
 ] as const;
 
 export type QuotaFallbackCategoryValue = (typeof QUOTA_FALLBACK_CATEGORIES)[number];
