@@ -289,7 +289,12 @@ export async function handleDbSync(context: DeferredCommandContext): Promise<voi
 
   try {
     const { ownerClient } = clientsFor(context.interaction);
+    // Milestone logs (here through 'reply edited'): prod runs have died
+    // silently between the gateway call and the reply edit — no settle, no
+    // abort, no stash. These pin the death point for the next occurrence.
+    logger.info({ dryRun, allowSchemaSkew }, 'db-sync: calling gateway');
     const apiResult = await ownerClient.dbSync({ dryRun, allowSchemaSkew });
+    logger.info({ ok: apiResult.ok }, 'db-sync: gateway call settled');
 
     if (!apiResult.ok) {
       logger.error({ status: apiResult.status, error: apiResult.error }, 'DB sync failed');
@@ -323,6 +328,7 @@ export async function handleDbSync(context: DeferredCommandContext): Promise<voi
     // the details are never silently lost.
     const reportText = buildSyncReportText(result, dryRun);
     const reportKey = await storeDbSyncReport(reportText);
+    logger.info({ stashed: reportKey !== null }, 'db-sync: report stash done');
 
     if (reportKey !== null) {
       const detailsRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
@@ -333,10 +339,12 @@ export async function handleDbSync(context: DeferredCommandContext): Promise<voi
           .setStyle(ButtonStyle.Secondary)
       );
       await context.editReply({ embeds: [embed], components: [detailsRow] });
+      logger.info('db-sync: reply edited (embed + details button)');
       return;
     }
 
     await context.editReply({ embeds: [embed] });
+    logger.info('db-sync: reply edited (embed only, inline report follows)');
 
     // Stash unavailable: full report flows below the summary as chunked
     // ephemeral follow-ups — 'followUp' mode leaves the embed message
