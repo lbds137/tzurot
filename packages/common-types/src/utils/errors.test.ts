@@ -4,6 +4,8 @@ import {
   isTimeoutError,
   AudioTooLongError,
   isTooLongError,
+  SttUnavailableError,
+  isSttUnavailableError,
   normalizeErrorForLogging,
 } from './errors.js';
 
@@ -75,6 +77,40 @@ describe('isTooLongError', () => {
     expect(isTooLongError(new Error('boom'))).toBe(false);
     expect(isTooLongError(null)).toBe(false);
     expect(isTooLongError({ name: 'AudioTooLongError' })).toBe(false);
+  });
+});
+
+describe('SttUnavailableError', () => {
+  it('uses the provided detail as the message', () => {
+    const err = new SttUnavailableError('voice-engine and BYOK cascade both failed');
+    expect(err.name).toBe('SttUnavailableError');
+    expect(err.message).toBe('voice-engine and BYOK cascade both failed');
+  });
+
+  it('falls back to a default message when no detail is given', () => {
+    const err = new SttUnavailableError();
+    expect(err.name).toBe('SttUnavailableError');
+    expect(err.message).toBe('Speech-to-text service unavailable after retries');
+  });
+});
+
+describe('isSttUnavailableError', () => {
+  it('returns true for our SttUnavailableError class', () => {
+    expect(isSttUnavailableError(new SttUnavailableError())).toBe(true);
+  });
+
+  it('returns true for a native Error tagged with name "SttUnavailableError"', () => {
+    const err = new Error('unavailable');
+    err.name = 'SttUnavailableError';
+    expect(isSttUnavailableError(err)).toBe(true);
+  });
+
+  it('returns false for sibling typed errors and generic/non-Error values', () => {
+    expect(isSttUnavailableError(new TimeoutError(1, 'op'))).toBe(false);
+    expect(isSttUnavailableError(new AudioTooLongError())).toBe(false);
+    expect(isSttUnavailableError(new Error('boom'))).toBe(false);
+    expect(isSttUnavailableError(null)).toBe(false);
+    expect(isSttUnavailableError({ name: 'SttUnavailableError' })).toBe(false);
   });
 });
 

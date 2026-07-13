@@ -60,6 +60,29 @@ export function isTooLongError(error: unknown): error is AudioTooLongError {
 }
 
 /**
+ * The STT service was unavailable after the per-provider retries within the
+ * cascade all failed. (Job-level retries deliberately do NOT run for this
+ * shape — "No STT provider available" fast-fails the job to avoid re-running
+ * a guaranteed-identical failure.) Distinct from {@link TimeoutError}: a
+ * timeout is one slow/stalled inference, whereas unavailable means retries
+ * actually ran and none could connect. The STT job carries it across the job
+ * boundary as `failureReason: 'unavailable'` (Error instances don't survive
+ * BullMQ/Redis serialization); bot-client maps it to a retry-aware user
+ * message instead of the generic "couldn't transcribe".
+ */
+export class SttUnavailableError extends Error {
+  constructor(detail?: string) {
+    super(detail ?? 'Speech-to-text service unavailable after retries');
+    this.name = 'SttUnavailableError';
+  }
+}
+
+/** Check whether an error is an {@link SttUnavailableError} (name-based, survives bundling). */
+export function isSttUnavailableError(error: unknown): error is SttUnavailableError {
+  return error instanceof Error && error.name === 'SttUnavailableError';
+}
+
+/**
  * Normalize a caught error for Pino logging.
  *
  * LangChain/OpenAI SDK sometimes throws plain objects (e.g., literal `{}`)

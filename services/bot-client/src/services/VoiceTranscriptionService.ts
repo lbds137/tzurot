@@ -15,7 +15,11 @@ import {
   type SttProvider,
 } from '@tzurot/common-types/types/sttProvider';
 import { splitMessage } from '@tzurot/common-types/utils/discord';
-import { isTimeoutError, isTooLongError } from '@tzurot/common-types/utils/errors';
+import {
+  isSttUnavailableError,
+  isTimeoutError,
+  isTooLongError,
+} from '@tzurot/common-types/utils/errors';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { voiceTranscriptCache } from '../redis.js';
 import { hasForwardedSnapshots, getSnapshots } from '../utils/forwardedMessageUtils.js';
@@ -27,6 +31,110 @@ const logger = createLogger('VoiceTranscriptionService');
 
 /** Interval for refreshing the typing indicator (Discord expires at ~10s, matches JobTracker.ts) */
 const TYPING_INDICATOR_INTERVAL_MS = 8000;
+
+/**
+ * Elapsed wall time after which ONE "taking longer than expected" notice is
+ * sent (then deleted on completion — same discipline as JobTracker's
+ * TAKING_LONGER notification). Sized for the voice-engine's serverless cold
+ * start (~56s boot, 120s warmup budget): a warm transcription returns in a
+ * few seconds, so crossing this threshold almost always means a cold start
+ * the user would otherwise experience as unexplained silence. Checked on the
+ * 8s typing cadence, so the notice actually lands at the first tick past the
+ * threshold (~24s).
+ */
+const TRANSCRIPTION_TAKING_LONGER_MS = 20_000;
+
+/**
+ * Map a transcription failure to its user-facing reply. Each typed error
+ * carries a distinct user action: timeout → try again in a moment (cold
+ * start), too-long → send shorter audio, unavailable → retries already ran,
+ * wait and retry. Everything else stays generic.
+ */
+function classifyTranscriptionErrorMessage(error: unknown): string {
+  if (isTimeoutError(error)) {
+    return 'Sorry, transcription is taking too long — the voice service may be starting up. Please try again in a moment.';
+  }
+  if (isTooLongError(error)) {
+    return 'Sorry, that voice message is too long to transcribe. Please try sending a shorter one.';
+  }
+  if (isSttUnavailableError(error)) {
+    return 'Sorry, the voice service is temporarily unavailable — it was retried several times without luck. Please try again shortly.';
+  }
+  return "Sorry, I couldn't transcribe that voice message.";
+}
+
+/**
+ * The one-shot "taking longer" notice lifecycle (mirrors JobTracker's
+ * TAKING_LONGER discipline): sent at most once past the elapsed threshold,
+ * captured so it can be deleted on completion, with a race guard for a send
+ * still in flight when the transcription finishes. The STT wait is a
+ * synchronous long-poll with no progress channel, so status is a function of
+ * local elapsed time only — the fast path (warm engine, cache hits) never
+ * crosses the threshold and sees nothing beyond the typing indicator.
+ */
+class TakingLongerNotice {
+  private readonly startTime = Date.now();
+  private notified = false;
+  private finished = false;
+  private sentMessage: Message | null = null;
+
+  constructor(private readonly sourceMessage: Message) {}
+
+  /** Called on each typing tick — sends the notice once past the threshold. */
+  onTick(): void {
+    const channel = this.sourceMessage.channel;
+    if (
+      this.notified ||
+      !('send' in channel) ||
+      Date.now() - this.startTime <= TRANSCRIPTION_TAKING_LONGER_MS
+    ) {
+      return;
+    }
+    // Flag BEFORE the async send — prevents a double-send if the next tick
+    // fires while this send is in flight (JobTracker.ts pattern).
+    this.notified = true;
+    void channel
+      .send(
+        '⏱️ Transcription is taking longer than expected — the voice service may be waking up. Hang tight…'
+      )
+      .then(sent => {
+        if (this.finished) {
+          // Finished while the send was in flight — the notice is already
+          // stale; remove it instead of stranding it.
+          void sent.delete().catch((deleteError: unknown) => {
+            logger.debug(
+              { err: deleteError, messageId: this.sourceMessage.id },
+              'Failed to delete stale taking-longer notice (send raced completion)'
+            );
+          });
+        } else {
+          this.sentMessage = sent;
+        }
+      })
+      .catch((sendError: unknown) => {
+        logger.debug(
+          { err: sendError, messageId: this.sourceMessage.id },
+          'Taking-longer notice failed to send'
+        );
+      });
+  }
+
+  /**
+   * Delete the notice so it doesn't linger as a false "still stuck" signal
+   * next to the transcript/error (JobTracker.ts does the same on completion).
+   */
+  async finish(): Promise<void> {
+    this.finished = true;
+    if (this.sentMessage !== null) {
+      await this.sentMessage.delete().catch((deleteError: unknown) => {
+        logger.debug(
+          { err: deleteError, messageId: this.sourceMessage.id },
+          'Failed to delete taking-longer notice'
+        );
+      });
+    }
+  }
+}
 
 /**
  * Uses Discord `-#` subtext so the line renders small+muted under the transcript.
@@ -263,6 +371,7 @@ export class VoiceTranscriptionService {
     }
 
     let typingInterval: NodeJS.Timeout | undefined;
+    const notice = new TakingLongerNotice(message);
     try {
       // Show typing indicator (if channel supports it). All sendTyping calls
       // route through the helper for fire-and-forget semantics + latency
@@ -284,6 +393,7 @@ export class VoiceTranscriptionService {
             typingInterval,
             extraContext: { messageId: message.id },
           });
+          notice.onTick();
         }, TYPING_INDICATOR_INTERVAL_MS);
         sendTypingIndicator(channel, {
           logger,
@@ -347,11 +457,7 @@ export class VoiceTranscriptionService {
     } catch (error) {
       logger.error({ err: error }, 'Error transcribing voice message');
 
-      const userMessage = isTimeoutError(error)
-        ? 'Sorry, transcription is taking too long \u2014 the voice service may be starting up. Please try again in a moment.'
-        : isTooLongError(error)
-          ? 'Sorry, that voice message is too long to transcribe. Please try sending a shorter one.'
-          : "Sorry, I couldn't transcribe that voice message.";
+      const userMessage = classifyTranscriptionErrorMessage(error);
 
       await message
         .reply({
@@ -369,6 +475,7 @@ export class VoiceTranscriptionService {
       if (typingInterval !== undefined) {
         clearInterval(typingInterval);
       }
+      await notice.finish();
     }
   }
 

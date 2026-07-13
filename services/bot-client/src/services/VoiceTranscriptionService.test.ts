@@ -38,7 +38,7 @@ vi.mock('@tzurot/common-types/utils/discord', async () => {
 });
 
 import { splitMessage } from '@tzurot/common-types/utils/discord';
-import { AudioTooLongError } from '@tzurot/common-types/utils/errors';
+import { AudioTooLongError, SttUnavailableError } from '@tzurot/common-types/utils/errors';
 import { voiceTranscriptCache } from '../redis.js';
 import { transcribe } from '../utils/gatewayServiceCalls.js';
 
@@ -843,6 +843,147 @@ describe('VoiceTranscriptionService', () => {
       expect((message.channel as any).sendTyping).toHaveBeenCalledTimes(callCount);
     });
 
+    describe('taking-longer notice', () => {
+      const VOICE_ATTACHMENT = {
+        url: 'https://cdn.discord.com/voice/123.ogg',
+        contentType: 'audio/ogg',
+        name: 'voice.ogg',
+        size: 50000,
+        duration: 5.2,
+      };
+
+      function transcribeResolvingAfter(ms: number, outcome: 'resolve' | 'reject'): void {
+        vi.mocked(transcribe).mockImplementation(
+          () =>
+            new Promise((resolve, reject) => {
+              setTimeout(() => {
+                if (outcome === 'resolve') {
+                  resolve({ content: 'Slow but successful transcript' });
+                } else {
+                  reject(new Error('slow failure'));
+                }
+              }, ms);
+            })
+        );
+      }
+
+      it('sends the notice ONCE past the threshold and deletes it on success', async () => {
+        const message = createMockMessage({ attachments: [VOICE_ATTACHMENT], channelSend: true });
+        transcribeResolvingAfter(40_000, 'resolve');
+
+        const promise = service.transcribe(message, false, false);
+        // Interval ticks at 8/16/24/32s — threshold (20s) crossed at the 24s tick.
+        await vi.advanceTimersByTimeAsync(35_000);
+        const send = (message.channel as any).send;
+        expect(send).toHaveBeenCalledTimes(1);
+        expect(send.mock.calls[0][0]).toContain('taking longer than expected');
+
+        await vi.advanceTimersByTimeAsync(10_000); // completes the transcription
+        const result = await promise;
+        expect(result?.transcript).toBe('Slow but successful transcript');
+
+        // The notice must not linger next to the delivered transcript.
+        const sentNotice = await send.mock.results[0].value;
+        expect(sentNotice.delete).toHaveBeenCalledTimes(1);
+      });
+
+      it('never sends the notice on the fast path', async () => {
+        const message = createMockMessage({ attachments: [VOICE_ATTACHMENT], channelSend: true });
+        vi.mocked(transcribe).mockResolvedValue({ content: 'Fast transcript' });
+
+        await service.transcribe(message, false, false);
+        await vi.advanceTimersByTimeAsync(60_000); // interval already cleared
+
+        expect((message.channel as any).send).not.toHaveBeenCalled();
+      });
+
+      it('deletes a notice whose send resolves AFTER the transcription finishes (race guard)', async () => {
+        // The trickiest branch: finish() fires while channel.send is still in
+        // flight. The late-resolving notice must be deleted on arrival, not
+        // stranded as a false "still stuck" signal.
+        const message = createMockMessage({ attachments: [VOICE_ATTACHMENT], channelSend: true });
+        const lateDelete = vi.fn().mockResolvedValue(undefined);
+        // Fake-timer delay (suite runs under vi.useFakeTimers): the send
+        // resolves 30s after being triggered (~24s) = ~54s, well past the
+        // transcription completing at 26s.
+        const sendResolveDelayMs = 30_000;
+        (message.channel as any).send = vi.fn().mockImplementation(
+          () =>
+            new Promise(resolve => {
+              setTimeout(
+                () => resolve({ id: 'late-notice', delete: lateDelete }),
+                sendResolveDelayMs
+              );
+            })
+        );
+        transcribeResolvingAfter(26_000, 'resolve');
+
+        const promise = service.transcribe(message, false, false);
+        await vi.advanceTimersByTimeAsync(26_000); // notice triggered at 24s; transcription done at 26s
+        const result = await promise;
+        expect(result?.transcript).toBe('Slow but successful transcript');
+        expect(lateDelete).not.toHaveBeenCalled(); // send still in flight
+
+        await vi.advanceTimersByTimeAsync(30_000); // the late send resolves
+        expect(lateDelete).toHaveBeenCalledTimes(1);
+      });
+
+      it('survives a failed notice send (transcript still delivered)', async () => {
+        const message = createMockMessage({ attachments: [VOICE_ATTACHMENT], channelSend: true });
+        (message.channel as any).send = vi.fn().mockRejectedValue(new Error('Missing Permissions'));
+        transcribeResolvingAfter(30_000, 'resolve');
+
+        const promise = service.transcribe(message, false, false);
+        await vi.advanceTimersByTimeAsync(35_000);
+        const result = await promise;
+
+        expect((message.channel as any).send).toHaveBeenCalledTimes(1);
+        expect(result?.transcript).toBe('Slow but successful transcript');
+      });
+
+      it('deletes the notice on error too (three-state UX: typing → notice → error)', async () => {
+        const message = createMockMessage({ attachments: [VOICE_ATTACHMENT], channelSend: true });
+        transcribeResolvingAfter(30_000, 'reject');
+
+        const promise = service.transcribe(message, false, false);
+        await vi.advanceTimersByTimeAsync(24_000);
+        const send = (message.channel as any).send;
+        expect(send).toHaveBeenCalledTimes(1);
+
+        await vi.advanceTimersByTimeAsync(10_000);
+        const result = await promise;
+        expect(result).toBeNull(); // error path replies + returns null
+
+        const sentNotice = await send.mock.results[0].value;
+        expect(sentNotice.delete).toHaveBeenCalledTimes(1);
+      });
+    });
+
+    it('shows the retry-aware message for SttUnavailableError', async () => {
+      const message = createMockMessage({
+        attachments: [
+          {
+            url: 'https://cdn.discord.com/voice/123.ogg',
+            contentType: 'audio/ogg',
+            name: 'voice.ogg',
+            size: 50000,
+            duration: 5.2,
+          },
+        ],
+      });
+
+      vi.mocked(transcribe).mockRejectedValue(new SttUnavailableError());
+
+      const result = await service.transcribe(message, false, false);
+
+      expect(result).toBeNull();
+      expect(message.reply).toHaveBeenCalledWith(
+        expect.objectContaining({
+          content: expect.stringContaining('temporarily unavailable'),
+        })
+      );
+    });
+
     it('should skip typing indicator if channel does not support it', async () => {
       const message = createMockMessage({
         attachments: [
@@ -1278,6 +1419,8 @@ interface MockMessageOptions {
   messageSnapshots?: MockMessageSnapshot[];
   noTypingSupport?: boolean;
   authorId?: string;
+  /** Give the mock channel a `send` method (the taking-longer notice path). */
+  channelSend?: boolean;
 }
 
 function createMockAttachmentsMap(attachmentsList: MockSnapshotAttachment[] | null): Map<
@@ -1349,6 +1492,13 @@ function createMockMessage(options: MockMessageOptions = {}): Message {
     ? {}
     : {
         sendTyping: vi.fn().mockResolvedValue(undefined),
+        ...(options.channelSend === true && {
+          send: vi
+            .fn()
+            .mockImplementation(() =>
+              Promise.resolve({ id: 'notice-123', delete: vi.fn().mockResolvedValue(undefined) })
+            ),
+        }),
       };
 
   // If messageSnapshots is provided, include forward reference type
