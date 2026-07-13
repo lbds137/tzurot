@@ -7,6 +7,8 @@
 ## Unreleased on Develop
 
 - **Voice-engine theme CLOSED** (2026-07-13 afternoon): #1633 STT wait-feedback UX (`TakingLongerNotice` "taking longer" notice past 20s, mirroring JobTracker's TAKING_LONGER discipline) + retry-aware `SttUnavailableError` for `failureReason: 'unavailable'`; #1634 parallel TTS chunk synthesis (batches of 2 via `Promise.all`, cap tied to voice-engine's `INFERENCE_CONCURRENCY=2` semaphore). Theme file deleted; shapes-voice import filed as a gated follow-up (promote-when: a voice field/endpoint identified in live shapes.inc data); TEN note relocated to `docs/research/ten-turn-detection.md`.
+- **Origin-language enforcement** (#1635): "pre-existing / not a regression" reviewer framing no longer routes findings to Dismissed — 08-review-response rule-2 row + merge-gate hook vocabulary scan (owner-directed after two same-day hand-waves).
+- **TTS orphan halt** (#1636, the concrete instance behind #1635): expired 300s budget now aborts NEW dispatches — chunker batches + dispatcher fallback attempts — via `TtsContext.signal`; in-flight requests deliberately run out (executor-thread inference can't be interrupted). Round-1 reviewer caught the signal being dropped in `buildCtxForProvider` (dead-code fix, classic mocked-seam blind spot); regression test verified fails-pre-fix.
 
 ## Next Session Goal
 
