@@ -87,6 +87,19 @@ if [ -z "$REVIEW_ID" ] || [ -z "$REVIEW_BODY" ]; then
     exit 0
 fi
 
+# Origin-language scan: reviews that scope findings as "pre-existing" /
+# "not a regression" invite dismissal-by-origin — the shortcut the rules ban
+# (00-critical § Always Leave Code Better; 08-review-response § rule 2's
+# origin-language row). Origin is not a correctness verdict, so when the
+# vocabulary appears, the injected block below demands a per-finding merits
+# disposition before the merge retry. Line-count (not boolean) so the warning
+# can say how much of it there is; false positives cost one reminder
+# paragraph, never a block. grep -c prints 0 on no-match but exits 1; the
+# herestring isn't a pipeline (pipefail doesn't apply) and errexit isn't set,
+# so `|| true` changes nothing today — it documents that the non-zero exit
+# is expected and keeps the guard correct if `set -e` ever arrives.
+ORIGIN_HITS=$(grep -icE 'pre-?existing|pre-?dates|not a regression|not introduced (by|in) this|existing behavior|consistent with existing|already (present|existed)' <<<"$REVIEW_BODY" || true)
+
 # Per-(PR, comment-id) ack file. A fresh review (different comment-id) forces
 # re-engagement; a retry after ack proceeds. /tmp wipes on reboot so the file
 # stays bounded; UID-namespaced so concurrent users on a shared host don't
@@ -127,8 +140,18 @@ RULE='━━━━━━━━━━━━━━━━━━━━━━━━�
     printf '  - If the review surfaced a substantive finding (post-autosquash review\n'
     printf '    can differ from pre-autosquash), report it to the user and ask whether\n'
     printf '    to proceed, fix, or backlog.\n\n'
+    if [ "${ORIGIN_HITS:-0}" -gt 0 ] 2>/dev/null; then
+        printf '⚠ ORIGIN-LANGUAGE DETECTED (%s matching line(s)). This review scopes at\n' "$ORIGIN_HITS"
+        printf 'least one finding as pre-existing / not-a-regression. Origin is NOT a\n'
+        printf 'correctness verdict (.claude/rules/08-review-response.md, rule 2). Before\n'
+        printf 'retrying the merge, give each such finding a merits disposition in your\n'
+        printf 'user-facing summary: fix now / backlog entry with promote-when /\n'
+        printf 'correct-as-is WITH the technical reason. "Pre-existing" may not be the\n'
+        printf 'operative reason.\n\n'
+    fi
     printf 'Do NOT bypass this gate by editing the ack file. The gate'\''s purpose is to\n'
-    printf 'ensure the latest review is in context at merge time — not to be tolerated.\n'
+    printf 'ensure the latest review is in context at merge time — not an obstacle to\n'
+    printf 'be routed around.\n'
     printf '%s\n' "$RULE"
 } >&2
 
