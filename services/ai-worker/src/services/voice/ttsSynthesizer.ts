@@ -22,6 +22,16 @@ const logger = createLogger('ttsSynthesizer');
 /** Maximum characters per TTS chunk (voice-engine limit) */
 const MAX_CHUNK_LENGTH = 2000;
 
+/**
+ * Max chunks synthesized concurrently. Mirrors voice-engine's own inference
+ * semaphore (`INFERENCE_CONCURRENCY`, default 2 — services/voice-engine/
+ * server.py), which exists to prevent OOM on Railway's 4 GB ceiling: a higher
+ * client cap wouldn't synthesize any faster, it would just park excess
+ * requests on the server-side semaphore while the TTS step's outer 300s
+ * budget burns. Bump BOTH sides together or not at all.
+ */
+const TTS_CHUNK_CONCURRENCY = 2;
+
 /** WAV header size in bytes */
 const WAV_HEADER_SIZE = 44;
 
@@ -298,16 +308,28 @@ export async function synthesizeWithChunking(
     'Multi-chunk TTS synthesis'
   );
 
-  // Synthesize chunks sequentially to avoid overwhelming the single-process
-  // voice-engine. Voice-engine always returns WAV; the Opus encoding is
-  // applied by audioNormalizer downstream, after multi-chunk concatenation.
+  // Synthesize chunks in capped-parallel batches. The cap mirrors
+  // voice-engine's own inference semaphore (INFERENCE_CONCURRENCY, default 2
+  // — see services/voice-engine/server.py): matching it roughly halves
+  // multi-chunk latency, while a higher client cap would only queue on the
+  // server semaphore as the 300s TTS_MAX_TOTAL_MS outer budget burns.
+  // `results` stays in chunk order (batch slices are contiguous and
+  // Promise.all preserves input order) — the concat below depends on it.
+  // Voice-engine always returns WAV; the Opus encoding is applied by
+  // audioNormalizer downstream, after multi-chunk concatenation.
   const results: SynthesisResult[] = [];
-  for (let index = 0; index < chunks.length; index++) {
-    logger.debug(
-      { voiceId, chunkIndex: index, chunkLength: chunks[index].length },
-      'Synthesizing chunk'
+  for (let batchStart = 0; batchStart < chunks.length; batchStart += TTS_CHUNK_CONCURRENCY) {
+    const batch = chunks.slice(batchStart, batchStart + TTS_CHUNK_CONCURRENCY);
+    const batchResults = await Promise.all(
+      batch.map((chunk, offset) => {
+        logger.debug(
+          { voiceId, chunkIndex: batchStart + offset, chunkLength: chunk.length },
+          'Synthesizing chunk'
+        );
+        return client.synthesize(chunk, voiceId);
+      })
     );
-    results.push(await client.synthesize(chunks[index], voiceId));
+    results.push(...batchResults);
   }
 
   // Extract PCM data from each WAV result and concatenate

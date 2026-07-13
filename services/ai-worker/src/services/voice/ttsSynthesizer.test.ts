@@ -670,3 +670,92 @@ describe('synthesizeWithChunking', () => {
     expect(pcmData.subarray(100, 300).every(b => b === 0xbb)).toBe(true);
   });
 });
+
+describe('synthesizeWithChunking concurrency', () => {
+  let mockClient: VoiceEngineClient;
+
+  beforeEach(() => {
+    mockClient = {
+      synthesize: vi.fn(),
+    } as unknown as VoiceEngineClient;
+  });
+
+  /** Text long enough to split into at least four ~1500-char chunks. */
+  function fourChunkText(): string {
+    const sentences = ['A', 'B', 'C', 'D'].map(letter => letter.repeat(1500) + '.');
+    return sentences.join(' ');
+  }
+
+  it('never exceeds the concurrency cap (matches voice-engine INFERENCE_CONCURRENCY)', async () => {
+    let inFlight = 0;
+    let maxInFlight = 0;
+    vi.mocked(mockClient.synthesize).mockImplementation(async () => {
+      inFlight++;
+      maxInFlight = Math.max(maxInFlight, inFlight);
+      // Yield so batch-mates actually overlap before resolving.
+      await Promise.resolve();
+      inFlight--;
+      return { audioBuffer: createFakeWav(Buffer.from([0x01, 0x02])), contentType: 'audio/wav' };
+    });
+
+    await synthesizeWithChunking(mockClient, fourChunkText(), 'voice-1');
+
+    expect(vi.mocked(mockClient.synthesize).mock.calls.length).toBeGreaterThanOrEqual(4);
+    expect(maxInFlight).toBeLessThanOrEqual(2);
+    // And parallelism actually happened (this is the point of the change).
+    expect(maxInFlight).toBe(2);
+  });
+
+  it('preserves chunk order in the output even when a later chunk resolves first', async () => {
+    // First chunk (starts with 'A') resolves SLOWER than its batch-mate; the
+    // combined PCM must still be in chunk order — the concat depends on
+    // results[] order, not completion order.
+    const pcmA = Buffer.from([0xaa, 0xaa]);
+    const pcmOther = Buffer.from([0xbb, 0xbb]);
+    vi.mocked(mockClient.synthesize).mockImplementation(async (chunk: string) => {
+      const isFirst = chunk.startsWith('A');
+      if (isFirst) {
+        // Multiple microtask yields — batch-mate finishes well before this.
+        await Promise.resolve();
+        await Promise.resolve();
+        await Promise.resolve();
+      }
+      return {
+        audioBuffer: createFakeWav(isFirst ? pcmA : pcmOther),
+        contentType: 'audio/wav',
+      };
+    });
+
+    const result = await synthesizeWithChunking(mockClient, fourChunkText(), 'voice-1');
+
+    // PCM starts with chunk 1's bytes (0xAA) despite it finishing last.
+    const pcmData = result.audioBuffer.subarray(44);
+    expect(pcmData[0]).toBe(0xaa);
+    expect(pcmData[1]).toBe(0xaa);
+    expect(pcmData[2]).toBe(0xbb);
+  });
+});
+
+describe('synthesizeWithChunking failure propagation', () => {
+  it('rejects the whole synthesis when any chunk fails (unchanged outcome under batching)', async () => {
+    const mockClient = {
+      synthesize: vi.fn().mockImplementation(async (chunk: string) => {
+        if (chunk.startsWith('B')) {
+          throw new Error('voice-engine 500 on chunk B');
+        }
+        return { audioBuffer: createFakeWav(Buffer.from([0x01])), contentType: 'audio/wav' };
+      }),
+    } as unknown as VoiceEngineClient;
+
+    const sentences = ['A', 'B', 'C', 'D'].map(letter => letter.repeat(1500) + '.');
+    const text = sentences.join(' ');
+
+    await expect(synthesizeWithChunking(mockClient, text, 'voice-1')).rejects.toThrow(
+      'voice-engine 500 on chunk B'
+    );
+    // The failing chunk's batch-mate had already been dispatched (calls fire
+    // synchronously inside the batch .map), but chunks in LATER batches were
+    // never requested — bounded waste, same overall rejection.
+    expect(vi.mocked(mockClient.synthesize).mock.calls.length).toBeLessThanOrEqual(2);
+  });
+});
