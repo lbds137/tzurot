@@ -51,7 +51,15 @@ export class ExtractionTrigger {
   constructor(
     private readonly redis: Redis,
     private readonly queue: Queue,
-    private readonly batchThreshold: number
+    /** Read per fire — a runtime threshold edit applies to the next episode. */
+    private readonly batchThreshold: () => number,
+    /**
+     * Runtime kill switch, read per fire. When off, episodes are not counted
+     * and no batch enqueues — the assembly stays constructed (worker idles on
+     * an empty queue), so flipping the switch needs no restart in either
+     * direction.
+     */
+    private readonly enabled: () => boolean = (): boolean => true
   ) {}
 
   /**
@@ -61,6 +69,9 @@ export class ExtractionTrigger {
    * reply pipeline. All errors degrade to "extraction delayed."
    */
   async recordEpisode(channelId: string, personalityId: string, memoryId: string): Promise<void> {
+    if (!this.enabled()) {
+      return;
+    }
     const key = `${KEY_PREFIX}${channelId}:${personalityId}`;
     try {
       const count = (await this.redis.eval(
@@ -71,7 +82,7 @@ export class ExtractionTrigger {
         String(PENDING_LIST_TTL_SECONDS)
       )) as number;
 
-      if (count < this.batchThreshold) {
+      if (count < this.batchThreshold()) {
         return;
       }
 

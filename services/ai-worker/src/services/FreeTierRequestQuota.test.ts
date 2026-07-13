@@ -70,6 +70,29 @@ describe('computeWindowCap', () => {
   });
 });
 
+describe('provider-fn config (runtime-tunable, re-resolved per decision)', () => {
+  it('a config change applies to the NEXT decision on the same instance — no rebuild, window state untouched', async () => {
+    const { redis } = makeRedis({ activeN: 1, userCount: 4, globalCount: 0 });
+    let config: FreeTierQuotaConfig = { ...CONFIG, minPerWindow: 1, maxPerWindow: 4 };
+    const quota = new FreeTierRequestQuota(
+      redis,
+      () => config,
+      () => NOW
+    );
+
+    // userCount 4 >= cap 4 (lone-user clamp to maxPerWindow) → denied
+    const denied = await quota.tryConsume('u1', 'req-1');
+    expect(denied.allowed).toBe(false);
+    expect(denied.reason).toBe('user');
+
+    // Admin raises the ceiling at runtime — same instance admits the retry
+    config = { ...CONFIG, minPerWindow: 1, maxPerWindow: 10 };
+    const allowed = await quota.tryConsume('u1', 'req-2');
+    expect(allowed.allowed).toBe(true);
+    expect(allowed.windowCap).toBeGreaterThan(4);
+  });
+});
+
 describe('tryConsume — allow path', () => {
   it('allows a fresh request and advances all three counters exactly once', async () => {
     const { quota, mocks } = build({ activeN: 0, userCount: 0, globalCount: 0 });

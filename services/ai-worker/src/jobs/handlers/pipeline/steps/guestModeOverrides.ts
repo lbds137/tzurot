@@ -15,11 +15,11 @@
 
 import {
   AIProvider,
-  GUEST_MODE,
   isFreeModel,
   isZaiFreeTierModel,
   ZAI_FREE_TIER_MODEL,
 } from '@tzurot/common-types/constants/ai';
+import { getSystemSetting } from '@tzurot/common-types/services/SystemSettingsService';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { LlmConfigResolver } from '@tzurot/config-resolver';
 import type { ZaiFreeTierAdmission } from '../../../../services/ZaiFreeTierAdmission.js';
@@ -98,13 +98,13 @@ export async function applyGuestModeOverrides(
         return upgrade;
       }
     }
-    guestModel = GUEST_MODE.DEFAULT_MODEL;
+    guestModel = getSystemSetting('fallbackTextModelFree');
   } else if (!isFreeModel(guestModel)) {
     logger.warn(
       { userId, configuredModel: guestModel },
       'Free-default config is not a free model — using the free router (check /preset free-default)'
     );
-    guestModel = GUEST_MODE.DEFAULT_MODEL;
+    guestModel = getSystemSetting('fallbackTextModelFree');
   }
 
   logger.info(
@@ -130,7 +130,7 @@ export async function applyGuestModeOverrides(
  * lookup errors. */
 async function fetchFreeDefaultModel(configResolver?: LlmConfigResolver): Promise<string> {
   if (!configResolver) {
-    return GUEST_MODE.DEFAULT_MODEL;
+    return getSystemSetting('fallbackTextModelFree');
   }
   try {
     const freeConfig = await configResolver.getFreeDefaultConfig();
@@ -141,7 +141,7 @@ async function fetchFreeDefaultModel(configResolver?: LlmConfigResolver): Promis
   } catch (error) {
     logger.warn({ err: error }, 'Failed to get free default config, using hardcoded fallback');
   }
-  return GUEST_MODE.DEFAULT_MODEL;
+  return getSystemSetting('fallbackTextModelFree');
 }
 
 /**

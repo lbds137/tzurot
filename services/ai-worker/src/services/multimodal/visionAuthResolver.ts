@@ -17,7 +17,7 @@
  *
  * Policy: an authenticated user lacking a key for the vision provider does NOT
  * fail-fast; they downgrade to the free vision model
- * (`MODEL_DEFAULTS.VISION_FALLBACK_FREE`) on the system OpenRouter key. This is
+ * (`getSystemSetting('fallbackVisionModelFree')`) on the system OpenRouter key. This is
  * the BROAD free-fallback behavior — it applies to ALL authenticated users who
  * can't auth the vision provider, not a specific provider's users.
  *
@@ -26,10 +26,11 @@
  * once every fallback tier is exhausted.
  */
 
-import { type AIProvider, MODEL_DEFAULTS } from '@tzurot/common-types/constants/ai';
+import { type AIProvider } from '@tzurot/common-types/constants/ai';
 import { ApiErrorCategory } from '@tzurot/common-types/constants/error';
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { getSystemSetting } from '@tzurot/common-types/services/SystemSettingsService';
 import { detectVisionProvider } from '../ProviderRouter.js';
 import { selectVisionModel, buildFailureFallback } from './VisionProcessor.js';
 import { visionFallbackQuota } from '../../redis.js';
@@ -185,7 +186,7 @@ async function resolveBroadFreeFallback(
   apiKeyResolver: ApiKeyResolver,
   quotaTracker: VisionQuotaTracker
 ): Promise<VisionConfigResult> {
-  const freeModel = MODEL_DEFAULTS.VISION_FALLBACK_FREE;
+  const freeModel = getSystemSetting('fallbackVisionModelFree');
   const freeProvider = detectVisionProvider(freeModel);
   const sys = await apiKeyResolver.resolveApiKey(userId, freeProvider);
   // `sys.apiKey ?? ''` is defense-in-depth: resolveApiKey normally throws when
@@ -329,7 +330,7 @@ export async function resolveVisionAuth(
       // there; the guest's floor tier is the free model anyway, so this only
       // changes WHICH tier renders it (and the loop's resolved-model dedup then
       // collapses the duplicates into one attempt).
-      const guestModel = isPrimaryTier ? targetModel : MODEL_DEFAULTS.VISION_FALLBACK_FREE;
+      const guestModel = isPrimaryTier ? targetModel : getSystemSetting('fallbackVisionModelFree');
       const guestProvider = isPrimaryTier ? visionProvider : detectVisionProvider(guestModel);
       const result = await apiKeyResolver.resolveApiKey(userId, guestProvider);
       logger.debug(

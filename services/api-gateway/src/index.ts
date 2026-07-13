@@ -301,6 +301,7 @@ function registerRoutes(
     denylistInvalidation,
     cascadeInvalidation,
     systemSettingsInvalidation,
+    systemSettings,
     cascadeResolver,
     llmConfigResolver,
     visionConfigResolver,
@@ -317,12 +318,14 @@ function registerRoutes(
   // Toggled by `pnpm ops maintenance on|off --env <env>`.
   app.use(createMaintenanceMiddleware(new MaintenanceFlag(cacheRedis)));
 
-  const publicRateLimiter = createRedisPublicRouteRateLimiter(
-    cacheRedis,
-    envConfig.PUBLIC_RATE_LIMIT_PER_MIN
+  // Budget resolves per request through the system-settings SWR cache, so an
+  // admin edit takes effect within the cache TTL — no limiter rebuild, and the
+  // Redis window state (in-flight counts) is untouched.
+  const publicRateLimiter = createRedisPublicRouteRateLimiter(cacheRedis, () =>
+    systemSettings.get('publicRateLimitPerMin')
   );
   logger.info(
-    { maxRequestsPerMinute: envConfig.PUBLIC_RATE_LIMIT_PER_MIN },
+    { maxRequestsPerMinute: systemSettings.get('publicRateLimitPerMin') },
     'Public-route rate limiter initialized'
   );
 

@@ -12,6 +12,7 @@ import { ChatOpenAI } from '@langchain/openai';
 import { getConfig } from '@tzurot/common-types/config/config';
 import { AIProvider, AI_DEFAULTS, AI_ENDPOINTS } from '@tzurot/common-types/constants/ai';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { getSystemSetting } from '@tzurot/common-types/services/SystemSettingsService';
 import { isReasoningModel } from '../utils/reasoningModelUtils.js';
 import {
   createOpenRouterFetch,
@@ -142,7 +143,7 @@ function filterRestrictedParams(
 function validateModelName(requestedModel: string | undefined): string {
   return requestedModel !== undefined && requestedModel.length > 0
     ? requestedModel
-    : config.DEFAULT_AI_MODEL;
+    : getSystemSetting('fallbackTextModel');
 }
 
 import type { ModelConfig, ChatModelResult } from './modelFactory/types.js';

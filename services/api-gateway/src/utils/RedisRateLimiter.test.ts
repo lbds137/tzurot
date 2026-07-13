@@ -257,6 +257,31 @@ describe('RedisRateLimiter', () => {
     });
   });
 
+  describe('provider-fn budget (runtime-tunable maxRequests)', () => {
+    it('re-resolves the budget per check — a raised budget admits without a limiter rebuild', async () => {
+      let budget = 1;
+      const limiter = new RedisRateLimiter(mockRedis as never, {
+        maxRequests: () => budget,
+        keyGenerator: () => 'user-1',
+      });
+      const middleware = limiter.middleware();
+
+      // Second request under budget=1 → rejected
+      mockRedis.eval.mockResolvedValue(2);
+      mockRedis.ttl.mockResolvedValue(30);
+      middleware(mockReq as Request, mockRes as Response, mockNext);
+      await new Promise(resolve => setImmediate(resolve));
+      expect(mockRes.status).toHaveBeenCalledWith(429);
+
+      // Same count with budget raised at runtime → admitted (no rebuild)
+      budget = 5;
+      vi.mocked(mockNext).mockClear();
+      middleware(mockReq as Request, mockRes as Response, mockNext);
+      await new Promise(resolve => setImmediate(resolve));
+      expect(mockNext).toHaveBeenCalled();
+    });
+  });
+
   describe('custom key prefix', () => {
     it('should use custom key prefix', async () => {
       const customLimiter = new RedisRateLimiter(mockRedis as never, {
@@ -389,7 +414,7 @@ describe('createRedisPublicRouteRateLimiter', () => {
   it('should rate-limit using the X-Forwarded-For header', async () => {
     mockRedis.eval.mockResolvedValue(1);
 
-    const middleware = createRedisPublicRouteRateLimiter(mockRedis as never, 60);
+    const middleware = createRedisPublicRouteRateLimiter(mockRedis as never, () => 60);
     middleware(buildReq({ xff: '203.0.113.42' }), mockRes as Response, mockNext);
 
     await new Promise(resolve => setImmediate(resolve));
@@ -409,7 +434,7 @@ describe('createRedisPublicRouteRateLimiter', () => {
     // entry (198.51.100.7) is the one Railway saw and cannot be spoofed.
     mockRedis.eval.mockResolvedValue(1);
 
-    const middleware = createRedisPublicRouteRateLimiter(mockRedis as never, 60);
+    const middleware = createRedisPublicRouteRateLimiter(mockRedis as never, () => 60);
     middleware(buildReq({ xff: '1.2.3.4, 198.51.100.7' }), mockRes as Response, mockNext);
 
     await new Promise(resolve => setImmediate(resolve));
@@ -428,7 +453,7 @@ describe('createRedisPublicRouteRateLimiter', () => {
     // bare bracketless IPv6 form.
     mockRedis.eval.mockResolvedValue(1);
 
-    const middleware = createRedisPublicRouteRateLimiter(mockRedis as never, 60);
+    const middleware = createRedisPublicRouteRateLimiter(mockRedis as never, () => 60);
     middleware(buildReq({ xff: '1.2.3.4, [2001:db8::1]' }), mockRes as Response, mockNext);
 
     await new Promise(resolve => setImmediate(resolve));
@@ -448,7 +473,7 @@ describe('createRedisPublicRouteRateLimiter', () => {
     // limits depending on header formatting.
     mockRedis.eval.mockResolvedValue(1);
 
-    const middleware = createRedisPublicRouteRateLimiter(mockRedis as never, 60);
+    const middleware = createRedisPublicRouteRateLimiter(mockRedis as never, () => 60);
     middleware(buildReq({ xff: '[2001:db8::1]' }), mockRes as Response, mockNext);
 
     await new Promise(resolve => setImmediate(resolve));
@@ -466,7 +491,7 @@ describe('createRedisPublicRouteRateLimiter', () => {
     // `string[]`. The key generator flattens both shapes before parsing.
     mockRedis.eval.mockResolvedValue(1);
 
-    const middleware = createRedisPublicRouteRateLimiter(mockRedis as never, 60);
+    const middleware = createRedisPublicRouteRateLimiter(mockRedis as never, () => 60);
     middleware(buildReq({ xff: ['1.2.3.4', '198.51.100.7'] }), mockRes as Response, mockNext);
 
     await new Promise(resolve => setImmediate(resolve));
@@ -482,7 +507,7 @@ describe('createRedisPublicRouteRateLimiter', () => {
   it('should fall back to socket.remoteAddress when no XFF header', async () => {
     mockRedis.eval.mockResolvedValue(1);
 
-    const middleware = createRedisPublicRouteRateLimiter(mockRedis as never, 60);
+    const middleware = createRedisPublicRouteRateLimiter(mockRedis as never, () => 60);
     middleware(buildReq({ socketAddr: '127.0.0.1' }), mockRes as Response, mockNext);
 
     await new Promise(resolve => setImmediate(resolve));
@@ -498,7 +523,7 @@ describe('createRedisPublicRouteRateLimiter', () => {
   it('should fall back to socket.remoteAddress when XFF is empty string', async () => {
     mockRedis.eval.mockResolvedValue(1);
 
-    const middleware = createRedisPublicRouteRateLimiter(mockRedis as never, 60);
+    const middleware = createRedisPublicRouteRateLimiter(mockRedis as never, () => 60);
     middleware(buildReq({ xff: '', socketAddr: '127.0.0.1' }), mockRes as Response, mockNext);
 
     await new Promise(resolve => setImmediate(resolve));
@@ -514,7 +539,7 @@ describe('createRedisPublicRouteRateLimiter', () => {
   it('should fall back to socket.remoteAddress when XFF is only commas/whitespace', async () => {
     mockRedis.eval.mockResolvedValue(1);
 
-    const middleware = createRedisPublicRouteRateLimiter(mockRedis as never, 60);
+    const middleware = createRedisPublicRouteRateLimiter(mockRedis as never, () => 60);
     middleware(buildReq({ xff: ' , , ', socketAddr: '127.0.0.1' }), mockRes as Response, mockNext);
 
     await new Promise(resolve => setImmediate(resolve));
@@ -530,7 +555,7 @@ describe('createRedisPublicRouteRateLimiter', () => {
   it('should fall back to "unknown" bucket when neither XFF nor socket is available', async () => {
     mockRedis.eval.mockResolvedValue(1);
 
-    const middleware = createRedisPublicRouteRateLimiter(mockRedis as never, 60);
+    const middleware = createRedisPublicRouteRateLimiter(mockRedis as never, () => 60);
     middleware(buildReq({}), mockRes as Response, mockNext);
 
     await new Promise(resolve => setImmediate(resolve));
@@ -547,7 +572,7 @@ describe('createRedisPublicRouteRateLimiter', () => {
     mockRedis.eval.mockResolvedValue(11);
     mockRedis.ttl.mockResolvedValue(30);
 
-    const middleware = createRedisPublicRouteRateLimiter(mockRedis as never, 10);
+    const middleware = createRedisPublicRouteRateLimiter(mockRedis as never, () => 10);
     middleware(buildReq({ xff: '203.0.113.42' }), mockRes as Response, mockNext);
 
     await new Promise(resolve => setImmediate(resolve));

@@ -3,13 +3,13 @@
  * may ride GLM-4.5-Air on the owner's coding-plan key.
  *
  * Admission requires ALL of (checked cheapest-first):
- *   1. `ZAI_FREE_TIER_ENABLED` on and the system coding-plan key present.
+ *   1. the `zaiFreeTierEnabled` setting on and the system coding-plan key present.
  *   2. Kill switch absent (set on account-problem business codes; manual DEL
  *      to reset — the plan being in arrears/disabled is never retried into).
  *   3. Exhausted-cooldown absent (set until the plan window's reset when z.ai
  *      reports window exhaustion — retrying earlier is futile).
  *   4. Headroom: the plan's tighter usage window is under
- *      `ZAI_FREE_TIER_HEADROOM_PERCENT` consumed. The live meter reads TOTAL
+ *      `zaiHeadroomPercent` consumed. The live meter reads TOTAL
  *      plan consumption — the owner's own coding, fact extraction, AND the
  *      backfill — so guests are always the first (and only) traffic shed when
  *      the plan is busy. A null reading (endpoint down/drifted) leaves the
@@ -28,6 +28,7 @@ import {
   ZAI_FREE_TIER_EXHAUSTED_KEY,
 } from '@tzurot/common-types/constants/redis-keys';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { getSystemSetting } from '@tzurot/common-types/services/SystemSettingsService';
 import type { FreeTierRequestQuota } from './FreeTierRequestQuota.js';
 import type { ZaiPlanMeter } from './ZaiPlanMeter.js';
 
@@ -42,27 +43,31 @@ export interface ZaiAdmissionVerdict {
 }
 
 export interface ZaiAdmissionOptions {
-  enabled: boolean;
+  /**
+   * Provider fns are evaluated per admission decision, so the runtime-tuned
+   * settings (zaiFreeTierEnabled, zaiHeadroomPercent) apply to the NEXT
+   * request without rebuilding the singleton. The key stays env-static —
+   * secrets never move to the DB bag.
+   */
+  enabled: () => boolean;
   apiKey: string | undefined;
-  headroomPercent: number;
+  headroomPercent: () => number;
 }
 
 /**
  * Boot-time coherence check (mirrors extraction's
  * `logZaiCoherenceMisconfigurations`): the flag without the key silently
  * degrades every guest to the free router, which looks like the feature is
- * on but never firing — say so loudly at startup instead.
+ * on but never firing — say so loudly at startup instead. The flag is the
+ * runtime `zaiFreeTierEnabled` setting (read post-prime); the key stays env.
  */
-export function logZaiFreeTierBootCoherence(config: {
-  ZAI_FREE_TIER_ENABLED?: string;
-  ZAI_CODING_API_KEY?: string;
-}): void {
+export function logZaiFreeTierBootCoherence(config: { ZAI_CODING_API_KEY?: string }): void {
   if (
-    config.ZAI_FREE_TIER_ENABLED === 'true' &&
+    getSystemSetting('zaiFreeTierEnabled') &&
     (config.ZAI_CODING_API_KEY === undefined || config.ZAI_CODING_API_KEY.length === 0)
   ) {
     logger.error(
-      'ZAI_FREE_TIER_ENABLED=true but ZAI_CODING_API_KEY is not set — guests silently degrade to the free router; set the key or turn the flag off'
+      'zaiFreeTierEnabled=true but ZAI_CODING_API_KEY is not set — guests silently degrade to the free router; set the key or turn the flag off'
     );
   }
 }
@@ -78,7 +83,7 @@ export class ZaiFreeTierAdmission {
   /** True only when the feature can ever admit (flag on + key present). */
   isEnabled(): boolean {
     return (
-      this.options.enabled && this.options.apiKey !== undefined && this.options.apiKey.length > 0
+      this.options.enabled() && this.options.apiKey !== undefined && this.options.apiKey.length > 0
     );
   }
 
@@ -103,13 +108,15 @@ export class ZaiFreeTierAdmission {
       return { admitted: false, reason: blocked };
     }
 
+    // One read per decision — the same request is judged against one value.
+    const headroomPercent = this.options.headroomPercent();
     const reading = await this.meter.getReading();
-    if (reading !== null && reading.tighterWindowConsumedPct >= this.options.headroomPercent) {
+    if (reading !== null && reading.tighterWindowConsumedPct >= headroomPercent) {
       logger.info(
         {
           userId,
           consumedPct: reading.tighterWindowConsumedPct,
-          headroomPercent: this.options.headroomPercent,
+          headroomPercent,
           resetAt: reading.resetAt?.toISOString(),
         },
         'z.ai free tier closed — plan window past the headroom threshold'

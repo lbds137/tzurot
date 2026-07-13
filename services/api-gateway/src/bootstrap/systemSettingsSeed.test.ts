@@ -4,17 +4,8 @@ import {
   SystemSettingsSchema,
   buildSystemSettingsSeed,
 } from '@tzurot/common-types/schemas/api/systemSettings';
-import { createTestConfig } from '@tzurot/common-types/config/config';
 import { seedSystemSettingsIfUnset } from './systemSettingsSeed.js';
 import type { PrismaClient } from '@tzurot/common-types/services/prisma';
-
-vi.mock('@tzurot/common-types/config/config', async importOriginal => {
-  const actual = await importOriginal<typeof import('@tzurot/common-types/config/config')>();
-  return {
-    ...actual,
-    getConfig: () => actual.createTestConfig({ EXTRACTION_BATCH_THRESHOLD: 9 }),
-  };
-});
 
 const mockExecuteRaw = vi.fn();
 const prisma = { $executeRaw: mockExecuteRaw } as unknown as PrismaClient;
@@ -62,10 +53,8 @@ describe('seedSystemSettingsIfUnset', () => {
     expect(seedJson).toBeDefined();
     const bag: unknown = JSON.parse(seedJson as string);
     expect(() => SystemSettingsSchema.parse(bag)).not.toThrow();
-    // Env-derived seed values flow through (the mocked env sets threshold 9).
-    expect(bag).toMatchObject(
-      buildSystemSettingsSeed(createTestConfig({ EXTRACTION_BATCH_THRESHOLD: 9 }))
-    );
+    // Post env-deletion the seed is exactly the registry fallback set.
+    expect(bag).toMatchObject(buildSystemSettingsSeed());
   });
 
   it('swallows DB errors (readers fall back to in-code constants)', async () => {

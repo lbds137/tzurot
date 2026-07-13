@@ -20,7 +20,6 @@ import {
   MODEL_DEFAULTS,
   type ModelSlot,
 } from '../../constants/ai.js';
-import type { EnvConfig } from '../../config/config.js';
 
 // ============================================================================
 // Schema (the RESOLVED shape — every key present)
@@ -137,15 +136,10 @@ export interface SystemSettingMeta<K extends keyof SystemSettings = keyof System
   readonly fallback: SystemSettings[K];
   /**
    * The env var (or code constant) this setting migrates from — traceability
-   * for the env-deletion checklist.
+   * (historical) — names the env var / constant the setting migrated from.
+   * The env vars themselves are deleted; existing bags carry their values.
    */
   readonly seedSource: string;
-  /**
-   * Computes the boot-seed value. Most settings preserve the current env value;
-   * the four floors deliberately seed router aliases (owner directives 7/8),
-   * not env values.
-   */
-  readonly seed: (env: EnvConfig) => SystemSettings[K];
   /** Present iff control === 'model'. */
   readonly model?: SystemSettingModelMeta;
   /** Present iff control === 'enum'. */
@@ -178,7 +172,6 @@ export const SYSTEM_SETTINGS_REGISTRY: SystemSettingsRegistry = {
     liveness: 'live',
     fallback: false,
     seedSource: 'EXTRACTION_ENABLED',
-    seed: env => env.EXTRACTION_ENABLED === 'true',
   },
   factsInPromptEnabled: {
     key: 'factsInPromptEnabled',
@@ -189,7 +182,6 @@ export const SYSTEM_SETTINGS_REGISTRY: SystemSettingsRegistry = {
     liveness: 'live',
     fallback: false,
     seedSource: 'FACTS_IN_PROMPT_ENABLED',
-    seed: env => env.FACTS_IN_PROMPT_ENABLED === 'true',
   },
   extractionBatchThreshold: {
     key: 'extractionBatchThreshold',
@@ -202,7 +194,6 @@ export const SYSTEM_SETTINGS_REGISTRY: SystemSettingsRegistry = {
     seedSource: 'EXTRACTION_BATCH_THRESHOLD',
     min: 1,
     max: 50,
-    seed: env => env.EXTRACTION_BATCH_THRESHOLD,
   },
   extractionModel: {
     key: 'extractionModel',
@@ -214,7 +205,6 @@ export const SYSTEM_SETTINGS_REGISTRY: SystemSettingsRegistry = {
     liveness: 'live',
     fallback: MODEL_DEFAULTS.FACT_EXTRACTION,
     seedSource: 'EXTRACTION_MODEL',
-    seed: env => env.EXTRACTION_MODEL,
     model: {
       slot: 'text',
       aliasAllowlist: [],
@@ -231,7 +221,6 @@ export const SYSTEM_SETTINGS_REGISTRY: SystemSettingsRegistry = {
     liveness: 'live',
     fallback: 'openrouter',
     seedSource: 'EXTRACTION_PROVIDER',
-    seed: env => env.EXTRACTION_PROVIDER,
     choices: ['openrouter', 'zai-coding'],
   },
   freeTierGlobalDailyBudget: {
@@ -244,7 +233,6 @@ export const SYSTEM_SETTINGS_REGISTRY: SystemSettingsRegistry = {
     fallback: 1000,
     seedSource: 'FREE_TIER_GLOBAL_DAILY_BUDGET',
     min: 1,
-    seed: env => env.FREE_TIER_GLOBAL_DAILY_BUDGET,
   },
   freeTierWindowMinutes: {
     key: 'freeTierWindowMinutes',
@@ -257,7 +245,6 @@ export const SYSTEM_SETTINGS_REGISTRY: SystemSettingsRegistry = {
     seedSource: 'FREE_TIER_WINDOW_MINUTES',
     min: 1,
     max: 1440,
-    seed: env => env.FREE_TIER_WINDOW_MINUTES,
   },
   freeTierMinPerWindow: {
     key: 'freeTierMinPerWindow',
@@ -269,7 +256,6 @@ export const SYSTEM_SETTINGS_REGISTRY: SystemSettingsRegistry = {
     fallback: 5,
     seedSource: 'FREE_TIER_MIN_PER_WINDOW',
     min: 1,
-    seed: env => env.FREE_TIER_MIN_PER_WINDOW,
   },
   freeTierMaxPerWindow: {
     key: 'freeTierMaxPerWindow',
@@ -281,7 +267,6 @@ export const SYSTEM_SETTINGS_REGISTRY: SystemSettingsRegistry = {
     fallback: 30,
     seedSource: 'FREE_TIER_MAX_PER_WINDOW',
     min: 1,
-    seed: env => env.FREE_TIER_MAX_PER_WINDOW,
   },
   zaiFreeTierEnabled: {
     key: 'zaiFreeTierEnabled',
@@ -292,7 +277,6 @@ export const SYSTEM_SETTINGS_REGISTRY: SystemSettingsRegistry = {
     liveness: 'live',
     fallback: false,
     seedSource: 'ZAI_FREE_TIER_ENABLED',
-    seed: env => env.ZAI_FREE_TIER_ENABLED === 'true',
   },
   zaiHeadroomPercent: {
     key: 'zaiHeadroomPercent',
@@ -305,7 +289,6 @@ export const SYSTEM_SETTINGS_REGISTRY: SystemSettingsRegistry = {
     seedSource: 'ZAI_FREE_TIER_HEADROOM_PERCENT',
     min: 1,
     max: 99,
-    seed: env => env.ZAI_FREE_TIER_HEADROOM_PERCENT,
   },
   zaiGlobalDailyBudget: {
     key: 'zaiGlobalDailyBudget',
@@ -317,7 +300,6 @@ export const SYSTEM_SETTINGS_REGISTRY: SystemSettingsRegistry = {
     fallback: 1000,
     seedSource: 'ZAI_FREE_TIER_GLOBAL_DAILY_BUDGET',
     min: 1,
-    seed: env => env.ZAI_FREE_TIER_GLOBAL_DAILY_BUDGET,
   },
   publicRateLimitPerMin: {
     key: 'publicRateLimitPerMin',
@@ -329,7 +311,6 @@ export const SYSTEM_SETTINGS_REGISTRY: SystemSettingsRegistry = {
     fallback: 60,
     seedSource: 'PUBLIC_RATE_LIMIT_PER_MIN',
     min: 1,
-    seed: env => env.PUBLIC_RATE_LIMIT_PER_MIN,
   },
   fallbackTextModel: {
     key: 'fallbackTextModel',
@@ -341,8 +322,6 @@ export const SYSTEM_SETTINGS_REGISTRY: SystemSettingsRegistry = {
     liveness: 'live',
     fallback: AUTO_ROUTER_MODEL,
     seedSource: 'DEFAULT_AI_MODEL',
-    // Owner directive 7: floors seed the auto-router alias, NOT the env value.
-    seed: () => AUTO_ROUTER_MODEL,
     model: {
       slot: 'text',
       aliasAllowlist: [AUTO_ROUTER_MODEL, FREE_ROUTER_MODEL],
@@ -359,7 +338,6 @@ export const SYSTEM_SETTINGS_REGISTRY: SystemSettingsRegistry = {
     liveness: 'live',
     fallback: AUTO_ROUTER_MODEL,
     seedSource: 'VISION_FALLBACK_MODEL',
-    seed: () => AUTO_ROUTER_MODEL,
     model: {
       slot: 'vision',
       aliasAllowlist: [AUTO_ROUTER_MODEL, FREE_ROUTER_MODEL],
@@ -377,7 +355,6 @@ export const SYSTEM_SETTINGS_REGISTRY: SystemSettingsRegistry = {
     liveness: 'live',
     fallback: FREE_ROUTER_MODEL,
     seedSource: 'GUEST_MODE.DEFAULT_MODEL (constant)',
-    seed: () => FREE_ROUTER_MODEL,
     model: {
       slot: 'text',
       aliasAllowlist: [FREE_ROUTER_MODEL],
@@ -394,7 +371,6 @@ export const SYSTEM_SETTINGS_REGISTRY: SystemSettingsRegistry = {
     liveness: 'live',
     fallback: FREE_ROUTER_MODEL,
     seedSource: 'MODEL_DEFAULTS.VISION_FALLBACK_FREE (constant)',
-    seed: () => FREE_ROUTER_MODEL,
     model: {
       slot: 'vision',
       aliasAllowlist: [FREE_ROUTER_MODEL],
@@ -418,14 +394,17 @@ export const SYSTEM_SETTINGS_FALLBACKS: SystemSettings = Object.fromEntries(
 ) as SystemSettings;
 
 /**
- * Build the boot-seed bag from the current env. Called once per api-gateway
- * boot by the race-safe seed pass (insert-if-absent per key — an admin's
- * explicit write is never clobbered).
+ * Build the boot-seed bag (the registry fallback set). Called once per
+ * api-gateway boot by the race-safe seed pass (insert-if-absent per key — an
+ * admin's explicit write is never clobbered).
  */
-export function buildSystemSettingsSeed(env: EnvConfig): SystemSettings {
-  return Object.fromEntries(
-    SYSTEM_SETTINGS_KEYS.map(key => [key, SYSTEM_SETTINGS_REGISTRY[key].seed(env)])
-  ) as SystemSettings;
+export function buildSystemSettingsSeed(): SystemSettings {
+  // Since env deletion (admin-runtime PR 3) the seed IS the fallback set:
+  // existing environments already carry env-derived values in their bag (the
+  // seed never clobbers present keys), and fresh environments start from the
+  // registry constants. The four floors seed router aliases per owner
+  // directives 7/8 — encoded in their fallback constants.
+  return { ...SYSTEM_SETTINGS_FALLBACKS };
 }
 
 // ============================================================================

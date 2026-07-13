@@ -10,7 +10,7 @@
  * facts are filtered in SQL) with its recency/salience tiebreak, so a
  * stale-but-similar fact can't outrank a recent correction.
  *
- * **Config-free by design**: the `FACTS_IN_PROMPT_ENABLED` flag gate lives at
+ * **Config-free by design**: the runtime `factsInPromptEnabled` gate lives at
  * the caller (`ConversationalRAGService`), so this stays a pure retrieval unit.
  *
  * **Fail-soft**: facts are additive context, never load-bearing — any error

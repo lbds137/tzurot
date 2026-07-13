@@ -10,13 +10,7 @@
  */
 
 import { HumanMessage, SystemMessage } from '@langchain/core/messages';
-import { getConfig } from '@tzurot/common-types/config/config';
-import {
-  AI_DEFAULTS,
-  MODEL_DEFAULTS,
-  isFreeModel,
-  type AIProvider,
-} from '@tzurot/common-types/constants/ai';
+import { AI_DEFAULTS, isFreeModel, type AIProvider } from '@tzurot/common-types/constants/ai';
 import { ERROR_MESSAGES, ApiErrorCategory } from '@tzurot/common-types/constants/error';
 import { TIMEOUTS } from '@tzurot/common-types/constants/timing';
 import { type AttachmentMetadata } from '@tzurot/common-types/types/schemas/discord';
@@ -25,6 +19,7 @@ import {
   type VisionTierParams,
 } from '@tzurot/common-types/types/schemas/personality';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { getSystemSetting } from '@tzurot/common-types/services/SystemSettingsService';
 import { createChatModel } from '../ModelFactory.js';
 import { detectVisionProvider } from '../ProviderRouter.js';
 import { parseApiError } from '../../utils/apiErrorParser.js';
@@ -40,7 +35,6 @@ import {
 } from './visionDescriptionValidity.js';
 
 const logger = createLogger('VisionProcessor');
-const config = getConfig();
 
 /**
  * Typed vision-invocation failure. Carries the `ApiErrorCategory` so the fallback loop
@@ -535,7 +529,7 @@ async function checkNegativeCache(
  * vision model name and pass it to `resolveVisionAuth.effectiveVisionModel` —
  * keeps provider detection and model selection consistent. Without that
  * pre-computation, a personality whose main model lacks native vision (so
- * `selectVisionModel` falls through to `VISION_FALLBACK_MODEL`) would have
+ * `selectVisionModel` falls through to the fallbackVisionModel floor) would have
  * its provider detected against the main model name, not the actual model
  * used at request time.
  */
@@ -557,7 +551,7 @@ export async function selectVisionModel(
         { configuredVisionModel: personality.visionModel },
         'Guest mode: free-forcing paid configured vision model'
       );
-      return MODEL_DEFAULTS.VISION_FALLBACK_FREE;
+      return getSystemSetting('fallbackVisionModelFree');
     }
     logger.debug({ visionModel: personality.visionModel }, 'Using configured vision model');
     return personality.visionModel;
@@ -575,7 +569,7 @@ export async function selectVisionModel(
         { mainModel: personality.model },
         'Guest mode: free-forcing paid vision-capable main model'
       );
-      return MODEL_DEFAULTS.VISION_FALLBACK_FREE;
+      return getSystemSetting('fallbackVisionModelFree');
     }
     logger.debug(
       { model: personality.model, source: 'main-model-vision' },
@@ -585,8 +579,10 @@ export async function selectVisionModel(
   }
 
   // Priority 3: Use fallback vision model
-  // Guest users (no BYOK API key) use VISION_FALLBACK_FREE, BYOK users use VISION_FALLBACK (paid)
-  const fallback = isGuestMode ? MODEL_DEFAULTS.VISION_FALLBACK_FREE : config.VISION_FALLBACK_MODEL;
+  // Guests (no BYOK key) get the free floor (fallbackVisionModelFree); BYOK users the paid floor
+  const fallback = isGuestMode
+    ? getSystemSetting('fallbackVisionModelFree')
+    : getSystemSetting('fallbackVisionModel');
   logger.debug(
     { mainModel: personality.model, fallbackModel: fallback, isGuestMode, source: 'fallback' },
     'Using fallback vision model - main LLM lacks vision support'
