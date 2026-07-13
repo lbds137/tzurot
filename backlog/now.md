@@ -39,8 +39,6 @@ _beta.146 SHIPPED 2026-07-03 (11 PRs #1456–#1466): 2 prod provider-failure fix
 
 _Small tasks that can be done between major features. Good for momentum._
 
-- 🧹 `[CHORE]` **Comment `@dependabot recreate` on PR #1622 after the next release** — the TS-major ignore rule (#1625) only activates once it reaches `main` (dependabot reads config from the default branch); recreate then regenerates the dev-deps group without TypeScript 7 → CI green → merge. Until then #1622 stays red by design. Filed 2026-07-13.
-
 
 ### 📥 Untriaged (max 10)
 
