@@ -165,9 +165,6 @@ export const AI_ENDPOINTS = {
   MISTRAL_BASE_URL: 'https://api.mistral.ai/v1',
 } as const;
 
-/** Primary free multimodal model — shared between vision fallback and guest mode */
-const FREE_MULTIMODAL_MODEL = 'google/gemma-4-31b-it:free';
-
 /**
  * OpenRouter's free-model router — a meta-model that routes to an available free
  * model. It is free to use, but its ID does NOT carry the `:free` suffix, so
@@ -198,12 +195,6 @@ export const MODEL_DEFAULTS = {
   // Specialized models
   /** Vision fallback for BYOK users (paid) — natively multimodal */
   VISION_FALLBACK: 'qwen/qwen3.5-397b-a17b',
-  /**
-   * Vision fallback for free-tier users (no BYOK) — the dynamic free-model router
-   * (vision-capable per OpenRouter's catalog), so it survives individual free
-   * models being rate-limited or rotated out rather than pinning one model.
-   */
-  VISION_FALLBACK_FREE: FREE_ROUTER_MODEL,
   /**
    * Fixed cheap system model for async fact extraction (memory Phase 2).
    * NEVER the personality's model — extraction cost must stay decoupled from
@@ -568,25 +559,6 @@ export enum AIProvider {
  * Guest users are restricted to free-tier models only.
  */
 export const GUEST_MODE = {
-  /**
-   * Last-resort free model for guest users when no free-default config is set
-   * (AuthStep prefers a configured free default over this). The OpenRouter
-   * free-model router (dynamic) rather than a single pinned model, so it survives
-   * individual free models being rate-limited or rotated out — whatever free
-   * models are in rotation, the router resolves one.
-   */
-  DEFAULT_MODEL: FREE_ROUTER_MODEL,
-
-  /**
-   * Alternative free models (for failover or user choice)
-   * Ordered by preference for chat/roleplay use cases.
-   * Verified against OpenRouter /api/v1/models (2026-04-04).
-   */
-  FREE_MODELS: [
-    FREE_MULTIMODAL_MODEL, // 131k context, multimodal, balanced quality/speed
-    'nvidia/nemotron-nano-12b-v2-vl:free', // 128k context, vision+video
-  ] as const,
-
   /**
    * Free model suffix used by OpenRouter
    * Models ending with this suffix are free to use

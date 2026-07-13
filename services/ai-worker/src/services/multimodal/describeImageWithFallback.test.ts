@@ -12,7 +12,7 @@
  * - `resolveVisionAuth` / `createVisionQuotaTracker` from visionAuthResolver
  *   (the REAL `visionAuthFailFastDescription` is kept).
  * - the paid floor (fallbackVisionModel setting) to be deterministic
- *   (the REAL `MODEL_DEFAULTS` / `ApiErrorCategory` are kept).
+ *   (the REAL `ApiErrorCategory` is kept).
  */
 
 import { describe, it, expect, vi, beforeEach, beforeAll, afterAll } from 'vitest';
@@ -22,7 +22,7 @@ import {
   type SystemSettingsService,
 } from '@tzurot/common-types/services/SystemSettingsService';
 import { SYSTEM_SETTINGS_FALLBACKS } from '@tzurot/common-types/schemas/api/systemSettings';
-import { AIProvider, MODEL_DEFAULTS } from '@tzurot/common-types/constants/ai';
+import { AIProvider, FREE_ROUTER_MODEL } from '@tzurot/common-types/constants/ai';
 import { ApiErrorCategory } from '@tzurot/common-types/constants/error';
 import { type AttachmentMetadata } from '@tzurot/common-types/types/schemas/discord';
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
@@ -187,10 +187,10 @@ describe('composeVisionTiers', () => {
     expect(tiers).toEqual(['primary/model', FALLBACK_PAID_MODEL]);
   });
 
-  it('appends the free floor (MODEL_DEFAULTS.VISION_FALLBACK_FREE) when guest mode', () => {
+  it('appends the free floor (FREE_ROUTER_MODEL) when guest mode', () => {
     const personality = makePersonality({ visionFallbackModels: [] });
     const tiers = composeVisionTiers('primary/model', personality, true);
-    expect(tiers).toEqual(['primary/model', MODEL_DEFAULTS.VISION_FALLBACK_FREE]);
+    expect(tiers).toEqual(['primary/model', FREE_ROUTER_MODEL]);
   });
 
   it('dedups repeated models across primary/fallbacks/floor', () => {

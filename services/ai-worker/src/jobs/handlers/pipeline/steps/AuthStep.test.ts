@@ -4,7 +4,11 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Job } from 'bullmq';
-import { AIProvider, GUEST_MODE, ZAI_FREE_TIER_MODEL } from '@tzurot/common-types/constants/ai';
+import {
+  AIProvider,
+  FREE_ROUTER_MODEL,
+  ZAI_FREE_TIER_MODEL,
+} from '@tzurot/common-types/constants/ai';
 import type { ZaiFreeTierAdmission } from '../../../../services/ZaiFreeTierAdmission.js';
 import { JobType } from '@tzurot/common-types/constants/queue';
 import { type LLMGenerationJobData } from '@tzurot/common-types/types/jobs';
@@ -223,7 +227,7 @@ describe('AuthStep', () => {
 
       expect(result.auth?.isGuestMode).toBe(true);
       // Should override model to guest default
-      expect(result.config?.effectivePersonality.model).toBe(GUEST_MODE.DEFAULT_MODEL);
+      expect(result.config?.effectivePersonality.model).toBe(FREE_ROUTER_MODEL);
     });
 
     it('should fall back to guest mode when resolver throws', async () => {
@@ -1147,7 +1151,7 @@ describe('AuthStep', () => {
 
       const result = await step.process(guestContext());
 
-      expect(result.config?.effectivePersonality.model).toBe(GUEST_MODE.DEFAULT_MODEL);
+      expect(result.config?.effectivePersonality.model).toBe(FREE_ROUTER_MODEL);
       expect(result.auth?.apiKey).toBe('system-openrouter-key');
       expect(result.auth?.provider).toBe(AIProvider.OpenRouter);
     });
@@ -1157,7 +1161,7 @@ describe('AuthStep', () => {
 
       const result = await step.process(guestContext());
 
-      expect(result.config?.effectivePersonality.model).toBe(GUEST_MODE.DEFAULT_MODEL);
+      expect(result.config?.effectivePersonality.model).toBe(FREE_ROUTER_MODEL);
       expect(result.auth?.provider).toBe(AIProvider.OpenRouter);
     });
 
@@ -1172,7 +1176,7 @@ describe('AuthStep', () => {
 
       const result = await step.process(guestContext());
 
-      expect(result.config?.effectivePersonality.model).toBe(GUEST_MODE.DEFAULT_MODEL);
+      expect(result.config?.effectivePersonality.model).toBe(FREE_ROUTER_MODEL);
     });
   });
 });
