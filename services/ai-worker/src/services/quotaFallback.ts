@@ -25,8 +25,9 @@
  * model and must not leak onto the fallback.
  */
 
-import { AIProvider, FREE_ROUTER_MODEL, isFreeModel } from '@tzurot/common-types/constants/ai';
+import { AIProvider, isFreeModel } from '@tzurot/common-types/constants/ai';
 import { getSystemSetting } from '@tzurot/common-types/services/SystemSettingsService';
+import { getFreeTextFloor } from './freeFloors.js';
 import { ApiErrorCategory } from '@tzurot/common-types/constants/error';
 import { LLM_CONFIG_OVERRIDE_KEYS } from '@tzurot/common-types/schemas/llmAdvancedParams';
 import { type ResolvedLlmConfig } from '@tzurot/common-types/types/configResolution';
@@ -219,13 +220,7 @@ export async function selectFloorTarget(options: {
   caches: QuotaFallbackCaches;
 }): Promise<QuotaFallbackTarget | null> {
   const { isGuestMode, excludeModels, cacheKeyId, caches } = options;
-  let floor: string;
-  if (isGuestMode) {
-    const configured = getSystemSetting('fallbackTextModelFree');
-    floor = isFreeModel(configured) ? configured : FREE_ROUTER_MODEL;
-  } else {
-    floor = getSystemSetting('fallbackTextModel');
-  }
+  const floor = isGuestMode ? getFreeTextFloor() : getSystemSetting('fallbackTextModel');
   if (floor.length === 0 || excludeModels.includes(floor)) {
     return null;
   }
@@ -264,11 +259,7 @@ async function resolveGuestSafeFreeDefault(
     { configuredModel: config.model },
     'Guest retarget: free-default model is not OpenRouter-free — using the free router'
   );
-  const floor = getSystemSetting('fallbackTextModelFree');
-  return {
-    model: isFreeModel(floor) ? floor : FREE_ROUTER_MODEL,
-    provider: AIProvider.OpenRouter,
-  };
+  return { model: getFreeTextFloor(), provider: AIProvider.OpenRouter };
 }
 
 /**

@@ -20,6 +20,7 @@ import {
 } from '@tzurot/common-types/types/schemas/personality';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { getSystemSetting } from '@tzurot/common-types/services/SystemSettingsService';
+import { getFreeVisionFloor } from '../freeFloors.js';
 import { createChatModel } from '../ModelFactory.js';
 import { detectVisionProvider } from '../ProviderRouter.js';
 import { parseApiError } from '../../utils/apiErrorParser.js';
@@ -551,7 +552,7 @@ export async function selectVisionModel(
         { configuredVisionModel: personality.visionModel },
         'Guest mode: free-forcing paid configured vision model'
       );
-      return getSystemSetting('fallbackVisionModelFree');
+      return getFreeVisionFloor();
     }
     logger.debug({ visionModel: personality.visionModel }, 'Using configured vision model');
     return personality.visionModel;
@@ -569,7 +570,7 @@ export async function selectVisionModel(
         { mainModel: personality.model },
         'Guest mode: free-forcing paid vision-capable main model'
       );
-      return getSystemSetting('fallbackVisionModelFree');
+      return getFreeVisionFloor();
     }
     logger.debug(
       { model: personality.model, source: 'main-model-vision' },
@@ -580,9 +581,7 @@ export async function selectVisionModel(
 
   // Priority 3: Use fallback vision model
   // Guests (no BYOK key) get the free floor (fallbackVisionModelFree); BYOK users the paid floor
-  const fallback = isGuestMode
-    ? getSystemSetting('fallbackVisionModelFree')
-    : getSystemSetting('fallbackVisionModel');
+  const fallback = isGuestMode ? getFreeVisionFloor() : getSystemSetting('fallbackVisionModel');
   logger.debug(
     { mainModel: personality.model, fallbackModel: fallback, isGuestMode, source: 'fallback' },
     'Using fallback vision model - main LLM lacks vision support'

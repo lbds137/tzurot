@@ -18,6 +18,7 @@ import { type AttachmentMetadata } from '@tzurot/common-types/types/schemas/disc
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { getSystemSetting } from '@tzurot/common-types/services/SystemSettingsService';
+import { getFreeVisionFloor } from '../freeFloors.js';
 import {
   describeImage,
   selectVisionModel,
@@ -127,9 +128,7 @@ export function composeVisionTiers(
   // paid floor is only a MODEL NAME here; when the loop actually reaches it, resolveVisionAuth
   // downgrades a keyless user onto the free model on the system key anyway (broad-free-fallback).
   // So a "wrong" isGuestMode picks a floor model name that auth-time resolution converges to free.
-  const floor = isGuestMode
-    ? getSystemSetting('fallbackVisionModelFree')
-    : getSystemSetting('fallbackVisionModel');
+  const floor = isGuestMode ? getFreeVisionFloor() : getSystemSetting('fallbackVisionModel');
   const ordered = [primaryModel, ...(personality.visionFallbackModels ?? []), floor];
   const seen = new Set<string>();
   const deduped: string[] = [];
