@@ -258,7 +258,11 @@ describe('TTSStep', () => {
       const call = mockDispatchTts.mock.calls[0][0];
       expect(call.text).toBe('Hello world');
       expect(call.resolvedConfig).toEqual(RESOLVED_CONFIG);
-      expect(call.ctx).toEqual({ slug: 'testbot', modelId: 'voxtral-mini-tts-latest' });
+      expect(call.ctx).toEqual({
+        slug: 'testbot',
+        modelId: 'voxtral-mini-tts-latest',
+        signal: expect.any(AbortSignal),
+      });
       expect(call.audioProviderKeys.get('mistral')).toBe('sk-mi');
       expect(call.registry).toEqual({ _id: 'mock-registry' });
     });
@@ -419,6 +423,24 @@ describe('TTSStep', () => {
 
       expect(result.result?.metadata?.ttsAudioKey).toBeUndefined();
       expect(result.result?.content).toBe('Hello world');
+    });
+
+    it('aborts the dispatch signal when the outer timeout fires (halts orphaned work)', async () => {
+      mockDispatchTts.mockImplementationOnce(() => new Promise(() => {}));
+      const ctx = createContext();
+
+      const promise = step.process(ctx);
+      // Let the async step reach the dispatch call before reading the mock.
+      await vi.advanceTimersByTimeAsync(0);
+      const dispatchCtx = mockDispatchTts.mock.calls.at(-1)?.[0]?.ctx;
+      expect(dispatchCtx?.signal?.aborted).toBe(false);
+
+      await vi.advanceTimersByTimeAsync(300_001);
+      await promise;
+
+      // The orphaned work's chunker/dispatcher checks this signal before any
+      // new dispatch — aborted means no further batches or fallback attempts.
+      expect(dispatchCtx?.signal?.aborted).toBe(true);
     });
 
     it('does not store anything when dispatcher fails', async () => {

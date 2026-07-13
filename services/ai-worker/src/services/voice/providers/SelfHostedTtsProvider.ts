@@ -92,17 +92,24 @@ export class SelfHostedTtsProvider implements TtsProvider {
    * Synthesize text via the existing chunker, which handles single-chunk
    * Opus output AND multi-chunk WAV-concat-then-Opus-transcode for long text.
    *
-   * Self-hosted ignores `ctx` (no auth needed; voice id is in the handle).
+   * Self-hosted needs no auth from `ctx` (voice id is in the handle) but
+   * threads `ctx.signal` to the chunker so an expired outer budget stops
+   * new chunk batches from dispatching.
    * Throws on `kind: 'inlineAudio'` handles — self-hosted is a stateful provider.
    */
-  async synthesize(text: string, handle: PreparedTts, _ctx: TtsContext): Promise<Buffer> {
+  async synthesize(text: string, handle: PreparedTts, ctx: TtsContext): Promise<Buffer> {
     if (handle.kind !== 'voiceId') {
       throw new Error(
         `SelfHostedTtsProvider received an inlineAudio handle — expected voiceId. Got: ${handle.kind}`
       );
     }
     const start = Date.now();
-    const result = await synthesizeWithChunking(this.registrationService.client, text, handle.id);
+    const result = await synthesizeWithChunking(
+      this.registrationService.client,
+      text,
+      handle.id,
+      ctx.signal
+    );
     logger.info(
       {
         event: 'tts.synthesize',
