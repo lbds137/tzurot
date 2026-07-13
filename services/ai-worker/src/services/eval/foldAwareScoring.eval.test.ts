@@ -23,6 +23,7 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { scoreArm, pairedFlips, combinedMissRate, type ScoredQuery } from './poolScoring.js';
 import { reconcile, type GoldenPool, type PrefixQrels, type Qrels } from './qrelsReconciliation.js';
+import { shouldFoldSearchQuery, FOLD_GATE_MAX_CONTENT_WORDS } from '../prompt/queryFoldGate.js';
 
 const WORK_DIR = join(process.cwd(), 'reports/goldens-mining');
 const POOL_PATH = join(WORK_DIR, 'fold-pool.json');
@@ -33,6 +34,9 @@ const REPORT_PATH = join(WORK_DIR, 'fold-ab-result.md');
 const ARMS = ['bare-dense', 'fold3-dense', 'fold5-dense', 'fold8-dense', 'bare-fts', 'fold3-fts'];
 const DENSE_SWEEP = ['fold3-dense', 'fold5-dense', 'fold8-dense'];
 const K_VALUES = [5, 10] as const;
+
+/** Gate-threshold sensitivity sweep — the pre-registered default plus one either side. */
+const GATE_THRESHOLDS = [3, FOLD_GATE_MAX_CONTENT_WORDS, 8] as const;
 
 const ready = existsSync(POOL_PATH) && existsSync(QRELS_PATH);
 
@@ -115,7 +119,94 @@ function buildReport(pools: GoldenPool[], queries: ScoredQuery[], qrels: Qrels):
   lines.push('');
 
   lines.push(perStyleSection(pools, queries, qrels));
+  lines.push('', conditionalSection(pools, queries, qrels));
   return `${lines.join('\n')}\n`;
+}
+
+/**
+ * Derive the per-turn conditional-policy arms: per golden, adopt fold3 or bare
+ * ranks according to the production gate run on the golden's message. The pool's
+ * `message` approximates the UNFOLDED query production would gate on — history
+ * content already carries attachment descriptions/voice transcripts inline, and
+ * the pooling runner passed no referenced-message text.
+ */
+function withConditionalArms(
+  pools: GoldenPool[],
+  queries: ScoredQuery[],
+  threshold: number
+): { queries: ScoredQuery[]; foldedTurns: number } {
+  const messageById = new Map(pools.map(p => [p.goldenId, p.message]));
+  let foldedTurns = 0;
+  const derived = queries.map(query => {
+    const fold = shouldFoldSearchQuery(messageById.get(query.queryId) ?? '', threshold);
+    if (fold) {
+      foldedTurns += 1;
+    }
+    const dense = fold ? 'fold3-dense' : 'bare-dense';
+    const fts = fold ? 'fold3-fts' : 'bare-fts';
+    return {
+      queryId: query.queryId,
+      candidates: query.candidates.map(c => ({
+        ...c,
+        ranks: {
+          ...c.ranks,
+          'cond-dense': c.ranks[dense] ?? null,
+          'cond-fts': c.ranks[fts] ?? null,
+        },
+      })),
+    };
+  });
+  return { queries: derived, foldedTurns };
+}
+
+/**
+ * The conditional-fold policy simulation — scores the PRE-REGISTERED gate
+ * (fold iff the unfolded query is content-poor) against the already-judged pool.
+ * Every per-turn arm-selection policy is scoreable retroactively because the pool
+ * carries every arm's ranks; no new dev queries or judging needed.
+ */
+function conditionalSection(pools: GoldenPool[], queries: ScoredQuery[], qrels: Qrels): string {
+  const lines = [
+    '## Conditional-fold policy simulation (pre-registered gate)',
+    '',
+    `Gate: fold iff content words < threshold (default ${FOLD_GATE_MAX_CONTENT_WORDS}, registered before scoring).`,
+    'Sensitivity shown one step either side — a policy that only wins at one threshold is noise.',
+    '',
+    '| Threshold | folded turns | cond recall@10 | cond miss@10 (dense) | combined miss@10 | vs bare (fix/break) | vs fold3 (fix/break) |',
+    '| --- | --- | --- | --- | --- | --- | --- |',
+  ];
+  for (const threshold of GATE_THRESHOLDS) {
+    const { queries: cond, foldedTurns } = withConditionalArms(pools, queries, threshold);
+    const m = scoreArm(cond, qrels, 'cond-dense', 10);
+    const combined = combinedMissRate(cond, qrels, ['cond-dense', 'cond-fts'], 10);
+    const vsBare = pairedFlips(cond, qrels, 'bare-dense', 'cond-dense', 10);
+    const vsFold = pairedFlips(cond, qrels, 'fold3-dense', 'cond-dense', 10);
+    lines.push(
+      `| <${threshold} | ${foldedTurns}/${pools.length} | ${fmt(m.recallAtK)} | ${fmt(m.missRate)} | ${combined.missedTurns}/${combined.scoredQueries} (${fmt(combined.rate)}) | ${signed(vsBare.net)} (${vsBare.treatmentFixes}/${vsBare.treatmentBreaks}) | ${signed(vsFold.net)} (${vsFold.treatmentFixes}/${vsFold.treatmentBreaks}) |`
+    );
+  }
+
+  // Per-style at the pre-registered default: does conditional keep each stratum's winner?
+  const { queries: cond } = withConditionalArms(pools, queries, FOLD_GATE_MAX_CONTENT_WORDS);
+  const styleById = new Map(pools.map(p => [p.goldenId, p.style]));
+  const styles = [...new Set(pools.map(p => p.style))].sort();
+  lines.push(
+    '',
+    `### Per-style combined miss @ K=10 (threshold <${FOLD_GATE_MAX_CONTENT_WORDS})`,
+    '',
+    '| Style | bare | fold3 | conditional |',
+    '| --- | --- | --- | --- |'
+  );
+  for (const style of styles) {
+    const subset = cond.filter(q => styleById.get(q.queryId) === style);
+    const bare = combinedMissRate(subset, qrels, ['bare-dense', 'bare-fts'], 10);
+    const fold = combinedMissRate(subset, qrels, ['fold3-dense', 'fold3-fts'], 10);
+    const condMiss = combinedMissRate(subset, qrels, ['cond-dense', 'cond-fts'], 10);
+    lines.push(
+      `| ${style} | ${bare.missedTurns}/${bare.scoredQueries} | ${fold.missedTurns}/${fold.scoredQueries} | ${condMiss.missedTurns}/${condMiss.scoredQueries} |`
+    );
+  }
+  return lines.join('\n');
 }
 
 /** Per-style both-arms-miss (bare vs fold3) — where does folding help most? */
