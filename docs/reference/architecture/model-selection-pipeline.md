@@ -70,7 +70,8 @@ vision (priority 2) during the bootstrap window before vision globals are seeded
 **The main model's native vision** (priority 2 of `selectVisionModel`) lives in the worker, not
 the resolver — it needs the live OpenRouter capability check (`hasVisionSupport`). So the
 effective worker-side priority is: stamped `visionModel` (tier 1) → main-model-if-native-vision →
-hardcoded floor (`VISION_FALLBACK_FREE` for guests / `VISION_FALLBACK_MODEL` for BYOK).
+the runtime floor settings (`fallbackVisionModelFree` for guests / `fallbackVisionModel` for
+BYOK — editable via /admin settings, resolved through the system-settings SWR cache).
 
 ## The four AdminSettings default pointers
 

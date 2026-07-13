@@ -114,16 +114,14 @@ The script reads from your `.env` file and sets variables in Railway.
 
 **Shared (all services)**:
 
-| Variable                | Description                               |
-| ----------------------- | ----------------------------------------- |
-| `DATABASE_URL`          | PostgreSQL connection (includes pgvector) |
-| `REDIS_URL`             | Redis connection                          |
-| `AI_PROVIDER`           | AI provider (e.g., `openrouter`)          |
-| `OPENROUTER_API_KEY`    | OpenRouter API key                        |
-| `DEFAULT_AI_MODEL`      | Default model                             |
-| `VISION_FALLBACK_MODEL` | Image analysis model                      |
-| `NODE_ENV`              | Environment (`production`/`development`)  |
-| `LOG_LEVEL`             | Logging verbosity                         |
+| Variable             | Description                               |
+| -------------------- | ----------------------------------------- |
+| `DATABASE_URL`       | PostgreSQL connection (includes pgvector) |
+| `REDIS_URL`          | Redis connection                          |
+| `AI_PROVIDER`        | AI provider (e.g., `openrouter`)          |
+| `OPENROUTER_API_KEY` | OpenRouter API key                        |
+| `NODE_ENV`           | Environment (`production`/`development`)  |
+| `LOG_LEVEL`          | Logging verbosity                         |
 
 **bot-client only**:
 
@@ -330,7 +328,7 @@ Each service has a **Watch Paths** config (Railway dashboard → service → Set
 | `ai-worker`    | `packages/**`, `services/ai-worker/**`, + same root files                                                                                    |
 | `voice-engine` | `services/voice-engine/**` only (standalone Python/FastAPI service; no Node-workspace deps; Dockerfile path set explicitly)                  |
 
-**Design intent — `packages/**`is deliberately broad.** The three Node services watch *all* workspace packages rather than enumerating their exact runtime deps. This trades occasional unnecessary redeploys (e.g. a`packages/tooling`change redeploys all three even though none use it at runtime) for **never running stale code**. Erring broad is the correct defensive posture: the alternative — enumerating exact per-service package deps — is fragile and is precisely what caused the bot-client`@tzurot/clients`crash class (a *missing* dependency reference). Because`packages/**` is broad, **extracting a new workspace package needs no watch-path change\*\* — it's covered automatically.
+**Design intent — `packages/**`is deliberately broad.** The three Node services watch _all_ workspace packages rather than enumerating their exact runtime deps. This trades occasional unnecessary redeploys (e.g. a`packages/tooling`change redeploys all three even though none use it at runtime) for **never running stale code**. Erring broad is the correct defensive posture: the alternative — enumerating exact per-service package deps — is fragile and is precisely what caused the bot-client`@tzurot/clients`crash class (a _missing_ dependency reference). Because`packages/**` is broad, **extracting a new workspace package needs no watch-path change\*\* — it's covered automatically.
 
 **Per-service Dockerfiles are covered** via `services/<self>/**` (the Dockerfile lives there), so a Dockerfile-only change does trigger that service's redeploy.
 
