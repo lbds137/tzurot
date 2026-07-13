@@ -122,9 +122,13 @@ describe.skipIf(!ready)('fold-aware pooling (live dev memory store)', () => {
       // channel-scoped priorHistory (capped at historyWindow). Production can also fold
       // cross-channel timestamps in, which would push this slightly older — acceptable
       // for the temporal guard (a looser cutoff only makes the folded arm's bar HIGHER).
-      const oldestHistoryMs = Math.min(
-        ...golden.priorHistory.map(turn => new Date(turn.createdAt).getTime())
-      );
+      // Empty history → MAX_SAFE_INTEGER: no fold window exists, so nothing should
+      // classify as in-window (no real timestamp exceeds it), and unlike Math.min()'s
+      // Infinity it survives JSON persistence (Infinity stringifies to null).
+      const oldestHistoryMs =
+        golden.priorHistory.length === 0
+          ? Number.MAX_SAFE_INTEGER
+          : Math.min(...golden.priorHistory.map(turn => new Date(turn.createdAt).getTime()));
       const foldWindowText = extractRecentHistoryWindow(turns, PROD_FOLD_TURNS) ?? '';
 
       // Build the arm → query map. Dense arms embed + pgvector; FTS arms lexical.
