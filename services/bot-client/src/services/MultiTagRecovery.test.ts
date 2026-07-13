@@ -23,6 +23,7 @@ import type { LLMGenerationResult } from '@tzurot/common-types/types/schemas/gen
 import type { LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import { MultiTagRecovery, type MultiTagRecoveryDeps } from './MultiTagRecovery.js';
 import type { CoordinatorEntrySnapshot, SlotSnapshot } from './MultiTagPersistence.js';
+import { MULTI_TAG } from '@tzurot/common-types/constants/message';
 
 // Stable UUID for the test user's default persona; exercised in every resolution assertion.
 const RESOLVED_PERSONA_ID = '00000000-0000-4000-8000-000000000aaa';
@@ -59,7 +60,11 @@ function buildSnapshot(
         status: 'pending',
       },
     ],
-    createdAt: 1737900000000,
+    // Fresh by default: these fixtures model a RECENTLY-interrupted fan-out
+    // (the age gate discards entries older than the coordinator safety
+    // window unless they carry a recovered result — tested in its own
+    // describe with an explicitly ancient createdAt).
+    createdAt: Date.now() - 60_000,
     truncated: false,
     ...overrides,
   };
@@ -276,6 +281,79 @@ describe('MultiTagRecovery', () => {
         expect(persistence.markStale).not.toHaveBeenCalled();
       }
     );
+  });
+
+  describe('age gate (zombie-group class: entries older than the safety window)', () => {
+    const ANCIENT = (): number => Date.now() - (MULTI_TAG.COORDINATOR_TIMEOUT_MS + 60_000); // window + 1 min
+
+    it('discards an ancient entry whose slot is still pending-class — no adoption, no delivery, no synthetic error', async () => {
+      queue.getJob.mockResolvedValue(buildMockJob({ state: 'waiting-children' }));
+      persistence.scanAllEntries.mockResolvedValue([buildSnapshot({ createdAt: ANCIENT() })]);
+
+      const stats = await recovery.run();
+
+      expect(stats.entriesExpiredSilent).toBe(1);
+      expect(coordinator.adoptRehydratedEntry).not.toHaveBeenCalled();
+      expect(coordinator.handleJobResult).not.toHaveBeenCalled();
+    });
+
+    it('discards an ancient entry whose only outcome is a synthesized failure (evicted job) — late errors alone are noise', async () => {
+      queue.getJob.mockResolvedValue(null);
+      persistence.scanAllEntries.mockResolvedValue([buildSnapshot({ createdAt: ANCIENT() })]);
+
+      const stats = await recovery.run();
+
+      expect(stats.entriesExpiredSilent).toBe(1);
+      expect(coordinator.adoptRehydratedEntry).not.toHaveBeenCalled();
+      expect(coordinator.handleJobResult).not.toHaveBeenCalled();
+    });
+
+    it('discards an ancient entry whose only outcome is a REAL recovered failure — a late error is noise whether real or synthetic', async () => {
+      queue.getJob.mockResolvedValue(
+        buildMockJob({ state: 'failed', failedReason: 'content policy rejection' })
+      );
+      persistence.scanAllEntries.mockResolvedValue([buildSnapshot({ createdAt: ANCIENT() })]);
+
+      const stats = await recovery.run();
+
+      expect(stats.entriesExpiredSilent).toBe(1);
+      expect(coordinator.adoptRehydratedEntry).not.toHaveBeenCalled();
+      expect(coordinator.handleJobResult).not.toHaveBeenCalled();
+    });
+
+    it('ADOPTS an ancient entry that recovered a real completed result — late-but-real still delivers', async () => {
+      queue.getJob.mockResolvedValue(
+        buildMockJob({
+          state: 'completed',
+          returnvalue: {
+            requestId: 'old-job-Alice',
+            success: true,
+            content: 'late but real',
+          } as LLMGenerationResult,
+        })
+      );
+      persistence.scanAllEntries.mockResolvedValue([buildSnapshot({ createdAt: ANCIENT() })]);
+
+      const stats = await recovery.run();
+
+      expect(stats.entriesExpiredSilent).toBe(0);
+      expect(stats.slotsRecoveredCompleted).toBe(1);
+      expect(coordinator.adoptRehydratedEntry).toHaveBeenCalledOnce();
+      expect(coordinator.handleJobResult).toHaveBeenCalledOnce();
+    });
+
+    it('a YOUNG entry with a pending slot adopts as before (regression guard)', async () => {
+      queue.getJob.mockResolvedValue(buildMockJob({ state: 'active' }));
+      persistence.scanAllEntries.mockResolvedValue([
+        buildSnapshot({ createdAt: Date.now() - 30_000 }),
+      ]);
+
+      const stats = await recovery.run();
+
+      expect(stats.entriesExpiredSilent).toBe(0);
+      expect(stats.slotsTrustedToStream).toBe(1);
+      expect(coordinator.adoptRehydratedEntry).toHaveBeenCalledOnce();
+    });
   });
 
   describe('unrecoverable job (evicted from Redis or unknown state)', () => {
@@ -623,8 +701,11 @@ describe('MultiTagRecovery', () => {
       expect(persistence.markStale).toHaveBeenCalledWith('old-job-Alice');
       expect(persistence.deleteEntry).toHaveBeenCalledOnce();
       expect(coordinator.adoptRehydratedEntry).not.toHaveBeenCalled();
-      // No state poll either — the discard short-circuits before slot rebuild.
-      expect(queue.getJob).not.toHaveBeenCalled();
+      // State polls DO run before the channel check now: BullMQ polls are
+      // cheap local Redis reads, while Discord fetches are rate-limited —
+      // the age-gate reorder deliberately front-loads the cheap step so
+      // zombie entries never pay the Discord round-trips.
+      expect(queue.getJob).toHaveBeenCalled();
     });
 
     it('discards an entry when the source message is gone', async () => {
