@@ -26,8 +26,9 @@ import {
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { normalizeSlugForUser, sanitizeExternalSlug } from '@tzurot/common-types/utils/slugUtils';
 import { ShapesDataFetcher } from '../services/shapes/ShapesDataFetcher.js';
+import type { ShapesFetchGate } from '../services/shapes/shapesFetchGate.js';
 import { getDecryptedCookie, persistUpdatedCookie } from './shapesCredentials.js';
-import { handleShapesJobError } from './shapesJobHelpers.js';
+import { claimShapesFetchSlot, handleShapesJobError } from './shapesJobHelpers.js';
 import { downloadAndStoreAvatar } from './ShapesImportHelpers.js';
 import { importMemories } from './ShapesImportMemories.js';
 import { resolvePersonality } from './ShapesImportResolver.js';
@@ -38,6 +39,12 @@ const logger = createLogger('ShapesImportJob');
 interface ShapesImportJobDeps {
   prisma: PrismaClient;
   memoryAdapter: PgvectorMemoryAdapter;
+  /**
+   * Global fetch-concurrency gate (low-and-slow etiquette). Optional and
+   * fail-open by design — absent means ungated, matching the gate's own
+   * degrade-gracefully posture.
+   */
+  fetchGate?: ShapesFetchGate;
 }
 
 /**
@@ -47,7 +54,7 @@ export async function processShapesImportJob(
   job: Job<ShapesImportJobData>,
   deps: ShapesImportJobDeps
 ): Promise<ShapesImportJobResult> {
-  const { prisma, memoryAdapter } = deps;
+  const { prisma, memoryAdapter, fetchGate } = deps;
   const { userId, discordUserId, sourceSlug, importJobId, importType } = job.data;
 
   logger.info({ jobId: job.id, sourceSlug, importType, userId: discordUserId }, 'Starting import');
@@ -56,7 +63,12 @@ export async function processShapesImportJob(
   await updateImportJobStatus(prisma, importJobId, 'in_progress');
 
   let fetcher: ShapesDataFetcher | null = null;
+  let gateHeld = false;
   try {
+    // Claim a global fetch slot BEFORE any shapes.inc traffic (busy throws
+    // retryable — BullMQ's backoff is the wait; see claimShapesFetchSlot).
+    gateHeld = await claimShapesFetchSlot(fetchGate);
+
     // 2. Decrypt session cookie — fail fast on expired/missing credentials
     const sessionCookie = await getDecryptedCookie(prisma, userId);
 
@@ -159,6 +171,12 @@ export async function processShapesImportJob(
       await persistUpdatedCookie(prisma, userId, fetcher.getUpdatedCookie());
     }
     return handleImportJobError({ error, prisma, importJobId, importType, job, sourceSlug });
+  } finally {
+    // Only release a slot that was actually claimed — a denied acquire holds
+    // nothing, and double-releasing would over-admit the next jobs.
+    if (gateHeld) {
+      await deps.fetchGate?.release();
+    }
   }
 }
 

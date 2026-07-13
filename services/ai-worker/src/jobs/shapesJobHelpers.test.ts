@@ -1,6 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { handleShapesJobError, type ShapesJobErrorContext } from './shapesJobHelpers.js';
-import { ShapesAuthError, ShapesFetchError } from '../services/shapes/shapesErrors.js';
+import {
+  claimShapesFetchSlot,
+  handleShapesJobError,
+  type ShapesJobErrorContext,
+} from './shapesJobHelpers.js';
+import {
+  ShapesAuthError,
+  ShapesFetchBusyError,
+  ShapesFetchError,
+} from '../services/shapes/shapesErrors.js';
+import type { ShapesFetchGate } from '../services/shapes/shapesFetchGate.js';
 
 vi.mock('@tzurot/common-types/utils/logger', async () => {
   const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
@@ -121,5 +130,36 @@ describe('handleShapesJobError', () => {
     const result = await handleShapesJobError(ctx);
 
     expect(result).toEqual({ success: false, error: 'No credentials' });
+  });
+});
+
+describe('claimShapesFetchSlot', () => {
+  it('returns false (nothing to release) when no gate is supplied', async () => {
+    await expect(claimShapesFetchSlot(undefined)).resolves.toBe(false);
+  });
+
+  it('returns true when the gate grants a slot', async () => {
+    const gate = {
+      tryAcquire: vi.fn().mockResolvedValue('acquired'),
+      maxConcurrent: 2,
+    } as unknown as ShapesFetchGate;
+    await expect(claimShapesFetchSlot(gate)).resolves.toBe(true);
+  });
+
+  it('returns false on fail-open — the fetch proceeds but no slot is held to release', async () => {
+    const gate = {
+      tryAcquire: vi.fn().mockResolvedValue('fail-open'),
+      maxConcurrent: 2,
+    } as unknown as ShapesFetchGate;
+    await expect(claimShapesFetchSlot(gate)).resolves.toBe(false);
+  });
+
+  it('throws the retryable busy error naming the cap when the gate denies', async () => {
+    const gate = {
+      tryAcquire: vi.fn().mockResolvedValue('denied'),
+      maxConcurrent: 2,
+    } as unknown as ShapesFetchGate;
+    await expect(claimShapesFetchSlot(gate)).rejects.toThrow(ShapesFetchBusyError);
+    await expect(claimShapesFetchSlot(gate)).rejects.toThrow(/cap 2/);
   });
 });

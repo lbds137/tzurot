@@ -15,7 +15,8 @@
  * ShapesBotProtectionError are non-retryable (immediate failure). Everything
  * else — including ShapesRateLimitError and ShapesServerError that survived
  * per-request retries — triggers a BullMQ job-level retry (restarts from
- * page 1).
+ * page 1). ShapesFetchBusyError is deliberately in the retryable bucket:
+ * BullMQ's exponential backoff IS the wait for a free concurrency slot.
  */
 
 export class ShapesAuthError extends Error {
@@ -73,5 +74,21 @@ export class ShapesBotProtectionError extends Error {
         'this needs investigation.'
     );
     this.name = 'ShapesBotProtectionError';
+  }
+}
+
+/**
+ * The global shapes.inc fetch-concurrency gate is at capacity (see
+ * shapesFetchGate.ts). Thrown BEFORE any fetching starts, so the job-level
+ * retry it triggers costs nothing — BullMQ's exponential backoff is the wait
+ * for a slot. Deliberately retryable at the job tier.
+ */
+export class ShapesFetchBusyError extends Error {
+  constructor(maxConcurrent: number) {
+    super(
+      `Too many simultaneous shapes.inc fetches (cap ${maxConcurrent}) — ` +
+        'the job will retry automatically once a slot frees up.'
+    );
+    this.name = 'ShapesFetchBusyError';
   }
 }

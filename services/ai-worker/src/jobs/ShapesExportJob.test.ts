@@ -314,3 +314,92 @@ describe('ShapesExportJob', () => {
     expect(updateCalls[1][0].data.status).toBe('failed');
   });
 });
+
+describe('ShapesExportJob fetch-concurrency gate', () => {
+  function createMockGate(acquireResult: 'acquired' | 'denied' | 'fail-open'): {
+    gate: import('../services/shapes/shapesFetchGate.js').ShapesFetchGate;
+    tryAcquire: ReturnType<typeof vi.fn>;
+    release: ReturnType<typeof vi.fn>;
+  } {
+    const tryAcquire = vi.fn().mockResolvedValue(acquireResult);
+    const release = vi.fn().mockResolvedValue(undefined);
+    return {
+      gate: {
+        tryAcquire,
+        release,
+        maxConcurrent: 2,
+      } as unknown as import('../services/shapes/shapesFetchGate.js').ShapesFetchGate,
+      tryAcquire,
+      release,
+    };
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockFetchShapeData.mockResolvedValue(mockFetchResult);
+  });
+
+  it('acquires before fetching and releases after success', async () => {
+    const { gate, tryAcquire, release } = createMockGate('acquired');
+    const job = createMockJob();
+
+    const result = await processShapesExportJob(job, {
+      prisma: mockPrisma as never,
+      fetchGate: gate,
+    });
+
+    expect(result.success).toBe(true);
+    expect(tryAcquire).toHaveBeenCalledTimes(1);
+    expect(release).toHaveBeenCalledTimes(1);
+    // Acquire happened before any shapes.inc traffic
+    expect(tryAcquire.mock.invocationCallOrder[0]).toBeLessThan(
+      mockFetchShapeData.mock.invocationCallOrder[0]
+    );
+  });
+
+  it('releases the slot even when the fetch throws (finally path)', async () => {
+    const { gate, release } = createMockGate('acquired');
+    mockFetchShapeData.mockRejectedValue(new Error('boom'));
+    // attempts: 3 → retryable generic error rethrows for BullMQ retry
+    const job = createMockJob({}, { attemptsMade: 0, attempts: 3 });
+
+    await expect(
+      processShapesExportJob(job, { prisma: mockPrisma as never, fetchGate: gate })
+    ).rejects.toThrow('boom');
+    expect(release).toHaveBeenCalledTimes(1);
+  });
+
+  it('throws retryable busy when the gate denies (BullMQ backoff is the wait) and holds nothing', async () => {
+    const { gate, release } = createMockGate('denied');
+    const job = createMockJob({}, { attemptsMade: 0, attempts: 3 });
+
+    await expect(
+      processShapesExportJob(job, { prisma: mockPrisma as never, fetchGate: gate })
+    ).rejects.toThrow(/Too many simultaneous shapes\.inc fetches/);
+    // No shapes.inc traffic and no release for a slot never held
+    expect(mockFetchShapeData).not.toHaveBeenCalled();
+    expect(release).not.toHaveBeenCalled();
+  });
+
+  it('marks the export failed with the busy message once retries are exhausted', async () => {
+    const { gate } = createMockGate('denied');
+    // Final attempt: attemptsMade=2 of attempts=3 → no retries remain
+    const job = createMockJob({}, { attemptsMade: 2, attempts: 3 });
+
+    const result = await processShapesExportJob(job, {
+      prisma: mockPrisma as never,
+      fetchGate: gate,
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toMatch(/Too many simultaneous shapes\.inc fetches/);
+    const updateCalls = mockPrisma.exportJob.update.mock.calls;
+    expect(updateCalls[updateCalls.length - 1][0].data.status).toBe('failed');
+  });
+
+  it('runs ungated when no gate is supplied (fail-open posture)', async () => {
+    const job = createMockJob();
+    const result = await processShapesExportJob(job, { prisma: mockPrisma as never });
+    expect(result.success).toBe(true);
+  });
+});
