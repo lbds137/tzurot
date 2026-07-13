@@ -25,12 +25,15 @@ import {
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import {
   ShapesAuthError,
+  ShapesBotProtectionError,
   ShapesFetchError,
   ShapesNotFoundError,
   ShapesRateLimitError,
   ShapesServerError,
 } from './shapesErrors.js';
 import { updateCookieFromResponse } from './shapesCookieParser.js';
+import { detectBotProtection } from './shapesBotProtection.js';
+import { observeShapesResponseShape } from './shapesResponseCanary.js';
 
 const logger = createLogger('ShapesDataFetcher');
 const REQUEST_TIMEOUT_MS = 30_000;
@@ -80,6 +83,13 @@ export class ShapesDataFetcher {
   private currentCookie = '';
 
   /**
+   * Successful requests so far this fetch — distinguishes the two 401 modes:
+   * 0 means the harvested cookie was dead before the job started (re-harvest);
+   * >0 means the session expired mid-job (rare on a 7-day session).
+   */
+  private successfulRequests = 0;
+
+  /**
    * Fetch all data for a shape by username slug.
    *
    * @param slug - shapes.inc username (e.g., "lilith")
@@ -88,6 +98,7 @@ export class ShapesDataFetcher {
    */
   async fetchShapeData(slug: string, options: FetchOptions): Promise<ShapesDataFetchResult> {
     this.currentCookie = options.sessionCookie;
+    this.successfulRequests = 0;
 
     logger.info({ slug }, 'Starting data fetch');
 
@@ -155,7 +166,9 @@ export class ShapesDataFetcher {
     signal?: AbortSignal
   ): Promise<ShapesIncPersonalityConfig> {
     const url = `${SHAPES_BASE_URL}/api/shapes/username/${encodeURIComponent(slug)}`;
-    return this.makeRequest<ShapesIncPersonalityConfig>(url, signal);
+    const config = await this.makeRequest<ShapesIncPersonalityConfig>(url, signal);
+    observeShapesResponseShape('config', config);
+    return config;
   }
 
   private async fetchAllMemories(
@@ -177,7 +190,19 @@ export class ShapesDataFetcher {
         if (error instanceof ShapesNotFoundError) {
           break;
         }
+        // Mid-traversal auth failures carry the page number so a re-harvest
+        // can be judged against how much of the export was already fetched.
+        if (error instanceof ShapesAuthError) {
+          throw new ShapesAuthError(
+            `${error.message} [memories traversal stopped at page ${page}]`
+          );
+        }
         throw error;
+      }
+
+      // Page 1 only: drift affects every page identically — one warn suffices.
+      if (page === 1) {
+        observeShapesResponseShape('memoryPage', response);
       }
 
       const pageMemories = response.items ?? response.memories ?? [];
@@ -207,6 +232,7 @@ export class ShapesDataFetcher {
         url,
         signal
       );
+      observeShapesResponseShape('stories', response);
 
       if (Array.isArray(response)) {
         return response;
@@ -229,6 +255,7 @@ export class ShapesDataFetcher {
 
     try {
       const response = await this.makeRequest<ShapesIncUserPersonalization>(url, signal);
+      observeShapesResponseShape('userPersonalization', response);
 
       // Check if the response has meaningful data
       if (response.backstory === undefined && response.preferred_name === undefined) {
@@ -318,15 +345,23 @@ export class ShapesDataFetcher {
       // Update cookie from response headers
       this.currentCookie = updateCookieFromResponse(this.currentCookie, response);
 
+      // Bot-protection check runs BEFORE status handling: a 403 carrying a
+      // mitigation header is a bot wall, not an expired cookie — reporting it
+      // as an auth failure would send the user re-harvesting for nothing.
+      const botSignal = detectBotProtection(response);
+      if (botSignal !== null) {
+        throw new ShapesBotProtectionError(botSignal);
+      }
+
       if (response.ok) {
-        return (await response.json()) as T;
+        const body = (await response.json()) as T;
+        this.successfulRequests++;
+        return body;
       }
 
       // Handle specific error codes
       if (response.status === 401 || response.status === 403) {
-        throw new ShapesAuthError(
-          `Authentication failed (${response.status}). Session cookie may have expired.`
-        );
+        throw new ShapesAuthError(this.buildAuthFailureMessage(response.status));
       }
 
       if (response.status === 404) {
@@ -352,6 +387,30 @@ export class ShapesDataFetcher {
       clearTimeout(timeout);
       externalSignal?.removeEventListener('abort', onAbort);
     }
+  }
+
+  /**
+   * Phase-aware auth-failure message — the three 401 modes need different
+   * user actions, so they must read differently:
+   * - first request: the harvested cookie was dead before the job started
+   * - mid-job: the session expired during the fetch (rare on 7-day sessions)
+   * - fresh cookie still failing immediately: likely another cookie-scheme
+   *   migration (human investigation, not re-harvesting)
+   */
+  private buildAuthFailureMessage(status: number): string {
+    if (this.successfulRequests === 0) {
+      return (
+        `Authentication failed (${status}) on the FIRST request — the session cookie was ` +
+        'expired or invalid before the job started. Re-harvest it from a logged-in ' +
+        'shapes.inc browser session. If a freshly-harvested cookie also fails immediately, ' +
+        'the cookie scheme may have changed again and needs investigation.'
+      );
+    }
+    return (
+      `Authentication failed (${status}) after ${this.successfulRequests} successful ` +
+      'request(s) — the session expired mid-job. Re-harvest the cookie and re-run the ' +
+      'job (it restarts from the beginning).'
+    );
   }
 
   /**

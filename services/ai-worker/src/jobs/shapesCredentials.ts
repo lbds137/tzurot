@@ -11,6 +11,7 @@ import { decryptApiKey, encryptApiKey } from '@tzurot/common-types/utils/encrypt
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import {
   ShapesAuthError,
+  ShapesBotProtectionError,
   ShapesFetchError,
   ShapesNotFoundError,
 } from '../services/shapes/shapesErrors.js';
@@ -79,7 +80,9 @@ interface ShapesErrorClassification {
 /**
  * Classify a shapes.inc error as retryable or non-retryable.
  *
- * Known non-retryable: ShapesAuthError, ShapesNotFoundError, ShapesFetchError.
+ * Known non-retryable: ShapesAuthError, ShapesNotFoundError, ShapesFetchError,
+ * ShapesBotProtectionError (a bot wall does not clear on retry — hammering it
+ * only makes the fingerprint worse).
  * Everything else (timeouts, network failures) defaults to retryable.
  */
 export function classifyShapesError(error: unknown): ShapesErrorClassification {
@@ -87,7 +90,8 @@ export function classifyShapesError(error: unknown): ShapesErrorClassification {
   const isNonRetryable =
     error instanceof ShapesAuthError ||
     error instanceof ShapesNotFoundError ||
-    error instanceof ShapesFetchError;
+    error instanceof ShapesFetchError ||
+    error instanceof ShapesBotProtectionError;
 
   return { isRetryable: !isNonRetryable, errorMessage };
 }
