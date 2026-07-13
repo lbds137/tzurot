@@ -250,3 +250,86 @@ describe('callGateway', () => {
     );
   });
 });
+
+describe('long-call diagnostic probes (temporary db-sync silent-hang scaffolding)', () => {
+  // The probes are the diagnostic for a prod incident that produced ZERO
+  // observables — so the probe path itself must be exercised, or the next
+  // occurrence risks a silent diagnostic on top of a silent hang. Stryker is
+  // deliberately disabled on the probe block (diagnostic-only output), which
+  // makes this suite the only verification it gets.
+
+  /** Parse captured stdout writes down to the probe lines. */
+  function collectProbes(writeSpy: {
+    mock: { calls: unknown[][] };
+  }): Array<Record<string, unknown>> {
+    return writeSpy.mock.calls
+      .map(call => String(call[0]))
+      .flatMap(text => text.split('\n'))
+      .map(line => {
+        try {
+          return JSON.parse(line) as Record<string, unknown>;
+        } catch {
+          return null;
+        }
+      })
+      .filter(
+        (parsed): parsed is Record<string, unknown> =>
+          parsed !== null && parsed['probe'] === 'transport-long-call'
+      );
+  }
+
+  function spyOnStdout(): ReturnType<typeof vi.spyOn> {
+    // Swallow the write so probe lines don't pollute the test reporter's
+    // output; restored by the top-level afterEach's restoreAllMocks.
+    return vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+  }
+
+  it('emits request-start → response-headers → settled with one tag on a LONG_SYNC success', async () => {
+    const writeSpy = spyOnStdout();
+    fetchSpy.mockResolvedValueOnce(jsonResponse({ ok: true }));
+    await callGateway({ ...baseOpts, method: 'POST', timeoutMs: GATEWAY_TIMEOUTS.LONG_SYNC });
+
+    const probes = collectProbes(writeSpy);
+    expect(probes.map(p => p['stage'])).toEqual(['request-start', 'response-headers', 'settled']);
+    // One correlation tag across the call, and the fields that make a line
+    // actionable in prod logs are present on every stage.
+    expect(new Set(probes.map(p => p['tag'])).size).toBe(1);
+    for (const probe of probes) {
+      expect(probe['path']).toBe(baseOpts.path);
+      expect(typeof probe['elapsedMs']).toBe('number');
+    }
+    expect(probes[0]).toMatchObject({ method: 'POST', timeoutMs: GATEWAY_TIMEOUTS.LONG_SYNC });
+    expect(probes[2]).toMatchObject({ ok: true });
+  });
+
+  it('emits settled-http-error on a LONG_SYNC non-2xx', async () => {
+    const writeSpy = spyOnStdout();
+    fetchSpy.mockResolvedValueOnce(
+      jsonResponse({ message: 'Boom', code: 'INTERNAL_ERROR' }, { status: 500 })
+    );
+    await callGateway({ ...baseOpts, method: 'POST', timeoutMs: GATEWAY_TIMEOUTS.LONG_SYNC });
+
+    const stages = collectProbes(writeSpy).map(p => p['stage']);
+    expect(stages).toEqual(['request-start', 'response-headers', 'settled-http-error']);
+  });
+
+  it('emits threw with the failure kind when the fetch rejects on a LONG_SYNC call', async () => {
+    const writeSpy = spyOnStdout();
+    fetchSpy.mockRejectedValueOnce(new Error('ECONNRESET'));
+    await callGateway({ ...baseOpts, method: 'POST', timeoutMs: GATEWAY_TIMEOUTS.LONG_SYNC });
+
+    const probes = collectProbes(writeSpy);
+    expect(probes.map(p => p['stage'])).toEqual(['request-start', 'threw']);
+    expect(probes[1]).toMatchObject({ kind: 'network', error: 'ECONNRESET' });
+  });
+
+  it('emits nothing for calls below the long-call threshold', async () => {
+    const writeSpy = spyOnStdout();
+    fetchSpy.mockResolvedValueOnce(jsonResponse({ ok: true }));
+    // Default tiers (DEFERRED/WRITE/BULK_OPERATION) are all under the 100s
+    // threshold — the probe must stay silent on the hot path.
+    await callGateway({ ...baseOpts, method: 'POST', timeoutMs: GATEWAY_TIMEOUTS.BULK_OPERATION });
+
+    expect(collectProbes(writeSpy)).toEqual([]);
+  });
+});

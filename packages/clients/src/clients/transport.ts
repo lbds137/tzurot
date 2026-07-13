@@ -212,6 +212,33 @@ export async function callGateway<T>(options: TransportOptions): Promise<Gateway
   const effectiveTimeoutMs =
     timeoutMs ?? (isWriteMethod ? GATEWAY_TIMEOUTS.WRITE : GATEWAY_TIMEOUTS.DEFERRED);
 
+  // Silent-hang probe (temporary debug scaffolding): prod db-sync calls have
+  // vanished without settling — no response, no abort firing, no envelope
+  // returned. Long-budget calls (the LONG_SYNC tier — owner-triggered ops
+  // only, so volume is a handful of lines per run) log each transport stage
+  // so the next run shows exactly where the await stops. Raw stdout write
+  // because transport has no logger dependency by design (see onWarn).
+  // Stryker disable all: diagnostic-only output slated for removal — same class as the logger-calls ignorer
+  const probeTag = effectiveTimeoutMs >= 100_000 ? Math.random().toString(36).slice(2, 8) : null;
+  const probeStart = Date.now();
+  const probe = (stage: string, extra?: Record<string, unknown>): void => {
+    if (probeTag === null) {
+      return;
+    }
+    process.stdout.write(
+      JSON.stringify({
+        probe: 'transport-long-call',
+        tag: probeTag,
+        stage,
+        path,
+        elapsedMs: Date.now() - probeStart,
+        ...extra,
+      }) + '\n'
+    );
+  };
+  probe('request-start', { method, timeoutMs: effectiveTimeoutMs });
+  // Stryker restore all
+
   if (baseUrl.length === 0) {
     return { ok: false, kind: 'config', error: 'baseUrl is empty', status: 0 };
   }
@@ -238,9 +265,13 @@ export async function callGateway<T>(options: TransportOptions): Promise<Gateway
       body: body !== undefined ? JSON.stringify(body) : undefined,
       signal: AbortSignal.timeout(effectiveTimeoutMs),
     });
+    // Stryker disable next-line all: diagnostic probe
+    probe('response-headers', { status: response.status });
 
     if (!response.ok) {
       const parsed = await parseErrorResponse(response);
+      // Stryker disable next-line all: diagnostic probe
+      probe('settled-http-error', { status: response.status });
       onWarn?.({ path, method, kind: 'http', status: response.status }, 'Request failed');
       return {
         ok: false,
@@ -252,12 +283,16 @@ export async function callGateway<T>(options: TransportOptions): Promise<Gateway
     }
 
     const parsed = await readValidatedBody({ response, outputSchema, onWarn, path, method });
+    // Stryker disable next-line all: diagnostic probe
+    probe('settled', { ok: parsed.ok });
     if (!parsed.ok) {
       return parsed.result;
     }
     return { ok: true, data: parsed.data as T };
   } catch (error) {
     const { kind, error: errorMessage } = classifyThrownError(error);
+    // Stryker disable next-line all: diagnostic probe
+    probe('threw', { kind, error: errorMessage });
     // Pass `kind` (not a collapsed boolean) so log consumers keep the
     // network-vs-timeout distinction; `error` field name matches the HTTP path.
     onWarn?.({ path, method, error: errorMessage, kind }, 'Request error');
