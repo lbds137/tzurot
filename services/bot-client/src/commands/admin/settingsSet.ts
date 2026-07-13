@@ -45,8 +45,15 @@ function coerceValue(meta: SystemSettingMeta, raw: string): CoercionResult {
       return { ok: false, error: `\`${meta.key}\` expects \`true\` or \`false\`` };
     }
     case 'integer': {
-      const parsed = Number(raw.trim());
-      if (!Number.isInteger(parsed)) {
+      // Integer-literal gate before Number(): a bare Number() coerces '' and
+      // whitespace to 0 (which would happily write a zero budget) and accepts
+      // scientific/hex notation ('1e3', '0x10') that reads as a typo here.
+      const trimmed = raw.trim();
+      if (!/^-?\d+$/.test(trimmed)) {
+        return { ok: false, error: `\`${meta.key}\` expects an integer` };
+      }
+      const parsed = Number(trimmed);
+      if (!Number.isSafeInteger(parsed)) {
         return { ok: false, error: `\`${meta.key}\` expects an integer` };
       }
       return { ok: true, value: parsed as SystemSettings[keyof SystemSettings] };

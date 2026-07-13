@@ -195,3 +195,34 @@ export const ALL_SETTINGS: SettingDefinition[] = [
   ...DISPLAY_SETTINGS,
   ...VOICE_SETTINGS,
 ];
+
+/**
+ * The shared D14 concern-page grouping for cascade dashboards (design-system
+ * §3.3 pagination-by-concern): Memory · Context & Display · Voice. One map for
+ * every tier — the caller passes its tier's voice subset (admin includes the
+ * transcription toggle; other tiers pass VOICE_CASCADE_SETTINGS), which keeps
+ * the 11-vs-10 discrepancy a render-time filter, not a second grouping.
+ */
+export function buildCascadePages(voiceSettings: SettingDefinition[]): {
+  pages: { id: string; label: string; settingIds: string[] }[];
+  settings: SettingDefinition[];
+} {
+  const settings = [
+    ...MEMORY_SETTINGS,
+    ...EXTENDED_CONTEXT_SETTINGS,
+    ...DISPLAY_SETTINGS,
+    ...voiceSettings,
+  ];
+  return {
+    settings,
+    pages: [
+      { id: 'memory', label: 'Memory', settingIds: MEMORY_SETTINGS.map(s => s.id) },
+      {
+        id: 'context-display',
+        label: 'Context & Display',
+        settingIds: [...EXTENDED_CONTEXT_SETTINGS, ...DISPLAY_SETTINGS].map(s => s.id),
+      },
+      { id: 'voice', label: 'Voice', settingIds: voiceSettings.map(s => s.id) },
+    ],
+  };
+}

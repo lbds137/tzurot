@@ -13,7 +13,17 @@ import {
   type ModalActionRowComponentBuilder,
 } from 'discord.js';
 import { Duration, DurationParseError } from '@tzurot/common-types/utils/Duration';
-import { type SettingDefinition, buildSettingsCustomId } from './types.js';
+import { type SettingDefinition, buildSettingsCustomId, SettingType } from './types.js';
+
+/**
+ * Default input max length by setting type. Numeric/duration values are short;
+ * TEXT values (model ids like `anthropic/claude-sonnet-4.5`) routinely exceed
+ * the old blanket 20 — and discord.js THROWS at modal-build time if a prefill
+ * value is longer than maxLength, so the cap must fit the data, not just the
+ * typing.
+ */
+const DEFAULT_MAX_LENGTH = 20;
+const TEXT_MAX_LENGTH = 100;
 
 /**
  * Build a modal for editing a setting value
@@ -33,6 +43,9 @@ export function buildSettingEditModal(
     .setCustomId(buildSettingsCustomId(entityType, 'modal', entityId, setting.id))
     .setTitle(`Edit ${setting.label}`);
 
+  const maxLength =
+    setting.maxLength ?? (setting.type === SettingType.TEXT ? TEXT_MAX_LENGTH : DEFAULT_MAX_LENGTH);
+
   // Build the text input
   const input = new TextInputBuilder()
     .setCustomId('value')
@@ -45,14 +58,14 @@ export function buildSettingEditModal(
     input.setPlaceholder(setting.placeholder);
   }
 
-  // Pre-fill with current value
+  // Pre-fill with current value, truncated to the cap — a longer prefill
+  // throws in TextInputBuilder validation.
   const valueStr = formatValueForInput(currentValue);
   if (valueStr.length > 0) {
-    input.setValue(valueStr);
+    input.setValue(valueStr.slice(0, maxLength));
   }
 
-  // Set max length (generous for duration strings)
-  input.setMaxLength(20);
+  input.setMaxLength(maxLength);
 
   const row = new ActionRowBuilder<ModalActionRowComponentBuilder>().addComponents(input);
   modal.addComponents(row);
