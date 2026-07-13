@@ -513,7 +513,8 @@ describe('Character Settings Dashboard', () => {
       reply: vi.fn(),
       update: vi.fn(),
       deferUpdate: vi.fn().mockResolvedValue(undefined),
-      editReply: vi.fn().mockResolvedValue(undefined),
+      editReply: vi.fn(),
+      followUp: vi.fn().mockResolvedValue(undefined),
     });
 
     // Entity ID is now slug::personalityId

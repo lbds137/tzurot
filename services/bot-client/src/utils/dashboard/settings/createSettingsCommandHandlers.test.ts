@@ -27,16 +27,16 @@ vi.mock('./types.js', async importOriginal => {
 vi.mock('./SettingsDashboardHandler.js', () => ({
   handleSettingsSelectMenu: vi.fn(),
   handleSettingsButton: vi.fn(),
+}));
+
+vi.mock('./settingsModalSubmit.js', () => ({
   handleSettingsModal: vi.fn(),
 }));
 
 // Imports must come AFTER vi.mock calls
 import { isSettingsInteraction, parseSettingsCustomId } from './types.js';
-import {
-  handleSettingsSelectMenu,
-  handleSettingsButton,
-  handleSettingsModal,
-} from './SettingsDashboardHandler.js';
+import { handleSettingsSelectMenu, handleSettingsButton } from './SettingsDashboardHandler.js';
+import { handleSettingsModal } from './settingsModalSubmit.js';
 import { createSettingsCommandHandlers } from './createSettingsCommandHandlers.js';
 
 // Test fixtures

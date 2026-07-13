@@ -40,6 +40,39 @@ describe('SYSTEM_SETTINGS_REGISTRY completeness', () => {
       expect(meta.choices !== undefined).toBe(meta.control === 'enum');
     }
   });
+
+  it('bounds metadata is present exactly on integer-control entries', () => {
+    for (const key of SYSTEM_SETTINGS_KEYS) {
+      const meta = SYSTEM_SETTINGS_REGISTRY[key];
+      expect(meta.min !== undefined).toBe(meta.control === 'integer');
+      if (meta.max !== undefined) {
+        expect(meta.control).toBe('integer');
+      }
+    }
+  });
+
+  it('registry bounds behaviorally match the zod schema (the no-drift parity check)', () => {
+    // The schema stays authoritative for validation; the registry mirrors bounds
+    // for input surfaces. Parity is asserted behaviorally (accept/reject at the
+    // boundary), so it survives zod internals changing shape.
+    for (const key of SYSTEM_SETTINGS_KEYS) {
+      const meta = SYSTEM_SETTINGS_REGISTRY[key];
+      if (meta.control !== 'integer' || meta.min === undefined) {
+        continue;
+      }
+      const field = SystemSettingsSchema.shape[key];
+      expect(field.safeParse(meta.min).success, `${key} accepts min`).toBe(true);
+      expect(field.safeParse(meta.min - 1).success, `${key} rejects min-1`).toBe(false);
+      if (meta.max !== undefined) {
+        expect(field.safeParse(meta.max).success, `${key} accepts max`).toBe(true);
+        expect(field.safeParse(meta.max + 1).success, `${key} rejects max+1`).toBe(false);
+      } else {
+        expect(field.safeParse(Number.MAX_SAFE_INTEGER).success, `${key} is unbounded above`).toBe(
+          true
+        );
+      }
+    }
+  });
 });
 
 describe('fallbacks (the floor beneath the floor)', () => {

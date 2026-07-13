@@ -284,3 +284,40 @@ describe('handleSettingValueAutocomplete', () => {
     expect(interaction.respond).toHaveBeenCalledWith([]);
   });
 });
+
+describe('coerceValue integer tightening (via handleSettingsSet)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetSystemSettings.mockResolvedValue({
+      ok: true,
+      data: { systemSettings: { zaiHeadroomPercent: 75 }, updatedAt: UPDATED_AT },
+    });
+    mockUpdateSystemSettings.mockResolvedValue({
+      ok: true,
+      data: { systemSettings: {}, updatedAt: UPDATED_AT, warnings: [] },
+    });
+  });
+
+  // Exercised through the public handler: the integer gate must reject the
+  // shapes Number() silently accepts — '' → 0 (a real would-write bug),
+  // scientific notation, and hex.
+  it.each([['   '], ['1e3'], ['0x10'], ['12.5'], ['abc']])(
+    'rejects %j with an integer error and never writes',
+    async raw => {
+      const context = makeContext('zaiHeadroomPercent', raw);
+      await handleSettingsSet(context);
+      expect(mockUpdateSystemSettings).not.toHaveBeenCalled();
+      expect(context.editReply).toHaveBeenCalledWith(
+        expect.objectContaining({ content: expect.stringContaining('expects an integer') })
+      );
+    }
+  );
+
+  it('accepts a plain integer literal', async () => {
+    const context = makeContext('zaiHeadroomPercent', '42');
+    await handleSettingsSet(context);
+    expect(mockUpdateSystemSettings).toHaveBeenCalledWith(
+      expect.objectContaining({ patch: { zaiHeadroomPercent: 42 } })
+    );
+  });
+});

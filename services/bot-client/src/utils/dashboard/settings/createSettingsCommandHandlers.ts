@@ -34,11 +34,8 @@ import {
   isSettingsInteraction,
   parseSettingsCustomId,
 } from './types.js';
-import {
-  handleSettingsButton,
-  handleSettingsModal,
-  handleSettingsSelectMenu,
-} from './SettingsDashboardHandler.js';
+import { handleSettingsButton, handleSettingsSelectMenu } from './SettingsDashboardHandler.js';
+import { handleSettingsModal } from './settingsModalSubmit.js';
 
 /**
  * Options for building a set of entity-ID-based settings command handlers.

@@ -41,13 +41,16 @@ import {
   handleSettingsButton,
   handleSettingsModal,
   isSettingsInteraction,
-  EXTENDED_CONTEXT_SETTINGS,
-  MEMORY_SETTINGS,
-  DISPLAY_SETTINGS,
   VOICE_SETTINGS,
+  buildCascadePages,
+  SYSTEM_SETTINGS_DEFINITIONS,
+  SYSTEM_SETTINGS_PAGES,
+  isSystemSettingId,
   mapSettingToApiUpdate,
   buildCascadeSettingsData,
+  buildSystemSettingsData,
 } from '../../utils/dashboard/settings/index.js';
+import { handleSystemSettingUpdate } from './settingsSystemUpdate.js';
 
 const logger = createLogger('admin-settings');
 
@@ -58,20 +61,24 @@ const logger = createLogger('admin-settings');
  */
 const ENTITY_TYPE = 'admin-settings';
 
+/** The D14 cascade page group (admin tier includes the transcription toggle). */
+const CASCADE_PAGES = buildCascadePages(VOICE_SETTINGS);
+
 /**
- * Dashboard configuration for admin settings
+ * Dashboard configuration: the two-axis admin surface (artifact D8) — the
+ * cascade Defaults pages followed by the owner-only System pages, one command,
+ * one session. System settings carry `plainDisplay` on their definitions, so
+ * the mixed dashboard renders cascade status only where cascade semantics exist.
  */
 const ADMIN_SETTINGS_CONFIG: SettingsDashboardConfig = {
   level: 'global',
   entityType: ENTITY_TYPE,
   titlePrefix: 'Global',
   color: DISCORD_COLORS.BLURPLE,
-  settings: [
-    ...EXTENDED_CONTEXT_SETTINGS,
-    ...MEMORY_SETTINGS,
-    ...DISPLAY_SETTINGS,
-    ...VOICE_SETTINGS,
-  ],
+  settings: [...CASCADE_PAGES.settings, ...SYSTEM_SETTINGS_DEFINITIONS],
+  pages: [...CASCADE_PAGES.pages, ...SYSTEM_SETTINGS_PAGES],
+  overviewDescription:
+    'Configure global cascade defaults (Defaults pages) and owner-only system settings (System pages).',
 };
 
 /**
@@ -83,7 +90,8 @@ export async function handleSettings(context: DeferredCommandContext): Promise<v
   logger.debug({ userId }, 'Opening dashboard');
 
   try {
-    // Fetch current settings from API gateway
+    // Fetch BOTH bags: the cascade defaults and the system-settings bag (the
+    // dashboard hosts Defaults pages + System pages in one session).
     const { ownerClient } = clientsFor(context.interaction);
     const settings = await fetchAdminSettings(ownerClient);
 
@@ -95,8 +103,25 @@ export async function handleSettings(context: DeferredCommandContext): Promise<v
       return;
     }
 
-    // Convert API response to dashboard data format
-    const data = convertToSettingsData(settings);
+    const system = await ownerClient.getSystemSettings();
+    if (!system.ok) {
+      await context.editReply({
+        content: renderSpec(
+          classifyGatewayFailure(new Error(system.error), 'system settings', {
+            operation: 'read',
+            failedAction: 'open the settings dashboard',
+          })
+        ),
+      });
+      return;
+    }
+
+    // Convert API responses to one dashboard data map (keys don't collide:
+    // cascade ids vs registry ids are disjoint namespaces by construction)
+    const data: SettingsData = {
+      ...convertToSettingsData(settings),
+      ...buildSystemSettingsData(system.data.systemSettings),
+    };
 
     // Create and display the dashboard
     // Pass the underlying interaction since createSettingsDashboard expects ChatInputCommandInteraction
@@ -147,7 +172,7 @@ export async function handleAdminSettingsButton(interaction: ButtonInteraction):
     return;
   }
 
-  await handleSettingsButton(interaction, ADMIN_SETTINGS_CONFIG, handleSettingUpdate);
+  await handleSettingsButton(interaction, ADMIN_SETTINGS_CONFIG, dispatchSettingUpdate);
 }
 
 /**
@@ -158,7 +183,7 @@ export async function handleAdminSettingsModal(interaction: ModalSubmitInteracti
     return;
   }
 
-  await handleSettingsModal(interaction, ADMIN_SETTINGS_CONFIG, handleSettingUpdate);
+  await handleSettingsModal(interaction, ADMIN_SETTINGS_CONFIG, dispatchSettingUpdate);
 }
 
 /**
@@ -190,13 +215,31 @@ function convertToSettingsData(settings: GetAdminSettingsResponse): SettingsData
 }
 
 /**
- * Handle setting updates from the dashboard.
+ * Route a dashboard update to the right write path by settingId membership —
+ * NOT by the session's current page, which a stale message row can contradict
+ * (a page-2 button clicked while the session sits on page 5). The two id
+ * namespaces are disjoint by construction; a system id that somehow reached
+ * the cascade handler would fail clean ("Unknown setting").
+ */
+async function dispatchSettingUpdate(
+  interaction: ButtonInteraction | ModalSubmitInteraction,
+  session: SettingsDashboardSession,
+  settingId: string,
+  newValue: unknown
+): Promise<SettingUpdateResult> {
+  return isSystemSettingId(settingId)
+    ? handleSystemSettingUpdate(interaction, session, settingId, newValue)
+    : handleSettingUpdate(interaction, session, settingId, newValue);
+}
+
+/**
+ * Handle CASCADE setting updates from the dashboard.
  * Uses the /admin/settings/config-defaults sub-route which accepts
  * flat Partial<ConfigOverrides> — same body shape as all other tiers.
  */
 async function handleSettingUpdate(
   interaction: ButtonInteraction | ModalSubmitInteraction,
-  _session: SettingsDashboardSession,
+  session: SettingsDashboardSession,
   settingId: string,
   newValue: unknown
 ): Promise<SettingUpdateResult> {
@@ -226,7 +269,9 @@ async function handleSettingUpdate(
     // waiting out the 60s TTL.
     invalidateAdminSettingsCache();
 
-    const newData = convertToSettingsData(result.data);
+    // Merge the refreshed cascade values over the session map — replacing it
+    // outright would drop the System-page entries from the mixed dashboard.
+    const newData: SettingsData = { ...session.data, ...convertToSettingsData(result.data) };
     logger.info({ settingId, newValue, userId }, 'Setting updated');
     return { success: true, newData };
   } catch (error) {

@@ -13,7 +13,6 @@
 import {
   type ButtonInteraction,
   type StringSelectMenuInteraction,
-  type ModalSubmitInteraction,
   type ChatInputCommandInteraction,
   MessageFlags,
 } from 'discord.js';
@@ -29,6 +28,8 @@ import {
   DashboardView,
   parseSettingsCustomId,
   SettingType,
+  clampPage,
+  isPlainSetting,
 } from './types.js';
 import {
   buildOverviewMessage,
@@ -37,7 +38,6 @@ import {
 } from './SettingsDashboardBuilder.js';
 import { buildSettingEditModal } from './SettingsModalFactory.js';
 import { storeSession, getSession, deleteSession } from './SettingsSessionStorage.js';
-import { parseNumericInputValue, parseDurationInputValue } from './settingsInputParser.js';
 
 const logger = createLogger('SettingsDashboardHandler');
 
@@ -73,6 +73,7 @@ export async function createSettingsDashboard(
     entityName,
     data,
     view: DashboardView.OVERVIEW,
+    page: 0,
     userId,
     messageId: '', // Will be set after reply
     channelId: interaction.channelId,
@@ -150,7 +151,7 @@ export async function handleSettingsSelectMenu(
 
   // Get selected setting
   const settingId = interaction.values[0];
-  const setting = getSettingById(settingId);
+  const setting = getSettingById(config, settingId);
 
   if (setting === undefined) {
     await interaction.followUp({
@@ -195,12 +196,12 @@ export async function handleSettingsButton(
   }
 
   // Ack first (3-second rule): deferUpdate before the Redis session read — EXCEPT
-  // the edit action, which opens a modal. `showModal` IS the ack and can't be
-  // preceded by a defer, so the edit path keeps the read-then-showModal flow
-  // (mitigated by showModalWithTimeoutCatch inside handleEditButton). For every
-  // other action we defer first; error notices then use followUp (post-defer) vs
-  // reply (the not-yet-acked edit path).
-  const isModalAction = parsed.action === 'edit';
+  // the modal-opening actions (edit, and retry which re-opens the modal with the
+  // rejected input). `showModal` IS the ack and can't be preceded by a defer, so
+  // those paths keep the read-then-showModal flow (mitigated by
+  // showModalWithTimeoutCatch). For every other action we defer first; error
+  // notices then use followUp (post-defer) vs reply (the not-yet-acked modal paths).
+  const isModalAction = parsed.action === 'edit' || parsed.action === 'retry';
   if (!isModalAction) {
     await interaction.deferUpdate();
   }
@@ -229,13 +230,22 @@ export async function handleSettingsButton(
       await handleBackButton(interaction, config, session);
       break;
     case 'close':
+      // The Close button no longer renders on paged dashboards (D18), but the
+      // action stays routable — stale messages predating the change still
+      // carry it, and flat dashboards keep the button.
       await handleCloseButton(interaction, config, session);
+      break;
+    case 'page':
+      await handlePageButton(interaction, config, session, parsed.extra);
       break;
     case 'set':
       await handleSetButton(interaction, config, session, parsed.extra, updateHandler);
       break;
     case 'edit':
       await handleEditButton(interaction, config, session, parsed.extra);
+      break;
+    case 'retry':
+      await handleRetryButton(interaction, config, session, parsed.extra);
       break;
     default:
       // The router already deferUpdate'd (non-edit actions defer above), so a
@@ -263,6 +273,36 @@ async function handleBackButton(
   const message = buildOverviewMessage(config, session);
 
   // editReply: the router already deferUpdate'd before dispatching here.
+  await interaction.editReply({
+    embeds: message.embeds,
+    components: message.components,
+  });
+}
+
+/**
+ * Handle page navigation (paged configs) — mutate the session page and
+ * re-render the overview. Clamped on BOTH the stored value and the result, so
+ * a stale button (session already at an edge, or a shrunk page list after a
+ * deploy) can never render an out-of-range page. The `noop` indicator button
+ * is disabled and never reaches here; treat it as a re-render if it somehow does.
+ */
+async function handlePageButton(
+  interaction: ButtonInteraction,
+  config: SettingsDashboardConfig,
+  session: SettingsDashboardSession,
+  direction: string | undefined
+): Promise<void> {
+  const current = clampPage(config, session.page);
+  const delta = direction === 'next' ? 1 : direction === 'prev' ? -1 : 0;
+  session.page = clampPage(config, current + delta);
+  session.view = DashboardView.OVERVIEW;
+  session.activeSetting = undefined;
+  session.lastActivityAt = new Date();
+  await storeSession(session, config.entityType);
+
+  const message = buildOverviewMessage(config, session);
+
+  // editReply: the router already deferUpdate'd (page is a non-modal action).
   await interaction.editReply({
     embeds: message.embeds,
     components: message.components,
@@ -314,7 +354,7 @@ async function handleSetButton(
   const colonIdx = extra.indexOf(':');
   const settingId = extra.slice(0, colonIdx);
   const rawValue = extra.slice(colonIdx + 1);
-  const setting = getSettingById(settingId);
+  const setting = getSettingById(config, settingId);
 
   if (setting === undefined) {
     // followUp/editReply throughout — the router deferUpdate'd before dispatch.
@@ -341,6 +381,21 @@ async function handleSetButton(
       newValue = rawValue;
   }
 
+  // Non-cascading settings have no inherit tier — a null here can only come
+  // from a forged/stale `:auto` customId (no plain-mode builder renders an
+  // Auto button). Reject with a friendly message rather than letting the
+  // update handler surface a raw validation error.
+  if (
+    newValue === null &&
+    (isPlainSetting(config, setting) || setting.type === SettingType.BOOLEAN)
+  ) {
+    await interaction.followUp({
+      content: 'This setting has no Auto — set an explicit value.',
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+
   // Call the update handler
   const result = await updateHandler(interaction, session, settingId, newValue);
 
@@ -352,16 +407,18 @@ async function handleSetButton(
     return;
   }
 
-  // Update session with new data
+  // Update session with new data (a successful update clears any pending
+  // rejected-input state — the retry affordance is per-failure, not sticky)
   if (result.newData !== undefined) {
     session.data = result.newData;
   }
+  session.lastRejectedInput = undefined;
   session.lastActivityAt = new Date();
   await storeSession(session, config.entityType);
 
   // Rebuild the current view
   if (session.view === DashboardView.SETTING && session.activeSetting !== undefined) {
-    const activeSetting = getSettingById(session.activeSetting);
+    const activeSetting = getSettingById(config, session.activeSetting);
     if (activeSetting !== undefined) {
       const message = buildSettingMessage(config, session, activeSetting);
       await interaction.editReply({
@@ -429,14 +486,15 @@ async function handleEditButton(
     return;
   }
 
-  const setting = getSettingById(settingId);
+  const setting = getSettingById(config, settingId);
   if (setting === undefined) {
     await replyEditGuard(interaction, session.entityId, 'Unknown setting.', settingId);
     return;
   }
 
-  // Get current value for the modal
-  const currentValue = session.data[settingId as keyof SettingsData] as SettingValue<unknown>;
+  // Get current value for the modal (undefined for stale pre-deploy sessions —
+  // the modal prefill degrades to empty)
+  const currentValue = session.data[settingId] as SettingValue<unknown> | undefined;
 
   // Build and show modal. Wrap showModal so the 3-second budget can't
   // blow silently after the preceding getSession await — see
@@ -445,7 +503,7 @@ async function handleEditButton(
     config.entityType,
     session.entityId,
     setting,
-    currentValue.effectiveValue
+    currentValue?.effectiveValue
   );
   await showModalWithTimeoutCatch(
     interaction,
@@ -461,107 +519,56 @@ async function handleEditButton(
 }
 
 /**
- * Handle modal submission for settings
+ * Handle the Try-again button from a rejected modal submission (D15: never
+ * lose typed input to a validation error). Re-opens the modal PREFILLED with
+ * the rejected value from the session. Un-deferred path — showModal is the
+ * ack, same flow as handleEditButton.
  */
-export async function handleSettingsModal(
-  interaction: ModalSubmitInteraction,
+async function handleRetryButton(
+  interaction: ButtonInteraction,
   config: SettingsDashboardConfig,
-  updateHandler: SettingUpdateHandler
+  session: SettingsDashboardSession,
+  settingId: string | undefined
 ): Promise<void> {
-  const parsed = parseSettingsCustomId(interaction.customId);
-  if (parsed === null) {
-    logger.warn({ customId: interaction.customId }, 'Invalid modal customId');
-    return;
-  }
-
-  const settingId = parsed.extra;
   if (settingId === undefined) {
-    // Sync guard, no preceding async — reply is the ack-first response here.
-    await interaction.reply({
-      content: 'Invalid modal submission.',
-      flags: MessageFlags.Ephemeral,
-    });
+    await replyEditGuard(
+      interaction,
+      session.entityId,
+      'Invalid button data. Please run the command again.',
+      'retry'
+    );
     return;
   }
 
-  // Ack first (3-second rule): deferUpdate before the Redis getSession and the
-  // validation below. Every error path after this point uses followUp (the
-  // interaction is already acked); the success path editReplies the dashboard.
-  await interaction.deferUpdate();
-
-  // Get session
-  const session = await getSession(interaction.user.id, config.entityType, parsed.entityId);
-
-  if (session === null) {
-    await interaction.followUp({
-      content: 'This dashboard has expired. Please run the command again.',
-      flags: MessageFlags.Ephemeral,
-    });
-    return;
-  }
-
-  // Get the input value
-  const inputValue = interaction.fields.getTextInputValue('value');
-  const setting = getSettingById(settingId);
-
+  const setting = getSettingById(config, settingId);
   if (setting === undefined) {
-    await interaction.followUp({
-      content: 'Unknown setting.',
-      flags: MessageFlags.Ephemeral,
-    });
+    await replyEditGuard(interaction, session.entityId, 'Unknown setting.', settingId);
     return;
   }
 
-  // Parse based on setting type
-  let parsedValue: unknown;
-  let error: string | undefined;
+  // The rejected input to prefill; a mismatched/expired one degrades to the
+  // current effective value (the plain edit-modal behavior).
+  const rejected =
+    session.lastRejectedInput?.settingId === settingId
+      ? session.lastRejectedInput.value
+      : undefined;
+  const currentValue = session.data[settingId] as SettingValue<unknown> | undefined;
 
-  if (setting.type === SettingType.NUMERIC) {
-    const result = parseNumericInputValue(inputValue, setting.min ?? 0, setting.max ?? 100);
-    if (result.error !== undefined) {
-      error = result.error;
-    } else {
-      parsedValue = result.value;
-    }
-  } else if (setting.type === SettingType.DURATION) {
-    const result = parseDurationInputValue(inputValue);
-    if (result.error !== undefined) {
-      error = result.error;
-    } else {
-      parsedValue = result.value;
-    }
-  }
-
-  if (error !== undefined) {
-    await interaction.followUp({
-      content: error,
-      flags: MessageFlags.Ephemeral,
-    });
-    return;
-  }
-
-  // Call the update handler (interaction was already deferUpdate'd above)
-  const result = await updateHandler(interaction, session, settingId, parsedValue);
-
-  if (!result.success) {
-    // Since we deferred, we can't easily show an error
-    // The dashboard will remain in its previous state
-    logger.warn({ settingId, error: result.error }, 'Update failed');
-    return;
-  }
-
-  // Update session with new data
-  if (result.newData !== undefined) {
-    session.data = result.newData;
-  }
-  session.lastActivityAt = new Date();
-  await storeSession(session, config.entityType);
-
-  // Rebuild the setting view
-  const message = buildSettingMessage(config, session, setting);
-
-  await interaction.editReply({
-    embeds: message.embeds,
-    components: message.components,
-  });
+  const modal = buildSettingEditModal(
+    config.entityType,
+    session.entityId,
+    setting,
+    rejected ?? currentValue?.effectiveValue
+  );
+  await showModalWithTimeoutCatch(
+    interaction,
+    modal,
+    {
+      source: 'handleSettingsButton/retry',
+      userId: interaction.user.id,
+      entityId: session.entityId,
+      sectionId: settingId,
+    },
+    '⏰ Took too long to open the editor. Please click Try again once more.'
+  );
 }

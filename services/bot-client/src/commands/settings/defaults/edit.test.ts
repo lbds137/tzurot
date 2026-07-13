@@ -197,33 +197,29 @@ describe('User Default Settings Dashboard', () => {
       expect(editReplyCall.embeds).toHaveLength(1);
 
       const embedJson = editReplyCall.embeds[0].toJSON();
-      expect(embedJson.title).toBe('Your Default Settings');
+      expect(embedJson.title).toBe('Your Default Settings · Memory');
     });
 
-    it('should include all 10 settings fields', async () => {
+    it('opens on the Memory page with its 5 settings (paged overview)', async () => {
       const context = createMockContext();
-      stub.resolveUserDefaults.mockResolvedValue({ ok: true, data: mockResolveDefaultsResponse });
 
       await handleDefaultsEdit(context);
 
       const editReplyCall = context.editReply.mock.calls[0][0];
       const embedJson = editReplyCall.embeds[0].toJSON();
 
-      expect(embedJson.fields).toHaveLength(10);
+      // D14 page 1 = Memory (5 settings); Context & Display and Voice follow.
+      expect(embedJson.fields).toHaveLength(5);
       expect(embedJson.fields.map((f: { name: string }) => f.name)).toEqual(
         expect.arrayContaining([
-          expect.stringContaining('Max Messages'),
-          expect.stringContaining('Max Age'),
-          expect.stringContaining('Max Images'),
           expect.stringContaining('Focus Mode'),
           expect.stringContaining('Cross-Channel History'),
           expect.stringContaining('Share Memories'),
           expect.stringContaining('Memory Relevance'),
           expect.stringContaining('Memory Limit'),
-          expect.stringContaining('Model Footer'),
-          expect.stringContaining('Voice Response Mode'),
         ])
       );
+      expect(embedJson.footer.text).toContain('Page 1/3 · Memory');
     });
 
     it('should include select menu and close button', async () => {
@@ -290,13 +286,15 @@ describe('User Default Settings Dashboard', () => {
 
     it('should correctly map user overrides to localValue', async () => {
       const context = createMockContext();
+      // Override a MEMORY-page setting — the overview opens on page 1, and
+      // only its fields render.
       stub.resolveUserDefaults.mockResolvedValue({
         ok: true,
         data: {
           ...mockResolveDefaultsResponse,
-          maxMessages: 30,
-          sources: { ...mockResolveDefaultsResponse.sources, maxMessages: 'user-default' },
-          userOverrides: { maxMessages: 30 },
+          memoryLimit: 30,
+          sources: { ...mockResolveDefaultsResponse.sources, memoryLimit: 'user-default' },
+          userOverrides: { memoryLimit: 30 },
         },
       });
 
@@ -305,12 +303,11 @@ describe('User Default Settings Dashboard', () => {
       // Dashboard should display with override indicator
       const editReplyCall = context.editReply.mock.calls[0][0];
       const embedJson = editReplyCall.embeds[0].toJSON();
-      // The maxMessages field should show the override value
-      const maxMessagesField = embedJson.fields.find((f: { name: string }) =>
-        f.name.includes('Max Messages')
+      const memoryLimitField = embedJson.fields.find((f: { name: string }) =>
+        f.name.includes('Memory Limit')
       );
-      expect(maxMessagesField).toBeDefined();
-      expect(maxMessagesField.value).toContain('30');
+      expect(memoryLimitField).toBeDefined();
+      expect(memoryLimitField.value).toContain('30');
     });
   });
 
@@ -439,6 +436,7 @@ describe('User Default Settings Dashboard', () => {
       update: vi.fn(),
       deferUpdate: vi.fn().mockResolvedValue(undefined),
       editReply: vi.fn().mockResolvedValue(undefined),
+      followUp: vi.fn().mockResolvedValue(undefined),
     });
 
     const createSessionWithSetting = (settingId: string) => ({

@@ -150,6 +150,14 @@ export interface SystemSettingMeta<K extends keyof SystemSettings = keyof System
   readonly model?: SystemSettingModelMeta;
   /** Present iff control === 'enum'. */
   readonly choices?: readonly string[];
+  /**
+   * Integer controls only: inclusive bounds MIRRORING the zod schema (the
+   * schema stays authoritative for validation; these power dashboard/client
+   * input hints). A colocated parity test asserts registry bounds and schema
+   * bounds agree, so the pair cannot drift. Absent max = unbounded above.
+   */
+  readonly min?: number;
+  readonly max?: number;
 }
 
 type SystemSettingsRegistry = {
@@ -192,6 +200,8 @@ export const SYSTEM_SETTINGS_REGISTRY: SystemSettingsRegistry = {
     liveness: 'live',
     fallback: 6,
     seedSource: 'EXTRACTION_BATCH_THRESHOLD',
+    min: 1,
+    max: 50,
     seed: env => env.EXTRACTION_BATCH_THRESHOLD,
   },
   extractionModel: {
@@ -233,6 +243,7 @@ export const SYSTEM_SETTINGS_REGISTRY: SystemSettingsRegistry = {
     liveness: 'live',
     fallback: 1000,
     seedSource: 'FREE_TIER_GLOBAL_DAILY_BUDGET',
+    min: 1,
     seed: env => env.FREE_TIER_GLOBAL_DAILY_BUDGET,
   },
   freeTierWindowMinutes: {
@@ -244,6 +255,8 @@ export const SYSTEM_SETTINGS_REGISTRY: SystemSettingsRegistry = {
     liveness: 'live',
     fallback: 60,
     seedSource: 'FREE_TIER_WINDOW_MINUTES',
+    min: 1,
+    max: 1440,
     seed: env => env.FREE_TIER_WINDOW_MINUTES,
   },
   freeTierMinPerWindow: {
@@ -255,6 +268,7 @@ export const SYSTEM_SETTINGS_REGISTRY: SystemSettingsRegistry = {
     liveness: 'live',
     fallback: 5,
     seedSource: 'FREE_TIER_MIN_PER_WINDOW',
+    min: 1,
     seed: env => env.FREE_TIER_MIN_PER_WINDOW,
   },
   freeTierMaxPerWindow: {
@@ -266,6 +280,7 @@ export const SYSTEM_SETTINGS_REGISTRY: SystemSettingsRegistry = {
     liveness: 'live',
     fallback: 30,
     seedSource: 'FREE_TIER_MAX_PER_WINDOW',
+    min: 1,
     seed: env => env.FREE_TIER_MAX_PER_WINDOW,
   },
   zaiFreeTierEnabled: {
@@ -288,6 +303,8 @@ export const SYSTEM_SETTINGS_REGISTRY: SystemSettingsRegistry = {
     liveness: 'live',
     fallback: 75,
     seedSource: 'ZAI_FREE_TIER_HEADROOM_PERCENT',
+    min: 1,
+    max: 99,
     seed: env => env.ZAI_FREE_TIER_HEADROOM_PERCENT,
   },
   zaiGlobalDailyBudget: {
@@ -299,6 +316,7 @@ export const SYSTEM_SETTINGS_REGISTRY: SystemSettingsRegistry = {
     liveness: 'live',
     fallback: 1000,
     seedSource: 'ZAI_FREE_TIER_GLOBAL_DAILY_BUDGET',
+    min: 1,
     seed: env => env.ZAI_FREE_TIER_GLOBAL_DAILY_BUDGET,
   },
   publicRateLimitPerMin: {
@@ -310,6 +328,7 @@ export const SYSTEM_SETTINGS_REGISTRY: SystemSettingsRegistry = {
     liveness: 'live',
     fallback: 60,
     seedSource: 'PUBLIC_RATE_LIMIT_PER_MIN',
+    min: 1,
     seed: env => env.PUBLIC_RATE_LIMIT_PER_MIN,
   },
   fallbackTextModel: {

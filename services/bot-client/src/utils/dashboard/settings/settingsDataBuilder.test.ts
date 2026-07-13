@@ -10,6 +10,7 @@ import {
   type ResolvedConfigOverrides,
 } from '@tzurot/common-types/schemas/api/configOverrides';
 import {
+  buildSystemSettingsData,
   buildCascadeSettingsData,
   buildFallbackSettingsData,
   convertResolveDefaultsResponse,
@@ -301,5 +302,22 @@ describe('buildFallbackSettingsData', () => {
     expect(result.memoryScoreThreshold.localValue).toBeNull();
     expect(result.memoryLimit.localValue).toBeNull();
     expect(result.showModelFooter.localValue).toBeNull();
+  });
+});
+
+describe('buildSystemSettingsData (non-cascading bag adapter)', () => {
+  it('wraps each bag entry in the SettingValue display shape', () => {
+    const data = buildSystemSettingsData({ extractionEnabled: true, zaiHeadroomPercent: 75 });
+    expect(data.extractionEnabled).toEqual({
+      localValue: true,
+      hasLocalOverride: true,
+      effectiveValue: true,
+      source: 'admin',
+    });
+    expect(data.zaiHeadroomPercent.effectiveValue).toBe(75);
+  });
+
+  it('returns an empty map for an empty bag (pre-seed DB)', () => {
+    expect(buildSystemSettingsData({})).toEqual({});
   });
 });
