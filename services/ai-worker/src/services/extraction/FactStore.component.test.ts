@@ -278,9 +278,13 @@ describe('FactStore.findSimilarActiveFacts (component, PGLite)', () => {
   // produces locked facts, extraction must NEVER auto-supersede one. Exercises
   // the real transaction against the DB — a mocked $queryRaw can't catch a
   // dropped WHERE predicate.
-  async function extractionSupersede(newStatement: string, targetId: string): Promise<void> {
+  async function extractionSupersede(
+    newStatement: string,
+    targetId: string,
+    validFrom = new Date('2026-04-01T00:00:00.000Z')
+  ): Promise<string> {
     const vec = await embeddings.getEmbedding(newStatement);
-    await factStore.writeFactWithSupersessions(
+    return factStore.writeFactWithSupersessions(
       {
         personalityId: PERSONALITY,
         personaId: PERSONA,
@@ -290,6 +294,7 @@ describe('FactStore.findSimilarActiveFacts (component, PGLite)', () => {
         isFiction: false,
         sourceMemoryIds: [],
         extractionJobId: 'job-guard',
+        validFrom,
       },
       [targetId],
       Array.from(vec ?? [])
@@ -334,5 +339,40 @@ describe('FactStore.findSimilarActiveFacts (component, PGLite)', () => {
 
     const corrected = await prisma.memoryFact.findUnique({ where: { id: correctedId } });
     expect(corrected?.supersededAt).toBeNull(); // still active — user assertion outranks the model
+  });
+
+  it('writes valid_from as the provided EVIDENCE time, not the write time', async () => {
+    const evidenceTime = new Date('2025-11-03T00:00:00.000Z');
+    const anchorId = await seedFact({ statement: 'anchor', embedText: 'anchor' });
+
+    const id = await extractionSupersede('The user adopted a greyhound', anchorId, evidenceTime);
+
+    const row = await prisma.memoryFact.findUnique({ where: { id } });
+    expect(row?.validFrom).toEqual(evidenceTime);
+    // created_at stays a real write-time stamp — only valid_from carries
+    // evidence-time semantics.
+    expect(row?.createdAt.getTime()).toBeGreaterThan(evidenceTime.getTime());
+  });
+
+  it('revival refreshes valid_from to the NEW evidence time', async () => {
+    // Seattle→Denver→Seattle: the revived Seattle fact must carry the
+    // re-assertion's evidence time, not its original (older) one.
+    const anchorId = await seedFact({ statement: 'revival anchor', embedText: 'revival anchor' });
+    const seattleId = await extractionSupersede(
+      'The user lives in Seattle',
+      anchorId,
+      new Date('2025-01-01T00:00:00.000Z')
+    );
+    await extractionSupersede('The user lives in Denver', seattleId);
+    const dead = await prisma.memoryFact.findUnique({ where: { id: seattleId } });
+    expect(dead?.supersededAt).not.toBeNull(); // precondition: Seattle is superseded
+
+    const revivalTime = new Date('2026-06-15T00:00:00.000Z');
+    const revivedId = await extractionSupersede('The user lives in Seattle', anchorId, revivalTime);
+
+    expect(revivedId).toBe(seattleId); // content-hash id collides → revival path
+    const revived = await prisma.memoryFact.findUnique({ where: { id: seattleId } });
+    expect(revived?.supersededAt).toBeNull();
+    expect(revived?.validFrom).toEqual(revivalTime);
   });
 });

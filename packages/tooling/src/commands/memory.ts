@@ -10,6 +10,7 @@ import type { Environment } from '../utils/env-runner.js';
 const ENV_OPTION = '--env <env>';
 const ENV_OPTION_DESC = 'Environment: local, dev, or prod';
 const ENV_OPTION_DEFAULT = { default: 'dev' } as const;
+const FORCE_OPTION_DESC = 'Skip production confirmation prompt';
 
 /**
  * Parse an optional positive-integer CLI flag. Returns the number, `undefined`
@@ -65,7 +66,7 @@ function registerBackfillFactsCommand(cli: CAC): void {
     .option('--personality-id <id>', 'Filter to a specific personality UUID')
     .option('--window-size <n>', 'Episodes per extraction window (default 6, the live threshold)')
     .option('--include-covered', 'Also re-enqueue memories already cited by existing facts')
-    .option('--force', 'Skip production confirmation prompt')
+    .option('--force', FORCE_OPTION_DESC)
     .action(
       async (options: {
         env?: Environment;
@@ -88,6 +89,26 @@ function registerBackfillFactsCommand(cli: CAC): void {
         });
       }
     );
+}
+
+/** Backward-only valid_from repair — facts stamp source-episode time, not extractor run time. */
+function registerRepairFactTimestampsCommand(cli: CAC): void {
+  cli
+    .command(
+      'memory:repair-fact-timestamps',
+      'Rewrite memory_facts.valid_from to the newest source episode time (backward-only, idempotent)'
+    )
+    .option(ENV_OPTION, ENV_OPTION_DESC, ENV_OPTION_DEFAULT)
+    .option('--dry-run', 'Report the repairable-row skew buckets without updating')
+    .option('--force', FORCE_OPTION_DESC)
+    .action(async (options: { env?: Environment; dryRun?: boolean; force?: boolean }) => {
+      const { repairFactTimestamps } = await import('../memory/repair-fact-timestamps.js');
+      await repairFactTimestamps({
+        env: options.env ?? 'dev',
+        dryRun: options.dryRun,
+        force: options.force,
+      });
+    });
 }
 
 /** Goldens mining + anonymization — builds the retrieval-eval corpus from real persona data. */
@@ -221,7 +242,7 @@ export function registerMemoryCommands(cli: CAC): void {
     .option('--to <date>', 'End date (YYYY-MM-DD, exclusive — use day after last desired date)')
     .option('--dry-run', 'Show what would be backfilled without inserting')
     .option('--personality-id <id>', 'Filter to a specific personality UUID')
-    .option('--force', 'Skip production confirmation prompt')
+    .option('--force', FORCE_OPTION_DESC)
     .action(
       async (options: {
         env?: Environment;
@@ -248,6 +269,7 @@ export function registerMemoryCommands(cli: CAC): void {
     );
 
   registerBackfillFactsCommand(cli);
+  registerRepairFactTimestampsCommand(cli);
   registerGoldensCommands(cli);
   registerConversationGoldensCommand(cli);
 

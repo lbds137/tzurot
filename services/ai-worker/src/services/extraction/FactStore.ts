@@ -64,6 +64,11 @@ export interface NewFact {
   isFiction: boolean;
   sourceMemoryIds: string[];
   extractionJobId: string;
+  /** When the fact's EVIDENCE is from (newest source episode's createdAt), not
+   * when the extractor ran. A bulk backfill of months-old episodes must not
+   * mint facts that look fresh to the recency tiebreak — 57% of the store once
+   * carried write-time stamps months newer than their sources. */
+  validFrom: Date;
 }
 
 export class FactStore {
@@ -193,9 +198,12 @@ export class FactStore {
    * previously-SUPERSEDED statement collides with its dead row — the conflict
    * branch REACTIVATES it (clears the supersession marks), otherwise a
    * Seattle→Denver→Seattle sequence would end with no active fact at all.
-   * FORGOTTEN facts stay dead (user removal is terminal), and locked or
-   * corrected-tier rows are never touched (user-authored state outranks the
-   * model); a same-batch retry of an ACTIVE fact no-ops as before.
+   * Revival also refreshes valid_from to the NEW evidence time — the
+   * re-assertion is newer evidence, and a revived fact must not sort by its
+   * original (possibly ancient) source time. FORGOTTEN facts stay dead (user
+   * removal is terminal), and locked or corrected-tier rows are never touched
+   * (user-authored state outranks the model); a same-batch retry of an ACTIVE
+   * fact no-ops as before.
    *
    * @returns the new fact's id
    */
@@ -222,12 +230,13 @@ export class FactStore {
              ${fact.isFiction}, ${fact.statement}, `,
             Prisma.raw(`'${embeddingVector}'::vector`),
             Prisma.sql`,
-             ${fact.entityTags}::text[], ${fact.salience}, 'observed', ${now}, ${fact.sourceMemoryIds}::text[],
+             ${fact.entityTags}::text[], ${fact.salience}, 'observed', ${fact.validFrom}, ${fact.sourceMemoryIds}::text[],
              ${fact.extractionJobId}, ${now}, ${now})
           ON CONFLICT (id) DO UPDATE SET
             superseded_at = NULL,
             superseded_by_id = NULL,
             salience = EXCLUDED.salience,
+            valid_from = EXCLUDED.valid_from,
             source_memory_ids = EXCLUDED.source_memory_ids,
             extraction_job_id = EXCLUDED.extraction_job_id,
             updated_at = EXCLUDED.updated_at

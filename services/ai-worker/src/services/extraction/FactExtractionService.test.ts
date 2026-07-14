@@ -54,8 +54,20 @@ function makeSetup(options: {
   }[];
 }): Setup {
   const episodes = options.episodes ?? [
-    { id: MEM(1), content: '{user}: my cat is Miso', personaId: PERSONA_A, isFiction: false },
-    { id: MEM(2), content: '{user}: I love tea', personaId: PERSONA_A, isFiction: false },
+    {
+      id: MEM(1),
+      content: '{user}: my cat is Miso',
+      personaId: PERSONA_A,
+      isFiction: false,
+      createdAt: new Date('2026-01-10T00:00:00Z'),
+    },
+    {
+      id: MEM(2),
+      content: '{user}: I love tea',
+      personaId: PERSONA_A,
+      isFiction: false,
+      createdAt: new Date('2026-01-12T00:00:00Z'),
+    },
   ];
   const usageCreateMock = vi.fn().mockResolvedValue({});
   const prisma = {
@@ -120,7 +132,8 @@ describe('FactExtractionService', () => {
     const written = await s.service.processBatch(job);
 
     expect(written).toBe(1);
-    // Assert the seam: scope + statement + provenance cross to the store.
+    // Assert the seam: scope + statement + provenance + evidence time cross
+    // to the store (validFrom = the NEWEST source episode's createdAt).
     expect(s.writeMock).toHaveBeenCalledWith(
       expect.objectContaining({
         personalityId: PERSONALITY,
@@ -128,7 +141,37 @@ describe('FactExtractionService', () => {
         statement: "Alice's cat is named Miso",
         sourceMemoryIds: [MEM(1), MEM(2)],
         extractionJobId: generateFactExtractionJobUuid('chan-1', PERSONALITY, MEM(1)),
+        validFrom: new Date('2026-01-12T00:00:00Z'),
       }),
+      [],
+      expect.any(Array)
+    );
+  });
+
+  it('stamps validFrom from the newest source episode even when episodes arrive out of order', async () => {
+    const s = makeSetup({
+      episodes: [
+        {
+          id: MEM(1),
+          content: '{user}: newest first for some reason',
+          personaId: PERSONA_A,
+          isFiction: false,
+          createdAt: new Date('2026-03-05T00:00:00Z'),
+        },
+        {
+          id: MEM(2),
+          content: '{user}: older episode',
+          personaId: PERSONA_A,
+          isFiction: false,
+          createdAt: new Date('2026-01-02T00:00:00Z'),
+        },
+      ],
+    });
+
+    await s.service.processBatch(job);
+
+    expect(s.writeMock).toHaveBeenCalledWith(
+      expect.objectContaining({ validFrom: new Date('2026-03-05T00:00:00Z') }),
       [],
       expect.any(Array)
     );
@@ -355,8 +398,20 @@ describe('FactExtractionService', () => {
   it('groups a multi-persona batch and extracts per scope', async () => {
     const s = makeSetup({
       episodes: [
-        { id: MEM(1), content: 'a', personaId: PERSONA_A, isFiction: false },
-        { id: MEM(2), content: 'b', personaId: PERSONA_B, isFiction: false },
+        {
+          id: MEM(1),
+          content: 'a',
+          personaId: PERSONA_A,
+          isFiction: false,
+          createdAt: new Date('2026-01-10T00:00:00Z'),
+        },
+        {
+          id: MEM(2),
+          content: 'b',
+          personaId: PERSONA_B,
+          isFiction: false,
+          createdAt: new Date('2026-01-11T00:00:00Z'),
+        },
       ],
     });
 
@@ -497,13 +552,26 @@ describe('delay-not-downgrade (provider busy)', () => {
     // every 30-min retry.
     const s = makeSetup({
       episodes: [
-        { id: MEM(1), content: '{user}: my cat is Miso', personaId: PERSONA_A, isFiction: false },
-        { id: MEM(2), content: '{user}: I love tea', personaId: PERSONA_A, isFiction: false },
+        {
+          id: MEM(1),
+          content: '{user}: my cat is Miso',
+          personaId: PERSONA_A,
+          isFiction: false,
+          createdAt: new Date('2026-01-10T00:00:00Z'),
+        },
+        {
+          id: MEM(2),
+          content: '{user}: I love tea',
+          personaId: PERSONA_A,
+          isFiction: false,
+          createdAt: new Date('2026-01-12T00:00:00Z'),
+        },
         {
           id: MEM(3),
           content: '{user}: I moved to Berlin',
           personaId: PERSONA_B,
           isFiction: false,
+          createdAt: new Date('2026-01-13T00:00:00Z'),
         },
       ],
     });

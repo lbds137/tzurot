@@ -50,6 +50,7 @@ const baseFact: NewFact = {
   isFiction: false,
   sourceMemoryIds: ['4f9b0f66-0000-4000-8000-000000000001'],
   extractionJobId: 'job-1',
+  validFrom: new Date('2026-05-20T00:00:00.000Z'),
 };
 
 describe('FactStore', () => {
