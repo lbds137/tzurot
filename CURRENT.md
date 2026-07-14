@@ -6,7 +6,7 @@
 
 ## Unreleased on Develop
 
-_(empty — beta.165 shipped everything; develop is SHA-aligned with main as of the 2026-07-14 finalize)_
+- **#1647** `fix`: BullMQ worker lock 20min→5min — deploy-killed jobs stall-recover in ~6 min (real replies) instead of wedging to the 18-min flush. `MAX_JOB_RUNTIME` decouple keeps the job-timeout clamp at 20 min; `stalled`-event logging added (the deploy-orphan recovery trail). Runtime proof: first prod deploy that catches an in-flight job. Closes wedge sub-question (b).
 
 ## Next Session Goal (sequenced — fresh session starts here)
 
