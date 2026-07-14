@@ -381,6 +381,28 @@ export class ConversationalRAGService {
         context
       );
 
+      // Step 2.5: History pre-pass — select shipped history BEFORE retrieval
+      // (STM/LTM dedup-hole fix: the exact shipped boundary must inform the
+      // LTM query, or budget-truncated messages become reachable by neither
+      // shipped-history nor LTM).
+      const effectiveContextWindowTokens = await resolveEffectiveContextWindow(
+        personality,
+        options.effectiveProvider
+      );
+      const budgetOptionsBase = {
+        personality,
+        processedPersonality,
+        participantPersonas,
+        context,
+        userMessage: inputs.userMessage,
+        processedAttachments: inputs.processedAttachments,
+        referencedMessagesDescriptions: inputs.referencedMessagesDescriptions,
+        historyReductionPercent: retryConfig?.historyReductionPercent,
+        effectiveContextWindowTokens,
+      };
+      const preselected = this.contentBudgetManager.preselectHistory(budgetOptionsBase);
+      context.stmLtmCutoffInputs = { oldestSelectedTs: preselected.oldestSelectedTs };
+
       // Step 3: Retrieve memories + facts (gate/scope semantics live on the helper)
       const {
         memories: retrievedMemories,
@@ -399,23 +421,10 @@ export class ConversationalRAGService {
       // Step 4: Allocate token budgets and select content
       // Note: Image descriptions and stored reference hydration are handled by
       // enrichConversationHistory (Step 1.5) — history is already enriched here
-      const effectiveContextWindowTokens = await resolveEffectiveContextWindow(
-        personality,
-        options.effectiveProvider
+      const budgetResult = this.contentBudgetManager.allocate(
+        { ...budgetOptionsBase, retrievedMemories, facts },
+        preselected
       );
-      const budgetResult = this.contentBudgetManager.allocate({
-        personality,
-        processedPersonality,
-        participantPersonas,
-        retrievedMemories,
-        facts,
-        context,
-        userMessage: inputs.userMessage,
-        processedAttachments: inputs.processedAttachments,
-        referencedMessagesDescriptions: inputs.referencedMessagesDescriptions,
-        historyReductionPercent: retryConfig?.historyReductionPercent,
-        effectiveContextWindowTokens,
-      });
 
       // Record memory retrieval and token budget for diagnostics
       if (diagnosticCollector) {

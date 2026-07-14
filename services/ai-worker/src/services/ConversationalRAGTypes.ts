@@ -43,6 +43,11 @@ export interface MemoryDocument {
     id?: string;
     createdAt?: string | number;
     score?: number;
+    /** Discord snowflakes of the memory's source messages (Phase 0 R8
+     * linkage) — the STM/LTM selection filter's ID-dedup key. */
+    messageIds?: string[] | null;
+    /** Channel the memory was formed in — scopes the dedup rescue. */
+    channelId?: string | null;
   };
 }
 
@@ -144,6 +149,15 @@ export interface ConversationContext {
     };
   }[];
   oldestHistoryTimestamp?: number;
+  /** Oldest timestamp over refs + cross-channel only (see PreparedContext). */
+  nonHistoryOldestTimestamp?: number;
+  /**
+   * Set by the RAG orchestrator AFTER the history pre-pass, BEFORE retrieval.
+   * Presence of the object means the pre-pass ran (exact-dedup mode);
+   * oldestSelectedTs is the min createdAt of SHIPPED current-channel history
+   * (undefined = nothing shipped → no time exclusion needed: LTM covers all).
+   */
+  stmLtmCutoffInputs?: { oldestSelectedTs?: number };
   participants?: ParticipantPersona[];
   /** Attachments from triggering message */
   attachments?: AttachmentMetadata[];

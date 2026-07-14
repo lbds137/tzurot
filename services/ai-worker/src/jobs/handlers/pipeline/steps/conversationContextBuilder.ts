@@ -53,6 +53,7 @@ export function buildConversationContext(
     conversationHistory: preparedContext.conversationHistory,
     rawConversationHistory: preparedContext.rawConversationHistory,
     oldestHistoryTimestamp: preparedContext.oldestHistoryTimestamp,
+    nonHistoryOldestTimestamp: preparedContext.nonHistoryOldestTimestamp,
     participants: preparedContext.participants,
     attachments: jobContext.attachments,
     preprocessedAttachments:

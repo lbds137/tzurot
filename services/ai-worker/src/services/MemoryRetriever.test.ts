@@ -708,6 +708,71 @@ describe('MemoryRetriever', () => {
       );
     });
 
+    it('exact mode: cutoff = oldest SHIPPED message PLUS buffer (over-retrieve past the boundary)', async () => {
+      mockPersonaResolver.resolveForMemory.mockResolvedValue({
+        personaId: 'persona-123',
+        focusModeEnabled: false,
+      });
+
+      const oldestShipped = Date.now() - 3600000;
+      const contextExact: ConversationContext = {
+        ...context,
+        // Legacy field present too — exact mode must take precedence over it.
+        oldestHistoryTimestamp: oldestShipped - 999999,
+        stmLtmCutoffInputs: { oldestSelectedTs: oldestShipped },
+      };
+
+      await retriever.retrieveRelevantMemories(mockPersonality, 'test', contextExact);
+
+      expect(mockMemoryManager.queryMemories).toHaveBeenCalledWith(
+        'test',
+        expect.objectContaining({ excludeNewerThan: oldestShipped + 10000 })
+      );
+    });
+
+    it('exact mode: refs/cross-channel keep the pessimistic MINUS-buffer bound when older', async () => {
+      mockPersonaResolver.resolveForMemory.mockResolvedValue({
+        personaId: 'persona-123',
+        focusModeEnabled: false,
+      });
+
+      const oldestShipped = Date.now() - 3600000;
+      const oldCrossChannel = oldestShipped - 500000; // older → binding
+      const contextExact: ConversationContext = {
+        ...context,
+        nonHistoryOldestTimestamp: oldCrossChannel,
+        stmLtmCutoffInputs: { oldestSelectedTs: oldestShipped },
+      };
+
+      await retriever.retrieveRelevantMemories(mockPersonality, 'test', contextExact);
+
+      expect(mockMemoryManager.queryMemories).toHaveBeenCalledWith(
+        'test',
+        expect.objectContaining({ excludeNewerThan: oldCrossChannel - 10000 })
+      );
+    });
+
+    it('exact mode: nothing shipped and no refs → NO cutoff (everything-truncated turns keep full LTM coverage)', async () => {
+      mockPersonaResolver.resolveForMemory.mockResolvedValue({
+        personaId: 'persona-123',
+        focusModeEnabled: false,
+      });
+
+      const contextExact: ConversationContext = {
+        ...context,
+        // Legacy field present (fetched history existed) but nothing SHIPPED.
+        oldestHistoryTimestamp: Date.now() - 3600000,
+        stmLtmCutoffInputs: {},
+      };
+
+      await retriever.retrieveRelevantMemories(mockPersonality, 'test', contextExact);
+
+      expect(mockMemoryManager.queryMemories).toHaveBeenCalledWith(
+        'test',
+        expect.objectContaining({ excludeNewerThan: undefined })
+      );
+    });
+
     it('should use session context if provided', async () => {
       mockPersonaResolver.resolveForMemory.mockResolvedValue({
         personaId: 'persona-123',

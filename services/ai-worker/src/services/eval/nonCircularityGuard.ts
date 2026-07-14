@@ -15,9 +15,13 @@
 import { AI_DEFAULTS } from '@tzurot/common-types/constants/ai';
 
 /**
- * Temporal guard — mirrors production's own STM/LTM dedup cutoff
- * (`MemoryRetriever.calculateDeduplicationCutoff`: `excludeNewerThan =
- * oldestHistoryTimestamp - STM_LTM_BUFFER_MS`). A memory at or newer than that
+ * Temporal guard — mirrors production's LEGACY STM/LTM dedup cutoff
+ * (`MemoryRetriever.calculateDeduplicationCutoff` fallback: `excludeNewerThan =
+ * oldestHistoryTimestamp - STM_LTM_BUFFER_MS`). Production's pipeline path now
+ * uses the exact shipped-history boundary + a selection-time ID filter (the
+ * dedup-hole fix); for eval goldens the full window ships (no truncation), so
+ * the legacy formula and the exact one coincide and this guard stays faithful.
+ * A memory at or newer than that
  * cutoff sits inside the recent-history window the fold already carries, so it's
  * "in the STM window" and NOT credit-eligible. Enforcing this makes the folded
  * arm MORE faithful to prod (which applies the same cutoff at retrieval), not less.

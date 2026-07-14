@@ -176,11 +176,12 @@ export class ContextStep implements IPipelineStep {
     // Timestamps from referenced messages (replies, message links)
     // These should also be excluded from LTM to prevent the AI from echoing
     // the content of messages being replied to
+    const nonHistoryTimestamps: number[] = [];
     if (jobContext.referencedMessages && jobContext.referencedMessages.length > 0) {
       const refTimestamps = jobContext.referencedMessages
         .map(ref => extractTimestamp(ref.timestamp as string | Date | undefined))
         .filter((t): t is number => t !== null);
-      allTimestamps.push(...refTimestamps);
+      nonHistoryTimestamps.push(...refTimestamps);
     }
 
     // Timestamps from cross-channel history (also excluded from LTM deduplication)
@@ -189,9 +190,19 @@ export class ContextStep implements IPipelineStep {
         const crossTimestamps = group.messages
           .map(msg => extractTimestamp(msg.createdAt))
           .filter((t): t is number => t !== null);
-        allTimestamps.push(...crossTimestamps);
+        nonHistoryTimestamps.push(...crossTimestamps);
       }
     }
+    allTimestamps.push(...nonHistoryTimestamps);
+
+    // Kept separate from oldestHistoryTimestamp: the STM/LTM cutoff treats
+    // current-channel history EXACTLY (only what actually ships excludes LTM)
+    // but stays pessimistic for refs + cross-channel (they lack per-message
+    // shipped-id plumbing) — so the budget pre-pass needs this min on its own.
+    const nonHistoryOldestTimestamp =
+      nonHistoryTimestamps.length > 0
+        ? nonHistoryTimestamps.reduce((min, ts) => Math.min(min, ts), Infinity)
+        : undefined;
 
     if (allTimestamps.length > 0) {
       // Use reduce() instead of spread to avoid potential stack overflow with large arrays
@@ -222,6 +233,7 @@ export class ContextStep implements IPipelineStep {
       conversationHistory,
       rawConversationHistory: historyEntries,
       oldestHistoryTimestamp,
+      nonHistoryOldestTimestamp,
       participants: allParticipants,
       crossChannelHistory,
     };

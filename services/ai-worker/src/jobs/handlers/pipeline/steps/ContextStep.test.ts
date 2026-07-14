@@ -484,6 +484,85 @@ describe('ContextStep', () => {
       );
     });
 
+    it('nonHistoryOldestTimestamp: current-channel history timestamps must NOT leak into it', async () => {
+      // The field feeds the PESSIMISTIC side of the STM/LTM cutoff; folding
+      // history times back in would silently re-widen the exclusion the exact
+      // shipped-boundary mode exists to avoid.
+      const { step: envStep } = envelopeStep({
+        history: [
+          { role: MessageRole.User, content: 'ancient', createdAt: '2023-06-01T00:00:00Z' },
+        ],
+        referencedMessages: [
+          {
+            referenceNumber: 1,
+            content: 'ref',
+            authorName: 'A',
+            timestamp: '2024-02-01T00:00:00Z',
+          },
+        ],
+      });
+
+      const result = await envStep.process({ job: envelopeJob(), startTime: Date.now(), config });
+
+      // Refs-only value — the (older) history timestamp is excluded.
+      expect(result.preparedContext?.nonHistoryOldestTimestamp).toBe(
+        new Date('2024-02-01T00:00:00Z').getTime()
+      );
+      // …while the combined legacy field still includes history.
+      expect(result.preparedContext?.oldestHistoryTimestamp).toBe(
+        new Date('2023-06-01T00:00:00Z').getTime()
+      );
+    });
+
+    it('nonHistoryOldestTimestamp: min over refs AND cross-channel when both exist', async () => {
+      const { step: envStep } = envelopeStep({
+        referencedMessages: [
+          {
+            referenceNumber: 1,
+            content: 'ref',
+            authorName: 'A',
+            timestamp: '2024-03-01T00:00:00Z',
+          },
+        ],
+        crossChannelHistory: [
+          {
+            channelEnvironment: {
+              type: 'dm' as const,
+              channel: { id: 'dm-1', name: 'DM', type: 'dm' },
+            },
+            messages: [
+              {
+                id: 'msg-cross',
+                role: MessageRole.User,
+                content: 'older cross-channel',
+                createdAt: '2024-01-05T00:00:00Z',
+                personaName: 'Alice',
+                tokenCount: 5,
+              },
+            ],
+          },
+        ],
+      });
+
+      const result = await envStep.process({ job: envelopeJob(), startTime: Date.now(), config });
+
+      expect(result.preparedContext?.nonHistoryOldestTimestamp).toBe(
+        new Date('2024-01-05T00:00:00Z').getTime()
+      );
+    });
+
+    it('nonHistoryOldestTimestamp: undefined when there are no refs and no cross-channel', async () => {
+      const { step: envStep } = envelopeStep({
+        history: [
+          { role: MessageRole.User, content: 'only history', createdAt: '2024-01-01T00:00:00Z' },
+        ],
+      });
+
+      const result = await envStep.process({ job: envelopeJob(), startTime: Date.now(), config });
+
+      expect(result.preparedContext?.nonHistoryOldestTimestamp).toBeUndefined();
+    });
+
     it('includes cross-channel message timestamps in oldestHistoryTimestamp', async () => {
       // The current-channel history is newer; the older cross-channel message
       // must win the oldest-timestamp calculation (the assembled crossChannelHistory
