@@ -67,7 +67,7 @@ function calculateTimeoutWithRetries(
  *
  * @param imageCount - Number of images in the request
  * @param audioCount - Number of audio/voice attachments in the request
- * @returns Timeout in milliseconds, capped at WORKER_LOCK_DURATION (20 min safety net)
+ * @returns Timeout in milliseconds, capped at MAX_JOB_RUNTIME (20 min safety net)
  *
  * @example
  * // No attachments: overhead + LLM
@@ -78,9 +78,9 @@ function calculateTimeoutWithRetries(
  * calculateJobTimeout(5, 0) // 273s + 480s + 15s = 768s
  *
  * @example
- * // 1 audio: audio with retries + LLM + overhead exceeds the worker-lock cap.
+ * // 1 audio: audio with retries + LLM + overhead exceeds the runtime cap.
  * // Audio component = (30s fetch + 480s STT) × 3 attempts + 3s = 1533s; + 480s LLM
- * // + 15s = 2028s, clamped to WORKER_LOCK_DURATION.
+ * // + 15s = 2028s, clamped to MAX_JOB_RUNTIME.
  * calculateJobTimeout(0, 1) // capped at 1200s (20 min)
  */
 export function calculateJobTimeout(imageCount: number, audioCount = 0): number {
@@ -92,7 +92,7 @@ export function calculateJobTimeout(imageCount: number, audioCount = 0): number 
     imageCount > 0 ? calculateTimeoutWithRetries(TIMEOUTS.VISION_MODEL) : 0;
 
   // Audio: (30s fetch + 480s STT) per attempt × 3 attempts + backoff delays = 1533s.
-  // With the long-audio STT budget, this alone exceeds WORKER_LOCK_DURATION, so an
+  // With the long-audio STT budget, this alone exceeds MAX_JOB_RUNTIME, so an
   // audio request's job timeout clamps to that 20-min ceiling below (the actual STT
   // call self-limits to one ~480s attempt, so the cap is a safety net, not the budget).
   const audioProcessingTime =
@@ -106,6 +106,9 @@ export function calculateJobTimeout(imageCount: number, audioCount = 0): number 
   // LLM_INVOCATION already includes retry budget (480s total)
   timeout += attachmentTime + TIMEOUTS.LLM_INVOCATION;
 
-  // Cap at worker lock duration (20 minutes - safety net)
-  return Math.min(timeout, TIMEOUTS.WORKER_LOCK_DURATION);
+  // Cap at MAX_JOB_RUNTIME (20 min) — the in-process ceiling for a LIVE job.
+  // NOT the worker lock: locks auto-renew, so they bound dead-process
+  // detection, never runtime. Clamping to the (shorter) lock would clip
+  // legitimate long audio/vision jobs.
+  return Math.min(timeout, TIMEOUTS.MAX_JOB_RUNTIME);
 }

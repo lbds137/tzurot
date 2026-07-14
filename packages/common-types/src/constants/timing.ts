@@ -51,8 +51,22 @@ export const TIMEOUTS = {
    * the transcription and can clip this for a long first message — the keep-warm
    * backlog item addresses that. Bump if AUDIO_FETCH or VOICE_ENGINE_API change. */
   STT_GATEWAY: 540_000,
-  /** BullMQ worker lock duration - maximum time a job can run before being considered stalled (20 minutes - safety net for hung jobs) */
-  WORKER_LOCK_DURATION: 20 * 60 * 1000,
+  /** BullMQ worker lock duration — dead-process detection latency, NOT max job
+   * runtime. Workers auto-renew every active job's lock on a lockDuration/4
+   * cadence, so a live process holds a job indefinitely (long vision/STT jobs
+   * never stall), and a hung-but-alive worker renews forever — in-process job
+   * timeouts (calculateJobTimeout → MAX_JOB_RUNTIME) are the hung-job defense,
+   * not this. The lock only expires when the process DIES (deploy, crash, OOM);
+   * the stalled checker then re-queues the job for a real re-run
+   * (maxStalledCount 1). 5 min bounds orphan invisibility at ~6 min (expiry +
+   * stall sweep) while tolerating minutes of event-loop or Redis stall without
+   * false positives (BullMQ's own default is 30 s). */
+  WORKER_LOCK_DURATION: 5 * 60 * 1000,
+  /** Ceiling for in-process job timeouts (the calculateJobTimeout clamp) — the
+   * true "max job runtime" safety net for a LIVE job. Formerly conflated with
+   * WORKER_LOCK_DURATION; lock renewal makes the two independent: the lock
+   * detects dead processes, this cap bounds how long a live job may run. */
+  MAX_JOB_RUNTIME: 20 * 60 * 1000,
   /** Default timeout for bot-client → api-gateway internal RPC calls (5 s).
    * Covers small JSON request/response shapes (channel lookups, session
    * writes, confirm-delivery acks, settings reads, diagnostic patches).

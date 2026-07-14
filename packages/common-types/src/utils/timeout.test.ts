@@ -46,28 +46,28 @@ describe('calculateJobTimeout - Independent Component Budgets with Retries', () 
   });
 
   describe('Audio attachments (with retries)', () => {
-    it('caps the audio job at WORKER_LOCK_DURATION (retry budget exceeds the cap)', () => {
+    it('caps the audio job at MAX_JOB_RUNTIME (retry budget exceeds the cap)', () => {
       // SYSTEM_OVERHEAD: 15s
       // AUDIO_FETCH + VOICE_ENGINE_API with retries: 510s × 3 attempts + 3s delays = 1533s
-      // LLM_INVOCATION: 480s → 15 + 1533 + 480 = 2028s, clamped to the 20-min worker lock.
+      // LLM_INVOCATION: 480s → 15 + 1533 + 480 = 2028s, clamped to the 20-min runtime cap.
       const timeout = calculateJobTimeout(0, 1);
-      expect(timeout).toBe(TIMEOUTS.WORKER_LOCK_DURATION); // 1200s (capped)
+      expect(timeout).toBe(TIMEOUTS.MAX_JOB_RUNTIME); // 1200s (capped)
     });
 
     it('should NOT scale with audio count (both capped)', () => {
       const oneAudio = calculateJobTimeout(0, 1);
       const threeAudio = calculateJobTimeout(0, 3);
 
-      expect(oneAudio).toBe(threeAudio); // Both capped at WORKER_LOCK_DURATION
+      expect(oneAudio).toBe(threeAudio); // Both capped at MAX_JOB_RUNTIME
     });
   });
 
   describe('Mixed attachments', () => {
     it('should use slowest attachment type (audio wins, capped)', () => {
       // Audio (1533s) is slower than images (273s); audio's component pushes the total
-      // over the worker-lock cap.
+      // over the runtime cap.
       const timeout = calculateJobTimeout(3, 2);
-      expect(timeout).toBe(TIMEOUTS.WORKER_LOCK_DURATION); // Audio wins, capped
+      expect(timeout).toBe(TIMEOUTS.MAX_JOB_RUNTIME); // Audio wins, capped
     });
 
     it('should handle images only (under cap)', () => {
@@ -91,31 +91,39 @@ describe('calculateJobTimeout - Independent Component Budgets with Retries', () 
     });
 
     it('should handle voice message request', () => {
-      // User sends voice message — audio retry budget caps the job at the worker lock.
+      // User sends voice message — audio retry budget caps the job at MAX_JOB_RUNTIME.
       const timeout = calculateJobTimeout(0, 1);
-      expect(timeout).toBe(TIMEOUTS.WORKER_LOCK_DURATION); // 1200s (capped)
+      expect(timeout).toBe(TIMEOUTS.MAX_JOB_RUNTIME); // 1200s (capped)
     });
 
     it('should handle mixed media request', () => {
-      // User sends 2 images + 1 audio — audio wins and caps at the worker lock.
+      // User sends 2 images + 1 audio — audio wins and caps at MAX_JOB_RUNTIME.
       const timeout = calculateJobTimeout(2, 1);
-      expect(timeout).toBe(TIMEOUTS.WORKER_LOCK_DURATION); // Audio timeout wins, capped
+      expect(timeout).toBe(TIMEOUTS.MAX_JOB_RUNTIME); // Audio timeout wins, capped
     });
   });
 
-  describe('Worker lock duration enforcement', () => {
-    it('should cap at WORKER_LOCK_DURATION (20 min safety net)', () => {
+  describe('Max job runtime enforcement', () => {
+    it('should cap at MAX_JOB_RUNTIME (20 min safety net)', () => {
       // Audio's retry budget (1533s) + LLM (480s) + overhead exceeds the cap, so any
-      // request with audio clamps to WORKER_LOCK_DURATION.
+      // request with audio clamps to MAX_JOB_RUNTIME.
       const timeout = calculateJobTimeout(10, 10);
-      expect(timeout).toBe(TIMEOUTS.WORKER_LOCK_DURATION); // Capped
+      expect(timeout).toBe(TIMEOUTS.MAX_JOB_RUNTIME); // Capped
     });
 
-    it('does NOT cap an images-only request (stays under the lock)', () => {
+    it('does NOT cap an images-only request (stays under the cap)', () => {
       // Images alone (273s + 480s + 15s = 768s) stay well under the cap.
       const timeout = calculateJobTimeout(10, 0);
       expect(timeout).toBe(768000);
-      expect(timeout).toBeLessThan(TIMEOUTS.WORKER_LOCK_DURATION);
+      expect(timeout).toBeLessThan(TIMEOUTS.MAX_JOB_RUNTIME);
+    });
+
+    it('clamps to MAX_JOB_RUNTIME, never the (shorter, auto-renewed) worker lock', () => {
+      // The lock bounds dead-process detection, not runtime — locks auto-renew
+      // while the worker lives. Clamping to the lock would clip long audio/vision
+      // jobs; this pins the decoupling so a future "simplification" can't rewire it.
+      expect(TIMEOUTS.WORKER_LOCK_DURATION).toBeLessThan(TIMEOUTS.MAX_JOB_RUNTIME);
+      expect(calculateJobTimeout(0, 1)).toBeGreaterThan(TIMEOUTS.WORKER_LOCK_DURATION);
     });
   });
 
@@ -128,10 +136,10 @@ describe('calculateJobTimeout - Independent Component Budgets with Retries', () 
       // No-attachment and image jobs preserve the full independent LLM budget.
       expect(noAttachments).toBe(495000); // 15s + 480s
       expect(withImages).toBe(768000); // 15s + 273s + 480s (LLM still gets 480s!)
-      // Audio's retry budget alone exceeds the worker lock, so the audio job clamps to
+      // Audio's retry budget alone exceeds the runtime cap, so the audio job clamps to
       // the cap — the per-component independent-budget property gives way to the safety
       // net here (the actual STT call self-limits to one ~480s attempt).
-      expect(withAudio).toBe(TIMEOUTS.WORKER_LOCK_DURATION);
+      expect(withAudio).toBe(TIMEOUTS.MAX_JOB_RUNTIME);
     });
 
     it('should demonstrate retry budget - preprocessing can retry without starving LLM', () => {
@@ -149,9 +157,9 @@ describe('calculateJobTimeout - Independent Component Budgets with Retries', () 
 
       // Image job still grants LLM its full independent 480s (verified by subtraction).
       expect(imageTimeout - TIMEOUTS.SYSTEM_OVERHEAD - 273000).toBe(TIMEOUTS.LLM_INVOCATION);
-      // Audio job is clamped to the worker lock — its uncapped budget (2028s) would have
+      // Audio job is clamped to MAX_JOB_RUNTIME — its uncapped budget (2028s) would have
       // exceeded it, so the cap is what holds.
-      expect(audioTimeout).toBe(TIMEOUTS.WORKER_LOCK_DURATION);
+      expect(audioTimeout).toBe(TIMEOUTS.MAX_JOB_RUNTIME);
     });
   });
 });

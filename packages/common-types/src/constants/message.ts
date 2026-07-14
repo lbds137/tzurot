@@ -112,10 +112,13 @@ export const MULTI_TAG = {
    * timeout content for the rest.
    *
    * Sized at 18 min: vision-heavy jobs (many extended-context images +
-   * a slow model) legitimately run 10–15 min, and the worker lock
-   * (TIMEOUTS.WORKER_LOCK_DURATION) is 20 min — so this sits below the
-   * worker ceiling with headroom while no longer firing on jobs that are
-   * still genuinely processing. A late result that lands after this fires
+   * a slow model) legitimately run 10–15 min, and the in-process job
+   * runtime ceiling (TIMEOUTS.MAX_JOB_RUNTIME) is 20 min — so this sits
+   * below that ceiling with headroom while no longer firing on jobs that
+   * are still genuinely processing. Deploy-killed jobs don't ride this
+   * out: lock expiry + stall recovery (TIMEOUTS.WORKER_LOCK_DURATION,
+   * 5 min) re-runs them within ~6 min, so this flush is the last resort,
+   * not the primary recovery. A late result that lands after this fires
    * is recovered (not dropped) by the synthetic-timeout recovery path in
    * MessageHandler. Keep this >= ORDERING_MAX_WAIT_MS so the per-channel
    * ordering buffer never force-processes a group before this backstop.
