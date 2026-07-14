@@ -433,6 +433,10 @@ describe('TTSStep', () => {
       // Let the async step reach the dispatch call before reading the mock.
       await vi.advanceTimersByTimeAsync(0);
       const dispatchCtx = mockDispatchTts.mock.calls.at(-1)?.[0]?.ctx;
+      // Guard against a wiring regression dropping `ctx` entirely — the
+      // optional-chained signal assertions below would trivially pass on
+      // `undefined` and the test would stop testing anything.
+      expect(dispatchCtx).toBeDefined();
       expect(dispatchCtx?.signal?.aborted).toBe(false);
 
       await vi.advanceTimersByTimeAsync(300_001);

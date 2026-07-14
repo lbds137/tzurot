@@ -11,7 +11,11 @@
 import { describe, it, expect, vi } from 'vitest';
 import type { Queue } from 'bullmq';
 import type { LLMGenerationResult } from '@tzurot/common-types/types/schemas/generation';
-import { pollPriorJobState, synthesizeFailureResult } from './multiTagRecoveryHelpers.js';
+import {
+  pollPriorJobState,
+  recoverRealResultsAtDeadline,
+  synthesizeFailureResult,
+} from './multiTagRecoveryHelpers.js';
 import type { SlotSnapshot } from './MultiTagPersistence.js';
 
 function buildSlotSnapshot(overrides: Partial<SlotSnapshot> = {}): SlotSnapshot {
@@ -200,5 +204,94 @@ describe('synthesizeFailureResult', () => {
     const result = synthesizeFailureResult(slotSnap, 'whatever');
 
     expect(result.content).toBeUndefined();
+  });
+});
+
+describe('recoverRealResultsAtDeadline', () => {
+  const completedJob = (content: string): unknown =>
+    buildMockJob({
+      state: 'completed',
+      returnvalue: { requestId: 'r', success: true, content },
+    });
+
+  it('skips slots whose jobs are still in flight and delivers only real outcomes', async () => {
+    const queue = {
+      getJob: vi
+        .fn()
+        .mockResolvedValueOnce(buildMockJob({ state: 'active' }))
+        .mockResolvedValueOnce(completedJob('late result')),
+    } as unknown as Queue;
+    const deliver = vi.fn().mockResolvedValue(undefined);
+    const entry = {
+      groupId: 'group-1',
+      slots: [
+        { jobId: 'job-active', status: 'pending' },
+        { jobId: 'job-done', status: 'pending' },
+        { jobId: 'job-already-terminal', status: 'completed' },
+      ],
+    };
+
+    await recoverRealResultsAtDeadline(queue, entry, deliver);
+
+    // Only the pending slots are polled; only the real outcome delivers.
+    expect(queue.getJob).toHaveBeenCalledTimes(2);
+    expect(deliver).toHaveBeenCalledTimes(1);
+    expect(deliver).toHaveBeenCalledWith(
+      'job-done',
+      expect.objectContaining({ success: true, content: 'late result' })
+    );
+  });
+
+  it('a throwing deliver never aborts the sweep — remaining slots still deliver', async () => {
+    const queue = {
+      getJob: vi
+        .fn()
+        .mockResolvedValueOnce(completedJob('first'))
+        .mockResolvedValueOnce(completedJob('second')),
+    } as unknown as Queue;
+    const deliver = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('persistence write blew up'))
+      .mockResolvedValueOnce(undefined);
+    const entry = {
+      groupId: 'group-1',
+      slots: [
+        { jobId: 'job-a', status: 'pending' },
+        { jobId: 'job-b', status: 'pending' },
+      ],
+    };
+
+    // Must not throw. (With the real handleJobResult, the throwing slot is
+    // usually already terminal with its real result — the sweep-continues
+    // guarantee is what this test pins.)
+    await expect(recoverRealResultsAtDeadline(queue, entry, deliver)).resolves.toBeUndefined();
+
+    // The second slot's delivery still ran despite the first one throwing.
+    expect(deliver).toHaveBeenCalledTimes(2);
+    expect(deliver).toHaveBeenLastCalledWith(
+      'job-b',
+      expect.objectContaining({ content: 'second' })
+    );
+  });
+
+  it('delivers an authoritative failure as a synthesized success:false result', async () => {
+    const queue = {
+      getJob: vi
+        .fn()
+        .mockResolvedValue(buildMockJob({ state: 'failed', failedReason: 'model exploded' })),
+    } as unknown as Queue;
+    const deliver = vi.fn().mockResolvedValue(undefined);
+    const entry = {
+      groupId: 'group-1',
+      slots: [{ jobId: 'job-a', status: 'pending' }],
+    };
+
+    await recoverRealResultsAtDeadline(queue, entry, deliver);
+
+    expect(deliver).toHaveBeenCalledWith('job-a', {
+      requestId: 'job-a',
+      success: false,
+      error: 'model exploded',
+    });
   });
 });

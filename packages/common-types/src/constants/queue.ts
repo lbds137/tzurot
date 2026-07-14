@@ -100,7 +100,13 @@ export const REDIS_KEY_PREFIXES = {
   PROCESSED_MESSAGE: 'processed:',
   /** Prefix for vision failure negative cache (prevents re-hammering failed images) */
   VISION_FAILURE: 'vision:fail:',
-  /** Prefix for TTS audio buffer storage (binary, keyed by jobId) */
+  /**
+   * Prefix for TTS audio buffer storage (binary, keyed by jobId).
+   * TTL: MULTI_TAG.REDIS_TTL_SEC — audio must outlive every deferred
+   * delivery path (ordered-delivery holds up to the multi-tag safety
+   * window; late-result recovery up to this same TTL), or replies deliver
+   * voiceless.
+   */
   TTS_AUDIO: 'tts-audio:',
   /** Prefix for multi-tag coordinator entries (keyed by groupId) */
   MULTI_TAG_ENTRY: 'multitag:entry:',
