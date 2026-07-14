@@ -68,6 +68,10 @@ interface EpisodeGroup {
    * from other personas sharing the batch window. */
   ids: string[];
   texts: string[];
+  /** Newest source episode's createdAt — becomes the fact's valid_from, so a
+   * fact's recency reflects when its EVIDENCE is from, not when the extractor
+   * ran (a bulk backfill of months-old episodes must not mint "fresh" facts). */
+  newestSourceAt: Date;
 }
 
 /** One extraction model call's outcome — content plus token usage for cost rows. */
@@ -200,7 +204,7 @@ export class FactExtractionService {
         personalityId: job.personalityId,
         visibility: 'normal',
       },
-      select: { id: true, content: true, personaId: true, isFiction: true },
+      select: { id: true, content: true, personaId: true, isFiction: true, createdAt: true },
       orderBy: { createdAt: 'asc' },
       take: 100,
     });
@@ -224,9 +228,13 @@ export class FactExtractionService {
         isFiction: ep.isFiction,
         ids: [],
         texts: [],
+        newestSourceAt: ep.createdAt,
       };
       group.ids.push(ep.id);
       group.texts.push(ep.content);
+      if (ep.createdAt > group.newestSourceAt) {
+        group.newestSourceAt = ep.createdAt;
+      }
       groups.set(ep.personaId, group);
     }
 
@@ -427,6 +435,7 @@ export class FactExtractionService {
       salience: fact.salience,
       isFiction: group.isFiction,
       sourceMemoryIds: group.ids,
+      validFrom: group.newestSourceAt,
       extractionJobId: generateFactExtractionJobUuid(
         job.channelId,
         job.personalityId,

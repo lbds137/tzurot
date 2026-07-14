@@ -163,6 +163,7 @@ describe('FactExtractionService (component, PGLite)', () => {
         isFiction: false,
         sourceMemoryIds: [],
         extractionJobId: 'seed',
+        validFrom: new Date('2026-02-01T00:00:00.000Z'),
       },
       [],
       oldEmbedding
@@ -234,6 +235,7 @@ describe('FactExtractionService (component, PGLite)', () => {
         isFiction: false,
         sourceMemoryIds: [],
         extractionJobId: 'seed-1',
+        validFrom: new Date('2026-02-01T00:00:00.000Z'),
       },
       [],
       seattleEmbedding
@@ -249,6 +251,7 @@ describe('FactExtractionService (component, PGLite)', () => {
         isFiction: false,
         sourceMemoryIds: [],
         extractionJobId: 'seed-2',
+        validFrom: new Date('2026-02-01T00:00:00.000Z'),
       },
       [seattleId],
       denverEmbedding
@@ -298,6 +301,7 @@ describe('FactExtractionService (component, PGLite)', () => {
         isFiction: false,
         sourceMemoryIds: [],
         extractionJobId: 'seed-1',
+        validFrom: new Date('2026-02-01T00:00:00.000Z'),
       },
       [],
       embedding
