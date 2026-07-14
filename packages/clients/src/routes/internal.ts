@@ -16,6 +16,12 @@
 import { z } from 'zod';
 import { TIMEOUTS } from '@tzurot/common-types/constants/timing';
 import { DiagnosticUpdateSchema } from '@tzurot/common-types/schemas/api/admin';
+import {
+  ReleaseBroadcastDeliveriesInputSchema,
+  ReleaseBroadcastDeliveriesResponseSchema,
+  ReleaseBroadcastPendingInputSchema,
+  ReleaseBroadcastPendingResponseSchema,
+} from '@tzurot/common-types/schemas/api/broadcast';
 import { AdminSettingsSchema } from '@tzurot/common-types/schemas/api/adminSettings';
 import {
   AiConfirmDeliveryResponseSchema,
@@ -116,6 +122,37 @@ export const internalRoutes = {
     id: 'aiConfirmDelivery',
     params: { jobId: z.string() },
     output: AiConfirmDeliveryResponseSchema,
+    serviceOnly: true,
+  },
+
+  /**
+   * DM worker's stall-rerun guard: returns the subset of a batch's delivery
+   * rows still pending, so a re-run batch never double-DMs.
+   */
+  releaseBroadcastPending: {
+    audience: 'internal',
+    method: 'post',
+    path: '/release-broadcast/:releaseId/pending',
+    id: 'releaseBroadcastPending',
+    params: { releaseId: z.string().uuid() },
+    input: ReleaseBroadcastPendingInputSchema,
+    output: ReleaseBroadcastPendingResponseSchema,
+    serviceOnly: true,
+  },
+
+  /**
+   * DM worker reports per-recipient delivery outcomes. Idempotent
+   * (pending→terminal transitions only); auto-disables notifyEnabled on a
+   * user's second consecutive permanent failure.
+   */
+  releaseBroadcastDeliveries: {
+    audience: 'internal',
+    method: 'post',
+    path: '/release-broadcast/:releaseId/deliveries',
+    id: 'releaseBroadcastDeliveries',
+    params: { releaseId: z.string().uuid() },
+    input: ReleaseBroadcastDeliveriesInputSchema,
+    output: ReleaseBroadcastDeliveriesResponseSchema,
     serviceOnly: true,
   },
 

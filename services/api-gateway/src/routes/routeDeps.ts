@@ -111,6 +111,8 @@ export interface RouteDeps {
   readonly redis?: Redis;
   /** BullMQ queue for AI generation jobs. */
   readonly aiQueue?: Queue;
+  /** BullMQ queue for release-broadcast DM batches (consumed by bot-client). */
+  readonly releaseBroadcastQueue?: Queue;
   /** BullMQ queue events for sync-completion waiting. */
   readonly queueEvents?: QueueEvents;
 }

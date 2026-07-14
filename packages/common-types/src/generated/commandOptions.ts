@@ -53,6 +53,17 @@ export const adminUsageOptions = defineTypedOptions({
 });
 
 /**
+ * /admin broadcast <message, level, label, dry-run, confirm>
+ */
+export const adminBroadcastOptions = defineTypedOptions({
+  message: { type: 'string', required: true },
+  level: { type: 'string', required: false },
+  label: { type: 'string', required: false },
+  'dry-run': { type: 'boolean', required: false },
+  confirm: { type: 'boolean', required: false },
+});
+
+/**
  * /admin cleanup <days, target>
  */
 export const adminCleanupOptions = defineTypedOptions({

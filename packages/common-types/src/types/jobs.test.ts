@@ -25,6 +25,7 @@ import {
   type AudioTranscriptionResult,
   factExtractionJobDataSchema,
   type FactExtractionJobData,
+  releaseBroadcastDmJobDataSchema,
 } from './jobs.js';
 import {
   shapesImportJobDataSchema,
@@ -1139,6 +1140,61 @@ describe('BullMQ Job Contract Tests', () => {
     });
   });
 
+  describe('Release Broadcast DM Job Contract', () => {
+    const validPayload = {
+      requestId: 'req-1',
+      jobType: JobType.ReleaseBroadcastDm,
+      responseDestination: { type: 'api' },
+      releaseId: '123e4567-e89b-42d3-a456-426614174000',
+      version: 'adhoc-test',
+      body: 'Release notes body',
+      recipients: [
+        {
+          deliveryLogId: '223e4567-e89b-42d3-a456-426614174000',
+          userId: '323e4567-e89b-42d3-a456-426614174000',
+          discordUserId: '123456789012345678',
+        },
+      ],
+    };
+
+    it('should validate a well-formed batch', () => {
+      expect(releaseBroadcastDmJobDataSchema.safeParse(validPayload).success).toBe(true);
+    });
+
+    it('should reject an empty recipients array', () => {
+      const result = releaseBroadcastDmJobDataSchema.safeParse({
+        ...validPayload,
+        recipients: [],
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject a batch over the 50-recipient cap', () => {
+      const recipient = validPayload.recipients[0];
+      const result = releaseBroadcastDmJobDataSchema.safeParse({
+        ...validPayload,
+        recipients: Array.from({ length: 51 }, () => recipient),
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject the wrong jobType literal', () => {
+      const result = releaseBroadcastDmJobDataSchema.safeParse({
+        ...validPayload,
+        jobType: JobType.FactExtraction,
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject a non-uuid releaseId', () => {
+      const result = releaseBroadcastDmJobDataSchema.safeParse({
+        ...validPayload,
+        releaseId: 'not-a-uuid',
+      });
+      expect(result.success).toBe(false);
+    });
+  });
+
   describe('Job Schema Coverage Enforcement', () => {
     /**
      * ENFORCEMENT: Every JobType enum value MUST have a corresponding Zod schema.
@@ -1156,6 +1212,7 @@ describe('BullMQ Job Contract Tests', () => {
       [JobType.ShapesImport]: shapesImportJobDataSchema,
       [JobType.ShapesExport]: shapesExportJobDataSchema,
       [JobType.FactExtraction]: factExtractionJobDataSchema,
+      [JobType.ReleaseBroadcastDm]: releaseBroadcastDmJobDataSchema,
     };
 
     it('should have a Zod data schema for every JobType enum value', () => {

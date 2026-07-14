@@ -25,6 +25,8 @@ import {
   generateImageDescriptionCacheUuid,
   generateUsageLogUuid,
   generateFactExtractionJobUuid,
+  generateReleaseAnnouncementUuid,
+  generateReleaseDeliveryLogUuid,
   generateMemoryFactUuid,
   generatePendingMemoryUuid,
   generateUserApiKeyUuid,
@@ -304,6 +306,40 @@ describe('Deterministic UUID Generation', () => {
     it('should generate different UUIDs across channels', () => {
       const uuid1 = generateFactExtractionJobUuid('chan-1', 'personality-1', 'mem-1');
       const uuid2 = generateFactExtractionJobUuid('chan-2', 'personality-1', 'mem-1');
+      expect(uuid1).not.toBe(uuid2);
+    });
+  });
+
+  describe('generateReleaseAnnouncementUuid', () => {
+    it('should generate consistent UUIDs for the same version', () => {
+      const uuid1 = generateReleaseAnnouncementUuid('3.0.0-beta.166');
+      const uuid2 = generateReleaseAnnouncementUuid('3.0.0-beta.166');
+      expect(uuid1).toBe(uuid2);
+    });
+
+    it('should generate different UUIDs for different versions', () => {
+      const uuid1 = generateReleaseAnnouncementUuid('3.0.0-beta.166');
+      const uuid2 = generateReleaseAnnouncementUuid('adhoc-2026-07-14');
+      expect(uuid1).not.toBe(uuid2);
+    });
+  });
+
+  describe('generateReleaseDeliveryLogUuid', () => {
+    it('should generate consistent UUIDs for the same (release, user) pair', () => {
+      const uuid1 = generateReleaseDeliveryLogUuid('release-1', 'user-1');
+      const uuid2 = generateReleaseDeliveryLogUuid('release-1', 'user-1');
+      expect(uuid1).toBe(uuid2);
+    });
+
+    it('should generate different UUIDs per user within one release', () => {
+      const uuid1 = generateReleaseDeliveryLogUuid('release-1', 'user-1');
+      const uuid2 = generateReleaseDeliveryLogUuid('release-1', 'user-2');
+      expect(uuid1).not.toBe(uuid2);
+    });
+
+    it('should generate different UUIDs for the same user across releases', () => {
+      const uuid1 = generateReleaseDeliveryLogUuid('release-1', 'user-1');
+      const uuid2 = generateReleaseDeliveryLogUuid('release-2', 'user-1');
       expect(uuid1).not.toBe(uuid2);
     });
   });

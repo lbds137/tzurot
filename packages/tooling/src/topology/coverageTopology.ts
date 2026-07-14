@@ -100,24 +100,37 @@ const MECHANISM_TIER: Record<CoverageSurfaceMechanism, TestTier> = {
  * not compile until it is classified here, so a future payload-bearing job can't
  * be silently omitted from the topology.
  */
-const JOB_SCHEMA_BY_TYPE: Record<JobType, string | null> = {
-  [JobType.AudioTranscription]: 'audioTranscriptionJobDataSchema',
-  [JobType.ImageDescription]: 'imageDescriptionJobDataSchema',
-  [JobType.LLMGeneration]: 'llmGenerationJobDataSchema',
+const JOB_SCHEMA_BY_TYPE: Record<JobType, { schemaRef: string; consumer: string } | null> = {
+  [JobType.AudioTranscription]: {
+    schemaRef: 'audioTranscriptionJobDataSchema',
+    consumer: 'ai-worker',
+  },
+  [JobType.ImageDescription]: {
+    schemaRef: 'imageDescriptionJobDataSchema',
+    consumer: 'ai-worker',
+  },
+  [JobType.LLMGeneration]: { schemaRef: 'llmGenerationJobDataSchema', consumer: 'ai-worker' },
   [JobType.ShapesImport]: null,
   [JobType.ShapesExport]: null,
   // Worker-internal: ai-worker both enqueues (LongTermMemoryService tail call)
   // and consumes fact-extraction jobs — no cross-service producer↔consumer seam,
   // so no bullmq-contract surface despite having a payload schema.
   [JobType.FactExtraction]: null,
+  // Cross-service: api-gateway produces broadcast batches, bot-client's DM
+  // worker consumes them — the payload schema IS the producer↔consumer contract.
+  [JobType.ReleaseBroadcastDm]: {
+    schemaRef: 'releaseBroadcastDmJobDataSchema',
+    consumer: 'bot-client',
+  },
 };
 
 /** The payload-bearing subset (non-null entries) — one BullMQ-contract surface each. */
-const JOB_PAYLOAD_SCHEMAS: readonly { jobType: JobType; schemaRef: string }[] = Object.entries(
-  JOB_SCHEMA_BY_TYPE
-)
-  .filter((entry): entry is [JobType, string] => entry[1] !== null)
-  .map(([jobType, schemaRef]) => ({ jobType, schemaRef }));
+const JOB_PAYLOAD_SCHEMAS: readonly { jobType: JobType; schemaRef: string; consumer: string }[] =
+  Object.entries(JOB_SCHEMA_BY_TYPE)
+    .filter(
+      (entry): entry is [JobType, { schemaRef: string; consumer: string }] => entry[1] !== null
+    )
+    .map(([jobType, { schemaRef, consumer }]) => ({ jobType, schemaRef, consumer }));
 
 /**
  * Route ids exempt from the cross-service contract requirement (not real
@@ -137,6 +150,8 @@ const GOLDEN_FIXTURE_CONSUMER =
   'services/ai-worker/src/services/context/RawEnvelopeContract.consumer.contract.test.ts';
 const BULLMQ_PRODUCER_TEST =
   'services/api-gateway/src/utils/BullMQJobChainContract.producer.test.ts';
+const BROADCAST_PRODUCER_TEST =
+  'services/api-gateway/src/services/ReleaseBroadcastContract.producer.test.ts';
 const BULLMQ_CONTRACT_DIR = 'tests/e2e/contracts';
 const VOICE_ENGINE_CONSUMER_TEST =
   'services/ai-worker/src/services/voice/VoiceEngineContract.consumer.contract.test.ts';
@@ -195,6 +210,17 @@ const REAL_IMPORTS = {
     from: '/jobChainOrchestrator.',
   },
   /**
+   * The release-broadcast batch has its OWN producer (enqueueBroadcast, not the
+   * job-chain orchestrator), so its surface keys off its own producer-fixture
+   * test rather than riding the job-chain boolean — a coarse shared boolean
+   * would mark this surface covered by a producer that never emits it.
+   */
+  broadcastProducer: {
+    file: BROADCAST_PRODUCER_TEST,
+    symbol: 'enqueueBroadcast',
+    from: '/releaseBroadcast.',
+  },
+  /**
    * The voice-engine JSON contract is cross-LANGUAGE: the PRODUCER is the Python
    * service, enforced by the `voice-engine-tests` CI job (a pytest asserts each real
    * endpoint's output equals the committed fixture) — NOT topology-visible (this
@@ -215,6 +241,8 @@ interface MechanismPresence {
   envelopeImportsReal: boolean;
   /** The BullMQ producer test imports the real `createJobChain` (so the fixture is real output). */
   bullmqProducerImportsReal: boolean;
+  /** The broadcast producer test imports the real `enqueueBroadcast` (its own producer seam). */
+  broadcastProducerImportsReal: boolean;
   /** The voice-engine consumer test imports the real response Zod schemas (TS half; Python half is CI-enforced). */
   voiceEngineImportsReal: boolean;
   /** Job schema names referenced by a `.safeParse(`/`.parse(` call in a BullMQ contract test. */
@@ -247,6 +275,7 @@ function buildMechanismPresence(projectRoot: string): MechanismPresence {
     envelopeImportsReal:
       imports(REAL_IMPORTS.envelopeProducer) && imports(REAL_IMPORTS.envelopeConsumer),
     bullmqProducerImportsReal: imports(REAL_IMPORTS.bullmqProducer),
+    broadcastProducerImportsReal: imports(REAL_IMPORTS.broadcastProducer),
     voiceEngineImportsReal: imports(REAL_IMPORTS.voiceEngineConsumer),
     bullmqSchemas,
   };
@@ -267,7 +296,10 @@ const MECHANISM_PRESENT: Record<
   'route-conformance': (_seed, presence) => presence.routeImportsReal,
   'golden-fixture': (_seed, presence) => presence.envelopeImportsReal,
   'bullmq-contract': (seed, presence) =>
-    presence.bullmqSchemas.has(seed.schemaRef) && presence.bullmqProducerImportsReal,
+    presence.bullmqSchemas.has(seed.schemaRef) &&
+    (seed.schemaRef === 'releaseBroadcastDmJobDataSchema'
+      ? presence.broadcastProducerImportsReal
+      : presence.bullmqProducerImportsReal),
   'voice-engine-contract': (_seed, presence) => presence.voiceEngineImportsReal,
 };
 
@@ -313,14 +345,14 @@ export function generateCoverageTopology(projectRoot: string = defaultRootDir())
 
   // BullMQ jobs — api-gateway produces, ai-worker consumes; the payload schema is
   // the contract, covered by the BullMQ producer/consumer contract tests.
-  for (const { jobType, schemaRef } of JOB_PAYLOAD_SCHEMAS) {
+  for (const { jobType, schemaRef, consumer } of JOB_PAYLOAD_SCHEMAS) {
     surfaces.push(
       buildSurface(
         {
-          id: `api-gateway:ai-worker:${jobType}`,
+          id: `api-gateway:${consumer}:${jobType}`,
           kind: 'bullmq-job',
           producer: 'api-gateway',
-          consumer: 'ai-worker',
+          consumer,
           schemaRef,
           mechanism: 'bullmq-contract',
         },

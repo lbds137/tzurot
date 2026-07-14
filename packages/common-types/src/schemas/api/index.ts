@@ -112,6 +112,19 @@ export {
   SetTimezoneResponseSchema,
 } from './timezone.js';
 
+// Release-broadcast endpoints (admin blast + internal delivery ledger)
+export {
+  BROADCAST_MESSAGE_MAX_LENGTH,
+  BroadcastInputSchema,
+  BroadcastResponseSchema,
+  type DeliveryOutcome,
+  DeliveryOutcomeSchema,
+  ReleaseBroadcastDeliveriesInputSchema,
+  ReleaseBroadcastDeliveriesResponseSchema,
+  ReleaseBroadcastPendingInputSchema,
+  ReleaseBroadcastPendingResponseSchema,
+} from './broadcast.js';
+
 // Notification-preference endpoints
 export {
   type GetNotificationPrefsResponse,

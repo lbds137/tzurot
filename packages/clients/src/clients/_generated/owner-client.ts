@@ -62,6 +62,21 @@ export class OwnerClient {
     });
   }
 
+  async broadcast(input: z.infer<typeof ROUTE_MANIFEST.broadcast.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.broadcast.output>>> {
+    const fullPath = '/api/admin/broadcast';
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'POST',
+      path: fullPath,
+      headers: {
+        'X-User-Id': this.actor,
+      },
+      body: input,
+      outputSchema: ROUTE_MANIFEST.broadcast.output,
+    });
+  }
+
   async cleanup(input: z.infer<typeof ROUTE_MANIFEST.cleanup.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.cleanup.output>>> {
     const fullPath = '/api/admin/cleanup';
     return callGateway({

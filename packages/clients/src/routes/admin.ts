@@ -28,6 +28,10 @@ import { MODEL_SLOTS } from '@tzurot/common-types/constants/ai';
 import { GATEWAY_TIMEOUTS } from '@tzurot/common-types/constants/discord';
 import { DbSyncSchema, InvalidateCacheSchema } from '@tzurot/common-types/schemas/api/admin';
 import {
+  BroadcastInputSchema,
+  BroadcastResponseSchema,
+} from '@tzurot/common-types/schemas/api/broadcast';
+import {
   AdminCleanupResponseSchema,
   DbSyncResponseSchema,
   InvalidateCacheResponseSchema,
@@ -122,6 +126,17 @@ export const adminRoutes = {
    * Same data-scaled class as db-sync — shares LONG_SYNC and the same
    * filed async-job escape hatch.
    */
+  broadcast: {
+    audience: 'admin',
+    method: 'post',
+    path: '/broadcast',
+    id: 'broadcast',
+    input: BroadcastInputSchema,
+    output: BroadcastResponseSchema,
+    // No explicit timeout: inherits the WRITE floor. Resolution + row
+    // creation + enqueue are quick; the DM sending happens async in the worker.
+  },
+
   cleanup: {
     audience: 'admin',
     method: 'post',

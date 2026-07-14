@@ -1009,8 +1009,9 @@ model ReleaseDeliveryLog {
   /// State-machine-by-status: null unless status is failed_*; carries the
   /// Discord error class (e.g. 50007 = cannot DM this user).
   errorCode   String?             @map("error_code") @db.VarChar(50)
-  /// Deferred-set: null on row creation; stamped by the bot-client worker on
-  /// each delivery attempt.
+  /// Deferred-set: null on row creation; stamped by the gateway's
+  /// delivery-status endpoint when the DM worker (bot-client, Prisma-free)
+  /// reports the batch's outcomes.
   attemptedAt DateTime?           @map("attempted_at")
   createdAt   DateTime            @default(now()) @map("created_at")
   updatedAt   DateTime            @updatedAt @map("updated_at")

@@ -8,6 +8,10 @@
  * shaping is what's under test, not the queue.
  */
 
+import {
+  generateReleaseAnnouncementUuid,
+  generateReleaseDeliveryLogUuid,
+} from '@tzurot/common-types/utils/deterministicUuid';
 import type { ConformanceEntry, SeedContext } from './types.js';
 import { createPersonality } from './seedHelpers.js';
 
@@ -95,6 +99,49 @@ export const internalFixtures: Record<string, ConformanceEntry> = {
 
   aiJobStatus: {
     params: { jobId: 'conformance-job-1' },
+  },
+
+  releaseBroadcastPending: {
+    seed: async ctx => {
+      const releaseId = generateReleaseAnnouncementUuid('conf-pending-1');
+      const logId = generateReleaseDeliveryLogUuid(releaseId, ctx.actorUserId);
+      await ctx.prisma.releaseAnnouncement.create({
+        data: {
+          id: releaseId,
+          version: 'conf-pending-1',
+          level: 'major',
+          githubReleaseId: 'adhoc',
+          body: 'conformance',
+        },
+      });
+      await ctx.prisma.releaseDeliveryLog.create({
+        data: { id: logId, releaseId, userId: ctx.actorUserId },
+      });
+      return { params: { releaseId }, body: { deliveryLogIds: [logId] } };
+    },
+  },
+
+  releaseBroadcastDeliveries: {
+    seed: async ctx => {
+      const releaseId = generateReleaseAnnouncementUuid('conf-deliveries-1');
+      const logId = generateReleaseDeliveryLogUuid(releaseId, ctx.actorUserId);
+      await ctx.prisma.releaseAnnouncement.create({
+        data: {
+          id: releaseId,
+          version: 'conf-deliveries-1',
+          level: 'major',
+          githubReleaseId: 'adhoc',
+          body: 'conformance',
+        },
+      });
+      await ctx.prisma.releaseDeliveryLog.create({
+        data: { id: logId, releaseId, userId: ctx.actorUserId },
+      });
+      return {
+        params: { releaseId },
+        body: { results: [{ deliveryLogId: logId, status: 'sent' }] },
+      };
+    },
   },
 
   aiConfirmDelivery: {

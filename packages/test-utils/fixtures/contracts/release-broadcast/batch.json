@@ -1,0 +1,28 @@
+{
+  "name": "release-broadcast-dm",
+  "data": {
+    "requestId": "d3b8735e-138b-5a28-b511-e59422777a1a:0",
+    "jobType": "release-broadcast-dm",
+    "responseDestination": {
+      "type": "api"
+    },
+    "releaseId": "d3b8735e-138b-5a28-b511-e59422777a1a",
+    "version": "contract-fixture-1",
+    "body": "Contract fixture body",
+    "recipients": [
+      {
+        "deliveryLogId": "7276a91b-c720-5bb3-9c08-21389fbd5c5d",
+        "userId": "2f8c02d8-34a7-54e7-abaa-29c94ef8e464",
+        "discordUserId": "111111111111111111"
+      },
+      {
+        "deliveryLogId": "05a7f1a9-808c-5d75-9869-c16ad98d0383",
+        "userId": "82df0bc4-ee89-5f2c-9112-f74bf1cb1c07",
+        "discordUserId": "222222222222222222"
+      }
+    ]
+  },
+  "opts": {
+    "jobId": "release-broadcast:d3b8735e-138b-5a28-b511-e59422777a1a:0"
+  }
+}

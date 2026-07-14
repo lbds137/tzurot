@@ -33,18 +33,20 @@ describe('generateCoverageTopology', () => {
     expect(routeSurfaces.every(s => s.consumer === 'api-gateway')).toBe(true);
   });
 
-  it('enumerates the three payload-bearing BullMQ jobs (bullmq-contract)', () => {
+  it('enumerates the four payload-bearing BullMQ jobs (bullmq-contract)', () => {
     const jobSurfaces = topology.surfaces.filter(s => s.kind === 'bullmq-job');
     // Build expected ids from the enum so a JobType value rename is caught.
     const expected = [
       `api-gateway:ai-worker:${JobType.AudioTranscription}`,
       `api-gateway:ai-worker:${JobType.ImageDescription}`,
       `api-gateway:ai-worker:${JobType.LLMGeneration}`,
+      `api-gateway:bot-client:${JobType.ReleaseBroadcastDm}`,
     ].sort();
     expect(jobSurfaces.map(s => s.id).sort()).toEqual(expected);
     expect(jobSurfaces.every(s => s.mechanism === 'bullmq-contract')).toBe(true);
-    expect(jobSurfaces.every(s => s.producer === 'api-gateway' && s.consumer === 'ai-worker')).toBe(
-      true
+    expect(jobSurfaces.every(s => s.producer === 'api-gateway')).toBe(true);
+    expect(jobSurfaces.find(s => s.id.includes(JobType.ReleaseBroadcastDm))?.consumer).toBe(
+      'bot-client'
     );
   });
 
@@ -106,9 +108,21 @@ describe('generateCoverageTopology', () => {
         join(contractDir, 'jobs.contract.test.ts'),
         'audioTranscriptionJobDataSchema.safeParse(x);\n' +
           'imageDescriptionJobDataSchema.safeParse(x);\n' +
-          'llmGenerationJobDataSchema.parse(x);\n'
+          'llmGenerationJobDataSchema.parse(x);\n' +
+          'releaseBroadcastDmJobDataSchema.safeParse(x);\n'
       );
       mkdirSync(dirname(producerPath), { recursive: true });
+      // The broadcast surface keys off ITS OWN producer test — keep it REAL in
+      // both phases so this scenario isolates the job-chain producer check.
+      const broadcastProducerPath = join(
+        tmpRoot,
+        'services/api-gateway/src/services/ReleaseBroadcastContract.producer.test.ts'
+      );
+      mkdirSync(dirname(broadcastProducerPath), { recursive: true });
+      writeFileSync(
+        broadcastProducerPath,
+        "import { enqueueBroadcast } from './releaseBroadcast.js';\nenqueueBroadcast();\n"
+      );
 
       // Circular: the producer hand-rolls a payload, importing the SCHEMA but never
       // the real createJobChain. All three job surfaces must still gap.
@@ -116,7 +130,13 @@ describe('generateCoverageTopology', () => {
         producerPath,
         "import { llmGenerationJobDataSchema } from '@tzurot/common-types';\n"
       );
-      expect(bullmqJobs(tmpRoot).every(s => surfaceGap(s).length === 1)).toBe(true);
+      const jobChainSurfaces = (root: string) =>
+        bullmqJobs(root).filter(s => s.consumer === 'ai-worker');
+      expect(jobChainSurfaces(tmpRoot).every(s => surfaceGap(s).length === 1)).toBe(true);
+      // The broadcast surface (own real producer) stays covered throughout.
+      expect(bullmqJobs(tmpRoot).find(s => s.consumer === 'bot-client')?.actualTiers).toHaveLength(
+        1
+      );
 
       // Contrast: import the real producer → the jobs are now covered. (Clear the
       // per-path import cache between the two reads of the same file.)

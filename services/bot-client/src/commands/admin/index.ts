@@ -38,6 +38,7 @@ import {
 } from './servers.js';
 import { handleKick } from './kick.js';
 import { handleUsage } from './usage.js';
+import { handleBroadcast } from './broadcast.js';
 import { handleCleanup } from './cleanup.js';
 import { handleHealth } from './health.js';
 import { handleMetrics } from './metrics.js';
@@ -68,6 +69,7 @@ const adminRouter = createSubcommandContextRouter(
     servers: handleServers,
     kick: handleKick,
     usage: handleUsage,
+    broadcast: handleBroadcast,
     cleanup: handleCleanup,
     health: handleHealth,
     metrics: handleMetrics,
@@ -281,6 +283,48 @@ export default defineCommand({
               { name: 'Last 7 days', value: '7d' },
               { name: 'Last 30 days', value: '30d' }
             )
+        )
+    )
+    .addSubcommand(subcommand =>
+      subcommand
+        .setName('broadcast')
+        .setDescription('DM every opted-in user through the release-notes pipeline')
+        .addStringOption(option =>
+          option
+            .setName('message')
+            .setDescription('The DM body (opt-out footer is appended automatically)')
+            .setRequired(true)
+            .setMaxLength(1800)
+        )
+        .addStringOption(option =>
+          option
+            .setName('level')
+            .setDescription('Message importance — major reaches everyone opted in (default)')
+            .setRequired(false)
+            .addChoices(
+              { name: 'Major — everyone opted in', value: 'major' },
+              { name: 'Minor — users at minor or patch threshold', value: 'minor' },
+              { name: 'Patch — only users opted into everything', value: 'patch' }
+            )
+        )
+        .addStringOption(option =>
+          option
+            .setName('label')
+            .setDescription('Unique version label (default: timestamped adhoc-…)')
+            .setRequired(false)
+            .setMaxLength(50)
+        )
+        .addBooleanOption(option =>
+          option
+            .setName('dry-run')
+            .setDescription('Preview the audience without sending (default: false)')
+            .setRequired(false)
+        )
+        .addBooleanOption(option =>
+          option
+            .setName('confirm')
+            .setDescription('Required true for a REAL send (no undo)')
+            .setRequired(false)
         )
     )
     .addSubcommand(subcommand =>

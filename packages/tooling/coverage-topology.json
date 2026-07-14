@@ -44,6 +44,20 @@
       ]
     },
     {
+      "id": "api-gateway:bot-client:release-broadcast-dm",
+      "kind": "bullmq-job",
+      "producer": "api-gateway",
+      "consumer": "bot-client",
+      "schemaRef": "releaseBroadcastDmJobDataSchema",
+      "mechanism": "bullmq-contract",
+      "requiredTiers": [
+        "contract"
+      ],
+      "actualTiers": [
+        "contract"
+      ]
+    },
+    {
       "id": "bot-client:ai-worker:context-assembly",
       "kind": "context-envelope",
       "producer": "bot-client",
@@ -161,6 +175,20 @@
       "producer": "client",
       "consumer": "api-gateway",
       "schemaRef": "POST /memory/delete/preview",
+      "mechanism": "route-conformance",
+      "requiredTiers": [
+        "component"
+      ],
+      "actualTiers": [
+        "component"
+      ]
+    },
+    {
+      "id": "client:api-gateway:broadcast",
+      "kind": "http-route",
+      "producer": "client",
+      "consumer": "api-gateway",
+      "schemaRef": "POST /broadcast",
       "mechanism": "route-conformance",
       "requiredTiers": [
         "component"
@@ -1575,6 +1603,34 @@
       "producer": "client",
       "consumer": "api-gateway",
       "schemaRef": "GET /users/recent",
+      "mechanism": "route-conformance",
+      "requiredTiers": [
+        "component"
+      ],
+      "actualTiers": [
+        "component"
+      ]
+    },
+    {
+      "id": "client:api-gateway:releaseBroadcastDeliveries",
+      "kind": "http-route",
+      "producer": "client",
+      "consumer": "api-gateway",
+      "schemaRef": "POST /release-broadcast/:releaseId/deliveries",
+      "mechanism": "route-conformance",
+      "requiredTiers": [
+        "component"
+      ],
+      "actualTiers": [
+        "component"
+      ]
+    },
+    {
+      "id": "client:api-gateway:releaseBroadcastPending",
+      "kind": "http-route",
+      "producer": "client",
+      "consumer": "api-gateway",
+      "schemaRef": "POST /release-broadcast/:releaseId/pending",
       "mechanism": "route-conformance",
       "requiredTiers": [
         "component"
