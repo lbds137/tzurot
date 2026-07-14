@@ -72,6 +72,10 @@ export class ContextWindowManager {
     messagesIncluded: number;
     messagesDropped: number;
     crossChannelMessagesIncluded: number;
+    /** The current-channel entries that actually shipped (newest-first walk
+     * keeps a contiguous newest suffix) — the STM/LTM pre-pass derives the
+     * EXACT dedup cutoff + shipped-message-id set from these. */
+    selectedEntries: RawHistoryEntry[];
   } {
     const hasCurrentChannel = rawHistory !== undefined && rawHistory.length > 0;
     const hasCrossChannel = crossChannelGroups !== undefined && crossChannelGroups.length > 0;
@@ -83,6 +87,7 @@ export class ContextWindowManager {
         messagesIncluded: 0,
         messagesDropped: rawHistory?.length ?? 0,
         crossChannelMessagesIncluded: 0,
+        selectedEntries: [],
       };
     }
 
@@ -131,6 +136,7 @@ export class ContextWindowManager {
       messagesIncluded: selectedEntries.length,
       messagesDropped: (rawHistory?.length ?? 0) - selectedEntries.length,
       crossChannelMessagesIncluded,
+      selectedEntries,
     };
   }
 
@@ -245,22 +251,6 @@ export class ContextWindowManager {
       crossChannelMessagesIncluded: crossResult.messagesIncluded,
       crossTokens,
     };
-  }
-
-  /**
-   * Calculate history token budget: remaining tokens after system prompt, current message,
-   * and memories are subtracted from the context window.
-   */
-  calculateHistoryBudget(
-    contextWindowTokens: number,
-    systemPromptBaseTokens: number,
-    currentMessageTokens: number,
-    memoryTokens: number
-  ): number {
-    return Math.max(
-      0,
-      contextWindowTokens - systemPromptBaseTokens - currentMessageTokens - memoryTokens
-    );
   }
 
   /**

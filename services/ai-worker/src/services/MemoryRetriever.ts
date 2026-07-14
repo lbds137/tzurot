@@ -54,10 +54,46 @@ export class MemoryRetriever {
   }
 
   /**
-   * Calculate STM/LTM deduplication cutoff timestamp
-   * Applies buffer to prevent overlap between short-term and long-term memories
+   * Calculate STM/LTM deduplication cutoff timestamp.
+   *
+   * Exact mode (history pre-pass ran — `stmLtmCutoffInputs` present): the
+   * current-channel bound is the oldest SHIPPED message PLUS the buffer —
+   * over-retrieving past the boundary so memories of DROPPED messages (whose
+   * persistence lags their source) stay reachable; the selection-time ID
+   * filter is the authoritative dedup, so over-retrieval cannot duplicate.
+   * Refs/cross-channel keep the pessimistic minus-buffer bound (no shipped-id
+   * plumbing for them). Nothing shipped and no refs → no cutoff: LTM covers
+   * the whole range (the everything-truncated case).
+   *
+   * Legacy mode (no pre-pass — non-pipeline callers): pessimistic
+   * oldest-FETCHED minus buffer, as before.
    */
   private calculateDeduplicationCutoff(context: ConversationContext): number | undefined {
+    if (context.stmLtmCutoffInputs !== undefined) {
+      const { oldestSelectedTs } = context.stmLtmCutoffInputs;
+      const bounds: number[] = [];
+      if (oldestSelectedTs !== undefined) {
+        bounds.push(oldestSelectedTs + AI_DEFAULTS.STM_LTM_BUFFER_MS);
+      }
+      if (context.nonHistoryOldestTimestamp !== undefined) {
+        bounds.push(context.nonHistoryOldestTimestamp - AI_DEFAULTS.STM_LTM_BUFFER_MS);
+      }
+      const cutoff = bounds.length > 0 ? Math.min(...bounds) : undefined;
+      logger.info(
+        {
+          oldestSelectedTs:
+            oldestSelectedTs !== undefined ? formatMemoryTimestamp(oldestSelectedTs) : undefined,
+          nonHistoryOldestTimestamp:
+            context.nonHistoryOldestTimestamp !== undefined
+              ? formatMemoryTimestamp(context.nonHistoryOldestTimestamp)
+              : undefined,
+          excludeNewerThan: cutoff !== undefined ? formatMemoryTimestamp(cutoff) : 'none',
+        },
+        'STM/LTM dedup cutoff (exact mode — shipped-history boundary)'
+      );
+      return cutoff;
+    }
+
     let excludeNewerThan: number | undefined = context.oldestHistoryTimestamp;
 
     if (excludeNewerThan !== undefined) {

@@ -9,6 +9,7 @@
 import type { HumanMessage } from '@langchain/core/messages';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { contentToText } from '../utils/baseMessageContent.js';
+import { buildHistoryMessageIdSet } from '../jobs/utils/conversationUtils.js';
 import type { PromptBuilder } from './PromptBuilder.js';
 import type { ContextWindowManager } from './context/ContextWindowManager.js';
 import {
@@ -35,11 +36,192 @@ const logger = createLogger('ContentBudgetManager');
 const FACT_BUDGET_MAX_TOKENS = 600;
 const FACT_BUDGET_MAX_FRACTION = 0.3;
 
+/**
+ * The history pre-pass result (STM/LTM dedup-hole fix). History is selected
+ * BEFORE memory retrieval — it needs nothing from memories once the memory
+ * budget is a reserve — so the EXACT shipped-history boundary is known when
+ * the LTM query runs, instead of assuming all fetched history ships and
+ * losing the truncated range to neither path.
+ */
+export interface PreselectedHistory {
+  currentMessage: HumanMessage;
+  contentForStorage: string;
+  systemPromptBaseTokens: number;
+  currentMessageTokens: number;
+  /** Memory budget (same formula as always) — reserved up front so the
+   * history budget is computable pre-retrieval. */
+  memoryReserve: number;
+  historyBudget: number;
+  serializedHistory: string;
+  historyTokensUsed: number;
+  messagesDropped: number;
+  crossChannelMessagesIncluded: number;
+  /** min createdAt over SELECTED current-channel entries; undefined when
+   * nothing shipped. The exact time baseline for STM/LTM dedup. */
+  oldestSelectedTs?: number;
+  /** Discord snowflakes of every shipped current-channel entry (incl. chunk
+   * ids) — the authoritative ID-dedup set. */
+  shippedMessageIds: Set<string>;
+}
+
 export class ContentBudgetManager {
   constructor(
     private readonly promptBuilder: PromptBuilder,
     private readonly contextWindowManager: ContextWindowManager
   ) {}
+
+  /**
+   * Select history BEFORE memory retrieval. The memory budget uses the same
+   * formula as always (contention floor preserved: recency yields to identity
+   * at the margin) but as a RESERVE, so the history budget — and therefore the
+   * exact set of shipped messages — no longer depends on what retrieval
+   * returns. Known behavioral delta vs the old order: when memories underuse
+   * their reserve AND history exceeds the reserve-based budget, a few oldest
+   * messages truncate that previously squeaked in — but they become
+   * LTM-reachable by construction (the safe direction).
+   */
+  preselectHistory(
+    opts: Omit<BudgetAllocationOptions, 'retrievedMemories' | 'facts'>
+  ): PreselectedHistory {
+    const { personality, context, historyReductionPercent } = opts;
+    const contextWindowTokens = opts.effectiveContextWindowTokens;
+
+    // Cast is safe: buildBaseComponents reads only prompt/message inputs,
+    // never the omitted retrieval fields (retrievedMemories/facts) — they
+    // don't exist yet at pre-pass time, which is the whole point. If
+    // buildBaseComponents ever grows a retrieval-field read, narrow its
+    // parameter type instead of widening this call.
+    const { currentMessage, contentForStorage, systemPromptBaseTokens } = this.buildBaseComponents(
+      opts as BudgetAllocationOptions
+    );
+    const currentMessageTokens = this.promptBuilder.countTokens(
+      contentToText(currentMessage.content)
+    );
+
+    const historyTokens = this.contextWindowManager.countHistoryTokens(
+      context.rawConversationHistory,
+      personality.name
+    );
+    const memoryReserve = this.contextWindowManager.calculateMemoryBudget(
+      contextWindowTokens,
+      systemPromptBaseTokens,
+      currentMessageTokens,
+      historyTokens
+    );
+
+    let historyBudget = Math.max(
+      0,
+      contextWindowTokens - systemPromptBaseTokens - currentMessageTokens - memoryReserve
+    );
+    // History reduction for duplicate-detection retries (changes the context
+    // window to break API-level caching on free models) — history absorbs it;
+    // the memory reserve is untouched, same as the old order.
+    if (historyReductionPercent !== undefined && historyReductionPercent > 0) {
+      const reducedBudget = Math.floor(historyBudget * (1 - historyReductionPercent));
+      logger.info(
+        {
+          reductionPercent: Math.round(historyReductionPercent * 100),
+          originalBudget: historyBudget,
+          reducedBudget,
+        },
+        'Reducing history budget for duplicate retry'
+      );
+      historyBudget = reducedBudget;
+    }
+
+    const {
+      serializedHistory,
+      historyTokensUsed,
+      messagesDropped,
+      crossChannelMessagesIncluded,
+      selectedEntries,
+    } = this.contextWindowManager.selectAndSerializeHistory(
+      context.rawConversationHistory,
+      personality.name,
+      historyBudget,
+      context.crossChannelHistory,
+      context.environment
+    );
+
+    const selectedTimestamps = selectedEntries
+      .map(entry => (entry.createdAt !== undefined ? new Date(entry.createdAt).getTime() : NaN))
+      .filter(ts => Number.isFinite(ts));
+    const oldestSelectedTs =
+      selectedTimestamps.length > 0
+        ? selectedTimestamps.reduce((min, ts) => Math.min(min, ts), Infinity)
+        : undefined;
+
+    return {
+      currentMessage,
+      contentForStorage,
+      systemPromptBaseTokens,
+      currentMessageTokens,
+      memoryReserve,
+      historyBudget,
+      serializedHistory,
+      historyTokensUsed,
+      messagesDropped,
+      crossChannelMessagesIncluded,
+      oldestSelectedTs,
+      shippedMessageIds: buildHistoryMessageIdSet(selectedEntries),
+    };
+  }
+
+  /**
+   * STM/LTM dedup at selection time — the authoritative filter (the query
+   * cutoff over-retrieves past the boundary to catch memory-persistence lag).
+   * Keep a memory iff:
+   *   - it predates the oldest SHIPPED current-channel message (exact time
+   *     baseline, strict — no buffer band), OR
+   *   - it is a current-channel memory whose source messages were all DROPPED
+   *     (has messageIds, none shipped) — the rescue that closes the hole.
+   * The rescue is CHANNEL-SCOPED: without that, memories of shipped
+   * cross-channel content would re-enter as duplication (their ids are not in
+   * the shipped-current set). Legacy id-less rows get only the time baseline —
+   * today's semantics. No filter when nothing shipped.
+   */
+  private filterShippedMemories(
+    memories: MemoryDocument[],
+    preselected: PreselectedHistory,
+    currentChannelId: string | undefined
+  ): MemoryDocument[] {
+    const { oldestSelectedTs, shippedMessageIds } = preselected;
+    if (oldestSelectedTs === undefined) {
+      return memories;
+    }
+    const kept = memories.filter(memory => {
+      // createdAt is string | number by type; normalize once so a
+      // string-stamped memory that predates the boundary cannot silently
+      // fall through to the (stricter) rescue branch and be dropped — that
+      // would be the exact coverage-loss class this filter exists to close.
+      const createdAtRaw = memory.metadata?.createdAt;
+      const createdAtMs = createdAtRaw !== undefined ? new Date(createdAtRaw).getTime() : NaN;
+      if (Number.isFinite(createdAtMs) && createdAtMs < oldestSelectedTs) {
+        return true;
+      }
+      const messageIds = memory.metadata?.messageIds;
+      const channelId = memory.metadata?.channelId;
+      return (
+        currentChannelId !== undefined &&
+        channelId === currentChannelId &&
+        Array.isArray(messageIds) &&
+        messageIds.length > 0 &&
+        !messageIds.some(id => shippedMessageIds.has(id))
+      );
+    });
+    if (kept.length < memories.length) {
+      logger.info(
+        {
+          retrieved: memories.length,
+          kept: kept.length,
+          filtered: memories.length - kept.length,
+          oldestSelectedTs,
+        },
+        'STM/LTM selection filter dropped shipped-range memories'
+      );
+    }
+    return kept;
+  }
 
   /**
    * Allocate token budgets and select memories/history within constraints
@@ -53,39 +235,38 @@ export class ContentBudgetManager {
    * 5. Select and serialize history
    * 6. Build final system prompt with all content
    */
-  allocate(opts: BudgetAllocationOptions): BudgetAllocationResult {
+  allocate(opts: BudgetAllocationOptions, preselected: PreselectedHistory): BudgetAllocationResult {
     const { processedPersonality, participantPersonas, context } = opts;
     const contextWindowTokens = opts.effectiveContextWindowTokens;
 
-    // Build current message and base system prompt
-    const { currentMessage, contentForStorage, systemPromptBaseTokens } =
-      this.buildBaseComponents(opts);
-    const currentMessageTokens = this.promptBuilder.countTokens(
-      contentToText(currentMessage.content)
+    // History was selected BEFORE retrieval (preselectHistory) so the exact
+    // shipped boundary informed the LTM query; here memories are dedup-filtered
+    // against what actually shipped, then selected into the reserve.
+    const {
+      contentForStorage,
+      systemPromptBaseTokens,
+      currentMessageTokens,
+      serializedHistory,
+      historyTokensUsed,
+      historyBudget,
+      messagesDropped,
+      crossChannelMessagesIncluded,
+    } = preselected;
+
+    const dedupedMemories = this.filterShippedMemories(
+      opts.retrievedMemories,
+      preselected,
+      context.channelId
     );
 
-    // Select memories + facts within budget (facts get a reserved sub-budget)
+    // Select memories + facts within the reserve (facts get a reserved sub-budget)
     const {
       relevantMemories,
       memoryTokensUsed,
       memoriesDroppedCount,
       selectedFacts,
       factTokensUsed,
-    } = this.selectMemories(
-      opts,
-      contextWindowTokens,
-      systemPromptBaseTokens,
-      currentMessageTokens
-    );
-
-    // Select history within budget
-    const {
-      serializedHistory,
-      historyTokensUsed,
-      historyBudget,
-      messagesDropped,
-      crossChannelMessagesIncluded,
-    } = this.selectHistory(opts, relevantMemories, contextWindowTokens, currentMessageTokens);
+    } = this.selectMemories(opts, dedupedMemories, preselected.memoryReserve);
 
     // Build final system prompt
     // Note: Image descriptions are now inline in serializedHistory (via injectImageDescriptions)
@@ -174,9 +355,8 @@ export class ContentBudgetManager {
 
   private selectMemories(
     opts: BudgetAllocationOptions,
-    contextWindowTokens: number,
-    systemPromptBaseTokens: number,
-    currentMessageTokens: number
+    dedupedMemories: MemoryDocument[],
+    memoryBudget: number
   ): {
     relevantMemories: MemoryDocument[];
     memoryTokensUsed: number;
@@ -184,18 +364,7 @@ export class ContentBudgetManager {
     selectedFacts: FactForPrompt[];
     factTokensUsed: number;
   } {
-    const { personality, retrievedMemories, context } = opts;
-    const historyTokens = this.contextWindowManager.countHistoryTokens(
-      context.rawConversationHistory,
-      personality.name
-    );
-
-    const memoryBudget = this.contextWindowManager.calculateMemoryBudget(
-      contextWindowTokens,
-      systemPromptBaseTokens,
-      currentMessageTokens,
-      historyTokens
-    );
+    const { personality, context } = opts;
 
     // Facts take their reserved slice FIRST; episodes get the remainder — so a
     // dense cluster of short facts can't starve verbose episodes, and vice versa.
@@ -212,7 +381,7 @@ export class ContentBudgetManager {
       memoriesDropped: memoriesDroppedCount,
       droppedDueToSize,
     } = this.contextWindowManager.selectMemoriesWithinBudget(
-      retrievedMemories,
+      dedupedMemories,
       episodeBudget,
       context.userTimezone
     );
@@ -221,7 +390,7 @@ export class ContentBudgetManager {
       logger.info(
         {
           kept: relevantMemories.length,
-          total: retrievedMemories.length,
+          total: dedupedMemories.length,
           tokensUsed: memoryTokensUsed,
           budget: memoryBudget,
           episodeBudget,
@@ -281,81 +450,6 @@ export class ContentBudgetManager {
     return selected.length > 0
       ? { selectedFacts: selected, factTokensUsed: used }
       : { selectedFacts: [], factTokensUsed: 0 };
-  }
-
-  private selectHistory(
-    opts: BudgetAllocationOptions,
-    relevantMemories: MemoryDocument[],
-    contextWindowTokens: number,
-    currentMessageTokens: number
-  ): {
-    serializedHistory: string;
-    historyTokensUsed: number;
-    historyBudget: number;
-    messagesDropped: number;
-    crossChannelMessagesIncluded: number;
-  } {
-    const {
-      personality,
-      processedPersonality,
-      participantPersonas,
-      context,
-      referencedMessagesDescriptions,
-      historyReductionPercent,
-    } = opts;
-
-    const systemPromptWithMemories = this.promptBuilder.buildFullSystemPrompt({
-      personality: processedPersonality,
-      participantPersonas,
-      relevantMemories,
-      context,
-      referencedMessagesFormatted: referencedMessagesDescriptions,
-    });
-
-    const systemPromptWithMemoriesTokens = this.promptBuilder.countTokens(
-      contentToText(systemPromptWithMemories.content)
-    );
-
-    let historyBudget = this.contextWindowManager.calculateHistoryBudget(
-      contextWindowTokens,
-      systemPromptWithMemoriesTokens,
-      currentMessageTokens,
-      0
-    );
-
-    // Apply history reduction for duplicate detection retries
-    // This changes the context window to help break API-level caching on free models
-    if (historyReductionPercent !== undefined && historyReductionPercent > 0) {
-      const reducedBudget = Math.floor(historyBudget * (1 - historyReductionPercent));
-      logger.info(
-        {
-          reductionPercent: Math.round(historyReductionPercent * 100),
-          originalBudget: historyBudget,
-          reducedBudget,
-        },
-        'Reducing history budget for duplicate retry'
-      );
-      historyBudget = reducedBudget;
-    }
-
-    const crossChannelGroups = context.crossChannelHistory;
-
-    const { serializedHistory, historyTokensUsed, messagesDropped, crossChannelMessagesIncluded } =
-      this.contextWindowManager.selectAndSerializeHistory(
-        context.rawConversationHistory,
-        personality.name,
-        historyBudget,
-        crossChannelGroups,
-        context.environment
-      );
-
-    return {
-      serializedHistory,
-      historyTokensUsed,
-      historyBudget,
-      messagesDropped,
-      crossChannelMessagesIncluded,
-    };
   }
 
   private logAllocation(opts: {

@@ -161,7 +161,7 @@ interface FormatConversationHistoryOptions {
  * Uses discordMessageId (Discord snowflakes) NOT id (internal database UUIDs) because
  * referenced messages are identified by their Discord message ID.
  */
-function buildHistoryMessageIdSet(history: RawHistoryEntry[]): Set<string> {
+export function buildHistoryMessageIdSet(history: RawHistoryEntry[]): Set<string> {
   const historyMessageIds = new Set<string>();
   for (const msg of history) {
     // Each message may have multiple Discord IDs (for chunked messages)
