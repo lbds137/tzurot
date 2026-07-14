@@ -19,10 +19,21 @@ describe('MULTI_TAG timing invariants', () => {
     expect(MULTI_TAG.COORDINATOR_TIMEOUT_MS).toBeGreaterThanOrEqual(MULTI_TAG.ORDERING_MAX_WAIT_MS);
   });
 
-  it('coordinator timeout stays under the worker lock duration', () => {
-    // The bot-side coordinator wait must finish before the worker lock expires,
-    // or the lock can be reclaimed mid-coordination and two replicas race.
-    expect(MULTI_TAG.COORDINATOR_TIMEOUT_MS).toBeLessThan(TIMEOUTS.WORKER_LOCK_DURATION);
+  it('worker lock (stall detection) fires well before the coordinator flush', () => {
+    // A deploy-killed job must stall-recover and re-run with time to complete
+    // BEFORE the coordinator's last-resort flush synthesizes an error. The lock
+    // is dead-process detection (auto-renewed while the worker lives), so it
+    // must sit far below the flush window; if this inverts, orphaned jobs wedge
+    // until the flush again and the stall re-run becomes pure wasted spend.
+    expect(TIMEOUTS.WORKER_LOCK_DURATION).toBeLessThan(MULTI_TAG.COORDINATOR_TIMEOUT_MS);
+  });
+
+  it('coordinator timeout stays under the in-process job runtime ceiling', () => {
+    // The flush is sized above legitimate long-job runtimes but below the
+    // runtime ceiling — past MAX_JOB_RUNTIME every live job has already been
+    // timed out in-process and delivered a real error, so a flush later than
+    // that could only ever synthesize noise.
+    expect(MULTI_TAG.COORDINATOR_TIMEOUT_MS).toBeLessThan(TIMEOUTS.MAX_JOB_RUNTIME);
   });
 
   it('Redis TTL outlives the coordinator safety window', () => {

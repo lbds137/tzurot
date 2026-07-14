@@ -246,13 +246,23 @@ export function setupFactExtraction(
       // Explicit rather than BullMQ's 30s default: the extraction call may
       // legitimately run to EXTRACTION_TIMEOUT_MS (180s). Auto-renewal covers
       // I/O-bound waits, but after one timing surprise in this worker the
-      // safety margin should be self-documenting (mirrors index.ts).
+      // safety margin should be self-documenting (mirrors index.ts; 5-min
+      // lock = dead-process detection, not a runtime bound).
       lockDuration: TIMEOUTS.WORKER_LOCK_DURATION,
+      // One stall-recovery re-run for deploy-killed jobs (spend-safe: the
+      // busy path shrinks remainingMemoryIds via job.updateData, so a re-run
+      // never re-bills completed sub-units); a second stall fails the job.
+      maxStalledCount: 1,
     }
   );
 
   worker.on('failed', (job, err) => {
     logger.warn({ jobId: job?.id, err }, 'Fact-extraction job failed (BullMQ will retry)');
+  });
+  // Stall = lock expired because the owning process died mid-extraction
+  // (deploy/crash); BullMQ has re-queued the job for a re-run.
+  worker.on('stalled', (jobId: string) => {
+    logger.warn({ jobId }, 'Fact-extraction job stalled (owning process died) — re-queued');
   });
   // Connection-level errors (Redis blips, lock renewal) emit 'error', not
   // 'failed' — an unhandled 'error' event throws synchronously and would

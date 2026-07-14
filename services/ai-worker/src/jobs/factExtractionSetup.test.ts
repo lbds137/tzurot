@@ -9,20 +9,25 @@ const {
   addMock,
   queueCloseMock,
   workerCloseMock,
+  workerOnHandlers,
   getConfigMock,
   systemSettingsFixture,
   processBatchMock,
   loggerErrorMock,
+  loggerWarnMock,
   MockDelayedError,
 } = vi.hoisted(() => ({
   addMock: vi.fn(),
   queueCloseMock: vi.fn(),
   workerCloseMock: vi.fn(),
+  /** Event handlers the worker registers via .on(), keyed by event name. */
+  workerOnHandlers: new Map<string, (...args: never[]) => unknown>(),
   getConfigMock: vi.fn(),
   /** Per-test overrides for getSystemSetting reads (fallbacks otherwise). */
   systemSettingsFixture: new Map<string, unknown>(),
   processBatchMock: vi.fn().mockResolvedValue(2),
   loggerErrorMock: vi.fn(),
+  loggerWarnMock: vi.fn(),
   MockDelayedError: class MockDelayedError extends Error {},
 }));
 let capturedProcessor:
@@ -34,7 +39,12 @@ vi.mock('bullmq', () => ({
   }),
   Worker: vi.fn().mockImplementation(function (_name: string, processor: typeof capturedProcessor) {
     capturedProcessor = processor;
-    return { on: vi.fn(), close: workerCloseMock };
+    return {
+      on: vi.fn((event: string, cb: (...args: never[]) => unknown) => {
+        workerOnHandlers.set(event, cb);
+      }),
+      close: workerCloseMock,
+    };
   }),
   // The worker throws `new DelayedError()` after job.moveToDelayed — BullMQ's
   // documented per-job manual-delay pattern (no retry attempt consumed).
@@ -69,7 +79,7 @@ vi.mock('@tzurot/common-types/services/SystemSettingsService', async importOrigi
 vi.mock('@tzurot/common-types/utils/logger', () => ({
   createLogger: () => ({
     info: vi.fn(),
-    warn: vi.fn(),
+    warn: loggerWarnMock,
     error: loggerErrorMock,
     debug: vi.fn(),
   }),
@@ -86,6 +96,7 @@ describe('setupFactExtraction', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     capturedProcessor = undefined;
+    workerOnHandlers.clear();
     systemSettingsFixture.clear();
     getConfigMock.mockReturnValue({ EXTRACTION_DAILY_LIMIT: 100, ZAI_CODING_API_KEY: undefined });
   });
@@ -106,6 +117,29 @@ describe('setupFactExtraction', () => {
     expect(assembly).toBeDefined();
     expect(assembly?.trigger).toBeDefined();
     expect(capturedProcessor).toBeDefined();
+  });
+
+  it('logs a stalled event at warn with the jobId — the deploy-orphan recovery trail', () => {
+    setupFactExtraction(prisma, redis, bullmqConnection, embeddings);
+    const stalled = workerOnHandlers.get('stalled');
+    expect(stalled).toBeDefined();
+    (stalled as (jobId: string) => void)('job-42');
+    expect(loggerWarnMock).toHaveBeenCalledWith(
+      { jobId: 'job-42' },
+      expect.stringContaining('stalled')
+    );
+  });
+
+  it('logs a failed event at warn with the jobId and error', () => {
+    setupFactExtraction(prisma, redis, bullmqConnection, embeddings);
+    const failed = workerOnHandlers.get('failed');
+    expect(failed).toBeDefined();
+    const err = new Error('boom');
+    (failed as (job: { id: string } | undefined, err: Error) => void)({ id: 'job-7' }, err);
+    expect(loggerWarnMock).toHaveBeenCalledWith(
+      { jobId: 'job-7', err },
+      expect.stringContaining('failed')
+    );
   });
 
   it('logs loudly (but still boots) when zai-coding is configured without the system key', () => {
@@ -179,6 +213,7 @@ describe('delay-not-downgrade (provider busy at the BullMQ seam)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     capturedProcessor = undefined;
+    workerOnHandlers.clear();
     systemSettingsFixture.clear();
     getConfigMock.mockReturnValue({ EXTRACTION_DAILY_LIMIT: 100, ZAI_CODING_API_KEY: undefined });
   });

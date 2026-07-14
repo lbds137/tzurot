@@ -163,6 +163,10 @@ function createMainWorker(jobProcessor: AIJobProcessor): Worker {
       removeOnComplete: { count: QUEUE_CONFIG.COMPLETED_HISTORY_LIMIT },
       removeOnFail: { count: QUEUE_CONFIG.FAILED_HISTORY_LIMIT },
       lockDuration: TIMEOUTS.WORKER_LOCK_DURATION,
+      // Explicit BullMQ default: a deploy-killed job gets exactly ONE
+      // stall-recovery re-run; a second stall fails it with a real error
+      // (which propagates to the coordinator) instead of looping.
+      maxStalledCount: 1,
     }
   );
 
@@ -193,6 +197,15 @@ function createMainWorker(jobProcessor: AIJobProcessor): Worker {
   worker.on('failed', (job: Job | undefined, error: Error) => {
     const jobId = job?.id ?? 'unknown';
     logger.error({ err: error }, `Job ${jobId} failed`);
+  });
+
+  // Stall = the job's lock expired, meaning its owning process died
+  // (deploy, crash, OOM) — a live worker auto-renews. BullMQ re-queues the
+  // job: it re-runs, unless the stall limit was already exceeded, in which
+  // case it fails on pickup ("job stalled more than allowable limit").
+  // This log is the deploy-orphan recovery trail.
+  worker.on('stalled', (jobId: string) => {
+    logger.warn({ jobId }, 'Job stalled (owning process died) — re-queued');
   });
 
   worker.on('error', (error: Error) => {
