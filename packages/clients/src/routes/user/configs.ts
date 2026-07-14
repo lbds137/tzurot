@@ -39,6 +39,11 @@ import {
   SetSttDefaultProviderSchema,
 } from '@tzurot/common-types/schemas/api/stt-override';
 import {
+  GetNotificationPrefsResponseSchema,
+  UpdateNotificationPrefsInputSchema,
+  UpdateNotificationPrefsResponseSchema,
+} from '@tzurot/common-types/schemas/api/notifications';
+import {
   GetTimezoneResponseSchema,
   SetTimezoneInputSchema,
   SetTimezoneResponseSchema,
@@ -98,6 +103,32 @@ export const userConfigRoutes = {
     input: SetTimezoneInputSchema,
     output: SetTimezoneResponseSchema,
     requiresProvisionedUser: true,
+    meta: { idempotent: true },
+  },
+
+  // ============================================================================
+  // Release-notes notification preferences (self-only)
+  // ============================================================================
+
+  getNotificationPrefs: {
+    audience: 'user',
+    method: 'get',
+    path: '/notifications',
+    id: 'getNotificationPrefs',
+    output: GetNotificationPrefsResponseSchema,
+    requiresProvisionedUser: true,
+    meta: { safeRead: true },
+  },
+
+  updateNotificationPrefs: {
+    audience: 'user',
+    method: 'patch',
+    path: '/notifications',
+    id: 'updateNotificationPrefs',
+    input: UpdateNotificationPrefsInputSchema,
+    output: UpdateNotificationPrefsResponseSchema,
+    requiresProvisionedUser: true,
+    // PATCH-merge of the same body lands the same state.
     meta: { idempotent: true },
   },
 

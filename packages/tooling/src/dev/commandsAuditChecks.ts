@@ -57,6 +57,8 @@ const KNOWN_SUBCOMMAND_NAMES = new Set<string>([
   'import',
   'export',
   'template',
+  // /notifications threshold verb (set the minimum release weight worth a DM)
+  'level',
   // /character chat-mode verbs (chat / random / chime-in) — deliberate, established
   'chat',
   'random',

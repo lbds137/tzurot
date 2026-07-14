@@ -12,6 +12,7 @@
     "Channel",
     "Inspect",
     "Models",
+    "Notifications",
     "Deny",
     "Admin",
     "Help",
@@ -1378,6 +1379,71 @@
         ],
         "name": "models",
         "description": "Browse and inspect available AI models",
+        "type": 1
+      }
+    },
+    {
+      "name": "notifications",
+      "category": "Notifications",
+      "description": "Manage release-notes DM notifications",
+      "handlers": {
+        "execute": true,
+        "autocomplete": false,
+        "selectMenu": false,
+        "button": false,
+        "modal": false
+      },
+      "componentPrefixes": [],
+      "data": {
+        "options": [
+          {
+            "type": 1,
+            "name": "view",
+            "description": "Show your notification settings",
+            "options": []
+          },
+          {
+            "type": 1,
+            "name": "enable",
+            "description": "Enable release-notes DMs",
+            "options": []
+          },
+          {
+            "type": 1,
+            "name": "disable",
+            "description": "Disable release-notes DMs",
+            "options": []
+          },
+          {
+            "type": 1,
+            "name": "level",
+            "description": "Set the minimum release weight worth a DM",
+            "options": [
+              {
+                "type": 3,
+                "choices": [
+                  {
+                    "name": "Major — breaking changes only",
+                    "value": "major"
+                  },
+                  {
+                    "name": "Minor — features and breaking changes (default)",
+                    "value": "minor"
+                  },
+                  {
+                    "name": "Patch — every release, including fix-only",
+                    "value": "patch"
+                  }
+                ],
+                "name": "level",
+                "description": "Releases below this weight are skipped",
+                "required": true
+              }
+            ]
+          }
+        ],
+        "name": "notifications",
+        "description": "Manage release-notes DM notifications",
         "type": 1
       }
     },

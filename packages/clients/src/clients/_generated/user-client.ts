@@ -96,6 +96,47 @@ export class UserClient {
   /**
    * @safeRead Server-side has no observable mutation — safe to cache client-side.
    */
+  async getNotificationPrefs(): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.getNotificationPrefs.output>>> {
+    const fullPath = '/api/user/notifications';
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'GET',
+      path: fullPath,
+      headers: {
+        'X-User-Id': this.actor,
+        'X-User-Username': encodeURIComponent(this.user.username),
+        'X-User-DisplayName': encodeURIComponent(this.user.displayName),
+        'X-User-Is-Bot': String(this.user.isBot),
+      },
+      outputSchema: ROUTE_MANIFEST.getNotificationPrefs.output,
+    });
+  }
+
+  /**
+   * @idempotent Replaying the exact same request lands the same final state — safe to retry on network failure.
+   */
+  async updateNotificationPrefs(input: z.infer<typeof ROUTE_MANIFEST.updateNotificationPrefs.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.updateNotificationPrefs.output>>> {
+    const fullPath = '/api/user/notifications';
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'PATCH',
+      path: fullPath,
+      headers: {
+        'X-User-Id': this.actor,
+        'X-User-Username': encodeURIComponent(this.user.username),
+        'X-User-DisplayName': encodeURIComponent(this.user.displayName),
+        'X-User-Is-Bot': String(this.user.isBot),
+      },
+      body: input,
+      outputSchema: ROUTE_MANIFEST.updateNotificationPrefs.output,
+    });
+  }
+
+  /**
+   * @safeRead Server-side has no observable mutation — safe to cache client-side.
+   */
   async listUserLlmConfigs(): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.listUserLlmConfigs.output>>> {
     const fullPath = '/api/user/llm-config';
     return callGateway({

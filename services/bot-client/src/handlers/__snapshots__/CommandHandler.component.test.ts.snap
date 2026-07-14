@@ -1749,6 +1749,72 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
 ]
 `;
 
+exports[`CommandHandler (component) > command structure snapshots > has a stable option structure for every registered command > notifications-command-options 1`] = `
+[
+  {
+    "description": "Show your notification settings",
+    "description_localizations": undefined,
+    "name": "view",
+    "name_localizations": undefined,
+    "options": [],
+    "type": 1,
+  },
+  {
+    "description": "Enable release-notes DMs",
+    "description_localizations": undefined,
+    "name": "enable",
+    "name_localizations": undefined,
+    "options": [],
+    "type": 1,
+  },
+  {
+    "description": "Disable release-notes DMs",
+    "description_localizations": undefined,
+    "name": "disable",
+    "name_localizations": undefined,
+    "options": [],
+    "type": 1,
+  },
+  {
+    "description": "Set the minimum release weight worth a DM",
+    "description_localizations": undefined,
+    "name": "level",
+    "name_localizations": undefined,
+    "options": [
+      {
+        "autocomplete": undefined,
+        "choices": [
+          {
+            "name": "Major — breaking changes only",
+            "name_localizations": undefined,
+            "value": "major",
+          },
+          {
+            "name": "Minor — features and breaking changes (default)",
+            "name_localizations": undefined,
+            "value": "minor",
+          },
+          {
+            "name": "Patch — every release, including fix-only",
+            "name_localizations": undefined,
+            "value": "patch",
+          },
+        ],
+        "description": "Releases below this weight are skipped",
+        "description_localizations": undefined,
+        "max_length": undefined,
+        "min_length": undefined,
+        "name": "level",
+        "name_localizations": undefined,
+        "required": true,
+        "type": 3,
+      },
+    ],
+    "type": 1,
+  },
+]
+`;
+
 exports[`CommandHandler (component) > command structure snapshots > has a stable option structure for every registered command > persona-command-options 1`] = `
 [
   {
@@ -2900,6 +2966,7 @@ exports[`CommandHandler (component) > command structure snapshots > registers a 
   "inspect",
   "memory",
   "models",
+  "notifications",
   "persona",
   "preset",
   "settings",

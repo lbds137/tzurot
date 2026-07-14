@@ -35,8 +35,15 @@ model User {
   defaultPersonaId      String                     @map("default_persona_id") @db.Uuid
   /// JSONB config cascade defaults (user tier). Validated against ConfigOverridesSchema at runtime.
   configDefaults        Json?                      @map("config_defaults")
+  /// Release-notes DM master switch (default opt-in per owner spec; /notifications on|off).
+  notifyEnabled         Boolean                    @default(true) @map("notify_enabled")
+  /// Minimum changelog-derived release weight worth a DM (default minor:
+  /// feature releases yes, fix-only releases no).
+  notifyLevel           NotifyLevel                @default(minor) @map("notify_level")
   createdAt             DateTime                   @default(now()) @map("created_at")
   updatedAt             DateTime                   @updatedAt @map("updated_at")
+  releaseDeliveries     ReleaseDeliveryLog[]
+  feedbackSubmissions   UserFeedback[]
   apiKeys               UserApiKey[]
   credentials           UserCredential[]
   importJobs            ImportJob[]
@@ -937,4 +944,104 @@ model ExportJob {
   @@index([status])
   @@index([expiresAt])
   @@map("export_jobs")
+}
+
+/// Minimum release weight a user wants DM'd. Weights are CHANGELOG-derived
+/// (Breaking Changes→major, Features→minor, fixes-only→patch), NOT semver-delta —
+/// beta bumps classify by their content.
+/// Declaration order (major < minor < patch) is LOAD-BEARING: Postgres enum
+/// comparison follows it, so the eligibility query can use release.level <=
+/// user.notify_level. Do not reorder.
+enum NotifyLevel {
+  major
+  minor
+  patch
+
+  @@map("notify_level")
+}
+
+/// Release-DM delivery outcome per (release, user).
+enum DeliveryStatus {
+  pending
+  sent
+  failed_transient
+  failed_permanent
+
+  @@map("delivery_status")
+}
+
+/// Feedback triage state (owner-driven).
+enum FeedbackStatus {
+  new
+  read
+  archived
+
+  @@map("feedback_status")
+}
+
+/// One row per announced release — the delivery pipeline's idempotency backbone
+/// (GitHub retries webhooks; the unique version means at most one blast per release).
+model ReleaseAnnouncement {
+  id              String               @id @db.Uuid
+  version         String               @unique @db.VarChar(50)
+  /// Changelog-derived weight of this release (see NotifyLevel).
+  level           NotifyLevel
+  githubReleaseId String               @map("github_release_id") @db.VarChar(30)
+  /// Raw release-notes markdown captured at trigger time — retries and the DM
+  /// formatter read this instead of refetching from GitHub.
+  body            String
+  createdAt       DateTime             @default(now()) @map("created_at")
+  /// State machine: null until the DM blast finishes; set atomically with the
+  /// final delivery-log write.
+  completedAt     DateTime?            @map("completed_at")
+  deliveries      ReleaseDeliveryLog[]
+
+  @@map("release_announcements")
+}
+
+/// Per-(release, user) delivery outcome — retry-exactly-the-failures, failure
+/// classification, and the post-blast ops report all read from here.
+model ReleaseDeliveryLog {
+  id          String              @id @db.Uuid
+  releaseId   String              @map("release_id") @db.Uuid
+  userId      String              @map("user_id") @db.Uuid
+  status      DeliveryStatus      @default(pending)
+  /// State-machine-by-status: null unless status is failed_*; carries the
+  /// Discord error class (e.g. 50007 = cannot DM this user).
+  errorCode   String?             @map("error_code") @db.VarChar(50)
+  /// Deferred-set: null on row creation; stamped by the bot-client worker on
+  /// each delivery attempt.
+  attemptedAt DateTime?           @map("attempted_at")
+  createdAt   DateTime            @default(now()) @map("created_at")
+  updatedAt   DateTime            @updatedAt @map("updated_at")
+  release     ReleaseAnnouncement @relation(fields: [releaseId], references: [id], onDelete: Cascade)
+  user        User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // userId follows the schema-wide "every userId FK is indexed" convention
+  // (ON DELETE CASCADE is an implicit query on parent-row deletes). Query-shaped
+  // secondary indexes (retry sweep, ops report) still land with their queries
+  // per 03-database "indexes ship with their query".
+  @@unique([releaseId, userId])
+  @@index([userId])
+  @@map("release_delivery_log")
+}
+
+/// User-submitted feedback (abuse-gated at the gateway). The owner triages via
+/// status; a silent post to the private owner channel mirrors each row.
+model UserFeedback {
+  id          String         @id @db.Uuid
+  userId      String         @map("user_id") @db.Uuid
+  content     String         @db.VarChar(2000)
+  /// sha-256 hex of normalized content — near-dup rejection compares against
+  /// the user's recent rows.
+  contentHash String         @map("content_hash") @db.VarChar(64)
+  status      FeedbackStatus @default(new)
+  createdAt   DateTime       @default(now()) @map("created_at")
+  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Schema-wide convention: every userId FK is indexed (cascade deletes are
+  // implicit queries). The dedupe-shaped index ([userId, contentHash]) still
+  // lands with its query in the feedback-intake PR.
+  @@index([userId])
+  @@map("user_feedback")
 }

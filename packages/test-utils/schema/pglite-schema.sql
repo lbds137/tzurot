@@ -7,6 +7,15 @@ CREATE EXTENSION IF NOT EXISTS "citext";
 -- CreateExtension
 CREATE EXTENSION IF NOT EXISTS "vector";
 
+-- CreateEnum
+CREATE TYPE "notify_level" AS ENUM ('major', 'minor', 'patch');
+
+-- CreateEnum
+CREATE TYPE "delivery_status" AS ENUM ('pending', 'sent', 'failed_transient', 'failed_permanent');
+
+-- CreateEnum
+CREATE TYPE "feedback_status" AS ENUM ('new', 'read', 'archived');
+
 -- CreateTable
 CREATE TABLE "users" (
     "id" UUID NOT NULL,
@@ -22,6 +31,8 @@ CREATE TABLE "users" (
     "default_stt_provider_id" VARCHAR(20),
     "default_persona_id" UUID NOT NULL,
     "config_defaults" JSONB,
+    "notify_enabled" BOOLEAN NOT NULL DEFAULT true,
+    "notify_level" "notify_level" NOT NULL DEFAULT 'minor',
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
 
@@ -508,6 +519,45 @@ CREATE TABLE "export_jobs" (
     CONSTRAINT "export_jobs_pkey" PRIMARY KEY ("id")
 );
 
+-- CreateTable
+CREATE TABLE "release_announcements" (
+    "id" UUID NOT NULL,
+    "version" VARCHAR(50) NOT NULL,
+    "level" "notify_level" NOT NULL,
+    "github_release_id" VARCHAR(30) NOT NULL,
+    "body" TEXT NOT NULL,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "completed_at" TIMESTAMP(3),
+
+    CONSTRAINT "release_announcements_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "release_delivery_log" (
+    "id" UUID NOT NULL,
+    "release_id" UUID NOT NULL,
+    "user_id" UUID NOT NULL,
+    "status" "delivery_status" NOT NULL DEFAULT 'pending',
+    "error_code" VARCHAR(50),
+    "attempted_at" TIMESTAMP(3),
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "release_delivery_log_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "user_feedback" (
+    "id" UUID NOT NULL,
+    "user_id" UUID NOT NULL,
+    "content" VARCHAR(2000) NOT NULL,
+    "content_hash" VARCHAR(64) NOT NULL,
+    "status" "feedback_status" NOT NULL DEFAULT 'new',
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "user_feedback_pkey" PRIMARY KEY ("id")
+);
+
 -- CreateIndex
 CREATE UNIQUE INDEX "users_discord_id_key" ON "users"("discord_id");
 
@@ -814,6 +864,18 @@ CREATE INDEX "export_jobs_expires_at_idx" ON "export_jobs"("expires_at");
 -- CreateIndex
 CREATE UNIQUE INDEX "export_jobs_user_id_source_slug_source_service_format_key" ON "export_jobs"("user_id", "source_slug", "source_service", "format");
 
+-- CreateIndex
+CREATE UNIQUE INDEX "release_announcements_version_key" ON "release_announcements"("version");
+
+-- CreateIndex
+CREATE INDEX "release_delivery_log_user_id_idx" ON "release_delivery_log"("user_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "release_delivery_log_release_id_user_id_key" ON "release_delivery_log"("release_id", "user_id");
+
+-- CreateIndex
+CREATE INDEX "user_feedback_user_id_idx" ON "user_feedback"("user_id");
+
 -- AddForeignKey
 ALTER TABLE "users" ADD CONSTRAINT "users_default_llm_config_id_fkey" FOREIGN KEY ("default_llm_config_id") REFERENCES "llm_configs"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
@@ -966,6 +1028,15 @@ ALTER TABLE "import_jobs" ADD CONSTRAINT "import_jobs_personality_id_fkey" FOREI
 
 -- AddForeignKey
 ALTER TABLE "export_jobs" ADD CONSTRAINT "export_jobs_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "release_delivery_log" ADD CONSTRAINT "release_delivery_log_release_id_fkey" FOREIGN KEY ("release_id") REFERENCES "release_announcements"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "release_delivery_log" ADD CONSTRAINT "release_delivery_log_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "user_feedback" ADD CONSTRAINT "user_feedback_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- CHECK constraints harvested from prisma/migrations/**/migration.sql
 -- (Prisma's schema-diff generator has no CHECK-constraint representation,
