@@ -8,6 +8,7 @@
 
 - **#1642** `fix`: multi-tag wedge — safety-flush re-poll (real results beat synthetic errors), original-deadline re-arm (restart never extends a wedge), `tts-audio:` TTL 300s→30min (invariant-tested). 3 review rounds, all findings applied; runtime verification pending (needs a real deploy-orphan or safety-flush event — observability: the new `remainingBudgetMs` field in the "Multi-tag entry rehydrated" log + the re-poll's "found a real job outcome" line).
 - **#1643** `feat`: fact-scoring glue (`pnpm eval:fact-score`) — the committed 1b weight-sim runner (local-artifact eval tier, self-skipping; first run produced the composite-scoring refutation recorded in the epic row).
+- **#1644** `feat`: fact `valid_from` = evidence time (newest source episode), not extractor run time — 1b redirect slice A. Extraction stamps source time; revival refreshes it; `pnpm ops memory:repair-fact-timestamps` (backward-only, idempotent) — **dev repaired (21,530 rows, re-run 0)**. Offline gate vs judged bench: retrieval-neutral. **RELEASE STEP: run `pnpm ops memory:repair-fact-timestamps --env prod` at the next release** (safe before or after deploy; once).
 
 ## Next Session Goal (sequenced — fresh session starts here)
 
