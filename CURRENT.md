@@ -10,7 +10,7 @@ _(empty — beta.165 shipped everything; develop is SHA-aligned with main as of 
 
 ## Next Session Goal (sequenced — fresh session starts here)
 
-1. **Prod fact-timestamp repair (the #1644 release step)** — `pnpm ops memory:repair-fact-timestamps --env prod --force`. Dry-run ran 2026-07-14 post-release: **21,493 repairable rows** (12,588 skewed >6mo — the backfill signature). Execution was permission-blocked mid-session (prod DB mutation needs the owner to name it); **owner go pending**. Idempotent, backward-only, safe any time.
+1. ~~**Prod fact-timestamp repair (the #1644 release step)**~~ ✅ **DONE 2026-07-14 (owner-approved)** — 21,493 facts rewound to evidence time (12,588 were >6mo skewed — the backfill signature); post-run dry-run confirms 0 remaining. Release checklist closed.
 2. **beta.165 smoke (risk-derived, three items)** — (a) one normal reply in a long-history channel (#1645 pre-pass main path), (b) one recall probe about something old (proves the dedup-hole fix surfaces past-truncation content and isn't over-filtering), (c) one multi-tag message (#1642 coordinator touch). Owner drives; results land here.
 3. **1b next**: slice B (read-side dup collapse) is recommendation-DON'T-BUILD pending the owner's felt-repetition re-measure now that slice A + the dedup-hole fix are in prod; correction detection and the other redirect deferrals sit in `cold/follow-ups.md` with promote-when triggers. Nothing to build until the re-measure speaks.
 
