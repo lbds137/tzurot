@@ -381,6 +381,29 @@ export function generateUserApiKeyUuid(userId: string, provider: string): string
 }
 
 /**
+ * Generate deterministic UUID for ReleaseAnnouncement
+ * Seed: release_announcement:{version}
+ *
+ * Version is the table's natural unique key — a webhook retry or a
+ * double-triggered broadcast for the same version derives the same id.
+ */
+export function generateReleaseAnnouncementUuid(version: string): string {
+  return uuidv5(`release_announcement:${version}`, TZUROT_NAMESPACE);
+}
+
+/**
+ * Generate deterministic UUID for ReleaseDeliveryLog
+ * Seed: release_delivery_log:{releaseId}:{userId}
+ *
+ * Mirrors the table's @@unique([releaseId, userId]) — re-resolving the same
+ * blast's recipients derives the same row ids (createMany skipDuplicates
+ * makes the enqueue path idempotent by construction).
+ */
+export function generateReleaseDeliveryLogUuid(releaseId: string, userId: string): string {
+  return uuidv5(`release_delivery_log:${releaseId}:${userId}`, TZUROT_NAMESPACE);
+}
+
+/**
  * Generate deterministic UUID for UserCredential
  * Seed: user_credential:{userId}:{service}:{credentialType}
  *

@@ -94,7 +94,7 @@ import {
 } from './bootstrap/index.js';
 
 // Queue
-import { aiQueue, queueEvents, closeQueue } from './queue.js';
+import { aiQueue, releaseBroadcastQueue, queueEvents, closeQueue } from './queue.js';
 import { createShutdownHandler } from './shutdownHandler.js';
 import {
   initializeDeduplicationCache,
@@ -399,6 +399,7 @@ function registerRoutes(
     systemSettingsInvalidation,
     redis: cacheRedis,
     aiQueue,
+    releaseBroadcastQueue,
     queueEvents,
   };
 

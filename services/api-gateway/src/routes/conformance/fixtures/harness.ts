@@ -124,6 +124,8 @@ export async function buildConformanceHarness(): Promise<ConformanceHarness> {
     prisma,
     redis: testEnv.redis,
     aiQueue: fakeQueue,
+    // The broadcast enqueue only calls queue.add — same stand-in works.
+    releaseBroadcastQueue: fakeQueue,
     queueEvents: fakeQueueEvents,
     // Real resolvers over PGLite — required deps since the detached-resolver
     // cleanup; enableCleanup off (no timers in tests).

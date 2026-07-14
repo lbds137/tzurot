@@ -27,6 +27,7 @@ import {
   AudioTooLongError,
   SttUnavailableError,
 } from '@tzurot/common-types/utils/errors';
+import type { DeliveryOutcome } from '@tzurot/common-types/schemas/api/broadcast';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { TTLCache } from '@tzurot/common-types/utils/TTLCache';
 import type { LoadedPersonality, MessageContext, TranscribeResponse } from '../types.js';
@@ -256,6 +257,84 @@ export async function confirmDelivery(jobId: string): Promise<void> {
     return;
   }
   logger.debug({ jobId }, 'Delivery confirmed');
+}
+
+/**
+ * Filter a broadcast batch's delivery-log ids down to the still-pending
+ * subset — the DM worker's stall-rerun double-DM guard. THROWS on gateway
+ * failure: this runs BEFORE any DM is sent, so failing the job here is safe
+ * and lets BullMQ's queue-level retry (attempts + backoff) actually re-run
+ * the batch. Swallowing the error would complete the job with the whole
+ * batch silently undelivered.
+ */
+export async function filterPendingDeliveries(
+  releaseId: string,
+  deliveryLogIds: string[]
+): Promise<string[]> {
+  const result = await getServiceClient().releaseBroadcastPending(releaseId, { deliveryLogIds });
+  if (!result.ok) {
+    logger.error({ status: result.status, releaseId }, 'Failed to filter pending deliveries');
+    throw new Error(`Pending-delivery filter failed: ${result.status} ${result.error}`);
+  }
+  return result.data.pendingDeliveryLogIds;
+}
+
+/** One reported delivery outcome (mirrors the internal-route contract). */
+export interface DeliveryReport {
+  deliveryLogId: string;
+  status: DeliveryOutcome;
+  errorCode?: string;
+}
+
+const REPORT_MAX_ATTEMPTS = 3;
+const REPORT_RETRY_BASE_DELAY_MS = 500;
+
+/** Gateway failures worth retrying: infrastructure states, never 4xx rejections. */
+function isRetryableGatewayFailure(failure: { kind: string; status: number }): boolean {
+  return failure.kind === 'network' || failure.kind === 'timeout' || failure.status >= 500;
+}
+
+/**
+ * Report a batch's delivery outcomes to the gateway ledger, retrying
+ * transient failures — a lost report leaves a SENT row looking pending, and a
+ * later stall-rerun would re-DM it (redeploys of gateway and bot-client are
+ * correlated on this platform, so "report failed" and "job stalls" co-occur).
+ *
+ * After the retries this still NEVER throws — the DM is already sent, and a
+ * thrown error would fail the job, retry the batch, and re-DM the very row
+ * whose report was lost. The asymmetry with filterPendingDeliveries (which
+ * throws) is deliberate: throw before spend, absorb after spend.
+ */
+export async function reportDeliveries(
+  releaseId: string,
+  results: DeliveryReport[]
+): Promise<void> {
+  if (results.length === 0) {
+    return;
+  }
+  for (let attempt = 1; attempt <= REPORT_MAX_ATTEMPTS; attempt++) {
+    const result = await getServiceClient().releaseBroadcastDeliveries(releaseId, { results });
+    if (result.ok) {
+      logger.debug(
+        { releaseId, updated: result.data.updated, completed: result.data.completed },
+        'Delivery outcomes reported'
+      );
+      return;
+    }
+    if (!isRetryableGatewayFailure(result) || attempt === REPORT_MAX_ATTEMPTS) {
+      logger.error(
+        { status: result.status, releaseId, attempt },
+        'Failed to report delivery outcomes — rows stay pending (re-DM risk on stall-rerun)'
+      );
+      return;
+    }
+    const delayMs = REPORT_RETRY_BASE_DELAY_MS * 2 ** (attempt - 1);
+    logger.warn(
+      { status: result.status, releaseId, attempt, nextDelayMs: delayMs },
+      'Transient failure reporting delivery outcomes; retrying'
+    );
+    await new Promise(resolve => setTimeout(resolve, delayMs));
+  }
 }
 
 // ---------------------------------------------------------------------------

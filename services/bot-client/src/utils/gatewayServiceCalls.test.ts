@@ -17,6 +17,8 @@ const mockServiceClient = {
   updateDiagnosticResponseIds: vi.fn(),
   aiGenerate: vi.fn(),
   aiConfirmDelivery: vi.fn(),
+  releaseBroadcastPending: vi.fn(),
+  releaseBroadcastDeliveries: vi.fn(),
 };
 
 vi.mock('./gatewayClients.js', () => ({
@@ -35,6 +37,8 @@ import {
   updateDiagnosticResponseIds,
   generate,
   confirmDelivery,
+  filterPendingDeliveries,
+  reportDeliveries,
   transcribe,
   healthCheck,
   invalidateChannelSettingsCache,
@@ -166,6 +170,71 @@ describe('fire-and-forget helpers', () => {
     expect(mockServiceClient.updateDiagnosticResponseIds).toHaveBeenCalledWith('req-1', {
       responseMessageIds: ['m1', 'm2'],
     });
+  });
+
+  it('filterPendingDeliveries THROWS on gateway failure (pre-send: BullMQ must retry)', async () => {
+    mockServiceClient.releaseBroadcastPending.mockResolvedValue(err(503));
+    await expect(filterPendingDeliveries('release-1', ['a'])).rejects.toThrow(
+      'Pending-delivery filter failed'
+    );
+  });
+
+  it('filterPendingDeliveries returns the pending subset on success', async () => {
+    mockServiceClient.releaseBroadcastPending.mockResolvedValue(
+      ok({ pendingDeliveryLogIds: ['a'] })
+    );
+    await expect(filterPendingDeliveries('release-1', ['a', 'b'])).resolves.toEqual(['a']);
+  });
+
+  it('reportDeliveries retries a transient failure, then succeeds', async () => {
+    vi.useFakeTimers();
+    try {
+      mockServiceClient.releaseBroadcastDeliveries
+        .mockResolvedValueOnce({ ok: false, kind: 'network', error: 'x', status: 0 })
+        .mockResolvedValueOnce(ok({ updated: 1, autoDisabledUserIds: [], completed: false }));
+
+      const promise = reportDeliveries('release-1', [{ deliveryLogId: 'a', status: 'sent' }]);
+      await vi.runAllTimersAsync();
+      await promise;
+
+      expect(mockServiceClient.releaseBroadcastDeliveries).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('reportDeliveries NEVER throws after retries exhaust (post-send: a throw would re-DM)', async () => {
+    vi.useFakeTimers();
+    try {
+      mockServiceClient.releaseBroadcastDeliveries.mockResolvedValue({
+        ok: false,
+        kind: 'network',
+        error: 'x',
+        status: 0,
+      });
+
+      const promise = reportDeliveries('release-1', [{ deliveryLogId: 'a', status: 'sent' }]);
+      await vi.runAllTimersAsync();
+      await expect(promise).resolves.toBeUndefined();
+
+      expect(mockServiceClient.releaseBroadcastDeliveries).toHaveBeenCalledTimes(3);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('reportDeliveries gives up immediately on a non-retryable 4xx', async () => {
+    mockServiceClient.releaseBroadcastDeliveries.mockResolvedValue({
+      ok: false,
+      kind: 'http',
+      error: 'bad',
+      status: 400,
+    });
+
+    await expect(
+      reportDeliveries('release-1', [{ deliveryLogId: 'a', status: 'sent' }])
+    ).resolves.toBeUndefined();
+    expect(mockServiceClient.releaseBroadcastDeliveries).toHaveBeenCalledTimes(1);
   });
 
   it('confirmDelivery never throws on failure', async () => {

@@ -35,6 +35,7 @@ import { handleAiGenerate } from '../ai/generate.js';
 import { handleAiTranscribe } from '../ai/transcribe.js';
 import { handleAiJobStatus } from '../ai/jobStatus.js';
 import { handleAiConfirmDelivery } from '../ai/confirmDelivery.js';
+import { handleReleaseBroadcastPending, handleReleaseBroadcastDeliveries } from '../internal/releaseBroadcast.js';
 import { handleSetDmSession } from '../internal/dmSessionSet.js';
 import { handleLookupPersonalityFromMessage } from '../user/conversationLookup.js';
 import { handlePersistAssistantMessage } from '../internal/conversationAssistantMessage.js';
@@ -49,6 +50,7 @@ import { handleUpdateDiagnosticResponseIds, handleGetRecentDiagnostics, handleGe
 import { handleGetUserChannel } from '../user/channel/get.js';
 import { handleGetAdminSettings, handleUpdateAdminSettings, handleClearAdminSettings } from '../admin/settings.js';
 import { handleDbSync } from '../admin/dbSync.js';
+import { handleBroadcast } from '../admin/broadcast.js';
 import { handleCleanup } from '../admin/cleanup.js';
 import { handleInvalidateCache } from '../admin/invalidateCache.js';
 import { handleCreateGlobalPersonality } from '../admin/createPersonality.js';
@@ -117,12 +119,15 @@ export function mountInternalRoutes(app: Express, deps: RouteDeps): void {
   app.get('/api/internal/admin-settings', handleGetAdminSettings(deps));
   app.get('/api/internal/ai/job/:jobId', handleAiJobStatus(deps));
   app.post('/api/internal/ai/job/:jobId/confirm-delivery', handleAiConfirmDelivery(deps));
+  app.post('/api/internal/release-broadcast/:releaseId/pending', handleReleaseBroadcastPending(deps));
+  app.post('/api/internal/release-broadcast/:releaseId/deliveries', handleReleaseBroadcastDeliveries(deps));
   app.patch('/api/internal/diagnostic/:requestId/response-ids', handleUpdateDiagnosticResponseIds(deps));
   app.get('/api/internal/channel/:channelId', handleGetUserChannel(deps));
 }
 
 export function mountAdminRoutes(app: Express, deps: RouteDeps): void {
   app.post('/api/admin/db-sync', requireUserAuth(), requireOwnerAuth(), handleDbSync(deps));
+  app.post('/api/admin/broadcast', requireUserAuth(), requireOwnerAuth(), handleBroadcast(deps));
   app.post('/api/admin/cleanup', requireUserAuth(), requireOwnerAuth(), handleCleanup(deps));
   app.post('/api/admin/invalidate-cache', requireUserAuth(), requireOwnerAuth(), handleInvalidateCache(deps));
   app.post('/api/admin/personality', requireUserAuth(), requireOwnerAuth(), handleCreateGlobalPersonality(deps));

@@ -35,6 +35,13 @@ export const adminFixtures: Record<string, ConformanceEntry> = {
     skip: 'Runs prisma migrate deploy against the real migration engine — not exercisable over PGLite.',
   },
 
+  broadcast: {
+    // Real run: the provisioned actor is opted-in by default, so the blast
+    // creates the announcement + a delivery row and enqueues one batch
+    // against the harness's fake queue.
+    body: { message: 'conformance broadcast', label: 'conf-broadcast-1', confirm: true },
+  },
+
   cleanup: {
     body: { target: 'tombstones' },
   },

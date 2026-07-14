@@ -506,6 +506,37 @@ export const factExtractionJobDataSchema = baseJobDataSchema.extend({
 
 export type FactExtractionJobData = z.infer<typeof factExtractionJobDataSchema>;
 
+/** One DM recipient inside a broadcast batch. */
+const releaseBroadcastRecipientSchema = z.object({
+  /** Deterministic ReleaseDeliveryLog row id — the per-recipient delivery ledger key. */
+  deliveryLogId: z.string().uuid(),
+  /** Internal users.id UUID (delivery reporting joins on this). */
+  userId: z.string().uuid(),
+  /** Discord snowflake the DM is sent to. */
+  discordUserId: z.string(),
+});
+
+/**
+ * Release-Broadcast DM Job Data Schema
+ * SINGLE SOURCE OF TRUTH for broadcast DM batch payloads.
+ *
+ * The worker re-filters recipients against the delivery log (pending-only)
+ * before sending, so a stalled-and-rerun batch never double-DMs.
+ */
+export const releaseBroadcastDmJobDataSchema = baseJobDataSchema.extend({
+  jobType: z.literal(JobType.ReleaseBroadcastDm),
+  /** ReleaseAnnouncement row this batch delivers. */
+  releaseId: z.string().uuid(),
+  /** Announcement version label (log/trace context only). */
+  version: z.string().min(1),
+  /** Pre-formatted DM body (the worker appends the opt-out footer). */
+  body: z.string().min(1),
+  recipients: z.array(releaseBroadcastRecipientSchema).min(1).max(50),
+});
+
+export type ReleaseBroadcastDmJobData = z.infer<typeof releaseBroadcastDmJobDataSchema>;
+export type ReleaseBroadcastRecipient = z.infer<typeof releaseBroadcastRecipientSchema>;
+
 /**
  * Union schema for all job data types
  * Used for generic job validation
@@ -515,4 +546,5 @@ export const anyJobDataSchema = z.discriminatedUnion('jobType', [
   imageDescriptionJobDataSchema,
   llmGenerationJobDataSchema,
   factExtractionJobDataSchema,
+  releaseBroadcastDmJobDataSchema,
 ]);

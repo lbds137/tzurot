@@ -6,7 +6,7 @@ import {
   Partials,
   type ChatInputCommandInteraction,
 } from 'discord.js';
-import { Queue } from 'bullmq';
+import { Queue, type Worker } from 'bullmq';
 import { Redis } from 'ioredis';
 import { getConfig } from '@tzurot/common-types/config/config';
 import { MaintenanceFlag } from '@tzurot/common-types/services/MaintenanceFlag';
@@ -35,6 +35,7 @@ import { respondToInteractionDuringMaintenance } from './utils/maintenanceRespon
 import { ResultsListener } from './services/ResultsListener.js';
 import { JobTracker } from './services/JobTracker.js';
 import { JobFailureListener } from './services/JobFailureListener.js';
+import { setupReleaseDmWorker } from './services/releaseDm/setupReleaseDmWorker.js';
 import { ResponseOrderingService } from './services/ResponseOrderingService.js';
 import { DiscordResponseSender } from './services/DiscordResponseSender.js';
 import { MessageContextBuilder } from './services/MessageContextBuilder.js';
@@ -153,6 +154,12 @@ interface Services {
    * Owned by the composition root; closed in the shutdown sequence.
    */
   multiTagStateQueue: Queue;
+  /**
+   * Release-broadcast DM worker (bot-client's only BullMQ consumer) —
+   * delivers gateway-produced broadcast batches as user DMs. Closed FIRST
+   * in shutdown so no DM send straddles the process teardown.
+   */
+  releaseDmWorker: Worker;
 }
 
 /**
@@ -256,6 +263,10 @@ function createServices(): Services {
     connection: createBullMQRedisConfig(parseRedisUrl(envConfig.REDIS_URL!)),
   });
 
+  // Release-broadcast DM worker: consumes gateway-produced batches and sends
+  // the DMs. Constructed here (not lazily) so shutdown ownership is explicit.
+  const releaseDmWorker = setupReleaseDmWorker({ client });
+
   // Multi-tag stack: coordinator + Redis persistence + recovery service.
   // Persistence is shared with DMSessionProcessor (backfill sentinel).
   // Recovery's `run()` is invoked later in start() AFTER `client.login()`.
@@ -330,6 +341,7 @@ function createServices(): Services {
     multiTagPersistence,
     multiTagRecovery,
     multiTagStateQueue,
+    releaseDmWorker,
     dmCacheWarmer,
   };
 }
@@ -572,6 +584,7 @@ async function disposeBotClient(): Promise<void> {
   // entries; sequencing closes it. Best-effort: a failure here shouldn't
   // block the buffered-result delivery below, so it's caught and logged.
   try {
+    await services.releaseDmWorker.close();
     await services.resultsListener.stop();
     await services.jobFailureListener.stop();
     await services.multiTagCoordinator.beginShutdown();

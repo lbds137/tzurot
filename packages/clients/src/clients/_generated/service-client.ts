@@ -91,6 +91,30 @@ export class ServiceClient {
     });
   }
 
+  async releaseBroadcastPending(releaseId: string, input: z.infer<typeof ROUTE_MANIFEST.releaseBroadcastPending.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.releaseBroadcastPending.output>>> {
+    const fullPath = `/api/internal/release-broadcast/${encodeURIComponent(releaseId)}/pending`;
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'POST',
+      path: fullPath,
+      body: input,
+      outputSchema: ROUTE_MANIFEST.releaseBroadcastPending.output,
+    });
+  }
+
+  async releaseBroadcastDeliveries(releaseId: string, input: z.infer<typeof ROUTE_MANIFEST.releaseBroadcastDeliveries.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.releaseBroadcastDeliveries.output>>> {
+    const fullPath = `/api/internal/release-broadcast/${encodeURIComponent(releaseId)}/deliveries`;
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'POST',
+      path: fullPath,
+      body: input,
+      outputSchema: ROUTE_MANIFEST.releaseBroadcastDeliveries.output,
+    });
+  }
+
   async setDmSession(input: z.infer<typeof ROUTE_MANIFEST.setDmSession.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.setDmSession.output>>> {
     const fullPath = '/api/internal/channel/dm-session/set';
     return callGateway({

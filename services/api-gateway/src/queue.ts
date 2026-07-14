@@ -6,7 +6,7 @@
 
 import { Queue, QueueEvents, FlowProducer } from 'bullmq';
 import { getConfig } from '@tzurot/common-types/config/config';
-import { QUEUE_CONFIG } from '@tzurot/common-types/constants/queue';
+import { QUEUE_CONFIG, RELEASE_BROADCAST_QUEUE_NAME } from '@tzurot/common-types/constants/queue';
 import { TIMEOUTS } from '@tzurot/common-types/constants/timing';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { parseRedisUrl, createBullMQRedisConfig } from '@tzurot/common-types/utils/redis';
@@ -58,6 +58,23 @@ export const aiQueue = new Queue(QUEUE_NAME, {
   },
 });
 
+// Release-broadcast DM queue — produced here, consumed by bot-client's DM
+// worker. Separate from the AI queue so a blast never competes with
+// user-facing generation.
+// eslint-disable-next-line @tzurot/no-singleton-export -- Intentional: BullMQ Queue must be shared across route handlers; multiple instances against one queue name would fragment job bookkeeping.
+export const releaseBroadcastQueue = new Queue(RELEASE_BROADCAST_QUEUE_NAME, {
+  connection: redisConfig,
+  defaultJobOptions: {
+    attempts: 3,
+    backoff: {
+      type: 'exponential',
+      delay: TIMEOUTS.QUEUE_RETRY_DELAY,
+    },
+    removeOnComplete: { count: QUEUE_CONFIG.COMPLETED_HISTORY_LIMIT },
+    removeOnFail: { count: QUEUE_CONFIG.FAILED_HISTORY_LIMIT },
+  },
+});
+
 // Create flow producer for job dependencies
 // FlowProducer allows creating parent-child job relationships where parent waits for children
 // eslint-disable-next-line @tzurot/no-singleton-export -- Intentional: FlowProducer must be shared to maintain job dependency relationships. Multiple instances would break parent-child job tracking.
@@ -89,6 +106,7 @@ export async function closeQueue(): Promise<void> {
   logger.info('Closing queue connections...');
   await queueEvents.close();
   await flowProducer.close();
+  await releaseBroadcastQueue.close();
   await aiQueue.close();
   logger.info('Queue connections closed');
 }

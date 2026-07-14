@@ -38,6 +38,15 @@ export const SCHEDULED_QUEUE_NAME = 'scheduled-jobs';
 export const FACT_EXTRACTION_QUEUE_NAME = 'fact-extraction';
 
 /**
+ * Queue for release-notes / broadcast DM delivery jobs. Produced by
+ * api-gateway (recipient resolution + announcement bookkeeping live there);
+ * consumed by bot-client (the only service holding the Discord client).
+ * Separate from the main AI queue so a blast never competes with
+ * user-facing generation and can be paused/drained independently.
+ */
+export const RELEASE_BROADCAST_QUEUE_NAME = 'release-broadcast';
+
+/**
  * Job ID prefixes for different job types
  */
 export const JOB_PREFIXES = {
@@ -199,4 +208,6 @@ export enum JobType {
   ShapesExport = 'shapes-export',
   /** Async fact extraction from verbatim episodes (memory Phase 2) */
   FactExtraction = 'fact-extraction',
+  /** Release-notes / broadcast DM delivery batch (consumed by bot-client) */
+  ReleaseBroadcastDm = 'release-broadcast-dm',
 }
