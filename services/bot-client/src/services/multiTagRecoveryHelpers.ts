@@ -1,18 +1,18 @@
 /**
- * Recovery-time invariants for `MultiTagRecovery`: BullMQ state polling
- * and synthetic failure-result construction. All helpers here shape
- * BullMQ job state into the form `coordinator.handleJobResult` consumes
- * during recovery.
+ * BullMQ state-polling invariants shared by the two moments a slot's job
+ * state is read back from the queue instead of arriving as a live event:
+ * `MultiTagRecovery` (boot-time rehydration) and `MultiTagCoordinator`'s
+ * safety-timeout last-chance re-poll. All helpers here shape BullMQ job
+ * state into the form `coordinator.handleJobResult` consumes.
  *
  * Separate from `multiTagCoordinatorHelpers.ts` (coordinator-time
  * invariants: `RuntimeSlot`, `RuntimeEntry`, snapshot projections)
- * because coordinator and recovery are different lifecycle phases.
+ * because state-readback and live coordination are different phases.
  */
 
 import type { Queue } from 'bullmq';
 import { type LLMGenerationResult } from '@tzurot/common-types/types/schemas/generation';
 import { createLogger } from '@tzurot/common-types/utils/logger';
-import type { SlotSnapshot } from './MultiTagPersistence.js';
 
 const logger = createLogger('MultiTagRecoveryHelpers');
 
@@ -158,24 +158,70 @@ export async function pollPriorJobState(queue: Queue, jobId: string): Promise<Sl
 }
 
 /**
- * Build a synthetic `LLMGenerationResult` for slots whose old job failed
+ * Build a synthetic `LLMGenerationResult` for slots whose job failed
  * (handler threw or job was evicted). The shape matches what
  * `coordinator.handleJobResult` expects on the failure branch — `success:
  * false` triggers the `'errored'` slot transition, and `error` is rendered
  * by the deliverError path.
  *
- * The `requestId` is set to the old jobId so log correlation still works
- * (the prior process's logs reference the same id). `content` is omitted
- * because the success-path consumer wouldn't reach it anyway when
- * `success === false`.
+ * The `requestId` is set to the jobId so log correlation still works
+ * across processes. `content` is omitted because the success-path consumer
+ * wouldn't reach it anyway when `success === false`. The parameter is any
+ * jobId carrier — both `SlotSnapshot` (recovery) and `RuntimeSlot`
+ * (safety-timeout re-poll) satisfy it.
  */
 export function synthesizeFailureResult(
-  slotSnap: SlotSnapshot,
+  slot: { jobId: string },
   error: string
 ): LLMGenerationResult {
   return {
-    requestId: slotSnap.jobId,
+    requestId: slot.jobId,
     success: false,
     error,
   };
+}
+
+/**
+ * Last-chance BullMQ re-poll for a group's pending slots, run when the
+ * coordinator's safety timeout fires. A job that actually completed (or
+ * failed with an authoritative reason) while its event was lost — the
+ * listener-attach gap around a restart, a deploy-killed QueueEvents
+ * subscription — delivers its REAL outcome through the supplied `deliver`
+ * callback (the coordinator's `handleJobResult`); the synthetic timeout
+ * error stays reserved for jobs that are genuinely still in flight or gone.
+ * A `deliver` throw never aborts the sweep — remaining slots still get
+ * their re-poll. The throwing slot keeps whatever state delivery reached:
+ * `handleJobResult` marks the slot terminal with the real result before
+ * its only internal throw point (the persistence write), so the result
+ * still flushes with the group; only a slot left genuinely pending gets
+ * the caller's synthetic path.
+ */
+export async function recoverRealResultsAtDeadline(
+  queue: Queue,
+  entry: { groupId: string; slots: readonly { jobId: string; status: string }[] },
+  deliver: (jobId: string, result: LLMGenerationResult) => Promise<void>
+): Promise<void> {
+  const pendingSlots = entry.slots.filter(s => s.status === 'pending');
+  for (const slot of pendingSlots) {
+    const outcome = await pollPriorJobState(queue, slot.jobId);
+    if (outcome.kind !== 'completed' && outcome.kind !== 'failed') {
+      continue;
+    }
+    const result =
+      outcome.kind === 'completed'
+        ? outcome.result
+        : synthesizeFailureResult(slot, outcome.failedReason);
+    logger.info(
+      { groupId: entry.groupId, jobId: slot.jobId, outcome: outcome.kind },
+      'Safety-timeout re-poll found a real job outcome — delivering it instead of a synthetic timeout'
+    );
+    try {
+      await deliver(slot.jobId, result);
+    } catch (err) {
+      logger.error(
+        { err, groupId: entry.groupId, jobId: slot.jobId },
+        'Safety-timeout re-poll delivery threw — continuing with remaining slots (slot keeps the state delivery reached; only a still-pending slot gets the synthetic path)'
+      );
+    }
+  }
 }

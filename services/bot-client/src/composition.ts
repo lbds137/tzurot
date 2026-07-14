@@ -84,6 +84,7 @@ export function buildMultiTagCoordinator(deps: {
   jobTracker: JobTracker;
   orderingService: ResponseOrderingService;
   slotDelivery: SlotDeliveryService;
+  queue: Queue;
 }): { coordinator: MultiTagCoordinator; persistence: MultiTagPersistence } {
   const persistence = new MultiTagPersistence(deps.redis);
   const coordinator = new MultiTagCoordinator({
@@ -92,6 +93,7 @@ export function buildMultiTagCoordinator(deps: {
     orderingService: deps.orderingService,
     slotDelivery: deps.slotDelivery,
     persistence,
+    queue: deps.queue,
   });
   return { coordinator, persistence };
 }
@@ -132,7 +134,7 @@ export function buildMultiTagStack(deps: {
   slotDelivery: SlotDeliveryService;
   personalityService: IPersonalityLoader;
   discordClient: Client;
-  recoveryQueue: Queue;
+  stateQueue: Queue;
 }): {
   coordinator: MultiTagCoordinator;
   persistence: MultiTagPersistence;
@@ -144,13 +146,14 @@ export function buildMultiTagStack(deps: {
     jobTracker: deps.jobTracker,
     orderingService: deps.orderingService,
     slotDelivery: deps.slotDelivery,
+    queue: deps.stateQueue,
   });
   const recovery = buildMultiTagRecovery({
     persistence,
     coordinator,
     personalityService: deps.personalityService,
     discordClient: deps.discordClient,
-    queue: deps.recoveryQueue,
+    queue: deps.stateQueue,
   });
   return { coordinator, persistence, recovery };
 }

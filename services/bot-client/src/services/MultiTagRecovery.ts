@@ -94,6 +94,16 @@ import {
 
 const logger = createLogger('MultiTagRecovery');
 
+/**
+ * Floor for the re-armed safety timer of a rehydrated entry. The timer
+ * preserves the group's ORIGINAL deadline (createdAt + coordinator budget),
+ * so an entry adopted near — or, via the completed-result exception in the
+ * age gate, past — its deadline could otherwise get a zero/negative delay.
+ * The floor leaves room for adoption + deferred-delivery dispatch to finish
+ * before the flush fires.
+ */
+export const RECOVERY_TIMER_FLOOR_MS = 60 * 1000;
+
 export interface MultiTagRecoveryDeps {
   persistence: MultiTagPersistence;
   coordinator: MultiTagCoordinator;
@@ -233,24 +243,8 @@ export class MultiTagRecovery {
       }
       const { channel, sourceMessage } = targets;
 
-      // Build runtime entry. Safety timer is re-armed from rehydrate time
-      // (giving any genuinely-in-flight jobs the full timeout budget)
-      // rather than counting against the original createdAt.
-      //
-      // **Safe-against-adoption-throw**: this timer is armed BEFORE
-      // `adoptRehydratedEntry` runs below. If adoption throws, the timer
-      // still fires after COORDINATOR_TIMEOUT_MS — but `handleSafetyTimeout`
-      // has an `if (entry === undefined) return` guard at its top, so it
-      // becomes a no-op for unregistered groupIds. No leak, no stray errors.
       const userMessageTime = new Date(snapshot.userMessageTime);
-      const timeoutHandle = setTimeout(() => {
-        void this.deps.coordinator.handleSafetyTimeoutPublic(snapshot.groupId).catch(err => {
-          logger.error(
-            { err, groupId: snapshot.groupId },
-            'Recovery safety timeout handler threw unexpectedly'
-          );
-        });
-      }, MULTI_TAG.COORDINATOR_TIMEOUT_MS);
+      const { timeoutHandle, remainingBudgetMs } = this.armSafetyTimer(snapshot);
 
       const entry: RuntimeEntry = {
         groupId: snapshot.groupId,
@@ -329,6 +323,7 @@ export class MultiTagRecovery {
           slotsRecoveredFailed: deferredDeliveries.filter(d => d.kind === 'recoveredFailed').length,
           slotsUnrecoverable: deferredDeliveries.filter(d => d.kind === 'unrecoverable').length,
           slotsTrustedToStream: entryTrustedToStreamCount,
+          remainingBudgetMs,
         },
         'Multi-tag entry rehydrated'
       );
@@ -439,6 +434,42 @@ export class MultiTagRecovery {
           },
         };
     }
+  }
+
+  /**
+   * Arm the rehydrated entry's safety timer. The timer preserves the
+   * group's ORIGINAL deadline (createdAt + coordinator budget) instead of
+   * granting a fresh full window: a restart must not extend how long a
+   * wedged slot can block the channel's ordered delivery. A job the old
+   * worker died holding looks 'inFlight' at rehydration (its BullMQ lock
+   * outlives boot), so the honest budget is whatever the group had left —
+   * a genuinely-slow job keeps exactly the time it would have had without
+   * the restart. Floored (RECOVERY_TIMER_FLOOR_MS) so adoption + deferred
+   * deliveries always get room to finish.
+   *
+   * **Safe-against-adoption-throw**: this timer is armed BEFORE
+   * `adoptRehydratedEntry` runs. If adoption throws, the timer still
+   * fires — but `handleSafetyTimeout` has an `if (entry === undefined)
+   * return` guard at its top, so it becomes a no-op for unregistered
+   * groupIds. No leak, no stray errors.
+   */
+  private armSafetyTimer(snapshot: CoordinatorEntrySnapshot): {
+    timeoutHandle: NodeJS.Timeout;
+    remainingBudgetMs: number;
+  } {
+    const remainingBudgetMs = Math.max(
+      RECOVERY_TIMER_FLOOR_MS,
+      MULTI_TAG.COORDINATOR_TIMEOUT_MS - (Date.now() - snapshot.createdAt)
+    );
+    const timeoutHandle = setTimeout(() => {
+      void this.deps.coordinator.handleSafetyTimeoutPublic(snapshot.groupId).catch(err => {
+        logger.error(
+          { err, groupId: snapshot.groupId },
+          'Recovery safety timeout handler threw unexpectedly'
+        );
+      });
+    }, remainingBudgetMs);
+    return { timeoutHandle, remainingBudgetMs };
   }
 
   /**

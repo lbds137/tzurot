@@ -104,6 +104,9 @@ describe('MultiTagCoordinator', () => {
     clearDMBackfillTried: ReturnType<typeof vi.fn>;
     markSyntheticTimeout: ReturnType<typeof vi.fn>;
   };
+  let queue: {
+    getJob: ReturnType<typeof vi.fn>;
+  };
 
   let coordinator: MultiTagCoordinator;
 
@@ -136,6 +139,10 @@ describe('MultiTagCoordinator', () => {
       clearDMBackfillTried: vi.fn().mockResolvedValue(undefined),
       markSyntheticTimeout: vi.fn().mockResolvedValue(undefined),
     };
+    // Default: job evicted from Redis — the safety-timeout re-poll treats
+    // that as unrecoverable and falls through to the synthetic path, which
+    // is the pre-re-poll behavior most tests assume.
+    queue = { getJob: vi.fn().mockResolvedValue(null) };
 
     coordinator = new MultiTagCoordinator({
       chatManager: chatManager as unknown as MultiTagCoordinatorDeps['chatManager'],
@@ -143,6 +150,7 @@ describe('MultiTagCoordinator', () => {
       orderingService: orderingService as unknown as MultiTagCoordinatorDeps['orderingService'],
       slotDelivery: slotDelivery as unknown as MultiTagCoordinatorDeps['slotDelivery'],
       persistence: persistence as unknown as MultiTagCoordinatorDeps['persistence'],
+      queue: queue as unknown as MultiTagCoordinatorDeps['queue'],
     });
   });
 
@@ -642,6 +650,89 @@ describe('MultiTagCoordinator', () => {
         isAutoResponse: false,
       });
     });
+
+    it("re-polls BullMQ at timeout and delivers a completed job's REAL result instead of a synthetic error", async () => {
+      const a = buildPersonality('Alice');
+      const b = buildPersonality('Bob');
+      const { input } = fanOut([buildResolvedSlot(a), buildResolvedSlot(b)]);
+      await coordinator.startFanOut(input);
+
+      await coordinator.handleJobResult('job-Alice', {
+        requestId: 'ra',
+        success: true,
+        content: 'A',
+      });
+      // Bob's completion event was lost, but the job itself finished — the
+      // re-poll finds the returnvalue in BullMQ.
+      queue.getJob.mockResolvedValue({
+        getState: vi.fn().mockResolvedValue('completed'),
+        returnvalue: { requestId: 'rb', success: true, content: 'B-recovered' },
+      });
+
+      await vi.advanceTimersByTimeAsync(MULTI_TAG.COORDINATOR_TIMEOUT_MS + 100);
+
+      // Both slots deliver as successes; nothing synthetic.
+      expect(queue.getJob).toHaveBeenCalledWith('job-Bob');
+      expect(slotDelivery.deliverSuccess).toHaveBeenCalledTimes(2);
+      expect(slotDelivery.deliverError).not.toHaveBeenCalled();
+      expect(persistence.markSyntheticTimeout).not.toHaveBeenCalled();
+      const deliveredContents = slotDelivery.deliverSuccess.mock.calls.map(
+        call => (call[0] as { content: string }).content
+      );
+      expect(deliveredContents).toContain('B-recovered');
+    });
+
+    it("re-polls BullMQ at timeout and delivers a failed job's REAL failure reason", async () => {
+      const a = buildPersonality('Alice');
+      const b = buildPersonality('Bob');
+      const { input } = fanOut([buildResolvedSlot(a), buildResolvedSlot(b)]);
+      await coordinator.startFanOut(input);
+
+      await coordinator.handleJobResult('job-Alice', {
+        requestId: 'ra',
+        success: true,
+        content: 'A',
+      });
+      queue.getJob.mockResolvedValue({
+        getState: vi.fn().mockResolvedValue('failed'),
+        failedReason: 'model exploded',
+      });
+
+      await vi.advanceTimersByTimeAsync(MULTI_TAG.COORDINATOR_TIMEOUT_MS + 100);
+
+      // Bob delivers through the error path with the authoritative reason —
+      // no synthetic-timeout marker, because the outcome is real, not lost.
+      expect(slotDelivery.deliverSuccess).toHaveBeenCalledTimes(1);
+      expect(slotDelivery.deliverError).toHaveBeenCalledTimes(1);
+      expect(persistence.markSyntheticTimeout).not.toHaveBeenCalled();
+      const [, errorResult] = slotDelivery.deliverError.mock.calls[0];
+      expect(errorResult).toMatchObject({ success: false, error: 'model exploded' });
+    });
+
+    it('still synthesizes a timeout for a job that is genuinely in flight at the deadline', async () => {
+      const a = buildPersonality('Alice');
+      const b = buildPersonality('Bob');
+      const { input } = fanOut([buildResolvedSlot(a), buildResolvedSlot(b)]);
+      await coordinator.startFanOut(input);
+
+      await coordinator.handleJobResult('job-Alice', {
+        requestId: 'ra',
+        success: true,
+        content: 'A',
+      });
+      // Job still active (e.g. a dead worker's unexpired lock, or a genuinely
+      // slow job) — the safety window is the authoritative give-up point.
+      queue.getJob.mockResolvedValue({
+        getState: vi.fn().mockResolvedValue('active'),
+      });
+
+      await vi.advanceTimersByTimeAsync(MULTI_TAG.COORDINATOR_TIMEOUT_MS + 100);
+
+      expect(slotDelivery.deliverSuccess).toHaveBeenCalledTimes(1);
+      expect(slotDelivery.deliverError).toHaveBeenCalledTimes(1);
+      expect(persistence.markSyntheticTimeout).toHaveBeenCalledTimes(1);
+      expect(persistence.markSyntheticTimeout.mock.calls[0][0]).toBe('job-Bob');
+    });
   });
 
   describe('DM session activation after flush', () => {
@@ -878,6 +969,9 @@ describe('MultiTagCoordinator — all-errored in-character delivery (real chain)
       persistence: {
         putEntry: vi.fn(),
       } as unknown as MultiTagCoordinatorDeps['persistence'],
+      queue: {
+        getJob: vi.fn().mockResolvedValue(null),
+      } as unknown as MultiTagCoordinatorDeps['queue'],
     });
 
     const msg = buildMessage();

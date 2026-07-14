@@ -6,6 +6,7 @@
  */
 
 import type { Redis } from 'ioredis';
+import { MULTI_TAG } from '@tzurot/common-types/constants/message';
 import { REDIS_KEY_PREFIXES } from '@tzurot/common-types/constants/queue';
 import { IncognitoSessionSchema } from '@tzurot/common-types/types/incognito';
 import { createLogger } from '@tzurot/common-types/utils/logger';
@@ -247,12 +248,25 @@ export class RedisService {
    * Intentionally does NOT catch errors — callers (TTSStep) handle failures
    * as non-fatal and fall back to text-only responses.
    *
+   * The default TTL is `MULTI_TAG.REDIS_TTL_SEC` (not a few minutes):
+   * delivery can lag generation by up to the multi-tag safety window when a
+   * reply queues behind a wedged group in the per-channel ordered-delivery
+   * buffer, and the synthetic-timeout late-result path can deliver up to
+   * the recovery marker's lifetime — which is this same constant. Audio
+   * expiring before its reply is delivered strips the voice from an
+   * otherwise-successful response, so the audio must outlive every delivery
+   * path the system is still willing to take.
+   *
    * @param jobId Job ID (used to build key: tts-audio:{jobId})
    * @param audio Audio buffer (binary)
-   * @param ttlSeconds TTL in seconds (default: 300 = 5 minutes)
+   * @param ttlSeconds TTL in seconds (default: MULTI_TAG.REDIS_TTL_SEC)
    * @returns Redis key for retrieval
    */
-  async storeTTSAudio(jobId: string, audio: Buffer, ttlSeconds = 300): Promise<string> {
+  async storeTTSAudio(
+    jobId: string,
+    audio: Buffer,
+    ttlSeconds: number = MULTI_TAG.REDIS_TTL_SEC
+  ): Promise<string> {
     const key = `${REDIS_KEY_PREFIXES.TTS_AUDIO}${jobId}`;
     // Store as binary via ioredis Buffer support
     await this.redis.setex(key, ttlSeconds, audio);

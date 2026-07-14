@@ -15,7 +15,7 @@
  * delivered.
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import type { Client, Message, Channel } from 'discord.js';
 import type { Queue } from 'bullmq';
 import { ChannelType } from 'discord.js';
@@ -281,6 +281,49 @@ describe('MultiTagRecovery', () => {
         expect(persistence.markStale).not.toHaveBeenCalled();
       }
     );
+  });
+
+  describe('re-armed safety timer (original deadline, not a fresh window)', () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("fires at the entry's ORIGINAL deadline — a restart must not extend a wedged group's hold", async () => {
+      // Entry is 10 minutes old at boot → 8 minutes of budget remain.
+      queue.getJob.mockResolvedValue(buildMockJob({ state: 'active' }));
+      persistence.scanAllEntries.mockResolvedValue([
+        buildSnapshot({ createdAt: Date.now() - 10 * 60 * 1000 }),
+      ]);
+
+      await recovery.run();
+
+      const remainingMs = MULTI_TAG.COORDINATOR_TIMEOUT_MS - 10 * 60 * 1000;
+      await vi.advanceTimersByTimeAsync(remainingMs - 1000);
+      expect(coordinator.handleSafetyTimeoutPublic).not.toHaveBeenCalled();
+
+      await vi.advanceTimersByTimeAsync(2000);
+      expect(coordinator.handleSafetyTimeoutPublic).toHaveBeenCalledWith('group-1');
+    });
+
+    it('floors the re-armed timer so adoption and deferred deliveries get room to run', async () => {
+      // Entry adopted with almost no budget left (age-gate still passes).
+      queue.getJob.mockResolvedValue(buildMockJob({ state: 'active' }));
+      persistence.scanAllEntries.mockResolvedValue([
+        buildSnapshot({ createdAt: Date.now() - (MULTI_TAG.COORDINATOR_TIMEOUT_MS - 5000) }),
+      ]);
+
+      await recovery.run();
+
+      // 5s of nominal budget remain, but the floor holds the timer at 60s.
+      await vi.advanceTimersByTimeAsync(50_000);
+      expect(coordinator.handleSafetyTimeoutPublic).not.toHaveBeenCalled();
+
+      await vi.advanceTimersByTimeAsync(15_000);
+      expect(coordinator.handleSafetyTimeoutPublic).toHaveBeenCalledWith('group-1');
+    });
   });
 
   describe('age gate (zombie-group class: entries older than the safety window)', () => {

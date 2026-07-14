@@ -147,11 +147,12 @@ interface Services {
   multiTagPersistence: MultiTagPersistence;
   multiTagRecovery: MultiTagRecovery;
   /**
-   * BullMQ Queue handle used by MultiTagRecovery to poll the authoritative
-   * state of jobs that were in flight at the previous process's shutdown.
+   * BullMQ Queue handle for polling authoritative job state: used by
+   * MultiTagRecovery (jobs in flight at the previous process's shutdown)
+   * and by MultiTagCoordinator's safety-timeout last-chance re-poll.
    * Owned by the composition root; closed in the shutdown sequence.
    */
-  multiTagRecoveryQueue: Queue;
+  multiTagStateQueue: Queue;
 }
 
 /**
@@ -244,12 +245,13 @@ function createServices(): Services {
     slotDelivery,
   });
 
-  // BullMQ Queue handle for MultiTagRecovery's state polling. Constructed
-  // here (rather than inside MultiTagRecovery) so its lifecycle is visible
-  // to the shutdown sequence below. Mirrors the existing
-  // BullMQ-config pattern in JobFailureListener — same QUEUE_NAME + same
-  // ioredis connection config derived from REDIS_URL.
-  const multiTagRecoveryQueue = new Queue(envConfig.QUEUE_NAME, {
+  // BullMQ Queue handle for authoritative job-state polling — boot-time
+  // rehydration (MultiTagRecovery) and the coordinator's safety-timeout
+  // last-chance re-poll. Constructed here so its lifecycle is visible to
+  // the shutdown sequence below. Mirrors the existing BullMQ-config
+  // pattern in JobFailureListener — same QUEUE_NAME + same ioredis
+  // connection config derived from REDIS_URL.
+  const multiTagStateQueue = new Queue(envConfig.QUEUE_NAME, {
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- REDIS_URL validated by validateRedisUrl() in buildCacheRedis() above
     connection: createBullMQRedisConfig(parseRedisUrl(envConfig.REDIS_URL!)),
   });
@@ -269,7 +271,7 @@ function createServices(): Services {
     slotDelivery,
     personalityService: routingPersonalityLoader,
     discordClient: client,
-    recoveryQueue: multiTagRecoveryQueue,
+    stateQueue: multiTagStateQueue,
   });
 
   // Live failure routing: now that the coordinator exists, wire the
@@ -327,7 +329,7 @@ function createServices(): Services {
     multiTagCoordinator,
     multiTagPersistence,
     multiTagRecovery,
-    multiTagRecoveryQueue,
+    multiTagStateQueue,
     dmCacheWarmer,
   };
 }
@@ -607,7 +609,7 @@ async function disposeBotClient(): Promise<void> {
           services.cacheInvalidationService.unsubscribe(),
           services.channelActivationCacheInvalidationService.unsubscribe(),
           services.denylistCacheInvalidationService.unsubscribe(),
-          services.multiTagRecoveryQueue.close(),
+          services.multiTagStateQueue.close(),
           closeRedis(),
           client.destroy(),
         ]),
