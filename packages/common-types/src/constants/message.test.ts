@@ -24,6 +24,15 @@ describe('MULTI_TAG timing invariants', () => {
     // or the lock can be reclaimed mid-coordination and two replicas race.
     expect(MULTI_TAG.COORDINATOR_TIMEOUT_MS).toBeLessThan(TIMEOUTS.WORKER_LOCK_DURATION);
   });
+
+  it('Redis TTL outlives the coordinator safety window', () => {
+    // REDIS_TTL_SEC bounds the coordinator snapshots, the synthetic-timeout
+    // recovery markers, AND the ai-worker's stored TTS audio. All three must
+    // survive a full safety window: a reply held in the ordered-delivery
+    // buffer behind a wedged group delivers only at the safety flush, and if
+    // its audio expired first the reply arrives voiceless.
+    expect(MULTI_TAG.REDIS_TTL_SEC * 1000).toBeGreaterThan(MULTI_TAG.COORDINATOR_TIMEOUT_MS);
+  });
 });
 
 describe('NO_TEXT_CONTENT_PLACEHOLDER', () => {

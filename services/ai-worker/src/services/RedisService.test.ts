@@ -12,6 +12,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { RedisService } from './RedisService.js';
 import type { Redis } from 'ioredis';
+import { MULTI_TAG } from '@tzurot/common-types/constants/message';
 import { REDIS_KEY_PREFIXES } from '@tzurot/common-types/constants/queue';
 
 // Mock dependencies
@@ -445,16 +446,18 @@ describe('RedisService', () => {
   });
 
   describe('storeTTSAudio', () => {
-    it('should store audio buffer with default 5-minute TTL', async () => {
+    it('should store audio buffer with the multi-tag recovery TTL by default', async () => {
       mockRedis.setex.mockResolvedValue('OK');
 
       const audio = Buffer.from([0x52, 0x49, 0x46, 0x46]); // RIFF header start
       const key = await redisService.storeTTSAudio('job-123', audio);
 
+      // Audio must outlive every deferred delivery path (ordered-delivery
+      // hold, late-result recovery) — see the message.ts timing invariants.
       expect(key).toBe(`${REDIS_KEY_PREFIXES.TTS_AUDIO}job-123`);
       expect(mockRedis.setex).toHaveBeenCalledWith(
         `${REDIS_KEY_PREFIXES.TTS_AUDIO}job-123`,
-        300,
+        MULTI_TAG.REDIS_TTL_SEC,
         audio
       );
     });

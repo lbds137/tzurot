@@ -21,14 +21,16 @@
  * pending slot jobIds are added to a Redis stale set. Post-restart, results
  * arriving for those jobIds are discarded by the MessageHandler stale check
  * (confirmDelivery is still called so the Redis stream entry clears).
- * MultiTagRecovery scans the persisted entries on startup, marks old jobIds
- * stale, and re-submits fresh AI jobs — so user-facing experience after a
+ * MultiTagRecovery scans the persisted entries on startup, polls BullMQ for
+ * each pending slot's authoritative job state, and adopts the entries back
+ * into this coordinator — so user-facing experience after a
  * restart-mid-fan-out is "responses arrive a bit later" rather than "no
  * response, please retry."
  */
 
 import { randomUUID } from 'node:crypto';
 import type { Message } from 'discord.js';
+import type { Queue } from 'bullmq';
 import { ApiErrorCategory, ApiErrorType } from '@tzurot/common-types/constants/error';
 import { MULTI_TAG } from '@tzurot/common-types/constants/message';
 import { type TypingChannel } from '@tzurot/common-types/types/discord-types';
@@ -41,6 +43,7 @@ import type { ResponseOrderingService } from './ResponseOrderingService.js';
 import type { SlotDeliveryService } from './SlotDeliveryService.js';
 import type { MultiTagPersistence, SyntheticTimeoutContext } from './MultiTagPersistence.js';
 import { type ResolvedSlot, type SlotSource } from './SlotResolver.js';
+import { recoverRealResultsAtDeadline } from './multiTagRecoveryHelpers.js';
 
 const logger = createLogger('MultiTagCoordinator');
 
@@ -81,6 +84,15 @@ export interface MultiTagCoordinatorDeps {
   orderingService: ResponseOrderingService;
   slotDelivery: SlotDeliveryService;
   persistence: MultiTagPersistence;
+  /**
+   * BullMQ queue handle for the AI-requests queue. Used by the safety
+   * timeout's last-chance re-poll: before synthesizing a timeout error for
+   * a still-pending slot, the coordinator checks the job's authoritative
+   * state — a completed or failed job whose event was lost (listener-attach
+   * gap around a restart, deploy-killed QueueEvents) delivers its REAL
+   * result instead. Shared with MultiTagRecovery's boot-time state poll.
+   */
+  queue: Queue;
 }
 
 export class MultiTagCoordinator {
@@ -602,16 +614,36 @@ export class MultiTagCoordinator {
 
   /**
    * Safety-net timeout: a slot's result never arrived (gateway disconnect,
-   * worker crash, etc). Mark remaining slots as timedout and flush.
+   * worker crash, etc). Before giving up, re-poll BullMQ once per pending
+   * slot — the job may have finished with its completion event lost (the
+   * listener-attach gap around a restart, or a deploy that killed the old
+   * QueueEvents subscription). A real result or authoritative failure
+   * delivers through the canonical handleJobResult path; only slots with
+   * nothing recoverable are marked timedout and flushed synthetically.
    */
   private async handleSafetyTimeout(groupId: string): Promise<void> {
     const entry = this.entries.get(groupId);
     if (entry === undefined) {
       return; // already cleaned up
     }
-    const stillPending = entry.slots.filter(s => s.status === 'pending');
-    if (stillPending.length === 0) {
+    if (!entry.slots.some(s => s.status === 'pending')) {
       return; // race: flush completed while timer fired
+    }
+
+    await recoverRealResultsAtDeadline(this.deps.queue, entry, async (jobId, result) =>
+      this.handleJobResult(jobId, result)
+    );
+
+    // The re-poll deliveries above may have terminal-ized every slot and
+    // flushed the group (handleJobResult flushes on all-done, deleting the
+    // entry). Re-read state rather than trusting the pre-poll snapshot.
+    const entryAfterRepoll = this.entries.get(groupId);
+    if (entryAfterRepoll === undefined) {
+      return; // group fully recovered with real results — nothing to synthesize
+    }
+    const stillPending = entryAfterRepoll.slots.filter(s => s.status === 'pending');
+    if (stillPending.length === 0) {
+      return;
     }
     logger.warn(
       {
@@ -632,15 +664,15 @@ export class MultiTagCoordinator {
       // marker lands would miss recovery — identical to pre-fix drop behavior,
       // and implausible in practice (a late result is seconds-to-minutes late).
       void this.deps.persistence.markSyntheticTimeout(slot.jobId, {
-        channelId: entry.channel.id,
-        guildId: entry.guildId,
-        clientId: entry.clientId,
+        channelId: entryAfterRepoll.channel.id,
+        guildId: entryAfterRepoll.guildId,
+        clientId: entryAfterRepoll.clientId,
         personalitySlug: slot.personality.slug,
-        recipientUserId: entry.userId,
+        recipientUserId: entryAfterRepoll.userId,
         isAutoResponse: slot.isAutoResponse,
       });
     }
-    await this.flushEntry(entry);
+    await this.flushEntry(entryAfterRepoll);
   }
 
   /**

@@ -134,7 +134,10 @@ export const MULTI_TAG = {
    * TTL for persisted coordinator entries in Redis. Longer than
    * COORDINATOR_TIMEOUT_MS so restart-recovery has a window even if a
    * timeout was about to fire pre-restart. Also bounds the
-   * synthetic-timeout recovery marker's lifetime.
+   * synthetic-timeout recovery marker's lifetime AND the ai-worker's
+   * stored TTS audio (`tts-audio:` keys) — audio must survive every
+   * delivery path that can still fire, and the late-result recovery
+   * window (this TTL) is the longest of them.
    */
   REDIS_TTL_SEC: 30 * 60,
 } as const;
