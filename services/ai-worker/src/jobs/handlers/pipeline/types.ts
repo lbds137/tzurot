@@ -180,6 +180,10 @@ export interface PreparedContext {
   rawConversationHistory: ConversationHistoryEntry[];
   /** Oldest timestamp in history (for LTM deduplication) */
   oldestHistoryTimestamp?: number;
+  /** Oldest timestamp over refs + cross-channel ONLY (no current-channel
+   * history) — the pessimistic component of the STM/LTM cutoff; the budget
+   * pre-pass combines it with the EXACT oldest-shipped history timestamp. */
+  nonHistoryOldestTimestamp?: number;
   /** All participants in the conversation */
   participants: Participant[];
   /** Cross-channel conversation history groups (from other channels with same personality) */

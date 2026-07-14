@@ -272,13 +272,49 @@ describe('ConversationalRAGService', () => {
       );
     });
 
+    it('pre-pass boundary crosses the seam: oldestSelectedTs is ON the context WHEN retrieval runs', async () => {
+      const personality = createMockPersonality();
+      const context = createMockContext();
+      const shippedTs = new Date('2026-03-01T00:00:00.000Z');
+      getContextWindowManagerMock().selectAndSerializeHistory.mockReturnValue({
+        serializedHistory: '<chat_log/>',
+        historyTokensUsed: 50,
+        messagesIncluded: 1,
+        messagesDropped: 2,
+        crossChannelMessagesIncluded: 0,
+        selectedEntries: [{ role: 'user', content: 'shipped', createdAt: shippedTs.toISOString() }],
+      });
+      // Snapshot AT CALL TIME — the context object is mutated in place, so a
+      // post-hoc assertion on it would pass even if the wiring ran too late
+      // (after retrieval) or never ran at all.
+      let cutoffSeenByRetrieval: number | undefined | null = null;
+      getMemoryRetrieverMock().retrieveRelevantMemories.mockImplementation(
+        async (
+          _p: unknown,
+          _q: unknown,
+          ctx: { stmLtmCutoffInputs?: { oldestSelectedTs?: number } }
+        ) => {
+          cutoffSeenByRetrieval = ctx.stmLtmCutoffInputs?.oldestSelectedTs ?? undefined;
+          return { memories: [], focusModeEnabled: false };
+        }
+      );
+
+      await service.generateResponse(personality, 'Test message', context);
+
+      expect(cutoffSeenByRetrieval).toBe(shippedTs.getTime());
+    });
+
     it('should build context window via ContextWindowManager', async () => {
       const personality = createMockPersonality();
       const context = createMockContext();
 
       await service.generateResponse(personality, 'Test message', context);
 
-      expect(getContextWindowManagerMock().calculateHistoryBudget).toHaveBeenCalled();
+      // calculateHistoryBudget is no longer consulted: the history budget is
+      // window − base − msg − memoryReserve, computed in the pre-pass BEFORE
+      // retrieval (the STM/LTM dedup-hole fix); the reserve comes from
+      // calculateMemoryBudget as before.
+      expect(getContextWindowManagerMock().calculateMemoryBudget).toHaveBeenCalled();
       expect(getContextWindowManagerMock().selectAndSerializeHistory).toHaveBeenCalled();
     });
 
