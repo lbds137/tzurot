@@ -7,6 +7,7 @@
 ## Unreleased on Develop
 
 - **#1647** `fix`: BullMQ worker lock 20min→5min — deploy-killed jobs stall-recover in ~6 min (real replies) instead of wedging to the 18-min flush. `MAX_JOB_RUNTIME` decouple keeps the job-timeout clamp at 20 min; `stalled`-event logging added (the deploy-orphan recovery trail). Runtime proof: first prod deploy that catches an in-flight job. Closes wedge sub-question (b).
+- **#1648** `feat`: notification-prefs foundation (epic PR-1) — full epic schema in two additive migrations (users.notifyEnabled/notifyLevel, release_announcements, release_delivery_log, user_feedback; first Prisma enums, userId FK indexes per convention) + `/notifications view|enable|disable|level`. **Dev migrated 2026-07-14.** No DMs sent until PR-3. **RELEASE STEP: `pnpm ops release:premigrate` picks up both migrations (additive).** 5 review rounds — r3 caught a real read-vs-write error-copy bug in view.ts; r4 rightly overturned the userId-index deferral.
 
 ## Next Session Goal (sequenced — fresh session starts here)
 

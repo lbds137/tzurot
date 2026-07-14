@@ -51,15 +51,16 @@ TTS + STT provider selection and cloned-voice library lifecycle. Per-character T
 
 ## Settings & Tools
 
-| Command     | Subcommands                                                   | Purpose                                                                     |
-| ----------- | ------------------------------------------------------------- | --------------------------------------------------------------------------- |
-| `/settings` | `timezone` (`set` `get`)                                      | Timezone for timestamps                                                     |
-|             | `apikey` (`set` `browse` `remove` `test`)                     | BYOK API key management                                                     |
-|             | `preset` (`list` `set` `clear` `set-default` `clear-default`) | Per-character preset overrides                                              |
-|             | `defaults` (`edit`)                                           | User default settings dashboard                                             |
-| `/shapes`   | `auth` `logout` `browse` `import` `export` `status`           | Shapes.inc character migration (legacy import)                              |
-| `/inspect`  | `[identifier]`                                                | Diagnostic log browser — omit to browse recent, provide to inspect specific |
-| `/help`     | _(optional command)_                                          | Show available commands                                                     |
+| Command          | Subcommands                                                   | Purpose                                                                                                                                                                                          |
+| ---------------- | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `/settings`      | `timezone` (`set` `get`)                                      | Timezone for timestamps                                                                                                                                                                          |
+|                  | `apikey` (`set` `browse` `remove` `test`)                     | BYOK API key management                                                                                                                                                                          |
+|                  | `preset` (`list` `set` `clear` `set-default` `clear-default`) | Per-character preset overrides                                                                                                                                                                   |
+|                  | `defaults` (`edit`)                                           | User default settings dashboard                                                                                                                                                                  |
+| `/notifications` | `view` `enable` `disable` `level`                             | Release-notes DM preferences — opted in by default at level `minor`; levels come from release content (breaking→major, features→minor, fixes-only→patch). Delivery ships in an upcoming release. |
+| `/shapes`        | `auth` `logout` `browse` `import` `export` `status`           | Shapes.inc character migration (legacy import)                                                                                                                                                   |
+| `/inspect`       | `[identifier]`                                                | Diagnostic log browser — omit to browse recent, provide to inspect specific                                                                                                                      |
+| `/help`          | _(optional command)_                                          | Show available commands                                                                                                                                                                          |
 
 ## Administration (owner only)
 
