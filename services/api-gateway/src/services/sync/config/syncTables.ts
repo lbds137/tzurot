@@ -34,6 +34,13 @@ export const EXCLUDED_TABLES: Record<string, string> = {
   import_jobs: 'Transient import job tracking (environment-specific, retryable)',
   export_jobs: 'Transient export job tracking (environment-specific, retryable)',
 
+  // Release-notes delivery state (environment-specific: each environment
+  // announces its own releases to its own users; syncing would double-blast
+  // or mark prod releases as already-announced in dev)
+  release_announcements: 'Environment-specific release-announcement state',
+  release_delivery_log: 'Environment-specific per-user delivery outcomes',
+  user_feedback: 'Owner-triage operational data; each environment keeps its own feedback',
+
   // Moderation data
   denylisted_entities: 'Environment-specific denylist (different moderation per bot instance)',
 

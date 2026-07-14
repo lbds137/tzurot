@@ -412,6 +412,17 @@ export const modelsViewOptions = defineTypedOptions({
 });
 
 // =============================================================================
+// NOTIFICATIONS COMMAND
+// =============================================================================
+
+/**
+ * /notifications level <level>
+ */
+export const notificationsLevelOptions = defineTypedOptions({
+  level: { type: 'string', required: true },
+});
+
+// =============================================================================
 // PERSONA COMMAND
 // =============================================================================
 

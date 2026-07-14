@@ -926,6 +926,20 @@
       ]
     },
     {
+      "id": "client:api-gateway:getNotificationPrefs",
+      "kind": "http-route",
+      "producer": "client",
+      "consumer": "api-gateway",
+      "schemaRef": "GET /notifications",
+      "mechanism": "route-conformance",
+      "requiredTiers": [
+        "component"
+      ],
+      "actualTiers": [
+        "component"
+      ]
+    },
+    {
       "id": "client:api-gateway:getNsfwStatus",
       "kind": "http-route",
       "producer": "client",
@@ -2121,6 +2135,20 @@
       "producer": "client",
       "consumer": "api-gateway",
       "schemaRef": "PATCH /memory/:id",
+      "mechanism": "route-conformance",
+      "requiredTiers": [
+        "component"
+      ],
+      "actualTiers": [
+        "component"
+      ]
+    },
+    {
+      "id": "client:api-gateway:updateNotificationPrefs",
+      "kind": "http-route",
+      "producer": "client",
+      "consumer": "api-gateway",
+      "schemaRef": "PATCH /notifications",
       "mechanism": "route-conformance",
       "requiredTiers": [
         "component"

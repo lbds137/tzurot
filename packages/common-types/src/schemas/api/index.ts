@@ -112,6 +112,17 @@ export {
   SetTimezoneResponseSchema,
 } from './timezone.js';
 
+// Notification-preference endpoints
+export {
+  type GetNotificationPrefsResponse,
+  GetNotificationPrefsResponseSchema,
+  NotifyLevelSchema,
+  type NotifyLevelValue,
+  UpdateNotificationPrefsInputSchema,
+  type UpdateNotificationPrefsResponse,
+  UpdateNotificationPrefsResponseSchema,
+} from './notifications.js';
+
 // LLM Config endpoints
 export {
   ContextSettingsSchema,

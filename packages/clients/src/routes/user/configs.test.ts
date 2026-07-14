@@ -20,6 +20,7 @@ describe('user config routes', () => {
   it('every entry is on a configuration-shape URL', () => {
     const configPathPrefixes = [
       '/timezone',
+      '/notifications',
       '/llm-config',
       '/tts-config',
       '/tts-override',

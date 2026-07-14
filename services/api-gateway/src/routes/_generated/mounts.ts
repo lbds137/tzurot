@@ -58,6 +58,7 @@ import { handleListGlobalTtsConfigs, handleGetGlobalTtsConfig, handleCreateGloba
 import { handleGetSystemSettings, handleUpdateSystemSettings } from '../admin/systemSettings.js';
 import { handleGetAdminUsageStats } from '../admin/usage.js';
 import { handleGetTimezone, handleSetTimezone } from '../user/timezone.js';
+import { handleGetNotificationPrefs, handleUpdateNotificationPrefs } from '../user/notifications.js';
 import { handleListUserLlmConfigs, handleGetUserLlmConfig, handleCreateUserLlmConfig, handleUpdateUserLlmConfig, handleDeleteUserLlmConfig, handleResolveUserLlmConfig } from '../user/llm-config.js';
 import { handleListUserTtsConfigs, handleGetUserTtsConfig, handleCreateUserTtsConfig, handleUpdateUserTtsConfig, handleDeleteUserTtsConfig } from '../user/tts-config.js';
 import { handleListTtsOverrides, handleSetTtsOverride, handleDeleteTtsOverride, handleGetTtsDefaultConfig, handleSetTtsDefaultConfig, handleClearTtsDefaultConfig } from '../user/tts-override.js';
@@ -154,6 +155,8 @@ export function mountAdminRoutes(app: Express, deps: RouteDeps): void {
 export function mountUserRoutes(app: Express, deps: RouteDeps): void {
   app.get('/api/user/timezone', requireUserAuth(), requireProvisionedUser(deps.prisma), handleGetTimezone(deps));
   app.put('/api/user/timezone', requireUserAuth(), requireProvisionedUser(deps.prisma), handleSetTimezone(deps));
+  app.get('/api/user/notifications', requireUserAuth(), requireProvisionedUser(deps.prisma), handleGetNotificationPrefs(deps));
+  app.patch('/api/user/notifications', requireUserAuth(), requireProvisionedUser(deps.prisma), handleUpdateNotificationPrefs(deps));
   app.get('/api/user/llm-config', requireUserAuth(), requireProvisionedUser(deps.prisma), handleListUserLlmConfigs(deps));
   app.post('/api/user/llm-config', requireUserAuth(), requireProvisionedUser(deps.prisma), handleCreateUserLlmConfig(deps));
   app.post('/api/user/llm-config/resolve', requireUserAuth(), requireProvisionedUser(deps.prisma), handleResolveUserLlmConfig(deps));

@@ -20,6 +20,14 @@ export const userConfigFixtures: Record<string, ConformanceEntry> = {
     body: { timezone: 'America/New_York' },
   },
 
+  // ---- Notification preferences ----------------------------------------------
+
+  getNotificationPrefs: {},
+
+  updateNotificationPrefs: {
+    body: { enabled: false, level: 'patch' },
+  },
+
   // ---- LLM config CRUD -------------------------------------------------------
 
   listUserLlmConfigs: {

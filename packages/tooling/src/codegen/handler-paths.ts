@@ -48,6 +48,7 @@ const USER_SHAPES_EXPORT = '../user/shapes/export.js';
 const USER_MODEL_OVERRIDE = '../user/model-override.js';
 const USER_PERSONA_CRUD = '../user/persona/crud.js';
 const USER_PERSONA_OVERRIDE = '../user/persona/override.js';
+const USER_NOTIFICATIONS = '../user/notifications.js';
 const USER_STT_OVERRIDE = '../user/stt-override.js';
 const USER_TIMEZONE = '../user/timezone.js';
 const USER_TTS_CONFIG = '../user/tts-config.js';
@@ -193,6 +194,8 @@ const PATH_MAP: Readonly<Record<string, string>> = {
   // User other
   getTimezone: USER_TIMEZONE,
   setTimezone: USER_TIMEZONE,
+  getNotificationPrefs: USER_NOTIFICATIONS,
+  updateNotificationPrefs: USER_NOTIFICATIONS,
   getUserUsage: '../user/usage.js',
   getVoiceResolution: '../user/voice-resolution.js',
   getNsfwStatus: '../user/nsfw.js',

@@ -52,6 +52,12 @@ export {
 // Timezone endpoint mocks
 export { mockGetTimezoneResponse, mockSetTimezoneResponse } from './timezone.js';
 
+// Notification-preference endpoint mocks
+export {
+  mockGetNotificationPrefsResponse,
+  mockUpdateNotificationPrefsResponse,
+} from './notifications.js';
+
 // LLM Config endpoint mocks
 export {
   mockCreateLlmConfigResponse,
