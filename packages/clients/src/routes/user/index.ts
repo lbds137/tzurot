@@ -24,6 +24,7 @@
 
 import type { RouteDef } from '../types.js';
 import { userAccountRoutes } from './account.js';
+import { userFeedbackRoutes } from './feedback.js';
 import { userConfigRoutes } from './configs.js';
 import { userOwnershipRoutes } from './ownership.js';
 import { userResourceRoutes } from './resources.js';
@@ -35,6 +36,7 @@ import { userDiagnosticRoutes } from './diagnostics.js';
 
 export const userRoutes = {
   ...userAccountRoutes,
+  ...userFeedbackRoutes,
   ...userConfigRoutes,
   ...userOwnershipRoutes,
   ...userResourceRoutes,
@@ -48,6 +50,7 @@ export const userRoutes = {
 // individually (e.g., assert which file contributed which route id).
 export {
   userAccountRoutes,
+  userFeedbackRoutes,
   userConfigRoutes,
   userOwnershipRoutes,
   userResourceRoutes,

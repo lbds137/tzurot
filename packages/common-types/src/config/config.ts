@@ -65,6 +65,9 @@ export const envSchema = z.object({
   EXTRACTION_DAILY_LIMIT: z.coerce.number().int().min(1).default(100), // per-personality daily ceiling on extraction model calls (cost tripwire)
   ZAI_CODING_API_KEY: optionalNonEmptyString(), // SYSTEM z.ai coding-plan key — secrets never move to the DB bag
   BOT_OWNER_ID: optionalDiscordId(), // Discord user ID of bot owner for admin commands
+  /** Private owner channel receiving one silent embed per accepted /feedback
+   *  submission. Unset → submissions are stored but not posted anywhere. */
+  FEEDBACK_CHANNEL_ID: optionalDiscordId(),
   BOT_MENTION_CHAR: z.string().length(1).default('@'), // Character used for personality mentions (@personality or &personality)
   INTERNAL_SERVICE_SECRET: optionalNonEmptyString(), // Shared secret for service-to-service auth (bot-client -> api-gateway)
 
@@ -245,6 +248,7 @@ export function createTestConfig(overrides: Partial<EnvConfig> = {}): EnvConfig 
     EXTRACTION_DAILY_LIMIT: 100,
     ZAI_CODING_API_KEY: undefined,
     BOT_OWNER_ID: undefined,
+    FEEDBACK_CHANNEL_ID: undefined,
     BOT_MENTION_CHAR: '@',
     INTERNAL_SERVICE_SECRET: undefined,
 

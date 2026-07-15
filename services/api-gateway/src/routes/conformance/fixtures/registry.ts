@@ -11,6 +11,7 @@
 
 import type { ConformanceEntry } from './types.js';
 import { userAccountFixtures } from './userAccount.js';
+import { userFeedbackFixtures } from './userFeedback.js';
 import { adminFixtures } from './admin.js';
 import { internalFixtures } from './internal.js';
 import { userConfigFixtures } from './userConfigs.js';
@@ -23,6 +24,7 @@ import { userDiagnosticFixtures, userShapesFixtures } from './userShapesAndDiagn
 
 export const CONFORMANCE_REGISTRY: Record<string, ConformanceEntry> = {
   ...userAccountFixtures,
+  ...userFeedbackFixtures,
   ...internalFixtures,
   ...adminFixtures,
   ...userOwnershipFixtures,

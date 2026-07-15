@@ -149,6 +149,24 @@ export class UserClient {
     });
   }
 
+  async submitFeedback(input: z.infer<typeof ROUTE_MANIFEST.submitFeedback.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.submitFeedback.output>>> {
+    const fullPath = '/api/user/feedback';
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'POST',
+      path: fullPath,
+      headers: {
+        'X-User-Id': this.actor,
+        'X-User-Username': encodeURIComponent(this.user.username),
+        'X-User-DisplayName': encodeURIComponent(this.user.displayName),
+        'X-User-Is-Bot': String(this.user.isBot),
+      },
+      body: input,
+      outputSchema: ROUTE_MANIFEST.submitFeedback.output,
+    });
+  }
+
   /**
    * @safeRead Server-side has no observable mutation — safe to cache client-side.
    */

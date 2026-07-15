@@ -47,6 +47,7 @@ const USER_SHAPES_IMPORT = '../user/shapes/import.js';
 const USER_SHAPES_EXPORT = '../user/shapes/export.js';
 const USER_ACCOUNT_EXPORT = '../user/account/export.js';
 const USER_ACCOUNT_DELETE = '../user/account/delete.js';
+const USER_FEEDBACK = '../user/feedback.js';
 const USER_MODEL_OVERRIDE = '../user/model-override.js';
 const USER_PERSONA_CRUD = '../user/persona/crud.js';
 const USER_PERSONA_OVERRIDE = '../user/persona/override.js';
@@ -282,6 +283,7 @@ const PATH_MAP: Readonly<Record<string, string>> = {
   previewAccountDelete: USER_ACCOUNT_DELETE,
   issueAccountDeleteToken: USER_ACCOUNT_DELETE,
   deleteAccount: USER_ACCOUNT_DELETE,
+  submitFeedback: USER_FEEDBACK,
 
   // Wallet
   listWalletKeys: '../wallet/listKeys.js',

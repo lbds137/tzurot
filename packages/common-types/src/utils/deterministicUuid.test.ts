@@ -32,6 +32,7 @@ import {
   generateUserApiKeyUuid,
   generateExportJobUuid,
   isUuidFormat,
+  generateUserFeedbackUuid,
 } from './deterministicUuid.js';
 
 describe('Deterministic UUID Generation', () => {
@@ -600,5 +601,16 @@ describe('Deterministic UUID Generation', () => {
         '287bae65-55ef-591a-9cd1-c567b5d3e2e1'
       );
     });
+  });
+});
+
+describe('generateUserFeedbackUuid', () => {
+  it('is deterministic on (userId, contentHash, submittedAt) and unique across timestamps', () => {
+    const a = generateUserFeedbackUuid('user-1', 'hash-1', '2026-07-15T00:00:00.000Z');
+    const b = generateUserFeedbackUuid('user-1', 'hash-1', '2026-07-15T00:00:00.000Z');
+    const later = generateUserFeedbackUuid('user-1', 'hash-1', '2026-07-23T00:00:00.000Z');
+    expect(a).toBe(b);
+    expect(a).not.toBe(later);
+    expect(a).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[0-9a-f]{4}-[0-9a-f]{12}$/);
   });
 });

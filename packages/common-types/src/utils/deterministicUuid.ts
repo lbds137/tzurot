@@ -404,6 +404,22 @@ export function generateReleaseDeliveryLogUuid(releaseId: string, userId: string
 }
 
 /**
+ * Generate deterministic UUID for a UserFeedback row.
+ * Seed: user_feedback:{userId}:{contentHash}:{submittedAtIso}
+ *
+ * The timestamp component keeps legitimate re-submissions of the same
+ * content (after the dedupe window expires) unique; within the window the
+ * intake gate rejects the duplicate before an id is ever minted.
+ */
+export function generateUserFeedbackUuid(
+  userId: string,
+  contentHash: string,
+  submittedAtIso: string
+): string {
+  return uuidv5(`user_feedback:${userId}:${contentHash}:${submittedAtIso}`, TZUROT_NAMESPACE);
+}
+
+/**
  * Generate deterministic UUID for UserCredential
  * Seed: user_credential:{userId}:{service}:{credentialType}
  *

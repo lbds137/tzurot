@@ -1186,6 +1186,23 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
 ]
 `;
 
+exports[`CommandHandler (component) > command structure snapshots > has a stable option structure for every registered command > feedback-command-options 1`] = `
+[
+  {
+    "autocomplete": undefined,
+    "choices": undefined,
+    "description": "Your feedback (bug reports, ideas, anything)",
+    "description_localizations": undefined,
+    "max_length": 2000,
+    "min_length": undefined,
+    "name": "message",
+    "name_localizations": undefined,
+    "required": true,
+    "type": 3,
+  },
+]
+`;
+
 exports[`CommandHandler (component) > command structure snapshots > has a stable option structure for every registered command > help-command-options 1`] = `
 [
   {
@@ -3063,6 +3080,7 @@ exports[`CommandHandler (component) > command structure snapshots > registers a 
   "channel",
   "character",
   "deny",
+  "feedback",
   "help",
   "history",
   "inspect",

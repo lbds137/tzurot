@@ -2130,6 +2130,20 @@
       ]
     },
     {
+      "id": "client:api-gateway:submitFeedback",
+      "kind": "http-route",
+      "producer": "client",
+      "consumer": "api-gateway",
+      "schemaRef": "POST /feedback",
+      "mechanism": "route-conformance",
+      "requiredTiers": [
+        "component"
+      ],
+      "actualTiers": [
+        "component"
+      ]
+    },
+    {
       "id": "client:api-gateway:syncConversation",
       "kind": "http-route",
       "producer": "client",

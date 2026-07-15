@@ -877,6 +877,9 @@ CREATE UNIQUE INDEX "release_delivery_log_release_id_user_id_key" ON "release_de
 -- CreateIndex
 CREATE INDEX "user_feedback_user_id_idx" ON "user_feedback"("user_id");
 
+-- CreateIndex
+CREATE INDEX "user_feedback_user_id_content_hash_idx" ON "user_feedback"("user_id", "content_hash");
+
 -- AddForeignKey
 ALTER TABLE "users" ADD CONSTRAINT "users_default_llm_config_id_fkey" FOREIGN KEY ("default_llm_config_id") REFERENCES "llm_configs"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
