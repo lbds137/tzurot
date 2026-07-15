@@ -1045,8 +1045,10 @@ model UserFeedback {
   user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   // Schema-wide convention: every userId FK is indexed (cascade deletes are
-  // implicit queries). The dedupe-shaped index ([userId, contentHash]) still
-  // lands with its query in the feedback-intake PR.
+  // implicit queries).
   @@index([userId])
+  // Near-dup dedupe: the intake gate looks up (userId, contentHash) within
+  // the dedupe window before accepting a submission.
+  @@index([userId, contentHash])
   @@map("user_feedback")
 }

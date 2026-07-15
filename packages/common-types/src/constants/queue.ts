@@ -159,6 +159,19 @@ export const REDIS_KEY_PREFIXES = {
    * Consumer: `api-gateway/MemoryActionTokenService`.
    */
   ACCOUNT_DELETE_TOKEN: 'account:delete:',
+  /**
+   * Feedback-intake cooldown gate. Key: `feedback:cooldown:{discordUserId}`.
+   * Value: '1'. TTL: FEEDBACK_LIMITS.COOLDOWN_SECONDS.
+   * Consumer: `api-gateway/routes/user/feedback`.
+   */
+  FEEDBACK_COOLDOWN: 'feedback:cooldown:',
+  /**
+   * Feedback-intake daily counter. Key:
+   * `feedback:daily:{discordUserId}:{YYYY-MM-DD}`. Value: submission count
+   * (plain INCR + EXPIRE, fail-open). TTL: ~25h.
+   * Consumer: `api-gateway/routes/user/feedback`.
+   */
+  FEEDBACK_DAILY: 'feedback:daily:',
 } as const;
 
 /**

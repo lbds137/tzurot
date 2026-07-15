@@ -52,9 +52,10 @@ export const CATEGORY_CONFIG: Record<string, { emoji: string; order: number }> =
   Inspect: { emoji: '🔍', order: 10 },
   Models: { emoji: '🤖', order: 11 },
   Notifications: { emoji: '🔔', order: 12 },
-  Deny: { emoji: '🚫', order: 13 },
-  Admin: { emoji: '🛡️', order: 14 },
-  Help: { emoji: '❓', order: 15 },
+  Feedback: { emoji: '💬', order: 13 },
+  Deny: { emoji: '🚫', order: 14 },
+  Admin: { emoji: '🛡️', order: 15 },
+  Help: { emoji: '❓', order: 16 },
   Other: { emoji: '📦', order: 99 },
 };
 

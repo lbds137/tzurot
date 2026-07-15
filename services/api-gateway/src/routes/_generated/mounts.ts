@@ -62,6 +62,7 @@ import { handleGetSystemSettings, handleUpdateSystemSettings } from '../admin/sy
 import { handleGetAdminUsageStats } from '../admin/usage.js';
 import { handleStartAccountExport, handleGetAccountExportStatus } from '../user/account/export.js';
 import { handlePreviewAccountDelete, handleIssueAccountDeleteToken, handleDeleteAccount } from '../user/account/delete.js';
+import { handleSubmitFeedback } from '../user/feedback.js';
 import { handleGetTimezone, handleSetTimezone } from '../user/timezone.js';
 import { handleGetNotificationPrefs, handleUpdateNotificationPrefs } from '../user/notifications.js';
 import { handleListUserLlmConfigs, handleGetUserLlmConfig, handleCreateUserLlmConfig, handleUpdateUserLlmConfig, handleDeleteUserLlmConfig, handleResolveUserLlmConfig } from '../user/llm-config.js';
@@ -167,6 +168,7 @@ export function mountUserRoutes(app: Express, deps: RouteDeps): void {
   app.get('/api/user/account/delete/preview', requireUserAuth(), requireProvisionedUser(deps.prisma), handlePreviewAccountDelete(deps));
   app.post('/api/user/account/delete/token', requireUserAuth(), requireProvisionedUser(deps.prisma), handleIssueAccountDeleteToken(deps));
   app.post('/api/user/account/delete', requireUserAuth(), requireProvisionedUser(deps.prisma), handleDeleteAccount(deps));
+  app.post('/api/user/feedback', requireUserAuth(), requireProvisionedUser(deps.prisma), handleSubmitFeedback(deps));
   app.get('/api/user/timezone', requireUserAuth(), requireProvisionedUser(deps.prisma), handleGetTimezone(deps));
   app.put('/api/user/timezone', requireUserAuth(), requireProvisionedUser(deps.prisma), handleSetTimezone(deps));
   app.get('/api/user/notifications', requireUserAuth(), requireProvisionedUser(deps.prisma), handleGetNotificationPrefs(deps));
