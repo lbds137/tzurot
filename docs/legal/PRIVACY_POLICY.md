@@ -39,9 +39,9 @@ Tzurot is a Discord bot that lets you talk with AI characters. It is operated by
 
 Your conversation content is sent to AI providers to generate responses. Which provider depends on your configuration:
 
-- **OpenRouter** — the primary AI provider. Receives the assembled conversation context (character definition, recent history, retrieved memories, your message, and any images) for every response it generates.
-- **z.ai** — powers the shared free tier. Receives the same class of conversation context when a free-tier model generates the response.
-- **Mistral / ElevenLabs** — optional voice providers, used only if you connect your own key. They receive the character's response text for speech synthesis (and, for Mistral transcription, your voice-message audio; ElevenLabs also receives voice-reference audio for cloning).
+- **OpenRouter** — the primary AI provider (a router across many models). Receives the assembled conversation context (character definition, recent history, retrieved memories, your message, and any images) when it generates a response.
+- **z.ai** — an alternative AI provider. Receives the same class of conversation context when it generates a response. Free-tier requests are served by OpenRouter or z.ai depending on which the operator has configured as the free default at the time.
+- **Mistral / ElevenLabs** — optional voice providers, used only if you connect your own key. Each can provide both transcription (receiving your voice-message audio) and speech synthesis (receiving the character's response text), and both can receive your uploaded voice-reference audio for voice cloning.
 - **Self-hosted voice engine** — the default voice pipeline runs on our own infrastructure, not a third party: your voice messages are transcribed and response audio is synthesized there.
 - **shapes.inc** — contacted only if you explicitly run an import/export of your own shapes.inc data, using credentials you supply.
 - **Railway** — hosts the bot's services and databases. All stored data described above lives there.

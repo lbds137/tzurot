@@ -24,7 +24,7 @@ You control what you ask for. Adult and dark themes are permitted within the bot
 
 You keep ownership of what you create — personas, characters, avatars, voice references, and your messages. You grant the operator the limited rights needed to run the service: storing, processing, and transmitting that content to AI providers to generate responses, as described in the Privacy Policy.
 
-Don't upload content you don't have the right to use. Voice cloning requires that you have the right to the voice in the reference audio — do not upload another person's voice without their consent.
+You are solely responsible for the content you upload and create, including voice-reference audio. The operator does not pre-screen user uploads. If a rights holder or affected person submits a valid legal request concerning uploaded content (for example, a copyright takedown notice), the operator will act on it — which may include removing the content or blocking the account responsible.
 
 ## 5. Bring-your-own-key (BYOK)
 
