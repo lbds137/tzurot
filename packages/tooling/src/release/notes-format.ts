@@ -8,6 +8,8 @@
  * without shelling out to git or gh.
  */
 
+import { RELEASE_LEVEL_SECTIONS } from '@tzurot/common-types/constants/releaseNotes';
+
 export interface MergedPr {
   number: number;
   title: string;
@@ -38,7 +40,7 @@ const CONVENTIONAL_RE =
  * the Breaking Changes section regardless of type.
  */
 const SECTION_MAP: Record<string, string> = {
-  feat: 'Features',
+  feat: RELEASE_LEVEL_SECTIONS.minor,
   fix: 'Bug Fixes',
   refactor: 'Improvements',
   perf: 'Improvements',
@@ -54,10 +56,14 @@ const SECTION_MAP: Record<string, string> = {
 /**
  * Order of sections in the rendered output. Breaking Changes always
  * comes first per the format rule in 05-tooling.md.
+ *
+ * The two level-bearing names come from the shared constant: the runtime
+ * broadcast classifier greps release bodies for these exact headers, so a
+ * local rename here would silently break level derivation there.
  */
 export const SECTION_ORDER = [
-  'Breaking Changes',
-  'Features',
+  RELEASE_LEVEL_SECTIONS.major,
+  RELEASE_LEVEL_SECTIONS.minor,
   'Bug Fixes',
   'Improvements',
   'Chores',
@@ -109,7 +115,9 @@ export function groupBySections(prs: MergedPr[]): GroupedSections {
       unparseable.push(pr);
       continue;
     }
-    const sectionName = parts.breaking ? 'Breaking Changes' : (SECTION_MAP[parts.type] ?? 'Chores');
+    const sectionName = parts.breaking
+      ? RELEASE_LEVEL_SECTIONS.major
+      : (SECTION_MAP[parts.type] ?? 'Chores');
     const line = formatLineItem(pr, parts);
     const existing = sections.get(sectionName);
     if (existing === undefined) {

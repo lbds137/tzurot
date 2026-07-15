@@ -54,6 +54,20 @@ describe('BroadcastInputSchema', () => {
       BroadcastInputSchema.safeParse({ message: 'm', level: 'all', dryRun: true }).success
     ).toBe(false);
   });
+
+  it('rejects labels that squat the release-tag namespace (v<digit>…)', () => {
+    expect(
+      BroadcastInputSchema.safeParse({ message: 'm', label: 'v3.0.0-beta.1', dryRun: true }).success
+    ).toBe(false);
+    expect(
+      BroadcastInputSchema.safeParse({ message: 'm', label: 'v2', dryRun: true }).success
+    ).toBe(false);
+    // A leading v NOT followed by a digit is still a legitimate label.
+    expect(
+      BroadcastInputSchema.safeParse({ message: 'm', label: 'voice-outage-notice', dryRun: true })
+        .success
+    ).toBe(true);
+  });
 });
 
 describe('BroadcastResponseSchema', () => {
@@ -149,5 +163,27 @@ describe('internal route inputs', () => {
       results: [{ deliveryLogId: UUID, status: 'failed_permanent', errorCode: '50007' }],
     });
     expect(result.success).toBe(true);
+  });
+
+  it('reconcile: accepts an empty body, bounds lookbackHours to a week', async () => {
+    const { ReleaseReconcileInputSchema } = await import('./broadcast.js');
+    expect(ReleaseReconcileInputSchema.safeParse({}).success).toBe(true);
+    expect(ReleaseReconcileInputSchema.safeParse({ lookbackHours: 168 }).success).toBe(true);
+    expect(ReleaseReconcileInputSchema.safeParse({ lookbackHours: 169 }).success).toBe(false);
+    expect(ReleaseReconcileInputSchema.safeParse({ lookbackHours: 0 }).success).toBe(false);
+    expect(ReleaseReconcileInputSchema.safeParse({ lookbackHours: 2.5 }).success).toBe(false);
+  });
+
+  it('reconcile: response summary shape round-trips', async () => {
+    const { ReleaseReconcileResponseSchema } = await import('./broadcast.js');
+    const result = ReleaseReconcileResponseSchema.safeParse({
+      checked: 2,
+      announced: ['v3.0.0-beta.166'],
+      alreadyAnnounced: 1,
+      skipped: 0,
+      capped: false,
+    });
+    expect(result.success).toBe(true);
+    expect(ReleaseReconcileResponseSchema.safeParse({ checked: -1 }).success).toBe(false);
   });
 });
