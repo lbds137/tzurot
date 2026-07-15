@@ -11,6 +11,11 @@ import {
   generateReleaseDeliveryLogUuid,
 } from '@tzurot/common-types/utils/deterministicUuid';
 
+const allowlistMock = vi.hoisted(() => ({ value: null as ReadonlySet<string> | null }));
+vi.mock('@tzurot/common-types/utils/outboundDmAllowlist', () => ({
+  getOutboundDmAllowlist: () => allowlistMock.value,
+}));
+
 vi.mock('@tzurot/common-types/utils/logger', async () => {
   const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
     '@tzurot/common-types/utils/logger'
@@ -63,6 +68,27 @@ describe('eligibleThresholds', () => {
 describe('resolveEligibleRecipients', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    allowlistMock.value = null;
+  });
+
+  it('narrows the WHERE clause to the allowlist when set (dev outbound gate)', async () => {
+    allowlistMock.value = new Set(['111']);
+    const prisma = makePrisma();
+    prisma.user.findMany.mockResolvedValueOnce([
+      { id: USER_A, discordId: '111', username: 'owner' },
+    ]);
+
+    await resolveEligibleRecipients(prisma as unknown as PrismaClient, 'major');
+
+    expect(prisma.user.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          notifyEnabled: true,
+          notifyLevel: { in: ['major', 'minor', 'patch'] },
+          discordId: { in: ['111'] },
+        },
+      })
+    );
   });
 
   it('queries opted-in users at the level thresholds', async () => {

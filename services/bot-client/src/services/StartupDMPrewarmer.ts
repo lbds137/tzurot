@@ -24,6 +24,7 @@
 
 import type { Client } from 'discord.js';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { getOutboundDmAllowlist } from '@tzurot/common-types/utils/outboundDmAllowlist';
 import { getServiceClient } from '../utils/gatewayClients.js';
 import type { DMCacheWarmer } from './DMCacheWarmer.js';
 
@@ -93,6 +94,19 @@ export class StartupDMPrewarmer {
 
     let warmed = 0;
     let failed = 0;
+    // Outbound gate: dev's db-synced user table is prod-shaped, so the
+    // recent-users list can point the DEV bot at PROD users — the boot-burst
+    // pattern behind the 340002 DM quarantine. When the allowlist is set,
+    // warm only those users; unset (prod) warms everyone.
+    const allowlist = getOutboundDmAllowlist();
+    if (allowlist !== null) {
+      const before = discordIds.length;
+      discordIds = discordIds.filter(id => allowlist.has(id));
+      logger.info(
+        { before, after: discordIds.length },
+        'Outbound DM allowlist active — prewarm list filtered'
+      );
+    }
     for (let i = 0; i < discordIds.length; i++) {
       const discordId = discordIds[i];
       try {

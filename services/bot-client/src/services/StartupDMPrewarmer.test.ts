@@ -8,6 +8,11 @@ vi.mock('../utils/gatewayClients.js', () => ({
   getServiceClient: () => ({ recentUsers: mockRecentUsers }),
 }));
 
+const allowlistMock = vi.hoisted(() => ({ value: null as ReadonlySet<string> | null }));
+vi.mock('@tzurot/common-types/utils/outboundDmAllowlist', () => ({
+  getOutboundDmAllowlist: () => allowlistMock.value,
+}));
+
 vi.mock('@tzurot/common-types/utils/logger', async () => {
   const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
     '@tzurot/common-types/utils/logger'
@@ -39,6 +44,7 @@ describe('StartupDMPrewarmer', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     mockRecentUsers.mockReset();
+    allowlistMock.value = null;
     mockClient = { users: { fetch: vi.fn() } };
     mockWarmer = { warm: vi.fn() };
     mockSleep = vi.fn<(ms: number) => Promise<void>>().mockResolvedValue(undefined);
@@ -51,6 +57,20 @@ describe('StartupDMPrewarmer', () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+  });
+
+  it('warms ONLY allowlisted users when the outbound gate is set (dev quarantine guard)', async () => {
+    allowlistMock.value = new Set(['allowed-1']);
+    mockRecentUsers.mockResolvedValue(
+      okResult({ discordIds: ['allowed-1', 'prod-user-2', 'prod-user-3'], sinceDays: 30 })
+    );
+    mockClient.users.fetch.mockImplementation((id: string) => Promise.resolve(mockUser(id)));
+
+    await prewarmer.run();
+
+    expect(mockClient.users.fetch).toHaveBeenCalledTimes(1);
+    expect(mockClient.users.fetch).toHaveBeenCalledWith('allowed-1');
+    expect(mockWarmer.warm).toHaveBeenCalledTimes(1);
   });
 
   it('warms each user returned by the recent-users endpoint', async () => {

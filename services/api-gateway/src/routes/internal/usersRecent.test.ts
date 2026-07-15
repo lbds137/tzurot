@@ -5,6 +5,11 @@ import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 import { handleRecentUsers } from './usersRecent.js';
 import { stubRouteResolvers } from '../../test/shared-route-test-utils.js';
 
+const allowlistMock = vi.hoisted(() => ({ value: null as ReadonlySet<string> | null }));
+vi.mock('@tzurot/common-types/utils/outboundDmAllowlist', () => ({
+  getOutboundDmAllowlist: () => allowlistMock.value,
+}));
+
 vi.mock('@tzurot/common-types/utils/logger', async () => {
   const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
     '@tzurot/common-types/utils/logger'
@@ -26,6 +31,7 @@ describe('GET /internal/users/recent', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    allowlistMock.value = null;
     mockPrisma = { $queryRaw: vi.fn() };
     app = express();
     app.get(
@@ -50,6 +56,20 @@ describe('GET /internal/users/recent', () => {
     // Tagged-template invocation: first arg is the static-strings array,
     // bound parameters follow as positional rest args.
     expect(mockPrisma.$queryRaw).toHaveBeenCalledWith(expect.any(Array), 30, 1000);
+  });
+
+  it('narrows the response to the outbound-DM allowlist when set (quarantine guard)', async () => {
+    allowlistMock.value = new Set(['111111111111111111']);
+    mockPrisma.$queryRaw.mockResolvedValue([
+      { discord_id: '111111111111111111' },
+      { discord_id: '222222222222222222' },
+      { discord_id: '333333333333333333' },
+    ]);
+
+    const response = await request(app).get('/internal/users/recent');
+
+    expect(response.status).toBe(200);
+    expect(response.body.discordIds).toEqual(['111111111111111111']);
   });
 
   it('honors custom sinceDays query param', async () => {
