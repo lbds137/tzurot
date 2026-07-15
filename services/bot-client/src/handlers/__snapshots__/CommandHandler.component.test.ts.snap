@@ -2679,7 +2679,7 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
     "type": 2,
   },
   {
-    "description": "Your data: export everything you have stored",
+    "description": "Your data: export everything, or delete your account",
     "description_localizations": undefined,
     "name": "data",
     "name_localizations": undefined,
@@ -2688,6 +2688,14 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
         "description": "Export all your account data as a downloadable file",
         "description_localizations": undefined,
         "name": "export",
+        "name_localizations": undefined,
+        "options": [],
+        "type": 1,
+      },
+      {
+        "description": "Permanently delete your account and ALL your data",
+        "description_localizations": undefined,
+        "name": "delete",
         "name_localizations": undefined,
         "options": [],
         "type": 1,

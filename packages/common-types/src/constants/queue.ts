@@ -151,6 +151,14 @@ export const REDIS_KEY_PREFIXES = {
    * Consumer: `api-gateway/MemoryActionTokenService`.
    */
   MEMORY_PURGE_TOKEN: 'memory:purge:',
+  /**
+   * Prefix for account-deletion confirmation tokens. Key:
+   * `account:delete:{discordUserId}:{token}`. Value: JSON-encoded
+   * `{ issuedAt }` (the deletion target is the key's own user — no extra
+   * binding needed). TTL: 5 min.
+   * Consumer: `api-gateway/MemoryActionTokenService`.
+   */
+  ACCOUNT_DELETE_TOKEN: 'account:delete:',
 } as const;
 
 /**

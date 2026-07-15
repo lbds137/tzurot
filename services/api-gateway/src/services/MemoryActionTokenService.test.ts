@@ -268,4 +268,38 @@ describe('MemoryActionTokenService', () => {
       );
     });
   });
+
+  describe('account delete tokens', () => {
+    it('mints an `acctdel_`-prefixed token under the account:delete key with 5-minute TTL', async () => {
+      const token = await service.issueAccountDeleteToken('user-123');
+
+      expect(token).toMatch(/^acctdel_[A-Za-z0-9_-]{16,64}$/);
+      expect(redis.setex).toHaveBeenCalledWith(
+        `${REDIS_KEY_PREFIXES.ACCOUNT_DELETE_TOKEN}user-123:${token}`,
+        300,
+        expect.any(String)
+      );
+    });
+
+    it('peek reads without consuming; consume uses atomic getdel', async () => {
+      (
+        redis.get as unknown as { mockResolvedValueOnce: (v: unknown) => void }
+      ).mockResolvedValueOnce(JSON.stringify({ issuedAt: 'now' }));
+      expect(await service.peekAccountDeleteToken('user-123', 'acctdel_tok')).toBe(true);
+      expect(redis.getdel).not.toHaveBeenCalled();
+
+      (
+        redis.getdel as unknown as { mockResolvedValueOnce: (v: unknown) => void }
+      ).mockResolvedValueOnce(JSON.stringify({ issuedAt: 'now' }));
+      expect(await service.consumeAccountDeleteToken('user-123', 'acctdel_tok')).toBe(true);
+      expect(redis.getdel).toHaveBeenCalledWith(
+        `${REDIS_KEY_PREFIXES.ACCOUNT_DELETE_TOKEN}user-123:acctdel_tok`
+      );
+    });
+
+    it('missing tokens peek and consume as false', async () => {
+      expect(await service.peekAccountDeleteToken('user-123', 'acctdel_missing')).toBe(false);
+      expect(await service.consumeAccountDeleteToken('user-123', 'acctdel_missing')).toBe(false);
+    });
+  });
 });

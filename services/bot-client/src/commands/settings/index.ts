@@ -57,8 +57,15 @@ import { handleSetDefault as handlePresetSetDefault } from './preset/set-default
 import { handleClearDefault as handlePresetClearDefault } from './preset/clear-default.js';
 import { handleAutocomplete as handlePresetAutocomplete } from './preset/autocomplete.js';
 
-// Data-rights handlers (account export)
+// Data-rights handlers (account export + deletion)
 import { handleDataExport } from './data/export.js';
+import {
+  handleDataDelete,
+  handleDataDeleteButton,
+  handleDataDeleteModal,
+  isDataDeleteInteraction,
+  SETTINGS_DATA_DELETE_PREFIX,
+} from './data/delete.js';
 
 // Defaults handlers (user-default config cascade settings)
 import { CATALOG } from '../../ux/catalog/catalog.js';
@@ -121,6 +128,7 @@ const presetRouter = createTypedSubcommandRouter(
 const dataRouter = createTypedSubcommandRouter(
   {
     export: handleDataExport,
+    delete: handleDataDelete,
   },
   { logger, logPrefix: '[Settings/Data]' }
 );
@@ -165,6 +173,11 @@ async function handleModal(interaction: ModalSubmitInteraction): Promise<void> {
     return;
   }
 
+  if (isDataDeleteInteraction(interaction.customId)) {
+    await handleDataDeleteModal(interaction);
+    return;
+  }
+
   logger.warn({ customId: interaction.customId }, 'Unknown modal customId');
 }
 
@@ -179,6 +192,11 @@ async function handleButton(interaction: ButtonInteraction): Promise<void> {
 
   if (isPresetOverrideInteraction(interaction.customId)) {
     await handlePresetBrowseButton(interaction);
+    return;
+  }
+
+  if (isDataDeleteInteraction(interaction.customId)) {
+    await handleDataDeleteButton(interaction);
     return;
   }
 
@@ -407,15 +425,20 @@ export default defineCommand({
           subcommand.setName('edit').setDescription('Open your default settings dashboard')
         )
     )
-    // Data-rights subcommand group (account export; account deletion follows)
+    // Data-rights subcommand group (account export + deletion)
     .addSubcommandGroup(group =>
       group
         .setName('data')
-        .setDescription('Your data: export everything you have stored')
+        .setDescription('Your data: export everything, or delete your account')
         .addSubcommand(subcommand =>
           subcommand
             .setName('export')
             .setDescription('Export all your account data as a downloadable file')
+        )
+        .addSubcommand(subcommand =>
+          subcommand
+            .setName('delete')
+            .setDescription('Permanently delete your account and ALL your data')
         )
     ),
   execute,
@@ -423,5 +446,9 @@ export default defineCommand({
   handleModal,
   handleButton,
   handleSelectMenu,
-  componentPrefixes: ['user-defaults-settings', PRESET_OVERRIDE_PREFIX],
+  componentPrefixes: [
+    'user-defaults-settings',
+    PRESET_OVERRIDE_PREFIX,
+    SETTINGS_DATA_DELETE_PREFIX,
+  ],
 });

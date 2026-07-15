@@ -506,6 +506,20 @@
       ]
     },
     {
+      "id": "client:api-gateway:deleteAccount",
+      "kind": "http-route",
+      "producer": "client",
+      "consumer": "api-gateway",
+      "schemaRef": "POST /account/delete",
+      "mechanism": "route-conformance",
+      "requiredTiers": [
+        "component"
+      ],
+      "actualTiers": [
+        "component"
+      ]
+    },
+    {
       "id": "client:api-gateway:deleteGlobalLlmConfig",
       "kind": "http-route",
       "producer": "client",
@@ -1262,6 +1276,20 @@
       ]
     },
     {
+      "id": "client:api-gateway:issueAccountDeleteToken",
+      "kind": "http-route",
+      "producer": "client",
+      "consumer": "api-gateway",
+      "schemaRef": "POST /account/delete/token",
+      "mechanism": "route-conformance",
+      "requiredTiers": [
+        "component"
+      ],
+      "actualTiers": [
+        "component"
+      ]
+    },
+    {
       "id": "client:api-gateway:issuePurgeToken",
       "kind": "http-route",
       "producer": "client",
@@ -1589,6 +1617,20 @@
       "producer": "client",
       "consumer": "api-gateway",
       "schemaRef": "POST /conversation/user-message",
+      "mechanism": "route-conformance",
+      "requiredTiers": [
+        "component"
+      ],
+      "actualTiers": [
+        "component"
+      ]
+    },
+    {
+      "id": "client:api-gateway:previewAccountDelete",
+      "kind": "http-route",
+      "producer": "client",
+      "consumer": "api-gateway",
+      "schemaRef": "GET /account/delete/preview",
       "mechanism": "route-conformance",
       "requiredTiers": [
         "component"
