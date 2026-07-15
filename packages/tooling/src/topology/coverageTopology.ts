@@ -112,6 +112,10 @@ const JOB_SCHEMA_BY_TYPE: Record<JobType, { schemaRef: string; consumer: string 
   [JobType.LLMGeneration]: { schemaRef: 'llmGenerationJobDataSchema', consumer: 'ai-worker' },
   [JobType.ShapesImport]: null,
   [JobType.ShapesExport]: null,
+  // Self-contained like the shapes jobs: status/results ride the export_jobs
+  // row (the real cross-service contract), not the payload — the two-uuid
+  // payload schema exists for enqueue-side validation only.
+  [JobType.AccountExport]: null,
   // Worker-internal: ai-worker both enqueues (LongTermMemoryService tail call)
   // and consumes fact-extraction jobs — no cross-service producer↔consumer seam,
   // so no bullmq-contract surface despite having a payload schema.

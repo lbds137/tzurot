@@ -313,6 +313,9 @@ export {
   IncognitoSessionWithRemainingSchema,
 } from './memoryIncognito.js';
 
+// Account data-rights endpoints live in './account.js' — import via the
+// subpath (schemas/api/account); not re-exported here (max-lines budget).
+
 // Shapes.inc BYOK integration endpoints
 export {
   DeleteShapesAuthResponseSchema,

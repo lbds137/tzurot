@@ -30,6 +30,10 @@ import {
   type ShapesImportJobResult,
   type ShapesExportJobResult,
 } from '@tzurot/common-types/types/shapes-import';
+import {
+  type AccountExportJobData,
+  type AccountExportJobResult,
+} from '@tzurot/common-types/types/account-export';
 import { generateUsageLogUuid } from '@tzurot/common-types/utils/deterministicUuid';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { ExtractionTrigger } from '../services/extraction/ExtractionTrigger.js';
@@ -47,6 +51,7 @@ import { processImageDescriptionJob } from './ImageDescriptionJob.js';
 import { LLMGenerationHandler } from './handlers/LLMGenerationHandler.js';
 import { processShapesImportJob } from './ShapesImportJob.js';
 import { processShapesExportJob } from './ShapesExportJob.js';
+import { processAccountExportJob } from './AccountExportJob.js';
 
 const logger = createLogger('AIJobProcessor');
 const LOG_PROCESSING_JOB = '[AIJobProcessor] Processing job';
@@ -154,7 +159,9 @@ export class AIJobProcessor {
    */
   async processJob(
     job: Job<AnyJobData>
-  ): Promise<AnyJobResult | ShapesImportJobResult | ShapesExportJobResult> {
+  ): Promise<
+    AnyJobResult | ShapesImportJobResult | ShapesExportJobResult | AccountExportJobResult
+  > {
     // Shapes import/export jobs use job.name for routing (they don't extend BaseJobData)
     if (job.name === (JobType.ShapesImport as string)) {
       logger.info({ jobId: job.id, jobType: job.name }, LOG_PROCESSING_JOB);
@@ -163,6 +170,10 @@ export class AIJobProcessor {
     if (job.name === (JobType.ShapesExport as string)) {
       logger.info({ jobId: job.id, jobType: job.name }, LOG_PROCESSING_JOB);
       return this.processShapesExportJobWrapper(job as unknown as Job<ShapesExportJobData>);
+    }
+    if (job.name === (JobType.AccountExport as string)) {
+      logger.info({ jobId: job.id, jobType: job.name }, LOG_PROCESSING_JOB);
+      return processAccountExportJob(job as unknown as Job<AccountExportJobData>, this.prisma);
     }
 
     const jobType = job.data.jobType;

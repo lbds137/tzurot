@@ -57,6 +57,9 @@ import { handleSetDefault as handlePresetSetDefault } from './preset/set-default
 import { handleClearDefault as handlePresetClearDefault } from './preset/clear-default.js';
 import { handleAutocomplete as handlePresetAutocomplete } from './preset/autocomplete.js';
 
+// Data-rights handlers (account export)
+import { handleDataExport } from './data/export.js';
+
 // Defaults handlers (user-default config cascade settings)
 import { CATALOG } from '../../ux/catalog/catalog.js';
 import { renderSpec } from '../../ux/render/render.js';
@@ -113,6 +116,16 @@ const presetRouter = createTypedSubcommandRouter(
 );
 
 /**
+ * Data-rights subcommand group router (all deferred)
+ */
+const dataRouter = createTypedSubcommandRouter(
+  {
+    export: handleDataExport,
+  },
+  { logger, logPrefix: '[Settings/Data]' }
+);
+
+/**
  * Command execution router
  */
 async function execute(context: SafeCommandContext): Promise<void> {
@@ -124,6 +137,8 @@ async function execute(context: SafeCommandContext): Promise<void> {
     await apikeyRouter(context);
   } else if (group === 'preset') {
     await presetRouter(context as DeferredCommandContext);
+  } else if (group === 'data') {
+    await dataRouter(context as DeferredCommandContext);
   } else if (group === 'defaults') {
     await handleDefaultsEdit(context as DeferredCommandContext);
   } else {
@@ -390,6 +405,17 @@ export default defineCommand({
         .setDescription('Manage your global default settings')
         .addSubcommand(subcommand =>
           subcommand.setName('edit').setDescription('Open your default settings dashboard')
+        )
+    )
+    // Data-rights subcommand group (account export; account deletion follows)
+    .addSubcommandGroup(group =>
+      group
+        .setName('data')
+        .setDescription('Your data: export everything you have stored')
+        .addSubcommand(subcommand =>
+          subcommand
+            .setName('export')
+            .setDescription('Export all your account data as a downloadable file')
         )
     ),
   execute,

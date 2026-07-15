@@ -28,6 +28,7 @@ import {
   shapesImportJobDataSchema,
   shapesExportJobDataSchema,
 } from '@tzurot/common-types/types/shapes-import';
+import { accountExportJobDataSchema } from '@tzurot/common-types/types/account-export';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { ZodSchema } from 'zod';
 
@@ -43,6 +44,7 @@ const SCHEMA_MAP: Record<JobType, ZodSchema> = {
   [JobType.LLMGeneration]: llmGenerationJobDataSchema,
   [JobType.ShapesImport]: shapesImportJobDataSchema,
   [JobType.ShapesExport]: shapesExportJobDataSchema,
+  [JobType.AccountExport]: accountExportJobDataSchema,
   [JobType.FactExtraction]: factExtractionJobDataSchema,
   [JobType.ReleaseBroadcastDm]: releaseBroadcastDmJobDataSchema,
 };

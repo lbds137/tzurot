@@ -10,6 +10,7 @@
  */
 
 import type { ConformanceEntry } from './types.js';
+import { userAccountFixtures } from './userAccount.js';
 import { adminFixtures } from './admin.js';
 import { internalFixtures } from './internal.js';
 import { userConfigFixtures } from './userConfigs.js';
@@ -21,6 +22,7 @@ import { userResourceFixtures } from './userResources.js';
 import { userDiagnosticFixtures, userShapesFixtures } from './userShapesAndDiagnostics.js';
 
 export const CONFORMANCE_REGISTRY: Record<string, ConformanceEntry> = {
+  ...userAccountFixtures,
   ...internalFixtures,
   ...adminFixtures,
   ...userOwnershipFixtures,

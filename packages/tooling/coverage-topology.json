@@ -702,6 +702,20 @@
       ]
     },
     {
+      "id": "client:api-gateway:getAccountExportStatus",
+      "kind": "http-route",
+      "producer": "client",
+      "consumer": "api-gateway",
+      "schemaRef": "GET /account/export/status",
+      "mechanism": "route-conformance",
+      "requiredTiers": [
+        "component"
+      ],
+      "actualTiers": [
+        "component"
+      ]
+    },
+    {
       "id": "client:api-gateway:getAdminSettings",
       "kind": "http-route",
       "producer": "client",
@@ -2009,6 +2023,20 @@
       "producer": "client",
       "consumer": "api-gateway",
       "schemaRef": "POST /wallet/set",
+      "mechanism": "route-conformance",
+      "requiredTiers": [
+        "component"
+      ],
+      "actualTiers": [
+        "component"
+      ]
+    },
+    {
+      "id": "client:api-gateway:startAccountExport",
+      "kind": "http-route",
+      "producer": "client",
+      "consumer": "api-gateway",
+      "schemaRef": "POST /account/export",
       "mechanism": "route-conformance",
       "requiredTiers": [
         "component"

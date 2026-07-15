@@ -37,6 +37,7 @@ import {
   type ShapesExportJobResult,
   shapesExportResultSchema,
 } from './shapes-import.js';
+import { accountExportJobDataSchema } from './account-export.js';
 import { JobType, JobStatus } from '../constants/queue.js';
 import {
   MINIMAL_CONTEXT,
@@ -1211,6 +1212,7 @@ describe('BullMQ Job Contract Tests', () => {
       [JobType.LLMGeneration]: llmGenerationJobDataSchema,
       [JobType.ShapesImport]: shapesImportJobDataSchema,
       [JobType.ShapesExport]: shapesExportJobDataSchema,
+      [JobType.AccountExport]: accountExportJobDataSchema,
       [JobType.FactExtraction]: factExtractionJobDataSchema,
       [JobType.ReleaseBroadcastDm]: releaseBroadcastDmJobDataSchema,
     };

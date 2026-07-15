@@ -10,6 +10,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   userRoutes,
+  userAccountRoutes,
   userConfigRoutes,
   userOwnershipRoutes,
   userResourceRoutes,
@@ -102,6 +103,7 @@ describe('user route manifest', () => {
 
   it('all sub-manifests are disjoint (no id collisions on merge)', () => {
     const subManifests: [string, object][] = [
+      ['account', userAccountRoutes],
       ['configs', userConfigRoutes],
       ['ownership', userOwnershipRoutes],
       ['resources', userResourceRoutes],
@@ -125,7 +127,8 @@ describe('user route manifest', () => {
 
   it('merged manifest equals the size of its inputs combined', () => {
     expect(entries.length).toBe(
-      Object.keys(userConfigRoutes).length +
+      Object.keys(userAccountRoutes).length +
+        Object.keys(userConfigRoutes).length +
         Object.keys(userOwnershipRoutes).length +
         Object.keys(userResourceRoutes).length +
         Object.keys(userMemoryRoutes).length +

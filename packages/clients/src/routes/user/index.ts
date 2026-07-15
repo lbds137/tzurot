@@ -23,6 +23,7 @@
  */
 
 import type { RouteDef } from '../types.js';
+import { userAccountRoutes } from './account.js';
 import { userConfigRoutes } from './configs.js';
 import { userOwnershipRoutes } from './ownership.js';
 import { userResourceRoutes } from './resources.js';
@@ -33,6 +34,7 @@ import { userShapesRoutes } from './shapes.js';
 import { userDiagnosticRoutes } from './diagnostics.js';
 
 export const userRoutes = {
+  ...userAccountRoutes,
   ...userConfigRoutes,
   ...userOwnershipRoutes,
   ...userResourceRoutes,
@@ -45,6 +47,7 @@ export const userRoutes = {
 // Re-export the sub-manifests so tests + future tooling can inspect them
 // individually (e.g., assert which file contributed which route id).
 export {
+  userAccountRoutes,
   userConfigRoutes,
   userOwnershipRoutes,
   userResourceRoutes,
