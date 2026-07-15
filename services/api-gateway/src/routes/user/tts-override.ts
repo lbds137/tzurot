@@ -40,6 +40,7 @@ import { sendZodError } from '../../utils/zodHelpers.js';
 import { getParam } from '../../utils/requestParams.js';
 import type { ProvisionedRequest } from '../../types.js';
 import type { RouteDeps } from '../routeDeps.js';
+import { pruneEmptyPersonalityConfig } from './pruneEmptyPersonalityConfig.js';
 
 const logger = createLogger('user-tts-override');
 
@@ -318,6 +319,7 @@ export const handleDeleteTtsOverride = (deps: RouteDeps): RequestHandler => {
       where: { id: override.id },
       data: { ttsConfigId: null },
     });
+    await pruneEmptyPersonalityConfig(prisma, override.id);
 
     logger.info(
       { discordUserId, personalityId, personalityName: override.personality.name },

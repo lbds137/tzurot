@@ -43,6 +43,7 @@ import { getParam } from '../../utils/requestParams.js';
 import { OVERRIDE_SUMMARY_SELECT, parseClearSlots } from './modelOverrideShared.js';
 import type { ProvisionedRequest } from '../../types.js';
 import type { RouteDeps } from '../routeDeps.js';
+import { pruneEmptyPersonalityConfig } from './pruneEmptyPersonalityConfig.js';
 
 const logger = createLogger('user-model-override');
 
@@ -468,6 +469,7 @@ export const handleDeleteModelOverride = (deps: RouteDeps): RequestHandler => {
         ...(clearVision ? { visionConfigId: null } : {}),
       },
     });
+    await pruneEmptyPersonalityConfig(prisma, override.id);
 
     logger.info(
       { discordUserId, personalityId, personalityName: override.personality.name, slot },

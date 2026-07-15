@@ -38,6 +38,7 @@ import { ErrorResponses } from '../../utils/errorResponses.js';
 import { getRequiredParam } from '../../utils/requestParams.js';
 import type { AuthenticatedRequest, ProvisionedRequest } from '../../types.js';
 import { type RouteDeps } from '../routeDeps.js';
+import { pruneEmptyPersonalityConfig } from './pruneEmptyPersonalityConfig.js';
 
 const logger = createLogger('user-config-overrides');
 
@@ -241,6 +242,10 @@ export const handleUpdatePersonalityOverrides = (deps: RouteDeps): RequestHandle
         configOverrides: prismaValue,
       },
     });
+    // A merge-to-empty PATCH clears the only slice this route sets (and the
+    // create branch can mint a fresh all-null row) — prune so it doesn't
+    // leave, or manufacture, a dead anchor.
+    await pruneEmptyPersonalityConfig(prisma, upcId);
 
     await tryInvalidateCache(
       cascadeInvalidation?.invalidateUser.bind(cascadeInvalidation, req.userId),
@@ -273,6 +278,7 @@ export const handleClearPersonalityOverrides = (deps: RouteDeps): RequestHandler
         where: { id: upcId },
         data: { configOverrides: Prisma.JsonNull },
       });
+      await pruneEmptyPersonalityConfig(prisma, upcId);
     }
 
     await tryInvalidateCache(

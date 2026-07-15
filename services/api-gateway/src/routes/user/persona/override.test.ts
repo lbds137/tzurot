@@ -252,16 +252,23 @@ describe('persona override routes', () => {
   });
 
   describe('DELETE /user/persona/override/:personalitySlug', () => {
-    it('should clear persona override and delete config if no llmConfigId', async () => {
+    it('clears the persona slice and prunes the row when no other slice remains', async () => {
       mockPrisma.personality.findUnique.mockResolvedValue({
         id: MOCK_PERSONALITY_ID,
         name: 'Lilith',
         displayName: 'Lilith the Succubus',
       });
+      // Route reads the row (id), then the prune re-reads the full slice set —
+      // both hit this mock; an all-null slice set means the prune deletes.
       mockPrisma.userPersonalityConfig.findUnique.mockResolvedValue({
         id: 'config-1',
+        personaId: null,
         llmConfigId: null,
+        visionConfigId: null,
+        ttsConfigId: null,
+        configOverrides: null,
       });
+      mockPrisma.userPersonalityConfig.update.mockResolvedValue({});
       mockPrisma.userPersonalityConfig.delete.mockResolvedValue({});
 
       const handler = handleClearPersonaOverride({
@@ -272,7 +279,12 @@ describe('persona override routes', () => {
       const { req, res } = createMockReqRes({}, { personalitySlug: 'lilith' });
       await handler(req, res, vi.fn());
 
-      expect(mockPrisma.userPersonalityConfig.delete).toHaveBeenCalled();
+      expect(mockPrisma.userPersonalityConfig.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: { personaId: null } })
+      );
+      expect(mockPrisma.userPersonalityConfig.delete).toHaveBeenCalledWith({
+        where: { id: 'config-1' },
+      });
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
           success: true,
@@ -286,7 +298,7 @@ describe('persona override routes', () => {
       );
     });
 
-    it('should only clear personaId if config has llmConfigId', async () => {
+    it('clears the persona slice but keeps the row when another slice is set', async () => {
       mockPrisma.personality.findUnique.mockResolvedValue({
         id: MOCK_PERSONALITY_ID,
         name: 'Lilith',
@@ -294,7 +306,11 @@ describe('persona override routes', () => {
       });
       mockPrisma.userPersonalityConfig.findUnique.mockResolvedValue({
         id: 'config-1',
+        personaId: null,
         llmConfigId: 'some-llm-config',
+        visionConfigId: null,
+        ttsConfigId: null,
+        configOverrides: null,
       });
       mockPrisma.userPersonalityConfig.update.mockResolvedValue({});
 

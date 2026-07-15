@@ -13,6 +13,7 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { type PGlite } from '@electric-sql/pglite';
 import { PrismaPGlite } from 'pglite-prisma-adapter';
 import { PrismaClient } from '@tzurot/common-types/services/prisma';
+import { ADMIN_SETTINGS_SINGLETON_ID } from '@tzurot/common-types/schemas/api/adminSettings';
 import { createTestPGlite, loadPGliteSchema, seedUserWithPersona } from '@tzurot/test-utils';
 import { assembleAccountExport } from './AccountExportAssembler.js';
 import { buildAccountExportFiles } from './AccountExportFiles.js';
@@ -215,5 +216,48 @@ describe('assembleAccountExport (component, PGLite)', () => {
     expect(everything).not.toContain('cred-iv');
     // The README discloses the exclusions.
     expect(files['README.md']).toContain('secret material is never exported');
+  });
+
+  it('exports the user config-defaults, filters dead anchor rows, and gates admin settings on superuser', async () => {
+    // A user-tier config default + a GENUINELY partial override (configOverrides
+    // set, no FK dependency) + a dead all-null anchor.
+    await prisma.user.update({ where: { id: USER_A }, data: { configDefaults: { maxImages: 4 } } });
+    const liveId = nextId();
+    await prisma.userPersonalityConfig.create({
+      data: {
+        id: liveId,
+        userId: USER_A,
+        personalityId: PERSONALITY_X,
+        configOverrides: { focusModeEnabled: true },
+      },
+    });
+    const deadId = nextId();
+    await prisma.userPersonalityConfig.create({
+      data: { id: deadId, userId: USER_A, personalityId: PERSONALITY_Y },
+    });
+
+    const asNormalUser = await assembleAccountExport(prisma, USER_A);
+    expect((asNormalUser.profile as { configDefaults: unknown }).configDefaults).toEqual({
+      maxImages: 4,
+    });
+    const configIds = asNormalUser.personalityConfigs.map(r => (r as { id: string }).id);
+    // The genuinely-partial row survives; the all-null anchor is filtered.
+    expect(configIds).toContain(liveId);
+    expect(configIds).not.toContain(deadId);
+    // Non-superuser: no admin settings.
+    expect(asNormalUser.adminSettings).toBeNull();
+
+    // Promote A to superuser + seed the global admin-settings singleton row.
+    await prisma.user.update({ where: { id: USER_A }, data: { isSuperuser: true } });
+    await prisma.$executeRaw`
+      INSERT INTO admin_settings (id, system_settings, updated_at)
+      VALUES (${ADMIN_SETTINGS_SINGLETON_ID}::uuid, '{"fallbackModel":"gpt"}'::jsonb, NOW())
+    `;
+
+    const asAdmin = await assembleAccountExport(prisma, USER_A);
+    expect(asAdmin.adminSettings).toEqual(
+      expect.objectContaining({ systemSettings: { fallbackModel: 'gpt' } })
+    );
+    expect(buildAccountExportFiles(asAdmin)['account/admin-settings.json']).toBeDefined();
   });
 });
