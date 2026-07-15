@@ -270,6 +270,11 @@ export const VALIDATION_TIMEOUTS = {
    *  or auth round-trip. Shared so the route's `externalCallBudgetMs` and the
    *  handler's AbortController reference one value. */
   EXTERNAL_SHAPES_API_CALL: 15_000,
+  /** Timeout for the GitHub releases-list fetch in the reconcile sweep — a
+   *  single-page JSON read against api.github.com. Shared so the internal
+   *  route's `externalCallBudgetMs` and the fetcher's AbortController
+   *  reference one value. */
+  EXTERNAL_GITHUB_API_CALL: 10_000,
 } as const;
 
 /**

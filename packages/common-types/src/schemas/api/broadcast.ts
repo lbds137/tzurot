@@ -29,7 +29,14 @@ export const BroadcastInputSchema = z
     /** Message importance — `major` reaches everyone opted in (see NotifyLevel). */
     level: NotifyLevelSchema.default('major'),
     /** Unique version label; the handler derives a timestamped default when omitted. */
-    label: z.string().regex(BROADCAST_LABEL_RE).optional(),
+    label: z
+      .string()
+      .regex(BROADCAST_LABEL_RE)
+      .refine(label => !/^v\d/.test(label), {
+        message:
+          'Labels must not look like release tags ("v" followed by a digit) — that namespace belongs to GitHub release announcements.',
+      })
+      .optional(),
     dryRun: z.boolean().optional().default(false),
     /** Double-key for real sends: a blast with no undo requires confirm: true. */
     confirm: z.boolean().optional().default(false),
@@ -101,4 +108,33 @@ export const ReleaseBroadcastDeliveriesResponseSchema = z.object({
   autoDisabledUserIds: z.array(z.string().uuid()),
   /** True once the announcement has no pending rows left (completedAt stamped). */
   completed: z.boolean(),
+});
+
+// ============================================================================
+// POST /internal/release-broadcast/reconcile
+// ============================================================================
+
+/** Ceiling on the manual catch-up window: one week. */
+export const RECONCILE_MAX_LOOKBACK_HOURS = 168;
+
+export const ReleaseReconcileInputSchema = z.object({
+  /**
+   * How far back to consider GitHub releases for announcement. Defaults to
+   * the sweep's own 24h window; raise it (≤168) to manually catch up a
+   * release the hourly sweep aged out.
+   */
+  lookbackHours: z.number().int().min(1).max(RECONCILE_MAX_LOOKBACK_HOURS).optional(),
+});
+
+export const ReleaseReconcileResponseSchema = z.object({
+  /** Non-draft, non-prerelease releases inside the lookback window. */
+  checked: z.number().int().min(0),
+  /** Versions announced by THIS run (newly enqueued blasts). */
+  announced: z.array(z.string()),
+  /** In-window releases that already had an announcement row. */
+  alreadyAnnounced: z.number().int().min(0),
+  /** In-window releases skipped by the draft/prerelease gate. */
+  skipped: z.number().int().min(0),
+  /** True when the per-run announcement cap stopped the sweep early. */
+  capped: z.boolean(),
 });

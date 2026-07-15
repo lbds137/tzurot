@@ -157,6 +157,20 @@ export const envSchema = z.object({
    * Discord's 340002 DM quarantine.
    */
   OUTBOUND_DM_ALLOWLIST: z.string().optional(),
+
+  // GitHub Release Pipeline
+  /**
+   * HMAC secret shared with the GitHub repo webhook (x-hub-signature-256).
+   * Unset = the /webhooks/github/release endpoint rejects with 503.
+   */
+  GITHUB_WEBHOOK_SECRET: optionalNonEmptyString(),
+  /**
+   * Fine-grained PAT (Contents: Read-only) for the release reconcile sweep's
+   * GitHub API reads. Optional — unauthenticated works, but Railway's shared
+   * egress IPs make the 60 req/hr/IP anonymous limit unreliable. Deliberately
+   * NOT named GITHUB_TOKEN: GitHub Actions auto-injects that name into CI env.
+   */
+  GITHUB_API_TOKEN: optionalNonEmptyString(),
   ENABLE_HEALTH_SERVER: z
     .string()
     .transform(val => val !== 'false')
@@ -269,6 +283,10 @@ export function createTestConfig(overrides: Partial<EnvConfig> = {}): EnvConfig 
     // Optional Services
     ELEVENLABS_API_KEY: undefined,
     IMAGE_GENERATION_API_KEY: undefined,
+
+    // GitHub Release Pipeline
+    GITHUB_WEBHOOK_SECRET: undefined,
+    GITHUB_API_TOKEN: undefined,
 
     // Voice Engine
     VOICE_ENGINE_URL: undefined,
