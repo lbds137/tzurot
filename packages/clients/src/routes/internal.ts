@@ -14,13 +14,15 @@
  */
 
 import { z } from 'zod';
-import { TIMEOUTS } from '@tzurot/common-types/constants/timing';
+import { TIMEOUTS, VALIDATION_TIMEOUTS } from '@tzurot/common-types/constants/timing';
 import { DiagnosticUpdateSchema } from '@tzurot/common-types/schemas/api/admin';
 import {
   ReleaseBroadcastDeliveriesInputSchema,
   ReleaseBroadcastDeliveriesResponseSchema,
   ReleaseBroadcastPendingInputSchema,
   ReleaseBroadcastPendingResponseSchema,
+  ReleaseReconcileInputSchema,
+  ReleaseReconcileResponseSchema,
 } from '@tzurot/common-types/schemas/api/broadcast';
 import { AdminSettingsSchema } from '@tzurot/common-types/schemas/api/adminSettings';
 import {
@@ -154,6 +156,24 @@ export const internalRoutes = {
     input: ReleaseBroadcastDeliveriesInputSchema,
     output: ReleaseBroadcastDeliveriesResponseSchema,
     serviceOnly: true,
+  },
+
+  /**
+   * Release reconcile sweep: compares the GitHub releases API against
+   * release_announcements and announces anything missing (bounded lookback).
+   * Called hourly by ai-worker's scheduled job; doubles as the manual
+   * catch-up lever for a release the hourly window aged out.
+   */
+  releaseBroadcastReconcile: {
+    audience: 'internal',
+    method: 'post',
+    path: '/release-broadcast/reconcile',
+    id: 'releaseBroadcastReconcile',
+    input: ReleaseReconcileInputSchema,
+    output: ReleaseReconcileResponseSchema,
+    serviceOnly: true,
+    timeoutMs: 30_000,
+    externalCallBudgetMs: VALIDATION_TIMEOUTS.EXTERNAL_GITHUB_API_CALL,
   },
 
   /**

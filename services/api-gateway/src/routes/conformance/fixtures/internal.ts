@@ -144,6 +144,10 @@ export const internalFixtures: Record<string, ConformanceEntry> = {
     },
   },
 
+  releaseBroadcastReconcile: {
+    skip: 'Fetches the GitHub releases list over the network — no success path without a live external API.',
+  },
+
   aiConfirmDelivery: {
     seed: async ctx => {
       await ctx.prisma.jobResult.create({
