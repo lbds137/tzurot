@@ -22,6 +22,7 @@ import { cleanupDiagnosticLogs } from './jobs/CleanupDiagnosticLogs.js';
 import { cleanupStuckImportJobs } from './jobs/cleanupStuckImportJobs.js';
 import { cleanupStuckExportJobs } from './jobs/cleanupStuckExportJobs.js';
 import { cleanupExpiredExports } from './jobs/cleanupExpiredExports.js';
+import { triggerReleaseReconcile } from './jobs/releaseReconcile.js';
 import { ConversationRetentionService } from '@tzurot/conversation-history';
 import { getConfig } from '@tzurot/common-types/config/config';
 import { CONTENT_TYPES } from '@tzurot/common-types/constants/media';
@@ -50,6 +51,7 @@ const SCHEDULED_JOBS = {
   CLEANUP_EXPIRED_EXPORTS: 'cleanup-expired-exports',
   CLEANUP_CONVERSATION_RETENTION: 'cleanup-conversation-retention',
   REEMBED_NULL_VECTORS: 'reembed-null-vectors',
+  RELEASE_RECONCILE: 'release-reconcile',
 } as const;
 
 // ============================================================================
@@ -229,6 +231,7 @@ const REPEATABLE_JOB_SCHEDULE: readonly { name: string; pattern: string }[] = [
   { name: SCHEDULED_JOBS.CLEANUP_STUCK_EXPORTS, pattern: '7,22,37,52 * * * *' },
   { name: SCHEDULED_JOBS.CLEANUP_EXPIRED_EXPORTS, pattern: '30 * * * *' },
   { name: SCHEDULED_JOBS.CLEANUP_CONVERSATION_RETENTION, pattern: '10 9 * * *' },
+  { name: SCHEDULED_JOBS.RELEASE_RECONCILE, pattern: '41 * * * *' },
 ];
 
 async function registerRepeatableJobs(scheduledQueue: Queue): Promise<void> {
@@ -291,6 +294,13 @@ async function setupScheduledJobs(
         // Returned object lands in the worker's `completed` log line — the
         // per-table counts are what make a daily run verifiable in Railway logs.
         return { oldHistory, softDeleted, tombstones };
+      }
+      if (job.name === SCHEDULED_JOBS.RELEASE_RECONCILE) {
+        // Thin authed trigger — the sweep itself runs in api-gateway, where
+        // prisma + the broadcast queue live. The summary in the completed
+        // log is the hourly run's verification trail.
+        logger.debug('Triggering release reconcile sweep');
+        return triggerReleaseReconcile();
       }
       return null;
     },
