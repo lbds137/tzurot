@@ -90,8 +90,9 @@ function buildReadme(data: AccountExportData): string {
     '- `characters/` — full definitions of characters you own or co-own',
     '- `conversations/`, `memories/`, `facts/` — foldered by character slug',
     '- `feedback.{json,md}`, `usage-summary.{json,md}`',
-    '- `configs/` — your LLM/TTS configs and per-character overrides',
-    '- `account/` — key/credential metadata, job history, release deliveries',
+    '- `configs/` — your LLM/TTS configs, per-character overrides, and personal defaults',
+    '- `account/` — key/credential metadata, job history, release deliveries' +
+      (data.adminSettings !== null ? ', admin settings' : ''),
     '- `personality-directory.json` — id → name/slug for every character referenced above',
     '',
     '## Profile vs. personas',
@@ -180,12 +181,19 @@ export function buildAccountExportFiles(data: AccountExportData): Record<string,
   files['configs/tts.json'] = json(data.ttsConfigs);
   files['configs/personality-overrides.json'] = json(data.personalityConfigs);
   files['configs/persona-history.json'] = json(data.personaHistoryConfigs);
+  // Personal config-cascade defaults (the user tier — what /settings defaults
+  // writes). null when the user has set none.
+  files['configs/user-defaults.json'] = json(data.profile.configDefaults ?? null);
 
   files['account/api-key-metadata.json'] = json(data.apiKeyMetadata);
   files['account/credential-metadata.json'] = json(data.credentialMetadata);
   files['account/jobs.json'] = json({ importJobs: data.importJobs, exportJobs: data.exportJobs });
   files['account/release-deliveries.json'] = json(data.releaseDeliveries);
   files['account/shapes-mappings.json'] = json(data.shapesMappings);
+  // Superuser only — the owner IS the admin.
+  if (data.adminSettings !== null) {
+    files['account/admin-settings.json'] = json(data.adminSettings);
+  }
 
   return files;
 }

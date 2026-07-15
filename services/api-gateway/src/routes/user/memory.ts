@@ -30,6 +30,7 @@ import { Prisma } from '@tzurot/common-types/services/prisma';
 import { generateUserPersonalityConfigUuid } from '@tzurot/common-types/utils/deterministicUuid';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { RouteDeps } from '../routeDeps.js';
+import { pruneEmptyPersonalityConfig } from './pruneEmptyPersonalityConfig.js';
 import { requireUserAuth, requireProvisionedUser } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
@@ -221,7 +222,7 @@ export const handleSetFocus = (deps: RouteDeps): RequestHandler => {
         ? (mergedOverrides as Prisma.InputJsonValue)
         : Prisma.JsonNull;
 
-    await prisma.userPersonalityConfig.upsert({
+    const upserted = await prisma.userPersonalityConfig.upsert({
       where: { userId_personalityId: { userId, personalityId } },
       update: { configOverrides: configOverridesValue },
       create: {
@@ -230,7 +231,11 @@ export const handleSetFocus = (deps: RouteDeps): RequestHandler => {
         personalityId,
         configOverrides: configOverridesValue,
       },
+      select: { id: true },
     });
+    // Disabling focus clears the only slice this route sets — if nothing else
+    // is set, don't leave (or create) a dead anchor row.
+    await pruneEmptyPersonalityConfig(prisma, upserted.id);
 
     logger.info(
       { discordUserId, personalityId, enabled },

@@ -32,6 +32,7 @@ import type { ProvisionedRequest } from '../../../types.js';
 import type { PersonaOverrideSummary } from './types.js';
 import { getOrCreateInternalUser } from '../userHelpers.js';
 import type { RouteDeps } from '../../routeDeps.js';
+import { pruneEmptyPersonalityConfig } from '../pruneEmptyPersonalityConfig.js';
 
 const logger = createLogger('user-persona-override');
 
@@ -194,7 +195,7 @@ export const handleClearPersonaOverride = (deps: RouteDeps): RequestHandler => {
 
     const existing = await prisma.userPersonalityConfig.findUnique({
       where: { userId_personalityId: { userId: user.id, personalityId: personality.id } },
-      select: { id: true, llmConfigId: true },
+      select: { id: true },
     });
 
     const personalityResponse = {
@@ -213,14 +214,14 @@ export const handleClearPersonaOverride = (deps: RouteDeps): RequestHandler => {
       return;
     }
 
-    if (existing.llmConfigId !== null) {
-      await prisma.userPersonalityConfig.update({
-        where: { id: existing.id },
-        data: { personaId: null },
-      });
-    } else {
-      await prisma.userPersonalityConfig.delete({ where: { id: existing.id } });
-    }
+    // Null the persona slice, then drop the row only if EVERY slice is now
+    // null. (The prior check looked at llmConfigId alone, so it would have
+    // wrongly deleted a row still carrying a vision/TTS/config override.)
+    await prisma.userPersonalityConfig.update({
+      where: { id: existing.id },
+      data: { personaId: null },
+    });
+    await pruneEmptyPersonalityConfig(prisma, existing.id);
 
     logger.info({ userId: user.id, personalityId: personality.id }, 'Cleared persona override');
     sendCustomSuccess(res, { success: true, personality: personalityResponse, hadOverride: true });

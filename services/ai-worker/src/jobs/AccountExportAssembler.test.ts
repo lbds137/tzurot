@@ -9,8 +9,14 @@ function emptyModel(): { findMany: ReturnType<typeof vi.fn> } {
 function makePrisma(): Record<string, { findMany?: ReturnType<typeof vi.fn> }> {
   return {
     user: {
-      findUniqueOrThrow: vi.fn().mockResolvedValue({ username: 'alice', discordId: '1' }),
+      findUniqueOrThrow: vi.fn().mockResolvedValue({
+        username: 'alice',
+        discordId: '1',
+        configDefaults: null,
+        isSuperuser: false,
+      }),
     } as never,
+    adminSettings: { findUnique: vi.fn().mockResolvedValue(null) } as never,
     persona: emptyModel(),
     personalityOwner: emptyModel(),
     personality: emptyModel(),
@@ -42,7 +48,13 @@ describe('assembleAccountExport', () => {
   it('assembles every section with the disclosure notes', async () => {
     const payload = await assembleAccountExport(prisma as unknown as PrismaClient, 'user-1');
 
-    expect(payload.profile).toEqual({ username: 'alice', discordId: '1' });
+    expect(payload.profile).toEqual({
+      username: 'alice',
+      discordId: '1',
+      configDefaults: null,
+    });
+    // A non-superuser export never includes admin settings.
+    expect(payload.adminSettings).toBeNull();
     for (const section of [
       'personas',
       'characters',
@@ -60,6 +72,56 @@ describe('assembleAccountExport', () => {
     }
     expect(payload.meta.formatVersion).toBe(2);
     expect(payload.meta.notes.join(' ')).toContain('secret material is never exported');
+  });
+
+  it('includes admin settings only for a superuser', async () => {
+    (
+      prisma.user as unknown as { findUniqueOrThrow: ReturnType<typeof vi.fn> }
+    ).findUniqueOrThrow.mockResolvedValue({
+      username: 'owner',
+      discordId: '1',
+      configDefaults: { maxImages: 4 },
+      isSuperuser: true,
+    });
+    (
+      prisma.adminSettings as unknown as { findUnique: ReturnType<typeof vi.fn> }
+    ).findUnique.mockResolvedValue({ id: 'admin-1', systemSettings: { fallbackModel: 'x' } });
+
+    const payload = await assembleAccountExport(prisma as unknown as PrismaClient, 'user-1');
+
+    expect(payload.adminSettings).toEqual({
+      id: 'admin-1',
+      systemSettings: { fallbackModel: 'x' },
+    });
+    // Personal config defaults ride in the profile.
+    expect((payload.profile as { configDefaults: unknown }).configDefaults).toEqual({
+      maxImages: 4,
+    });
+  });
+
+  it('filters out dead all-null personality-config anchor rows', async () => {
+    prisma.userPersonalityConfig.findMany?.mockResolvedValue([
+      {
+        id: 'live',
+        personaId: 'p',
+        llmConfigId: null,
+        visionConfigId: null,
+        ttsConfigId: null,
+        configOverrides: null,
+      },
+      {
+        id: 'dead',
+        personaId: null,
+        llmConfigId: null,
+        visionConfigId: null,
+        ttsConfigId: null,
+        configOverrides: null,
+      },
+    ]);
+
+    const payload = await assembleAccountExport(prisma as unknown as PrismaClient, 'user-1');
+
+    expect(payload.personalityConfigs).toEqual([expect.objectContaining({ id: 'live' })]);
   });
 
   it('selects only metadata columns for keys and credentials (never secret columns)', async () => {

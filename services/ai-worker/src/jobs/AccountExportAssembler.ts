@@ -15,23 +15,29 @@
  * usage logs (an aggregate summary ships instead).
  */
 
+import { ADMIN_SETTINGS_SINGLETON_ID } from '@tzurot/common-types/schemas/api/adminSettings';
 import { type PrismaClient, type Prisma } from '@tzurot/common-types/services/prisma';
+import { isEmptyPersonalityConfig } from '@tzurot/common-types/utils/personalityConfigShape';
 
 /** Page size for cursor sweeps over the big tables (bounded-query rule). */
 const EXPORT_PAGE_SIZE = 1000;
 
-export type ExportProfile = Prisma.UserGetPayload<{
-  select: {
-    discordId: true;
-    username: true;
-    timezone: true;
-    nsfwVerified: true;
-    nsfwVerifiedAt: true;
-    notifyEnabled: true;
-    notifyLevel: true;
-    createdAt: true;
-  };
-}>;
+const PROFILE_SELECT = {
+  discordId: true,
+  username: true,
+  timezone: true,
+  nsfwVerified: true,
+  nsfwVerifiedAt: true,
+  notifyEnabled: true,
+  notifyLevel: true,
+  createdAt: true,
+  /** Personal config-cascade defaults (the user tier — what /settings
+   *  defaults writes). Exported as the user's own data. */
+  configDefaults: true,
+} as const;
+
+export type ExportProfile = Prisma.UserGetPayload<{ select: typeof PROFILE_SELECT }>;
+export type ExportAdminSettings = Prisma.AdminSettingsGetPayload<object>;
 export type ExportPersona = Prisma.PersonaGetPayload<object>;
 export type ExportCharacter = Omit<
   Prisma.PersonalityGetPayload<object>,
@@ -86,6 +92,9 @@ export interface AccountExportData {
   exportJobs: unknown[];
   releaseDeliveries: unknown[];
   shapesMappings: unknown[];
+  /** The global admin-settings row — populated only when the exporting user
+   *  is the superuser (the owner IS the admin); null for everyone else. */
+  adminSettings: ExportAdminSettings | null;
 }
 
 export const EXPORT_NOTES = [
@@ -160,7 +169,11 @@ async function fetchAncillarySections(
     exportJobs,
     releaseDeliveries,
   ] = await Promise.all([
-    sweep(c => prisma.userPersonalityConfig.findMany({ where: { userId }, ...pageArgs(c) })),
+    sweep(c => prisma.userPersonalityConfig.findMany({ where: { userId }, ...pageArgs(c) })).then(
+      // Drop dead anchor rows (every override slice null) — belt-and-suspenders
+      // vs. the write-path prune and the one-off cleanup.
+      rows => rows.filter(row => !isEmptyPersonalityConfig(row))
+    ),
     sweep(c => prisma.userPersonaHistoryConfig.findMany({ where: { userId }, ...pageArgs(c) })),
     sweep(c => prisma.llmConfig.findMany({ where: { ownerId: userId }, ...pageArgs(c) })),
     sweep(c => prisma.ttsConfig.findMany({ where: { ownerId: userId }, ...pageArgs(c) })),
@@ -305,19 +318,18 @@ export async function assembleAccountExport(
   prisma: PrismaClient,
   userId: string
 ): Promise<AccountExportData> {
-  const user = await prisma.user.findUniqueOrThrow({
+  const userRow = await prisma.user.findUniqueOrThrow({
     where: { id: userId },
-    select: {
-      discordId: true,
-      username: true,
-      timezone: true,
-      nsfwVerified: true,
-      nsfwVerifiedAt: true,
-      notifyEnabled: true,
-      notifyLevel: true,
-      createdAt: true,
-    },
+    select: { ...PROFILE_SELECT, isSuperuser: true },
   });
+  const { isSuperuser, ...user } = userRow;
+
+  // The owner IS the admin, so the superuser's export includes the global
+  // admin-settings row (config defaults, system settings, default-config
+  // pointers — no secret material). Everyone else gets null.
+  const adminSettings = isSuperuser
+    ? await prisma.adminSettings.findUnique({ where: { id: ADMIN_SETTINGS_SINGLETON_ID } })
+    : null;
 
   const personas = await sweep(c =>
     prisma.persona.findMany({ where: { ownerId: userId }, ...pageArgs(c) })
@@ -378,6 +390,7 @@ export async function assembleAccountExport(
     memories,
     facts,
     shapesMappings,
+    adminSettings,
     ...ancillary,
   };
 }

@@ -112,6 +112,7 @@ const mockPrisma = {
     findUnique: vi.fn(),
     update: vi.fn(),
     upsert: vi.fn(),
+    delete: vi.fn(),
   },
 };
 
@@ -567,6 +568,32 @@ describe('/user/config-overrides routes', () => {
           configOverrides: { maxMessages: 25 },
         })
       );
+    });
+
+    it('prunes the anchor row when a merge-to-empty PATCH leaves every slice null', async () => {
+      // Existing row's only slice was a single override key; PATCH clears it.
+      mockPrisma.userPersonalityConfig.findUnique
+        .mockResolvedValueOnce({ configOverrides: { maxMessages: 25 } }) // route's pre-merge read
+        .mockResolvedValueOnce({
+          personaId: null,
+          llmConfigId: null,
+          visionConfigId: null,
+          ttsConfigId: null,
+          configOverrides: null,
+        }); // prune's slice read — all null after the merge cleared the last key
+      mockPrisma.userPersonalityConfig.upsert.mockResolvedValue({});
+
+      const router = createConfigOverrideRoutes(mockDeps);
+      const handler = getHandler(router, 'patch', '/:personalityId');
+      const { req, res } = createMockReqRes(
+        { maxMessages: null },
+        { personalityId: TEST_PERSONALITY_ID }
+      );
+
+      await handler(req, res);
+
+      expect(mockPrisma.userPersonalityConfig.delete).toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(200);
     });
 
     it('should reject invalid config format', async () => {

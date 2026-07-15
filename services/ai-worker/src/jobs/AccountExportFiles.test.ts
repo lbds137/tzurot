@@ -16,6 +16,7 @@ function makeData(overrides: Partial<AccountExportData> = {}): AccountExportData
       notifyEnabled: true,
       notifyLevel: 'minor',
       createdAt: NOW,
+      configDefaults: null,
     },
     personas: [],
     characters: [],
@@ -35,6 +36,7 @@ function makeData(overrides: Partial<AccountExportData> = {}): AccountExportData
     exportJobs: [],
     releaseDeliveries: [],
     shapesMappings: [],
+    adminSettings: null,
     ...overrides,
   } as AccountExportData;
 }
@@ -56,6 +58,7 @@ describe('buildAccountExportFiles', () => {
       'configs/tts.json',
       'configs/personality-overrides.json',
       'configs/persona-history.json',
+      'configs/user-defaults.json',
       'account/api-key-metadata.json',
       'account/credential-metadata.json',
       'account/jobs.json',
@@ -65,6 +68,30 @@ describe('buildAccountExportFiles', () => {
       expect(files[jsonOnly]).toBeDefined();
       expect(files[`${jsonOnly.replace('.json', '.md')}`]).toBeUndefined();
     }
+  });
+
+  it('emits admin-settings only when present (superuser), and notes it in the README', () => {
+    const withoutAdmin = buildAccountExportFiles(makeData());
+    expect(withoutAdmin['account/admin-settings.json']).toBeUndefined();
+    expect(withoutAdmin['README.md']).not.toContain('admin settings');
+
+    const withAdmin = buildAccountExportFiles(
+      makeData({ adminSettings: { id: 'a1', systemSettings: { fallbackModel: 'x' } } as never })
+    );
+    expect(withAdmin['account/admin-settings.json']).toContain('"id": "a1"');
+    expect(withAdmin['README.md']).toContain('admin settings');
+  });
+
+  it('writes user-defaults from the profile config-cascade defaults', () => {
+    const files = buildAccountExportFiles(
+      makeData({
+        profile: {
+          ...makeData().profile,
+          configDefaults: { maxImages: 4 },
+        },
+      })
+    );
+    expect(files['configs/user-defaults.json']).toContain('"maxImages": 4');
   });
 
   it('writes one json/md pair per persona, stem = sanitized name + id prefix', () => {

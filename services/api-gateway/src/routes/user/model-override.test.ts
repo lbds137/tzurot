@@ -57,8 +57,10 @@ const mockPrisma = {
   userPersonalityConfig: {
     findMany: vi.fn(),
     findFirst: vi.fn(),
+    findUnique: vi.fn(),
     upsert: vi.fn(),
     update: vi.fn(),
+    delete: vi.fn(),
   },
   $executeRaw: vi.fn().mockResolvedValue(1),
   $transaction: vi.fn().mockImplementation(async (callback: (tx: unknown) => Promise<void>) => {
@@ -119,6 +121,7 @@ describe('/user/model-override routes', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockPrisma.user.findFirst.mockResolvedValue({ id: 'user-uuid-123' });
+    mockPrisma.userPersonalityConfig.findUnique.mockResolvedValue(null);
     // UserService uses findUnique to look up users
     mockPrisma.user.findUnique.mockResolvedValue({
       id: 'user-uuid-123',

@@ -106,8 +106,10 @@ const mockPrisma = {
   userPersonalityConfig: {
     findMany: vi.fn(),
     findFirst: vi.fn(),
+    findUnique: vi.fn(),
     upsert: vi.fn(),
     update: vi.fn(),
+    delete: vi.fn(),
   },
   user: {
     findUnique: vi.fn(),
@@ -140,6 +142,7 @@ const VALID_UUID_B = '22222222-2222-4222-8222-222222222222';
 describe('user/tts-override routes', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(mockPrisma.userPersonalityConfig.findUnique).mockResolvedValue(null);
   });
 
   describe('GET / (list overrides)', () => {

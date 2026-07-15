@@ -53,6 +53,7 @@ function makePayload(): AccountExportData {
       notifyEnabled: true,
       notifyLevel: 'minor',
       createdAt: NOW,
+      configDefaults: null,
     },
     personas: [
       {
@@ -120,6 +121,7 @@ function makePayload(): AccountExportData {
     exportJobs: [],
     releaseDeliveries: [],
     shapesMappings: [],
+    adminSettings: null,
   };
 }
 
