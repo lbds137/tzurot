@@ -101,7 +101,7 @@ describe('Account Export Routes', () => {
             userId: 'user-uuid-123',
             sourceService: 'account',
             sourceSlug: 'account',
-            format: 'json',
+            format: 'zip',
             status: 'pending',
           }),
         })
@@ -128,6 +128,25 @@ describe('Account Export Routes', () => {
       expect(res.status).toHaveBeenCalledWith(409);
       expect(mockQueue.add).not.toHaveBeenCalled();
     });
+
+    it('409s during the 24h cooldown after a completed export, without resetting the row', async () => {
+      mockTxExportJob.findFirst
+        .mockResolvedValueOnce(null) // no active job
+        .mockResolvedValueOnce({ status: 'completed', completedAt: new Date() }); // recent completion
+      const { res } = await callStart();
+
+      expect(res.status).toHaveBeenCalledWith(409);
+      expect(mockTxExportJob.upsert).not.toHaveBeenCalled();
+      expect(mockQueue.add).not.toHaveBeenCalled();
+    });
+
+    it('cooldown query only counts completed jobs — failed runs are exempt by construction', async () => {
+      await callStart();
+
+      const cooldownWhere = mockTxExportJob.findFirst.mock.calls[1][0].where;
+      expect(cooldownWhere.status).toBe('completed');
+      expect(cooldownWhere.completedAt.gt).toBeInstanceOf(Date);
+    });
   });
 
   describe('GET /account/export/status', () => {
@@ -150,12 +169,11 @@ describe('Account Export Routes', () => {
       mockPrisma.exportJob.findFirst.mockResolvedValueOnce({
         id: 'job-1',
         status: 'completed',
-        fileName: 'tzurot-account-export-alice-2026-07-15.json',
+        fileName: 'tzurot-account-export-alice-2026-07-15.zip',
         fileSizeBytes: 42,
         createdAt: new Date(),
         completedAt: new Date(),
         expiresAt: new Date(),
-        errorMessage: null,
       });
       const first = await callStatus();
       expect(first.res.json).toHaveBeenCalledWith(
@@ -172,7 +190,6 @@ describe('Account Export Routes', () => {
         createdAt: new Date(),
         completedAt: null,
         expiresAt: new Date(),
-        errorMessage: null,
       });
       const second = await callStatus();
       expect(second.res.json).toHaveBeenCalledWith(

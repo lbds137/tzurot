@@ -72,6 +72,7 @@ describe('Public Export Download Route', () => {
     mockPrisma.exportJob.findUnique.mockResolvedValue({
       status: 'pending',
       fileContent: null,
+      fileData: null,
       fileName: null,
       fileSizeBytes: null,
       format: 'json',
@@ -89,6 +90,7 @@ describe('Public Export Download Route', () => {
     mockPrisma.exportJob.findUnique.mockResolvedValue({
       status: 'failed',
       fileContent: null,
+      fileData: null,
       fileName: null,
       fileSizeBytes: null,
       format: 'json',
@@ -108,6 +110,7 @@ describe('Public Export Download Route', () => {
     mockPrisma.exportJob.findUnique.mockResolvedValue({
       status: 'failed',
       fileContent: null,
+      fileData: null,
       fileName: null,
       fileSizeBytes: null,
       format: 'json',
@@ -125,6 +128,7 @@ describe('Public Export Download Route', () => {
     mockPrisma.exportJob.findUnique.mockResolvedValue({
       status: 'completed',
       fileContent: '{"data": true}',
+      fileData: null,
       fileName: 'test-export.json',
       fileSizeBytes: 14,
       format: 'json',
@@ -143,6 +147,7 @@ describe('Public Export Download Route', () => {
     mockPrisma.exportJob.findUnique.mockResolvedValue({
       status: 'completed',
       fileContent: content,
+      fileData: null,
       fileName: 'test-export.json',
       fileSizeBytes: Buffer.byteLength(content),
       format: 'json',
@@ -165,6 +170,7 @@ describe('Public Export Download Route', () => {
     mockPrisma.exportJob.findUnique.mockResolvedValue({
       status: 'completed',
       fileContent: content,
+      fileData: null,
       fileName: 'test-export.md',
       fileSizeBytes: Buffer.byteLength(content),
       format: 'markdown',
@@ -177,5 +183,33 @@ describe('Public Export Download Route', () => {
     expect(res.status).toBe(200);
     expect(res.headers['content-type']).toContain('text/markdown');
     expect(res.text).toBe(content);
+  });
+
+  it('should serve ZIP exports from fileData with application/zip', async () => {
+    const bytes = new Uint8Array([0x50, 0x4b, 0x03, 0x04, 0x01, 0x02, 0x03]);
+    mockPrisma.exportJob.findUnique.mockResolvedValue({
+      status: 'completed',
+      fileContent: null,
+      fileData: bytes,
+      fileName: 'tzurot-account-export-alice-2026-07-15.zip',
+      fileSizeBytes: bytes.length,
+      format: 'zip',
+      expiresAt: FUTURE_DATE,
+    });
+
+    const app = createApp();
+    const res = await request(app)
+      .get(`/${VALID_UUID}`)
+      .buffer(true)
+      .parse((response, cb) => {
+        const chunks: Buffer[] = [];
+        response.on('data', chunk => chunks.push(chunk as Buffer));
+        response.on('end', () => cb(null, Buffer.concat(chunks)));
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toBe('application/zip');
+    expect(res.headers['content-length']).toBe(String(bytes.length));
+    expect(Buffer.from(res.body as Buffer).equals(Buffer.from(bytes))).toBe(true);
   });
 });

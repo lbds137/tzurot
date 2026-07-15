@@ -21,6 +21,23 @@ function expiryLine(expiresAt: string | Date): string {
   return `The link expires ${time(expiry, TimestampStyles.RelativeTime)} — download before then.`;
 }
 
+function statusDescription(job: {
+  status: string;
+  downloadUrl: string | null;
+  expiresAt: string;
+}): string {
+  if (job.status === 'completed' && job.downloadUrl !== null) {
+    return (
+      'You can export your account once every 24 hours. Your latest export is still available:\n\n' +
+      `[Download your data](${job.downloadUrl})\n\n${expiryLine(job.expiresAt)}`
+    );
+  }
+  if (job.status === 'failed') {
+    return 'Your last export failed. Re-run this command to start a new one.';
+  }
+  return `Your export is **${job.status}**. Re-run this command to check again.`;
+}
+
 async function showCurrentJobStatus(context: DeferredCommandContext): Promise<void> {
   const { userClient } = clientsFor(context.interaction);
   const statusResult = await userClient.getAccountExportStatus();
@@ -36,11 +53,7 @@ async function showCurrentJobStatus(context: DeferredCommandContext): Promise<vo
   const embed = new EmbedBuilder()
     .setColor(job.status === 'completed' ? DISCORD_COLORS.SUCCESS : DISCORD_COLORS.WARNING)
     .setTitle('📦 Account Export Status')
-    .setDescription(
-      job.status === 'completed' && job.downloadUrl !== null
-        ? `Your export is ready.\n\n[Download your data](${job.downloadUrl})\n\n${expiryLine(job.expiresAt)}`
-        : `Your export is **${job.status}**. Re-run this command to check again.`
-    )
+    .setDescription(statusDescription(job))
     .setTimestamp();
 
   await context.editReply({ embeds: [embed] });
@@ -69,7 +82,8 @@ export async function handleDataExport(context: DeferredCommandContext): Promise
       .setColor(DISCORD_COLORS.SUCCESS)
       .setTitle('📦 Account Export Started')
       .setDescription(
-        'Your full account data is being assembled — profile, personas, ' +
+        'Your full account data is being assembled into a ZIP archive with ' +
+          'JSON and Markdown files per section — profile, personas, ' +
           'characters, conversation history, memories, facts, and settings ' +
           '(secret material like API keys is never included).\n\n' +
           `When it finishes, download it here:\n[Download your data](${result.data.downloadUrl})\n\n` +

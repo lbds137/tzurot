@@ -22,19 +22,22 @@ export const userAccountFixtures: Record<string, ConformanceEntry> = {
       // Deterministic id: the (userId, slug, service, format) tuple is unique,
       // and the startAccountExport fixture creates the same tuple — upserting
       // the SAME deterministic row keeps the two fixtures order-independent.
+      // completedAt sits outside the 24h export cooldown window so this seed
+      // can never 409 the startAccountExport fixture regardless of run order.
+      const staleCompletedAt = new Date(Date.now() - 25 * 60 * 60 * 1000);
       const id = generateExportJobUuid(
         ctx.actorUserId,
         ACCOUNT_EXPORT_SLUG,
         ACCOUNT_EXPORT_SOURCE,
-        'json'
+        'zip'
       );
       await ctx.prisma.exportJob.upsert({
         where: { id },
         update: {
           status: 'completed',
-          fileName: 'tzurot-account-export-conf-2026-01-01.json',
+          fileName: 'tzurot-account-export-conf-2026-01-01.zip',
           fileSizeBytes: 42,
-          completedAt: new Date(),
+          completedAt: staleCompletedAt,
         },
         create: {
           id,
@@ -42,10 +45,10 @@ export const userAccountFixtures: Record<string, ConformanceEntry> = {
           sourceSlug: ACCOUNT_EXPORT_SLUG,
           sourceService: ACCOUNT_EXPORT_SOURCE,
           status: 'completed',
-          format: 'json',
-          fileName: 'tzurot-account-export-conf-2026-01-01.json',
+          format: 'zip',
+          fileName: 'tzurot-account-export-conf-2026-01-01.zip',
           fileSizeBytes: 42,
-          completedAt: new Date(),
+          completedAt: staleCompletedAt,
           expiresAt: new Date(Date.now() + 60 * 60 * 1000),
         },
       });
