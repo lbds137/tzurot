@@ -1640,6 +1640,20 @@
       ]
     },
     {
+      "id": "client:api-gateway:releaseBroadcastReconcile",
+      "kind": "http-route",
+      "producer": "client",
+      "consumer": "api-gateway",
+      "schemaRef": "POST /release-broadcast/reconcile",
+      "mechanism": "route-conformance",
+      "requiredTiers": [
+        "component"
+      ],
+      "actualTiers": [
+        "component"
+      ]
+    },
+    {
       "id": "client:api-gateway:removeDenylistEntry",
       "kind": "http-route",
       "producer": "client",
