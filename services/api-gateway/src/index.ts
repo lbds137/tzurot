@@ -58,6 +58,7 @@ import {
   createHealthRouter,
   createAvatarRouter,
   createExportsRouter,
+  createGitHubReleaseWebhookRouter,
 } from './routes/public/index.js';
 import { createMetricsRouter, createVoiceReferenceRouter } from './routes/protected/index.js';
 
@@ -336,6 +337,15 @@ function registerRoutes(
   app.use('/avatars', publicRateLimiter, allowCrossOriginEmbedding, createAvatarRouter(prisma));
   app.use('/exports', publicRateLimiter, createExportsRouter(prisma));
 
+  // GitHub release webhook — public section because GitHub can't send
+  // X-Service-Auth; its auth is the HMAC signature over the raw body
+  // (raw mount lives in main(), ahead of the global JSON parser).
+  app.use(
+    '/webhooks/github',
+    publicRateLimiter,
+    createGitHubReleaseWebhookRouter({ prisma, releaseBroadcastQueue })
+  );
+
   // PROTECTED ROUTES (require service authentication)
   validateServiceAuthConfig();
   app.use(requireServiceAuth());
@@ -506,6 +516,11 @@ async function main(): Promise<void> {
   // /voice-references) opt in to a looser CORP per-route below, so the
   // permissive policy doesn't leak onto every other endpoint.
   app.use(helmet());
+
+  // GitHub webhook HMAC verifies the raw bytes, so this prefix must win the
+  // stream: body-parser marks the request consumed and the global JSON
+  // parser below no-ops for it.
+  app.use('/webhooks/github', express.raw({ type: 'application/json', limit: '1mb' }));
 
   // 20MB to accommodate base64-encoded voice reference audio (up to 10MB raw → ~13.3MB base64).
   // Applied globally — acceptable for single-tenant bot. Could be scoped per-route if needed.
