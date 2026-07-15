@@ -46,7 +46,7 @@ The operator may block or mute any user or server, silently, at any time, with o
 
 ## 8. Service availability
 
-Tzurot is a personal project provided **as-is, without warranty of any kind**. There is no uptime guarantee, no SLA, and no commitment that features, characters, or stored data will remain available. Back up anything you care about using the export tools. The service may change or shut down; material changes are announced through the bot's release notes.
+Tzurot is a personal project provided **as-is, without warranty of any kind**. There is no uptime guarantee, no SLA, and no commitment that features, characters, or stored data will remain available. Keep copies of what matters to you — character definitions and shapes.inc data have export commands today, and a full account export is planned. The service may change or shut down; material changes are announced through the bot's release notes.
 
 ## 9. Liability
 

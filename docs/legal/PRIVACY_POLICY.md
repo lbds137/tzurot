@@ -20,27 +20,27 @@ Tzurot is a Discord bot that lets you talk with AI characters. It is operated by
 
 **Usage records.** Per-request logs of provider, model, and token counts — kept to prevent infrastructure abuse, including for users on their own keys. No message content is in these records.
 
-**Feedback.** If you submit feedback through the bot, its content is stored and a copy is posted to a private channel the operator reads.
+⏳ **Feedback.** A feedback command is planned: submissions will be stored and a copy posted to a private channel the operator reads. (No feedback intake exists yet.)
 
 **Diagnostic logs.** For 24 hours after each AI response, the bot keeps a "flight recorder" entry containing the full request context — your message, the assembled prompt (including character definition and retrieved memories), and the model's raw output — used to debug generation problems. You can view your own entries with `/inspect`; the operator can view all entries during that window. They are deleted automatically after 24 hours.
 
 ## Retention
 
-| Data                                    | Kept for                                                    |
-| --------------------------------------- | ----------------------------------------------------------- |
-| Conversation history                    | 30 days (swept daily)                                       |
-| Diagnostic logs                         | 24 hours (swept hourly)                                     |
-| Data exports you request                | 24 hours, then deleted                                      |
-| Memories and extracted facts            | Until you delete them                                       |
-| Personas, characters, uploads           | Until you delete them                                       |
-| Account basics, usage records, feedback | ⏳ Until you delete your account (see "Deleting your data") |
+| Data                                    | Kept for                                                                                         |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| Conversation history                    | 30 days (swept daily)                                                                            |
+| Diagnostic logs                         | 24 hours (swept hourly)                                                                          |
+| Data exports you request                | 24 hours, then deleted                                                                           |
+| Memories and extracted facts            | Hidden from use the moment you forget them; rows erased with their persona/character (see below) |
+| Personas, characters, uploads           | Until you delete them                                                                            |
+| Account basics, usage records, feedback | ⏳ Until you delete your account (see "Deleting your data")                                      |
 
 ## Where your data goes (third parties)
 
 Your conversation content is sent to AI providers to generate responses. Which provider depends on your configuration:
 
 - **OpenRouter** — the primary AI provider (a router across many models). Receives the assembled conversation context (character definition, recent history, retrieved memories, your message, and any images) when it generates a response.
-- **z.ai** — an alternative AI provider. Receives the same class of conversation context when it generates a response. Free-tier requests are served by OpenRouter or z.ai depending on which the operator has configured as the free default at the time.
+- **z.ai** — an alternative AI provider. Receives the same class of conversation context when it generates a response. Free-tier requests are served by OpenRouter or z.ai depending on operator configuration and available capacity at the time.
 - **Mistral / ElevenLabs** — optional voice providers, used only if you connect your own key. Each can provide both transcription (receiving your voice-message audio) and speech synthesis (receiving the character's response text), and both can receive your uploaded voice-reference audio for voice cloning.
 - **Self-hosted voice engine** — the default voice pipeline runs on our own infrastructure, not a third party: your voice messages are transcribed and response audio is synthesized there.
 - **shapes.inc** — contacted only if you explicitly run an import/export of your own shapes.inc data, using credentials you supply.
@@ -52,8 +52,8 @@ We never sell your data.
 
 ## Your controls
 
-- **Memory**: browse, search, correct, and forget individual memories and facts (`/memory`); batch-delete or purge a character's memories; **focus mode** stops memory reads; **incognito mode** stops memory writes for a session, with retroactive forget.
-- **History**: clear or reset your conversation history (`/history`).
+- **Memory**: browse, search, correct, and forget individual memories and facts (`/memory`); batch-delete or purge a character's memories. Honest detail: forgetting removes a memory from use and from view **immediately**, but the underlying row is retained (marked deleted) until it is hard-erased — which happens when you delete the associated persona or character, when you use incognito's retroactive forget, or ⏳ when you delete your account. **Focus mode** stops memory reads; **incognito mode** stops memory writes for a session, with retroactive (hard-deleting) forget.
+- **History**: clear your conversation history (`/history clear` — a soft reset, with undo).
 - **Notifications**: release announcements are opt-out (`/notifications disable`, or pick a level).
 - **Keys**: remove a connected API key at any time (immediate hard delete).
 - **Creations**: delete your personas and characters (deletion cascades to their conversation history and memories).
