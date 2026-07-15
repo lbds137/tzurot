@@ -205,10 +205,11 @@ describe('Settings Command Index', () => {
       expect(groupNames).not.toContain('voices');
     });
 
-    it('should have componentPrefixes for user-defaults and preset-override', () => {
+    it('should have componentPrefixes for user-defaults, preset-override, and data-delete', () => {
       expect(settingsCommand.componentPrefixes).toEqual([
         'user-defaults-settings',
         'settings-preset-override',
+        'settings-data-delete',
       ]);
     });
 

@@ -67,11 +67,16 @@ function buildPurgeKey(userId: string, token: string): string {
   return `${REDIS_KEY_PREFIXES.MEMORY_PURGE_TOKEN}${userId}:${token}`;
 }
 
+function buildAccountDeleteKey(userId: string, token: string): string {
+  return `${REDIS_KEY_PREFIXES.ACCOUNT_DELETE_TOKEN}${userId}:${token}`;
+}
+
 /**
  * Mint a random token. Uses URL-safe base64 to match the regex enforced by
- * `PreviewTokenSchema` / `PurgeTokenSchema` (`[A-Za-z0-9_-]{16,64}`).
+ * `PreviewTokenSchema` / `PurgeTokenSchema` / `AccountDeleteTokenSchema`
+ * (`[A-Za-z0-9_-]{16,64}`).
  */
-function mintTokenValue(prefix: 'preview' | 'purge'): string {
+function mintTokenValue(prefix: 'preview' | 'purge' | 'acctdel'): string {
   const suffix = randomBytes(TOKEN_RANDOM_BYTES).toString('base64url');
   return `${prefix}_${suffix}`;
 }
@@ -217,5 +222,50 @@ export class MemoryActionTokenService {
       logger.error({ err: error, userId }, 'Failed to parse purge token payload');
       return null;
     }
+  }
+
+  /**
+   * Issue an account-deletion token for the given Discord user. The caller
+   * validates the confirmation phrase BEFORE calling this. No payload
+   * binding beyond issuedAt — the deletion target is the key's own user.
+   */
+  async issueAccountDeleteToken(userId: string): Promise<string> {
+    const token = mintTokenValue('acctdel');
+    const key = buildAccountDeleteKey(userId, token);
+    await this.redis.setex(
+      key,
+      TOKEN_TTL_SECONDS,
+      JSON.stringify({ issuedAt: new Date().toISOString() })
+    );
+    logger.info({ userId, token: `${token.substring(0, 12)}…` }, 'Account delete token issued');
+    return token;
+  }
+
+  /**
+   * Non-destructively check an account-deletion token. Same peek-validate-
+   * consume rationale as `peekPreviewToken` — precondition failures (e.g.
+   * the superuser guard) must not burn the one-shot redemption.
+   */
+  async peekAccountDeleteToken(userId: string, token: string): Promise<boolean> {
+    const raw = await this.redis.get(buildAccountDeleteKey(userId, token));
+    if (raw === null) {
+      logger.debug(
+        { userId, token: `${token.substring(0, 12)}…` },
+        'Account delete token peek miss'
+      );
+    }
+    return raw !== null;
+  }
+
+  /**
+   * Atomically claim an account-deletion token. Returns true when this call
+   * consumed it; false if invalid, expired, or already consumed.
+   */
+  async consumeAccountDeleteToken(userId: string, token: string): Promise<boolean> {
+    const raw = await this.redis.getdel(buildAccountDeleteKey(userId, token));
+    if (raw === null) {
+      logger.debug({ userId, token: `${token.substring(0, 12)}…` }, 'Account delete token miss');
+    }
+    return raw !== null;
   }
 }

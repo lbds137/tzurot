@@ -61,6 +61,7 @@ import { handleListGlobalTtsConfigs, handleGetGlobalTtsConfig, handleCreateGloba
 import { handleGetSystemSettings, handleUpdateSystemSettings } from '../admin/systemSettings.js';
 import { handleGetAdminUsageStats } from '../admin/usage.js';
 import { handleStartAccountExport, handleGetAccountExportStatus } from '../user/account/export.js';
+import { handlePreviewAccountDelete, handleIssueAccountDeleteToken, handleDeleteAccount } from '../user/account/delete.js';
 import { handleGetTimezone, handleSetTimezone } from '../user/timezone.js';
 import { handleGetNotificationPrefs, handleUpdateNotificationPrefs } from '../user/notifications.js';
 import { handleListUserLlmConfigs, handleGetUserLlmConfig, handleCreateUserLlmConfig, handleUpdateUserLlmConfig, handleDeleteUserLlmConfig, handleResolveUserLlmConfig } from '../user/llm-config.js';
@@ -163,6 +164,9 @@ export function mountAdminRoutes(app: Express, deps: RouteDeps): void {
 export function mountUserRoutes(app: Express, deps: RouteDeps): void {
   app.post('/api/user/account/export', requireUserAuth(), requireProvisionedUser(deps.prisma), handleStartAccountExport(deps));
   app.get('/api/user/account/export/status', requireUserAuth(), requireProvisionedUser(deps.prisma), handleGetAccountExportStatus(deps));
+  app.get('/api/user/account/delete/preview', requireUserAuth(), requireProvisionedUser(deps.prisma), handlePreviewAccountDelete(deps));
+  app.post('/api/user/account/delete/token', requireUserAuth(), requireProvisionedUser(deps.prisma), handleIssueAccountDeleteToken(deps));
+  app.post('/api/user/account/delete', requireUserAuth(), requireProvisionedUser(deps.prisma), handleDeleteAccount(deps));
   app.get('/api/user/timezone', requireUserAuth(), requireProvisionedUser(deps.prisma), handleGetTimezone(deps));
   app.put('/api/user/timezone', requireUserAuth(), requireProvisionedUser(deps.prisma), handleSetTimezone(deps));
   app.get('/api/user/notifications', requireUserAuth(), requireProvisionedUser(deps.prisma), handleGetNotificationPrefs(deps));

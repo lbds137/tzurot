@@ -5,6 +5,14 @@ import {
   AccountExportStatusResponseSchema,
   AccountExportJobSummarySchema,
   AccountExportJobStatusSchema,
+  ACCOUNT_DELETE_CONFIRMATION_PHRASE,
+  AccountDeleteTokenSchema,
+  AccountDeletePreviewResponseSchema,
+  OwnedCharacterImpactSchema,
+  IssueAccountDeleteTokenSchema,
+  IssueAccountDeleteTokenResponseSchema,
+  DeleteAccountSchema,
+  DeleteAccountResponseSchema,
 } from './account.js';
 
 describe('StartAccountExportInputSchema', () => {
@@ -103,5 +111,96 @@ describe('AccountExportStatusResponseSchema', () => {
     });
     expect(parsed.job?.createdAt).toBe('2026-07-15T00:00:00.000Z');
     expect(parsed.job?.expiresAt).toBe('2026-07-16T00:00:00.000Z');
+  });
+});
+
+describe('AccountDeleteTokenSchema', () => {
+  it('accepts only acctdel_-prefixed tokens (never purge/preview tokens)', () => {
+    expect(AccountDeleteTokenSchema.safeParse('acctdel_0123456789abcdef').success).toBe(true);
+    expect(AccountDeleteTokenSchema.safeParse('purge_0123456789abcdef').success).toBe(false);
+    expect(AccountDeleteTokenSchema.safeParse('acctdel_short').success).toBe(false);
+  });
+});
+
+describe('AccountDeletePreviewResponseSchema', () => {
+  it('accepts a preview and pins the exact confirmation phrase', () => {
+    const parsed = AccountDeletePreviewResponseSchema.safeParse({
+      confirmationPhrase: ACCOUNT_DELETE_CONFIRMATION_PHRASE,
+      ownedCharacters: [{ id: 'x1', name: 'XBot', otherUsersWithMemories: 2 }],
+      counts: { personas: 1, characters: 1, conversationMessages: 2, memories: 3, facts: 4 },
+      hasActiveExport: false,
+    });
+    expect(parsed.success).toBe(true);
+
+    expect(
+      AccountDeletePreviewResponseSchema.safeParse({
+        confirmationPhrase: 'DELETE EVERYTHING',
+        ownedCharacters: [],
+        counts: { personas: 0, characters: 0, conversationMessages: 0, memories: 0, facts: 0 },
+        hasActiveExport: false,
+      }).success
+    ).toBe(false);
+  });
+});
+
+describe('IssueAccountDeleteTokenSchema', () => {
+  it('requires a non-empty confirmation phrase', () => {
+    expect(IssueAccountDeleteTokenSchema.safeParse({ confirmationPhrase: '' }).success).toBe(false);
+    expect(IssueAccountDeleteTokenSchema.safeParse({ confirmationPhrase: 'x' }).success).toBe(true);
+  });
+});
+
+describe('DeleteAccountResponseSchema', () => {
+  it('accepts the deletion summary shape (no slugs/ids leak to the wire)', () => {
+    const parsed = DeleteAccountResponseSchema.safeParse({
+      success: true,
+      summary: {
+        personas: 1,
+        characters: 1,
+        conversationMessages: 2,
+        memories: 3,
+        facts: 4,
+        factsSweptByTag: 5,
+        pendingMemories: 6,
+        diagnosticLogs: 7,
+        characterNames: ['XBot'],
+      },
+    });
+    expect(parsed.success).toBe(true);
+  });
+});
+
+describe('OwnedCharacterImpactSchema', () => {
+  it('requires an integer cross-user reach', () => {
+    expect(
+      OwnedCharacterImpactSchema.safeParse({ id: 'x1', name: 'XBot', otherUsersWithMemories: 2 })
+        .success
+    ).toBe(true);
+    expect(
+      OwnedCharacterImpactSchema.safeParse({ id: 'x1', name: 'XBot', otherUsersWithMemories: 1.5 })
+        .success
+    ).toBe(false);
+  });
+});
+
+describe('IssueAccountDeleteTokenResponseSchema', () => {
+  it('only carries a correctly-branded token', () => {
+    expect(
+      IssueAccountDeleteTokenResponseSchema.safeParse({ deleteToken: 'acctdel_0123456789abcdef' })
+        .success
+    ).toBe(true);
+    expect(
+      IssueAccountDeleteTokenResponseSchema.safeParse({ deleteToken: 'purge_0123456789abcdef' })
+        .success
+    ).toBe(false);
+  });
+});
+
+describe('DeleteAccountSchema', () => {
+  it('accepts only a branded delete token as input', () => {
+    expect(DeleteAccountSchema.safeParse({ deleteToken: 'acctdel_0123456789abcdef' }).success).toBe(
+      true
+    );
+    expect(DeleteAccountSchema.safeParse({ deleteToken: 'not-a-token' }).success).toBe(false);
   });
 });

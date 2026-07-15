@@ -1818,7 +1818,8 @@
       },
       "componentPrefixes": [
         "user-defaults-settings",
-        "settings-preset-override"
+        "settings-preset-override",
+        "settings-data-delete"
       ],
       "data": {
         "options": [
@@ -2104,12 +2105,18 @@
           {
             "type": 2,
             "name": "data",
-            "description": "Your data: export everything you have stored",
+            "description": "Your data: export everything, or delete your account",
             "options": [
               {
                 "type": 1,
                 "name": "export",
                 "description": "Export all your account data as a downloadable file",
+                "options": []
+              },
+              {
+                "type": 1,
+                "name": "delete",
+                "description": "Permanently delete your account and ALL your data",
                 "options": []
               }
             ]

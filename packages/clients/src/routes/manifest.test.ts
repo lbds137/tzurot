@@ -130,13 +130,19 @@ describe('central route manifest', () => {
     //     the "this should really be async/streaming" anti-pattern
     //   - Number.isInteger: rejects NaN, decimals, Infinity
     // A route that genuinely needs >60s should be a BullMQ job, not a
-    // sync gateway request. The two DATA-SCALED owner maintenance routes
-    // are the deliberate exception (owner decision after a fact-carrying
-    // db-sync outgrew 30s and false-failed): they get LONG_SYNC (5 min,
-    // inside Discord's 15-min deferred window), and the async-job
-    // refactor is filed with a promote-when trigger. Adding a THIRD
-    // route here is that trigger firing — build the job instead.
-    const LONG_SYNC_EXEMPT = new Set(['dbSync', 'cleanup']);
+    // sync gateway request. Every exemption below carries an OWNER decision
+    // plus a filed async-refactor promote-when trigger — that pairing is the
+    // price of entry:
+    //   - dbSync/cleanup: DATA-SCALED owner maintenance (a fact-carrying
+    //     db-sync outgrew 30s and false-failed); trigger: sync past ~2 min.
+    //   - deleteAccount: account erasure runs in ONE 60s-budget transaction
+    //     (atomicity beats a job that could leave a half-deleted account),
+    //     and the client must OUTWAIT it — a shorter abort false-fails while
+    //     the deletion commits, unrecoverable with a single-use token;
+    //     trigger: logged deletion p95 >10s (backlog/cold/follow-ups.md).
+    // Adding a route WITHOUT that pairing is the async-job trigger firing —
+    // build the job instead.
+    const LONG_SYNC_EXEMPT = new Set(['dbSync', 'cleanup', 'deleteAccount']);
     for (const [key, route] of entries) {
       if (route.timeoutMs !== undefined) {
         const cap = LONG_SYNC_EXEMPT.has(key) ? GATEWAY_TIMEOUTS.LONG_SYNC : 60_000;

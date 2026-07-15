@@ -92,6 +92,66 @@ export class UserClient {
   /**
    * @safeRead Server-side has no observable mutation — safe to cache client-side.
    */
+  async previewAccountDelete(): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.previewAccountDelete.output>>> {
+    const fullPath = '/api/user/account/delete/preview';
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'GET',
+      path: fullPath,
+      headers: {
+        'X-User-Id': this.actor,
+        'X-User-Username': encodeURIComponent(this.user.username),
+        'X-User-DisplayName': encodeURIComponent(this.user.displayName),
+        'X-User-Is-Bot': String(this.user.isBot),
+      },
+      outputSchema: ROUTE_MANIFEST.previewAccountDelete.output,
+    });
+  }
+
+  async issueAccountDeleteToken(input: z.infer<typeof ROUTE_MANIFEST.issueAccountDeleteToken.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.issueAccountDeleteToken.output>>> {
+    const fullPath = '/api/user/account/delete/token';
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'POST',
+      path: fullPath,
+      headers: {
+        'X-User-Id': this.actor,
+        'X-User-Username': encodeURIComponent(this.user.username),
+        'X-User-DisplayName': encodeURIComponent(this.user.displayName),
+        'X-User-Is-Bot': String(this.user.isBot),
+      },
+      body: input,
+      outputSchema: ROUTE_MANIFEST.issueAccountDeleteToken.output,
+    });
+  }
+
+  /**
+   * @atMostOnce Mutating + single-use-token guarded; replay yields a 4xx token-expired error even though the original mutation succeeded server-side. Retry layers must NOT auto-retry — surface the original error to the user only if no success response was observed.
+   */
+  async deleteAccount(input: z.infer<typeof ROUTE_MANIFEST.deleteAccount.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.deleteAccount.output>>> {
+    const fullPath = '/api/user/account/delete';
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'POST',
+      path: fullPath,
+      headers: {
+        'X-User-Id': this.actor,
+        'X-User-Username': encodeURIComponent(this.user.username),
+        'X-User-DisplayName': encodeURIComponent(this.user.displayName),
+        'X-User-Is-Bot': String(this.user.isBot),
+      },
+      body: input,
+      outputSchema: ROUTE_MANIFEST.deleteAccount.output,
+      timeoutMs: ROUTE_MANIFEST.deleteAccount.timeoutMs,
+    });
+  }
+
+  /**
+   * @safeRead Server-side has no observable mutation — safe to cache client-side.
+   */
   async getTimezone(): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.getTimezone.output>>> {
     const fullPath = '/api/user/timezone';
     return callGateway({

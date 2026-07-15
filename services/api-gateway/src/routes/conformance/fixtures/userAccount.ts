@@ -5,6 +5,7 @@
  * enqueue the harness's queue stub absorbs), so they run for real.
  */
 
+import { ACCOUNT_DELETE_CONFIRMATION_PHRASE } from '@tzurot/common-types/schemas/api/account';
 import {
   ACCOUNT_EXPORT_SLUG,
   ACCOUNT_EXPORT_SOURCE,
@@ -53,5 +54,36 @@ export const userAccountFixtures: Record<string, ConformanceEntry> = {
         },
       });
     },
+  },
+
+  // The shared actor doubles as the bot owner, so provisioning marks it
+  // superuser — which the deletion routes 403 by design. Both fixtures clear
+  // the flag (order-independently) to reach their success paths; nothing in
+  // the harness reads the DB flag (owner auth compares BOT_OWNER_ID env).
+  previewAccountDelete: {
+    seed: async ctx => {
+      await ctx.prisma.user.update({
+        where: { id: ctx.actorUserId },
+        data: { isSuperuser: false },
+      });
+    },
+  },
+
+  issueAccountDeleteToken: {
+    seed: async ctx => {
+      await ctx.prisma.user.update({
+        where: { id: ctx.actorUserId },
+        data: { isSuperuser: false },
+      });
+    },
+    body: { confirmationPhrase: ACCOUNT_DELETE_CONFIRMATION_PHRASE },
+  },
+
+  deleteAccount: {
+    skip:
+      'Destructive on the SHARED sequential actor: deleting it breaks every fixture ' +
+      'that runs after this one. Compensated by delete.component.test.ts, which drives ' +
+      'the full preview→token→delete flow over PGLite and parses each wire response ' +
+      'through the declared output schemas.',
   },
 };
