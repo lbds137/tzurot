@@ -10,3 +10,4 @@
 export { createHealthRouter } from './health.js';
 export { createAvatarRouter } from './avatars.js';
 export { createExportsRouter } from './exports.js';
+export { createGitHubReleaseWebhookRouter } from './githubWebhook.js';
