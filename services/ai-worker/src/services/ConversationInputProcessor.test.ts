@@ -75,8 +75,10 @@ describe('ConversationInputProcessor', () => {
     } as unknown as PromptBuilder;
 
     mockReferencedMessageFormatter = {
-      formatReferencedMessages: vi.fn().mockResolvedValue('<references>formatted</references>'),
-      extractTextForSearch: vi.fn().mockReturnValue('reference text for search'),
+      formatReferencedMessages: vi.fn().mockResolvedValue({
+        formatted: '<references>formatted</references>',
+        searchText: 'reference text for search',
+      }),
     } as unknown as ReferencedMessageFormatter;
 
     mockResponsePostProcessor = {
@@ -366,10 +368,46 @@ describe('ConversationInputProcessor', () => {
         isGuestMode: false,
       });
 
-      expect(mockReferencedMessageFormatter.extractTextForSearch).toHaveBeenCalledWith(
-        '<references>formatted</references>'
-      );
+      expect(result.referencedMessagesDescriptions).toBe('<references>formatted</references>');
       expect(result.referencedMessagesTextForSearch).toBe('reference text for search');
+    });
+
+    it('contributes NOTHING to search when the reference yields empty searchText (stub-only reply)', async () => {
+      // A reply to the bot's own message dedups to a content-less stub: the
+      // prompt still carries the quote block, but the search query must not —
+      // this pinned a real bug where tag-stripping the formatted block fed
+      // instruction boilerplate into every reply-shaped embedding query.
+      (
+        mockReferencedMessageFormatter.formatReferencedMessages as ReturnType<typeof vi.fn>
+      ).mockResolvedValue({ formatted: '<references>stub only</references>', searchText: '' });
+      const referencedMessages: ReferencedMessage[] = [
+        {
+          referenceNumber: 1,
+          discordMessageId: 'msg1',
+          discordUserId: 'user1',
+          authorUsername: 'user1',
+          authorDisplayName: 'User One',
+          content: '',
+          embeds: '',
+          timestamp: '2025-01-01T00:00:00Z',
+          locationContext: '<location/>',
+          isDeduplicated: true,
+        },
+      ];
+      const context = createMockContext({ referencedMessages });
+
+      const result = await processor.processInputs(mockPersonality, mockMessage, context, {
+        isGuestMode: false,
+      });
+
+      expect(result.referencedMessagesDescriptions).toBe('<references>stub only</references>');
+      expect(result.referencedMessagesTextForSearch).toBeUndefined();
+      expect(mockPromptBuilder.buildSearchQuery).toHaveBeenCalledWith(
+        'formatted user message',
+        expect.any(Array),
+        undefined,
+        undefined
+      );
     });
 
     it('should extract recent history window for context-aware search', async () => {

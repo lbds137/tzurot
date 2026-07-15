@@ -54,24 +54,25 @@ interface ReferenceVisionAuth {
 }
 
 /**
+ * The formatter's two parallel renderings of the same references:
+ * `formatted` is the XML block for the prompt; `searchText` is the plain
+ * semantic content (message text, attachment descriptions/transcriptions,
+ * embed text) for the memory/fact retrieval query. searchText is built from
+ * the RAW pieces, never by re-parsing the XML — tag-stripping the formatted
+ * block leaked the <instruction> boilerplate and dedup-stub placeholders
+ * into every reply-shaped embedding query.
+ */
+export interface FormattedReferences {
+  formatted: string;
+  searchText: string;
+}
+
+/**
  * Referenced Message Formatter
  *
  * Handles formatting of referenced messages with parallel attachment processing
  */
 export class ReferencedMessageFormatter {
-  /**
-   * Extract plain text content from formatted referenced messages
-   *
-   * Strips markdown headers and metadata, keeping only the actual message content,
-   * transcriptions, and image descriptions for semantic search.
-   *
-   * @param formattedReferences - Formatted reference string from formatReferencedMessages
-   * @returns Plain text content suitable for LTM search query
-   */
-  extractTextForSearch(formattedReferences: string): string {
-    return extractXmlTextContent(formattedReferences);
-  }
-
   /**
    * Format referenced messages for inclusion in prompt
    *
@@ -84,7 +85,7 @@ export class ReferencedMessageFormatter {
    * @param preprocessedAttachments - Pre-processed attachments keyed by reference number (avoids inline API calls)
    * @param userApiKey - User's BYOK API key (for BYOK users)
    * @param sttDispatch - Resolved STT dispatch (provider + matching BYOK key)
-   * @returns Formatted string ready for prompt
+   * @returns The prompt XML plus the plain-text search rendering
    */
   async formatReferencedMessages(
     references: ReferencedMessage[],
@@ -92,8 +93,9 @@ export class ReferencedMessageFormatter {
     isGuestMode = false,
     preprocessedAttachments?: Record<number, ProcessedAttachment[]>,
     apiKeys?: ReferenceVisionAuth
-  ): Promise<string> {
+  ): Promise<FormattedReferences> {
     const referenceElements: string[] = [];
+    const searchParts: string[] = [];
 
     // Process each reference into XML
     for (const ref of references) {
@@ -116,31 +118,37 @@ export class ReferencedMessageFormatter {
             content: ref.content,
           })
         );
+        // The stub's capped text copy is real signal; the reply-target
+        // marker the quote renderer adds is not, so contribute the raw
+        // content only (empty for a bot's own reply-target).
+        searchParts.push(ref.content);
         continue;
       }
 
       // Forwarded messages use the shared QuoteFormatter for consistency
       if (ref.isForwarded === true) {
-        const forwardedElement = await this.formatForwardedReference(
+        const forwarded = await this.formatForwardedReference(
           ref,
           personality,
           isGuestMode,
           preprocessedAttachments?.[ref.referenceNumber],
           apiKeys
         );
-        referenceElements.push(forwardedElement);
+        referenceElements.push(forwarded.element);
+        searchParts.push(forwarded.searchText);
         continue;
       }
 
       // Non-forwarded messages: standard quote format
-      const standardElement = await this.formatStandardReference(
+      const standard = await this.formatStandardReference(
         ref,
         personality,
         isGuestMode,
         preprocessedAttachments?.[ref.referenceNumber],
         apiKeys
       );
-      referenceElements.push(standardElement);
+      referenceElements.push(standard.element);
+      searchParts.push(standard.searchText);
     }
 
     const formattedText = referenceElements.join('\n');
@@ -159,7 +167,31 @@ export class ReferencedMessageFormatter {
     );
 
     // Wrap in outer XML tag.
-    return `<contextual_references>\n${CONTEXTUAL_REFERENCES_INSTRUCTION}\n${formattedText}\n</contextual_references>`;
+    return {
+      formatted: `<contextual_references>\n${CONTEXTUAL_REFERENCES_INSTRUCTION}\n${formattedText}\n</contextual_references>`,
+      searchText: searchParts
+        .map(part => part.trim())
+        .filter(part => part.length > 0)
+        .join('\n\n'),
+    };
+  }
+
+  /**
+   * Semantic text of one reference for the retrieval query: message text,
+   * attachment description/transcription lines, and embed text (embeds are
+   * pre-formatted XML, so tag-strip JUST that piece — content only, no
+   * envelope). Location context, timestamps, and role metadata never
+   * belong in an embedding query.
+   */
+  private buildReferenceSearchText(ref: ReferencedMessage, attachmentLines: string[]): string {
+    const pieces = [ref.content, ...attachmentLines];
+    if (ref.embeds !== undefined && ref.embeds.length > 0) {
+      pieces.push(extractXmlTextContent(ref.embeds));
+    }
+    return pieces
+      .map(piece => piece.trim())
+      .filter(piece => piece.length > 0)
+      .join('\n');
   }
 
   /**
@@ -171,7 +203,7 @@ export class ReferencedMessageFormatter {
     isGuestMode: boolean,
     preprocessedForRef?: ProcessedAttachment[],
     apiKeys?: ReferenceVisionAuth
-  ): Promise<string> {
+  ): Promise<{ element: string; searchText: string }> {
     const { userApiKey, sttDispatch, visionProvider, visionModel } = apiKeys ?? {};
     const { absolute, relative } = formatTimestampWithDelta(ref.timestamp);
 
@@ -190,7 +222,7 @@ export class ReferencedMessageFormatter {
       });
     }
 
-    return formatQuoteElement({
+    const element = formatQuoteElement({
       number: ref.referenceNumber,
       from: ref.authorDisplayName,
       username: ref.authorUsername,
@@ -206,6 +238,8 @@ export class ReferencedMessageFormatter {
       embedsXml: ref.embeds ? [ref.embeds] : undefined,
       attachmentLines: attachmentLines.length > 0 ? attachmentLines : undefined,
     });
+
+    return { element, searchText: this.buildReferenceSearchText(ref, attachmentLines) };
   }
 
   /**
@@ -218,7 +252,7 @@ export class ReferencedMessageFormatter {
     isGuestMode: boolean,
     preprocessedForRef?: ProcessedAttachment[],
     apiKeys?: ReferenceVisionAuth
-  ): Promise<string> {
+  ): Promise<{ element: string; searchText: string }> {
     const { userApiKey, sttDispatch, visionProvider, visionModel } = apiKeys ?? {};
     const { absolute, relative } = formatTimestampWithDelta(ref.timestamp);
 
@@ -229,8 +263,9 @@ export class ReferencedMessageFormatter {
     };
 
     // Process attachments if present
+    let attachmentLines: string[] = [];
     if (ref.attachments && ref.attachments.length > 0) {
-      const attachmentLines = await processAttachmentsParallel({
+      attachmentLines = await processAttachmentsParallel({
         attachments: ref.attachments,
         referenceNumber: ref.referenceNumber,
         personality,
@@ -247,6 +282,9 @@ export class ReferencedMessageFormatter {
       }
     }
 
-    return formatForwardedQuote(forwardedContent);
+    return {
+      element: formatForwardedQuote(forwardedContent),
+      searchText: this.buildReferenceSearchText(ref, attachmentLines),
+    };
   }
 }
