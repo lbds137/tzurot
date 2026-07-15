@@ -15,6 +15,7 @@ import { PrismaPGlite } from 'pglite-prisma-adapter';
 import { PrismaClient } from '@tzurot/common-types/services/prisma';
 import { createTestPGlite, loadPGliteSchema, seedUserWithPersona } from '@tzurot/test-utils';
 import { assembleAccountExport } from './AccountExportAssembler.js';
+import { buildAccountExportFiles } from './AccountExportFiles.js';
 
 const USER_A = 'ac0e0000-0000-4000-8000-0000000000a1';
 const PERSONA_A = 'ac0e0000-0000-4000-8000-0000000000a2';
@@ -22,6 +23,7 @@ const USER_B = 'ac0e0000-0000-4000-8000-0000000000b1';
 const PERSONA_B = 'ac0e0000-0000-4000-8000-0000000000b2';
 const SYSTEM_PROMPT = 'ac0e0000-0000-4000-8000-0000000000c1';
 const PERSONALITY_X = 'ac0e0000-0000-4000-8000-0000000000c2';
+const PERSONALITY_Y = 'ac0e0000-0000-4000-8000-0000000000c3';
 const SECRET_VALUE = 'super-secret-encrypted-blob-DO-NOT-EXPORT';
 
 let seq = 0;
@@ -66,6 +68,23 @@ describe('assembleAccountExport (component, PGLite)', () => {
     `;
     await prisma.personalityOwner.create({
       data: { personalityId: PERSONALITY_X, userId: USER_A },
+    });
+
+    // A character OWNED BY B that A merely conversed with — the personality
+    // directory must cover it even though A's characters section won't.
+    await prisma.$executeRaw`
+      INSERT INTO personalities (id, name, slug, character_info, personality_traits, owner_id, updated_at)
+      VALUES (${PERSONALITY_Y}::uuid, 'YBot', 'ybot', 'Y character', 'Reserved', ${USER_B}::uuid, NOW())
+    `;
+    await prisma.conversationHistory.create({
+      data: {
+        id: nextId(),
+        personaId: PERSONA_A,
+        personalityId: PERSONALITY_Y,
+        channelId: 'chan-2',
+        role: 'user',
+        content: 'alice-line talks to a character she does not own',
+      },
     });
 
     // Conversation history + memories + facts for BOTH users' personas.
@@ -147,8 +166,8 @@ describe('assembleAccountExport (component, PGLite)', () => {
 
     expect(payload.profile).toEqual(expect.objectContaining({ username: 'exportalice' }));
     expect(payload.personas).toHaveLength(1);
-    expect(payload.characters.map(c => (c as { id: string }).id)).toEqual([PERSONALITY_X]);
-    expect(payload.conversationHistory).toHaveLength(1);
+    expect(payload.characters.map(c => c.id)).toEqual([PERSONALITY_X]);
+    expect(payload.conversationHistory).toHaveLength(2);
     expect(payload.memories).toHaveLength(1);
     expect(payload.facts).toHaveLength(1);
     expect(payload.feedback).toHaveLength(1);
@@ -167,14 +186,34 @@ describe('assembleAccountExport (component, PGLite)', () => {
     expect(serialized).not.toContain('exportbob');
   });
 
-  it('never includes secret material in the serialized payload', async () => {
+  it('directory covers unowned characters; the file map folders their content by slug', async () => {
     const payload = await assembleAccountExport(prisma, USER_A);
-    const serialized = JSON.stringify(payload);
 
-    expect(serialized).not.toContain(SECRET_VALUE);
-    expect(serialized).not.toContain('test-iv');
-    expect(serialized).not.toContain('cred-iv');
-    // The meta.notes disclose the exclusions.
-    expect(payload.meta.notes.join(' ')).toContain('secret material is never exported');
+    // A owns X; Y belongs to B but A conversed with it.
+    expect(payload.characters.map(c => c.id)).toEqual([PERSONALITY_X]);
+    expect(payload.personalityDirectory).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: PERSONALITY_X, slug: 'xbot' }),
+        expect.objectContaining({ id: PERSONALITY_Y, slug: 'ybot' }),
+      ])
+    );
+
+    const files = buildAccountExportFiles(payload);
+    expect(files['conversations/ybot.md']).toContain('does not own');
+    // The unowned character gets NO definition files — only foldered content.
+    expect(files['characters/ybot.json']).toBeUndefined();
+    expect(files['characters/xbot.json']).toBeDefined();
+  });
+
+  it('never includes secret material anywhere in the built export files', async () => {
+    const payload = await assembleAccountExport(prisma, USER_A);
+    const files = buildAccountExportFiles(payload);
+    const everything = Object.values(files).join('\n');
+
+    expect(everything).not.toContain(SECRET_VALUE);
+    expect(everything).not.toContain('test-iv');
+    expect(everything).not.toContain('cred-iv');
+    // The README discloses the exclusions.
+    expect(files['README.md']).toContain('secret material is never exported');
   });
 });

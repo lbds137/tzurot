@@ -13,13 +13,22 @@ import { z } from 'zod';
 // POST /user/account/export
 // ============================================================================
 
-/** No inputs in v1 — the export always covers the whole account as JSON. */
+/** No inputs — the export always covers the whole account as a ZIP archive
+ *  containing JSON + Markdown files per section. */
 export const StartAccountExportInputSchema = z.object({});
+
+/** Export-job lifecycle states (the export_jobs.status vocabulary). */
+export const AccountExportJobStatusSchema = z.enum([
+  'pending',
+  'in_progress',
+  'completed',
+  'failed',
+]);
 
 export const StartAccountExportResponseSchema = z.object({
   success: z.literal(true),
   exportJobId: z.string(),
-  status: z.string(),
+  status: AccountExportJobStatusSchema,
   downloadUrl: z.string(),
   expiresAt: z.string(),
 });
@@ -28,10 +37,12 @@ export const StartAccountExportResponseSchema = z.object({
 // GET /user/account/export/status
 // ============================================================================
 
+/** No errorMessage field by design: raw failure detail stays in server logs;
+ *  clients render generic copy off status === 'failed'. */
 export const AccountExportJobSummarySchema = z
   .object({
     id: z.string(),
-    status: z.string(),
+    status: AccountExportJobStatusSchema,
     fileName: z.string().nullable(),
     fileSizeBytes: z.number().int().nullable(),
     createdAt: z.union([z.string(), z.date()]).transform(value => new Date(value).toISOString()),
@@ -40,7 +51,6 @@ export const AccountExportJobSummarySchema = z
       .transform(value => new Date(value).toISOString())
       .nullable(),
     expiresAt: z.union([z.string(), z.date()]).transform(value => new Date(value).toISOString()),
-    errorMessage: z.string().nullable(),
     /** Populated only for completed jobs. */
     downloadUrl: z.string().nullable(),
   })

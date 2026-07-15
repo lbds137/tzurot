@@ -3,15 +3,16 @@
  *
  * BullMQ job handler for full-account data exports (data portability):
  * 1. Mark the export_jobs row in_progress
- * 2. Assemble the account payload (AccountExportAssembler — pure DB reads)
- * 3. Store the JSON in ExportJob.fileContent (PostgreSQL TEXT)
- * 4. Update status with results
+ * 2. Assemble the account data (AccountExportAssembler — pure DB reads)
+ * 3. Build the per-section file map (JSON + Markdown) and ZIP it
+ * 4. Store the archive in ExportJob.fileData (BYTEA) and update status
  *
  * Self-contained like the shapes export: status lives on the ExportJob row;
  * the user downloads via the public /exports/:jobId route until expiry.
  */
 
 import type { Job } from 'bullmq';
+import { zipSync, strToU8 } from 'fflate';
 import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import {
   type AccountExportJobData,
@@ -19,6 +20,7 @@ import {
 } from '@tzurot/common-types/types/account-export';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { assembleAccountExport } from './AccountExportAssembler.js';
+import { buildAccountExportFiles } from './AccountExportFiles.js';
 
 const logger = createLogger('AccountExportJob');
 
@@ -37,19 +39,26 @@ export async function processAccountExportJob(
 
   try {
     const payload = await assembleAccountExport(prisma, userId);
+    const files = buildAccountExportFiles(payload);
 
-    const fileContent = JSON.stringify(payload, null, 2);
-    const fileSizeBytes = Buffer.byteLength(fileContent, 'utf8');
+    const zipEntries: Record<string, Uint8Array> = {};
+    for (const [path, content] of Object.entries(files)) {
+      zipEntries[path] = strToU8(content);
+    }
+    const fileData = zipSync(zipEntries);
+    const fileSizeBytes = fileData.length;
+
     const username =
       typeof payload.profile.username === 'string' ? payload.profile.username : 'user';
     const safeUsername = username.replace(/[^\w.-]/g, '_');
-    const fileName = `tzurot-account-export-${safeUsername}-${new Date().toISOString().slice(0, 10)}.json`;
+    const fileName = `tzurot-account-export-${safeUsername}-${new Date().toISOString().slice(0, 10)}.zip`;
 
     await prisma.exportJob.update({
       where: { id: exportJobId },
       data: {
         status: 'completed',
-        fileContent,
+        fileContent: null,
+        fileData,
         fileName,
         fileSizeBytes,
         completedAt: new Date(),
@@ -60,6 +69,7 @@ export async function processAccountExportJob(
           memories: payload.memories.length,
           facts: payload.facts.length,
           feedback: payload.feedback.length,
+          files: Object.keys(files).length,
         },
       },
     });

@@ -87,12 +87,11 @@ describe('handleDataExport', () => {
         job: {
           id: 'job-1',
           status: 'completed',
-          fileName: 'f.json',
+          fileName: 'f.zip',
           fileSizeBytes: 10,
           createdAt: new Date().toISOString(),
           completedAt: new Date().toISOString(),
           expiresAt: new Date(Date.now() + 3600 * 1000).toISOString(),
-          errorMessage: null,
           downloadUrl: 'https://gateway.example/exports/job-1',
         },
       })
@@ -104,6 +103,31 @@ describe('handleDataExport', () => {
     const embed = mockEditReply.mock.calls[0][0].embeds[0];
     expect(embed.data.title).toContain('Status');
     expect(embed.data.description).toContain('https://gateway.example/exports/job-1');
+    // Completed-on-409 means the cooldown blocked a re-export — say so.
+    expect(embed.data.description).toContain('once every 24 hours');
+  });
+
+  it('shows generic failure copy for failed jobs (no raw error detail)', async () => {
+    stub.startAccountExport.mockResolvedValue(makeErr(409, 'already in progress'));
+    stub.getAccountExportStatus.mockResolvedValue(
+      makeOk({
+        job: {
+          id: 'job-1',
+          status: 'failed',
+          fileName: null,
+          fileSizeBytes: null,
+          createdAt: new Date().toISOString(),
+          completedAt: new Date().toISOString(),
+          expiresAt: new Date(Date.now() + 3600 * 1000).toISOString(),
+          downloadUrl: null,
+        },
+      })
+    );
+
+    await handleDataExport(createMockContext());
+
+    const embed = mockEditReply.mock.calls[0][0].embeds[0];
+    expect(embed.data.description).toContain('Your last export failed');
   });
 
   it('reports non-409 failures plainly', async () => {

@@ -919,13 +919,17 @@ model ExportJob {
   sourceService  String    @map("source_service") @db.VarChar(50)
   /// Job status: pending, in_progress, completed, failed
   status         String    @default("pending") @db.VarChar(50)
-  /// Export format: json or markdown
+  /// Export format: json, markdown, or zip
   format         String    @default("json") @db.VarChar(20)
   /// Full export content stored as text (TOAST-compressed, supports 35MB+)
   fileContent    String?   @map("file_content")
+  /// Binary export payload (ZIP archives). Deferred-set like fileContent:
+  /// null until a binary-format job completes; a completed job populates
+  /// exactly one of fileContent (text formats) or fileData (binary formats).
+  fileData       Bytes?    @map("file_data")
   /// Generated filename for download
   fileName       String?   @map("file_name") @db.VarChar(255)
-  /// Size of fileContent in bytes
+  /// Size of the stored payload (fileContent or fileData) in bytes
   fileSizeBytes  Int?      @map("file_size_bytes")
   createdAt      DateTime  @default(now()) @map("created_at")
   startedAt      DateTime? @map("started_at")

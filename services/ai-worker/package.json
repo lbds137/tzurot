@@ -31,6 +31,7 @@
     "@tzurot/identity": "workspace:*",
     "bullmq": "^5.80.2",
     "fast-xml-parser": "^5.10.0",
+    "fflate": "^0.8.3",
     "ioredis": "^5.11.1",
     "langchain": "^1.5.3",
     "onnxruntime-node": "^1.27.0",

@@ -37,20 +37,29 @@ const logger = createLogger('account-export');
 /** Export jobs expire after 24 hours (mirrors the shapes-export policy). */
 const EXPORT_EXPIRY_HOURS = 24;
 
-/** Account exports are JSON-only in v1. */
-const EXPORT_FORMAT = 'json';
+/** Account exports are a ZIP archive (JSON + Markdown per section) from v2 on. */
+const EXPORT_FORMAT = 'zip';
+
+/**
+ * One completed export per 24 hours (measured from completedAt) — a full
+ * account assembly is the most expensive read path a user can trigger.
+ * Failed jobs are exempt so a failure never locks the user out.
+ */
+const EXPORT_COOLDOWN_HOURS = 24;
 
 interface CreateOrConflictResult {
   exportJobId: string;
   conflictStatus: string | null;
+  onCooldown: boolean;
 }
 
 /**
- * Atomically check for an active job and create/reset the export row.
- * The UUID is deterministic on (userId, 'account', 'account', 'json'), so a
- * re-export upserts the same row — replacing any previous completed/failed
- * export and invalidating its download URL. Only an active
- * (pending/in_progress) job triggers a 409.
+ * Atomically check for an active job / cooldown and create/reset the export
+ * row. The UUID is deterministic on (userId, 'account', 'account', 'zip'),
+ * so a re-export upserts the same row — replacing any previous
+ * completed/failed export and invalidating its download URL. An active
+ * (pending/in_progress) job or a completed job newer than the cooldown
+ * window triggers a 409 instead.
  */
 async function createExportJobOrConflict(
   prisma: PrismaClient,
@@ -63,8 +72,9 @@ async function createExportJobOrConflict(
     ACCOUNT_EXPORT_SOURCE,
     EXPORT_FORMAT
   );
+  const cooldownFloor = new Date(Date.now() - EXPORT_COOLDOWN_HOURS * 60 * 60 * 1000);
 
-  const conflictStatus = await prisma.$transaction(async tx => {
+  const outcome = await prisma.$transaction(async tx => {
     const existingJob = await tx.exportJob.findFirst({
       where: {
         userId,
@@ -74,7 +84,20 @@ async function createExportJobOrConflict(
     });
 
     if (existingJob !== null) {
-      return existingJob.status;
+      return { conflictStatus: existingJob.status, onCooldown: false };
+    }
+
+    const recentCompleted = await tx.exportJob.findFirst({
+      where: {
+        userId,
+        sourceService: ACCOUNT_EXPORT_SOURCE,
+        status: 'completed',
+        completedAt: { gt: cooldownFloor },
+      },
+    });
+
+    if (recentCompleted !== null) {
+      return { conflictStatus: null, onCooldown: true };
     }
 
     await tx.exportJob.upsert({
@@ -92,6 +115,7 @@ async function createExportJobOrConflict(
         status: 'pending',
         format: EXPORT_FORMAT,
         fileContent: null,
+        fileData: null,
         fileName: null,
         fileSizeBytes: null,
         errorMessage: null,
@@ -102,10 +126,10 @@ async function createExportJobOrConflict(
       },
     });
 
-    return null;
+    return { conflictStatus: null, onCooldown: false };
   });
 
-  return { exportJobId, conflictStatus };
+  return { exportJobId, ...outcome };
 }
 
 /**
@@ -133,8 +157,9 @@ function createStartExportHandler(prisma: PrismaClient, queue: Queue, baseUrl: s
 
     let exportJobId: string;
     let conflictStatus: string | null;
+    let onCooldown: boolean;
     try {
-      ({ exportJobId, conflictStatus } = await createExportJobOrConflict(
+      ({ exportJobId, conflictStatus, onCooldown } = await createExportJobOrConflict(
         prisma,
         userId,
         expiresAt
@@ -157,6 +182,16 @@ function createStartExportHandler(prisma: PrismaClient, queue: Queue, baseUrl: s
         res,
         ErrorResponses.conflict(
           `An account export is already ${conflictStatus}. Wait for it to complete.`
+        )
+      );
+    }
+
+    if (onCooldown) {
+      return sendError(
+        res,
+        ErrorResponses.conflict(
+          'You can export your account once every 24 hours. ' +
+            'Your latest export is still available via the status endpoint.'
         )
       );
     }
@@ -193,6 +228,9 @@ function createStatusHandler(prisma: PrismaClient, baseUrl: string) {
   return async (req: ProvisionedRequest, res: Response) => {
     const userId = resolveProvisionedUserId(req);
 
+    // errorMessage stays server-side by design: raw assembly errors can leak
+    // infrastructure detail, and the worker already logged them. Clients show
+    // generic failure copy off the status field alone.
     const job = await prisma.exportJob.findFirst({
       where: { userId, sourceService: ACCOUNT_EXPORT_SOURCE },
       orderBy: { createdAt: 'desc' },
@@ -204,7 +242,6 @@ function createStatusHandler(prisma: PrismaClient, baseUrl: string) {
         createdAt: true,
         completedAt: true,
         expiresAt: true,
-        errorMessage: true,
       },
     });
 

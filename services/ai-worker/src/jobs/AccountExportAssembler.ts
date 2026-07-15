@@ -1,50 +1,94 @@
 /**
  * Account Export Assembler
  *
- * Pure DB-read assembly of a user's full-account export payload (data
+ * Pure DB-read assembly of a user's full-account export data (data
  * portability). Separated from the job wrapper for testability, mirroring
- * the ShapesExportFormatters split.
+ * the ShapesExportFormatters split. AccountExportFiles turns this data into
+ * the per-section ZIP file map.
  *
- * Deliberate exclusions, each documented in the payload's meta.notes so the
- * user sees them: secret material (BYOK keys/credentials export metadata
- * only — encrypted blobs are useless and plaintext behind a bearer-URL is a
+ * Deliberate exclusions, each documented in the export README so the user
+ * sees them: secret material (BYOK keys/credentials export metadata only —
+ * encrypted blobs are useless and plaintext behind a bearer-URL is a
  * hazard), embedding vectors (model internals, not user content), avatar and
  * voice-reference binaries (avatars are re-downloadable via /avatars; voice
  * references were user-supplied), stored export-file contents, and raw
  * usage logs (an aggregate summary ships instead).
  */
 
-import { type PrismaClient } from '@tzurot/common-types/services/prisma';
+import { type PrismaClient, type Prisma } from '@tzurot/common-types/services/prisma';
 
 /** Page size for cursor sweeps over the big tables (bounded-query rule). */
 const EXPORT_PAGE_SIZE = 1000;
 
-export interface AccountExportFile {
+export type ExportProfile = Prisma.UserGetPayload<{
+  select: {
+    discordId: true;
+    username: true;
+    timezone: true;
+    nsfwVerified: true;
+    nsfwVerifiedAt: true;
+    notifyEnabled: true;
+    notifyLevel: true;
+    createdAt: true;
+  };
+}>;
+export type ExportPersona = Prisma.PersonaGetPayload<object>;
+export type ExportCharacter = Omit<
+  Prisma.PersonalityGetPayload<object>,
+  'avatarData' | 'voiceReferenceData'
+>;
+export type ExportConversationRow = Prisma.ConversationHistoryGetPayload<object>;
+export type ExportMemoryRow = Prisma.MemoryGetPayload<object>;
+export type ExportFactRow = Prisma.MemoryFactGetPayload<object>;
+export type ExportFeedbackRow = Prisma.UserFeedbackGetPayload<object>;
+
+export interface ExportUsageSummaryRow {
+  provider: string;
+  model: string;
+  _count: { _all: number };
+  _sum: { tokensIn: number | null; tokensOut: number | null };
+}
+
+/**
+ * Name/slug lookup for every personality referenced anywhere in the export.
+ * Users converse with characters they don't own, so this is a superset of
+ * the owned+co-owned `characters` section — it's what lets the file builder
+ * folder conversations/memories/facts by character slug.
+ */
+export interface PersonalityDirectoryEntry {
+  id: string;
+  name: string;
+  slug: string;
+}
+
+export interface AccountExportData {
   meta: {
     exportedAt: string;
-    formatVersion: 1;
+    formatVersion: 2;
     notes: string[];
   };
-  profile: Record<string, unknown>;
-  personas: unknown[];
-  characters: unknown[];
+  profile: ExportProfile;
+  personas: ExportPersona[];
+  characters: ExportCharacter[];
+  personalityDirectory: PersonalityDirectoryEntry[];
+  conversationHistory: ExportConversationRow[];
+  memories: ExportMemoryRow[];
+  facts: ExportFactRow[];
   personalityConfigs: unknown[];
   personaHistoryConfigs: unknown[];
-  conversationHistory: unknown[];
-  memories: unknown[];
-  facts: unknown[];
   llmConfigs: unknown[];
   ttsConfigs: unknown[];
   apiKeyMetadata: unknown[];
   credentialMetadata: unknown[];
-  usageSummary: unknown[];
-  feedback: unknown[];
+  usageSummary: ExportUsageSummaryRow[];
+  feedback: ExportFeedbackRow[];
   importJobs: unknown[];
   exportJobs: unknown[];
   releaseDeliveries: unknown[];
+  shapesMappings: unknown[];
 }
 
-const EXPORT_NOTES = [
+export const EXPORT_NOTES = [
   'API keys and external credentials are listed as metadata only; secret material is never exported.',
   'Memory embedding vectors are model internals and are not included.',
   'Avatar images and voice-reference audio binaries are not included; avatars remain downloadable from the bot while the character exists.',
@@ -97,8 +141,8 @@ async function fetchAncillarySections(
   ttsConfigs: unknown[];
   apiKeyMetadata: unknown[];
   credentialMetadata: unknown[];
-  usageSummary: unknown[];
-  feedback: unknown[];
+  usageSummary: ExportUsageSummaryRow[];
+  feedback: ExportFeedbackRow[];
   importJobs: unknown[];
   exportJobs: unknown[];
   releaseDeliveries: unknown[];
@@ -145,7 +189,7 @@ async function fetchAncillarySections(
     sweep(c =>
       prisma.exportJob.findMany({
         where: { userId },
-        omit: { fileContent: true },
+        omit: { fileContent: true, fileData: true },
         ...pageArgs(c),
       })
     ),
@@ -191,7 +235,7 @@ async function sweepOwnerships(prisma: PrismaClient, userId: string): Promise<st
 }
 
 /** Owned + co-owned character definitions, via the ownership junction. */
-async function fetchCharacters(prisma: PrismaClient, userId: string): Promise<unknown[]> {
+async function fetchCharacters(prisma: PrismaClient, userId: string): Promise<ExportCharacter[]> {
   const coOwned = await sweepOwnerships(prisma, userId);
   const directlyOwned = await sweep(c =>
     prisma.personality.findMany({
@@ -211,10 +255,56 @@ async function fetchCharacters(prisma: PrismaClient, userId: string): Promise<un
   );
 }
 
+/**
+ * {id, name, slug} for every personality the export references — owned
+ * characters plus any the user merely conversed with. FK cascades mean
+ * referenced ids should always resolve; the unknown-<id8> fallback keeps the
+ * export self-consistent if that invariant ever breaks.
+ */
+async function buildPersonalityDirectory(
+  prisma: PrismaClient,
+  characters: ExportCharacter[],
+  referencedIds: Iterable<string>
+): Promise<PersonalityDirectoryEntry[]> {
+  const directory = new Map<string, PersonalityDirectoryEntry>();
+  for (const character of characters) {
+    directory.set(character.id, {
+      id: character.id,
+      name: character.name,
+      slug: character.slug,
+    });
+  }
+
+  const missing = [...new Set(referencedIds)].filter(id => !directory.has(id));
+  if (missing.length > 0) {
+    const rows = await sweep(c =>
+      prisma.personality.findMany({
+        where: { id: { in: missing } },
+        select: { id: true, name: true, slug: true },
+        ...pageArgs(c),
+      })
+    );
+    for (const row of rows) {
+      directory.set(row.id, row);
+    }
+    for (const id of missing) {
+      if (!directory.has(id)) {
+        directory.set(id, {
+          id,
+          name: 'Unknown character',
+          slug: `unknown-${id.slice(0, 8)}`,
+        });
+      }
+    }
+  }
+
+  return [...directory.values()];
+}
+
 export async function assembleAccountExport(
   prisma: PrismaClient,
   userId: string
-): Promise<AccountExportFile> {
+): Promise<AccountExportData> {
   const user = await prisma.user.findUniqueOrThrow({
     where: { id: userId },
     select: {
@@ -259,20 +349,35 @@ export async function assembleAccountExport(
     })
   );
 
+  const shapesMappings = await sweep(cursor =>
+    prisma.shapesPersonaMapping.findMany({
+      where: { personaId: { in: personaIds } },
+      ...pageArgs(cursor),
+    })
+  );
+
+  const personalityDirectory = await buildPersonalityDirectory(prisma, characters, [
+    ...conversationHistory.map(row => row.personalityId),
+    ...memories.map(row => row.personalityId),
+    ...facts.map(row => row.personalityId),
+  ]);
+
   const ancillary = await fetchAncillarySections(prisma, userId);
 
   return {
     meta: {
       exportedAt: new Date().toISOString(),
-      formatVersion: 1,
+      formatVersion: 2,
       notes: EXPORT_NOTES,
     },
     profile: user,
     personas,
     characters,
+    personalityDirectory,
     conversationHistory,
     memories,
     facts,
+    shapesMappings,
     ...ancillary,
   };
 }

@@ -4,6 +4,7 @@ import {
   StartAccountExportResponseSchema,
   AccountExportStatusResponseSchema,
   AccountExportJobSummarySchema,
+  AccountExportJobStatusSchema,
 } from './account.js';
 
 describe('StartAccountExportInputSchema', () => {
@@ -48,7 +49,6 @@ describe('AccountExportJobSummarySchema', () => {
     createdAt: '2026-07-15T00:00:00.000Z',
     completedAt: null,
     expiresAt: '2026-07-16T00:00:00.000Z',
-    errorMessage: null,
     downloadUrl: null,
   };
 
@@ -66,6 +66,21 @@ describe('AccountExportJobSummarySchema', () => {
     const { expiresAt: _expiresAt, ...withoutExpiry } = BASE;
     expect(AccountExportJobSummarySchema.safeParse(withoutExpiry).success).toBe(false);
   });
+
+  it('rejects statuses outside the lifecycle vocabulary', () => {
+    expect(AccountExportJobSummarySchema.safeParse({ ...BASE, status: 'exploded' }).success).toBe(
+      false
+    );
+  });
+});
+
+describe('AccountExportJobStatusSchema', () => {
+  it('accepts exactly the four lifecycle states', () => {
+    for (const status of ['pending', 'in_progress', 'completed', 'failed']) {
+      expect(AccountExportJobStatusSchema.safeParse(status).success).toBe(true);
+    }
+    expect(AccountExportJobStatusSchema.safeParse('done').success).toBe(false);
+  });
 });
 
 describe('AccountExportStatusResponseSchema', () => {
@@ -78,12 +93,11 @@ describe('AccountExportStatusResponseSchema', () => {
       job: {
         id: 'job-1',
         status: 'completed',
-        fileName: 'tzurot-account-export-alice-2026-07-15.json',
+        fileName: 'tzurot-account-export-alice-2026-07-15.zip',
         fileSizeBytes: 1024,
         createdAt: new Date('2026-07-15T00:00:00Z'),
         completedAt: new Date('2026-07-15T00:01:00Z'),
         expiresAt: '2026-07-16T00:00:00.000Z',
-        errorMessage: null,
         downloadUrl: 'https://gateway.example/exports/job-1',
       },
     });

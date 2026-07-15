@@ -32,6 +32,7 @@ export function createExportsRouter(prisma: PrismaClient): Router {
         where: { id: jobId },
         select: {
           fileContent: true,
+          fileData: true,
           fileName: true,
           fileSizeBytes: true,
           status: true,
@@ -51,7 +52,9 @@ export function createExportsRouter(prisma: PrismaClient): Router {
         return;
       }
 
-      if (job.status !== 'completed' || job.fileContent === null) {
+      // A completed job carries exactly one payload column: fileData for
+      // binary formats (ZIP), fileContent for text formats.
+      if (job.status !== 'completed' || (job.fileContent === null && job.fileData === null)) {
         res.status(StatusCodes.NOT_FOUND).json({
           error: job.status === 'failed' ? 'Export failed' : 'Export not ready yet',
           status: job.status,
@@ -59,11 +62,23 @@ export function createExportsRouter(prisma: PrismaClient): Router {
         return;
       }
 
-      const contentType =
-        job.format === 'markdown'
-          ? 'text/markdown; charset=utf-8'
-          : 'application/json; charset=utf-8';
-      const fileName = job.fileName ?? `export.${job.format === 'markdown' ? 'md' : 'json'}`;
+      const body =
+        job.fileData !== null
+          ? Buffer.from(job.fileData)
+          : Buffer.from(job.fileContent ?? '', 'utf8');
+      let contentType: string;
+      let defaultExtension: string;
+      if (job.fileData !== null) {
+        contentType = 'application/zip';
+        defaultExtension = 'zip';
+      } else if (job.format === 'markdown') {
+        contentType = 'text/markdown; charset=utf-8';
+        defaultExtension = 'md';
+      } else {
+        contentType = 'application/json; charset=utf-8';
+        defaultExtension = 'json';
+      }
+      const fileName = job.fileName ?? `export.${defaultExtension}`;
 
       res.setHeader('Content-Type', contentType);
       // RFC 5987: filename* for UTF-8 percent-encoding,
@@ -74,9 +89,9 @@ export function createExportsRouter(prisma: PrismaClient): Router {
         'Content-Disposition',
         `attachment; filename="${safeName}"; filename*=UTF-8''${encodedName}`
       );
-      res.setHeader('Content-Length', String(Buffer.byteLength(job.fileContent, 'utf8')));
+      res.setHeader('Content-Length', String(body.length));
 
-      res.status(StatusCodes.OK).send(job.fileContent);
+      res.status(StatusCodes.OK).send(body);
 
       logger.info({ jobId, fileName, fileSizeBytes: job.fileSizeBytes }, 'File downloaded');
     } catch (error) {

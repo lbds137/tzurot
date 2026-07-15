@@ -507,6 +507,7 @@ CREATE TABLE "export_jobs" (
     "status" VARCHAR(50) NOT NULL DEFAULT 'pending',
     "format" VARCHAR(20) NOT NULL DEFAULT 'json',
     "file_content" TEXT,
+    "file_data" BYTEA,
     "file_name" VARCHAR(255),
     "file_size_bytes" INTEGER,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
