@@ -2100,6 +2100,19 @@
                 "options": []
               }
             ]
+          },
+          {
+            "type": 2,
+            "name": "data",
+            "description": "Your data: export everything you have stored",
+            "options": [
+              {
+                "type": 1,
+                "name": "export",
+                "description": "Export all your account data as a downloadable file",
+                "options": []
+              }
+            ]
           }
         ],
         "name": "settings",

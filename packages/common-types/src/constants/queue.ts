@@ -60,6 +60,8 @@ export const JOB_PREFIXES = {
   SHAPES_IMPORT: 'shapes-import-',
   /** Prefix for shapes.inc export jobs */
   SHAPES_EXPORT: 'shapes-export-',
+  /** Prefix for full-account export jobs */
+  ACCOUNT_EXPORT: 'account-export-',
 } as const;
 
 /**
@@ -206,6 +208,8 @@ export enum JobType {
   ShapesImport = 'shapes-import',
   /** Shapes.inc character data export job */
   ShapesExport = 'shapes-export',
+  /** Full-account data export job (data-rights; fills an export_jobs row) */
+  AccountExport = 'account-export',
   /** Async fact extraction from verbatim episodes (memory Phase 2) */
   FactExtraction = 'fact-extraction',
   /** Release-notes / broadcast DM delivery batch (consumed by bot-client) */
