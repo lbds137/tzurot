@@ -11,7 +11,6 @@ import { vi } from 'vitest';
  */
 interface MockReferencedMessageFormatterInstance {
   formatReferencedMessages: ReturnType<typeof vi.fn>;
-  extractTextForSearch: ReturnType<typeof vi.fn>;
 }
 
 let mockInstance: MockReferencedMessageFormatterInstance | null = null;
@@ -20,15 +19,17 @@ let mockInstance: MockReferencedMessageFormatterInstance | null = null;
  * Create fresh mock functions with default implementations
  *
  * **Default Behaviors:**
- * - `formatReferencedMessages()` → Resolves to `'formatted references'`
- * - `extractTextForSearch()` → Returns `'reference text for search'`
+ * - `formatReferencedMessages()` → Resolves to
+ *   `{ formatted: 'formatted references', searchText: 'reference text for search' }`
  *
- * Override in tests: `getReferencedMessageFormatterMock().formatReferencedMessages.mockResolvedValue('custom')`
+ * Override in tests: `getReferencedMessageFormatterMock().formatReferencedMessages.mockResolvedValue({...})`
  */
 function createMockFunctions(): MockReferencedMessageFormatterInstance {
   return {
-    formatReferencedMessages: vi.fn().mockResolvedValue('formatted references'),
-    extractTextForSearch: vi.fn().mockReturnValue('reference text for search'),
+    formatReferencedMessages: vi.fn().mockResolvedValue({
+      formatted: 'formatted references',
+      searchText: 'reference text for search',
+    }),
   };
 }
 
@@ -38,12 +39,10 @@ function createMockFunctions(): MockReferencedMessageFormatterInstance {
 export const mockReferencedMessageFormatter = {
   ReferencedMessageFormatter: class MockReferencedMessageFormatter {
     formatReferencedMessages: ReturnType<typeof vi.fn>;
-    extractTextForSearch: ReturnType<typeof vi.fn>;
 
     constructor() {
       const fns = createMockFunctions();
       this.formatReferencedMessages = fns.formatReferencedMessages;
-      this.extractTextForSearch = fns.extractTextForSearch;
       mockInstance = this;
     }
   },

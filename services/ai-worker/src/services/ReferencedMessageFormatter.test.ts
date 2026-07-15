@@ -81,14 +81,17 @@ describe('ReferencedMessageFormatter', () => {
         },
       ];
 
-      const result = await formatter.formatReferencedMessages(references, mockPersonality);
+      const { formatted: result } = await formatter.formatReferencedMessages(
+        references,
+        mockPersonality
+      );
 
       expect(result).toContain('<contextual_references>');
       expect(result).toContain('</contextual_references>');
     });
 
     it('should still wrap empty references in XML tags', async () => {
-      const result = await formatter.formatReferencedMessages([], mockPersonality);
+      const { formatted: result } = await formatter.formatReferencedMessages([], mockPersonality);
 
       expect(result).toContain('<contextual_references>');
       expect(result).toContain('</contextual_references>');
@@ -121,7 +124,10 @@ describe('ReferencedMessageFormatter', () => {
         },
       ];
 
-      const result = await formatter.formatReferencedMessages(references, mockPersonality);
+      const { formatted: result } = await formatter.formatReferencedMessages(
+        references,
+        mockPersonality
+      );
 
       // Count opening and closing tags
       const openTags = (result.match(/<contextual_references>/g) || []).length;
@@ -152,7 +158,10 @@ describe('ReferencedMessageFormatter', () => {
         },
       ];
 
-      const result = await formatter.formatReferencedMessages(references, mockPersonality);
+      const { formatted: result } = await formatter.formatReferencedMessages(
+        references,
+        mockPersonality
+      );
 
       // Content should be between the XML tags
       const openTagIndex = result.indexOf('<contextual_references>');
@@ -179,7 +188,10 @@ describe('ReferencedMessageFormatter', () => {
         },
       ];
 
-      const result = await formatter.formatReferencedMessages(references, mockPersonality);
+      const { formatted: result } = await formatter.formatReferencedMessages(
+        references,
+        mockPersonality
+      );
 
       // Should contain time tag with absolute and relative attributes
       expect(result).toContain('<time absolute="Fri, Dec 6, 2025" relative="just now"/>');
@@ -203,7 +215,10 @@ describe('ReferencedMessageFormatter', () => {
         },
       ];
 
-      const result = await formatter.formatReferencedMessages(references, mockPersonality);
+      const { formatted: result } = await formatter.formatReferencedMessages(
+        references,
+        mockPersonality
+      );
 
       expect(result).toContain(
         '<quote number="1" from="Test User" username="testuser" role="user">'
@@ -234,7 +249,10 @@ describe('ReferencedMessageFormatter', () => {
         },
       ];
 
-      const result = await formatter.formatReferencedMessages(references, mockPersonality);
+      const { formatted: result } = await formatter.formatReferencedMessages(
+        references,
+        mockPersonality
+      );
 
       expect(result).toContain('<content>Check this out</content>');
       expect(result).toContain('<embeds>');
@@ -258,7 +276,10 @@ describe('ReferencedMessageFormatter', () => {
         },
       ];
 
-      const result = await formatter.formatReferencedMessages(references, mockPersonality);
+      const { formatted: result } = await formatter.formatReferencedMessages(
+        references,
+        mockPersonality
+      );
 
       expect(result).toContain(
         '<quote number="1" from="Test User" username="testuser" role="user">'
@@ -294,7 +315,10 @@ describe('ReferencedMessageFormatter', () => {
         },
       ];
 
-      const result = await formatter.formatReferencedMessages(references, mockPersonality);
+      const { formatted: result } = await formatter.formatReferencedMessages(
+        references,
+        mockPersonality
+      );
 
       expect(result).toContain('<quote number="1" from="User One" username="user1" role="user">');
       expect(result).toContain('First message');
@@ -322,7 +346,10 @@ describe('ReferencedMessageFormatter', () => {
         },
       ];
 
-      const result = await formatter.formatReferencedMessages(references, mockPersonality);
+      const { formatted: result } = await formatter.formatReferencedMessages(
+        references,
+        mockPersonality
+      );
 
       expect(result).toContain(
         '<quote number="1" from="Test Bot" username="Test Bot" role="assistant">'
@@ -349,7 +376,7 @@ describe('ReferencedMessageFormatter', () => {
         },
       ];
 
-      const result = await formatter.formatReferencedMessages(
+      const { formatted: result } = await formatter.formatReferencedMessages(
         references,
         mockPersonality,
         false,
@@ -385,7 +412,10 @@ describe('ReferencedMessageFormatter', () => {
         },
       ];
 
-      const result = await formatter.formatReferencedMessages(references, mockPersonality);
+      const { formatted: result } = await formatter.formatReferencedMessages(
+        references,
+        mockPersonality
+      );
 
       expect(result).toContain('<quote number="1" from="SomeBot" username="SomeBot" role="bot">');
     });
@@ -409,7 +439,10 @@ describe('ReferencedMessageFormatter', () => {
         },
       ];
 
-      const result = await formatter.formatReferencedMessages(references, mockPersonality);
+      const { formatted: result } = await formatter.formatReferencedMessages(
+        references,
+        mockPersonality
+      );
 
       expect(result).toContain('<quote number="1" from="Someone" username="someone" role="user">');
     });
@@ -435,7 +468,10 @@ describe('ReferencedMessageFormatter', () => {
         },
       ];
 
-      const result = await formatter.formatReferencedMessages(references, mockPersonality);
+      const { formatted: result } = await formatter.formatReferencedMessages(
+        references,
+        mockPersonality
+      );
 
       expect(result).toContain('role="assistant"');
     });
@@ -458,7 +494,10 @@ describe('ReferencedMessageFormatter', () => {
         },
       ];
 
-      const result = await formatter.formatReferencedMessages(references, mockPersonality);
+      const { formatted: result } = await formatter.formatReferencedMessages(
+        references,
+        mockPersonality
+      );
 
       expect(result).toContain('<quote number="1" from="Alice" username="alice123" role="user">');
       expect(result).toContain('[Referenced message — full text in the chat log]');
@@ -480,7 +519,10 @@ describe('ReferencedMessageFormatter', () => {
           locationContext: '',
         },
       ];
-      const result = await formatter.formatReferencedMessages(references, mockPersonality);
+      const { formatted: result } = await formatter.formatReferencedMessages(
+        references,
+        mockPersonality
+      );
       expect(result).toContain('<instruction>');
       // Assert all four role clauses — a future edit dropping one would otherwise
       // pass undetected since the assistant clause's substring stays present.
@@ -507,7 +549,10 @@ describe('ReferencedMessageFormatter', () => {
           isDeduplicated: true,
         },
       ];
-      const result = await formatter.formatReferencedMessages(references, mockPersonality);
+      const { formatted: result } = await formatter.formatReferencedMessages(
+        references,
+        mockPersonality
+      );
       expect(result).toContain(
         '<quote number="1" from="Test Bot" username="Test Bot" role="assistant">'
       );
@@ -531,7 +576,10 @@ describe('ReferencedMessageFormatter', () => {
           isDeduplicated: true,
         },
       ];
-      const result = await formatter.formatReferencedMessages(references, mockPersonality);
+      const { formatted: result } = await formatter.formatReferencedMessages(
+        references,
+        mockPersonality
+      );
       expect(result).toContain('<quote number="1" from="SomeBot" username="SomeBot" role="bot">');
     });
 
@@ -582,7 +630,10 @@ describe('ReferencedMessageFormatter', () => {
         },
       ];
 
-      const result = await formatter.formatReferencedMessages(references, mockPersonality);
+      const { formatted: result } = await formatter.formatReferencedMessages(
+        references,
+        mockPersonality
+      );
 
       expect(result).toContain('<time absolute="Fri, Dec 6, 2025" relative="just now"/>');
     });
@@ -640,7 +691,10 @@ describe('ReferencedMessageFormatter', () => {
         },
       ];
 
-      const result = await formatter.formatReferencedMessages(references, mockPersonality);
+      const { formatted: result } = await formatter.formatReferencedMessages(
+        references,
+        mockPersonality
+      );
 
       // Verify all images were processed
       expect(mockDescribeImage).toHaveBeenCalledTimes(3);
@@ -679,7 +733,10 @@ describe('ReferencedMessageFormatter', () => {
         },
       ];
 
-      const result = await formatter.formatReferencedMessages(references, mockPersonality);
+      const { formatted: result } = await formatter.formatReferencedMessages(
+        references,
+        mockPersonality
+      );
 
       expect(result).toContain('- Image (broken.png) [vision processing failed]');
     });
@@ -736,7 +793,10 @@ describe('ReferencedMessageFormatter', () => {
         },
       ];
 
-      const result = await formatter.formatReferencedMessages(references, mockPersonality);
+      const { formatted: result } = await formatter.formatReferencedMessages(
+        references,
+        mockPersonality
+      );
 
       expect(result).toContain('- Image (image1.png): Description of image1');
       expect(result).toContain('- Image (image2.png) [vision processing failed]');
@@ -796,7 +856,10 @@ describe('ReferencedMessageFormatter', () => {
         },
       ];
 
-      const result = await formatter.formatReferencedMessages(references, mockPersonality);
+      const { formatted: result } = await formatter.formatReferencedMessages(
+        references,
+        mockPersonality
+      );
 
       expect(mockTranscribeAudio).toHaveBeenCalledTimes(2);
       expect(result).toContain('- Voice Message (5s): "Transcription of voice 5s"');
@@ -835,7 +898,10 @@ describe('ReferencedMessageFormatter', () => {
         },
       ];
 
-      const result = await formatter.formatReferencedMessages(references, mockPersonality);
+      const { formatted: result } = await formatter.formatReferencedMessages(
+        references,
+        mockPersonality
+      );
 
       expect(result).toContain('- Voice Message (5s) [transcription failed]');
     });
@@ -887,7 +953,10 @@ describe('ReferencedMessageFormatter', () => {
         },
       ];
 
-      const result = await formatter.formatReferencedMessages(references, mockPersonality);
+      const { formatted: result } = await formatter.formatReferencedMessages(
+        references,
+        mockPersonality
+      );
 
       expect(result).toContain('- Image (photo.png): Image description');
       expect(result).toContain('- Voice Message (5s): "Voice transcription"');
@@ -925,7 +994,10 @@ describe('ReferencedMessageFormatter', () => {
         },
       ];
 
-      const result = await formatter.formatReferencedMessages(references, mockPersonality);
+      const { formatted: result } = await formatter.formatReferencedMessages(
+        references,
+        mockPersonality
+      );
 
       // Should NOT transcribe non-voice messages
       expect(mockTranscribeAudio).not.toHaveBeenCalled();
@@ -935,7 +1007,7 @@ describe('ReferencedMessageFormatter', () => {
 
   describe('Empty and edge cases', () => {
     it('should handle empty references array', async () => {
-      const result = await formatter.formatReferencedMessages([], mockPersonality);
+      const { formatted: result } = await formatter.formatReferencedMessages([], mockPersonality);
 
       // Empty array still gets wrapped in XML tags
       expect(result).toContain('<contextual_references>');
@@ -959,7 +1031,10 @@ describe('ReferencedMessageFormatter', () => {
         },
       ];
 
-      const result = await formatter.formatReferencedMessages(references, mockPersonality);
+      const { formatted: result } = await formatter.formatReferencedMessages(
+        references,
+        mockPersonality
+      );
 
       expect(result).toContain(
         '<quote number="1" from="Test User" username="testuser" role="user">'
@@ -984,7 +1059,10 @@ describe('ReferencedMessageFormatter', () => {
         },
       ];
 
-      const result = await formatter.formatReferencedMessages(references, mockPersonality);
+      const { formatted: result } = await formatter.formatReferencedMessages(
+        references,
+        mockPersonality
+      );
 
       expect(result).toContain(
         '<quote number="1" from="Test User" username="testuser" role="user">'
@@ -1009,7 +1087,10 @@ describe('ReferencedMessageFormatter', () => {
         },
       ];
 
-      const result = await formatter.formatReferencedMessages(references, mockPersonality);
+      const { formatted: result } = await formatter.formatReferencedMessages(
+        references,
+        mockPersonality
+      );
 
       // Forwarded messages use shared QuoteFormatter format
       expect(result).toContain('<quote type="forward" from="Unknown">');
@@ -1034,7 +1115,10 @@ describe('ReferencedMessageFormatter', () => {
         },
       ];
 
-      const result = await formatter.formatReferencedMessages(references, mockPersonality);
+      const { formatted: result } = await formatter.formatReferencedMessages(
+        references,
+        mockPersonality
+      );
 
       // Should NOT have forwarded attribute
       expect(result).toContain(
@@ -1072,7 +1156,10 @@ describe('ReferencedMessageFormatter', () => {
         },
       ];
 
-      const result = await formatter.formatReferencedMessages(references, mockPersonality);
+      const { formatted: result } = await formatter.formatReferencedMessages(
+        references,
+        mockPersonality
+      );
 
       // First reference - regular
       expect(result).toContain(
@@ -1129,7 +1216,7 @@ describe('ReferencedMessageFormatter', () => {
         ],
       };
 
-      const result = await formatter.formatReferencedMessages(
+      const { formatted: result } = await formatter.formatReferencedMessages(
         references,
         mockPersonality,
         false, // isGuestMode
@@ -1190,7 +1277,7 @@ describe('ReferencedMessageFormatter', () => {
         ],
       };
 
-      const result = await formatter.formatReferencedMessages(
+      const { formatted: result } = await formatter.formatReferencedMessages(
         references,
         mockPersonality,
         false,
@@ -1234,7 +1321,7 @@ describe('ReferencedMessageFormatter', () => {
       ];
 
       // No preprocessed data provided (undefined)
-      const result = await formatter.formatReferencedMessages(
+      const { formatted: result } = await formatter.formatReferencedMessages(
         references,
         mockPersonality,
         false,
@@ -1290,7 +1377,7 @@ describe('ReferencedMessageFormatter', () => {
         ],
       };
 
-      const result = await formatter.formatReferencedMessages(
+      const { formatted: result } = await formatter.formatReferencedMessages(
         references,
         mockPersonality,
         false,
@@ -1378,7 +1465,7 @@ describe('ReferencedMessageFormatter', () => {
         ],
       };
 
-      const result = await formatter.formatReferencedMessages(
+      const { formatted: result } = await formatter.formatReferencedMessages(
         references,
         mockPersonality,
         false,
@@ -1437,7 +1524,7 @@ describe('ReferencedMessageFormatter', () => {
         ],
       };
 
-      const result = await formatter.formatReferencedMessages(
+      const { formatted: result } = await formatter.formatReferencedMessages(
         references,
         mockPersonality,
         false,
@@ -1450,181 +1537,107 @@ describe('ReferencedMessageFormatter', () => {
     });
   });
 
-  describe('extractTextForSearch', () => {
-    it('should extract plain text content from XML formatted references', () => {
-      const formatted = `<contextual_references>
-<quote number="1">
-<author display_name="Test User" username="testuser"/>
-<location type="guild">
-<server name="Test Guild"/>
-<channel name="general" type="text"/>
-</location>
-<time absolute="Mon, Nov 4, 2025" relative="2 months ago"/>
-<content>Hello world! This is the actual content.</content>
-<embeds>Some embed content here.</embeds>
-</quote>
-</contextual_references>`;
+  describe('searchText (the retrieval-query rendering)', () => {
+    function makeRef(overrides: Partial<ReferencedMessage> = {}): ReferencedMessage {
+      return {
+        referenceNumber: 1,
+        discordMessageId: 'msg-123',
+        discordUserId: 'user-123',
+        authorUsername: 'testuser',
+        authorDisplayName: 'Test User',
+        content: 'The actual message text',
+        embeds: '',
+        timestamp: '2025-12-06T00:00:00Z',
+        locationContext:
+          '<location type="guild">\n<server name="Test Guild"/>\n<channel name="general" type="text"/>\n</location>',
+        ...overrides,
+      };
+    }
 
-      const result = formatter.extractTextForSearch(formatted);
+    it('carries content but never instruction boilerplate, XML, or metadata', async () => {
+      const { searchText } = await formatter.formatReferencedMessages([makeRef()], mockPersonality);
 
-      // Should include actual content
-      expect(result).toContain('Hello world! This is the actual content.');
-      expect(result).toContain('Some embed content here.');
-
-      // Should NOT include XML tags
-      expect(result).not.toContain('<contextual_references>');
-      expect(result).not.toContain('<quote');
-      expect(result).not.toContain('<author');
-      expect(result).not.toContain('<location');
-      expect(result).not.toContain('<time');
+      expect(searchText).toBe('The actual message text');
+      // The scaffolding classes that polluted embedding queries when search
+      // text was tag-stripped from the formatted XML block:
+      expect(searchText).not.toContain('read them only to understand');
+      expect(searchText).not.toContain('<quote');
+      expect(searchText).not.toContain('<contextual_references>');
+      expect(searchText).not.toContain('Test Guild');
+      expect(searchText).not.toContain('Dec 6');
     });
 
-    it('should extract image descriptions from XML', () => {
-      const formatted = `<contextual_references>
-<quote number="1">
-<content>Check this image</content>
-<attachments>
-- Image (sunset.png): A beautiful sunset over the ocean with vibrant orange and pink colors
-</attachments>
-</quote>
-</contextual_references>`;
-
-      const result = formatter.extractTextForSearch(formatted);
-
-      expect(result).toContain(
-        'A beautiful sunset over the ocean with vibrant orange and pink colors'
+    it('contributes only the raw text of a deduped stub — never the reply-target marker', async () => {
+      const withText = await formatter.formatReferencedMessages(
+        [makeRef({ content: 'capped copy of the reply target', isDeduplicated: true })],
+        mockPersonality
       );
-      expect(result).toContain('Check this image');
+      expect(withText.searchText).toBe('capped copy of the reply target');
+      expect(withText.searchText).not.toContain('full text in the chat log');
+
+      // A bot's own reply-target stub has empty content — nothing to embed.
+      const empty = await formatter.formatReferencedMessages(
+        [makeRef({ content: '', isDeduplicated: true })],
+        mockPersonality
+      );
+      expect(empty.searchText).toBe('');
+      // The marker still renders in the PROMPT block, just not the query.
+      expect(empty.formatted).toContain('full text in the chat log');
     });
 
-    it('should extract voice transcriptions from XML', () => {
-      const formatted = `<contextual_references>
-<quote number="1">
-<attachments>
-- Voice Message (15s): "Hey, this is a test voice message transcription."
-</attachments>
-</quote>
-</contextual_references>`;
-
-      const result = formatter.extractTextForSearch(formatted);
-
-      expect(result).toContain('Hey, this is a test voice message transcription.');
-    });
-
-    it('should handle multiple references', () => {
-      const formatted = `<contextual_references>
-<quote number="1">
-<content>First message content</content>
-</quote>
-<quote number="2">
-<content>Second message content</content>
-</quote>
-</contextual_references>`;
-
-      const result = formatter.extractTextForSearch(formatted);
-
-      expect(result).toContain('First message content');
-      expect(result).toContain('Second message content');
-    });
-
-    it('should handle empty formatted string', () => {
-      const result = formatter.extractTextForSearch('');
-      expect(result).toBe('');
-    });
-
-    it('should handle formatted string with only structural XML', () => {
-      const formatted = `<contextual_references>
-<quote number="1">
-<author display_name="User" username="user"/>
-<location type="guild">
-<server name="Test Guild"/>
-<channel name="general" type="text"/>
-</location>
-<time absolute="Mon, Nov 4, 2025" relative="2 months ago"/>
-</quote>
-</contextual_references>`;
-
-      const result = formatter.extractTextForSearch(formatted);
-
-      // Proper XML parser extracts no text content from structural-only XML
-      expect(result).toBe('');
-    });
-
-    it('should preserve multi-line content', () => {
-      const formatted = `<contextual_references>
-<quote number="1">
-<content>Line one
-Line two
-Line three</content>
-</quote>
-</contextual_references>`;
-
-      const result = formatter.extractTextForSearch(formatted);
-
-      expect(result).toContain('Line one');
-      expect(result).toContain('Line two');
-      expect(result).toContain('Line three');
-    });
-
-    it('should maintain contract between formatReferencedMessages and extractTextForSearch', async () => {
-      // Contract test: Verify that formatReferencedMessages output is compatible with extractTextForSearch
-      // This test protects against format changes that would break the text extraction
-
-      // Use hoisted mocks directly
-      mockDescribeImage.mockResolvedValue('A cat sitting on a windowsill');
-      mockTranscribeAudio.mockResolvedValue({
-        text: 'This is a test transcription',
-        actualProvider: 'voice-engine',
-      });
-
-      const references: ReferencedMessage[] = [
+    it('includes attachment descriptions and embed text, tag-stripped', async () => {
+      const { searchText } = await formatter.formatReferencedMessages(
+        [
+          makeRef({
+            content: 'Check this image',
+            embeds: '<embed><title>Embed title text</title></embed>',
+            attachments: [
+              {
+                url: 'https://example.com/image.png',
+                contentType: 'image/png',
+                name: 'photo.png',
+                size: 1000,
+              },
+            ],
+          }),
+        ],
+        mockPersonality,
+        false,
         {
-          referenceNumber: 1,
-          discordMessageId: 'msg-123',
-          discordUserId: 'user-123',
-          authorUsername: 'testuser',
-          authorDisplayName: 'Test User',
-          content: 'Check out this image and voice message!',
-          embeds: 'Some embed content',
-          timestamp: '2025-11-21T00:00:00Z',
-          locationContext:
-            '<location type="guild">\n<server name="Test Guild"/>\n<channel name="general" type="text"/>\n</location>',
-          attachments: [
+          1: [
             {
-              url: 'https://example.com/image.png',
-              name: 'photo.png',
-              contentType: 'image/png',
-            },
-            {
-              url: 'https://example.com/voice.ogg',
-              name: 'voice.ogg',
-              contentType: 'audio/ogg',
-              duration: 5,
-              isVoiceMessage: true,
+              type: AttachmentType.Image,
+              description: 'A lighthouse at dusk',
+              originalUrl: 'https://example.com/image.png',
+              metadata: {
+                url: 'https://example.com/image.png',
+                name: 'photo.png',
+                contentType: 'image/png',
+                size: 1000,
+              },
             },
           ],
-        },
-      ];
+        }
+      );
 
-      // Format the references (real implementation)
-      const formatted = await formatter.formatReferencedMessages(references, mockPersonality);
+      expect(searchText).toContain('Check this image');
+      expect(searchText).toContain('A lighthouse at dusk');
+      expect(searchText).toContain('Embed title text');
+      expect(searchText).not.toContain('<embed>');
+      expect(searchText).not.toContain('<title>');
+    });
 
-      // Extract text for search (real implementation)
-      const extracted = formatter.extractTextForSearch(formatted);
+    it('joins multiple references with blank lines, skipping empty contributions', async () => {
+      const { searchText } = await formatter.formatReferencedMessages(
+        [
+          makeRef({ referenceNumber: 1, content: 'first message' }),
+          makeRef({ referenceNumber: 2, content: '', isDeduplicated: true }),
+          makeRef({ referenceNumber: 3, content: 'third message' }),
+        ],
+        mockPersonality
+      );
 
-      // Verify contract: actual content is preserved
-      expect(extracted).toContain('Check out this image and voice message!');
-      expect(extracted).toContain('Some embed content');
-      expect(extracted).toContain('A cat sitting on a windowsill');
-      expect(extracted).toContain('This is a test transcription');
-
-      // Verify contract: headers and metadata are stripped
-      expect(extracted).not.toContain('## Referenced Messages');
-      expect(extracted).not.toContain('[Reference 1]');
-      expect(extracted).not.toContain('From:');
-      expect(extracted).not.toContain('Location:');
-      expect(extracted).not.toContain('Time:');
-      expect(extracted).not.toContain('Attachments:');
+      expect(searchText).toBe('first message\n\nthird message');
     });
   });
 });

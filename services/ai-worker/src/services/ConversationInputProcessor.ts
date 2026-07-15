@@ -122,8 +122,11 @@ export class ConversationInputProcessor {
       context.rawConversationHistory
     );
 
-    // Format referenced messages (with vision/transcription)
-    const referencedMessagesDescriptions =
+    // Format referenced messages (with vision/transcription). The formatter
+    // returns the prompt XML alongside a plain-text search rendering built
+    // from the raw pieces — never tag-strip the formatted block for search,
+    // that leaks instruction boilerplate into the embedding query.
+    const formattedReferences =
       filteredReferences.length > 0
         ? await this.referencedMessageFormatter.formatReferencedMessages(
             filteredReferences,
@@ -144,11 +147,11 @@ export class ConversationInputProcessor {
             }
           )
         : undefined;
+    const referencedMessagesDescriptions = formattedReferences?.formatted;
 
-    // Extract plain text from formatted references for memory search
     const referencedMessagesTextForSearch =
-      referencedMessagesDescriptions !== undefined && referencedMessagesDescriptions.length > 0
-        ? this.referencedMessageFormatter.extractTextForSearch(referencedMessagesDescriptions)
+      formattedReferences !== undefined && formattedReferences.searchText.length > 0
+        ? formattedReferences.searchText
         : undefined;
 
     // Build the search query for memory retrieval. The recent conversation

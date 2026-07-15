@@ -797,30 +797,6 @@ describe('ConversationalRAGService', () => {
       );
     });
 
-    it('should extract text from references for memory search', async () => {
-      const referencedMessages: ReferencedMessage[] = [
-        {
-          referenceNumber: 1,
-          discordMessageId: 'ref-1',
-          discordUserId: 'author-1',
-          authorUsername: 'bob',
-          authorDisplayName: 'Bob',
-          content: 'Context from referenced message',
-          embeds: '',
-          timestamp: new Date().toISOString(),
-          locationContext: 'Server/Channel',
-        },
-      ];
-      const context = createMockContext({ referencedMessages });
-      const personality = createMockPersonality();
-
-      await service.generateResponse(personality, 'What about this?', context);
-
-      expect(getReferencedMessageFormatterMock().extractTextForSearch).toHaveBeenCalledWith(
-        'formatted references'
-      );
-    });
-
     it('should include reference text in search query', async () => {
       const referencedMessages: ReferencedMessage[] = [
         {
