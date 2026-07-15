@@ -201,6 +201,7 @@ const PATH_MAP: Readonly<Record<string, string>> = {
   broadcast: ADMIN_BROADCAST,
   releaseBroadcastPending: INTERNAL_RELEASE_BROADCAST,
   releaseBroadcastDeliveries: INTERNAL_RELEASE_BROADCAST,
+  releaseBroadcastReconcile: '../internal/releaseReconcile.js',
   getUserUsage: '../user/usage.js',
   getVoiceResolution: '../user/voice-resolution.js',
   getNsfwStatus: '../user/nsfw.js',

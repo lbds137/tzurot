@@ -115,6 +115,19 @@ export class ServiceClient {
     });
   }
 
+  async releaseBroadcastReconcile(input: z.infer<typeof ROUTE_MANIFEST.releaseBroadcastReconcile.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.releaseBroadcastReconcile.output>>> {
+    const fullPath = '/api/internal/release-broadcast/reconcile';
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'POST',
+      path: fullPath,
+      body: input,
+      outputSchema: ROUTE_MANIFEST.releaseBroadcastReconcile.output,
+      timeoutMs: ROUTE_MANIFEST.releaseBroadcastReconcile.timeoutMs,
+    });
+  }
+
   async setDmSession(input: z.infer<typeof ROUTE_MANIFEST.setDmSession.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.setDmSession.output>>> {
     const fullPath = '/api/internal/channel/dm-session/set';
     return callGateway({
