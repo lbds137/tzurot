@@ -146,6 +146,17 @@ export const envSchema = z.object({
   // Worker Configuration
   WORKER_CONCURRENCY: z.string().regex(/^\d+$/).transform(Number).default(5),
   QUEUE_NAME: z.string().default('ai-requests'),
+
+  // Outbound DM Safety
+  /**
+   * Comma-separated Discord user IDs the bot may proactively contact
+   * (DM prewarming, broadcast delivery, future outbound DMs). Unset = no
+   * restriction (prod). Set on DEV, whose db-synced user table is
+   * prod-shaped: without it, boot-time DM prewarms and broadcasts reach
+   * out to prod users from the dev bot — the burst pattern behind
+   * Discord's 340002 DM quarantine.
+   */
+  OUTBOUND_DM_ALLOWLIST: z.string().optional(),
   ENABLE_HEALTH_SERVER: z
     .string()
     .transform(val => val !== 'false')

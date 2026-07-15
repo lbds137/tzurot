@@ -20,6 +20,7 @@ import {
   generateReleaseDeliveryLogUuid,
 } from '@tzurot/common-types/utils/deterministicUuid';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { getOutboundDmAllowlist } from '@tzurot/common-types/utils/outboundDmAllowlist';
 import { addValidatedJob } from '../utils/validatedQueue.js';
 import { isPrismaUniqueConstraintError } from '../utils/prismaErrors.js';
 
@@ -61,12 +62,21 @@ export async function resolveEligibleRecipients(
   level: NotifyLevelValue
 ): Promise<EligibleRecipient[]> {
   const thresholds = eligibleThresholds(level);
+  // Outbound gate at the SOURCE: dev's db-synced user table is prod-shaped
+  // (a dev dry-run once resolved all 268 prod users). With the allowlist
+  // set, eligibility itself narrows — no ledger rows, batches, or DM
+  // attempts ever exist for out-of-scope users. Unset (prod) = everyone.
+  const allowlist = getOutboundDmAllowlist();
   const recipients: EligibleRecipient[] = [];
   let cursor: string | undefined;
 
   for (;;) {
     const page = await prisma.user.findMany({
-      where: { notifyEnabled: true, notifyLevel: { in: thresholds } },
+      where: {
+        notifyEnabled: true,
+        notifyLevel: { in: thresholds },
+        ...(allowlist !== null ? { discordId: { in: [...allowlist] } } : {}),
+      },
       select: { id: true, discordId: true, username: true },
       orderBy: { id: 'asc' },
       take: RECIPIENT_PAGE_SIZE,

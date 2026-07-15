@@ -17,6 +17,7 @@ import {
   DiscordSnowflakeSchema,
 } from '@tzurot/common-types/schemas/api/internal';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { getOutboundDmAllowlist } from '@tzurot/common-types/utils/outboundDmAllowlist';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendCustomSuccess, sendError } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
@@ -90,10 +91,26 @@ export const handleRecentUsers = (deps: RouteDeps): RequestHandler => {
     // rather than failing the whole pre-warm with a 500. Uses the canonical
     // DiscordSnowflakeSchema so the validation here can never drift from
     // the schema's own definition.
-    const discordIds = allIds.filter(id => DiscordSnowflakeSchema.safeParse(id).success);
+    let discordIds = allIds.filter(id => DiscordSnowflakeSchema.safeParse(id).success);
     const filtered = allIds.length - discordIds.length;
     if (filtered > 0) {
       logger.warn({ filtered }, 'Filtered non-snowflake discord_ids from DB result');
+    }
+
+    // Outbound gate before the service boundary (post-query — unlike the
+    // broadcast resolver's SQL-level narrowing, fine at this endpoint's
+    // LIMIT-bounded scale): this endpoint feeds the DM prewarmer, and on dev
+    // the db-synced usage rows are prod-shaped — without the filter, prod
+    // Discord IDs cross into bot-client just to be discarded (or worse,
+    // warmed) downstream.
+    const allowlist = getOutboundDmAllowlist();
+    if (allowlist !== null) {
+      const before = discordIds.length;
+      discordIds = discordIds.filter(id => allowlist.has(id));
+      logger.info(
+        { before, after: discordIds.length },
+        'Outbound DM allowlist active — recent-users list filtered'
+      );
     }
 
     const parsed = RecentUsersResponseSchema.parse({ discordIds, sinceDays });
