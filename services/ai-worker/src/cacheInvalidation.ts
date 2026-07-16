@@ -18,9 +18,10 @@ import {
   TtsConfigCacheInvalidationService,
   SttResolverCacheInvalidationService,
   SystemSettingsCacheInvalidationService,
+  UserCacheInvalidationService,
 } from '@tzurot/cache-invalidation';
 import { SystemSettingsService } from '@tzurot/common-types/services/SystemSettingsService';
-import { PersonalityService, PersonaResolver } from '@tzurot/identity';
+import { PersonalityService, PersonaResolver, getOrCreateUserService } from '@tzurot/identity';
 import {
   ConfigCascadeResolver,
   LlmConfigResolver,
@@ -149,6 +150,8 @@ export async function setupCacheInvalidation(
   cleanupFns.push(() => cascadeCacheInvalidation.unsubscribe());
   logger.info('ConfigCascadeResolver initialized with cache invalidation');
 
+  await wireUserCacheInvalidation(prisma, cacheRedis, cleanupFns);
+
   const systemSettings = await wireSystemSettings(prisma, cacheRedis, cleanupFns);
 
   return {
@@ -195,6 +198,32 @@ async function wireApiKeyInvalidation(
   });
   cleanupFns.push(() => apiKeyCacheInvalidation.unsubscribe());
   logger.info('ApiKeyResolver initialized with cache invalidation');
+}
+
+/**
+ * Wire the UserService provisioning cache to its invalidation channel. Account
+ * deletion removes the users row, so ai-worker's long-lived UserService (shared
+ * via getOrCreateUserService) must drop the dead discordId→userId mapping or the
+ * next generation job FK-violates on the usage-log insert. The 'all' event has
+ * no bulk-evict API on the shared instance — a process restart is its only
+ * consumer today, and the 1h TTL bounds staleness meanwhile.
+ */
+async function wireUserCacheInvalidation(
+  prisma: PrismaClient,
+  cacheRedis: Redis,
+  cleanupFns: (() => Promise<void>)[]
+): Promise<void> {
+  const userCacheInvalidation = new UserCacheInvalidationService(cacheRedis);
+  await userCacheInvalidation.subscribe(event => {
+    if (event.type === 'all') {
+      logger.info('User cache "all" invalidation received (no-op; TTL bounds staleness)');
+    } else {
+      getOrCreateUserService(prisma).invalidateUser(event.discordId);
+      logger.info({ discordId: event.discordId }, 'Invalidated user provisioning cache');
+    }
+  });
+  cleanupFns.push(() => userCacheInvalidation.unsubscribe());
+  logger.info('UserService provisioning cache subscribed to invalidation events');
 }
 
 /**

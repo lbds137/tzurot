@@ -198,6 +198,10 @@ export const REDIS_CHANNELS = {
   STT_RESOLVER_CACHE_INVALIDATION: 'cache:stt-resolver-invalidation',
   /** Channel for broadcasting system-settings (admin_settings.system_settings) invalidation events across services */
   SYSTEM_SETTINGS_CACHE_INVALIDATION: 'cache:system-settings-invalidation',
+  /** Channel for broadcasting user provisioning-cache invalidation events
+   *  across services — the delete route publishes on account erasure so every
+   *  process's UserService drops the now-dead discordId→userId mapping. */
+  USER_CACHE_INVALIDATION: 'cache:user-invalidation',
 } as const;
 
 /**

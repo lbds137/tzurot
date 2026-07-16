@@ -10,7 +10,7 @@ import { getConfig } from '@tzurot/common-types/config/config';
 import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { isBotOwner } from '@tzurot/common-types/utils/ownerMiddleware';
-import { UserService } from '@tzurot/identity';
+import { getOrCreateUserService } from '@tzurot/identity';
 import { ErrorResponses, getStatusCode } from '../utils/errorResponses.js';
 import type { AuthenticatedRequest, ProvisionedRequest } from '../types.js';
 
@@ -250,16 +250,11 @@ function readEncodedHeader(req: Request, headerName: string): string | undefined
 // object per test (or reset via `beforeEach`) if cross-test isolation
 // matters. Current tests construct fresh `{} as unknown as PrismaClient`
 // references per assertion, which is why they don't collide.
-const userServiceByPrisma = new WeakMap<PrismaClient, UserService>();
-
-export function getOrCreateUserService(prisma: PrismaClient): UserService {
-  let service = userServiceByPrisma.get(prisma);
-  if (service === undefined) {
-    service = new UserService(prisma);
-    userServiceByPrisma.set(prisma, service);
-  }
-  return service;
-}
+// Lifted into @tzurot/identity so ai-worker's context pipeline shares the SAME
+// per-prisma UserService instance (and its cache) that the account-deletion
+// invalidation subscriber evicts. Re-exported so existing api-gateway callers
+// keep their import path (imported at the top for local use in the middleware).
+export { getOrCreateUserService };
 
 export function requireProvisionedUser(prisma: PrismaClient) {
   // Shared UserService across all factory calls with the same prisma

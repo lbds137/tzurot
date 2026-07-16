@@ -1,6 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { UserService, buildShellPlaceholderPersonaName } from './UserService.js';
+import {
+  UserService,
+  buildShellPlaceholderPersonaName,
+  getOrCreateUserService,
+} from './UserService.js';
 import { resetConfig } from '@tzurot/common-types/config/config';
+import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 
 // Use vi.hoisted() to create mocks that persist across test resets
 const { mockGenerateUserUuid, mockGeneratePersonaUuid } = vi.hoisted(() => ({
@@ -827,5 +832,27 @@ describe('UserService', () => {
 
       expect(result).toBeNull();
     });
+  });
+});
+
+describe('getOrCreateUserService registry', () => {
+  // The WeakMap-backed registry's two load-bearing invariants: it MUST return
+  // the SAME UserService instance for the same PrismaClient (so the TTLCache
+  // inside UserService is shared across every caller — api-gateway's route
+  // factories AND ai-worker's context pipeline — and an eviction on one is seen
+  // by all), and DISTINCT instances for distinct PrismaClients (so short-lived
+  // test-fixture clients don't pollute each other's caches). If the sharing
+  // breaks, invalidateUser on the delete route would no longer reach the cache
+  // the middleware reads, silently re-opening the stale-provisioning bug.
+
+  it('returns the same UserService instance for the same PrismaClient', () => {
+    const prisma = {} as unknown as PrismaClient;
+    expect(getOrCreateUserService(prisma)).toBe(getOrCreateUserService(prisma));
+  });
+
+  it('returns distinct UserService instances for distinct PrismaClients', () => {
+    const prisma1 = {} as unknown as PrismaClient;
+    const prisma2 = {} as unknown as PrismaClient;
+    expect(getOrCreateUserService(prisma1)).not.toBe(getOrCreateUserService(prisma2));
   });
 });

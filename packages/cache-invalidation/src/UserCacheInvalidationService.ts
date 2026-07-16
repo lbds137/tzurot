@@ -1,0 +1,50 @@
+/**
+ * UserCacheInvalidationService
+ *
+ * Redis pub/sub for dropping a discordId's provisioning-cache entry across
+ * EVERY process. UserService caches `discordId → {userId, defaultPersonaId}`
+ * and reads it before the DB, so when account deletion removes the `users`
+ * row, every process's cache still maps to the now-dead userId — the next
+ * write against it FK-violates (runtime-confirmed: export_jobs, and the same
+ * class on ai-worker's usage-log insert).
+ *
+ * - Publisher: api-gateway (the account-deletion route).
+ * - Subscribers: every process with a long-lived UserService — api-gateway
+ *   (also evicts locally + synchronously) and ai-worker's context pipeline.
+ */
+
+import { REDIS_CHANNELS } from '@tzurot/common-types/constants/queue';
+import {
+  BaseCacheInvalidationService,
+  createStandardEventValidator,
+  type StandardInvalidationEvent,
+} from './BaseCacheInvalidationService.js';
+import type { Redis } from 'ioredis';
+
+const isValidUserInvalidationEvent = createStandardEventValidator<StandardInvalidationEvent>();
+
+export class UserCacheInvalidationService extends BaseCacheInvalidationService<StandardInvalidationEvent> {
+  constructor(redis: Redis) {
+    super(
+      redis,
+      REDIS_CHANNELS.USER_CACHE_INVALIDATION,
+      'UserCacheInvalidationService',
+      isValidUserInvalidationEvent,
+      {
+        getLogContext: event => (event.type === 'user' ? { discordId: event.discordId } : {}),
+        getEventDescription: event =>
+          event.type === 'all' ? 'ALL user caches' : `user ${event.discordId}`,
+      }
+    );
+  }
+
+  /** Invalidate one user's provisioning cache across all services. */
+  async invalidateUser(discordId: string): Promise<void> {
+    await this.publish({ type: 'user', discordId });
+  }
+
+  /** Invalidate every user's provisioning cache (migrations/admin). */
+  async invalidateAll(): Promise<void> {
+    await this.publish({ type: 'all' });
+  }
+}

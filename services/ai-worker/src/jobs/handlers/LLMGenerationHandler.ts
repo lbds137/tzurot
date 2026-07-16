@@ -30,7 +30,7 @@ import { type LLMGenerationJobData } from '@tzurot/common-types/types/jobs';
 import { type LLMGenerationResult } from '@tzurot/common-types/types/schemas/generation';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { ConversationHistoryService } from '@tzurot/conversation-history';
-import { PersonaResolver, UserService } from '@tzurot/identity';
+import { getOrCreateUserService, PersonaResolver } from '@tzurot/identity';
 import type {
   LlmConfigResolver,
   TtsConfigResolver,
@@ -316,7 +316,7 @@ export class LLMGenerationHandler {
     const dataSource = new PrismaContextDataSource(prisma);
     const assembler = new ContextAssembler({
       dataSource,
-      userService: new UserService(prisma),
+      userService: getOrCreateUserService(prisma),
       personaResolver: new PersonaResolver(prisma),
     });
     return new ContextStep(assembler);

@@ -37,6 +37,7 @@ import {
 } from '../../../services/AccountDeletionService.js';
 import { IncognitoSessionManager } from '../../../services/IncognitoSessionManager.js';
 import { getOrCreateUserService } from '../../../services/AuthMiddleware.js';
+import { UserCacheInvalidationService } from '@tzurot/cache-invalidation';
 
 const logger = createLogger('account-delete');
 
@@ -217,8 +218,19 @@ export const handleDeleteAccount = (deps: RouteDeps): RequestHandler =>
     // maps this discordId to the just-deleted userId. Without eviction, the
     // user's very next request returns the dead id and any write against it
     // FK-violates (observed: an export retried right after deletion 500'd on
-    // export_jobs_user_id_fkey). Synchronous, cannot throw.
+    // export_jobs_user_id_fkey).
+    //   (1) Evict THIS process synchronously (tightest fix; no round-trip).
     getOrCreateUserService(deps.prisma).invalidateUser(discordUserId);
+    //   (2) Broadcast so every OTHER process (ai-worker's context pipeline
+    //       has its own long-lived UserService) drops the mapping too — else
+    //       a queued generation job within the ~1h TTL re-hits the dead id.
+    if (deps.redis !== undefined) {
+      try {
+        await new UserCacheInvalidationService(deps.redis).invalidateUser(discordUserId);
+      } catch (error) {
+        logger.warn({ err: error }, 'Post-deletion user-cache broadcast failed');
+      }
+    }
 
     await cleanupAfterDeletion(deps, discordUserId, summary);
 

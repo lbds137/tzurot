@@ -16,6 +16,7 @@ const capturedCallbacks = {
   stt: null as SubscribeCallback | null,
   persona: null as SubscribeCallback | null,
   cascade: null as SubscribeCallback | null,
+  user: null as SubscribeCallback | null,
   systemSettings: null as SubscribeCallback | null,
 };
 
@@ -96,6 +97,13 @@ vi.mock('@tzurot/cache-invalidation', () => ({
     });
     unsubscribe = mockUnsubscribe;
   },
+  UserCacheInvalidationService: class {
+    subscribe = vi.fn().mockImplementation((cb: SubscribeCallback) => {
+      capturedCallbacks.user = cb;
+      return Promise.resolve();
+    });
+    unsubscribe = mockUnsubscribe;
+  },
   SystemSettingsCacheInvalidationService: class {
     subscribe = vi.fn().mockImplementation((cb: SubscribeCallback) => {
       capturedCallbacks.systemSettings = cb;
@@ -143,12 +151,14 @@ vi.mock('./services/ApiKeyResolver.js', () => ({
   },
 }));
 
+const mockInvalidateUser = vi.fn();
 vi.mock('@tzurot/identity', () => ({
   PersonalityService: class {},
   PersonaResolver: class {
     clearCache = mockPersonaResolver.clearCache;
     invalidateUserCache = mockPersonaResolver.invalidateUserCache;
   },
+  getOrCreateUserService: () => ({ invalidateUser: mockInvalidateUser }),
 }));
 
 // The wallet-update recovery edge calls the worker's credit-exhaustion cache
@@ -176,6 +186,7 @@ describe('setupCacheInvalidation', () => {
     capturedCallbacks.stt = null;
     capturedCallbacks.persona = null;
     capturedCallbacks.cascade = null;
+    capturedCallbacks.user = null;
   });
 
   it('should return all resolvers and services', async () => {
@@ -192,7 +203,7 @@ describe('setupCacheInvalidation', () => {
     expect(result.sttResolver).toBeDefined();
     expect(result.personaResolver).toBeDefined();
     expect(result.cascadeResolver).toBeDefined();
-    expect(result.cleanupFns).toHaveLength(8);
+    expect(result.cleanupFns).toHaveLength(9);
   });
 
   it('should provide cleanup functions that unsubscribe', async () => {
@@ -203,7 +214,7 @@ describe('setupCacheInvalidation', () => {
 
     await Promise.all(result.cleanupFns.map(fn => fn()));
 
-    expect(mockUnsubscribe).toHaveBeenCalledTimes(8);
+    expect(mockUnsubscribe).toHaveBeenCalledTimes(9);
   });
 
   describe('API key cache invalidation events', () => {
@@ -300,6 +311,20 @@ describe('setupCacheInvalidation', () => {
       await setupCacheInvalidation({ cacheRedis: mockRedis, prisma: mockPrisma });
       capturedCallbacks.persona?.({ type: 'user', discordId: 'user-123' });
       expect(mockPersonaResolver.invalidateUserCache).toHaveBeenCalledWith('user-123');
+    });
+  });
+
+  describe('user provisioning-cache invalidation events', () => {
+    it('evicts the user provisioning cache on a "user" event', async () => {
+      await setupCacheInvalidation({ cacheRedis: mockRedis, prisma: mockPrisma });
+      capturedCallbacks.user?.({ type: 'user', discordId: 'user-123' });
+      expect(mockInvalidateUser).toHaveBeenCalledWith('user-123');
+    });
+
+    it('no-ops on an "all" event (TTL bounds staleness; no bulk-evict API)', async () => {
+      await setupCacheInvalidation({ cacheRedis: mockRedis, prisma: mockPrisma });
+      capturedCallbacks.user?.({ type: 'all' });
+      expect(mockInvalidateUser).not.toHaveBeenCalled();
     });
   });
 

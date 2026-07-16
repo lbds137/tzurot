@@ -14,6 +14,7 @@
 
 export {
   buildShellPlaceholderPersonaName,
+  getOrCreateUserService,
   type ProvisionedUser,
   UserService,
 } from './UserService.js';
