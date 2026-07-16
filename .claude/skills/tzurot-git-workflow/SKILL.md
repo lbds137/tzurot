@@ -1,7 +1,7 @@
 ---
 name: tzurot-git-workflow
 description: 'Git workflow procedures. Invoke with /tzurot-git-workflow for commit, PR, and release procedures.'
-lastUpdated: '2026-07-08'
+lastUpdated: '2026-07-16'
 ---
 
 # Git Workflow Procedures
@@ -224,6 +224,16 @@ git log v<previous>..HEAD --no-merges --oneline
 # 3. Cross-check: every release note item must map to a commit in that range
 # 4. Cross-check: no item should appear in the previous release's notes
 ```
+
+**User-facing doc sweep (required before the release PR)**: the drafted notes
+enumerate exactly what shipped — walk each Breaking Changes, Features, and
+Improvements item (breaking renames/removals are the stalest-doc risk) against
+`README.md` (feature bullets, slash-command list, project tree) and
+`docs/commands.md` (command table), and fix what's stale in the same sitting.
+These two docs have no mechanical drift guard; the release-notes draft is the
+one moment the full delta is already enumerated, so the sweep is nearly free
+here and expensive anywhere else (`/feedback` + `/notifications` shipped
+undocumented until a manual release-prep sweep caught them).
 
 ### 3. Create Release PR
 
