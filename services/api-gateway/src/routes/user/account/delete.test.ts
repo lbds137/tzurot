@@ -6,13 +6,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Request, Response } from 'express';
 
+const loggerWarnMock = vi.hoisted(() => vi.fn());
 vi.mock('@tzurot/common-types/utils/logger', async () => {
   const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
     '@tzurot/common-types/utils/logger'
   );
   return {
     ...actual,
-    createLogger: () => ({ debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }),
+    createLogger: () => ({ debug: vi.fn(), info: vi.fn(), warn: loggerWarnMock, error: vi.fn() }),
   };
 });
 
@@ -248,6 +249,27 @@ describe('Account Deletion Routes', () => {
       const { req, res } = createMockReqRes(VALID_BODY);
       await handleDeleteAccount(makeDeps())(req, res, vi.fn());
 
+      const payload = (res.json as ReturnType<typeof vi.fn>).mock.calls[0][0];
+      expect(payload.success).toBe(true);
+    });
+
+    it('swallows a failed cache broadcast — deletion still returns success', async () => {
+      // The cross-process broadcast fails (Redis publish error), but this
+      // process was already evicted synchronously and the account is gone, so
+      // the response must still succeed. Other processes stay stale until the
+      // 1h TTL — bounded, self-healing.
+      broadcastInvalidateMock.mockRejectedValueOnce(new Error('redis publish failed'));
+      const { req, res } = createMockReqRes(VALID_BODY);
+      await handleDeleteAccount(makeDeps())(req, res, vi.fn());
+
+      // Local eviction still happened; only the broadcast failed.
+      expect(invalidateUserMock).toHaveBeenCalledWith('discord-user-123');
+      expect(broadcastInvalidateMock).toHaveBeenCalledWith('discord-user-123');
+      // Failure is warn-logged, not surfaced.
+      expect(loggerWarnMock).toHaveBeenCalledWith(
+        expect.objectContaining({ err: expect.any(Error) }),
+        expect.stringContaining('broadcast failed')
+      );
       const payload = (res.json as ReturnType<typeof vi.fn>).mock.calls[0][0];
       expect(payload.success).toBe(true);
     });
