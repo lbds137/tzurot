@@ -463,6 +463,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          # Full history: paths-filter otherwise deepens a shallow clone on
+          # the fly, and that fetch races GitHub's shallow-file bookkeeping
+          # ("fatal: shallow file has changed since we read it" flakes).
+          fetch-depth: 0
 
       - uses: dorny/paths-filter@v4
         id: filter
@@ -546,6 +551,11 @@ jobs:
             tag_suffix: -rotzot
     steps:
       - uses: actions/checkout@v7
+        with:
+          # Full history: paths-filter otherwise deepens a shallow clone on
+          # the fly, and that fetch races GitHub's shallow-file bookkeeping
+          # ("fatal: shallow file has changed since we read it" flakes).
+          fetch-depth: 0
 
       - uses: dorny/paths-filter@v4
         id: filter
