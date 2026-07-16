@@ -9,6 +9,7 @@ const staticScopes = [
   'docs', // General documentation
   'hooks', // Claude Code hooks (.claude/hooks/)
   'husky', // Git workflow hooks (.husky/)
+  'legal', // Published legal documents (docs/legal/ — the tzurot.org ToS + privacy policy)
   'prisma', // Database schema and migrations (prisma/)
   'repo', // General repo maintenance
   'rules', // Claude Code rules (.claude/rules/)
