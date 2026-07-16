@@ -113,6 +113,7 @@ const mockPrisma = {
     update: vi.fn(),
     upsert: vi.fn(),
     delete: vi.fn(),
+    deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
   },
 };
 
@@ -572,16 +573,13 @@ describe('/user/config-overrides routes', () => {
 
     it('prunes the anchor row when a merge-to-empty PATCH leaves every slice null', async () => {
       // Existing row's only slice was a single override key; PATCH clears it.
-      mockPrisma.userPersonalityConfig.findUnique
-        .mockResolvedValueOnce({ configOverrides: { maxMessages: 25 } }) // route's pre-merge read
-        .mockResolvedValueOnce({
-          personaId: null,
-          llmConfigId: null,
-          visionConfigId: null,
-          ttsConfigId: null,
-          configOverrides: null,
-        }); // prune's slice read — all null after the merge cleared the last key
+      // The prune itself is one atomic deleteMany (no slice re-read) — the
+      // all-null predicate lives in its WHERE.
+      mockPrisma.userPersonalityConfig.findUnique.mockResolvedValueOnce({
+        configOverrides: { maxMessages: 25 },
+      }); // route's pre-merge read
       mockPrisma.userPersonalityConfig.upsert.mockResolvedValue({});
+      mockPrisma.userPersonalityConfig.deleteMany.mockResolvedValue({ count: 1 });
 
       const router = createConfigOverrideRoutes(mockDeps);
       const handler = getHandler(router, 'patch', '/:personalityId');
@@ -592,7 +590,9 @@ describe('/user/config-overrides routes', () => {
 
       await handler(req, res);
 
-      expect(mockPrisma.userPersonalityConfig.delete).toHaveBeenCalled();
+      expect(mockPrisma.userPersonalityConfig.deleteMany).toHaveBeenCalledWith({
+        where: expect.objectContaining({ personaId: null, llmConfigId: null }),
+      });
       expect(res.status).toHaveBeenCalledWith(200);
     });
 

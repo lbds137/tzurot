@@ -81,6 +81,7 @@ interface MockPrismaClient {
     upsert: ReturnType<typeof vi.fn>;
     update: ReturnType<typeof vi.fn>;
     delete: ReturnType<typeof vi.fn>;
+    deleteMany: ReturnType<typeof vi.fn>;
   };
   $transaction: ReturnType<typeof vi.fn>;
 }
@@ -116,6 +117,7 @@ export function createMockPrisma(): MockPrismaClient {
       upsert: vi.fn(),
       update: vi.fn(),
       delete: vi.fn(),
+      deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
     },
     // Pass-through transaction: the callback runs against the same mock,
     // so individual model calls (persona.create, userPersonalityConfig.upsert)
