@@ -248,7 +248,10 @@ export async function evaluateNsfwGate(
     // Fail-closed: NSFW is a compliance gate, so we can't let the user through,
     // but the DISTINCT reason lets the caller show a retry (not a re-onboard)
     // message — we shouldn't re-verify a previously-verified user on a blip.
-    logger.warn({ channelType: channel.type, error: check.error }, `NSFW check failed`);
+    logger.warn(
+      { userId: userClient.actor, channelType: channel.type, error: check.error },
+      `NSFW check failed`
+    );
     return { allowed: false, reason: 'check-failed' };
   }
 
