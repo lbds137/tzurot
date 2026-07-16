@@ -80,8 +80,16 @@ if (token.includes('tzurot.org')) {
   /* treat as trusted */
 }
 
-// ✅ CORRECT - parse and compare the host exactly
-if (new URL(token).hostname === 'tzurot.org') {
+// ✅ CORRECT - parse and compare the host exactly. `new URL()` THROWS on a
+//    non-absolute string, so guard the parse (see discordCdnGuard.ts for the
+//    codebase's canonical try/catch form that returns a tagged result).
+let host: string | undefined;
+try {
+  host = new URL(token).hostname;
+} catch {
+  /* not an absolute URL — reject */
+}
+if (host === 'tzurot.org') {
   /* trusted */
 }
 
