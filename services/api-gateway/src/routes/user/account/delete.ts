@@ -228,6 +228,13 @@ export const handleDeleteAccount = (deps: RouteDeps): RequestHandler =>
     try {
       await new UserCacheInvalidationService(redis).invalidateUser(discordUserId);
     } catch (error) {
+      // Swallowed on purpose: THIS process was evicted synchronously above and
+      // the account is already gone, so the delete must still return 200. Blast
+      // radius of a failed broadcast: other processes' UserService caches (e.g.
+      // ai-worker's context pipeline) stay stale until the 1h TTL expires — a
+      // queued generation job for this discordId in that window can still
+      // FK-violate on the usage-log insert. Bounded and self-healing; not worth
+      // failing the deletion over.
       logger.warn({ err: error }, 'Post-deletion user-cache broadcast failed');
     }
 
