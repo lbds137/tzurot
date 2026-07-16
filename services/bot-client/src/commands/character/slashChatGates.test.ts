@@ -109,6 +109,19 @@ describe('runSlashChatGates', () => {
       expect(mockTrackPending).toHaveBeenCalledWith('actor-1', 'reply-1', 'chan-1');
     });
 
+    it('still blocks (and swallows) when tracking the verification prompt fails', async () => {
+      mockEvaluateNsfwGate.mockResolvedValue({ allowed: false, reason: 'not-verified' });
+      mockTrackPending.mockRejectedValueOnce(new Error('redis down'));
+      const { context } = makeContext();
+
+      const blocked = await runSlashChatGates(context, personality, channel, userClient);
+      // Flush the fire-and-forget .catch so its swallow-and-warn path runs.
+      await new Promise(resolve => setTimeout(resolve, 0));
+
+      // A tracking failure never changes the gate outcome — the user is still blocked.
+      expect(blocked).toBe(true);
+    });
+
     it('blocks with the retry message and does NOT track on a check failure', async () => {
       mockEvaluateNsfwGate.mockResolvedValue({ allowed: false, reason: 'check-failed' });
       const { context, editReply } = makeContext();
