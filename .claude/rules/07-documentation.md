@@ -32,10 +32,17 @@ Each layer points down. No upward references. No duplicated content.
 | Tooling reference     | `docs/reference/tooling/`                      | CLI, ops commands                                                                                                                                      |
 | Future idea           | `docs/proposals/backlog/`                      | Good idea, not scheduled                                                                                                                               |
 | Post-mortem           | `docs/incidents/`                              | After incident resolution                                                                                                                              |
-| Research note         | `docs/research/`                               | Distilled AI insights                                                                                                                                  |
+| Research note         | `docs/research/`                               | Distilled AI insights **with a public audience** (see "Audience check" below)                                                                          |
+| Local working notes   | `docs/local/` (gitignored)                     | Internal working material without a public audience                                                                                                    |
 | Steam Deck setup      | `docs/steam-deck/`                             | Dev environment guides                                                                                                                                 |
 | Work tracking         | `CURRENT.md`, `BACKLOG.md` + `backlog/**/*.md` | Root-level, always visible. `BACKLOG.md` is the HOT/COLD load manifest; hot files (`now.md`, `active-epic.md`) + `backlog/cold/` live under `backlog/` |
 | Per-Claude memory     | `~/.claude/projects/*tzurot*/memory/`          | Per-user context, preferences, time-bound state (not git-tracked)                                                                                      |
+
+## Audience check (public repo)
+
+This is a public repository, so document placement is also an **audience decision**. Before committing any research, analysis, or notes document, ask: who is the audience? Material written for users or contributors is a tracked doc; working material written for the operator — internal analyses, decision notes, drafts of legal or business documents — belongs in `docs/local/` (gitignored, machine-local). This is the ordinary distinction any organization draws between internal notes and published documentation.
+
+Two corollaries: tracked surfaces (commit messages, PR bodies, backlog entries) reference tracked documents only, and the public record describes **outcomes** (the shipped policy, the fix, the decision's effect) rather than internal deliberation. When in doubt, start the document in `docs/local/` — promoting a local note to a tracked doc later is one copy; the reverse is a history rewrite.
 
 ## Naming Conventions
 
