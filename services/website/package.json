@@ -1,0 +1,26 @@
+{
+  "name": "@tzurot/website",
+  "version": "3.0.0-beta.165",
+  "private": true,
+  "type": "module",
+  "description": "Public website for Tzurot (tzurot.org) — landing page + legal documents",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "lint": "astro sync && eslint src --max-warnings=0",
+    "lint:fix": "eslint src --fix",
+    "format": "prettier --write .",
+    "typecheck": "astro check"
+  },
+  "dependencies": {
+    "@astrojs/sitemap": "^3.4.1",
+    "@fontsource-variable/inter": "^5.2.5",
+    "astro": "^5.12.0",
+    "sharp": "^0.34.2"
+  },
+  "devDependencies": {
+    "@astrojs/check": "^0.9.4",
+    "typescript": "^5.8.3"
+  }
+}

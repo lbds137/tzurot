@@ -1,0 +1,184 @@
+---
+import { Image } from 'astro:assets';
+import Base from '../layouts/Base.astro';
+import { BRAND, GITHUB_URL } from '../brand';
+
+const description =
+  'Conversations with customizable AI characters on Discord — long-term memory, voice in and out, and your own API keys or a free tier.';
+
+const features = [
+  {
+    emoji: '🎭',
+    title: 'AI characters',
+    body: 'Create characters with their own name, avatar, voice, and personality — then @mention them anywhere in your server. Multiple characters can share a channel and weigh in on the conversation.',
+  },
+  {
+    emoji: '🧠',
+    title: 'Long-term memory',
+    body: 'Characters remember what matters across conversations. Embeddings are computed locally — no third-party memory service ever sees your messages — and you can browse, correct, or forget anything they learn.',
+  },
+  {
+    emoji: '🎤',
+    title: 'Voice in & out',
+    body: 'Send voice messages and get spoken replies. Speech-to-text on the way in, text-to-speech with voice cloning on the way out — self-hosted by default, or bring your own provider.',
+  },
+  {
+    emoji: '🔐',
+    title: 'Your data, your rules',
+    body: 'Export everything your account owns or erase it entirely, straight from Discord. BYOK keys are encrypted, memory has focus and incognito modes, and the privacy policy says what actually happens.',
+    link: { href: '/privacy', label: 'Read the privacy policy' },
+  },
+];
+---
+
+<Base title={`${BRAND.name} — AI characters for Discord`} description={description} path="/">
+  <section class="hero">
+    <div class="hero-banner" aria-hidden="true">
+      <Image src={BRAND.banner} alt="" widths={[960, 1440, 1920]} sizes="100vw" loading="eager" />
+      <div class="hero-scrim"></div>
+    </div>
+    <div class="container hero-inner">
+      <Image src={BRAND.logo} alt="" width={280} height={280} class="hero-mark" loading="eager" />
+      <h1 class="hero-title gradient-text">{BRAND.name}</h1>
+      <p class="hero-tagline">
+        Conversations with customizable AI characters on Discord — long-term memory, voice, and
+        your keys or our free tier.
+      </p>
+      <div class="hero-actions">
+        <a class="button button--primary" href={GITHUB_URL} target="_blank" rel="noopener">View on GitHub</a>
+        <a class="button" href="/terms">Terms</a>
+        <a class="button" href="/privacy">Privacy</a>
+      </div>
+      <p class="hero-note">Public beta · bring your own key or use the free tier · 18+</p>
+    </div>
+  </section>
+
+  <section class="container features" aria-label="Features">
+    {
+      features.map(f => (
+        <article class="card">
+          <h2>
+            <span class="card-emoji" aria-hidden="true">
+              {f.emoji}
+            </span>
+            {f.title}
+          </h2>
+          <p>{f.body}</p>
+          {f.link && <a href={f.link.href}>{f.link.label} →</a>}
+        </article>
+      ))
+    }
+  </section>
+</Base>
+
+<style>
+  .hero {
+    position: relative;
+    overflow: hidden;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .hero-banner {
+    position: absolute;
+    inset: 0;
+  }
+
+  .hero-banner img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center 30%;
+  }
+
+  .hero-scrim {
+    position: absolute;
+    inset: 0;
+    background:
+      linear-gradient(180deg, rgb(11 8 18 / 0.55) 0%, rgb(11 8 18 / 0.8) 70%, var(--bg) 100%),
+      radial-gradient(ellipse at center, rgb(11 8 18 / 0.15) 0%, rgb(11 8 18 / 0.6) 100%);
+  }
+
+  .hero-inner {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding-block: 4.5rem 5rem;
+  }
+
+  .hero-mark {
+    width: clamp(150px, 24vw, 220px);
+    height: auto;
+    filter: drop-shadow(0 0 48px var(--violet-glow));
+  }
+
+  .hero-title {
+    margin: 1.25rem 0 0.5rem;
+    font-size: clamp(2.6rem, 7vw, 4.25rem);
+    font-weight: 850;
+  }
+
+  .hero-tagline {
+    max-width: 38rem;
+    margin: 0;
+    font-size: clamp(1.05rem, 2.4vw, 1.3rem);
+    color: var(--text);
+    text-shadow: 0 1px 12px rgb(11 8 18 / 0.9);
+  }
+
+  .hero-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.75rem;
+    margin-top: 1.75rem;
+  }
+
+  .hero-note {
+    margin-top: 1.5rem;
+    font-size: 0.9rem;
+    color: var(--text-muted);
+  }
+
+  .features {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(20rem, 100%), 1fr));
+    gap: 1.25rem;
+    padding-block: 3.5rem 1rem;
+  }
+
+  /* Discord-embed-style cards: dark surface, violet left rail. */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--violet);
+    border-radius: var(--radius);
+    padding: 1.4rem 1.5rem;
+    transition:
+      border-color 160ms ease,
+      box-shadow 160ms ease;
+  }
+
+  .card:hover {
+    border-left-color: var(--gold);
+    box-shadow: 0 4px 32px rgb(0 0 0 / 0.35);
+  }
+
+  .card h2 {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin: 0 0 0.5rem;
+    font-size: 1.2rem;
+  }
+
+  .card-emoji {
+    font-size: 1.35rem;
+  }
+
+  .card p {
+    margin: 0 0 0.5rem;
+    color: var(--text-muted);
+  }
+</style>

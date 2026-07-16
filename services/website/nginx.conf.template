@@ -1,0 +1,44 @@
+# Static-site server config. The nginx docker entrypoint envsubsts ${PORT}
+# (Railway injects it) before nginx starts. NOTE: the entrypoint substitutes
+# EVERY ${VAR}-shaped token that matches an environment variable, not just
+# PORT — never write a literal ${...} in this template (nginx variables use
+# the bare $name form, which envsubst leaves alone).
+server {
+    listen ${PORT};
+    server_name _;
+
+    root /app/services/website/dist;
+    index index.html;
+
+    # Static site, no user input — these are cheap defense-in-depth.
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-Frame-Options "DENY" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+
+    # Immutable fingerprinted assets (Astro writes content hashes into names).
+    # nginx add_header does NOT inherit into blocks that declare their own, so
+    # the security headers are repeated here.
+    location /_astro/ {
+        add_header Cache-Control "public, max-age=31536000, immutable";
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header X-Frame-Options "DENY" always;
+        add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    }
+
+    # Railway healthcheck target.
+    location = /health {
+        add_header Content-Type text/plain;
+        return 200 "ok";
+    }
+
+    # Pretty URLs: /terms -> /terms/index.html; unknown paths get the 404 page.
+    location / {
+        try_files $uri $uri/index.html =404;
+    }
+
+    error_page 404 /404.html;
+
+    gzip on;
+    gzip_types text/html text/css application/javascript application/json image/svg+xml text/plain;
+    gzip_min_length 1024;
+}
