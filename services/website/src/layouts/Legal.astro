@@ -1,25 +1,34 @@
 ---
 /**
  * Prose layout for the legal documents. The markdown comes straight from
- * docs/legal via the content collection; this layout provides readable
- * typography and the retention table styling; the sticky header's brand link
- * is the way back home.
+ * docs/legal via the content collection; this layout substitutes the brand
+ * name, renders the markdown, and provides readable typography and the
+ * retention table styling; the sticky header's brand link is the way home.
  */
+import { marked } from 'marked';
 import Base from './Base.astro';
+import { BRAND } from '../brand';
 
 interface Props {
   title: string;
   description: string;
   path: string;
+  /** Raw markdown body of the legal document (entry.body). */
+  body: string;
 }
 
-const { title, description, path } = Astro.props;
+const { title, description, path, body } = Astro.props;
+
+// Brand substitution is CASE-SENSITIVE on purpose: capitalized "Tzurot" is
+// prose (the service name, swappable per deployment brand), while lowercase
+// "tzurot" occurs only inside URLs (tzurot.org, the GitHub repo) that must
+// never change. The prod/Tzurot build renders the documents verbatim.
+const branded = BRAND.name === 'Tzurot' ? body : body.replaceAll('Tzurot', BRAND.name);
+const html = await marked.parse(branded, { gfm: true });
 ---
 
 <Base title={title} description={description} path={path}>
-  <article class="container prose">
-    <slot />
-  </article>
+  <article class="container prose" set:html={html} />
 </Base>
 
 <style is:global>

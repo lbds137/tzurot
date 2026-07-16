@@ -14,7 +14,9 @@ export default defineConfig({
       fs: {
         // The legal content collection reads ../../docs/legal (single source
         // of truth lives with the repo docs, not copied into the site).
-        allow: ['../..'],
+        // Scoped to exactly that directory — no reason to widen the dev
+        // server's file-serving surface to the whole monorepo.
+        allow: ['../../docs/legal'],
       },
     },
   },
