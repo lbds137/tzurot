@@ -3,6 +3,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import { AI_DEFAULTS } from '../../constants/ai.js';
 import {
   ConfigOverridesSchema,
   HARDCODED_CONFIG_DEFAULTS,
@@ -207,6 +208,16 @@ describe('HARDCODED_CONFIG_DEFAULTS', () => {
     expect(HARDCODED_CONFIG_DEFAULTS.showModelFooter).toBe(true);
     expect(HARDCODED_CONFIG_DEFAULTS.voiceResponseMode).toBe('always');
     expect(HARDCODED_CONFIG_DEFAULTS.voiceTranscriptionEnabled).toBe(true);
+  });
+
+  it('should tie the memory defaults to AI_DEFAULTS (single source of truth)', () => {
+    // The cascade baseline and the ai-worker retrieval fallback must agree, or a
+    // request with no override would retrieve memories differently depending on
+    // which path resolved it. The type-level `typeof AI_DEFAULTS.*` derivation on
+    // HARDCODED_CONFIG_DEFAULTS makes drift a compile error; this asserts the tie
+    // at runtime too so the intent is visible where the values are read.
+    expect(HARDCODED_CONFIG_DEFAULTS.memoryScoreThreshold).toBe(AI_DEFAULTS.MEMORY_SCORE_THRESHOLD);
+    expect(HARDCODED_CONFIG_DEFAULTS.memoryLimit).toBe(AI_DEFAULTS.MEMORY_LIMIT);
   });
 
   it('should pass schema validation', () => {

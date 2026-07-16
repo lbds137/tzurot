@@ -9,6 +9,7 @@
  */
 
 import { z } from 'zod';
+import { AI_DEFAULTS } from '../../constants/ai.js';
 
 // ============================================================================
 // Config Overrides Schema (JSONB column shape)
@@ -106,8 +107,11 @@ export const HARDCODED_CONFIG_DEFAULTS: {
   readonly maxMessages: 50;
   readonly maxAge: null;
   readonly maxImages: 10;
-  readonly memoryScoreThreshold: 0.5;
-  readonly memoryLimit: 20;
+  // Memory defaults are the SAME baseline the ai-worker retrieval path falls back
+  // to (`configOverrides?.memoryX ?? AI_DEFAULTS.MEMORY_X` in MemoryRetriever), so
+  // both the type and value derive from AI_DEFAULTS — the two cannot silently drift.
+  readonly memoryScoreThreshold: typeof AI_DEFAULTS.MEMORY_SCORE_THRESHOLD;
+  readonly memoryLimit: typeof AI_DEFAULTS.MEMORY_LIMIT;
   readonly focusModeEnabled: false;
   readonly crossChannelHistoryEnabled: false;
   readonly shareLtmAcrossPersonalities: false;
@@ -118,8 +122,8 @@ export const HARDCODED_CONFIG_DEFAULTS: {
   maxMessages: 50,
   maxAge: null,
   maxImages: 10,
-  memoryScoreThreshold: 0.5,
-  memoryLimit: 20,
+  memoryScoreThreshold: AI_DEFAULTS.MEMORY_SCORE_THRESHOLD,
+  memoryLimit: AI_DEFAULTS.MEMORY_LIMIT,
   focusModeEnabled: false,
   crossChannelHistoryEnabled: false,
   shareLtmAcrossPersonalities: false,
