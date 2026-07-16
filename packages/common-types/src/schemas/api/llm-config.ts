@@ -19,10 +19,6 @@ import { AdvancedParamsSchema } from '../llmAdvancedParams.js';
 import { AI_DEFAULTS, CONFIG_NAME_MAX_LENGTH } from '../../constants/index.js';
 
 // ============================================================================
-// Context Settings Schema (shared validation for context history limits)
-// ============================================================================
-
-// ============================================================================
 // Input Schemas (shared between admin and user endpoints)
 // ============================================================================
 
