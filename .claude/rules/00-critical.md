@@ -70,6 +70,29 @@ const url = `${BASE_URL}/api/resource/${encodeURIComponent(apiResponseId)}/detai
 
 **Applies to ALL dynamic URL segments**, including values from trusted API responses (defense in depth).
 
+### URL Substring Checks (CodeQL)
+
+**Never validate a URL or host with `.includes()`, `.indexOf()`, `.startsWith()`, or an unanchored regex.** CodeQL flags `url.includes('example.com')` as "Incomplete URL substring sanitization" (`js/incomplete-url-substring-sanitization`, high severity) — `evil-example.com.attacker.io` passes it. **This fires even on allowlist checks over trusted, build-time input** (a legal-doc content guard tripped it): CodeQL judges the code shape, not where the string came from, so "it's not attacker-controlled" is not a defense — the check will block the merge.
+
+```typescript
+// ❌ WRONG - substring host check (CodeQL high)
+if (token.includes('tzurot.org')) {
+  /* treat as trusted */
+}
+
+// ✅ CORRECT - parse and compare the host exactly
+if (new URL(token).hostname === 'tzurot.org') {
+  /* trusted */
+}
+
+// ✅ ALSO OK - when it isn't host validation at all: strip the known strings,
+//    then test the remnant, so no host-decision substring match exists
+const residual = text.replaceAll('tzurot.org', '');
+if (/tzurot/i.test(residual)) {
+  /* something unexpected remains */
+}
+```
+
 ### Logging (No PII)
 
 ```typescript
