@@ -1,8 +1,8 @@
 # Tzurot Privacy Policy
 
-**Status: DRAFT — not yet in effect.** _Clauses marked ⏳ describe features that ship before this policy publishes._
+**Status: In effect.**
 
-_Last updated: (set at publication)_
+_Last updated: 2026-07-16_
 
 Tzurot is a Discord bot that lets you talk with AI characters. It is operated by an individual developer ("the operator", "we"). This policy explains what data the bot stores, why, where it goes, and what control you have over it. It is written to describe what the software actually does — nothing more.
 
@@ -10,7 +10,7 @@ Tzurot is a Discord bot that lets you talk with AI characters. It is operated by
 
 **Account basics.** Your Discord user ID, username, timezone (if you set one), your notification preferences, and whether you have completed the 18+ verification (a yes/no flag with a timestamp — we never ask for or store your birthdate or identity documents).
 
-**Messages.** The content of messages in conversations the bot participates in, kept so characters can hold a coherent conversation. This includes message text, attachments' AI-generated descriptions, channel and server IDs, and reply context.
+**Messages.** The content of messages in conversations the bot participates in, kept so characters can hold a coherent conversation. This includes message text, attachments' AI-generated descriptions, channel and server IDs, and reply context. Please don't share sensitive personal information (health, financial, or identity details) in conversations — the bot never asks for it and does not need it.
 
 **Memories and facts.** The bot builds long-term memory for characters: conversation summaries and short factual statements extracted from what is said (for example, "this user's cat is named Miso"), stored with embeddings for retrieval. These are derived from your messages and are about you.
 
@@ -20,7 +20,7 @@ Tzurot is a Discord bot that lets you talk with AI characters. It is operated by
 
 **Usage records.** Per-request logs of provider, model, and token counts — kept to prevent infrastructure abuse, including for users on their own keys. No message content is in these records.
 
-⏳ **Feedback.** A feedback command is planned: submissions will be stored and a copy posted to a private channel the operator reads. (No feedback intake exists yet.)
+**Feedback.** If you submit feedback via `/feedback`, the submission is stored and a copy is posted to a private channel the operator reads.
 
 **Diagnostic logs.** For 24 hours after each AI response, the bot keeps a "flight recorder" entry containing the full request context — your message, the assembled prompt (including character definition and retrieved memories), and the model's raw output — used to debug generation problems. You can view your own entries with `/inspect`; the operator can view all entries during that window. They are deleted automatically after 24 hours.
 
@@ -33,7 +33,7 @@ Tzurot is a Discord bot that lets you talk with AI characters. It is operated by
 | Data exports you request                | 24 hours, then deleted                                                                           |
 | Memories and extracted facts            | Hidden from use the moment you forget them; rows erased with their persona/character (see below) |
 | Personas, characters, uploads           | Until you delete them                                                                            |
-| Account basics, usage records, feedback | ⏳ Until you delete your account (see "Deleting your data")                                      |
+| Account basics, usage records, feedback | Until you delete your account (see "Your controls")                                              |
 
 ## Where your data goes (third parties)
 
@@ -50,15 +50,21 @@ Each provider processes data under its own privacy policy. We attach no analytic
 
 We never sell your data.
 
+## AI training
+
+- **Tzurot does not train on your data.** No training or fine-tuning pipeline exists in the codebase; your messages, memories, and creations are used only to generate the responses you ask for.
+- **Free tier (the operator's keys).** Requests served on the operator's OpenRouter account are restricted by its privacy settings: endpoints that may train on request data — paid or free — and endpoints that may publish prompts are all disallowed, so OpenRouter will not route your content to a provider that trains on it. Free-tier GLM requests served via z.ai are governed by z.ai's API terms, under which submitted content is not used to develop or improve their services absent explicit agreement (we have given none) and API content is not stored on their servers.
+- **Bring-your-own-key.** By connecting your own API key you are expressly directing the bot to send conversation content to that provider under **your** account and its data-usage settings. Configuring those settings — for example, OpenRouter's "may train on request data" toggles — is your responsibility; we do not and cannot control them. Be aware that in shared channels, the conversation context sent through a configured key can include other participants' recent messages — if you bring a key, their words travel under your provider settings too, and if someone else brings one, yours may travel under theirs.
+
 ## Your controls
 
-- **Memory**: browse, search, correct, and forget individual memories and facts (`/memory`); batch-delete or purge a character's memories. Honest detail: forgetting removes a memory from use and from view **immediately**, but the underlying row is retained (marked deleted) until it is hard-erased — which happens when you delete the associated persona or character, when you use incognito's retroactive forget, or ⏳ when you delete your account. **Focus mode** stops memory reads; **incognito mode** stops memory writes for a session, with retroactive (hard-deleting) forget.
+- **Memory**: browse, search, correct, and forget individual memories and facts (`/memory`); batch-delete or purge a character's memories. Honest detail: forgetting removes a memory from use and from view **immediately**, but the underlying row is retained (marked deleted) until it is hard-erased — which happens when you delete the associated persona or character, when you use incognito's retroactive forget, or when you delete your account (`/settings data delete`). **Focus mode** stops memory reads; **incognito mode** stops memory writes for a session, with retroactive (hard-deleting) forget.
 - **History**: clear your conversation history (`/history clear` — a soft reset, with undo).
 - **Notifications**: release announcements are opt-out (`/notifications disable`, or pick a level).
 - **Keys**: remove a connected API key at any time (immediate hard delete).
 - **Creations**: delete your personas and characters (deletion cascades to their conversation history and memories).
-- ⏳ **Export everything**: a command to export all data associated with your account in a portable format.
-- ⏳ **Delete everything**: a command to permanently erase all data associated with your account, with an explicit confirmation step. Until this ships, deletion is per-resource as listed above; you can also contact the operator to request removal of anything without a self-serve path.
+- **Export everything**: export all data associated with your account in a portable format (`/settings data export`).
+- **Delete everything**: permanently erase all data associated with your account, with an explicit confirmation step (`/settings data delete`). You can also contact the operator (see "Contact") to request removal of anything without a self-serve path.
 
 ## Age requirement
 
@@ -74,4 +80,4 @@ Material changes to this policy will be announced through the bot's release-note
 
 ## Contact
 
-Questions or data requests: contact the operator on Discord — **(operator contact / support server link to be set at publication)**.
+Questions or data requests: use the `/feedback` command in Discord, or open an issue at [github.com/lbds137/tzurot/issues](https://github.com/lbds137/tzurot/issues). If you have already deleted your account (or can't use Discord), GitHub issues is the right channel — erasure requests are honored there too.
