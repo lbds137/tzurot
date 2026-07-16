@@ -8,7 +8,7 @@
  * 4. Store the archive in ExportJob.fileData (BYTEA) and update status
  *
  * Self-contained like the shapes export: status lives on the ExportJob row;
- * the user downloads via the public /exports/:jobId route until expiry.
+ * the user downloads via the public /exports/:token route until expiry.
  */
 
 import type { Job } from 'bullmq';

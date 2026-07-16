@@ -24,7 +24,9 @@ vi.mock('@tzurot/common-types/utils/logger', async () => {
 import { createExportsRouter } from './exports.js';
 import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 
-const VALID_UUID = '12345678-1234-1234-1234-123456789012';
+const VALID_TOKEN = 'a'.repeat(64); // 64-char lowercase hex — a well-formed download token
+/** A deterministic export-job UUID: the shape that must NOT work as a download handle. */
+const DETERMINISTIC_JOB_UUID = '12345678-1234-1234-1234-123456789012';
 /** Fixed time for deterministic tests */
 const NOW = new Date('2026-02-17T00:00:00.000Z').getTime();
 const FUTURE_DATE = new Date(NOW + 86400000);
@@ -52,18 +54,39 @@ describe('Public Export Download Route', () => {
     vi.useRealTimers();
   });
 
-  it('should return 400 for invalid UUID format', async () => {
+  it('should return 400 for a malformed download token', async () => {
     const app = createApp();
-    const res = await request(app).get('/not-a-uuid');
+    const res = await request(app).get('/not-a-token');
 
     expect(res.status).toBe(400);
-    expect(res.body.error).toBe('Invalid export job ID');
+    expect(res.body.error).toBe('Invalid export download token');
+    expect(mockPrisma.exportJob.findUnique).not.toHaveBeenCalled();
+  });
+
+  it('rejects a deterministic export-job UUID as a download handle (the vuln fix)', async () => {
+    // The job id is computable offline from a Discord id; it must never be a
+    // valid download URL. It fails the token-shape guard before any DB lookup.
+    const app = createApp();
+    const res = await request(app).get(`/${DETERMINISTIC_JOB_UUID}`);
+
+    expect(res.status).toBe(400);
+    expect(mockPrisma.exportJob.findUnique).not.toHaveBeenCalled();
+  });
+
+  it('looks the job up by downloadToken, never by id', async () => {
+    mockPrisma.exportJob.findUnique.mockResolvedValue(null);
+    const app = createApp();
+    await request(app).get(`/${VALID_TOKEN}`);
+
+    expect(mockPrisma.exportJob.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { downloadToken: VALID_TOKEN } })
+    );
   });
 
   it('should return 404 when export not found', async () => {
     mockPrisma.exportJob.findUnique.mockResolvedValue(null);
     const app = createApp();
-    const res = await request(app).get(`/${VALID_UUID}`);
+    const res = await request(app).get(`/${VALID_TOKEN}`);
 
     expect(res.status).toBe(404);
   });
@@ -80,7 +103,7 @@ describe('Public Export Download Route', () => {
     });
 
     const app = createApp();
-    const res = await request(app).get(`/${VALID_UUID}`);
+    const res = await request(app).get(`/${VALID_TOKEN}`);
 
     expect(res.status).toBe(404);
     expect(res.body.status).toBe('pending');
@@ -98,7 +121,7 @@ describe('Public Export Download Route', () => {
     });
 
     const app = createApp();
-    const res = await request(app).get(`/${VALID_UUID}`);
+    const res = await request(app).get(`/${VALID_TOKEN}`);
 
     expect(res.status).toBe(404);
     expect(res.body.error).toBe('Export failed');
@@ -118,7 +141,7 @@ describe('Public Export Download Route', () => {
     });
 
     const app = createApp();
-    const res = await request(app).get(`/${VALID_UUID}`);
+    const res = await request(app).get(`/${VALID_TOKEN}`);
 
     expect(res.status).toBe(410);
     expect(res.body.error).toBe('Export has expired');
@@ -136,7 +159,7 @@ describe('Public Export Download Route', () => {
     });
 
     const app = createApp();
-    const res = await request(app).get(`/${VALID_UUID}`);
+    const res = await request(app).get(`/${VALID_TOKEN}`);
 
     expect(res.status).toBe(410);
     expect(res.body.error).toBe('Export has expired');
@@ -155,7 +178,7 @@ describe('Public Export Download Route', () => {
     });
 
     const app = createApp();
-    const res = await request(app).get(`/${VALID_UUID}`);
+    const res = await request(app).get(`/${VALID_TOKEN}`);
 
     expect(res.status).toBe(200);
     expect(res.headers['content-type']).toContain('application/json');
@@ -178,7 +201,7 @@ describe('Public Export Download Route', () => {
     });
 
     const app = createApp();
-    const res = await request(app).get(`/${VALID_UUID}`);
+    const res = await request(app).get(`/${VALID_TOKEN}`);
 
     expect(res.status).toBe(200);
     expect(res.headers['content-type']).toContain('text/markdown');
@@ -199,7 +222,7 @@ describe('Public Export Download Route', () => {
 
     const app = createApp();
     const res = await request(app)
-      .get(`/${VALID_UUID}`)
+      .get(`/${VALID_TOKEN}`)
       .buffer(true)
       .parse((response, cb) => {
         const chunks: Buffer[] = [];

@@ -32,6 +32,10 @@ export const userAccountFixtures: Record<string, ConformanceEntry> = {
         ACCOUNT_EXPORT_SOURCE,
         'zip'
       );
+      // A completed job needs a downloadToken so the status route builds the
+      // populated downloadUrl branch — keeps conformance representative of the
+      // real response shape.
+      const downloadToken = 'f'.repeat(64);
       await ctx.prisma.exportJob.upsert({
         where: { id },
         update: {
@@ -39,6 +43,7 @@ export const userAccountFixtures: Record<string, ConformanceEntry> = {
           fileName: 'tzurot-account-export-conf-2026-01-01.zip',
           fileSizeBytes: 42,
           completedAt: staleCompletedAt,
+          downloadToken,
         },
         create: {
           id,
@@ -50,6 +55,7 @@ export const userAccountFixtures: Record<string, ConformanceEntry> = {
           fileName: 'tzurot-account-export-conf-2026-01-01.zip',
           fileSizeBytes: 42,
           completedAt: staleCompletedAt,
+          downloadToken,
           expiresAt: new Date(Date.now() + 60 * 60 * 1000),
         },
       });

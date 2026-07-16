@@ -931,6 +931,11 @@ model ExportJob {
   fileName       String?   @map("file_name") @db.VarChar(255)
   /// Size of the stored payload (fileContent or fileData) in bytes
   fileSizeBytes  Int?      @map("file_size_bytes")
+  /// Unguessable random token carried in the PUBLIC download URL (the job `id`
+  /// is deterministic and must never be the download handle). Deferred-set:
+  /// null only on legacy rows predating this column; every new/reset job mints
+  /// one. Unique so the unauthenticated download route can look up by it.
+  downloadToken  String?   @unique @map("download_token") @db.VarChar(64)
   createdAt      DateTime  @default(now()) @map("created_at")
   startedAt      DateTime? @map("started_at")
   completedAt    DateTime? @map("completed_at")

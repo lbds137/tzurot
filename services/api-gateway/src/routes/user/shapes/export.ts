@@ -5,7 +5,7 @@
  * GET  /user/shapes/export/jobs - List export job history
  *
  * Export data is fetched asynchronously by ai-worker and stored in PostgreSQL.
- * Users download completed exports via GET /exports/:jobId (public endpoint).
+ * Users download completed exports via GET /exports/:token (public endpoint).
  */
 
 import { type Response, type RequestHandler } from 'express';
@@ -22,6 +22,7 @@ import {
   CREDENTIAL_TYPES,
 } from '@tzurot/common-types/types/shapes-import';
 import { generateExportJobUuid } from '@tzurot/common-types/utils/deterministicUuid';
+import { generateExportDownloadToken } from '@tzurot/common-types/utils/exportDownloadToken';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { resolveProvisionedUserId } from '../../../utils/resolveProvisionedUserId.js';
@@ -40,6 +41,8 @@ const EXPORT_EXPIRY_HOURS = 24;
 
 interface CreateOrConflictResult {
   exportJobId: string;
+  /** The random public-download token, minted for a freshly created/reset job. */
+  downloadToken: string;
   conflictStatus: string | null;
 }
 
@@ -67,6 +70,9 @@ async function createExportJobOrConflict(
     IMPORT_SOURCES.SHAPES_INC,
     format
   );
+  // Fresh random token on every (re)creation — a previously-shared download
+  // URL stops working the moment the export is re-run.
+  const downloadToken = generateExportDownloadToken();
 
   const conflictStatus = await prisma.$transaction(async tx => {
     const existingJob = await tx.exportJob.findFirst({
@@ -92,11 +98,13 @@ async function createExportJobOrConflict(
         sourceService: IMPORT_SOURCES.SHAPES_INC,
         status: 'pending',
         format,
+        downloadToken,
         expiresAt,
       },
       update: {
         status: 'pending',
         format,
+        downloadToken,
         fileContent: null,
         fileName: null,
         fileSizeBytes: null,
@@ -111,7 +119,7 @@ async function createExportJobOrConflict(
     return null;
   });
 
-  return { exportJobId, conflictStatus };
+  return { exportJobId, downloadToken, conflictStatus };
 }
 
 function createExportHandler(prisma: PrismaClient, queue: Queue, baseUrl: string) {
@@ -151,9 +159,10 @@ function createExportHandler(prisma: PrismaClient, queue: Queue, baseUrl: string
     const expiresAt = new Date(Date.now() + EXPORT_EXPIRY_HOURS * 60 * 60 * 1000);
 
     let exportJobId: string;
+    let downloadToken: string;
     let conflictStatus: string | null;
     try {
-      ({ exportJobId, conflictStatus } = await createExportJobOrConflict(
+      ({ exportJobId, downloadToken, conflictStatus } = await createExportJobOrConflict(
         prisma,
         userId,
         normalizedSlug,
@@ -215,7 +224,7 @@ function createExportHandler(prisma: PrismaClient, queue: Queue, baseUrl: string
       'Export job created'
     );
 
-    const downloadUrl = `${baseUrl}/exports/${encodeURIComponent(exportJobId)}`;
+    const downloadUrl = `${baseUrl}/exports/${encodeURIComponent(downloadToken)}`;
 
     sendCustomSuccess(
       res,
@@ -258,14 +267,18 @@ function createListExportJobsHandler(prisma: PrismaClient, baseUrl: string) {
         expiresAt: true,
         errorMessage: true,
         exportMetadata: true,
+        downloadToken: true,
       },
     });
 
-    // Add download URLs to completed jobs
-    const jobsWithUrls = jobs.map(job => ({
+    // Render the download token into the URL and drop it as a bare field —
+    // it must never leave the server except as part of the download URL.
+    const jobsWithUrls = jobs.map(({ downloadToken, ...job }) => ({
       ...job,
       downloadUrl:
-        job.status === 'completed' ? `${baseUrl}/exports/${encodeURIComponent(job.id)}` : null,
+        job.status === 'completed' && downloadToken !== null
+          ? `${baseUrl}/exports/${encodeURIComponent(downloadToken)}`
+          : null,
     }));
 
     sendCustomSuccess(res, { jobs: jobsWithUrls });

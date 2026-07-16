@@ -1,16 +1,20 @@
 /**
  * Public Export Download Route
  *
- * GET /exports/:jobId - Download a completed export file
+ * GET /exports/:token - Download a completed export file
  *
- * Public endpoint (no auth required). The UUID serves as an unguessable token.
- * Returns the export file content with appropriate Content-Type and Content-Disposition.
+ * Public endpoint (no auth required). The lookup handle is a random,
+ * unguessable `downloadToken` — NOT the export job `id`, which is a
+ * deterministic uuidv5 over (userId, source, format) and therefore computable
+ * offline from a user's Discord ID. Using the job ID here would let anyone who
+ * knows a target's Discord ID download their export; the random token closes
+ * that. Returns the export file with appropriate Content-Type/Disposition.
  */
 
 import { Router, type Request, type Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import { type PrismaClient } from '@tzurot/common-types/services/prisma';
-import { isUuidFormat } from '@tzurot/common-types/utils/deterministicUuid';
+import { isExportDownloadToken } from '@tzurot/common-types/utils/exportDownloadToken';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { getParam } from '../../utils/requestParams.js';
 
@@ -19,18 +23,20 @@ const logger = createLogger('exports-download');
 export function createExportsRouter(prisma: PrismaClient): Router {
   const router = Router();
 
-  router.get('/:jobId', async (req: Request, res: Response) => {
-    const jobId = getParam(req.params.jobId);
+  router.get('/:token', async (req: Request, res: Response) => {
+    const token = getParam(req.params.token);
 
-    if (jobId === undefined || !isUuidFormat(jobId)) {
-      res.status(StatusCodes.BAD_REQUEST).json({ error: 'Invalid export job ID' });
+    if (token === undefined || !isExportDownloadToken(token)) {
+      res.status(StatusCodes.BAD_REQUEST).json({ error: 'Invalid export download token' });
       return;
     }
 
     try {
       const job = await prisma.exportJob.findUnique({
-        where: { id: jobId },
+        where: { downloadToken: token },
         select: {
+          // id is the deterministic job UUID — safe to log; the token is not.
+          id: true,
           fileContent: true,
           fileData: true,
           fileName: true,
@@ -93,9 +99,10 @@ export function createExportsRouter(prisma: PrismaClient): Router {
 
       res.status(StatusCodes.OK).send(body);
 
-      logger.info({ jobId, fileName, fileSizeBytes: job.fileSizeBytes }, 'File downloaded');
+      logger.info({ jobId: job.id, fileName, fileSizeBytes: job.fileSizeBytes }, 'File downloaded');
     } catch (error) {
-      logger.error({ err: error, jobId }, 'Download error');
+      // The token is a capability — never log it, even on error.
+      logger.error({ err: error }, 'Download error');
       res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ error: 'Download failed' });
     }
   });
