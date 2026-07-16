@@ -106,3 +106,6 @@ railway_dev_logs.md
 scripts/migrations/barrel-kill/symbol-map.json
 services/ai-worker/src/services/eval/eval-results.json
 services/ai-worker/src/services/eval/extraction-eval-results.json
+
+# Local working notes (not tracked)
+docs/local/
