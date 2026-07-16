@@ -6,7 +6,13 @@ import { BRAND, GITHUB_URL } from '../brand';
 const description =
   'Conversations with customizable AI characters on Discord — long-term memory, voice in and out, and your own API keys or a free tier.';
 
-const features = [
+interface FeatureLink {
+  href: string;
+  label: string;
+  external?: boolean;
+}
+
+const features: { emoji: string; title: string; body: string; link?: FeatureLink }[] = [
   {
     emoji: '🎭',
     title: 'AI characters',
@@ -23,10 +29,21 @@ const features = [
     body: 'Send voice messages and get spoken replies. Speech-to-text on the way in, text-to-speech with voice cloning on the way out — self-hosted by default, or bring your own provider.',
   },
   {
+    emoji: '🗝️',
+    title: 'Your keys or the free tier',
+    body: 'Bring your own API key and route through 400+ models, or start instantly on the free tier with a free model and self-hosted voice. Per-character model, preset, and voice configuration — no lock-in at any layer.',
+  },
+  {
     emoji: '🔐',
     title: 'Your data, your rules',
     body: 'Export everything your account owns or erase it entirely, straight from Discord. BYOK keys are encrypted, memory has focus and incognito modes, and the privacy policy says what actually happens.',
     link: { href: '/privacy', label: 'Read the privacy policy' },
+  },
+  {
+    emoji: '🌱',
+    title: 'Open source',
+    body: 'MIT-licensed end to end — read the code that handles your messages, file issues or feature requests, and watch releases land. The bot even DMs you the release notes, if you want them.',
+    link: { href: GITHUB_URL, label: 'Browse the source', external: true },
   },
 ];
 ---
@@ -64,7 +81,15 @@ const features = [
             {f.title}
           </h2>
           <p>{f.body}</p>
-          {f.link && <a href={f.link.href}>{f.link.label} →</a>}
+          {f.link && (
+            <a
+              href={f.link.href}
+              target={f.link.external === true ? '_blank' : undefined}
+              rel={f.link.external === true ? 'noopener noreferrer' : undefined}
+            >
+              {f.link.label} →
+            </a>
+          )}
         </article>
       ))
     }
