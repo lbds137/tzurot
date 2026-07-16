@@ -9,6 +9,12 @@ export default defineConfig({
   site: 'https://tzurot.org',
   output: 'static',
   integrations: [sitemap()],
+  build: {
+    // Keep every stylesheet external so nginx can serve a strict CSP
+    // (style-src 'self', no 'unsafe-inline'). Astro's default inlines small
+    // sheets as <style> tags, which the policy would block.
+    inlineStylesheets: 'never',
+  },
   vite: {
     server: {
       fs: {

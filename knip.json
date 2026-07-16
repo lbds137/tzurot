@@ -18,6 +18,9 @@
       "entry": ["src/**/*.test.ts"],
       "ignoreDependencies": ["langchain", "onnxruntime-node"]
     },
+    "services/website": {
+      "entry": ["src/**/*.test.ts"]
+    },
     "packages/common-types": {
       "entry": ["src/**/*.test.ts"],
       "ignore": ["src/generated/**"],

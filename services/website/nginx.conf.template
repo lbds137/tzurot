@@ -14,6 +14,7 @@ server {
     add_header X-Content-Type-Options "nosniff" always;
     add_header X-Frame-Options "DENY" always;
     add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header Content-Security-Policy "default-src 'none'; style-src 'self'; img-src 'self' data:; font-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'" always;
 
     # Immutable fingerprinted assets (Astro writes content hashes into names).
     # nginx add_header does NOT inherit into blocks that declare their own, so
@@ -23,6 +24,7 @@ server {
         add_header X-Content-Type-Options "nosniff" always;
         add_header X-Frame-Options "DENY" always;
         add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+        add_header Content-Security-Policy "default-src 'none'; style-src 'self'; img-src 'self' data:; font-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'" always;
     }
 
     # Railway healthcheck target. Repeats the security headers because this
@@ -32,6 +34,7 @@ server {
         add_header X-Content-Type-Options "nosniff" always;
         add_header X-Frame-Options "DENY" always;
         add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+        add_header Content-Security-Policy "default-src 'none'; style-src 'self'; img-src 'self' data:; font-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'" always;
         return 200 "ok";
     }
 

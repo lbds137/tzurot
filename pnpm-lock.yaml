@@ -658,6 +658,9 @@ importers:
       marked:
         specifier: ^18.0.6
         version: 18.0.6
+      marked-smartypants:
+        specifier: ^1.1.12
+        version: 1.1.12(marked@18.0.6)
       sharp:
         specifier: ^0.34.2
         version: 0.34.5
@@ -5322,6 +5325,11 @@ packages:
   markdown-table@3.0.4:
     resolution: {integrity: sha512-wiYz4+JrLyb/DqW2hkFJxP7Vd7JuTDm77fvbM8VfEQdmSMqcImWeeRbHwZjBjIFki/VaMK2BhFi7oUUZeM5bqw==}
 
+  marked-smartypants@1.1.12:
+    resolution: {integrity: sha512-Z0QL2GpihbSeG5aaCrQxMEoqvngMftF/gq1SrdlCnbecUSrX3HYgPtCZzCW+OyNe2ideQqaFdxfGryqQX1MBDA==}
+    peerDependencies:
+      marked: '>=4 <19'
+
   marked@18.0.6:
     resolution: {integrity: sha512-MrV5puXBfuiy6wl6DLaq3BtIJQAJToAd5zt/ZKhRfGRAuFPALE7/4Y7jnxRQoEgK/pBgurGqLyAuRgZ2xOjr6w==}
     engines: {node: '>= 20'}
@@ -6494,6 +6502,10 @@ packages:
   slice-ansi@8.0.0:
     resolution: {integrity: sha512-stxByr12oeeOyY2BlviTNQlYV5xOj47GirPr4yA1hE9JCtxfQN0+tVbkxwCtYDQWhEKWFHsEK48ORg5jrouCAg==}
     engines: {node: '>=20'}
+
+  smartypants@0.2.2:
+    resolution: {integrity: sha512-TzobUYoEft/xBtb2voRPryAUIvYguG0V7Tt3de79I1WfXgCwelqVsGuZSnu3GFGRZhXR90AeEYIM+icuB/S06Q==}
+    hasBin: true
 
   smol-toml@1.7.0:
     resolution: {integrity: sha512-aqVvWoyO21L23mb+drl4RmMXbf6N7FdHjAhTRA9ZBL7apWBgfWC16KjrASI+1p9GAroljyMHj6fK67i0UiTNvQ==}
@@ -12203,6 +12215,11 @@ snapshots:
 
   markdown-table@3.0.4: {}
 
+  marked-smartypants@1.1.12(marked@18.0.6):
+    dependencies:
+      marked: 18.0.6
+      smartypants: 0.2.2
+
   marked@18.0.6: {}
 
   matcher@3.0.0:
@@ -13770,6 +13787,8 @@ snapshots:
     dependencies:
       ansi-styles: 6.2.3
       is-fullwidth-code-point: 5.1.0
+
+  smartypants@0.2.2: {}
 
   smol-toml@1.7.0: {}
 
