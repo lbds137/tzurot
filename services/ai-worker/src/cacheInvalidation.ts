@@ -204,9 +204,9 @@ async function wireApiKeyInvalidation(
  * Wire the UserService provisioning cache to its invalidation channel. Account
  * deletion removes the users row, so ai-worker's long-lived UserService (shared
  * via getOrCreateUserService) must drop the dead discordId→userId mapping or the
- * next generation job FK-violates on the usage-log insert. The 'all' event has
- * no bulk-evict API on the shared instance — a process restart is its only
- * consumer today, and the 1h TTL bounds staleness meanwhile.
+ * next generation job FK-violates on the usage-log insert. The 'all' event
+ * clears the whole cache (bulk admin/migration changes) — same clear-all shape
+ * every sibling resolver above uses; no publisher exists yet.
  */
 async function wireUserCacheInvalidation(
   prisma: PrismaClient,
@@ -216,7 +216,8 @@ async function wireUserCacheInvalidation(
   const userCacheInvalidation = new UserCacheInvalidationService(cacheRedis);
   await userCacheInvalidation.subscribe(event => {
     if (event.type === 'all') {
-      logger.info('User cache "all" invalidation received (no-op; TTL bounds staleness)');
+      getOrCreateUserService(prisma).clearCache();
+      logger.info('Cleared all user provisioning cache entries');
     } else {
       getOrCreateUserService(prisma).invalidateUser(event.discordId);
       logger.info({ discordId: event.discordId }, 'Invalidated user provisioning cache');

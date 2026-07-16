@@ -200,6 +200,64 @@ describe('UserService', () => {
       expect(mockPrisma.user.findUnique).toHaveBeenCalledTimes(2);
     });
 
+    it('does not repopulate the cache when an invalidation races an in-flight read', async () => {
+      // Simulates the TOCTOU: this read started before the account-delete
+      // committed (sees the still-live row), but the delete's invalidateUser
+      // fires mid-read. The generation guard must skip the cache write so the
+      // now-dead userId is never served from cache.
+      mockPrisma.user.findUnique
+        .mockImplementationOnce(async () => {
+          userService.invalidateUser('123456'); // delete evicts during our read
+          return {
+            id: 'user-doomed',
+            isSuperuser: false,
+            username: 'testuser',
+            defaultPersonaId: 'persona-doomed',
+          };
+        })
+        .mockResolvedValueOnce({
+          id: 'user-recreated',
+          isSuperuser: false,
+          username: 'testuser',
+          defaultPersonaId: 'persona-recreated',
+        });
+
+      const first = await userService.getOrCreateUser('123456', 'testuser');
+      expect(first?.userId).toBe('user-doomed'); // caller still gets its result
+
+      // The write was skipped, so the next call re-reads instead of serving the
+      // doomed id from cache.
+      const second = await userService.getOrCreateUser('123456', 'testuser');
+      expect(second?.userId).toBe('user-recreated');
+      expect(mockPrisma.user.findUnique).toHaveBeenCalledTimes(2);
+    });
+
+    it('clearCache evicts every entry so the next call re-reads the DB', async () => {
+      mockPrisma.user.findUnique
+        .mockResolvedValueOnce({
+          id: 'user-a',
+          isSuperuser: false,
+          username: 'testuser',
+          defaultPersonaId: 'persona-a',
+        })
+        .mockResolvedValueOnce({
+          id: 'user-a2',
+          isSuperuser: false,
+          username: 'testuser',
+          defaultPersonaId: 'persona-a2',
+        });
+
+      const first = await userService.getOrCreateUser('123456', 'testuser');
+      expect(first?.userId).toBe('user-a');
+
+      // Without clearCache the second call would hit the cache (findUnique once).
+      userService.clearCache();
+
+      const afterClear = await userService.getOrCreateUser('123456', 'testuser');
+      expect(afterClear?.userId).toBe('user-a2');
+      expect(mockPrisma.user.findUnique).toHaveBeenCalledTimes(2);
+    });
+
     it('should return existing user ID if found in database', async () => {
       mockPrisma.user.findUnique.mockResolvedValueOnce({
         id: 'existing-user-id',

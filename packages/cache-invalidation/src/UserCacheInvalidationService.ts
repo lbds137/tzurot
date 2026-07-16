@@ -8,9 +8,12 @@
  * write against it FK-violates (runtime-confirmed: export_jobs, and the same
  * class on ai-worker's usage-log insert).
  *
- * - Publisher: api-gateway (the account-deletion route).
- * - Subscribers: every process with a long-lived UserService — api-gateway
- *   (also evicts locally + synchronously) and ai-worker's context pipeline.
+ * - Publisher: api-gateway (the account-deletion route). It does NOT
+ *   subscribe — the route evicts its own process's cache synchronously
+ *   instead, which covers a single api-gateway replica. If api-gateway ever
+ *   runs multiple replicas, it must also subscribe or the non-deleting
+ *   replicas' caches stay stale until the TTL.
+ * - Subscriber: ai-worker's context pipeline (the only subscriber today).
  */
 
 import { REDIS_CHANNELS } from '@tzurot/common-types/constants/queue';
