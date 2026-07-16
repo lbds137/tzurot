@@ -29,6 +29,7 @@ import { sendError, sendCustomSuccess } from '../../../utils/responseHelpers.js'
 import { parseBodyOrSendError } from '../../../utils/configRouteHelpers.js';
 import { ErrorResponses } from '../../../utils/errorResponses.js';
 import { isPrismaUniqueConstraintError } from '../../../utils/prismaErrors.js';
+import { enqueueExportJobOrMarkFailed } from '../../../utils/enqueueExportJob.js';
 import type { ProvisionedRequest } from '../../../types.js';
 import type { RouteDeps } from '../../routeDeps.js';
 
@@ -198,10 +199,15 @@ function createExportHandler(prisma: PrismaClient, queue: Queue, baseUrl: string
     // prevents true duplicate jobs, but BullMQ deduplicates by jobId — a deterministic ID
     // would cause retries of completed/failed exports to be silently ignored by BullMQ.
     const jobId = `${JOB_PREFIXES.SHAPES_EXPORT}${exportJobId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    await queue.add(JobType.ShapesExport, jobData, {
-      jobId,
-      attempts: 5,
-      backoff: { type: 'exponential', delay: 5_000 },
+    // The row above is already committed 'pending'; an enqueue failure must
+    // mark it 'failed' or it 409s every retry until the 24h expiry.
+    await enqueueExportJobOrMarkFailed({
+      queue,
+      prisma,
+      exportJobId,
+      jobName: JobType.ShapesExport,
+      jobData,
+      jobOptions: { jobId, attempts: 5, backoff: { type: 'exponential', delay: 5_000 } },
     });
 
     logger.info(
