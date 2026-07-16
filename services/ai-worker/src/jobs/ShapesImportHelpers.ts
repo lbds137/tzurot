@@ -119,10 +119,7 @@ async function upsertLlmConfig(
       model: llm.model,
       provider: llm.provider,
       advancedParameters: advancedParamsJson,
-      memoryScoreThreshold: llm.memoryScoreThreshold,
-      memoryLimit: llm.memoryLimit,
       contextWindowTokens: llm.contextWindowTokens,
-      maxMessages: llm.maxMessages,
       ownerId,
       isGlobal: false,
       // isDefault omitted — schema @default(false) fills it. Default-ness lives
@@ -131,9 +128,6 @@ async function upsertLlmConfig(
     update: {
       model: llm.model,
       advancedParameters: advancedParamsJson,
-      memoryScoreThreshold: llm.memoryScoreThreshold,
-      memoryLimit: llm.memoryLimit,
-      maxMessages: llm.maxMessages,
     },
   });
 }

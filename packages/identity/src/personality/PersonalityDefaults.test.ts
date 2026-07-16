@@ -198,12 +198,7 @@ describe('PersonalityDefaults', () => {
               temperature: 0.7,
               max_tokens: 4096,
             },
-            memoryScoreThreshold: { toNumber: () => 0.7 } as never,
-            memoryLimit: 10,
             contextWindowTokens: 200000,
-            maxMessages: 50,
-            maxAge: null,
-            maxImages: 10,
           },
         },
       });
@@ -235,12 +230,7 @@ describe('PersonalityDefaults', () => {
         provider: 'openrouter',
         temperature: 0.8,
         maxTokens: 2048,
-        memoryScoreThreshold: 0.6,
-        memoryLimit: 20,
         contextWindowTokens: 100000,
-        maxMessages: 50,
-        maxAge: null,
-        maxImages: 10,
       };
 
       const result = mapToPersonality(dbPersonality, globalConfig, mockLogger);
@@ -304,12 +294,7 @@ describe('PersonalityDefaults', () => {
                 exclude: false,
               },
             },
-            memoryScoreThreshold: { toNumber: () => 0.5 } as never,
-            memoryLimit: 10,
             contextWindowTokens: 131072,
-            maxMessages: 50,
-            maxAge: null,
-            maxImages: 10,
           },
         },
       });
@@ -341,12 +326,7 @@ describe('PersonalityDefaults', () => {
         provider: 'openrouter',
         temperature: 0.8,
         maxTokens: 2048,
-        memoryScoreThreshold: 0.6,
-        memoryLimit: 20,
         contextWindowTokens: 100000,
-        maxMessages: 50,
-        maxAge: null,
-        maxImages: 10,
         showThinking: true,
         reasoning: {
           effort: 'high',
@@ -380,12 +360,7 @@ describe('PersonalityDefaults', () => {
               reasoning: { effort: 'medium', enabled: true },
               // NOTE: no max_tokens here — should NOT default to 4096
             },
-            memoryScoreThreshold: { toNumber: () => 0.5 } as never,
-            memoryLimit: 10,
             contextWindowTokens: 131072,
-            maxMessages: 50,
-            maxAge: null,
-            maxImages: 10,
           },
         },
       });
@@ -413,12 +388,7 @@ describe('PersonalityDefaults', () => {
               temperature: 0.7,
               max_tokens: 16384, // Explicitly set
             },
-            memoryScoreThreshold: { toNumber: () => 0.5 } as never,
-            memoryLimit: 10,
             contextWindowTokens: 200000,
-            maxMessages: 50,
-            maxAge: null,
-            maxImages: 10,
           },
         },
       });
@@ -460,83 +430,9 @@ describe('PersonalityDefaults', () => {
       expect(result.conversationalExamples).toBe('TestBot: How can I help?');
     });
 
-    it('should include context settings from personality LlmConfig', () => {
-      const dbPersonality = createMockDatabasePersonality({
-        name: 'ContextBot',
-        slug: 'context-bot',
-        updatedAt: testDate,
-        defaultConfigLink: {
-          llmConfig: {
-            model: 'test-model',
-            provider: 'openrouter',
-            advancedParameters: {
-              temperature: 0.7,
-              max_tokens: 4096,
-            },
-            memoryScoreThreshold: { toNumber: () => 0.5 } as never,
-            memoryLimit: 10,
-            contextWindowTokens: 131072,
-            maxMessages: 25,
-            maxAge: 3600,
-            maxImages: 5,
-          },
-        },
-      });
-
-      const result = mapToPersonality(dbPersonality, null, mockLogger);
-
-      // Context settings should flow from personality LlmConfig
-      expect(result.maxMessages).toBe(25);
-      expect(result.maxAge).toBe(3600);
-      expect(result.maxImages).toBe(5);
-    });
-
-    it('should inherit context settings from global config when not set on personality', () => {
-      const dbPersonality = createMockDatabasePersonality({
-        name: 'InheritBot',
-        slug: 'inherit-bot',
-        updatedAt: testDate,
-        // No defaultConfigLink - should use global config
-      });
-
-      const globalConfig: MappedLlmConfig = {
-        model: 'global-model',
-        provider: 'openrouter',
-        temperature: 0.7,
-        maxTokens: 2048,
-        memoryScoreThreshold: 0.5,
-        memoryLimit: 10,
-        contextWindowTokens: 100000,
-        maxMessages: 100,
-        maxAge: 7200,
-        maxImages: 15,
-      };
-
-      const result = mapToPersonality(dbPersonality, globalConfig, mockLogger);
-
-      // Should inherit from global config
-      expect(result.maxMessages).toBe(100);
-      expect(result.maxAge).toBe(7200);
-      expect(result.maxImages).toBe(15);
-    });
-
-    it('should use undefined for context settings when neither personality nor global config provides them', () => {
-      const dbPersonality = createMockDatabasePersonality({
-        name: 'DefaultBot',
-        slug: 'default-bot',
-        updatedAt: testDate,
-      });
-
-      const result = mapToPersonality(dbPersonality, null, mockLogger);
-
-      // No config provided - should use hardcoded defaults (maxAge has no default = undefined)
-      expect(result.maxMessages).toBe(50); // MESSAGE_LIMITS.DEFAULT_MAX_MESSAGES
-      expect(result.maxAge).toBeUndefined(); // No default for maxAge (null = no limit)
-      expect(result.maxImages).toBe(10); // MESSAGE_LIMITS.DEFAULT_MAX_IMAGES
-    });
-
-    it('should prioritize personality config over global config for context settings (cascade priority)', () => {
-      // Personality has its own config via defaultConfigLink with specific context settings
+    it('should prioritize personality config over global config (cascade priority)', () => {
+      // Personality has its own config via defaultConfigLink; global config differs.
+      // Personality-scoped values must win over the global default.
       const dbPersonality = createMockDatabasePersonality({
         name: 'CustomBot',
         slug: 'custom-bot',
@@ -549,12 +445,7 @@ describe('PersonalityDefaults', () => {
               temperature: 0.9,
               max_tokens: 4096,
             },
-            memoryScoreThreshold: { toNumber: () => 0.7 } as never,
-            memoryLimit: 20,
             contextWindowTokens: 200000,
-            maxMessages: 75, // Personality-specific
-            maxAge: 3600, // Personality-specific (1 hour)
-            maxImages: 5, // Personality-specific
           },
         },
       });
@@ -565,24 +456,15 @@ describe('PersonalityDefaults', () => {
         provider: 'openrouter',
         temperature: 0.5,
         maxTokens: 2048,
-        memoryScoreThreshold: 0.5,
-        memoryLimit: 10,
         contextWindowTokens: 100000,
-        maxMessages: 100, // Should be overridden by personality (75)
-        maxAge: 7200, // Should be overridden by personality (3600)
-        maxImages: 15, // Should be overridden by personality (5)
       };
 
       const result = mapToPersonality(dbPersonality, globalConfig, mockLogger);
 
       // Personality config should take priority over global config
-      expect(result.maxMessages).toBe(75); // From personality, not global (100)
-      expect(result.maxAge).toBe(3600); // From personality, not global (7200)
-      expect(result.maxImages).toBe(5); // From personality, not global (15)
-
-      // Also verify other config fields follow the same cascade
-      expect(result.model).toBe('anthropic/claude-3-opus'); // From personality
-      expect(result.temperature).toBe(0.9); // From personality
+      expect(result.model).toBe('anthropic/claude-3-opus'); // From personality, not global
+      expect(result.temperature).toBe(0.9); // From personality, not global (0.5)
+      expect(result.contextWindowTokens).toBe(200000); // From personality, not global (100000)
     });
   });
 });

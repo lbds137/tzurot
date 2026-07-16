@@ -310,7 +310,7 @@ describe('Admin LLM Config Routes', () => {
       expect(response.body.config.params).toEqual({ temperature: 0.7 });
     });
 
-    it('should return context settings (maxMessages, maxAge, maxImages)', async () => {
+    it('should return contextWindowTokens', async () => {
       prisma.llmConfig.findUnique.mockResolvedValue({
         id: 'config-1',
         name: 'Config with context',
@@ -321,20 +321,13 @@ describe('Admin LLM Config Routes', () => {
         isDefault: false,
         isFreeDefault: false,
         advancedParameters: null,
-        // Context settings
-        maxMessages: 30,
-        maxAge: 86400,
-        maxImages: 5,
-        memoryScoreThreshold: { toNumber: () => 0.5 },
-        memoryLimit: 20,
+        contextWindowTokens: 65536,
       });
 
       const response = await request(app).get('/admin/llm-config/config-1');
 
       expect(response.status).toBe(200);
-      expect(response.body.config.maxMessages).toBe(30);
-      expect(response.body.config.maxAge).toBe(86400);
-      expect(response.body.config.maxImages).toBe(5);
+      expect(response.body.config.contextWindowTokens).toBe(65536);
     });
 
     it('should return 404 when config not found', async () => {
@@ -465,37 +458,30 @@ describe('Admin LLM Config Routes', () => {
       expect(response.body.config.isGlobal).toBe(true);
     });
 
-    it('should accept memory settings in create (parity fix)', async () => {
-      // This test verifies the fix - memory settings were previously missing from admin
+    it('should accept contextWindowTokens in create', async () => {
       prisma.llmConfig.findFirst.mockResolvedValue(null);
       prisma.llmConfig.create.mockResolvedValue({
         id: 'new-config-id',
-        name: 'Config with Memory Settings',
+        name: 'Config with Context Window',
         model: 'anthropic/claude-sonnet-4',
         provider: 'openrouter',
         isGlobal: true,
         isDefault: false,
-        memoryScoreThreshold: { toNumber: () => 0.75 },
-        memoryLimit: 50,
         contextWindowTokens: 100000,
       });
 
       const response = await request(app).post('/admin/llm-config').send({
-        name: 'Config with Memory Settings',
+        name: 'Config with Context Window',
         model: 'anthropic/claude-sonnet-4',
         provider: 'openrouter',
-        memoryScoreThreshold: 0.75,
-        memoryLimit: 50,
         contextWindowTokens: 100000,
       });
 
       expect(response.status).toBe(201);
-      // Verify memory settings are passed to Prisma create
+      // Verify contextWindowTokens is passed to Prisma create
       expect(prisma.llmConfig.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
-            memoryScoreThreshold: 0.75,
-            memoryLimit: 50,
             contextWindowTokens: 100000,
           }),
         })
@@ -696,14 +682,11 @@ describe('Admin LLM Config Routes', () => {
       });
     });
 
-    it('should accept memory settings in update (parity fix)', async () => {
-      // This test verifies the fix - memory settings were previously missing from admin
+    it('should accept contextWindowTokens in update', async () => {
       prisma.llmConfig.findUnique.mockResolvedValue({
         id: 'config-id',
         name: 'Existing Config',
         isGlobal: true,
-        memoryScoreThreshold: { toNumber: () => 0.5 },
-        memoryLimit: 20,
       });
       prisma.llmConfig.update.mockResolvedValue({
         id: 'config-id',
@@ -712,24 +695,18 @@ describe('Admin LLM Config Routes', () => {
         provider: 'openrouter',
         isGlobal: true,
         isDefault: false,
-        memoryScoreThreshold: { toNumber: () => 0.8 },
-        memoryLimit: 100,
         contextWindowTokens: 200000,
       });
 
       const response = await request(app).put('/admin/llm-config/config-id').send({
-        memoryScoreThreshold: 0.8,
-        memoryLimit: 100,
         contextWindowTokens: 200000,
       });
 
       expect(response.status).toBe(200);
-      // Verify memory settings are passed to Prisma update
+      // Verify contextWindowTokens is passed to Prisma update
       expect(prisma.llmConfig.update).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
-            memoryScoreThreshold: 0.8,
-            memoryLimit: 100,
             contextWindowTokens: 200000,
           }),
         })

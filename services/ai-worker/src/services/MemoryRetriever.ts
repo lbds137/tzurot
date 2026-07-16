@@ -162,10 +162,11 @@ export class MemoryRetriever {
   /**
    * Retrieve and log relevant memories from vector store
    *
-   * @param configOverrides - When provided, cascade-resolved values override personality defaults
-   *   for memoryLimit, memoryScoreThreshold, and focusModeEnabled.
+   * @param configOverrides - Cascade-resolved values for memoryLimit,
+   *   memoryScoreThreshold, and focusModeEnabled. These come from the config
+   *   cascade (with AI_DEFAULTS as the fallback), NOT the retired LlmConfig
+   *   columns.
    */
-  // eslint-disable-next-line complexity, sonarjs/cognitive-complexity -- Guard clauses for weigh-in/focus/no-persona early exits add branches but keep the flow flat
   async retrieveRelevantMemories(
     personality: LoadedPersonality,
     userMessage: string,
@@ -223,17 +224,15 @@ export class MemoryRetriever {
       return { memories: [], focusModeEnabled: true };
     }
 
-    // Determine memory retrieval params: cascade overrides > personality values > AI defaults
-    const effectiveMemoryLimit =
-      configOverrides?.memoryLimit ??
-      (personality.memoryLimit !== undefined && personality.memoryLimit > 0
-        ? personality.memoryLimit
-        : AI_DEFAULTS.MEMORY_LIMIT);
+    // Memory retrieval params come from the config cascade, which resolves from
+    // a hardcoded 0.5/20 baseline (HARDCODED_CONFIG_DEFAULTS) so a value is
+    // ALWAYS present whenever the cascade is active — i.e. every production
+    // request. AI_DEFAULTS (the same 0.5/20) is the fallback only for
+    // cascade-inactive callers (tests/legacy). The old per-LlmConfig-column
+    // tier was dead in prod (tier 1 always won) and has been removed.
+    const effectiveMemoryLimit = configOverrides?.memoryLimit ?? AI_DEFAULTS.MEMORY_LIMIT;
     const effectiveScoreThreshold =
-      configOverrides?.memoryScoreThreshold ??
-      (personality.memoryScoreThreshold !== undefined && personality.memoryScoreThreshold > 0
-        ? personality.memoryScoreThreshold
-        : AI_DEFAULTS.MEMORY_SCORE_THRESHOLD);
+      configOverrides?.memoryScoreThreshold ?? AI_DEFAULTS.MEMORY_SCORE_THRESHOLD;
 
     const memoryQueryOptions: MemoryQueryOptions = {
       personaId,

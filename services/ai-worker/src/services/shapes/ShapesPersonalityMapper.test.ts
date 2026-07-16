@@ -187,7 +187,12 @@ describe('mapShapesConfigToPersonality', () => {
       );
     });
 
-    it('should map memory settings', () => {
+    it('should set contextWindowTokens on the mapped LlmConfig', () => {
+      // Memory/context-limit settings (ltm_threshold, ltm_max_retrieved_summaries,
+      // stm_window) are no longer mapped onto the LlmConfig row — those columns are
+      // retired and retrieval/context limits come from the config cascade. Only
+      // contextWindowTokens survives on the mapped config; assert it is populated
+      // regardless of the (now-ignored) shapes memory fields.
       const config = createSampleConfig({
         ltm_max_retrieved_summaries: 10,
         ltm_threshold: 0.5,
@@ -195,9 +200,7 @@ describe('mapShapesConfigToPersonality', () => {
       });
       const result = mapShapesConfigToPersonality(config, 'test-slug');
 
-      expect(result.llmConfig.memoryLimit).toBe(10);
-      expect(result.llmConfig.memoryScoreThreshold).toBe(0.5);
-      expect(result.llmConfig.maxMessages).toBe(25);
+      expect(result.llmConfig.contextWindowTokens).toBe(128_000);
     });
 
     it('should use defaults for missing engine model', () => {

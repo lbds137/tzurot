@@ -16,56 +16,11 @@
 import { z } from 'zod';
 import { EntityPermissionsSchema, optionalString, nullableString } from './shared.js';
 import { AdvancedParamsSchema } from '../llmAdvancedParams.js';
-import { MESSAGE_LIMITS, AI_DEFAULTS, CONFIG_NAME_MAX_LENGTH } from '../../constants/index.js';
+import { AI_DEFAULTS, CONFIG_NAME_MAX_LENGTH } from '../../constants/index.js';
 
 // ============================================================================
 // Context Settings Schema (shared validation for context history limits)
 // ============================================================================
-
-/**
- * Context settings sub-schema - used by both create and update handlers.
- * Validation bounds prevent DoS via excessive history fetch.
- *
- * Fields:
- * - maxMessages: 1-100 (capped at MAX_EXTENDED_CONTEXT), defaults to DEFAULT_MAX_MESSAGES
- * - maxImages: 0-20 (0 disables image processing, capped at MAX_CONTEXT_IMAGES), defaults to DEFAULT_MAX_IMAGES
- * - maxAge: 1-2592000 (30 days) or null/undefined (no time limit applied)
- *
- * Cascade behavior (in PersonalityDefaults.getContextSettings):
- * personalityConfig > globalConfig > hardcoded defaults
- * When both personality and global configs have null/undefined maxAge,
- * no time limit is applied to conversation history fetching.
- */
-export const ContextSettingsSchema = z.object({
-  maxMessages: z
-    .number()
-    .int()
-    .min(1, 'maxMessages must be at least 1')
-    .max(
-      MESSAGE_LIMITS.MAX_EXTENDED_CONTEXT,
-      `maxMessages cannot exceed ${MESSAGE_LIMITS.MAX_EXTENDED_CONTEXT}`
-    )
-    .optional(),
-  maxAge: z
-    .number()
-    .int()
-    .min(1, 'maxAge must be at least 1 second, or omit/set to null for no time limit')
-    .max(
-      MESSAGE_LIMITS.MAX_CONTEXT_AGE,
-      `maxAge cannot exceed ${MESSAGE_LIMITS.MAX_CONTEXT_AGE} seconds (30 days)`
-    )
-    .optional()
-    .nullable(),
-  maxImages: z
-    .number()
-    .int()
-    .min(0, 'maxImages must be at least 0 (0 disables image processing)')
-    .max(
-      MESSAGE_LIMITS.MAX_CONTEXT_IMAGES,
-      `maxImages cannot exceed ${MESSAGE_LIMITS.MAX_CONTEXT_IMAGES}`
-    )
-    .optional(),
-});
 
 // ============================================================================
 // Input Schemas (shared between admin and user endpoints)
@@ -94,17 +49,8 @@ export const LlmConfigCreateSchema = z.object({
   // AI behavior settings
   advancedParameters: AdvancedParamsSchema.optional(),
 
-  // Memory settings — schema has `@default(0.5)` / `@default(20)` (NOT NULL).
-  // Optional in the input shape (caller can omit and Prisma fills the default),
-  // but not nullable: there's no application semantic for "set to null" on
-  // these fields. Per `03-database.md`'s null-semantics rule.
-  memoryScoreThreshold: z.number().min(0).max(1).optional(),
-  memoryLimit: z.number().int().positive().optional(),
   // contextWindowTokens min(1000) is intentional - reasonable minimum for context windows
   contextWindowTokens: z.number().int().min(1000).optional(),
-
-  // Context settings (conversation history limits)
-  ...ContextSettingsSchema.shape,
 
   /**
    * When true, if the requested `name` collides with an existing config owned
@@ -140,13 +86,7 @@ export const LlmConfigUpdateSchema = z.object({
   // AI behavior settings
   advancedParameters: AdvancedParamsSchema.optional(),
 
-  // Memory settings — see LlmConfigCreateSchema for why these aren't nullable.
-  memoryScoreThreshold: z.number().min(0).max(1).optional(),
-  memoryLimit: z.number().int().positive().optional(),
   contextWindowTokens: z.number().int().min(1000).optional(),
-
-  // Context settings (shared validation)
-  ...ContextSettingsSchema.shape,
 
   /** Toggle global visibility - users can share their presets */
   isGlobal: z.boolean().optional(),
@@ -183,14 +123,7 @@ export const LLM_CONFIG_LIST_SELECT = {
 export const LLM_CONFIG_DETAIL_SELECT = {
   ...LLM_CONFIG_LIST_SELECT,
   advancedParameters: true,
-  // Memory settings
-  memoryScoreThreshold: true,
-  memoryLimit: true,
   contextWindowTokens: true,
-  // Context settings
-  maxMessages: true,
-  maxAge: true,
-  maxImages: true,
 } as const;
 
 // ============================================================================
@@ -203,11 +136,7 @@ export const LLM_CONFIG_DETAIL_SELECT = {
  */
 export const LLM_CONFIG_DEFAULTS = {
   provider: 'openrouter',
-  memoryScoreThreshold: AI_DEFAULTS.MEMORY_SCORE_THRESHOLD,
-  memoryLimit: AI_DEFAULTS.MEMORY_LIMIT,
   contextWindowTokens: AI_DEFAULTS.CONTEXT_WINDOW_TOKENS,
-  maxMessages: MESSAGE_LIMITS.DEFAULT_MAX_MESSAGES,
-  maxImages: MESSAGE_LIMITS.DEFAULT_MAX_IMAGES,
 } as const;
 
 // ============================================================================

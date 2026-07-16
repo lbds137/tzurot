@@ -90,7 +90,23 @@ vi.mock('../../utils/autocomplete/autocompleteCache.js', () => ({
 // enough — the helper ignores it.
 vi.mock('../../utils/gatewayClients.js', () => ({
   clientsFor: vi.fn(() => ({ userClient: {} })),
+  clientsForUser: vi.fn(() => ({ userClient: {} })),
   getServiceClient: vi.fn(() => ({})),
+}));
+
+// The denylist + NSFW gate and the cascade config-resolution each have their
+// own colocated tests; here we stub the seams so the happy-path flow proceeds.
+vi.mock('./slashChatGates.js', () => ({
+  runSlashChatGates: vi.fn().mockResolvedValue(false),
+}));
+vi.mock('../../services/character/chatConfigResolution.js', () => ({
+  resolveChatLlmConfig: vi.fn().mockResolvedValue({ config: { model: 'm' }, source: 'hardcoded' }),
+  buildExtendedContextSettings: vi.fn().mockReturnValue({
+    maxMessages: 50,
+    maxAge: null,
+    maxImages: 10,
+    sources: { maxMessages: 'hardcoded', maxAge: 'hardcoded', maxImages: 'hardcoded' },
+  }),
 }));
 
 vi.mock('../../redis.js', () => ({

@@ -19,8 +19,6 @@ describe('PersonalityValidator', () => {
         topK: 40,
         frequencyPenalty: 0.5,
         presencePenalty: 0.5,
-        memoryScoreThreshold: 0.7,
-        memoryLimit: 10,
         contextWindowTokens: 200000,
       };
 

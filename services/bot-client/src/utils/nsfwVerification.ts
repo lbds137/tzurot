@@ -217,18 +217,24 @@ export async function sendNsfwVerificationMessage(message: Message): Promise<voi
 }
 
 /**
- * Handle NSFW verification flow for a message
- * - In NSFW channels: auto-verify user and continue
- * - In other channels: check if verified, block if not
- *
- * @returns Result indicating if processing should continue and if this was a new verification
+ * The NSFW-gate DECISION, independent of how it's rendered. Shared by the
+ * message pipeline (`handleNsfwVerification`) and the slash-command path so the
+ * compliance logic lives in exactly one place; each caller renders the outcome
+ * with its own reply mechanism (message reply vs. interaction reply).
  */
-export async function handleNsfwVerification(message: Message): Promise<NsfwVerificationResult> {
-  const userId = message.author.id;
-  const { userClient } = clientsForUser(message.author);
-  const { channel } = message;
+export type NsfwGateDecision =
+  | { allowed: true; wasNewVerification: boolean }
+  | { allowed: false; reason: 'check-failed' | 'not-verified' };
 
-  // If in NSFW channel, auto-verify and continue
+/**
+ * Evaluate the NSFW gate for a user in a channel.
+ * - In NSFW channels: auto-verify and continue (flagging a first-time verify).
+ * - Elsewhere: require prior verification; fail-closed on a check error.
+ */
+export async function evaluateNsfwGate(
+  userClient: UserClient,
+  channel: Channel
+): Promise<NsfwGateDecision> {
   if (isNsfwChannel(channel)) {
     const verifyResult = await verifyNsfwUser(userClient);
     // wasNewVerification is true if verify succeeded AND user wasn't already verified
@@ -239,13 +245,36 @@ export async function handleNsfwVerification(message: Message): Promise<NsfwVeri
   // For all other channels (DMs and non-NSFW guild channels), check verification
   const check = await checkNsfwVerification(userClient);
   if (check.kind === 'error') {
-    // Fail-closed with a DISTINCT message: NSFW is a compliance gate, so we
-    // can't let the user through, but we also shouldn't re-onboard a
-    // previously-verified user just because the gateway blipped.
-    logger.warn(
-      { userId, channelType: channel.type, error: check.error },
-      `NSFW check failed — surfacing retry message`
-    );
+    // Fail-closed: NSFW is a compliance gate, so we can't let the user through,
+    // but the DISTINCT reason lets the caller show a retry (not a re-onboard)
+    // message — we shouldn't re-verify a previously-verified user on a blip.
+    logger.warn({ channelType: channel.type, error: check.error }, `NSFW check failed`);
+    return { allowed: false, reason: 'check-failed' };
+  }
+
+  if (!check.value.nsfwVerified) {
+    return { allowed: false, reason: 'not-verified' };
+  }
+
+  return { allowed: true, wasNewVerification: false };
+}
+
+/**
+ * Handle NSFW verification flow for a message (the message-pipeline renderer).
+ * Runs {@link evaluateNsfwGate} and, on a block, replies in-channel with the
+ * appropriate message (retry vs. verification prompt).
+ *
+ * @returns Result indicating if processing should continue and if this was a new verification
+ */
+export async function handleNsfwVerification(message: Message): Promise<NsfwVerificationResult> {
+  const { userClient } = clientsForUser(message.author);
+  const decision = await evaluateNsfwGate(userClient, message.channel);
+
+  if (decision.allowed) {
+    return { allowed: true, wasNewVerification: decision.wasNewVerification };
+  }
+
+  if (decision.reason === 'check-failed') {
     try {
       await message.reply(NSFW_VERIFICATION_CHECK_FAILED_MESSAGE);
     } catch (replyError) {
@@ -254,19 +283,15 @@ export async function handleNsfwVerification(message: Message): Promise<NsfwVeri
         `Failed to send NSFW check-failed message`
       );
     }
-    return { allowed: false, wasNewVerification: false };
-  }
-
-  if (!check.value.nsfwVerified) {
+  } else {
     logger.info(
-      { userId, channelType: channel.type },
+      { userId: message.author.id, channelType: message.channel.type },
       `Interaction blocked - user not NSFW verified`
     );
     await sendNsfwVerificationMessage(message);
-    return { allowed: false, wasNewVerification: false };
   }
 
-  return { allowed: true, wasNewVerification: false };
+  return { allowed: false, wasNewVerification: false };
 }
 
 /**

@@ -64,7 +64,6 @@ export {
   type ConfigOverrides,
   type ConfigOverrideSource,
   ConfigOverridesSchema,
-  ContextSettingsSchema,
   ConversationSyncRequestSchema,
   type ConversationSyncResponse,
   ConversationSyncResponseSchema,

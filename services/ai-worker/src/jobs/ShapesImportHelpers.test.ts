@@ -69,10 +69,7 @@ const { mockMapResult } = vi.hoisted(() => ({
       model: 'openai/gpt-4o',
       provider: 'openrouter',
       advancedParameters: { temperature: 0.8 },
-      memoryScoreThreshold: 0.3,
-      memoryLimit: 5,
       contextWindowTokens: 128000,
-      maxMessages: 20,
     },
   },
 }));

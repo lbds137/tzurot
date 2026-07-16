@@ -1,5 +1,4 @@
 import { describe, it, expect } from 'vitest';
-import { Prisma } from './prisma.js';
 import {
   LLM_CONFIG_SELECT,
   LLM_CONFIG_SELECT_WITH_NAME,
@@ -14,8 +13,6 @@ describe('LlmConfigMapper', () => {
     it('should include all required fields', () => {
       expect(LLM_CONFIG_SELECT.model).toBe(true);
       expect(LLM_CONFIG_SELECT.advancedParameters).toBe(true);
-      expect(LLM_CONFIG_SELECT.memoryScoreThreshold).toBe(true);
-      expect(LLM_CONFIG_SELECT.memoryLimit).toBe(true);
       expect(LLM_CONFIG_SELECT.contextWindowTokens).toBe(true);
     });
 
@@ -39,12 +36,7 @@ describe('LlmConfigMapper', () => {
       model: 'openai/gpt-4',
       provider: 'openrouter',
       advancedParameters: null,
-      memoryScoreThreshold: null,
-      memoryLimit: null,
       contextWindowTokens: 128000,
-      maxMessages: 50,
-      maxAge: null,
-      maxImages: 10,
       ...overrides,
     });
 
@@ -132,33 +124,6 @@ describe('LlmConfigMapper', () => {
       expect(result.maxTokens).toBeUndefined();
     });
 
-    it('should convert Prisma Decimal to number', () => {
-      // Create a mock Decimal with toNumber method
-      const mockDecimal = {
-        toNumber: () => 0.75,
-      };
-
-      const raw = createRaw({ memoryScoreThreshold: mockDecimal });
-      const result = mapLlmConfigFromDb(raw);
-
-      expect(result.memoryScoreThreshold).toBe(0.75);
-    });
-
-    it('should handle actual Prisma.Decimal type', () => {
-      const decimal = new Prisma.Decimal(0.85);
-      const raw = createRaw({ memoryScoreThreshold: decimal });
-      const result = mapLlmConfigFromDb(raw);
-
-      expect(result.memoryScoreThreshold).toBe(0.85);
-    });
-
-    it('should handle null memoryScoreThreshold', () => {
-      const raw = createRaw({ memoryScoreThreshold: null });
-      const result = mapLlmConfigFromDb(raw);
-
-      expect(result.memoryScoreThreshold).toBeNull();
-    });
-
     it('should handle invalid advancedParameters gracefully', () => {
       const raw = createRaw({
         advancedParameters: { temperature: 999 }, // Invalid: out of range
@@ -203,12 +168,7 @@ describe('LlmConfigMapper', () => {
         model: 'openai/gpt-4',
         provider: 'openrouter',
         advancedParameters: { temperature: 0.7 },
-        memoryScoreThreshold: null,
-        memoryLimit: 100,
         contextWindowTokens: 128000,
-        maxMessages: 50,
-        maxAge: null,
-        maxImages: 10,
       };
 
       const result = mapLlmConfigFromDbWithName(raw);
@@ -229,12 +189,7 @@ describe('LlmConfigMapper', () => {
           top_p: 0.95,
           max_tokens: 4096,
         },
-        memoryScoreThreshold: new Prisma.Decimal(0.7),
-        memoryLimit: 50,
         contextWindowTokens: 200000,
-        maxMessages: 50,
-        maxAge: null,
-        maxImages: 10,
       };
 
       const result = mapLlmConfigFromDb(raw);
@@ -243,8 +198,6 @@ describe('LlmConfigMapper', () => {
       expect(result.temperature).toBe(0.9);
       expect(result.topP).toBe(0.95);
       expect(result.maxTokens).toBe(4096);
-      expect(result.memoryScoreThreshold).toBe(0.7);
-      expect(result.memoryLimit).toBe(50);
       expect(result.contextWindowTokens).toBe(200000);
     });
 
@@ -262,12 +215,7 @@ describe('LlmConfigMapper', () => {
           },
           show_thinking: true,
         },
-        memoryScoreThreshold: null,
-        memoryLimit: null,
         contextWindowTokens: 128000,
-        maxMessages: 50,
-        maxAge: null,
-        maxImages: 10,
       };
 
       const result = mapLlmConfigFromDb(raw);
@@ -290,12 +238,7 @@ describe('LlmConfigMapper', () => {
           temperature: 1.5,
           frequency_penalty: 0.8,
         },
-        memoryScoreThreshold: null,
-        memoryLimit: null,
         contextWindowTokens: 128000,
-        maxMessages: 50,
-        maxAge: null,
-        maxImages: 10,
       };
 
       const result = mapLlmConfigFromDbWithName(raw);

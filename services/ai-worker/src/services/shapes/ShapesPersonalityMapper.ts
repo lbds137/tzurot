@@ -53,10 +53,7 @@ export interface MappedLlmConfig {
   model: string;
   provider: string;
   advancedParameters: Record<string, unknown>;
-  memoryScoreThreshold: number;
-  memoryLimit: number;
   contextWindowTokens: number;
-  maxMessages: number;
 }
 
 /** Complete mapped data for personality creation */
@@ -239,10 +236,9 @@ function mapLlmConfig(config: ShapesIncPersonalityConfig, slug: string): MappedL
   // Map model name — shapes.inc uses OpenRouter-compatible model IDs
   const model = config.engine_model || 'openai/gpt-4o';
 
-  // Map memory settings
-  const memoryLimit = config.ltm_max_retrieved_summaries || 5;
-  const memoryScoreThreshold = config.ltm_threshold || 0.3;
-
+  // Memory + context-limit settings (ltm_threshold, ltm_max_retrieved_summaries,
+  // stm_window) are no longer mapped onto the LlmConfig row — those columns are
+  // retired; retrieval/context limits come from the config cascade.
   return {
     // eslint-disable-next-line no-restricted-syntax -- Shapes import uses configName-derived deterministic UUID as upsert idempotency key so re-importing the same shape doesn't duplicate its LlmConfig row. Not vulnerable to the phantom-PK class of bug because shape configNames are not user-editable after import.
     id: generateLlmConfigUuid(configName),
@@ -251,10 +247,7 @@ function mapLlmConfig(config: ShapesIncPersonalityConfig, slug: string): MappedL
     model,
     provider: 'openrouter',
     advancedParameters,
-    memoryScoreThreshold,
-    memoryLimit,
     contextWindowTokens: 128_000,
-    maxMessages: config.stm_window || 20,
   };
 }
 

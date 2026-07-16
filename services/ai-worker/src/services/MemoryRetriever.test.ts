@@ -51,8 +51,6 @@ describe('MemoryRetriever', () => {
     provider: 'openrouter',
     temperature: 0.7,
     maxTokens: 4096,
-    memoryLimit: 15,
-    memoryScoreThreshold: 0.7,
     contextWindowTokens: 131072,
     characterInfo: '',
     personalityTraits: '',
@@ -674,12 +672,15 @@ describe('MemoryRetriever', () => {
         focusModeEnabled: false,
         personaId: 'persona-123',
       });
+      // No configOverrides passed → retrieval params fall back to AI_DEFAULTS
+      // (MEMORY_LIMIT=20, MEMORY_SCORE_THRESHOLD=0.5). The old per-personality
+      // LlmConfig-column tier was retired; cascade + AI_DEFAULTS are the only sources.
       expect(mockMemoryManager.queryMemories).toHaveBeenCalledWith('What food do I like?', {
         personaId: 'persona-123',
         personalityId: 'personality-123',
         sessionId: undefined,
-        limit: 15,
-        scoreThreshold: 0.7,
+        limit: 20,
+        scoreThreshold: 0.5,
         excludeNewerThan: undefined,
       });
     });
@@ -849,7 +850,7 @@ describe('MemoryRetriever', () => {
         );
       });
 
-      it('should use cascade memoryLimit and memoryScoreThreshold over personality values', async () => {
+      it('should use cascade memoryLimit and memoryScoreThreshold over AI_DEFAULTS', async () => {
         mockPersonaResolver.resolveForMemory.mockResolvedValue({
           personaId: 'persona-123',
           focusModeEnabled: false,
@@ -865,8 +866,8 @@ describe('MemoryRetriever', () => {
         expect(mockMemoryManager.queryMemories).toHaveBeenCalledWith(
           'test query',
           expect.objectContaining({
-            limit: 10, // From cascade, not personality's 15
-            scoreThreshold: 0.8, // From cascade, not personality's 0.7
+            limit: 10, // From cascade, not AI_DEFAULTS' 20
+            scoreThreshold: 0.8, // From cascade, not AI_DEFAULTS' 0.5
           })
         );
       });
@@ -912,7 +913,7 @@ describe('MemoryRetriever', () => {
         expect(mockMemoryManager.queryMemories).toHaveBeenCalled();
       });
 
-      it('should fall back to personality values when configOverrides is undefined', async () => {
+      it('should fall back to AI_DEFAULTS when configOverrides is undefined', async () => {
         mockPersonaResolver.resolveForMemory.mockResolvedValue({
           personaId: 'persona-123',
           focusModeEnabled: false,
@@ -928,8 +929,8 @@ describe('MemoryRetriever', () => {
         expect(mockMemoryManager.queryMemories).toHaveBeenCalledWith(
           'test query',
           expect.objectContaining({
-            limit: 15, // Personality value
-            scoreThreshold: 0.7, // Personality value
+            limit: 20, // AI_DEFAULTS.MEMORY_LIMIT (no cascade, retired column tier)
+            scoreThreshold: 0.5, // AI_DEFAULTS.MEMORY_SCORE_THRESHOLD
           })
         );
       });

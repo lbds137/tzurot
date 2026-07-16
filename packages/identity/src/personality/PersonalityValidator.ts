@@ -49,7 +49,6 @@ function coerceToNumber(val: unknown): number | undefined {
  * Safety limit rationale:
  * - maxTokens (1M): Most models support 32k-200k context windows; 1M prevents excessive API costs
  * - topK (1-1000): Common LLM parameter range; prevents extreme values that degrade quality
- * - memoryLimit (1000): Prevents excessive DB queries and API latency from too many memories
  * - contextWindowTokens (2M): Future-proof for upcoming long-context models (Gemini 1.5 Pro supports 2M)
  */
 export const LlmConfigSchema = z
@@ -62,8 +61,6 @@ export const LlmConfigSchema = z
     frequencyPenalty: z.preprocess(coerceToNumber, z.number().min(-2).max(2).optional()),
     presencePenalty: z.preprocess(coerceToNumber, z.number().min(-2).max(2).optional()),
     repetitionPenalty: z.preprocess(coerceToNumber, z.number().min(0).max(2).optional()),
-    memoryScoreThreshold: z.preprocess(coerceToNumber, z.number().min(0).max(1).optional()),
-    memoryLimit: z.preprocess(coerceToNumber, z.number().int().positive().max(1000).optional()),
     contextWindowTokens: z.preprocess(
       coerceToNumber,
       z.number().int().positive().max(2000000).optional()
@@ -81,13 +78,7 @@ export interface DatabaseLlmConfig {
   model: string;
   provider: string; // 'openrouter' | 'zai-coding' | future enum values
   advancedParameters: unknown; // JSONB - validated via Zod in mapper
-  memoryScoreThreshold: Decimal | null;
-  memoryLimit: number | null;
   contextWindowTokens: number;
-  // Context settings (conversation history limits)
-  maxMessages: number;
-  maxAge: number | null;
-  maxImages: number;
 }
 
 /**

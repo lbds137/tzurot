@@ -938,8 +938,6 @@ describe('PersonalityLoader', () => {
       frequencyPenalty: null,
       presencePenalty: null,
       maxTokens: 4096,
-      memoryScoreThreshold: 0.7,
-      memoryLimit: 10,
       contextWindowTokens: 200000,
     };
 
