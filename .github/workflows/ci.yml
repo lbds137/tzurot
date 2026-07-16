@@ -528,6 +528,10 @@ jobs:
           # voice-engine is self-contained; its context is its own directory.
           - service: voice-engine
             context: services/voice-engine
+          # website builds from the repo root (its content collection reads
+          # docs/legal in place), but has no turbo prune — plain COPYs only.
+          - service: website
+            context: .
     steps:
       - uses: actions/checkout@v7
 
@@ -556,6 +560,14 @@ jobs:
             voice-engine:
               - 'services/voice-engine/Dockerfile'
               - 'services/voice-engine/requirements.txt'
+            website:
+              # Mirrors the Dockerfile's COPY list exactly (no turbo.json — the
+              # website build has no turbo-prune stage).
+              - 'services/website/**'
+              - 'docs/legal/**'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'package.json'
 
       - name: Build image
         if: steps.filter.outputs[matrix.service] == 'true'
