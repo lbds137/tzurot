@@ -7,6 +7,8 @@
 
 A modern, scalable Discord bot with customizable AI characters, powered by a microservices architecture with long-term memory, voice in/out, and BYOK-first provider routing.
 
+**Website**: [tzurot.org](https://tzurot.org) — [Terms of Service](https://tzurot.org/terms) · [Privacy Policy](https://tzurot.org/privacy)
+
 ## Highlights
 
 - **Multi-provider, vendor-flexible**: Default routing through OpenRouter (400+ models, free tier included). Voice via Mistral (BYOK), ElevenLabs (BYOK), or self-hosted (no key needed). All provider boundaries are clean abstractions — no lock-in.
@@ -120,6 +122,7 @@ A modern, scalable Discord bot with customizable AI characters, powered by a mic
   - `api-gateway/` — HTTP API and request routing (TypeScript)
   - `ai-worker/` — Background AI processing (TypeScript)
   - `voice-engine/` — Self-hosted STT/TTS service (Python FastAPI)
+  - `website/` — Static site for [tzurot.org](https://tzurot.org): landing page + legal docs (Astro)
 - **`packages/`** — Shared code
   - `common-types/` — TypeScript types, schemas, shared utilities
   - `cache-invalidation/` — Redis pub/sub cache invalidation services
@@ -155,6 +158,8 @@ A modern, scalable Discord bot with customizable AI characters, powered by a mic
 - **Channel Activation**: Characters can auto-respond to all messages in a channel
 - **NSFW Verification**: Age verification via Discord's native age-gated channels
 - **DM Chat**: Chat with characters in DMs by replying to bot messages
+- **Data Rights**: `/settings data export` (full account export) and `/settings data delete` (account erasure), per the [Privacy Policy](https://tzurot.org/privacy)
+- **Release Notifications**: Opt-out DM announcements for new releases, tunable by severity via `/notifications`
 - **Diagnostic Surface**: `/inspect` shows the full LLM request flight recorder (memory retrieval, token budget, prompt assembly, response, post-processing) for debugging and transparency
 
 ### Slash Commands
@@ -167,7 +172,9 @@ Tzurot is fully managed via Discord slash commands. For the complete reference (
 - **`/preset`** + **`/channel`** — Custom LLM presets, channel auto-response activation
 - **`/models`** — Browse and inspect available AI models (capabilities, context window, pricing)
 - **`/memory`** + **`/history`** — Long-term memory browse/search/prune, conversation history management, privacy modes (focus, incognito)
-- **`/settings`** — Timezone, BYOK API keys, per-character preset overrides, global default settings dashboard
+- **`/settings`** — Timezone, BYOK API keys, per-character preset overrides, global default settings dashboard, data export/delete
+- **`/notifications`** — Release-notes DM preferences (enable/disable, severity level)
+- **`/feedback`** — Send feedback to the developer from inside Discord
 - **`/inspect`** + **`/help`** — Diagnostic log browser (full LLM request flight recorder); list all available commands
 - **`/shapes`** — Legacy Shapes.inc character migration
 - **`/admin`** + **`/deny`** — Owner-only monitoring, maintenance, denial management
