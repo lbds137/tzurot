@@ -43,7 +43,12 @@ export class UserCacheInvalidationService extends BaseCacheInvalidationService<S
     await this.publish({ type: 'user', discordId });
   }
 
-  /** Invalidate every user's provisioning cache (migrations/admin). */
+  /**
+   * Invalidate every user's provisioning cache (migrations/admin). No publisher
+   * exists yet — kept for symmetry with every sibling `*CacheInvalidationService`
+   * (and the `'all'` variant the {@link StandardInvalidationEvent} type requires);
+   * a future admin/migration tool is the intended caller.
+   */
   async invalidateAll(): Promise<void> {
     await this.publish({ type: 'all' });
   }
