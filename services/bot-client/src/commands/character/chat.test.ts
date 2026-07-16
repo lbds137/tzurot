@@ -19,6 +19,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { handleChat, handleRandom, handleChimeIn, WEIGH_IN_MESSAGE } from './chat.js';
 import { runSlashChatGates } from './slashChatGates.js';
+import { resolveChatLlmConfig } from '../../services/character/chatConfigResolution.js';
 import type { GuildMember } from 'discord.js';
 import { ChannelType } from 'discord.js';
 import type { EnvConfig } from '@tzurot/common-types/config/config';
@@ -321,12 +322,23 @@ describe('Character Chat Handler (push delivery)', () => {
       // not proceed to config/persona resolution or job submission. A regression
       // here (e.g. an inverted null-check in resolveTurnPrereqs) would silently
       // reopen the un-gated slash path.
+      const personality = createMockPersonality();
       const ctx = createMockContext('test-char', 'Hello!');
-      mockPersonalityService.loadPersonalityStrict.mockResolvedValue(createMockPersonality());
+      mockPersonalityService.loadPersonalityStrict.mockResolvedValue(personality);
       vi.mocked(runSlashChatGates).mockResolvedValueOnce(true);
 
       await handleChat(ctx, mockConfig);
 
+      // The gate saw the RIGHT data across the seam (02 §7 — not just the return
+      // effect): the loaded personality and the validated channel.
+      expect(vi.mocked(runSlashChatGates)).toHaveBeenCalledWith(
+        ctx,
+        personality,
+        ctx.channel,
+        expect.anything()
+      );
+      // ...and the turn stopped before config resolution / job submission.
+      expect(vi.mocked(resolveChatLlmConfig)).not.toHaveBeenCalled();
       expect(mockGatewayClient.generate).not.toHaveBeenCalled();
       expect(mockJobTracker.trackJob).not.toHaveBeenCalled();
     });
@@ -339,6 +351,13 @@ describe('Character Chat Handler (push delivery)', () => {
 
       await handleChat(ctx, mockConfig);
 
+      // Config resolution ran with the VALIDATED channel's id across the seam
+      // (02 §7) — a wrong/stale channel would surface here, not just downstream.
+      expect(vi.mocked(resolveChatLlmConfig)).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.anything(),
+        channel.id
+      );
       expect(channel.send).toHaveBeenCalledWith(expect.stringContaining('Hello!'));
       // Deferred reply must be resolved (deleted) so "Bot is thinking..." doesn't
       // sit in the channel until interaction-token expiry. Non-random pick path
