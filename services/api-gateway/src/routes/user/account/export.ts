@@ -29,6 +29,7 @@ import { sendError, sendCustomSuccess } from '../../../utils/responseHelpers.js'
 import { parseBodyOrSendError } from '../../../utils/configRouteHelpers.js';
 import { ErrorResponses } from '../../../utils/errorResponses.js';
 import { isPrismaUniqueConstraintError } from '../../../utils/prismaErrors.js';
+import { enqueueExportJobOrMarkFailed } from '../../../utils/enqueueExportJob.js';
 import type { ProvisionedRequest } from '../../../types.js';
 import type { RouteDeps } from '../../routeDeps.js';
 
@@ -202,10 +203,15 @@ function createStartExportHandler(prisma: PrismaClient, queue: Queue, baseUrl: s
     // ACTIVE jobs; BullMQ dedups by jobId, and a deterministic ID would make
     // re-exports after completion silently ignored.
     const jobId = `${JOB_PREFIXES.ACCOUNT_EXPORT}${exportJobId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    await queue.add(JobType.AccountExport, jobData, {
-      jobId,
-      attempts: 3,
-      backoff: { type: 'exponential', delay: 5_000 },
+    // The row above is already committed 'pending'; an enqueue failure must
+    // mark it 'failed' or it 409s every retry until the 24h expiry.
+    await enqueueExportJobOrMarkFailed({
+      queue,
+      prisma,
+      exportJobId,
+      jobName: JobType.AccountExport,
+      jobData,
+      jobOptions: { jobId, attempts: 3, backoff: { type: 'exponential', delay: 5_000 } },
     });
 
     logger.info({ userId, exportJobId }, 'Account export job created');
