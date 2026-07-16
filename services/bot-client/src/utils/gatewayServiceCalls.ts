@@ -284,6 +284,13 @@ export interface DeliveryReport {
   deliveryLogId: string;
   status: DeliveryOutcome;
   errorCode?: string;
+  /** Snowflake of the sent DM (status 'sent' only) — enables later cleanup. */
+  sentMessageId?: string;
+  /**
+   * Ledger row of the user's prior release DM this send deleted (or found
+   * already gone) — the gateway stamps its messageDeletedAt.
+   */
+  deletedPreviousDeliveryLogId?: string;
 }
 
 const REPORT_MAX_ATTEMPTS = 3;

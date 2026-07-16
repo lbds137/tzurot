@@ -4,6 +4,9 @@ import {
   NotifyLevelSchema,
   UpdateNotificationPrefsInputSchema,
   UpdateNotificationPrefsResponseSchema,
+  ListReleaseDmsResponseSchema,
+  MarkReleaseDmsDeletedInputSchema,
+  MarkReleaseDmsDeletedResponseSchema,
 } from './notifications.js';
 
 describe('NotifyLevelSchema', () => {
@@ -86,6 +89,61 @@ describe('UpdateNotificationPrefsResponseSchema', () => {
       enabled: false,
       level: 'patch',
     });
+    expect(result.success).toBe(false);
+  });
+});
+
+describe('ListReleaseDmsResponseSchema', () => {
+  it('accepts a list of standing release DMs', () => {
+    const result = ListReleaseDmsResponseSchema.safeParse({
+      messages: [
+        { deliveryLogId: '123e4567-e89b-42d3-a456-426614174000', messageId: '1234567890' },
+      ],
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts an empty list', () => {
+    expect(ListReleaseDmsResponseSchema.safeParse({ messages: [] }).success).toBe(true);
+  });
+
+  it('rejects a non-uuid deliveryLogId', () => {
+    const result = ListReleaseDmsResponseSchema.safeParse({
+      messages: [{ deliveryLogId: 'log-1', messageId: '1234567890' }],
+    });
+    expect(result.success).toBe(false);
+  });
+});
+
+describe('MarkReleaseDmsDeletedInputSchema', () => {
+  it('accepts a list of ledger row ids', () => {
+    const result = MarkReleaseDmsDeletedInputSchema.safeParse({
+      deliveryLogIds: ['123e4567-e89b-42d3-a456-426614174000'],
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects an empty list (nothing to stamp is a caller bug)', () => {
+    expect(MarkReleaseDmsDeletedInputSchema.safeParse({ deliveryLogIds: [] }).success).toBe(false);
+  });
+
+  it('rejects a list past the cleanup cap', () => {
+    const ids = Array.from(
+      { length: 101 },
+      (_unused, i) => `123e4567-e89b-42d3-a456-4266141${String(i).padStart(5, '0')}`
+    );
+    expect(MarkReleaseDmsDeletedInputSchema.safeParse({ deliveryLogIds: ids }).success).toBe(false);
+  });
+});
+
+describe('MarkReleaseDmsDeletedResponseSchema', () => {
+  it('accepts the success envelope with a count', () => {
+    const result = MarkReleaseDmsDeletedResponseSchema.safeParse({ success: true, marked: 2 });
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects a negative marked count', () => {
+    const result = MarkReleaseDmsDeletedResponseSchema.safeParse({ success: true, marked: -1 });
     expect(result.success).toBe(false);
   });
 });

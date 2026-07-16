@@ -47,7 +47,10 @@ describe('Contract producer: release-broadcast DM batch (real enqueueBroadcast o
         findUnique: vi.fn().mockResolvedValue(null),
         create: vi.fn().mockResolvedValue({}),
       },
-      releaseDeliveryLog: { createMany: vi.fn().mockResolvedValue({ count: 2 }) },
+      releaseDeliveryLog: {
+        createMany: vi.fn().mockResolvedValue({ count: 2 }),
+        findMany: vi.fn().mockResolvedValue([]),
+      },
     } as unknown as PrismaClient;
     const added: unknown[] = [];
     const queue = {

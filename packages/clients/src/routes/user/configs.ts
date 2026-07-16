@@ -42,6 +42,9 @@ import {
   GetNotificationPrefsResponseSchema,
   UpdateNotificationPrefsInputSchema,
   UpdateNotificationPrefsResponseSchema,
+  ListReleaseDmsResponseSchema,
+  MarkReleaseDmsDeletedInputSchema,
+  MarkReleaseDmsDeletedResponseSchema,
 } from '@tzurot/common-types/schemas/api/notifications';
 import {
   GetTimezoneResponseSchema,
@@ -129,6 +132,28 @@ export const userConfigRoutes = {
     output: UpdateNotificationPrefsResponseSchema,
     requiresProvisionedUser: true,
     // PATCH-merge of the same body lands the same state.
+    meta: { idempotent: true },
+  },
+
+  listReleaseDms: {
+    audience: 'user',
+    method: 'get',
+    path: '/notifications/release-dms',
+    id: 'listReleaseDms',
+    output: ListReleaseDmsResponseSchema,
+    requiresProvisionedUser: true,
+    meta: { safeRead: true },
+  },
+
+  markReleaseDmsDeleted: {
+    audience: 'user',
+    method: 'post',
+    path: '/notifications/release-dms/deleted',
+    id: 'markReleaseDmsDeleted',
+    input: MarkReleaseDmsDeletedInputSchema,
+    output: MarkReleaseDmsDeletedResponseSchema,
+    requiresProvisionedUser: true,
+    // Stamping the same rows twice lands the same state.
     meta: { idempotent: true },
   },
 

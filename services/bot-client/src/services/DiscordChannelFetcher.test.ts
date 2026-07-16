@@ -8,6 +8,7 @@ import type { Message, TextChannel } from 'discord.js';
 import { MessageRole } from '@tzurot/common-types/constants/message';
 import { DiscordChannelFetcher, type FetchableChannel } from './DiscordChannelFetcher.js';
 import { executeDatabaseSync } from './channelFetcher/SyncExecutor.js';
+import { OPT_OUT_FOOTER } from './releaseDm/releaseDmContext.js';
 
 // Mock the logger (keep everything else from actual module)
 vi.mock('@tzurot/common-types/constants/message', async () => {
@@ -1779,7 +1780,7 @@ describe('DiscordChannelFetcher', () => {
 
   describe('release-notes DM filtering', () => {
     it('should filter out release DMs but keep a user quoting the footer', async () => {
-      const footerText = '-# Opt out of release DMs anytime with /notifications disable';
+      const footerText = OPT_OUT_FOOTER.trimStart();
       const messages = [
         // Bot-authored release DM (should be FILTERED OUT — otherwise it
         // classifies as a relay-echo and enters context as user speech)

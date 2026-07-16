@@ -88,6 +88,19 @@ export const handleReleaseBroadcastDeliveries = (deps: RouteDeps): RequestHandle
     const autoDisabledUserIds: string[] = [];
 
     for (const result of parseResult.data.results) {
+      // The worker deleted this user's PRIOR release DM before sending —
+      // stamp that ledger row so no cleanup path retries a gone message.
+      // This runs BEFORE the pending-only continue below: the deletion claim
+      // is independent of the main row's transition state, and a lost-response
+      // retry (same payload, main row already terminal) must still land the
+      // stamp — the two writes are not atomic. Idempotent via the null guard.
+      if (result.deletedPreviousDeliveryLogId !== undefined) {
+        await prisma.releaseDeliveryLog.updateMany({
+          where: { id: result.deletedPreviousDeliveryLogId, messageDeletedAt: null },
+          data: { messageDeletedAt: now },
+        });
+      }
+
       const transition = await prisma.releaseDeliveryLog.updateMany({
         // pending-only guard = idempotency: a re-reported row no-ops.
         where: { id: result.deliveryLogId, releaseId, status: 'pending' },
@@ -95,6 +108,7 @@ export const handleReleaseBroadcastDeliveries = (deps: RouteDeps): RequestHandle
           status: result.status,
           errorCode: result.errorCode ?? null,
           attemptedAt: now,
+          sentMessageId: result.sentMessageId ?? null,
         },
       });
       if (transition.count === 0) {

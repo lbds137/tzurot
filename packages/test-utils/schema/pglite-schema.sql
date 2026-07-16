@@ -541,6 +541,8 @@ CREATE TABLE "release_delivery_log" (
     "status" "delivery_status" NOT NULL DEFAULT 'pending',
     "error_code" VARCHAR(50),
     "attempted_at" TIMESTAMP(3),
+    "sent_message_id" VARCHAR(30),
+    "message_deleted_at" TIMESTAMP(3),
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
 

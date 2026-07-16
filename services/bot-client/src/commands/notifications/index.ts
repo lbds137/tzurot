@@ -7,6 +7,7 @@
  * - /notifications view — current settings + how levels work
  * - /notifications enable|disable — master switch (default: enabled)
  * - /notifications level — minimum changelog-derived release weight worth a DM
+ * - /notifications cleanup — delete your release-notes DMs on demand
  */
 
 import { SlashCommandBuilder } from 'discord.js';
@@ -20,6 +21,7 @@ import type {
 import { handleNotificationsView } from './view.js';
 import { handleNotificationsEnable, handleNotificationsDisable } from './toggle.js';
 import { handleNotificationsLevel } from './level.js';
+import { handleNotificationsCleanup } from './cleanup.js';
 
 const logger = createLogger('notifications-command');
 
@@ -29,6 +31,7 @@ const router = createTypedSubcommandRouter(
     enable: handleNotificationsEnable,
     disable: handleNotificationsDisable,
     level: handleNotificationsLevel,
+    cleanup: handleNotificationsCleanup,
   },
   { logger, logPrefix: '[Notifications]' }
 );
@@ -44,6 +47,9 @@ export default defineCommand({
     .addSubcommand(sub => sub.setName('view').setDescription('Show your notification settings'))
     .addSubcommand(sub => sub.setName('enable').setDescription('Enable release-notes DMs'))
     .addSubcommand(sub => sub.setName('disable').setDescription('Disable release-notes DMs'))
+    .addSubcommand(sub =>
+      sub.setName('cleanup').setDescription('Delete release-notes DMs from your DM channel')
+    )
     .addSubcommand(sub =>
       sub
         .setName('level')

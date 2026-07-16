@@ -8,6 +8,7 @@ const viewMock = vi.fn();
 const onMock = vi.fn();
 const offMock = vi.fn();
 const levelMock = vi.fn();
+const cleanupMock = vi.fn();
 
 vi.mock('./view.js', () => ({ handleNotificationsView: viewMock }));
 vi.mock('./toggle.js', () => ({
@@ -15,6 +16,7 @@ vi.mock('./toggle.js', () => ({
   handleNotificationsDisable: offMock,
 }));
 vi.mock('./level.js', () => ({ handleNotificationsLevel: levelMock }));
+vi.mock('./cleanup.js', () => ({ handleNotificationsCleanup: cleanupMock }));
 
 vi.mock('@tzurot/common-types/utils/logger', async () => {
   const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
@@ -44,10 +46,10 @@ describe('/notifications command definition', () => {
     expect(command.deferralMode).toBe('ephemeral');
   });
 
-  it('declares the four subcommands with the level choices', () => {
+  it('declares the five subcommands with the level choices', () => {
     const json = command.data.toJSON();
     const names = (json.options ?? []).map(opt => opt.name).sort();
-    expect(names).toEqual(['disable', 'enable', 'level', 'view']);
+    expect(names).toEqual(['cleanup', 'disable', 'enable', 'level', 'view']);
 
     const levelSub = (json.options ?? []).find(opt => opt.name === 'level') as {
       options?: { name: string; choices?: { value: string }[] }[];
@@ -67,6 +69,7 @@ describe('/notifications routing', () => {
     ['enable', onMock],
     ['disable', offMock],
     ['level', levelMock],
+    ['cleanup', cleanupMock],
   ])('routes %s to its handler', async (subcommand, handler) => {
     const context = makeContext(subcommand);
 

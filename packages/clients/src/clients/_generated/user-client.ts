@@ -253,6 +253,47 @@ export class UserClient {
   /**
    * @safeRead Server-side has no observable mutation — safe to cache client-side.
    */
+  async listReleaseDms(): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.listReleaseDms.output>>> {
+    const fullPath = '/api/user/notifications/release-dms';
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'GET',
+      path: fullPath,
+      headers: {
+        'X-User-Id': this.actor,
+        'X-User-Username': encodeURIComponent(this.user.username),
+        'X-User-DisplayName': encodeURIComponent(this.user.displayName),
+        'X-User-Is-Bot': String(this.user.isBot),
+      },
+      outputSchema: ROUTE_MANIFEST.listReleaseDms.output,
+    });
+  }
+
+  /**
+   * @idempotent Replaying the exact same request lands the same final state — safe to retry on network failure.
+   */
+  async markReleaseDmsDeleted(input: z.infer<typeof ROUTE_MANIFEST.markReleaseDmsDeleted.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.markReleaseDmsDeleted.output>>> {
+    const fullPath = '/api/user/notifications/release-dms/deleted';
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'POST',
+      path: fullPath,
+      headers: {
+        'X-User-Id': this.actor,
+        'X-User-Username': encodeURIComponent(this.user.username),
+        'X-User-DisplayName': encodeURIComponent(this.user.displayName),
+        'X-User-Is-Bot': String(this.user.isBot),
+      },
+      body: input,
+      outputSchema: ROUTE_MANIFEST.markReleaseDmsDeleted.output,
+    });
+  }
+
+  /**
+   * @safeRead Server-side has no observable mutation — safe to cache client-side.
+   */
   async listUserLlmConfigs(): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.listUserLlmConfigs.output>>> {
     const fullPath = '/api/user/llm-config';
     return callGateway({

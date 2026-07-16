@@ -6,6 +6,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { DiscordAPIError, type Client } from 'discord.js';
 import { JobType } from '@tzurot/common-types/constants/queue';
+import type { ReleaseBroadcastRecipient } from '@tzurot/common-types/types/jobs';
 import type { Job } from 'bullmq';
 
 vi.mock('@tzurot/common-types/utils/logger', async () => {
@@ -37,22 +38,26 @@ function makePayload() {
     recipients: [
       { deliveryLogId: LOG_A, userId: USER_A, discordUserId: '111111111111111111' },
       { deliveryLogId: LOG_B, userId: USER_B, discordUserId: '222222222222222222' },
-    ],
+    ] as ReleaseBroadcastRecipient[],
   };
 }
 
 function makeDeps(sendImpl?: (userId: string) => Promise<unknown>) {
-  const send = vi.fn().mockResolvedValue(undefined);
+  const send = vi.fn().mockResolvedValue({ id: 'sent-msg-1' });
+  const deleteMessage = vi.fn().mockResolvedValue(undefined);
+  const createDM = vi.fn().mockResolvedValue({ messages: { delete: deleteMessage } });
   const fetch = vi.fn().mockImplementation((userId: string) =>
     Promise.resolve({
+      id: userId,
       send: sendImpl !== undefined ? () => sendImpl(userId) : send,
+      createDM,
     })
   );
   const client = { users: { fetch } } as unknown as Client;
   const sleep = vi.fn().mockResolvedValue(undefined);
   const filterPending = vi.fn().mockResolvedValue([LOG_A, LOG_B]);
   const report = vi.fn().mockResolvedValue(undefined);
-  return { client, sleep, filterPending, report, fetch, send };
+  return { client, sleep, filterPending, report, fetch, send, createDM, deleteMessage };
 }
 
 function asJob(data: unknown): Job {
@@ -83,10 +88,10 @@ describe('createReleaseDmProcessor', () => {
     expect(deps.sleep).toHaveBeenCalledTimes(1);
     // One report PER SEND (crash-window guard) — not one batch at the end.
     expect(deps.report).toHaveBeenNthCalledWith(1, RELEASE_ID, [
-      { deliveryLogId: LOG_A, status: 'sent' },
+      { deliveryLogId: LOG_A, status: 'sent', sentMessageId: 'sent-msg-1' },
     ]);
     expect(deps.report).toHaveBeenNthCalledWith(2, RELEASE_ID, [
-      { deliveryLogId: LOG_B, status: 'sent' },
+      { deliveryLogId: LOG_B, status: 'sent', sentMessageId: 'sent-msg-1' },
     ]);
     expect(result).toEqual({ sent: 2, failed: 0, skipped: 0 });
   });
@@ -101,7 +106,7 @@ describe('createReleaseDmProcessor', () => {
     expect(deps.send).toHaveBeenCalledTimes(1);
     expect(deps.report).toHaveBeenCalledTimes(1);
     expect(deps.report).toHaveBeenCalledWith(RELEASE_ID, [
-      { deliveryLogId: LOG_B, status: 'sent' },
+      { deliveryLogId: LOG_B, status: 'sent', sentMessageId: 'sent-msg-1' },
     ]);
     expect(result).toEqual({ sent: 1, failed: 0, skipped: 1 });
   });
@@ -116,7 +121,7 @@ describe('createReleaseDmProcessor', () => {
       {}
     );
     const deps = makeDeps(userId =>
-      userId === '111111111111111111' ? Promise.reject(blocked) : Promise.resolve(undefined)
+      userId === '111111111111111111' ? Promise.reject(blocked) : Promise.resolve({ id: 'sent-b' })
     );
     const processor = createReleaseDmProcessor(deps);
 
@@ -126,7 +131,7 @@ describe('createReleaseDmProcessor', () => {
       { deliveryLogId: LOG_A, status: 'failed_permanent', errorCode: '50007' },
     ]);
     expect(deps.report).toHaveBeenNthCalledWith(2, RELEASE_ID, [
-      { deliveryLogId: LOG_B, status: 'sent' },
+      { deliveryLogId: LOG_B, status: 'sent', sentMessageId: 'sent-b' },
     ]);
     expect(result).toEqual({ sent: 1, failed: 1, skipped: 0 });
   });
@@ -165,6 +170,106 @@ describe('createReleaseDmProcessor', () => {
     await expect(processor(asJob(makePayload()))).rejects.toThrow('Pending-delivery filter');
     expect(deps.send).not.toHaveBeenCalled();
     expect(deps.report).not.toHaveBeenCalled();
+  });
+
+  describe('previous-DM cleanup (delete-before-send)', () => {
+    const PREV_LOG = '623e4567-e89b-42d3-a456-426614174000';
+
+    function payloadWithPreviousDm() {
+      const payload = makePayload();
+      payload.recipients[0] = {
+        ...payload.recipients[0],
+        previousDm: { deliveryLogId: PREV_LOG, messageId: 'old-msg-9' },
+      };
+      return payload;
+    }
+
+    it('deletes the prior DM before sending and reports the stamped row', async () => {
+      const deps = makeDeps();
+      const processor = createReleaseDmProcessor(deps);
+
+      await processor(asJob(payloadWithPreviousDm()));
+
+      expect(deps.deleteMessage).toHaveBeenCalledWith('old-msg-9');
+      // Ordering: the old DM must be gone before the new one lands.
+      expect(deps.deleteMessage.mock.invocationCallOrder[0]).toBeLessThan(
+        deps.send.mock.invocationCallOrder[0]
+      );
+      expect(deps.report).toHaveBeenNthCalledWith(1, RELEASE_ID, [
+        {
+          deliveryLogId: LOG_A,
+          status: 'sent',
+          sentMessageId: 'sent-msg-1',
+          deletedPreviousDeliveryLogId: PREV_LOG,
+        },
+      ]);
+    });
+
+    it('treats a 10008 already-gone as deleted', async () => {
+      const deps = makeDeps();
+      deps.deleteMessage.mockRejectedValue(
+        new DiscordAPIError(
+          { code: 10008, message: 'Unknown Message' },
+          10008,
+          404,
+          'DELETE',
+          'url',
+          {}
+        )
+      );
+      const processor = createReleaseDmProcessor(deps);
+
+      await processor(asJob(payloadWithPreviousDm()));
+
+      expect(deps.report).toHaveBeenNthCalledWith(1, RELEASE_ID, [
+        expect.objectContaining({ status: 'sent', deletedPreviousDeliveryLogId: PREV_LOG }),
+      ]);
+    });
+
+    it('still sends when the prior-DM delete fails, without stamping the row', async () => {
+      const deps = makeDeps();
+      deps.deleteMessage.mockRejectedValue(new Error('network reset'));
+      const processor = createReleaseDmProcessor(deps);
+
+      const result = await processor(asJob(payloadWithPreviousDm()));
+
+      expect(deps.send).toHaveBeenCalledTimes(2);
+      expect(result).toEqual({ sent: 2, failed: 0, skipped: 0 });
+      const firstEntry = (deps.report.mock.calls[0][1] as Record<string, unknown>[])[0];
+      expect(firstEntry.deletedPreviousDeliveryLogId).toBeUndefined();
+    });
+
+    it('reports a completed deletion even when the send itself fails', async () => {
+      const blocked = new DiscordAPIError(
+        { code: 50007, message: 'Cannot send messages to this user' },
+        50007,
+        403,
+        'POST',
+        'url',
+        {}
+      );
+      const deps = makeDeps(() => Promise.reject(blocked));
+      const processor = createReleaseDmProcessor(deps);
+
+      await processor(asJob(payloadWithPreviousDm()));
+
+      expect(deps.report).toHaveBeenNthCalledWith(1, RELEASE_ID, [
+        expect.objectContaining({
+          status: 'failed_permanent',
+          deletedPreviousDeliveryLogId: PREV_LOG,
+        }),
+      ]);
+    });
+
+    it('never touches createDM for recipients without a previousDm', async () => {
+      const deps = makeDeps();
+      const processor = createReleaseDmProcessor(deps);
+
+      await processor(asJob(makePayload()));
+
+      expect(deps.createDM).not.toHaveBeenCalled();
+      expect(deps.deleteMessage).not.toHaveBeenCalled();
+    });
   });
 
   it('reports nothing when the pending filter empties the batch', async () => {

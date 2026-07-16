@@ -64,7 +64,7 @@ import { handleStartAccountExport, handleGetAccountExportStatus } from '../user/
 import { handlePreviewAccountDelete, handleIssueAccountDeleteToken, handleDeleteAccount } from '../user/account/delete.js';
 import { handleSubmitFeedback } from '../user/feedback.js';
 import { handleGetTimezone, handleSetTimezone } from '../user/timezone.js';
-import { handleGetNotificationPrefs, handleUpdateNotificationPrefs } from '../user/notifications.js';
+import { handleGetNotificationPrefs, handleUpdateNotificationPrefs, handleListReleaseDms, handleMarkReleaseDmsDeleted } from '../user/notifications.js';
 import { handleListUserLlmConfigs, handleGetUserLlmConfig, handleCreateUserLlmConfig, handleUpdateUserLlmConfig, handleDeleteUserLlmConfig, handleResolveUserLlmConfig } from '../user/llm-config.js';
 import { handleListUserTtsConfigs, handleGetUserTtsConfig, handleCreateUserTtsConfig, handleUpdateUserTtsConfig, handleDeleteUserTtsConfig } from '../user/tts-config.js';
 import { handleListTtsOverrides, handleSetTtsOverride, handleDeleteTtsOverride, handleGetTtsDefaultConfig, handleSetTtsDefaultConfig, handleClearTtsDefaultConfig } from '../user/tts-override.js';
@@ -173,6 +173,8 @@ export function mountUserRoutes(app: Express, deps: RouteDeps): void {
   app.put('/api/user/timezone', requireUserAuth(), requireProvisionedUser(deps.prisma), handleSetTimezone(deps));
   app.get('/api/user/notifications', requireUserAuth(), requireProvisionedUser(deps.prisma), handleGetNotificationPrefs(deps));
   app.patch('/api/user/notifications', requireUserAuth(), requireProvisionedUser(deps.prisma), handleUpdateNotificationPrefs(deps));
+  app.get('/api/user/notifications/release-dms', requireUserAuth(), requireProvisionedUser(deps.prisma), handleListReleaseDms(deps));
+  app.post('/api/user/notifications/release-dms/deleted', requireUserAuth(), requireProvisionedUser(deps.prisma), handleMarkReleaseDmsDeleted(deps));
   app.get('/api/user/llm-config', requireUserAuth(), requireProvisionedUser(deps.prisma), handleListUserLlmConfigs(deps));
   app.post('/api/user/llm-config', requireUserAuth(), requireProvisionedUser(deps.prisma), handleCreateUserLlmConfig(deps));
   app.post('/api/user/llm-config/resolve', requireUserAuth(), requireProvisionedUser(deps.prisma), handleResolveUserLlmConfig(deps));

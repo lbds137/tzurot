@@ -173,7 +173,7 @@ Tzurot is fully managed via Discord slash commands. For the complete reference (
 - **`/models`** — Browse and inspect available AI models (capabilities, context window, pricing)
 - **`/memory`** + **`/history`** — Long-term memory browse/search/prune, conversation history management, privacy modes (focus, incognito)
 - **`/settings`** — Timezone, BYOK API keys, per-character preset overrides, global default settings dashboard, data export/delete
-- **`/notifications`** — Release-notes DM preferences (enable/disable, severity level)
+- **`/notifications`** — Release-notes DM preferences (enable/disable, severity level, DM cleanup)
 - **`/feedback`** — Send feedback to the developer from inside Discord
 - **`/inspect`** + **`/help`** — Diagnostic log browser (full LLM request flight recorder); list all available commands
 - **`/shapes`** — Legacy Shapes.inc character migration

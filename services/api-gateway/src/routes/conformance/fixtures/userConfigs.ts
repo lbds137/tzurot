@@ -28,6 +28,57 @@ export const userConfigFixtures: Record<string, ConformanceEntry> = {
     body: { enabled: false, level: 'patch' },
   },
 
+  listReleaseDms: {
+    // Real success path over PGLite: a sent-with-messageId ledger row for the
+    // actor must come back as a standing release DM.
+    seed: async ctx => {
+      await ctx.prisma.releaseAnnouncement.create({
+        data: {
+          id: 'aa3e4567-e89b-42d3-a456-426614174101',
+          version: 'conf-release-list',
+          level: 'minor',
+          githubReleaseId: 'conf-gh-1',
+          body: 'conformance notes',
+        },
+      });
+      await ctx.prisma.releaseDeliveryLog.create({
+        data: {
+          id: 'aa3e4567-e89b-42d3-a456-426614174102',
+          releaseId: 'aa3e4567-e89b-42d3-a456-426614174101',
+          userId: ctx.actorUserId,
+          status: 'sent',
+          sentMessageId: '111222333444555666',
+          attemptedAt: new Date(),
+        },
+      });
+    },
+  },
+
+  markReleaseDmsDeleted: {
+    seed: async ctx => {
+      await ctx.prisma.releaseAnnouncement.create({
+        data: {
+          id: 'ab3e4567-e89b-42d3-a456-426614174201',
+          version: 'conf-release-mark',
+          level: 'minor',
+          githubReleaseId: 'conf-gh-2',
+          body: 'conformance notes',
+        },
+      });
+      await ctx.prisma.releaseDeliveryLog.create({
+        data: {
+          id: 'ab3e4567-e89b-42d3-a456-426614174202',
+          releaseId: 'ab3e4567-e89b-42d3-a456-426614174201',
+          userId: ctx.actorUserId,
+          status: 'sent',
+          sentMessageId: '222333444555666777',
+          attemptedAt: new Date(),
+        },
+      });
+      return { body: { deliveryLogIds: ['ab3e4567-e89b-42d3-a456-426614174202'] } };
+    },
+  },
+
   // ---- LLM config CRUD -------------------------------------------------------
 
   listUserLlmConfigs: {

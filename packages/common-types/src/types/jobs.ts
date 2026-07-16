@@ -514,6 +514,18 @@ const releaseBroadcastRecipientSchema = z.object({
   userId: z.string().uuid(),
   /** Discord snowflake the DM is sent to. */
   discordUserId: z.string(),
+  /**
+   * The user's most recent prior release DM still standing (ledger rows with
+   * a sentMessageId and no messageDeletedAt). The worker deletes it before
+   * sending, so a DM channel holds at most one release note; the ledger row
+   * id comes back on the delivery report to stamp messageDeletedAt.
+   */
+  previousDm: z
+    .object({
+      deliveryLogId: z.string().uuid(),
+      messageId: z.string(),
+    })
+    .optional(),
 });
 
 /**

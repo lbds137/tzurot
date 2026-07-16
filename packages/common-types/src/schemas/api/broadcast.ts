@@ -95,6 +95,15 @@ export const ReleaseBroadcastDeliveriesInputSchema = z.object({
         status: DeliveryOutcomeSchema,
         /** Discord error class (e.g. '50007') — required company for failed_* rows. */
         errorCode: z.string().max(50).optional(),
+        /** Snowflake of the sent DM (status 'sent' only) — enables later cleanup. */
+        sentMessageId: z.string().max(30).optional(),
+        /**
+         * Ledger row id of the user's PRIOR release DM the worker deleted
+         * before this send (echoed from the batch payload's previousDm).
+         * Present only when the delete succeeded or the message was already
+         * gone — the gateway stamps that row's messageDeletedAt.
+         */
+        deletedPreviousDeliveryLogId: z.string().uuid().optional(),
       })
     )
     .min(1)
