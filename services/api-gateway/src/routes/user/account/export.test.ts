@@ -112,13 +112,19 @@ describe('Account Export Routes', () => {
         userId: 'user-uuid-123',
         exportJobId: expect.stringMatching(/^[0-9a-f-]{36}$/),
       });
-      expect(res.json).toHaveBeenCalledWith(
-        expect.objectContaining({
-          success: true,
-          status: 'pending',
-          downloadUrl: expect.stringContaining('/exports/'),
-        })
-      );
+      const jsonMock = res.json as unknown as ReturnType<typeof vi.fn>;
+      const body = jsonMock.mock.calls[0][0] as {
+        exportJobId: string;
+        downloadUrl: string;
+        success: boolean;
+        status: string;
+      };
+      expect(body.success).toBe(true);
+      expect(body.status).toBe('pending');
+      // The download URL must carry a random 64-hex token — NOT the
+      // deterministic (Discord-ID-derivable) export job id.
+      expect(body.downloadUrl).toMatch(/\/exports\/[0-9a-f]{64}$/);
+      expect(body.downloadUrl).not.toContain(body.exportJobId);
     });
 
     it('409s while an account export is already active, without enqueueing', async () => {
@@ -166,6 +172,7 @@ describe('Account Export Routes', () => {
     });
 
     it('adds a downloadUrl only for completed jobs', async () => {
+      const completedToken = 'b'.repeat(64);
       mockPrisma.exportJob.findFirst.mockResolvedValueOnce({
         id: 'job-1',
         status: 'completed',
@@ -174,17 +181,21 @@ describe('Account Export Routes', () => {
         createdAt: new Date(),
         completedAt: new Date(),
         expiresAt: new Date(),
+        downloadToken: completedToken,
       });
       const first = await callStatus();
-      expect(first.res.json).toHaveBeenCalledWith(
-        expect.objectContaining({
-          job: expect.objectContaining({ downloadUrl: expect.stringContaining('/exports/job-1') }),
-        })
-      );
+      const firstJsonMock = first.res.json as unknown as ReturnType<typeof vi.fn>;
+      const firstJob = (firstJsonMock.mock.calls[0][0] as { job: Record<string, unknown> }).job;
+      // URL carries the random token, never the deterministic job id, and the
+      // raw token never leaks as a bare field.
+      expect(firstJob.downloadUrl).toContain(`/exports/${completedToken}`);
+      expect(firstJob).not.toHaveProperty('downloadToken');
+      expect(firstJob.downloadUrl).not.toContain('job-1');
 
       mockPrisma.exportJob.findFirst.mockResolvedValueOnce({
         id: 'job-2',
         status: 'pending',
+        downloadToken: 'c'.repeat(64),
         fileName: null,
         fileSizeBytes: null,
         createdAt: new Date(),
@@ -193,6 +204,25 @@ describe('Account Export Routes', () => {
       });
       const second = await callStatus();
       expect(second.res.json).toHaveBeenCalledWith(
+        expect.objectContaining({ job: expect.objectContaining({ downloadUrl: null }) })
+      );
+    });
+
+    it('yields a null downloadUrl for a completed job that predates the token column', async () => {
+      // Legacy row: completed before the download_token migration → null token.
+      // The status route must NOT build a URL (there is no valid handle).
+      mockPrisma.exportJob.findFirst.mockResolvedValueOnce({
+        id: 'legacy-job',
+        status: 'completed',
+        fileName: 'legacy-export.zip',
+        fileSizeBytes: 42,
+        createdAt: new Date(),
+        completedAt: new Date(),
+        expiresAt: new Date(),
+        downloadToken: null,
+      });
+      const { res } = await callStatus();
+      expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({ job: expect.objectContaining({ downloadUrl: null }) })
       );
     });

@@ -6,7 +6,7 @@
  *
  * Rides the shapes-export spine: an export_jobs row (sentinel
  * sourceService='account') filled asynchronously by ai-worker, downloaded
- * via the public GET /exports/:jobId route, expiring after 24 hours.
+ * via the public GET /exports/:token route, expiring after 24 hours.
  */
 
 import { type Response, type RequestHandler } from 'express';
@@ -22,6 +22,7 @@ import {
   type AccountExportJobData,
 } from '@tzurot/common-types/types/account-export';
 import { generateExportJobUuid } from '@tzurot/common-types/utils/deterministicUuid';
+import { generateExportDownloadToken } from '@tzurot/common-types/utils/exportDownloadToken';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { resolveProvisionedUserId } from '../../../utils/resolveProvisionedUserId.js';
@@ -50,6 +51,8 @@ const EXPORT_COOLDOWN_HOURS = 24;
 
 interface CreateOrConflictResult {
   exportJobId: string;
+  /** The random public-download token, always minted for this run. */
+  downloadToken: string;
   conflictStatus: string | null;
   onCooldown: boolean;
 }
@@ -73,6 +76,9 @@ async function createExportJobOrConflict(
     ACCOUNT_EXPORT_SOURCE,
     EXPORT_FORMAT
   );
+  // Fresh random token on every (re)creation — a previously-shared download
+  // URL stops working the moment the export is re-run.
+  const downloadToken = generateExportDownloadToken();
   const cooldownFloor = new Date(Date.now() - EXPORT_COOLDOWN_HOURS * 60 * 60 * 1000);
 
   const outcome = await prisma.$transaction(async tx => {
@@ -110,11 +116,13 @@ async function createExportJobOrConflict(
         sourceService: ACCOUNT_EXPORT_SOURCE,
         status: 'pending',
         format: EXPORT_FORMAT,
+        downloadToken,
         expiresAt,
       },
       update: {
         status: 'pending',
         format: EXPORT_FORMAT,
+        downloadToken,
         fileContent: null,
         fileData: null,
         fileName: null,
@@ -130,7 +138,7 @@ async function createExportJobOrConflict(
     return { conflictStatus: null, onCooldown: false };
   });
 
-  return { exportJobId, ...outcome };
+  return { exportJobId, downloadToken, ...outcome };
 }
 
 /**
@@ -157,10 +165,11 @@ function createStartExportHandler(prisma: PrismaClient, queue: Queue, baseUrl: s
     const expiresAt = new Date(Date.now() + EXPORT_EXPIRY_HOURS * 60 * 60 * 1000);
 
     let exportJobId: string;
+    let downloadToken: string;
     let conflictStatus: string | null;
     let onCooldown: boolean;
     try {
-      ({ exportJobId, conflictStatus, onCooldown } = await createExportJobOrConflict(
+      ({ exportJobId, downloadToken, conflictStatus, onCooldown } = await createExportJobOrConflict(
         prisma,
         userId,
         expiresAt
@@ -222,7 +231,7 @@ function createStartExportHandler(prisma: PrismaClient, queue: Queue, baseUrl: s
         success: true,
         exportJobId,
         status: 'pending',
-        downloadUrl: `${baseUrl}/exports/${encodeURIComponent(exportJobId)}`,
+        downloadUrl: `${baseUrl}/exports/${encodeURIComponent(downloadToken)}`,
         expiresAt: expiresAt.toISOString(),
       },
       StatusCodes.ACCEPTED
@@ -248,20 +257,25 @@ function createStatusHandler(prisma: PrismaClient, baseUrl: string) {
         createdAt: true,
         completedAt: true,
         expiresAt: true,
+        downloadToken: true,
       },
     });
 
+    if (job === null) {
+      sendCustomSuccess(res, { job: null });
+      return;
+    }
+    // downloadToken never leaves the server as a bare field — it is only ever
+    // rendered into the download URL.
+    const { downloadToken, ...jobFields } = job;
     sendCustomSuccess(res, {
-      job:
-        job === null
-          ? null
-          : {
-              ...job,
-              downloadUrl:
-                job.status === 'completed'
-                  ? `${baseUrl}/exports/${encodeURIComponent(job.id)}`
-                  : null,
-            },
+      job: {
+        ...jobFields,
+        downloadUrl:
+          job.status === 'completed' && downloadToken !== null
+            ? `${baseUrl}/exports/${encodeURIComponent(downloadToken)}`
+            : null,
+      },
     });
   };
 }

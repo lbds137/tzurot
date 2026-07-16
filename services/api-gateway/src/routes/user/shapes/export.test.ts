@@ -160,6 +160,8 @@ describe('Shapes Export Routes', () => {
             sourceService: 'shapes_inc',
             status: 'pending',
             format: 'json',
+            // A random token is persisted for the public download URL.
+            downloadToken: expect.stringMatching(/^[0-9a-f]{64}$/),
           }),
         })
       );
@@ -174,6 +176,11 @@ describe('Shapes Export Routes', () => {
       );
 
       expect(res.status).toHaveBeenCalledWith(202);
+      const createJsonMock = res.json as unknown as ReturnType<typeof vi.fn>;
+      const body = createJsonMock.mock.calls[0][0] as { downloadUrl: string; exportJobId: string };
+      // Download URL carries the random token, never the deterministic job id.
+      expect(body.downloadUrl).toMatch(/\/exports\/[0-9a-f]{64}$/);
+      expect(body.downloadUrl).not.toContain(body.exportJobId);
     });
 
     it('should accept markdown format', async () => {
@@ -215,6 +222,7 @@ describe('Shapes Export Routes', () => {
     });
 
     it('should return export jobs with download URLs', async () => {
+      const listToken = 'd'.repeat(64);
       mockPrisma.exportJob.findMany.mockResolvedValueOnce([
         {
           id: 'job-1',
@@ -228,22 +236,47 @@ describe('Shapes Export Routes', () => {
           expiresAt: new Date(Date.now() + 86400000),
           errorMessage: null,
           exportMetadata: null,
+          downloadToken: listToken,
         },
       ]);
 
       const { res } = await callListHandler();
 
-      expect(res.json).toHaveBeenCalledWith(
-        expect.objectContaining({
-          jobs: expect.arrayContaining([
-            expect.objectContaining({
-              sourceSlug: 'test-shape',
-              status: 'completed',
-              downloadUrl: expect.stringContaining('/exports/job-1'),
-            }),
-          ]),
-        })
-      );
+      const listJsonMock = res.json as unknown as ReturnType<typeof vi.fn>;
+      const listedJob = (listJsonMock.mock.calls[0][0] as { jobs: Record<string, unknown>[] })
+        .jobs[0];
+      // URL carries the random token, not the deterministic job id, and the
+      // raw token never leaks as a bare field.
+      expect(listedJob.downloadUrl).toContain(`/exports/${listToken}`);
+      expect(listedJob.downloadUrl).not.toContain('job-1');
+      expect(listedJob).not.toHaveProperty('downloadToken');
+    });
+
+    it('yields a null downloadUrl for a completed job that predates the token column', async () => {
+      // Legacy row: completed before the download_token migration → null token.
+      mockPrisma.exportJob.findMany.mockResolvedValueOnce([
+        {
+          id: 'legacy-job',
+          sourceSlug: 'test-shape',
+          status: 'completed',
+          format: 'json',
+          fileName: 'legacy.json',
+          fileSizeBytes: 1024,
+          createdAt: new Date(),
+          completedAt: new Date(),
+          expiresAt: new Date(Date.now() + 86400000),
+          errorMessage: null,
+          exportMetadata: null,
+          downloadToken: null,
+        },
+      ]);
+
+      const { res } = await callListHandler();
+      const legacyJsonMock = res.json as unknown as ReturnType<typeof vi.fn>;
+      const legacyJob = (legacyJsonMock.mock.calls[0][0] as { jobs: Record<string, unknown>[] })
+        .jobs[0];
+      expect(legacyJob.downloadUrl).toBeNull();
+      expect(legacyJob).not.toHaveProperty('downloadToken');
     });
 
     it('should filter by slug when ?slug= query param is provided', async () => {

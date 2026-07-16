@@ -510,6 +510,7 @@ CREATE TABLE "export_jobs" (
     "file_data" BYTEA,
     "file_name" VARCHAR(255),
     "file_size_bytes" INTEGER,
+    "download_token" VARCHAR(64),
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "started_at" TIMESTAMP(3),
     "completed_at" TIMESTAMP(3),
@@ -854,6 +855,9 @@ CREATE INDEX "import_jobs_status_idx" ON "import_jobs"("status");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "import_jobs_user_id_source_slug_source_service_key" ON "import_jobs"("user_id", "source_slug", "source_service");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "export_jobs_download_token_key" ON "export_jobs"("download_token");
 
 -- CreateIndex
 CREATE INDEX "export_jobs_user_id_idx" ON "export_jobs"("user_id");

@@ -102,6 +102,9 @@ export const userShapesFixtures: Record<string, ConformanceEntry> = {
           format: 'json',
           fileName: 'conf-export-listed.json',
           fileSizeBytes: 42,
+          // A completed job needs a downloadToken so the list route builds the
+          // populated downloadUrl branch.
+          downloadToken: 'e'.repeat(64),
           expiresAt: new Date(Date.now() + 24 * 3600 * 1000),
         },
       });
