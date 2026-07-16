@@ -25,9 +25,13 @@ server {
         add_header Referrer-Policy "strict-origin-when-cross-origin" always;
     }
 
-    # Railway healthcheck target.
+    # Railway healthcheck target. Repeats the security headers because this
+    # block's own add_header suppresses inheritance (same as /_astro/ above).
     location = /health {
         add_header Content-Type text/plain;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header X-Frame-Options "DENY" always;
+        add_header Referrer-Policy "strict-origin-when-cross-origin" always;
         return 200 "ok";
     }
 

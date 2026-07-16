@@ -1,19 +1,17 @@
 ---
-import { getEntry, render } from 'astro:content';
+import { getEntry } from 'astro:content';
 import Legal from '../layouts/Legal.astro';
 import { BRAND } from '../brand';
 
 const entry = await getEntry('legal', 'terms_of_service');
-if (!entry) {
+if (!entry?.body) {
   throw new Error('docs/legal/TERMS_OF_SERVICE.md is missing from the content collection');
 }
-const { Content } = await render(entry);
 ---
 
 <Legal
   title={`Terms of Service — ${BRAND.name}`}
-  description="The terms that govern use of the Tzurot Discord bot."
+  description={`The terms that govern use of the ${BRAND.name} Discord bot.`}
   path="/terms"
->
-  <Content />
-</Legal>
+  body={entry.body}
+/>
