@@ -75,7 +75,9 @@ describe('createReleaseDmProcessor', () => {
     expect(deps.send).toHaveBeenCalledTimes(2);
     const sendArg = deps.send.mock.calls[0][0] as { content: string; allowedMentions: unknown };
     expect(sendArg.content).toContain('Hello from the release pipeline');
-    expect(sendArg.content).toContain('/notifications');
+    // The footer must name the explicit opt-out invocation, not just the
+    // command family — that affordance is the spam-report mitigation.
+    expect(sendArg.content).toContain('/notifications disable');
     expect(sendArg.allowedMentions).toEqual({ parse: [] });
     // One sleep between two sends, none after the last.
     expect(deps.sleep).toHaveBeenCalledTimes(1);

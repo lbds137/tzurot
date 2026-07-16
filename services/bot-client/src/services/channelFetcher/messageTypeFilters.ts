@@ -6,6 +6,7 @@
  */
 
 import type { Message } from 'discord.js';
+import { isReleaseNotesDm } from '../releaseDm/releaseDmContext.js';
 
 /**
  * Check if a message is a thinking block output
@@ -53,4 +54,19 @@ export function isBotTranscriptReply(msg: Message, botUserId: string): boolean {
   }
 
   return true;
+}
+
+/**
+ * Combined exclusion for bot-authored messages that are surfaced to users but
+ * must never enter model context: transcript replies (content duplicated via
+ * TranscriptRetriever), thinking blocks (display-only reasoning), and
+ * release-notes DMs (notifications that would otherwise classify as
+ * relay-echoes and read as user speech).
+ */
+export function isContextExcludedBotMessage(msg: Message, botUserId: string): boolean {
+  return (
+    isBotTranscriptReply(msg, botUserId) ||
+    isThinkingBlockMessage(msg) ||
+    isReleaseNotesDm(msg, botUserId)
+  );
 }

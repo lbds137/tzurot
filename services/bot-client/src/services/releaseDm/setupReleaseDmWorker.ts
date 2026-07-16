@@ -30,14 +30,12 @@ import {
   reportDeliveries,
   type DeliveryReport,
 } from '../../utils/gatewayServiceCalls.js';
+import { OPT_OUT_FOOTER } from './releaseDmContext.js';
 
 const logger = createLogger('ReleaseDmWorker');
 
 /** Inter-DM delay — mirrors StartupDMPrewarmer's REST-queue-friendly pacing. */
 const DM_SEND_DELAY_MS = 1000;
-
-/** Small text steering recipients to the prefs surface (spam-flag mitigation). */
-const OPT_OUT_FOOTER = '\n\n-# Manage these DMs with /notifications';
 
 export interface ReleaseDmWorkerDeps {
   client: Client;

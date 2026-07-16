@@ -5,7 +5,12 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { isThinkingBlockMessage, isBotTranscriptReply } from './messageTypeFilters.js';
+import {
+  isThinkingBlockMessage,
+  isBotTranscriptReply,
+  isContextExcludedBotMessage,
+} from './messageTypeFilters.js';
+import { OPT_OUT_FOOTER } from '../releaseDm/releaseDmContext.js';
 import type { Message } from 'discord.js';
 
 /**
@@ -129,6 +134,41 @@ describe('messageTypeFilters', () => {
       (msg as unknown as Record<string, unknown>).reference = undefined;
 
       expect(isBotTranscriptReply(msg, botUserId)).toBe(false);
+    });
+  });
+
+  describe('isContextExcludedBotMessage', () => {
+    const botUserId = 'bot-123';
+
+    it('excludes each of the three bot-message shapes', () => {
+      const transcript = createMockMessage({
+        authorId: botUserId,
+        content: 'transcript text',
+        referenceMessageId: 'voice-1',
+      });
+      const thinking = createMockMessage({ content: '💭 **Thinking:**\n||...||' });
+      const releaseDm = createMockMessage({
+        authorId: botUserId,
+        content: `## v3.0 released${OPT_OUT_FOOTER}`,
+      });
+      (releaseDm as unknown as Record<string, unknown>).reference = undefined;
+
+      expect(isContextExcludedBotMessage(transcript, botUserId)).toBe(true);
+      expect(isContextExcludedBotMessage(thinking, botUserId)).toBe(true);
+      expect(isContextExcludedBotMessage(releaseDm, botUserId)).toBe(true);
+    });
+
+    it('keeps ordinary bot replies and user messages', () => {
+      const botReply = createMockMessage({ authorId: botUserId, content: 'a persona reply' });
+      (botReply as unknown as Record<string, unknown>).reference = undefined;
+      const userMsg = createMockMessage({
+        authorId: 'user-9',
+        content: `quoting ${OPT_OUT_FOOTER.trimStart()}`,
+      });
+      (userMsg as unknown as Record<string, unknown>).reference = undefined;
+
+      expect(isContextExcludedBotMessage(botReply, botUserId)).toBe(false);
+      expect(isContextExcludedBotMessage(userMsg, botUserId)).toBe(false);
     });
   });
 });

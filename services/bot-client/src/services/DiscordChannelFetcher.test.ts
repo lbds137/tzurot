@@ -1777,6 +1777,42 @@ describe('DiscordChannelFetcher', () => {
     });
   });
 
+  describe('release-notes DM filtering', () => {
+    it('should filter out release DMs but keep a user quoting the footer', async () => {
+      const footerText = '-# Opt out of release DMs anytime with /notifications disable';
+      const messages = [
+        // Bot-authored release DM (should be FILTERED OUT — otherwise it
+        // classifies as a relay-echo and enters context as user speech)
+        createMockMessage({
+          id: 'release-dm-1',
+          content: `## v3.0.0 released!\nNew stuff.\n\n${footerText}`,
+          authorId: 'bot123',
+          authorUsername: 'TestBot',
+          isBot: true,
+          createdAt: new Date('2024-01-01T12:00:01Z'),
+        }),
+        // A user quoting the footer text (should be INCLUDED — author gate)
+        createMockMessage({
+          id: 'user-msg-1',
+          content: `what does ${footerText} mean?`,
+          authorId: 'user2',
+          authorUsername: 'bob',
+          createdAt: new Date('2024-01-01T12:00:02Z'),
+        }),
+      ];
+
+      const channel = createMockChannel(messages);
+
+      const result = await fetcher.fetchRecentMessages(channel, {
+        botUserId: 'bot123',
+      });
+
+      expect(result.filteredCount).toBe(1);
+      expect(result.messages.some(m => m.content.includes('v3.0.0 released'))).toBe(false);
+      expect(result.messages.some(m => m.content.includes('what does'))).toBe(true);
+    });
+  });
+
   describe('bot transcript reply filtering', () => {
     it('should filter out bot transcript replies from extended context', async () => {
       // Bot transcript replies are: bot message + reply reference + has text content

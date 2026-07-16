@@ -28,8 +28,8 @@ import { resolveHistoryLinks } from '../utils/HistoryLinkResolver.js';
 import { extractPersonalityName, stripBotSuffix } from '../utils/webhookNaming.js';
 
 import {
-  isThinkingBlockMessage,
   isBotTranscriptReply,
+  isContextExcludedBotMessage,
 } from './channelFetcher/messageTypeFilters.js';
 import {
   extractGuildInfo,
@@ -244,10 +244,7 @@ export class DiscordChannelFetcher {
       if (!hasMessageContent(msg) && resolvedReferences?.has(msg.id) !== true) {
         continue;
       }
-      if (isBotTranscriptReply(msg, options.botUserId)) {
-        continue;
-      }
-      if (isThinkingBlockMessage(msg)) {
+      if (isContextExcludedBotMessage(msg, options.botUserId)) {
         continue;
       }
       // Filter BLOCK-denied users from extended context
