@@ -104,6 +104,41 @@ export type EnqueueBroadcastResult =
   | { ok: false; reason: 'already-announced' };
 
 /**
+ * Each recipient's most recent prior release DM still standing (sent, not
+ * yet deleted). The DM worker deletes it before sending the new one, so a
+ * user's DM channel holds at most one release note. One batched query —
+ * newest-first scan, first row per user wins.
+ */
+async function resolvePreviousDms(
+  prisma: PrismaClient,
+  releaseId: string,
+  userIds: string[]
+): Promise<Map<string, { deliveryLogId: string; messageId: string }>> {
+  const rows = await prisma.releaseDeliveryLog.findMany({
+    where: {
+      userId: { in: userIds },
+      releaseId: { not: releaseId },
+      sentMessageId: { not: null },
+      messageDeletedAt: null,
+    },
+    select: { id: true, userId: true, sentMessageId: true },
+    orderBy: { attemptedAt: 'desc' },
+    // Newest row per user — distinct guards the take against a user with
+    // several standing DMs (a previously failed delete) starving the rest.
+    distinct: ['userId'],
+    take: userIds.length,
+  });
+
+  const byUser = new Map<string, { deliveryLogId: string; messageId: string }>();
+  for (const row of rows) {
+    if (row.sentMessageId !== null) {
+      byUser.set(row.userId, { deliveryLogId: row.id, messageId: row.sentMessageId });
+    }
+  }
+  return byUser;
+}
+
+/**
  * Create the announcement + pending delivery-log rows and enqueue the DM
  * batches. Idempotent end-to-end: the unique version rejects a re-announce,
  * delivery-log ids are deterministic (skipDuplicates), and batch jobIds are
@@ -163,6 +198,12 @@ export async function enqueueBroadcast(
     skipDuplicates: true,
   });
 
+  const previousDms = await resolvePreviousDms(
+    prisma,
+    releaseId,
+    recipients.map(recipient => recipient.userId)
+  );
+
   let batches = 0;
   for (let start = 0; start < recipients.length; start += BROADCAST_BATCH_SIZE) {
     const slice = recipients.slice(start, start + BROADCAST_BATCH_SIZE);
@@ -180,6 +221,9 @@ export async function enqueueBroadcast(
           deliveryLogId: generateReleaseDeliveryLogUuid(releaseId, recipient.userId),
           userId: recipient.userId,
           discordUserId: recipient.discordUserId,
+          ...(previousDms.has(recipient.userId)
+            ? { previousDm: previousDms.get(recipient.userId) }
+            : {}),
         })),
       },
       { jobId: `release-broadcast:${releaseId}:${batches}` }

@@ -53,3 +53,41 @@ export const UpdateNotificationPrefsResponseSchema = z.object({
 });
 
 export type UpdateNotificationPrefsResponse = z.infer<typeof UpdateNotificationPrefsResponseSchema>;
+
+// ============================================================================
+// GET /user/notifications/release-dms
+// The user's release DMs still standing (sent, not yet deleted) — the
+// /notifications cleanup command deletes these from the DM channel.
+// ============================================================================
+
+/**
+ * Bounded: each blast targets at most one prior DM per user for auto-cleanup,
+ * so standing DMs only accrue past one when a delete-before-send failed —
+ * this cap absorbs that accumulation with generous room.
+ */
+export const RELEASE_DM_CLEANUP_MAX = 100;
+
+export const ListReleaseDmsResponseSchema = z.object({
+  messages: z.array(
+    z.object({
+      deliveryLogId: z.string().uuid(),
+      /** Snowflake of the sent DM in the user's channel with the bot. */
+      messageId: z.string(),
+    })
+  ),
+});
+
+// ============================================================================
+// POST /user/notifications/release-dms/deleted
+// Bot-client reports which release DMs it deleted; rows get messageDeletedAt.
+// ============================================================================
+
+export const MarkReleaseDmsDeletedInputSchema = z.object({
+  deliveryLogIds: z.array(z.string().uuid()).min(1).max(RELEASE_DM_CLEANUP_MAX),
+});
+
+export const MarkReleaseDmsDeletedResponseSchema = z.object({
+  success: z.literal(true),
+  /** Rows actually stamped (ownership-scoped; already-stamped rows skip). */
+  marked: z.number().int().min(0),
+});

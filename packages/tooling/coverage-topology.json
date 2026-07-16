@@ -1430,6 +1430,20 @@
       ]
     },
     {
+      "id": "client:api-gateway:listReleaseDms",
+      "kind": "http-route",
+      "producer": "client",
+      "consumer": "api-gateway",
+      "schemaRef": "GET /notifications/release-dms",
+      "mechanism": "route-conformance",
+      "requiredTiers": [
+        "component"
+      ],
+      "actualTiers": [
+        "component"
+      ]
+    },
+    {
       "id": "client:api-gateway:listShapes",
       "kind": "http-route",
       "producer": "client",
@@ -1589,6 +1603,20 @@
       "producer": "client",
       "consumer": "api-gateway",
       "schemaRef": "GET /conversation/message-personality",
+      "mechanism": "route-conformance",
+      "requiredTiers": [
+        "component"
+      ],
+      "actualTiers": [
+        "component"
+      ]
+    },
+    {
+      "id": "client:api-gateway:markReleaseDmsDeleted",
+      "kind": "http-route",
+      "producer": "client",
+      "consumer": "api-gateway",
+      "schemaRef": "POST /notifications/release-dms/deleted",
       "mechanism": "route-conformance",
       "requiredTiers": [
         "component"

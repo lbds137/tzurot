@@ -1017,6 +1017,14 @@ model ReleaseDeliveryLog {
   /// delivery-status endpoint when the DM worker (bot-client, Prisma-free)
   /// reports the batch's outcomes.
   attemptedAt DateTime?           @map("attempted_at")
+  /// Deferred-set: null until the DM send succeeds; then carries the sent
+  /// Discord message's snowflake so cleanup (auto delete-previous on the next
+  /// blast, /notifications cleanup) can delete the DM without history scans.
+  sentMessageId String?           @map("sent_message_id") @db.VarChar(30)
+  /// State machine: null while the sent DM may still exist in the user's DM
+  /// channel; stamped when a cleanup path confirms deletion (a 10008
+  /// already-gone counts — the goal state is "message absent", however reached).
+  messageDeletedAt DateTime?      @map("message_deleted_at")
   createdAt   DateTime            @default(now()) @map("created_at")
   updatedAt   DateTime            @updatedAt @map("updated_at")
   release     ReleaseAnnouncement @relation(fields: [releaseId], references: [id], onDelete: Cascade)

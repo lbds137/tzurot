@@ -201,6 +201,8 @@ const PATH_MAP: Readonly<Record<string, string>> = {
   setTimezone: USER_TIMEZONE,
   getNotificationPrefs: USER_NOTIFICATIONS,
   updateNotificationPrefs: USER_NOTIFICATIONS,
+  listReleaseDms: USER_NOTIFICATIONS,
+  markReleaseDmsDeleted: USER_NOTIFICATIONS,
   broadcast: ADMIN_BROADCAST,
   releaseBroadcastPending: INTERNAL_RELEASE_BROADCAST,
   releaseBroadcastDeliveries: INTERNAL_RELEASE_BROADCAST,

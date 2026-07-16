@@ -1870,6 +1870,14 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
     "type": 1,
   },
   {
+    "description": "Delete release-notes DMs from your DM channel",
+    "description_localizations": undefined,
+    "name": "cleanup",
+    "name_localizations": undefined,
+    "options": [],
+    "type": 1,
+  },
+  {
     "description": "Set the minimum release weight worth a DM",
     "description_localizations": undefined,
     "name": "level",

@@ -9,10 +9,15 @@ function asMessage(authorId: string, content: string): Message {
 }
 
 describe('releaseDmContext', () => {
-  it('footer names the explicit opt-out invocation', () => {
+  it('footer names every recipient affordance: opt out, tune level, clean up', () => {
     expect(OPT_OUT_FOOTER).toContain('/notifications disable');
+    expect(OPT_OUT_FOOTER).toContain('/notifications level');
+    expect(OPT_OUT_FOOTER).toContain('/notifications cleanup');
     // Discord subtext line — starts blank-line-separated, renders small.
     expect(OPT_OUT_FOOTER.startsWith('\n\n-# ')).toBe(true);
+    // BROADCAST_MESSAGE_MAX_LENGTH (1800) + footer must clear Discord's
+    // 2000-char cap with headroom; a footer past 200 chars breaks the budget.
+    expect(OPT_OUT_FOOTER.length).toBeLessThan(200);
   });
 
   describe('isReleaseNotesDm', () => {

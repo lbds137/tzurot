@@ -118,6 +118,81 @@ describe('POST /internal/release-broadcast/:releaseId/deliveries', () => {
     });
   });
 
+  it('persists sentMessageId and stamps the deleted previous row', async () => {
+    const PREV_LOG = '623e4567-e89b-42d3-a456-426614174000';
+    const handler = handleReleaseBroadcastDeliveries(makeDeps());
+    const { req, res } = createMockReqRes({
+      results: [
+        {
+          deliveryLogId: LOG_A,
+          status: 'sent',
+          sentMessageId: 'sent-msg-1',
+          deletedPreviousDeliveryLogId: PREV_LOG,
+        },
+      ],
+    });
+
+    await handler(req, res, vi.fn());
+
+    // Stamp FIRST, main transition second — the stamp must not sit behind
+    // the pending-only continue (see the retry test below).
+    expect(mockPrisma.releaseDeliveryLog.updateMany).toHaveBeenNthCalledWith(1, {
+      where: { id: PREV_LOG, messageDeletedAt: null },
+      data: { messageDeletedAt: expect.any(Date) },
+    });
+    expect(mockPrisma.releaseDeliveryLog.updateMany).toHaveBeenNthCalledWith(2, {
+      where: { id: LOG_A, releaseId: RELEASE_ID, status: 'pending' },
+      data: expect.objectContaining({ status: 'sent', sentMessageId: 'sent-msg-1' }),
+    });
+  });
+
+  it('still stamps the previous row when the main transition is a retry no-op', async () => {
+    // Lost-response retry: the worker re-reports the same payload after the
+    // first attempt committed the main transition but the response (or the
+    // stamp write) was lost. The stamp is idempotent and independent — it
+    // must run even though the main row is no longer pending.
+    const PREV_LOG = '623e4567-e89b-42d3-a456-426614174000';
+    mockPrisma.releaseDeliveryLog.updateMany
+      .mockResolvedValueOnce({ count: 1 }) // the stamp write
+      .mockResolvedValueOnce({ count: 0 }); // main transition: already terminal
+    const handler = handleReleaseBroadcastDeliveries(makeDeps());
+    const { req, res } = createMockReqRes({
+      results: [
+        {
+          deliveryLogId: LOG_A,
+          status: 'sent',
+          sentMessageId: 'sent-msg-1',
+          deletedPreviousDeliveryLogId: PREV_LOG,
+        },
+      ],
+    });
+
+    await handler(req, res, vi.fn());
+
+    expect(mockPrisma.releaseDeliveryLog.updateMany).toHaveBeenNthCalledWith(1, {
+      where: { id: PREV_LOG, messageDeletedAt: null },
+      data: { messageDeletedAt: expect.any(Date) },
+    });
+    const payload = (res.json as ReturnType<typeof vi.fn>).mock.calls[0][0] as {
+      updated: number;
+    };
+    expect(payload.updated).toBe(0);
+  });
+
+  it('writes sentMessageId as null when the report omits it (failure rows)', async () => {
+    const handler = handleReleaseBroadcastDeliveries(makeDeps());
+    const { req, res } = createMockReqRes({
+      results: [{ deliveryLogId: LOG_A, status: 'failed_transient', errorCode: 'ECONNRESET' }],
+    });
+
+    await handler(req, res, vi.fn());
+
+    expect(mockPrisma.releaseDeliveryLog.updateMany).toHaveBeenCalledWith({
+      where: { id: LOG_A, releaseId: RELEASE_ID, status: 'pending' },
+      data: expect.objectContaining({ sentMessageId: null }),
+    });
+  });
+
   it('is idempotent: an already-terminal row does not count as updated', async () => {
     mockPrisma.releaseDeliveryLog.updateMany.mockResolvedValueOnce({ count: 0 });
     const handler = handleReleaseBroadcastDeliveries(makeDeps());

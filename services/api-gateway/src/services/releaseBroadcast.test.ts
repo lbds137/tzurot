@@ -43,6 +43,7 @@ function makePrisma() {
     },
     releaseDeliveryLog: {
       createMany: vi.fn().mockResolvedValue({ count: 0 }),
+      findMany: vi.fn().mockResolvedValue([]),
     },
   };
 }
@@ -186,6 +187,51 @@ describe('enqueueBroadcast', () => {
     expect(jobName).toBe(JobType.ReleaseBroadcastDm);
     expect(payload.recipients).toHaveLength(2);
     expect(opts.jobId).toBe(`release-broadcast:${releaseId}:0`);
+  });
+
+  it("attaches each recipient's standing prior DM as previousDm", async () => {
+    const prisma = makePrisma();
+    prisma.user.findMany.mockResolvedValueOnce([
+      { id: USER_A, discordId: '111', username: 'alice' },
+      { id: USER_B, discordId: '222', username: 'bob' },
+    ]);
+    // Only alice has a standing prior release DM.
+    prisma.releaseDeliveryLog.findMany.mockResolvedValueOnce([
+      { id: '723e4567-e89b-42d3-a456-426614174000', userId: USER_A, sentMessageId: 'old-msg-1' },
+    ]);
+    const queue = makeQueue();
+
+    await enqueueBroadcast(prisma as unknown as PrismaClient, queue as unknown as Queue, {
+      version: 'adhoc-2',
+      level: 'major',
+      body: 'hi',
+    });
+
+    const releaseId = generateReleaseAnnouncementUuid('adhoc-2');
+    // The lookup excludes the release being enqueued and already-deleted rows,
+    // and picks one newest row per user.
+    expect(prisma.releaseDeliveryLog.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          userId: { in: [USER_A, USER_B] },
+          releaseId: { not: releaseId },
+          sentMessageId: { not: null },
+          messageDeletedAt: null,
+        },
+        distinct: ['userId'],
+      })
+    );
+
+    const payload = queue.add.mock.calls[0][1] as {
+      recipients: { userId: string; previousDm?: { deliveryLogId: string; messageId: string } }[];
+    };
+    const alice = payload.recipients.find(r => r.userId === USER_A);
+    const bob = payload.recipients.find(r => r.userId === USER_B);
+    expect(alice?.previousDm).toEqual({
+      deliveryLogId: '723e4567-e89b-42d3-a456-426614174000',
+      messageId: 'old-msg-1',
+    });
+    expect(bob?.previousDm).toBeUndefined();
   });
 
   it('splits recipients into batches at the cap', async () => {

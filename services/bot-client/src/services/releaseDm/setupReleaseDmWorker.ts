@@ -13,7 +13,7 @@
  */
 
 import { Worker, type Job } from 'bullmq';
-import type { Client } from 'discord.js';
+import { DiscordAPIError, type Client, type User } from 'discord.js';
 import { getConfig } from '@tzurot/common-types/config/config';
 import { RELEASE_BROADCAST_QUEUE_NAME } from '@tzurot/common-types/constants/queue';
 import { TIMEOUTS } from '@tzurot/common-types/constants/timing';
@@ -48,28 +48,73 @@ export interface ReleaseDmWorkerDeps {
 
 const defaultSleep = (ms: number): Promise<void> => new Promise(resolve => setTimeout(resolve, ms));
 
-/** Send one DM; returns the ledger outcome. */
+/** Discord "Unknown Message" — the previous DM is already gone; goal state reached. */
+const UNKNOWN_MESSAGE_CODE = 10008;
+
+/**
+ * Best-effort delete of the user's prior release DM so the channel holds at
+ * most one release note. Never blocks the send: a failure just leaves the
+ * old DM standing (its ledger row stays un-stamped, so /notifications
+ * cleanup — or the next blast — retries it).
+ */
+async function deletePreviousDm(user: User, messageId: string): Promise<boolean> {
+  try {
+    const dm = await user.createDM();
+    await dm.messages.delete(messageId);
+    return true;
+  } catch (error) {
+    if (error instanceof DiscordAPIError && error.code === UNKNOWN_MESSAGE_CODE) {
+      return true;
+    }
+    logger.warn(
+      { userId: user.id, err: error },
+      'Failed to delete previous release DM — left standing for a later cleanup'
+    );
+    return false;
+  }
+}
+
+/** Send one DM (deleting the recipient's prior release DM first); returns the ledger outcome. */
 async function sendOne(
   client: Client,
-  discordUserId: string,
+  recipient: ReleaseBroadcastRecipient,
   body: string
-): Promise<{ status: DeliveryReport['status']; errorCode?: string }> {
+): Promise<{
+  status: DeliveryReport['status'];
+  errorCode?: string;
+  sentMessageId?: string;
+  deletedPreviousDeliveryLogId?: string;
+}> {
+  // Survives the send's catch: a deletion that happened must reach the
+  // ledger even when the subsequent send fails, or the next blast would
+  // hand out an already-deleted previousDm (harmless — 10008 re-stamps —
+  // but a wasted call and a misleading ledger in the interim).
+  let deletedPreviousDeliveryLogId: string | undefined;
   try {
-    const user = await client.users.fetch(discordUserId);
-    await user.send({
+    const user = await client.users.fetch(recipient.discordUserId);
+
+    if (recipient.previousDm !== undefined) {
+      const deleted = await deletePreviousDm(user, recipient.previousDm.messageId);
+      if (deleted) {
+        deletedPreviousDeliveryLogId = recipient.previousDm.deliveryLogId;
+      }
+    }
+
+    const sent = await user.send({
       content: body + OPT_OUT_FOOTER,
       allowedMentions: { parse: [] },
     });
-    return { status: 'sent' };
+    return { status: 'sent', sentMessageId: sent.id, deletedPreviousDeliveryLogId };
   } catch (error) {
     const classified = classifyDmError(error);
     logger.warn(
-      { userId: discordUserId, kind: classified.kind, code: dmErrorCode(classified) },
+      { userId: recipient.discordUserId, kind: classified.kind, code: dmErrorCode(classified) },
       'Broadcast DM failed'
     );
     return {
       status: classified.kind === 'permanent' ? 'failed_permanent' : 'failed_transient',
       errorCode: dmErrorCode(classified),
+      deletedPreviousDeliveryLogId,
     };
   }
 }
@@ -103,7 +148,7 @@ export function createReleaseDmProcessor(deps: ReleaseDmWorkerDeps) {
     const results: DeliveryReport[] = [];
     for (let i = 0; i < toSend.length; i++) {
       const recipient = toSend[i];
-      const outcome = await sendOne(deps.client, recipient.discordUserId, data.body);
+      const outcome = await sendOne(deps.client, recipient, data.body);
       const entry: DeliveryReport = { deliveryLogId: recipient.deliveryLogId, ...outcome };
       results.push(entry);
       // Report EACH outcome immediately: a mid-batch crash then leaves at most

@@ -12,7 +12,14 @@
 
 import type { Message } from 'discord.js';
 
-export const OPT_OUT_FOOTER = '\n\n-# Opt out of release DMs anytime with /notifications disable';
+/**
+ * Names every affordance the recipient has: opt out entirely, tune the
+ * severity threshold, or delete the notification messages themselves.
+ * BROADCAST_MESSAGE_MAX_LENGTH (1800) budgets Discord's 2000-char cap
+ * around this footer — keep it comfortably inside that headroom.
+ */
+export const OPT_OUT_FOOTER =
+  '\n\n-# Opt out with /notifications disable · tune with /notifications level · delete these with /notifications cleanup';
 
 /**
  * The match is on the footer's subtext line itself (sans leading newlines):
