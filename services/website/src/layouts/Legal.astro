@@ -1,0 +1,93 @@
+---
+/**
+ * Prose layout for the legal documents. The markdown comes straight from
+ * docs/legal via the content collection; this layout provides readable
+ * typography and the retention table styling; the sticky header's brand link
+ * is the way back home.
+ */
+import Base from './Base.astro';
+
+interface Props {
+  title: string;
+  description: string;
+  path: string;
+}
+
+const { title, description, path } = Astro.props;
+---
+
+<Base title={title} description={description} path={path}>
+  <article class="container prose">
+    <slot />
+  </article>
+</Base>
+
+<style is:global>
+  .prose {
+    max-width: var(--prose-width);
+    padding-block: 3rem 2rem;
+  }
+
+  .prose h1 {
+    font-size: clamp(2rem, 5vw, 2.6rem);
+    margin-bottom: 0.5rem;
+    background: linear-gradient(100deg, var(--violet-bright) 10%, #c9a2ff 55%, var(--gold) 95%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .prose h2 {
+    margin-top: 2.5rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--border);
+    font-size: 1.35rem;
+    color: var(--gold);
+  }
+
+  .prose ul {
+    padding-left: 1.35rem;
+  }
+
+  .prose li {
+    margin-block: 0.4rem;
+  }
+
+  .prose table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.95rem;
+    display: block;
+    overflow-x: auto;
+  }
+
+  .prose th,
+  .prose td {
+    text-align: left;
+    padding: 0.6rem 0.9rem;
+    border: 1px solid var(--border);
+    vertical-align: top;
+  }
+
+  .prose th {
+    background: var(--surface-solid);
+    color: var(--gold);
+    font-weight: 600;
+  }
+
+  .prose tr:nth-child(even) td {
+    background: rgb(255 255 255 / 0.02);
+  }
+
+  .prose strong {
+    color: var(--text);
+  }
+
+  .prose code {
+    background: var(--surface-solid);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 0.1em 0.4em;
+    font-size: 0.9em;
+  }
+</style>

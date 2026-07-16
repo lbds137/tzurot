@@ -1,0 +1,172 @@
+---
+/**
+ * Base layout: head metadata (per-brand og/canonical/robots), header, footer,
+ * and the shared page chrome. Canonicals always point at the prod domain so
+ * the Rotzot dev preview never competes with tzurot.org in search.
+ */
+import '@fontsource-variable/inter';
+import '../styles/global.css';
+import { Image, getImage } from 'astro:assets';
+import { BRAND, CANONICAL_ORIGIN, GITHUB_URL } from '../brand';
+
+interface Props {
+  title: string;
+  description: string;
+  /**
+   * Path for the canonical URL, e.g. "/terms". Omit (404 page) to emit no
+   * canonical/og:url at all — a not-found page has no canonical location.
+   */
+  path?: string;
+}
+
+const { title, description, path } = Astro.props;
+const canonical = path !== undefined ? new URL(path, CANONICAL_ORIGIN).href : undefined;
+// og:image as JPEG for maximum unfurl compatibility (Discord, Slack, socials).
+// Unlike canonical/og:url (always prod-pointing by design), the image URL must
+// resolve against THIS deployment's own origin: the asset's content hash is
+// per-build, so the Rotzot preview's banner does not exist under tzurot.org.
+// Railway injects RAILWAY_PUBLIC_DOMAIN (threaded through the Dockerfile as a
+// build arg); local and any env without it fall back to the canonical origin.
+const railwayDomain = process.env.RAILWAY_PUBLIC_DOMAIN;
+const assetOrigin =
+  railwayDomain !== undefined && railwayDomain !== '' ? `https://${railwayDomain}` : CANONICAL_ORIGIN;
+const ogImage = await getImage({ src: BRAND.banner, format: 'jpeg', width: 1200 });
+const ogImageUrl = new URL(ogImage.src, assetOrigin).href;
+const year = new Date().getFullYear();
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    {canonical !== undefined && <link rel="canonical" href={canonical} />}
+    {BRAND.noindex && <meta name="robots" content="noindex, nofollow" />}
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content={BRAND.name} />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    {canonical !== undefined && <meta property="og:url" content={canonical} />}
+    <meta property="og:image" content={ogImageUrl} />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="theme-color" content="#0b0812" />
+  </head>
+  <body>
+    <header class="site-header">
+      <nav class="container site-nav" aria-label="Main">
+        <a href="/" class="brand-link">
+          <Image src={BRAND.logo} alt="" width={72} height={72} class="brand-mark" />
+          <span class="brand-name gradient-text">{BRAND.name}</span>
+        </a>
+        <div class="nav-links">
+          <a href="/terms">Terms</a>
+          <a href="/privacy">Privacy</a>
+          <a href={GITHUB_URL} target="_blank" rel="noopener">GitHub</a>
+        </div>
+      </nav>
+    </header>
+
+    <main>
+      <slot />
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-inner">
+        <p>
+          © {year} Vladlena Costescu · <a href={`${GITHUB_URL}/blob/main/LICENSE`} target="_blank" rel="noopener">MIT licensed</a>
+        </p>
+        <p class="footer-links">
+          <a href="/terms">Terms of Service</a>
+          <a href="/privacy">Privacy Policy</a>
+          <a href={GITHUB_URL} target="_blank" rel="noopener">Source on GitHub</a>
+        </p>
+      </div>
+    </footer>
+  </body>
+</html>
+
+<style>
+  .site-header {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: color-mix(in srgb, var(--bg) 82%, transparent);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .site-nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding-block: 0.6rem;
+  }
+
+  .brand-link {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+  }
+
+  .brand-link:hover {
+    text-decoration: none;
+  }
+
+  .brand-mark {
+    width: 40px;
+    height: 40px;
+    border-radius: 9px;
+  }
+
+  .brand-name {
+    font-size: 1.35rem;
+    font-weight: 800;
+    letter-spacing: 0.01em;
+  }
+
+  .nav-links {
+    display: flex;
+    gap: 1.4rem;
+    font-weight: 500;
+  }
+
+  .nav-links a {
+    color: var(--text-muted);
+  }
+
+  .nav-links a:hover {
+    color: var(--text);
+  }
+
+  .site-footer {
+    margin-top: 5rem;
+    border-top: 1px solid var(--border);
+    padding-block: 2rem;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+  }
+
+  .footer-inner {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 0.75rem;
+  }
+
+  .footer-links {
+    display: flex;
+    gap: 1.25rem;
+  }
+
+  .footer-links a {
+    color: var(--text-muted);
+  }
+
+  .footer-links a:hover {
+    color: var(--text);
+  }
+</style>

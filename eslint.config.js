@@ -8,6 +8,7 @@ import * as regexpPlugin from 'eslint-plugin-regexp';
 import importPlugin from 'eslint-plugin-import-x';
 import tzurotPlugin from './packages/tooling/dist/eslint/index.js';
 import vitest from '@vitest/eslint-plugin';
+import astroPlugin from 'eslint-plugin-astro';
 
 // Get the directory name of the current module (monorepo root)
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -700,6 +701,20 @@ export default tseslint.config(
         'error',
         { fixStyle: 'inline-type-imports', disallowTypeAnnotations: false },
       ],
+    },
+  },
+
+  // Astro components (services/website). astro-eslint-parser makes .astro
+  // files lintable (flat config otherwise silently skips them — none of the
+  // .ts blocks above match, so the site's page/layout logic would get zero
+  // ESLint coverage). Type-AWARE rules are disabled for .astro: projectService
+  // can't resolve the virtual frontmatter modules, and `astro check` is the
+  // type gate for these files.
+  ...astroPlugin.configs['flat/recommended'],
+  {
+    files: ['**/*.astro'],
+    rules: {
+      ...tseslint.configs.disableTypeChecked.rules,
     },
   }
 );

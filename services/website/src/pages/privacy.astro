@@ -1,0 +1,19 @@
+---
+import { getEntry, render } from 'astro:content';
+import Legal from '../layouts/Legal.astro';
+import { BRAND } from '../brand';
+
+const entry = await getEntry('legal', 'privacy_policy');
+if (!entry) {
+  throw new Error('docs/legal/PRIVACY_POLICY.md is missing from the content collection');
+}
+const { Content } = await render(entry);
+---
+
+<Legal
+  title={`Privacy Policy — ${BRAND.name}`}
+  description="What the Tzurot Discord bot collects, why, where it goes, and the controls you have over it."
+  path="/privacy"
+>
+  <Content />
+</Legal>

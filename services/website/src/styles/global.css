@@ -1,0 +1,140 @@
+/*
+ * Tzurot site design tokens + base styles.
+ *
+ * Palette is derived from the cube logo: near-black plum ground with a
+ * tone-on-tone geometric lattice, violet plasma as the primary range, warm
+ * gold reserved for accents (like the veins in the logo), Discord blurple
+ * only as an informational accent (per the ux-design-system-spec: blurple =
+ * informational; success/warning/error stay reserved for outcomes).
+ */
+
+:root {
+  --bg: #0b0812;
+  --bg-deep: #070510;
+  --surface: #16102299;
+  --surface-solid: #161022;
+  --border: #2b2144;
+  --violet: #8b5cf6;
+  --violet-bright: #a855f7;
+  --violet-glow: #a855f755;
+  --gold: #e8c47f;
+  --blurple: #5865f2;
+  --text: #ece9f4;
+  --text-muted: #a89fc4;
+  --radius: 10px;
+  --content-width: 72rem;
+  --prose-width: 46rem;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  color-scheme: dark;
+  scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background-color: var(--bg);
+  /* The tone-on-tone diamond lattice, echoing the logo background. */
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='96' height='96' viewBox='0 0 96 96'%3E%3Cg fill='none' stroke='%23ffffff' stroke-opacity='0.025' stroke-width='1'%3E%3Cpath d='M48 0 96 48 48 96 0 48Z'/%3E%3Cpath d='M48 16 80 48 48 80 16 48Z'/%3E%3Cpath d='M48 0v96M0 48h96' stroke-opacity='0.012'/%3E%3C/g%3E%3C/svg%3E");
+  color: var(--text);
+  font-family:
+    'Inter Variable',
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    Roboto,
+    sans-serif;
+  font-size: 1.0625rem;
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3 {
+  line-height: 1.2;
+  letter-spacing: -0.015em;
+  color: var(--text);
+}
+
+a {
+  color: var(--violet-bright);
+  text-decoration: none;
+}
+
+a:hover,
+a:focus-visible {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+a:focus-visible {
+  outline: 2px solid var(--violet-bright);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+img {
+  max-width: 100%;
+  height: auto;
+}
+
+.container {
+  width: min(var(--content-width), 100% - 2.5rem);
+  margin-inline: auto;
+}
+
+/* Gradient display text — the plasma-to-gold sweep from the logo. */
+.gradient-text {
+  background: linear-gradient(100deg, var(--violet-bright) 10%, #c9a2ff 45%, var(--gold) 90%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.button {
+  display: inline-block;
+  padding: 0.7rem 1.5rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface-solid);
+  color: var(--text);
+  font-weight: 600;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
+}
+
+.button:hover {
+  text-decoration: none;
+  border-color: var(--violet);
+  box-shadow: 0 0 24px var(--violet-glow);
+  transform: translateY(-1px);
+}
+
+.button--primary {
+  border-color: var(--violet);
+  background: linear-gradient(120deg, #6d3fd4, var(--violet));
+}
+
+.button--primary:hover {
+  border-color: var(--violet-bright);
+}

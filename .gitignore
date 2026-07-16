@@ -6,6 +6,7 @@ node_modules/
 dist/
 *.tsbuildinfo
 .turbo/
+.astro/
 
 # Prevent accidental JS commits in TS source directories
 # (TypeScript compiles to dist/, not alongside source files)

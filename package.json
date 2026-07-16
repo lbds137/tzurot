@@ -81,6 +81,7 @@
     "dotenv": "^17.4.2",
     "eslint": "^10.7.0",
     "eslint-formatter-pretty": "^7.1.0",
+    "eslint-plugin-astro": "^3.0.1",
     "eslint-plugin-import-x": "^4.17.1",
     "eslint-plugin-regexp": "^3.1.1",
     "eslint-plugin-sonarjs": "^4.1.0",
