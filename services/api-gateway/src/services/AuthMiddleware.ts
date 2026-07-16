@@ -224,41 +224,25 @@ function readEncodedHeader(req: Request, headerName: string): string | undefined
  * @param prisma - PrismaClient used to construct a cached UserService
  * @returns Express middleware function
  */
-// Cache UserService instances by PrismaClient reference so multiple factory
-// calls with the same client share ONE UserService (and its TTLCache). Each
-// route file mounts `requireProvisionedUser(prisma)` per-endpoint, so
-// `memory.ts` (12 endpoints) would otherwise create 12 independent
-// UserServices with 12 independent caches — cache hits would never carry
-// across endpoints for the same user. WeakMap lets the instance be GC'd
-// if/when the PrismaClient it was built against is released (not expected
-// in prod, but correct for test fixtures that spin up short-lived clients).
-//
-// Exported so every api-gateway route factory goes through the same registry
-// — `new UserService(prisma)` in a route file creates an independent cache
-// that never shares hits with the middleware's instance, which defeats the
-// sharing the registry was built to provide. The canonical pattern is:
+// `getOrCreateUserService` (the per-PrismaClient UserService registry) lives in
+// @tzurot/identity — one shared UserService, and its TTLCache, per PrismaClient,
+// so ai-worker's context pipeline shares the SAME instance the account-deletion
+// invalidation subscriber evicts (the cross-process eviction the registry move
+// enables). Re-exported here (and imported at the top for the middleware's own
+// use) so existing api-gateway route factories keep their import path. Route
+// factories MUST go through it — `new UserService(prisma)` creates an
+// independent cache that never shares hits with the middleware's instance,
+// defeating the registry:
 //
 //   export function createFooRoutes(prisma: PrismaClient): Router {
 //     const userService = getOrCreateUserService(prisma);  // NOT `new UserService(prisma)`
 //     ...
 //   }
-//
-// Test-author note: because the WeakMap is module-scoped, reusing the same
-// `PrismaClient` object (or the same mock cast) across multiple `it()`
-// blocks in a vitest worker will share the cached UserService — and any
-// state accumulated on it — across those tests. Construct a fresh prisma
-// object per test (or reset via `beforeEach`) if cross-test isolation
-// matters. Current tests construct fresh `{} as unknown as PrismaClient`
-// references per assertion, which is why they don't collide.
-// Lifted into @tzurot/identity so ai-worker's context pipeline shares the SAME
-// per-prisma UserService instance (and its cache) that the account-deletion
-// invalidation subscriber evicts. Re-exported so existing api-gateway callers
-// keep their import path (imported at the top for local use in the middleware).
 export { getOrCreateUserService };
 
 export function requireProvisionedUser(prisma: PrismaClient) {
   // Shared UserService across all factory calls with the same prisma
-  // reference — see `userServiceByPrisma` comment above for why.
+  // reference — see the getOrCreateUserService note above for why.
   const userService = getOrCreateUserService(prisma);
 
   return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
