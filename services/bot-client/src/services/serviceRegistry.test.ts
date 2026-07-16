@@ -71,6 +71,13 @@ describe('serviceRegistry', () => {
       const { areServicesRegistered } = await import('./serviceRegistry.js');
       expect(areServicesRegistered()).toBe(false);
     });
+
+    it('should return undefined for DenylistCache before registration (non-throwing)', async () => {
+      // Unlike the other getters, getDenylistCache degrades open — the denylist
+      // is a best-effort moderation gate, so it returns undefined rather than throwing.
+      const { getDenylistCache } = await import('./serviceRegistry.js');
+      expect(getDenylistCache()).toBeUndefined();
+    });
   });
 
   describe('after registration', () => {
@@ -101,6 +108,22 @@ describe('serviceRegistry', () => {
       });
 
       expect(getJobTracker()).toBe(mockJobTracker);
+    });
+
+    it('should return the registered DenylistCache', async () => {
+      const { registerServices, getDenylistCache } = await import('./serviceRegistry.js');
+
+      registerServices({
+        jobTracker: mockJobTracker,
+        webhookManager: mockWebhookManager,
+        personalityService: mockPersonalityService,
+        channelActivationCacheInvalidationService: mockChannelActivationCacheInvalidationService,
+        messageContextBuilder: mockMessageContextBuilder,
+        conversationPersistence: mockConversationPersistence,
+        denylistCache: mockDenylistCache,
+      });
+
+      expect(getDenylistCache()).toBe(mockDenylistCache);
     });
 
     it('should return registered WebhookManager', async () => {
