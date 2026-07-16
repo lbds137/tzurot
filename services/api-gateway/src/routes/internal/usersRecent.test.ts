@@ -10,6 +10,7 @@ vi.mock('@tzurot/common-types/utils/outboundDmAllowlist', () => ({
   getOutboundDmAllowlist: () => allowlistMock.value,
 }));
 
+const loggerInfoMock = vi.hoisted(() => vi.fn());
 vi.mock('@tzurot/common-types/utils/logger', async () => {
   const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
     '@tzurot/common-types/utils/logger'
@@ -17,7 +18,7 @@ vi.mock('@tzurot/common-types/utils/logger', async () => {
   return {
     ...actual,
     createLogger: () => ({
-      info: vi.fn(),
+      info: loggerInfoMock,
       debug: vi.fn(),
       warn: vi.fn(),
       error: vi.fn(),
@@ -133,6 +134,28 @@ describe('GET /internal/users/recent', () => {
 
     expect(response.status).toBe(500);
     expect(mockPrisma.$queryRaw).toHaveBeenCalled();
+  });
+
+  it('logs atLimit from the RAW query count, not the post-allowlist count', async () => {
+    // The regression this guards: atLimit computed after the allowlist filter
+    // reads false on dev-with-gate even when the query itself hit MAX_RESULTS,
+    // hiding "rows may have been clipped" from quarantine investigations.
+    const MAX_RESULTS = 1000;
+    mockPrisma.$queryRaw.mockResolvedValue(
+      Array.from({ length: MAX_RESULTS }, (_, i) => ({
+        discord_id: `${100000000000000000n + BigInt(i)}`,
+      }))
+    );
+    allowlistMock.value = new Set(['100000000000000000']); // trims to 1
+
+    const response = await request(app).get('/internal/users/recent');
+
+    expect(response.status).toBe(200);
+    expect(response.body.discordIds).toEqual(['100000000000000000']);
+    expect(loggerInfoMock).toHaveBeenCalledWith(
+      expect.objectContaining({ total: 1, atLimit: true }),
+      'Returning recent active users'
+    );
   });
 
   it('filters non-snowflake discord_ids from the DB result and warns', async () => {

@@ -84,6 +84,12 @@ export const handleRecentUsers = (deps: RouteDeps): RequestHandler => {
 
     const allIds = rows.map(r => r.discord_id);
 
+    // Snapshot BEFORE the snowflake + allowlist filters below: atLimit means
+    // "the QUERY hit MAX_RESULTS" (rows may have been clipped). Computing it
+    // from the post-filter count under-reports — on dev with the allowlist
+    // gate active it reads false even when the query clipped.
+    const atLimit = rows.length === MAX_RESULTS;
+
     // Filter non-snowflake IDs before schema validation. The DB stores
     // snowflakes by schema (`discord_id @db.VarChar(20)`), so this guards
     // against a near-zero data-drift scenario (migration leakage, test
@@ -115,14 +121,11 @@ export const handleRecentUsers = (deps: RouteDeps): RequestHandler => {
 
     const parsed = RecentUsersResponseSchema.parse({ discordIds, sinceDays });
 
-    // `atLimit: true` means the result count equals MAX_RESULTS. That's the
-    // signal LIMIT clipped — but technically also true if exactly MAX_RESULTS
-    // users were active in the window with no extras. Use as a "rows may
-    // have been dropped" indicator, not an absolute truth.
-    logger.info(
-      { sinceDays, total: discordIds.length, atLimit: discordIds.length === MAX_RESULTS },
-      'Returning recent active users'
-    );
+    // `atLimit: true` means the raw query returned exactly MAX_RESULTS rows.
+    // That's the signal LIMIT clipped — but technically also true if exactly
+    // MAX_RESULTS users were active in the window with no extras. Use as a
+    // "rows may have been dropped" indicator, not an absolute truth.
+    logger.info({ sinceDays, total: discordIds.length, atLimit }, 'Returning recent active users');
 
     sendCustomSuccess(res, parsed, StatusCodes.OK);
   });
