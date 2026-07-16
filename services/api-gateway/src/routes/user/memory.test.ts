@@ -73,6 +73,7 @@ const mockPrisma = {
   userPersonalityConfig: {
     findUnique: vi.fn(),
     upsert: vi.fn(),
+    deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
   },
   memory: {
     count: vi.fn(),

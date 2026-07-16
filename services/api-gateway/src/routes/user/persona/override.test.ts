@@ -252,14 +252,12 @@ describe('persona override routes', () => {
   });
 
   describe('DELETE /user/persona/override/:personalitySlug', () => {
-    it('clears the persona slice and prunes the row when no other slice remains', async () => {
+    it('clears the persona slice and issues the atomic all-null prune', async () => {
       mockPrisma.personality.findUnique.mockResolvedValue({
         id: MOCK_PERSONALITY_ID,
         name: 'Lilith',
         displayName: 'Lilith the Succubus',
       });
-      // Route reads the row (id), then the prune re-reads the full slice set —
-      // both hit this mock; an all-null slice set means the prune deletes.
       mockPrisma.userPersonalityConfig.findUnique.mockResolvedValue({
         id: 'config-1',
         personaId: null,
@@ -269,7 +267,7 @@ describe('persona override routes', () => {
         configOverrides: null,
       });
       mockPrisma.userPersonalityConfig.update.mockResolvedValue({});
-      mockPrisma.userPersonalityConfig.delete.mockResolvedValue({});
+      mockPrisma.userPersonalityConfig.deleteMany.mockResolvedValue({ count: 1 });
 
       const handler = handleClearPersonaOverride({
         ...stubRouteResolvers(),
@@ -282,8 +280,10 @@ describe('persona override routes', () => {
       expect(mockPrisma.userPersonalityConfig.update).toHaveBeenCalledWith(
         expect.objectContaining({ data: { personaId: null } })
       );
-      expect(mockPrisma.userPersonalityConfig.delete).toHaveBeenCalledWith({
-        where: { id: 'config-1' },
+      // The prune is a single deleteMany whose WHERE carries the empty-slice
+      // predicate — whether the row survives is decided by the DB, atomically.
+      expect(mockPrisma.userPersonalityConfig.deleteMany).toHaveBeenCalledWith({
+        where: expect.objectContaining({ id: 'config-1', personaId: null }),
       });
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -298,7 +298,7 @@ describe('persona override routes', () => {
       );
     });
 
-    it('clears the persona slice but keeps the row when another slice is set', async () => {
+    it('clears the persona slice; the prune predicate leaves non-empty rows alone', async () => {
       mockPrisma.personality.findUnique.mockResolvedValue({
         id: MOCK_PERSONALITY_ID,
         name: 'Lilith',
@@ -313,6 +313,8 @@ describe('persona override routes', () => {
         configOverrides: null,
       });
       mockPrisma.userPersonalityConfig.update.mockResolvedValue({});
+      // The WHERE won't match this row (llmConfigId still set) — the DB keeps it.
+      mockPrisma.userPersonalityConfig.deleteMany.mockResolvedValue({ count: 0 });
 
       const handler = handleClearPersonaOverride({
         ...stubRouteResolvers(),
@@ -328,6 +330,10 @@ describe('persona override routes', () => {
           data: { personaId: null },
         })
       );
+      // The guarded predicate must be present — that's what keeps the row.
+      expect(mockPrisma.userPersonalityConfig.deleteMany).toHaveBeenCalledWith({
+        where: expect.objectContaining({ id: 'config-1', llmConfigId: null }),
+      });
       expect(mockPrisma.userPersonalityConfig.delete).not.toHaveBeenCalled();
     });
 

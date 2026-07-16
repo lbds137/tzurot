@@ -1,51 +1,44 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { PrismaClient } from '@tzurot/common-types/services/prisma';
+import { Prisma, type PrismaClient } from '@tzurot/common-types/services/prisma';
 import { pruneEmptyPersonalityConfig } from './pruneEmptyPersonalityConfig.js';
 
-const findUnique = vi.fn();
-const del = vi.fn();
+const deleteMany = vi.fn();
 const prisma = {
-  userPersonalityConfig: { findUnique, delete: del },
+  userPersonalityConfig: { deleteMany },
 } as unknown as PrismaClient;
-
-const ALL_NULL = {
-  personaId: null,
-  llmConfigId: null,
-  visionConfigId: null,
-  ttsConfigId: null,
-  configOverrides: null,
-};
 
 describe('pruneEmptyPersonalityConfig', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    del.mockResolvedValue({});
   });
 
-  it('deletes the row when every slice is null', async () => {
-    findUnique.mockResolvedValue(ALL_NULL);
+  it('issues one atomic delete whose WHERE carries every all-null slice', async () => {
+    deleteMany.mockResolvedValue({ count: 1 });
 
     const pruned = await pruneEmptyPersonalityConfig(prisma, 'row-1');
 
     expect(pruned).toBe(true);
-    expect(del).toHaveBeenCalledWith({ where: { id: 'row-1' } });
+    // The WHERE is the whole safety story: the id AND all five slices must be
+    // in the predicate (atomicity), and the JSONB slice must use AnyNull so
+    // both never-set (SQL NULL) and cleared (Prisma.JsonNull) rows match.
+    expect(deleteMany).toHaveBeenCalledWith({
+      where: {
+        id: 'row-1',
+        personaId: null,
+        llmConfigId: null,
+        visionConfigId: null,
+        ttsConfigId: null,
+        configOverrides: { equals: Prisma.AnyNull },
+      },
+    });
   });
 
-  it('keeps the row when any slice is still set', async () => {
-    findUnique.mockResolvedValue({ ...ALL_NULL, ttsConfigId: 'tts-1' });
+  it('reports false when zero rows matched (non-empty row or already gone)', async () => {
+    deleteMany.mockResolvedValue({ count: 0 });
 
     const pruned = await pruneEmptyPersonalityConfig(prisma, 'row-1');
 
     expect(pruned).toBe(false);
-    expect(del).not.toHaveBeenCalled();
-  });
-
-  it('is a no-op when the row is already gone', async () => {
-    findUnique.mockResolvedValue(null);
-
-    const pruned = await pruneEmptyPersonalityConfig(prisma, 'row-1');
-
-    expect(pruned).toBe(false);
-    expect(del).not.toHaveBeenCalled();
+    expect(deleteMany).toHaveBeenCalledTimes(1);
   });
 });
