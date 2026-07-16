@@ -18,6 +18,7 @@ import { encryptApiKey } from '@tzurot/common-types/utils/encryption';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { type ApiKeyCacheInvalidationService } from '@tzurot/cache-invalidation';
 import { requireUserAuth, requireProvisionedUser } from '../../services/AuthMiddleware.js';
+import { stampNotifyOptedIn } from '../../services/notifyOptIn.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { resolveProvisionedUserId } from '../../utils/resolveProvisionedUserId.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
@@ -112,6 +113,18 @@ export const handleSetWalletKey = (deps: WalletSetDeps): RequestHandler => {
     if (apiKeyCacheInvalidation !== undefined) {
       await apiKeyCacheInvalidation.invalidateUserApiKeys(discordUserId);
       logger.debug({ discordUserId }, 'Published API key cache invalidation event');
+    }
+
+    // BYOK setup is deliberate use — the same evidence class the eligibility
+    // backfill accepts (release-DM gate; see services/notifyOptIn.ts).
+    // Best-effort: a miss self-heals on the user's first generation (ai-worker
+    // stamps too), and bookkeeping must never fail a stored key or suppress
+    // the cache invalidation above. Contrast the /notifications PATCH, where
+    // the stamp is load-bearing and deliberately propagates.
+    try {
+      await stampNotifyOptedIn(prisma, userId);
+    } catch (error) {
+      logger.warn({ err: error, discordUserId }, 'Failed to stamp notifyOptedInAt');
     }
 
     sendCustomSuccess(

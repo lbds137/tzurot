@@ -56,6 +56,12 @@ export interface EligibleRecipient {
  * Cursor-paginated sweep over every opted-in user at or above the level's
  * threshold. Bounded per page (03-database take rule) but never clips the
  * total — a broadcast must reach the whole eligible set.
+ *
+ * `notifyOptedInAt: { not: null }` is the blast-radius gate: a `users` row
+ * means "the bot has SEEN this person" (extended-context participants get a
+ * provisioned row + default persona), NOT "used it". Only a deliberate
+ * interaction stamps notifyOptedInAt, so passive bystanders are excluded even
+ * though their row defaults to notifyEnabled=true.
  */
 export async function resolveEligibleRecipients(
   prisma: PrismaClient,
@@ -74,6 +80,7 @@ export async function resolveEligibleRecipients(
     const page = await prisma.user.findMany({
       where: {
         notifyEnabled: true,
+        notifyOptedInAt: { not: null },
         notifyLevel: { in: thresholds },
         ...(allowlist !== null ? { discordId: { in: [...allowlist] } } : {}),
       },
