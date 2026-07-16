@@ -241,7 +241,6 @@ describe('PersonalityChatManager', () => {
             },
           },
           botUserId: 'bot-123',
-          crossChannelHistoryEnabled: false,
         })
       );
     });
@@ -256,7 +255,6 @@ describe('PersonalityChatManager', () => {
             maxMessages: 200,
             maxAge: 7,
             maxImages: 5,
-            crossChannelHistoryEnabled: false,
             sources: {
               maxMessages: 'user-personality',
               maxAge: 'channel',
@@ -288,40 +286,6 @@ describe('PersonalityChatManager', () => {
             },
           },
         })
-      );
-    });
-
-    it('threads crossChannelHistoryEnabled through from cascade override', async () => {
-      mockResolveUserLlmConfig.mockResolvedValueOnce({
-        ok: true,
-        data: {
-          config: { model: 'm', maxMessages: 50, maxAge: null, maxImages: 10 },
-          source: 'user-personality',
-          overrides: {
-            maxMessages: 50,
-            maxAge: null,
-            maxImages: 10,
-            crossChannelHistoryEnabled: true,
-            sources: {
-              maxMessages: 'user-personality',
-              maxAge: 'user-personality',
-              maxImages: 'user-personality',
-            },
-          },
-        },
-      } as never);
-
-      await manager.submitChatJob({
-        message: createMockMessage(),
-        personality: createMockPersonality(),
-        content: 'Hi',
-      });
-
-      expect(mockContextBuilder.buildContext).toHaveBeenCalledWith(
-        expect.anything(),
-        expect.anything(),
-        expect.anything(),
-        expect.objectContaining({ crossChannelHistoryEnabled: true })
       );
     });
 

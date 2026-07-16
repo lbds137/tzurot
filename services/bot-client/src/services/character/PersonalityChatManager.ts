@@ -145,13 +145,10 @@ export class PersonalityChatManager {
     );
 
     const botUserId = message.client.user?.id;
-    const crossChannelHistoryEnabled =
-      resolvedConfig.overrides?.crossChannelHistoryEnabled ?? false;
 
     const buildResult = await this.contextBuilder.buildContext(message, personality, content, {
       extendedContext: extendedContextSettings,
       botUserId,
-      crossChannelHistoryEnabled,
     });
     const { context, personaId, messageContent } = buildResult;
 
