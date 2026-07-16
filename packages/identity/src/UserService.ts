@@ -97,6 +97,15 @@ export class UserService {
    */
   private userCache: TTLCache<ProvisionedUser>;
 
+  /**
+   * Monotonic counter bumped on every cache invalidation ({@link invalidateUser}
+   * / {@link clearCache}). {@link getOrCreateUser} captures it before its DB read
+   * and re-checks before writing, so an account deletion that races an in-flight
+   * read cannot re-populate the cache with a now-dead userId. See the guard at
+   * the `userCache.set` site.
+   */
+  private cacheGeneration = 0;
+
   constructor(private prisma: PrismaClient) {
     this.userCache = new TTLCache<ProvisionedUser>({
       ttl: USER_CACHE_TTL_MS,
@@ -136,6 +145,11 @@ export class UserService {
       return cached;
     }
 
+    // Capture the invalidation generation BEFORE the DB read. If an account
+    // deletion evicts this cache while our read is in flight, the generation
+    // moves and the write below is skipped (see the guard there).
+    const generationAtRead = this.cacheGeneration;
+
     try {
       // Try to find existing user
       let user: UserWithMaintenanceFields | null = await this.prisma.user.findUnique({
@@ -158,7 +172,16 @@ export class UserService {
       );
 
       const provisioned: ProvisionedUser = { userId: user.id, defaultPersonaId };
-      this.userCache.set(discordId, provisioned);
+      // TOCTOU guard: if the cache was invalidated for anyone between our
+      // cache-miss and now, an account deletion may have raced our DB read —
+      // the row we read (and `user.id`) could already be dead. Skip the write
+      // rather than re-populate a stale mapping that would FK-violate until the
+      // 1h TTL. Deliberately coarse (any concurrent invalidation, not just this
+      // discordId's, skips the write), but invalidations are rare (deliberate
+      // account deletion) and the next call simply re-reads.
+      if (this.cacheGeneration === generationAtRead) {
+        this.userCache.set(discordId, provisioned);
+      }
       return provisioned;
     } catch (error) {
       logger.error({ err: error, discordId }, 'Failed to get/create user');
@@ -172,13 +195,28 @@ export class UserService {
    * userId — so the next {@link getOrCreateUser} would return the stale id
    * and any write against it (e.g. an export_jobs insert) FK-violates.
    *
-   * This evicts ONE process's cache. Every process runs its own long-lived
-   * UserService (api-gateway AND ai-worker's context pipeline), so the delete
-   * route also broadcasts via `UserCacheInvalidationService` and each process
-   * calls this on the event — see that service for the cross-process wiring.
+   * This evicts ONE process's cache. Coverage today: the api-gateway delete
+   * route calls this synchronously (its own process), then broadcasts via
+   * `UserCacheInvalidationService`; ai-worker subscribes and calls this on the
+   * event. api-gateway itself does NOT subscribe — the synchronous call covers
+   * its single replica. If api-gateway ever runs multiple replicas, it must
+   * subscribe too, or the other replicas' caches stay stale until the TTL.
    */
   invalidateUser(discordId: string): void {
     this.userCache.delete(discordId);
+    this.cacheGeneration++;
+  }
+
+  /**
+   * Evict EVERY entry in this process's provisioning cache. Backs the
+   * cross-process `'all'` invalidation broadcast (bulk admin/migration changes);
+   * a single-user delete uses {@link invalidateUser}. Bumps the same generation
+   * counter so an in-flight {@link getOrCreateUser} read that races the clear
+   * won't re-populate a stale entry.
+   */
+  clearCache(): void {
+    this.userCache.clear();
+    this.cacheGeneration++;
   }
 
   /**

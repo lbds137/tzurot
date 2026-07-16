@@ -152,13 +152,17 @@ vi.mock('./services/ApiKeyResolver.js', () => ({
 }));
 
 const mockInvalidateUser = vi.fn();
+const mockClearUserCache = vi.fn();
 vi.mock('@tzurot/identity', () => ({
   PersonalityService: class {},
   PersonaResolver: class {
     clearCache = mockPersonaResolver.clearCache;
     invalidateUserCache = mockPersonaResolver.invalidateUserCache;
   },
-  getOrCreateUserService: () => ({ invalidateUser: mockInvalidateUser }),
+  getOrCreateUserService: () => ({
+    invalidateUser: mockInvalidateUser,
+    clearCache: mockClearUserCache,
+  }),
 }));
 
 // The wallet-update recovery edge calls the worker's credit-exhaustion cache
@@ -321,9 +325,10 @@ describe('setupCacheInvalidation', () => {
       expect(mockInvalidateUser).toHaveBeenCalledWith('user-123');
     });
 
-    it('no-ops on an "all" event (TTL bounds staleness; no bulk-evict API)', async () => {
+    it('clears the whole user provisioning cache on an "all" event', async () => {
       await setupCacheInvalidation({ cacheRedis: mockRedis, prisma: mockPrisma });
       capturedCallbacks.user?.({ type: 'all' });
+      expect(mockClearUserCache).toHaveBeenCalled();
       expect(mockInvalidateUser).not.toHaveBeenCalled();
     });
   });
