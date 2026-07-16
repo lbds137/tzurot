@@ -18,6 +18,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { handleChat, handleRandom, handleChimeIn, WEIGH_IN_MESSAGE } from './chat.js';
+import { runSlashChatGates } from './slashChatGates.js';
 import type { GuildMember } from 'discord.js';
 import { ChannelType } from 'discord.js';
 import type { EnvConfig } from '@tzurot/common-types/config/config';
@@ -311,6 +312,22 @@ describe('Character Chat Handler (push delivery)', () => {
       expect(ctx.editReply).toHaveBeenCalledWith({
         content: expect.stringContaining('channel type is not supported'),
       });
+      expect(mockJobTracker.trackJob).not.toHaveBeenCalled();
+    });
+
+    it('STOPS the turn when the denylist/NSFW gate blocks (no job submitted)', async () => {
+      // Wiring/seam test for the exact bypass this command's gate closes: when
+      // runSlashChatGates returns true (blocked, already replied), the turn must
+      // not proceed to config/persona resolution or job submission. A regression
+      // here (e.g. an inverted null-check in resolveTurnPrereqs) would silently
+      // reopen the un-gated slash path.
+      const ctx = createMockContext('test-char', 'Hello!');
+      mockPersonalityService.loadPersonalityStrict.mockResolvedValue(createMockPersonality());
+      vi.mocked(runSlashChatGates).mockResolvedValueOnce(true);
+
+      await handleChat(ctx, mockConfig);
+
+      expect(mockGatewayClient.generate).not.toHaveBeenCalled();
       expect(mockJobTracker.trackJob).not.toHaveBeenCalled();
     });
 
