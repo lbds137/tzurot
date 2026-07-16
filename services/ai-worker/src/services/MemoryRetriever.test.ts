@@ -872,6 +872,38 @@ describe('MemoryRetriever', () => {
         );
       });
 
+      it('skips retrieval entirely when cascade memoryLimit is 0 (disabled)', async () => {
+        mockPersonaResolver.resolveForMemory.mockResolvedValue({
+          personaId: 'persona-123',
+          focusModeEnabled: false,
+        });
+
+        const disabledOverrides: ResolvedConfigOverrides = {
+          ...cascadeOverrides,
+          memoryLimit: 0,
+        };
+
+        const result = await retriever.retrieveRelevantMemories(
+          mockPersonality,
+          'test query',
+          context,
+          disabledOverrides
+        );
+
+        // 0 must mean "no memories", not "fall through to a downstream
+        // default" — the query builder treats a non-positive limit as
+        // "use the default", so the skip has to happen here. personaId must
+        // be ABSENT like every other skip branch: the fact-retrieval path
+        // gates on it, so its omission is what keeps facts (distilled
+        // memories) suppressed together with the memories.
+        expect(result).toEqual({
+          memories: [],
+          focusModeEnabled: false,
+        });
+        expect(result.personaId).toBeUndefined();
+        expect(mockMemoryManager.queryMemories).not.toHaveBeenCalled();
+      });
+
       it('should use cascade focusModeEnabled over DB column value', async () => {
         mockPersonaResolver.resolveForMemory.mockResolvedValue({
           personaId: 'persona-123',
