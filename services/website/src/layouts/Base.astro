@@ -30,7 +30,10 @@ const canonical = path !== undefined ? new URL(path, CANONICAL_ORIGIN).href : un
 const railwayDomain = process.env.RAILWAY_PUBLIC_DOMAIN;
 const assetOrigin =
   railwayDomain !== undefined && railwayDomain !== '' ? `https://${railwayDomain}` : CANONICAL_ORIGIN;
-const ogImage = await getImage({ src: BRAND.banner, format: 'jpeg', width: 1200 });
+// The square logo cube as a compact thumbnail card (twitter:card "summary"),
+// not the wide banner: Discord renders the logo beside the title/description,
+// which reads as brand identity rather than a marketing splash.
+const ogImage = await getImage({ src: BRAND.logo, format: 'jpeg', width: 512, height: 512 });
 const ogImageUrl = new URL(ogImage.src, assetOrigin).href;
 const year = new Date().getFullYear();
 ---
@@ -51,7 +54,11 @@ const year = new Date().getFullYear();
     <meta property="og:description" content={description} />
     {canonical !== undefined && <meta property="og:url" content={canonical} />}
     <meta property="og:image" content={ogImageUrl} />
-    <meta name="twitter:card" content="summary_large_image" />
+    <meta property="og:image:width" content={String(ogImage.attributes.width)} />
+    <meta property="og:image:height" content={String(ogImage.attributes.height)} />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:alt" content={`${BRAND.name} logo`} />
+    <meta name="twitter:card" content="summary" />
     <meta name="theme-color" content="#0b0812" />
   </head>
   <body>
