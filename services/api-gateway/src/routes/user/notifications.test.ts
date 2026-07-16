@@ -31,6 +31,7 @@ const mockPrisma = {
   user: {
     findUnique: vi.fn(),
     update: vi.fn(),
+    updateMany: vi.fn().mockResolvedValue({ count: 1 }),
   },
   releaseDeliveryLog: {
     findMany: vi.fn(),
@@ -162,6 +163,38 @@ describe('PATCH /user/notifications', () => {
     });
   });
 
+  it('stamps notifyOptedInAt on an explicit prefs update (deliberate use)', async () => {
+    mockPrisma.user.update.mockResolvedValueOnce({
+      notifyEnabled: true,
+      notifyLevel: 'patch',
+    });
+
+    const handler = handleUpdateNotificationPrefs(makeDeps());
+    const { req, res } = createMockReqRes({ level: 'patch' });
+    await handler(req, res, vi.fn());
+
+    expect(mockPrisma.user.updateMany).toHaveBeenCalledWith({
+      where: { id: 'user-uuid-123', notifyOptedInAt: null },
+      data: { notifyOptedInAt: expect.any(Date) },
+    });
+  });
+
+  it('stamps notifyOptedInAt even on opt-down, so a later re-enable is eligible', async () => {
+    mockPrisma.user.update.mockResolvedValueOnce({
+      notifyEnabled: false,
+      notifyLevel: 'major',
+    });
+
+    const handler = handleUpdateNotificationPrefs(makeDeps());
+    const { req, res } = createMockReqRes({ enabled: false });
+    await handler(req, res, vi.fn());
+
+    expect(mockPrisma.user.updateMany).toHaveBeenCalledWith({
+      where: { id: 'user-uuid-123', notifyOptedInAt: null },
+      data: { notifyOptedInAt: expect.any(Date) },
+    });
+  });
+
   it('rejects an empty patch with 400 and does not touch the DB', async () => {
     const handler = handleUpdateNotificationPrefs(makeDeps());
     const { req, res } = createMockReqRes({});
@@ -169,6 +202,7 @@ describe('PATCH /user/notifications', () => {
 
     expect(res.status).toHaveBeenCalledWith(400);
     expect(mockPrisma.user.update).not.toHaveBeenCalled();
+    expect(mockPrisma.user.updateMany).not.toHaveBeenCalled();
   });
 
   it('rejects an unknown level with 400', async () => {
@@ -178,6 +212,7 @@ describe('PATCH /user/notifications', () => {
 
     expect(res.status).toHaveBeenCalledWith(400);
     expect(mockPrisma.user.update).not.toHaveBeenCalled();
+    expect(mockPrisma.user.updateMany).not.toHaveBeenCalled();
   });
 });
 

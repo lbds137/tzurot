@@ -91,6 +91,7 @@ const mockPrisma = {
     findUnique: vi.fn().mockResolvedValue(null), // No existing user - triggers create
     update: vi.fn().mockResolvedValue({ id: 'user-uuid-123' }),
     upsert: vi.fn().mockResolvedValue({ id: 'user-uuid-123' }),
+    updateMany: vi.fn().mockResolvedValue({ count: 1 }), // notifyOptedInAt stamp
   },
   persona: {
     updateMany: vi.fn().mockResolvedValue({ count: 0 }),
@@ -334,6 +335,48 @@ describe('POST /wallet/set', () => {
           }),
         })
       );
+    });
+
+    it('stamps notifyOptedInAt after storing the key (BYOK = deliberate use)', async () => {
+      const { req, res } = createMockReqRes({
+        provider: AIProvider.OpenRouter,
+        apiKey: 'sk-valid-key',
+      });
+
+      await callHandler(mockPrisma, req, res);
+
+      expect(mockPrisma.user.updateMany).toHaveBeenCalledWith({
+        where: { id: 'user-uuid-123', notifyOptedInAt: null },
+        data: { notifyOptedInAt: expect.any(Date) },
+      });
+    });
+
+    it('still reports success when the stamp write fails (best-effort bookkeeping)', async () => {
+      mockPrisma.user.updateMany.mockRejectedValueOnce(new Error('db blip'));
+      const { req, res } = createMockReqRes({
+        provider: AIProvider.OpenRouter,
+        apiKey: 'sk-valid-key',
+      });
+
+      await callHandler(mockPrisma, req, res);
+
+      // The key was stored — a failed eligibility stamp must not 500 the
+      // request (it self-heals on the user's first generation).
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
+    });
+
+    it('does not stamp notifyOptedInAt when key validation fails', async () => {
+      mockValidateApiKey.mockResolvedValue({ valid: false, errorCode: 'INVALID_KEY' });
+
+      const { req, res } = createMockReqRes({
+        provider: AIProvider.OpenRouter,
+        apiKey: 'sk-bad-key',
+      });
+
+      await callHandler(mockPrisma, req, res);
+
+      expect(mockPrisma.user.updateMany).not.toHaveBeenCalled();
     });
 
     it('should return success with credits', async () => {

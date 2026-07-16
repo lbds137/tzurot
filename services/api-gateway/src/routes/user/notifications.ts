@@ -17,6 +17,7 @@ import {
   RELEASE_DM_CLEANUP_MAX,
 } from '@tzurot/common-types/schemas/api/notifications';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { stampNotifyOptedIn } from '../../services/notifyOptIn.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { resolveProvisionedUserId } from '../../utils/resolveProvisionedUserId.js';
 import { sendError, sendContractSuccess } from '../../utils/responseHelpers.js';
@@ -71,6 +72,15 @@ export const handleUpdateNotificationPrefs = (deps: RouteDeps): RequestHandler =
       },
       select: { notifyEnabled: true, notifyLevel: true },
     });
+
+    // An explicit prefs update is deliberate use — it must qualify the user
+    // for the eligibility gate, or an opted-out user who re-enables (and any
+    // passive-row user who opts up) would stay null-gated forever. A failure
+    // here deliberately propagates (unlike the best-effort ai-worker/setKey
+    // stamps): a silent miss has no self-heal path for a passive user — they
+    // believe they opted in but stay ineligible — while a 500 on this
+    // idempotent PATCH is safely retried.
+    await stampNotifyOptedIn(prisma, userId);
 
     sendContractSuccess(res, UpdateNotificationPrefsResponseSchema, {
       success: true,

@@ -355,6 +355,23 @@ export class AIJobProcessor {
   }
 
   /**
+   * Mark a user as having deliberately used the bot (first real generation),
+   * gating release-DM eligibility. Null-guarded updateMany so it's a no-op
+   * after the first stamp; errors are swallowed — this must never fail a
+   * response.
+   */
+  private async stampFirstDeliberateUse(userInternalId: string): Promise<void> {
+    try {
+      await this.prisma.user.updateMany({
+        where: { id: userInternalId, notifyOptedInAt: null },
+        data: { notifyOptedInAt: new Date() },
+      });
+    } catch (error) {
+      logger.warn({ err: error, userId: userInternalId }, 'Failed to stamp notifyOptedInAt');
+    }
+  }
+
+  /**
    * Log usage to database for BYOK cost tracking
    * Includes simple retry logic for transient failures
    */
@@ -369,6 +386,13 @@ export class AIJobProcessor {
     if (userInternalId === undefined || userInternalId.length === 0) {
       return;
     }
+
+    // Stamp deliberate-use on the FIRST real generation — the same signal
+    // release-DM eligibility gates on. A generation means the user actually
+    // invoked the bot (extended-context bystanders never reach here). Null
+    // guard = writes once, ever; best-effort, since failing to stamp must
+    // never fail the user's response.
+    await this.stampFirstDeliberateUse(userInternalId);
 
     // Use provider from API key resolution (reliable) or fallback to openrouter
     const modelUsed = result.metadata?.modelUsed ?? personality.model;
