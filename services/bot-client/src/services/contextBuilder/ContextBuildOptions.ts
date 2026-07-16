@@ -42,10 +42,4 @@ export interface ContextBuildOptions {
    * summon (false) keeps the epoch. Defaults to isWeighInMode at the call site.
    */
   incognito?: boolean;
-  /**
-   * Whether to fetch cross-channel history to fill unused context budget.
-   * When true and current channel history is under maxMessages, fills remaining
-   * budget with history from other channels where this user+personality interacted.
-   */
-  crossChannelHistoryEnabled?: boolean;
 }
