@@ -36,6 +36,7 @@ import {
   type AccountDeletionSummary,
 } from '../../../services/AccountDeletionService.js';
 import { IncognitoSessionManager } from '../../../services/IncognitoSessionManager.js';
+import { getOrCreateUserService } from '../../../services/AuthMiddleware.js';
 
 const logger = createLogger('account-delete');
 
@@ -211,6 +212,13 @@ export const handleDeleteAccount = (deps: RouteDeps): RequestHandler =>
       }
       throw error;
     }
+
+    // CORRECTNESS-CRITICAL (not best-effort): the provisioning cache still
+    // maps this discordId to the just-deleted userId. Without eviction, the
+    // user's very next request returns the dead id and any write against it
+    // FK-violates (observed: an export retried right after deletion 500'd on
+    // export_jobs_user_id_fkey). Synchronous, cannot throw.
+    getOrCreateUserService(deps.prisma).invalidateUser(discordUserId);
 
     await cleanupAfterDeletion(deps, discordUserId, summary);
 

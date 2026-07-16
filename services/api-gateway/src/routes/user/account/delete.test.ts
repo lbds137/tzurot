@@ -60,6 +60,15 @@ vi.mock('../../../utils/avatarPaths.js', () => ({
   deleteAllAvatarVersions: deleteAvatarsMock,
 }));
 
+const invalidateUserMock = vi.hoisted(() => vi.fn());
+vi.mock('../../../services/AuthMiddleware.js', async importOriginal => {
+  const actual = await importOriginal<typeof import('../../../services/AuthMiddleware.js')>();
+  return {
+    ...actual,
+    getOrCreateUserService: () => ({ invalidateUser: invalidateUserMock }),
+  };
+});
+
 import {
   handlePreviewAccountDelete,
   handleIssueAccountDeleteToken,
@@ -214,6 +223,9 @@ describe('Account Deletion Routes', () => {
       expect(incognitoMock.disableAll).toHaveBeenCalledWith('discord-user-123');
       expect(deps.cacheInvalidationService?.invalidatePersonality).toHaveBeenCalledWith('x1');
       expect(deleteAvatarsMock).toHaveBeenCalledWith('xbot', 'Account delete');
+      // The provisioning cache must be evicted so the next request re-creates
+      // the row instead of returning the dead userId (FK-violation guard).
+      expect(invalidateUserMock).toHaveBeenCalledWith('discord-user-123');
 
       const payload = (res.json as ReturnType<typeof vi.fn>).mock.calls[0][0];
       expect(payload.success).toBe(true);

@@ -169,6 +169,32 @@ describe('UserService', () => {
       expect(mockPrisma.user.findUnique).toHaveBeenCalledTimes(1);
     });
 
+    it('invalidateUser evicts the cache so the next call re-reads the DB', async () => {
+      mockPrisma.user.findUnique
+        .mockResolvedValueOnce({
+          id: 'user-before',
+          isSuperuser: false,
+          username: 'testuser',
+          defaultPersonaId: 'persona-before',
+        })
+        .mockResolvedValueOnce({
+          id: 'user-after',
+          isSuperuser: false,
+          username: 'testuser',
+          defaultPersonaId: 'persona-after',
+        });
+
+      const first = await userService.getOrCreateUser('123456', 'testuser');
+      expect(first?.userId).toBe('user-before');
+
+      // Simulates account deletion: the row is gone, cache must not serve it.
+      userService.invalidateUser('123456');
+
+      const second = await userService.getOrCreateUser('123456', 'testuser');
+      expect(second?.userId).toBe('user-after');
+      expect(mockPrisma.user.findUnique).toHaveBeenCalledTimes(2);
+    });
+
     it('should return existing user ID if found in database', async () => {
       mockPrisma.user.findUnique.mockResolvedValueOnce({
         id: 'existing-user-id',
