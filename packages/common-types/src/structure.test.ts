@@ -58,6 +58,10 @@ const EXCLUDE_PATTERNS = [
   // like everything else.
   /services\/website\/src\/brand\.ts$/,
   /services\/website\/src\/content\.config\.ts$/,
+  // Thin static-file endpoint: a brand-conditional string. Its CONTENT is
+  // asserted per brand by the docker-build-smoke website legs (robots
+  // directives + substitution greps against the served container).
+  /services\/website\/src\/pages\/robots\.txt\.ts$/,
   // Job handler WRAPPERS only (thin dispatch shells, tested via integration).
   // Deliberately does NOT cover jobs/handlers/pipeline/** — the pipeline steps
   // grew into substantive logic modules, and a blanket exclusion let an

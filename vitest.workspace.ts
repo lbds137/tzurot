@@ -9,6 +9,7 @@ export default defineWorkspace([
   'packages/clients',
   'packages/test-factories',
   'services/ai-worker',
+  'services/website',
   'services/api-gateway',
   'services/bot-client',
 ]);

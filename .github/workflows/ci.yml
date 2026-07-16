@@ -252,6 +252,11 @@ jobs:
             coverage: ./services/api-gateway/coverage/lcov.info
             flags: api-gateway
             junit: ./services/api-gateway/junit.xml
+          - cell: website
+            filter: --filter=@tzurot/website
+            coverage: ''
+            flags: ''
+            junit: ./services/website/junit.xml
           - cell: tooling
             filter: --filter=@tzurot/tooling
             coverage: ''
@@ -532,6 +537,13 @@ jobs:
           # docs/legal in place), but has no turbo prune — plain COPYs only.
           - service: website
             context: .
+          # Second website leg builds the PREVIEW brand so brand-conditional
+          # build logic (e.g. the legal-doc substitution guard) is exercised
+          # at PR time instead of first failing on the dev deploy.
+          - service: website
+            context: .
+            args: --build-arg SITE_BRAND=rotzot
+            tag_suffix: -rotzot
     steps:
       - uses: actions/checkout@v7
 
@@ -541,18 +553,21 @@ jobs:
           filters: |
             ai-worker:
               - 'services/ai-worker/Dockerfile'
+              - '.dockerignore'
               - 'pnpm-workspace.yaml'
               - 'turbo.json'
               - 'pnpm-lock.yaml'
               - 'package.json'
             api-gateway:
               - 'services/api-gateway/Dockerfile'
+              - '.dockerignore'
               - 'pnpm-workspace.yaml'
               - 'turbo.json'
               - 'pnpm-lock.yaml'
               - 'package.json'
             bot-client:
               - 'services/bot-client/Dockerfile'
+              - '.dockerignore'
               - 'pnpm-workspace.yaml'
               - 'turbo.json'
               - 'pnpm-lock.yaml'
@@ -564,6 +579,7 @@ jobs:
               # Mirrors the Dockerfile's COPY list exactly (no turbo.json — the
               # website build has no turbo-prune stage).
               - 'services/website/**'
+              - '.dockerignore'
               - 'docs/legal/**'
               - 'pnpm-lock.yaml'
               - 'pnpm-workspace.yaml'
@@ -571,7 +587,28 @@ jobs:
 
       - name: Build image
         if: steps.filter.outputs[matrix.service] == 'true'
-        run: docker build ${{ matrix.context }} -f services/${{ matrix.service }}/Dockerfile -t smoke/${{ matrix.service }}:ci
+        run: docker build ${{ matrix.context }} -f services/${{ matrix.service }}/Dockerfile ${{ matrix.args }} -t smoke/${{ matrix.service }}${{ matrix.tag_suffix }}:ci
+
+      # The website legs go beyond build-success: serve the image and assert
+      # the per-brand CONTENT (robots directives + the legal-page brand
+      # substitution) — a build can succeed with either ternary branch flipped.
+      - name: Verify served website content per brand
+        if: matrix.service == 'website' && steps.filter.outputs[matrix.service] == 'true'
+        run: |
+          docker run -d --rm --name website-smoke -p 8080:8080 smoke/${{ matrix.service }}${{ matrix.tag_suffix }}:ci
+          # --retry-all-errors, not just --retry-connrefused: during nginx's
+          # startup window the port accepts the TCP connection then resets it,
+          # which is a recv failure (curl exit 56), not connection-refused.
+          curl -sf --retry 15 --retry-delay 1 --retry-all-errors http://localhost:8080/health \
+            || { echo '--- container logs ---'; docker logs website-smoke; exit 1; }
+          if [ "${{ matrix.tag_suffix }}" = "-rotzot" ]; then
+            curl -s http://localhost:8080/robots.txt | grep -q "Disallow: /"
+            curl -s http://localhost:8080/terms/ | grep -q "Rotzot Terms of Service"
+          else
+            curl -s http://localhost:8080/robots.txt | grep -q "Sitemap: https://tzurot.org"
+            curl -s http://localhost:8080/terms/ | grep -q "Tzurot Terms of Service"
+          fi
+          docker stop website-smoke
 
   # Join job: one stable check name aggregating the matrix legs, so branch
   # protection can require "docker-build-smoke-ok" instead of four

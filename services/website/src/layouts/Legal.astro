@@ -1,13 +1,15 @@
 ---
 /**
  * Prose layout for the legal documents. The markdown comes straight from
- * docs/legal via the content collection; this layout substitutes the brand
- * name, renders the markdown, and provides readable typography and the
- * retention table styling; the sticky header's brand link is the way home.
+ * docs/legal via the content collection; brand substitution, its safety
+ * guards, and markdown rendering live in lib/legalDocBranding (unit-tested,
+ * with marked configured once at module scope). This layout provides the
+ * readable typography and retention-table styling; the sticky header's
+ * brand link is the way home.
  */
-import { marked } from 'marked';
 import Base from './Base.astro';
 import { BRAND } from '../brand';
+import { renderLegalDocument } from '../lib/legalDocBranding';
 
 interface Props {
   title: string;
@@ -19,30 +21,8 @@ interface Props {
 
 const { title, description, path, body } = Astro.props;
 
-// Brand substitution is CASE-SENSITIVE on purpose: capitalized "Tzurot" is
-// prose (the service name, swappable per deployment brand), while lowercase
-// "tzurot" occurs only inside URLs (tzurot.org, the GitHub repo) that must
-// never change. The canonical brand renders the documents verbatim.
-const branded = BRAND.substitutesLegalName ? body.replaceAll('Tzurot', BRAND.name) : body;
-
-// Build-time guard for the invariant above: after substitution, every
-// remaining "tzurot" (any case) must be part of a known URL. A future doc
-// edit that adds the name in prose in a shape replaceAll can't brand-swap
-// (e.g. lowercase "tzurot") fails the static build here instead of shipping
-// a half-substituted preview.
-if (BRAND.substitutesLegalName) {
-  const leftovers = branded.match(/\S*tzurot\S*/gi) ?? [];
-  const isKnownUrl = (token: string): boolean =>
-    token.includes('tzurot.org') || token.includes('lbds137/tzurot');
-  const unexpected = leftovers.filter(token => !isKnownUrl(token));
-  if (unexpected.length > 0) {
-    throw new Error(
-      `Legal-doc brand substitution left "tzurot" outside known URLs: ${unexpected.join(', ')}`
-    );
-  }
-}
-
-const html = await marked.parse(branded, { gfm: true });
+// Guard failures throw here, failing the static build loudly.
+const html = await renderLegalDocument(body, BRAND.name, BRAND.substitutesLegalName);
 ---
 
 <Base title={title} description={description} path={path}>

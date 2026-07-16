@@ -1,0 +1,22 @@
+# Build-context filter for the root-context Docker builds (ai-worker,
+# api-gateway, bot-client, website). Everything here is either rebuilt inside
+# the image (deps, dist), never used by any build stage (VCS, coverage,
+# legacy), or must not leave the machine (.env*, local notes). voice-engine
+# builds from its own context and is unaffected.
+node_modules
+**/node_modules
+.git
+**/dist
+**/.turbo
+**/.astro
+*.tsbuildinfo
+**/*.tsbuildinfo
+coverage
+**/coverage
+reports
+junit.xml
+**/junit.xml
+tzurot-legacy
+docs/local
+.env
+.env.*
