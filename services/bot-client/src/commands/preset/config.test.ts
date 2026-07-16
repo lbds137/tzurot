@@ -328,20 +328,6 @@ describe('unflattenPresetData', () => {
     });
   });
 
-  it('should not include removed context/memory fields (moved to cascade)', () => {
-    const flat: Partial<FlattenedPresetData> = {
-      name: 'Test',
-    };
-
-    const result = unflattenPresetData(flat);
-
-    expect(result.maxMessages).toBeUndefined();
-    expect(result.maxAge).toBeUndefined();
-    expect(result.maxImages).toBeUndefined();
-    expect(result.memoryScoreThreshold).toBeUndefined();
-    expect(result.memoryLimit).toBeUndefined();
-  });
-
   it('should unflatten contextWindowTokens', () => {
     const flat: Partial<FlattenedPresetData> = {
       contextWindowTokens: '131072',

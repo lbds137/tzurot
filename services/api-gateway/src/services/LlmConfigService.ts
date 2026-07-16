@@ -88,12 +88,7 @@ interface RawConfigListWithFlags extends RawConfigList {
  */
 interface RawConfigDetail extends RawConfigList {
   advancedParameters: unknown;
-  memoryScoreThreshold: { toNumber: () => number };
-  memoryLimit: number;
   contextWindowTokens: number;
-  maxMessages: number;
-  maxAge: number | null;
-  maxImages: number;
 }
 
 /**
@@ -121,12 +116,7 @@ interface FormattedConfigDetail {
   provider: string;
   model: string;
   isGlobal: boolean;
-  memoryScoreThreshold: number;
-  memoryLimit: number;
   contextWindowTokens: number;
-  maxMessages: number;
-  maxAge: number | null;
-  maxImages: number;
   params: Record<string, unknown>;
   /** Model's full context window (from OpenRouter), set by enrichWithModelContext */
   modelContextLength?: number;
@@ -294,18 +284,10 @@ export class LlmConfigService {
           provider: data.provider ?? LLM_CONFIG_DEFAULTS.provider,
           model: data.model.trim(),
           advancedParameters: data.advancedParameters ?? undefined,
-          // Memory settings — memoryScoreThreshold and memoryLimit are
-          // NOT NULL with `@default(0.5)` / `@default(20)` in the schema.
-          // Pass the input value directly; when the caller omits, the field
-          // is `undefined` and Prisma fills from the schema default. The Zod
-          // schema dropped `.nullable()`, so null can't reach this line.
-          memoryScoreThreshold: data.memoryScoreThreshold,
-          memoryLimit: data.memoryLimit,
+          // Memory + context-limit columns (memoryScoreThreshold/memoryLimit,
+          // maxMessages/maxAge/maxImages) are retired — they come from the config
+          // cascade now; the columns keep their DB defaults until they're dropped.
           contextWindowTokens: data.contextWindowTokens ?? LLM_CONFIG_DEFAULTS.contextWindowTokens,
-          // Context settings
-          maxMessages: data.maxMessages ?? LLM_CONFIG_DEFAULTS.maxMessages,
-          maxAge: data.maxAge ?? null,
-          maxImages: data.maxImages ?? LLM_CONFIG_DEFAULTS.maxImages,
         },
         select: LLM_CONFIG_DETAIL_SELECT,
       });
@@ -370,23 +352,8 @@ export class LlmConfigService {
     if (data.advancedParameters !== undefined) {
       updateData.advancedParameters = data.advancedParameters;
     }
-    if (data.memoryScoreThreshold !== undefined) {
-      updateData.memoryScoreThreshold = data.memoryScoreThreshold;
-    }
-    if (data.memoryLimit !== undefined) {
-      updateData.memoryLimit = data.memoryLimit;
-    }
     if (data.contextWindowTokens !== undefined) {
       updateData.contextWindowTokens = data.contextWindowTokens;
-    }
-    if (data.maxMessages !== undefined) {
-      updateData.maxMessages = data.maxMessages;
-    }
-    if (data.maxAge !== undefined) {
-      updateData.maxAge = data.maxAge;
-    }
-    if (data.maxImages !== undefined) {
-      updateData.maxImages = data.maxImages;
     }
     if (data.isGlobal !== undefined) {
       updateData.isGlobal = data.isGlobal;
@@ -614,12 +581,7 @@ export class LlmConfigService {
       // isDefault/isFreeDefault are NOT on the detail response: defaults live on
       // the AdminSettings pointers (S3), and no client reads them off the detail
       // — the ⭐/🆓 badges derive from the pointer-based flags on the LIST summary.
-      memoryScoreThreshold: raw.memoryScoreThreshold.toNumber(),
-      memoryLimit: raw.memoryLimit,
       contextWindowTokens: raw.contextWindowTokens,
-      maxMessages: raw.maxMessages,
-      maxAge: raw.maxAge,
-      maxImages: raw.maxImages,
       params: safeValidateAdvancedParams(raw.advancedParameters) ?? {},
     };
   }

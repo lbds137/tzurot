@@ -140,7 +140,6 @@ export {
 
 // LLM Config endpoints
 export {
-  ContextSettingsSchema,
   type CreateLlmConfigResponse,
   CreateLlmConfigResponseSchema,
   type DeleteLlmConfigResponse,

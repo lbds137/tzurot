@@ -108,10 +108,7 @@ vi.mock('../services/shapes/ShapesPersonalityMapper.js', () => ({
       model: 'openai/gpt-4o',
       provider: 'openrouter',
       advancedParameters: {},
-      memoryScoreThreshold: 0.3,
-      memoryLimit: 5,
       contextWindowTokens: 128000,
-      maxMessages: 20,
     },
   }),
 }));

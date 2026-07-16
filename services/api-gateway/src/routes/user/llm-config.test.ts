@@ -769,40 +769,34 @@ describe('/user/llm-config routes', () => {
       expect(res.status).toHaveBeenCalledWith(201);
     });
 
-    it('should create config with memory settings (parity)', async () => {
+    it('should create config with contextWindowTokens (parity)', async () => {
       // This test verifies parity - user routes must accept same fields as admin
       mockPrisma.llmConfig.create.mockResolvedValue({
         id: 'new-config',
-        name: 'Memory Config',
+        name: 'Context Config',
         description: null,
         model: 'gpt-4',
         provider: 'openrouter',
         isGlobal: false,
         isDefault: false,
-        memoryScoreThreshold: { toNumber: () => 0.75 },
-        memoryLimit: 50,
         contextWindowTokens: 100000,
       });
 
       const router = createLlmConfigRoutes(mockDeps);
       const handler = getHandler(router, 'post', '/');
       const { req, res } = createMockReqRes({
-        name: 'Memory Config',
+        name: 'Context Config',
         model: 'gpt-4',
         provider: 'openrouter',
-        memoryScoreThreshold: 0.75,
-        memoryLimit: 50,
         contextWindowTokens: 100000,
       });
 
       await handler(req, res);
 
-      // Verify memory settings are passed to Prisma create
+      // Verify contextWindowTokens is passed to Prisma create
       expect(mockPrisma.llmConfig.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
-            memoryScoreThreshold: 0.75,
-            memoryLimit: 50,
             contextWindowTokens: 100000,
           }),
         })

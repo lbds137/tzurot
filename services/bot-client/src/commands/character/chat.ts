@@ -24,7 +24,6 @@
 
 import { Collection, escapeMarkdown, type Message } from 'discord.js';
 import { type EnvConfig } from '@tzurot/common-types/config/config';
-import { MESSAGE_LIMITS } from '@tzurot/common-types/constants/message';
 import {
   characterChatOptions,
   characterRandomOptions,
@@ -41,7 +40,13 @@ import {
   getJobTracker,
 } from '../../services/serviceRegistry.js';
 import { resolveUserContext } from '../../services/contextBuilder/UserContextResolver.js';
-import { getServiceClient } from '../../utils/gatewayClients.js';
+import { clientsForUser, getServiceClient } from '../../utils/gatewayClients.js';
+import {
+  resolveChatLlmConfig,
+  buildExtendedContextSettings,
+  type ExtendedContextSettings,
+} from '../../services/character/chatConfigResolution.js';
+import { runSlashChatGates } from './slashChatGates.js';
 import { generate } from '../../utils/gatewayServiceCalls.js';
 import type { MessageContext } from '../../types.js';
 import { resolveCharacterSlug, finalizeDeferredReply } from './randomPick.js';
@@ -247,47 +252,12 @@ async function sendAndPersistUserMessage(params: SendUserMessageParams): Promise
   return userMsg;
 }
 
-/**
- * Build extended-context settings from a personality.
- * Pulls the `?? default` coalescing out of the main handler so complexity stays bounded.
- */
-function buildExtendedContextSettings(personality: LoadedPersonality): {
-  maxMessages: number;
-  maxAge: number | null;
-  maxImages: number;
-  sources: {
-    maxMessages: 'personality';
-    maxAge: 'personality';
-    maxImages: 'personality';
-  };
-} {
-  return {
-    maxMessages: personality.maxMessages ?? MESSAGE_LIMITS.DEFAULT_MAX_MESSAGES,
-    maxAge: personality.maxAge ?? null,
-    maxImages: personality.maxImages ?? 10,
-    sources: {
-      maxMessages: 'personality',
-      maxAge: 'personality',
-      maxImages: 'personality',
-    },
-  };
-}
-
 /** Parameters for building chat context */
 interface BuildChatContextParams {
   anchorMessage: Message;
   personality: LoadedPersonality;
   messageContent: string;
-  extendedContextSettings: {
-    maxMessages: number;
-    maxAge: number | null;
-    maxImages: number;
-    sources: {
-      maxMessages: 'personality' | 'user-personality' | 'user-default';
-      maxAge: 'personality' | 'user-personality' | 'user-default';
-      maxImages: 'personality' | 'user-personality' | 'user-default';
-    };
-  };
+  extendedContextSettings: ExtendedContextSettings;
   commandContext: DeferredCommandContext;
   isWeighInMode: boolean;
   /** Anonymity flag: skip persona + memory + epoch (the read-the-room framing
@@ -420,6 +390,47 @@ function readRandomPickFilters(options: ReturnType<typeof characterRandomOptions
  * funnel through the same delivery path. Uses MessageContextBuilder for parity
  * with @mentions (context epoch, guild member info, user timezone).
  */
+/**
+ * Gate the turn (denylist + NSFW), then resolve the persona and config-cascade
+ * prerequisites a chat turn needs. Returns `null` when a gate blocked the turn
+ * (a reply has already been sent) so the caller can bail. Extracted from
+ * {@link runCharacterTurn} to keep that handler within the line budget.
+ */
+async function resolveTurnPrereqs(
+  context: DeferredCommandContext,
+  personality: LoadedPersonality,
+  channel: TypingChannel,
+  discordDisplayName: string
+): Promise<{
+  userContext: Awaited<ReturnType<typeof resolveUserContext>>;
+  displayName: string;
+  extendedContextSettings: ExtendedContextSettings;
+} | null> {
+  // Gate parity with the message pipeline (PersonalityChatManager.runGates),
+  // which the slash path used to skip. A blocked turn has already replied.
+  const { userClient } = clientsForUser(context.user);
+  if (await runSlashChatGates(context, personality, channel, userClient)) {
+    return null;
+  }
+
+  // Resolve persona (id + display name) via routing-context — bot-client never
+  // touches Prisma; the gateway runs provisioning + the persona cascade.
+  const userContext = await resolveUserContext(context.user, personality, discordDisplayName, {
+    serviceClient: getServiceClient(),
+  });
+
+  // Resolve the config cascade (user/channel overrides) and derive the
+  // extended-context settings — the same resolution the message pipeline runs,
+  // so /character chat honours overrides instead of silently using defaults.
+  const resolvedConfig = await resolveChatLlmConfig(userClient, personality, channel.id);
+
+  return {
+    userContext,
+    displayName: userContext.personaName ?? discordDisplayName,
+    extendedContextSettings: buildExtendedContextSettings(resolvedConfig),
+  };
+}
+
 async function runCharacterTurn(
   context: DeferredCommandContext,
   _config: EnvConfig,
@@ -484,16 +495,13 @@ async function runCharacterTurn(
       return;
     }
 
-    // 3. Resolve persona (id + display name) via routing-context. bot-client
-    //    never touches Prisma — the gateway runs provisioning + the persona
-    //    cascade server-side and returns the resolved id + display name.
-    const userContext = await resolveUserContext(context.user, personality, discordDisplayName, {
-      serviceClient: getServiceClient(),
-    });
-    const displayName = userContext.personaName ?? discordDisplayName;
-
-    // 4. Build extended context settings from personality
-    const extendedContextSettings = buildExtendedContextSettings(personality);
+    // 3-5. Gate the turn (denylist + NSFW), then resolve the persona + config
+    //      cascade prerequisites. A blocked turn has already replied — bail.
+    const prereqs = await resolveTurnPrereqs(context, personality, channel, discordDisplayName);
+    if (prereqs === null) {
+      return;
+    }
+    const { userContext, displayName, extendedContextSettings } = prereqs;
 
     // 5. Replace the deferred "thinking..." indicator before sending messages.
     await finalizeDeferredReply(context, personality, isRandomPick);

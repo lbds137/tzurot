@@ -17,7 +17,6 @@ import {
   SetDefaultLlmConfigResponseSchema,
   ResolveLlmConfigInputSchema,
   ResolveLlmConfigResponseSchema,
-  ContextSettingsSchema,
   LlmConfigCreateSchema,
   LlmConfigUpdateSchema,
 } from './llm-config.js';
@@ -300,87 +299,6 @@ describe('LLM Config API Contract Tests', () => {
   // Input Schema Contract Tests (Service Layer Consolidation)
   // ==========================================================================
 
-  describe('ContextSettingsSchema', () => {
-    it('should validate complete context settings', () => {
-      const settings = {
-        maxMessages: 50,
-        maxAge: 3600, // 1 hour
-        maxImages: 10,
-      };
-
-      const result = ContextSettingsSchema.safeParse(settings);
-      expect(result.success).toBe(true);
-    });
-
-    it('should validate empty object (all fields optional)', () => {
-      const result = ContextSettingsSchema.safeParse({});
-      expect(result.success).toBe(true);
-    });
-
-    it('should validate maxAge as null (no time limit)', () => {
-      const settings = { maxAge: null };
-
-      const result = ContextSettingsSchema.safeParse(settings);
-      expect(result.success).toBe(true);
-    });
-
-    it('should validate maxImages as 0 (disables image processing)', () => {
-      const settings = { maxImages: 0 };
-
-      const result = ContextSettingsSchema.safeParse(settings);
-      expect(result.success).toBe(true);
-    });
-
-    it('should reject maxMessages below minimum (1)', () => {
-      const settings = { maxMessages: 0 };
-
-      const result = ContextSettingsSchema.safeParse(settings);
-      expect(result.success).toBe(false);
-    });
-
-    it('should reject maxMessages above maximum (100)', () => {
-      const settings = { maxMessages: 101 };
-
-      const result = ContextSettingsSchema.safeParse(settings);
-      expect(result.success).toBe(false);
-    });
-
-    it('should reject maxAge below minimum (1 second)', () => {
-      const settings = { maxAge: 0 };
-
-      const result = ContextSettingsSchema.safeParse(settings);
-      expect(result.success).toBe(false);
-    });
-
-    it('should reject maxAge above maximum (30 days)', () => {
-      const settings = { maxAge: 2592001 }; // 30 days + 1 second
-
-      const result = ContextSettingsSchema.safeParse(settings);
-      expect(result.success).toBe(false);
-    });
-
-    it('should reject maxImages below minimum (0)', () => {
-      const settings = { maxImages: -1 };
-
-      const result = ContextSettingsSchema.safeParse(settings);
-      expect(result.success).toBe(false);
-    });
-
-    it('should reject maxImages above maximum (20)', () => {
-      const settings = { maxImages: 21 };
-
-      const result = ContextSettingsSchema.safeParse(settings);
-      expect(result.success).toBe(false);
-    });
-
-    it('should reject non-integer values', () => {
-      const settings = { maxMessages: 50.5 };
-
-      const result = ContextSettingsSchema.safeParse(settings);
-      expect(result.success).toBe(false);
-    });
-  });
-
   describe('LlmConfigCreateSchema', () => {
     const validCreateInput = {
       name: 'My Custom Preset',
@@ -399,12 +317,7 @@ describe('LLM Config API Contract Tests', () => {
         description: 'A detailed description',
         provider: 'openrouter',
         advancedParameters: { temperature: 0.7, maxTokens: 2000 },
-        memoryScoreThreshold: 0.75,
-        memoryLimit: 50,
         contextWindowTokens: 100000,
-        maxMessages: 50,
-        maxAge: 3600,
-        maxImages: 10,
       };
 
       const result = LlmConfigCreateSchema.safeParse(completeInput);
@@ -415,27 +328,10 @@ describe('LLM Config API Contract Tests', () => {
       const inputWithNulls = {
         ...validCreateInput,
         description: null,
-        maxAge: null,
       };
 
       const result = LlmConfigCreateSchema.safeParse(inputWithNulls);
       expect(result.success).toBe(true);
-    });
-
-    it('should reject null for memoryScoreThreshold / memoryLimit (NOT NULL with schema default)', () => {
-      // Schema has these fields NOT NULL with @default(0.5) / @default(20).
-      // Callers omit to get the default; null is not a meaningful input value.
-      const inputWithNullMemory = {
-        ...validCreateInput,
-        memoryScoreThreshold: null,
-      };
-      expect(LlmConfigCreateSchema.safeParse(inputWithNullMemory).success).toBe(false);
-
-      const inputWithNullLimit = {
-        ...validCreateInput,
-        memoryLimit: null,
-      };
-      expect(LlmConfigCreateSchema.safeParse(inputWithNullLimit).success).toBe(false);
     });
 
     it('should reject missing name', () => {
@@ -473,40 +369,11 @@ describe('LLM Config API Contract Tests', () => {
       expect(result.success).toBe(false);
     });
 
-    it('should reject memoryScoreThreshold outside 0-1 range', () => {
-      const inputAbove = { ...validCreateInput, memoryScoreThreshold: 1.5 };
-      const inputBelow = { ...validCreateInput, memoryScoreThreshold: -0.1 };
-
-      expect(LlmConfigCreateSchema.safeParse(inputAbove).success).toBe(false);
-      expect(LlmConfigCreateSchema.safeParse(inputBelow).success).toBe(false);
-    });
-
-    it('should reject non-positive memoryLimit', () => {
-      const inputZero = { ...validCreateInput, memoryLimit: 0 };
-      const inputNegative = { ...validCreateInput, memoryLimit: -1 };
-
-      expect(LlmConfigCreateSchema.safeParse(inputZero).success).toBe(false);
-      expect(LlmConfigCreateSchema.safeParse(inputNegative).success).toBe(false);
-    });
-
     it('should reject contextWindowTokens below minimum (1000)', () => {
       const input = { ...validCreateInput, contextWindowTokens: 999 };
 
       const result = LlmConfigCreateSchema.safeParse(input);
       expect(result.success).toBe(false);
-    });
-
-    it('should validate context settings through spread', () => {
-      // Verify that ContextSettingsSchema fields are included
-      const input = {
-        ...validCreateInput,
-        maxMessages: 100, // max allowed
-        maxAge: 2592000, // 30 days max
-        maxImages: 20, // max allowed
-      };
-
-      const result = LlmConfigCreateSchema.safeParse(input);
-      expect(result.success).toBe(true);
     });
   });
 
@@ -522,12 +389,7 @@ describe('LLM Config API Contract Tests', () => {
         { model: 'new-model' },
         { description: 'New description' },
         { isGlobal: true },
-        { memoryScoreThreshold: 0.8 },
-        { memoryLimit: 100 },
         { contextWindowTokens: 50000 },
-        { maxMessages: 25 },
-        { maxAge: 7200 },
-        { maxImages: 5 },
       ];
 
       for (const update of updates) {
@@ -543,12 +405,7 @@ describe('LLM Config API Contract Tests', () => {
         provider: 'anthropic',
         model: 'claude-sonnet-4',
         advancedParameters: { temperature: 0.5 },
-        memoryScoreThreshold: 0.9,
-        memoryLimit: 75,
         contextWindowTokens: 200000,
-        maxMessages: 75,
-        maxAge: 86400,
-        maxImages: 15,
         isGlobal: false,
       };
 
@@ -559,25 +416,15 @@ describe('LLM Config API Contract Tests', () => {
     it('should validate clearing nullable fields with null', () => {
       const clearingUpdate = {
         description: null,
-        maxAge: null,
       };
 
       const result = LlmConfigUpdateSchema.safeParse(clearingUpdate);
       expect(result.success).toBe(true);
     });
 
-    it('should reject null for memoryScoreThreshold / memoryLimit on update (NOT NULL with schema default)', () => {
-      expect(LlmConfigUpdateSchema.safeParse({ memoryScoreThreshold: null }).success).toBe(false);
-      expect(LlmConfigUpdateSchema.safeParse({ memoryLimit: null }).success).toBe(false);
-    });
-
     it('should reject invalid field values (same validation as create)', () => {
       const invalidUpdates = [
-        { memoryScoreThreshold: 1.5 }, // above max
-        { memoryLimit: 0 }, // not positive
         { contextWindowTokens: 500 }, // below min
-        { maxMessages: 101 }, // above max
-        { maxImages: -1 }, // below min
       ];
 
       for (const update of invalidUpdates) {

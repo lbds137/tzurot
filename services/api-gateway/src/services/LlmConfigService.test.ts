@@ -107,12 +107,7 @@ const sampleConfigDetail = {
   isFreeDefault: false,
   ownerId: 'user-123',
   advancedParameters: { temperature: 0.7 },
-  memoryScoreThreshold: { toNumber: () => 0.5 },
-  memoryLimit: 20,
   contextWindowTokens: 131072,
-  maxMessages: 50,
-  maxAge: null,
-  maxImages: 10,
 };
 
 describe('LlmConfigService', () => {
@@ -314,8 +309,6 @@ describe('LlmConfigService', () => {
         expect.objectContaining({
           data: expect.objectContaining({
             provider: 'openrouter',
-            maxMessages: 50, // DEFAULT_MAX_MESSAGES
-            maxImages: 10, // DEFAULT_MAX_IMAGES
           }),
         })
       );
@@ -341,7 +334,7 @@ describe('LlmConfigService', () => {
       );
     });
 
-    it('should include memory settings when provided', async () => {
+    it('should include contextWindowTokens when provided', async () => {
       prisma.llmConfig.create.mockResolvedValue(sampleConfigDetail);
 
       await service.create(
@@ -350,8 +343,6 @@ describe('LlmConfigService', () => {
           name: 'Test',
           model: 'test-model',
           provider: 'openrouter',
-          memoryScoreThreshold: 0.7,
-          memoryLimit: 30,
           contextWindowTokens: 65536,
         },
         'owner-id'
@@ -360,8 +351,6 @@ describe('LlmConfigService', () => {
       expect(prisma.llmConfig.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
-            memoryScoreThreshold: 0.7,
-            memoryLimit: 30,
             contextWindowTokens: 65536,
           }),
         })
@@ -594,41 +583,17 @@ describe('LlmConfigService', () => {
       );
     });
 
-    it('should update memory settings', async () => {
+    it('should update contextWindowTokens', async () => {
       prisma.llmConfig.update.mockResolvedValue(sampleConfigDetail);
 
       await service.update('config-123', {
-        memoryScoreThreshold: 0.8,
-        memoryLimit: 25,
         contextWindowTokens: 100000,
       });
 
       expect(prisma.llmConfig.update).toHaveBeenCalledWith({
         where: { id: 'config-123' },
         data: {
-          memoryScoreThreshold: 0.8,
-          memoryLimit: 25,
           contextWindowTokens: 100000,
-        },
-        select: expect.any(Object),
-      });
-    });
-
-    it('should update context settings', async () => {
-      prisma.llmConfig.update.mockResolvedValue(sampleConfigDetail);
-
-      await service.update('config-123', {
-        maxMessages: 75,
-        maxAge: 86400,
-        maxImages: 15,
-      });
-
-      expect(prisma.llmConfig.update).toHaveBeenCalledWith({
-        where: { id: 'config-123' },
-        data: {
-          maxMessages: 75,
-          maxAge: 86400,
-          maxImages: 15,
         },
         select: expect.any(Object),
       });
@@ -861,10 +826,7 @@ describe('LlmConfigService', () => {
 
   describe('formatConfigDetail', () => {
     it('should format raw config for API response', () => {
-      const raw = {
-        ...sampleConfigDetail,
-        memoryScoreThreshold: { toNumber: () => 0.75 },
-      };
+      const raw = { ...sampleConfigDetail };
 
       const result = service.formatConfigDetail(raw);
 
@@ -878,12 +840,7 @@ describe('LlmConfigService', () => {
         // isDefault/isFreeDefault are intentionally NOT on the detail response —
         // default-ness is an AdminSettings pointer relationship, carried on the
         // list summary (for badges), not the canonical config detail. See S4a.
-        memoryScoreThreshold: 0.75,
-        memoryLimit: 20,
         contextWindowTokens: 131072,
-        maxMessages: 50,
-        maxAge: null,
-        maxImages: 10,
         params: { temperature: 0.7 },
       });
     });

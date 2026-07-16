@@ -34,8 +34,6 @@ describe('loadedPersonalitySchema', () => {
       frequencyPenalty: 0.1,
       presencePenalty: 0.1,
       contextWindowTokens: 131072,
-      memoryScoreThreshold: 0.7,
-      memoryLimit: 20,
       avatarUrl: 'https://example.com/avatar.png',
       characterInfo: 'Test character',
       personalityTraits: 'Friendly',

@@ -15,16 +15,13 @@
  */
 
 import type { Message, SendableChannels } from 'discord.js';
-import { MESSAGE_LIMITS } from '@tzurot/common-types/constants/message';
-import { type SettingSource } from '@tzurot/common-types/schemas/api/adminSettings';
-import { type ConfigResolutionResult } from '@tzurot/common-types/types/configResolution';
 import { isTypingChannel } from '@tzurot/common-types/types/discord-types';
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { isBotOwner } from '@tzurot/common-types/utils/ownerMiddleware';
-import type { UserClient } from '@tzurot/clients';
 import { generate } from '../../utils/gatewayServiceCalls.js';
 import { clientsForUser } from '../../utils/gatewayClients.js';
+import { resolveChatLlmConfig, buildExtendedContextSettings } from './chatConfigResolution.js';
 import { type MessageContextBuilder } from '../MessageContextBuilder.js';
 import { type ConversationPersistence } from '../ConversationPersistence.js';
 import {
@@ -73,91 +70,6 @@ export class PersonalityChatManager {
     this.contextBuilder = deps.contextBuilder;
     this.persistence = deps.persistence;
     this.denylistCache = deps.denylistCache;
-  }
-
-  /**
-   * Resolve LLM config from gateway, applying user overrides.
-   * Falls back to personality defaults on error so a transient gateway
-   * blip degrades gracefully rather than failing the request.
-   */
-  private async resolveConfig(
-    userClient: UserClient,
-    personality: LoadedPersonality,
-    channelId?: string
-  ): Promise<ConfigResolutionResult> {
-    const result = await userClient.resolveUserLlmConfig({
-      personalityId: personality.id,
-      personalityConfig: personality,
-      channelId,
-    });
-
-    if (!result.ok) {
-      logger.warn(
-        { userId: userClient.actor, personalityId: personality.id, error: result.error },
-        'Failed to resolve config, using personality defaults'
-      );
-      return {
-        config: {
-          model: personality.model,
-          maxMessages: personality.maxMessages ?? MESSAGE_LIMITS.DEFAULT_MAX_MESSAGES,
-          maxAge: personality.maxAge ?? null,
-          maxImages: personality.maxImages ?? MESSAGE_LIMITS.DEFAULT_MAX_IMAGES,
-        },
-        source: 'personality',
-      };
-    }
-
-    // Cast bridges the runtime ConfigResolutionResult shape (declared on the
-    // server, in services/LlmConfigResolver.ts) and the schema's narrower
-    // declared response (only required fields, rest .passthrough()).
-    return result.data as unknown as ConfigResolutionResult;
-  }
-
-  /**
-   * Build extended-context settings from resolved config.
-   * Prefers per-field cascade overrides (`overrides.sources`) when available
-   * so the caller can attribute each setting to its tier of origin.
-   */
-  private buildExtendedContextSettings(resolvedConfig: ConfigResolutionResult): {
-    maxMessages: number;
-    maxAge: number | null;
-    maxImages: number;
-    sources: {
-      maxMessages: SettingSource;
-      maxAge: SettingSource;
-      maxImages: SettingSource;
-    };
-  } {
-    const { config, source, overrides } = resolvedConfig;
-
-    if (overrides !== undefined) {
-      return {
-        maxMessages: overrides.maxMessages,
-        maxAge: overrides.maxAge,
-        maxImages: overrides.maxImages,
-        sources: {
-          maxMessages: overrides.sources.maxMessages,
-          maxAge: overrides.sources.maxAge,
-          maxImages: overrides.sources.maxImages,
-        },
-      };
-    }
-
-    // ConfigResolutionSource includes a TTS-only tier 'free-default' that
-    // SettingSource (dashboard taxonomy) doesn't share. LLM resolution
-    // never produces it in practice; narrow defensively in case the union
-    // surface widens.
-    const settingSource: SettingSource = source === 'free-default' ? 'hardcoded' : source;
-    return {
-      maxMessages: config.maxMessages ?? MESSAGE_LIMITS.DEFAULT_MAX_MESSAGES,
-      maxAge: config.maxAge ?? null,
-      maxImages: config.maxImages ?? 10,
-      sources: {
-        maxMessages: settingSource,
-        maxAge: settingSource,
-        maxImages: settingSource,
-      },
-    };
   }
 
   /**
@@ -216,9 +128,9 @@ export class PersonalityChatManager {
     }
 
     const { userClient } = clientsForUser(message.author);
-    const resolvedConfig = await this.resolveConfig(userClient, personality, message.channel.id);
+    const resolvedConfig = await resolveChatLlmConfig(userClient, personality, message.channel.id);
 
-    const extendedContextSettings = this.buildExtendedContextSettings(resolvedConfig);
+    const extendedContextSettings = buildExtendedContextSettings(resolvedConfig);
 
     logger.debug(
       {

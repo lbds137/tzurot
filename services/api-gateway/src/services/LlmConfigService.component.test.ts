@@ -101,8 +101,6 @@ describe('LlmConfigService Integration', () => {
         model: 'anthropic/claude-sonnet-4',
         provider: 'openrouter',
         description: 'A global preset',
-        memoryScoreThreshold: 0.75,
-        memoryLimit: 50,
         contextWindowTokens: 100000,
       };
 
@@ -147,10 +145,11 @@ describe('LlmConfigService Integration', () => {
 
       const config = await service.create(scope, data, testUserId);
 
-      // Check defaults are applied
+      // Check defaults are applied (memory/context-limit settings are no longer
+      // on the LlmConfig — they resolve via the config cascade — so the surviving
+      // defaulted column is contextWindowTokens).
       expect(config.provider).toBe('openrouter');
-      expect(config.maxMessages).toBeGreaterThan(0);
-      expect(config.maxImages).toBeGreaterThan(0);
+      expect(config.contextWindowTokens).toBeGreaterThan(0);
     });
   });
 
@@ -285,12 +284,12 @@ describe('LlmConfigService Integration', () => {
         name: 'Updated Name',
         model: 'new-model',
         provider: 'openrouter',
-        memoryScoreThreshold: 0.9,
+        contextWindowTokens: 90000,
       });
 
       expect(updated.name).toBe('Updated Name');
       expect(updated.model).toBe('new-model');
-      expect(updated.memoryScoreThreshold?.toNumber()).toBe(0.9);
+      expect(updated.contextWindowTokens).toBe(90000);
     });
 
     it('should only update provided fields', async () => {
@@ -637,12 +636,7 @@ describe('LlmConfigService Integration', () => {
           provider: 'openrouter',
           isGlobal: true,
           ownerId: adminUserId,
-          memoryScoreThreshold: 0.8,
-          memoryLimit: 100,
           contextWindowTokens: 128000,
-          maxMessages: 50,
-          maxAge: 3600,
-          maxImages: 10,
           advancedParameters: { temperature: 0.7 },
         },
       });
@@ -658,12 +652,9 @@ describe('LlmConfigService Integration', () => {
         provider: 'openrouter',
         isGlobal: true,
         // isDefault/isFreeDefault intentionally absent from the detail — see S4a.
-        memoryScoreThreshold: 0.8,
-        memoryLimit: 100,
+        // Memory/context-limit fields are retired from the LlmConfig detail —
+        // they resolve via the config cascade now.
         contextWindowTokens: 128000,
-        maxMessages: 50,
-        maxAge: 3600,
-        maxImages: 10,
         params: { temperature: 0.7 },
       });
     });

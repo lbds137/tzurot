@@ -4,7 +4,7 @@
  */
 
 import { AI_DEFAULTS } from '@tzurot/common-types/constants/ai';
-import { MESSAGE_LIMITS, PLACEHOLDERS } from '@tzurot/common-types/constants/message';
+import { PLACEHOLDERS } from '@tzurot/common-types/constants/message';
 import {
   mapLlmConfigFromDb,
   type MappedLlmConfig,
@@ -80,22 +80,6 @@ function getSamplingConfig(
 }
 
 /**
- * Get optional memory config. Note: visionModel is NO LONGER sourced from the
- * LlmConfig — vision is its own config axis, resolved + stamped gateway-side (see
- * VisionConfigResolver). The personality's `visionModel` carrier field is filled at
- * stamp time, not at load time, so it's undefined here.
- */
-function getMemoryConfig(
-  pc: MappedLlmConfig | null,
-  gc: MappedLlmConfig | null
-): Pick<LoadedPersonality, 'memoryScoreThreshold' | 'memoryLimit'> {
-  return {
-    memoryScoreThreshold: getConfigValue(pc?.memoryScoreThreshold, gc?.memoryScoreThreshold),
-    memoryLimit: getConfigValue(pc?.memoryLimit, gc?.memoryLimit),
-  };
-}
-
-/**
  * Get reasoning/thinking config
  * Includes both display preference (showThinking) and reasoning token config (reasoning)
  */
@@ -106,26 +90,6 @@ function getReasoningConfig(
   return {
     showThinking: getConfigValue(pc?.showThinking, gc?.showThinking),
     reasoning: getConfigValue(pc?.reasoning, gc?.reasoning),
-  };
-}
-
-/**
- * Get context settings (conversation history limits)
- * These control how many messages to fetch from the conversation history.
- * Includes hardcoded fallbacks to ensure valid values even with no config.
- */
-function getContextSettings(
-  pc: MappedLlmConfig | null,
-  gc: MappedLlmConfig | null
-): Pick<LoadedPersonality, 'maxMessages' | 'maxAge' | 'maxImages'> {
-  return {
-    maxMessages: getConfigValue(
-      pc?.maxMessages,
-      gc?.maxMessages,
-      MESSAGE_LIMITS.DEFAULT_MAX_MESSAGES
-    ),
-    maxAge: getConfigValue(pc?.maxAge, gc?.maxAge),
-    maxImages: getConfigValue(pc?.maxImages, gc?.maxImages, MESSAGE_LIMITS.DEFAULT_MAX_IMAGES),
   };
 }
 
@@ -265,12 +229,13 @@ export function mapToPersonality(
     // Discord CDN ignores query params, so we embed the timestamp in the path
     avatarUrl: deriveAvatarUrl(db.slug, db.updatedAt, logger),
 
-    // LLM configuration (cascaded from personality > global > defaults)
+    // LLM configuration (cascaded from personality > global > defaults).
+    // Memory + context-limit settings (memoryScoreThreshold/memoryLimit,
+    // maxMessages/maxAge/maxImages) are NOT sourced here — they come from the
+    // config-override cascade at request time, not the LlmConfig columns.
     ...getRequiredLlmConfig(personalityConfig, globalDefaultConfig),
     ...getSamplingConfig(personalityConfig, globalDefaultConfig),
-    ...getMemoryConfig(personalityConfig, globalDefaultConfig),
     ...getReasoningConfig(personalityConfig, globalDefaultConfig),
-    ...getContextSettings(personalityConfig, globalDefaultConfig),
 
     // Character definition fields (with placeholders replaced)
     ...processCharacterFields(db),

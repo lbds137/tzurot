@@ -23,8 +23,7 @@ let jobTracker: JobTracker | undefined;
 let webhookManager: WebhookManager | undefined;
 let personalityService: IPersonalityLoader | undefined;
 let channelActivationCacheInvalidationService:
-  | ChannelActivationCacheInvalidationService
-  | undefined;
+  ChannelActivationCacheInvalidationService | undefined;
 let messageContextBuilder: MessageContextBuilder | undefined;
 let conversationPersistence: ConversationPersistence | undefined;
 let denylistCache: DenylistCache | undefined;
@@ -127,6 +126,16 @@ export function getConversationPersistence(): ConversationPersistence {
     throw new Error('ConversationPersistence not registered. Call registerServices() first.');
   }
   return conversationPersistence;
+}
+
+/**
+ * Get the DenylistCache instance, or `undefined` if not registered. Unlike the
+ * other getters this does NOT throw: the denylist is a best-effort moderation
+ * gate that degrades open (matches how PersonalityChatManager treats its
+ * injected instance), so callers guard with `!== undefined`.
+ */
+export function getDenylistCache(): DenylistCache | undefined {
+  return denylistCache;
 }
 
 /**

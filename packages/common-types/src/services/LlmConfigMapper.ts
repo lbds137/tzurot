@@ -19,9 +19,6 @@ import {
   advancedParamsToConfigFormat,
   type ConvertedLlmParams,
 } from '../schemas/llmAdvancedParams.js';
-import { createLogger } from '../utils/logger.js';
-
-const logger = createLogger('LlmConfigMapper');
 
 // ============================================
 // PRISMA SELECT CONSTANT
@@ -36,7 +33,6 @@ const logger = createLogger('LlmConfigMapper');
  * Fields included:
  * - model: Model identifier
  * - advancedParameters: JSONB with ALL sampling/reasoning/output params
- * - memoryScoreThreshold, memoryLimit: Memory-related settings (not in JSONB)
  * - contextWindowTokens: Context window size (not in JSONB)
  * - name: Config name for display/logging (optional for some use cases)
  */
@@ -44,13 +40,7 @@ export const LLM_CONFIG_SELECT = {
   model: true,
   provider: true, // String column — drives provider-tier routing (e.g. 'openrouter', 'zai-coding')
   advancedParameters: true, // JSONB (snake_case)
-  memoryScoreThreshold: true, // Decimal column (not in JSONB)
-  memoryLimit: true, // Integer column (not in JSONB)
   contextWindowTokens: true, // Integer column (not in JSONB)
-  // Context settings - typed columns (not JSONB)
-  maxMessages: true, // Max messages to fetch from conversation history
-  maxAge: true, // Max age in seconds (null = no limit)
-  maxImages: true, // Max images to process from extended context
 } as const;
 
 /**
@@ -76,13 +66,7 @@ export interface RawLlmConfigFromDb {
   model: string;
   provider: string; // 'openrouter' | 'zai-coding' | future enum values
   advancedParameters: unknown; // JSONB - validated via Zod
-  memoryScoreThreshold: unknown; // Prisma Decimal - converted via toNumber()
-  memoryLimit: number | null;
   contextWindowTokens: number;
-  // Context settings - typed columns
-  maxMessages: number;
-  maxAge: number | null;
-  maxImages: number;
 }
 
 /**
@@ -107,13 +91,7 @@ export interface MappedLlmConfig extends ConvertedLlmParams {
    * AIProvider enum at the consumption boundary.
    */
   provider: string;
-  memoryScoreThreshold: number | null;
-  memoryLimit: number | null;
   contextWindowTokens: number;
-  // Context settings
-  maxMessages: number;
-  maxAge: number | null;
-  maxImages: number;
 }
 
 /**
@@ -121,42 +99,6 @@ export interface MappedLlmConfig extends ConvertedLlmParams {
  */
 export interface MappedLlmConfigWithName extends MappedLlmConfig {
   name: string;
-}
-
-// ============================================
-// HELPER FUNCTIONS
-// ============================================
-
-/**
- * Convert Prisma Decimal to number with type safety.
- *
- * Handles Prisma's Decimal type which has a toNumber() method.
- * Validates the result is actually a number to catch any future
- * changes in Prisma's internal implementation.
- */
-function toNumber(value: unknown): number | null {
-  if (value === null || value === undefined) {
-    return null;
-  }
-  if (typeof value === 'number') {
-    return value;
-  }
-  // Handle Prisma Decimal (has toNumber method)
-  if (
-    typeof value === 'object' &&
-    value !== null &&
-    'toNumber' in value &&
-    typeof (value as Record<string, unknown>).toNumber === 'function'
-  ) {
-    const result = (value as { toNumber: () => unknown }).toNumber();
-    if (typeof result === 'number') {
-      return result;
-    }
-    logger.warn({ valueType: typeof result }, 'Prisma Decimal.toNumber() returned non-number');
-    return null;
-  }
-  logger.warn({ valueType: typeof value }, 'Unexpected value type in toNumber');
-  return null;
 }
 
 // ============================================
@@ -185,14 +127,8 @@ export function mapLlmConfigFromDb(raw: RawLlmConfigFromDb): MappedLlmConfig {
     provider: raw.provider,
     // Spread ALL converted params (sampling, reasoning, output, OpenRouter)
     ...converted,
-    // Non-JSONB fields (still use individual columns)
-    memoryScoreThreshold: toNumber(raw.memoryScoreThreshold),
-    memoryLimit: raw.memoryLimit,
+    // Non-JSONB field (still an individual column; model-coupled)
     contextWindowTokens: raw.contextWindowTokens,
-    // Context settings (typed columns)
-    maxMessages: raw.maxMessages,
-    maxAge: raw.maxAge,
-    maxImages: raw.maxImages,
   };
 }
 
