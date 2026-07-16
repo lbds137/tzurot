@@ -18,6 +18,7 @@ import {
   IssueAccountDeleteTokenResponseSchema,
   DeleteAccountResponseSchema,
 } from '@tzurot/common-types/schemas/api/account';
+import { ACCOUNT_EXPORT_SOURCE } from '@tzurot/common-types/types/account-export';
 import {
   buildConformanceHarness,
   authHeaders,
@@ -100,5 +101,60 @@ describe('account deletion routes (component, real mounts over PGLite)', () => {
       .set(authHeaders())
       .send({ deleteToken });
     expect(replay.status).toBe(400);
+  });
+
+  it('re-provisions after deletion so the next FK-keyed write does not P2003 (regression)', async () => {
+    // The bug this whole PR fixes, driven through the REAL shared UserService
+    // the middleware reads. UserService caches `discordId → {userId}` (the
+    // userId is deterministic on discordId) and reads it BEFORE the DB.
+    // Deletion removes the users row; without eviction the next request reads
+    // the stale cache, gets the deterministic userId back WITHOUT re-creating
+    // the row, and the first FK-keyed write against it — the export_jobs
+    // insert (the runtime-confirmed P2003) — violates the FK. The delete
+    // route's synchronous invalidateUser is what forces the re-create.
+
+    // Warm the provisioning cache (this authed read provisions the actor).
+    await request(harness.app).get('/api/user/account/export/status').set(authHeaders());
+    const before = await harness.ctx.prisma.user.findUniqueOrThrow({
+      where: { discordId: harness.ctx.actorDiscordId },
+    });
+    // The re-provisioned actor is the bot owner, hence superuser; clear it so
+    // the delete handshake (which blocks superusers) can run.
+    await harness.ctx.prisma.user.update({
+      where: { id: before.id },
+      data: { isSuperuser: false },
+    });
+
+    const issued = await request(harness.app)
+      .post('/api/user/account/delete/token')
+      .set(authHeaders())
+      .send({ confirmationPhrase: 'delete my account' });
+    const { deleteToken } = IssueAccountDeleteTokenResponseSchema.parse(issued.body);
+    const deleted = await request(harness.app)
+      .post('/api/user/account/delete')
+      .set(authHeaders())
+      .send({ deleteToken });
+    expect(deleted.status).toBe(200);
+    // The row is really gone (and the deterministic id would collide on any
+    // stale-cache write until the row is re-created).
+    expect(await harness.ctx.prisma.user.findUnique({ where: { id: before.id } })).toBeNull();
+
+    // The FK-keyed write that reproduced the P2003. A stale cache returns the
+    // deterministic userId for a row that no longer exists → 500; the eviction
+    // makes the middleware re-create the row first, so the insert lands (202).
+    const exported = await request(harness.app)
+      .post('/api/user/account/export')
+      .set(authHeaders())
+      .send({});
+    expect(exported.status).toBe(202);
+
+    // Re-creation is what the eviction bought us: the users row exists again…
+    expect(await harness.ctx.prisma.user.findUnique({ where: { id: before.id } })).not.toBeNull();
+    // …and the export_jobs row landed against it (the write that used to fail).
+    expect(
+      await harness.ctx.prisma.exportJob.findFirst({
+        where: { userId: before.id, sourceService: ACCOUNT_EXPORT_SOURCE },
+      })
+    ).not.toBeNull();
   });
 });

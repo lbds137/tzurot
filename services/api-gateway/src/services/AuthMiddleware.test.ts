@@ -18,9 +18,7 @@ import {
   requireServiceAuth,
   isAuthorizedForRead,
   isAuthorizedForWrite,
-  getOrCreateUserService,
 } from './AuthMiddleware.js';
-import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import { getConfig } from '@tzurot/common-types/config/config';
 
 // Mock getConfig and isBotOwner
@@ -54,6 +52,11 @@ vi.mock('@tzurot/identity', () => ({
   UserService: class MockUserService {
     getOrCreateUser = mockGetOrCreateUser;
   },
+  // The middleware resolves its UserService through the shared registry; return
+  // a stub carrying the same getOrCreateUser mock. The registry's own
+  // same/distinct-instance invariants are tested against the real WeakMap in
+  // @tzurot/identity's UserService.test.ts, not here (this module is mocked).
+  getOrCreateUserService: () => ({ getOrCreateUser: mockGetOrCreateUser }),
 }));
 
 describe('authMiddleware', () => {
@@ -979,30 +982,6 @@ describe('authMiddleware', () => {
       mockIsBotOwnerFn.mockReturnValue(false);
       expect(isAuthorizedForWrite('some-other-user')).toBe(false);
       expect(mockIsBotOwnerFn).toHaveBeenCalledWith('some-other-user');
-    });
-  });
-
-  describe('getOrCreateUserService registry', () => {
-    // Pin the WeakMap-backed registry's two load-bearing invariants so they
-    // don't silently drift: the registry MUST return the same UserService
-    // instance for the same PrismaClient (so the TTLCache inside UserService
-    // is shared across every route factory that calls this helper), and it
-    // MUST return distinct instances for distinct PrismaClients (so test
-    // fixtures with short-lived clients don't accidentally pollute each
-    // other's caches). These invariants are what make the PR #883
-    // instantiation harmonization worth anything — if they break, the
-    // 22 route files that now go through the registry would silently
-    // regress to per-file caches.
-
-    it('returns the same UserService instance for the same PrismaClient', () => {
-      const prisma = {} as unknown as PrismaClient;
-      expect(getOrCreateUserService(prisma)).toBe(getOrCreateUserService(prisma));
-    });
-
-    it('returns distinct UserService instances for distinct PrismaClients', () => {
-      const prisma1 = {} as unknown as PrismaClient;
-      const prisma2 = {} as unknown as PrismaClient;
-      expect(getOrCreateUserService(prisma1)).not.toBe(getOrCreateUserService(prisma2));
     });
   });
 });

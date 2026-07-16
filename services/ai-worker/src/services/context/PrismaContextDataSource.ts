@@ -17,7 +17,7 @@ import {
   type CrossChannelHistoryGroup,
 } from '@tzurot/common-types/types/conversationMessage';
 import { ConversationHistoryService } from '@tzurot/conversation-history';
-import { UserService } from '@tzurot/identity';
+import { getOrCreateUserService, type UserService } from '@tzurot/identity';
 import type {
   ContextDataSource,
   CrossChannelHistoryParams,
@@ -30,7 +30,7 @@ export class PrismaContextDataSource implements ContextDataSource {
 
   constructor(private readonly prisma: PrismaClient) {
     this.history = new ConversationHistoryService(prisma);
-    this.users = new UserService(prisma);
+    this.users = getOrCreateUserService(prisma);
   }
 
   async getChannelHistory(

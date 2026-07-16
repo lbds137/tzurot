@@ -38,6 +38,7 @@ export {
   PersonaCacheInvalidationService,
   type PersonaInvalidationEvent,
 } from './PersonaCacheInvalidationService.js';
+export { UserCacheInvalidationService } from './UserCacheInvalidationService.js';
 export {
   ChannelActivationCacheInvalidationService,
   type ChannelActivationInvalidationEvent,

@@ -168,11 +168,11 @@ export class UserService {
    * `users` row, but the cache still maps this discordId to the now-dead
    * userId — so the next {@link getOrCreateUser} would return the stale id
    * and any write against it (e.g. an export_jobs insert) FK-violates.
-   * Deletion must call this so the next request re-creates the row.
    *
-   * Single-process eviction (api-gateway runs one replica). If it ever scales
-   * out, this needs cross-process invalidation (Redis pub/sub) — the cache
-   * TTL is the only backstop until then.
+   * This evicts ONE process's cache. Every process runs its own long-lived
+   * UserService (api-gateway AND ai-worker's context pipeline), so the delete
+   * route also broadcasts via `UserCacheInvalidationService` and each process
+   * calls this on the event — see that service for the cross-process wiring.
    */
   invalidateUser(discordId: string): void {
     this.userCache.delete(discordId);
@@ -562,4 +562,23 @@ export class UserService {
 
     return result;
   }
+}
+
+/**
+ * Shared UserService per PrismaClient. The provisioning cache lives on the
+ * instance, so all callers within a process MUST share one instance for the
+ * cache — and its cross-process invalidation (account deletion) — to be
+ * coherent. Keyed on the PrismaClient reference; a process has one client, so
+ * one UserService. Lifted here from api-gateway so ai-worker's context
+ * pipeline shares the same instance the invalidation subscriber evicts.
+ */
+const userServiceByPrisma = new WeakMap<PrismaClient, UserService>();
+
+export function getOrCreateUserService(prisma: PrismaClient): UserService {
+  let service = userServiceByPrisma.get(prisma);
+  if (service === undefined) {
+    service = new UserService(prisma);
+    userServiceByPrisma.set(prisma, service);
+  }
+  return service;
 }

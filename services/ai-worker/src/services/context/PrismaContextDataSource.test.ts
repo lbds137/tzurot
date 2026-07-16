@@ -27,6 +27,7 @@ vi.mock('@tzurot/identity', () => ({
   UserService: class {
     getUserTimezone = mockGetUserTimezone;
   },
+  getOrCreateUserService: () => ({ getUserTimezone: mockGetUserTimezone }),
 }));
 
 import { PrismaContextDataSource } from './PrismaContextDataSource.js';

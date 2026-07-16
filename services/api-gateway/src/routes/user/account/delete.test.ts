@@ -69,6 +69,13 @@ vi.mock('../../../services/AuthMiddleware.js', async importOriginal => {
   };
 });
 
+const broadcastInvalidateMock = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
+vi.mock('@tzurot/cache-invalidation', () => ({
+  UserCacheInvalidationService: function MockUserCacheInvalidation() {
+    return { invalidateUser: broadcastInvalidateMock };
+  },
+}));
+
 import {
   handlePreviewAccountDelete,
   handleIssueAccountDeleteToken,
@@ -224,8 +231,10 @@ describe('Account Deletion Routes', () => {
       expect(deps.cacheInvalidationService?.invalidatePersonality).toHaveBeenCalledWith('x1');
       expect(deleteAvatarsMock).toHaveBeenCalledWith('xbot', 'Account delete');
       // The provisioning cache must be evicted so the next request re-creates
-      // the row instead of returning the dead userId (FK-violation guard).
+      // the row instead of returning the dead userId (FK-violation guard):
+      // (1) this process synchronously, (2) every other process via broadcast.
       expect(invalidateUserMock).toHaveBeenCalledWith('discord-user-123');
+      expect(broadcastInvalidateMock).toHaveBeenCalledWith('discord-user-123');
 
       const payload = (res.json as ReturnType<typeof vi.fn>).mock.calls[0][0];
       expect(payload.success).toBe(true);
