@@ -26,6 +26,12 @@ export interface Brand {
   banner: ImageMetadata;
   /** True on the dev preview deployment — emits a robots noindex meta tag. */
   noindex: boolean;
+  /**
+   * True when the legal pages substitute this brand's name into the document
+   * prose. The canonical documents name Tzurot; only non-canonical (preview)
+   * brands substitute — prod always renders the text verbatim.
+   */
+  substitutesLegalName: boolean;
 }
 
 const BRANDS: Record<string, Brand> = {
@@ -34,12 +40,14 @@ const BRANDS: Record<string, Brand> = {
     logo: tzurotLogo,
     banner: tzurotBanner,
     noindex: false,
+    substitutesLegalName: false,
   },
   rotzot: {
     name: 'Rotzot',
     logo: rotzotLogo,
     banner: rotzotBanner,
     noindex: true,
+    substitutesLegalName: true,
   },
 };
 
