@@ -33,8 +33,9 @@ export interface MemoryRetrievalResult {
   /**
    * The resolved persona for this turn — present ONLY when LTM retrieval
    * actually ran. Undefined when retrieval was skipped (incognito, focus mode,
-   * or no persona), so the fact-retrieval path (Phase 2 slice 4a) inherits the
-   * exact same scope AND the same skip decisions from one source of truth.
+   * memoryLimit 0, or no persona), so the fact-retrieval path (Phase 2 slice
+   * 4a) inherits the exact same scope AND the same skip decisions from one
+   * source of truth.
    */
   personaId?: string;
 }
@@ -234,6 +235,22 @@ export class MemoryRetriever {
     const effectiveScoreThreshold =
       configOverrides?.memoryScoreThreshold ?? AI_DEFAULTS.MEMORY_SCORE_THRESHOLD;
 
+    // memoryLimit: 0 means "LTM retrieval disabled" (the schema documents it;
+    // same off-semantics as maxImages: 0). Return here rather than passing
+    // limit: 0 downstream — PgvectorQueryBuilder treats a non-positive limit
+    // as "use the default" and would silently retrieve memories anyway.
+    // personaId is deliberately OMITTED, like every other skip branch: the
+    // fact-retrieval path gates on it, so facts (distilled memories) stay
+    // suppressed together with the memories they derive from — full parity
+    // with the focus-mode skip.
+    if (effectiveMemoryLimit === 0) {
+      logger.info(
+        { userId: context.userId, personalityId: personality.id },
+        '[MemoryRetriever] memoryLimit is 0 - skipping LTM retrieval (memories still being saved)'
+      );
+      return { memories: [], focusModeEnabled: false };
+    }
+
     const memoryQueryOptions: MemoryQueryOptions = {
       personaId,
       personalityId: shareLtmAcrossPersonalities ? undefined : personality.id,
@@ -255,26 +272,34 @@ export class MemoryRetriever {
       );
     }
 
-    // Query memories only if memory manager is available.
-    //
-    // Storage→RAG boundary: `queryMemories*` returns `PgvectorMemoryDocument[]`
-    // (wider `metadata?: Record<string, unknown>`), assigned here into the
-    // RAG-layer `MemoryDocument[]` shape (narrower typed metadata). The two
-    // are structurally compatible because all RAG-layer metadata fields are
-    // optional — see `PgvectorTypes.ts` for the change-together invariant.
-    const relevantMemories =
-      this.memoryManager !== undefined
-        ? memoryQueryOptions.channelIds !== undefined && memoryQueryOptions.channelIds.length > 0
-          ? await this.memoryManager.queryMemoriesWithChannelScoping(
-              userMessage,
-              memoryQueryOptions
-            )
-          : await this.memoryManager.queryMemories(userMessage, memoryQueryOptions)
-        : [];
+    const relevantMemories = await this.runMemoryQuery(userMessage, memoryQueryOptions);
 
     this.logRetrievedMemories(relevantMemories, personality.name);
 
     return { memories: relevantMemories, focusModeEnabled: false, personaId };
+  }
+
+  /**
+   * Run the vector query, dispatching channel-scoped vs plain retrieval.
+   * Returns empty when no memory manager is configured.
+   *
+   * Storage→RAG boundary: `queryMemories*` returns `PgvectorMemoryDocument[]`
+   * (wider `metadata?: Record<string, unknown>`), assigned here into the
+   * RAG-layer `MemoryDocument[]` shape (narrower typed metadata). The two
+   * are structurally compatible because all RAG-layer metadata fields are
+   * optional — see `PgvectorTypes.ts` for the change-together invariant.
+   */
+  private async runMemoryQuery(
+    userMessage: string,
+    options: MemoryQueryOptions
+  ): Promise<MemoryDocument[]> {
+    if (this.memoryManager === undefined) {
+      return [];
+    }
+    const channelScoped = options.channelIds !== undefined && options.channelIds.length > 0;
+    return channelScoped
+      ? this.memoryManager.queryMemoriesWithChannelScoping(userMessage, options)
+      : this.memoryManager.queryMemories(userMessage, options);
   }
 
   /**
