@@ -83,6 +83,9 @@ function createMockPrisma(): PrismaClient {
     usageLog: {
       create: vi.fn().mockResolvedValue({ id: 'usage-123' }),
     },
+    user: {
+      updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+    },
   } as unknown as PrismaClient;
 }
 
@@ -591,6 +594,31 @@ describe('AIJobProcessor', () => {
       });
     });
 
+    it('stamps notifyOptedInAt on the first real generation (null-guarded)', async () => {
+      const job = createMockJob(baseLLMJobData, 'llm-job-123');
+
+      await processor.processJob(job);
+
+      // The deliberate-use signal that release-DM eligibility gates on: only
+      // written for rows where it is still null, so it's a one-time stamp.
+      expect(mockPrisma.user.updateMany).toHaveBeenCalledWith({
+        where: { id: 'user-internal-uuid-123', notifyOptedInAt: null },
+        data: { notifyOptedInAt: expect.any(Date) },
+      });
+    });
+
+    it('still succeeds when the notifyOptedInAt stamp write fails (best-effort)', async () => {
+      vi.mocked(mockPrisma.user.updateMany).mockRejectedValueOnce(new Error('db down'));
+      const job = createMockJob(baseLLMJobData, 'llm-job-123');
+
+      const result = await processor.processJob(job);
+
+      // The stamp is bookkeeping on an already-delivered generation — a
+      // failed write must never fail the response.
+      expect(result.success).toBe(true);
+      expect(mockPrisma.user.updateMany).toHaveBeenCalled();
+    });
+
     it('should skip usage logging when userInternalId is undefined', async () => {
       const jobDataWithoutInternalId = {
         ...baseLLMJobData,
@@ -601,6 +629,8 @@ describe('AIJobProcessor', () => {
       await processor.processJob(job);
 
       expect(mockPrisma.usageLog.create).not.toHaveBeenCalled();
+      // No user id → nothing to stamp either.
+      expect(mockPrisma.user.updateMany).not.toHaveBeenCalled();
     });
 
     it('should skip usage logging when userInternalId is empty string', async () => {
@@ -613,6 +643,8 @@ describe('AIJobProcessor', () => {
       await processor.processJob(job);
 
       expect(mockPrisma.usageLog.create).not.toHaveBeenCalled();
+      // No user id → nothing to stamp either.
+      expect(mockPrisma.user.updateMany).not.toHaveBeenCalled();
     });
 
     it('should skip usage logging when job fails', async () => {

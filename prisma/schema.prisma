@@ -37,9 +37,16 @@ model User {
   configDefaults        Json?                      @map("config_defaults")
   /// Release-notes DM master switch (default opt-in per owner spec; /notifications on|off).
   notifyEnabled         Boolean                    @default(true) @map("notify_enabled")
-  /// Minimum changelog-derived release weight worth a DM (default minor:
-  /// feature releases yes, fix-only releases no).
-  notifyLevel           NotifyLevel                @default(minor) @map("notify_level")
+  /// Minimum changelog-derived release weight worth a DM. Default `major`
+  /// (conservative — only breaking releases notify by default); users opt up
+  /// to minor/patch via /notifications level.
+  notifyLevel           NotifyLevel                @default(major) @map("notify_level")
+  /// State machine: set once when the user first DELIBERATELY uses the bot
+  /// (a real generation, or BYOK setup) and hasn't opted out; null for users
+  /// the bot has only SEEN (extended-context participants get a provisioned
+  /// row + default persona but never this). Release-DM eligibility requires
+  /// it non-null, so passive bystanders are never in the blast radius.
+  notifyOptedInAt       DateTime?                  @map("notify_opted_in_at")
   createdAt             DateTime                   @default(now()) @map("created_at")
   updatedAt             DateTime                   @updatedAt @map("updated_at")
   releaseDeliveries     ReleaseDeliveryLog[]

@@ -85,6 +85,7 @@ describe('resolveEligibleRecipients', () => {
       expect.objectContaining({
         where: {
           notifyEnabled: true,
+          notifyOptedInAt: { not: null },
           notifyLevel: { in: ['major', 'minor', 'patch'] },
           discordId: { in: ['111'] },
         },
@@ -92,7 +93,7 @@ describe('resolveEligibleRecipients', () => {
     );
   });
 
-  it('queries opted-in users at the level thresholds', async () => {
+  it('queries opted-in users at the level thresholds, gated on deliberate use', async () => {
     const prisma = makePrisma();
     prisma.user.findMany.mockResolvedValueOnce([
       { id: USER_A, discordId: '111', username: 'alice' },
@@ -102,7 +103,14 @@ describe('resolveEligibleRecipients', () => {
 
     expect(prisma.user.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { notifyEnabled: true, notifyLevel: { in: ['minor', 'patch'] } },
+        // notifyOptedInAt gate = the blast-radius fix: passive extended-context
+        // bystanders (null timestamp) are never eligible even though their row
+        // defaults to notifyEnabled=true.
+        where: {
+          notifyEnabled: true,
+          notifyOptedInAt: { not: null },
+          notifyLevel: { in: ['minor', 'patch'] },
+        },
         take: 500,
       })
     );
