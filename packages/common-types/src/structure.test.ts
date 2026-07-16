@@ -50,6 +50,14 @@ const EXCLUDE_PATTERNS = [
   /vitest\.config\.ts$/,
   /setupTests\.ts$/,
   /testSetup\.ts$/,
+  // Website (Astro) config-shape modules. content.config.ts declares the
+  // content collections; brand.ts is a constants record whose only behavior
+  // is a DELIBERATE silent fallback — an unset or unrecognized SITE_BRAND
+  // builds the Tzurot brand rather than failing the build over a typoed env
+  // var. Real logic added under services/website/src gets colocated tests
+  // like everything else.
+  /services\/website\/src\/brand\.ts$/,
+  /services\/website\/src\/content\.config\.ts$/,
   // Job handler WRAPPERS only (thin dispatch shells, tested via integration).
   // Deliberately does NOT cover jobs/handlers/pipeline/** — the pipeline steps
   // grew into substantive logic modules, and a blanket exclusion let an
@@ -189,6 +197,7 @@ describe('Project Structure', () => {
       'services/ai-worker/src',
       'services/api-gateway/src',
       'services/bot-client/src',
+      'services/website/src',
       'packages/clients/src',
       'packages/common-types/src',
       'packages/config-resolver/src',
