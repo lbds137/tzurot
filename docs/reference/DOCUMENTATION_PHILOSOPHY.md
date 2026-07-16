@@ -55,6 +55,10 @@ Distilled insights from AI consultations (TL;DR format).
 - Lives in `docs/research/`
 - 2-5KB each (not raw transcripts)
 - Links to actionable BACKLOG items
+- Placement is also an audience decision (this is a public repo): research
+  written for users or contributors is tracked here; working material written
+  for the operator lives in `docs/local/` (gitignored). See the "Audience
+  check" section in `.claude/rules/07-documentation.md`.
 
 ## What We Delete
 
