@@ -164,6 +164,21 @@ export class UserService {
   }
 
   /**
+   * Evict a user's provisioning-cache entry. Account deletion removes the
+   * `users` row, but the cache still maps this discordId to the now-dead
+   * userId — so the next {@link getOrCreateUser} would return the stale id
+   * and any write against it (e.g. an export_jobs insert) FK-violates.
+   * Deletion must call this so the next request re-creates the row.
+   *
+   * Single-process eviction (api-gateway runs one replica). If it ever scales
+   * out, this needs cross-process invalidation (Redis pub/sub) — the cache
+   * TTL is the only backstop until then.
+   */
+  invalidateUser(discordId: string): void {
+    this.userCache.delete(discordId);
+  }
+
+  /**
    * Create user with race condition protection
    * If two requests try to create the same user simultaneously, one will fail with P2002.
    * We catch that and fetch the existing user instead.
