@@ -224,12 +224,11 @@ export const handleDeleteAccount = (deps: RouteDeps): RequestHandler =>
     //   (2) Broadcast so every OTHER process (ai-worker's context pipeline
     //       has its own long-lived UserService) drops the mapping too — else
     //       a queued generation job within the ~1h TTL re-hits the dead id.
-    if (deps.redis !== undefined) {
-      try {
-        await new UserCacheInvalidationService(deps.redis).invalidateUser(discordUserId);
-      } catch (error) {
-        logger.warn({ err: error }, 'Post-deletion user-cache broadcast failed');
-      }
+    //       `redis` is already non-null (requireRedis returned early above).
+    try {
+      await new UserCacheInvalidationService(redis).invalidateUser(discordUserId);
+    } catch (error) {
+      logger.warn({ err: error }, 'Post-deletion user-cache broadcast failed');
     }
 
     await cleanupAfterDeletion(deps, discordUserId, summary);

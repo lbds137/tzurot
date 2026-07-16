@@ -86,11 +86,14 @@ export class UserService {
    * this cache (and returns `.userId`) but never writes, because a shell-only
    * provisioning doesn't guarantee a non-null `defaultPersonaId`.
    *
-   * If `UserService` is ever refactored to a singleton, the shell path's
-   * cache-read short-circuits a later `getOrCreateUser` call's persona
-   * backfill + username upgrade for the same discordId. Today's per-request
-   * instantiation keeps the cache cold, so this is a future-singleton hazard
-   * tracked in BACKLOG.md rather than a current bug.
+   * This cache is long-lived: `getOrCreateUserService` shares one `UserService`
+   * per `PrismaClient` across each process (both api-gateway and ai-worker). Two
+   * things bound the staleness that creates — only `getOrCreateUser` writes, and
+   * only a fully-provisioned `ProvisionedUser`, so a hit never returns incomplete
+   * shell data; and account deletion evicts via {@link invalidateUser} (plus the
+   * cross-process broadcast). The residual is that a cache hit short-circuits
+   * `runMaintenanceTasks` (placeholder-username/persona upgrade, superuser
+   * promotion) until the entry's TTL expires — bounded and cosmetic.
    */
   private userCache: TTLCache<ProvisionedUser>;
 
