@@ -58,6 +58,10 @@ export async function importMemories(
   // Trade-off: fetch all content upfront (~1-2MB for 10k memories) for O(1) dedup
   // vs. per-memory DB existence checks (slower, lower memory). Shapes.inc datasets
   // fit comfortably in memory; most characters have <2k memories.
+  //
+  // Deliberately UNFILTERED by visibility: a soft-deleted memory's content still
+  // blocks re-import, so content a user purged is never resurrected by running
+  // the import again. Deletion wins over re-import.
   const existingMemories = await prisma.memory.findMany({
     where: { personalityId },
     select: { content: true },
