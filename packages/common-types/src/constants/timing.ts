@@ -228,6 +228,18 @@ export const CLEANUP_DEFAULTS = {
    * Tombstones only need to exist long enough for db-sync to propagate deletions
    */
   DAYS_TO_KEEP_TOMBSTONES: 30,
+  /**
+   * Days to keep HANDLED feedback (status read/archived). Untriaged rows
+   * (status 'new') are never purged — the owner hasn't seen them yet.
+   */
+  DAYS_TO_KEEP_HANDLED_FEEDBACK: 90,
+  /**
+   * Days to keep SETTLED release-delivery ledger rows. Standing-DM rows
+   * (sent, not yet deleted) and pending rows are never purged — the former
+   * back /notifications cleanup and delete-previous; the latter belong to
+   * the incomplete-broadcast sweep, not retention.
+   */
+  DAYS_TO_KEEP_SETTLED_DELIVERIES: 90,
   /** Minimum allowed days to keep (1 day) */
   MIN_DAYS: 1,
   /** Maximum allowed days to keep (365 days) */
