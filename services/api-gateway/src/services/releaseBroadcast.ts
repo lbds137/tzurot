@@ -21,6 +21,7 @@ import {
 } from '@tzurot/common-types/utils/deterministicUuid';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { getOutboundDmAllowlist } from '@tzurot/common-types/utils/outboundDmAllowlist';
+import type { BroadcastCompletionSummary } from '@tzurot/common-types/schemas/api/broadcast';
 import { addValidatedJob } from '../utils/validatedQueue.js';
 import { isPrismaUniqueConstraintError } from '../utils/prismaErrors.js';
 
@@ -114,9 +115,11 @@ export type EnqueueBroadcastResult =
  * Each recipient's most recent prior release DM still standing (sent, not
  * yet deleted). The DM worker deletes it before sending the new one, so a
  * user's DM channel holds at most one release note. One batched query —
- * newest-first scan, first row per user wins.
+ * newest-first scan, first row per user wins. Exported for the
+ * incomplete-broadcast sweep, which rebuilds batches from ledger rows and
+ * must preserve the same one-standing-DM invariant on retries.
  */
-async function resolvePreviousDms(
+export async function resolvePreviousDms(
   prisma: PrismaClient,
   releaseId: string,
   userIds: string[]
@@ -240,4 +243,43 @@ export async function enqueueBroadcast(
 
   logger.info({ version, level, recipients: recipients.length, batches }, 'Broadcast enqueued');
   return { ok: true, releaseId, recipients: recipients.length, batches };
+}
+
+/**
+ * Final tally for a completed blast — feeds the ops embed on the worker path
+ * and the completion log on the resweep path (every completion route shares
+ * this one computation). Grouped by (status, errorCode) so resweep
+ * eligibility exclusions (errorCode 'opted_out') split into their own bucket
+ * instead of inflating failedPermanent — that number must mean "DM genuinely
+ * failed", both for the owner reading the tally and because it shares
+ * vocabulary with the auto-disable streak.
+ */
+export async function computeCompletionSummary(
+  prisma: PrismaClient,
+  releaseId: string
+): Promise<BroadcastCompletionSummary> {
+  const [announcement, groups] = await Promise.all([
+    prisma.releaseAnnouncement.findUnique({
+      where: { id: releaseId },
+      select: { version: true },
+    }),
+    prisma.releaseDeliveryLog.groupBy({
+      by: ['status', 'errorCode'],
+      where: { releaseId },
+      _count: { _all: true },
+    }),
+  ]);
+  const countWhere = (match: (group: (typeof groups)[number]) => boolean): number =>
+    groups.filter(match).reduce((sum, group) => sum + group._count._all, 0);
+  return {
+    version: announcement?.version ?? 'unknown',
+    sent: countWhere(group => group.status === 'sent'),
+    failedPermanent: countWhere(
+      group => group.status === 'failed_permanent' && group.errorCode !== 'opted_out'
+    ),
+    failedTransient: countWhere(group => group.status === 'failed_transient'),
+    optedOut: countWhere(
+      group => group.status === 'failed_permanent' && group.errorCode === 'opted_out'
+    ),
+  };
 }

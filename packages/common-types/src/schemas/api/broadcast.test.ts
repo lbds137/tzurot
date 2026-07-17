@@ -142,6 +142,58 @@ describe('ReleaseBroadcastDeliveriesResponseSchema', () => {
     });
     expect(result.success).toBe(false);
   });
+
+  it('accepts the completion summary rider on the flipping response', async () => {
+    const { ReleaseBroadcastDeliveriesResponseSchema } = await import('./broadcast.js');
+    const result = ReleaseBroadcastDeliveriesResponseSchema.safeParse({
+      updated: 1,
+      autoDisabledUserIds: [],
+      completed: true,
+      summary: {
+        version: 'v3.0.0-beta.167',
+        sent: 117,
+        failedPermanent: 2,
+        failedTransient: 1,
+        optedOut: 0,
+      },
+    });
+    expect(result.success).toBe(true);
+  });
+});
+
+describe('BroadcastCompletionSummarySchema', () => {
+  it('accepts a full tally', async () => {
+    const { BroadcastCompletionSummarySchema } = await import('./broadcast.js');
+    const result = BroadcastCompletionSummarySchema.safeParse({
+      version: 'v3.0.0-beta.167',
+      sent: 117,
+      failedPermanent: 0,
+      failedTransient: 0,
+      optedOut: 0,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects negative counts and a missing version', async () => {
+    const { BroadcastCompletionSummarySchema } = await import('./broadcast.js');
+    expect(
+      BroadcastCompletionSummarySchema.safeParse({
+        version: 'v',
+        sent: -1,
+        failedPermanent: 0,
+        failedTransient: 0,
+        optedOut: 0,
+      }).success
+    ).toBe(false);
+    expect(
+      BroadcastCompletionSummarySchema.safeParse({
+        sent: 1,
+        failedPermanent: 0,
+        failedTransient: 0,
+        optedOut: 0,
+      }).success
+    ).toBe(false);
+  });
 });
 
 describe('internal route inputs', () => {

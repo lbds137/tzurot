@@ -20,9 +20,11 @@ vi.mock('@tzurot/common-types/config/config', () => ({
 
 const reconcileMock = vi.hoisted(() => vi.fn());
 const fetcherFactoryMock = vi.hoisted(() => vi.fn());
+const sweepIncompleteMock = vi.hoisted(() => vi.fn());
 vi.mock('../../services/releaseReconcile.js', () => ({
   reconcileReleaseAnnouncements: reconcileMock,
   createGitHubReleasesFetcher: fetcherFactoryMock,
+  sweepIncompleteBroadcasts: sweepIncompleteMock,
 }));
 
 import { handleReleaseBroadcastReconcile } from './releaseReconcile.js';
@@ -55,11 +57,20 @@ const SUMMARY = {
   capped: false,
 };
 
+const RESWEEP = {
+  scanned: 0,
+  stamped: [],
+  reEnqueued: [],
+  optedOutTerminalized: 0,
+  capped: false,
+};
+
 describe('POST /internal/release-broadcast/reconcile', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     configMock.value = { GITHUB_API_TOKEN: undefined };
     reconcileMock.mockResolvedValue(SUMMARY);
+    sweepIncompleteMock.mockResolvedValue(RESWEEP);
     fetcherFactoryMock.mockReturnValue(() => Promise.resolve([]));
   });
 
@@ -79,7 +90,7 @@ describe('POST /internal/release-broadcast/reconcile', () => {
     expect(reconcileMock).not.toHaveBeenCalled();
   });
 
-  it('runs the sweep with defaults on an empty body and returns the summary', async () => {
+  it('runs both sweeps with defaults on an empty body and returns the merged summary', async () => {
     const handler = handleReleaseBroadcastReconcile(makeDeps());
     const { req, res } = createMockReqRes({});
     await handler(req, res, vi.fn());
@@ -89,7 +100,9 @@ describe('POST /internal/release-broadcast/reconcile', () => {
       // No lookbackHours override — the sweep applies its own default.
       {}
     );
-    expect(res.json).toHaveBeenCalledWith(SUMMARY);
+    // The incomplete-broadcast sweep runs on every reconcile invocation.
+    expect(sweepIncompleteMock).toHaveBeenCalledWith({ prisma, queue });
+    expect(res.json).toHaveBeenCalledWith({ ...SUMMARY, resweep: RESWEEP });
   });
 
   it('threads a valid lookbackHours through to the sweep', async () => {

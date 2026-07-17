@@ -13,10 +13,12 @@
  */
 
 import { Worker, type Job } from 'bullmq';
-import { DiscordAPIError, type Client, type User } from 'discord.js';
+import { DiscordAPIError, EmbedBuilder, type Client, type User } from 'discord.js';
 import { getConfig } from '@tzurot/common-types/config/config';
+import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
 import { RELEASE_BROADCAST_QUEUE_NAME } from '@tzurot/common-types/constants/queue';
 import { TIMEOUTS } from '@tzurot/common-types/constants/timing';
+import type { BroadcastCompletionSummary } from '@tzurot/common-types/schemas/api/broadcast';
 import {
   releaseBroadcastDmJobDataSchema,
   type ReleaseBroadcastDmJobData,
@@ -30,6 +32,7 @@ import {
   reportDeliveries,
   type DeliveryReport,
 } from '../../utils/gatewayServiceCalls.js';
+import { postOwnerChannelEmbed } from '../../utils/ownerChannel.js';
 import { OPT_OUT_FOOTER } from './releaseDmContext.js';
 
 const logger = createLogger('ReleaseDmWorker');
@@ -146,6 +149,7 @@ export function createReleaseDmProcessor(deps: ReleaseDmWorkerDeps) {
     const skipped = data.recipients.length - toSend.length;
 
     const results: DeliveryReport[] = [];
+    let completionSummary: BroadcastCompletionSummary | undefined;
     for (let i = 0; i < toSend.length; i++) {
       const recipient = toSend[i];
       const outcome = await sendOne(deps.client, recipient, data.body);
@@ -154,10 +158,19 @@ export function createReleaseDmProcessor(deps: ReleaseDmWorkerDeps) {
       // Report EACH outcome immediately: a mid-batch crash then leaves at most
       // ONE sent-but-unreported row for the stall-rerun to re-DM, instead of
       // the whole batch (the ledger, not this process, is the source of truth).
-      await report(data.releaseId, [entry]);
+      // Exactly one report across the whole blast flips the announcement to
+      // completed and carries the final tally — capture it for the ops post.
+      const reportOutcome = await report(data.releaseId, [entry]);
+      if (reportOutcome?.completed === true && reportOutcome.summary !== undefined) {
+        completionSummary = reportOutcome.summary;
+      }
       if (i < toSend.length - 1) {
         await sleep(DM_SEND_DELAY_MS);
       }
+    }
+
+    if (completionSummary !== undefined) {
+      await postBlastCompletionReport(deps.client, completionSummary);
     }
 
     const sent = results.filter(result => result.status === 'sent').length;
@@ -168,6 +181,29 @@ export function createReleaseDmProcessor(deps: ReleaseDmWorkerDeps) {
     );
     return { sent, failed, skipped };
   };
+}
+
+/**
+ * One silent owner-channel embed per completed blast. Best-effort by
+ * construction (the helper swallows failures) — the gateway logged the same
+ * tally at flip time, so a lost post never loses the record.
+ */
+async function postBlastCompletionReport(
+  client: Client,
+  summary: BroadcastCompletionSummary
+): Promise<void> {
+  const optedOutNote =
+    summary.optedOut > 0 ? `, ${summary.optedOut} excluded (opted out mid-blast)` : '';
+  const embed = new EmbedBuilder()
+    .setColor(DISCORD_COLORS.SUCCESS)
+    .setTitle('📣 Release blast completed')
+    .setDescription(
+      `**${summary.version}** — ${summary.sent} sent, ` +
+        `${summary.failedPermanent} permanent-failed, ` +
+        `${summary.failedTransient} transient-failed${optedOutNote}`
+    )
+    .setTimestamp();
+  await postOwnerChannelEmbed(client, embed);
 }
 
 /** Construct (but don't start-gate) the worker; caller owns close(). */

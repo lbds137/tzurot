@@ -27,7 +27,10 @@ import {
   AudioTooLongError,
   SttUnavailableError,
 } from '@tzurot/common-types/utils/errors';
-import type { DeliveryOutcome } from '@tzurot/common-types/schemas/api/broadcast';
+import type {
+  BroadcastCompletionSummary,
+  DeliveryOutcome,
+} from '@tzurot/common-types/schemas/api/broadcast';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { TTLCache } from '@tzurot/common-types/utils/TTLCache';
 import type { LoadedPersonality, MessageContext, TranscribeResponse } from '../types.js';
@@ -301,6 +304,14 @@ function isRetryableGatewayFailure(failure: { kind: string; status: number }): b
   return failure.kind === 'network' || failure.kind === 'timeout' || failure.status >= 500;
 }
 
+/** The slice of the deliveries response the worker acts on (ops report). */
+export interface DeliveryReportOutcome {
+  /** True only on the report that flipped the announcement to completed. */
+  completed: boolean;
+  /** The blast's final tally; present exactly when completed is true. */
+  summary?: BroadcastCompletionSummary;
+}
+
 /**
  * Report a batch's delivery outcomes to the gateway ledger, retrying
  * transient failures — a lost report leaves a SENT row looking pending, and a
@@ -310,14 +321,16 @@ function isRetryableGatewayFailure(failure: { kind: string; status: number }): b
  * After the retries this still NEVER throws — the DM is already sent, and a
  * thrown error would fail the job, retry the batch, and re-DM the very row
  * whose report was lost. The asymmetry with filterPendingDeliveries (which
- * throws) is deliberate: throw before spend, absorb after spend.
+ * throws) is deliberate: throw before spend, absorb after spend. The
+ * all-retries-failed path returns undefined ("no outcome"), which callers
+ * must treat as "no ops report" — never as a reason to fail the job.
  */
 export async function reportDeliveries(
   releaseId: string,
   results: DeliveryReport[]
-): Promise<void> {
+): Promise<DeliveryReportOutcome | undefined> {
   if (results.length === 0) {
-    return;
+    return undefined;
   }
   for (let attempt = 1; attempt <= REPORT_MAX_ATTEMPTS; attempt++) {
     const result = await getServiceClient().releaseBroadcastDeliveries(releaseId, { results });
@@ -326,14 +339,17 @@ export async function reportDeliveries(
         { releaseId, updated: result.data.updated, completed: result.data.completed },
         'Delivery outcomes reported'
       );
-      return;
+      return {
+        completed: result.data.completed,
+        ...(result.data.summary !== undefined ? { summary: result.data.summary } : {}),
+      };
     }
     if (!isRetryableGatewayFailure(result) || attempt === REPORT_MAX_ATTEMPTS) {
       logger.error(
         { status: result.status, releaseId, attempt },
         'Failed to report delivery outcomes — rows stay pending (re-DM risk on stall-rerun)'
       );
-      return;
+      return undefined;
     }
     const delayMs = REPORT_RETRY_BASE_DELAY_MS * 2 ** (attempt - 1);
     logger.warn(
@@ -342,6 +358,7 @@ export async function reportDeliveries(
     );
     await new Promise(resolve => setTimeout(resolve, delayMs));
   }
+  return undefined;
 }
 
 // ---------------------------------------------------------------------------

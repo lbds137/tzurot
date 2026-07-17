@@ -26,9 +26,11 @@ const mockPrisma = {
     findUnique: vi.fn(),
     findFirst: vi.fn(),
     count: vi.fn(),
+    groupBy: vi.fn(),
   },
   releaseAnnouncement: {
     updateMany: vi.fn(),
+    findUnique: vi.fn(),
   },
   user: {
     update: vi.fn(),
@@ -97,6 +99,11 @@ describe('POST /internal/release-broadcast/:releaseId/deliveries', () => {
     mockPrisma.releaseDeliveryLog.updateMany.mockResolvedValue({ count: 1 });
     mockPrisma.releaseDeliveryLog.count.mockResolvedValue(3);
     mockPrisma.releaseAnnouncement.updateMany.mockResolvedValue({ count: 1 });
+    mockPrisma.releaseAnnouncement.findUnique.mockResolvedValue({ version: 'v-test' });
+    mockPrisma.releaseDeliveryLog.groupBy.mockResolvedValue([
+      { status: 'sent', errorCode: null, _count: { _all: 2 } },
+      { status: 'failed_permanent', errorCode: '50007', _count: { _all: 1 } },
+    ]);
   });
 
   it('transitions pending rows and reports the update count', async () => {
@@ -240,10 +247,16 @@ describe('POST /internal/release-broadcast/:releaseId/deliveries', () => {
 
     expect(mockPrisma.user.update).not.toHaveBeenCalled();
     // Seam assertion: the "previous delivery" scope is the user's most recent
-    // terminal row across ALL releases, excluding the row being reported — a
-    // refactor narrowing it to same-release-only must fail here.
+    // terminal row across ALL releases, excluding the row being reported AND
+    // resweep opted-out terminalizations (eligibility records, not delivery
+    // events) — a refactor narrowing it to same-release-only must fail here.
     expect(mockPrisma.releaseDeliveryLog.findFirst).toHaveBeenCalledWith({
-      where: { userId: USER_A, id: { not: LOG_A }, status: { not: 'pending' } },
+      where: {
+        userId: USER_A,
+        id: { not: LOG_A },
+        status: { not: 'pending' },
+        NOT: { errorCode: 'opted_out' },
+      },
       orderBy: { updatedAt: 'desc' },
       select: { status: true },
     });
@@ -262,7 +275,7 @@ describe('POST /internal/release-broadcast/:releaseId/deliveries', () => {
     expect(mockPrisma.user.update).not.toHaveBeenCalled();
   });
 
-  it('stamps completedAt when no pending rows remain', async () => {
+  it('stamps completedAt when no pending rows remain and carries the summary tally', async () => {
     mockPrisma.releaseDeliveryLog.count.mockResolvedValueOnce(0);
     const handler = handleReleaseBroadcastDeliveries(makeDeps());
     const { req, res } = createMockReqRes({
@@ -277,8 +290,92 @@ describe('POST /internal/release-broadcast/:releaseId/deliveries', () => {
     });
     const payload = (res.json as ReturnType<typeof vi.fn>).mock.calls[0][0] as {
       completed: boolean;
+      summary?: unknown;
     };
     expect(payload.completed).toBe(true);
+    // Tallies come from the groupBy; missing statuses count zero.
+    expect(payload.summary).toEqual({
+      version: 'v-test',
+      sent: 2,
+      failedPermanent: 1,
+      failedTransient: 0,
+      optedOut: 0,
+    });
+  });
+
+  it('splits resweep opted-out terminalizations out of the failedPermanent tally', async () => {
+    mockPrisma.releaseDeliveryLog.count.mockResolvedValueOnce(0);
+    mockPrisma.releaseDeliveryLog.groupBy.mockResolvedValueOnce([
+      { status: 'sent', errorCode: null, _count: { _all: 3 } },
+      { status: 'failed_permanent', errorCode: '50007', _count: { _all: 1 } },
+      { status: 'failed_permanent', errorCode: 'opted_out', _count: { _all: 2 } },
+    ]);
+    const handler = handleReleaseBroadcastDeliveries(makeDeps());
+    const { req, res } = createMockReqRes({
+      results: [{ deliveryLogId: LOG_A, status: 'sent' }],
+    });
+
+    await handler(req, res, vi.fn());
+
+    const payload = (res.json as ReturnType<typeof vi.fn>).mock.calls[0][0] as {
+      summary?: { failedPermanent: number; optedOut: number };
+    };
+    // failedPermanent must stay a pure delivery-health number — the two
+    // administrative exclusions land in their own bucket.
+    expect(payload.summary).toEqual({
+      version: 'v-test',
+      sent: 3,
+      failedPermanent: 1,
+      failedTransient: 0,
+      optedOut: 2,
+    });
+  });
+
+  it('auto-disable lookup ignores resweep opted-out rows (no send happened)', async () => {
+    mockPrisma.releaseDeliveryLog.findUnique.mockResolvedValueOnce({ userId: USER_A });
+    mockPrisma.releaseDeliveryLog.findFirst.mockResolvedValueOnce(null);
+    const handler = handleReleaseBroadcastDeliveries(makeDeps());
+    const { req, res } = createMockReqRes({
+      results: [{ deliveryLogId: LOG_A, status: 'failed_permanent', errorCode: '50007' }],
+    });
+
+    await handler(req, res, vi.fn());
+
+    // An opted_out terminalization is an eligibility record, not a delivery
+    // event — it must never count toward the two-consecutive-failures streak
+    // (it could silently undo a user's own re-enable).
+    expect(mockPrisma.releaseDeliveryLog.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          userId: USER_A,
+          id: { not: LOG_A },
+          status: { not: 'pending' },
+          NOT: { errorCode: 'opted_out' },
+        },
+      })
+    );
+  });
+
+  it('does NOT claim completion on a re-report that lost the flip race', async () => {
+    // Zero pending rows, but completedAt was already stamped by an earlier
+    // report (the lost-response retry case) — the flip updateMany matches 0.
+    mockPrisma.releaseDeliveryLog.count.mockResolvedValueOnce(0);
+    mockPrisma.releaseAnnouncement.updateMany.mockResolvedValueOnce({ count: 0 });
+    const handler = handleReleaseBroadcastDeliveries(makeDeps());
+    const { req, res } = createMockReqRes({
+      results: [{ deliveryLogId: LOG_A, status: 'sent' }],
+    });
+
+    await handler(req, res, vi.fn());
+
+    const payload = (res.json as ReturnType<typeof vi.fn>).mock.calls[0][0] as {
+      completed: boolean;
+      summary?: unknown;
+    };
+    expect(payload.completed).toBe(false);
+    expect(payload.summary).toBeUndefined();
+    // No summary computation happens for the loser.
+    expect(mockPrisma.releaseDeliveryLog.groupBy).not.toHaveBeenCalled();
   });
 
   it('rejects a pending status in the report body (schema)', async () => {
