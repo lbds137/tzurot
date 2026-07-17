@@ -48,6 +48,7 @@ import {
   RecentUsersResponseSchema,
   RoutingContextRequestSchema,
   RoutingContextResponseSchema,
+  SecretRotationStatusResponseSchema,
 } from '@tzurot/common-types/schemas/api/internal';
 import { ModelsListResponseSchema } from '@tzurot/common-types/schemas/api/models';
 import { TranscribeRequestSchema } from '@tzurot/common-types/schemas/api/transcribe';
@@ -320,6 +321,21 @@ export const internalRoutes = {
     id: 'recentUsers',
     query: { sinceDays: z.coerce.number().int().positive().optional() },
     output: RecentUsersResponseSchema,
+    serviceOnly: true,
+    meta: { safeRead: true },
+  },
+
+  /**
+   * GET /api/internal/secret-rotations
+   * The per-environment secret-rotation ledger with overdue computed
+   * server-side. Feeds bot-client's owner-channel rotation nag.
+   */
+  secretRotationStatus: {
+    audience: 'internal',
+    method: 'get',
+    path: '/secret-rotations',
+    id: 'secretRotationStatus',
+    output: SecretRotationStatusResponseSchema,
     serviceOnly: true,
     meta: { safeRead: true },
   },

@@ -68,6 +68,10 @@ import {
   stopVerificationCleanupScheduler,
 } from './services/VerificationCleanupScheduler.js';
 import {
+  startSecretRotationNagScheduler,
+  stopSecretRotationNagScheduler,
+} from './services/SecretRotationNagScheduler.js';
+import {
   validateDiscordToken,
   validateRedisUrl,
   validateInternalServiceSecret,
@@ -530,6 +534,10 @@ client.once(Events.ClientReady, () => {
   initVerificationCleanupService(client);
   startVerificationCleanupScheduler();
 
+  // Daily secret-rotation overdue check → owner-channel nag (weekly Redis
+  // cooldown; see SecretRotationNagScheduler for the restart-cadence design).
+  startSecretRotationNagScheduler(client, services.cacheRedis);
+
   // Restore saved bot presence from Redis
   void restoreBotPresence(client).catch(err => logger.warn({ err }, 'Failed to restore presence'));
 
@@ -601,6 +609,7 @@ async function disposeBotClient(): Promise<void> {
     services.webhookManager.destroy();
     stopNotificationCacheCleanup();
     stopVerificationCleanupScheduler();
+    stopSecretRotationNagScheduler();
     // ioredis Redis#disconnect is synchronous (returns void) — kept outside
     // the awaited Promise.all because there's no Promise to await.
     services.cacheRedis.disconnect();

@@ -101,6 +101,16 @@ pnpm ops mutation:update-baseline           # sanctioned refresh (needs a fresh 
 
 Tracked packages live in `MUTATED_PACKAGES` (`packages/tooling/src/test/mutation-check.ts`). Adding one: copy config-resolver's `stryker.config.mjs` + `logger-calls` ignorer (NOT cache-invalidation's copy — its `observability-options` rule is package-specific), add a `test:mutation` script + the `@stryker-mutator/*` devDeps, add to `MUTATED_PACKAGES` (fingerprint drift forces the baseline refresh), add its CI step before `mutation:check`. When the check fails on a genuine score drop: close the test gaps it names — never hand-edit the baseline. Services are adjudicated NOT per-PR viable (30-70min projected runs); don't re-attempt without new data. `ignoreStatic` stays OFF (owner decision — module-top-level mutants held the rollout's best real finds).
 
+### Secret Rotation
+
+```bash
+pnpm ops secrets:rotation-status --env prod       # ledger + overdue state
+pnpm ops secrets:mark-rotated <name> --env prod   # stamp a manual rotation
+pnpm ops secrets:rotate-byok --env prod --stage 1 # staged BYOK key rotation (1=stage, 2=reencrypt, 3=finalize)
+```
+
+The ledger (`secret_rotations`, per-env, sync-excluded) drives a daily bot-client check that posts an owner-channel nag when a secret passes its interval (BYOK 180d, others 365d). BYOK rotation is breakage-free via the dual-key window in `common-types/utils/encryption.ts` — never rotate `API_KEY_ENCRYPTION_KEY` by hand-replacing the variable; always use the staged command.
+
 ### Test Audits
 
 ```bash

@@ -1070,3 +1070,17 @@ model UserFeedback {
   @@index([userId, contentHash])
   @@map("user_feedback")
 }
+
+/// Per-secret rotation ledger — environment-LOCAL operational state (each
+/// env's DB records its own rotations; excluded from db-sync). Written by the
+/// `pnpm ops secrets:*` commands; read by the internal rotation-status route
+/// that feeds the weekly owner-channel overdue nag.
+model SecretRotation {
+  /// Ledger key, e.g. 'byok-encryption-key', 'internal-service-secret'.
+  name         String   @id @db.VarChar(50)
+  rotatedAt    DateTime @map("rotated_at")
+  intervalDays Int      @map("interval_days")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@map("secret_rotations")
+}
