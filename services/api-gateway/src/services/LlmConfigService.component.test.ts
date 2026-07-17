@@ -166,8 +166,6 @@ describe('LlmConfigService Integration', () => {
             isGlobal: true,
             ownerId: adminUserId,
             contextWindowTokens: 100000,
-            maxMessages: 25,
-            maxImages: 5,
           },
           {
             id: generateLlmConfigUuid('global-2'),
@@ -177,8 +175,6 @@ describe('LlmConfigService Integration', () => {
             isGlobal: true,
             ownerId: adminUserId,
             contextWindowTokens: 100000,
-            maxMessages: 25,
-            maxImages: 5,
           },
           {
             id: generateLlmConfigUuid('user-1'),
@@ -188,8 +184,6 @@ describe('LlmConfigService Integration', () => {
             isGlobal: false,
             ownerId: testUserId,
             contextWindowTokens: 100000,
-            maxMessages: 25,
-            maxImages: 5,
           },
         ],
       });
@@ -242,8 +236,6 @@ describe('LlmConfigService Integration', () => {
           isGlobal: false,
           ownerId: otherUserId,
           contextWindowTokens: 100000,
-          maxMessages: 25,
-          maxImages: 5,
         },
       });
 
@@ -273,8 +265,6 @@ describe('LlmConfigService Integration', () => {
           isGlobal: false,
           ownerId: testUserId,
           contextWindowTokens: 100000,
-          maxMessages: 25,
-          maxImages: 5,
         },
       });
     });
@@ -315,8 +305,6 @@ describe('LlmConfigService Integration', () => {
           isGlobal: false,
           ownerId: testUserId,
           contextWindowTokens: 100000,
-          maxMessages: 25,
-          maxImages: 5,
         },
       });
 
@@ -338,8 +326,6 @@ describe('LlmConfigService Integration', () => {
           isGlobal: true,
           ownerId: adminUserId,
           contextWindowTokens: 100000,
-          maxMessages: 25,
-          maxImages: 5,
         },
       });
       await prisma.llmConfig.create({
@@ -351,8 +337,6 @@ describe('LlmConfigService Integration', () => {
           isGlobal: false,
           ownerId: testUserId,
           contextWindowTokens: 100000,
-          maxMessages: 25,
-          maxImages: 5,
         },
       });
     });
@@ -420,8 +404,6 @@ describe('LlmConfigService Integration', () => {
           isGlobal: false,
           ownerId: testUserId,
           contextWindowTokens: 100000,
-          maxMessages: 25,
-          maxImages: 5,
         },
       });
 
@@ -441,8 +423,6 @@ describe('LlmConfigService Integration', () => {
           isGlobal: true,
           ownerId: adminUserId,
           contextWindowTokens: 100000,
-          maxMessages: 25,
-          maxImages: 5,
         },
       });
 
@@ -485,8 +465,6 @@ describe('LlmConfigService Integration', () => {
           isGlobal: true,
           ownerId: adminUserId,
           contextWindowTokens: 100000,
-          maxMessages: 25,
-          maxImages: 5,
         },
       });
 
@@ -531,8 +509,6 @@ describe('LlmConfigService Integration', () => {
           isGlobal: true,
           ownerId: adminUserId,
           contextWindowTokens: 100000,
-          maxMessages: 25,
-          maxImages: 5,
         },
       });
 
@@ -566,8 +542,6 @@ describe('LlmConfigService Integration', () => {
           isGlobal: true,
           ownerId: adminUserId,
           contextWindowTokens: 100000,
-          maxMessages: 25,
-          maxImages: 5,
         },
       });
 
@@ -596,8 +570,6 @@ describe('LlmConfigService Integration', () => {
             isGlobal: true,
             ownerId: adminUserId,
             contextWindowTokens: 100000,
-            maxMessages: 25,
-            maxImages: 5,
           },
           {
             id: visionId,
@@ -607,8 +579,6 @@ describe('LlmConfigService Integration', () => {
             isGlobal: true,
             ownerId: adminUserId,
             contextWindowTokens: 100000,
-            maxMessages: 25,
-            maxImages: 5,
           },
         ],
       });
@@ -892,8 +862,6 @@ describe('LlmConfigService Integration', () => {
       provider: 'openrouter',
       ownerId: adminUserId,
       contextWindowTokens: 100000,
-      maxMessages: 25,
-      maxImages: 5,
       ...overrides,
     });
 
