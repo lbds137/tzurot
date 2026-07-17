@@ -283,7 +283,7 @@ describe('MessageContextBuilder', () => {
       mockFetchRecentMessages.mockResolvedValue({
         messages: [],
         fetchedCount: 0,
-        filteredCount: 0,
+        keptCount: 0,
         participantGuildInfo: { 'discord:other': { roles: ['Member'] } },
         imageAttachments: [{ url: 'https://cdn/x.png', contentType: 'image/png', id: 'x' }],
       });
@@ -667,7 +667,7 @@ describe('MessageContextBuilder', () => {
       mockFetchRecentMessages.mockResolvedValue({
         messages: [],
         fetchedCount: 0,
-        filteredCount: 0,
+        keptCount: 0,
       });
 
       // Extended context enabled so the Discord fetch receives the epoch —
@@ -717,7 +717,7 @@ describe('MessageContextBuilder', () => {
       mockFetchRecentMessages.mockResolvedValue({
         messages: [],
         fetchedCount: 0,
-        filteredCount: 0,
+        keptCount: 0,
       });
 
       await builder.buildContext(mockMessage, mockPersonality, 'Weigh in', {
@@ -758,7 +758,7 @@ describe('MessageContextBuilder', () => {
       mockFetchRecentMessages.mockResolvedValue({
         messages: [],
         fetchedCount: 0,
-        filteredCount: 0,
+        keptCount: 0,
       });
 
       await builder.buildContext(mockMessage, mockPersonality, 'Hello', {
@@ -794,7 +794,7 @@ describe('MessageContextBuilder', () => {
       mockFetchRecentMessages.mockResolvedValue({
         messages: extendedMessages,
         fetchedCount: 10,
-        filteredCount: 1,
+        keptCount: 1,
       });
 
       // Merged history (what mergeWithHistory returns) — base is empty since
@@ -855,7 +855,7 @@ describe('MessageContextBuilder', () => {
       mockFetchRecentMessages.mockResolvedValue({
         messages: [],
         fetchedCount: 0,
-        filteredCount: 0,
+        keptCount: 0,
       });
       mockExtractReferencesWithReplacement.mockResolvedValue({
         references: [],
@@ -894,7 +894,7 @@ describe('MessageContextBuilder', () => {
       mockFetchRecentMessages.mockResolvedValue({
         messages: [],
         fetchedCount: 0,
-        filteredCount: 0,
+        keptCount: 0,
       });
       mockExtractReferencesWithReplacement.mockResolvedValue({
         references: [],
@@ -951,7 +951,7 @@ describe('MessageContextBuilder', () => {
       mockFetchRecentMessages.mockResolvedValue({
         messages: [],
         fetchedCount: 0,
-        filteredCount: 0,
+        keptCount: 0,
       });
       mockMergeWithHistory.mockReturnValue([]);
       mockExtractReferencesWithReplacement.mockResolvedValue({
@@ -1077,7 +1077,7 @@ describe('MessageContextBuilder', () => {
       mockFetchRecentMessages.mockResolvedValue({
         messages: extendedMessages,
         fetchedCount: 10,
-        filteredCount: 1,
+        keptCount: 1,
         imageAttachments,
       });
       mockMergeWithHistory.mockReturnValue(extendedMessages);
@@ -1135,7 +1135,7 @@ describe('MessageContextBuilder', () => {
       mockFetchRecentMessages.mockResolvedValue({
         messages: extendedMessages,
         fetchedCount: 10,
-        filteredCount: 1,
+        keptCount: 1,
         imageAttachments: [
           {
             url: 'https://cdn.discord.com/img.jpg',
@@ -1208,7 +1208,7 @@ describe('MessageContextBuilder', () => {
       mockFetchRecentMessages.mockResolvedValue({
         messages: extendedMessages,
         fetchedCount: 10,
-        filteredCount: 2,
+        keptCount: 2,
         extendedContextUsers: [
           { discordId: 'user-alice', username: 'alice', isBot: false },
           { discordId: 'user-bob', username: 'bob', isBot: false },
@@ -1266,7 +1266,7 @@ describe('MessageContextBuilder', () => {
       mockFetchRecentMessages.mockResolvedValue({
         messages: [],
         fetchedCount: 0,
-        filteredCount: 0,
+        keptCount: 0,
       });
       mockExtractReferencesWithReplacement.mockResolvedValue({
         references: [],

@@ -300,8 +300,9 @@ export const ZAI_VALIDATION_MODEL = 'glm-4.5-air';
  *    request routes to z.ai-direct (the user has a z.ai key + the model is
  *    promoted), the model runs on z.ai, so its real limit is z.ai's documented
  *    one — NOT OpenRouter's, which differs (e.g. OpenRouter lists glm-5.1 at
- *    202752, but z.ai documents 200K). The catalog is also the ONLY source for
- *    z.ai-only models (`glm-5.2`, absent from OpenRouter). Keyless requests
+ *    202752, but z.ai documents 200K). The catalog is authoritative even for
+ *    models OpenRouter also lists (`glm-5.2` ships there as `z-ai/glm-5.2` —
+ *    it appeared after this catalog was written). Keyless requests
  *    fall through to OpenRouter and are capped from the OpenRouter cache
  *    instead (gateway validation gates on the z.ai key; the runtime resolver
  *    gates on the effective provider).
@@ -347,9 +348,10 @@ const ZAI_MODEL_CATALOG: Readonly<
 > = {
   'glm-5': { docsUrl: 'https://docs.z.ai/guides/llm/glm-5', contextLength: 200_000 },
   'glm-5.1': { docsUrl: 'https://docs.z.ai/guides/llm/glm-5.1', contextLength: 200_000 },
-  // glm-5.2 is z.ai's flagship and is NOT on OpenRouter — the catalog is its
-  // only source for context length AND release date (so `/models` can rank it
-  // by recency). The docs URL follows z.ai's established per-model pattern.
+  // glm-5.2 is z.ai's flagship; OpenRouter also lists it (as `z-ai/glm-5.2`),
+  // but this catalog remains the z.ai-direct source for context length AND
+  // release date (so `/models` can rank it by recency). The docs URL follows
+  // z.ai's established per-model pattern.
   'glm-5.2': {
     docsUrl: 'https://docs.z.ai/guides/llm/glm-5.2',
     contextLength: 1_000_000,

@@ -235,7 +235,7 @@ describe('DiscordChannelFetcher', () => {
       });
 
       expect(result.fetchedCount).toBe(2);
-      expect(result.filteredCount).toBe(2);
+      expect(result.keptCount).toBe(2);
       expect(result.messages).toHaveLength(2);
 
       // Should be newest first - content no longer has [Name]: prefix (uses from attribute in XML)
@@ -662,7 +662,7 @@ describe('DiscordChannelFetcher', () => {
       });
 
       expect(result.fetchedCount).toBe(3);
-      expect(result.filteredCount).toBe(1);
+      expect(result.keptCount).toBe(1);
       expect(result.messages).toHaveLength(1);
       expect(result.messages[0].content).toContain('Normal message');
     });
@@ -708,7 +708,7 @@ describe('DiscordChannelFetcher', () => {
         botUserId: 'bot123',
       });
 
-      expect(result.filteredCount).toBe(1);
+      expect(result.keptCount).toBe(1);
       expect(result.messages[0].content).toContain('Has content');
     });
 
@@ -746,7 +746,7 @@ describe('DiscordChannelFetcher', () => {
 
       // Should have 2 messages (user + response), not 3 (thinking filtered out)
       expect(result.fetchedCount).toBe(3);
-      expect(result.filteredCount).toBe(2);
+      expect(result.keptCount).toBe(2);
       expect(result.messages).toHaveLength(2);
 
       // Verify thinking block was filtered
@@ -867,7 +867,7 @@ describe('DiscordChannelFetcher', () => {
 
       expect(result.messages).toEqual([]);
       expect(result.fetchedCount).toBe(0);
-      expect(result.filteredCount).toBe(0);
+      expect(result.keptCount).toBe(0);
     });
   });
 
@@ -1467,7 +1467,7 @@ describe('DiscordChannelFetcher', () => {
       });
 
       // Should have 1 message (voice message with transcript, bot reply filtered)
-      expect(result.filteredCount).toBe(1);
+      expect(result.keptCount).toBe(1);
       // Voice transcripts are now in messageMetadata for structured XML formatting
       expect(result.messages[0].messageMetadata?.voiceTranscripts).toContain(
         'DB transcript content'
@@ -1565,7 +1565,7 @@ describe('DiscordChannelFetcher', () => {
         getTranscript,
       });
 
-      expect(result.filteredCount).toBe(1);
+      expect(result.keptCount).toBe(1);
       // Voice transcripts are now in messageMetadata for structured XML formatting
       expect(result.messages[0].messageMetadata?.voiceTranscripts).toContain(
         'Fallback transcript from bot reply'
@@ -1617,7 +1617,7 @@ describe('DiscordChannelFetcher', () => {
         getTranscript,
       });
 
-      expect(result.filteredCount).toBe(1);
+      expect(result.keptCount).toBe(1);
       // Voice transcripts are now in messageMetadata for structured XML formatting
       expect(result.messages[0].messageMetadata?.voiceTranscripts).toContain(
         'Fallback from empty DB'
@@ -1661,7 +1661,7 @@ describe('DiscordChannelFetcher', () => {
       });
 
       // Message should still be included (has attachment) but content may be empty/minimal
-      expect(result.filteredCount).toBe(1);
+      expect(result.keptCount).toBe(1);
       // The voice message attachment is processed but has no transcript
       expect(result.messages[0].content).not.toContain('transcript');
     });
@@ -1709,7 +1709,7 @@ describe('DiscordChannelFetcher', () => {
         // No getTranscript option
       });
 
-      expect(result.filteredCount).toBe(1);
+      expect(result.keptCount).toBe(1);
       // Voice transcripts are now in messageMetadata for structured XML formatting
       expect(result.messages[0].messageMetadata?.voiceTranscripts).toContain(
         'Fallback when no DB function'
@@ -1774,7 +1774,7 @@ describe('DiscordChannelFetcher', () => {
 
       // Voice message included (has attachment), bot reply with image also included
       // but no transcript should be in the content
-      expect(result.filteredCount).toBe(2);
+      expect(result.keptCount).toBe(2);
     });
   });
 
@@ -1808,7 +1808,7 @@ describe('DiscordChannelFetcher', () => {
         botUserId: 'bot123',
       });
 
-      expect(result.filteredCount).toBe(1);
+      expect(result.keptCount).toBe(1);
       expect(result.messages.some(m => m.content.includes('v3.0.0 released'))).toBe(false);
       expect(result.messages.some(m => m.content.includes('what does'))).toBe(true);
     });
@@ -1857,7 +1857,7 @@ describe('DiscordChannelFetcher', () => {
 
       // Should have 2 messages (user msg, bot response)
       // Should NOT have transcript reply
-      expect(result.filteredCount).toBe(2);
+      expect(result.keptCount).toBe(2);
       expect(result.messages.some(m => m.content.includes('transcript of the voice'))).toBe(false);
       expect(result.messages.some(m => m.content.includes('Hello everyone'))).toBe(true);
       expect(result.messages.some(m => m.content.includes('How can I help'))).toBe(true);
@@ -1883,7 +1883,7 @@ describe('DiscordChannelFetcher', () => {
         botUserId: 'bot123',
       });
 
-      expect(result.filteredCount).toBe(1);
+      expect(result.keptCount).toBe(1);
       expect(result.messages[0].content).toContain('bot response without reply reference');
     });
 
@@ -1920,7 +1920,7 @@ describe('DiscordChannelFetcher', () => {
       });
 
       // Should still be included (has attachment, not a text transcript reply)
-      expect(result.filteredCount).toBe(1);
+      expect(result.keptCount).toBe(1);
     });
 
     it('should NOT filter user reply messages', async () => {
@@ -1943,7 +1943,7 @@ describe('DiscordChannelFetcher', () => {
         botUserId: 'bot123',
       });
 
-      expect(result.filteredCount).toBe(1);
+      expect(result.keptCount).toBe(1);
       expect(result.messages[0].content).toContain('user reply');
     });
   });

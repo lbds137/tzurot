@@ -72,7 +72,7 @@ const year = new Date().getFullYear();
           <a href="/docs">Docs</a>
           <a href="/terms">Terms</a>
           <a href="/privacy">Privacy</a>
-          <a href={GITHUB_URL} target="_blank" rel="noopener noreferrer">GitHub</a>
+          <a href={GITHUB_URL} target="_blank" rel="noopener noreferrer">GitHub<span class="sr-only"> (opens in new tab)</span></a>
         </div>
       </nav>
     </header>
@@ -84,18 +84,35 @@ const year = new Date().getFullYear();
     <footer class="site-footer">
       <div class="container footer-inner">
         <p>
-          © {year} Vladlena Costescu · <a href={`${GITHUB_URL}/blob/main/LICENSE`} target="_blank" rel="noopener noreferrer">MIT licensed</a>
+          © {year} Vladlena Costescu · <a href={`${GITHUB_URL}/blob/main/LICENSE`} target="_blank" rel="noopener noreferrer">MIT licensed<span class="sr-only"> (opens in new tab)</span></a>
         </p>
         <p class="footer-links">
           <a href="/docs">Documentation</a>
           <a href="/terms">Terms of Service</a>
           <a href="/privacy">Privacy Policy</a>
-          <a href={GITHUB_URL} target="_blank" rel="noopener noreferrer">Source on GitHub</a>
+          <a href={GITHUB_URL} target="_blank" rel="noopener noreferrer">Source on GitHub<span class="sr-only"> (opens in new tab)</span></a>
         </p>
       </div>
     </footer>
   </body>
 </html>
+
+<style is:global>
+  /* Visually-hidden text for screen readers — the standard clip-pattern
+     utility. Used by every target="_blank" anchor's "(opens in new tab)"
+     affordance; global so page-level links share it. */
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+</style>
 
 <style>
   .site-header {
