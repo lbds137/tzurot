@@ -131,6 +131,9 @@ jobs:
       - name: Check prompt structural tags are classified (injection guard)
         run: pnpm ops guard:prompt-tags
 
+      - name: Check docs/commands.md matches the command modules
+        run: pnpm ops guard:commands-doc
+
       - name: Check Dockerfile runner-stage dist copies
         run: pnpm ops guard:dockerfile-dist
 

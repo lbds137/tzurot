@@ -135,6 +135,17 @@ function registerSyncGuards(cli: CAC): void {
       const { checkPromptTags } = await import('../dev/check-prompt-tags.js');
       checkPromptTags();
     });
+
+  cli
+    .command(
+      'guard:commands-doc',
+      'Fail when docs/commands.md drifts from the bot-client command modules (rendered live on the website)'
+    )
+    .example('ops guard:commands-doc')
+    .action(async () => {
+      const { checkCommandsDoc } = await import('../dev/check-commands-doc.js');
+      checkCommandsDoc();
+    });
 }
 
 /**
