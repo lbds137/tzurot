@@ -55,6 +55,19 @@ The routing "DSL nucleus" is solid; the **UI + messaging vocabulary is the hapha
 5. **Command vocabulary constants** — verb taxonomy (delete vs remove vs clear), shared choice-sets, query/search/filter naming.
 6. **Enforcement** — button-order + adoption are documented-not-enforced (hence the 2 live violations). A lint/guard makes consistency structural — **the direct answer to "periodic audits aren't enough."**
 
+#### Pilot surface: `/character alias` redesign + scoping tiers (owner-directed 2026-07-17)
+
+The alias command (#1695) works but shipped action-multiplexed (`action: list|add|remove` + retype-the-alias-to-remove) instead of the browse/dashboard shape the 04-discord table prescribes — the incident that proved standards are unenforced at design time and promoted this theme to next-epic. It becomes the design system's **pilot**: small, fresh, and exercising exactly the components the epic must produce (browse + select menu, dashboard with per-row remove buttons, destructive confirm). Redesign it ON the new components, not before them.
+
+**Scoping tiers ride the pilot** (owner design input 2026-07-17 — redesigning the surface twice is waste, so the dashboard is designed against the tiered model):
+
+- **Implicit global register**: character names/slugs — already resolver step 1, always wins, no work.
+- **Global aliases**: the existing `personality_aliases` table; write gate narrows from character-owner to **bot-owner only**. v2-migrated rows grandfather in as global (all effectively owner-created).
+- **User-scoped aliases**: new tier — a user's personal `@mommy` → character mapping affecting only their own resolution. Schema: `userId` on the alias row (null = global) with per-user uniqueness; resolver step 2 checks the mentioning user's aliases before global ones. The bot-client resolution cache is already keyed `(userId, nameOrId)`, so per-user resolution is the cache's natural grain.
+- **User-scoped, NOT persona-scoped** (owner-decided): persona-scoping gets messy AND makes aliases unstable across persona switches.
+- Verified 2026-07-17: **v2 had no scoping at all** (`AliasCommand.js` `permissions: ['USER']`, global-effect table) — the tiers are new design, not parity.
+- Open product call for the design pass: current #1695 behavior lets any character owner add global-effect aliases to their own character; under the tiered model this likely goes away (owners get user-scoped like everyone else, global blessing is the bot owner's). Cross-check the reverse-shadow design question in [v2-parity](v2-parity-legacy-retirement.md) Phase 1 — shadowing semantics change per-tier.
+
 #### The portability angle
 
 Both the in-character directive and platform portability resolve at the same seam: if commands emit **intent** (a message intent, a component intent) instead of raw Discord.js trees + literal strings, then "how Discord renders it," "how the persona voices it," and "how a web UI / Revolt adapter renders it" all become pluggable renderers. The ~40–50% irreducible Discord.js surface IS the adapter boundary. So the real open call isn't "is CPD low enough" — it's "how thin an abstraction, and how seriously do we pursue portability now."

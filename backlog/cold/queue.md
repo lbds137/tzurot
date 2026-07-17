@@ -1,6 +1,7 @@
 ## Theme Queue
 
-- **[v2 Parity + Legacy Retirement](themes/v2-parity-legacy-retirement.md) — NEXT EPIC (owner-decided 2026-07-17)** — reach v2 feature parity where wanted, disposition everything else, delete `tzurot-legacy/`. Phase 1 (alias management) started same day.
+- **[Platform-Portable UX Layer (Discord Design System)](themes/platform-portable-ux-layer.md) — NEXT EPIC (owner-decided 2026-07-17, jumped the queue)** — the `/character alias` build deviated from the 04-discord subcommand standards (action-multiplex instead of browse/dashboard) despite the rules table being clear, proving the standards are unenforced-at-design-time and legacy precedents teach the wrong shape. Owner: no more UX surface until consistency is by construction. Design artifacts already ACCEPTED (2026-07-04); the alias surface redesign (+ scoping tiers) is the pilot.
+- **[v2 Parity + Legacy Retirement](themes/v2-parity-legacy-retirement.md) — PAUSED (owner 2026-07-17, after one day as next-epic)** — Phase 1 (alias management) SHIPPED #1695 and works; epic paused behind the UX layer because parity work is mostly new user-facing surface and the owner is wary of adding more until the design system enforces the standards. Resumes after the UX epic's core phases.
 
 _Ordered index of future themes. Grep-on-demand — not loaded at session start. Each links to its file in `themes/`._
 
