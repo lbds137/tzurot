@@ -1850,6 +1850,20 @@
       ]
     },
     {
+      "id": "client:api-gateway:secretRotationStatus",
+      "kind": "http-route",
+      "producer": "client",
+      "consumer": "api-gateway",
+      "schemaRef": "GET /secret-rotations",
+      "mechanism": "route-conformance",
+      "requiredTiers": [
+        "component"
+      ],
+      "actualTiers": [
+        "component"
+      ]
+    },
+    {
       "id": "client:api-gateway:setDefaultModelConfig",
       "kind": "http-route",
       "producer": "client",

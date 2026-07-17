@@ -31,26 +31,46 @@ export interface EncryptedData {
 }
 
 /**
+ * Parse and validate 32-byte hex key material.
+ * @throws Error naming `label` if the value is missing or malformed
+ */
+function parseKeyMaterial(value: string | undefined, label: string): Buffer {
+  if (value === undefined || value === '') {
+    throw new Error(`${label} environment variable is required for encryption`);
+  }
+  if (value.length !== 64) {
+    throw new Error(
+      `${label} must be 64 hex characters (32 bytes), got ${value.length} characters`
+    );
+  }
+  // Validate hex format
+  if (!/^[0-9a-fA-F]+$/.test(value)) {
+    throw new Error(`${label} must contain only hexadecimal characters`);
+  }
+  return Buffer.from(value, 'hex');
+}
+
+/**
  * Get encryption key from environment.
  * Key must be 32 bytes (256 bits) in hex format (64 hex characters).
  *
  * @throws Error if API_KEY_ENCRYPTION_KEY is missing or invalid length
  */
 function getEncryptionKey(): Buffer {
-  const key = process.env.API_KEY_ENCRYPTION_KEY;
+  return parseKeyMaterial(process.env.API_KEY_ENCRYPTION_KEY, 'API_KEY_ENCRYPTION_KEY');
+}
+
+/**
+ * Previous encryption key during a rotation window, or null outside one.
+ * Empty string counts as unset — the Railway CLI cannot delete variables, so
+ * "rotation finished" is expressed by setting the variable to "".
+ */
+function getPreviousEncryptionKey(): Buffer | null {
+  const key = process.env.API_KEY_ENCRYPTION_KEY_PREVIOUS;
   if (key === undefined || key === '') {
-    throw new Error('API_KEY_ENCRYPTION_KEY environment variable is required for encryption');
+    return null;
   }
-  if (key.length !== 64) {
-    throw new Error(
-      `API_KEY_ENCRYPTION_KEY must be 64 hex characters (32 bytes), got ${key.length} characters`
-    );
-  }
-  // Validate hex format
-  if (!/^[0-9a-fA-F]+$/.test(key)) {
-    throw new Error('API_KEY_ENCRYPTION_KEY must contain only hexadecimal characters');
-  }
-  return Buffer.from(key, 'hex');
+  return parseKeyMaterial(key, 'API_KEY_ENCRYPTION_KEY_PREVIOUS');
 }
 
 /**
@@ -66,8 +86,16 @@ function getEncryptionKey(): Buffer {
  * // Store encrypted.iv, encrypted.content, encrypted.tag in database
  */
 export function encryptApiKey(plaintext: string): EncryptedData {
+  return encryptWithKey(plaintext, getEncryptionKey());
+}
+
+/**
+ * Explicit-key encrypt — for rotation tooling that manages key material
+ * itself instead of reading process.env. Services use encryptApiKey.
+ */
+export function encryptWithKey(plaintext: string, key: Buffer): EncryptedData {
   const iv = crypto.randomBytes(IV_LENGTH);
-  const cipher = crypto.createCipheriv(ALGORITHM, getEncryptionKey(), iv);
+  const cipher = crypto.createCipheriv(ALGORITHM, key, iv);
 
   let encrypted = cipher.update(plaintext, 'utf8', 'hex');
   encrypted += cipher.final('hex');
@@ -93,17 +121,43 @@ export function encryptApiKey(plaintext: string): EncryptedData {
  * // Use apiKey for API calls, never log it
  */
 export function decryptApiKey(encrypted: EncryptedData): string {
-  const decipher = crypto.createDecipheriv(
-    ALGORITHM,
-    getEncryptionKey(),
-    Buffer.from(encrypted.iv, 'hex')
-  );
+  // Resolve the current key OUTSIDE the try: a malformed/missing CURRENT
+  // config must always fail loudly, never masquerade as a rotation-window
+  // fallback. Only genuine decrypt (wrong-key) failures fall through.
+  const currentKey = getEncryptionKey();
+  try {
+    return decryptWithKey(encrypted, currentKey);
+  } catch (error) {
+    // Dual-key rotation window: rows not yet re-encrypted decrypt with the
+    // previous key. GCM's auth tag makes a wrong-key attempt fail loudly
+    // (never silent garbage), so try-then-fallback IS the key selector — no
+    // ciphertext versioning needed. Outside a rotation window the fallback
+    // is absent and the original error propagates.
+    const previousKey = getPreviousEncryptionKey();
+    if (previousKey === null) {
+      throw error;
+    }
+    return decryptWithKey(encrypted, previousKey);
+  }
+}
+
+/**
+ * Explicit-key decrypt — for rotation tooling (re-encrypt passes, verify
+ * sweeps). Throws on auth failure, which doubles as "not this key".
+ */
+export function decryptWithKey(encrypted: EncryptedData, key: Buffer): string {
+  const decipher = crypto.createDecipheriv(ALGORITHM, key, Buffer.from(encrypted.iv, 'hex'));
   decipher.setAuthTag(Buffer.from(encrypted.tag, 'hex'));
 
   let decrypted = decipher.update(encrypted.content, 'hex', 'utf8');
   decrypted += decipher.final('utf8');
 
   return decrypted;
+}
+
+/** Parse 64-char hex key material into a Buffer (rotation tooling entry). */
+export function parseEncryptionKeyMaterial(value: string, label: string): Buffer {
+  return parseKeyMaterial(value, label);
 }
 
 /**

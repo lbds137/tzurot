@@ -559,6 +559,16 @@ CREATE TABLE "user_feedback" (
     CONSTRAINT "user_feedback_pkey" PRIMARY KEY ("id")
 );
 
+-- CreateTable
+CREATE TABLE "secret_rotations" (
+    "name" VARCHAR(50) NOT NULL,
+    "rotated_at" TIMESTAMP(3) NOT NULL,
+    "interval_days" INTEGER NOT NULL,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "secret_rotations_pkey" PRIMARY KEY ("name")
+);
+
 -- CreateIndex
 CREATE UNIQUE INDEX "users_discord_id_key" ON "users"("discord_id");
 

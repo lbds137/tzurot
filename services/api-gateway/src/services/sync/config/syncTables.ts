@@ -46,6 +46,10 @@ export const EXCLUDED_TABLES: Record<string, string> = {
 
   // Security-sensitive data
   user_credentials: 'Encrypted session cookies for external services (security-sensitive)',
+
+  // Operational state
+  secret_rotations:
+    'Environment-local secret-rotation ledger — each env rotates (and nags) on its own clock',
 };
 
 export interface TableSyncConfig {
