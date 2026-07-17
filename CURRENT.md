@@ -1,20 +1,14 @@
 # Current
 
-> **Version**: v3.0.0-beta.167 (released 2026-07-17, ~00:50 ET) — **the post-incident release**: deliberate-use notification gate + everyone→major reset (#1679; prod backfill: 107 stamped incl. 1 organic, 4 opt-outs untouched, 158 passive null-gated forever), release-pipeline hardening (#1683 — resweep, flip-derived ops report, 90d retention; epic COMPLETE all 5 PRs), tzurot.org /docs section + corrected privacy policy (#1684), 5 dead LlmConfig columns dropped + anchor cleanup (#1682; prod: 10 rows), memory edge trio (#1681), guard:commands-doc (#1685), Astro 7 clearing all 10 alerts (#1678), dep-latest rule (#1680). Holistic review: "high quality, well-tested, ship-ready," zero blocking. **THE GATE VERIFIED LIVE: blast enqueued `recipients=107` (was 268 in the beta.166 incident).** _Prior: beta.166 (2026-07-16 — website/data-rights/notifications; the blast-radius incident release)._
+> **Version**: v3.0.0-beta.168 (released 2026-07-17, ~15:20 ET) — the follow-through release: notification self-heal (50278 permanent class + `notifyAutoDisabledAt` re-entry; 122-row prod flip pre-executed), the complete secrets arc (breakage-free BYOK rotation + ledger/nag, split-brain guard; prod ledger seeded), tooling QoL (`ops run --`), `.claude/` repair, polish (#1687–#1693). Holistic review: "unusually well-engineered," zero blocking. **Blast: recipients=1, sent=1, 0 failures — the minor-level consent model working exactly as designed** (3 webhook deliveries absorbed to 1 enqueue). _Prior: beta.167 (2026-07-17 — the post-incident release; gate verified 107 vs 268)._
 
 ---
 
 ## Unreleased on Develop
 
-- **#1687** `.claude/` config tidy (legacy commands deleted; eslint hook resurrected — matcher `Edit|Write|MultiEdit` + stdin JSON; session-start grounding/recovery hook — verify live next session start + next compaction).
-- **#1688** discord-50278 → permanent DM failure class (+ streak-reset pinning test + flip script). **Prod data flip RUN 2026-07-17: 122 rows / 96 users, verified 0 remaining.**
-- **#1689** `notifyAutoDisabledAt` re-entry mechanism (deliberate use lifts infrastructure auto-disables; explicit opt-outs untouchable). Additive migration — applied to dev; prod rides release premigrate.
-- **#1690** BYOK rotation machinery + secret-rotation ledger/nag (4 review rounds). Additive migration — applied to dev; **prod: premigrate at release, then seed the prod ledger** (`secrets:mark-rotated` × the 4 self-minted names). Dev ledger seeded 2026-07-17.
-- **#1692** ops-run `--` flag passthrough + BYOK rotation split-brain guard (owner-picked riders).
-- **#1693** polish batch: engines.node floor →24 (WARN dead), external-link a11y (6 links incl. 2 computed-target), `keptCount` rename, glm-5.2 comment fix.
-- Doc commits: board hygiene (3 verified-done entries closed), secrets audit trail (local), env-var sweep (1 dead var found+removed), follow-ups.
+- Nothing — develop is SHA-aligned with main (beta.168 finalize).
 
-## beta.167 post-release state (2026-07-17)
+## beta.167/168 post-release state (2026-07-17)
 
 **Everything in the runbook executed**: premigrate --allow-destructive (both migrations) → merge #1686 → release:finalize (develop SHA-aligned) → prod backfill (107 stamped, 269→major, 4 opt-outs untouched) → prod anchor cleanup (10 deleted) → release:publish → webhook blast **enqueued recipients=107, batches=3** (gate live-verified; beta.166's incident number was 268). GitHub's multi-webhook burst (new release + beta.166 demote) was absorbed by unique-version idempotency — exactly one enqueue.
 
