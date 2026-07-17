@@ -34,11 +34,14 @@ Run any command with Railway DATABASE_URL injected:
 pnpm ops run --env <env> <command> [args...]
 ```
 
-| Command                                           | Description                      |
-| ------------------------------------------------- | -------------------------------- |
-| `pnpm ops run --env dev tsx scripts/my-script.ts` | Run script with dev DATABASE_URL |
-| `pnpm ops run --env prod npx prisma studio`       | Open Prisma Studio against prod  |
-| `pnpm ops run --env dev --force <cmd>`            | Skip confirmation for prod ops   |
+| Command                                              | Description                           |
+| ---------------------------------------------------- | ------------------------------------- |
+| `pnpm ops run --env dev tsx scripts/my-script.ts`    | Run script with dev DATABASE_URL      |
+| `pnpm ops run --env prod npx prisma studio`          | Open Prisma Studio against prod       |
+| `pnpm ops run --env dev --force <cmd>`               | Skip confirmation for prod ops        |
+| `pnpm ops run --env prod -- tsx script.ts --dry-run` | Wrapped command carries its own flags |
+
+**Wrapped-command flags need the `--` separator**: cac rejects any bare dash-flag in the command part (`--dry-run`, even `-c`) with an unknown-option error — that error is deliberate (silently stripping a `--dry-run` would run a destructive script for real). Everything after `--` passes through to the wrapped command untouched.
 
 **When to use:** One-off scripts that need database access without adding dedicated ops commands.
 
