@@ -117,6 +117,15 @@ export const characterViewOptions = defineTypedOptions({
 });
 
 /**
+ * /character alias <action, character, alias>
+ */
+export const characterAliasOptions = defineTypedOptions({
+  action: { type: 'string', required: true },
+  character: { type: 'string', required: true },
+  alias: { type: 'string', required: false },
+});
+
+/**
  * /character browse <query, filter>
  */
 export const characterBrowseOptions = defineTypedOptions({

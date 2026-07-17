@@ -139,6 +139,35 @@ describe('handleAutocomplete', () => {
     expect(mockRespond).toHaveBeenCalledWith([{ name: '🌐 MyChar (my-char)', value: 'my-char' }]);
   });
 
+  it.each(['alias', 'voice', 'voice-clear', 'avatar-clear'])(
+    'should return only owned characters for %s subcommand',
+    async sub => {
+      mockGetCachedPersonalities.mockResolvedValue({
+        kind: 'ok',
+        value: [
+          createMockPersonality({
+            slug: 'my-char',
+            name: 'MyChar',
+            displayName: null,
+            isOwned: true,
+            isPublic: false,
+          }),
+          createMockPersonality({
+            slug: 'public-char',
+            name: 'PublicChar',
+            displayName: null,
+            isOwned: false,
+            isPublic: true,
+          }),
+        ],
+      });
+
+      await handleAutocomplete(createMockInteraction('character', '', sub));
+
+      expect(mockRespond).toHaveBeenCalledWith([{ name: '🔒 MyChar (my-char)', value: 'my-char' }]);
+    }
+  );
+
   it('should return all characters for view subcommand', async () => {
     mockGetCachedPersonalities.mockResolvedValue({
       kind: 'ok',

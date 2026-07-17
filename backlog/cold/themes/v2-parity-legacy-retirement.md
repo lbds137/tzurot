@@ -13,7 +13,8 @@ _Focus: disposition every v2 capability (build / already-have / deliberately-dro
 
 ### Phase 1 — Alias management (STARTED 2026-07-17, first parity build)
 
-- [ ] `/character alias add|remove|list` + gateway alias CRUD routes — surfaces + manages the v2-migrated `personality_aliases` rows that today resolve mentions invisibly (the `@Lila` mystery). Discharges the 2026-07-17 follow-ups row at ship.
+- [x] BUILT 2026-07-17 (same session; PR pending merge): `/character alias` (action: list|add|remove) + gateway alias CRUD routes — surfaces + manages the v2-migrated `personality_aliases` rows that today resolve mentions invisibly (the `@Lila` mystery). Discharges the 2026-07-17 follow-ups row at ship.
+- [ ] **Reverse shadow direction** (review-surfaced on PR #1695): personality create/rename doesn't check `personality_aliases`, so a later same-named character silently shadows an existing alias — the `@Lila` failure class from the other side. Needs a design call first: reject (lets aliases squat on names — probably wrong), warn-in-response (create/update response contract + bot-client rendering change), or surface-in-`/character alias list` (mark shadowed rows). Promote when: Phase-1 alias UX gets its next iteration, or a shadowed-alias support mystery recurs.
 
 ### Phase N — derived from the Phase-0 matrix
 
