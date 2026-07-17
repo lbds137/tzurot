@@ -14,6 +14,8 @@ import {
   LoadPersonalityInternalResponseSchema,
   RoutingContextRequestSchema,
   RoutingContextResponseSchema,
+  SecretRotationEntrySchema,
+  SecretRotationStatusResponseSchema,
 } from './internal.js';
 
 describe('DiscordSnowflakeSchema', () => {
@@ -539,5 +541,78 @@ describe('RoutingContextResponseSchema', () => {
     expect(
       RoutingContextResponseSchema.safeParse({ ...valid, contextEpoch: 'yesterday' }).success
     ).toBe(false);
+  });
+});
+
+describe('SecretRotationStatusResponseSchema', () => {
+  const entry = {
+    name: 'byok-encryption-key',
+    rotatedAt: '2026-07-17T00:00:00.000Z',
+    intervalDays: 180,
+    overdueDays: 0,
+  };
+
+  it('accepts a well-formed status payload', () => {
+    expect(
+      SecretRotationStatusResponseSchema.safeParse({ entries: [entry], overdueCount: 0 }).success
+    ).toBe(true);
+  });
+
+  it('accepts an empty ledger', () => {
+    expect(
+      SecretRotationStatusResponseSchema.safeParse({ entries: [], overdueCount: 0 }).success
+    ).toBe(true);
+  });
+
+  it('rejects a negative overdueDays (server must clamp, not emit debt)', () => {
+    expect(
+      SecretRotationStatusResponseSchema.safeParse({
+        entries: [{ ...entry, overdueDays: -1 }],
+        overdueCount: 0,
+      }).success
+    ).toBe(false);
+  });
+
+  it('rejects a non-ISO rotatedAt', () => {
+    expect(
+      SecretRotationStatusResponseSchema.safeParse({
+        entries: [{ ...entry, rotatedAt: 'yesterday' }],
+        overdueCount: 0,
+      }).success
+    ).toBe(false);
+  });
+
+  it('rejects a non-positive intervalDays', () => {
+    expect(
+      SecretRotationStatusResponseSchema.safeParse({
+        entries: [{ ...entry, intervalDays: 0 }],
+        overdueCount: 0,
+      }).success
+    ).toBe(false);
+  });
+});
+
+describe('SecretRotationEntrySchema', () => {
+  const entry = {
+    name: 'byok-encryption-key',
+    rotatedAt: '2026-07-17T00:00:00.000Z',
+    intervalDays: 180,
+    overdueDays: 0,
+  };
+
+  it('accepts a well-formed entry', () => {
+    expect(SecretRotationEntrySchema.safeParse(entry).success).toBe(true);
+  });
+
+  it('rejects an empty or over-long name (VarChar(50) ledger key)', () => {
+    expect(SecretRotationEntrySchema.safeParse({ ...entry, name: '' }).success).toBe(false);
+    expect(SecretRotationEntrySchema.safeParse({ ...entry, name: 'x'.repeat(51) }).success).toBe(
+      false
+    );
+  });
+
+  it('requires every field (no partial ledger rows on the wire)', () => {
+    const { overdueDays: _dropped, ...partial } = entry;
+    expect(SecretRotationEntrySchema.safeParse(partial).success).toBe(false);
   });
 });

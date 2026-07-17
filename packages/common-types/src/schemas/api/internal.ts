@@ -256,3 +256,22 @@ export const RoutingContextResponseSchema = z.object({
 });
 
 export type RoutingContextResponse = z.infer<typeof RoutingContextResponseSchema>;
+
+/**
+ * One secret's rotation-ledger state, with overdue computed server-side so
+ * the nag consumer never re-derives interval math.
+ */
+export const SecretRotationEntrySchema = z.object({
+  /** Ledger key, e.g. 'byok-encryption-key'. */
+  name: z.string().min(1).max(50),
+  /** Last rotation as ISO datetime. */
+  rotatedAt: z.string().datetime(),
+  intervalDays: z.number().int().positive(),
+  /** Days PAST the interval; 0 while still within it. */
+  overdueDays: z.number().int().nonnegative(),
+});
+
+export const SecretRotationStatusResponseSchema = z.object({
+  entries: z.array(SecretRotationEntrySchema),
+  overdueCount: z.number().int().nonnegative(),
+});

@@ -2,6 +2,9 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   encryptApiKey,
   decryptApiKey,
+  encryptWithKey,
+  decryptWithKey,
+  parseEncryptionKeyMaterial,
   isValidEncryptedData,
   type EncryptedData,
 } from './encryption.js';
@@ -94,6 +97,76 @@ describe('Encryption Utilities', () => {
       expect(() => encryptApiKey(TEST_API_KEY)).toThrow(
         'API_KEY_ENCRYPTION_KEY must contain only hexadecimal characters'
       );
+    });
+  });
+
+  describe('dual-key rotation window', () => {
+    const OLD_KEY = 'b'.repeat(64);
+
+    it('decrypts rows on the PREVIOUS key during a rotation window (GCM tag is the key selector)', () => {
+      // Row encrypted under the old key...
+      vi.stubEnv('API_KEY_ENCRYPTION_KEY', OLD_KEY);
+      const encrypted = encryptApiKey(TEST_API_KEY);
+      // ...rotation staged: new current key, old demoted to PREVIOUS.
+      vi.stubEnv('API_KEY_ENCRYPTION_KEY', VALID_MASTER_KEY);
+      vi.stubEnv('API_KEY_ENCRYPTION_KEY_PREVIOUS', OLD_KEY);
+
+      expect(decryptApiKey(encrypted)).toBe(TEST_API_KEY);
+    });
+
+    it('still prefers the current key for rows already re-encrypted', () => {
+      vi.stubEnv('API_KEY_ENCRYPTION_KEY_PREVIOUS', OLD_KEY);
+      const encrypted = encryptApiKey(TEST_API_KEY); // current key
+
+      expect(decryptApiKey(encrypted)).toBe(TEST_API_KEY);
+    });
+
+    it('throws when NO fallback key is set and the row is on another key (no rotation window)', () => {
+      vi.stubEnv('API_KEY_ENCRYPTION_KEY', OLD_KEY);
+      const encrypted = encryptApiKey(TEST_API_KEY);
+      vi.stubEnv('API_KEY_ENCRYPTION_KEY', VALID_MASTER_KEY);
+
+      expect(() => decryptApiKey(encrypted)).toThrow();
+    });
+
+    it('treats an EMPTY previous-key variable as unset (Railway cannot delete vars)', () => {
+      vi.stubEnv('API_KEY_ENCRYPTION_KEY', OLD_KEY);
+      const encrypted = encryptApiKey(TEST_API_KEY);
+      vi.stubEnv('API_KEY_ENCRYPTION_KEY', VALID_MASTER_KEY);
+      vi.stubEnv('API_KEY_ENCRYPTION_KEY_PREVIOUS', '');
+
+      expect(() => decryptApiKey(encrypted)).toThrow();
+    });
+
+    it('throws when the row matches NEITHER key', () => {
+      vi.stubEnv('API_KEY_ENCRYPTION_KEY', 'c'.repeat(64));
+      const encrypted = encryptApiKey(TEST_API_KEY);
+      vi.stubEnv('API_KEY_ENCRYPTION_KEY', VALID_MASTER_KEY);
+      vi.stubEnv('API_KEY_ENCRYPTION_KEY_PREVIOUS', OLD_KEY);
+
+      expect(() => decryptApiKey(encrypted)).toThrow();
+    });
+  });
+
+  describe('explicit-key variants (rotation tooling)', () => {
+    it('round-trips with caller-supplied key material, independent of env', () => {
+      vi.stubEnv('API_KEY_ENCRYPTION_KEY', '');
+      const key = parseEncryptionKeyMaterial('d'.repeat(64), 'TEST_KEY');
+      const encrypted = encryptWithKey(TEST_API_KEY, key);
+
+      expect(decryptWithKey(encrypted, key)).toBe(TEST_API_KEY);
+    });
+
+    it('decryptWithKey throws on the wrong key — the auth failure IS "not this key"', () => {
+      const keyA = parseEncryptionKeyMaterial('d'.repeat(64), 'TEST_KEY');
+      const keyB = parseEncryptionKeyMaterial('e'.repeat(64), 'TEST_KEY');
+
+      expect(() => decryptWithKey(encryptWithKey(TEST_API_KEY, keyA), keyB)).toThrow();
+    });
+
+    it('parseEncryptionKeyMaterial rejects malformed material with the given label', () => {
+      expect(() => parseEncryptionKeyMaterial('short', 'MY_LABEL')).toThrow('MY_LABEL');
+      expect(() => parseEncryptionKeyMaterial('z'.repeat(64), 'MY_LABEL')).toThrow('MY_LABEL');
     });
   });
 

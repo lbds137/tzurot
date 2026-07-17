@@ -291,6 +291,11 @@ export const internalFixtures: Record<string, ConformanceEntry> = {
     // The provisioned actor row itself is the "recent user" — zero extra seed.
   },
 
+  secretRotationStatus: {
+    // Empty ledger is a valid (pre-seed) state; the route returns
+    // entries: [] + overdueCount: 0 — zero seed needed.
+  },
+
   getModels: {
     // No DB seed: the catalog comes from the harness's fake modelCache.
     query: { search: 'claude', limit: '10' },

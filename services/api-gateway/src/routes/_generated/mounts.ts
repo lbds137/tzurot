@@ -45,6 +45,7 @@ import { handleSyncConversation } from '../internal/conversationSync.js';
 import { handleLoadPersonalityInternal } from '../internal/personalityLoad.js';
 import { handleRoutingContextCreate } from '../internal/routingContextCreate.js';
 import { handleRecentUsers } from '../internal/usersRecent.js';
+import { handleSecretRotationStatus } from '../internal/secretRotationStatus.js';
 import { handleGetModels } from '../internal/models.js';
 import { handleGetDenylistCache, handleAddDenylistEntry, handleListDenylistEntries, handleRemoveDenylistEntry } from '../admin/denylist.js';
 import { handleUpdateDiagnosticResponseIds, handleGetRecentDiagnostics, handleGetDiagnosticByMessage, handleGetDiagnosticByResponse, handleGetDiagnosticByRequestId } from '../admin/diagnostic.js';
@@ -119,6 +120,7 @@ export function mountInternalRoutes(app: Express, deps: RouteDeps): void {
   app.get('/api/internal/personality/load', handleLoadPersonalityInternal(deps));
   app.post('/api/internal/v1/routing-context', handleRoutingContextCreate(deps));
   app.get('/api/internal/users/recent', handleRecentUsers(deps));
+  app.get('/api/internal/secret-rotations', handleSecretRotationStatus(deps));
   app.get('/api/internal/models', handleGetModels(deps));
   app.get('/api/internal/denylist/cache', handleGetDenylistCache(deps));
   app.get('/api/internal/admin-settings', handleGetAdminSettings(deps));
