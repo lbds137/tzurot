@@ -42,7 +42,7 @@ After #1671 (release-DM cleanup) merges, the owner wants a **final confidence-ch
 
 ## beta.167 release runbook (post-blast-radius-incident release — 2026-07-16/17)
 
-**Scope (owner-picked) — ALL MERGED except #1684 (final CI as of 2026-07-17 ~00:15 ET)**: #1679 blast-radius fix (dev migrated + dev backfill RUN: 117 stamped / 269 total / 152 passive stay null) · #1678 Astro 7 (clears the 10 default-branch alerts at release) · #1680 dep-latest rule · #1681 memory edge trio · #1682 DB hygiene (column drop merged; dev migrated + dev anchor-cleanup RUN: 10 of 14 deleted) · #1683 PR-5 pipeline hardening (**epic complete** — 5 review rounds, each fixed a real defect; resweep + flip-derived ops report + 90d retention) · #1685 guard:commands-doc · **#1684 website /docs section + privacy-policy corrections (approved; merges after final CI — sequenced after #1683 so the policy never promises the retention job before it exists)**.
+**Scope (owner-picked) — ALL MERGED except #1684 (final CI as of 2026-07-17 ~00:15 ET)**: #1679 blast-radius fix (dev migrated + dev backfill RUN: 117 stamped / 269 total / 152 passive stay null) · #1678 Astro 7 (clears the 10 default-branch alerts at release) · #1680 dep-latest rule · #1681 memory edge trio · #1682 DB hygiene (column drop merged; dev migrated + dev anchor-cleanup RUN: 10 of 14 deleted) · #1683 PR-5 pipeline hardening (**epic complete** — 5 review rounds, each fixed a real defect; resweep + flip-derived ops report + 90d retention) · #1685 guard:commands-doc · #1684 website /docs section + privacy-policy corrections (merged 2026-07-17 — sequenced after #1683 so the policy never promised the retention job before it existed). **Content-complete; awaiting the owner release go.**.
 
 **At the cut (order matters)**:
 
