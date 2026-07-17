@@ -27,12 +27,16 @@ import {
   UpdatePersonaResponseSchema,
 } from '@tzurot/common-types/schemas/api/persona';
 import {
+  AddPersonalityAliasRequestSchema,
+  AddPersonalityAliasResponseSchema,
   CreatePersonalityResponseSchema,
   DeletePersonalityResponseSchema,
   GetPersonalityResponseSchema,
   ListPersonalitiesResponseSchema,
+  ListPersonalityAliasesResponseSchema,
   PersonalityCreateSchema,
   PersonalityUpdateSchema,
+  RemovePersonalityAliasResponseSchema,
   SetVisibilitySchema,
 } from '@tzurot/common-types/schemas/api/personality';
 import type { RouteDef } from '../types.js';
@@ -118,6 +122,43 @@ export const userOwnershipRoutes = {
     params: { slug: z.string() },
     output: DeletePersonalityResponseSchema,
     requiresProvisionedUser: true,
+  },
+
+  // ============================================================================
+  // Personality aliases (v2-parity management; rows also resolve @mentions)
+  // ============================================================================
+
+  listPersonalityAliases: {
+    audience: 'user',
+    method: 'get',
+    path: '/personality/:slug/aliases',
+    id: 'listPersonalityAliases',
+    params: { slug: z.string() },
+    output: ListPersonalityAliasesResponseSchema,
+    requiresProvisionedUser: true,
+    meta: { safeRead: true },
+  },
+
+  addPersonalityAlias: {
+    audience: 'user',
+    method: 'post',
+    path: '/personality/:slug/aliases',
+    id: 'addPersonalityAlias',
+    params: { slug: z.string() },
+    input: AddPersonalityAliasRequestSchema,
+    output: AddPersonalityAliasResponseSchema,
+    requiresProvisionedUser: true,
+  },
+
+  removePersonalityAlias: {
+    audience: 'user',
+    method: 'delete',
+    path: '/personality/:slug/aliases/:alias',
+    id: 'removePersonalityAlias',
+    params: { slug: z.string(), alias: z.string() },
+    output: RemovePersonalityAliasResponseSchema,
+    requiresProvisionedUser: true,
+    meta: { idempotent: true },
   },
 
   // ============================================================================

@@ -33,6 +33,7 @@ import {
   generateExportJobUuid,
   isUuidFormat,
   generateUserFeedbackUuid,
+  generatePersonalityAliasUuid,
 } from './deterministicUuid.js';
 
 describe('Deterministic UUID Generation', () => {
@@ -612,5 +613,16 @@ describe('generateUserFeedbackUuid', () => {
     expect(a).toBe(b);
     expect(a).not.toBe(later);
     expect(a).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[0-9a-f]{4}-[0-9a-f]{12}$/);
+  });
+});
+
+describe('generatePersonalityAliasUuid', () => {
+  it('is deterministic and case-insensitive (cross-env convergence)', () => {
+    const a = generatePersonalityAliasUuid('Lila');
+    const b = generatePersonalityAliasUuid('lila');
+    const c = generatePersonalityAliasUuid('LILA');
+    expect(a).toBe(b);
+    expect(b).toBe(c);
+    expect(generatePersonalityAliasUuid('other')).not.toBe(a);
   });
 });
