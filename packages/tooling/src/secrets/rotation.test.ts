@@ -40,7 +40,18 @@ const KEY_B_HEX = 'b'.repeat(64);
 const KEY_A = parseEncryptionKeyMaterial(KEY_A_HEX, 'TEST');
 const KEY_B = parseEncryptionKeyMaterial(KEY_B_HEX, 'TEST');
 
-/** Mock the railway `variables --json` read for api-gateway. */
+/** Per-service railway `variables --json` stub — for split-brain scenarios. */
+function stubRailwayVarsPerService(byService: Record<string, Record<string, string>>): void {
+  mockExecFileSync.mockImplementation((_cmd: unknown, args: unknown) => {
+    if (Array.isArray(args) && args.includes('--json')) {
+      const service = String(args[args.indexOf('--service') + 1]);
+      return JSON.stringify(byService[service] ?? {});
+    }
+    return '';
+  });
+}
+
+/** Mock the railway `variables --json` read (same vars for every service). */
 function stubRailwayVars(vars: Record<string, string>): void {
   mockExecFileSync.mockImplementation((_cmd: unknown, args: unknown) => {
     if (Array.isArray(args) && args.includes('--json')) {
@@ -100,8 +111,27 @@ describe('getServiceVariable', () => {
 describe('rotateByokKey', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it('rejects an unknown stage', async () => {
+  it('every stage refuses on split-brain key vars between the two services', async () => {
+    // The partial-failure detector: api-gateway's write landed, ai-worker's
+    // didn't — the tool must refuse rather than operate on gateway's view.
+    stubRailwayVarsPerService({
+      'api-gateway': { API_KEY_ENCRYPTION_KEY: KEY_A_HEX },
+      'ai-worker': { API_KEY_ENCRYPTION_KEY: KEY_B_HEX },
+    });
+
+    for (const stage of ['1', '2', '3']) {
+      await expect(rotateByokKey({ env: 'dev', stage })).rejects.toThrow('DIFFERS');
+    }
+    // And no variable writes may have happened from any refused stage.
+    const setCalls = mockExecFileSync.mock.calls.filter(
+      call => Array.isArray(call[1]) && (call[1] as string[]).includes('--set')
+    );
+    expect(setCalls).toHaveLength(0);
+  });
+
+  it('rejects an unknown stage before touching any Railway state', async () => {
     await expect(rotateByokKey({ env: 'dev', stage: 'yolo' })).rejects.toThrow('Unknown stage');
+    expect(mockExecFileSync).not.toHaveBeenCalled();
   });
 
   it('stage 2 refuses when no rotation window is open (PREVIOUS empty)', async () => {
