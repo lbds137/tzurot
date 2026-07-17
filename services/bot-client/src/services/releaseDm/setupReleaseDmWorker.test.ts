@@ -19,6 +19,11 @@ vi.mock('@tzurot/common-types/utils/logger', async () => {
   };
 });
 
+const postOwnerChannelEmbedMock = vi.hoisted(() => vi.fn());
+vi.mock('../../utils/ownerChannel.js', () => ({
+  postOwnerChannelEmbed: postOwnerChannelEmbedMock,
+}));
+
 const { createReleaseDmProcessor } = await import('./setupReleaseDmWorker.js');
 
 const RELEASE_ID = '123e4567-e89b-42d3-a456-426614174000';
@@ -282,5 +287,45 @@ describe('createReleaseDmProcessor', () => {
     expect(deps.send).not.toHaveBeenCalled();
     expect(deps.report).not.toHaveBeenCalled();
     expect(result).toEqual({ sent: 0, failed: 0, skipped: 2 });
+  });
+
+  describe('completion ops report', () => {
+    const SUMMARY = {
+      version: 'adhoc-test',
+      sent: 5,
+      failedPermanent: 1,
+      failedTransient: 0,
+      optedOut: 2,
+    };
+
+    it('posts one owner-channel embed when a report flips the blast to completed', async () => {
+      const deps = makeDeps();
+      // The gateway hands the summary to exactly one report — here, the last.
+      deps.report
+        .mockResolvedValueOnce(undefined)
+        .mockResolvedValueOnce({ completed: true, summary: SUMMARY });
+      const processor = createReleaseDmProcessor(deps);
+
+      await processor(asJob(makePayload()));
+
+      expect(postOwnerChannelEmbedMock).toHaveBeenCalledTimes(1);
+      const embed = postOwnerChannelEmbedMock.mock.calls[0][1] as {
+        data: { title?: string; description?: string };
+      };
+      expect(embed.data.title).toContain('Release blast completed');
+      expect(embed.data.description).toContain('adhoc-test');
+      expect(embed.data.description).toContain('5 sent');
+      expect(embed.data.description).toContain('1 permanent-failed');
+      expect(embed.data.description).toContain('2 excluded (opted out mid-blast)');
+    });
+
+    it('posts nothing when no report claims completion (including lost-report undefined)', async () => {
+      const deps = makeDeps(); // report resolves undefined by default
+      const processor = createReleaseDmProcessor(deps);
+
+      await processor(asJob(makePayload()));
+
+      expect(postOwnerChannelEmbedMock).not.toHaveBeenCalled();
+    });
   });
 });

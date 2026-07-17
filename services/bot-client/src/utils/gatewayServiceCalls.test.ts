@@ -195,12 +195,29 @@ describe('fire-and-forget helpers', () => {
 
       const promise = reportDeliveries('release-1', [{ deliveryLogId: 'a', status: 'sent' }]);
       await vi.runAllTimersAsync();
-      await promise;
+      await expect(promise).resolves.toEqual({ completed: false });
 
       expect(mockServiceClient.releaseBroadcastDeliveries).toHaveBeenCalledTimes(2);
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it('reportDeliveries threads the completion summary back to the caller', async () => {
+    const summary = {
+      version: 'v-1',
+      sent: 3,
+      failedPermanent: 0,
+      failedTransient: 1,
+      optedOut: 0,
+    };
+    mockServiceClient.releaseBroadcastDeliveries.mockResolvedValue(
+      ok({ updated: 1, autoDisabledUserIds: [], completed: true, summary })
+    );
+
+    await expect(
+      reportDeliveries('release-1', [{ deliveryLogId: 'a', status: 'sent' }])
+    ).resolves.toEqual({ completed: true, summary });
   });
 
   it('reportDeliveries NEVER throws after retries exhaust (post-send: a throw would re-DM)', async () => {

@@ -16,22 +16,34 @@
  * than the window remain silent by design — the internal route accepts a
  * larger lookbackHours (≤168) for deliberate manual catch-up.
  *
- * This sweep owns only the missing-announcement case. The complementary
- * announced-but-incomplete case (a crash mid-enqueue leaves an announcement
- * whose pending ledger rows have no live job) is a planned separate sweep
- * that belongs beside this function, not inside it.
+ * Two sweeps live here, both invoked by the same hourly run:
+ * - reconcileReleaseAnnouncements — the missing-announcement case (a
+ *   GitHub release with no announcement row).
+ * - sweepIncompleteBroadcasts — the announced-but-incomplete case (a crash
+ *   mid-blast left an announcement whose pending ledger rows have no live
+ *   job; the unique-version pre-check blocks re-announcing, so without this
+ *   sweep the wedge is permanent).
  */
 
 import { z } from 'zod';
 import type { PrismaClient } from '@tzurot/common-types/services/prisma';
+import type { NotifyLevelValue } from '@tzurot/common-types/schemas/api/notifications';
 import type { Queue } from 'bullmq';
+import { JobType } from '@tzurot/common-types/constants/queue';
 import { VALIDATION_TIMEOUTS } from '@tzurot/common-types/constants/timing';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { addValidatedJob } from '../utils/validatedQueue.js';
 import {
   announceGitHubRelease,
   GitHubReleaseSchema,
   type GitHubRelease,
 } from './releaseAnnounce.js';
+import {
+  BROADCAST_BATCH_SIZE,
+  computeCompletionSummary,
+  eligibleThresholds,
+  resolvePreviousDms,
+} from './releaseBroadcast.js';
 
 const logger = createLogger('ReleaseReconcile');
 
@@ -156,4 +168,235 @@ export async function reconcileReleaseAnnouncements(
 
   logger.info({ lookbackHours, ...summary }, 'Release reconcile sweep completed');
   return summary;
+}
+
+// ============================================================================
+// Announced-but-incomplete sweep
+// ============================================================================
+
+/**
+ * An announcement still incomplete this long after creation is wedged, not
+ * live: a full blast at ~1 DM/sec finishes in minutes.
+ */
+export const INCOMPLETE_WEDGE_THRESHOLD_MS = 30 * 60 * 1000;
+
+/** Mirror of the missing-announcement sweep's per-run blast-radius cap. */
+export const MAX_RESWEEPS_PER_RUN = 3;
+
+export interface ResweepSummary {
+  scanned: number;
+  stamped: string[];
+  reEnqueued: string[];
+  optedOutTerminalized: number;
+  capped: boolean;
+}
+
+interface PendingRecipientRow {
+  id: string;
+  userId: string;
+  user: { discordId: string };
+}
+
+/**
+ * Heal announcements a crash left incomplete. Three branches per wedge:
+ * zero ledger rows → stamp complete + error-log (never auto-re-blast; the
+ * manual path is /admin broadcast); zero pending rows → stamp complete (the
+ * transition loop and the completion stamp are separate writes, so a crash
+ * between them orphans the release); pending rows → terminalize rows whose user is
+ * no longer eligible (opted out or raised their level), then re-enqueue
+ * the rest as fresh batches.
+ *
+ * Delivery semantics: this converts "report permanently lost → row silently
+ * under-delivered forever" into at-least-once — a rare duplicate DM is the
+ * accepted cost. Double-DM safety is the worker's /pending pre-filter plus
+ * bot-client's single-replica / concurrency-1 topology; the pre-filter is a
+ * SELECT, not an atomic claim, so if bot-client ever grows replicas the
+ * upgrade path is an atomic pending→claimed transition with claim expiry.
+ */
+export async function sweepIncompleteBroadcasts(
+  deps: Pick<ReconcileDeps, 'prisma' | 'queue'>
+): Promise<ResweepSummary> {
+  const { prisma, queue } = deps;
+  const threshold = new Date(Date.now() - INCOMPLETE_WEDGE_THRESHOLD_MS);
+
+  const wedged = await prisma.releaseAnnouncement.findMany({
+    where: { completedAt: null, createdAt: { lt: threshold } },
+    select: { id: true, version: true, body: true, level: true },
+    orderBy: { createdAt: 'asc' },
+    take: MAX_RESWEEPS_PER_RUN + 1,
+  });
+
+  const summary: ResweepSummary = {
+    scanned: wedged.length,
+    stamped: [],
+    reEnqueued: [],
+    optedOutTerminalized: 0,
+    capped: wedged.length > MAX_RESWEEPS_PER_RUN,
+  };
+  if (summary.capped) {
+    logger.error(
+      { scanned: wedged.length },
+      'Incomplete-broadcast sweep hit the per-run cap — investigate the wedge pileup'
+    );
+  }
+
+  for (const announcement of wedged.slice(0, MAX_RESWEEPS_PER_RUN)) {
+    const outcome = await healAnnouncement(prisma, queue, announcement);
+    if (outcome.kind === 'stamped') {
+      summary.stamped.push(announcement.version);
+    } else {
+      summary.reEnqueued.push(announcement.version);
+    }
+    summary.optedOutTerminalized += outcome.optedOut;
+  }
+
+  if (summary.scanned > 0) {
+    logger.info({ ...summary }, 'Incomplete-broadcast sweep completed');
+  }
+  return summary;
+}
+
+/**
+ * Partition a wedged announcement's pending rows into still-eligible
+ * recipients and rows to terminalize. Rows whose user is no longer eligible
+ * must never be re-DMed — and must be terminalized rather than skipped, or
+ * the announcement can never complete. "No longer eligible" mirrors BOTH
+ * enqueue-time gates that can drift after enqueue: notifyEnabled (a
+ * /notifications disable or an auto-disable) and notifyLevel (the user
+ * raised their threshold above this release's level). errorCode 'opted_out'
+ * covers both — the user opted out of receiving this release, one way or
+ * the other.
+ */
+async function terminalizeIneligibleRows(
+  prisma: PrismaClient,
+  level: NotifyLevelValue,
+  pendingRows: PendingRecipientRow[]
+): Promise<{ stillEligible: PendingRecipientRow[]; terminalizedCount: number }> {
+  if (pendingRows.length === 0) {
+    return { stillEligible: [], terminalizedCount: 0 };
+  }
+  const enabledUsers = await prisma.user.findMany({
+    where: {
+      id: { in: pendingRows.map(row => row.userId) },
+      notifyEnabled: true,
+      notifyLevel: { in: eligibleThresholds(level) },
+    },
+    select: { id: true },
+  });
+  const enabledSet = new Set(enabledUsers.map(user => user.id));
+  const stillEligible = pendingRows.filter(row => enabledSet.has(row.userId));
+  const optedOutIds = pendingRows.filter(row => !enabledSet.has(row.userId)).map(row => row.id);
+  if (optedOutIds.length === 0) {
+    return { stillEligible, terminalizedCount: 0 };
+  }
+  // The reported tally uses the update's REAL count: a candidate row can
+  // transition to sent (a live worker) between the SELECT above and this
+  // UPDATE — the pending-only guard skips it, and it was delivered, so it
+  // must not count as terminalized.
+  const terminalized = await prisma.releaseDeliveryLog.updateMany({
+    where: { id: { in: optedOutIds }, status: 'pending' },
+    data: { status: 'failed_permanent', errorCode: 'opted_out', attemptedAt: new Date() },
+  });
+  return { stillEligible, terminalizedCount: terminalized.count };
+}
+
+async function healAnnouncement(
+  prisma: PrismaClient,
+  queue: Queue,
+  announcement: { id: string; version: string; body: string; level: NotifyLevelValue }
+): Promise<{ kind: 'stamped' | 're-enqueued'; optedOut: number }> {
+  const releaseId = announcement.id;
+
+  const [totalRows, pendingRows] = await Promise.all([
+    prisma.releaseDeliveryLog.count({ where: { releaseId } }),
+    prisma.releaseDeliveryLog.findMany({
+      where: { releaseId, status: 'pending' },
+      select: { id: true, userId: true, user: { select: { discordId: true } } },
+    }),
+  ]);
+
+  const { stillEligible, terminalizedCount } = await terminalizeIneligibleRows(
+    prisma,
+    announcement.level,
+    pendingRows
+  );
+
+  if (stillEligible.length === 0) {
+    // Either a zombie (crash between the last transition and the completion
+    // stamp), a zero-row orphan (crash before the ledger createMany), or
+    // every remaining row just terminalized as opted-out. Flip-guarded like
+    // stampCompletionIfFinal: a concurrent /deliveries report may have won —
+    // the loser logs nothing (the winner's path carries the record).
+    const flip = await prisma.releaseAnnouncement.updateMany({
+      where: { id: releaseId, completedAt: null },
+      data: { completedAt: new Date() },
+    });
+    if (totalRows === 0 && flip.count === 1) {
+      logger.error(
+        { releaseId, version: announcement.version },
+        'Announcement had NO ledger rows — stamped complete without delivering; re-announce manually via /admin broadcast if it should have gone out'
+      );
+    } else if (flip.count === 1) {
+      // Real deliveries happened before the crash — this stamp CONSUMES the
+      // completion flip, so no /deliveries report will ever carry the tally
+      // to the Discord ops embed. Log the full summary here instead: the
+      // gateway log is the durable record for resweep-healed completions.
+      const summary = await computeCompletionSummary(prisma, releaseId);
+      logger.warn(
+        { releaseId, ...summary },
+        'Resweep stamped completion on a wedged announcement — full tally (no ops embed for resweep-healed blasts; the log is the record)'
+      );
+    }
+    return { kind: 'stamped', optedOut: terminalizedCount };
+  }
+
+  const previousDms = await resolvePreviousDms(
+    prisma,
+    releaseId,
+    stillEligible.map(row => row.userId)
+  );
+
+  // Unique jobIds: the original batch ids may still sit in BullMQ's history
+  // and jobId dedup would silently eat the retry. Double-DM safety comes from
+  // the worker's /pending pre-filter, not from id dedup.
+  const epochMinute = Math.floor(Date.now() / 60_000);
+  let batches = 0;
+  for (let start = 0; start < stillEligible.length; start += BROADCAST_BATCH_SIZE) {
+    const slice = stillEligible.slice(start, start + BROADCAST_BATCH_SIZE);
+    await addValidatedJob(
+      queue,
+      JobType.ReleaseBroadcastDm,
+      {
+        requestId: `${releaseId}:resweep:${epochMinute}:${batches}`,
+        jobType: JobType.ReleaseBroadcastDm,
+        responseDestination: { type: 'api' },
+        releaseId,
+        // The job schema's `version` is the release's LABEL (it shadows the
+        // base schema's numeric schema-version field) — omitting it fails
+        // payload validation.
+        version: announcement.version,
+        body: announcement.body,
+        recipients: slice.map(row => ({
+          deliveryLogId: row.id,
+          userId: row.userId,
+          discordUserId: row.user.discordId,
+          ...(previousDms.has(row.userId) ? { previousDm: previousDms.get(row.userId) } : {}),
+        })),
+      },
+      { jobId: `release-broadcast:${releaseId}:resweep:${epochMinute}:${batches}` }
+    );
+    batches += 1;
+  }
+
+  logger.info(
+    {
+      releaseId,
+      version: announcement.version,
+      reEnqueued: stillEligible.length,
+      batches,
+      optedOut: terminalizedCount,
+    },
+    'Re-enqueued pending deliveries for a wedged announcement'
+  );
+  return { kind: 're-enqueued', optedOut: terminalizedCount };
 }

@@ -14,9 +14,11 @@ import {
   ReleaseBroadcastDeliveriesResponseSchema,
   ReleaseBroadcastPendingInputSchema,
   ReleaseBroadcastPendingResponseSchema,
+  type BroadcastCompletionSummary,
 } from '@tzurot/common-types/schemas/api/broadcast';
 import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { computeCompletionSummary } from '../../services/releaseBroadcast.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { getRequiredParam } from '../../utils/requestParams.js';
 import { sendContractSuccess } from '../../utils/responseHelpers.js';
@@ -55,6 +57,9 @@ export const handleReleaseBroadcastPending = (deps: RouteDeps): RequestHandler =
  * A permanent failure immediately after another permanent failure means the
  * user's DMs are durably closed — stop notifying them (council design: don't
  * hammer blocked users). Looks at the user's most recent OTHER delivery row.
+ * Resweep terminalizations (errorCode 'opted_out') are invisible here: they
+ * record an eligibility exclusion, not a delivery event — no send happened,
+ * so they neither count toward the closed-DM streak nor break it.
  */
 async function maybeAutoDisable(
   prisma: PrismaClient,
@@ -62,7 +67,12 @@ async function maybeAutoDisable(
   userId: string
 ): Promise<boolean> {
   const previous = await prisma.releaseDeliveryLog.findFirst({
-    where: { userId, id: { not: deliveryLogId }, status: { not: 'pending' } },
+    where: {
+      userId,
+      id: { not: deliveryLogId },
+      status: { not: 'pending' },
+      NOT: { errorCode: 'opted_out' },
+    },
     orderBy: { updatedAt: 'desc' },
     select: { status: true },
   });
@@ -127,18 +137,8 @@ export const handleReleaseBroadcastDeliveries = (deps: RouteDeps): RequestHandle
       }
     }
 
-    const pendingLeft = await prisma.releaseDeliveryLog.count({
-      where: { releaseId, status: 'pending' },
-    });
-    let completed = false;
-    if (pendingLeft === 0) {
-      // updateMany + completedAt-null guard keeps the stamp idempotent too.
-      await prisma.releaseAnnouncement.updateMany({
-        where: { id: releaseId, completedAt: null },
-        data: { completedAt: now },
-      });
-      completed = true;
-    }
+    const summary = await stampCompletionIfFinal(prisma, releaseId, now);
+    const completed = summary !== undefined;
 
     logger.info(
       { releaseId, reported: parseResult.data.results.length, updated, completed },
@@ -149,6 +149,40 @@ export const handleReleaseBroadcastDeliveries = (deps: RouteDeps): RequestHandle
       updated,
       autoDisabledUserIds,
       completed,
+      ...(summary !== undefined ? { summary } : {}),
     });
   });
 };
+
+/**
+ * Stamp completedAt when the release has no pending rows left, returning the
+ * final tally IFF this call performed the flip. Completion derives from the
+ * FLIP, not from "no pending rows": a lost-response re-report (or a
+ * concurrent reporter) also sees zero pending, and telling both "completed"
+ * would double-post the downstream ops report — the null-guarded updateMany
+ * hands exactly one caller the summary.
+ */
+async function stampCompletionIfFinal(
+  prisma: PrismaClient,
+  releaseId: string,
+  now: Date
+): Promise<BroadcastCompletionSummary | undefined> {
+  const pendingLeft = await prisma.releaseDeliveryLog.count({
+    where: { releaseId, status: 'pending' },
+  });
+  if (pendingLeft > 0) {
+    return undefined;
+  }
+  const flip = await prisma.releaseAnnouncement.updateMany({
+    where: { id: releaseId, completedAt: null },
+    data: { completedAt: now },
+  });
+  if (flip.count !== 1) {
+    return undefined;
+  }
+  const summary = await computeCompletionSummary(prisma, releaseId);
+  // The Discord ops post downstream is at-most-once (a lost winning response
+  // drops it) — this log line is the durable record.
+  logger.info({ releaseId, ...summary }, 'Broadcast completed');
+  return summary;
+}

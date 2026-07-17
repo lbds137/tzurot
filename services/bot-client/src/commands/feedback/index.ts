@@ -10,7 +10,6 @@
  */
 
 import { EmbedBuilder, SlashCommandBuilder, escapeMarkdown, type Client } from 'discord.js';
-import { getConfig } from '@tzurot/common-types/config/config';
 import { feedbackOptions } from '@tzurot/common-types/generated/commandOptions';
 import { FEEDBACK_LIMITS } from '@tzurot/common-types/constants/feedback';
 import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
@@ -22,12 +21,14 @@ import type {
 } from '../../utils/commandContext/types.js';
 import { clientsFor } from '../../utils/gatewayClients.js';
 import { sanitizeErrorForDiscord } from '../../utils/errorSanitization.js';
+import { postOwnerChannelEmbed } from '../../utils/ownerChannel.js';
 
 const logger = createLogger('feedback-command');
 
 /**
- * Best-effort owner-channel notification. Never throws — the row is already
- * stored server-side, so any failure here is logged and swallowed.
+ * Best-effort owner-channel notification. Delivery (channel guardrails,
+ * no-ping send, swallow-and-warn) lives in the shared owner-channel helper —
+ * the row is already stored server-side, so a failed post loses nothing.
  */
 async function postToOwnerChannel(
   client: Client,
@@ -35,27 +36,14 @@ async function postToOwnerChannel(
   content: string,
   feedbackId: string
 ): Promise<void> {
-  const channelId = getConfig().FEEDBACK_CHANNEL_ID;
-  if (channelId === undefined) {
-    return;
-  }
-  try {
-    const channel = await client.channels.fetch(channelId);
-    if (channel === null || !channel.isTextBased() || !('send' in channel)) {
-      logger.warn({ channelId }, 'FEEDBACK_CHANNEL_ID is not a sendable text channel');
-      return;
-    }
-    const embed = new EmbedBuilder()
-      .setColor(DISCORD_COLORS.BLURPLE)
-      .setTitle('📬 New Feedback')
-      .setAuthor({ name: `${submitter.username} (${submitter.id})` })
-      .setDescription(escapeMarkdown(content))
-      .setFooter({ text: `feedback:${feedbackId}` })
-      .setTimestamp();
-    await channel.send({ embeds: [embed], allowedMentions: { parse: [] } });
-  } catch (error) {
-    logger.warn({ err: error, channelId }, 'Failed to post feedback to owner channel');
-  }
+  const embed = new EmbedBuilder()
+    .setColor(DISCORD_COLORS.BLURPLE)
+    .setTitle('📬 New Feedback')
+    .setAuthor({ name: `${submitter.username} (${submitter.id})` })
+    .setDescription(escapeMarkdown(content))
+    .setFooter({ text: `feedback:${feedbackId}` })
+    .setTimestamp();
+  await postOwnerChannelEmbed(client, embed);
 }
 
 async function execute(context: SafeCommandContext): Promise<void> {

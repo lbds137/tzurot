@@ -110,13 +110,41 @@ export const ReleaseBroadcastDeliveriesInputSchema = z.object({
     .max(50),
 });
 
+/**
+ * Final tally for a completed blast, carried on exactly ONE deliveries
+ * response (the one whose report flipped completedAt). The bot-client worker
+ * turns it into the owner-channel ops embed.
+ */
+export const BroadcastCompletionSummarySchema = z.object({
+  version: z.string(),
+  sent: z.number().int().min(0),
+  /** Genuine delivery failures ONLY — resweep eligibility exclusions are not here. */
+  failedPermanent: z.number().int().min(0),
+  failedTransient: z.number().int().min(0),
+  /**
+   * Rows terminalized by the incomplete-broadcast resweep because the user
+   * was no longer eligible (opted out / raised their level). Administrative
+   * exclusions, not failures — kept out of failedPermanent so that number
+   * stays a pure delivery-health signal.
+   */
+  optedOut: z.number().int().min(0),
+});
+
+export type BroadcastCompletionSummary = z.infer<typeof BroadcastCompletionSummarySchema>;
+
 export const ReleaseBroadcastDeliveriesResponseSchema = z.object({
   /** Rows actually transitioned pending → terminal (idempotent re-reports skip). */
   updated: z.number().int().min(0),
   /** Internal user ids auto-disabled on their second consecutive permanent failure. */
   autoDisabledUserIds: z.array(z.string().uuid()),
-  /** True once the announcement has no pending rows left (completedAt stamped). */
+  /**
+   * True only on the response whose report stamped completedAt — derived from
+   * the flip, not from "no pending rows remain," so a lost-response re-report
+   * can never claim completion twice.
+   */
   completed: z.boolean(),
+  /** Present exactly when completed is true: the blast's final tally. */
+  summary: BroadcastCompletionSummarySchema.optional(),
 });
 
 // ============================================================================
@@ -146,4 +174,19 @@ export const ReleaseReconcileResponseSchema = z.object({
   skipped: z.number().int().min(0),
   /** True when the per-run announcement cap stopped the sweep early. */
   capped: z.boolean(),
+  /** Announced-but-incomplete sweep outcome (the second sweep of the run). */
+  resweep: z
+    .object({
+      /** Incomplete announcements older than the wedge threshold. */
+      scanned: z.number().int().min(0),
+      /** Versions stamped complete directly (zero-pending / zero-row zombies). */
+      stamped: z.array(z.string()),
+      /** Versions whose pending rows were re-enqueued as fresh batches. */
+      reEnqueued: z.array(z.string()),
+      /** Pending rows terminalized because their user opted out post-enqueue. */
+      optedOutTerminalized: z.number().int().min(0),
+      /** True when the per-run cap stopped the sweep early. */
+      capped: z.boolean(),
+    })
+    .optional(),
 });

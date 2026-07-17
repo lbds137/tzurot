@@ -22,6 +22,7 @@ import { cleanupDiagnosticLogs } from './jobs/CleanupDiagnosticLogs.js';
 import { cleanupStuckImportJobs } from './jobs/cleanupStuckImportJobs.js';
 import { cleanupStuckExportJobs } from './jobs/cleanupStuckExportJobs.js';
 import { cleanupExpiredExports } from './jobs/cleanupExpiredExports.js';
+import { cleanupNotificationsRetention } from './jobs/cleanupNotificationsRetention.js';
 import { triggerReleaseReconcile } from './jobs/releaseReconcile.js';
 import { ConversationRetentionService } from '@tzurot/conversation-history';
 import { getConfig } from '@tzurot/common-types/config/config';
@@ -50,6 +51,7 @@ const SCHEDULED_JOBS = {
   CLEANUP_STUCK_EXPORTS: 'cleanup-stuck-exports',
   CLEANUP_EXPIRED_EXPORTS: 'cleanup-expired-exports',
   CLEANUP_CONVERSATION_RETENTION: 'cleanup-conversation-retention',
+  CLEANUP_NOTIFICATIONS_RETENTION: 'cleanup-notifications-retention',
   REEMBED_NULL_VECTORS: 'reembed-null-vectors',
   RELEASE_RECONCILE: 'release-reconcile',
 } as const;
@@ -231,6 +233,7 @@ const REPEATABLE_JOB_SCHEDULE: readonly { name: string; pattern: string }[] = [
   { name: SCHEDULED_JOBS.CLEANUP_STUCK_EXPORTS, pattern: '7,22,37,52 * * * *' },
   { name: SCHEDULED_JOBS.CLEANUP_EXPIRED_EXPORTS, pattern: '30 * * * *' },
   { name: SCHEDULED_JOBS.CLEANUP_CONVERSATION_RETENTION, pattern: '10 9 * * *' },
+  { name: SCHEDULED_JOBS.CLEANUP_NOTIFICATIONS_RETENTION, pattern: '25 9 * * *' },
   { name: SCHEDULED_JOBS.RELEASE_RECONCILE, pattern: '41 * * * *' },
 ];
 
@@ -294,6 +297,12 @@ async function setupScheduledJobs(
         // Returned object lands in the worker's `completed` log line — the
         // per-table counts are what make a daily run verifiable in Railway logs.
         return { oldHistory, softDeleted, tombstones };
+      }
+      if (job.name === SCHEDULED_JOBS.CLEANUP_NOTIFICATIONS_RETENTION) {
+        // 90d handled-only purge (feedback read/archived, settled delivery
+        // rows); the returned counts are the daily run's verification trail.
+        logger.info('Running notifications/feedback retention cleanup');
+        return cleanupNotificationsRetention(prisma);
       }
       if (job.name === SCHEDULED_JOBS.RELEASE_RECONCILE) {
         // Thin authed trigger — the sweep itself runs in api-gateway, where
