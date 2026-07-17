@@ -21,6 +21,10 @@
           {
             "type": "command",
             "command": ".claude/hooks/git-commit-filter-guard.sh"
+          },
+          {
+            "type": "command",
+            "command": ".claude/hooks/develop-code-commit-guard.sh"
           }
         ]
       }
