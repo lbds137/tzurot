@@ -25,13 +25,23 @@
         ]
       }
     ],
-    "PostToolUse": [
+    "SessionStart": [
       {
-        "matcher": "Edit:*.ts|Edit:*.tsx|Write:*.ts|Write:*.tsx",
         "hooks": [
           {
             "type": "command",
-            "command": "pnpm exec eslint \"$CLAUDE_FILE_PATH\" 2>&1 | head -50 || true"
+            "command": ".claude/hooks/session-start.sh"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/eslint-on-edit.sh"
           }
         ]
       },
