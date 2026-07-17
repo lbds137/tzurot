@@ -109,6 +109,27 @@ describe('importMemories', () => {
     );
   });
 
+  it('dedups across ALL visibilities so purged content is never resurrected', async () => {
+    mockPrisma.memory.findMany.mockResolvedValue([{ content: 'Deleted memory' }]);
+
+    const result = await importMemories({
+      memoryAdapter: mockMemoryAdapter as never,
+      prisma: mockPrisma as never,
+      memories: [{ text: 'Deleted memory', senders: ['user-1'], createdAt: 1700000000000 }],
+      personalityId: 'pers-id',
+      personaId: 'persona-id',
+      importJobId: 'job-id',
+    });
+
+    // The dedup query must NOT filter by visibility — a soft-deleted row's
+    // content still blocks re-import (deletion wins over re-import).
+    expect(mockPrisma.memory.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { personalityId: 'pers-id' } })
+    );
+    expect(result.skipped).toBe(1);
+    expect(mockMemoryAdapter.addMemory).not.toHaveBeenCalled();
+  });
+
   it('should count failed memories without aborting', async () => {
     mockMemoryAdapter.addMemory
       .mockRejectedValueOnce(new Error('Embedding failed'))

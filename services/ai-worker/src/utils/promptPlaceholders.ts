@@ -76,10 +76,12 @@ export function replacePromptPlaceholders(
 
   // Replace all user placeholder variations (case-insensitive)
   // Process longer placeholders first to avoid partial replacements
+  // Closure replacers keep names carrying `$&`/`$'`/`$$` patterns literal —
+  // a bare string replacement argument would expand them as substitutions.
   const userPlaceholders = [...PLACEHOLDERS.USER].sort((a, b) => b.length - a.length);
   for (const placeholder of userPlaceholders) {
     const escapedPlaceholder = escapeRegExp(placeholder);
-    result = result.replace(new RegExp(escapedPlaceholder, 'gi'), effectiveUserName);
+    result = result.replace(new RegExp(escapedPlaceholder, 'gi'), () => effectiveUserName);
   }
 
   // Replace all assistant placeholder variations (case-insensitive)
@@ -87,7 +89,7 @@ export function replacePromptPlaceholders(
   const assistantPlaceholders = [...PLACEHOLDERS.ASSISTANT].sort((a, b) => b.length - a.length);
   for (const placeholder of assistantPlaceholders) {
     const escapedPlaceholder = escapeRegExp(placeholder);
-    result = result.replace(new RegExp(escapedPlaceholder, 'gi'), assistantName);
+    result = result.replace(new RegExp(escapedPlaceholder, 'gi'), () => assistantName);
   }
 
   return result;
