@@ -26,6 +26,6 @@ cd "${CLAUDE_PROJECT_DIR:-.}" || exit 0
 
 # --no-warn-ignored: test files are excluded via eslint.config.js ignores;
 # without the flag every touched test file emits a pointless ignore warning.
-pnpm exec eslint --no-warn-ignored "$FILE" 2>&1 | head -50
+pnpm exec eslint --no-warn-ignored -- "$FILE" 2>&1 | head -50
 
 exit 0

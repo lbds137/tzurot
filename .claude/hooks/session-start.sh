@@ -17,6 +17,10 @@ SOURCE=$(jq -r '.source // empty' <<<"$INPUT" 2>/dev/null || echo "")
 ROOT="${CLAUDE_PROJECT_DIR:-.}"
 
 if [ "$SOURCE" = "compact" ]; then
+  # INDEPENDENT COPY WARNING: this checklist is a curated action-subset of
+  # CLAUDE.md's "Compaction Instructions" section (which stays auto-loaded
+  # with the full preservation list). It is NOT sourced from that file —
+  # when Compaction Instructions change, re-sync this block by hand.
   cat <<'EOF'
 POST-COMPACTION RECOVERY (structural checklist — act before new work):
 1. Session settings: recover effort level / permission mode from pre-compaction

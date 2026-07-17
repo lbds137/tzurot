@@ -21,6 +21,9 @@ export type DmErrorClass =
 const DM_PERMANENT_CODES = new Set<number>([
   10013, // Unknown User (deleted account)
   50007, // Cannot send messages to this user (DMs closed / bot blocked)
+  50278, // No mutual guilds (user left every shared server) — durable until
+  //       they rejoin, and a rejoin implies renewed interest anyway; retrying
+  //       without it fails identically every release.
 ]);
 
 export function classifyDmError(error: unknown): DmErrorClass {
