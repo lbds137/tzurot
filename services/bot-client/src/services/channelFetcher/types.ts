@@ -39,8 +39,9 @@ export interface FetchResult {
   messages: ConversationMessage[];
   /** Number of messages fetched from Discord */
   fetchedCount: number;
-  /** Number of messages after filtering */
-  filteredCount: number;
+  /** Number of messages that SURVIVED filtering (== messages.length) —
+   *  the kept set, not the removed one. */
+  keptCount: number;
   /** Raw Discord messages for opportunistic sync (if needed) */
   rawMessages?: Collection<string, Message>;
   /** Image attachments collected from extended context messages, in collection
