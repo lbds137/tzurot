@@ -79,4 +79,34 @@ describe('registerRunCommands', () => {
     // The variadic args should be available in cli.args
     expect(cli.args).toEqual(['tsx', 'scripts/some-script.ts', 'arg1']);
   });
+
+  it('captures dash-flags after "--" losslessly in rest-args (the wrapped command keeps them)', () => {
+    registerRunCommands(cli);
+
+    // The historical failure: any dash-flag in the wrapped command threw
+    // cac's unknown-option error, forcing wrapper-script workarounds. The
+    // sanctioned form routes the wrapped command's flags through "--".
+    cli.parse(['', '', 'run', '--env', 'prod', '--', 'tsx', 'script.ts', '--dry-run', '-c'], {
+      run: false,
+    });
+
+    expect(cli.matchedCommand?.name).toBe('run');
+    expect(cli.options.env).toBe('prod');
+    // Everything after "--" lands verbatim in options['--'] — the action's
+    // one-spread merge re-appends it to the command.
+    expect(cli.options['--']).toEqual(['tsx', 'script.ts', '--dry-run', '-c']);
+  });
+
+  it('still rejects bare dash-flags in the variadic part (loud guard, never silent stripping)', () => {
+    registerRunCommands(cli);
+
+    // cac's unknown-option validation runs on the RUN path, not bare parse.
+    // Without allowUnknownOptions, a flag typed WITHOUT the "--" separator
+    // throws instead of being silently stripped — a stripped --dry-run would
+    // execute a destructive script for real. The action never fires (the
+    // throw happens in validation), so no run-with-env mocking is needed.
+    expect(() =>
+      cli.parse(['', '', 'run', '--env', 'prod', 'tsx', 'script.ts', '--dry-run'])
+    ).toThrow(/unknown option/i);
+  });
 });
