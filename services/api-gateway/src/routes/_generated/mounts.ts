@@ -77,6 +77,7 @@ import { handleCreatePersonality } from '../user/personality/create.js';
 import { handleUpdatePersonality } from '../user/personality/update.js';
 import { handleSetPersonalityVisibility } from '../user/personality/visibility.js';
 import { handleDeletePersonality } from '../user/personality/delete.js';
+import { handleListPersonalityAliases, handleAddPersonalityAlias, handleRemovePersonalityAlias } from '../user/personality/aliases.js';
 import { handleListPersonas, handleGetPersona, handleCreatePersona, handleUpdatePersona, handleDeletePersona } from '../user/persona/crud.js';
 import { handleSetPersonaDefault } from '../user/persona/default.js';
 import { handleListPersonaOverrides, handleGetPersonaOverride, handleSetPersonaOverride, handleClearPersonaOverride, handleCreatePersonaOverride } from '../user/persona/override.js';
@@ -257,6 +258,8 @@ export function mountUserRoutes(app: Express, deps: RouteDeps): void {
   app.put('/api/user/personality/:slug', requireUserAuth(), requireProvisionedUser(deps.prisma), handleUpdatePersonality(deps));
   app.patch('/api/user/personality/:slug/visibility', requireUserAuth(), requireProvisionedUser(deps.prisma), handleSetPersonalityVisibility(deps));
   app.delete('/api/user/personality/:slug', requireUserAuth(), requireProvisionedUser(deps.prisma), handleDeletePersonality(deps));
+  app.get('/api/user/personality/:slug/aliases', requireUserAuth(), requireProvisionedUser(deps.prisma), handleListPersonalityAliases(deps));
+  app.post('/api/user/personality/:slug/aliases', requireUserAuth(), requireProvisionedUser(deps.prisma), handleAddPersonalityAlias(deps));
   app.get('/api/user/persona/:id', requireUserAuth(), requireProvisionedUser(deps.prisma), handleGetPersona(deps));
   app.put('/api/user/persona/:id', requireUserAuth(), requireProvisionedUser(deps.prisma), handleUpdatePersona(deps));
   app.delete('/api/user/persona/:id', requireUserAuth(), requireProvisionedUser(deps.prisma), handleDeletePersona(deps));
@@ -286,5 +289,6 @@ export function mountUserRoutes(app: Express, deps: RouteDeps): void {
   app.get('/api/user/diagnostic/by-message/:messageId', requireUserAuth(), handleGetDiagnosticByMessage(deps));
   app.get('/api/user/diagnostic/by-response/:messageId', requireUserAuth(), handleGetDiagnosticByResponse(deps));
   app.get('/api/user/diagnostic/:requestId', requireUserAuth(), handleGetDiagnosticByRequestId(deps));
+  app.delete('/api/user/personality/:slug/aliases/:alias', requireUserAuth(), requireProvisionedUser(deps.prisma), handleRemovePersonalityAlias(deps));
   app.delete('/api/user/voices/:provider/:voiceId', requireUserAuth(), requireProvisionedUser(deps.prisma), handleDeleteVoice(deps));
 }

@@ -51,6 +51,16 @@ export function generatePersonalityUuid(slug: string): string {
  * Generate deterministic UUID for a Persona
  * Seed: persona:{ownerId || 'global'}:{name}
  */
+/**
+ * Generate deterministic UUID for a PersonalityAlias.
+ * Seeded from the lowercased alias alone — aliases are globally unique, so
+ * the same alias independently created in both environments converges to one
+ * row id under db-sync (the memory_facts content-hash pattern).
+ */
+export function generatePersonalityAliasUuid(alias: string): string {
+  return uuidv5(`personality-alias:${alias.toLowerCase()}`, TZUROT_NAMESPACE);
+}
+
 export function generatePersonaUuid(name: string, ownerId?: string): string {
   const owner = ownerId !== undefined && ownerId.length > 0 ? ownerId : 'global';
   return uuidv5(`persona:${owner}:${name}`, TZUROT_NAMESPACE);
