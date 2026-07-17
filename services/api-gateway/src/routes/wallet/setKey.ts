@@ -18,7 +18,7 @@ import { encryptApiKey } from '@tzurot/common-types/utils/encryption';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { type ApiKeyCacheInvalidationService } from '@tzurot/cache-invalidation';
 import { requireUserAuth, requireProvisionedUser } from '../../services/AuthMiddleware.js';
-import { stampNotifyOptedIn } from '../../services/notifyOptIn.js';
+import { stampNotifyOptedIn, liftNotifyAutoDisable } from '../../services/notifyOptIn.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { resolveProvisionedUserId } from '../../utils/resolveProvisionedUserId.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
@@ -123,8 +123,9 @@ export const handleSetWalletKey = (deps: WalletSetDeps): RequestHandler => {
     // the stamp is load-bearing and deliberately propagates.
     try {
       await stampNotifyOptedIn(prisma, userId);
+      await liftNotifyAutoDisable(prisma, userId);
     } catch (error) {
-      logger.warn({ err: error, discordUserId }, 'Failed to stamp notifyOptedInAt');
+      logger.warn({ err: error, discordUserId }, 'Failed to stamp notify opt-in state');
     }
 
     sendCustomSuccess(

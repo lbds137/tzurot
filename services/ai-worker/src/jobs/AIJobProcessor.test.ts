@@ -607,6 +607,20 @@ describe('AIJobProcessor', () => {
       });
     });
 
+    it('lifts an infrastructure auto-disable on a real generation (flag-guarded)', async () => {
+      const job = createMockJob(baseLLMJobData, 'llm-job-123');
+
+      await processor.processJob(job);
+
+      // Deliberate use = the user is demonstrably back in reach; the
+      // notifyAutoDisabledAt guard keeps explicit opt-outs (flag never set)
+      // untouchable by this path.
+      expect(mockPrisma.user.updateMany).toHaveBeenCalledWith({
+        where: { id: 'user-internal-uuid-123', notifyAutoDisabledAt: { not: null } },
+        data: { notifyEnabled: true, notifyAutoDisabledAt: null },
+      });
+    });
+
     it('still succeeds when the notifyOptedInAt stamp write fails (best-effort)', async () => {
       vi.mocked(mockPrisma.user.updateMany).mockRejectedValueOnce(new Error('db down'));
       const job = createMockJob(baseLLMJobData, 'llm-job-123');

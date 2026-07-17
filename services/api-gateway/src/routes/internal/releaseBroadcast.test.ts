@@ -227,7 +227,10 @@ describe('POST /internal/release-broadcast/:releaseId/deliveries', () => {
 
     expect(mockPrisma.user.update).toHaveBeenCalledWith({
       where: { id: USER_A },
-      data: { notifyEnabled: false },
+      // notifyAutoDisabledAt marks the infrastructure disable — the flag the
+      // deliberate-use lift keys on; without it a re-engaged user could never
+      // be distinguished from an explicit opt-out.
+      data: { notifyEnabled: false, notifyAutoDisabledAt: expect.any(Date) },
     });
     const payload = (res.json as ReturnType<typeof vi.fn>).mock.calls[0][0] as {
       autoDisabledUserIds: string[];

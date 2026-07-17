@@ -79,7 +79,13 @@ async function maybeAutoDisable(
   if (previous?.status !== 'failed_permanent') {
     return false;
   }
-  await prisma.user.update({ where: { id: userId }, data: { notifyEnabled: false } });
+  // notifyAutoDisabledAt marks this as an INFRASTRUCTURE disable (unreachable),
+  // distinct from a user-chosen opt-out — the next deliberate use lifts it
+  // (liftNotifyAutoDisable), which must never happen to an explicit opt-out.
+  await prisma.user.update({
+    where: { id: userId },
+    data: { notifyEnabled: false, notifyAutoDisabledAt: new Date() },
+  });
   return true;
 }
 
