@@ -75,7 +75,11 @@ Both run in api-gateway, triggered hourly by ai-worker's scheduler through
   fresh batches. Delivery is thereby at-least-once: a row whose report was
   permanently lost gets re-DMed rather than silently dropped — the accepted
   trade, bounded by the worker's /pending pre-filter and single-replica
-  topology.
+  topology. That bound is a DESIGN CONSTRAINT, not an incident of the
+  implementation: it relies on the release-broadcast queue staying
+  concurrency-1 and FIFO (no priority options, no replicas) so that a
+  slow-but-alive original batch always drains before a resweep duplicate
+  reaches the worker.
 
 ## Retention
 
