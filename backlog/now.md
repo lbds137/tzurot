@@ -37,7 +37,7 @@ _beta.146 SHIPPED 2026-07-03 (11 PRs #1456–#1466): 2 prod provider-failure fix
 
 _Small tasks that can be done between major features. Good for momentum._
 
-- 🐛 `[FIX]` **50278 remediation — ✅ COMPLETE on develop+prod-data 2026-07-17** — #1688 (classifier) + #1689 (`notifyAutoDisabledAt` re-entry mechanism: deliberate use lifts infrastructure auto-disables; explicit opt-outs structurally untouchable) both MERGED; dev migrated; **prod flip RUN: 122 rows / 96 users flipped, post-run dry-run = 0 remaining**. Remaining: the one-off-script cleanup PR (delete backfillNotifyOptedIn + cleanupEmptyPersonalityConfigs + flipTransient50278, + `prisma format` rider from #1689 r1). Code rides the next release (prod premigrate carries the additive column).
+- 🐛 `[FIX]` **50278 remediation — ✅ COMPLETE on develop+prod-data 2026-07-17** — #1688 (classifier) + #1689 (`notifyAutoDisabledAt` re-entry mechanism: deliberate use lifts infrastructure auto-disables; explicit opt-outs structurally untouchable) both MERGED; dev migrated; **prod flip RUN: 122 rows / 96 users flipped, post-run dry-run = 0 remaining**. Cleanup PR #1691 MERGED (all three scripts deleted + `prisma format` rider). Code rides the next release (prod premigrate carries the additive column). **Entry complete — remove at next board sweep.**
 
 
 ### 📥 Untriaged (max 10)
