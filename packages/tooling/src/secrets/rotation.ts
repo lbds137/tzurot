@@ -82,6 +82,7 @@ interface EncryptedRow extends EncryptedData {
 interface EncryptedRowDelegate {
   findMany(args: {
     select: { id: true; iv: true; content: true; tag: true };
+    orderBy: { id: 'asc' };
     take: number;
   }): Promise<EncryptedRow[]>;
   updateMany(args: {
@@ -114,6 +115,27 @@ export function getServiceVariable(env: SecretsEnv, service: string, key: string
  */
 export function getServiceVariableOrEmpty(env: SecretsEnv, service: string, key: string): string {
   return readServiceVariable(env, service, key) ?? '';
+}
+
+/**
+ * Refuse to operate while the two BYOK services disagree on key variables —
+ * the partial-failure detector for the stage-1/stage-3 write loop (e.g. the
+ * api-gateway set succeeded but the ai-worker set threw). Without this, a
+ * split-brain window is silent until ai-worker BYOK decrypts start failing.
+ * Repair: re-set the variable on the lagging service (Railway's dashboard
+ * history holds the values), then re-run the stage.
+ */
+function assertByokServicesConsistent(env: SecretsEnv): void {
+  const [first, second] = BYOK_SERVICES;
+  for (const key of [CURRENT_VAR, PREVIOUS_VAR]) {
+    const a = getServiceVariableOrEmpty(env, first, key);
+    const b = getServiceVariableOrEmpty(env, second, key);
+    if (a !== b) {
+      throw new Error(
+        `${key} DIFFERS between ${first} and ${second} (${env}) — a previous variable write partially failed. Re-set it on the lagging service (Railway dashboard history has the values), then re-run.`
+      );
+    }
+  }
 }
 
 function readServiceVariable(env: SecretsEnv, service: string, key: string): string | undefined {
@@ -208,6 +230,8 @@ interface ReencryptTally {
    *  user update/delete) — skipped, never overwritten; a re-run reclassifies
    *  them (a mid-window user write already used the CURRENT key). */
   changedConcurrently: number;
+  /** The read hit ROW_CAP — tallies describe an incomplete view. */
+  capped: boolean;
 }
 
 /** Re-encrypt one table's rows from previous → current key. */
@@ -218,17 +242,21 @@ async function reencryptTable(
   previousKey: Buffer
 ): Promise<ReencryptTally> {
   const delegate = delegateFor(prisma, table);
+  // orderBy: deterministic sweep order so a (hypothetical) capped run makes
+  // forward progress across re-runs instead of re-reading an arbitrary page.
   const rows = await delegate.findMany({
     select: { id: true, iv: true, content: true, tag: true },
+    orderBy: { id: 'asc' },
     take: ROW_CAP,
   });
-  warnIfCapped(rows.length, `reencrypt ${table}`);
+  const capped = warnIfCapped(rows.length, `reencrypt ${table}`);
 
   const tally: ReencryptTally = {
     alreadyCurrent: 0,
     reencrypted: 0,
     unreadable: 0,
     changedConcurrently: 0,
+    capped,
   };
   for (const row of rows) {
     try {
@@ -275,6 +303,7 @@ async function countNonCurrentRows(
     const delegate = delegateFor(prisma, table);
     const rows = await delegate.findMany({
       select: { id: true, iv: true, content: true, tag: true },
+      orderBy: { id: 'asc' },
       take: ROW_CAP,
     });
     // A capped verify cannot prove completeness — count it as a failure so
@@ -296,6 +325,16 @@ async function countNonCurrentRows(
 /** Staged BYOK key rotation. See module doc for the three stages. */
 export async function rotateByokKey(options: { env: SecretsEnv; stage: string }): Promise<void> {
   const { env, stage } = options;
+
+  // Cheap argument validation first…
+  const KNOWN_STAGES = new Set(['1', 'stage', '2', 'reencrypt', '3', 'finalize']);
+  if (!KNOWN_STAGES.has(stage)) {
+    throw new Error(`Unknown stage "${stage}" — use 1|stage, 2|reencrypt, or 3|finalize.`);
+  }
+  // …then the IO-touching guard: every stage refuses to run on a split-brain
+  // variable state — reads below use api-gateway's copy, which is only
+  // trustworthy when both services agree.
+  assertByokServicesConsistent(env);
 
   if (stage === '1' || stage === 'stage') {
     // A second stage-1 while a window is open would demote the CURRENT key to
@@ -338,7 +377,7 @@ export async function rotateByokKey(options: { env: SecretsEnv; stage: string })
       for (const table of ['userApiKey', 'userCredential'] as const) {
         const tally = await reencryptTable(prisma, table, currentKey, previousKey);
         console.log(
-          `  ${table}: ${tally.reencrypted} re-encrypted, ${tally.alreadyCurrent} already current, ${tally.changedConcurrently} changed concurrently (skipped), ${tally.unreadable} unreadable`
+          `  ${table}: ${tally.reencrypted} re-encrypted, ${tally.alreadyCurrent} already current, ${tally.changedConcurrently} changed concurrently (skipped), ${tally.unreadable} unreadable${tally.capped ? ' [READ CAPPED — incomplete]' : ''}`
         );
         if (tally.unreadable > 0) {
           console.log(
@@ -377,5 +416,6 @@ export async function rotateByokKey(options: { env: SecretsEnv; stage: string })
     return;
   }
 
-  throw new Error(`Unknown stage "${stage}" — use 1|stage, 2|reencrypt, or 3|finalize.`);
+  // Unreachable: KNOWN_STAGES gates every path above.
+  throw new Error(`Unhandled stage "${stage}"`);
 }
