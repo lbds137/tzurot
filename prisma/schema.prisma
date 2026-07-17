@@ -1016,29 +1016,29 @@ model ReleaseAnnouncement {
 /// Per-(release, user) delivery outcome — retry-exactly-the-failures, failure
 /// classification, and the post-blast ops report all read from here.
 model ReleaseDeliveryLog {
-  id          String              @id @db.Uuid
-  releaseId   String              @map("release_id") @db.Uuid
-  userId      String              @map("user_id") @db.Uuid
-  status      DeliveryStatus      @default(pending)
+  id               String              @id @db.Uuid
+  releaseId        String              @map("release_id") @db.Uuid
+  userId           String              @map("user_id") @db.Uuid
+  status           DeliveryStatus      @default(pending)
   /// State-machine-by-status: null unless status is failed_*; carries the
   /// Discord error class (e.g. 50007 = cannot DM this user).
-  errorCode   String?             @map("error_code") @db.VarChar(50)
+  errorCode        String?             @map("error_code") @db.VarChar(50)
   /// Deferred-set: null on row creation; stamped by the gateway's
   /// delivery-status endpoint when the DM worker (bot-client, Prisma-free)
   /// reports the batch's outcomes.
-  attemptedAt DateTime?           @map("attempted_at")
+  attemptedAt      DateTime?           @map("attempted_at")
   /// Deferred-set: null until the DM send succeeds; then carries the sent
   /// Discord message's snowflake so cleanup (auto delete-previous on the next
   /// blast, /notifications cleanup) can delete the DM without history scans.
-  sentMessageId String?           @map("sent_message_id") @db.VarChar(30)
+  sentMessageId    String?             @map("sent_message_id") @db.VarChar(30)
   /// State machine: null while the sent DM may still exist in the user's DM
   /// channel; stamped when a cleanup path confirms deletion (a 10008
   /// already-gone counts — the goal state is "message absent", however reached).
-  messageDeletedAt DateTime?      @map("message_deleted_at")
-  createdAt   DateTime            @default(now()) @map("created_at")
-  updatedAt   DateTime            @updatedAt @map("updated_at")
-  release     ReleaseAnnouncement @relation(fields: [releaseId], references: [id], onDelete: Cascade)
-  user        User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messageDeletedAt DateTime?           @map("message_deleted_at")
+  createdAt        DateTime            @default(now()) @map("created_at")
+  updatedAt        DateTime            @updatedAt @map("updated_at")
+  release          ReleaseAnnouncement @relation(fields: [releaseId], references: [id], onDelete: Cascade)
+  user             User                @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   // userId follows the schema-wide "every userId FK is indexed" convention
   // (ON DELETE CASCADE is an implicit query on parent-row deletes). Query-shaped
