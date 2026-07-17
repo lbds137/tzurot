@@ -2,7 +2,7 @@
 
 _Focus: disposition every v2 capability (build / already-have / deliberately-drop), then delete `tzurot-legacy/` — the finish line is the deletion._
 
-**NEXT EPIC — owner-decided 2026-07-17** ("I really wanna kill the legacy folder"). Promote into `active-epic.md` when the spinoff-knockout stragglers are dispositioned.
+**PAUSED — owner 2026-07-17** (was next-epic for one day; "I really wanna kill the legacy folder" still stands). Phase 1 shipped and works, but its UX deviated from the 04-discord standards — evidence the standards aren't enforced at design time. Owner: no more new UX surface until the [Platform-Portable UX Layer](platform-portable-ux-layer.md) makes consistency structural; that theme (with the alias redesign + scoping tiers as pilot) takes the next-epic slot. Resume this epic after the UX epic's core phases.
 
 ### Phase 0 — Parity audit → disposition matrix (NEXT)
 
