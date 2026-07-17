@@ -60,8 +60,6 @@ const USER_TTS_CONFIG = '../user/tts-config.js';
 const USER_TTS_OVERRIDE = '../user/tts-override.js';
 const USER_VOICES = '../user/voices.js';
 
-const PERSONALITY_ALIASES_PATH = '../user/personality/aliases.js';
-
 const PATH_MAP: Readonly<Record<string, string>> = {
   // Channel
   activateChannel: '../user/channel/activate.js',
@@ -132,9 +130,6 @@ const PATH_MAP: Readonly<Record<string, string>> = {
 
   // Internal
   recentUsers: '../internal/usersRecent.js',
-  listPersonalityAliases: PERSONALITY_ALIASES_PATH,
-  addPersonalityAlias: PERSONALITY_ALIASES_PATH,
-  removePersonalityAlias: PERSONALITY_ALIASES_PATH,
   secretRotationStatus: '../internal/secretRotationStatus.js',
   getModels: '../internal/models.js',
   setDmSession: '../internal/dmSessionSet.js',

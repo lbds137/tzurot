@@ -408,38 +408,3 @@ export const PERSONALITY_DETAIL_SELECT = {
   createdAt: true,
   updatedAt: true,
 } as const;
-
-// ============================================================================
-// Personality aliases — v2-parity management surface over personality_aliases
-// (the rows also resolve @mentions via PersonalityLoader step 2).
-// ============================================================================
-
-export const PersonalityAliasEntrySchema = z.object({
-  alias: z.string(),
-  createdAt: z.string().datetime(),
-});
-
-export const ListPersonalityAliasesResponseSchema = z.object({
-  aliases: z.array(PersonalityAliasEntrySchema),
-});
-
-export const AddPersonalityAliasRequestSchema = z.object({
-  /** The alias text. '@' is forbidden anywhere — the mention parser splits on
-   *  it, so such an alias could never match; rejecting beats silent deadness. */
-  alias: z
-    .string()
-    .trim()
-    .min(1)
-    .max(100)
-    .refine(value => !value.includes('@'), {
-      message: 'Aliases cannot contain "@" — mentions split on it, so it could never match',
-    }),
-});
-
-export const AddPersonalityAliasResponseSchema = z.object({
-  alias: PersonalityAliasEntrySchema,
-});
-
-export const RemovePersonalityAliasResponseSchema = z.object({
-  removedAlias: z.string(),
-});

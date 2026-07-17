@@ -21,11 +21,6 @@ import {
   AdminPersonalityResponseSchema,
   SetVisibilitySchema,
   PERSONALITY_DETAIL_SELECT,
-  AddPersonalityAliasRequestSchema,
-  AddPersonalityAliasResponseSchema,
-  ListPersonalityAliasesResponseSchema,
-  PersonalityAliasEntrySchema,
-  RemovePersonalityAliasResponseSchema,
 } from './personality.js';
 
 describe('Personality API Contract Tests', () => {
@@ -900,70 +895,5 @@ describe('Personality API Contract Tests', () => {
       const result = SetVisibilitySchema.safeParse({});
       expect(result.success).toBe(false);
     });
-  });
-});
-
-describe('Personality alias schemas', () => {
-  it('AddPersonalityAliasRequestSchema trims and accepts a plain alias', () => {
-    const parsed = AddPersonalityAliasRequestSchema.parse({ alias: '  Lila  ' });
-    expect(parsed.alias).toBe('Lila');
-  });
-
-  it('rejects an alias containing "@" anywhere (mention parser splits on it)', () => {
-    expect(AddPersonalityAliasRequestSchema.safeParse({ alias: '@Lila' }).success).toBe(false);
-    expect(AddPersonalityAliasRequestSchema.safeParse({ alias: 'Li@la' }).success).toBe(false);
-  });
-
-  it('rejects empty-after-trim and over-column-width aliases', () => {
-    expect(AddPersonalityAliasRequestSchema.safeParse({ alias: '   ' }).success).toBe(false);
-    expect(AddPersonalityAliasRequestSchema.safeParse({ alias: 'x'.repeat(101) }).success).toBe(
-      false
-    );
-  });
-
-  it('ListPersonalityAliasesResponseSchema requires ISO createdAt entries', () => {
-    expect(
-      ListPersonalityAliasesResponseSchema.safeParse({
-        aliases: [{ alias: 'lila', createdAt: '2026-07-17T00:00:00.000Z' }],
-      }).success
-    ).toBe(true);
-    expect(
-      ListPersonalityAliasesResponseSchema.safeParse({
-        aliases: [{ alias: 'lila', createdAt: 'yesterday' }],
-      }).success
-    ).toBe(false);
-  });
-
-  it('RemovePersonalityAliasResponseSchema carries the removed alias back', () => {
-    expect(RemovePersonalityAliasResponseSchema.safeParse({ removedAlias: 'lila' }).success).toBe(
-      true
-    );
-  });
-});
-
-describe('PersonalityAliasEntrySchema', () => {
-  it('accepts a well-formed entry and rejects a non-ISO createdAt', () => {
-    expect(
-      PersonalityAliasEntrySchema.safeParse({
-        alias: 'lila',
-        createdAt: '2026-07-17T00:00:00.000Z',
-      }).success
-    ).toBe(true);
-    expect(
-      PersonalityAliasEntrySchema.safeParse({ alias: 'lila', createdAt: 'yesterday' }).success
-    ).toBe(false);
-  });
-});
-
-describe('AddPersonalityAliasResponseSchema', () => {
-  it('wraps a single created entry', () => {
-    expect(
-      AddPersonalityAliasResponseSchema.safeParse({
-        alias: { alias: 'li', createdAt: '2026-07-17T00:00:00.000Z' },
-      }).success
-    ).toBe(true);
-    expect(AddPersonalityAliasResponseSchema.safeParse({ alias: 'bare-string' }).success).toBe(
-      false
-    );
   });
 });
