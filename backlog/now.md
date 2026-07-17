@@ -45,6 +45,8 @@ _beta.146 SHIPPED 2026-07-03 (11 PRs #1456–#1466): 2 prod provider-failure fix
 
 _Small tasks that can be done between major features. Good for momentum._
 
+- 🐛 `[FIX]` **Classify discord-50278 (no mutual guilds) as PERMANENT in dmErrorClassifier** — beta.167's first gated blast: all 26 "transient" failures were 50278 (user left every shared server — durable until they rejoin; retry fails identically). Currently bucketed transient → rows sit unretryable-but-mislabeled and pollute the transient tally. One-line classifier change + test; consider whether two consecutive 50278s should auto-disable like 50007 (probably yes — durably unreachable). Surfaced 2026-07-17 (blast tally: sent=81 failedPermanent=0 failedTransient=26, all 50278). <~1hr.
+
 
 ### 📥 Untriaged (max 10)
 
