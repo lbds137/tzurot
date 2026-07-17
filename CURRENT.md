@@ -10,7 +10,9 @@
 - **#1688** discord-50278 → permanent DM failure class (+ streak-reset pinning test + flip script). **Prod data flip RUN 2026-07-17: 122 rows / 96 users, verified 0 remaining.**
 - **#1689** `notifyAutoDisabledAt` re-entry mechanism (deliberate use lifts infrastructure auto-disables; explicit opt-outs untouchable). Additive migration — applied to dev; prod rides release premigrate.
 - **#1690** BYOK rotation machinery + secret-rotation ledger/nag (4 review rounds). Additive migration — applied to dev; **prod: premigrate at release, then seed the prod ledger** (`secrets:mark-rotated` × the 4 self-minted names). Dev ledger seeded 2026-07-17.
-- Doc commits: board hygiene (3 verified-done entries closed), secrets audit trail (local), follow-ups.
+- **#1692** ops-run `--` flag passthrough + BYOK rotation split-brain guard (owner-picked riders).
+- **#1693** polish batch: engines.node floor →24 (WARN dead), external-link a11y (6 links incl. 2 computed-target), `keptCount` rename, glm-5.2 comment fix.
+- Doc commits: board hygiene (3 verified-done entries closed), secrets audit trail (local), env-var sweep (1 dead var found+removed), follow-ups.
 
 ## beta.167 post-release state (2026-07-17)
 
