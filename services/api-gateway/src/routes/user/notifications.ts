@@ -69,6 +69,11 @@ export const handleUpdateNotificationPrefs = (deps: RouteDeps): RequestHandler =
       data: {
         ...(enabled !== undefined ? { notifyEnabled: enabled } : {}),
         ...(level !== undefined ? { notifyLevel: level } : {}),
+        // Any explicit prefs update supersedes infrastructure history: an
+        // auto-disable (unreachable-user flag) is cleared whichever way the
+        // user sets things — enabling lifts it, disabling converts it into a
+        // genuine user-chosen opt-out that deliberate use must never undo.
+        notifyAutoDisabledAt: null,
       },
       select: { notifyEnabled: true, notifyLevel: true },
     });

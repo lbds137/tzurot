@@ -355,10 +355,14 @@ export class AIJobProcessor {
   }
 
   /**
-   * Mark a user as having deliberately used the bot (first real generation),
-   * gating release-DM eligibility. Null-guarded updateMany so it's a no-op
-   * after the first stamp; errors are swallowed — this must never fail a
-   * response.
+   * Mark a user as having deliberately used the bot (a real generation).
+   * Two null/flag-guarded updateManys, each a no-op in the steady state:
+   *   1. First-use stamp — gates release-DM eligibility (writes once, ever).
+   *   2. Auto-disable lift — an infrastructure disable (consecutive permanent
+   *      release-DM failures = unreachable) is reversed the moment the user
+   *      is demonstrably back; the notifyAutoDisabledAt guard means a
+   *      user-chosen opt-out (flag never set) is never overridden.
+   * Errors are swallowed — bookkeeping must never fail a response.
    */
   private async stampFirstDeliberateUse(userInternalId: string): Promise<void> {
     try {
@@ -366,8 +370,12 @@ export class AIJobProcessor {
         where: { id: userInternalId, notifyOptedInAt: null },
         data: { notifyOptedInAt: new Date() },
       });
+      await this.prisma.user.updateMany({
+        where: { id: userInternalId, notifyAutoDisabledAt: { not: null } },
+        data: { notifyEnabled: true, notifyAutoDisabledAt: null },
+      });
     } catch (error) {
-      logger.warn({ err: error, userId: userInternalId }, 'Failed to stamp notifyOptedInAt');
+      logger.warn({ err: error, userId: userInternalId }, 'Failed to stamp deliberate-use state');
     }
   }
 

@@ -22,3 +22,18 @@ export async function stampNotifyOptedIn(prisma: PrismaClient, userId: string): 
     data: { notifyOptedInAt: new Date() },
   });
 }
+
+/**
+ * Lift an infrastructure auto-disable on deliberate use. Auto-disable
+ * (consecutive permanent release-DM failures — see maybeAutoDisable) means
+ * "unreachable", not "uninterested"; a user actively using the bot again is
+ * reachable again, so their notifications come back. The notifyAutoDisabledAt
+ * guard makes this a strict no-op for explicit opt-outs (that path never sets
+ * the flag) — a user-chosen off is never overridden.
+ */
+export async function liftNotifyAutoDisable(prisma: PrismaClient, userId: string): Promise<void> {
+  await prisma.user.updateMany({
+    where: { id: userId, notifyAutoDisabledAt: { not: null } },
+    data: { notifyEnabled: true, notifyAutoDisabledAt: null },
+  });
+}

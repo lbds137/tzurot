@@ -122,7 +122,7 @@ describe('PATCH /user/notifications', () => {
 
     expect(mockPrisma.user.update).toHaveBeenCalledWith({
       where: { id: 'user-uuid-123' },
-      data: { notifyEnabled: false },
+      data: { notifyEnabled: false, notifyAutoDisabledAt: null },
       select: { notifyEnabled: true, notifyLevel: true },
     });
     expect(res.json).toHaveBeenCalledWith({ success: true, enabled: false, level: 'minor' });
@@ -140,7 +140,7 @@ describe('PATCH /user/notifications', () => {
 
     expect(mockPrisma.user.update).toHaveBeenCalledWith({
       where: { id: 'user-uuid-123' },
-      data: { notifyLevel: 'patch' },
+      data: { notifyLevel: 'patch', notifyAutoDisabledAt: null },
       select: { notifyEnabled: true, notifyLevel: true },
     });
     expect(res.json).toHaveBeenCalledWith({ success: true, enabled: true, level: 'patch' });
@@ -158,7 +158,7 @@ describe('PATCH /user/notifications', () => {
 
     expect(mockPrisma.user.update).toHaveBeenCalledWith({
       where: { id: 'user-uuid-123' },
-      data: { notifyEnabled: true, notifyLevel: 'major' },
+      data: { notifyEnabled: true, notifyLevel: 'major', notifyAutoDisabledAt: null },
       select: { notifyEnabled: true, notifyLevel: true },
     });
   });

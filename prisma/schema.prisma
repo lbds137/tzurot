@@ -47,6 +47,14 @@ model User {
   /// row + default persona but never this). Release-DM eligibility requires
   /// it non-null, so passive bystanders are never in the blast radius.
   notifyOptedInAt       DateTime?                  @map("notify_opted_in_at")
+  /// State machine: null unless notifications were AUTO-disabled after
+  /// consecutive permanent release-DM failures (unreachable user); set
+  /// alongside notifyEnabled=false by that path only. Cleared — with
+  /// notifyEnabled restored — on the user's next deliberate use, or by any
+  /// explicit /notifications update (explicit choice supersedes
+  /// infrastructure history). Distinguishes infrastructure-disabled from
+  /// user-opted-out; a user-chosen opt-out always has this null.
+  notifyAutoDisabledAt  DateTime?                  @map("notify_auto_disabled_at")
   createdAt             DateTime                   @default(now()) @map("created_at")
   updatedAt             DateTime                   @updatedAt @map("updated_at")
   releaseDeliveries     ReleaseDeliveryLog[]
