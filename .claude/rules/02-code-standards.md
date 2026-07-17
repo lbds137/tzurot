@@ -240,6 +240,17 @@ import { normalizeSlugForUser } from '@tzurot/common-types';
 Re-export wrappers add indirection, break vitest mocking (the mock of the package
 doesn't intercept internal imports), and make dependency tracing harder.
 
+## Dependency Additions Land on Latest
+
+When adding a **new** dependency (not bumping an existing one), check the latest
+stable version first — `pnpm view <pkg> version` — and pin to it, rather than
+whatever version is top-of-mind or copied from a stale example. A dep added a
+major behind starts its life needing an upgrade (Astro was added at v5 with v6
+already shipped). This applies at the **add** moment; keeping deps current
+afterward is Dependabot's job. When the latest major is very new (days old) and
+the ecosystem around it may lag, that's a reason to _note_ the choice, not to
+default to the old major.
+
 ## Python Standards (voice-engine)
 
 The `services/voice-engine/` service uses Python 3.11+ with FastAPI. These
