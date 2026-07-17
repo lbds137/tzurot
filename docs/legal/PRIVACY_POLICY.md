@@ -26,14 +26,16 @@ Tzurot is a Discord bot that lets you talk with AI characters. It is operated by
 
 ## Retention
 
-| Data                                    | Kept for                                                                                         |
-| --------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| Conversation history                    | 30 days (swept daily)                                                                            |
-| Diagnostic logs                         | 24 hours (swept hourly)                                                                          |
-| Data exports you request                | 24 hours, then deleted                                                                           |
-| Memories and extracted facts            | Hidden from use the moment you forget them; rows erased with their persona/character (see below) |
-| Personas, characters, uploads           | Until you delete them                                                                            |
-| Account basics, usage records, feedback | Until you delete your account (see "Your controls")                                              |
+| Data                          | Kept for                                                                                                                   |
+| ----------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| Conversation history          | 30 days (swept daily)                                                                                                      |
+| Diagnostic logs               | 24 hours (swept hourly)                                                                                                    |
+| Data exports you request      | 24 hours, then deleted                                                                                                     |
+| Memories and extracted facts  | Hidden from use the moment you forget them; rows erased with their persona/character (see below)                           |
+| Personas, characters, uploads | Until you delete them                                                                                                      |
+| Feedback you submit           | Deleted once it is both 90 days old and reviewed by the operator — or when you delete your account                         |
+| Release-DM delivery records   | Deleted once 90 days old and settled (the record of your latest notification is kept until it's replaced or you delete it) |
+| Account basics, usage records | Until you delete your account (see "Your controls")                                                                        |
 
 ## Where your data goes (third parties)
 
@@ -60,7 +62,7 @@ We never sell your data.
 
 - **Memory**: browse, search, correct, and forget individual memories and facts (`/memory`); batch-delete or purge a character's memories. Honest detail: forgetting removes a memory from use and from view **immediately**, but the underlying row is retained (marked deleted) until it is hard-erased — which happens when you delete the associated persona or character, when you use incognito's retroactive forget, or when you delete your account (`/settings data delete`). **Focus mode** stops memory reads; **incognito mode** stops memory writes for a session, with retroactive (hard-deleting) forget.
 - **History**: clear your conversation history (`/history clear` — a soft reset, with undo).
-- **Notifications**: release announcements are opt-out (`/notifications disable`, or pick a level).
+- **Notifications**: release announcements are sent only to accounts that have actually used the bot (a real conversation, a connected key, or an explicit `/notifications` preference — never mere presence in a channel the bot can read), default to breaking-change releases only, and are opt-out (`/notifications disable`, or pick a level).
 - **Keys**: remove a connected API key at any time (immediate hard delete).
 - **Creations**: delete your personas and characters (deletion cascades to their conversation history and memories).
 - **Export everything**: export all data associated with your account in a portable format (`/settings data export`).

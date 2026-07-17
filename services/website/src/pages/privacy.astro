@@ -1,6 +1,6 @@
 ---
 import { getEntry } from 'astro:content';
-import Legal from '../layouts/Legal.astro';
+import Prose from '../layouts/Prose.astro';
 import { BRAND } from '../brand';
 
 const entry = await getEntry('legal', 'privacy_policy');
@@ -9,7 +9,7 @@ if (!entry?.body) {
 }
 ---
 
-<Legal
+<Prose
   title={`Privacy Policy — ${BRAND.name}`}
   description={`What the ${BRAND.name} Discord bot collects, why, where it goes, and the controls you have over it.`}
   path="/privacy"

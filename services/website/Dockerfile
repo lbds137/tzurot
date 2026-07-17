@@ -22,10 +22,14 @@ RUN npm install -g pnpm
 WORKDIR /app
 
 # Workspace manifests first for layer caching, then only what the site needs:
-# its own source and the legal docs it renders.
+# its own source and the repo markdown it renders (every content.config.ts
+# collection base must be copied here — a missing one fails the build loudly
+# via the pages' getEntry throw).
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY services/website ./services/website
 COPY docs/legal ./docs/legal
+COPY docs/guides ./docs/guides
+COPY docs/commands.md ./docs/commands.md
 
 RUN pnpm install --frozen-lockfile --filter @tzurot/website
 

@@ -1,0 +1,17 @@
+---
+import { getEntry } from 'astro:content';
+import Prose from '../../layouts/Prose.astro';
+import { BRAND } from '../../brand';
+
+const entry = await getEntry('guides', 'getting-started');
+if (!entry?.body) {
+  throw new Error('docs/guides/getting-started.md is missing from the content collection');
+}
+---
+
+<Prose
+  title={`Getting Started — ${BRAND.name}`}
+  description={`Your first conversation with ${BRAND.name}'s AI characters, through memory, voice, and bringing your own key.`}
+  path="/docs/getting-started"
+  body={entry.body}
+/>
