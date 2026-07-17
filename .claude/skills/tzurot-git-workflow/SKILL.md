@@ -228,12 +228,28 @@ git log v<previous>..HEAD --no-merges --oneline
 **User-facing doc sweep (required before the release PR)**: the drafted notes
 enumerate exactly what shipped — walk each Breaking Changes, Features, and
 Improvements item (breaking renames/removals are the stalest-doc risk) against
-`README.md` (feature bullets, slash-command list, project tree) and
-`docs/commands.md` (command table), and fix what's stale in the same sitting.
-These two docs have no mechanical drift guard; the release-notes draft is the
-one moment the full delta is already enumerated, so the sweep is nearly free
-here and expensive anywhere else (`/feedback` + `/notifications` shipped
-undocumented until a manual release-prep sweep caught them).
+every user-facing doc surface, and fix what's stale in the same sitting:
+
+- `README.md` — feature bullets, slash-command list, project tree.
+- `docs/commands.md` — command table. **Rendered live at tzurot.org/docs/commands.**
+- `docs/guides/*.md` — the getting-started guide (and future guides).
+  **Rendered live under tzurot.org/docs.** A new user-visible feature or a
+  changed command flow belongs here, not just in the command table.
+- `docs/legal/PRIVACY_POLICY.md` / `TERMS_OF_SERVICE.md` — check whenever the
+  release changes data collection, retention windows, notification behavior,
+  or third-party processors; the retention table and behavior claims must
+  match the shipped code. **Rendered live at /privacy and /terms.**
+
+The website glob-loads these files, so staleness is now PUBLIC the moment the
+release deploys — and conversely the fix ships itself with the release. New
+website-rendered markdown sources must ALSO be COPY'd in
+`services/website/Dockerfile` (a missing base dir fails the docker build
+loudly via the pages' getEntry throw — by design). Prose docs have no
+mechanical drift guard; the release-notes draft is the one moment the full
+delta is already enumerated, so the sweep is nearly free here and expensive
+anywhere else (`/feedback` + `/notifications` shipped undocumented until a
+manual release-prep sweep caught them; the `/notifications` default sat wrong
+in commands.md for a day after the blast-radius fix).
 
 ### 3. Create Release PR
 

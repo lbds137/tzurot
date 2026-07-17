@@ -1,6 +1,6 @@
 ---
 import { getEntry } from 'astro:content';
-import Legal from '../layouts/Legal.astro';
+import Prose from '../layouts/Prose.astro';
 import { BRAND } from '../brand';
 
 const entry = await getEntry('legal', 'terms_of_service');
@@ -9,7 +9,7 @@ if (!entry?.body) {
 }
 ---
 
-<Legal
+<Prose
   title={`Terms of Service — ${BRAND.name}`}
   description={`The terms that govern use of the ${BRAND.name} Discord bot.`}
   path="/terms"

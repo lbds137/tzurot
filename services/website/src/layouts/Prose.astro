@@ -1,11 +1,11 @@
 ---
 /**
- * Prose layout for the legal documents. The markdown comes straight from
- * docs/legal via the content collection; brand substitution, its safety
- * guards, and markdown rendering live in lib/legalDocBranding (unit-tested,
- * with marked configured once at module scope). This layout provides the
- * readable typography and retention-table styling; the sticky header's
- * brand link is the way home.
+ * Prose layout for repo-markdown pages (legal documents, user docs). The
+ * markdown comes straight from the repo via content collections; brand
+ * substitution, its safety guards, and markdown rendering live in
+ * lib/legalDocBranding (unit-tested, with marked configured once at module
+ * scope). This layout provides the readable typography and table styling;
+ * the sticky header's brand link is the way home.
  */
 import Base from './Base.astro';
 import { BRAND } from '../brand';
@@ -15,7 +15,7 @@ interface Props {
   title: string;
   description: string;
   path: string;
-  /** Raw markdown body of the legal document (entry.body). */
+  /** Raw markdown body of the document (entry.body). */
   body: string;
 }
 
