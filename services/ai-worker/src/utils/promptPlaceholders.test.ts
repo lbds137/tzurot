@@ -155,6 +155,20 @@ Lilith: Likewise!`;
       expect(result).toBe('{Bob} is here');
     });
 
+    it('keeps $-substitution patterns in names literal', () => {
+      // "$&" in a bare string replacement re-inserts the matched placeholder;
+      // "$'" splices in the rest of the string. Both must stay literal.
+      const text = '{user} talks to {assistant}';
+      const result = replacePromptPlaceholders(text, 'Cash $& Carry', "D$'Artagnan");
+      expect(result).toBe("Cash $& Carry talks to D$'Artagnan");
+    });
+
+    it('keeps $$ in a disambiguated username literal', () => {
+      const text = '{user}: hello\n{assistant}: hi';
+      const result = replacePromptPlaceholders(text, 'Lila', 'lila', 'money$$bags');
+      expect(result).toBe('Lila (@money$$bags): hello\nlila: hi');
+    });
+
     it('should be case-insensitive for placeholders', () => {
       const text = '{User} and {ASSISTANT} and {uSeR}';
       const result = replacePromptPlaceholders(text, userName, assistantName);
