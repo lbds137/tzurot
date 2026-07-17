@@ -920,6 +920,64 @@ export class UserClient {
   /**
    * @safeRead Server-side has no observable mutation — safe to cache client-side.
    */
+  async listPersonalityAliases(slug: string): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.listPersonalityAliases.output>>> {
+    const fullPath = `/api/user/personality/${encodeURIComponent(slug)}/aliases`;
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'GET',
+      path: fullPath,
+      headers: {
+        'X-User-Id': this.actor,
+        'X-User-Username': encodeURIComponent(this.user.username),
+        'X-User-DisplayName': encodeURIComponent(this.user.displayName),
+        'X-User-Is-Bot': String(this.user.isBot),
+      },
+      outputSchema: ROUTE_MANIFEST.listPersonalityAliases.output,
+    });
+  }
+
+  async addPersonalityAlias(slug: string, input: z.infer<typeof ROUTE_MANIFEST.addPersonalityAlias.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.addPersonalityAlias.output>>> {
+    const fullPath = `/api/user/personality/${encodeURIComponent(slug)}/aliases`;
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'POST',
+      path: fullPath,
+      headers: {
+        'X-User-Id': this.actor,
+        'X-User-Username': encodeURIComponent(this.user.username),
+        'X-User-DisplayName': encodeURIComponent(this.user.displayName),
+        'X-User-Is-Bot': String(this.user.isBot),
+      },
+      body: input,
+      outputSchema: ROUTE_MANIFEST.addPersonalityAlias.output,
+    });
+  }
+
+  /**
+   * @idempotent Replaying the exact same request lands the same final state — safe to retry on network failure.
+   */
+  async removePersonalityAlias(slug: string, alias: string): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.removePersonalityAlias.output>>> {
+    const fullPath = `/api/user/personality/${encodeURIComponent(slug)}/aliases/${encodeURIComponent(alias)}`;
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'DELETE',
+      path: fullPath,
+      headers: {
+        'X-User-Id': this.actor,
+        'X-User-Username': encodeURIComponent(this.user.username),
+        'X-User-DisplayName': encodeURIComponent(this.user.displayName),
+        'X-User-Is-Bot': String(this.user.isBot),
+      },
+      outputSchema: ROUTE_MANIFEST.removePersonalityAlias.output,
+    });
+  }
+
+  /**
+   * @safeRead Server-side has no observable mutation — safe to cache client-side.
+   */
   async listPersonas(): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.listPersonas.output>>> {
     const fullPath = '/api/user/persona';
     return callGateway({

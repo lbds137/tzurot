@@ -100,6 +100,20 @@
       ]
     },
     {
+      "id": "client:api-gateway:addPersonalityAlias",
+      "kind": "http-route",
+      "producer": "client",
+      "consumer": "api-gateway",
+      "schemaRef": "POST /personality/:slug/aliases",
+      "mechanism": "route-conformance",
+      "requiredTiers": [
+        "component"
+      ],
+      "actualTiers": [
+        "component"
+      ]
+    },
+    {
       "id": "client:api-gateway:aiConfirmDelivery",
       "kind": "http-route",
       "producer": "client",
@@ -1402,6 +1416,20 @@
       ]
     },
     {
+      "id": "client:api-gateway:listPersonalityAliases",
+      "kind": "http-route",
+      "producer": "client",
+      "consumer": "api-gateway",
+      "schemaRef": "GET /personality/:slug/aliases",
+      "mechanism": "route-conformance",
+      "requiredTiers": [
+        "component"
+      ],
+      "actualTiers": [
+        "component"
+      ]
+    },
+    {
       "id": "client:api-gateway:listPersonaOverrides",
       "kind": "http-route",
       "producer": "client",
@@ -1743,6 +1771,20 @@
       "producer": "client",
       "consumer": "api-gateway",
       "schemaRef": "DELETE /denylist/:type/:discordId/:scope/:scopeId",
+      "mechanism": "route-conformance",
+      "requiredTiers": [
+        "component"
+      ],
+      "actualTiers": [
+        "component"
+      ]
+    },
+    {
+      "id": "client:api-gateway:removePersonalityAlias",
+      "kind": "http-route",
+      "producer": "client",
+      "consumer": "api-gateway",
+      "schemaRef": "DELETE /personality/:slug/aliases/:alias",
       "mechanism": "route-conformance",
       "requiredTiers": [
         "component"

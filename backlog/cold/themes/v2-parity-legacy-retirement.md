@@ -13,7 +13,7 @@ _Focus: disposition every v2 capability (build / already-have / deliberately-dro
 
 ### Phase 1 — Alias management (STARTED 2026-07-17, first parity build)
 
-- [ ] `/character alias add|remove|list` + gateway alias CRUD routes — surfaces + manages the v2-migrated `personality_aliases` rows that today resolve mentions invisibly (the `@Lila` mystery). Discharges the 2026-07-17 follow-ups row at ship.
+- [x] BUILT 2026-07-17 (same session; PR pending merge): `/character alias` (action: list|add|remove) + gateway alias CRUD routes — surfaces + manages the v2-migrated `personality_aliases` rows that today resolve mentions invisibly (the `@Lila` mystery). Discharges the 2026-07-17 follow-ups row at ship.
 
 ### Phase N — derived from the Phase-0 matrix
 
