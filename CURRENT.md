@@ -18,7 +18,7 @@
 
 **Remaining post-release items**:
 
-1. **Delete the THREE one-off scripts** (`scripts/src/db/backfillNotifyOptedIn.ts`, `cleanupEmptyPersonalityConfigs.ts`, `flipTransient50278.ts`) — all prod runs confirmed; small code PR, carrying the `prisma format` alignment rider from #1689 r1.
+1. ~~Delete the three one-off scripts~~ ✅ **DONE — #1691 merged 2026-07-17** (all prod runs confirmed; `prisma format` rider included).
 2. **Owner website steps**: prod website service exists; tzurot.org/docs now live — verify on prod domain. **Identity verification ✅ DONE 2026-07-17 — BOTH dev and prod apps verified** (legitimacy arc closed; ToS/privacy URLs were among the verify page's required criteria, so they're necessarily set on both apps). Legitimacy umbrella entry removed from the board 2026-07-17 after verification sweep; only the quarantine appeal (watch below) remains open.
 3. ~~Blast completion tally~~ **LANDED 04:54 UTC**: `sent=81 failedPermanent=0 failedTransient=26 optedOut=0` — zero closed-DM permanents/auto-disables; all 26 "transients" are discord-50278 (recipient left every shared server — durable, misclassified; Quick Win filed to reclassify as permanent). 81 of 81 REACHABLE deliberate users delivered. Ops embed should be in the feedback channel — owner eyeball pending.
 4. beta.166 demote fired extra webhooks — confirmed absorbed; no action.
