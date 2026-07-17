@@ -211,7 +211,7 @@ export class MessageContextBuilder {
     logger.info(
       {
         channelId: message.channel.id,
-        discordMessages: fetchResult.filteredCount,
+        discordMessages: fetchResult.keptCount,
         dbMessages: history.length,
         totalMerged: mergedHistory.length,
       },

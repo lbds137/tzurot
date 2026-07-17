@@ -124,7 +124,7 @@ export class DiscordChannelFetcher {
         {
           channelId: channel.id,
           fetchedCount: discordMessages.size,
-          filteredCount: processResult.messages.length,
+          keptCount: processResult.messages.length,
           imageAttachmentCount: processResult.imageAttachments.length,
           participantGuildInfoCount: participantCount,
           extendedContextUserCount: userCount,
@@ -136,7 +136,7 @@ export class DiscordChannelFetcher {
       return {
         messages: processResult.messages,
         fetchedCount: discordMessages.size,
-        filteredCount: processResult.messages.length,
+        keptCount: processResult.messages.length,
         rawMessages: discordMessages, // For opportunistic sync
         imageAttachments:
           processResult.imageAttachments.length > 0 ? processResult.imageAttachments : undefined,
@@ -159,7 +159,7 @@ export class DiscordChannelFetcher {
       return {
         messages: [],
         fetchedCount: 0,
-        filteredCount: 0,
+        keptCount: 0,
       };
     }
   }

@@ -63,6 +63,7 @@ const sections: { emoji: string; title: string; body: string; href: string; exte
               {s.emoji}
             </span>
             {s.title}
+            {s.external === true && <span class="sr-only"> (opens in new tab)</span>}
           </h2>
           <p>{s.body}</p>
         </a>
