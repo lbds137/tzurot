@@ -40,6 +40,22 @@ After #1671 (release-DM cleanup) merges, the owner wants a **final confidence-ch
 
 **OWNER-APPROVED (2026-07-16): prod owner-first DM staging** — replaces the missing dev smoke. Sequence is load-bearing (allowlist gates eligibility at ENQUEUE; a completed announcement can never retro-widen — if the real release announces while the allowlist is set, the blast is permanently one-person): ① release merges → prod deploys, **NO GitHub webhook created yet** ② set `OUTBOUND_DM_ALLOWLIST=<owner discord id>` on prod api-gateway (redeploy settles) ③ `/admin broadcast` with a throwaway test label → owner verifies DM landing + footer + `/notifications cleanup` by hand ④ **CLEAR the allowlist** (redeploy settles; verify via `railway variables` AND an `/admin broadcast` dry-run showing ~268, not 1) ⑤ only then create the GitHub webhook + publish the release → real self-announce to all opted-in users. Bonus: the owner's test DM becomes their standing prior DM, so the real announcement live-verifies #1671's delete-previous path.
 
+## beta.167 release runbook (post-blast-radius-incident release — 2026-07-16/17)
+
+**Scope (owner-picked)**: #1679 blast-radius fix (merged; dev migrated + dev backfill RUN: 117 stamped / 269 total / 152 passive stay null) · #1678 Astro 7 (merged; clears the 10 default-branch alerts at release) · #1680 dep-latest rule (merged) · #1681 memory edge trio (in review) · DB-hygiene PR (column drop + empty-anchor cleanup script — this branch) · PR-5 reconcile hardening (next build, plan-mode).
+
+**At the cut (order matters)**:
+
+1. Release notes MUST disclose: everyone's `notifyLevel` reset to `major` (previously-customized users must re-run `/notifications level`), and the eligibility gate (only deliberate-use evidence gets release DMs).
+2. `pnpm ops release:premigrate --allow-destructive` — carries the additive `notify_opted_in_at` migration AND the destructive `drop_vestigial_llmconfig_columns` (safe without maintenance: prod code post-#1659 never reads the dropped columns).
+3. Merge release PR → prod deploys.
+4. **Prod backfill** (`scripts/src/db/backfillNotifyOptedIn.ts`): dry-run first → show owner counts (expect: nonzero opted-out from post-blast `/notifications disable` runs) → explicit owner go → real run. Uses the flag-free wrapper trick (`ops run` eats bare flags).
+5. **Prod empty-anchor cleanup** (`scripts/src/db/cleanupEmptyPersonalityConfigs.ts`): same dry-run → counts → owner go → run (owner pre-approved 2026-07-15, counts-first was the condition).
+6. Delete both one-off scripts in a follow-up commit once prod runs are confirmed.
+7. The release self-announces via the webhook — this blast is the runtime verification of #1679's gate (expect ~117-scale recipients, not ~269).
+
+**Dev state**: notify migration applied + backfill run 2026-07-16 evening; column-drop migration applies to dev at this PR's merge (`pnpm ops db:migrate --env dev`), then dev run of the cleanup script.
+
 ## Next Session Goal (sequenced — fresh session starts here)
 
 0. **`services/website` (Astro, tzurot.org) — ✅ SHIPPED #1663 2026-07-16** (+ #1664 docs-placement audience-check rule). Brand-per-env (`SITE_BRAND`: dev=Rotzot / prod=Tzurot), hero + embed cards, `docs/legal` glob-loaded single-source, nginx runner, docker-build-smoke leg, eslint-plugin-astro coverage. Legal docs finalized IN EFFECT (2026-07-16) incl. the AI-training disclosure (system OpenRouter key: all four training/publish toggles OFF, verified; z.ai API terms: no training absent explicit agreement; BYOK = user's own settings + shared-channel disclosure). 3 review rounds + 1 infra-flake rerun (SIGABRT in packages coverage — rerun green). **OWNER NEXT (the working line): ① Railway dev env → new service `website`** (repo branch `develop`, Dockerfile `services/website/Dockerfile`, service settings mirror bot-client's; vars: `SITE_BRAND=rotzot`; check `RAILWAY_PUBLIC_DOMAIN` reaches the BUILD — graceful cosmetic fallback if not) → **preview the Rotzot site on the generated domain (phone OK)** → design feedback round if wanted → ② release cut (explicit approval; carries #1653–#1664) → ③ prod service `website` (branch `main`, `SITE_BRAND=tzurot`) + `railway domain tzurot.org` + Squarespace DNS → ④ ToS/privacy URLs on BOTH Discord apps (names freeze post-verification — confirm final) → ⑤ identity verification. Website-polish follow-up pair filed (health-block headers, fs.allow narrowing — next site touch).

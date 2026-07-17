@@ -85,12 +85,7 @@ describe('Admin LLM config response contract', () => {
   const llmDetailRow = {
     ...llmListRow,
     advancedParameters: { temperature: 0.7, reasoning: { effort: 'high', max_tokens: 8000 } },
-    maxMessages: 50,
-    maxAge: null,
-    maxImages: 10,
     contextWindowTokens: 8000,
-    memoryScoreThreshold: { toNumber: () => 0.5 },
-    memoryLimit: 20,
   };
 
   let app: Express;

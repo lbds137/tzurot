@@ -126,12 +126,7 @@ CREATE TABLE "llm_configs" (
     "provider" VARCHAR(20) NOT NULL DEFAULT 'openrouter',
     "model" VARCHAR(255) NOT NULL,
     "advanced_parameters" JSONB,
-    "memory_score_threshold" DECIMAL(3,2) NOT NULL DEFAULT 0.5,
-    "memory_limit" INTEGER NOT NULL DEFAULT 20,
     "context_window_tokens" INTEGER NOT NULL DEFAULT 131072,
-    "max_messages" INTEGER NOT NULL DEFAULT 50,
-    "max_age" INTEGER,
-    "max_images" INTEGER NOT NULL DEFAULT 10,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
 

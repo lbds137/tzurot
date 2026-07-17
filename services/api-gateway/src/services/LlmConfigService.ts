@@ -284,9 +284,9 @@ export class LlmConfigService {
           provider: data.provider ?? LLM_CONFIG_DEFAULTS.provider,
           model: data.model.trim(),
           advancedParameters: data.advancedParameters ?? undefined,
-          // Memory + context-limit columns (memoryScoreThreshold/memoryLimit,
-          // maxMessages/maxAge/maxImages) are retired — they come from the config
-          // cascade now; the columns keep their DB defaults until they're dropped.
+          // Memory + context-limit settings live in the config cascade
+          // (configOverrides), not on this row; contextWindowTokens stays —
+          // it's coupled to the model choice.
           contextWindowTokens: data.contextWindowTokens ?? LLM_CONFIG_DEFAULTS.contextWindowTokens,
         },
         select: LLM_CONFIG_DETAIL_SELECT,
