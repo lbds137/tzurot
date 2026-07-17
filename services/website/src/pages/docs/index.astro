@@ -1,0 +1,132 @@
+---
+import Base from '../../layouts/Base.astro';
+import { BRAND, GITHUB_URL } from '../../brand';
+
+const description = `Documentation for the ${BRAND.name} Discord bot — getting started, the full command reference, and the policies that govern it.`;
+
+const sections: { emoji: string; title: string; body: string; href: string; external?: boolean }[] =
+  [
+    {
+      emoji: '🚀',
+      title: 'Getting started',
+      body: 'Your first conversation, making characters your own, memory, voice, and bringing your own key.',
+      href: '/docs/getting-started',
+    },
+    {
+      emoji: '📖',
+      title: 'Command reference',
+      body: 'Every slash command the bot exposes — characters, personas, voice, memory, presets, settings.',
+      href: '/docs/commands',
+    },
+    {
+      emoji: '📜',
+      title: 'Terms of Service',
+      body: 'The rules that govern use of the bot.',
+      href: '/terms',
+    },
+    {
+      emoji: '🔐',
+      title: 'Privacy Policy',
+      body: 'What is stored, for how long, where it goes, and the controls you have over it.',
+      href: '/privacy',
+    },
+    {
+      emoji: '🌱',
+      title: 'Source code',
+      body: 'MIT-licensed end to end — the deeper technical documentation lives with the code.',
+      href: GITHUB_URL,
+      external: true,
+    },
+  ];
+---
+
+<Base title={`Docs — ${BRAND.name}`} description={description} path="/docs">
+  <section class="container docs-head">
+    <h1 class="gradient-text">Documentation</h1>
+    <p>
+      Everything you need to use {BRAND.name} — start with the guide, keep the command reference
+      handy.
+    </p>
+  </section>
+
+  <section class="container docs-grid" aria-label="Documentation sections">
+    {
+      sections.map(s => (
+        <a
+          class="card doc-card"
+          href={s.href}
+          target={s.external === true ? '_blank' : undefined}
+          rel={s.external === true ? 'noopener noreferrer' : undefined}
+        >
+          <h2>
+            <span class="card-emoji" aria-hidden="true">
+              {s.emoji}
+            </span>
+            {s.title}
+          </h2>
+          <p>{s.body}</p>
+        </a>
+      ))
+    }
+  </section>
+</Base>
+
+<style>
+  .docs-head {
+    padding-block: 3rem 0.5rem;
+  }
+
+  .docs-head h1 {
+    font-size: clamp(2rem, 5vw, 2.6rem);
+    margin-bottom: 0.5rem;
+  }
+
+  .docs-head p {
+    color: var(--text-muted);
+    max-width: 42rem;
+  }
+
+  .docs-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(20rem, 100%), 1fr));
+    gap: 1.25rem;
+    padding-block: 2rem 3rem;
+  }
+
+  /* Same embed-style card as the landing features, as a clickable block. */
+  .doc-card {
+    display: block;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--violet);
+    border-radius: var(--radius);
+    padding: 1.4rem 1.5rem;
+    color: inherit;
+    text-decoration: none;
+    transition:
+      border-color 160ms ease,
+      box-shadow 160ms ease;
+  }
+
+  .doc-card:hover {
+    border-left-color: var(--gold);
+    box-shadow: 0 4px 32px rgb(0 0 0 / 0.35);
+  }
+
+  .doc-card h2 {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin: 0 0 0.5rem;
+    font-size: 1.2rem;
+  }
+
+  .card-emoji {
+    font-size: 1.35rem;
+  }
+
+  .doc-card p {
+    margin: 0;
+    color: var(--text-muted);
+  }
+</style>

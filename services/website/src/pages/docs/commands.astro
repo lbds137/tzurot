@@ -1,0 +1,17 @@
+---
+import { getEntry } from 'astro:content';
+import Prose from '../../layouts/Prose.astro';
+import { BRAND } from '../../brand';
+
+const entry = await getEntry('reference', 'commands');
+if (!entry?.body) {
+  throw new Error('docs/commands.md is missing from the content collection');
+}
+---
+
+<Prose
+  title={`Command Reference — ${BRAND.name}`}
+  description={`Every slash command the ${BRAND.name} Discord bot exposes, and what it does.`}
+  path="/docs/commands"
+  body={entry.body}
+/>
