@@ -26,14 +26,7 @@ export async function handleAutocomplete(interaction: AutocompleteInteraction): 
   await runGuardedAutocomplete(interaction, logger, async () => {
     // Determine if we should only show owned characters.
     // getSubcommand(false) returns string | null — null when focused option isn't in a subcommand.
-    const ownedOnlySubcommands = [
-      'edit',
-      'avatar',
-      'avatar-clear',
-      'voice',
-      'voice-clear',
-      'alias',
-    ];
+    const ownedOnlySubcommands = ['edit', 'avatar', 'avatar-clear', 'voice', 'voice-clear'];
     const ownedOnly = subcommand !== null && ownedOnlySubcommands.includes(subcommand);
 
     const handled = await handlePersonalityAutocomplete(interaction, {

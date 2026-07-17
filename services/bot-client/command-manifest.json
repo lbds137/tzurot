@@ -425,47 +425,6 @@
           },
           {
             "type": 1,
-            "name": "alias",
-            "description": "Manage @mention aliases for a character you own",
-            "options": [
-              {
-                "type": 3,
-                "choices": [
-                  {
-                    "name": "List",
-                    "value": "list"
-                  },
-                  {
-                    "name": "Add",
-                    "value": "add"
-                  },
-                  {
-                    "name": "Remove",
-                    "value": "remove"
-                  }
-                ],
-                "name": "action",
-                "description": "What to do with aliases",
-                "required": true
-              },
-              {
-                "autocomplete": true,
-                "type": 3,
-                "name": "character",
-                "description": "Character to update",
-                "required": true
-              },
-              {
-                "type": 3,
-                "name": "alias",
-                "description": "The alias text (required for Add and Remove)",
-                "required": false,
-                "max_length": 100
-              }
-            ]
-          },
-          {
-            "type": 1,
             "name": "browse",
             "description": "Browse and search characters",
             "options": [

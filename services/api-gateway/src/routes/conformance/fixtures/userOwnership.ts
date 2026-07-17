@@ -72,33 +72,6 @@ export const userOwnershipFixtures: Record<string, ConformanceEntry> = {
     params: { slug: 'conf-delete-personality' },
   },
 
-  // ---- Personality aliases ------------------------------------------------
-
-  listPersonalityAliases: {
-    seed: async ctx => {
-      await createPersonality(ctx, 'conf-alias-list');
-    },
-    params: { slug: 'conf-alias-list' },
-  },
-
-  addPersonalityAlias: {
-    seed: async ctx => {
-      await createPersonality(ctx, 'conf-alias-add');
-    },
-    params: { slug: 'conf-alias-add' },
-    body: { alias: 'conf-alias-add-nickname' },
-  },
-
-  removePersonalityAlias: {
-    seed: async ctx => {
-      await createPersonality(ctx, 'conf-alias-remove');
-      await ctx.call('post', '/api/user/personality/conf-alias-remove/aliases', {
-        alias: 'conf-alias-remove-nickname',
-      });
-    },
-    params: { slug: 'conf-alias-remove', alias: 'conf-alias-remove-nickname' },
-  },
-
   // ---- Persona CRUD -------------------------------------------------------
 
   listPersonas: {

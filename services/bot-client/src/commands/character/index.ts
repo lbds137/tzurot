@@ -9,7 +9,13 @@
  * 4. On submit → Dashboard refreshes with updated data
  */
 
-import { SlashCommandBuilder, type AutocompleteInteraction } from 'discord.js';
+import {
+  SlashCommandBuilder,
+  type ModalSubmitInteraction,
+  type AutocompleteInteraction,
+  type StringSelectMenuInteraction,
+  type ButtonInteraction,
+} from 'discord.js';
 import { getConfig } from '@tzurot/common-types/config/config';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { defineCommand } from '../../utils/defineCommand.js';
@@ -25,20 +31,37 @@ import { handleImport } from './import.js';
 import { handleExport } from './export.js';
 import { handleTemplate } from './template.js';
 import { handleView } from './view.js';
-import { handleAlias } from './alias.js';
 import { handleCreate } from './create.js';
 import { handleEdit } from './edit.js';
 import { handleAvatar } from './avatar.js';
 import { handleVoice } from './voice.js';
-import { handleBrowse } from './browse.js';
-import { handleChat, handleRandom, handleChimeIn } from './chat.js';
-import { handleSettings } from './settings.js';
-import { handleOverrides } from './overrides.js';
 import {
-  handleSelectMenu,
-  handleButton,
-  handleCharacterModal as handleModal,
-} from './interactionRouting.js';
+  handleBrowse,
+  handleBrowsePagination,
+  handleBrowseSelect,
+  isCharacterBrowseInteraction,
+  isCharacterBrowseSelectInteraction,
+} from './browse.js';
+import { handleChat, handleRandom, handleChimeIn } from './chat.js';
+import {
+  handleSettings,
+  handleCharacterSettingsSelectMenu,
+  handleCharacterSettingsButton,
+  handleCharacterSettingsModal,
+  isCharacterSettingsInteraction,
+} from './settings.js';
+import {
+  handleOverrides,
+  handleCharacterOverridesSelectMenu,
+  handleCharacterOverridesButton,
+  handleCharacterOverridesModal,
+  isCharacterOverridesInteraction,
+} from './overrides.js';
+import {
+  handleModalSubmit,
+  handleSelectMenu as handleDashboardSelectMenu,
+  handleButton as handleDashboardButton,
+} from './dashboard.js';
 
 const logger = createLogger('character-command');
 
@@ -75,7 +98,6 @@ function createCharacterRouter(): (context: SafeCommandContext) => Promise<void>
         chat: (ctx: DeferredCommandContext) => handleChat(ctx, config),
         random: (ctx: DeferredCommandContext) => handleRandom(ctx, config),
         'chime-in': (ctx: DeferredCommandContext) => handleChimeIn(ctx, config),
-        alias: (ctx: DeferredCommandContext) => handleAlias(ctx),
         settings: (ctx: DeferredCommandContext) => handleSettings(ctx, config),
         overrides: (ctx: DeferredCommandContext) => handleOverrides(ctx, config),
       },
@@ -97,6 +119,87 @@ async function execute(context: SafeCommandContext): Promise<void> {
  */
 async function autocomplete(interaction: AutocompleteInteraction): Promise<void> {
   await handleAutocomplete(interaction);
+}
+
+/**
+ * Handle select menu interactions for character commands
+ * Routes to browse select, settings dashboard, or edit dashboard based on customId prefix
+ */
+async function handleSelectMenu(interaction: StringSelectMenuInteraction): Promise<void> {
+  const config = getConfig();
+
+  // Check if it's a browse select interaction (user selected character from browse list)
+  if (isCharacterBrowseSelectInteraction(interaction.customId)) {
+    await handleBrowseSelect(interaction, config);
+    return;
+  }
+
+  // Check if it's a settings dashboard interaction
+  if (isCharacterSettingsInteraction(interaction.customId)) {
+    await handleCharacterSettingsSelectMenu(interaction);
+    return;
+  }
+
+  // Check if it's an overrides dashboard interaction
+  if (isCharacterOverridesInteraction(interaction.customId)) {
+    await handleCharacterOverridesSelectMenu(interaction);
+    return;
+  }
+
+  // Otherwise route to character edit dashboard
+  await handleDashboardSelectMenu(interaction);
+}
+
+/**
+ * Handle button interactions for character commands
+ * Routes to browse pagination, settings dashboard, or edit dashboard based on customId
+ */
+async function handleButton(interaction: ButtonInteraction): Promise<void> {
+  const config = getConfig();
+
+  // Handle browse pagination
+  if (isCharacterBrowseInteraction(interaction.customId)) {
+    await handleBrowsePagination(interaction, config);
+    return;
+  }
+
+  // Check if it's a settings dashboard interaction
+  if (isCharacterSettingsInteraction(interaction.customId)) {
+    await handleCharacterSettingsButton(interaction);
+    return;
+  }
+
+  // Check if it's an overrides dashboard interaction
+  if (isCharacterOverridesInteraction(interaction.customId)) {
+    await handleCharacterOverridesButton(interaction);
+    return;
+  }
+
+  // Otherwise route to character edit dashboard
+  await handleDashboardButton(interaction);
+}
+
+/**
+ * Handle modal interactions for character commands
+ * Routes to settings dashboard or edit dashboard based on customId prefix
+ */
+async function handleModal(interaction: ModalSubmitInteraction): Promise<void> {
+  const config = getConfig();
+
+  // Check if it's a settings dashboard modal
+  if (isCharacterSettingsInteraction(interaction.customId)) {
+    await handleCharacterSettingsModal(interaction);
+    return;
+  }
+
+  // Check if it's an overrides dashboard modal
+  if (isCharacterOverridesInteraction(interaction.customId)) {
+    await handleCharacterOverridesModal(interaction);
+    return;
+  }
+
+  // Otherwise route to character edit dashboard
+  await handleModalSubmit(interaction, config);
 }
 
 /**
@@ -148,35 +251,6 @@ export default defineCommand({
             .setDescription('Character to view')
             .setRequired(true)
             .setAutocomplete(true)
-        )
-    )
-    .addSubcommand(subcommand =>
-      subcommand
-        .setName('alias')
-        .setDescription('Manage @mention aliases for a character you own')
-        .addStringOption(option =>
-          option
-            .setName('action')
-            .setDescription('What to do with aliases')
-            .setRequired(true)
-            .addChoices(
-              { name: 'List', value: 'list' },
-              { name: 'Add', value: 'add' },
-              { name: 'Remove', value: 'remove' }
-            )
-        )
-        .addStringOption(option =>
-          option
-            .setName('character')
-            .setDescription(CHARACTER_TO_UPDATE_DESC)
-            .setRequired(true)
-            .setAutocomplete(true)
-        )
-        .addStringOption(option =>
-          option
-            .setName('alias')
-            .setDescription('The alias text (required for Add and Remove)')
-            .setMaxLength(100)
         )
     )
     .addSubcommand(subcommand =>
