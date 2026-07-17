@@ -262,6 +262,23 @@ describe('POST /internal/release-broadcast/:releaseId/deliveries', () => {
     });
   });
 
+  it('does NOT auto-disable when the previous delivery failed TRANSIENT (streak needs two permanents)', async () => {
+    // Pins the interplay with historical misclassified rows: a failed_transient
+    // row between two permanents resets the streak, so a user whose prior
+    // failures were recorded transient needs two fresh permanent releases to
+    // quiesce unless the old rows are flipped to failed_permanent.
+    mockPrisma.releaseDeliveryLog.findUnique.mockResolvedValueOnce({ userId: USER_A });
+    mockPrisma.releaseDeliveryLog.findFirst.mockResolvedValueOnce({ status: 'failed_transient' });
+    const handler = handleReleaseBroadcastDeliveries(makeDeps());
+    const { req, res } = createMockReqRes({
+      results: [{ deliveryLogId: LOG_A, status: 'failed_permanent', errorCode: '50278' }],
+    });
+
+    await handler(req, res, vi.fn());
+
+    expect(mockPrisma.user.update).not.toHaveBeenCalled();
+  });
+
   it("does NOT auto-disable on a user's very first delivery failure (no history at all)", async () => {
     mockPrisma.releaseDeliveryLog.findUnique.mockResolvedValueOnce({ userId: USER_A });
     mockPrisma.releaseDeliveryLog.findFirst.mockResolvedValueOnce(null);

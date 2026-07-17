@@ -24,6 +24,11 @@ describe('classifyDmError', () => {
     expect(result).toEqual({ kind: 'permanent', code: 10013 });
   });
 
+  it('classifies 50278 (no mutual guilds) as permanent', () => {
+    const result = classifyDmError(makeDiscordError(50278));
+    expect(result).toEqual({ kind: 'permanent', code: 50278 });
+  });
+
   it('classifies other Discord API errors as transient', () => {
     const result = classifyDmError(makeDiscordError(0, 500));
     expect(result.kind).toBe('transient');
