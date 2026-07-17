@@ -6,7 +6,11 @@
 
 ## Unreleased on Develop
 
-- Post-release doc commits only (backlog rows, FIFO design-constraint note in release-notifications.md).
+- **#1687** `.claude/` config tidy (legacy commands deleted; eslint hook resurrected — matcher `Edit|Write|MultiEdit` + stdin JSON; session-start grounding/recovery hook — verify live next session start + next compaction).
+- **#1688** discord-50278 → permanent DM failure class (+ streak-reset pinning test + flip script). **Prod data flip RUN 2026-07-17: 122 rows / 96 users, verified 0 remaining.**
+- **#1689** `notifyAutoDisabledAt` re-entry mechanism (deliberate use lifts infrastructure auto-disables; explicit opt-outs untouchable). Additive migration — applied to dev; prod rides release premigrate.
+- **#1690** BYOK rotation machinery + secret-rotation ledger/nag (4 review rounds). Additive migration — applied to dev; **prod: premigrate at release, then seed the prod ledger** (`secrets:mark-rotated` × the 4 self-minted names). Dev ledger seeded 2026-07-17.
+- Doc commits: board hygiene (3 verified-done entries closed), secrets audit trail (local), follow-ups.
 
 ## beta.167 post-release state (2026-07-17)
 
@@ -14,7 +18,7 @@
 
 **Remaining post-release items**:
 
-1. **Delete the two one-off scripts** (`scripts/src/db/backfillNotifyOptedIn.ts`, `cleanupEmptyPersonalityConfigs.ts`) — prod runs confirmed; needs a small code PR (scripts are code, direct-commit exception doesn't apply).
+1. **Delete the THREE one-off scripts** (`scripts/src/db/backfillNotifyOptedIn.ts`, `cleanupEmptyPersonalityConfigs.ts`, `flipTransient50278.ts`) — all prod runs confirmed; small code PR, carrying the `prisma format` alignment rider from #1689 r1.
 2. **Owner website steps**: prod website service exists; tzurot.org/docs now live — verify on prod domain. **Identity verification ✅ DONE 2026-07-17 — BOTH dev and prod apps verified** (legitimacy arc closed; ToS/privacy URLs were among the verify page's required criteria, so they're necessarily set on both apps). Legitimacy umbrella entry removed from the board 2026-07-17 after verification sweep; only the quarantine appeal (watch below) remains open.
 3. ~~Blast completion tally~~ **LANDED 04:54 UTC**: `sent=81 failedPermanent=0 failedTransient=26 optedOut=0` — zero closed-DM permanents/auto-disables; all 26 "transients" are discord-50278 (recipient left every shared server — durable, misclassified; Quick Win filed to reclassify as permanent). 81 of 81 REACHABLE deliberate users delivered. Ops embed should be in the feedback channel — owner eyeball pending.
 4. beta.166 demote fired extra webhooks — confirmed absorbed; no action.
