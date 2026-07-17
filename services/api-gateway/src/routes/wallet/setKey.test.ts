@@ -351,6 +351,20 @@ describe('POST /wallet/set', () => {
       });
     });
 
+    it('lifts an infrastructure auto-disable on BYOK setup (flag-guarded, never touches opt-outs)', async () => {
+      const { req, res } = createMockReqRes({
+        provider: AIProvider.OpenRouter,
+        apiKey: 'sk-valid-key',
+      });
+
+      await callHandler(mockPrisma, req, res);
+
+      expect(mockPrisma.user.updateMany).toHaveBeenCalledWith({
+        where: { id: 'user-uuid-123', notifyAutoDisabledAt: { not: null } },
+        data: { notifyEnabled: true, notifyAutoDisabledAt: null },
+      });
+    });
+
     it('still reports success when the stamp write fails (best-effort bookkeeping)', async () => {
       mockPrisma.user.updateMany.mockRejectedValueOnce(new Error('db blip'));
       const { req, res } = createMockReqRes({

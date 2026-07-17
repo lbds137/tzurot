@@ -34,6 +34,7 @@ CREATE TABLE "users" (
     "notify_enabled" BOOLEAN NOT NULL DEFAULT true,
     "notify_level" "notify_level" NOT NULL DEFAULT 'major',
     "notify_opted_in_at" TIMESTAMP(3),
+    "notify_auto_disabled_at" TIMESTAMP(3),
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
 
