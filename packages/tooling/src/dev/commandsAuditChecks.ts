@@ -59,6 +59,10 @@ const KNOWN_SUBCOMMAND_NAMES = new Set<string>([
   'template',
   // /notifications threshold verb (set the minimum release weight worth a DM)
   'level',
+  // /admin release-notification blast (deliberate verb: pushes the release DM
+  // to opted-in users; not a rename candidate — "send"/"notify" would collide
+  // with nothing and describe less)
+  'broadcast',
   // /character chat-mode verbs (chat / random / chime-in) — deliberate, established
   'chat',
   'random',

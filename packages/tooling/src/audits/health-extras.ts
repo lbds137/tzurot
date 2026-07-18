@@ -31,9 +31,21 @@ import {
 import { parseMutationBaseline } from '../test/mutation-check.js';
 import { scanDocsOrphans, type DocsOrphanResult } from './docs-orphan-scan.js';
 
-export type SecuritySurface =
-  | { available: true; dependabotPrs: number; dependabotAlerts: number }
-  | { available: false; reason: string };
+/** One security metric, degraded independently of its siblings. */
+export type SecurityCount =
+  { available: true; count: number } | { available: false; reason: string };
+
+/**
+ * Per-metric availability (not all-or-nothing): in CI, GITHUB_TOKEN can list
+ * Dependabot PRs but structurally CANNOT read the Dependabot-alerts API — no
+ * workflow `permissions:` scope grants it (`security-events` covers code/
+ * secret scanning only). A shared try/catch would let the always-403 alerts
+ * call discard the PR count that succeeds.
+ */
+export interface SecuritySurface {
+  dependabotPrs: SecurityCount;
+  dependabotAlerts: SecurityCount;
+}
 
 /** Budget for each gh subprocess — a hung gh must degrade, not stall health. */
 const GH_TIMEOUT_MS = 30 * 1000;
@@ -71,14 +83,24 @@ function describeGhFailure(error: unknown): string {
   return error instanceof Error ? error.message.split('\n')[0] : String(error);
 }
 
+/** Run one gh count, degrading to an unavailable-with-reason on any throw. */
+function safeGhCount(args: string[]): SecurityCount {
+  try {
+    return { available: true, count: runGhCount(args) };
+  } catch (error) {
+    return { available: false, reason: describeGhFailure(error) };
+  }
+}
+
 /**
- * Count open Dependabot PRs + alerts. Never throws — some environments
- * (local checkouts without gh auth) legitimately can't answer, and the
- * security section must degrade rather than break the whole report.
+ * Count open Dependabot PRs + alerts, each degrading independently. Never
+ * throws — some environments (local checkouts without gh auth, CI tokens
+ * without alerts access) legitimately can't answer one or both, and the
+ * security section must degrade per-metric rather than break the report.
  */
 export function collectSecuritySurface(): SecuritySurface {
-  try {
-    const dependabotPrs = runGhCount([
+  return {
+    dependabotPrs: safeGhCount([
       'pr',
       'list',
       '--author',
@@ -89,17 +111,14 @@ export function collectSecuritySurface(): SecuritySurface {
       'number',
       '--jq',
       'length',
-    ]);
-    const dependabotAlerts = runGhCount([
+    ]),
+    dependabotAlerts: safeGhCount([
       'api',
       'repos/{owner}/{repo}/dependabot/alerts',
       '--jq',
       '[.[] | select(.state=="open")] | length',
-    ]);
-    return { available: true, dependabotPrs, dependabotAlerts };
-  } catch (error) {
-    return { available: false, reason: describeGhFailure(error) };
-  }
+    ]),
+  };
 }
 
 /**
@@ -212,6 +231,13 @@ export function collectHealthExtras(rootDir: string): HealthExtras {
   return { security: collectSecuritySurface(), marginBullets, docsOrphans };
 }
 
+/** Render one security metric as its report bullet. */
+function securityBullet(label: string, metric: SecurityCount): string {
+  return metric.available
+    ? `- ${label}: ${metric.count}`
+    : `- ${label}: unavailable (${metric.reason})`;
+}
+
 /**
  * Render the extras as markdown-flavored plain text, matching the section
  * shape of `formatHealthReport` (H3 sections after the tool bullets).
@@ -220,12 +246,8 @@ export function formatHealthExtras(extras: HealthExtras): string {
   const lines: string[] = [];
 
   lines.push('### Security surface (report-only)');
-  if (extras.security.available) {
-    lines.push(`- Dependabot PRs open: ${extras.security.dependabotPrs}`);
-    lines.push(`- Dependabot alerts open: ${extras.security.dependabotAlerts}`);
-  } else {
-    lines.push(`- security: unavailable (${extras.security.reason})`);
-  }
+  lines.push(securityBullet('Dependabot PRs open', extras.security.dependabotPrs));
+  lines.push(securityBullet('Dependabot alerts open', extras.security.dependabotAlerts));
 
   lines.push('');
   lines.push('### Ratchet margins (report-only)');
