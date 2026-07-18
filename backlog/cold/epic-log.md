@@ -23,6 +23,11 @@ Implementation plan council-passed 2026-07-07 (GLM 5.2 · Kimi K2.7-code · Qwen
 | D3d (#1560) | admin/models/history/help/deny families (~17 files); markdown-escaping + presence Redis-failure coverage; ratchet 153→92 | ✅ MERGED |
 | E (#1561) | `SlotOutcome` discriminated union; all-errored → per-persona in-character delivery; `deliverErrorNoPersist` + shared `buildSyntheticErrorResult` | ✅ MERGED |
 
-### Phase 2 — components (NEXT)
+### Phase 2 — components (IN PROGRESS)
 
-_Slices land here as the phase plan firms up (plan-mode + council from the artifacts; pilot = `/character alias` redesign + scoping tiers)._
+_Plan approved 2026-07-17 (`~/.claude/plans/radiant-tickling-candle.md`; 3-agent grounding + trio council; owner calls: bot-owner-only globals · warn-don't-block reverse shadow · names-first resolution + shadowed badge). Pilot = `/character alias` redesign + scoping tiers._
+
+| Slice | What | Status |
+| --- | --- | --- |
+| PR-1a (#1697) | `utils/confirmation/` Tier-A + Tier-B factories (Cancel→Danger factory-owned; invoker ownership via `interactionMetadata`, not customId bytes — r1 caught the snowflake segment overflowing the 100-char customId budget; modal customId DERIVED from button customId); **fixed live bug**: `/voice voices clear` modal routed to /settings via config-rebuild (`source: 'settings'`), typed confirmation silently dropped; 4 button-order violations fixed; history+voice migrated; batchDelete buttons from Tier-A; dynamic `DELETE {NAME}` phrases (cap 39, label-consistent); mismatch echo markdown-escaped (r2) | ✅ MERGED 2026-07-17 (3 review rounds; r3 "nothing blocks merge") |
+| PR-1b | `createComponentRouter` primitive + memory prefix-chain adoption + purge/account-delete onto Tier-B (wire-contract phrases via override; duplicate `assertInvokerOwnership` copies retire) | NEXT |
