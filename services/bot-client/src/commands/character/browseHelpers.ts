@@ -6,6 +6,7 @@
  */
 
 import { escapeMarkdown } from 'discord.js';
+import type { FilterToggleDisplay } from '../../utils/browse/filterRowBuilder.js';
 import { createListComparator } from '../../utils/listSorting.js';
 import type { CharacterBrowseFilter, CharacterBrowseSortType } from './config.js';
 import type { CharacterData } from './characterTypes.js';
@@ -199,4 +200,34 @@ export function buildEmptyStateLines(
     }
   }
   return lines;
+}
+
+/** In-place filter toggle display (§3.1 affordance; emoji match the legend). */
+export const FILTER_TOGGLE_DISPLAY: Record<CharacterBrowseFilter, FilterToggleDisplay> = {
+  all: { label: 'Filter: All', shortLabel: 'All', emoji: '📋' },
+  mine: { label: 'Filter: Mine', shortLabel: 'Mine', emoji: '✏️' },
+  public: { label: 'Filter: Public', shortLabel: 'Public', emoji: '🌐' },
+};
+
+/**
+ * Format a character for the select menu — returns the unprefixed
+ * label (numbering is added by the buildBrowseSelectMenu factory).
+ */
+export function formatCharacterSelectLabel(item: ListItem): string {
+  const char = item.char;
+  const visibility = char.isPublic ? '🌐' : '🔒';
+  const ownBadge = item.isOwn ? '✏️' : '';
+  return `${visibility}${ownBadge} ${char.displayName ?? char.name}`;
+}
+
+/**
+ * Build the description for a character's select menu option.
+ * Slug-prefixed identifier with an optional ownership marker.
+ */
+export function buildCharacterDescription(item: ListItem): string {
+  let description = `/${item.char.slug}`;
+  if (item.isOwn) {
+    description += ' (yours)';
+  }
+  return description;
 }

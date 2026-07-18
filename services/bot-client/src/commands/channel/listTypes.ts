@@ -2,6 +2,8 @@
  * Channel List Types and Constants
  */
 
+import type { FilterToggleDisplay } from '../../utils/browse/filterRowBuilder.js';
+
 import type { ChannelSettings } from '@tzurot/common-types/schemas/api/channel';
 
 /** Channels per page for pagination (single guild mode) */
@@ -23,3 +25,14 @@ export interface GuildPage {
   /** True if this is the last page for this guild */
   isComplete: boolean;
 }
+
+/** Browse filter: the invoking server only, or every server the bot shares. */
+export type ChannelBrowseFilter = 'current' | 'all';
+
+export const VALID_CHANNEL_FILTERS = ['current', 'all'] as const;
+
+/** In-place filter toggle display (§3.1 affordance). */
+export const FILTER_TOGGLE_DISPLAY: Record<ChannelBrowseFilter, FilterToggleDisplay> = {
+  current: { label: 'Filter: This Server', shortLabel: 'This Server', emoji: '\u{1F4CD}' },
+  all: { label: 'Filter: All Servers', shortLabel: 'All Servers', emoji: '\u{1F310}' },
+};

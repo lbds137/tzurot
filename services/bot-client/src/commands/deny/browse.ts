@@ -7,8 +7,8 @@
  */
 
 import {
-  EmbedBuilder,
   escapeMarkdown,
+  type EmbedBuilder,
   type ButtonInteraction,
   type StringSelectMenuInteraction,
 } from 'discord.js';
@@ -22,16 +22,17 @@ import { requireBotOwnerContext } from '../../utils/commandContext/index.js';
 import { clientsFor } from '../../utils/gatewayClients.js';
 import {
   buildBrowseButtons,
+  buildBrowseListEmbed,
   buildBrowseSelectMenu,
+  buildFilterToggleButton,
   createBrowseCustomIdHelpers,
   createBrowseSortToggle,
-  calculatePaginationState,
   ITEMS_PER_PAGE,
-  joinFooter,
   pluralize,
-  formatFilterParens,
+  formatFilterLabeled,
   formatSortNatural,
   type BrowseSortType,
+  type FilterToggleDisplay,
   type BrowseActionRow,
 } from '../../utils/browse/index.js';
 
@@ -59,19 +60,12 @@ export function isDenyBrowseSelectInteraction(customId: string): boolean {
   return browseHelpers.isBrowseSelect(customId);
 }
 
-/** Format a single entry for embed display */
-function formatEntry(entry: DenylistEntryResponse, index: number): string {
-  const num = String(index + 1);
-  const target =
-    entry.type === 'USER'
-      ? `<@${entry.discordId}> (\`${entry.discordId}\`)`
-      : `\`${entry.discordId}\` (Guild)`;
-  const scopeInfo = entry.scope === 'BOT' ? 'Bot-wide' : `${entry.scope}:${entry.scopeId}`;
-  const modeBadge = entry.mode === 'MUTE' ? ' · **MUTE**' : '';
-  const date = formatDateShort(entry.addedAt);
-  const reason = entry.reason !== null ? `\n   _${escapeMarkdown(entry.reason)}_` : '';
-  return `${num}. ${target}\n   ${scopeInfo}${modeBadge} · Added ${date}${reason}`;
-}
+/** In-place filter toggle display (§3.1 affordance). */
+const FILTER_TOGGLE_DISPLAY: Record<DenyBrowseFilter, FilterToggleDisplay> = {
+  all: { label: 'Filter: All', shortLabel: 'All', emoji: '📋' },
+  user: { label: 'Filter: Users', shortLabel: 'Users', emoji: '👤' },
+  guild: { label: 'Filter: Guilds', shortLabel: 'Guilds', emoji: '🏢' },
+};
 
 /**
  * Format entry for select menu label (unprefixed).
@@ -112,66 +106,54 @@ function filterByType(
   return entries.filter(e => e.type === typeValue);
 }
 
-/** Build the browse page embed and components */
+/** Build the browse page embed and components on the shared list builder. */
 function buildBrowsePage(
   entries: DenylistEntryResponse[],
   page: number,
   filter: DenyBrowseFilter,
   sort: BrowseSortType
 ): { embed: EmbedBuilder; components: BrowseActionRow[] } {
-  const { safePage, totalPages, startIndex, endIndex } = calculatePaginationState(
-    entries.length,
-    ITEMS_PER_PAGE,
-    page
-  );
-
-  const pageEntries = entries.slice(startIndex, endIndex);
-
-  const embed = new EmbedBuilder()
-    .setTitle('\u{1F6AB} Denylist Browser')
-    .setColor(DISCORD_COLORS.ERROR)
-    .setTimestamp();
-
-  if (pageEntries.length === 0) {
-    embed.setDescription('_No denylist entries found._');
-  } else {
-    const lines = pageEntries.map((e, i) => formatEntry(e, startIndex + i));
-    embed.setDescription(lines.join('\n\n'));
-  }
-
-  const filterLabel = filter === 'all' ? 'all types' : `${filter}s only`;
-  embed.setFooter({
-    text: joinFooter(
-      `${pluralize(entries.length, { singular: 'entry', plural: 'entries' })} ${formatFilterParens(filterLabel)}`,
-      sort === 'date' ? formatSortNatural('date') : formatSortNatural('target ID')
-    ),
-  });
+  const { embed, pageItems, startIndex, totalPages, safePage } =
+    buildBrowseListEmbed<DenylistEntryResponse>({
+      entityEmoji: '\u{1F6AB}',
+      titleNoun: 'Denylist',
+      items: entries,
+      page,
+      itemsPerPage: ITEMS_PER_PAGE,
+      formatRow: entry => ({
+        badges:
+          (entry.type === 'USER' ? '\u{1F464}' : '\u{1F3E2}') +
+          (entry.mode === 'MUTE' ? '\u{1F507}' : ''),
+        // Users render as a live mention with the raw id as techId; guilds
+        // only have the raw id, which becomes the name itself.
+        name: entry.type === 'USER' ? `<@${entry.discordId}>` : entry.discordId,
+        techId: entry.type === 'USER' ? entry.discordId : undefined,
+        metadata: [
+          entry.scope === 'BOT' ? 'Bot-wide' : `${entry.scope}:${entry.scopeId}`,
+          `Added ${formatDateShort(entry.addedAt)}`,
+          ...(entry.reason !== null ? [escapeMarkdown(entry.reason)] : []),
+        ],
+      }),
+      empty: {
+        noItems: 'The denylist is empty \u2014 add entries with `/deny add`.',
+        noMatch: 'No entries match this filter \u2014 toggle it to see all.',
+      },
+      filterActive: filter !== 'all',
+      footerSegments: [
+        pluralize(entries.length, { singular: 'entry', plural: 'entries' }),
+        // Derived from the toggle display so button and footer can't drift.
+        filter !== 'all' && formatFilterLabeled(FILTER_TOGGLE_DISPLAY[filter].shortLabel),
+        sort === 'date' ? formatSortNatural('date') : formatSortNatural('target ID'),
+      ],
+      badgeLegend: 'User \u{1F464} \u00B7 Guild \u{1F3E2} \u00B7 Muted \u{1F507}',
+      color: DISCORD_COLORS.ERROR,
+    });
 
   const components: BrowseActionRow[] = [];
-  if (entries.length > 0) {
-    components.push(
-      buildBrowseButtons({
-        currentPage: safePage,
-        totalPages,
-        filter,
-        currentSort: sort,
-        query: null,
-        buildCustomId: browseHelpers.build,
-        buildInfoId: browseHelpers.buildInfo,
-        // Deny entries are keyed by ID (not name), so override the
-        // default 'Sort A-Z' label to reflect that. The rest of the
-        // default BrowseSortType toggle (toggling between 'name' and
-        // 'date', the emoji choices) is preserved.
-        sortToggle: createBrowseSortToggle({
-          sortByName: { label: 'Sort by ID', emoji: '🔤' },
-        }),
-      })
-    );
-  }
 
-  // Add select menu for entry detail view
+  // Select first, buttons second — the design system's composition order.
   const selectRow = buildBrowseSelectMenu<DenylistEntryResponse>({
-    items: pageEntries,
+    items: pageItems,
     customId: browseHelpers.buildSelect(safePage, filter, sort, null),
     placeholder: 'Select an entry to view/edit...',
     startIndex,
@@ -184,6 +166,36 @@ function buildBrowsePage(
   if (selectRow !== null) {
     components.push(selectRow);
   }
+
+  // The button row always renders on filter-bearing browses (alias-pilot
+  // norm): the filter toggle stays reachable even on an empty filtered list.
+  const buttonRow = buildBrowseButtons({
+    currentPage: safePage,
+    totalPages,
+    filter,
+    currentSort: sort,
+    query: null,
+    buildCustomId: browseHelpers.build,
+    buildInfoId: browseHelpers.buildInfo,
+    // Deny entries are keyed by ID (not name), so override the
+    // default 'Sort A-Z' label to reflect that. The rest of the
+    // default BrowseSortType toggle (toggling between 'name' and
+    // 'date', the emoji choices) is preserved.
+    sortToggle: createBrowseSortToggle({
+      sortByName: { label: 'Sort by ID', emoji: '\u{1F524}' },
+    }),
+  });
+  buttonRow.addComponents(
+    buildFilterToggleButton({
+      filters: VALID_FILTERS,
+      display: FILTER_TOGGLE_DISPLAY,
+      current: filter,
+      buildCustomId: browseHelpers.build,
+      sort,
+      query: null,
+    })
+  );
+  components.push(buttonRow);
 
   return { embed, components };
 }

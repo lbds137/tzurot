@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { applyFilter, nextAliasFilter, type AliasRow } from './aliasData.js';
+import { applyFilter, type AliasRow } from './aliasData.js';
 
 const rows: AliasRow[] = [
   { alias: 'a', scope: 'user', shadowed: false, character: { name: null, slug: 's' } },
@@ -11,14 +11,6 @@ const rows: AliasRow[] = [
 ];
 
 describe('alias data model', () => {
-  describe('nextAliasFilter (the first in-place filter toggle)', () => {
-    it('cycles all → mine → global → all', () => {
-      expect(nextAliasFilter('all')).toBe('mine');
-      expect(nextAliasFilter('mine')).toBe('global');
-      expect(nextAliasFilter('global')).toBe('all');
-    });
-  });
-
   describe('applyFilter', () => {
     it('narrows to the selected scope and passes everything for all', () => {
       expect(applyFilter(rows, 'all')).toHaveLength(2);

@@ -51,6 +51,7 @@ import {
   buildBrowseButtons as buildSharedBrowseButtons,
   buildBrowseListEmbed,
   buildBrowseSelectMenu,
+  buildFilterToggleButton,
   createBrowseCustomIdHelpers,
   pluralize,
   formatFilterLabeled,
@@ -65,6 +66,9 @@ import {
   buildFilterLine,
   buildEmptyStateLines,
   FILTER_LABELS,
+  FILTER_TOGGLE_DISPLAY,
+  buildCharacterDescription,
+  formatCharacterSelectLabel,
 } from './browseHelpers.js';
 
 const logger = createLogger('character-browse');
@@ -99,30 +103,8 @@ export function isCharacterBrowseSelectInteraction(customId: string): boolean {
 }
 
 /**
- * Format a character for the select menu — returns the unprefixed
- * label (numbering is added by the buildBrowseSelectMenu factory).
- */
-function formatCharacterSelectLabel(item: ListItem): string {
-  const char = item.char;
-  const visibility = char.isPublic ? '🌐' : '🔒';
-  const ownBadge = item.isOwn ? '✏️' : '';
-  return `${visibility}${ownBadge} ${char.displayName ?? char.name}`;
-}
-
-/**
- * Build the description for a character's select menu option.
- * Slug-prefixed identifier with an optional ownership marker.
- */
-function buildCharacterDescription(item: ListItem): string {
-  let description = `/${item.char.slug}`;
-  if (item.isOwn) {
-    description += ' (yours)';
-  }
-  return description;
-}
-
-/**
- * Build pagination buttons using shared utility
+ * Build pagination buttons using shared utility, plus the in-place filter
+ * toggle (all → mine → public — same coordinates, filter advanced, page 0).
  */
 function buildBrowseButtons(
   currentPage: number,
@@ -131,7 +113,7 @@ function buildBrowseButtons(
   currentSort: CharacterBrowseSortType,
   query: string | null
 ): ReturnType<typeof buildSharedBrowseButtons> {
-  return buildSharedBrowseButtons({
+  const row = buildSharedBrowseButtons({
     currentPage,
     totalPages,
     filter,
@@ -140,6 +122,17 @@ function buildBrowseButtons(
     buildCustomId: browseHelpers.build,
     buildInfoId: browseHelpers.buildInfo,
   });
+  row.addComponents(
+    buildFilterToggleButton({
+      filters: VALID_FILTERS,
+      display: FILTER_TOGGLE_DISPLAY,
+      current: filter,
+      buildCustomId: browseHelpers.build,
+      sort: currentSort,
+      query,
+    })
+  );
+  return row;
 }
 
 /** Options for buildBrowsePage */
@@ -236,10 +229,10 @@ function buildBrowsePage(options: BuildBrowsePageOptions): {
     components.push(selectRow);
   }
 
-  // Add pagination buttons if multiple pages or items exist
-  if (totalPages > 1 || allItems.length > 0) {
-    components.push(buildBrowseButtons(renderedPage, totalPages, filter, sortType, query));
-  }
+  // The button row always renders on filter-bearing browses (alias-pilot
+  // norm): the filter toggle must stay reachable even on an empty filtered
+  // list — it's the way back out. Pagination buttons disable at one page.
+  components.push(buildBrowseButtons(renderedPage, totalPages, filter, sortType, query));
 
   return { embed, components };
 }

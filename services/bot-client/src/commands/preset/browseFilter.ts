@@ -9,16 +9,18 @@
  * the encoding; everything else passes the composite around verbatim.
  */
 
-import { MODEL_SLOTS } from '@tzurot/common-types/constants/ai';
+import { isFreeModelForUser, MODEL_SLOTS } from '@tzurot/common-types/constants/ai';
+import type { FilterToggleDisplay } from '../../utils/browse/filterRowBuilder.js';
+import { type LlmConfigSummary } from '@tzurot/common-types/schemas/api/llm-config';
 
 // Single source of truth for each axis: the runtime arrays drive the types
 // (`typeof[number]`) AND the customId factory's validation, so the two can't
 // drift. Adding a scope/capability value here updates both with no second edit.
-const PRESET_SCOPE_FILTERS = ['all', 'global', 'mine', 'free'] as const;
+export const PRESET_SCOPE_FILTERS = ['all', 'global', 'mine', 'free'] as const;
 // The capability values reuse MODEL_SLOTS ('text'/'vision') as the encoded
 // tokens so the customId format is unchanged from when this axis was a config
 // `kind` — but they're now interpreted as a model-capability filter.
-const PRESET_CAPABILITY_FILTERS = ['all', ...MODEL_SLOTS] as const;
+export const PRESET_CAPABILITY_FILTERS = ['all', ...MODEL_SLOTS] as const;
 
 /** Scope axis of the browse filter (independent of capability). */
 export type PresetScopeFilter = (typeof PRESET_SCOPE_FILTERS)[number];
@@ -96,3 +98,71 @@ export function describeFilter(
   }
   return parts.length > 0 ? parts.join(' · ') : null;
 }
+
+/**
+ * Apply the scope + capability axes + search query — all client-side. Browse
+ * fetches every config; capability ('vision'/'text') is a
+ * model-`supportsVision` check applied here, not a fetch-scope parameter.
+ */
+export function filterPresets(
+  presets: LlmConfigSummary[],
+  scope: PresetScopeFilter,
+  capability: PresetCapabilityFilter,
+  query: string | null,
+  isGuestMode: boolean
+): LlmConfigSummary[] {
+  let filtered = presets;
+
+  // Capability axis: the model's vision capability ('vision' = vision-capable,
+  // 'text' = text-only, 'all' = no filter).
+  if (capability === 'vision') {
+    filtered = filtered.filter(c => c.supportsVision);
+  } else if (capability === 'text') {
+    filtered = filtered.filter(c => !c.supportsVision);
+  }
+
+  switch (scope) {
+    case 'global':
+      filtered = filtered.filter(c => c.isGlobal);
+      break;
+    case 'mine':
+      filtered = filtered.filter(c => c.isOwned);
+      break;
+    case 'free':
+      // Audience-aware: a guest's 'free' scope means "what I can use for
+      // free" and includes the conditionally-free piggyback model.
+      filtered = filtered.filter(c => isFreeModelForUser(c.model, isGuestMode));
+      break;
+    case 'all':
+    default:
+      // No scope filter
+      break;
+  }
+
+  // Apply search query
+  if (query !== null && query.length > 0) {
+    const lowerQuery = query.toLowerCase();
+    filtered = filtered.filter(
+      c =>
+        c.name.toLowerCase().includes(lowerQuery) ||
+        c.model.toLowerCase().includes(lowerQuery) ||
+        (c.description?.toLowerCase().includes(lowerQuery) ?? false)
+    );
+  }
+
+  return filtered;
+}
+
+/** Per-axis toggle displays for the two-dimensional in-place filter. */
+export const SCOPE_TOGGLE_DISPLAY: Record<PresetScopeFilter, FilterToggleDisplay> = {
+  all: { label: 'Scope: All', shortLabel: 'All', emoji: '📋' },
+  global: { label: 'Scope: Global', shortLabel: 'Global', emoji: '🌐' },
+  mine: { label: 'Scope: Mine', shortLabel: 'Mine', emoji: '✏️' },
+  free: { label: 'Scope: Free', shortLabel: 'Free', emoji: '🆓' },
+};
+
+export const CAPABILITY_TOGGLE_DISPLAY: Record<PresetCapabilityFilter, FilterToggleDisplay> = {
+  all: { label: 'Type: All', shortLabel: 'All', emoji: '📋' },
+  text: { label: 'Type: Text', shortLabel: 'Text', emoji: '💬' },
+  vision: { label: 'Type: Vision', shortLabel: 'Vision', emoji: '👁️' },
+};

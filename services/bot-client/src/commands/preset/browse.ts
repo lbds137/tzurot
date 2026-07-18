@@ -36,6 +36,7 @@ import {
   buildBrowseButtons as buildSharedBrowseButtons,
   buildBrowseListEmbed,
   buildBrowseSelectMenu,
+  buildFilterToggleButton,
   createBrowseCustomIdHelpers,
   pluralize,
   formatFilterLabeled,
@@ -52,9 +53,14 @@ import { CATALOG } from '../../ux/catalog/catalog.js';
 import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
 import { renderSpec } from '../../ux/render/render.js';
 import {
+  CAPABILITY_TOGGLE_DISPLAY,
   composeBrowseFilter,
   describeFilter,
+  filterPresets,
+  SCOPE_TOGGLE_DISPLAY,
   splitBrowseFilter,
+  PRESET_CAPABILITY_FILTERS,
+  PRESET_SCOPE_FILTERS,
   VALID_PRESET_FILTERS,
   type PresetBrowseFilter,
   type PresetCapabilityFilter,
@@ -129,61 +135,12 @@ function buildPresetDescription(preset: LlmConfigSummary, isGuestMode: boolean):
 }
 
 /**
- * Apply the scope + capability axes + search query — all client-side. Browse
- * fetches every config; capability ('vision'/'text') is a
- * model-`supportsVision` check applied here, not a fetch-scope parameter.
- */
-function filterPresets(
-  presets: LlmConfigSummary[],
-  scope: PresetScopeFilter,
-  capability: PresetCapabilityFilter,
-  query: string | null,
-  isGuestMode: boolean
-): LlmConfigSummary[] {
-  let filtered = presets;
-
-  // Capability axis: the model's vision capability ('vision' = vision-capable,
-  // 'text' = text-only, 'all' = no filter).
-  if (capability === 'vision') {
-    filtered = filtered.filter(c => c.supportsVision);
-  } else if (capability === 'text') {
-    filtered = filtered.filter(c => !c.supportsVision);
-  }
-
-  switch (scope) {
-    case 'global':
-      filtered = filtered.filter(c => c.isGlobal);
-      break;
-    case 'mine':
-      filtered = filtered.filter(c => c.isOwned);
-      break;
-    case 'free':
-      // Audience-aware: a guest's 'free' scope means "what I can use for
-      // free" and includes the conditionally-free piggyback model.
-      filtered = filtered.filter(c => isFreeModelForUser(c.model, isGuestMode));
-      break;
-    case 'all':
-    default:
-      // No scope filter
-      break;
-  }
-
-  // Apply search query
-  if (query !== null && query.length > 0) {
-    const lowerQuery = query.toLowerCase();
-    filtered = filtered.filter(
-      c =>
-        c.name.toLowerCase().includes(lowerQuery) ||
-        c.model.toLowerCase().includes(lowerQuery) ||
-        (c.description?.toLowerCase().includes(lowerQuery) ?? false)
-    );
-  }
-
-  return filtered;
-}
-
-/**
- * Build pagination buttons using shared utility (no sort toggle for presets)
+ * Build pagination buttons (no sort toggle for presets) plus the
+ * two-dimensional in-place filter: one cycle toggle PER AXIS, each holding
+ * the other axis constant in the composite `scope.capability` token. Two
+ * buttons beat a filter select here — the 12 composite states would make an
+ * unwieldy select, and per-axis cycling matches the design system's toggle
+ * affordance. Row budget: 3 pagination + 2 toggles = Discord's 5-button max.
  */
 function buildBrowseButtons(
   currentPage: number,
@@ -191,7 +148,8 @@ function buildBrowseButtons(
   filter: PresetBrowseFilter,
   query: string | null
 ): ReturnType<typeof buildSharedBrowseButtons> {
-  return buildSharedBrowseButtons({
+  const { scope, capability } = splitBrowseFilter(filter);
+  const row = buildSharedBrowseButtons({
     currentPage,
     totalPages,
     filter,
@@ -201,6 +159,25 @@ function buildBrowseButtons(
     buildInfoId: browseHelpers.buildInfo,
     showSortToggle: false, // Presets don't have sort toggle
   });
+  row.addComponents(
+    buildFilterToggleButton({
+      filters: PRESET_SCOPE_FILTERS,
+      display: SCOPE_TOGGLE_DISPLAY,
+      current: scope,
+      buildCustomId: (page, nextScope, _sort, q) =>
+        browseHelpers.build(page, composeBrowseFilter(nextScope, capability), 'name', q),
+      query,
+    }),
+    buildFilterToggleButton({
+      filters: PRESET_CAPABILITY_FILTERS,
+      display: CAPABILITY_TOGGLE_DISPLAY,
+      current: capability,
+      buildCustomId: (page, nextCapability, _sort, q) =>
+        browseHelpers.build(page, composeBrowseFilter(scope, nextCapability), 'name', q),
+      query,
+    })
+  );
+  return row;
 }
 
 /**
@@ -285,10 +262,11 @@ function buildBrowsePage(
     components.push(selectRow);
   }
 
-  // Add pagination buttons if multiple pages
-  if (totalPages > 1) {
-    components.push(buildBrowseButtons(safePage, totalPages, filter, query));
-  }
+  // The button row always renders on filter-bearing browses (alias-pilot
+  // norm): the filter toggles must stay reachable even on a single page —
+  // and ESPECIALLY on an empty filtered list, where the toggle is the way
+  // back out. Pagination buttons disable themselves at one page.
+  components.push(buildBrowseButtons(safePage, totalPages, filter, query));
 
   return { embed, components };
 }

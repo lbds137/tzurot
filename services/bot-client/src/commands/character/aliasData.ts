@@ -1,7 +1,7 @@
 /**
  * Alias browse data model: the normalized row shape both endpoints map
- * into, the scope-filter vocabulary, and the filter-cycle function behind
- * the design system's first in-place filter toggle.
+ * into and the scope-filter vocabulary (the toggle cycle itself lives in
+ * the shared browse filterRowBuilder).
  */
 
 import type { AliasScope } from '@tzurot/common-types/schemas/api/personality';
@@ -75,10 +75,4 @@ export function applyFilter(rows: AliasRow[], filter: AliasFilter): AliasRow[] {
     return rows.filter(row => row.scope === 'global');
   }
   return rows;
-}
-
-/** The design system's first in-place filter toggle: all → mine → global. */
-export function nextAliasFilter(filter: AliasFilter): AliasFilter {
-  const index = ALIAS_FILTERS.indexOf(filter);
-  return ALIAS_FILTERS[(index + 1) % ALIAS_FILTERS.length];
 }
