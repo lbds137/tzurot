@@ -33,6 +33,12 @@ The alias command (#1695) works but shipped action-multiplexed (`action: list|ad
 - Verified 2026-07-17: **v2 had no scoping at all** — the tiers are new design, not parity.
 - Open product call for the design pass: #1695 lets any character owner add global-effect aliases to their own character; under the tiered model this likely goes away (owners get user-scoped like everyone else; global blessing is the bot owner's). Cross-check the reverse-shadow question in [v2-parity](cold/themes/v2-parity-legacy-retirement.md) Phase 1 — shadowing semantics change per-tier.
 
+### Owner design inputs (2026-07-18) — bind release + Phase 3 planning
+
+1. **Breaking-release posture**: the epic's renames/UX changes break the existing command contract — batch them so users are disrupted ONCE, in a clearly-labeled "major" release (Breaking Changes section leads the notes; consider pairing with the beta-exit framing since this epic IS the beta-exit gate). Phase 3's rename cluster (`/settings preset`→`/preset override`, `voice voices clear`→`purge`, option renames) is the natural batch — avoid dribbling contract breakage across small releases. Goal: minimize disruption.
+2. **Onboarding command** (new design question): a "Getting Started" surface in-bot, like the website's page — `/help` subcommand vs. separate top-level command is the open call. Related, NOT duplicates: `cold/themes/first-use-onboarding-dm.md` (push-style, one-time DM) and `cold/themes/user-docs-and-discoverability.md` (docs pipeline + /help revamp) — the command is the PULL-style companion; design them coherently.
+3. **Command-tree semantics review**: spec §4.4 deliberately punted macro-structure ("the tree is structurally sound"); owner goals reopen it — ergonomics, discoverability, and a **Discord-limits budget** (100 global commands; 25 subcommands+groups per command is the tighter cap as /character and /settings accrete) with headroom to grow. Needs a decision pass — natural home: a rider on Phase 3's IA work, council-checked.
+
 ### Phase 1 follow-ups still open (rows in `cold/follow-ups.md`)
 
 System-voice straggler wording (STT/top-catch/truncation) · partial-failure errored-slot delivery · `maxRetries:0` metrics watch · `deletePersona`/`getCachedPersonalities` wrapper widening.
