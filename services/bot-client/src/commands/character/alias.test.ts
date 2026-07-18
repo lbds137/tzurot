@@ -1,18 +1,9 @@
 /**
- * Tests for /character alias (list | add | remove).
+ * Tests for the alias subcommand-group slash entries (browse entry lives in
+ * aliasBrowse.test.ts via the render path; this file owns the Tier-0 add).
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
-
-const mockUserClient = {
-  listPersonalityAliases: vi.fn(),
-  addPersonalityAlias: vi.fn(),
-  removePersonalityAlias: vi.fn(),
-};
-vi.mock('../../utils/gatewayClients.js', () => ({
-  clientsFor: () => ({ userClient: mockUserClient }),
-}));
 
 vi.mock('@tzurot/common-types/utils/logger', async () => {
   const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
@@ -24,191 +15,92 @@ vi.mock('@tzurot/common-types/utils/logger', async () => {
   };
 });
 
-import { handleAlias } from './alias.js';
+const mockUserClient = {
+  listPersonalityAliases: vi.fn(),
+  listMyAliases: vi.fn(),
+  addPersonalityAlias: vi.fn(),
+  removePersonalityAlias: vi.fn(),
+};
 
-function makeContext(options: { action: string; character: string; alias?: string | null }): {
-  context: DeferredCommandContext;
-  editReply: ReturnType<typeof vi.fn>;
-} {
-  const editReply = vi.fn().mockResolvedValue(undefined);
-  const context = {
+vi.mock('../../utils/gatewayClients.js', () => ({
+  clientsFor: () => ({ userClient: mockUserClient }),
+}));
+
+import { handleAliasAdd } from './alias.js';
+import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
+
+const CREATED_AT = '2026-07-18T00:00:00.000Z';
+
+function makeContext(options: Record<string, string | null>): DeferredCommandContext {
+  return {
     interaction: {
       options: {
-        getString: (name: string, _required?: boolean) => {
-          if (name === 'action') {
-            return options.action;
+        getString: vi.fn((name: string, required?: boolean) => {
+          const value = options[name] ?? null;
+          if (required === true && value === null) {
+            throw new Error(`required option ${name} missing`);
           }
-          if (name === 'character') {
-            return options.character;
-          }
-          return options.alias ?? null;
-        },
+          return value;
+        }),
       },
     },
-    editReply,
+    editReply: vi.fn().mockResolvedValue(undefined),
   } as unknown as DeferredCommandContext;
-  return { context, editReply };
 }
 
-describe('handleAlias', () => {
+describe('alias slash entries', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it('lists aliases with the mention-resolution note', async () => {
-    mockUserClient.listPersonalityAliases.mockResolvedValue({
-      ok: true,
-      data: { aliases: [{ alias: 'lila', createdAt: '2026-07-17T00:00:00.000Z' }] },
-    });
-    const { context, editReply } = makeContext({ action: 'list', character: 'lila-elyona' });
+  describe('handleAliasAdd (Tier-0 inline)', () => {
+    it('defaults to the personal tier and renders the scope badge', async () => {
+      mockUserClient.addPersonalityAlias.mockResolvedValue({
+        ok: true,
+        data: { alias: { alias: 'Mommy', scope: 'user', createdAt: CREATED_AT } },
+      });
+      const context = makeContext({ character: 'lilith', alias: 'Mommy', scope: null });
 
-    await handleAlias(context);
+      await handleAliasAdd(context);
 
-    expect(mockUserClient.listPersonalityAliases).toHaveBeenCalledWith('lila-elyona');
-    expect(String(editReply.mock.calls[0][0])).toContain('@lila');
-  });
-
-  it('renders the empty state with the add hint', async () => {
-    mockUserClient.listPersonalityAliases.mockResolvedValue({
-      ok: true,
-      data: { aliases: [] },
-    });
-    const { context, editReply } = makeContext({ action: 'list', character: 'lila-elyona' });
-
-    await handleAlias(context);
-
-    expect(String(editReply.mock.calls[0][0])).toContain('no aliases');
-  });
-
-  it('requires the alias option for add — no client call without it', async () => {
-    const { context, editReply } = makeContext({ action: 'add', character: 'x', alias: null });
-
-    await handleAlias(context);
-
-    expect(mockUserClient.addPersonalityAlias).not.toHaveBeenCalled();
-    expect(String(editReply.mock.calls[0][0])).toContain('required');
-  });
-
-  it('adds with a trimmed alias (seam: exact payload)', async () => {
-    mockUserClient.addPersonalityAlias.mockResolvedValue({
-      ok: true,
-      data: { alias: { alias: 'Li', createdAt: '2026-07-17T00:00:00.000Z' } },
-    });
-    const { context, editReply } = makeContext({
-      action: 'add',
-      character: 'lila-elyona',
-      alias: '  Li  ',
+      expect(mockUserClient.addPersonalityAlias).toHaveBeenCalledWith('lilith', {
+        alias: 'Mommy',
+        scope: 'user',
+      });
+      const reply = vi.mocked(context.editReply).mock.calls[0][0] as string;
+      expect(reply).toContain('🔒');
+      expect(reply).toContain('@Mommy');
     });
 
-    await handleAlias(context);
+    it('passes an explicit global scope through (gateway enforces the owner gate)', async () => {
+      mockUserClient.addPersonalityAlias.mockResolvedValue({
+        ok: true,
+        data: { alias: { alias: 'Lila', scope: 'global', createdAt: CREATED_AT } },
+      });
+      const context = makeContext({ character: 'lila-elyona', alias: 'Lila', scope: 'global' });
 
-    expect(mockUserClient.addPersonalityAlias).toHaveBeenCalledWith('lila-elyona', {
-      alias: 'Li',
-    });
-    expect(String(editReply.mock.calls[0][0])).toContain('Added alias');
-  });
+      await handleAliasAdd(context);
 
-  it('surfaces the gateway conflict message on 409', async () => {
-    mockUserClient.addPersonalityAlias.mockResolvedValue({
-      ok: false,
-      status: 409,
-      error: 'The alias "li" is already in use',
-    });
-    const { context, editReply } = makeContext({
-      action: 'add',
-      character: 'lila-elyona',
-      alias: 'li',
+      expect(mockUserClient.addPersonalityAlias).toHaveBeenCalledWith('lila-elyona', {
+        alias: 'Lila',
+        scope: 'global',
+      });
+      expect(vi.mocked(context.editReply).mock.calls[0][0] as string).toContain('🌐');
     });
 
-    await handleAlias(context);
+    it('surfaces a 403 as the permission-denied message', async () => {
+      mockUserClient.addPersonalityAlias.mockResolvedValue({
+        ok: false,
+        status: 403,
+        error: 'Global aliases can only be managed by the bot owner',
+      });
+      const context = makeContext({ character: 'lilith', alias: 'x', scope: 'global' });
 
-    expect(String(editReply.mock.calls[0][0])).toContain('already in use');
-  });
+      await handleAliasAdd(context);
 
-  it('escapes markdown in reflected gateway rejection text', async () => {
-    mockUserClient.addPersonalityAlias.mockResolvedValue({
-      ok: false,
-      status: 400,
-      error: '"**li**" matches an existing character',
+      const reply = vi.mocked(context.editReply).mock.calls[0][0] as string;
+      expect(reply).toContain('❌');
+      expect(reply).toContain('permission');
     });
-    const { context, editReply } = makeContext({
-      action: 'add',
-      character: 'lila-elyona',
-      alias: '**li**',
-    });
-
-    await handleAlias(context);
-
-    const rendered = String(editReply.mock.calls[0][0]);
-    expect(rendered).toContain('\\*\\*li\\*\\*');
-    expect(rendered).not.toContain('"**li**"');
-  });
-
-  it('maps 403 to the permission-denied copy', async () => {
-    mockUserClient.listPersonalityAliases.mockResolvedValue({
-      ok: false,
-      status: 403,
-      error: 'You do not have permission to manage aliases for this personality',
-    });
-    const { context, editReply } = makeContext({ action: 'list', character: 'lila-elyona' });
-
-    await handleAlias(context);
-
-    expect(String(editReply.mock.calls[0][0])).toContain('manage aliases for this character');
-  });
-
-  it('maps 404 to the not-found copy', async () => {
-    mockUserClient.removePersonalityAlias.mockResolvedValue({
-      ok: false,
-      status: 404,
-      error: 'Alias not found',
-    });
-    const { context, editReply } = makeContext({
-      action: 'remove',
-      character: 'ghost',
-      alias: 'li',
-    });
-
-    await handleAlias(context);
-
-    expect(String(editReply.mock.calls[0][0])).toContain('Character or alias');
-  });
-
-  it('maps an unexpected status to the generic operation failure', async () => {
-    mockUserClient.listPersonalityAliases.mockResolvedValue({
-      ok: false,
-      status: 500,
-      error: 'internal',
-    });
-    const { context, editReply } = makeContext({ action: 'list', character: 'lila-elyona' });
-
-    await handleAlias(context);
-
-    expect(String(editReply.mock.calls[0][0])).toContain('managing aliases');
-  });
-
-  it('removes and reports the removed alias', async () => {
-    mockUserClient.removePersonalityAlias.mockResolvedValue({
-      ok: true,
-      data: { removedAlias: 'lila' },
-    });
-    const { context, editReply } = makeContext({
-      action: 'remove',
-      character: 'lila-elyona',
-      alias: 'LILA',
-    });
-
-    await handleAlias(context);
-
-    expect(mockUserClient.removePersonalityAlias).toHaveBeenCalledWith('lila-elyona', 'LILA');
-    expect(String(editReply.mock.calls[0][0])).toContain('Removed alias');
-  });
-
-  it('degrades to a generic failure when the client throws', async () => {
-    mockUserClient.listPersonalityAliases.mockRejectedValue(new Error('network'));
-    const { context, editReply } = makeContext({ action: 'list', character: 'x' });
-
-    await expect(handleAlias(context)).resolves.toBeUndefined();
-    expect(String(editReply.mock.calls[0][0])).toContain('managing aliases');
   });
 });

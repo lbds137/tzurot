@@ -433,6 +433,17 @@ describe('personality alias routes', () => {
       expect(res.status).toHaveBeenCalledWith(404);
       expect(mockPrisma.personalityAlias.delete).not.toHaveBeenCalled();
     });
+
+    it('400s a malformed scope (array from repeated params) instead of silently defaulting', async () => {
+      const { req, res } = createMockReqRes({}, { slug: PERSONALITY.slug, alias: 'lila' });
+      // Express parses ?scope=a&scope=b as an array; must fail validation.
+      (req.query as Record<string, unknown>).scope = ['user', 'global'];
+
+      await handleRemovePersonalityAlias(deps())(req, res, vi.fn());
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(mockPrisma.personalityAlias.delete).not.toHaveBeenCalled();
+    });
   });
 
   describe('GET my-aliases (cross-character overview)', () => {

@@ -36,6 +36,7 @@ export { createBrowseCustomIdHelpers } from './customIdFactory.js';
 // Button builder
 export {
   buildBrowseButtons,
+  buildSimplePaginationButtons,
   createBrowseSortToggle,
   type BrowseSortToggle,
   type BrowseSortDisplay,

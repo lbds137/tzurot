@@ -319,10 +319,10 @@ function createRemoveHandler(
 ) {
   return async (req: ProvisionedRequest, res: Response) => {
     // ?scope= defaults to 'user': removing your own alias is the common
-    // case; global removal is the bot owner's explicit act.
-    const scopeParse = AliasScopeSchema.default('user').safeParse(
-      typeof req.query.scope === 'string' ? req.query.scope : undefined
-    );
+    // case; global removal is the bot owner's explicit act. The RAW query
+    // value goes into the parse so malformed shapes (e.g. an array from
+    // ?scope=a&scope=b) fail loudly as 400 instead of silently defaulting.
+    const scopeParse = AliasScopeSchema.default('user').safeParse(req.query.scope);
     if (!scopeParse.success) {
       return sendZodError(res, scopeParse.error);
     }

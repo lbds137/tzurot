@@ -36,6 +36,7 @@ import {
   handleSelectMenu as handleDashboardSelectMenu,
   handleButton as handleDashboardButton,
 } from './dashboard.js';
+import { aliasComponentRouter, isCharacterAliasInteraction } from './aliasBrowse.js';
 
 /**
  * Handle select menu interactions for character commands
@@ -47,6 +48,12 @@ export async function handleSelectMenu(interaction: StringSelectMenuInteraction)
   // Check if it's a browse select interaction (user selected character from browse list)
   if (isCharacterBrowseSelectInteraction(interaction.customId)) {
     await handleBrowseSelect(interaction, config);
+    return;
+  }
+
+  // Alias browse surface (its own declarative router)
+  if (isCharacterAliasInteraction(interaction.customId)) {
+    await aliasComponentRouter.handleSelectMenu(interaction);
     return;
   }
 
@@ -76,6 +83,12 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
   // Handle browse pagination
   if (isCharacterBrowseInteraction(interaction.customId)) {
     await handleBrowsePagination(interaction, config);
+    return;
+  }
+
+  // Alias browse surface (pagination, filter toggle, remove confirm/cancel)
+  if (isCharacterAliasInteraction(interaction.customId)) {
+    await aliasComponentRouter.handleButton(interaction);
     return;
   }
 

@@ -139,7 +139,9 @@ describe('handleAutocomplete', () => {
     expect(mockRespond).toHaveBeenCalledWith([{ name: '🌐 MyChar (my-char)', value: 'my-char' }]);
   });
 
-  it.each(['alias', 'voice', 'voice-clear', 'avatar-clear'])(
+  // 'alias' deliberately absent: the alias group is visibility-scoped
+  // (anyone may add a personal alias to any character they can see).
+  it.each(['voice', 'voice-clear', 'avatar-clear'])(
     'should return only owned characters for %s subcommand',
     async sub => {
       mockGetCachedPersonalities.mockResolvedValue({
