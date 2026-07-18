@@ -10,7 +10,7 @@
  */
 
 import {
-  EmbedBuilder,
+  type EmbedBuilder,
   escapeMarkdown,
   MessageFlags,
   type ButtonInteraction,
@@ -34,9 +34,9 @@ import {
 import {
   ITEMS_PER_PAGE,
   buildBrowseButtons as buildSharedBrowseButtons,
+  buildBrowseListEmbed,
   buildBrowseSelectMenu,
   createBrowseCustomIdHelpers,
-  joinFooter,
   pluralize,
   formatFilterLabeled,
   type BrowseActionRow,
@@ -183,21 +183,6 @@ function filterPresets(
 }
 
 /**
- * Format a preset line with badges
- */
-function formatPresetLine(c: LlmConfigSummary, isGuestMode: boolean, index: number): string {
-  const badgeStr = presetBadgeArray(c, isGuestMode).join('');
-  const shortModel = shortModelName(c.model);
-  const safeName = escapeMarkdown(c.name);
-
-  // In guest mode, dim paid presets
-  const nameStyle =
-    isGuestMode && !isFreeTierEligibleModel(c.model) ? `~~${safeName}~~` : `**${safeName}**`;
-
-  return `${index + 1}. ${badgeStr} ${nameStyle}\n   └ \`${shortModel}\``;
-}
-
-/**
  * Build pagination buttons using shared utility (no sort toggle for presets)
  */
 function buildBrowseButtons(
@@ -230,57 +215,56 @@ function buildBrowsePage(
 ): { embed: EmbedBuilder; components: BrowseActionRow[] } {
   const { scope, capability } = splitBrowseFilter(filter);
   const filtered = filterPresets(allPresets, scope, capability, query, isGuestMode);
-  const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
-  const safePage = Math.min(Math.max(0, page), totalPages - 1);
 
-  const startIdx = safePage * ITEMS_PER_PAGE;
-  const endIdx = Math.min(startIdx + ITEMS_PER_PAGE, filtered.length);
-  const pageItems = filtered.slice(startIdx, endIdx);
-
-  const embed = new EmbedBuilder()
-    .setTitle('🔧 Preset Browser')
-    .setColor(isGuestMode ? DISCORD_COLORS.WARNING : DISCORD_COLORS.BLURPLE)
-    .setTimestamp();
-
-  // Build description
-  const lines: string[] = [];
-
-  // Guest mode warning
+  // Preamble: guest-mode warning + search/filter context.
+  const preamble: string[] = [];
   if (isGuestMode) {
-    lines.push(
-      '⚠️ **Guest Mode** - Limited to free models (🆓). Use `/settings apikey set` for full access.\n'
+    preamble.push(
+      '\u26A0\uFE0F **Guest Mode** - Limited to free models (\u{1F193}). Use `/settings apikey set` for full access.\n'
     );
   }
-
-  // Search/filter info
   const activeFilterLabel = describeFilter(scope, capability);
   if (query !== null) {
-    lines.push(`🔍 Searching: "${query}" • Filter: ${activeFilterLabel ?? 'All'}\n`);
+    preamble.push(`\u{1F50D} Searching: "${query}" \u2022 Filter: ${activeFilterLabel ?? 'All'}\n`);
   } else if (activeFilterLabel !== null) {
-    lines.push(`Filter: ${activeFilterLabel}\n`);
+    preamble.push(`Filter: ${activeFilterLabel}\n`);
   }
 
-  // Preset list
-  if (pageItems.length === 0) {
-    lines.push('_No presets match your search._');
-  } else {
-    for (let i = 0; i < pageItems.length; i++) {
-      lines.push(formatPresetLine(pageItems[i], isGuestMode, startIdx + i));
-    }
-  }
-
-  embed.setDescription(lines.join('\n'));
-
-  // Footer with legend
   const freeCount = filtered.filter(c => isFreeModelForUser(c.model, isGuestMode)).length;
   const visionCount = filtered.filter(c => c.supportsVision).length;
-  embed.setFooter({
-    text: joinFooter(
-      pluralize(filtered.length, { singular: 'preset', plural: 'presets' }),
-      activeFilterLabel !== null && formatFilterLabeled(activeFilterLabel),
-      `🌐 Global  🔒 Private  👤 Other user  👁️ Vision (${visionCount})  ⭐ Default  🆓 Free (${freeCount})`
-    ),
-  });
+
+  const { embed, pageItems, startIndex, totalPages, safePage } =
+    buildBrowseListEmbed<LlmConfigSummary>({
+      entityEmoji: '\u2699\uFE0F',
+      titleNoun: 'Presets',
+      items: filtered,
+      page,
+      itemsPerPage: ITEMS_PER_PAGE,
+      preamble,
+      formatRow: preset => {
+        const safeName = escapeMarkdown(preset.name);
+        const dimmed = isGuestMode && !isFreeTierEligibleModel(preset.model);
+        return {
+          badges: presetBadgeArray(preset, isGuestMode).join(''),
+          name: safeName,
+          // Guest-mode dims paid presets — the one styling exception (§2.4).
+          nameMarkup: dimmed ? `~~${safeName}~~` : undefined,
+          // Preset ids are detail-view territory, not typed anywhere — no techId.
+          metadata: [`\`${shortModelName(preset.model)}\``],
+        };
+      },
+      empty: {
+        noItems: 'No presets exist yet \u2014 create one with `/preset create`.',
+        noMatch: 'No presets match \u2014 clear the search or filter to see all.',
+      },
+      filterActive: query !== null || activeFilterLabel !== null,
+      color: isGuestMode ? DISCORD_COLORS.WARNING : undefined,
+      footerSegments: [
+        pluralize(filtered.length, { singular: 'preset', plural: 'presets' }),
+        activeFilterLabel !== null && formatFilterLabeled(activeFilterLabel),
+      ],
+      badgeLegend: `Global \u{1F310} \u00B7 Private \u{1F512} \u00B7 Other user \u{1F464} \u00B7 Vision \u{1F441}\uFE0F (${visionCount}) \u00B7 Default \u2B50 \u00B7 Free \u{1F193} (${freeCount})`,
+    });
 
   // Build components
   const components: BrowseActionRow[] = [];
@@ -290,7 +274,7 @@ function buildBrowsePage(
     items: pageItems,
     customId: browseHelpers.buildSelect(safePage, filter, 'name', query),
     placeholder: 'Select a preset to view...',
-    startIndex: startIdx,
+    startIndex,
     formatItem: preset => ({
       label: `${buildPresetBadges(preset, isGuestMode)}${preset.name}`,
       value: preset.id,

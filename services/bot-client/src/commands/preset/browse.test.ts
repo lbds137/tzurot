@@ -262,7 +262,7 @@ describe('handleBrowse', () => {
       embeds: [
         expect.objectContaining({
           data: expect.objectContaining({
-            title: '🔧 Preset Browser',
+            title: '⚙️ Presets',
           }),
         }),
       ],
@@ -472,7 +472,9 @@ describe('handleBrowse', () => {
     await handleBrowse(context);
 
     const embedData = mockEditReply.mock.calls[0][0].embeds[0].data;
-    expect(embedData.description).toContain('No presets match your search');
+    expect(embedData.description).toContain(
+      'No presets match — clear the search or filter to see all.'
+    );
   });
 
   it('should handle API error', async () => {

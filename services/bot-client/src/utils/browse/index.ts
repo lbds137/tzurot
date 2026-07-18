@@ -60,3 +60,11 @@ export {
   formatPageIndicator,
   type NounSpec,
 } from './footer.js';
+
+// Shared list-embed builder (§2.4 row grammar, §2.1 titles, D19 empty states)
+export {
+  buildBrowseListEmbed,
+  type BrowseRowSpec,
+  type BrowseListEmbedOptions,
+  type BrowseListEmbedResult,
+} from './listEmbedBuilder.js';
