@@ -172,6 +172,22 @@ describe('buildBrowseListEmbed', () => {
     );
   });
 
+  it('never stacks a second blank when the preamble already ends with one (regression)', () => {
+    // The own-empty + others-present combo: the empty-state CTA block in the
+    // preamble carries its own trailing spacer, and the first row's group
+    // header separator used to add another — a double blank line.
+    const { embed } = buildBrowseListEmbed<Item>({
+      ...baseOptions,
+      items: [{ name: 'Other', group: '**🌐 Public Characters (1)**' }],
+      preamble: ["You haven't created any characters yet — `/character create`.", ''],
+    });
+
+    expect(embed.data.description).toContain(
+      '`/character create`.\n\n**🌐 Public Characters (1)**'
+    );
+    expect(embed.data.description).not.toContain('\n\n\n');
+  });
+
   it('honors a nameMarkup override without double-bolding', () => {
     const { embed } = buildBrowseListEmbed<Item>({
       ...baseOptions,

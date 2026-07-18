@@ -18,8 +18,6 @@
  */
 
 import {
-  ButtonBuilder,
-  ButtonStyle,
   escapeMarkdown,
   MessageFlags,
   type ButtonInteraction,
@@ -31,7 +29,6 @@ import {
   ALIAS_FILTERS,
   applyFilter,
   fetchAliasRows,
-  nextAliasFilter,
   type AliasFilter,
   type AliasRow,
 } from './aliasData.js';
@@ -41,6 +38,8 @@ import { clientsFor } from '../../utils/gatewayClients.js';
 import {
   buildBrowseListEmbed,
   buildBrowseSelectMenu,
+  buildFilterToggleButton,
+  type FilterToggleDisplay,
   buildSimplePaginationButtons,
   createBrowseCustomIdHelpers,
   truncateForSelect,
@@ -99,10 +98,10 @@ function parseRemoveCustomId(
   return { page, filter: filterRaw as AliasFilter, query: query === '' ? null : query };
 }
 
-const FILTER_TOGGLE_DISPLAY: Record<AliasFilter, { label: string; emoji: string }> = {
-  all: { label: 'Filter: All', emoji: '📋' },
-  mine: { label: 'Filter: Mine', emoji: '🔒' },
-  global: { label: 'Filter: Global', emoji: '🌐' },
+const FILTER_TOGGLE_DISPLAY: Record<AliasFilter, FilterToggleDisplay> = {
+  all: { label: 'Filter: All', shortLabel: 'All', emoji: '📋' },
+  mine: { label: 'Filter: Mine', shortLabel: 'Mine', emoji: '🔒' },
+  global: { label: 'Filter: Global', shortLabel: 'Global', emoji: '🌐' },
 };
 
 function scopeBadge(row: AliasRow): string {
@@ -188,8 +187,7 @@ export async function renderAliasBrowse(
     filterActive: filter !== 'all',
     footerSegments: [
       pluralize(filtered.length, { singular: 'alias', plural: 'aliases' }),
-      filter !== 'all' &&
-        formatFilterLabeled(FILTER_TOGGLE_DISPLAY[filter].label.replace('Filter: ', '')),
+      filter !== 'all' && formatFilterLabeled(FILTER_TOGGLE_DISPLAY[filter].shortLabel),
       fetched.data.truncated && 'list truncated',
     ],
     badgeLegend: myMode ? 'Global 🌐 · Personal 🔒 · Shadowed ⚠️' : 'Global 🌐 · Personal 🔒',
@@ -225,31 +223,20 @@ export async function renderAliasBrowse(
     buildCustomId: aliasHelpers.build,
     buildInfoId: aliasHelpers.buildInfo,
   });
-  // The first in-place FILTER toggle (owner-adopted design affordance):
-  // one Primary button whose customId is the same pagination coordinate
-  // set with only the filter advanced — and the page reset to 0, since a
-  // narrower filter renumbers the list.
-  const toggleDisplay = FILTER_TOGGLE_DISPLAY[nextAliasFilter(filter)];
+  // The in-place FILTER toggle (owner-adopted design affordance), via the
+  // shared builder this pilot's usage was generalized into.
   buttonRow.addComponents(
-    buildFilterToggleButton(
-      toggleDisplay,
-      aliasHelpers.build(0, nextAliasFilter(filter), 'name', query)
-    )
+    buildFilterToggleButton({
+      filters: ALIAS_FILTERS,
+      display: FILTER_TOGGLE_DISPLAY,
+      current: filter,
+      buildCustomId: aliasHelpers.build,
+      query,
+    })
   );
   components.push(buttonRow);
 
   await target.editReply({ content: '', embeds: [embed], components });
-}
-
-function buildFilterToggleButton(
-  display: { label: string; emoji: string },
-  customId: string
-): ButtonBuilder {
-  return new ButtonBuilder()
-    .setCustomId(customId)
-    .setLabel(display.label)
-    .setEmoji(display.emoji)
-    .setStyle(ButtonStyle.Primary);
 }
 
 function describeAliasFailure(status: number, error: string): string {

@@ -111,7 +111,10 @@ function renderMetadataLine(segments: string[]): string {
 /** Render one §2.4 row (plus its optional group header) into lines. */
 function renderRow(spec: BrowseRowSpec, rowNumber: number, lines: string[]): void {
   if (spec.groupHeader !== undefined) {
-    if (lines.length > 0) {
+    // Separator before a header that follows content — but never stack a
+    // second blank when the preceding line (e.g. a preamble CTA's own
+    // trailing spacer) already is one.
+    if (lines.length > 0 && lines[lines.length - 1] !== '') {
       lines.push('');
     }
     lines.push(spec.groupHeader);

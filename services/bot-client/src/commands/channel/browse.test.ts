@@ -161,6 +161,59 @@ describe('handleBrowse', () => {
       embeds: expect.any(Array),
       components: expect.any(Array),
     });
+
+    // Non-owners never see the all-servers toggle — the 'all' filter is
+    // bot-owner-only, and a rendered-but-gated button is a dead affordance.
+    const call = mockEditReply.mock.calls[0][0] as {
+      components: { toJSON: () => { components: { custom_id?: string; label?: string }[] } }[];
+    };
+    const buttons = call.components.flatMap(row => row.toJSON().components);
+    expect(buttons.find(button => button.label === 'Filter: All Servers')).toBeUndefined();
+  });
+
+  it('renders the all-servers toggle for the bot owner with sort threaded and page reset', async () => {
+    const { isBotOwner } = await import('@tzurot/common-types/utils/ownerMiddleware');
+    vi.mocked(isBotOwner).mockReturnValue(true);
+    stub.listUserChannels.mockResolvedValue(
+      ok({
+        settings: [
+          {
+            channelId: 'channel-1',
+            guildId: 'guild-123',
+            personalityId: 'personality-1',
+            personalityName: 'Test Personality',
+            personalitySlug: 'test-personality',
+            createdAt: '2025-06-15T12:00:00.000Z',
+          },
+        ],
+      })
+    );
+
+    const context = createMockContext();
+    await handleBrowse(context);
+
+    const call = mockEditReply.mock.calls[0][0] as {
+      components: { toJSON: () => { components: { custom_id?: string; label?: string }[] } }[];
+    };
+    const buttons = call.components.flatMap(row => row.toJSON().components);
+    const toggle = buttons.find(button => button.label === 'Filter: All Servers');
+    expect(toggle?.custom_id).toBe('channel::browse::0::all::date::');
+  });
+
+  it('renders the empty all-servers view without crashing (zero activations bot-wide)', async () => {
+    const { isBotOwner } = await import('@tzurot/common-types/utils/ownerMiddleware');
+    vi.mocked(isBotOwner).mockReturnValue(true);
+    stub.listUserChannels.mockResolvedValue(ok({ settings: [] }));
+
+    const context = createMockContext(null, 'all');
+    await handleBrowse(context);
+
+    const call = mockEditReply.mock.calls[0][0] as {
+      embeds: { toJSON: () => { description?: string; footer?: { text: string } } }[];
+    };
+    const embed = call.embeds[0].toJSON();
+    expect(embed.description).toContain('No activated channels in any server');
+    expect(embed.footer?.text).toContain('0 total');
   });
 
   it('should reject all filter for non-bot-owners', async () => {

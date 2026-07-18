@@ -49,6 +49,14 @@ export {
   type BuildBrowseSelectMenuOptions,
 } from './selectMenuBuilder.js';
 
+// In-place filter toggle (≤3-value filters; spec §3.1)
+export {
+  buildFilterToggleButton,
+  nextFilter,
+  type FilterToggleConfig,
+  type FilterToggleDisplay,
+} from './filterRowBuilder.js';
+
 // Footer helpers
 export {
   FOOTER_DELIMITER,

@@ -106,7 +106,6 @@ vi.mock('../../utils/browse/index.js', async importOriginal => {
       browsePrefix: 'deny::browse',
       browseSelectPrefix: 'deny::browse-select',
     })),
-    buildBrowseButtons: vi.fn(() => ({ type: 'action-row', components: [] })),
     createBrowseSortToggle: vi.fn(
       (overrides?: {
         sortByName?: { label: string; emoji: string };
@@ -319,7 +318,7 @@ describe('handleBrowse', () => {
       embeds: expect.arrayContaining([
         expect.objectContaining({
           data: expect.objectContaining({
-            description: expect.stringContaining('No denylist entries found'),
+            description: expect.stringContaining('The denylist is empty'),
           }),
         }),
       ]),
@@ -345,7 +344,7 @@ describe('handleBrowse', () => {
     const call = vi.mocked(context.editReply).mock.calls[0][0] as {
       embeds: { data: { footer: { text: string } } }[];
     };
-    expect(call.embeds[0].data.footer.text).toContain('users only');
+    expect(call.embeds[0].data.footer.text).toContain('filtered by: Users');
   });
 
   it('should filter by guild type', async () => {
@@ -357,7 +356,7 @@ describe('handleBrowse', () => {
     const call = vi.mocked(context.editReply).mock.calls[0][0] as {
       embeds: { data: { footer: { text: string } } }[];
     };
-    expect(call.embeds[0].data.footer.text).toContain('guilds only');
+    expect(call.embeds[0].data.footer.text).toContain('filtered by: Guilds');
   });
 
   it('should default to all filter', async () => {
@@ -369,7 +368,7 @@ describe('handleBrowse', () => {
     const call = vi.mocked(context.editReply).mock.calls[0][0] as {
       embeds: { data: { footer: { text: string } } }[];
     };
-    expect(call.embeds[0].data.footer.text).toContain('all types');
+    expect(call.embeds[0].data.footer.text).not.toContain('filtered by:');
   });
 
   it('should handle API error', async () => {
@@ -414,7 +413,7 @@ describe('handleBrowse', () => {
     const call = vi.mocked(context.editReply).mock.calls[0][0] as {
       embeds: { data: { description: string } }[];
     };
-    expect(call.embeds[0].data.description).toContain('**MUTE**');
+    expect(call.embeds[0].data.description).toContain('\u{1F507}');
   });
 
   it('should not show mode badge for BLOCK-mode entries', async () => {
@@ -426,7 +425,7 @@ describe('handleBrowse', () => {
     const call = vi.mocked(context.editReply).mock.calls[0][0] as {
       embeds: { data: { description: string } }[];
     };
-    expect(call.embeds[0].data.description).not.toContain('**MUTE**');
+    expect(call.embeds[0].data.description).not.toContain('\u{1F507}');
     expect(call.embeds[0].data.description).not.toContain('**BLOCK**');
   });
 
@@ -465,7 +464,9 @@ describe('handleBrowse', () => {
       components: unknown[];
     };
     // No browse buttons and no select menu
-    expect(call.components.length).toBe(0);
+    // The button row always renders (filter toggle stays reachable); only
+    // the select menu drops on an empty list.
+    expect(call.components.length).toBe(1);
   });
 });
 
@@ -532,7 +533,7 @@ describe('handleBrowsePagination', () => {
     const call = vi.mocked(interaction.editReply).mock.calls[0][0] as {
       embeds: { data: { footer: { text: string } } }[];
     };
-    expect(call.embeds[0].data.footer.text).toContain('users only');
+    expect(call.embeds[0].data.footer.text).toContain('filtered by: Users');
   });
 
   it('should silently handle API error', async () => {
@@ -629,13 +630,13 @@ describe('buildBrowseResponse', () => {
     expect(result.embed).toBeDefined();
     expect(result.components).toBeDefined();
     // Should only show USER entries (2 of 3)
-    expect(result.embed.data.footer?.text).toContain('users only');
+    expect(result.embed.data.footer?.text).toContain('filtered by: Users');
   });
 
   it('should handle all filter', () => {
     const result = buildBrowseResponse(sampleEntries, 0, 'all', 'name');
 
-    expect(result.embed.data.footer?.text).toContain('all types');
+    expect(result.embed.data.footer?.text).not.toContain('filtered by:');
     expect(result.embed.data.footer?.text).toContain('by target ID');
   });
 });

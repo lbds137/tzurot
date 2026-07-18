@@ -158,6 +158,15 @@ describe('handleBrowse', () => {
       ],
       components: expect.any(Array),
     });
+
+    // The in-place filter toggle rides the button row: same coordinates,
+    // filter advanced one step (all → mine), page reset to 0.
+    const call = vi.mocked(mockEditReply).mock.calls[0][0] as unknown as {
+      components: { toJSON: () => { components: { custom_id?: string; label?: string }[] } }[];
+    };
+    const allButtons = call.components.flatMap(row => row.toJSON().components);
+    const toggle = allButtons.find(button => button.label === 'Filter: Mine');
+    expect(toggle?.custom_id).toBe('character::browse::0::mine::date::');
   });
 
   it('should filter by mine (owned only)', async () => {
