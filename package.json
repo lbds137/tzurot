@@ -113,6 +113,7 @@
       "*eslint*"
     ],
     "overrides": {
+      "adm-zip@<0.6.0": ">=0.6.0",
       "undici": "^6.27.0",
       "path-to-regexp@>=8.0.0 <8.4.0": ">=8.4.0",
       "ioredis": "^5.11.1",
