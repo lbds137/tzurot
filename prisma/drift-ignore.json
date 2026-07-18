@@ -103,7 +103,7 @@
     },
     {
       "pattern": "ALTER TABLE.*memory_facts.*ALTER CONSTRAINT.*memory_facts_superseded_by_id_fkey.*NOT DEFERRABLE",
-      "reason": "Self-FK made DEFERRABLE INITIALLY IMMEDIATE in migration 20260710183055 so db-sync can upsert fact rows in arbitrary order (supersession pointers are not creation-ordered — the revive path points newer→older). Prisma schema can't express DEFERRABLE.",
+      "reason": "Self-FK made DEFERRABLE INITIALLY IMMEDIATE in migration 20260710183055 so db-sync can upsert fact rows in arbitrary order (supersession pointers are not creation-ordered \u2014 the revive path points newer\u2192older). Prisma schema can't express DEFERRABLE.",
       "action": "remove"
     },
     {
@@ -119,6 +119,16 @@
     {
       "pattern": "DROP INDEX.*idx_memories_null_embedding",
       "reason": "Partial index with WHERE clause cannot be represented in Prisma schema (backs NullVectorReembedder sweep)",
+      "action": "remove"
+    },
+    {
+      "pattern": "DROP INDEX.*personality_aliases_global_alias_unique",
+      "reason": "Partial unique index on lower(alias) WHERE user_id IS NULL cannot be represented in Prisma schema",
+      "action": "remove"
+    },
+    {
+      "pattern": "DROP INDEX.*personality_aliases_user_alias_unique",
+      "reason": "Partial unique index on (user_id, lower(alias)) WHERE user_id IS NOT NULL cannot be represented in Prisma schema",
       "action": "remove"
     }
   ],

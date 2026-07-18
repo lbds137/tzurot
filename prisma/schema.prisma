@@ -77,6 +77,7 @@ model User {
   ownedPersonas         Persona[]                  @relation("PersonaOwner")
   personalityConfigs    UserPersonalityConfig[]
   personaHistoryConfigs UserPersonaHistoryConfig[]
+  personalityAliases    PersonalityAlias[]         @relation("UserAliases")
 
   @@index([discordId])
   @@index([defaultLlmConfigId])
@@ -390,16 +391,31 @@ model PersonalityOwner {
 }
 
 /// Aliases for personalities (e.g., "lily" -> lilith, "sassy" -> sarcastic)
-/// Enables users to reference personalities by multiple names
+/// Enables users to reference personalities by multiple names.
+///
+/// Uniqueness is enforced by two PARTIAL unique indexes on lower(alias)
+/// (global rows unique among globals; user rows unique per user) written by
+/// hand in the migration — Prisma can't represent partial/functional unique
+/// indexes, so there is deliberately NO @unique here; drift-ignore entries
+/// keep Prisma from dropping them. Alias matching is case-insensitive
+/// everywhere (resolver lowercases; deterministic ids seed from the
+/// lowercased alias).
 model PersonalityAlias {
   id            String      @id @db.Uuid
-  alias         String      @unique @db.VarChar(100)
+  alias         String      @db.VarChar(100)
   personalityId String      @map("personality_id") @db.Uuid
+  /// Null = global tier (bot-owner-blessed; resolves for everyone, including
+  /// the v2-migrated rows grandfathered at the 2026-07 tier split). Non-null
+  /// = user-scoped tier: resolves ONLY for that user, checked before global
+  /// rows in the resolver's alias step. Never flips after creation.
+  userId        String?     @map("user_id") @db.Uuid
   createdAt     DateTime    @default(now()) @map("created_at")
   updatedAt     DateTime    @updatedAt @map("updated_at")
   personality   Personality @relation(fields: [personalityId], references: [id], onDelete: Cascade)
+  user          User?       @relation("UserAliases", fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([personalityId])
+  @@index([userId])
   @@map("personality_aliases")
 }
 

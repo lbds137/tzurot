@@ -34,6 +34,7 @@ import {
   isUuidFormat,
   generateUserFeedbackUuid,
   generatePersonalityAliasUuid,
+  generateUserPersonalityAliasUuid,
 } from './deterministicUuid.js';
 
 describe('Deterministic UUID Generation', () => {
@@ -624,5 +625,31 @@ describe('generatePersonalityAliasUuid', () => {
     expect(a).toBe(b);
     expect(b).toBe(c);
     expect(generatePersonalityAliasUuid('other')).not.toBe(a);
+  });
+});
+
+describe('generateUserPersonalityAliasUuid', () => {
+  const USER_A = '11111111-1111-5111-8111-111111111111';
+  const USER_B = '22222222-2222-5222-8222-222222222222';
+
+  it('is deterministic and case-insensitive over the alias (cross-env convergence)', () => {
+    const a = generateUserPersonalityAliasUuid(USER_A, 'Mommy');
+    const b = generateUserPersonalityAliasUuid(USER_A, 'mommy');
+    const c = generateUserPersonalityAliasUuid(USER_A, 'MOMMY');
+    expect(a).toBe(b);
+    expect(b).toBe(c);
+    expect(generateUserPersonalityAliasUuid(USER_A, 'other')).not.toBe(a);
+  });
+
+  it('scopes ids per user — same alias, different users, different ids', () => {
+    expect(generateUserPersonalityAliasUuid(USER_A, 'mommy')).not.toBe(
+      generateUserPersonalityAliasUuid(USER_B, 'mommy')
+    );
+  });
+
+  it('never collides with the global-tier id for the same alias', () => {
+    expect(generateUserPersonalityAliasUuid(USER_A, 'mommy')).not.toBe(
+      generatePersonalityAliasUuid('mommy')
+    );
   });
 });

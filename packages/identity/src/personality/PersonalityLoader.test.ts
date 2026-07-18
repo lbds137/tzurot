@@ -247,10 +247,70 @@ describe('PersonalityLoader', () => {
         expect(vi.mocked(mockPrisma.personality.findMany)).toHaveBeenCalledTimes(1);
         expect(vi.mocked(mockPrisma.personality.findFirst)).toHaveBeenCalledTimes(1);
 
-        // Verify alias query
+        // Verify alias query — internal call (no userId) queries the GLOBAL
+        // tier only (userId: null); no personal-tier lookup happens.
+        expect(vi.mocked(mockPrisma.personalityAlias.findFirst)).toHaveBeenCalledTimes(1);
         expect(vi.mocked(mockPrisma.personalityAlias.findFirst)).toHaveBeenCalledWith({
           where: {
             alias: { equals: 'lilith', mode: 'insensitive' },
+            userId: null,
+          },
+          select: { personalityId: true },
+        });
+      });
+
+      it('checks the requesting user personal aliases BEFORE global rows', async () => {
+        const mockPersonality = createMockPersonality({ id: 'personal-target', name: 'Mine' });
+
+        // User exists (uuid resolution for BOTH the access filter and the
+        // personal-alias tier).
+        vi.mocked(mockPrisma.user.findUnique).mockResolvedValue({ id: 'user-uuid-1' } as any);
+        // Name/slug lookup misses.
+        vi.mocked(mockPrisma.personality.findMany).mockResolvedValueOnce([]);
+        // Personal-tier alias hits on the FIRST alias query.
+        vi.mocked(mockPrisma.personalityAlias.findFirst).mockResolvedValueOnce({
+          personalityId: 'personal-target',
+        } as any);
+        vi.mocked(mockPrisma.personality.findFirst).mockResolvedValueOnce(mockPersonality as any);
+
+        const result = await loader.loadFromDatabase('mommy', '123456789012345678');
+
+        expect(result?.id).toBe('personal-target');
+        // Exactly one alias query: the personal tier short-circuits global.
+        expect(vi.mocked(mockPrisma.personalityAlias.findFirst)).toHaveBeenCalledTimes(1);
+        expect(vi.mocked(mockPrisma.personalityAlias.findFirst)).toHaveBeenCalledWith({
+          where: {
+            alias: { equals: 'mommy', mode: 'insensitive' },
+            userId: 'user-uuid-1',
+          },
+          select: { personalityId: true },
+        });
+      });
+
+      it('falls through to the GLOBAL tier when the personal alias points at an inaccessible personality', async () => {
+        const globalTarget = createMockPersonality({ id: 'global-target', name: 'Public' });
+
+        vi.mocked(mockPrisma.user.findUnique).mockResolvedValue({ id: 'user-uuid-1' } as any);
+        vi.mocked(mockPrisma.personality.findMany).mockResolvedValueOnce([]);
+        // Personal alias exists…
+        vi.mocked(mockPrisma.personalityAlias.findFirst)
+          .mockResolvedValueOnce({ personalityId: 'now-private' } as any)
+          // …global alias also exists.
+          .mockResolvedValueOnce({ personalityId: 'global-target' } as any);
+        // Personal target fails the access filter (null), global target loads.
+        vi.mocked(mockPrisma.personality.findFirst)
+          .mockResolvedValueOnce(null)
+          .mockResolvedValueOnce(globalTarget as any);
+
+        const result = await loader.loadFromDatabase('mommy', '123456789012345678');
+
+        expect(result?.id).toBe('global-target');
+        expect(vi.mocked(mockPrisma.personalityAlias.findFirst)).toHaveBeenCalledTimes(2);
+        // Second call is the global tier.
+        expect(vi.mocked(mockPrisma.personalityAlias.findFirst)).toHaveBeenNthCalledWith(2, {
+          where: {
+            alias: { equals: 'mommy', mode: 'insensitive' },
+            userId: null,
           },
           select: { personalityId: true },
         });
