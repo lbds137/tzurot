@@ -11,8 +11,8 @@
 import { MessageFlags, type ButtonInteraction } from 'discord.js';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { clientsFor } from '../../utils/gatewayClients.js';
+import { buildDeleteConfirmation } from '../../utils/confirmation/confirmAction.js';
 import {
-  buildDeleteConfirmation,
   handleDashboardClose,
   getSessionManager,
   requireDeferredSession,

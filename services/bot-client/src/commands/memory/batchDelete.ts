@@ -4,20 +4,14 @@
  * Uses a confirmation flow with danger button
  */
 
-import {
-  ButtonBuilder,
-  ButtonStyle,
-  ActionRowBuilder,
-  ComponentType,
-  escapeMarkdown,
-  type ButtonInteraction,
-} from 'discord.js';
+import { ComponentType, escapeMarkdown, type ButtonInteraction } from 'discord.js';
 import { memoryDeleteOptions } from '@tzurot/common-types/generated/commandOptions';
 import { Duration, DurationParseError } from '@tzurot/common-types/utils/Duration';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { clientsFor } from '../../utils/gatewayClients.js';
-import { createWarningEmbed, createSuccessEmbed } from '../../utils/commandHelpers.js';
+import { createSuccessEmbed } from '../../utils/commandHelpers.js';
+import { buildConfirmAction } from '../../utils/confirmation/confirmAction.js';
 import { resolveRequiredPersonality } from './resolveHelpers.js';
 import { CATALOG } from '../../ux/catalog/catalog.js';
 import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
@@ -120,26 +114,18 @@ export async function handleBatchDelete(context: DeferredCommandContext): Promis
 
     description += '\n\n**This action cannot be undone.**';
 
-    const embed = createWarningEmbed('Confirm Deletion', description);
-
-    // Create confirmation buttons
-    const confirmButton = new ButtonBuilder()
-      .setCustomId('memory-batch-delete::confirm')
-      .setLabel(`Delete ${preview.wouldDelete} Memories`)
-      .setEmoji('🗑️')
-      .setStyle(ButtonStyle.Danger);
-
-    const cancelButton = new ButtonBuilder()
-      .setCustomId('memory-batch-delete::cancel')
-      .setLabel('Cancel')
-      .setEmoji('❌')
-      .setStyle(ButtonStyle.Secondary);
-
-    const row = new ActionRowBuilder<ButtonBuilder>().addComponents(confirmButton, cancelButton);
+    const { embed, components } = buildConfirmAction({
+      title: 'Confirm Deletion',
+      description,
+      confirmCustomId: 'memory-batch-delete::confirm',
+      cancelCustomId: 'memory-batch-delete::cancel',
+      confirmLabel: `Delete ${preview.wouldDelete} Memories`,
+      confirmEmoji: '🗑️',
+    });
 
     const response = await context.editReply({
       embeds: [embed],
-      components: [row],
+      components,
     });
 
     // Wait for button interaction

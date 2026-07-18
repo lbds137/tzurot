@@ -50,7 +50,7 @@ vi.mock('../../utils/dashboard/SessionManager.js', () => ({
   getSessionManager: vi.fn(() => mockSessionManager),
 }));
 
-vi.mock('../../utils/dashboard/deleteConfirmation.js', () => ({
+vi.mock('../../utils/confirmation/confirmAction.js', () => ({
   buildDeleteConfirmation: vi.fn(() => ({
     embed: { data: { title: 'Delete?' } },
     components: [{ type: 'action-row' }],
@@ -117,7 +117,7 @@ vi.mock('./detailEdit.js', () => ({
 }));
 
 import { isBotOwner } from '@tzurot/common-types/utils/ownerMiddleware';
-import { buildDeleteConfirmation } from '../../utils/dashboard/deleteConfirmation.js';
+import { buildDeleteConfirmation } from '../../utils/confirmation/confirmAction.js';
 import { handleEdit, handleEditModal } from './detailEdit.js';
 
 interface OwnerStub {

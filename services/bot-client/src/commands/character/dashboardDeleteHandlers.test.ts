@@ -27,7 +27,7 @@ vi.mock('../../utils/gatewayClients.js', () => ({
   clientsFor: vi.fn(() => ({ userClient: stub as unknown as UserClient })),
 }));
 
-vi.mock('../../utils/dashboard/deleteConfirmation.js', () => ({
+vi.mock('../../utils/confirmation/confirmAction.js', () => ({
   buildDeleteConfirmation: vi.fn().mockReturnValue({
     embed: { data: {} },
     components: [{ type: 1 }],

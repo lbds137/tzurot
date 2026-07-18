@@ -72,15 +72,6 @@ vi.mock('./preset/autocomplete.js', () => ({
   handleAutocomplete: vi.fn().mockResolvedValue(undefined),
 }));
 
-// Mock destructive confirmation utilities
-vi.mock('../../utils/destructiveConfirmation.js', () => ({
-  buildDestructiveWarning: vi.fn(),
-  createHardDeleteConfig: vi.fn(),
-  handleDestructiveConfirmButton: vi.fn(),
-  handleDestructiveCancel: vi.fn(),
-  handleDestructiveModalSubmit: vi.fn(),
-}));
-
 // Mock defaults handlers
 vi.mock('./defaults/edit.js', () => ({
   handleDefaultsEdit: vi.fn().mockResolvedValue(undefined),

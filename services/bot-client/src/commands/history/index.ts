@@ -32,9 +32,9 @@ import {
   handleDestructiveCancel,
   handleDestructiveConfirmButton,
   handleDestructiveModalSubmit,
-  createHardDeleteConfig,
+  hardDeleteModalDisplay,
   type DestructiveOperationResult,
-} from '../../utils/destructiveConfirmation.js';
+} from '../../utils/confirmation/confirmDestructive.js';
 import { type UserClient } from '@tzurot/clients';
 import { clientsFor } from '../../utils/gatewayClients.js';
 import { createSuccessEmbed } from '../../utils/commandHelpers.js';
@@ -142,7 +142,12 @@ async function handleModal(interaction: ModalSubmitInteraction): Promise<void> {
         personalitySlug,
         channelId
       );
-      await handleDestructiveModalSubmit(interaction, 'DELETE', executeOperation);
+      // Expected phrase derives from the same helper the warning/modal used,
+      // so display and validation can't drift.
+      const { confirmationPhrase } = hardDeleteModalDisplay(personalitySlug);
+      await handleDestructiveModalSubmit(interaction, confirmationPhrase, executeOperation, {
+        progressContent: 'Deleting history…',
+      });
       return;
     }
   }
@@ -184,16 +189,12 @@ async function handleHardDeleteConfirm(
     return;
   }
 
-  const config = createHardDeleteConfig({
-    entityType: 'conversation history',
-    entityName: entityInfo.personalitySlug,
-    additionalWarning: '**This action is PERMANENT and cannot be undone!**',
-    source: 'history',
-    operation: HARD_DELETE_OPERATION,
-    entityId,
-  });
-
-  await handleDestructiveConfirmButton(interaction, config);
+  // Display-only: the modal's routing customId is derived from THIS button's
+  // customId inside the factory, so no source/operation is re-stated here.
+  await handleDestructiveConfirmButton(
+    interaction,
+    hardDeleteModalDisplay(entityInfo.personalitySlug)
+  );
 }
 
 /**

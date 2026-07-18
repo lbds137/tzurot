@@ -78,9 +78,10 @@ describe('handleDataDelete', () => {
     const customIds = call.components[0].components.map(
       (c: { data: { custom_id: string } }) => c.data.custom_id
     );
+    // Cancel → Danger order (design-system button rule: Danger is always last).
     expect(customIds).toEqual([
-      `${SETTINGS_DATA_DELETE_PREFIX}::proceed::123456789`,
       `${SETTINGS_DATA_DELETE_PREFIX}::cancel::123456789`,
+      `${SETTINGS_DATA_DELETE_PREFIX}::proceed::123456789`,
     ]);
   });
 
