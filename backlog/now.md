@@ -26,6 +26,8 @@ _Recently resolved items move to the GitHub release notes at ship time — this 
 
 _Small tasks that can be done between major features. Good for momentum._
 
+- 🧹 `[CHORE]` **Dependabot #135: `adm-zip` <0.6.0 (high, crafted-ZIP 4GB alloc)** — transitive via `onnxruntime-node` (embeddings runtime; adm-zip unpacks onnxruntime's own install artifacts, never user-supplied ZIPs → not reachable from Discord input, low in-context risk). Fix: pnpm `overrides` entry pinning `adm-zip@^0.6.0` + embeddings tests green; or ride the next onnxruntime bump if Dependabot opens one. Filed 2026-07-18.
+
 
 ### 📥 Untriaged (max 10)
 
