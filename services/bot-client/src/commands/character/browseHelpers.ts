@@ -30,15 +30,6 @@ const characterComparator = createListComparator<CharacterData>(
   c => c.updatedAt
 );
 
-/**
- * Format a character line for the list
- */
-function formatCharacterLine(c: CharacterData): string {
-  const visibility = c.isPublic ? '🌐' : '🔒';
-  const displayName = escapeMarkdown(c.displayName ?? c.name);
-  return `${visibility} **${displayName}** (\`${c.slug}\`)`;
-}
-
 /** Filter labels for display */
 export const FILTER_LABELS: Record<CharacterBrowseFilter, string> = {
   all: 'All',
@@ -206,26 +197,6 @@ export function buildEmptyStateLines(
     if (hasOthersOnPage) {
       lines.push('');
     }
-  }
-  return lines;
-}
-
-/**
- * Render page items with their group headers
- */
-export function renderPageItems(pageItems: ListItem[], existingLinesLength: number): string[] {
-  const lines: string[] = [];
-  for (const item of pageItems) {
-    if (item.groupHeader !== undefined) {
-      // Add separator before "Other Users" section if coming from own chars
-      const totalLines = existingLinesLength + lines.length;
-      const lastLine = lines.length > 0 ? lines[lines.length - 1] : '';
-      if (!item.isOwn && totalLines > 0 && !lastLine.startsWith('**🌐')) {
-        lines.push('');
-      }
-      lines.push(item.groupHeader);
-    }
-    lines.push(formatCharacterLine(item.char));
   }
   return lines;
 }

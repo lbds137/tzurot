@@ -152,7 +152,7 @@ describe('handleBrowse', () => {
       embeds: [
         expect.objectContaining({
           data: expect.objectContaining({
-            title: '📚 Character Browser',
+            title: '🎭 Characters',
           }),
         }),
       ],
@@ -385,7 +385,7 @@ describe('handleBrowse', () => {
         embeds: expect.arrayContaining([
           expect.objectContaining({
             data: expect.objectContaining({
-              description: expect.stringContaining("You don't have any characters yet"),
+              description: expect.stringContaining("You haven't created any characters yet"),
             }),
           }),
         ]),
@@ -430,8 +430,13 @@ describe('handleBrowse', () => {
     const context = createMockContext(null, 'mine');
     await handleBrowse(context, mockConfig);
 
+    // A fully-empty list renders EXACTLY ONE message — the builder's
+    // filter-aware empty state; the own-section CTA must not stack on top
+    // (the duplicated/contradictory-empty-state regression).
     const embedData = mockEditReply.mock.calls[0][0].embeds[0].data;
-    expect(embedData.description).toContain("You don't have any characters yet");
+    expect(embedData.description).toContain('No characters match');
+    expect(embedData.description).not.toContain("You don't have any characters yet");
+    expect(embedData.description).not.toContain('📝 Your Characters (0)');
   });
 
   it('should handle API errors gracefully', async () => {

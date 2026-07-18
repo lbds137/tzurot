@@ -13,12 +13,12 @@ import {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
-  EmbedBuilder,
+  type EmbedBuilder,
+  escapeMarkdown,
   type ButtonInteraction,
   type StringSelectMenuInteraction,
 } from 'discord.js';
 import { type EnvConfig, getConfig } from '@tzurot/common-types/config/config';
-import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
 import { characterBrowseOptions } from '@tzurot/common-types/generated/commandOptions';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
@@ -49,9 +49,9 @@ import {
 } from '../../utils/dashboard/index.js';
 import {
   buildBrowseButtons as buildSharedBrowseButtons,
+  buildBrowseListEmbed,
   buildBrowseSelectMenu,
   createBrowseCustomIdHelpers,
-  joinFooter,
   pluralize,
   formatFilterLabeled,
   formatSortNatural,
@@ -64,7 +64,6 @@ import {
   createListItems,
   buildFilterLine,
   buildEmptyStateLines,
-  renderPageItems,
   FILTER_LABELS,
 } from './browseHelpers.js';
 
@@ -162,49 +161,59 @@ function buildBrowsePage(options: BuildBrowsePageOptions): {
 } {
   const { allItems, ownCount, page, filter, sortType, query } = options;
 
-  const totalPages = Math.max(1, Math.ceil(allItems.length / CHARACTERS_PER_PAGE));
-  const safePage = Math.min(Math.max(0, page), totalPages - 1);
-
-  const startIdx = safePage * CHARACTERS_PER_PAGE;
-  const endIdx = Math.min(startIdx + CHARACTERS_PER_PAGE, allItems.length);
-  const pageItems = allItems.slice(startIdx, endIdx);
-
-  // Build description lines
-  const lines: string[] = [];
-
+  // Preamble: search/filter context + the own-section-empty CTA. The CTA is
+  // preamble (not the builder's empty state) because it renders ABOVE other
+  // users' rows — but ONLY when the list has content: on a fully-empty list
+  // the builder's D19 empty state is the single message, and stacking the
+  // CTA on top of it would duplicate/contradict it (the old code's
+  // `lines.length === 0` guard, carried over to the split).
+  const preamble: string[] = [];
   const filterLine = buildFilterLine(query, filter);
   if (filterLine !== null) {
-    lines.push(filterLine);
+    preamble.push(filterLine);
+  }
+  if (allItems.length > 0) {
+    // Clamp before the page===0 check — callers pre-clamp today, but the
+    // guard must not depend on that. Mirrors the builder's own clamp: the
+    // two must stay in sync if itemsPerPage semantics ever change.
+    const totalPages = Math.max(1, Math.ceil(allItems.length / CHARACTERS_PER_PAGE));
+    const clampedPage = Math.min(Math.max(0, page), totalPages - 1);
+    const hasOthersInList = !allItems[0].isOwn;
+    preamble.push(...buildEmptyStateLines(clampedPage, ownCount, filter, hasOthersInList));
   }
 
-  const hasOthersOnPage = pageItems.length > 0 && !pageItems[0].isOwn;
-  const emptyLines = buildEmptyStateLines(safePage, ownCount, filter, hasOthersOnPage);
-  lines.push(...emptyLines);
-
-  // Check if no results at all
-  if (allItems.length === 0 && lines.length === 0 && (query !== null || filter !== 'all')) {
-    lines.push('_No characters match your search._');
-  }
-
-  // Render page items
-  const itemLines = renderPageItems(pageItems, lines.length);
-  lines.push(...itemLines);
-
-  // Build embed
-  const embed = new EmbedBuilder()
-    .setTitle('📚 Character Browser')
-    .setColor(DISCORD_COLORS.BLURPLE)
-    .setDescription(lines.join('\n') || 'No characters found.')
-    .setTimestamp();
-
-  // Footer with legend
-  embed.setFooter({
-    text: joinFooter(
+  const {
+    embed,
+    pageItems,
+    startIndex,
+    totalPages,
+    safePage: renderedPage,
+  } = buildBrowseListEmbed<ListItem>({
+    entityEmoji: '\u{1F3AD}',
+    titleNoun: 'Characters',
+    items: allItems,
+    page,
+    itemsPerPage: CHARACTERS_PER_PAGE,
+    preamble,
+    formatRow: item => ({
+      groupHeader: item.groupHeader,
+      badges: `${item.char.isPublic ? '\u{1F310}' : '\u{1F512}'}${item.isOwn ? '\u270F\uFE0F' : ''}`,
+      name: escapeMarkdown(item.char.displayName ?? item.char.name),
+      // Slugs are typed in @mentions — the §2.4 case where the tech-id
+      // belongs in the row.
+      techId: item.char.slug,
+    }),
+    empty: {
+      noItems: "You haven't created any characters yet — start with `/character create`.",
+      noMatch: 'No characters match — clear the search or filter to see all.',
+    },
+    filterActive: query !== null || filter !== 'all',
+    footerSegments: [
       pluralize(allItems.length, { singular: 'character', plural: 'characters' }),
       filter !== 'all' && formatFilterLabeled(FILTER_LABELS[filter]),
       sortType === 'date' ? formatSortNatural('date') : formatSortVerbatim('Sorted alphabetically'),
-      '\uD83C\uDF10 Public \uD83D\uDD12 Private'
-    ),
+    ],
+    badgeLegend: 'Public \u{1F310} · Private \u{1F512} · Yours \u270F\uFE0F',
   });
 
   // Build components
@@ -213,9 +222,9 @@ function buildBrowsePage(options: BuildBrowsePageOptions): {
   // Add select menu — factory returns null on empty pageItems
   const selectRow = buildBrowseSelectMenu<ListItem>({
     items: pageItems,
-    customId: browseHelpers.buildSelect(safePage, filter, sortType, query),
+    customId: browseHelpers.buildSelect(renderedPage, filter, sortType, query),
     placeholder: 'Select a character to view/edit...',
-    startIndex: startIdx,
+    startIndex,
     formatItem: item => ({
       label: formatCharacterSelectLabel(item),
       // Use slug as value to fetch full character data on selection
@@ -229,7 +238,7 @@ function buildBrowsePage(options: BuildBrowsePageOptions): {
 
   // Add pagination buttons if multiple pages or items exist
   if (totalPages > 1 || allItems.length > 0) {
-    components.push(buildBrowseButtons(safePage, totalPages, filter, sortType, query));
+    components.push(buildBrowseButtons(renderedPage, totalPages, filter, sortType, query));
   }
 
   return { embed, components };
