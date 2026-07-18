@@ -1,114 +1,48 @@
 /**
- * /character alias — manage a character's @mention aliases (v2 parity).
+ * /character alias — slash entry points for the alias subcommand group.
  *
- * Aliases resolve mentions at runtime (gateway PersonalityLoader step 2), and
- * until this surface existed the v2-migrated rows were invisible routing
- * data. One subcommand with an `action` choice (list | add | remove) — the
- * character command router dispatches on flat subcommand names, and the
- * avatar/voice handlers set the precedent for multiplexing modes in one
- * handler.
+ * The group's two subcommands: `browse [character]` (the design-system
+ * pilot browse — rendering and component handling live in aliasBrowse.ts)
+ * and `add` (Tier-0 inline options — character + alias + optional scope;
+ * no modal). Global scope is bot-owner-only, enforced by the gateway — a
+ * non-owner passing it gets the permission-denied surface.
  */
 
 import { escapeMarkdown } from 'discord.js';
-import { createLogger } from '@tzurot/common-types/utils/logger';
+import type { AliasScope } from '@tzurot/common-types/schemas/api/personality';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { clientsFor } from '../../utils/gatewayClients.js';
 import { CATALOG } from '../../ux/catalog/catalog.js';
 import { renderSpec } from '../../ux/render/render.js';
+import { describeAliasFailure, renderAliasBrowse } from './aliasBrowse.js';
 
-const logger = createLogger('character-alias-command');
-
-type AliasAction = 'list' | 'add' | 'remove';
-
-function describeGatewayFailure(status: number, error: string): string {
-  if (status === 400 || status === 409) {
-    // Gateway rejection prose interpolates the user's own alias text, which
-    // may carry markdown — escape before Discord renders it.
-    return renderSpec(CATALOG.error.gatewayRejection(escapeMarkdown(error)));
-  }
-  if (status === 403) {
-    return renderSpec(CATALOG.error.permissionDenied('manage aliases for this character'));
-  }
-  if (status === 404) {
-    return renderSpec(CATALOG.error.notFound('Character or alias'));
-  }
-  return renderSpec(CATALOG.error.operationFailed('managing aliases'));
+/** /character alias browse [character] */
+export async function handleAliasBrowse(context: DeferredCommandContext): Promise<void> {
+  const slug = context.interaction.options.getString('character');
+  const { userClient } = clientsFor(context.interaction);
+  await renderAliasBrowse(context, userClient, { page: 0, filter: 'all', query: slug });
 }
 
-export async function handleAlias(context: DeferredCommandContext): Promise<void> {
-  const action = context.interaction.options.getString('action', true) as AliasAction;
+/** /character alias add — Tier-0 inline options, no modal. */
+export async function handleAliasAdd(context: DeferredCommandContext): Promise<void> {
   const slug = context.interaction.options.getString('character', true);
-  const trimmedAlias = context.interaction.options.getString('alias')?.trim() ?? '';
+  const alias = context.interaction.options.getString('alias', true).trim();
+  const scope = (context.interaction.options.getString('scope') ?? 'user') as AliasScope;
+  const { userClient } = clientsFor(context.interaction);
 
-  if ((action === 'add' || action === 'remove') && trimmedAlias === '') {
-    await context.editReply(
-      renderSpec(CATALOG.error.validation(`The \`alias\` option is required for **${action}**.`))
-    );
+  const result = await userClient.addPersonalityAlias(slug, { alias, scope });
+  if (!result.ok) {
+    await context.editReply(describeAliasFailure(result.status, result.error ?? 'Unknown'));
     return;
   }
 
-  const { userClient } = clientsFor(context.interaction);
-
-  try {
-    if (action === 'list') {
-      const result = await userClient.listPersonalityAliases(slug);
-      if (!result.ok) {
-        await context.editReply(describeGatewayFailure(result.status, result.error));
-        return;
-      }
-      if (result.data.aliases.length === 0) {
-        await context.editReply(
-          renderSpec(
-            CATALOG.info.note(
-              `**${escapeMarkdown(slug)}** has no aliases. Add one with \`/character alias action:Add\`.`
-            )
-          )
-        );
-        return;
-      }
-      const lines = result.data.aliases.map(entry => `• \`@${escapeMarkdown(entry.alias)}\``);
-      await context.editReply(
-        renderSpec(
-          CATALOG.info.note(
-            `Aliases for **${escapeMarkdown(slug)}** (they resolve @mentions exactly like the name):\n${lines.join('\n')}`
-          )
-        )
-      );
-      return;
-    }
-
-    if (action === 'add') {
-      const result = await userClient.addPersonalityAlias(slug, { alias: trimmedAlias });
-      if (!result.ok) {
-        await context.editReply(describeGatewayFailure(result.status, result.error));
-        return;
-      }
-      await context.editReply(
-        renderSpec(
-          CATALOG.success.banner(
-            'Added alias',
-            `\`@${escapeMarkdown(result.data.alias.alias)}\` → ${escapeMarkdown(slug)}`
-          )
-        )
-      );
-      return;
-    }
-
-    const result = await userClient.removePersonalityAlias(slug, trimmedAlias);
-    if (!result.ok) {
-      await context.editReply(describeGatewayFailure(result.status, result.error));
-      return;
-    }
-    await context.editReply(
-      renderSpec(
-        CATALOG.success.banner(
-          'Removed alias',
-          `\`@${escapeMarkdown(result.data.removedAlias)}\` from ${escapeMarkdown(slug)}`
-        )
+  const badge = result.data.alias.scope === 'global' ? '🌐' : '🔒';
+  await context.editReply(
+    renderSpec(
+      CATALOG.success.banner(
+        'Added alias',
+        `${badge} \`@${escapeMarkdown(result.data.alias.alias)}\` → ${escapeMarkdown(slug)}`
       )
-    );
-  } catch (error) {
-    logger.error({ err: error, action, slug }, 'Alias command failed');
-    await context.editReply(renderSpec(CATALOG.error.operationFailed('managing aliases')));
-  }
+    )
+  );
 }

@@ -103,6 +103,22 @@ export const channelBrowseOptions = defineTypedOptions({
 // =============================================================================
 
 /**
+ * /character alias browse <character>
+ */
+export const characterAliasBrowseOptions = defineTypedOptions({
+  character: { type: 'string', required: false },
+});
+
+/**
+ * /character alias add <character, alias, scope>
+ */
+export const characterAliasAddOptions = defineTypedOptions({
+  character: { type: 'string', required: true },
+  alias: { type: 'string', required: true },
+  scope: { type: 'string', required: false },
+});
+
+/**
  * /character edit <character>
  */
 export const characterEditOptions = defineTypedOptions({
@@ -114,15 +130,6 @@ export const characterEditOptions = defineTypedOptions({
  */
 export const characterViewOptions = defineTypedOptions({
   character: { type: 'string', required: true },
-});
-
-/**
- * /character alias <action, character, alias>
- */
-export const characterAliasOptions = defineTypedOptions({
-  action: { type: 'string', required: true },
-  character: { type: 'string', required: true },
-  alias: { type: 'string', required: false },
 });
 
 /**
