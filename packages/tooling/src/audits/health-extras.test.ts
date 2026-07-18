@@ -53,7 +53,10 @@ describe('collectSecuritySurface', () => {
 
     const surface = collectSecuritySurface();
 
-    expect(surface).toEqual({ available: true, dependabotPrs: 3, dependabotAlerts: 1 });
+    expect(surface).toEqual({
+      dependabotPrs: { available: true, count: 3 },
+      dependabotAlerts: { available: true, count: 1 },
+    });
     // The args crossing the subprocess seam are the contract — a silently
     // reworded --jq filter would count the wrong thing while still "passing".
     expect(vi.mocked(execFileSync)).toHaveBeenCalledWith(
@@ -93,9 +96,16 @@ describe('collectSecuritySurface', () => {
 
     const surface = collectSecuritySurface();
 
+    // BOTH metrics degrade independently with the same diagnostic.
     expect(surface).toEqual({
-      available: false,
-      reason: 'To get started with GitHub CLI, please run: gh auth login',
+      dependabotPrs: {
+        available: false,
+        reason: 'To get started with GitHub CLI, please run: gh auth login',
+      },
+      dependabotAlerts: {
+        available: false,
+        reason: 'To get started with GitHub CLI, please run: gh auth login',
+      },
     });
   });
 
@@ -109,7 +119,7 @@ describe('collectSecuritySurface', () => {
       throw error;
     });
 
-    const result = collectSecuritySurface();
+    const result = collectSecuritySurface().dependabotPrs;
 
     expect(result.available).toBe(false);
     if (!result.available) {
@@ -121,7 +131,7 @@ describe('collectSecuritySurface', () => {
   it('degrades to unavailable when gh emits something non-numeric', () => {
     vi.mocked(execFileSync).mockReturnValue('not a count');
 
-    const surface = collectSecuritySurface();
+    const surface = collectSecuritySurface().dependabotAlerts;
 
     expect(surface.available).toBe(false);
     if (!surface.available) {
@@ -251,7 +261,8 @@ describe('collectHealthExtras', () => {
     await withTmpRepo({}, async rootDir => {
       const extras = collectHealthExtras(rootDir);
 
-      expect(extras.security.available).toBe(false);
+      expect(extras.security.dependabotPrs.available).toBe(false);
+      expect(extras.security.dependabotAlerts.available).toBe(false);
       // One degraded bullet per ratchet (lines, cpd, mutation).
       expect(extras.marginBullets).toHaveLength(3);
       expect(extras.docsOrphans).toEqual({ totalDocs: 0, orphans: [] });
@@ -262,7 +273,10 @@ describe('collectHealthExtras', () => {
 describe('formatHealthExtras', () => {
   it('renders the three H3 sections with orphan paths listed', () => {
     const extras: HealthExtras = {
-      security: { available: true, dependabotPrs: 2, dependabotAlerts: 0 },
+      security: {
+        dependabotPrs: { available: true, count: 2 },
+        dependabotAlerts: { available: true, count: 0 },
+      },
       marginBullets: ['lines rules: 1900/2150 (250 headroom, live measure)'],
       docsOrphans: { totalDocs: 40, orphans: ['docs/reference/lost-runbook.md'] },
     };
@@ -281,21 +295,31 @@ describe('formatHealthExtras', () => {
 
   it('renders degraded sections honestly', () => {
     const extras: HealthExtras = {
-      security: { available: false, reason: 'gh auth missing' },
+      security: {
+        dependabotPrs: { available: true, count: 2 },
+        dependabotAlerts: { available: false, reason: 'HTTP 403: Resource not accessible' },
+      },
       marginBullets: ['cpd: unavailable (no jscpd report on disk — run `pnpm cpd` first)'],
       docsOrphans: { unavailable: 'permission denied' },
     };
 
     const text = formatHealthExtras(extras);
 
-    expect(text).toContain('- security: unavailable (gh auth missing)');
+    // The mixed state is the CI reality: PR count works, alerts API 403s.
+    expect(text).toContain('- Dependabot PRs open: 2');
+    expect(text).toContain(
+      '- Dependabot alerts open: unavailable (HTTP 403: Resource not accessible)'
+    );
     expect(text).toContain('- cpd: unavailable');
     expect(text).toContain('- docs-orphan scan: unavailable (permission denied)');
   });
 
   it('reports a clean docs tree as zero orphans', () => {
     const extras: HealthExtras = {
-      security: { available: false, reason: 'x' },
+      security: {
+        dependabotPrs: { available: false, reason: 'x' },
+        dependabotAlerts: { available: false, reason: 'x' },
+      },
       marginBullets: [],
       docsOrphans: { totalDocs: 40, orphans: [] },
     };
