@@ -279,7 +279,9 @@ describe('runHealth', () => {
       .mock.calls.flat()
       .map(arg => String(arg))
       .join('\n');
-    expect(output).toContain('- security: unavailable');
+    // Per-metric degradation: each security bullet carries its own reason.
+    expect(output).toContain('- Dependabot PRs open: unavailable');
+    expect(output).toContain('- Dependabot alerts open: unavailable');
     expect(report.overall).toBe('ok');
     expect(process.exitCode).toBeUndefined();
   });

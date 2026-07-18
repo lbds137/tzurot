@@ -58,6 +58,15 @@ jobs:
       - name: Build packages
         run: pnpm --filter './packages/*' build
 
+      # The cpd ratchet-margin bullet reads jscpd's JSON report from disk;
+      # without this step it degrades to "unavailable (no jscpd report)".
+      # continue-on-error: raw jscpd exits non-zero past its own threshold —
+      # a report-only margin must never abort the audit before the aggregator
+      # runs (same isolation rationale as the Discord-delivery step below).
+      - name: Generate jscpd report
+        continue-on-error: true
+        run: pnpm cpd
+
       - name: Run audit-health aggregator
         id: health
         env:
