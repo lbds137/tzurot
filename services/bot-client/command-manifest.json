@@ -385,7 +385,8 @@
       },
       "componentPrefixes": [
         "character-settings",
-        "character-overrides"
+        "character-overrides",
+        "character-alias"
       ],
       "data": {
         "options": [
@@ -424,43 +425,60 @@
             ]
           },
           {
-            "type": 1,
+            "type": 2,
             "name": "alias",
-            "description": "Manage @mention aliases for a character you own",
+            "description": "Manage @mention aliases (personal for you, global for everyone)",
             "options": [
               {
-                "type": 3,
-                "choices": [
+                "type": 1,
+                "name": "browse",
+                "description": "Browse aliases — yours everywhere, or one character",
+                "options": [
                   {
-                    "name": "List",
-                    "value": "list"
-                  },
-                  {
-                    "name": "Add",
-                    "value": "add"
-                  },
-                  {
-                    "name": "Remove",
-                    "value": "remove"
+                    "autocomplete": true,
+                    "type": 3,
+                    "name": "character",
+                    "description": "Character to inspect (omit to see all your aliases)",
+                    "required": false
                   }
-                ],
-                "name": "action",
-                "description": "What to do with aliases",
-                "required": true
+                ]
               },
               {
-                "autocomplete": true,
-                "type": 3,
-                "name": "character",
-                "description": "Character to update",
-                "required": true
-              },
-              {
-                "type": 3,
-                "name": "alias",
-                "description": "The alias text (required for Add and Remove)",
-                "required": false,
-                "max_length": 100
+                "type": 1,
+                "name": "add",
+                "description": "Add an alias to a character you can see",
+                "options": [
+                  {
+                    "autocomplete": true,
+                    "type": 3,
+                    "name": "character",
+                    "description": "Character the alias points to",
+                    "required": true
+                  },
+                  {
+                    "type": 3,
+                    "name": "alias",
+                    "description": "The alias text (resolves @mentions like the name)",
+                    "required": true,
+                    "max_length": 100
+                  },
+                  {
+                    "type": 3,
+                    "choices": [
+                      {
+                        "name": "Personal (just you)",
+                        "value": "user"
+                      },
+                      {
+                        "name": "Global (everyone)",
+                        "value": "global"
+                      }
+                    ],
+                    "name": "scope",
+                    "description": "Who the alias resolves for (Global is bot-owner only)",
+                    "required": false
+                  }
+                ]
               }
             ]
           },

@@ -25,7 +25,7 @@ import { handleImport } from './import.js';
 import { handleExport } from './export.js';
 import { handleTemplate } from './template.js';
 import { handleView } from './view.js';
-import { handleAlias } from './alias.js';
+import { handleAliasAdd, handleAliasBrowse } from './alias.js';
 import { handleCreate } from './create.js';
 import { handleEdit } from './edit.js';
 import { handleAvatar } from './avatar.js';
@@ -75,7 +75,6 @@ function createCharacterRouter(): (context: SafeCommandContext) => Promise<void>
         chat: (ctx: DeferredCommandContext) => handleChat(ctx, config),
         random: (ctx: DeferredCommandContext) => handleRandom(ctx, config),
         'chime-in': (ctx: DeferredCommandContext) => handleChimeIn(ctx, config),
-        alias: (ctx: DeferredCommandContext) => handleAlias(ctx),
         settings: (ctx: DeferredCommandContext) => handleSettings(ctx, config),
         overrides: (ctx: DeferredCommandContext) => handleOverrides(ctx, config),
       },
@@ -88,6 +87,18 @@ function createCharacterRouter(): (context: SafeCommandContext) => Promise<void>
  * Command execution router
  */
 async function execute(context: SafeCommandContext): Promise<void> {
+  // The alias GROUP dispatches before the flat router: its subcommand
+  // names ('browse', 'add') collide with flat siblings under
+  // getSubcommand(), which is all the mixed router keys on.
+  if (context.getSubcommandGroup() === 'alias') {
+    const ctx = context as DeferredCommandContext;
+    if (ctx.getSubcommand() === 'add') {
+      await handleAliasAdd(ctx);
+    } else {
+      await handleAliasBrowse(ctx);
+    }
+    return;
+  }
   const router = createCharacterRouter();
   await router(context);
 }
@@ -150,33 +161,48 @@ export default defineCommand({
             .setAutocomplete(true)
         )
     )
-    .addSubcommand(subcommand =>
-      subcommand
+    .addSubcommandGroup(group =>
+      group
         .setName('alias')
-        .setDescription('Manage @mention aliases for a character you own')
-        .addStringOption(option =>
-          option
-            .setName('action')
-            .setDescription('What to do with aliases')
-            .setRequired(true)
-            .addChoices(
-              { name: 'List', value: 'list' },
-              { name: 'Add', value: 'add' },
-              { name: 'Remove', value: 'remove' }
+        .setDescription('Manage @mention aliases (personal for you, global for everyone)')
+        .addSubcommand(subcommand =>
+          subcommand
+            .setName('browse')
+            .setDescription('Browse aliases — yours everywhere, or one character')
+            .addStringOption(option =>
+              option
+                .setName('character')
+                .setDescription('Character to inspect (omit to see all your aliases)')
+                .setAutocomplete(true)
             )
         )
-        .addStringOption(option =>
-          option
-            .setName('character')
-            .setDescription(CHARACTER_TO_UPDATE_DESC)
-            .setRequired(true)
-            .setAutocomplete(true)
-        )
-        .addStringOption(option =>
-          option
-            .setName('alias')
-            .setDescription('The alias text (required for Add and Remove)')
-            .setMaxLength(100)
+        .addSubcommand(subcommand =>
+          subcommand
+            .setName('add')
+            .setDescription('Add an alias to a character you can see')
+            .addStringOption(option =>
+              option
+                .setName('character')
+                .setDescription('Character the alias points to')
+                .setRequired(true)
+                .setAutocomplete(true)
+            )
+            .addStringOption(option =>
+              option
+                .setName('alias')
+                .setDescription('The alias text (resolves @mentions like the name)')
+                .setRequired(true)
+                .setMaxLength(100)
+            )
+            .addStringOption(option =>
+              option
+                .setName('scope')
+                .setDescription('Who the alias resolves for (Global is bot-owner only)')
+                .addChoices(
+                  { name: 'Personal (just you)', value: 'user' },
+                  { name: 'Global (everyone)', value: 'global' }
+                )
+            )
         )
     )
     .addSubcommand(subcommand =>
@@ -402,5 +428,5 @@ export default defineCommand({
   handleSelectMenu,
   handleButton,
   handleModal,
-  componentPrefixes: ['character-settings', 'character-overrides'],
+  componentPrefixes: ['character-settings', 'character-overrides', 'character-alias'],
 });
