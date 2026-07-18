@@ -248,7 +248,10 @@ describe('Character Avatar Handler', () => {
       const mockContext = createMockContext('my-char', attachment);
       const mockCharacter = createMockCharacter({ slug: 'my-char', name: 'Luna' });
       vi.mocked(api.fetchCharacter).mockResolvedValue(mockCharacter);
-      vi.mocked(api.updateCharacter).mockResolvedValue(mockCharacter);
+      vi.mocked(api.updateCharacter).mockResolvedValue({
+        character: mockCharacter,
+        shadowedAliases: [],
+      });
 
       await handleAvatar(mockContext, mockConfig);
 
@@ -270,7 +273,10 @@ describe('Character Avatar Handler', () => {
         displayName: 'Luna the Great',
       });
       vi.mocked(api.fetchCharacter).mockResolvedValue(mockCharacter);
-      vi.mocked(api.updateCharacter).mockResolvedValue(mockCharacter);
+      vi.mocked(api.updateCharacter).mockResolvedValue({
+        character: mockCharacter,
+        shadowedAliases: [],
+      });
 
       await handleAvatar(mockContext, mockConfig);
 
@@ -366,7 +372,10 @@ describe('Character Avatar Handler', () => {
       const attachment = createMockAttachment();
       const mockContext = createMockContext('my-char', attachment, 'avatar-clear');
       vi.mocked(api.fetchCharacter).mockResolvedValue(createMockCharacter({ slug: 'my-char' }));
-      vi.mocked(api.updateCharacter).mockResolvedValue(createMockCharacter());
+      vi.mocked(api.updateCharacter).mockResolvedValue({
+        character: createMockCharacter(),
+        shadowedAliases: [],
+      });
 
       await handleAvatar(mockContext, mockConfig);
 

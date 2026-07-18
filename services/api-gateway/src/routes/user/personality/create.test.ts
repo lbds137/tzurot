@@ -236,6 +236,67 @@ describe('POST /user/personality (create)', () => {
     );
   });
 
+  it('warns (does not block) when the new name/slug shadows GLOBAL aliases', async () => {
+    mockPrisma.personality.create.mockResolvedValue(createMockPersonality());
+    // A global alias row equal to the new character's name exists.
+    mockPrisma.personalityAlias.findMany.mockResolvedValue([{ alias: 'New Character' }]);
+
+    const router = createPersonalityRoutes({
+      ...stubRouteResolvers(),
+      prisma: mockPrisma as unknown as PrismaClient,
+    });
+    const handler = getHandler(router, 'post', '/');
+    const { req, res } = createMockReqRes({
+      name: 'New Character',
+      slug: 'new-char',
+      characterInfo: 'info',
+      personalityTraits: 'traits',
+    });
+
+    await handler(req, res);
+
+    // Creation stands — warn-don't-block.
+    expect(res.status).toHaveBeenCalledWith(201);
+    // Seam: the probe targets GLOBAL rows only (personal aliases are other
+    // users' private data) over the new name AND slug, case-insensitively.
+    expect(mockPrisma.personalityAlias.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          userId: null,
+          alias: { in: ['New Character', 'new-char'], mode: 'insensitive' },
+        },
+      })
+    );
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({ shadowedAliases: ['New Character'] })
+    );
+  });
+
+  it('omits shadowedAliases entirely when nothing is shadowed', async () => {
+    mockPrisma.personality.create.mockResolvedValue(createMockPersonality());
+
+    const router = createPersonalityRoutes({
+      ...stubRouteResolvers(),
+      prisma: mockPrisma as unknown as PrismaClient,
+    });
+    const handler = getHandler(router, 'post', '/');
+    const { req, res } = createMockReqRes({
+      name: 'New Character',
+      slug: 'new-char',
+      characterInfo: 'info',
+      personalityTraits: 'traits',
+    });
+
+    await handler(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(201);
+    const payload = (res.json as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as Record<
+      string,
+      unknown
+    >;
+    expect('shadowedAliases' in payload).toBe(false);
+  });
+
   it('does not create a personality_default_configs row on personality create', async () => {
     // New personalities cascade to the current global default at request time
     // via PersonalityService.loadPersonality. Auto-pinning was removed after

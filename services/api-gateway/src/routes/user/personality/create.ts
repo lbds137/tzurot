@@ -22,6 +22,7 @@ import { validateSlug } from '../../../utils/validators.js';
 import { processAvatarData } from '../../../utils/avatarProcessor.js';
 import { processVoiceReferenceData } from '../../../utils/voiceReferenceProcessor.js';
 import { formatPersonalityResponse } from './formatters.js';
+import { findShadowedGlobalAliases } from './helpers.js';
 import type { ProvisionedRequest } from '../../../types.js';
 import { getOrCreateInternalUser } from '../userHelpers.js';
 import type { RouteDeps } from '../../routeDeps.js';
@@ -142,14 +143,31 @@ export const handleCreatePersonality = (deps: RouteDeps): RequestHandler => {
 
     logger.info({ discordUserId, slug, personalityId: personality.id }, 'Created personality');
 
+    // Reverse-shadow check (warn, don't block): the resolver matches
+    // names/slugs before aliases, so a new character whose name or slug
+    // equals an existing GLOBAL alias silently kills that alias. Creation
+    // stands; the response carries the shadowed rows so the client can
+    // render a warning. Personal aliases are never reported (they belong
+    // to other users — privacy), and their owners see the shadowed state
+    // in their own alias browse instead.
+    const shadowedAliases = await findShadowedGlobalAliases(
+      prisma,
+      personality.name,
+      personality.slug
+    );
+
     // Note: personality_default_configs is intentionally NOT populated here.
     // Personalities cascade to the current global default at request time; a
     // per-personality preset pin is an opt-in override, not a creation-time
     // snapshot. See the "Preset cascade standardization" backlog epic.
     sendCustomSuccess(
       res,
-      // Creator is the owner — never redact.
-      { success: true, personality: formatPersonalityResponse(personality, { redact: false }) },
+      {
+        success: true,
+        // Creator is the owner — never redact.
+        personality: formatPersonalityResponse(personality, { redact: false }),
+        ...(shadowedAliases.length > 0 ? { shadowedAliases } : {}),
+      },
       StatusCodes.CREATED
     );
   });

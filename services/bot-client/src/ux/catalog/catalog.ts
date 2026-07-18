@@ -176,5 +176,14 @@ export const CATALOG = {
       outcome: 'none',
       text,
     }),
+
+    /** Advisory warning: the action SUCCEEDED, but it has a side effect
+     *  worth flagging (e.g. a rename shadowing existing aliases). Distinct
+     *  from error.* — nothing failed and nothing needs retrying. */
+    warning: (text: string): MessageSpec => ({
+      severity: 'warning',
+      outcome: 'none',
+      text,
+    }),
   },
 } as const;

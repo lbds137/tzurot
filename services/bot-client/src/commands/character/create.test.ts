@@ -36,9 +36,14 @@ vi.mock('../../utils/gatewayClients.js', () => ({
   clientsFor: vi.fn(() => ({ userClient: {} })),
 }));
 
-vi.mock('./api.js', () => ({
-  createCharacter: vi.fn(),
-}));
+vi.mock('./api.js', async () => {
+  const actual = await vi.importActual<typeof import('./api.js')>('./api.js');
+  return {
+    createCharacter: vi.fn(),
+    // Real advisory sender: the reverse-shadow test asserts the actual copy.
+    sendShadowedAliasFollowUp: actual.sendShadowedAliasFollowUp,
+  };
+});
 
 vi.mock('../../utils/dashboard/index.js', () => ({
   buildDashboardEmbed: vi.fn().mockReturnValue({ data: {} }),
@@ -98,6 +103,7 @@ describe('Character Create', () => {
         channelId: 'channel-123',
         deferReply: vi.fn(),
         editReply: vi.fn().mockResolvedValue({ id: 'message-123' }),
+        followUp: vi.fn().mockResolvedValue(undefined),
         fields: {
           getTextInputValue: vi.fn((id: string) => values[id] ?? ''),
         },
@@ -120,33 +126,36 @@ describe('Character Create', () => {
       });
 
       vi.mocked(api.createCharacter).mockResolvedValue({
-        id: 'new-uuid',
-        name: 'Test Character',
-        slug: 'test-character',
-        displayName: null,
-        isPublic: false,
-        definitionPublic: false,
-        definitionRedacted: false,
-        ownerId: 'user-123',
-        characterInfo: 'Info',
-        personalityTraits: 'Traits',
-        personalityTone: null,
-        personalityAge: null,
-        personalityAppearance: null,
-        personalityLikes: null,
-        personalityDislikes: null,
-        conversationalGoals: null,
-        conversationalExamples: null,
-        errorMessage: null,
-        birthMonth: null,
-        birthDay: null,
-        birthYear: null,
-        voiceEnabled: false,
-        hasVoiceReference: false,
-        imageEnabled: false,
-        avatarData: null,
-        createdAt: '',
-        updatedAt: '',
+        character: {
+          id: 'new-uuid',
+          name: 'Test Character',
+          slug: 'test-character',
+          displayName: null,
+          isPublic: false,
+          definitionPublic: false,
+          definitionRedacted: false,
+          ownerId: 'user-123',
+          characterInfo: 'Info',
+          personalityTraits: 'Traits',
+          personalityTone: null,
+          personalityAge: null,
+          personalityAppearance: null,
+          personalityLikes: null,
+          personalityDislikes: null,
+          conversationalGoals: null,
+          conversationalExamples: null,
+          errorMessage: null,
+          birthMonth: null,
+          birthDay: null,
+          birthYear: null,
+          voiceEnabled: false,
+          hasVoiceReference: false,
+          imageEnabled: false,
+          avatarData: null,
+          createdAt: '',
+          updatedAt: '',
+        },
+        shadowedAliases: [],
       });
 
       const mockInteraction = createMockModalInteraction({
@@ -263,33 +272,36 @@ describe('Character Create', () => {
       });
 
       vi.mocked(api.createCharacter).mockResolvedValue({
-        id: 'new-uuid',
-        name: 'Test',
-        slug: 'valid-slug-123',
-        displayName: null,
-        isPublic: false,
-        definitionPublic: false,
-        definitionRedacted: false,
-        ownerId: 'user-123',
-        characterInfo: 'Info',
-        personalityTraits: 'Traits',
-        personalityTone: null,
-        personalityAge: null,
-        personalityAppearance: null,
-        personalityLikes: null,
-        personalityDislikes: null,
-        conversationalGoals: null,
-        conversationalExamples: null,
-        errorMessage: null,
-        birthMonth: null,
-        birthDay: null,
-        birthYear: null,
-        voiceEnabled: false,
-        hasVoiceReference: false,
-        imageEnabled: false,
-        avatarData: null,
-        createdAt: '',
-        updatedAt: '',
+        character: {
+          id: 'new-uuid',
+          name: 'Test',
+          slug: 'valid-slug-123',
+          displayName: null,
+          isPublic: false,
+          definitionPublic: false,
+          definitionRedacted: false,
+          ownerId: 'user-123',
+          characterInfo: 'Info',
+          personalityTraits: 'Traits',
+          personalityTone: null,
+          personalityAge: null,
+          personalityAppearance: null,
+          personalityLikes: null,
+          personalityDislikes: null,
+          conversationalGoals: null,
+          conversationalExamples: null,
+          errorMessage: null,
+          birthMonth: null,
+          birthDay: null,
+          birthYear: null,
+          voiceEnabled: false,
+          hasVoiceReference: false,
+          imageEnabled: false,
+          avatarData: null,
+          createdAt: '',
+          updatedAt: '',
+        },
+        shadowedAliases: [],
       });
 
       const mockInteraction = createMockModalInteraction({
@@ -313,33 +325,36 @@ describe('Character Create', () => {
       });
 
       vi.mocked(api.createCharacter).mockResolvedValue({
-        id: 'new-uuid',
-        name: 'New Character',
-        slug: 'new-character',
-        displayName: null,
-        isPublic: false,
-        definitionPublic: false,
-        definitionRedacted: false,
-        ownerId: 'user-123',
-        characterInfo: 'Character info here',
-        personalityTraits: 'Personality traits',
-        personalityTone: null,
-        personalityAge: null,
-        personalityAppearance: null,
-        personalityLikes: null,
-        personalityDislikes: null,
-        conversationalGoals: null,
-        conversationalExamples: null,
-        errorMessage: null,
-        birthMonth: null,
-        birthDay: null,
-        birthYear: null,
-        voiceEnabled: false,
-        hasVoiceReference: false,
-        imageEnabled: false,
-        avatarData: null,
-        createdAt: '',
-        updatedAt: '',
+        character: {
+          id: 'new-uuid',
+          name: 'New Character',
+          slug: 'new-character',
+          displayName: null,
+          isPublic: false,
+          definitionPublic: false,
+          definitionRedacted: false,
+          ownerId: 'user-123',
+          characterInfo: 'Character info here',
+          personalityTraits: 'Personality traits',
+          personalityTone: null,
+          personalityAge: null,
+          personalityAppearance: null,
+          personalityLikes: null,
+          personalityDislikes: null,
+          conversationalGoals: null,
+          conversationalExamples: null,
+          errorMessage: null,
+          birthMonth: null,
+          birthDay: null,
+          birthYear: null,
+          voiceEnabled: false,
+          hasVoiceReference: false,
+          imageEnabled: false,
+          avatarData: null,
+          createdAt: '',
+          updatedAt: '',
+        },
+        shadowedAliases: [],
       });
 
       const mockInteraction = createMockModalInteraction({
@@ -426,33 +441,36 @@ describe('Character Create', () => {
       });
 
       vi.mocked(api.createCharacter).mockResolvedValue({
-        id: 'new-uuid',
-        name: 'Test',
-        slug: 'test-slug',
-        displayName: null,
-        isPublic: false,
-        definitionPublic: false,
-        definitionRedacted: false,
-        ownerId: 'user-123',
-        characterInfo: 'Info',
-        personalityTraits: 'Traits',
-        personalityTone: null,
-        personalityAge: null,
-        personalityAppearance: null,
-        personalityLikes: null,
-        personalityDislikes: null,
-        conversationalGoals: null,
-        conversationalExamples: null,
-        errorMessage: null,
-        birthMonth: null,
-        birthDay: null,
-        birthYear: null,
-        voiceEnabled: false,
-        hasVoiceReference: false,
-        imageEnabled: false,
-        avatarData: null,
-        createdAt: '',
-        updatedAt: '',
+        character: {
+          id: 'new-uuid',
+          name: 'Test',
+          slug: 'test-slug',
+          displayName: null,
+          isPublic: false,
+          definitionPublic: false,
+          definitionRedacted: false,
+          ownerId: 'user-123',
+          characterInfo: 'Info',
+          personalityTraits: 'Traits',
+          personalityTone: null,
+          personalityAge: null,
+          personalityAppearance: null,
+          personalityLikes: null,
+          personalityDislikes: null,
+          conversationalGoals: null,
+          conversationalExamples: null,
+          errorMessage: null,
+          birthMonth: null,
+          birthDay: null,
+          birthYear: null,
+          voiceEnabled: false,
+          hasVoiceReference: false,
+          imageEnabled: false,
+          avatarData: null,
+          createdAt: '',
+          updatedAt: '',
+        },
+        shadowedAliases: [],
       });
 
       const mockInteraction = createMockModalInteraction({
@@ -472,6 +490,70 @@ describe('Character Create', () => {
         messageId: 'message-123',
         channelId: 'channel-123',
       });
+      // Nothing shadowed → no advisory followUp.
+      expect(mockInteraction.followUp).not.toHaveBeenCalled();
+    });
+
+    it('sends an ephemeral ⚠️ followUp when the new name shadows global aliases', async () => {
+      vi.mocked(dashboardUtils.getSessionManager).mockReturnValue({ set: vi.fn() } as any);
+      vi.mocked(dashboardUtils.extractModalValues).mockReturnValue({
+        name: 'Lila',
+        slug: 'lila-slug',
+        characterInfo: 'Info',
+        personalityTraits: 'Traits',
+      });
+
+      vi.mocked(api.createCharacter).mockResolvedValue({
+        character: {
+          id: 'new-uuid',
+          name: 'Lila',
+          slug: 'lila-slug',
+          displayName: null,
+          isPublic: false,
+          definitionPublic: false,
+          definitionRedacted: false,
+          ownerId: 'user-123',
+          characterInfo: 'Info',
+          personalityTraits: 'Traits',
+          personalityTone: null,
+          personalityAge: null,
+          personalityAppearance: null,
+          personalityLikes: null,
+          personalityDislikes: null,
+          conversationalGoals: null,
+          conversationalExamples: null,
+          errorMessage: null,
+          birthMonth: null,
+          birthDay: null,
+          birthYear: null,
+          voiceEnabled: false,
+          hasVoiceReference: false,
+          imageEnabled: false,
+          avatarData: null,
+          createdAt: '',
+          updatedAt: '',
+        },
+        shadowedAliases: ['lila'],
+      });
+
+      const mockInteraction = createMockModalInteraction({
+        name: 'Lila',
+        slug: 'lila-slug',
+        characterInfo: 'Info',
+        personalityTraits: 'Traits',
+      });
+
+      await handleSeedModalSubmit(mockInteraction, mockConfig);
+
+      // The create still succeeds (dashboard rendered), and the advisory
+      // rides as an ephemeral followUp naming the shadowed alias.
+      expect(mockInteraction.followUp).toHaveBeenCalledTimes(1);
+      const followUpArg = vi.mocked(mockInteraction.followUp).mock.calls[0][0] as {
+        content: string;
+        flags: number;
+      };
+      expect(followUpArg.content).toContain('⚠️');
+      expect(followUpArg.content).toContain('`lila`');
     });
   });
 });

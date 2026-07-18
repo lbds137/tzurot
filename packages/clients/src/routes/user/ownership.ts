@@ -32,6 +32,7 @@ import {
   CreatePersonalityResponseSchema,
   DeletePersonalityResponseSchema,
   GetPersonalityResponseSchema,
+  ListMyAliasesResponseSchema,
   ListPersonalitiesResponseSchema,
   ListPersonalityAliasesResponseSchema,
   PersonalityCreateSchema,
@@ -156,9 +157,25 @@ export const userOwnershipRoutes = {
     path: '/personality/:slug/aliases/:alias',
     id: 'removePersonalityAlias',
     params: { slug: z.string(), alias: z.string() },
+    // Which tier to remove from; the handler defaults to 'user' (your own
+    // personal row). 'global' is bot-owner-only.
+    query: { scope: z.string().optional() },
     output: RemovePersonalityAliasResponseSchema,
     requiresProvisionedUser: true,
     meta: { idempotent: true },
+  },
+
+  listMyAliases: {
+    audience: 'user',
+    method: 'get',
+    // Literal path — the route sorter registers it before the
+    // parameterized /personality/:slug sibling, so a character can never
+    // shadow it (and 'my-aliases' is not a reachable slug shape anyway).
+    path: '/personality/my-aliases',
+    id: 'listMyAliases',
+    output: ListMyAliasesResponseSchema,
+    requiresProvisionedUser: true,
+    meta: { safeRead: true },
   },
 
   // ============================================================================

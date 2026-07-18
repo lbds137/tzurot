@@ -22,7 +22,14 @@
  *     cleanly; the avatar itself is set separately via `/character avatar`.
  */
 
-import type { ChatInputCommandInteraction } from 'discord.js';
+import {
+  escapeMarkdown,
+  MessageFlags,
+  type ChatInputCommandInteraction,
+  type InteractionReplyOptions,
+} from 'discord.js';
+import { CATALOG } from '../../ux/catalog/catalog.js';
+import { renderSpec } from '../../ux/render/render.js';
 import type { EnvConfig } from '@tzurot/common-types/config/config';
 import { GatewayApiError, type UserClient } from '@tzurot/clients';
 import type { CharacterData } from './characterTypes.js';
@@ -257,7 +264,7 @@ export async function createCharacter(
   },
   userClient: UserClient,
   _config: EnvConfig
-): Promise<CharacterData> {
+): Promise<{ character: CharacterData; shadowedAliases: string[] }> {
   const result = await userClient.createPersonality(data);
 
   if (!result.ok) {
@@ -271,7 +278,11 @@ export async function createCharacter(
     );
   }
 
-  return toCharacterData(result.data.personality);
+  return {
+    character: toCharacterData(result.data.personality),
+    // Warn-don't-block ride-along: GLOBAL aliases the new name/slug shadows.
+    shadowedAliases: result.data.shadowedAliases ?? [],
+  };
 }
 
 /**
@@ -282,7 +293,7 @@ export async function updateCharacter(
   data: Partial<CharacterData>,
   userClient: UserClient,
   _config: EnvConfig
-): Promise<CharacterData> {
+): Promise<{ character: CharacterData; shadowedAliases: string[] }> {
   const result = await userClient.updatePersonality(slug, omitEmptyRequiredText(data));
 
   if (!result.ok) {
@@ -297,7 +308,43 @@ export async function updateCharacter(
     );
   }
 
-  return toCharacterData(result.data.personality);
+  return {
+    character: toCharacterData(result.data.personality),
+    // Present only after a rename that shadows GLOBAL aliases (warn-don't-block).
+    shadowedAliases: result.data.shadowedAliases ?? [],
+  };
+}
+
+/**
+ * Render text for the reverse-shadow advisory (create/rename shadowing
+ * existing GLOBAL aliases). Shared by the create, dashboard-edit, and
+ * import flows so the copy can't drift between them.
+ */
+export function formatShadowedAliasWarning(shadowedAliases: string[]): string {
+  const list = shadowedAliases.map(alias => `\`${escapeMarkdown(alias)}\``).join(', ');
+  const noun = shadowedAliases.length === 1 ? 'alias' : 'aliases';
+  return `This character's name now shadows the global ${noun} ${list} — ${
+    shadowedAliases.length === 1 ? 'that alias' : 'those aliases'
+  } won't resolve while the name matches.`;
+}
+
+/**
+ * Send the reverse-shadow advisory as an ephemeral followUp; no-op when
+ * nothing was shadowed. One sender for the create, dashboard-rename, and
+ * import flows — the action itself succeeded, so this never replaces the
+ * primary reply.
+ */
+export async function sendShadowedAliasFollowUp(
+  target: { followUp: (options: InteractionReplyOptions) => Promise<unknown> },
+  shadowedAliases: string[]
+): Promise<void> {
+  if (shadowedAliases.length === 0) {
+    return;
+  }
+  await target.followUp({
+    content: renderSpec(CATALOG.info.warning(formatShadowedAliasWarning(shadowedAliases))),
+    flags: MessageFlags.Ephemeral,
+  });
 }
 
 /**
