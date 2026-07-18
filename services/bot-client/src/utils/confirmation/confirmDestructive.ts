@@ -35,6 +35,7 @@ import {
   type ModalActionRowComponentBuilder,
   type ButtonInteraction,
   type ModalSubmitInteraction,
+  type StringSelectMenuInteraction,
   type InteractionEditReplyOptions,
 } from 'discord.js';
 import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
@@ -77,6 +78,13 @@ export interface DestructiveConfirmationConfig {
   warningTitle: string;
   /** Warning description shown in the embed. */
   warningDescription: string;
+  /**
+   * Optional embed footer. Flows whose modal-submit step needs display state
+   * that doesn't fit the customId (e.g. purge's personality display name for
+   * the dynamic phrase) stash it here and read it back from
+   * `interaction.message` — restart-safe without server-side sessions.
+   */
+  footerText?: string;
   /** Text shown on the danger button. */
   buttonLabel: string;
   /** Modal title. */
@@ -107,6 +115,9 @@ export function buildDestructiveWarning(config: DestructiveConfirmationConfig): 
     .setTitle(config.warningTitle)
     .setDescription(config.warningDescription)
     .setColor(DISCORD_COLORS.ERROR);
+  if (config.footerText !== undefined) {
+    embed.setFooter({ text: config.footerText });
+  }
 
   const buttons = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
@@ -202,6 +213,20 @@ async function assertInvokerOwnership(
   return true;
 }
 
+/**
+ * Ephemeral validation-error reply for malformed or state-lost component
+ * interactions — the shared shape for call sites' own guard paths.
+ */
+export async function replyValidationError(
+  interaction: ButtonInteraction | StringSelectMenuInteraction | ModalSubmitInteraction,
+  message: string
+): Promise<void> {
+  await interaction.reply({
+    content: renderSpec(CATALOG.error.validation(message)),
+    flags: MessageFlags.Ephemeral,
+  });
+}
+
 /** Parse a destructive customId, replying with a validation notice on failure. */
 async function parseOrReject(
   interaction: ButtonInteraction | ModalSubmitInteraction
@@ -209,10 +234,7 @@ async function parseOrReject(
   const parsed = DestructiveCustomIds.parse(interaction.customId);
   if (parsed === null) {
     logger.warn({ customId: interaction.customId }, 'Malformed destructive customId');
-    await interaction.reply({
-      content: renderSpec(CATALOG.error.validation('Malformed confirmation interaction.')),
-      flags: MessageFlags.Ephemeral,
-    });
+    await replyValidationError(interaction, 'Malformed confirmation interaction.');
   }
   return parsed;
 }

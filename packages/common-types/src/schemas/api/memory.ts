@@ -261,8 +261,6 @@ export const PurgeMemoriesResponseSchema = z.object({
   message: z.string(),
 });
 
-export type PurgeMemoriesResponse = z.infer<typeof PurgeMemoriesResponseSchema>;
-
 /**
  * GET /user/memory/:id  ·  PATCH /user/memory/:id  ·  PUT /user/memory/:id/lock
  * All three return the same `{ memory }` envelope.

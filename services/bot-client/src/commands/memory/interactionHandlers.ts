@@ -1,10 +1,10 @@
 /**
  * Memory Command - Interaction Handlers
  *
- * Router-pattern handlers for button, modal, and select menu interactions.
- * Routes to:
- * - Memory browse pagination (browse.ts)
- * - Memory search pagination (search.ts)
+ * Declarative dispatch table over `createComponentRouter` covering:
+ * - Memory browse/search pagination + selects (browse.ts / search.ts)
+ * - Purge destructive confirmation (purge.ts, Tier-B flow)
+ * - Fact browse/detail surfaces (factsBrowse.ts / factsDetail.ts)
  * - Memory detail actions (detail.ts via detailActionRouter.ts)
  *
  * All state lives in dashboard sessions (keyed by messageId) or in the
@@ -18,6 +18,9 @@ import {
   type StringSelectMenuInteraction,
 } from 'discord.js';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { createComponentRouter, type ComponentRoute } from '../../utils/componentRouter.js';
+import { replyValidationError } from '../../utils/confirmation/confirmDestructive.js';
+import { DestructiveCustomIds } from '../../utils/customIds.js';
 import { parseMemoryActionId, handleMemorySelect } from './detail.js';
 import { handleEditModalSubmit } from './detailModals.js';
 import { findMemoryListSessionByMessage } from './browseSession.js';
@@ -35,7 +38,7 @@ import {
   handleSearchDetailAction,
   isMemorySearchPagination,
 } from './search.js';
-import { MEMORY_PURGE_PREFIX, handlePurgeButton, handlePurgeModal } from './purge.js';
+import { MEMORY_PURGE_OPERATION, handlePurgeButton, handlePurgeModal } from './purge.js';
 import {
   factBrowseHelpers,
   isFactBrowsePagination,
@@ -56,6 +59,9 @@ import { renderSpec } from '../../ux/render/render.js';
 
 const logger = createLogger('memory-command');
 
+/** Shared copy for unrecognized component customIds. */
+const UNKNOWN_INTERACTION = 'Unknown interaction.';
+
 /**
  * Detail actions that operate on a single memory without needing to know
  * which list (browse vs search) the detail view was opened from. These can
@@ -74,84 +80,35 @@ const SESSION_INDEPENDENT_ACTIONS = new Set([
 ]);
 
 /**
- * Handle button interactions for memory commands.
- * Routes pagination to browse/search handlers, detail actions to the
- * detail action router (which calls back to refresh the list view).
+ * Memory-detail button dispatch (memory-detail::...).
+ *
+ * Session-independent actions (edit, lock, view-full, etc.) only need the
+ * memoryId from the custom ID. Session-dependent actions (back,
+ * confirm-delete) need to know which list to refresh after the action
+ * completes — that requires a session lookup, which is async, so we must
+ * deferUpdate BEFORE it (ack-first rule). The downstream handlers tolerate
+ * an already-deferred interaction, and the expired-session path uses
+ * followUp instead of reply.
+ *
+ * Failure mode to watch: if any action in SESSION_INDEPENDENT_ACTIONS ever
+ * starts calling onRefresh, memories opened from a search result will
+ * silently skip the list refresh — refreshBrowseList bails when the
+ * session kind is 'search'. The fix in that case is to move the newly
+ * refreshing action out of SESSION_INDEPENDENT_ACTIONS so it falls through
+ * to the kind-based dispatch below.
  */
-export async function handleButton(interaction: ButtonInteraction): Promise<void> {
-  const { customId } = interaction;
-
-  // Browse pagination button (memory-browse::browse::...)
-  if (isMemoryBrowsePagination(customId)) {
-    await handleBrowsePagination(interaction);
-    return;
-  }
-
-  // Search pagination button (memory-search::browse::...)
-  if (isMemorySearchPagination(customId)) {
-    await handleSearchPagination(interaction);
-    return;
-  }
-
-  // Purge confirmation buttons (memory-purge::proceed::... or memory-purge::cancel)
-  if (customId.startsWith(`${MEMORY_PURGE_PREFIX}::`)) {
-    await handlePurgeButton(interaction);
-    return;
-  }
-
-  // Fact browse pagination (memory-fact-browse::browse::...) — checked before
-  // the fact detail parse because the prefixes share the 'memory-fact' stem.
-  if (isFactBrowsePagination(customId)) {
-    await handleFactsPagination(interaction);
-    return;
-  }
-
-  // Fact detail buttons (memory-fact::...)
-  const factAction = parseFactActionId(customId);
-  if (factAction !== null) {
-    await routeFactButton(interaction, factAction);
-    return;
-  }
-
-  // Detail action buttons (memory-detail::...)
-  const parsed = parseMemoryActionId(customId);
+async function handleDetailButton(interaction: ButtonInteraction): Promise<void> {
+  const parsed = parseMemoryActionId(interaction.customId);
   if (parsed === null) {
-    logger.debug({ customId }, 'Unknown button customId');
-    await interaction.reply({
-      content: renderSpec(CATALOG.error.validation('Unknown interaction.')),
-      flags: MessageFlags.Ephemeral,
-    });
+    await replyValidationError(interaction, UNKNOWN_INTERACTION);
     return;
   }
 
-  // Session-independent actions (edit, lock, view-full, etc.) only need the
-  // memoryId from the custom ID — they don't care which list the detail view
-  // was opened from. Route them directly via handleBrowseDetailAction which
-  // delegates to handleMemoryDetailAction for the action dispatch.
-  // Note: the onRefresh callback is only invoked for 'back' and 'confirm-delete',
-  // which ARE session-dependent — those fall through to the kind-based routing below.
-  //
-  // Failure mode to watch: if any action in SESSION_INDEPENDENT_ACTIONS ever
-  // starts calling onRefresh, memories opened from a search result will
-  // silently skip the list refresh — refreshBrowseList bails when the
-  // session kind is 'search'. The fix in that case is to move the newly
-  // refreshing action out of SESSION_INDEPENDENT_ACTIONS so it falls through
-  // to the kind-based dispatch below.
   if (SESSION_INDEPENDENT_ACTIONS.has(parsed.action)) {
     await handleBrowseDetailAction(interaction);
     return;
   }
 
-  // Session-dependent actions (back, confirm-delete) need to know which list
-  // to refresh after the action completes. Look up the session to find out.
-  //
-  // Ack-first rule compliance (.claude/rules/04-discord.md): the session
-  // lookup is async, so we must deferUpdate BEFORE it to stay inside the
-  // 3-second interaction window. The downstream 'back' and confirm-delete
-  // handlers in detailActionRouter / detail.ts tolerate an already-deferred
-  // interaction (they guard with !interaction.deferred), so this early
-  // defer doesn't double-ack. After the defer, the expired-session path
-  // must use followUp instead of reply.
   await interaction.deferUpdate();
 
   const session = await findMemoryListSessionByMessage(interaction.message.id);
@@ -169,7 +126,7 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
       : await handleSearchDetailAction(interaction);
 
   if (!handled) {
-    logger.warn({ customId }, 'Unhandled detail action');
+    logger.warn({ customId: interaction.customId }, 'Unhandled detail action');
     // Interaction is already deferred at this point, so use followUp.
     await interaction.followUp({
       content: renderSpec(CATALOG.error.validation('Unknown action.')),
@@ -179,17 +136,19 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
 }
 
 /**
- * Route a parsed fact-detail button to its handler.
+ * Fact-detail button dispatch (memory-fact::...).
  *
  * Ack discipline: 'correct' must NOT be deferred here — it opens a modal, and
  * showModal must be the interaction's first response. 'lock' and 'forget'
  * self-defer. 'back' and 'confirm-forget' are deferred here because they
  * refresh the list view (their handlers guard against double-acking).
  */
-async function routeFactButton(
-  interaction: ButtonInteraction,
-  parsed: { action: string; factId?: string; extra?: string }
-): Promise<void> {
+async function handleFactButton(interaction: ButtonInteraction): Promise<void> {
+  const parsed = parseFactActionId(interaction.customId);
+  if (parsed === null) {
+    await replyValidationError(interaction, UNKNOWN_INTERACTION);
+    return;
+  }
   const { action, factId, extra } = parsed;
 
   if (action === 'correct' && factId !== undefined) {
@@ -219,106 +178,92 @@ async function routeFactButton(
   }
 
   logger.warn({ customId: interaction.customId }, 'Unhandled fact action');
-  await interaction.reply({
-    content: renderSpec(CATALOG.error.validation('Unknown action.')),
-    flags: MessageFlags.Ephemeral,
-  });
+  await replyValidationError(interaction, 'Unknown action.');
 }
 
-/**
- * Handle modal submit interactions for memory editing.
- *
- * Every path must acknowledge the interaction (reply or defer) — unacknowledged
- * modal submits surface as "This interaction failed" in Discord, which is worse
- * than a clean error message.
- */
-export async function handleModal(interaction: ModalSubmitInteraction): Promise<void> {
-  const { customId } = interaction;
-
-  // Purge confirmation modal (memory-purge::confirm::<personalityId>)
-  if (customId.startsWith(`${MEMORY_PURGE_PREFIX}::`)) {
-    await handlePurgeModal(interaction);
+/** Fact correction modal (memory-fact::correct::<factId>). */
+async function handleFactCorrectModal(interaction: ModalSubmitInteraction): Promise<void> {
+  const parsed = parseFactActionId(interaction.customId);
+  if (parsed?.factId === undefined) {
+    await replyValidationError(interaction, 'Malformed correction modal (missing fact ID).');
     return;
   }
+  await handleCorrectModalSubmit(interaction, parsed.factId);
+}
 
-  // Fact correction modal (memory-fact::correct::<factId>)
-  const factParsed = parseFactActionId(customId);
-  if (factParsed?.action === 'correct' && factParsed.factId !== undefined) {
-    await handleCorrectModalSubmit(interaction, factParsed.factId);
-    return;
-  }
-
-  const parsed = parseMemoryActionId(customId);
-
-  if (parsed?.action !== 'edit') {
-    logger.warn({ customId }, 'Unknown modal');
-    await interaction.reply({
-      content: renderSpec(CATALOG.error.validation('Unknown modal submission.')),
-      flags: MessageFlags.Ephemeral,
-    });
-    return;
-  }
-
-  if (parsed.memoryId === undefined) {
+/** Memory edit modal (memory-detail::edit::<memoryId>). */
+async function handleMemoryEditModal(interaction: ModalSubmitInteraction): Promise<void> {
+  const parsed = parseMemoryActionId(interaction.customId);
+  if (parsed?.memoryId === undefined) {
     logger.warn({ customId: interaction.customId }, 'Edit modal missing memoryId');
-    await interaction.reply({
-      content: renderSpec(CATALOG.error.validation('Malformed edit modal (missing memory ID).')),
-      flags: MessageFlags.Ephemeral,
-    });
+    await replyValidationError(interaction, 'Malformed edit modal (missing memory ID).');
     return;
   }
-
   await handleEditModalSubmit(interaction, parsed.memoryId);
 }
 
 /**
- * Handle select menu interactions for memory commands.
- * Routes to browse or search select handlers based on the custom ID prefix.
+ * The dispatch table. Order matters in two places: fact-browse before the
+ * fact-detail parse (the prefixes share the 'memory-fact' stem), and the
+ * memory-detail parse last (its parser is the loosest).
  */
-export async function handleSelectMenu(interaction: StringSelectMenuInteraction): Promise<void> {
-  const { customId } = interaction;
+const routes: ComponentRoute[] = [
+  // Browse/search pagination + selects
+  { matches: isMemoryBrowsePagination, onButton: handleBrowsePagination },
+  { matches: id => browseHelpers.isBrowseSelect(id), onSelect: handleBrowseSelect },
+  { matches: isMemorySearchPagination, onButton: handleSearchPagination },
+  { matches: id => searchHelpers.isBrowseSelect(id), onSelect: handleSearchSelect },
+  // Purge destructive confirmation (memory::destructive::...::purge::...)
+  {
+    matches: id => DestructiveCustomIds.parse(id)?.operation === MEMORY_PURGE_OPERATION,
+    onButton: handlePurgeButton,
+    onModal: handlePurgeModal,
+  },
+  // Fact browse before fact detail (shared 'memory-fact' stem)
+  { matches: isFactBrowsePagination, onButton: handleFactsPagination },
+  {
+    // Fact browse select or the detail select id — both open the fact detail view.
+    matches: id =>
+      factBrowseHelpers.isBrowseSelect(id) || parseFactActionId(id)?.action === 'select',
+    onSelect: handleFactSelect,
+  },
+  {
+    matches: id => parseFactActionId(id)?.action === 'correct',
+    onModal: handleFactCorrectModal,
+  },
+  { matches: id => parseFactActionId(id) !== null, onButton: handleFactButton },
+  // Memory detail (memory-detail::...). The select id is used by
+  // buildMemorySelectMenu for both browse and search result lists — both
+  // origins open the same detail view, and "back" resolves the original
+  // list via the messageId-keyed session when clicked.
+  {
+    matches: id => parseMemoryActionId(id)?.action === 'select',
+    onSelect: handleMemorySelect,
+  },
+  {
+    matches: id => parseMemoryActionId(id)?.action === 'edit',
+    onModal: handleMemoryEditModal,
+  },
+  { matches: id => parseMemoryActionId(id) !== null, onButton: handleDetailButton },
+];
 
-  // Browse select (memory-browse::browse-select::...)
-  if (browseHelpers.isBrowseSelect(customId)) {
-    await handleBrowseSelect(interaction);
-    return;
-  }
+const router = createComponentRouter({
+  routes,
+  // Every unrouted path must still acknowledge the interaction —
+  // unacknowledged submits surface as "This interaction failed" in Discord.
+  // "Unknown interaction" (not "expired") so the user doesn't chase the
+  // wrong cause and re-run the command needlessly.
+  unrouted: async (interaction, kind) => {
+    logger.debug({ customId: interaction.customId, kind }, 'Unrouted memory interaction');
+    await replyValidationError(
+      interaction,
+      kind === 'modal' ? 'Unknown modal submission.' : UNKNOWN_INTERACTION
+    );
+  },
+});
 
-  // Search select (memory-search::browse-select::...)
-  if (searchHelpers.isBrowseSelect(customId)) {
-    await handleSearchSelect(interaction);
-    return;
-  }
-
-  // Fact browse select (memory-fact-browse::browse-select) or the detail
-  // select id (memory-fact::select) — both open the fact detail view.
-  if (
-    factBrowseHelpers.isBrowseSelect(customId) ||
-    parseFactActionId(customId)?.action === 'select'
-  ) {
-    await handleFactSelect(interaction);
-    return;
-  }
-
-  // memory-detail::select — used by buildMemorySelectMenu for both browse
-  // and search result lists. Route directly to handleMemorySelect without
-  // a session lookup: both origins open the same detail view, and the
-  // detail view's "back" button looks up the original list via the
-  // messageId-keyed session when it's clicked (see refreshBrowseList /
-  // refreshSearchList in detailActionRouter). No up-front session kind
-  // disambiguation is needed here.
-  const parsed = parseMemoryActionId(customId);
-  if (parsed?.action === 'select') {
-    await handleMemorySelect(interaction);
-    return;
-  }
-
-  logger.debug({ customId }, 'Unknown select menu customId');
-  // The session may still be valid; the customId itself isn't recognized.
-  // Show "Unknown interaction" rather than "expired" so the user doesn't
-  // chase the wrong cause (e.g., re-running the command needlessly).
-  await interaction.reply({
-    content: renderSpec(CATALOG.error.validation('Unknown interaction.')),
-    flags: MessageFlags.Ephemeral,
-  });
-}
+export const handleButton: (interaction: ButtonInteraction) => Promise<void> = router.handleButton;
+export const handleSelectMenu: (interaction: StringSelectMenuInteraction) => Promise<void> =
+  router.handleSelectMenu;
+export const handleModal: (interaction: ModalSubmitInteraction) => Promise<void> =
+  router.handleModal;
