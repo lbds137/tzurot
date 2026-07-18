@@ -14,7 +14,7 @@ Complete reference for every `/` command Tzurot exposes in Discord. For a high-l
 |              | `import` `export` `template`              | Character portability (JSON)                           |
 |              | `chat` `avatar` `voice` `voice-clear`     | Interaction and per-character voice cloning enrollment |
 |              | `settings` `overrides`                    | Per-character config and personal overrides            |
-|              | `alias`                                   | Manage @mention aliases (list, add, remove)            |
+|              | `alias browse` `alias add`                | @mention aliases — personal (just you) or global tiers |
 | `/persona`   | `view` `edit` `create` `browse` `default` | User persona management                                |
 |              | `override set` `override clear`           | Per-character persona overrides                        |
 
