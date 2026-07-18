@@ -200,7 +200,7 @@ export const SYNC_CONFIG: Record<SyncTableName, TableSyncConfig> = {
     pk: 'id',
     createdAt: 'created_at',
     // No updatedAt - aliases are immutable
-    uuidColumns: ['id', 'personality_id'],
+    uuidColumns: ['id', 'personality_id', 'user_id'],
     timestampColumns: ['created_at'],
   },
   user_personality_configs: {
@@ -324,7 +324,7 @@ export const SYNC_CONFIG: Record<SyncTableName, TableSyncConfig> = {
  * - personas: owner_id → users (NOT NULL, also circular; same deferred handling)
  * - personalities: system_prompt_id → system_prompts, owner_id → users (NOT NULL)
  * - personality_owners: personality_id → personalities, user_id → users
- * - personality_aliases: personality_id → personalities
+ * - personality_aliases: personality_id → personalities, user_id → users (NULLABLE — global rows carry NULL)
  * - user_personality_configs: user_id → users, personality_id → personalities
  * - user_persona_history_configs: user_id → users, personality_id → personalities, persona_id → personas
  * - conversation_history: persona_id → personas, personality_id → personalities

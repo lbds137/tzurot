@@ -146,13 +146,77 @@ export class PersonalityLoader {
   }
 
   /**
+   * Resolve the requesting user's database uuid for PERSONAL-alias lookup.
+   * Deliberately separate from resolveOwnerUuid: that method conflates
+   * "who filters access" (bot owner → no filter → undefined) with "who is
+   * asking" — but the bot owner's own personal aliases must still resolve.
+   */
+  private async resolveAliasUserUuid(discordUserId?: string): Promise<string | undefined> {
+    if (discordUserId === undefined || discordUserId === '') {
+      return undefined;
+    }
+    const user = await this.prisma.user.findUnique({
+      where: { discordId: discordUserId },
+      select: { id: true },
+    });
+    return user?.id;
+  }
+
+  /**
+   * Look up one alias tier (personal or global) and load its personality
+   * with the access filter applied. Returns null when the alias doesn't
+   * exist in that tier OR the personality is inaccessible — callers fall
+   * through to the next tier either way.
+   */
+  private async findPersonalityViaAlias(
+    aliasLower: string,
+    scope: { userId: string } | 'global',
+    accessFilter: ReturnType<PersonalityLoader['buildAccessFilter']>,
+    originalInput: string
+  ): Promise<DatabasePersonality | null> {
+    const aliasMatch = await this.prisma.personalityAlias.findFirst({
+      where: {
+        alias: { equals: aliasLower, mode: 'insensitive' },
+        userId: scope === 'global' ? null : scope.userId,
+      },
+      select: { personalityId: true },
+    });
+    if (!aliasMatch) {
+      return null;
+    }
+
+    const tier = scope === 'global' ? 'global' : 'personal';
+    const personality = await this.prisma.personality.findFirst({
+      where: {
+        AND: [{ id: aliasMatch.personalityId }, ...(accessFilter ? [accessFilter] : [])],
+      },
+      select: PERSONALITY_SELECT,
+    });
+
+    if (personality) {
+      logger.debug(
+        { alias: originalInput, personalityId: aliasMatch.personalityId, tier },
+        '[PersonalityLoader] Found personality via alias'
+      );
+      return personality;
+    }
+
+    logger.debug(
+      { alias: originalInput, personalityId: aliasMatch.personalityId, tier },
+      '[PersonalityLoader] Alias matched but personality inaccessible — falling through'
+    );
+    return null;
+  }
+
+  /**
    * Load a personality by name, ID, slug, or alias from database
    *
    * Lookup order:
    * 1. UUID (if input looks like a UUID)
    * 2. Name (case-insensitive)
    * 3. Slug (lowercase)
-   * 4. Alias (case-insensitive) - falls back to PersonalityAlias table
+   * 4. PERSONAL alias (the requesting user's own rows — beats global)
+   * 5. GLOBAL alias (userId IS NULL rows)
    *
    * Access Control:
    * When userId is provided, only returns personalities that are:
@@ -164,7 +228,6 @@ export class PersonalityLoader {
    * @param userId - Discord user ID for access control (optional - omit for internal operations)
    * @returns DatabasePersonality or null if not found or access denied
    */
-  // eslint-disable-next-line sonarjs/cognitive-complexity -- Multi-strategy lookup: UUID → name → slug → alias with access control filtering
   async loadFromDatabase(nameOrId: string, userId?: string): Promise<DatabasePersonality | null> {
     // Resolve Discord user ID to database UUID for ownership checks
     const ownerUuid = await this.resolveOwnerUuid(userId);
@@ -230,43 +293,38 @@ export class PersonalityLoader {
         return slugMatch;
       }
 
-      // Step 2: If not found, check aliases (case-insensitive)
-      const aliasMatch = await this.prisma.personalityAlias.findFirst({
-        where: {
-          alias: { equals: nameOrId.toLowerCase(), mode: 'insensitive' },
-        },
-        select: { personalityId: true },
-      });
+      // Step 2: aliases — the requesting user's PERSONAL aliases first, then
+      // GLOBAL rows. Two sequential lookups by design (not one OR query): a
+      // personal alias pointing at a personality this user can no longer
+      // access must fall through to a same-named global alias, and each step
+      // re-applies the access filter on the personality load.
 
-      if (aliasMatch) {
-        logger.debug(
-          { alias: nameOrId, personalityId: aliasMatch.personalityId },
-          '[PersonalityLoader] Found personality via alias'
+      // Step 2a: personal tier. Needs the user's uuid even when the access
+      // filter is bypassed (bot owner), so it resolves independently of
+      // resolveOwnerUuid's filter concern. Skipped for internal calls and
+      // users with no row (they can't have personal aliases).
+      const aliasUserUuid = await this.resolveAliasUserUuid(userId);
+      if (aliasUserUuid !== undefined) {
+        const viaPersonal = await this.findPersonalityViaAlias(
+          searchLower,
+          { userId: aliasUserUuid },
+          accessFilter,
+          nameOrId
         );
-
-        // Load the personality by its ID (with access control)
-        const personalityByAlias = await this.prisma.personality.findFirst({
-          where: {
-            AND: [
-              { id: aliasMatch.personalityId },
-              // Apply access filter if userId provided
-              ...(accessFilter ? [accessFilter] : []),
-            ],
-          },
-          select: PERSONALITY_SELECT,
-        });
-
-        if (personalityByAlias) {
-          return personalityByAlias;
+        if (viaPersonal) {
+          return viaPersonal;
         }
+      }
 
-        // Personality exists but user doesn't have access
-        if (userId !== undefined && userId !== '') {
-          logger.debug(
-            { alias: nameOrId, personalityId: aliasMatch.personalityId, userId },
-            '[PersonalityLoader] Personality exists but user lacks access'
-          );
-        }
+      // Step 2b: global tier (userId IS NULL rows).
+      const viaGlobal = await this.findPersonalityViaAlias(
+        searchLower,
+        'global',
+        accessFilter,
+        nameOrId
+      );
+      if (viaGlobal) {
+        return viaGlobal;
       }
 
       logger.debug({ nameOrId }, 'Personality not found');
