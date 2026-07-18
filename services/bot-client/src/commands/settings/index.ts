@@ -41,7 +41,7 @@ import { handleBrowse as handleWalletBrowse } from './apikey/browse.js';
 import { handleRemoveKey } from './apikey/remove.js';
 import { handleTestKey } from './apikey/test.js';
 import { handleApikeyModalSubmit } from './apikey/modal.js';
-import { ApikeyCustomIds } from '../../utils/customIds.js';
+import { ApikeyCustomIds, DestructiveCustomIds } from '../../utils/customIds.js';
 
 // Preset handlers
 import {
@@ -63,9 +63,13 @@ import {
   handleDataDelete,
   handleDataDeleteButton,
   handleDataDeleteModal,
-  isDataDeleteInteraction,
-  SETTINGS_DATA_DELETE_PREFIX,
+  SETTINGS_ACCOUNT_DELETE_OPERATION,
 } from './data/delete.js';
+
+/** Account-delete destructive customIds (settings::destructive::...::account-delete...). */
+function isAccountDeleteInteraction(customId: string): boolean {
+  return DestructiveCustomIds.parse(customId)?.operation === SETTINGS_ACCOUNT_DELETE_OPERATION;
+}
 
 // Defaults handlers (user-default config cascade settings)
 import { CATALOG } from '../../ux/catalog/catalog.js';
@@ -173,7 +177,7 @@ async function handleModal(interaction: ModalSubmitInteraction): Promise<void> {
     return;
   }
 
-  if (isDataDeleteInteraction(interaction.customId)) {
+  if (isAccountDeleteInteraction(interaction.customId)) {
     await handleDataDeleteModal(interaction);
     return;
   }
@@ -195,7 +199,7 @@ async function handleButton(interaction: ButtonInteraction): Promise<void> {
     return;
   }
 
-  if (isDataDeleteInteraction(interaction.customId)) {
+  if (isAccountDeleteInteraction(interaction.customId)) {
     await handleDataDeleteButton(interaction);
     return;
   }
@@ -446,9 +450,5 @@ export default defineCommand({
   handleModal,
   handleButton,
   handleSelectMenu,
-  componentPrefixes: [
-    'user-defaults-settings',
-    PRESET_OVERRIDE_PREFIX,
-    SETTINGS_DATA_DELETE_PREFIX,
-  ],
+  componentPrefixes: ['user-defaults-settings', PRESET_OVERRIDE_PREFIX],
 });

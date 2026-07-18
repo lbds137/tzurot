@@ -13,7 +13,12 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { GatewayApiError } from '@tzurot/clients';
-import { handlePurge, handlePurgeButton, handlePurgeModal, MEMORY_PURGE_PREFIX } from './purge.js';
+import {
+  handlePurge,
+  handlePurgeButton,
+  handlePurgeModal,
+  MEMORY_PURGE_OPERATION,
+} from './purge.js';
 import type { ButtonInteraction, ModalSubmitInteraction } from 'discord.js';
 import { makeOk, makeErr, asUserClient } from '../../test/gatewayClientStubs.js';
 
@@ -103,6 +108,9 @@ function createMockButtonInteraction(
     customId,
     user: { id: opts.userId ?? 'user-123' },
     message: {
+      // The Tier-B factory reads invoker ownership from the parent message's
+      // interactionMetadata (the original slash invoker).
+      interactionMetadata: { user: { id: 'user-123' } },
       embeds: [
         {
           footer: footerText === null ? null : { text: footerText },
@@ -126,7 +134,7 @@ function createMockModalInteraction(
 ) {
   const customId =
     opts.customId ??
-    `${MEMORY_PURGE_PREFIX}::confirm::${PERSONALITY_ID}::${opts.userId ?? 'user-123'}`;
+    `memory::destructive::modal_submit::${MEMORY_PURGE_OPERATION}::${PERSONALITY_ID}`;
   // Use `in` check so explicit `null` overrides the default — `??` would replace null with the default.
   const footerText: string | null =
     'footerText' in opts && opts.footerText !== undefined
@@ -143,6 +151,7 @@ function createMockModalInteraction(
       footerText === null
         ? null
         : {
+            interactionMetadata: { user: { id: 'user-123' } },
             embeds: [{ footer: { text: footerText } }],
             edit: messageEdit,
           },
@@ -263,7 +272,9 @@ describe('handlePurge (slash command entry)', () => {
 
 describe('handlePurgeButton (button routing)', () => {
   it('updates message on cancel', async () => {
-    const interaction = createMockButtonInteraction(`${MEMORY_PURGE_PREFIX}::cancel::user-123`);
+    const interaction = createMockButtonInteraction(
+      `memory::destructive::cancel_button::${MEMORY_PURGE_OPERATION}::${PERSONALITY_ID}`
+    );
 
     await handlePurgeButton(interaction);
 
@@ -277,21 +288,24 @@ describe('handlePurgeButton (button routing)', () => {
 
   it('shows modal on proceed (no async work before showModal)', async () => {
     const interaction = createMockButtonInteraction(
-      `${MEMORY_PURGE_PREFIX}::proceed::${PERSONALITY_ID}::user-123`
+      `memory::destructive::confirm_button::${MEMORY_PURGE_OPERATION}::${PERSONALITY_ID}`
     );
 
     await handlePurgeButton(interaction);
 
     expect(interaction.showModal).toHaveBeenCalledTimes(1);
     const modal = interaction.showModal.mock.calls[0][0];
-    expect(modal.data.title).toBe('Confirm Memory Purge');
+    expect(modal.data.title).toBe('Confirm Deletion');
+    // Derived from the button's own customId by the Tier-B factory.
     expect(modal.data.custom_id).toBe(
-      `${MEMORY_PURGE_PREFIX}::confirm::${PERSONALITY_ID}::user-123`
+      `memory::destructive::modal_submit::${MEMORY_PURGE_OPERATION}::${PERSONALITY_ID}`
     );
   });
 
   it('rejects proceed without personalityId in customId', async () => {
-    const interaction = createMockButtonInteraction(`${MEMORY_PURGE_PREFIX}::proceed::::user-123`);
+    const interaction = createMockButtonInteraction(
+      `memory::destructive::confirm_button::${MEMORY_PURGE_OPERATION}::`
+    );
 
     await handlePurgeButton(interaction);
 
@@ -303,7 +317,7 @@ describe('handlePurgeButton (button routing)', () => {
 
   it('rejects proceed when footer state missing', async () => {
     const interaction = createMockButtonInteraction(
-      `${MEMORY_PURGE_PREFIX}::proceed::${PERSONALITY_ID}::user-123`,
+      `memory::destructive::confirm_button::${MEMORY_PURGE_OPERATION}::${PERSONALITY_ID}`,
       { footerText: null }
     );
 
@@ -316,7 +330,9 @@ describe('handlePurgeButton (button routing)', () => {
   });
 
   it('rejects unknown actions', async () => {
-    const interaction = createMockButtonInteraction(`${MEMORY_PURGE_PREFIX}::nonsense`);
+    const interaction = createMockButtonInteraction(
+      `memory::destructive::nonsense_button::${MEMORY_PURGE_OPERATION}`
+    );
 
     await handlePurgeButton(interaction);
 
@@ -327,7 +343,7 @@ describe('handlePurgeButton (button routing)', () => {
 
   it('rejects proceed click from a different user (cross-user guard)', async () => {
     const interaction = createMockButtonInteraction(
-      `${MEMORY_PURGE_PREFIX}::proceed::${PERSONALITY_ID}::user-123`,
+      `memory::destructive::confirm_button::${MEMORY_PURGE_OPERATION}::${PERSONALITY_ID}`,
       { userId: 'user-OTHER' }
     );
 
@@ -342,9 +358,10 @@ describe('handlePurgeButton (button routing)', () => {
   });
 
   it('rejects cancel click from a different user (cross-user guard)', async () => {
-    const interaction = createMockButtonInteraction(`${MEMORY_PURGE_PREFIX}::cancel::user-123`, {
-      userId: 'user-OTHER',
-    });
+    const interaction = createMockButtonInteraction(
+      `memory::destructive::cancel_button::${MEMORY_PURGE_OPERATION}::${PERSONALITY_ID}`,
+      { userId: 'user-OTHER' }
+    );
 
     await handlePurgeButton(interaction);
 
@@ -497,7 +514,7 @@ describe('handlePurgeModal (modal submission)', () => {
 
   it('rejects modal with missing personalityId in customId', async () => {
     const interaction = createMockModalInteraction(EXPECTED_PHRASE, {
-      customId: `${MEMORY_PURGE_PREFIX}::confirm::::user-123`,
+      customId: `memory::destructive::modal_submit::${MEMORY_PURGE_OPERATION}::`,
     });
 
     await handlePurgeModal(interaction);
@@ -519,7 +536,6 @@ describe('handlePurgeModal (modal submission)', () => {
 
   it('rejects modal submission from a different user (cross-user guard)', async () => {
     const interaction = createMockModalInteraction(EXPECTED_PHRASE, {
-      customId: `${MEMORY_PURGE_PREFIX}::confirm::${PERSONALITY_ID}::user-123`,
       userId: 'user-OTHER',
     });
 

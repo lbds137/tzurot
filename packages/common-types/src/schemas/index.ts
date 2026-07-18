@@ -229,7 +229,6 @@ export {
   PersonaUpdateSchema,
   PreviewTokenSchema,
   ProviderWarningSchema,
-  type PurgeMemoriesResponse,
   PurgeMemoriesResponseSchema,
   PurgeMemoriesSchema,
   PurgeTokenSchema,
