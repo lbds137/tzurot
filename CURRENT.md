@@ -1,13 +1,12 @@
 # Current
 
-> **Version**: v3.0.0-beta.168 (released 2026-07-17, ~15:20 ET) — the follow-through release: notification self-heal (50278 permanent class + `notifyAutoDisabledAt` re-entry; 122-row prod flip pre-executed), the complete secrets arc (breakage-free BYOK rotation + ledger/nag, split-brain guard; prod ledger seeded), tooling QoL (`ops run --`), `.claude/` repair, polish (#1687–#1693). Holistic review: "unusually well-engineered," zero blocking. **Blast: recipients=1, sent=1, 0 failures — the minor-level consent model working exactly as designed** (3 webhook deliveries absorbed to 1 enqueue). _Prior: beta.167 (2026-07-17 — the post-incident release; gate verified 107 vs 268)._
+> **Version**: v3.0.0-beta.169 (released 2026-07-18, ~18:35 ET) — **the alias + design-system-pilot release**: the @mention alias system ships to prod for the first time (personal + global tiers, redesigned `/character alias` group with the first in-place filter toggle, select-driven remove, reverse-shadow warnings), the Phase-2 component layer it was built on (confirmation Tier A/B, component router, shared browse builder), the `/voice voices clear` confirmation-routing fix, weekly-audit hygiene, develop code-commit guard, adm-zip security override (#1695–#1705). Two holistic reviews, both "no blocking issues"; additive migration premigrated; broadcast classified **minor** (owner call). Owner smoked the pilot pre-cut incl. a real 73-row global-alias cleanup through the new browse. _Prior: beta.168 (2026-07-17 — notification self-heal + secrets arc)._
 
 ---
 
 ## Unreleased on Develop
 
-- **#1695** `/character alias` management (v2-parity Phase 1) — list/add/remove + gateway CRUD over `personality_aliases`; 5 review rounds (security scoping, cache invalidation, escaping). Dev auto-deployed; no migration.
-- **#1696** develop-code-commit-guard hook + 17-case probe harness (structural fix for the direct-to-develop code-commit incident).
+_(empty — slate reset at beta.169)_
 
 ## UX Epic — Phase 2 IN FLIGHT (2026-07-17 evening session)
 
