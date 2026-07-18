@@ -43,7 +43,7 @@ import { clientsFor } from '../../utils/gatewayClients.js';
 import { CATALOG } from '../../ux/catalog/catalog.js';
 import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
 import { renderSpec } from '../../ux/render/render.js';
-import { createCharacter } from './api.js';
+import { createCharacter, sendShadowedAliasFollowUp } from './api.js';
 
 const logger = createLogger('character-create');
 
@@ -122,7 +122,7 @@ export async function handleSeedModalSubmit(
   try {
     const { userClient } = clientsFor(interaction);
     // Create character via API
-    const character = await createCharacter(
+    const { character, shadowedAliases } = await createCharacter(
       {
         name: values.name,
         slug: normalizedSlug,
@@ -149,6 +149,10 @@ export async function handleSeedModalSubmit(
     );
 
     const reply = await interaction.editReply({ embeds: [embed], components });
+
+    // Reverse-shadow advisory (warn-don't-block): the create succeeded, but
+    // the chosen name/slug kills existing global aliases at resolution time.
+    await sendShadowedAliasFollowUp(interaction, shadowedAliases);
 
     // Create session (keyed by slug)
     const sessionManager = getSessionManager();

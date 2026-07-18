@@ -77,7 +77,7 @@ import { handleCreatePersonality } from '../user/personality/create.js';
 import { handleUpdatePersonality } from '../user/personality/update.js';
 import { handleSetPersonalityVisibility } from '../user/personality/visibility.js';
 import { handleDeletePersonality } from '../user/personality/delete.js';
-import { handleListPersonalityAliases, handleAddPersonalityAlias, handleRemovePersonalityAlias } from '../user/personality/aliases.js';
+import { handleListPersonalityAliases, handleAddPersonalityAlias, handleRemovePersonalityAlias, handleListMyAliases } from '../user/personality/aliases.js';
 import { handleListPersonas, handleGetPersona, handleCreatePersona, handleUpdatePersona, handleDeletePersona } from '../user/persona/crud.js';
 import { handleSetPersonaDefault } from '../user/persona/default.js';
 import { handleListPersonaOverrides, handleGetPersonaOverride, handleSetPersonaOverride, handleClearPersonaOverride, handleCreatePersonaOverride } from '../user/persona/override.js';
@@ -198,6 +198,7 @@ export function mountUserRoutes(app: Express, deps: RouteDeps): void {
   app.delete('/api/user/model-override/default', requireUserAuth(), requireProvisionedUser(deps.prisma), handleClearDefaultModelConfig(deps));
   app.get('/api/user/personality', requireUserAuth(), requireProvisionedUser(deps.prisma), handleListPersonalities(deps));
   app.post('/api/user/personality', requireUserAuth(), requireProvisionedUser(deps.prisma), handleCreatePersonality(deps));
+  app.get('/api/user/personality/my-aliases', requireUserAuth(), requireProvisionedUser(deps.prisma), handleListMyAliases(deps));
   app.get('/api/user/persona', requireUserAuth(), requireProvisionedUser(deps.prisma), handleListPersonas(deps));
   app.post('/api/user/persona', requireUserAuth(), requireProvisionedUser(deps.prisma), handleCreatePersona(deps));
   app.get('/api/user/persona/override', requireUserAuth(), requireProvisionedUser(deps.prisma), handleListPersonaOverrides(deps));

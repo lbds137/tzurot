@@ -372,7 +372,28 @@ describe('Character API Client', () => {
       const result = await createCharacter(input, asClient(stub), mockConfig);
 
       expect(stub.createPersonality).toHaveBeenCalledWith(input);
-      expect(result.slug).toBe('new-character');
+      expect(result.character.slug).toBe('new-character');
+      // No shadowedAliases in the response → empty ride-along, never undefined.
+      expect(result.shadowedAliases).toEqual([]);
+    });
+
+    it('surfaces shadowedAliases from the response (reverse-shadow warn ride-along)', async () => {
+      stub.createPersonality.mockResolvedValue({
+        ok: true,
+        data: {
+          success: true,
+          personality: makePersonality({ name: 'Lila', slug: 'lila' }),
+          shadowedAliases: ['lila'],
+        },
+      });
+
+      const result = await createCharacter(
+        { name: 'Lila', slug: 'lila', characterInfo: 'Info', personalityTraits: 'Traits' },
+        asClient(stub),
+        mockConfig
+      );
+
+      expect(result.shadowedAliases).toEqual(['lila']);
     });
 
     it('should throw error on creation failure', async () => {
@@ -415,7 +436,8 @@ describe('Character API Client', () => {
       );
 
       expect(stub.updatePersonality).toHaveBeenCalledWith('test-char', { name: 'Updated Name' });
-      expect(result.name).toBe('Updated Name');
+      expect(result.character.name).toBe('Updated Name');
+      expect(result.shadowedAliases).toEqual([]);
     });
 
     it('should throw error on update failure', async () => {

@@ -200,3 +200,28 @@ export async function resolvePersonalityForEdit<T extends { id: string; ownerId:
   // but the select clause ensures only the requested fields are present at runtime.
   return { personality: personality as unknown as T };
 }
+
+/**
+ * GLOBAL alias rows (user_id IS NULL) that a character's name/slug shadows.
+ * The resolver checks names/slugs before aliases, so any global alias equal
+ * to either stops resolving — for everyone. Powers the warn-don't-block
+ * `shadowedAliases` response field on create and rename. Personal aliases
+ * are deliberately excluded: they belong to other users (privacy), and
+ * their owners see the shadowed state in their own alias browse instead.
+ */
+export async function findShadowedGlobalAliases(
+  prisma: PrismaClient,
+  name: string,
+  slug: string
+): Promise<string[]> {
+  const rows = await prisma.personalityAlias.findMany({
+    where: {
+      userId: null,
+      alias: { in: [name, slug], mode: 'insensitive' },
+    },
+    select: { alias: true },
+    orderBy: { alias: 'asc' },
+    take: 25,
+  });
+  return rows.map(row => row.alias);
+}

@@ -25,7 +25,7 @@ import { processVoiceReferenceData } from '../../../utils/voiceReferenceProcesso
 import { deleteAllAvatarVersions } from '../../../utils/avatarPaths.js';
 import type { ProvisionedRequest } from '../../../types.js';
 import { getParam } from '../../../utils/requestParams.js';
-import { resolvePersonalityForEdit } from './helpers.js';
+import { findShadowedGlobalAliases, resolvePersonalityForEdit } from './helpers.js';
 import { formatPersonalityResponse } from './formatters.js';
 import type { RouteDeps } from '../../routeDeps.js';
 
@@ -161,10 +161,84 @@ async function processMediaUploads(
   return { avatarUpdated, mediaFields };
 }
 
+/**
+ * Slug changes are bot-owner-only, must pass format validation, and must
+ * not collide with an existing slug. Sends the error response itself and
+ * returns false when the update must stop; true when no slug change was
+ * requested or the change is permitted.
+ */
+async function checkSlugUpdatePermission(options: {
+  prisma: PrismaClient;
+  res: Response;
+  discordUserId: string;
+  currentSlug: string;
+  newSlug: string | undefined;
+  personalityId: string;
+}): Promise<boolean> {
+  const { prisma, res, discordUserId, currentSlug, newSlug, personalityId } = options;
+  if (newSlug === undefined || newSlug === currentSlug) {
+    return true;
+  }
+
+  if (!isBotOwner(discordUserId)) {
+    logger.warn(
+      { discordUserId, currentSlug, attemptedSlug: newSlug },
+      'Non-admin attempted slug update'
+    );
+    sendError(res, ErrorResponses.unauthorized('Only bot admins can update personality slugs'));
+    return false;
+  }
+
+  // Validate slug format
+  const slugValidation = validateSlug(newSlug);
+  if (!slugValidation.valid) {
+    sendError(res, slugValidation.error);
+    return false;
+  }
+
+  // Check uniqueness - ensure new slug doesn't already exist
+  const existingWithSlug = await prisma.personality.findUnique({
+    where: { slug: newSlug },
+    select: { id: true },
+  });
+  if (existingWithSlug !== null) {
+    sendError(res, ErrorResponses.validationError(`Slug "${newSlug}" is already in use`));
+    return false;
+  }
+
+  logger.info(
+    { discordUserId, oldSlug: currentSlug, newSlug, personalityId },
+    'Bot admin updating personality slug'
+  );
+  return true;
+}
+
+/**
+ * Reverse-shadow check (warn, don't block), run only when the name or slug
+ * actually changed: a renamed character whose new name/slug equals an
+ * existing GLOBAL alias silently kills that alias (names/slugs win at
+ * resolution). The rename stands; the returned field — empty when nothing
+ * is shadowed, so the response omits it — carries the shadowed rows.
+ */
+async function buildRenameShadowField(options: {
+  prisma: PrismaClient;
+  body: { name?: string };
+  previousName: string;
+  slugWasUpdated: boolean;
+  updated: { name: string; slug: string };
+}): Promise<{ shadowedAliases?: string[] }> {
+  const { prisma, body, previousName, slugWasUpdated, updated } = options;
+  const nameWasUpdated = body.name !== undefined && body.name !== previousName;
+  if (!nameWasUpdated && !slugWasUpdated) {
+    return {};
+  }
+  const shadowedAliases = await findShadowedGlobalAliases(prisma, updated.name, updated.slug);
+  return shadowedAliases.length > 0 ? { shadowedAliases } : {};
+}
+
 // --- Handler Factory ---
 
 function createHandler(prisma: PrismaClient, cacheInvalidationService?: CacheInvalidationService) {
-  // eslint-disable-next-line sonarjs/cognitive-complexity -- Personality update handler with ~15 optional fields, ownership verification, slug uniqueness check, and cache invalidation
   return async (req: ProvisionedRequest, res: Response) => {
     const discordUserId = req.userId;
     const slug = getParam(req.params.slug);
@@ -195,41 +269,18 @@ function createHandler(prisma: PrismaClient, cacheInvalidationService?: CacheInv
     }
     const body = parseResult.data;
 
-    // Field-level permission check: slug updates require bot owner
-    if (body.slug !== undefined && body.slug !== slug) {
-      if (!isBotOwner(discordUserId)) {
-        logger.warn(
-          { discordUserId, currentSlug: slug, attemptedSlug: body.slug },
-          'Non-admin attempted slug update'
-        );
-        return sendError(
-          res,
-          ErrorResponses.unauthorized('Only bot admins can update personality slugs')
-        );
-      }
-
-      // Validate slug format
-      const slugValidation = validateSlug(body.slug);
-      if (!slugValidation.valid) {
-        return sendError(res, slugValidation.error);
-      }
-
-      // Check uniqueness - ensure new slug doesn't already exist
-      const existingWithSlug = await prisma.personality.findUnique({
-        where: { slug: body.slug },
-        select: { id: true },
-      });
-      if (existingWithSlug !== null) {
-        return sendError(
-          res,
-          ErrorResponses.validationError(`Slug "${body.slug}" is already in use`)
-        );
-      }
-
-      logger.info(
-        { discordUserId, oldSlug: slug, newSlug: body.slug, personalityId: personality.id },
-        'Bot admin updating personality slug'
-      );
+    // Field-level permission check: slug updates require bot owner. Sends
+    // the error itself; false = respond-and-return.
+    const slugUpdateOk = await checkSlugUpdatePermission({
+      prisma,
+      res,
+      discordUserId,
+      currentSlug: slug,
+      newSlug: body.slug,
+      personalityId: personality.id,
+    });
+    if (!slugUpdateOk) {
+      return;
     }
 
     // Track if slug is actually changing (for cache invalidation)
@@ -279,6 +330,14 @@ function createHandler(prisma: PrismaClient, cacheInvalidationService?: CacheInv
       'Updated personality'
     );
 
+    const shadowField = await buildRenameShadowField({
+      prisma,
+      body,
+      previousName: personality.name,
+      slugWasUpdated,
+      updated,
+    });
+
     // canEdit: true is exact, not optimistic: the resolvePersonalityForEdit
     // gate above already proved this requester can edit (reaching here
     // otherwise is impossible). The schema argument pins the payload to the
@@ -287,6 +346,7 @@ function createHandler(prisma: PrismaClient, cacheInvalidationService?: CacheInv
       // Owner-only route (the update already passed the edit gate) — never redact.
       personality: formatPersonalityResponse(updated, { redact: false }),
       canEdit: true,
+      ...shadowField,
     });
   };
 }

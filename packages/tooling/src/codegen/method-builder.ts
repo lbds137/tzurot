@@ -233,7 +233,10 @@ function buildSignatureParams(input: SignatureParamsInput): string[] {
     params.push(`${p}: string`);
   }
   if (hasInput) {
-    params.push(`input: z.infer<typeof ROUTE_MANIFEST.${route.id}.input>`);
+    // z.input, not z.infer: request bodies are typed from the CALLER's side,
+    // so schema defaults (e.g. alias scope) stay optional at the call site —
+    // the gateway's parse applies them.
+    params.push(`input: z.input<typeof ROUTE_MANIFEST.${route.id}.input>`);
   }
   if (hasQuery || acceptsSubject) {
     const optionsType = buildOptionsType(route, acceptsSubject);

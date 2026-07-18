@@ -77,7 +77,8 @@ describe('buildMethod — service flavor', () => {
       input: z.object({ name: z.string() }),
     };
     const out = buildMethod(route, { flavor: 'service', pathPrefix: '/api/internal' });
-    expect(out).toContain(`input: z.infer<typeof ROUTE_MANIFEST.getFoo.input>`);
+    // z.input (caller-side type): schema defaults stay optional at call sites.
+    expect(out).toContain(`input: z.input<typeof ROUTE_MANIFEST.getFoo.input>`);
     expect(out).toContain(`body: input`);
     expect(out).toContain(`method: 'POST',`);
   });

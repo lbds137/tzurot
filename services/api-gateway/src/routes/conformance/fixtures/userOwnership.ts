@@ -99,6 +99,18 @@ export const userOwnershipFixtures: Record<string, ConformanceEntry> = {
     params: { slug: 'conf-alias-remove', alias: 'conf-alias-remove-nickname' },
   },
 
+  listMyAliases: {
+    // Seed a personal alias (POST defaults to the user tier) so the entry
+    // schema — personality context + shadowed flag — is actually exercised;
+    // an empty list parses trivially.
+    seed: async ctx => {
+      await createPersonality(ctx, 'conf-my-aliases');
+      await ctx.call('post', '/api/user/personality/conf-my-aliases/aliases', {
+        alias: 'conf-my-aliases-nickname',
+      });
+    },
+  },
+
   // ---- Persona CRUD -------------------------------------------------------
 
   listPersonas: {

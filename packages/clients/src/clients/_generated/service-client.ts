@@ -41,7 +41,7 @@ export class ServiceClient {
     this.serviceSecret = options.serviceSecret;
   }
 
-  async aiGenerate(input: z.infer<typeof ROUTE_MANIFEST.aiGenerate.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.aiGenerate.output>>> {
+  async aiGenerate(input: z.input<typeof ROUTE_MANIFEST.aiGenerate.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.aiGenerate.output>>> {
     const fullPath = '/api/internal/ai/generate';
     return callGateway({
       baseUrl: this.baseUrl,
@@ -54,7 +54,7 @@ export class ServiceClient {
     });
   }
 
-  async aiTranscribe(input: z.infer<typeof ROUTE_MANIFEST.aiTranscribe.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.aiTranscribe.output>>> {
+  async aiTranscribe(input: z.input<typeof ROUTE_MANIFEST.aiTranscribe.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.aiTranscribe.output>>> {
     const fullPath = '/api/internal/ai/transcribe';
     return callGateway({
       baseUrl: this.baseUrl,
@@ -91,7 +91,7 @@ export class ServiceClient {
     });
   }
 
-  async releaseBroadcastPending(releaseId: string, input: z.infer<typeof ROUTE_MANIFEST.releaseBroadcastPending.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.releaseBroadcastPending.output>>> {
+  async releaseBroadcastPending(releaseId: string, input: z.input<typeof ROUTE_MANIFEST.releaseBroadcastPending.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.releaseBroadcastPending.output>>> {
     const fullPath = `/api/internal/release-broadcast/${encodeURIComponent(releaseId)}/pending`;
     return callGateway({
       baseUrl: this.baseUrl,
@@ -103,7 +103,7 @@ export class ServiceClient {
     });
   }
 
-  async releaseBroadcastDeliveries(releaseId: string, input: z.infer<typeof ROUTE_MANIFEST.releaseBroadcastDeliveries.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.releaseBroadcastDeliveries.output>>> {
+  async releaseBroadcastDeliveries(releaseId: string, input: z.input<typeof ROUTE_MANIFEST.releaseBroadcastDeliveries.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.releaseBroadcastDeliveries.output>>> {
     const fullPath = `/api/internal/release-broadcast/${encodeURIComponent(releaseId)}/deliveries`;
     return callGateway({
       baseUrl: this.baseUrl,
@@ -115,7 +115,7 @@ export class ServiceClient {
     });
   }
 
-  async releaseBroadcastReconcile(input: z.infer<typeof ROUTE_MANIFEST.releaseBroadcastReconcile.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.releaseBroadcastReconcile.output>>> {
+  async releaseBroadcastReconcile(input: z.input<typeof ROUTE_MANIFEST.releaseBroadcastReconcile.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.releaseBroadcastReconcile.output>>> {
     const fullPath = '/api/internal/release-broadcast/reconcile';
     return callGateway({
       baseUrl: this.baseUrl,
@@ -128,7 +128,7 @@ export class ServiceClient {
     });
   }
 
-  async setDmSession(input: z.infer<typeof ROUTE_MANIFEST.setDmSession.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.setDmSession.output>>> {
+  async setDmSession(input: z.input<typeof ROUTE_MANIFEST.setDmSession.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.setDmSession.output>>> {
     const fullPath = '/api/internal/channel/dm-session/set';
     return callGateway({
       baseUrl: this.baseUrl,
@@ -155,7 +155,7 @@ export class ServiceClient {
     });
   }
 
-  async persistAssistantMessage(input: z.infer<typeof ROUTE_MANIFEST.persistAssistantMessage.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.persistAssistantMessage.output>>> {
+  async persistAssistantMessage(input: z.input<typeof ROUTE_MANIFEST.persistAssistantMessage.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.persistAssistantMessage.output>>> {
     const fullPath = '/api/internal/conversation/assistant-message';
     return callGateway({
       baseUrl: this.baseUrl,
@@ -167,7 +167,7 @@ export class ServiceClient {
     });
   }
 
-  async persistUserMessage(input: z.infer<typeof ROUTE_MANIFEST.persistUserMessage.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.persistUserMessage.output>>> {
+  async persistUserMessage(input: z.input<typeof ROUTE_MANIFEST.persistUserMessage.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.persistUserMessage.output>>> {
     const fullPath = '/api/internal/conversation/user-message';
     return callGateway({
       baseUrl: this.baseUrl,
@@ -179,7 +179,7 @@ export class ServiceClient {
     });
   }
 
-  async syncConversation(input: z.infer<typeof ROUTE_MANIFEST.syncConversation.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.syncConversation.output>>> {
+  async syncConversation(input: z.input<typeof ROUTE_MANIFEST.syncConversation.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.syncConversation.output>>> {
     const fullPath = '/api/internal/conversation/sync';
     return callGateway({
       baseUrl: this.baseUrl,
@@ -206,7 +206,7 @@ export class ServiceClient {
     });
   }
 
-  async routingContextCreate(input: z.infer<typeof ROUTE_MANIFEST.routingContextCreate.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.routingContextCreate.output>>> {
+  async routingContextCreate(input: z.input<typeof ROUTE_MANIFEST.routingContextCreate.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.routingContextCreate.output>>> {
     const fullPath = '/api/internal/v1/routing-context';
     return callGateway({
       baseUrl: this.baseUrl,
@@ -276,7 +276,7 @@ export class ServiceClient {
     });
   }
 
-  async updateDiagnosticResponseIds(requestId: string, input: z.infer<typeof ROUTE_MANIFEST.updateDiagnosticResponseIds.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.updateDiagnosticResponseIds.output>>> {
+  async updateDiagnosticResponseIds(requestId: string, input: z.input<typeof ROUTE_MANIFEST.updateDiagnosticResponseIds.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.updateDiagnosticResponseIds.output>>> {
     const fullPath = `/api/internal/diagnostic/${encodeURIComponent(requestId)}/response-ids`;
     return callGateway({
       baseUrl: this.baseUrl,

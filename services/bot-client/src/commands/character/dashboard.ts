@@ -38,7 +38,7 @@ import {
 import { clientsFor } from '../../utils/gatewayClients.js';
 import { CATALOG } from '../../ux/catalog/catalog.js';
 import { renderSpec } from '../../ux/render/render.js';
-import { updateCharacter } from './api.js';
+import { sendShadowedAliasFollowUp, updateCharacter } from './api.js';
 import { handleAction } from './dashboardActions.js';
 import { handleSeedModalSubmit } from './create.js';
 import { handleDeleteAction, handleDeleteButton } from './dashboardDeleteHandlers.js';
@@ -150,7 +150,12 @@ async function handleSectionModalSubmit(
   try {
     const { userClient } = clientsFor(interaction);
     // Update character via API (entityId is the slug)
-    const updated = await updateCharacter(entityId, extracted.merged, userClient, config);
+    const { character: updated, shadowedAliases } = await updateCharacter(
+      entityId,
+      extracted.merged,
+      userClient,
+      config
+    );
 
     // Build session data (preserve _isAdmin flag and browseContext)
     const sessionData: CharacterSessionData = {
@@ -180,6 +185,10 @@ async function handleSectionModalSubmit(
     );
 
     await interaction.editReply({ embeds: [embed], components });
+
+    // Reverse-shadow advisory (warn-don't-block): a rename through the
+    // identity section can shadow existing global aliases.
+    await sendShadowedAliasFollowUp(interaction, shadowedAliases);
 
     logger.info({ slug: entityId, sectionId, isAdmin }, 'Character section updated');
   } catch (error) {

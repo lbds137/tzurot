@@ -23,6 +23,9 @@ import {
   PERSONALITY_DETAIL_SELECT,
   AddPersonalityAliasRequestSchema,
   AddPersonalityAliasResponseSchema,
+  AliasScopeSchema,
+  ListMyAliasesResponseSchema,
+  MyAliasEntrySchema,
   ListPersonalityAliasesResponseSchema,
   PersonalityAliasEntrySchema,
   RemovePersonalityAliasResponseSchema,
@@ -909,6 +912,16 @@ describe('Personality alias schemas', () => {
     expect(parsed.alias).toBe('Lila');
   });
 
+  it('defaults scope to "user" (personal) when omitted; accepts explicit tiers', () => {
+    expect(AddPersonalityAliasRequestSchema.parse({ alias: 'Lila' }).scope).toBe('user');
+    expect(AddPersonalityAliasRequestSchema.parse({ alias: 'Lila', scope: 'global' }).scope).toBe(
+      'global'
+    );
+    expect(
+      AddPersonalityAliasRequestSchema.safeParse({ alias: 'Lila', scope: 'everyone' }).success
+    ).toBe(false);
+  });
+
   it('rejects an alias containing "@" anywhere (mention parser splits on it)', () => {
     expect(AddPersonalityAliasRequestSchema.safeParse({ alias: '@Lila' }).success).toBe(false);
     expect(AddPersonalityAliasRequestSchema.safeParse({ alias: 'Li@la' }).success).toBe(false);
@@ -921,22 +934,34 @@ describe('Personality alias schemas', () => {
     );
   });
 
-  it('ListPersonalityAliasesResponseSchema requires ISO createdAt entries', () => {
+  it('ListPersonalityAliasesResponseSchema requires scope + truncated + ISO createdAt', () => {
     expect(
       ListPersonalityAliasesResponseSchema.safeParse({
-        aliases: [{ alias: 'lila', createdAt: '2026-07-17T00:00:00.000Z' }],
+        aliases: [{ alias: 'lila', scope: 'global', createdAt: '2026-07-17T00:00:00.000Z' }],
+        truncated: false,
       }).success
     ).toBe(true);
+    // Missing truncated
     expect(
       ListPersonalityAliasesResponseSchema.safeParse({
-        aliases: [{ alias: 'lila', createdAt: 'yesterday' }],
+        aliases: [{ alias: 'lila', scope: 'global', createdAt: '2026-07-17T00:00:00.000Z' }],
+      }).success
+    ).toBe(false);
+    expect(
+      ListPersonalityAliasesResponseSchema.safeParse({
+        aliases: [{ alias: 'lila', scope: 'global', createdAt: 'yesterday' }],
+        truncated: false,
       }).success
     ).toBe(false);
   });
 
-  it('RemovePersonalityAliasResponseSchema carries the removed alias back', () => {
+  it('RemovePersonalityAliasResponseSchema carries the removed alias + its tier back', () => {
+    expect(
+      RemovePersonalityAliasResponseSchema.safeParse({ removedAlias: 'lila', removedScope: 'user' })
+        .success
+    ).toBe(true);
     expect(RemovePersonalityAliasResponseSchema.safeParse({ removedAlias: 'lila' }).success).toBe(
-      true
+      false
     );
   });
 });
@@ -946,11 +971,16 @@ describe('PersonalityAliasEntrySchema', () => {
     expect(
       PersonalityAliasEntrySchema.safeParse({
         alias: 'lila',
+        scope: 'user',
         createdAt: '2026-07-17T00:00:00.000Z',
       }).success
     ).toBe(true);
     expect(
-      PersonalityAliasEntrySchema.safeParse({ alias: 'lila', createdAt: 'yesterday' }).success
+      PersonalityAliasEntrySchema.safeParse({
+        alias: 'lila',
+        scope: 'user',
+        createdAt: 'yesterday',
+      }).success
     ).toBe(false);
   });
 });
@@ -959,11 +989,78 @@ describe('AddPersonalityAliasResponseSchema', () => {
   it('wraps a single created entry', () => {
     expect(
       AddPersonalityAliasResponseSchema.safeParse({
-        alias: { alias: 'li', createdAt: '2026-07-17T00:00:00.000Z' },
+        alias: { alias: 'li', scope: 'user', createdAt: '2026-07-17T00:00:00.000Z' },
       }).success
     ).toBe(true);
     expect(AddPersonalityAliasResponseSchema.safeParse({ alias: 'bare-string' }).success).toBe(
       false
     );
+  });
+});
+
+describe('AliasScopeSchema', () => {
+  it('accepts exactly the two tiers', () => {
+    expect(AliasScopeSchema.parse('global')).toBe('global');
+    expect(AliasScopeSchema.parse('user')).toBe('user');
+    expect(AliasScopeSchema.safeParse('everyone').success).toBe(false);
+    expect(AliasScopeSchema.safeParse('').success).toBe(false);
+  });
+});
+
+describe('MyAliasEntrySchema', () => {
+  it('requires the personality context object with id/name/slug', () => {
+    expect(
+      MyAliasEntrySchema.safeParse({
+        alias: 'mommy',
+        scope: 'user',
+        personality: { id: 'p-1', name: 'Lilith', slug: 'lilith' },
+        shadowed: false,
+        createdAt: '2026-07-18T00:00:00.000Z',
+      }).success
+    ).toBe(true);
+    expect(
+      MyAliasEntrySchema.safeParse({
+        alias: 'mommy',
+        scope: 'user',
+        personality: { id: 'p-1' },
+        shadowed: false,
+        createdAt: '2026-07-18T00:00:00.000Z',
+      }).success
+    ).toBe(false);
+  });
+});
+
+describe('ListMyAliasesResponseSchema', () => {
+  it('accepts entries with personality context + shadowed flag', () => {
+    expect(
+      ListMyAliasesResponseSchema.safeParse({
+        aliases: [
+          {
+            alias: 'mommy',
+            scope: 'user',
+            personality: { id: 'p-1', name: 'Lilith', slug: 'lilith' },
+            shadowed: false,
+            createdAt: '2026-07-18T00:00:00.000Z',
+          },
+        ],
+        truncated: false,
+      }).success
+    ).toBe(true);
+  });
+
+  it('rejects entries missing the shadowed flag (the badge signal is not optional)', () => {
+    expect(
+      ListMyAliasesResponseSchema.safeParse({
+        aliases: [
+          {
+            alias: 'mommy',
+            scope: 'user',
+            personality: { id: 'p-1', name: 'Lilith', slug: 'lilith' },
+            createdAt: '2026-07-18T00:00:00.000Z',
+          },
+        ],
+        truncated: false,
+      }).success
+    ).toBe(false);
   });
 });
