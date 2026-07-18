@@ -93,6 +93,12 @@ export type PersonalityFull = z.infer<typeof PersonalityFullSchema>;
 export const CreatePersonalityResponseSchema = z.object({
   success: z.literal(true),
   personality: PersonalityFullSchema,
+  /** GLOBAL alias rows the new character's name/slug now shadows (the
+   *  resolver checks names/slugs before aliases, so those aliases stop
+   *  resolving). Warn-don't-block: creation succeeded; present only when
+   *  non-empty so the client renders a ⚠️ note. Personal aliases are
+   *  never reported here (privacy — they belong to other users). */
+  shadowedAliases: z.array(z.string()).optional(),
 });
 
 export type CreatePersonalityResponse = z.infer<typeof CreatePersonalityResponseSchema>;
@@ -108,6 +114,10 @@ export const GetPersonalityResponseSchema = z.object({
   // `canUserEditPersonality()` (owner OR bot-admin) and always returns it.
   // Required for callers that gate edit-only UI on the requester's permission.
   canEdit: z.boolean(),
+  /** Set only by the UPDATE handler after a name/slug change: GLOBAL alias
+   *  rows the new name/slug now shadows (warn-don't-block — the rename
+   *  succeeded). GET never populates it. */
+  shadowedAliases: z.array(z.string()).optional(),
 });
 
 export type GetPersonalityResponse = z.infer<typeof GetPersonalityResponseSchema>;
@@ -414,13 +424,23 @@ export const PERSONALITY_DETAIL_SELECT = {
 // (the rows also resolve @mentions via PersonalityLoader step 2).
 // ============================================================================
 
+/** Alias tiers: 'global' rows (user_id IS NULL — bot-owner-blessed, resolve
+ *  for everyone) vs 'user' rows (personal — resolve only for their owner,
+ *  checked before global in the resolver's alias step). */
+export const AliasScopeSchema = z.enum(['global', 'user']);
+export type AliasScope = z.infer<typeof AliasScopeSchema>;
+
 export const PersonalityAliasEntrySchema = z.object({
   alias: z.string(),
+  scope: AliasScopeSchema,
   createdAt: z.string().datetime(),
 });
 
 export const ListPersonalityAliasesResponseSchema = z.object({
+  /** Global rows plus the CALLER's own personal rows — never other users'. */
   aliases: z.array(PersonalityAliasEntrySchema),
+  /** True when rows were dropped at the read cap — UI shows a truncation footer. */
+  truncated: z.boolean(),
 });
 
 export const AddPersonalityAliasRequestSchema = z.object({
@@ -434,6 +454,9 @@ export const AddPersonalityAliasRequestSchema = z.object({
     .refine(value => !value.includes('@'), {
       message: 'Aliases cannot contain "@" — mentions split on it, so it could never match',
     }),
+  /** Which tier to write. Defaults to 'user' (a personal alias any caller may
+   *  create on any visible character). 'global' is bot-owner-only. */
+  scope: AliasScopeSchema.default('user'),
 });
 
 export const AddPersonalityAliasResponseSchema = z.object({
@@ -442,4 +465,31 @@ export const AddPersonalityAliasResponseSchema = z.object({
 
 export const RemovePersonalityAliasResponseSchema = z.object({
   removedAlias: z.string(),
+  removedScope: AliasScopeSchema,
+});
+
+// Cross-character alias overview (GET /user/personality/my-aliases): the
+// caller's personal rows across all characters, plus every global row for
+// the bot owner. The browse surface's no-filter mode.
+
+export const MyAliasEntrySchema = z.object({
+  alias: z.string(),
+  scope: AliasScopeSchema,
+  personality: z.object({
+    id: z.string(),
+    name: z.string(),
+    slug: z.string(),
+  }),
+  /** True when a character name/slug VISIBLE TO THE CALLER currently equals
+   *  this alias — the resolver checks names/slugs first, so the alias is
+   *  dead for its owner until the collision clears. Powers the ⚠️ badge in
+   *  the owner's own browse (no privacy leak: computed per-caller). */
+  shadowed: z.boolean(),
+  createdAt: z.string().datetime(),
+});
+
+export const ListMyAliasesResponseSchema = z.object({
+  aliases: z.array(MyAliasEntrySchema),
+  /** True when rows were dropped at the read cap — UI shows a truncation footer. */
+  truncated: z.boolean(),
 });

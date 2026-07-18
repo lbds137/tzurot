@@ -46,7 +46,7 @@ export class OwnerClient {
     this.actor = options.actor;
   }
 
-  async dbSync(input: z.infer<typeof ROUTE_MANIFEST.dbSync.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.dbSync.output>>> {
+  async dbSync(input: z.input<typeof ROUTE_MANIFEST.dbSync.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.dbSync.output>>> {
     const fullPath = '/api/admin/db-sync';
     return callGateway({
       baseUrl: this.baseUrl,
@@ -62,7 +62,7 @@ export class OwnerClient {
     });
   }
 
-  async broadcast(input: z.infer<typeof ROUTE_MANIFEST.broadcast.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.broadcast.output>>> {
+  async broadcast(input: z.input<typeof ROUTE_MANIFEST.broadcast.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.broadcast.output>>> {
     const fullPath = '/api/admin/broadcast';
     return callGateway({
       baseUrl: this.baseUrl,
@@ -77,7 +77,7 @@ export class OwnerClient {
     });
   }
 
-  async cleanup(input: z.infer<typeof ROUTE_MANIFEST.cleanup.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.cleanup.output>>> {
+  async cleanup(input: z.input<typeof ROUTE_MANIFEST.cleanup.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.cleanup.output>>> {
     const fullPath = '/api/admin/cleanup';
     return callGateway({
       baseUrl: this.baseUrl,
@@ -93,7 +93,7 @@ export class OwnerClient {
     });
   }
 
-  async invalidateCache(input: z.infer<typeof ROUTE_MANIFEST.invalidateCache.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.invalidateCache.output>>> {
+  async invalidateCache(input: z.input<typeof ROUTE_MANIFEST.invalidateCache.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.invalidateCache.output>>> {
     const fullPath = '/api/admin/invalidate-cache';
     return callGateway({
       baseUrl: this.baseUrl,
@@ -108,7 +108,7 @@ export class OwnerClient {
     });
   }
 
-  async createGlobalPersonality(input: z.infer<typeof ROUTE_MANIFEST.createGlobalPersonality.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.createGlobalPersonality.output>>> {
+  async createGlobalPersonality(input: z.input<typeof ROUTE_MANIFEST.createGlobalPersonality.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.createGlobalPersonality.output>>> {
     const fullPath = '/api/admin/personality';
     return callGateway({
       baseUrl: this.baseUrl,
@@ -123,7 +123,7 @@ export class OwnerClient {
     });
   }
 
-  async updateGlobalPersonality(slug: string, input: z.infer<typeof ROUTE_MANIFEST.updateGlobalPersonality.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.updateGlobalPersonality.output>>> {
+  async updateGlobalPersonality(slug: string, input: z.input<typeof ROUTE_MANIFEST.updateGlobalPersonality.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.updateGlobalPersonality.output>>> {
     const fullPath = `/api/admin/personality/${encodeURIComponent(slug)}`;
     return callGateway({
       baseUrl: this.baseUrl,
@@ -138,7 +138,7 @@ export class OwnerClient {
     });
   }
 
-  async addDenylistEntry(input: z.infer<typeof ROUTE_MANIFEST.addDenylistEntry.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.addDenylistEntry.output>>> {
+  async addDenylistEntry(input: z.input<typeof ROUTE_MANIFEST.addDenylistEntry.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.addDenylistEntry.output>>> {
     const fullPath = '/api/admin/denylist';
     return callGateway({
       baseUrl: this.baseUrl,
@@ -220,7 +220,7 @@ export class OwnerClient {
     });
   }
 
-  async createGlobalLlmConfig(input: z.infer<typeof ROUTE_MANIFEST.createGlobalLlmConfig.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.createGlobalLlmConfig.output>>> {
+  async createGlobalLlmConfig(input: z.input<typeof ROUTE_MANIFEST.createGlobalLlmConfig.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.createGlobalLlmConfig.output>>> {
     const fullPath = '/api/admin/llm-config';
     return callGateway({
       baseUrl: this.baseUrl,
@@ -238,7 +238,7 @@ export class OwnerClient {
   /**
    * @idempotent Replaying the exact same request lands the same final state — safe to retry on network failure.
    */
-  async updateGlobalLlmConfig(id: string, input: z.infer<typeof ROUTE_MANIFEST.updateGlobalLlmConfig.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.updateGlobalLlmConfig.output>>> {
+  async updateGlobalLlmConfig(id: string, input: z.input<typeof ROUTE_MANIFEST.updateGlobalLlmConfig.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.updateGlobalLlmConfig.output>>> {
     const fullPath = `/api/admin/llm-config/${encodeURIComponent(id)}`;
     return callGateway({
       baseUrl: this.baseUrl,
@@ -336,7 +336,7 @@ export class OwnerClient {
     });
   }
 
-  async createGlobalTtsConfig(input: z.infer<typeof ROUTE_MANIFEST.createGlobalTtsConfig.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.createGlobalTtsConfig.output>>> {
+  async createGlobalTtsConfig(input: z.input<typeof ROUTE_MANIFEST.createGlobalTtsConfig.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.createGlobalTtsConfig.output>>> {
     const fullPath = '/api/admin/tts-config';
     return callGateway({
       baseUrl: this.baseUrl,
@@ -354,7 +354,7 @@ export class OwnerClient {
   /**
    * @idempotent Replaying the exact same request lands the same final state — safe to retry on network failure.
    */
-  async updateGlobalTtsConfig(id: string, input: z.infer<typeof ROUTE_MANIFEST.updateGlobalTtsConfig.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.updateGlobalTtsConfig.output>>> {
+  async updateGlobalTtsConfig(id: string, input: z.input<typeof ROUTE_MANIFEST.updateGlobalTtsConfig.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.updateGlobalTtsConfig.output>>> {
     const fullPath = `/api/admin/tts-config/${encodeURIComponent(id)}`;
     return callGateway({
       baseUrl: this.baseUrl,
@@ -434,7 +434,7 @@ export class OwnerClient {
     });
   }
 
-  async updateAdminSettings(input: z.infer<typeof ROUTE_MANIFEST.updateAdminSettings.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.updateAdminSettings.output>>> {
+  async updateAdminSettings(input: z.input<typeof ROUTE_MANIFEST.updateAdminSettings.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.updateAdminSettings.output>>> {
     const fullPath = '/api/admin/settings/config-defaults';
     return callGateway({
       baseUrl: this.baseUrl,
@@ -466,7 +466,7 @@ export class OwnerClient {
     });
   }
 
-  async updateSystemSettings(input: z.infer<typeof ROUTE_MANIFEST.updateSystemSettings.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.updateSystemSettings.output>>> {
+  async updateSystemSettings(input: z.input<typeof ROUTE_MANIFEST.updateSystemSettings.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.updateSystemSettings.output>>> {
     const fullPath = '/api/admin/settings/system';
     return callGateway({
       baseUrl: this.baseUrl,

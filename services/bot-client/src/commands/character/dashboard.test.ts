@@ -26,11 +26,16 @@ import type {
 import { MessageFlags } from 'discord.js';
 
 // Mock dependencies
-vi.mock('./api.js', () => ({
-  fetchCharacter: vi.fn(),
-  updateCharacter: vi.fn(),
-  toggleVisibility: vi.fn(),
-}));
+vi.mock('./api.js', async () => {
+  const actual = await vi.importActual<typeof import('./api.js')>('./api.js');
+  return {
+    fetchCharacter: vi.fn(),
+    updateCharacter: vi.fn(),
+    toggleVisibility: vi.fn(),
+    // Real advisory sender: the reverse-shadow test asserts the actual copy.
+    sendShadowedAliasFollowUp: actual.sendShadowedAliasFollowUp,
+  };
+});
 
 // Mock `clientsFor` so production code's `clientsFor(interaction)` call
 // returns a stub userClient. The mocked `./api.js` helpers and the
@@ -205,38 +210,100 @@ describe('Character Dashboard', () => {
       mockInteraction.editReply = vi.fn();
 
       vi.mocked(api.updateCharacter).mockResolvedValue({
-        id: 'uuid',
-        name: 'Test',
-        slug: 'test-char',
-        displayName: null,
-        isPublic: false,
-        definitionPublic: false,
-        definitionRedacted: false,
-        ownerId: 'user-123',
-        characterInfo: '',
-        personalityTraits: '',
-        personalityTone: null,
-        personalityAge: null,
-        personalityAppearance: null,
-        personalityLikes: null,
-        personalityDislikes: null,
-        conversationalGoals: null,
-        conversationalExamples: null,
-        errorMessage: null,
-        birthMonth: null,
-        birthDay: null,
-        birthYear: null,
-        voiceEnabled: false,
-        hasVoiceReference: false,
-        imageEnabled: false,
-        avatarData: null,
-        createdAt: '',
-        updatedAt: '',
+        character: {
+          id: 'uuid',
+          name: 'Test',
+          slug: 'test-char',
+          displayName: null,
+          isPublic: false,
+          definitionPublic: false,
+          definitionRedacted: false,
+          ownerId: 'user-123',
+          characterInfo: '',
+          personalityTraits: '',
+          personalityTone: null,
+          personalityAge: null,
+          personalityAppearance: null,
+          personalityLikes: null,
+          personalityDislikes: null,
+          conversationalGoals: null,
+          conversationalExamples: null,
+          errorMessage: null,
+          birthMonth: null,
+          birthDay: null,
+          birthYear: null,
+          voiceEnabled: false,
+          hasVoiceReference: false,
+          imageEnabled: false,
+          avatarData: null,
+          createdAt: '',
+          updatedAt: '',
+        },
+        shadowedAliases: [],
       });
 
       await handleModalSubmit(mockInteraction, mockConfig);
 
       expect(mockInteraction.deferUpdate).toHaveBeenCalled();
+    });
+
+    it('sends an ephemeral ⚠️ followUp when a rename shadows global aliases', async () => {
+      vi.mocked(dashboardUtils.parseDashboardCustomId).mockReturnValue({
+        entityType: 'character',
+        action: 'modal',
+        entityId: 'test-char',
+        sectionId: 'identity',
+      });
+
+      const mockInteraction = createMockModalInteraction('character::modal::test-char::identity');
+      mockInteraction.deferUpdate = vi.fn();
+      mockInteraction.editReply = vi.fn();
+      mockInteraction.followUp = vi.fn();
+
+      vi.mocked(api.updateCharacter).mockResolvedValue({
+        character: {
+          id: 'uuid',
+          name: 'Lila',
+          slug: 'test-char',
+          displayName: null,
+          isPublic: false,
+          definitionPublic: false,
+          definitionRedacted: false,
+          ownerId: 'user-123',
+          characterInfo: '',
+          personalityTraits: '',
+          personalityTone: null,
+          personalityAge: null,
+          personalityAppearance: null,
+          personalityLikes: null,
+          personalityDislikes: null,
+          conversationalGoals: null,
+          conversationalExamples: null,
+          errorMessage: null,
+          birthMonth: null,
+          birthDay: null,
+          birthYear: null,
+          voiceEnabled: false,
+          hasVoiceReference: false,
+          imageEnabled: false,
+          avatarData: null,
+          createdAt: '',
+          updatedAt: '',
+        },
+        shadowedAliases: ['lila'],
+      });
+
+      await handleModalSubmit(mockInteraction, mockConfig);
+
+      // The rename succeeded (dashboard refreshed) and the advisory rides
+      // as an ephemeral followUp naming the shadowed alias.
+      expect(mockInteraction.followUp).toHaveBeenCalledTimes(1);
+      const followUpArg = vi.mocked(mockInteraction.followUp).mock.calls[0][0] as {
+        content: string;
+        flags: number;
+      };
+      expect(followUpArg.content).toContain('⚠️');
+      expect(followUpArg.content).toContain('`lila`');
     });
 
     it('surfaces the real gateway error message when the section update fails', async () => {
@@ -301,33 +368,36 @@ describe('Character Dashboard', () => {
       vi.mocked(dashboardUtils.getSessionManager().get).mockResolvedValue(mockSession as never);
 
       vi.mocked(api.updateCharacter).mockResolvedValue({
-        id: 'uuid',
-        name: 'Test',
-        slug: 'test-char',
-        displayName: null,
-        isPublic: false,
-        definitionPublic: false,
-        definitionRedacted: false,
-        ownerId: 'user-123',
-        characterInfo: '',
-        personalityTraits: '',
-        personalityTone: null,
-        personalityAge: null,
-        personalityAppearance: null,
-        personalityLikes: null,
-        personalityDislikes: null,
-        conversationalGoals: null,
-        conversationalExamples: null,
-        errorMessage: null,
-        birthMonth: null,
-        birthDay: null,
-        birthYear: null,
-        voiceEnabled: false,
-        hasVoiceReference: false,
-        imageEnabled: false,
-        avatarData: null,
-        createdAt: '',
-        updatedAt: '',
+        character: {
+          id: 'uuid',
+          name: 'Test',
+          slug: 'test-char',
+          displayName: null,
+          isPublic: false,
+          definitionPublic: false,
+          definitionRedacted: false,
+          ownerId: 'user-123',
+          characterInfo: '',
+          personalityTraits: '',
+          personalityTone: null,
+          personalityAge: null,
+          personalityAppearance: null,
+          personalityLikes: null,
+          personalityDislikes: null,
+          conversationalGoals: null,
+          conversationalExamples: null,
+          errorMessage: null,
+          birthMonth: null,
+          birthDay: null,
+          birthYear: null,
+          voiceEnabled: false,
+          hasVoiceReference: false,
+          imageEnabled: false,
+          avatarData: null,
+          createdAt: '',
+          updatedAt: '',
+        },
+        shadowedAliases: [],
       });
 
       await handleModalSubmit(mockInteraction, mockConfig);
@@ -560,33 +630,36 @@ describe('Character Dashboard', () => {
       });
 
       vi.mocked(api.updateCharacter).mockResolvedValue({
-        id: 'uuid',
-        name: 'Test',
-        slug: 'test-char',
-        displayName: null,
-        isPublic: false,
-        definitionPublic: false,
-        definitionRedacted: false,
-        ownerId: 'user-123',
-        characterInfo: '',
-        personalityTraits: '',
-        personalityTone: null,
-        personalityAge: null,
-        personalityAppearance: null,
-        personalityLikes: null,
-        personalityDislikes: null,
-        conversationalGoals: null,
-        conversationalExamples: null,
-        errorMessage: null,
-        birthMonth: null,
-        birthDay: null,
-        birthYear: null,
-        voiceEnabled: false,
-        hasVoiceReference: true,
-        imageEnabled: false,
-        avatarData: null,
-        createdAt: '',
-        updatedAt: '',
+        character: {
+          id: 'uuid',
+          name: 'Test',
+          slug: 'test-char',
+          displayName: null,
+          isPublic: false,
+          definitionPublic: false,
+          definitionRedacted: false,
+          ownerId: 'user-123',
+          characterInfo: '',
+          personalityTraits: '',
+          personalityTone: null,
+          personalityAge: null,
+          personalityAppearance: null,
+          personalityLikes: null,
+          personalityDislikes: null,
+          conversationalGoals: null,
+          conversationalExamples: null,
+          errorMessage: null,
+          birthMonth: null,
+          birthDay: null,
+          birthYear: null,
+          voiceEnabled: false,
+          hasVoiceReference: true,
+          imageEnabled: false,
+          avatarData: null,
+          createdAt: '',
+          updatedAt: '',
+        },
+        shadowedAliases: [],
       });
 
       const mockInteraction = createMockSelectInteraction(

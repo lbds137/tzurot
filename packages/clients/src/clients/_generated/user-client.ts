@@ -51,7 +51,7 @@ export class UserClient {
     this.user = options.user;
   }
 
-  async startAccountExport(input: z.infer<typeof ROUTE_MANIFEST.startAccountExport.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.startAccountExport.output>>> {
+  async startAccountExport(input: z.input<typeof ROUTE_MANIFEST.startAccountExport.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.startAccountExport.output>>> {
     const fullPath = '/api/user/account/export';
     return callGateway({
       baseUrl: this.baseUrl,
@@ -109,7 +109,7 @@ export class UserClient {
     });
   }
 
-  async issueAccountDeleteToken(input: z.infer<typeof ROUTE_MANIFEST.issueAccountDeleteToken.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.issueAccountDeleteToken.output>>> {
+  async issueAccountDeleteToken(input: z.input<typeof ROUTE_MANIFEST.issueAccountDeleteToken.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.issueAccountDeleteToken.output>>> {
     const fullPath = '/api/user/account/delete/token';
     return callGateway({
       baseUrl: this.baseUrl,
@@ -130,7 +130,7 @@ export class UserClient {
   /**
    * @atMostOnce Mutating + single-use-token guarded; replay yields a 4xx token-expired error even though the original mutation succeeded server-side. Retry layers must NOT auto-retry — surface the original error to the user only if no success response was observed.
    */
-  async deleteAccount(input: z.infer<typeof ROUTE_MANIFEST.deleteAccount.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.deleteAccount.output>>> {
+  async deleteAccount(input: z.input<typeof ROUTE_MANIFEST.deleteAccount.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.deleteAccount.output>>> {
     const fullPath = '/api/user/account/delete';
     return callGateway({
       baseUrl: this.baseUrl,
@@ -149,7 +149,7 @@ export class UserClient {
     });
   }
 
-  async submitFeedback(input: z.infer<typeof ROUTE_MANIFEST.submitFeedback.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.submitFeedback.output>>> {
+  async submitFeedback(input: z.input<typeof ROUTE_MANIFEST.submitFeedback.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.submitFeedback.output>>> {
     const fullPath = '/api/user/feedback';
     return callGateway({
       baseUrl: this.baseUrl,
@@ -191,7 +191,7 @@ export class UserClient {
   /**
    * @idempotent Replaying the exact same request lands the same final state — safe to retry on network failure.
    */
-  async setTimezone(input: z.infer<typeof ROUTE_MANIFEST.setTimezone.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.setTimezone.output>>> {
+  async setTimezone(input: z.input<typeof ROUTE_MANIFEST.setTimezone.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.setTimezone.output>>> {
     const fullPath = '/api/user/timezone';
     return callGateway({
       baseUrl: this.baseUrl,
@@ -232,7 +232,7 @@ export class UserClient {
   /**
    * @idempotent Replaying the exact same request lands the same final state — safe to retry on network failure.
    */
-  async updateNotificationPrefs(input: z.infer<typeof ROUTE_MANIFEST.updateNotificationPrefs.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.updateNotificationPrefs.output>>> {
+  async updateNotificationPrefs(input: z.input<typeof ROUTE_MANIFEST.updateNotificationPrefs.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.updateNotificationPrefs.output>>> {
     const fullPath = '/api/user/notifications';
     return callGateway({
       baseUrl: this.baseUrl,
@@ -273,7 +273,7 @@ export class UserClient {
   /**
    * @idempotent Replaying the exact same request lands the same final state — safe to retry on network failure.
    */
-  async markReleaseDmsDeleted(input: z.infer<typeof ROUTE_MANIFEST.markReleaseDmsDeleted.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.markReleaseDmsDeleted.output>>> {
+  async markReleaseDmsDeleted(input: z.input<typeof ROUTE_MANIFEST.markReleaseDmsDeleted.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.markReleaseDmsDeleted.output>>> {
     const fullPath = '/api/user/notifications/release-dms/deleted';
     return callGateway({
       baseUrl: this.baseUrl,
@@ -333,7 +333,7 @@ export class UserClient {
     });
   }
 
-  async createUserLlmConfig(input: z.infer<typeof ROUTE_MANIFEST.createUserLlmConfig.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.createUserLlmConfig.output>>> {
+  async createUserLlmConfig(input: z.input<typeof ROUTE_MANIFEST.createUserLlmConfig.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.createUserLlmConfig.output>>> {
     const fullPath = '/api/user/llm-config';
     return callGateway({
       baseUrl: this.baseUrl,
@@ -355,7 +355,7 @@ export class UserClient {
   /**
    * @idempotent Replaying the exact same request lands the same final state — safe to retry on network failure.
    */
-  async updateUserLlmConfig(id: string, input: z.infer<typeof ROUTE_MANIFEST.updateUserLlmConfig.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.updateUserLlmConfig.output>>> {
+  async updateUserLlmConfig(id: string, input: z.input<typeof ROUTE_MANIFEST.updateUserLlmConfig.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.updateUserLlmConfig.output>>> {
     const fullPath = `/api/user/llm-config/${encodeURIComponent(id)}`;
     return callGateway({
       baseUrl: this.baseUrl,
@@ -392,7 +392,7 @@ export class UserClient {
     });
   }
 
-  async resolveUserLlmConfig(input: z.infer<typeof ROUTE_MANIFEST.resolveUserLlmConfig.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.resolveUserLlmConfig.output>>> {
+  async resolveUserLlmConfig(input: z.input<typeof ROUTE_MANIFEST.resolveUserLlmConfig.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.resolveUserLlmConfig.output>>> {
     const fullPath = '/api/user/llm-config/resolve';
     return callGateway({
       baseUrl: this.baseUrl,
@@ -452,7 +452,7 @@ export class UserClient {
     });
   }
 
-  async createUserTtsConfig(input: z.infer<typeof ROUTE_MANIFEST.createUserTtsConfig.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.createUserTtsConfig.output>>> {
+  async createUserTtsConfig(input: z.input<typeof ROUTE_MANIFEST.createUserTtsConfig.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.createUserTtsConfig.output>>> {
     const fullPath = '/api/user/tts-config';
     return callGateway({
       baseUrl: this.baseUrl,
@@ -473,7 +473,7 @@ export class UserClient {
   /**
    * @idempotent Replaying the exact same request lands the same final state — safe to retry on network failure.
    */
-  async updateUserTtsConfig(id: string, input: z.infer<typeof ROUTE_MANIFEST.updateUserTtsConfig.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.updateUserTtsConfig.output>>> {
+  async updateUserTtsConfig(id: string, input: z.input<typeof ROUTE_MANIFEST.updateUserTtsConfig.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.updateUserTtsConfig.output>>> {
     const fullPath = `/api/user/tts-config/${encodeURIComponent(id)}`;
     return callGateway({
       baseUrl: this.baseUrl,
@@ -532,7 +532,7 @@ export class UserClient {
   /**
    * @idempotent Replaying the exact same request lands the same final state — safe to retry on network failure.
    */
-  async setTtsOverride(input: z.infer<typeof ROUTE_MANIFEST.setTtsOverride.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.setTtsOverride.output>>> {
+  async setTtsOverride(input: z.input<typeof ROUTE_MANIFEST.setTtsOverride.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.setTtsOverride.output>>> {
     const fullPath = '/api/user/tts-override';
     return callGateway({
       baseUrl: this.baseUrl,
@@ -590,7 +590,7 @@ export class UserClient {
   /**
    * @idempotent Replaying the exact same request lands the same final state — safe to retry on network failure.
    */
-  async setTtsDefaultConfig(input: z.infer<typeof ROUTE_MANIFEST.setTtsDefaultConfig.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.setTtsDefaultConfig.output>>> {
+  async setTtsDefaultConfig(input: z.input<typeof ROUTE_MANIFEST.setTtsDefaultConfig.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.setTtsDefaultConfig.output>>> {
     const fullPath = '/api/user/tts-override/default';
     return callGateway({
       baseUrl: this.baseUrl,
@@ -648,7 +648,7 @@ export class UserClient {
   /**
    * @idempotent Replaying the exact same request lands the same final state — safe to retry on network failure.
    */
-  async setSttDefaultProvider(input: z.infer<typeof ROUTE_MANIFEST.setSttDefaultProvider.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.setSttDefaultProvider.output>>> {
+  async setSttDefaultProvider(input: z.input<typeof ROUTE_MANIFEST.setSttDefaultProvider.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.setSttDefaultProvider.output>>> {
     const fullPath = '/api/user/stt-override';
     return callGateway({
       baseUrl: this.baseUrl,
@@ -707,7 +707,7 @@ export class UserClient {
   /**
    * @idempotent Replaying the exact same request lands the same final state — safe to retry on network failure.
    */
-  async setModelOverride(input: z.infer<typeof ROUTE_MANIFEST.setModelOverride.input>, options: { slot?: string } = {}): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.setModelOverride.output>>> {
+  async setModelOverride(input: z.input<typeof ROUTE_MANIFEST.setModelOverride.input>, options: { slot?: string } = {}): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.setModelOverride.output>>> {
     const fullPath = '/api/user/model-override' + buildQueryString([['slot', options.slot]]);
     return callGateway({
       baseUrl: this.baseUrl,
@@ -766,7 +766,7 @@ export class UserClient {
   /**
    * @idempotent Replaying the exact same request lands the same final state — safe to retry on network failure.
    */
-  async setDefaultModelConfig(input: z.infer<typeof ROUTE_MANIFEST.setDefaultModelConfig.input>, options: { slot?: string } = {}): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.setDefaultModelConfig.output>>> {
+  async setDefaultModelConfig(input: z.input<typeof ROUTE_MANIFEST.setDefaultModelConfig.input>, options: { slot?: string } = {}): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.setDefaultModelConfig.output>>> {
     const fullPath = '/api/user/model-override/default' + buildQueryString([['slot', options.slot]]);
     return callGateway({
       baseUrl: this.baseUrl,
@@ -843,7 +843,7 @@ export class UserClient {
     });
   }
 
-  async createPersonality(input: z.infer<typeof ROUTE_MANIFEST.createPersonality.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.createPersonality.output>>> {
+  async createPersonality(input: z.input<typeof ROUTE_MANIFEST.createPersonality.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.createPersonality.output>>> {
     const fullPath = '/api/user/personality';
     return callGateway({
       baseUrl: this.baseUrl,
@@ -864,7 +864,7 @@ export class UserClient {
   /**
    * @idempotent Replaying the exact same request lands the same final state — safe to retry on network failure.
    */
-  async updatePersonality(slug: string, input: z.infer<typeof ROUTE_MANIFEST.updatePersonality.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.updatePersonality.output>>> {
+  async updatePersonality(slug: string, input: z.input<typeof ROUTE_MANIFEST.updatePersonality.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.updatePersonality.output>>> {
     const fullPath = `/api/user/personality/${encodeURIComponent(slug)}`;
     return callGateway({
       baseUrl: this.baseUrl,
@@ -882,7 +882,7 @@ export class UserClient {
     });
   }
 
-  async setPersonalityVisibility(slug: string, input: z.infer<typeof ROUTE_MANIFEST.setPersonalityVisibility.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.setPersonalityVisibility.output>>> {
+  async setPersonalityVisibility(slug: string, input: z.input<typeof ROUTE_MANIFEST.setPersonalityVisibility.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.setPersonalityVisibility.output>>> {
     const fullPath = `/api/user/personality/${encodeURIComponent(slug)}/visibility`;
     return callGateway({
       baseUrl: this.baseUrl,
@@ -937,7 +937,7 @@ export class UserClient {
     });
   }
 
-  async addPersonalityAlias(slug: string, input: z.infer<typeof ROUTE_MANIFEST.addPersonalityAlias.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.addPersonalityAlias.output>>> {
+  async addPersonalityAlias(slug: string, input: z.input<typeof ROUTE_MANIFEST.addPersonalityAlias.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.addPersonalityAlias.output>>> {
     const fullPath = `/api/user/personality/${encodeURIComponent(slug)}/aliases`;
     return callGateway({
       baseUrl: this.baseUrl,
@@ -958,8 +958,8 @@ export class UserClient {
   /**
    * @idempotent Replaying the exact same request lands the same final state — safe to retry on network failure.
    */
-  async removePersonalityAlias(slug: string, alias: string): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.removePersonalityAlias.output>>> {
-    const fullPath = `/api/user/personality/${encodeURIComponent(slug)}/aliases/${encodeURIComponent(alias)}`;
+  async removePersonalityAlias(slug: string, alias: string, options: { scope?: string } = {}): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.removePersonalityAlias.output>>> {
+    const fullPath = `/api/user/personality/${encodeURIComponent(slug)}/aliases/${encodeURIComponent(alias)}` + buildQueryString([['scope', options.scope]]);
     return callGateway({
       baseUrl: this.baseUrl,
       serviceSecret: this.serviceSecret,
@@ -972,6 +972,26 @@ export class UserClient {
         'X-User-Is-Bot': String(this.user.isBot),
       },
       outputSchema: ROUTE_MANIFEST.removePersonalityAlias.output,
+    });
+  }
+
+  /**
+   * @safeRead Server-side has no observable mutation — safe to cache client-side.
+   */
+  async listMyAliases(): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.listMyAliases.output>>> {
+    const fullPath = '/api/user/personality/my-aliases';
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'GET',
+      path: fullPath,
+      headers: {
+        'X-User-Id': this.actor,
+        'X-User-Username': encodeURIComponent(this.user.username),
+        'X-User-DisplayName': encodeURIComponent(this.user.displayName),
+        'X-User-Is-Bot': String(this.user.isBot),
+      },
+      outputSchema: ROUTE_MANIFEST.listMyAliases.output,
     });
   }
 
@@ -1017,7 +1037,7 @@ export class UserClient {
     });
   }
 
-  async createPersona(input: z.infer<typeof ROUTE_MANIFEST.createPersona.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.createPersona.output>>> {
+  async createPersona(input: z.input<typeof ROUTE_MANIFEST.createPersona.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.createPersona.output>>> {
     const fullPath = '/api/user/persona';
     return callGateway({
       baseUrl: this.baseUrl,
@@ -1038,7 +1058,7 @@ export class UserClient {
   /**
    * @idempotent Replaying the exact same request lands the same final state — safe to retry on network failure.
    */
-  async updatePersona(id: string, input: z.infer<typeof ROUTE_MANIFEST.updatePersona.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.updatePersona.output>>> {
+  async updatePersona(id: string, input: z.input<typeof ROUTE_MANIFEST.updatePersona.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.updatePersona.output>>> {
     const fullPath = `/api/user/persona/${encodeURIComponent(id)}`;
     return callGateway({
       baseUrl: this.baseUrl,
@@ -1135,7 +1155,7 @@ export class UserClient {
   /**
    * @idempotent Replaying the exact same request lands the same final state — safe to retry on network failure.
    */
-  async setPersonaOverride(personalitySlug: string, input: z.infer<typeof ROUTE_MANIFEST.setPersonaOverride.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.setPersonaOverride.output>>> {
+  async setPersonaOverride(personalitySlug: string, input: z.input<typeof ROUTE_MANIFEST.setPersonaOverride.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.setPersonaOverride.output>>> {
     const fullPath = `/api/user/persona/override/${encodeURIComponent(personalitySlug)}`;
     return callGateway({
       baseUrl: this.baseUrl,
@@ -1170,7 +1190,7 @@ export class UserClient {
     });
   }
 
-  async createPersonaOverride(personalityId: string, input: z.infer<typeof ROUTE_MANIFEST.createPersonaOverride.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.createPersonaOverride.output>>> {
+  async createPersonaOverride(personalityId: string, input: z.input<typeof ROUTE_MANIFEST.createPersonaOverride.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.createPersonaOverride.output>>> {
     const fullPath = `/api/user/persona/override/by-id/${encodeURIComponent(personalityId)}`;
     return callGateway({
       baseUrl: this.baseUrl,
@@ -1188,7 +1208,7 @@ export class UserClient {
     });
   }
 
-  async activateChannel(input: z.infer<typeof ROUTE_MANIFEST.activateChannel.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.activateChannel.output>>> {
+  async activateChannel(input: z.input<typeof ROUTE_MANIFEST.activateChannel.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.activateChannel.output>>> {
     const fullPath = '/api/user/channel/activate';
     return callGateway({
       baseUrl: this.baseUrl,
@@ -1206,7 +1226,7 @@ export class UserClient {
     });
   }
 
-  async deactivateChannel(input: z.infer<typeof ROUTE_MANIFEST.deactivateChannel.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.deactivateChannel.output>>> {
+  async deactivateChannel(input: z.input<typeof ROUTE_MANIFEST.deactivateChannel.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.deactivateChannel.output>>> {
     const fullPath = '/api/user/channel/deactivate';
     return callGateway({
       baseUrl: this.baseUrl,
@@ -1264,7 +1284,7 @@ export class UserClient {
     });
   }
 
-  async updateChannelGuild(input: z.infer<typeof ROUTE_MANIFEST.updateChannelGuild.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.updateChannelGuild.output>>> {
+  async updateChannelGuild(input: z.input<typeof ROUTE_MANIFEST.updateChannelGuild.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.updateChannelGuild.output>>> {
     const fullPath = '/api/user/channel/update-guild';
     return callGateway({
       baseUrl: this.baseUrl,
@@ -1305,7 +1325,7 @@ export class UserClient {
   /**
    * @idempotent Replaying the exact same request lands the same final state — safe to retry on network failure.
    */
-  async updateChannelConfigOverrides(channelId: string, input: z.infer<typeof ROUTE_MANIFEST.updateChannelConfigOverrides.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.updateChannelConfigOverrides.output>>> {
+  async updateChannelConfigOverrides(channelId: string, input: z.input<typeof ROUTE_MANIFEST.updateChannelConfigOverrides.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.updateChannelConfigOverrides.output>>> {
     const fullPath = `/api/user/channel/${encodeURIComponent(channelId)}/config-overrides`;
     return callGateway({
       baseUrl: this.baseUrl,
@@ -1363,7 +1383,7 @@ export class UserClient {
     });
   }
 
-  async clearHistory(input: z.infer<typeof ROUTE_MANIFEST.clearHistory.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.clearHistory.output>>> {
+  async clearHistory(input: z.input<typeof ROUTE_MANIFEST.clearHistory.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.clearHistory.output>>> {
     const fullPath = '/api/user/history/clear';
     return callGateway({
       baseUrl: this.baseUrl,
@@ -1381,7 +1401,7 @@ export class UserClient {
     });
   }
 
-  async undoHistory(input: z.infer<typeof ROUTE_MANIFEST.undoHistory.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.undoHistory.output>>> {
+  async undoHistory(input: z.input<typeof ROUTE_MANIFEST.undoHistory.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.undoHistory.output>>> {
     const fullPath = '/api/user/history/undo';
     return callGateway({
       baseUrl: this.baseUrl,
@@ -1419,7 +1439,7 @@ export class UserClient {
     });
   }
 
-  async hardDeleteHistory(input: z.infer<typeof ROUTE_MANIFEST.hardDeleteHistory.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.hardDeleteHistory.output>>> {
+  async hardDeleteHistory(input: z.input<typeof ROUTE_MANIFEST.hardDeleteHistory.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.hardDeleteHistory.output>>> {
     const fullPath = '/api/user/history/hard-delete';
     return callGateway({
       baseUrl: this.baseUrl,
@@ -1495,7 +1515,7 @@ export class UserClient {
     });
   }
 
-  async setWalletKey(input: z.infer<typeof ROUTE_MANIFEST.setWalletKey.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.setWalletKey.output>>> {
+  async setWalletKey(input: z.input<typeof ROUTE_MANIFEST.setWalletKey.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.setWalletKey.output>>> {
     const fullPath = '/api/user/wallet/set';
     return callGateway({
       baseUrl: this.baseUrl,
@@ -1531,7 +1551,7 @@ export class UserClient {
     });
   }
 
-  async testWalletKey(input: z.infer<typeof ROUTE_MANIFEST.testWalletKey.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.testWalletKey.output>>> {
+  async testWalletKey(input: z.input<typeof ROUTE_MANIFEST.testWalletKey.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.testWalletKey.output>>> {
     const fullPath = '/api/user/wallet/test';
     return callGateway({
       baseUrl: this.baseUrl,
@@ -1712,7 +1732,7 @@ export class UserClient {
   /**
    * @idempotent Replaying the exact same request lands the same final state — safe to retry on network failure.
    */
-  async setFocus(input: z.infer<typeof ROUTE_MANIFEST.setFocus.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.setFocus.output>>> {
+  async setFocus(input: z.input<typeof ROUTE_MANIFEST.setFocus.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.setFocus.output>>> {
     const fullPath = '/api/user/memory/focus';
     return callGateway({
       baseUrl: this.baseUrl,
@@ -1733,7 +1753,7 @@ export class UserClient {
   /**
    * @safeRead Server-side has no observable mutation — safe to cache client-side.
    */
-  async search(input: z.infer<typeof ROUTE_MANIFEST.search.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.search.output>>> {
+  async search(input: z.input<typeof ROUTE_MANIFEST.search.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.search.output>>> {
     const fullPath = '/api/user/memory/search';
     return callGateway({
       baseUrl: this.baseUrl,
@@ -1754,7 +1774,7 @@ export class UserClient {
   /**
    * @safeRead Server-side has no observable mutation — safe to cache client-side.
    */
-  async batchDeletePreview(input: z.infer<typeof ROUTE_MANIFEST.batchDeletePreview.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.batchDeletePreview.output>>> {
+  async batchDeletePreview(input: z.input<typeof ROUTE_MANIFEST.batchDeletePreview.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.batchDeletePreview.output>>> {
     const fullPath = '/api/user/memory/delete/preview';
     return callGateway({
       baseUrl: this.baseUrl,
@@ -1775,7 +1795,7 @@ export class UserClient {
   /**
    * @atMostOnce Mutating + single-use-token guarded; replay yields a 4xx token-expired error even though the original mutation succeeded server-side. Retry layers must NOT auto-retry — surface the original error to the user only if no success response was observed.
    */
-  async batchDelete(input: z.infer<typeof ROUTE_MANIFEST.batchDelete.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.batchDelete.output>>> {
+  async batchDelete(input: z.input<typeof ROUTE_MANIFEST.batchDelete.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.batchDelete.output>>> {
     const fullPath = '/api/user/memory/delete';
     return callGateway({
       baseUrl: this.baseUrl,
@@ -1793,7 +1813,7 @@ export class UserClient {
     });
   }
 
-  async issuePurgeToken(input: z.infer<typeof ROUTE_MANIFEST.issuePurgeToken.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.issuePurgeToken.output>>> {
+  async issuePurgeToken(input: z.input<typeof ROUTE_MANIFEST.issuePurgeToken.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.issuePurgeToken.output>>> {
     const fullPath = '/api/user/memory/purge/token';
     return callGateway({
       baseUrl: this.baseUrl,
@@ -1814,7 +1834,7 @@ export class UserClient {
   /**
    * @atMostOnce Mutating + single-use-token guarded; replay yields a 4xx token-expired error even though the original mutation succeeded server-side. Retry layers must NOT auto-retry — surface the original error to the user only if no success response was observed.
    */
-  async purge(input: z.infer<typeof ROUTE_MANIFEST.purge.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.purge.output>>> {
+  async purge(input: z.input<typeof ROUTE_MANIFEST.purge.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.purge.output>>> {
     const fullPath = '/api/user/memory/purge';
     return callGateway({
       baseUrl: this.baseUrl,
@@ -1853,7 +1873,7 @@ export class UserClient {
     });
   }
 
-  async updateMemory(id: string, input: z.infer<typeof ROUTE_MANIFEST.updateMemory.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.updateMemory.output>>> {
+  async updateMemory(id: string, input: z.input<typeof ROUTE_MANIFEST.updateMemory.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.updateMemory.output>>> {
     const fullPath = `/api/user/memory/${encodeURIComponent(id)}`;
     return callGateway({
       baseUrl: this.baseUrl,
@@ -1891,7 +1911,7 @@ export class UserClient {
   /**
    * @idempotent Replaying the exact same request lands the same final state — safe to retry on network failure.
    */
-  async setMemoryLock(id: string, input: z.infer<typeof ROUTE_MANIFEST.setMemoryLock.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.setMemoryLock.output>>> {
+  async setMemoryLock(id: string, input: z.input<typeof ROUTE_MANIFEST.setMemoryLock.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.setMemoryLock.output>>> {
     const fullPath = `/api/user/memory/${encodeURIComponent(id)}/lock`;
     return callGateway({
       baseUrl: this.baseUrl,
@@ -1929,7 +1949,7 @@ export class UserClient {
     });
   }
 
-  async enableIncognito(input: z.infer<typeof ROUTE_MANIFEST.enableIncognito.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.enableIncognito.output>>> {
+  async enableIncognito(input: z.input<typeof ROUTE_MANIFEST.enableIncognito.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.enableIncognito.output>>> {
     const fullPath = '/api/user/memory/incognito';
     return callGateway({
       baseUrl: this.baseUrl,
@@ -1947,7 +1967,7 @@ export class UserClient {
     });
   }
 
-  async disableIncognito(input: z.infer<typeof ROUTE_MANIFEST.disableIncognito.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.disableIncognito.output>>> {
+  async disableIncognito(input: z.input<typeof ROUTE_MANIFEST.disableIncognito.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.disableIncognito.output>>> {
     const fullPath = '/api/user/memory/incognito';
     return callGateway({
       baseUrl: this.baseUrl,
@@ -1965,7 +1985,7 @@ export class UserClient {
     });
   }
 
-  async incognitoForget(input: z.infer<typeof ROUTE_MANIFEST.incognitoForget.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.incognitoForget.output>>> {
+  async incognitoForget(input: z.input<typeof ROUTE_MANIFEST.incognitoForget.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.incognitoForget.output>>> {
     const fullPath = '/api/user/memory/incognito/forget';
     return callGateway({
       baseUrl: this.baseUrl,
@@ -2025,7 +2045,7 @@ export class UserClient {
     });
   }
 
-  async correctFact(id: string, input: z.infer<typeof ROUTE_MANIFEST.correctFact.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.correctFact.output>>> {
+  async correctFact(id: string, input: z.input<typeof ROUTE_MANIFEST.correctFact.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.correctFact.output>>> {
     const fullPath = `/api/user/fact/${encodeURIComponent(id)}`;
     return callGateway({
       baseUrl: this.baseUrl,
@@ -2063,7 +2083,7 @@ export class UserClient {
   /**
    * @idempotent Replaying the exact same request lands the same final state — safe to retry on network failure.
    */
-  async setFactLock(id: string, input: z.infer<typeof ROUTE_MANIFEST.setFactLock.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.setFactLock.output>>> {
+  async setFactLock(id: string, input: z.input<typeof ROUTE_MANIFEST.setFactLock.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.setFactLock.output>>> {
     const fullPath = `/api/user/fact/${encodeURIComponent(id)}/lock`;
     return callGateway({
       baseUrl: this.baseUrl,
@@ -2123,7 +2143,7 @@ export class UserClient {
     });
   }
 
-  async updateUserDefaults(input: z.infer<typeof ROUTE_MANIFEST.updateUserDefaults.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.updateUserDefaults.output>>> {
+  async updateUserDefaults(input: z.input<typeof ROUTE_MANIFEST.updateUserDefaults.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.updateUserDefaults.output>>> {
     const fullPath = '/api/user/config-overrides/defaults';
     return callGateway({
       baseUrl: this.baseUrl,
@@ -2179,7 +2199,7 @@ export class UserClient {
     });
   }
 
-  async updatePersonalityOverrides(personalityId: string, input: z.infer<typeof ROUTE_MANIFEST.updatePersonalityOverrides.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.updatePersonalityOverrides.output>>> {
+  async updatePersonalityOverrides(personalityId: string, input: z.input<typeof ROUTE_MANIFEST.updatePersonalityOverrides.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.updatePersonalityOverrides.output>>> {
     const fullPath = `/api/user/config-overrides/${encodeURIComponent(personalityId)}`;
     return callGateway({
       baseUrl: this.baseUrl,
@@ -2235,7 +2255,7 @@ export class UserClient {
     });
   }
 
-  async updatePersonalityConfigDefaults(personalityId: string, input: z.infer<typeof ROUTE_MANIFEST.updatePersonalityConfigDefaults.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.updatePersonalityConfigDefaults.output>>> {
+  async updatePersonalityConfigDefaults(personalityId: string, input: z.input<typeof ROUTE_MANIFEST.updatePersonalityConfigDefaults.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.updatePersonalityConfigDefaults.output>>> {
     const fullPath = `/api/user/config-overrides/personality/${encodeURIComponent(personalityId)}`;
     return callGateway({
       baseUrl: this.baseUrl,
@@ -2253,7 +2273,7 @@ export class UserClient {
     });
   }
 
-  async storeShapesAuth(input: z.infer<typeof ROUTE_MANIFEST.storeShapesAuth.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.storeShapesAuth.output>>> {
+  async storeShapesAuth(input: z.input<typeof ROUTE_MANIFEST.storeShapesAuth.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.storeShapesAuth.output>>> {
     const fullPath = '/api/user/shapes/auth';
     return callGateway({
       baseUrl: this.baseUrl,
@@ -2330,7 +2350,7 @@ export class UserClient {
     });
   }
 
-  async startShapesImport(input: z.infer<typeof ROUTE_MANIFEST.startShapesImport.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.startShapesImport.output>>> {
+  async startShapesImport(input: z.input<typeof ROUTE_MANIFEST.startShapesImport.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.startShapesImport.output>>> {
     const fullPath = '/api/user/shapes/import';
     return callGateway({
       baseUrl: this.baseUrl,
@@ -2368,7 +2388,7 @@ export class UserClient {
     });
   }
 
-  async startShapesExport(input: z.infer<typeof ROUTE_MANIFEST.startShapesExport.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.startShapesExport.output>>> {
+  async startShapesExport(input: z.input<typeof ROUTE_MANIFEST.startShapesExport.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.startShapesExport.output>>> {
     const fullPath = '/api/user/shapes/export';
     return callGateway({
       baseUrl: this.baseUrl,

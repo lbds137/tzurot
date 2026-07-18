@@ -96,7 +96,7 @@ async function handleDefinitionVisibilityToggle(
   }
 
   const newDefinitionPublic = !character.definitionPublic;
-  const updated = await updateCharacter(
+  const { character: updated } = await updateCharacter(
     entityId,
     { definitionPublic: newDefinitionPublic },
     userClient,
@@ -196,7 +196,7 @@ export async function handleAction(
     }
 
     const newVoiceEnabled = !character.voiceEnabled;
-    const updated = await updateCharacter(
+    const { character: updated } = await updateCharacter(
       entityId,
       { voiceEnabled: newVoiceEnabled },
       userClient,

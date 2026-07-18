@@ -1402,6 +1402,20 @@
       ]
     },
     {
+      "id": "client:api-gateway:listMyAliases",
+      "kind": "http-route",
+      "producer": "client",
+      "consumer": "api-gateway",
+      "schemaRef": "GET /personality/my-aliases",
+      "mechanism": "route-conformance",
+      "requiredTiers": [
+        "component"
+      ],
+      "actualTiers": [
+        "component"
+      ]
+    },
+    {
       "id": "client:api-gateway:listPersonalities",
       "kind": "http-route",
       "producer": "client",

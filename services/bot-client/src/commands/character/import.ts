@@ -23,6 +23,7 @@ import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
 import { renderSpec } from '../../ux/render/render.js';
 import { validateJsonFile, downloadAndParseJson } from '../../utils/jsonFileUtils.js';
 import { validateDiscordCdnUrl } from '../../utils/discordCdnGuard.js';
+import { sendShadowedAliasFollowUp } from './api.js';
 import { processAvatarBuffer } from './avatarUtils.js';
 import { validateImageAttachment, validateAudioAttachment } from './mediaValidation.js';
 import {
@@ -372,7 +373,7 @@ async function saveCharacter(
   userClient: UserClient,
   payload: Record<string, unknown>,
   isUpdate: boolean
-): Promise<{ ok: true } | { ok: false; failure: unknown }> {
+): Promise<{ ok: true; shadowedAliases: string[] } | { ok: false; failure: unknown }> {
   const result = isUpdate
     ? await userClient.updatePersonality(slug, payload)
     : await userClient.createPersonality(payload as Parameters<UserClient['createPersonality']>[0]);
@@ -383,7 +384,8 @@ async function saveCharacter(
     // preserved — an import timeout is outcome-uncertain, not "failed").
     return { ok: false, failure: result };
   }
-  return { ok: true };
+  // Warn-don't-block ride-along: GLOBAL aliases the imported name/slug shadows.
+  return { ok: true, shadowedAliases: result.data.shadowedAliases ?? [] };
 }
 
 /**
@@ -509,6 +511,10 @@ export async function handleImport(
     // Step 8: Send success response
     const embed = buildSuccessEmbed(payload, slug, existingCheck.exists);
     await context.editReply({ embeds: [embed] });
+
+    // Reverse-shadow advisory (warn-don't-block): the imported name/slug
+    // shadows existing global aliases at resolution time.
+    await sendShadowedAliasFollowUp(context, saveResult.shadowedAliases);
 
     logger.info(
       { slug, userId, isUpdate: existingCheck.exists },

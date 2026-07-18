@@ -66,6 +66,7 @@ export function createMockPrisma(): {
     findMany: ReturnType<typeof vi.fn>;
     findUnique: ReturnType<typeof vi.fn>;
   };
+  personalityAlias: { findMany: ReturnType<typeof vi.fn> };
   pendingMemory: { count: ReturnType<typeof vi.fn>; deleteMany: ReturnType<typeof vi.fn> };
   systemPrompt: { findFirst: ReturnType<typeof vi.fn> };
   llmConfig: { findFirst: ReturnType<typeof vi.fn> };
@@ -91,6 +92,9 @@ export function createMockPrisma(): {
     personalityOwner: {
       findMany: vi.fn(),
       findUnique: vi.fn(),
+    },
+    personalityAlias: {
+      findMany: vi.fn(),
     },
     pendingMemory: {
       count: vi.fn(),
@@ -163,6 +167,8 @@ export function setupStandardMocks(mockPrisma: ReturnType<typeof createMockPrism
   mockPrisma.personality.findUnique.mockResolvedValue(null);
   mockPrisma.personalityOwner.findMany.mockResolvedValue([]);
   mockPrisma.personalityOwner.findUnique.mockResolvedValue(null);
+  // Reverse-shadow probe on create/rename: no global aliases shadowed.
+  mockPrisma.personalityAlias.findMany.mockResolvedValue([]);
   mockPrisma.llmConfig.findFirst.mockResolvedValue(null);
   mockPrisma.pendingMemory.count.mockResolvedValue(0);
   mockPrisma.pendingMemory.deleteMany.mockResolvedValue({ count: 0 });

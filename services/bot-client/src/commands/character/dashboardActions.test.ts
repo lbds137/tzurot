@@ -197,9 +197,10 @@ describe('Dashboard Actions', () => {
       vi.mocked(api.fetchCharacter).mockResolvedValue(
         createMockCharacter({ definitionPublic: false })
       );
-      vi.mocked(api.updateCharacter).mockResolvedValue(
-        createMockCharacter({ definitionPublic: true })
-      );
+      vi.mocked(api.updateCharacter).mockResolvedValue({
+        character: createMockCharacter({ definitionPublic: true }),
+        shadowedAliases: [],
+      });
 
       await handleAction(mockInteraction, 'test-char', 'definition-visibility', mockConfig);
 
@@ -218,9 +219,10 @@ describe('Dashboard Actions', () => {
       vi.mocked(api.fetchCharacter).mockResolvedValue(
         createMockCharacter({ definitionPublic: true })
       );
-      vi.mocked(api.updateCharacter).mockResolvedValue(
-        createMockCharacter({ definitionPublic: false })
-      );
+      vi.mocked(api.updateCharacter).mockResolvedValue({
+        character: createMockCharacter({ definitionPublic: false }),
+        shadowedAliases: [],
+      });
 
       await handleAction(mockInteraction, 'test-char', 'definition-visibility', mockConfig);
 
@@ -248,9 +250,10 @@ describe('Dashboard Actions', () => {
       vi.mocked(api.fetchCharacter).mockResolvedValue(
         createMockCharacter({ voiceEnabled: true, hasVoiceReference: true })
       );
-      vi.mocked(api.updateCharacter).mockResolvedValue(
-        createMockCharacter({ voiceEnabled: false, hasVoiceReference: true })
-      );
+      vi.mocked(api.updateCharacter).mockResolvedValue({
+        character: createMockCharacter({ voiceEnabled: false, hasVoiceReference: true }),
+        shadowedAliases: [],
+      });
 
       await handleAction(mockInteraction, 'test-char', 'voice-toggle', mockConfig);
 

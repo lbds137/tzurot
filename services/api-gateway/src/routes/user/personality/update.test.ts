@@ -195,6 +195,72 @@ describe('PUT /user/personality/:slug (update)', () => {
     expect(GetPersonalityResponseSchema.safeParse(sentBody).success).toBe(true);
   });
 
+  it('warns when a RENAME shadows a GLOBAL alias (probe runs on the updated values)', async () => {
+    mockPrisma.personality.findUnique.mockResolvedValue({
+      id: '7e570000-0000-4000-8000-000000000007',
+      ownerId: MOCK_USER_ID,
+      name: 'Old Name',
+    });
+    mockPrisma.personality.update.mockResolvedValue(
+      createMockPersonality({
+        id: '7e570000-0000-4000-8000-000000000007',
+        name: 'Lila',
+        slug: 'my-char',
+      })
+    );
+    mockPrisma.personalityAlias.findMany.mockResolvedValue([{ alias: 'lila' }]);
+
+    const router = createPersonalityRoutes({
+      ...stubRouteResolvers(),
+      prisma: mockPrisma as unknown as PrismaClient,
+    });
+    const handler = getHandler(router, 'put', '/:slug');
+    const { req, res } = createMockReqRes({ name: 'Lila' }, { slug: 'my-char' });
+
+    await handler(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(200);
+    // Seam: the probe runs over the UPDATED name/slug, GLOBAL rows only.
+    expect(mockPrisma.personalityAlias.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { userId: null, alias: { in: ['Lila', 'my-char'], mode: 'insensitive' } },
+      })
+    );
+    const sentBody = vi.mocked(res.json).mock.calls[0][0] as Record<string, unknown>;
+    expect(sentBody.shadowedAliases).toEqual(['lila']);
+    // The widened contract still validates.
+    expect(GetPersonalityResponseSchema.safeParse(sentBody).success).toBe(true);
+  });
+
+  it('skips the shadow probe when neither name nor slug changes', async () => {
+    mockPrisma.personality.findUnique.mockResolvedValue({
+      id: '7e570000-0000-4000-8000-000000000007',
+      ownerId: MOCK_USER_ID,
+      name: 'Same Name',
+    });
+    mockPrisma.personality.update.mockResolvedValue(
+      createMockPersonality({
+        id: '7e570000-0000-4000-8000-000000000007',
+        name: 'Same Name',
+        slug: 'my-char',
+      })
+    );
+
+    const router = createPersonalityRoutes({
+      ...stubRouteResolvers(),
+      prisma: mockPrisma as unknown as PrismaClient,
+    });
+    const handler = getHandler(router, 'put', '/:slug');
+    const { req, res } = createMockReqRes({ displayName: 'Cosmetic' }, { slug: 'my-char' });
+
+    await handler(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(mockPrisma.personalityAlias.findMany).not.toHaveBeenCalled();
+    const sentBody = vi.mocked(res.json).mock.calls[0][0] as Record<string, unknown>;
+    expect('shadowedAliases' in sentBody).toBe(false);
+  });
+
   it('forwards definitionPublic to the Prisma update payload', async () => {
     mockPrisma.personality.findUnique.mockResolvedValue({
       id: '7e570000-0000-4000-8000-000000000009',

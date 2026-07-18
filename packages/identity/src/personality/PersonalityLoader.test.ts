@@ -76,6 +76,8 @@ describe('PersonalityLoader', () => {
 
   beforeEach(() => {
     createdAtCounter = 0;
+    // Default: requester is not the bot owner; owner-path tests opt in.
+    vi.mocked(isBotOwner).mockReturnValue(false);
 
     mockPrisma = {
       personality: {
@@ -282,6 +284,57 @@ describe('PersonalityLoader', () => {
           where: {
             alias: { equals: 'mommy', mode: 'insensitive' },
             userId: 'user-uuid-1',
+          },
+          select: { personalityId: true },
+        });
+        // Perf regression pin: a regular user's uuid feeds BOTH the access
+        // filter and the personal-alias tier from ONE users lookup.
+        expect(vi.mocked(mockPrisma.user.findUnique)).toHaveBeenCalledTimes(1);
+      });
+
+      it('resolves the BOT OWNER΄s personal aliases via the lazy alias-step lookup', async () => {
+        const BOT_OWNER_DISCORD_ID = '999999999999999999';
+        vi.mocked(isBotOwner).mockReturnValue(true);
+        const mockPersonality = createMockPersonality({ id: 'owner-personal', name: 'Mine' });
+
+        // Bot owner: access resolution is a no-lookup bypass, so the ONLY
+        // user lookup happens lazily at the alias step.
+        vi.mocked(mockPrisma.user.findUnique).mockResolvedValue({ id: 'owner-uuid' } as any);
+        vi.mocked(mockPrisma.personality.findMany).mockResolvedValueOnce([]);
+        vi.mocked(mockPrisma.personalityAlias.findFirst).mockResolvedValueOnce({
+          personalityId: 'owner-personal',
+        } as any);
+        vi.mocked(mockPrisma.personality.findFirst).mockResolvedValueOnce(mockPersonality as any);
+
+        const result = await loader.loadFromDatabase('mommy', BOT_OWNER_DISCORD_ID);
+
+        expect(result?.id).toBe('owner-personal');
+        // The personal tier queried with the OWNER's uuid — the bypass that
+        // skips the access filter must NOT skip personal-alias resolution.
+        expect(vi.mocked(mockPrisma.personalityAlias.findFirst)).toHaveBeenCalledWith({
+          where: {
+            alias: { equals: 'mommy', mode: 'insensitive' },
+            userId: 'owner-uuid',
+          },
+          select: { personalityId: true },
+        });
+        // Exactly one user lookup, and only at the alias step.
+        expect(vi.mocked(mockPrisma.user.findUnique)).toHaveBeenCalledTimes(1);
+      });
+
+      it('treats an EMPTY-STRING userId as an internal call: no user lookup, global tier only', async () => {
+        vi.mocked(mockPrisma.personality.findMany).mockResolvedValueOnce([]);
+        vi.mocked(mockPrisma.personalityAlias.findFirst).mockResolvedValue(null);
+
+        await loader.loadFromDatabase('mommy', '');
+
+        expect(vi.mocked(mockPrisma.user.findUnique)).not.toHaveBeenCalled();
+        // Only the GLOBAL tier is consulted — no personal rows can exist.
+        expect(vi.mocked(mockPrisma.personalityAlias.findFirst)).toHaveBeenCalledTimes(1);
+        expect(vi.mocked(mockPrisma.personalityAlias.findFirst)).toHaveBeenCalledWith({
+          where: {
+            alias: { equals: 'mommy', mode: 'insensitive' },
+            userId: null,
           },
           select: { personalityId: true },
         });

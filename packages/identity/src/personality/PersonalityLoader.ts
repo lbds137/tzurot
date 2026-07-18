@@ -106,14 +106,19 @@ export class PersonalityLoader {
   private static readonly PUBLIC_ONLY_SENTINEL = '__PUBLIC_ONLY__';
 
   /**
-   * Resolve Discord user ID to database UUID for ownership checks
-   *
-   * @param discordUserId - Discord user ID
-   * @returns User's database UUID, sentinel for public-only, or undefined for no filtering
+   * Resolve the requesting user with a SINGLE lookup into both facts the
+   * loader needs: the access-filter input (uuid, PUBLIC_ONLY_SENTINEL, or
+   * undefined for no filtering) and the personal-alias-tier uuid. The bot
+   * owner is the one exception: their access resolution is a no-lookup
+   * bypass, so their personal-alias uuid resolves lazily at the alias step
+   * instead (see resolveBotOwnerAliasUuid) — paying that lookup only when
+   * resolution actually reaches the alias tier.
    */
-  private async resolveOwnerUuid(discordUserId?: string): Promise<string | undefined> {
+  private async resolveUserContext(
+    discordUserId?: string
+  ): Promise<{ accessUuid: string | undefined; aliasUserUuid: string | undefined }> {
     if (discordUserId === undefined || discordUserId === '') {
-      return undefined;
+      return { accessUuid: undefined, aliasUserUuid: undefined };
     }
 
     // Bot owner bypass - admin can access all personalities
@@ -122,7 +127,7 @@ export class PersonalityLoader {
         { discordUserId },
         '[PersonalityLoader] Bot owner bypass - no access filter applied'
       );
-      return undefined;
+      return { accessUuid: undefined, aliasUserUuid: undefined };
     }
 
     // Look up user by Discord ID to get their database UUID
@@ -136,23 +141,24 @@ export class PersonalityLoader {
         { discordUserId },
         '[PersonalityLoader] User not found in database - public personalities only'
       );
-      // Return sentinel that buildAccessFilter recognizes as "public only"
-      // This ensures the user can only access public personalities without causing
-      // a Prisma error (ownerId is a UUID column, can't compare to arbitrary string)
-      return PersonalityLoader.PUBLIC_ONLY_SENTINEL;
+      // The sentinel makes buildAccessFilter produce a public-only filter
+      // without a Prisma error (ownerId is a UUID column, can't compare to
+      // an arbitrary string). No user row also means no personal aliases.
+      return { accessUuid: PersonalityLoader.PUBLIC_ONLY_SENTINEL, aliasUserUuid: undefined };
     }
 
-    return user.id;
+    return { accessUuid: user.id, aliasUserUuid: user.id };
   }
 
   /**
-   * Resolve the requesting user's database uuid for PERSONAL-alias lookup.
-   * Deliberately separate from resolveOwnerUuid: that method conflates
-   * "who filters access" (bot owner → no filter → undefined) with "who is
-   * asking" — but the bot owner's own personal aliases must still resolve.
+   * Lazy personal-alias uuid resolution for the bot owner only: their
+   * access filter is a bypass that never touches the users table, but
+   * their own personal aliases must still resolve. Regular users never
+   * reach the lookup here — their uuid rides resolveUserContext's single
+   * query and this returns undefined without touching the database.
    */
-  private async resolveAliasUserUuid(discordUserId?: string): Promise<string | undefined> {
-    if (discordUserId === undefined || discordUserId === '') {
+  private async resolveBotOwnerAliasUuid(discordUserId?: string): Promise<string | undefined> {
+    if (discordUserId === undefined || discordUserId === '' || !isBotOwner(discordUserId)) {
       return undefined;
     }
     const user = await this.prisma.user.findUnique({
@@ -170,14 +176,16 @@ export class PersonalityLoader {
    */
   private async findPersonalityViaAlias(
     aliasLower: string,
-    scope: { userId: string } | 'global',
+    aliasUserUuid: string | null,
     accessFilter: ReturnType<PersonalityLoader['buildAccessFilter']>,
     originalInput: string
   ): Promise<DatabasePersonality | null> {
+    // null = the GLOBAL tier (user_id IS NULL rows); a uuid = that user's
+    // personal tier. Mirrors the column semantics directly.
     const aliasMatch = await this.prisma.personalityAlias.findFirst({
       where: {
         alias: { equals: aliasLower, mode: 'insensitive' },
-        userId: scope === 'global' ? null : scope.userId,
+        userId: aliasUserUuid,
       },
       select: { personalityId: true },
     });
@@ -185,7 +193,7 @@ export class PersonalityLoader {
       return null;
     }
 
-    const tier = scope === 'global' ? 'global' : 'personal';
+    const tier = aliasUserUuid === null ? 'global' : 'personal';
     const personality = await this.prisma.personality.findFirst({
       where: {
         AND: [{ id: aliasMatch.personalityId }, ...(accessFilter ? [accessFilter] : [])],
@@ -229,11 +237,12 @@ export class PersonalityLoader {
    * @returns DatabasePersonality or null if not found or access denied
    */
   async loadFromDatabase(nameOrId: string, userId?: string): Promise<DatabasePersonality | null> {
-    // Resolve Discord user ID to database UUID for ownership checks
-    const ownerUuid = await this.resolveOwnerUuid(userId);
+    // One user lookup feeds both the access filter and the personal-alias
+    // tier (bot owner excepted — their alias uuid resolves lazily below).
+    const { accessUuid, aliasUserUuid } = await this.resolveUserContext(userId);
 
     // Build access control filter using the resolved UUID
-    const accessFilter = this.buildAccessFilter(ownerUuid);
+    const accessFilter = this.buildAccessFilter(accessUuid);
     const searchLower = nameOrId.toLowerCase();
 
     try {
@@ -299,15 +308,16 @@ export class PersonalityLoader {
       // access must fall through to a same-named global alias, and each step
       // re-applies the access filter on the personality load.
 
-      // Step 2a: personal tier. Needs the user's uuid even when the access
-      // filter is bypassed (bot owner), so it resolves independently of
-      // resolveOwnerUuid's filter concern. Skipped for internal calls and
-      // users with no row (they can't have personal aliases).
-      const aliasUserUuid = await this.resolveAliasUserUuid(userId);
-      if (aliasUserUuid !== undefined) {
+      // Step 2a: personal tier. Regular users' uuid already rode the single
+      // resolveUserContext lookup; the bot owner (whose access resolution is
+      // a no-lookup bypass) resolves lazily here — the one case a second
+      // lookup is needed. Skipped for internal calls and users with no row
+      // (they can't have personal aliases).
+      const personalUuid = aliasUserUuid ?? (await this.resolveBotOwnerAliasUuid(userId));
+      if (personalUuid !== undefined) {
         const viaPersonal = await this.findPersonalityViaAlias(
           searchLower,
-          { userId: aliasUserUuid },
+          personalUuid,
           accessFilter,
           nameOrId
         );
@@ -319,7 +329,7 @@ export class PersonalityLoader {
       // Step 2b: global tier (userId IS NULL rows).
       const viaGlobal = await this.findPersonalityViaAlias(
         searchLower,
-        'global',
+        null,
         accessFilter,
         nameOrId
       );
