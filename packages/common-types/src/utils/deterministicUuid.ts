@@ -48,13 +48,24 @@ export function generatePersonalityUuid(slug: string): string {
 }
 
 /**
- * Generate deterministic UUID for a PersonalityAlias.
- * Seeded from the lowercased alias alone — aliases are globally unique, so
- * the same alias independently created in both environments converges to one
+ * Generate deterministic UUID for a GLOBAL-tier PersonalityAlias.
+ * Seeded from the lowercased alias alone — global aliases are unique among
+ * global rows (partial unique on lower(alias) WHERE user_id IS NULL), so the
+ * same alias independently created in both environments converges to one
  * row id under db-sync (the memory_facts content-hash pattern).
  */
 export function generatePersonalityAliasUuid(alias: string): string {
   return uuidv5(`personality-alias:${alias.toLowerCase()}`, TZUROT_NAMESPACE);
+}
+
+/**
+ * Generate deterministic UUID for a USER-SCOPED PersonalityAlias.
+ * The userId joins the seed so a user's personal alias can never PK-collide
+ * with a same-named global row (or another user's row) — mirroring the
+ * per-user partial unique on (user_id, lower(alias)).
+ */
+export function generateUserPersonalityAliasUuid(userId: string, alias: string): string {
+  return uuidv5(`personality-alias:${userId}:${alias.toLowerCase()}`, TZUROT_NAMESPACE);
 }
 
 /**

@@ -233,6 +233,7 @@ CREATE TABLE "personality_aliases" (
     "id" UUID NOT NULL,
     "alias" VARCHAR(100) NOT NULL,
     "personality_id" UUID NOT NULL,
+    "user_id" UUID,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
 
@@ -678,10 +679,10 @@ CREATE INDEX "personality_owners_user_id_idx" ON "personality_owners"("user_id")
 CREATE INDEX "personality_owners_personality_id_idx" ON "personality_owners"("personality_id");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "personality_aliases_alias_key" ON "personality_aliases"("alias");
+CREATE INDEX "personality_aliases_personality_id_idx" ON "personality_aliases"("personality_id");
 
 -- CreateIndex
-CREATE INDEX "personality_aliases_personality_id_idx" ON "personality_aliases"("personality_id");
+CREATE INDEX "personality_aliases_user_id_idx" ON "personality_aliases"("user_id");
 
 -- CreateIndex
 CREATE INDEX "user_personality_configs_user_id_idx" ON "user_personality_configs"("user_id");
@@ -975,6 +976,9 @@ ALTER TABLE "personality_owners" ADD CONSTRAINT "personality_owners_user_id_fkey
 ALTER TABLE "personality_aliases" ADD CONSTRAINT "personality_aliases_personality_id_fkey" FOREIGN KEY ("personality_id") REFERENCES "personalities"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "personality_aliases" ADD CONSTRAINT "personality_aliases_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "user_personality_configs" ADD CONSTRAINT "user_personality_configs_llm_config_id_fkey" FOREIGN KEY ("llm_config_id") REFERENCES "llm_configs"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -1072,6 +1076,8 @@ ALTER TABLE "users" ADD CONSTRAINT "valid_default_stt_provider_id" CHECK ("defau
 CREATE UNIQUE INDEX "tts_configs_free_default_unique" ON "tts_configs"("is_free_default") WHERE "is_free_default" = true;
 CREATE UNIQUE INDEX "tts_configs_global_name_unique" ON "tts_configs"("name") WHERE "is_global" = true;
 CREATE UNIQUE INDEX "llm_configs_global_name_unique" ON "llm_configs" ("name") WHERE ("is_global" = true);
+CREATE UNIQUE INDEX "personality_aliases_global_alias_unique" ON "personality_aliases" (lower("alias")) WHERE "user_id" IS NULL;
+CREATE UNIQUE INDEX "personality_aliases_user_alias_unique" ON "personality_aliases" ("user_id", lower("alias")) WHERE "user_id" IS NOT NULL;
 
 -- DEFERRABLE-constraint ALTERs harvested from prisma/migrations/**/migration.sql
 -- (Prisma can't express DEFERRABLE in schema.prisma, so the hand-written
