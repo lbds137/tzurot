@@ -177,7 +177,8 @@ export async function handlePurge(context: DeferredCommandContext): Promise<void
       .setLabel('Cancel')
       .setStyle(ButtonStyle.Secondary);
 
-    const row = new ActionRowBuilder<ButtonBuilder>().addComponents(proceedButton, cancelButton);
+    // Cancel → Danger order (design-system button rule: Danger is always last).
+    const row = new ActionRowBuilder<ButtonBuilder>().addComponents(cancelButton, proceedButton);
 
     await context.editReply({ embeds: [embed], components: [row] });
   } catch (error) {

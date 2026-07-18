@@ -46,9 +46,15 @@ const mockBuildDestructiveWarning = vi.fn().mockReturnValue({ embeds: [], compon
 const mockHandleDestructiveConfirmButton = vi.fn();
 const mockHandleDestructiveCancel = vi.fn();
 const mockHandleDestructiveModalSubmit = vi.fn();
-vi.mock('../../../utils/destructiveConfirmation.js', () => ({
+vi.mock('../../../utils/confirmation/confirmDestructive.js', () => ({
   buildDestructiveWarning: (...args: unknown[]) => mockBuildDestructiveWarning(...args),
   createHardDeleteConfig: (opts: Record<string, unknown>) => opts,
+  hardDeleteModalDisplay: (entityName: string) => ({
+    modalTitle: 'Confirm Deletion',
+    confirmationLabel: `Type: DELETE ${entityName.toUpperCase()}`,
+    confirmationPhrase: `DELETE ${entityName.toUpperCase()}`,
+    confirmationPlaceholder: `DELETE ${entityName.toUpperCase()}`,
+  }),
   handleDestructiveConfirmButton: (...args: unknown[]) =>
     mockHandleDestructiveConfirmButton(...args),
   handleDestructiveCancel: (...args: unknown[]) => mockHandleDestructiveCancel(...args),
@@ -59,7 +65,7 @@ vi.mock('../../../utils/customIds.js', () => ({
   DestructiveCustomIds: {
     parse: (customId: string) => {
       const parts = customId.split('::');
-      if (parts[1] !== 'destructive') return null;
+      if (parts.length < 4 || parts[1] !== 'destructive') return null;
       return {
         source: parts[0],
         action: parts[2],

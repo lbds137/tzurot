@@ -14,7 +14,7 @@ import {
   type ModalSubmitInteraction,
 } from 'discord.js';
 import { createLogger } from '@tzurot/common-types/utils/logger';
-import { buildDeleteConfirmation } from '../../utils/dashboard/deleteConfirmation.js';
+import { buildDeleteConfirmation } from '../../utils/confirmation/confirmAction.js';
 import { handleDashboardClose } from '../../utils/dashboard/closeHandler.js';
 import { createRefreshHandler, refreshDashboardUI } from '../../utils/dashboard/refreshHandler.js';
 import {

@@ -591,6 +591,18 @@ describe('customIds', () => {
           'history::destructive::modal_submit::hard-delete'
         );
       });
+
+      it('should derive modalSubmit from a parsed button customId', () => {
+        const parsed = DestructiveCustomIds.parse(
+          DestructiveCustomIds.confirmButton('voice', 'voice-clear', 'all')
+        );
+        if (parsed === null) {
+          throw new Error('expected parse to succeed');
+        }
+        expect(DestructiveCustomIds.modalSubmitFromParsed(parsed)).toBe(
+          'voice::destructive::modal_submit::voice-clear::all'
+        );
+      });
     });
 
     describe('parse', () => {

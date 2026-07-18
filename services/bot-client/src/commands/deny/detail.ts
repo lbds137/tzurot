@@ -26,7 +26,7 @@ import type { ButtonInteraction, ModalSubmitInteraction } from 'discord.js';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { isBotOwner } from '@tzurot/common-types/utils/ownerMiddleware';
 import { getSessionManager } from '../../utils/dashboard/SessionManager.js';
-import { buildDeleteConfirmation } from '../../utils/dashboard/deleteConfirmation.js';
+import { buildDeleteConfirmation } from '../../utils/confirmation/confirmAction.js';
 import { DASHBOARD_MESSAGES, formatSuccessBanner } from '../../utils/dashboard/messages.js';
 import { parseDashboardCustomId, type BrowseContext } from '../../utils/dashboard/types.js';
 import { renderPostActionScreen } from '../../utils/dashboard/postActionScreen.js';

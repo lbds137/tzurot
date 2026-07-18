@@ -25,14 +25,14 @@ vi.mock('@tzurot/common-types/utils/logger', async () => {
   };
 });
 
-// Mock destructiveConfirmation
+// Mock the Tier-B destructive confirmation module
 const mockBuildDestructiveWarning = vi.fn();
 const mockCreateHardDeleteConfig = vi.fn(() => ({
   source: 'history',
   operation: 'hard-delete',
   entityId: 'lilith|channel-123',
 }));
-vi.mock('../../utils/destructiveConfirmation.js', () => ({
+vi.mock('../../utils/confirmation/confirmDestructive.js', () => ({
   buildDestructiveWarning: (...args: unknown[]) =>
     mockBuildDestructiveWarning(...(args as Parameters<typeof mockBuildDestructiveWarning>)),
   createHardDeleteConfig: (...args: unknown[]) =>

@@ -2,11 +2,11 @@
  * Voice Clear Handler
  * Deletes ALL tzurot-prefixed voices with destructive confirmation.
  *
- * `createHardDeleteConfig({ source: 'voice', ... })` is load-bearing: it
- * generates customIds prefixed `voice::destructive::...` so CommandHandler
- * routes confirm/cancel/modal interactions to /voice's handleButton +
- * handleModal. Using `source: 'settings'` would route to /settings, which
- * no longer dispatches voice-clear after the /voice consolidation.
+ * `source: 'voice'` in the warning config is load-bearing: it prefixes the
+ * customIds `voice::destructive::...` so CommandHandler routes confirm/
+ * cancel/modal interactions to /voice's handleButton + handleModal. The
+ * modal's customId is derived from the button's inside the factory, so only
+ * the warning config carries routing state.
  */
 
 import { EmbedBuilder, type ButtonInteraction, type ModalSubmitInteraction } from 'discord.js';
@@ -22,7 +22,9 @@ import {
   handleDestructiveConfirmButton,
   handleDestructiveCancel,
   handleDestructiveModalSubmit,
-} from '../../../utils/destructiveConfirmation.js';
+  hardDeleteModalDisplay,
+  type DestructiveOperationResult,
+} from '../../../utils/confirmation/confirmDestructive.js';
 import { DestructiveCustomIds } from '../../../utils/customIds.js';
 import { invalidateVoiceCache } from './voiceCache.js';
 
@@ -33,6 +35,12 @@ const CLEAR_VOICES_ACTION = 'clear your voices';
 
 /** Operation name for destructive confirmation custom IDs */
 export const VOICE_CLEAR_OPERATION = 'voice-clear';
+
+/**
+ * Entity name shared by the warning config and the modal-submit validation so
+ * the dynamic confirmation phrase can't drift between the two.
+ */
+const VOICE_CLEAR_ENTITY_NAME = 'all your Tzurot voices';
 
 /**
  * Handle /voice voices clear
@@ -69,7 +77,7 @@ export async function handleClearVoices(context: DeferredCommandContext): Promis
     const count = result.data.voices.length;
     const config = createHardDeleteConfig({
       entityType: 'cloned voices',
-      entityName: 'all your Tzurot voices',
+      entityName: VOICE_CLEAR_ENTITY_NAME,
       additionalWarning:
         'This will remove all auto-cloned voices from your audio provider accounts.\n' +
         'They will be re-cloned automatically when needed.',
@@ -93,19 +101,18 @@ export async function handleClearVoices(context: DeferredCommandContext): Promis
 }
 
 /**
- * Handle confirm button for voice-clear operation
+ * Handle confirm button for voice-clear operation.
+ *
+ * Display-only: the modal's routing customId is derived from the button's own
+ * customId inside the factory. (The previous config-rebuild here carried
+ * `source: 'settings'`, which routed the modal to /settings — whose handleModal
+ * has no voice-clear branch — silently dropping the typed confirmation.)
  */
 export async function handleVoiceClearConfirmButton(interaction: ButtonInteraction): Promise<void> {
-  const config = createHardDeleteConfig({
-    entityType: 'cloned voices',
-    entityName: 'all Tzurot voices',
-    additionalWarning: 'This will remove all auto-cloned voices from your audio provider accounts.',
-    source: 'settings',
-    operation: VOICE_CLEAR_OPERATION,
-    entityId: 'all',
-  });
-
-  await handleDestructiveConfirmButton(interaction, config);
+  await handleDestructiveConfirmButton(
+    interaction,
+    hardDeleteModalDisplay(VOICE_CLEAR_ENTITY_NAME)
+  );
 }
 
 /**
@@ -115,8 +122,9 @@ export async function handleVoiceClearModalSubmit(
   interaction: ModalSubmitInteraction
 ): Promise<void> {
   const userId = interaction.user.id;
+  const { confirmationPhrase } = hardDeleteModalDisplay(VOICE_CLEAR_ENTITY_NAME);
 
-  await handleDestructiveModalSubmit(interaction, 'DELETE', async () => {
+  const executeOperation = async (): Promise<DestructiveOperationResult> => {
     const { userClient } = clientsFor(interaction);
     const result = await userClient.clearVoices();
 
@@ -159,6 +167,10 @@ export async function handleVoiceClearModalSubmit(
     logger.info({ userId, deleted, total }, 'Cleared voices');
 
     return { success: true, successEmbed: embed };
+  };
+
+  await handleDestructiveModalSubmit(interaction, confirmationPhrase, executeOperation, {
+    progressContent: 'Clearing voices…',
   });
 }
 

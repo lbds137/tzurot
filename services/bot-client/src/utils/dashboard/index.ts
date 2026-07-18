@@ -97,9 +97,6 @@ export {
 // Modal Helpers
 export { extractAndMergeSectionValues } from './modalHelpers.js';
 
-// Delete confirmation
-export { buildDeleteConfirmation } from './deleteConfirmation.js';
-
 // Permission Checks
 export { checkOwnership } from './permissionChecks.js';
 
