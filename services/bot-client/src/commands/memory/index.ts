@@ -36,7 +36,7 @@ import {
   handleIncognitoForget,
 } from './incognito.js';
 import { handleBatchDelete } from './batchDelete.js';
-import { handlePurge, MEMORY_PURGE_PREFIX } from './purge.js';
+import { handlePurge } from './purge.js';
 import { handlePersonalityAutocomplete } from './autocomplete.js';
 import { MEMORY_DETAIL_PREFIX } from './detail.js';
 import { handleFacts, FACT_BROWSE_PREFIX } from './factsBrowse.js';
@@ -343,7 +343,6 @@ export default defineCommand({
     MEMORY_BROWSE_PREFIX,
     MEMORY_SEARCH_PREFIX,
     MEMORY_DETAIL_PREFIX,
-    MEMORY_PURGE_PREFIX,
     FACT_BROWSE_PREFIX,
     FACT_DETAIL_PREFIX,
   ],

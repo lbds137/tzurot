@@ -1149,7 +1149,6 @@
         "memory-browse",
         "memory-search",
         "memory-detail",
-        "memory-purge",
         "memory-fact-browse",
         "memory-fact"
       ],
@@ -1893,8 +1892,7 @@
       },
       "componentPrefixes": [
         "user-defaults-settings",
-        "settings-preset-override",
-        "settings-data-delete"
+        "settings-preset-override"
       ],
       "data": {
         "options": [

@@ -376,7 +376,6 @@ export {
   MemoryStatsResponseSchema,
   MemoryUpdateSchema,
   PreviewTokenSchema,
-  type PurgeMemoriesResponse,
   PurgeMemoriesResponseSchema,
   PurgeMemoriesSchema,
   PurgeTokenSchema,

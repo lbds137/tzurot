@@ -196,11 +196,12 @@ describe('Settings Command Index', () => {
       expect(groupNames).not.toContain('voices');
     });
 
-    it('should have componentPrefixes for user-defaults, preset-override, and data-delete', () => {
+    it('should have componentPrefixes for user-defaults and preset-override', () => {
+      // Account-delete customIds start with 'settings::' and route natively
+      // by command name — no extra prefix needed since the Tier-B migration.
       expect(settingsCommand.componentPrefixes).toEqual([
         'user-defaults-settings',
         'settings-preset-override',
-        'settings-data-delete',
       ]);
     });
 

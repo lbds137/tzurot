@@ -9,8 +9,7 @@ import {
   handleDataDelete,
   handleDataDeleteButton,
   handleDataDeleteModal,
-  isDataDeleteInteraction,
-  SETTINGS_DATA_DELETE_PREFIX,
+  SETTINGS_ACCOUNT_DELETE_OPERATION,
 } from './delete.js';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
 import { makeOk, makeErr, asUserClient } from '../../../test/gatewayClientStubs.js';
@@ -36,13 +35,6 @@ const PREVIEW = {
   counts: { personas: 2, characters: 1, conversationMessages: 10, memories: 5, facts: 3 },
   hasActiveExport: false,
 };
-
-describe('isDataDeleteInteraction', () => {
-  it('matches only the settings-data-delete prefix', () => {
-    expect(isDataDeleteInteraction(`${SETTINGS_DATA_DELETE_PREFIX}::proceed::1`)).toBe(true);
-    expect(isDataDeleteInteraction('memory-purge::proceed::1')).toBe(false);
-  });
-});
 
 describe('handleDataDelete', () => {
   const mockEditReply = vi.fn();
@@ -80,8 +72,8 @@ describe('handleDataDelete', () => {
     );
     // Cancel → Danger order (design-system button rule: Danger is always last).
     expect(customIds).toEqual([
-      `${SETTINGS_DATA_DELETE_PREFIX}::cancel::123456789`,
-      `${SETTINGS_DATA_DELETE_PREFIX}::proceed::123456789`,
+      `settings::destructive::cancel_button::${SETTINGS_ACCOUNT_DELETE_OPERATION}`,
+      `settings::destructive::confirm_button::${SETTINGS_ACCOUNT_DELETE_OPERATION}`,
     ]);
   });
 
@@ -108,6 +100,8 @@ describe('handleDataDeleteButton', () => {
     return {
       customId,
       user: { id: userId },
+      // Invoker ownership is read from the parent message's interactionMetadata.
+      message: { interactionMetadata: { user: { id: '123456789' } } },
       update: vi.fn().mockResolvedValue(undefined),
       reply: vi.fn().mockResolvedValue(undefined),
       showModal: vi.fn().mockResolvedValue(undefined),
@@ -115,7 +109,9 @@ describe('handleDataDeleteButton', () => {
   }
 
   it('cancel clears the warning', async () => {
-    const interaction = makeButton(`${SETTINGS_DATA_DELETE_PREFIX}::cancel::123456789`);
+    const interaction = makeButton(
+      `settings::destructive::cancel_button::${SETTINGS_ACCOUNT_DELETE_OPERATION}`
+    );
     await handleDataDeleteButton(interaction);
     expect(interaction.update).toHaveBeenCalledWith(
       expect.objectContaining({ content: 'Deletion cancelled.' })
@@ -123,16 +119,24 @@ describe('handleDataDeleteButton', () => {
   });
 
   it('proceed shows the typed-phrase modal as the FIRST response', async () => {
-    const interaction = makeButton(`${SETTINGS_DATA_DELETE_PREFIX}::proceed::123456789`);
+    const interaction = makeButton(
+      `settings::destructive::confirm_button::${SETTINGS_ACCOUNT_DELETE_OPERATION}`
+    );
     await handleDataDeleteButton(interaction);
 
     expect(interaction.showModal).toHaveBeenCalledTimes(1);
     const modal = (interaction.showModal as ReturnType<typeof vi.fn>).mock.calls[0][0];
-    expect(modal.data.custom_id).toBe(`${SETTINGS_DATA_DELETE_PREFIX}::confirm::123456789`);
+    // Derived from the button's own customId by the Tier-B factory.
+    expect(modal.data.custom_id).toBe(
+      `settings::destructive::modal_submit::${SETTINGS_ACCOUNT_DELETE_OPERATION}`
+    );
   });
 
   it('rejects clicks from a different user', async () => {
-    const interaction = makeButton(`${SETTINGS_DATA_DELETE_PREFIX}::proceed::999`, '123456789');
+    const interaction = makeButton(
+      `settings::destructive::confirm_button::${SETTINGS_ACCOUNT_DELETE_OPERATION}`,
+      'user-OTHER'
+    );
     await handleDataDeleteButton(interaction);
 
     expect(interaction.showModal).not.toHaveBeenCalled();
@@ -159,14 +163,17 @@ describe('handleDataDeleteModal', () => {
   // assert on `update`, which only exists post-isFromMessage() narrowing.
   function makeModal(phrase: string) {
     return {
-      customId: `${SETTINGS_DATA_DELETE_PREFIX}::confirm::123456789`,
+      customId: `settings::destructive::modal_submit::${SETTINGS_ACCOUNT_DELETE_OPERATION}`,
       user: { id: '123456789' },
       fields: { getTextInputValue: vi.fn().mockReturnValue(phrase) },
       reply: vi.fn().mockResolvedValue(undefined),
       update: vi.fn().mockResolvedValue(undefined),
       editReply: mockEditReply,
       isFromMessage: vi.fn().mockReturnValue(true),
-      message: { edit: vi.fn().mockResolvedValue(undefined) },
+      message: {
+        edit: vi.fn().mockResolvedValue(undefined),
+        interactionMetadata: { user: { id: '123456789' } },
+      },
     };
   }
 
