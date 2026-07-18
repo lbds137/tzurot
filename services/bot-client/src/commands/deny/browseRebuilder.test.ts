@@ -75,7 +75,6 @@ vi.mock('../../utils/browse/index.js', async importOriginal => {
       browsePrefix: 'deny::browse',
       browseSelectPrefix: 'deny::browse-select',
     })),
-    buildBrowseButtons: vi.fn(() => ({ type: 'action-row', components: [] })),
     createBrowseSortToggle: vi.fn(() => ({
       next: (current: string) => (current === 'date' ? 'name' : 'date'),
       labelFor: () => ({ label: 'Sort', emoji: '🔤' }),

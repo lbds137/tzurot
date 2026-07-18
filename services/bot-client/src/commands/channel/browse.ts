@@ -12,7 +12,6 @@
 
 import {
   type ButtonInteraction,
-  type TextChannel,
   type Client,
   EmbedBuilder,
   type ButtonBuilder,
@@ -21,6 +20,7 @@ import {
 } from 'discord.js';
 import {
   buildBrowseButtons as buildSharedBrowseButtons,
+  buildFilterToggleButton,
   createBrowseCustomIdHelpers,
   joinFooter,
   formatSortNatural,
@@ -33,28 +33,32 @@ import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
 import { renderSpec } from '../../ux/render/render.js';
 import { channelBrowseOptions } from '@tzurot/common-types/generated/commandOptions';
 import { type ChannelSettings } from '@tzurot/common-types/schemas/api/channel';
-import { formatDateShort } from '@tzurot/common-types/utils/dateFormatting';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { isBotOwner } from '@tzurot/common-types/utils/ownerMiddleware';
 import { type UserClient } from '@tzurot/clients';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { clientsFor } from '../../utils/gatewayClients.js';
 import { requireManageMessagesContext } from '../../utils/permissions.js';
-import { createListComparator, type ListSortType } from '../../utils/listSorting.js';
-import { CHANNELS_PER_PAGE, CHANNELS_PER_PAGE_ALL_SERVERS, type GuildPage } from './listTypes.js';
+import {
+  CHANNELS_PER_PAGE,
+  FILTER_TOGGLE_DISPLAY,
+  VALID_CHANNEL_FILTERS,
+  type ChannelBrowseFilter,
+  type GuildPage,
+} from './listTypes.js';
+import {
+  buildGuildPages,
+  filterByQuery,
+  formatChannelSettings,
+  sortChannelSettings,
+} from './browseHelpers.js';
 
 const logger = createLogger('channel-browse');
-
-/** Browse filter options */
-type ChannelBrowseFilter = 'current' | 'all';
-
-/** Valid filters for channel browse */
-const VALID_FILTERS = ['current', 'all'] as const;
 
 /** Browse customId helpers using shared factory */
 const browseHelpers = createBrowseCustomIdHelpers<ChannelBrowseFilter>({
   prefix: 'channel',
-  validFilters: VALID_FILTERS,
+  validFilters: VALID_CHANNEL_FILTERS,
 });
 
 /** Default sort type */
@@ -68,136 +72,26 @@ export function isChannelBrowseInteraction(customId: string): boolean {
 }
 
 /**
- * Format a single channel settings entry for display
+ * Build pagination and sort buttons using shared utility, plus the
+ * in-place filter toggle (current ↔ all servers). The 'all' filter is
+ * bot-owner-only, so the toggle only renders for the owner — showing it
+ * to everyone else would be a dead affordance (the pagination handler
+ * gates the click, leaving a button that visibly does nothing).
  */
-function formatChannelSettings(settings: ChannelSettings): string {
-  const channelMention = `<#${settings.channelId}>`;
-  const activatedDate = formatDateShort(settings.createdAt);
-  const safeName = escapeMarkdown(settings.personalityName ?? 'Unknown');
-  return `${channelMention} → **${safeName}** (\`${settings.personalitySlug}\`)\n  _Activated: ${activatedDate}_`;
+interface ChannelBrowseButtonsOptions {
+  currentPage: number;
+  totalPages: number;
+  filter: ChannelBrowseFilter;
+  currentSort: BrowseSortType;
+  query: string | null;
+  showFilterToggle: boolean;
 }
 
-/**
- * Create a channel comparator with access to client cache for name lookups.
- */
-function createChannelComparator(
-  client: Client
-): (sortType: ListSortType) => (a: ChannelSettings, b: ChannelSettings) => number {
-  const getChannelName = (s: ChannelSettings): string => {
-    const channel = client.channels.cache.get(s.channelId) as TextChannel | undefined;
-    return channel?.name ?? s.channelId;
-  };
-
-  return createListComparator<ChannelSettings>(getChannelName, s => s.createdAt);
-}
-
-/**
- * Sort channel settings by the specified sort type.
- */
-function sortChannelSettings(
-  settings: ChannelSettings[],
-  sortType: BrowseSortType,
-  client: Client,
-  isAllServers = false
-): ChannelSettings[] {
-  const sorted = [...settings];
-  const comparator = createChannelComparator(client);
-
-  const getGuildName = (s: ChannelSettings): string => {
-    if (s.guildId === null) {
-      return 'zzz_unknown';
-    }
-    const guild = client.guilds.cache.get(s.guildId);
-    return guild?.name ?? s.guildId;
-  };
-
-  if (isAllServers) {
-    sorted.sort((a, b) => {
-      const guildCompare = getGuildName(a).localeCompare(getGuildName(b));
-      if (guildCompare !== 0) {
-        return guildCompare;
-      }
-      return comparator(sortType)(a, b);
-    });
-  } else {
-    sorted.sort(comparator(sortType));
-  }
-
-  return sorted;
-}
-
-/**
- * Filter channel settings by query
- */
-function filterByQuery(settings: ChannelSettings[], query: string | null): ChannelSettings[] {
-  if (query === null || query.length === 0) {
-    return settings;
-  }
-
-  const lowerQuery = query.toLowerCase();
-  return settings.filter(
-    s =>
-      (s.personalityName?.toLowerCase().includes(lowerQuery) ?? false) ||
-      (s.personalitySlug?.toLowerCase().includes(lowerQuery) ?? false)
-  );
-}
-
-/**
- * Build guild-aware pages for all-servers view
- */
-function buildGuildPages(activations: ChannelSettings[], client: Client): GuildPage[] {
-  const pages: GuildPage[] = [];
-
-  const guildGroups: { guildId: string; guildName: string; settings: ChannelSettings[] }[] = [];
-  let currentGroup: (typeof guildGroups)[0] | null = null;
-
-  for (const activation of activations) {
-    const guildId = activation.guildId ?? 'unknown';
-    // eslint-disable-next-line @typescript-eslint/prefer-optional-chain -- explicit null check required
-    if (currentGroup === null || currentGroup.guildId !== guildId) {
-      const guild = guildId !== 'unknown' ? client.guilds.cache.get(guildId) : undefined;
-      const guildName: string = guild?.name ?? `Unknown Server (${guildId})`;
-      currentGroup = { guildId, guildName, settings: [] };
-      guildGroups.push(currentGroup);
-    }
-    currentGroup.settings.push(activation);
-  }
-
-  for (const group of guildGroups) {
-    const totalChannels = group.settings.length;
-    let offset = 0;
-
-    while (offset < totalChannels) {
-      const pageSettings = group.settings.slice(offset, offset + CHANNELS_PER_PAGE_ALL_SERVERS);
-      const isContinuation = offset > 0;
-      const isComplete = offset + pageSettings.length >= totalChannels;
-
-      pages.push({
-        guildId: group.guildId,
-        guildName: group.guildName,
-        settings: pageSettings,
-        isContinuation,
-        isComplete,
-      });
-
-      offset += CHANNELS_PER_PAGE_ALL_SERVERS;
-    }
-  }
-
-  return pages;
-}
-
-/**
- * Build pagination and sort buttons using shared utility
- */
 function buildBrowseButtons(
-  currentPage: number,
-  totalPages: number,
-  filter: ChannelBrowseFilter,
-  currentSort: BrowseSortType,
-  query: string | null
+  options: ChannelBrowseButtonsOptions
 ): ReturnType<typeof buildSharedBrowseButtons> {
-  return buildSharedBrowseButtons({
+  const { currentPage, totalPages, filter, currentSort, query, showFilterToggle } = options;
+  const row = buildSharedBrowseButtons({
     currentPage,
     totalPages,
     filter,
@@ -206,6 +100,19 @@ function buildBrowseButtons(
     buildCustomId: browseHelpers.build,
     buildInfoId: browseHelpers.buildInfo,
   });
+  if (showFilterToggle) {
+    row.addComponents(
+      buildFilterToggleButton({
+        filters: VALID_CHANNEL_FILTERS,
+        display: FILTER_TOGGLE_DISPLAY,
+        current: filter,
+        buildCustomId: browseHelpers.build,
+        sort: currentSort,
+        query,
+      })
+    );
+  }
+  return row;
 }
 
 /**
@@ -267,6 +174,22 @@ function buildEmbedAllServers(
   totalChannels: number,
   query: string | null
 ): EmbedBuilder {
+  // Zero activations anywhere: without this guard, safePage clamps to -1
+  // and guildPages[-1] throws. The always-rendered filter toggle makes
+  // this path directly reachable (toggle to All Servers on an empty bot).
+  if (guildPages.length === 0) {
+    return new EmbedBuilder()
+      .setTitle('📍 Channel Browser')
+      .setColor(DISCORD_COLORS.BLURPLE)
+      .setDescription(
+        query !== null
+          ? '_No channels match your search in any server._'
+          : '_No activated channels in any server._\n\nUse `/channel activate` to set up auto-responses.'
+      )
+      .setFooter({ text: '0 total across all servers' })
+      .setTimestamp();
+  }
+
   const totalPages = guildPages.length;
   const safePage = Math.min(Math.max(0, page), totalPages - 1);
   const guildPage = guildPages[safePage];
@@ -316,6 +239,8 @@ interface BuildBrowsePageOptions {
   sortType: BrowseSortType;
   query: string | null;
   client: Client;
+  /** Owner-only affordance: the all-servers toggle renders only for the bot owner. */
+  showFilterToggle: boolean;
 }
 
 /**
@@ -326,7 +251,7 @@ function buildBrowsePage(options: BuildBrowsePageOptions): {
   components: ActionRowBuilder<ButtonBuilder>[];
   totalPages: number;
 } {
-  const { activations, page, filter, sortType, query, client } = options;
+  const { activations, page, filter, sortType, query, client, showFilterToggle } = options;
   const isAllServers = filter === 'all';
 
   if (isAllServers) {
@@ -335,9 +260,18 @@ function buildBrowsePage(options: BuildBrowsePageOptions): {
     const embed = buildEmbedAllServers(guildPages, page, sortType, activations.length, query);
     const components: ActionRowBuilder<ButtonBuilder>[] = [];
 
-    if (totalPages > 1 || activations.length > 0) {
-      components.push(buildBrowseButtons(page, totalPages, filter, sortType, query));
-    }
+    // Always render: the filter toggle must stay reachable even when this
+    // view is empty (the other filter's view may not be).
+    components.push(
+      buildBrowseButtons({
+        currentPage: page,
+        totalPages,
+        filter,
+        currentSort: sortType,
+        query,
+        showFilterToggle,
+      })
+    );
 
     return { embed, components, totalPages };
   }
@@ -346,9 +280,18 @@ function buildBrowsePage(options: BuildBrowsePageOptions): {
   const embed = buildEmbedSingleGuild(activations, page, sortType, query);
   const components: ActionRowBuilder<ButtonBuilder>[] = [];
 
-  if (totalPages > 1 || activations.length > 0) {
-    components.push(buildBrowseButtons(page, totalPages, filter, sortType, query));
-  }
+  // Always render: the filter toggle must stay reachable even when this
+  // view is empty (the other filter's view may not be).
+  components.push(
+    buildBrowseButtons({
+      currentPage: page,
+      totalPages,
+      filter,
+      currentSort: sortType,
+      query,
+      showFilterToggle,
+    })
+  );
 
   return { embed, components, totalPages };
 }
@@ -472,6 +415,7 @@ export async function handleBrowse(context: DeferredCommandContext): Promise<voi
       sortType: DEFAULT_SORT,
       query,
       client: interaction.client,
+      showFilterToggle: isBotOwner(context.user.id),
     });
 
     await context.editReply({ embeds: [embed], components });
@@ -550,6 +494,7 @@ export async function handleBrowsePagination(
       sortType: sort,
       query,
       client: interaction.client,
+      showFilterToggle: isBotOwner(userId),
     });
 
     await interaction.editReply({ embeds: [embed], components });

@@ -270,8 +270,17 @@ describe('handleBrowse', () => {
     });
 
     const components = mockEditReply.mock.calls[0][0].components;
-    expect(components).toHaveLength(1); // Just select menu, no pagination
+    // Select menu + the always-rendered button row (pagination disabled at
+    // one page; the two filter toggles live there).
+    expect(components).toHaveLength(2);
     expect(components[0].components[0].data.custom_id).toBe('preset::browse-select::0::all.all::');
+    const buttons = components[1].toJSON().components as { custom_id: string; label?: string }[];
+    // The two-dimensional in-place filter: per-axis cycle toggles, each
+    // holding the other axis constant, page reset to 0.
+    const scopeToggle = buttons.find(button => button.label === 'Scope: Global');
+    const capabilityToggle = buttons.find(button => button.label === 'Type: Text');
+    expect(scopeToggle?.custom_id).toBe('preset::browse::0::global.all::');
+    expect(capabilityToggle?.custom_id).toBe('preset::browse::0::all.text::');
   });
 
   it('shows both kinds by default (vision badged) and filters by capability', async () => {

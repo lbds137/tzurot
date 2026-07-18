@@ -8,6 +8,7 @@ import {
   describeFilter,
   splitBrowseFilter,
   VALID_PRESET_FILTERS,
+  filterPresets,
 } from './browseFilter.js';
 
 describe('composeBrowseFilter', () => {
@@ -67,5 +68,30 @@ describe('describeFilter', () => {
 
   it('joins both axes with a middot when both are narrowed', () => {
     expect(describeFilter('mine', 'text')).toBe('My Presets · Text-only Models');
+  });
+});
+
+describe('filterPresets', () => {
+  const presets = [
+    {
+      name: 'GlobalVision',
+      model: 'x/model-a',
+      isGlobal: true,
+      isOwned: false,
+      supportsVision: true,
+    },
+    { name: 'MineText', model: 'x/model-b', isGlobal: false, isOwned: true, supportsVision: false },
+  ] as never[];
+
+  it('narrows by scope and capability independently', () => {
+    expect(filterPresets(presets, 'global', 'all', null, false)).toHaveLength(1);
+    expect(filterPresets(presets, 'all', 'vision', null, false)).toHaveLength(1);
+    expect(filterPresets(presets, 'mine', 'text', null, false)).toHaveLength(1);
+    expect(filterPresets(presets, 'global', 'text', null, false)).toHaveLength(0);
+  });
+
+  it('applies the search query over name and model', () => {
+    expect(filterPresets(presets, 'all', 'all', 'minetext', false)).toHaveLength(1);
+    expect(filterPresets(presets, 'all', 'all', 'model-', false)).toHaveLength(2);
   });
 });
