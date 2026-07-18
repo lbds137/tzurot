@@ -9,7 +9,7 @@
 import { MessageFlags, type ButtonInteraction } from 'discord.js';
 import { type EnvConfig } from '@tzurot/common-types/config/config';
 import { createLogger } from '@tzurot/common-types/utils/logger';
-import { buildDeleteConfirmation } from '../../utils/dashboard/deleteConfirmation.js';
+import { buildDeleteConfirmation } from '../../utils/confirmation/confirmAction.js';
 import { DASHBOARD_MESSAGES, formatSuccessBanner } from '../../utils/dashboard/messages.js';
 import { getSessionManager } from '../../utils/dashboard/SessionManager.js';
 import { renderPostActionScreen } from '../../utils/dashboard/postActionScreen.js';

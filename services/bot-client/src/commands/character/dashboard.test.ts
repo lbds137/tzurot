@@ -123,7 +123,7 @@ vi.mock('../../utils/dashboard/closeHandler.js', () => ({
   handleDashboardClose: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock('../../utils/dashboard/deleteConfirmation.js', () => ({
+vi.mock('../../utils/confirmation/confirmAction.js', () => ({
   buildDeleteConfirmation: vi.fn().mockReturnValue({
     embed: { data: {} },
     components: [],

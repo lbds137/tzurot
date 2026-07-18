@@ -12,7 +12,7 @@ import {
   isPersonaDashboardInteraction,
 } from './dashboard.js';
 import { handleDashboardClose } from '../../utils/dashboard/closeHandler.js';
-import { buildDeleteConfirmation } from '../../utils/dashboard/deleteConfirmation.js';
+import { buildDeleteConfirmation } from '../../utils/confirmation/confirmAction.js';
 import { DASHBOARD_MESSAGES, formatSessionExpiredMessage } from '../../utils/dashboard/messages.js';
 import { mockGetPersonaResponse, mockListPersonasResponse } from '@tzurot/test-factories';
 import { makeOk, makeErr, asUserClient } from '../../test/gatewayClientStubs.js';
@@ -253,7 +253,7 @@ vi.mock('../../utils/dashboard/closeHandler.js', () => ({
   handleDashboardClose: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock('../../utils/dashboard/deleteConfirmation.js', () => ({
+vi.mock('../../utils/confirmation/confirmAction.js', () => ({
   buildDeleteConfirmation: vi.fn().mockReturnValue({
     embed: { data: {} },
     components: [],

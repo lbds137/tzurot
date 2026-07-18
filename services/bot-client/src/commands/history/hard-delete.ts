@@ -24,7 +24,7 @@ import {
 import {
   buildDestructiveWarning,
   createHardDeleteConfig,
-} from '../../utils/destructiveConfirmation.js';
+} from '../../utils/confirmation/confirmDestructive.js';
 
 const logger = createLogger('history-hard-delete');
 

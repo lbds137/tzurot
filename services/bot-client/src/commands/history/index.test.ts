@@ -61,13 +61,13 @@ vi.mock('../../utils/subcommandContextRouter.js', () => ({
   createSubcommandContextRouter: () => mockRouter,
 }));
 
-// Mock customIds - matches real format: {source}::destructive::{action}::{operation}::{entityId}
+// Mock customIds - matches real format:
+// {source}::destructive::{action}::{operation}::{entityId?}
 vi.mock('../../utils/customIds.js', () => ({
   CUSTOM_ID_DELIMITER: '::',
   DestructiveCustomIds: {
     isDestructive: (id: string) => id.includes('::destructive::'),
     parse: (id: string) => {
-      // Real format: {source}::destructive::{action}::{operation}::{entityId}
       const parts = id.split('::');
       if (parts.length < 4 || parts[1] !== 'destructive') return null;
       return {
@@ -80,12 +80,17 @@ vi.mock('../../utils/customIds.js', () => ({
   },
 }));
 
-// Mock destructiveConfirmation
+// Mock the Tier-B destructive confirmation module
 const mockHandleDestructiveCancel = vi.fn();
 const mockHandleDestructiveConfirmButton = vi.fn();
 const mockHandleDestructiveModalSubmit = vi.fn();
-const mockCreateHardDeleteConfig = vi.fn(() => ({ type: 'config' }));
-vi.mock('../../utils/destructiveConfirmation.js', () => ({
+const mockHardDeleteModalDisplay = vi.fn((entityName: string) => ({
+  modalTitle: 'Confirm Deletion',
+  confirmationLabel: `Type: DELETE ${entityName.toUpperCase()}`,
+  confirmationPhrase: `DELETE ${entityName.toUpperCase()}`,
+  confirmationPlaceholder: `DELETE ${entityName.toUpperCase()}`,
+}));
+vi.mock('../../utils/confirmation/confirmDestructive.js', () => ({
   handleDestructiveCancel: (...args: unknown[]) =>
     mockHandleDestructiveCancel(...(args as Parameters<typeof mockHandleDestructiveCancel>)),
   handleDestructiveConfirmButton: (...args: unknown[]) =>
@@ -96,8 +101,8 @@ vi.mock('../../utils/destructiveConfirmation.js', () => ({
     mockHandleDestructiveModalSubmit(
       ...(args as Parameters<typeof mockHandleDestructiveModalSubmit>)
     ),
-  createHardDeleteConfig: (...args: unknown[]) =>
-    mockCreateHardDeleteConfig(...(args as Parameters<typeof mockCreateHardDeleteConfig>)),
+  hardDeleteModalDisplay: (...args: unknown[]) =>
+    mockHardDeleteModalDisplay(...(args as Parameters<typeof mockHardDeleteModalDisplay>)),
 }));
 
 // Mock typed gateway clients
@@ -385,15 +390,12 @@ describe('handleButton', () => {
 
     await handleButton(mockInteraction as never);
 
-    expect(mockCreateHardDeleteConfig).toHaveBeenCalledWith({
-      entityType: 'conversation history',
-      entityName: 'lilith',
-      additionalWarning: '**This action is PERMANENT and cannot be undone!**',
-      source: 'history',
-      operation: 'hard-delete',
-      entityId: 'lilith_channel-123',
-    });
-    expect(mockHandleDestructiveConfirmButton).toHaveBeenCalled();
+    // Display-only: routing derives from the button's customId in the factory.
+    expect(mockHardDeleteModalDisplay).toHaveBeenCalledWith('lilith');
+    expect(mockHandleDestructiveConfirmButton).toHaveBeenCalledWith(
+      mockInteraction,
+      expect.objectContaining({ confirmationPhrase: 'DELETE LILITH' })
+    );
   });
 
   it('should update with error for invalid entityId on confirm', async () => {

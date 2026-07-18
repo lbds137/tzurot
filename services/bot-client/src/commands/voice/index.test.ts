@@ -231,14 +231,18 @@ describe('Voice Command', () => {
 
     it('routes destructive voice-clear customIds to handleVoiceClearButton', async () => {
       vi.mocked(isVoiceBrowseInteraction).mockReturnValue(false);
-      const interaction = { customId: 'voice::destructive::confirm_button::voice-clear' };
+      const interaction = {
+        customId: 'voice::destructive::confirm_button::voice-clear::all',
+      };
       await handleButton!(interaction as any);
       expect(handleVoiceClearButton).toHaveBeenCalledOnce();
     });
 
     it('does not route destructive customIds for unrelated operations', async () => {
       vi.mocked(isVoiceBrowseInteraction).mockReturnValue(false);
-      const interaction = { customId: 'voice::destructive::confirm_button::other-op' };
+      const interaction = {
+        customId: 'voice::destructive::confirm_button::other-op::all',
+      };
       await handleButton!(interaction as any);
       expect(handleVoiceClearButton).not.toHaveBeenCalled();
     });
@@ -246,7 +250,9 @@ describe('Voice Command', () => {
 
   describe('handleModal', () => {
     it('routes destructive voice-clear modal customIds to handleVoiceClearModal', async () => {
-      const interaction = { customId: 'voice::destructive::modal_submit::voice-clear' };
+      const interaction = {
+        customId: 'voice::destructive::modal_submit::voice-clear::all',
+      };
       await handleModal!(interaction as any);
       expect(handleVoiceClearModal).toHaveBeenCalledOnce();
     });

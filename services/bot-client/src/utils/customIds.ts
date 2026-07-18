@@ -234,10 +234,17 @@ export const PresetCustomIds = {
 /**
  * Parsed result for destructive confirmation custom IDs
  *
- * Format: {source}::destructive::{action}::{operation}::{entityId}
- * This format ensures the customId routes to the source command's handleButton.
+ * Format: {source}::destructive::{action}::{operation}::{entityId?}
+ * The source segment routes the customId to the source command's handlers.
+ * Invoker ownership is NOT carried here — a Discord snowflake (~19 chars)
+ * would eat the 100-char customId budget that entityId needs (hard-delete
+ * carries `slug|channelId`); the Tier-B flow asserts ownership from the
+ * parent message's `interactionMetadata` instead.
+ *
+ * entityId is a single `::`-free segment; flows needing composite state pack
+ * it with a `|` sub-delimiter (e.g. hard-delete's `{slug}|{channelId}`).
  */
-interface DestructiveParseResult {
+export interface DestructiveParseResult {
   /** The source command (e.g., 'history', 'character') */
   source: string;
   /** The action type */
@@ -248,42 +255,47 @@ interface DestructiveParseResult {
   entityId?: string;
 }
 
+/** Shared builder for the three destructive customId shapes. */
+function buildDestructiveId(
+  action: 'confirm_button' | 'cancel_button' | 'modal_submit',
+  source: string,
+  operation: string,
+  entityId?: string
+): string {
+  const base = `${source}::destructive::${action}::${operation}`;
+  return entityId !== undefined ? `${base}::${entityId}` : base;
+}
+
 export const DestructiveCustomIds = {
   /**
    * Build confirm button customId
-   * Format: {source}::destructive::confirm_button::{operation}::{entityId}
-   * @param source - Source command (e.g., 'history', 'character')
-   * @param operation - Operation name (e.g., 'hard-delete')
-   * @param entityId - Optional entity identifier
+   * Format: {source}::destructive::confirm_button::{operation}::{entityId?}
    */
   confirmButton: (source: string, operation: string, entityId?: string) =>
-    entityId !== undefined
-      ? (`${source}::destructive::confirm_button::${operation}::${entityId}` as const)
-      : (`${source}::destructive::confirm_button::${operation}` as const),
+    buildDestructiveId('confirm_button', source, operation, entityId),
 
   /**
    * Build cancel button customId
-   * Format: {source}::destructive::cancel_button::{operation}::{entityId}
-   * @param source - Source command (e.g., 'history', 'character')
-   * @param operation - Operation name (e.g., 'hard-delete')
-   * @param entityId - Optional entity identifier
+   * Format: {source}::destructive::cancel_button::{operation}::{entityId?}
    */
   cancelButton: (source: string, operation: string, entityId?: string) =>
-    entityId !== undefined
-      ? (`${source}::destructive::cancel_button::${operation}::${entityId}` as const)
-      : (`${source}::destructive::cancel_button::${operation}` as const),
+    buildDestructiveId('cancel_button', source, operation, entityId),
 
   /**
    * Build modal submit customId
-   * Format: {source}::destructive::modal_submit::{operation}::{entityId}
-   * @param source - Source command (e.g., 'history', 'character')
-   * @param operation - Operation name (e.g., 'hard-delete')
-   * @param entityId - Optional entity identifier
+   * Format: {source}::destructive::modal_submit::{operation}::{entityId?}
    */
   modalSubmit: (source: string, operation: string, entityId?: string) =>
-    entityId !== undefined
-      ? (`${source}::destructive::modal_submit::${operation}::${entityId}` as const)
-      : (`${source}::destructive::modal_submit::${operation}` as const),
+    buildDestructiveId('modal_submit', source, operation, entityId),
+
+  /**
+   * Build the modal-submit customId from a PARSED button customId. This is the
+   * only sanctioned path from confirm-button to modal: deriving from the
+   * button's own segments makes it impossible for a re-built config to route
+   * the modal to a different command than the button it came from.
+   */
+  modalSubmitFromParsed: (parsed: DestructiveParseResult) =>
+    buildDestructiveId('modal_submit', parsed.source, parsed.operation, parsed.entityId),
 
   /**
    * Parse destructive customId
@@ -291,7 +303,6 @@ export const DestructiveCustomIds = {
    */
   parse: (customId: string): DestructiveParseResult | null => {
     const parts = customId.split(CUSTOM_ID_DELIMITER);
-    // Format: source::destructive::action::operation[::entityId]
     if (parts.length < 4 || parts[1] !== 'destructive') {
       return null;
     }
