@@ -9,6 +9,16 @@
 - **#1695** `/character alias` management (v2-parity Phase 1) — list/add/remove + gateway CRUD over `personality_aliases`; 5 review rounds (security scoping, cache invalidation, escaping). Dev auto-deployed; no migration.
 - **#1696** develop-code-commit-guard hook + 17-case probe harness (structural fix for the direct-to-develop code-commit incident).
 
+## UX Epic — Phase 2 IN FLIGHT (2026-07-17 evening session)
+
+**Board promotion executed** (7591b0395): Platform-Portable UX Layer = active epic (beta-exit gate); memory overhaul parked → `cold/themes/memory-system-overhaul.md` (re-entry triggers recorded); epic-log reset; facts-quality Untriaged item routed to the parked theme.
+
+**Phase 2 plan APPROVED via plan mode** — `~/.claude/plans/radiant-tickling-candle.md` (grounded by 3 code agents; trio council GLM 5.2 · Kimi K2.7-code · Qwen 3.7 Max, all folds/rejections recorded in the plan). **Owner calls locked**: global aliases bot-owner-only · reverse shadow warn-don't-block (global rows only) · resolver stays names-first + ⚠️ shadowed badge in owner's own browse. PR train: 1a/1b (confirmation+router) → 2 (browse builders) → 3a (alias migration+resolver) → 3b (gateway CRUD+policy) → 4 (alias pilot UI) → 4b (browse retrofit sweep, committed) → 5–9. Key artifact drift found at grounding: 4 confirmation impls (not 3), 11 modal sites (not 9), D14 already shipped for settings, Components-V2 + Label-modal API all present in installed discord.js 14.26.5.
+
+**PR-1a OPEN: #1697** (`feat/ux-phase2-confirmation-router`) — `utils/confirmation/` Tier A+B factories; invoker-id in destructive customIds; modal customId DERIVED from button customId; Cancel→Danger fixed at all 4 sites; history+voice migrated; **real bug fixed**: `/voice voices clear` confirmation modal routed to /settings (config-rebuild with wrong source) — typed confirmation silently dropped; regression test pins the derivation. Tests 5643 green, quality green, ux:literals 101 (−1 vs develop's 102 — develop sits AT the grace ceiling, next raw literal trips CI). CI monitor armed at handoff.
+
+**Next after #1697 merges — PR-1b**: `createComponentRouter` primitive + migrate memory's hand-rolled prefix chain + migrate `/memory purge` + `/settings data delete` onto Tier B (their phrases are gateway-validated wire contracts — pass exact strings via the `confirmationPhrase` override; their two identical `assertInvokerOwnership` copies retire). Two purge-adjacent follow-ups may fold in (`cold/follow-ups.md`: branch-aware ack-first rule; batchDelete catch mislabel).
+
 ## beta.167/168 post-release state (2026-07-17)
 
 **Everything in the runbook executed**: premigrate --allow-destructive (both migrations) → merge #1686 → release:finalize (develop SHA-aligned) → prod backfill (107 stamped, 269→major, 4 opt-outs untouched) → prod anchor cleanup (10 deleted) → release:publish → webhook blast **enqueued recipients=107, batches=3** (gate live-verified; beta.166's incident number was 268). GitHub's multi-webhook burst (new release + beta.166 demote) was absorbed by unique-version idempotency — exactly one enqueue.
