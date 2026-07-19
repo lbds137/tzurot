@@ -101,7 +101,10 @@ export async function loadSyncTombstones(
  * remaining tables still process. Known accepted edge: a propagated persona
  * delete hits users.default_persona_id ON DELETE RESTRICT only when the two
  * sides' user rows diverge; the warning surfaces it and the row survives
- * until reconciled.
+ * until reconciled. This edge fires a little more often now that deletes
+ * flush BEFORE upserts (a same-run write that would clear the reference
+ * hasn't landed yet — RESTRICT checks fire immediately and can't be
+ * deferred); still self-heals on the next run once the write is in.
  *
  * @returns per-table deleted counts
  */
