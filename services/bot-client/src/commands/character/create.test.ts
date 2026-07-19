@@ -190,7 +190,24 @@ describe('Character Create', () => {
       await handleSeedModalSubmit(mockInteraction, mockConfig);
 
       expect(mockInteraction.editReply).toHaveBeenCalledWith(
-        expect.stringContaining('Invalid slug format')
+        expect.objectContaining({
+          content: expect.stringContaining('Invalid slug format'),
+          components: expect.any(Array),
+        })
+      );
+
+      // Seam: the submitted values must reach the retry stash so the
+      // Try-again button can reopen the modal prefilled.
+      const sessionSet = vi.mocked(dashboardUtils.getSessionManager)().set;
+      expect(sessionSet).toHaveBeenCalledWith(
+        expect.objectContaining({
+          entityType: 'modal-retry',
+          messageId: 'message-123',
+          data: {
+            kind: 'seed',
+            values: expect.objectContaining({ slug: 'Invalid Slug!' }),
+          },
+        })
       );
     });
 
@@ -214,7 +231,10 @@ describe('Character Create', () => {
       // Pre-#slug-alignment this passed client validation and died at the
       // gateway with a raw 400; now it fails here with the friendly message.
       expect(mockInteraction.editReply).toHaveBeenCalledWith(
-        expect.stringContaining('start with a letter')
+        expect.objectContaining({
+          content: expect.stringContaining('start with a letter'),
+          components: expect.any(Array),
+        })
       );
     });
 
@@ -237,7 +257,10 @@ describe('Character Create', () => {
       await handleSeedModalSubmit(mockInteraction, mockConfig);
 
       expect(mockInteraction.editReply).toHaveBeenCalledWith(
-        expect.stringContaining('3–50 characters')
+        expect.objectContaining({
+          content: expect.stringContaining('3–50 characters'),
+          components: expect.any(Array),
+        })
       );
     });
 
@@ -259,7 +282,10 @@ describe('Character Create', () => {
       await handleSeedModalSubmit(mockInteraction, mockConfig);
 
       expect(mockInteraction.editReply).toHaveBeenCalledWith(
-        expect.stringContaining('3–50 characters')
+        expect.objectContaining({
+          content: expect.stringContaining('3–50 characters'),
+          components: expect.any(Array),
+        })
       );
     });
 
@@ -399,7 +425,10 @@ describe('Character Create', () => {
       await handleSeedModalSubmit(mockInteraction, mockConfig);
 
       expect(mockInteraction.editReply).toHaveBeenCalledWith(
-        expect.stringContaining('already exists')
+        expect.objectContaining({
+          content: expect.stringContaining('already exists'),
+          components: expect.any(Array),
+        })
       );
     });
 

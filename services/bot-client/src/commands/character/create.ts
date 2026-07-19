@@ -7,7 +7,7 @@
  * 3. Shows dashboard for further editing
  */
 
-import { MessageFlags, type ModalSubmitInteraction } from 'discord.js';
+import { MessageFlags, type ModalBuilder, type ModalSubmitInteraction } from 'discord.js';
 import { type EnvConfig } from '@tzurot/common-types/config/config';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { isBotOwner } from '@tzurot/common-types/utils/ownerMiddleware';
@@ -32,6 +32,7 @@ import {
   buildCharacterDashboardOptions,
 } from './config.js';
 import { buildToolkitModal, textFieldFromDefinition } from '../../utils/modal/toolkit.js';
+import { replyWithModalRetry } from '../../utils/modal/retry.js';
 import { clientsFor } from '../../utils/gatewayClients.js';
 import { CATALOG } from '../../ux/catalog/catalog.js';
 import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
@@ -46,14 +47,32 @@ const logger = createLogger('character-create');
  * Receives ModalCommandContext (has showModal method!)
  * because this subcommand uses deferralMode: 'modal'.
  */
-export async function handleCreate(context: ModalCommandContext): Promise<void> {
-  const modal = buildToolkitModal({
+/** Seed modal builder — shared by create and the retry affordance. */
+export function buildCharacterSeedModal(initialValues?: Record<string, string>): ModalBuilder {
+  return buildToolkitModal({
     customId: buildDashboardCustomId('character', 'seed'),
     title: 'Create New Character',
     items: characterSeedFields.map(textFieldFromDefinition),
+    initialValues,
   });
+}
 
-  await context.showModal(modal);
+export async function handleCreate(context: ModalCommandContext): Promise<void> {
+  await context.showModal(buildCharacterSeedModal());
+}
+
+/** Validation-failure reply + prefill stash (shared D15 helper). */
+async function replyWithRetry(
+  interaction: ModalSubmitInteraction,
+  content: string,
+  values: Record<string, string>
+): Promise<void> {
+  await replyWithModalRetry(interaction, {
+    commandPrefix: 'character',
+    kind: 'seed',
+    content,
+    values,
+  });
 }
 
 /**
@@ -74,22 +93,26 @@ export async function handleSeedModalSubmit(
   // enforces, so a digit-leading slug fails here with a friendly message
   // instead of a raw 400 after submit.
   if (!SLUG_PATTERN.test(values.slug)) {
-    await interaction.editReply(
+    await replyWithRetry(
+      interaction,
       renderSpec(
         CATALOG.error.validation(
           `Invalid slug format. ${SLUG_REQUIREMENTS_MESSAGE}\nExample: \`${suggestSlugExample(values.name)}\``
         )
-      )
+      ),
+      values
     );
     return;
   }
   if (values.slug.length < SLUG_MIN_LENGTH || values.slug.length > DISCORD_LIMITS.SLUG_MAX_LENGTH) {
-    await interaction.editReply(
+    await replyWithRetry(
+      interaction,
       renderSpec(
         CATALOG.error.validation(
           `Slug must be ${SLUG_MIN_LENGTH}–${DISCORD_LIMITS.SLUG_MAX_LENGTH} characters (yours is ${values.slug.length}).`
         )
-      )
+      ),
+      values
     );
     return;
   }
@@ -156,12 +179,14 @@ export async function handleSeedModalSubmit(
 
     // Check for duplicate slug error
     if (error instanceof Error && error.message.includes('409')) {
-      await interaction.editReply(
+      await replyWithRetry(
+        interaction,
         renderSpec(
           CATALOG.error.validation(
             `A character with slug \`${normalizedSlug}\` already exists.\nPlease choose a different slug.`
           )
-        )
+        ),
+        values
       );
       return;
     }

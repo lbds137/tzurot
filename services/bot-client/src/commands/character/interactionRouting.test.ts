@@ -53,6 +53,13 @@ vi.mock('./overrides.js', () => ({
   isCharacterOverridesInteraction: (id: string) => overrides.matches(id) as boolean,
 }));
 
+const retryHandle = vi.hoisted(() => vi.fn());
+vi.mock('../../utils/modal/retry.js', async importOriginal => {
+  const actual = await importOriginal<typeof import('../../utils/modal/retry.js')>();
+  return { ...actual, handleModalRetry: retryHandle };
+});
+vi.mock('./create.js', () => ({ buildCharacterSeedModal: vi.fn() }));
+
 const dashboard = {
   select: vi.fn(),
   button: vi.fn(),
@@ -69,6 +76,8 @@ import {
   handleButton,
   handleCharacterModal as handleModal,
 } from './interactionRouting.js';
+import { buildModalRetryRow } from '../../utils/modal/retry.js';
+import { buildCharacterSeedModal } from './create.js';
 
 function interaction(customId: string): { customId: string } {
   return { customId };
@@ -112,6 +121,28 @@ describe('character interaction routing', () => {
 
     expect(overrides.button).toHaveBeenCalled();
     expect(dashboard.button).not.toHaveBeenCalled();
+  });
+
+  it('routes the REAL retry-button customId to handleModalRetry (builder↔guard drift pin)', async () => {
+    // Built from the actual button builder so a prefix typo in EITHER
+    // buildModalRetryRow or isModalRetryInteraction breaks this test.
+    const row = buildModalRetryRow('character').toJSON() as {
+      components: { custom_id: string }[];
+    };
+    await handleButton(interaction(row.components[0].custom_id) as ButtonInteraction);
+
+    expect(retryHandle).toHaveBeenCalled();
+    expect(dashboard.button).not.toHaveBeenCalled();
+
+    // Seam: exercise the captured rebuild closure — 'seed' must hit THIS
+    // command's builder with the stashed values; unknown kinds return null.
+    const rebuild = retryHandle.mock.calls[0][1] as (
+      kind: string,
+      values: Record<string, string>
+    ) => unknown;
+    rebuild('seed', { name: 'Lilith' });
+    expect(vi.mocked(buildCharacterSeedModal)).toHaveBeenCalledWith({ name: 'Lilith' });
+    expect(rebuild('retired-kind', {})).toBeNull();
   });
 
   it('falls through unmatched ids to the edit dashboard', async () => {
