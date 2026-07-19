@@ -1,6 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import type { DiagnosticPayload, PipelineStep } from '@tzurot/common-types/types/diagnostic';
-import { buildPipelineHealthView } from './extendedViews.js';
+import {
+  buildPipelineHealthView,
+  buildInputView,
+  buildGenerationParamsView,
+  buildPostProcessingView,
+} from './extendedViews.js';
 import type { ViewContext } from './viewContext.js';
 
 const OWNER_CTX: ViewContext = { canViewCharacter: true };
@@ -188,5 +193,139 @@ describe('buildPipelineHealthView', () => {
     expect(text).toContain('No pipeline steps recorded');
     // Should NOT show the legacy-log fallback message — this log is new, just empty
     expect(text).not.toContain('predates structured pipeline step tracking');
+  });
+});
+
+describe('buildInputView', () => {
+  it('renders all populated input sections as capped chunked text', () => {
+    const payload = createMockPayload({
+      inputProcessing: {
+        rawUserMessage: 'What is the weather?',
+        attachmentDescriptions: ['a photo of a cat', 'an audio clip'],
+        voiceTranscript: 'what is the weather',
+        referencedMessageIds: ['111', '222'],
+        referencedMessagesContent: ['first referenced', 'second referenced'],
+        searchQuery: 'weather',
+      },
+    });
+
+    const result = buildInputView(payload, 'req-1', OWNER_CTX);
+
+    const text = result.chunkedText?.text ?? '';
+    expect(text).toContain('### Raw user message');
+    expect(text).toContain('What is the weather?');
+    expect(text).toContain('### Attachments (2)');
+    expect(text).toContain('1. a photo of a cat');
+    expect(text).toContain('### Voice transcript');
+    expect(text).toContain('### Referenced messages');
+    expect(text).toContain('`111`');
+    expect(text).toContain('### Memory search query');
+    expect(result.chunkedText?.maxChunks).toBe(3);
+    expect(result.chunkedText?.overflowFilename).toBe('input-full.txt');
+  });
+
+  it('fence-escapes the transcript and search query (content-derived text)', () => {
+    const payload = createMockPayload({
+      inputProcessing: {
+        rawUserMessage: 'hi',
+        attachmentDescriptions: [],
+        voiceTranscript: 'spoke ``` fence',
+        referencedMessageIds: [],
+        referencedMessagesContent: [],
+        searchQuery: 'pasted ``` code',
+      },
+    });
+
+    const text = buildInputView(payload, 'req-1', OWNER_CTX).chunkedText?.text ?? '';
+
+    // A raw triple-backtick run would desync splitMessage's code-block
+    // pairing; the escape interleaves zero-width spaces.
+    expect(text).not.toContain('spoke ``` fence');
+    expect(text).not.toContain('pasted ``` code');
+    expect(text).toContain('spoke `\u200b`\u200b` fence');
+  });
+
+  it('omits absent sections entirely', () => {
+    const result = buildInputView(createMockPayload(), 'req-1', OWNER_CTX);
+
+    const text = result.chunkedText?.text ?? '';
+    expect(text).toContain('### Raw user message');
+    expect(text).not.toContain('### Attachments');
+    expect(text).not.toContain('### Voice transcript');
+    expect(text).not.toContain('### Referenced messages');
+    expect(text).not.toContain('### Memory search query');
+  });
+});
+
+describe('buildGenerationParamsView', () => {
+  it('renders model, provider, set knobs, and inline allParams', () => {
+    const payload = createMockPayload({
+      llmConfig: {
+        model: 'z-ai/glm-4.7',
+        provider: 'openrouter',
+        temperature: 0.9,
+        topP: 0.95,
+        maxTokens: 4000,
+        allParams: { seed: 42, minP: 0.05 },
+      },
+    });
+
+    const result = buildGenerationParamsView(payload, 'req-1', OWNER_CTX);
+    const embed = result.embeds?.[0].toJSON();
+
+    expect(embed?.description).toContain('`z-ai/glm-4.7`');
+    expect(embed?.description).toContain('openrouter');
+    expect(embed?.description).toContain('**Temperature:** 0.9');
+    expect(embed?.description).toContain('**Top-p:** 0.95');
+    expect(embed?.description).not.toContain('Top-k');
+    expect(embed?.fields?.[0].value).toContain('"seed": 42');
+  });
+
+  it('notes when no sampling overrides are set and defers a huge allParams to Full JSON', () => {
+    const result = buildGenerationParamsView(
+      createMockPayload({
+        llmConfig: {
+          model: 'm',
+          provider: 'p',
+          allParams: { blob: 'x'.repeat(1200) },
+        },
+      }),
+      'req-1',
+      OWNER_CTX
+    );
+    const embed = result.embeds?.[0].toJSON();
+
+    expect(embed?.description).toContain('No sampling overrides set');
+    expect(embed?.fields?.[0].value).toContain('Full JSON');
+  });
+});
+
+describe('buildPostProcessingView', () => {
+  it('renders raw and final sections when post-processing changed the content', () => {
+    const payload = createMockPayload({
+      llmResponse: {
+        rawContent: '<think>hmm</think>Hello!',
+        finishReason: 'stop',
+        promptTokens: 100,
+        completionTokens: 47,
+        modelUsed: 'm',
+      },
+    });
+
+    const result = buildPostProcessingView(payload, 'req-1', OWNER_CTX);
+
+    const text = result.chunkedText?.text ?? '';
+    expect(text).toContain('### Raw model output');
+    expect(text).toContain('<think>hmm</think>');
+    expect(text).toContain('### Final after post-processing');
+    expect(result.chunkedText?.maxChunks).toBe(3);
+  });
+
+  it('collapses to a single section when raw and final are identical', () => {
+    const result = buildPostProcessingView(createMockPayload(), 'req-1', OWNER_CTX);
+
+    const text = result.chunkedText?.text ?? '';
+    expect(text).toContain('post-processing changed nothing');
+    expect(text).not.toContain('### Raw model output');
   });
 });
