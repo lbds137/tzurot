@@ -141,7 +141,8 @@ export async function handleSeedModalSubmit(
 
     // Build and send dashboard
     // Use slug as entityId (not UUID) because fetchCharacter expects slug
-    // User just created this character, so they own it (canEdit: true from API)
+    // User just created this character, so they own it (createCharacter
+    // grafts canEdit: true — the create response has no such field)
     // New characters never have a voice reference yet (hasVoiceReference: false)
     const isAdmin = isBotOwner(interaction.user.id);
     const dashboardConfig = getCharacterDashboardConfig(isAdmin, character.hasVoiceReference);
