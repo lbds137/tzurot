@@ -30,7 +30,6 @@ import {
   buildEnumButtons,
   buildEditButtons,
   buildBackButton,
-  buildCloseButton,
   buildBooleanButtons,
   buildPaginationRow,
 } from './settingsButtonBuilders.js';
@@ -321,17 +320,17 @@ export function buildOverviewMessage(
   const embed = buildOverviewEmbed(config, session);
   const selectMenu = buildSettingsSelectMenu(config, session);
 
-  // Paged dashboards: the pagination row replaces Close (D18 — ephemeral
-  // dashboards need no explicit Close; native dismiss suffices, and the Redis
-  // session TTL handles teardown). Flat dashboards keep today's Close button.
-  const secondRow =
-    config.pages !== undefined && config.pages.length > 0
-      ? buildPaginationRow(config, session)
-      : buildCloseButton(config, session);
+  // No Close row (D18 complete): ephemeral dashboards need no explicit
+  // Close — native dismiss suffices and the Redis session TTL handles
+  // teardown. The 'close' action stays routable for pre-removal messages.
+  const components: ActionRowBuilder<MessageActionRowComponentBuilder>[] = [selectMenu];
+  if (config.pages !== undefined && config.pages.length > 0) {
+    components.push(buildPaginationRow(config, session));
+  }
 
   return {
     embeds: [embed],
-    components: [selectMenu, secondRow],
+    components,
   };
 }
 

@@ -67,7 +67,6 @@ vi.mock('./config.js', () => ({
     sections: [],
   }),
   buildCharacterDashboardOptions: vi.fn().mockReturnValue({
-    showClose: true,
     showBack: false,
     showRefresh: true,
     showDelete: false,

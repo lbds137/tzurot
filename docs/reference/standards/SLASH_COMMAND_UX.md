@@ -125,7 +125,7 @@ Use the Dashboard pattern for **complex entities with multiple editable fields**
 2. Entity created → Dashboard embed appears
    ├── Shows current values with status indicators
    ├── Select menu to choose section to edit
-   └── Action buttons (refresh, close, special actions)
+   └── Action buttons (refresh, special actions — no Close; native dismiss covers ephemerals)
 
 3. User selects section → Section modal opens
    └── Pre-filled with current values (max 5 fields)
@@ -141,7 +141,6 @@ const embed = buildDashboardEmbed(config, entityData);
 
 // Edit menu + action buttons
 const components = buildDashboardComponents(config, entityId, entityData, {
-  showClose: true,
   showRefresh: true,
 });
 

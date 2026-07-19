@@ -222,7 +222,7 @@ describe('User Default Settings Dashboard', () => {
       expect(embedJson.footer.text).toContain('Page 1/3 · Memory');
     });
 
-    it('should include select menu and close button', async () => {
+    it('should include select menu and pagination row', async () => {
       const context = createMockContext();
       stub.resolveUserDefaults.mockResolvedValue({ ok: true, data: mockResolveDefaultsResponse });
 

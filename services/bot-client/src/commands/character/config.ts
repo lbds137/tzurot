@@ -42,9 +42,9 @@ export interface CharacterSessionData extends CharacterData {
 /**
  * Build dashboard action button options based on character state.
  *
- * Controls which dashboard chrome buttons (close, back, refresh, delete)
- * are visible. Close and Back are mutually exclusive: Back appears when
- * the dashboard was opened from a browse list, Close appears otherwise.
+ * Controls which dashboard chrome buttons (back, refresh, delete) are
+ * visible. Back appears when the dashboard was opened from a browse list;
+ * there is no Close (D18 — native dismiss covers ephemeral dashboards).
  *
  * @param data - Current character data (needs canEdit and browseContext)
  * @returns Action button visibility flags for buildDashboardComponents
@@ -52,7 +52,6 @@ export interface CharacterSessionData extends CharacterData {
 export function buildCharacterDashboardOptions(data: CharacterData): ActionButtonOptions {
   const hasBackContext = data.browseContext !== undefined;
   return {
-    showClose: !hasBackContext, // Only show close if not from browse
     showBack: hasBackContext, // Show back if opened from browse
     showRefresh: true,
     showDelete: data.canEdit, // Only show delete for owned characters

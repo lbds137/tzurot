@@ -55,7 +55,6 @@ vi.mock('./config.js', () => ({
   flattenPresetData: (data: Record<string, unknown>) => ({ ...data, isOwned: data.isOwned }),
   buildPresetDashboardOptions: vi.fn().mockReturnValue({
     showBack: false,
-    showClose: true,
     showRefresh: true,
     showClone: true,
     showDelete: false,
