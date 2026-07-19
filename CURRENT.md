@@ -1,15 +1,12 @@
 # Current
 
-> **Version**: v3.0.0-beta.169 (released 2026-07-18, ~18:35 ET) — **the alias + design-system-pilot release**: the @mention alias system ships to prod for the first time (personal + global tiers, redesigned `/character alias` group with the first in-place filter toggle, select-driven remove, reverse-shadow warnings), the Phase-2 component layer it was built on (confirmation Tier A/B, component router, shared browse builder), the `/voice voices clear` confirmation-routing fix, weekly-audit hygiene, develop code-commit guard, adm-zip security override (#1695–#1705). Two holistic reviews, both "no blocking issues"; additive migration premigrated; broadcast classified **minor** (owner call). Owner smoked the pilot pre-cut incl. a real 73-row global-alias cleanup through the new browse. _Prior: beta.168 (2026-07-17 — notification self-heal + secrets arc)._
+> **Version**: v3.0.0-beta.170 (released 2026-07-19, ~02:50 ET) — **the browse-sweep + modal-toolkit release**: every browse surface renders through the shared design-system list builder (PR-4b complete: filter toggles, server-page mode, escaping/truncation hardening), the Label-based modal toolkit ships with the character/preset create modals as exemplars, and db-sync's delete-order fix reaches prod (the beta.169 23505 incident — closed; already runtime-verified via the owner's dev-side sync run) (#1707–#1712). Holistic release review: "no bugs found, no changes requested." No migrations in range. Broadcast **minor**. Owner smoked both Label create modals on dev pre-cut. _Prior: beta.169 (2026-07-18 — alias + design-system pilot)._
 
 ---
 
 ## Unreleased on Develop
 
-- **#1707** — PR-4b-1 filter-toggle wave (`filterRowBuilder` extracted from the pilot; character/preset/deny/channel toggles; always-render rule on filter-bearing browses).
-- **#1708** — 🚨 **db-sync prod fix**: propagated deletes flush BEFORE upserts (the beta.169 `emberlynn` 23505 incident). **Runtime-verified via owner's dev-side sync run — wedge cleared** (see `now.md`); prod-side code fixed at release.
-- **#1709** — PR-4b-2a retrofit slice 1 (apikey/shapes/voice/persona/models/inspect onto the shared list builder; techId backtick hardening in the builder; escapeMarkdown sweep).
-- **#1710** — PR-4b-2b: builder server-page mode + memory family (browse/facts/search) + admin/servers + overrideBrowse; footer-on-empty suppression, code-point-safe truncation, stale-page empty-degrade.
+_(empty — slate reset at beta.170)_
 
 ## UX Epic — Phase 2 IN FLIGHT (2026-07-17 evening session)
 
