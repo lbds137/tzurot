@@ -293,7 +293,7 @@ export async function updateCharacter(
   data: Partial<CharacterData>,
   userClient: UserClient,
   _config: EnvConfig
-): Promise<{ character: CharacterData; shadowedAliases: string[] }> {
+): Promise<{ character: FetchedCharacter; shadowedAliases: string[] }> {
   const result = await userClient.updatePersonality(slug, omitEmptyRequiredText(data));
 
   if (!result.ok) {
@@ -309,7 +309,10 @@ export async function updateCharacter(
   }
 
   return {
-    character: toCharacterData(result.data.personality),
+    // canEdit rides the update response (same schema as GET) — dropping it
+    // made the post-edit dashboard re-render lose its permission-gated
+    // buttons (Delete) until a refresh re-fetched the flag.
+    character: { ...toCharacterData(result.data.personality), canEdit: result.data.canEdit },
     // Present only after a rename that shadows GLOBAL aliases (warn-don't-block).
     shadowedAliases: result.data.shadowedAliases ?? [],
   };

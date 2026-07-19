@@ -53,7 +53,9 @@ export async function refreshDashboardAfterUpdate(
 
   const sessionData: CharacterSessionData = {
     ...updated,
-    canEdit: session?.data?.canEdit,
+    // updateCharacter now carries the server's canEdit; the session value
+    // is only a fallback for callers passing a bare CharacterData.
+    canEdit: (updated as { canEdit?: boolean }).canEdit ?? session?.data?.canEdit,
     _isAdmin: isAdmin,
     browseContext: session?.data?.browseContext,
   };

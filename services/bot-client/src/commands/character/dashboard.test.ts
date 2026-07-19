@@ -211,6 +211,7 @@ describe('Character Dashboard', () => {
 
       vi.mocked(api.updateCharacter).mockResolvedValue({
         character: {
+          canEdit: true,
           id: 'uuid',
           name: 'Test',
           slug: 'test-char',
@@ -245,6 +246,16 @@ describe('Character Dashboard', () => {
       await handleModalSubmit(mockInteraction, mockConfig);
 
       expect(mockInteraction.deferUpdate).toHaveBeenCalled();
+
+      // Regression: the post-edit re-render must keep permission-gated
+      // buttons — the update response's canEdit drives showDelete, and
+      // dropping it hid Delete until a manual refresh re-fetched the flag.
+      expect(dashboardUtils.buildDashboardComponents).toHaveBeenCalledWith(
+        expect.anything(),
+        'test-char',
+        expect.anything(),
+        expect.objectContaining({ showDelete: true })
+      );
     });
 
     it('sends an ephemeral ⚠️ followUp when a rename shadows global aliases', async () => {
@@ -262,6 +273,7 @@ describe('Character Dashboard', () => {
 
       vi.mocked(api.updateCharacter).mockResolvedValue({
         character: {
+          canEdit: true,
           id: 'uuid',
           name: 'Lila',
           slug: 'test-char',
@@ -369,6 +381,7 @@ describe('Character Dashboard', () => {
 
       vi.mocked(api.updateCharacter).mockResolvedValue({
         character: {
+          canEdit: true,
           id: 'uuid',
           name: 'Test',
           slug: 'test-char',
@@ -631,6 +644,7 @@ describe('Character Dashboard', () => {
 
       vi.mocked(api.updateCharacter).mockResolvedValue({
         character: {
+          canEdit: true,
           id: 'uuid',
           name: 'Test',
           slug: 'test-char',

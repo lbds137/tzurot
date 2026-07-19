@@ -440,6 +440,21 @@ describe('Character API Client', () => {
       expect(result.shadowedAliases).toEqual([]);
     });
 
+    it('carries the response canEdit through — dropping it hid permission-gated buttons post-edit', async () => {
+      stub.updatePersonality.mockResolvedValue({
+        ok: true,
+        data: {
+          success: true,
+          personality: makePersonality({ slug: 'test-char' }),
+          canEdit: true,
+        },
+      });
+
+      const result = await updateCharacter('test-char', { name: 'X' }, asClient(stub), mockConfig);
+
+      expect(result.character.canEdit).toBe(true);
+    });
+
     it('should throw error on update failure', async () => {
       stub.updatePersonality.mockResolvedValue({
         ok: false,
