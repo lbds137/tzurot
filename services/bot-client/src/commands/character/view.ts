@@ -12,12 +12,7 @@ import {
   type ButtonInteraction,
 } from 'discord.js';
 import { type EnvConfig } from '@tzurot/common-types/config/config';
-import {
-  DISCORD_LIMITS,
-  DISCORD_COLORS,
-  CHARACTER_VIEW_LIMITS,
-  TEXT_LIMITS,
-} from '@tzurot/common-types/constants/discord';
+import { DISCORD_COLORS, CHARACTER_VIEW_LIMITS } from '@tzurot/common-types/constants/discord';
 import { characterViewOptions } from '@tzurot/common-types/generated/commandOptions';
 import { formatDateShort } from '@tzurot/common-types/utils/dateFormatting';
 import { createLogger } from '@tzurot/common-types/utils/logger';
@@ -31,7 +26,19 @@ import { CharacterCustomIds } from '../../utils/customIds.js';
 import { clientsFor } from '../../utils/gatewayClients.js';
 import { replyError } from '../../utils/dashboard/replyError.js';
 import { toCharacterData } from './api.js';
-import { VIEW_TOTAL_PAGES, VIEW_PAGE_TITLES, EXPANDABLE_FIELDS } from './viewTypes.js';
+import {
+  VIEW_TOTAL_PAGES,
+  VIEW_PAGE_TITLES,
+  EXPANDABLE_FIELDS,
+  truncateField,
+  getConfiguredFields,
+} from './viewTypes.js';
+import {
+  USE_COMPONENTS_V2,
+  buildCharacterViewV2,
+  buildViewV2Notice,
+  viewAvatarUrl,
+} from './viewV2.js';
 import { sendChunkedReply } from '../../utils/chunkedReply.js';
 
 const logger = createLogger('character-view');
@@ -39,13 +46,6 @@ const logger = createLogger('character-view');
 /** Rendered read-failure line for this view's fetch catches. */
 const readFailure = (error: unknown, resource: string): string =>
   renderSpec(classifyGatewayFailure(error, resource, { operation: 'read' }));
-
-/** Field info for tracking truncation */
-interface FieldInfo {
-  value: string;
-  wasTruncated: boolean;
-  originalLength: number;
-}
 
 /** Result from building a view page */
 interface ViewPageResult {
@@ -56,52 +56,6 @@ interface ViewPageResult {
 // ============================================================================
 // HELPER FUNCTIONS
 // ============================================================================
-
-/**
- * Truncate text to fit Discord embed field limit (1024 chars)
- * Returns info about whether truncation occurred
- */
-function truncateField(
-  text: string | null | undefined,
-  maxLength = DISCORD_LIMITS.EMBED_FIELD - TEXT_LIMITS.TRUNCATION_SUFFIX.length
-): FieldInfo {
-  if (text === null || text === undefined || text.length === 0) {
-    return { value: '_Not set_', wasTruncated: false, originalLength: 0 };
-  }
-  // Ensure maxLength doesn't exceed Discord's limit minus suffix
-  const safeMax = Math.min(
-    maxLength,
-    DISCORD_LIMITS.EMBED_FIELD - TEXT_LIMITS.TRUNCATION_SUFFIX.length
-  );
-  if (text.length <= safeMax) {
-    return { value: text, wasTruncated: false, originalLength: text.length };
-  }
-  return {
-    value: text.slice(0, safeMax) + TEXT_LIMITS.TRUNCATION_SUFFIX,
-    wasTruncated: true,
-    originalLength: text.length,
-  };
-}
-
-/**
- * Field configuration for character overview status
- */
-const OVERVIEW_FIELDS = [
-  { key: 'characterInfo' as const, label: 'Background' },
-  { key: 'personalityTraits' as const, label: 'Traits' },
-  { key: 'personalityTone' as const, label: 'Tone' },
-  { key: 'conversationalGoals' as const, label: 'Goals' },
-  { key: 'conversationalExamples' as const, label: 'Examples' },
-] as const;
-
-/**
- * Get configured field labels from character data
- */
-function getConfiguredFields(character: CharacterData): string[] {
-  return OVERVIEW_FIELDS.filter(({ key }) => (character[key]?.length ?? 0) > 0).map(
-    ({ label }) => label
-  );
-}
 
 /**
  * Build overview description for character view
@@ -432,6 +386,15 @@ export async function handleView(
 
     // Build paginated view starting at page 0. The redacted view is a single
     // informational page — no pagination or expand buttons.
+    if (USE_COMPONENTS_V2) {
+      const view = buildCharacterViewV2(character, 0, viewAvatarUrl(character));
+      await context.editReply({
+        components: view.components,
+        flags: MessageFlags.IsComponentsV2,
+      });
+      return;
+    }
+
     const { embed, truncatedFields } = buildCharacterViewPage(character, 0);
     const components = character.definitionRedacted
       ? []
@@ -459,8 +422,19 @@ export async function handleViewPagination(
     const { userClient } = clientsFor(interaction);
     const character = await fetchCharacterForView(slug, userClient);
     if (!character) {
+      const notFoundText = renderSpec(CATALOG.error.notFound('Character'));
+      if (USE_COMPONENTS_V2) {
+        // The V2 flag is permanent on the message and forbids `content`
+        // edits, so the notice must also ship as a component tree + flag —
+        // a flag-less content edit is rejected and the user sees nothing.
+        await interaction.editReply({
+          components: buildViewV2Notice(notFoundText).components,
+          flags: MessageFlags.IsComponentsV2,
+        });
+        return;
+      }
       await interaction.editReply({
-        content: renderSpec(CATALOG.error.notFound('Character')),
+        content: notFoundText,
         embeds: [],
         components: [],
       });
@@ -469,6 +443,17 @@ export async function handleViewPagination(
 
     // Build requested page (a stale pagination click on a now-redacted
     // character collapses to the single redacted page with no components)
+    if (USE_COMPONENTS_V2) {
+      // The flag must ride EVERY edit — page flips are editReply edits, and
+      // an edit without it could degrade the message out of V2 rendering.
+      const view = buildCharacterViewV2(character, page, viewAvatarUrl(character));
+      await interaction.editReply({
+        components: view.components,
+        flags: MessageFlags.IsComponentsV2,
+      });
+      return;
+    }
+
     const { embed, truncatedFields } = buildCharacterViewPage(character, page);
     const components = character.definitionRedacted
       ? []

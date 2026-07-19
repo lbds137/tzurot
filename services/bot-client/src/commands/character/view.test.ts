@@ -505,15 +505,17 @@ describe('handleView / handleViewPagination', () => {
     return { deferUpdate, editReply } as unknown as Parameters<typeof handleViewPagination>[0];
   }
 
-  it('renders the embed + components when the character is found', async () => {
+  it('renders the Components-V2 payload (flag + component tree, no embeds) when found', async () => {
     stub.getPersonality.mockResolvedValue(makeOk({ personality: createTestCharacter() }));
 
     await handleView(viewContext(), config);
 
     expect(stub.getPersonality).toHaveBeenCalledWith('test-character');
-    expect(editReply).toHaveBeenCalledWith(
-      expect.objectContaining({ embeds: expect.any(Array), components: expect.any(Array) })
-    );
+    // D17 pilot: the handler sends a V2 tree — the flag must ride the edit
+    const call = editReply.mock.calls[0][0];
+    expect(call.flags).toBe(MessageFlags.IsComponentsV2);
+    expect(call.components.length).toBeGreaterThan(0);
+    expect(call.embeds).toBeUndefined();
   });
 
   it('shows a not-found message on a 404', async () => {
@@ -540,12 +542,13 @@ describe('handleView / handleViewPagination', () => {
     await handleView(viewContext(), config);
 
     const call = editReply.mock.calls[0][0];
-    expect(call.components).toEqual([]);
-    const embedJson = call.embeds[0].toJSON();
-    expect(embedJson.description).toContain('definition is private');
+    // Redacted V2 view: one Container, no interactive components
+    expect(call.flags).toBe(MessageFlags.IsComponentsV2);
+    expect(call.components).toHaveLength(1);
+    const rendered = JSON.stringify(call.components[0].toJSON());
+    expect(rendered).toContain('definition is private');
     // Public-safe identity still shows; no "_Not set_" card fields.
-    expect(JSON.stringify(embedJson)).toContain('test-character');
-    expect(JSON.stringify(embedJson)).not.toContain('_Not set_\\n_Not set_');
+    expect(rendered).toContain('test-character');
   });
 
   it('collapses a stale pagination click on a now-redacted character to the private page', async () => {
@@ -556,8 +559,9 @@ describe('handleView / handleViewPagination', () => {
     await handleViewPagination(paginationInteraction(), 'test-character', 2, config);
 
     const call = editReply.mock.calls[0][0];
-    expect(call.components).toEqual([]);
-    expect(call.embeds[0].toJSON().description).toContain('definition is private');
+    expect(call.flags).toBe(MessageFlags.IsComponentsV2);
+    expect(call.components).toHaveLength(1);
+    expect(JSON.stringify(call.components[0].toJSON())).toContain('definition is private');
   });
 
   it('surfaces the gateway message when the fetch fails with a non-404 status', async () => {
@@ -577,20 +581,24 @@ describe('handleView / handleViewPagination', () => {
 
     expect(deferUpdate).toHaveBeenCalled();
     expect(stub.getPersonality).toHaveBeenCalledWith('test-character');
-    expect(editReply).toHaveBeenCalledWith(
-      expect.objectContaining({ embeds: expect.any(Array), components: expect.any(Array) })
-    );
+    // D17 pilot: page flips must carry the V2 flag on every edit
+    const call = editReply.mock.calls[0][0];
+    expect(call.flags).toBe(MessageFlags.IsComponentsV2);
+    expect(call.components.length).toBeGreaterThan(0);
   });
 
-  it('shows "not found" and clears the view when pagination re-fetch 404s', async () => {
+  it('shows "not found" as a V2 tree when pagination re-fetch 404s', async () => {
     stub.getPersonality.mockResolvedValue(makeErr(404, 'gone'));
 
     await handleViewPagination(paginationInteraction(), 'test-character', 1, config);
 
     expect(deferUpdate).toHaveBeenCalled();
-    expect(editReply).toHaveBeenCalledWith(
-      expect.objectContaining({ content: expect.stringContaining('Character not found') })
-    );
+    // The flag must ride even the error edit: the message is already V2, and
+    // a flag-less `content` edit is rejected by Discord (user sees nothing).
+    const call = editReply.mock.calls[0][0];
+    expect(call.flags).toBe(MessageFlags.IsComponentsV2);
+    expect(call.content).toBeUndefined();
+    expect(JSON.stringify(call.components[0].toJSON())).toContain('Character not found');
   });
 
   it('keeps the existing view (no editReply) when pagination re-fetch fails with a non-404', async () => {
