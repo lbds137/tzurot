@@ -119,10 +119,14 @@ describe('handleBrowse', () => {
     await handleBrowse(context);
 
     const call = vi.mocked(context.editReply).mock.calls[0][0] as {
-      embeds: { data: { title: string } }[];
+      embeds: { data: { title: string; description?: string } }[];
       components: unknown[];
     };
-    expect(call.embeds[0].data.title).toBe('🤖 Model Browser');
+    expect(call.embeds[0].data.title).toBe('🤖 Models');
+    // §2.4 row grammar: badge run, bold name, model-id techId.
+    expect(call.embeds[0].data.description).toContain(
+      '**Claude Sonnet 4** (`anthropic/claude-sonnet-4`)'
+    );
     expect(call.components.length).toBeGreaterThan(0);
   });
 
@@ -133,6 +137,33 @@ describe('handleBrowse', () => {
     expect(context.editReply).toHaveBeenCalledWith(
       '❌ Failed to load the models. Please try again.'
     );
+  });
+
+  it('renders the unfiltered empty state when the catalog is empty', async () => {
+    catalogMock.fetchModelCatalog.mockResolvedValue([]);
+    const context = ctx();
+    await handleBrowse(context);
+
+    const call = vi.mocked(context.editReply).mock.calls[0][0] as {
+      embeds: { data: { description?: string } }[];
+    };
+    expect(call.embeds[0].data.description).toContain('No models found');
+    expect(call.embeds[0].data.description).not.toContain('No models match');
+  });
+
+  it('renders the filter-aware empty state when filters exclude everything', async () => {
+    vi.mocked(modelsBrowseOptions).mockReturnValueOnce({
+      capability: () => 'vision',
+      query: () => 'nomatch',
+    } as unknown as ReturnType<typeof modelsBrowseOptions>);
+    catalogMock.fetchModelCatalog.mockResolvedValue([]);
+    const context = ctx();
+    await handleBrowse(context);
+
+    const call = vi.mocked(context.editReply).mock.calls[0][0] as {
+      embeds: { data: { description?: string } }[];
+    };
+    expect(call.embeds[0].data.description).toContain('No models match your filters');
   });
 
   it('passes capability + search through to the catalog fetch', async () => {
