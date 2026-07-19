@@ -20,9 +20,11 @@ REPO_ROOT=$(cd "$SCRIPT_DIR/../.." && pwd)
 TMP_BASE=$(mktemp -d)
 WT="$TMP_BASE/probe-wt"
 FEATURE_WT="$TMP_BASE/probe-feature-wt"
+MAIN_WT="$TMP_BASE/probe-main-wt"
 cleanup() {
   git -C "$REPO_ROOT" worktree remove "$WT" --force 2>/dev/null
   git -C "$REPO_ROOT" worktree remove "$FEATURE_WT" --force 2>/dev/null
+  git -C "$REPO_ROOT" worktree remove "$MAIN_WT" --force 2>/dev/null
   git -C "$REPO_ROOT" branch -D probe/feature-fixture 2>/dev/null
   rm -rf "$TMP_BASE"
 }
@@ -39,6 +41,12 @@ git -C "$REPO_ROOT" worktree add --force "$WT" develop >/dev/null || {
 # regress invisibly (fail-open) if the branch check were ever broken.
 git -C "$REPO_ROOT" worktree add --force -b probe/feature-fixture "$FEATURE_WT" develop >/dev/null || {
   echo "FATAL: could not create feature worktree (git error above)" >&2
+  exit 1
+}
+# Third worktree ON main: pins the other blocking branch of the
+# check (main is guarded exactly like develop).
+git -C "$REPO_ROOT" worktree add --force "$MAIN_WT" main >/dev/null || {
+  echo "FATAL: could not create main worktree (git error above)" >&2
   exit 1
 }
 
@@ -89,6 +97,8 @@ run 2 "escape token in MESSAGE prose only"        'git commit -m "prose TZUROT_A
 run 2 "dirty .claude/rules carve-out"             'git commit -m "x"'                                      '.claude/rules/probe.md'
 run 2 "dirty workflow yml"                        'git commit -m "x"'                                      '.github/workflows/probe.yml'
 run 2 "dirty json manifest"                       'git commit -m "x"'                                      'packages/probe/package.json'
+run 2 "dirty .mts module"                         'git commit -m "x"'                                      'services/probe.mts'
+run 2 "dirty .cts module"                         'git commit -m "x"'                                      'services/probe.cts'
 run 2 "dirty yaml config"                         'git commit -m "x"'                                      'services/probe/config.yaml'
 run 2 "dirty Dockerfile"                          'git commit -m "x"'                                      'services/probe/Dockerfile'
 run 0 "escape hatch in command position"          'TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git commit -m "x"'   'services/probe.ts'
@@ -104,6 +114,71 @@ run 2 "mixed tree: doc + incidental lockfile"     'git commit -m "x"'           
 TARGET_WT="$FEATURE_WT"
 run 0 "feature branch, dirty ts stays silent"     'git add -A && git commit -m "x"'                        'services/probe.ts'
 TARGET_WT=""
+
+# Main is guarded exactly like develop.
+TARGET_WT="$MAIN_WT"
+run 2 "main branch, dirty ts blocks"              'git add -A && git commit -m "x"'                        'services/probe.ts'
+TARGET_WT=""
+
+# Rename decomposition: a staged gated→non-gated rename must still block.
+# Without --no-renames it renders as one `R old.ts -> new.md` line whose
+# END is the non-gated extension — the historical slip; decomposed D/A
+# lines check the .ts side independently. Uses a real tracked .ts and a
+# hard reset scoped to the throwaway probe worktree.
+git -C "$WT" mv services/bot-client/src/index.ts docs/probe-renamed.md 2>/dev/null
+jq -n '{tool_name:"Bash",tool_input:{command:"git commit -m \"x\""}}' \
+  | CLAUDE_PROJECT_DIR="$WT" "$HOOK" >/dev/null 2>&1
+RENAME_EXIT=$?
+git -C "$WT" reset -q --hard HEAD
+if [ "$RENAME_EXIT" -eq 2 ]; then
+  printf 'PASS  (exit 2)  staged gated→non-gated rename blocks\n'
+else
+  printf 'FAIL  (exit %d, expected 2)  staged gated→non-gated rename blocks\n' "$RENAME_EXIT"
+  FAILURES=$((FAILURES + 1))
+fi
+
+# Malformed tool input fails OPEN (visibility guard, never a work-stopper).
+printf 'not json at all' | CLAUDE_PROJECT_DIR="$WT" "$HOOK" >/dev/null 2>&1
+if [ $? -eq 0 ]; then
+  printf 'PASS  (exit 0)  malformed tool-input fails open\n'
+else
+  printf 'FAIL  malformed tool-input should fail open\n'
+  FAILURES=$((FAILURES + 1))
+fi
+
+# Version-bump exception: tracked package.json files whose diffs touch only
+# their "version" line pass; a bump touching anything else blocks; an
+# untracked manifest blocks (covered above by "dirty json manifest").
+bump_probe() {
+  local expected="$1" label="$2" extra_edit="${3:-}"
+  sed -i 's/"version": "[^"]*"/"version": "9.9.9-probe.1"/' "$WT/package.json"
+  sed -i 's/"version": "[^"]*"/"version": "9.9.9-probe.1"/' "$WT/services/bot-client/package.json"
+  if [ "$extra_edit" = "codefile" ]; then
+    printf 'probe\n' > "$WT/services/probe.ts"
+  fi
+  if [ "$extra_edit" = "blank" ]; then
+    printf '\n' >> "$WT/services/bot-client/package.json"
+  elif [ -n "$extra_edit" ]; then
+    printf '"probe": "x"\n' >> "$WT/services/bot-client/package.json"
+  fi
+  jq -n '{tool_name:"Bash",tool_input:{command:"git add -A && git commit -m \"x\""}}' \
+    | CLAUDE_PROJECT_DIR="$WT" "$HOOK" >/dev/null 2>&1
+  local actual=$?
+  git -C "$WT" checkout -- package.json services/bot-client/package.json 2>/dev/null
+  rm -f "$WT/services/probe.ts"
+  if [ "$actual" -eq "$expected" ]; then
+    printf 'PASS  (exit %d)  %s\n' "$actual" "$label"
+  else
+    printf 'FAIL  (exit %d, expected %d)  %s\n' "$actual" "$expected" "$label"
+    FAILURES=$((FAILURES + 1))
+  fi
+}
+bump_probe 0 "version-only bump across manifests passes"
+bump_probe 2 "bump plus a non-version manifest edit blocks" extra
+bump_probe 2 "bump plus a whitespace-only manifest edit blocks" blank
+# The exact shape the guard exists for: a correct bump riding with real
+# code — the non-manifest gated file short-circuits the exception.
+bump_probe 2 "bump plus an unrelated dirty code file blocks" codefile
 
 if [ "$FAILURES" -gt 0 ]; then
   printf '\n%d probe(s) FAILED\n' "$FAILURES" >&2
