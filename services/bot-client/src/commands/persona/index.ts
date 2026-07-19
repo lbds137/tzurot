@@ -41,9 +41,14 @@ import { PersonaCustomIds } from '../../utils/customIds.js';
 
 // Persona handlers
 import { handleViewPersona, handleExpandContent } from './view.js';
-import { handleCreatePersona, handleCreateModalSubmit } from './create.js';
+import { handleCreatePersona, handleCreateModalSubmit, buildPersonaCreateModal } from './create.js';
 import { handleSetDefaultPersona } from './default.js';
-import { handleOverrideSet, handleOverrideCreateModalSubmit } from './override/set.js';
+import {
+  handleOverrideSet,
+  handleOverrideCreateModalSubmit,
+  buildOverrideCreateModal,
+} from './override/set.js';
+import { handleModalRetry, isModalRetryInteraction } from '../../utils/modal/retry.js';
 import { handleOverrideClear } from './override/clear.js';
 import { handlePersonalityAutocomplete, handlePersonaAutocomplete } from './autocomplete.js';
 
@@ -184,6 +189,26 @@ async function autocomplete(interaction: AutocompleteInteraction): Promise<void>
  */
 async function handleButton(interaction: ButtonInteraction): Promise<void> {
   const customId = interaction.customId;
+
+  // Try-again for a failed create-modal submission (prefilled reopen).
+  // Two stash kinds share the 'persona' prefix: the plain create and the
+  // create-for-override (whose customId needs the personality UUID from meta).
+  if (isModalRetryInteraction(customId, 'persona')) {
+    await handleModalRetry(
+      interaction,
+      (kind, values, meta) => {
+        if (kind === 'create') {
+          return buildPersonaCreateModal(values);
+        }
+        if (kind === 'override-create' && meta?.personalityId !== undefined) {
+          return buildOverrideCreateModal(meta.personalityId, null, values);
+        }
+        return null;
+      },
+      '/persona create'
+    );
+    return;
+  }
 
   // Check for browse pagination buttons
   if (isPersonaBrowseInteraction(customId)) {

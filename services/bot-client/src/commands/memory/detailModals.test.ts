@@ -241,8 +241,8 @@ describe('Memory Detail Modals', () => {
 
       expect(mockShowModal).toHaveBeenCalledTimes(1);
       const modal = mockShowModal.mock.calls[0][0] as ReturnType<typeof buildEditModal>;
-      const json = modal.toJSON() as { components: { components: { value?: string }[] }[] };
-      expect(json.components[0].components[0].value).toHaveLength(MAX_MODAL_CONTENT_LENGTH);
+      const json = modal.toJSON() as { components: { component?: { value?: string } }[] };
+      expect(json.components[0].component?.value).toHaveLength(MAX_MODAL_CONTENT_LENGTH);
       expect(mockUpdate).not.toHaveBeenCalled();
     });
 

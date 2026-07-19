@@ -308,9 +308,25 @@ describe('Preset Create', () => {
 
       await handleSeedModalSubmit(mockInteraction);
 
-      expect(mockInteraction.editReply).toHaveBeenCalledWith({
-        content: '❌ Failed to create the preset. Please try again.',
-      });
+      expect(mockInteraction.editReply).toHaveBeenCalledWith(
+        expect.objectContaining({
+          content: '❌ Failed to create the preset. Please try again.',
+          components: expect.any(Array),
+        })
+      );
+
+      // Seam: transient failures carry the retry affordance too — the
+      // submitted values must reach the stash for the prefilled reopen.
+      const sessionSet = vi.mocked(dashboardUtils.getSessionManager)().set;
+      expect(sessionSet).toHaveBeenCalledWith(
+        expect.objectContaining({
+          entityType: 'modal-retry',
+          data: {
+            kind: 'seed',
+            values: expect.objectContaining({ name: 'Test' }),
+          },
+        })
+      );
     });
 
     it('should surface API validation error when create fails with structured error', async () => {
@@ -334,9 +350,12 @@ describe('Preset Create', () => {
 
       await handleSeedModalSubmit(mockInteraction);
 
-      expect(mockInteraction.editReply).toHaveBeenCalledWith({
-        content: '❌ contextWindowTokens (131072) exceeds 50% of the model context window',
-      });
+      expect(mockInteraction.editReply).toHaveBeenCalledWith(
+        expect.objectContaining({
+          content: '❌ contextWindowTokens (131072) exceeds 50% of the model context window',
+          components: expect.any(Array),
+        })
+      );
     });
   });
 });

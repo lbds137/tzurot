@@ -452,7 +452,23 @@ describe('Character Create', () => {
       await handleSeedModalSubmit(mockInteraction, mockConfig);
 
       expect(mockInteraction.editReply).toHaveBeenCalledWith(
-        '❌ Failed to create the character. Please try again.'
+        expect.objectContaining({
+          content: '❌ Failed to create the character. Please try again.',
+          components: expect.any(Array),
+        })
+      );
+
+      // Seam: transient failures carry the retry affordance too — the
+      // submitted values must reach the stash for the prefilled reopen.
+      const sessionSet = vi.mocked(dashboardUtils.getSessionManager)().set;
+      expect(sessionSet).toHaveBeenCalledWith(
+        expect.objectContaining({
+          entityType: 'modal-retry',
+          data: {
+            kind: 'seed',
+            values: expect.objectContaining({ slug: 'test-slug' }),
+          },
+        })
       );
     });
 

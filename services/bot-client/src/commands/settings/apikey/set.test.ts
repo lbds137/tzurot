@@ -73,32 +73,38 @@ describe('handleSetKey', () => {
     expect(modal.data.title).toBe('Set OpenRouter API Key');
   });
 
+  /** JSON shape of the modal's single Label-hosted text input. */
+  function getLabelAndInput(modal: { toJSON: () => { components: unknown[] } }): {
+    label: { description?: string };
+    input: Record<string, unknown>;
+  } {
+    const json = modal.toJSON();
+    expect(json.components).toHaveLength(1);
+    const label = json.components[0] as { description?: string; component?: unknown };
+    return { label, input: label.component as Record<string, unknown> };
+  }
+
   it('should include API key text input with correct configuration', async () => {
     const context = createMockContext('openrouter');
     await handleSetKey(context);
 
-    const modal = mockShowModal.mock.calls[0][0];
-    const components = modal.components;
+    const { label, input } = getLabelAndInput(mockShowModal.mock.calls[0][0]);
 
-    expect(components).toHaveLength(1);
-    const actionRow = components[0];
-    const textInput = actionRow.components[0];
-
-    expect(textInput.data.custom_id).toBe('apiKey');
-    expect(textInput.data.style).toBe(TextInputStyle.Short);
-    expect(textInput.data.required).toBe(true);
-    expect(textInput.data.min_length).toBe(10);
-    expect(textInput.data.max_length).toBe(200);
+    expect(input.custom_id).toBe('apiKey');
+    expect(input.style).toBe(TextInputStyle.Short);
+    expect(input.required).toBe(true);
+    expect(input.min_length).toBe(10);
+    expect(input.max_length).toBe(200);
+    // The provider's key-management URL rides as inline Label docs (D15)
+    expect(label.description).toContain('openrouter.ai/keys');
   });
 
   it('should use provider-specific placeholder for OpenRouter', async () => {
     const context = createMockContext('openrouter');
     await handleSetKey(context);
 
-    const modal = mockShowModal.mock.calls[0][0];
-    const textInput = modal.components[0].components[0];
-
-    expect(textInput.data.placeholder).toBe('sk-or-v1-xxxx...');
+    const { input } = getLabelAndInput(mockShowModal.mock.calls[0][0]);
+    expect(input.placeholder).toBe('sk-or-v1-xxxx...');
   });
 
   it('should show modal for ZaiCoding provider with z.ai-specific labels', async () => {
@@ -110,7 +116,7 @@ describe('handleSetKey', () => {
 
     expect(modal.data.custom_id).toBe('settings::apikey::set::zai-coding');
     expect(modal.data.title).toBe('Set Z.AI Coding Plan API Key');
-    const textInput = modal.components[0].components[0];
-    expect(textInput.data.placeholder).toBe('Your z.ai coding-plan API key');
+    const { input } = getLabelAndInput(modal);
+    expect(input.placeholder).toBe('Your z.ai coding-plan API key');
   });
 });

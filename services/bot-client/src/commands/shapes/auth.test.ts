@@ -114,19 +114,23 @@ describe('buildAuthModal', () => {
   });
 
   it('should have a single required text input for the Better Auth cookie value', () => {
-    const modal = buildAuthModal();
-    expect(modal.components).toHaveLength(1);
+    const json = buildAuthModal().toJSON();
+    expect(json.components).toHaveLength(1);
 
-    // Cast to access nested components — union type includes LabelBuilder without .components
-    const rows = modal.components as { components: { data: Record<string, unknown> }[] }[];
-    const input = rows[0].components[0];
+    const label = json.components[0] as {
+      description?: string;
+      component?: Record<string, unknown>;
+    };
+    // The subdomain gotcha rides as inline Label docs (D15)
+    expect(label.description).toContain('talk.shapes.inc');
 
-    expect(input.data.custom_id).toBe('cookieValue');
-    expect(input.data.style).toBe(TextInputStyle.Paragraph);
-    expect(input.data.required).toBe(true);
+    const input = label.component as Record<string, unknown>;
+    expect(input.custom_id).toBe('cookieValue');
+    expect(input.style).toBe(TextInputStyle.Paragraph);
+    expect(input.required).toBe(true);
     // Must align with parser's SHAPES_TOKEN_MIN_LENGTH so the UI gate
     // and the parse-time check agree on the same minimum.
-    expect(input.data.min_length).toBe(32);
-    expect(input.data.max_length).toBe(4000);
+    expect(input.min_length).toBe(32);
+    expect(input.max_length).toBe(4000);
   });
 });

@@ -22,7 +22,14 @@ vi.mock('./view.js', () => ({
 vi.mock('./create.js', () => ({
   handleCreatePersona: vi.fn().mockResolvedValue(undefined),
   handleCreateModalSubmit: vi.fn().mockResolvedValue(undefined),
+  buildPersonaCreateModal: vi.fn(),
 }));
+
+const personaRetryHandle = vi.hoisted(() => vi.fn());
+vi.mock('../../utils/modal/retry.js', async importOriginal => {
+  const actual = await importOriginal<typeof import('../../utils/modal/retry.js')>();
+  return { ...actual, handleModalRetry: personaRetryHandle };
+});
 
 vi.mock('./default.js', () => ({
   handleSetDefaultPersona: vi.fn().mockResolvedValue(undefined),
@@ -31,6 +38,7 @@ vi.mock('./default.js', () => ({
 vi.mock('./override/set.js', () => ({
   handleOverrideSet: vi.fn().mockResolvedValue(undefined),
   handleOverrideCreateModalSubmit: vi.fn().mockResolvedValue(undefined),
+  buildOverrideCreateModal: vi.fn(),
 }));
 
 vi.mock('./override/clear.js', () => ({
@@ -332,6 +340,44 @@ describe('Persona Command Index', () => {
       await handleButton(interaction);
 
       expect(handleExpandContent).toHaveBeenCalledWith(interaction, 'persona-123', 'backstory');
+    });
+
+    it('routes the REAL retry-button customId to handleModalRetry (builder↔guard drift pin)', async () => {
+      const { buildModalRetryRow } = await import('../../utils/modal/retry.js');
+      const { buildPersonaCreateModal } = await import('./create.js');
+      const { buildOverrideCreateModal } = await import('./override/set.js');
+
+      const row = buildModalRetryRow('persona').toJSON() as {
+        components: { custom_id: string }[];
+      };
+      const interaction = { customId: row.components[0].custom_id } as any;
+
+      await handleButton(interaction);
+
+      expect(personaRetryHandle).toHaveBeenCalled();
+
+      // Seam: exercise the captured rebuild closure — 'create' hits the
+      // plain builder; 'override-create' needs the personality UUID from
+      // meta (without it, the stash is unrebuildable → null); unknown
+      // kinds return null.
+      const rebuild = personaRetryHandle.mock.calls[0][1] as (
+        kind: string,
+        values: Record<string, string>,
+        meta?: Record<string, string>
+      ) => unknown;
+
+      rebuild('create', { personaName: 'Work Mode' });
+      expect(vi.mocked(buildPersonaCreateModal)).toHaveBeenCalledWith({
+        personaName: 'Work Mode',
+      });
+
+      rebuild('override-create', { content: 'about me' }, { personalityId: 'pers-1' });
+      expect(vi.mocked(buildOverrideCreateModal)).toHaveBeenCalledWith('pers-1', null, {
+        content: 'about me',
+      });
+
+      expect(rebuild('override-create', {}, undefined)).toBeNull();
+      expect(rebuild('retired-kind', {})).toBeNull();
     });
   });
 

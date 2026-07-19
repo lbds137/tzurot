@@ -15,9 +15,6 @@ import {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
-  ModalBuilder,
-  TextInputBuilder,
-  TextInputStyle,
   MessageFlags,
   escapeMarkdown,
   type ButtonInteraction,
@@ -28,6 +25,7 @@ import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
 import { formatDateTimeCompact } from '@tzurot/common-types/utils/dateFormatting';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { CUSTOM_ID_DELIMITER } from '../../utils/customIds.js';
+import { buildToolkitModal } from '../../utils/modal/toolkit.js';
 import { clientsFor } from '../../utils/gatewayClients.js';
 import { showModalWithTimeoutCatch } from '../../utils/dashboard/showModalWithTimeoutCatch.js';
 import { ackWithTimeoutCatch } from '../../utils/dashboard/ackWithTimeoutCatch.js';
@@ -208,20 +206,21 @@ export async function handleCorrectButton(
     return;
   }
 
-  const modal = new ModalBuilder()
-    .setCustomId(buildFactActionId('correct', fact.id))
-    .setTitle('Correct Fact');
-  modal.addComponents(
-    new ActionRowBuilder<TextInputBuilder>().addComponents(
-      new TextInputBuilder()
-        .setCustomId('statement')
-        .setLabel('What should this fact say?')
-        .setStyle(TextInputStyle.Paragraph)
-        .setValue(fact.statement)
-        .setMaxLength(MAX_FACT_STATEMENT_LENGTH)
-        .setRequired(true)
-    )
-  );
+  const modal = buildToolkitModal({
+    customId: buildFactActionId('correct', fact.id),
+    title: 'Correct Fact',
+    items: [
+      {
+        kind: 'text',
+        id: 'statement',
+        label: 'What should this fact say?',
+        style: 'paragraph',
+        maxLength: MAX_FACT_STATEMENT_LENGTH,
+        required: true,
+        initialValue: fact.statement,
+      },
+    ],
+  });
 
   await showModalWithTimeoutCatch(
     interaction,
