@@ -6,7 +6,13 @@
 import { describe, it, expect } from 'vitest';
 import type { Client } from 'discord.js';
 import type { ChannelSettings } from '@tzurot/common-types/schemas/api/channel';
-import { buildGuildPages, filterByQuery, formatChannelSettings } from './browseHelpers.js';
+import {
+  buildGuildPages,
+  createChannelComparator,
+  filterByQuery,
+  formatChannelSettings,
+  sortChannelSettings,
+} from './browseHelpers.js';
 
 function makeSettings(overrides: Partial<ChannelSettings>): ChannelSettings {
   return {
@@ -20,11 +26,20 @@ function makeSettings(overrides: Partial<ChannelSettings>): ChannelSettings {
   } as ChannelSettings;
 }
 
-function makeClient(guildNames: Record<string, string>): Client {
+function makeClient(
+  guildNames: Record<string, string>,
+  channelNames: Record<string, string> = {}
+): Client {
   return {
     guilds: {
       cache: {
         get: (id: string) => (guildNames[id] !== undefined ? { name: guildNames[id] } : undefined),
+      },
+    },
+    channels: {
+      cache: {
+        get: (id: string) =>
+          channelNames[id] !== undefined ? { name: channelNames[id] } : undefined,
       },
     },
   } as unknown as Client;
@@ -48,6 +63,43 @@ describe('filterByQuery', () => {
     ];
     expect(filterByQuery(rows, 'lil')).toHaveLength(1);
     expect(filterByQuery(rows, null)).toHaveLength(2);
+  });
+});
+
+describe('createChannelComparator', () => {
+  it('sorts by cached channel name, falling back to the raw id', () => {
+    const client = makeClient({}, { '111': 'zebra-chat', '222': 'alpha-chat' });
+    const comparator = createChannelComparator(client)('name');
+    const a = makeSettings({ channelId: '111' });
+    const b = makeSettings({ channelId: '222' });
+
+    expect(comparator(a, b)).toBeGreaterThan(0);
+    // '333' has no cached channel → compares by its id string, and digits
+    // sort before letters, so the fallback id leads 'alpha-chat'.
+    expect(comparator(makeSettings({ channelId: '333' }), b)).toBeLessThan(0);
+  });
+});
+
+describe('sortChannelSettings', () => {
+  const client = makeClient(
+    { 'g-1': 'Beta Guild', 'g-2': 'Alpha Guild' },
+    { '111': 'bravo', '222': 'alpha' }
+  );
+
+  it('sorts a single-server list by the comparator only', () => {
+    const rows = [makeSettings({ channelId: '111' }), makeSettings({ channelId: '222' })];
+    const sorted = sortChannelSettings(rows, 'name', client);
+    expect(sorted.map(r => r.channelId)).toEqual(['222', '111']);
+  });
+
+  it('groups by guild name first in all-servers mode', () => {
+    const rows = [
+      makeSettings({ channelId: '111', guildId: 'g-1' }),
+      makeSettings({ channelId: '222', guildId: 'g-2' }),
+    ];
+    const sorted = sortChannelSettings(rows, 'name', client, true);
+    // Alpha Guild's channel leads even though its channel name sorts after.
+    expect(sorted.map(r => r.guildId)).toEqual(['g-2', 'g-1']);
   });
 });
 
