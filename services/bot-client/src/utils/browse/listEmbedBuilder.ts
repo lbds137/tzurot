@@ -63,7 +63,10 @@ export interface BrowseListEmbedOptions<T> {
   entityEmoji: string;
   /** Plural noun for the title (e.g. 'Characters' → `🎭 Characters`). */
   titleNoun: string;
-  /** The full filtered item list (all pages). */
+  /**
+   * The full filtered item list (all pages) — or, in `serverPage` mode,
+   * just the already-fetched current page.
+   */
   items: T[];
   /** Requested 0-based page; clamped into range. */
   page: number;
@@ -81,12 +84,27 @@ export interface BrowseListEmbedOptions<T> {
   };
   /** Whether a filter or query is narrowing the list (selects noMatch). */
   filterActive?: boolean;
-  /** Footer segments, joined via joinFooter (falsy segments dropped). */
+  /**
+   * Footer segments, joined via joinFooter (falsy segments dropped).
+   * Suppressed on an empty list (with the badge legend) — count segments
+   * under an empty-state CTA read as contradiction, not information. Set
+   * `footerOnEmpty` to opt out of the suppression.
+   */
   footerSegments?: (string | false | null | undefined)[];
   /** Word-first badge legend (§2.2) — always the footer's last segment. */
   badgeLegend?: string;
+  /** Render the footer even when the list is empty. */
+  footerOnEmpty?: boolean;
   /** Embed color; BLURPLE default (§2.3 — info surfaces are BLURPLE). */
   color?: number;
+  /**
+   * Server-side pagination: `items` is ONE already-fetched page, not the
+   * full list. The builder skips slicing — numbering, clamping, and the
+   * returned coordinates derive from these values instead. `page` (the
+   * top-level option) is still the requested page and is clamped against
+   * `totalItems`.
+   */
+  serverPage?: { totalItems: number };
 }
 
 export interface BrowseListEmbedResult<T> {
@@ -100,11 +118,19 @@ export interface BrowseListEmbedResult<T> {
   safePage: number;
 }
 
-/** Truncate the joined metadata line to the density cap. */
+/**
+ * Truncate the joined metadata line to the density cap. Counts and cuts by
+ * code point, not UTF-16 unit — free-text segments (e.g. denylist reasons)
+ * can carry astral-plane emoji, and a unit-slice through one leaves a
+ * replacement character at the cut.
+ */
 function renderMetadataLine(segments: string[]): string {
   const joined = segments.join(' · ');
+  const codePoints = [...joined];
   const capped =
-    joined.length > MAX_METADATA_LENGTH ? `${joined.slice(0, MAX_METADATA_LENGTH - 1)}…` : joined;
+    codePoints.length > MAX_METADATA_LENGTH
+      ? `${codePoints.slice(0, MAX_METADATA_LENGTH - 1).join('')}…`
+      : joined;
   return `   └ ${capped}`;
 }
 
@@ -137,19 +163,28 @@ function renderRow(spec: BrowseRowSpec, rowNumber: number, lines: string[]): voi
 export function buildBrowseListEmbed<T>(
   options: BrowseListEmbedOptions<T>
 ): BrowseListEmbedResult<T> {
-  const { items, itemsPerPage, formatRow } = options;
+  const { items, itemsPerPage, formatRow, serverPage } = options;
 
-  const totalPages = Math.max(1, Math.ceil(items.length / itemsPerPage));
+  // Server mode: `items` is the fetched page; the total drives the math.
+  const totalItems = serverPage?.totalItems ?? items.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / itemsPerPage));
   const safePage = Math.min(Math.max(0, options.page), totalPages - 1);
   const startIndex = safePage * itemsPerPage;
-  const pageItems = items.slice(startIndex, startIndex + itemsPerPage);
+  const pageItems =
+    serverPage !== undefined ? items : items.slice(startIndex, startIndex + itemsPerPage);
 
   const lines: string[] = [];
   for (const line of options.preamble ?? []) {
     lines.push(line);
   }
 
-  if (items.length === 0) {
+  // Server mode can hand us an empty page with a non-zero total: a stale
+  // pagination click whose offset now lands past a shrunk total (rows
+  // deleted since the buttons rendered). Rendering the row branch with
+  // zero rows would produce a blank body — degrade to the empty state
+  // instead, matching the pre-builder per-command behavior.
+  const listIsEmpty = totalItems === 0 || pageItems.length === 0;
+  if (listIsEmpty) {
     const emptyLine =
       options.filterActive === true
         ? (options.empty.noMatch ?? options.empty.noItems)
@@ -167,9 +202,13 @@ export function buildBrowseListEmbed<T>(
     .setDescription(lines.join('\n'))
     .setTimestamp();
 
-  const footer = joinFooter(...(options.footerSegments ?? []), options.badgeLegend);
-  if (footer.length > 0) {
-    embed.setFooter({ text: footer });
+  // Count segments under an empty-state CTA contradict it — suppress
+  // unless the caller opts in.
+  if (!listIsEmpty || options.footerOnEmpty === true) {
+    const footer = joinFooter(...(options.footerSegments ?? []), options.badgeLegend);
+    if (footer.length > 0) {
+      embed.setFooter({ text: footer });
+    }
   }
 
   return { embed, pageItems, startIndex, totalPages, safePage };

@@ -161,8 +161,8 @@ export function buildBrowsePage(
           'responses are generated and retained for 24 hours.',
       },
       footerSegments: [
-        logs.length > 0 && pluralize(logs.length, { singular: 'total log', plural: 'total logs' }),
-        logs.length > 0 && 'Select a log below to inspect',
+        pluralize(logs.length, { singular: 'total log', plural: 'total logs' }),
+        'Select a log below to inspect',
       ],
     });
 
