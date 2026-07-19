@@ -58,7 +58,13 @@ function getModalComponents(modal: ReturnType<typeof buildSectionModal>) {
 function getTextInput(modal: ReturnType<typeof buildSectionModal>, index: number): any {
   const components = getModalComponents(modal);
 
-  return (components[index] as any)?.components?.[0];
+  // Label-based shape: each top-level component is a Label carrying the
+  // field's title plus the hosted input. Merge the Label's `label` onto
+  // the input view so assertions keep reading the user-visible title.
+  const labelRow = components[index] as any;
+  return labelRow?.component !== undefined
+    ? { ...labelRow.component, label: labelRow.label }
+    : undefined;
 }
 
 describe('ModalFactory', () => {

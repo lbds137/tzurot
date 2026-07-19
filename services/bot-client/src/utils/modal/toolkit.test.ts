@@ -12,10 +12,10 @@ import {
   buildToolkitModal,
   extractSubmission,
   textFieldFromDefinition,
+  truncateByCodePoints,
   validateSubmission,
-  type ModalItem,
-  type SubmissionFieldReader,
 } from './toolkit.js';
+import type { ModalItem, SubmissionFieldReader } from './types.js';
 
 const ITEMS: ModalItem[] = [
   { kind: 'display', content: 'Pick your settings below.' },
@@ -218,17 +218,36 @@ describe('extractSubmission', () => {
   });
 
   it('skips fields absent from the submission instead of throwing', () => {
+    const notFound = Object.assign(new Error('not found'), {
+      code: 'ModalSubmitInteractionFieldNotFound',
+    });
     const values = extractSubmission(
       ITEMS,
       reader({
         getRadioGroup: vi.fn(() => {
-          throw new Error('not present');
+          throw notFound;
         }),
       })
     );
 
     expect(values).not.toHaveProperty('mode');
     expect(values.name).toBe('Lilith');
+  });
+
+  it('rethrows non-absence errors (e.g. a kind/type mismatch) instead of swallowing them', () => {
+    const mismatch = Object.assign(new Error('expected text input'), {
+      code: 'ModalSubmitInteractionFieldType',
+    });
+    expect(() =>
+      extractSubmission(
+        ITEMS,
+        reader({
+          getTextInputValue: vi.fn(() => {
+            throw mismatch;
+          }),
+        })
+      )
+    ).toThrow('expected text input');
   });
 });
 
@@ -257,5 +276,17 @@ describe('validateSubmission', () => {
     expect(validateSubmission({ name: 'ok', bio: 'ab' }, items).errors).toEqual([
       'Bio must be at least 3 characters',
     ]);
+  });
+});
+
+describe('truncateByCodePoints', () => {
+  it('caps by code point so astral emoji never split', () => {
+    expect(truncateByCodePoints('abc', 5)).toBe('abc');
+    expect(truncateByCodePoints('abcdef', 5)).toBe('abcde');
+    // 4 ASCII + butterfly (astral): cap at 5 keeps the whole emoji...
+    expect(truncateByCodePoints('abcd🦋ef', 5)).toBe('abcd🦋');
+    // ...and cap at 4 drops it entirely rather than leaving half a pair.
+    expect(truncateByCodePoints('abcd🦋ef', 4)).toBe('abcd');
+    expect(truncateByCodePoints('abcd🦋ef', 4)).not.toContain('\uFFFD');
   });
 });
