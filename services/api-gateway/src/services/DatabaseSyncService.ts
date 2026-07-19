@@ -257,10 +257,17 @@ export class DatabaseSyncService {
       // rationale on naming them explicitly) so circular NOT NULL FKs
       // can insert atomically.
       if (!options.dryRun) {
-        await this.flushWrites(this.devClient, devBoundWrites, 'dev');
-        await this.flushWrites(this.prodClient, prodBoundWrites, 'prod');
-        // Propagated deletions run AFTER the upserts, per table in reverse
-        // FK order, fail-soft per table (see flushPendingDeletes).
+        // Propagated deletions run BEFORE the upserts (per table in reverse
+        // FK order, fail-soft per table — see flushPendingDeletes): a
+        // tombstoned row must vacate its unique slots before a replacement
+        // row with a DIFFERENT id but the same natural key lands. The
+        // delete-then-recreate pattern (e.g. an alias removed and re-added
+        // under its deterministic id) otherwise 23505s the whole write
+        // transaction against text-level uniques like
+        // personality_aliases_global_alias_unique, since the upsert's
+        // ON CONFLICT arbiter is the PK only. Deletes-first is FK-safe:
+        // a queued write can't depend on a tombstoned parent — the source
+        // side's cascade would have removed the child with it.
         const devDeletes = await flushPendingDeletes(
           this.devClient,
           devBoundDeletes,
@@ -273,6 +280,8 @@ export class DatabaseSyncService {
           'prod',
           warnings
         );
+        await this.flushWrites(this.devClient, devBoundWrites, 'dev');
+        await this.flushWrites(this.prodClient, prodBoundWrites, 'prod');
         reconcileDeletedStats(stats, devDeletes.counts, prodDeletes.counts);
         // Prune ONLY after a fully-clean delete pass: a failed propagation's
         // tombstone must survive past retention or the protected row silently

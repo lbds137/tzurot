@@ -1069,6 +1069,71 @@ describe('DatabaseSyncService', () => {
       expect(result.deletionsTruncated).toBe(false);
     });
 
+    it('flushes propagated DELETEs before upserts (delete-then-recreate under a new id)', async () => {
+      // Delete-then-recreate under a new id: an alias removed on dev and
+      // re-added under its deterministic id queues a prod-bound DELETE (old
+      // random-id row, tombstoned) AND a prod-bound INSERT (new id, same
+      // lower(alias)).
+      // With writes first, the INSERT 23505s the partial unique
+      // personality_aliases_global_alias_unique while the doomed row still
+      // holds the slot, rolling back the whole write transaction. Deletes
+      // must vacate unique slots first.
+      const oldId = '13656360-2291-437e-9c91-000000000001'; // prod's random-id row
+      const newId = '2ef6438e-2309-5e06-9f98-000000000002'; // dev's deterministic row
+      const executed: string[] = [];
+
+      devClient.$queryRawUnsafe.mockImplementation(async query => {
+        if (String(query).includes('FROM "personality_aliases"')) {
+          return [
+            {
+              id: newId,
+              personality_id: '4f9b0f66-0000-4000-8000-0000000000f2',
+              alias: 'emberlynn',
+              created_at: new Date('2026-07-18T00:00:00Z'),
+            },
+          ];
+        }
+        return [];
+      });
+      prodClient.$queryRawUnsafe.mockImplementation(async query => {
+        if (String(query).includes('FROM "personality_aliases"')) {
+          return [
+            {
+              id: oldId,
+              personality_id: '4f9b0f66-0000-4000-8000-0000000000f2',
+              alias: 'emberlynn',
+              created_at: new Date('2026-07-01T00:00:00Z'),
+            },
+          ];
+        }
+        return [];
+      });
+      devClient.syncTombstone.findMany
+        .mockResolvedValueOnce([
+          {
+            tableName: 'personality_aliases',
+            rowPk: oldId,
+            deletedAt: new Date('2026-07-18T22:00:00Z'),
+          },
+        ])
+        .mockResolvedValue([]);
+      prodClient.$executeRawUnsafe.mockImplementation(async (query: unknown) => {
+        executed.push(String(query));
+        return 1;
+      });
+
+      await service.sync({ dryRun: false });
+
+      const deleteIndex = executed.findIndex(q => q.includes('DELETE FROM "personality_aliases"'));
+      const insertIndex = executed.findIndex(q => q.includes('INSERT INTO "personality_aliases"'));
+      expect(deleteIndex, 'the tombstoned row must be deleted').toBeGreaterThanOrEqual(0);
+      expect(insertIndex, 'the replacement row must be inserted').toBeGreaterThanOrEqual(0);
+      expect(
+        deleteIndex,
+        'the DELETE must vacate the unique slot BEFORE the replacement INSERT'
+      ).toBeLessThan(insertIndex);
+    });
+
     it('caps row-level deletion detail at 500 and flags the truncation loudly', async () => {
       // 501 tombstoned one-sided rows: the response-size backstop must slice
       // the detail to 500 and set the flag, while the per-table stats keep
