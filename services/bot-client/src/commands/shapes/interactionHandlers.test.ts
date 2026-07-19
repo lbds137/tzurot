@@ -354,7 +354,7 @@ describe('handleShapesButton', () => {
       expect(stub.listShapes).toHaveBeenCalled();
       expect(mockEditReply).toHaveBeenCalledTimes(1);
       const args = mockEditReply.mock.calls[0][0];
-      expect(args.embeds[0].data.title).toContain('Characters');
+      expect(args.embeds[0].data.title).toBe('🔗 Shapes');
     });
   });
 
@@ -375,7 +375,10 @@ describe('handleShapesButton', () => {
       expect(stub.listShapes).toHaveBeenCalled();
       expect(mockEditReply).toHaveBeenCalledTimes(1);
       const args = mockEditReply.mock.calls[0][0];
-      expect(args.embeds[0].data.footer.text).toContain('Page 2 of 2');
+      // Page 2 of 15 shapes starts at row 11. Page state lives in the
+      // button row's info button, not the footer.
+      expect(args.embeds[0].data.description).toContain('**11.**');
+      expect(args.embeds[0].data.footer.text).toContain('15 shapes');
     });
 
     it('should show auth error when session expired during pagination', async () => {

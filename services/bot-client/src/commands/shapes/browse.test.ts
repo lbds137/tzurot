@@ -102,7 +102,7 @@ describe('handleBrowse', () => {
         embeds: [
           expect.objectContaining({
             data: expect.objectContaining({
-              title: expect.stringContaining('Characters'),
+              title: '🔗 Shapes',
               description: expect.stringContaining('shape-0'),
             }),
           }),
@@ -148,8 +148,10 @@ describe('buildBrowsePage', () => {
   it('should build first page with select menu and pagination', () => {
     const { embed, components } = buildBrowsePage(shapes, 0, 'name');
 
-    expect(embed.data.title).toContain('Characters');
-    expect(embed.data.footer?.text).toContain('Page 1 of 2');
+    expect(embed.data.title).toBe('🔗 Shapes');
+    expect(embed.data.footer?.text).toContain('15 shapes');
+    // §2.4 row grammar: bold name + slug techId.
+    expect(embed.data.description).toContain('**1.** **Shape 0** (`shape-0`)');
 
     expect(components).toHaveLength(2);
   });

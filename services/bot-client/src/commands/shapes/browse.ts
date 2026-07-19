@@ -8,8 +8,12 @@
  * which is routed through CommandHandler — not inline collectors.
  */
 
-import { EmbedBuilder, type ActionRowBuilder, type ButtonBuilder } from 'discord.js';
-import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
+import {
+  escapeMarkdown,
+  type ActionRowBuilder,
+  type ButtonBuilder,
+  type EmbedBuilder,
+} from 'discord.js';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { type UserClient } from '@tzurot/clients';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
@@ -17,12 +21,10 @@ import { clientsFor } from '../../utils/gatewayClients.js';
 import {
   createBrowseCustomIdHelpers,
   buildBrowseButtons,
+  buildBrowseListEmbed,
   buildBrowseSelectMenu,
-  calculatePaginationState,
   ITEMS_PER_PAGE,
-  joinFooter,
   pluralize,
-  formatPageIndicator,
   formatSortNatural,
   type BrowseSortType,
 } from '../../utils/browse/index.js';
@@ -76,30 +78,26 @@ export function buildBrowsePage(
   components: ActionRowBuilder[];
 } {
   const sorted = sortShapes(shapes, sort);
-  const pagination = calculatePaginationState(sorted.length, ITEMS_PER_PAGE, page);
-  const pageItems = sorted.slice(pagination.startIndex, pagination.endIndex);
 
-  const lines = pageItems.map((shape, i) => {
-    const num = pagination.startIndex + i + 1;
-    return `**${String(num)}.** ${shape.name} \u2014 \`${shape.username}\``;
+  const { embed, pageItems, startIndex, totalPages, safePage } = buildBrowseListEmbed<ShapeItem>({
+    entityEmoji: '\uD83D\uDD17',
+    titleNoun: 'Shapes',
+    items: sorted,
+    page,
+    itemsPerPage: ITEMS_PER_PAGE,
+    formatRow: shape => ({
+      name: escapeMarkdown(shape.name),
+      // The shapes.inc slug is what users type in /shapes import.
+      techId: shape.username,
+    }),
+    empty: {
+      noItems: 'No shapes found \u2014 create characters on shapes.inc first.',
+    },
+    footerSegments: [
+      pluralize(sorted.length, { singular: 'shape', plural: 'shapes' }),
+      formatSortNatural(sort),
+    ],
   });
-
-  const embed = new EmbedBuilder()
-    .setColor(DISCORD_COLORS.BLURPLE)
-    .setTitle('\uD83D\uDD17 Your Shapes.inc Characters')
-    .setDescription(
-      lines.length > 0
-        ? lines.join('\n')
-        : 'No shapes found. Create characters on shapes.inc first.'
-    )
-    .setFooter({
-      text: joinFooter(
-        pluralize(sorted.length, { singular: 'shape', plural: 'shapes' }),
-        formatPageIndicator(pagination.safePage + 1, pagination.totalPages),
-        formatSortNatural(sort)
-      ),
-    })
-    .setTimestamp();
 
   const components: ActionRowBuilder[] = [];
 
@@ -109,9 +107,9 @@ export function buildBrowsePage(
   // select menu matches).
   const selectRow = buildBrowseSelectMenu<ShapeItem>({
     items: pageItems,
-    customId: shapesBrowseIds.buildSelect(pagination.safePage, 'all', sort, null),
+    customId: shapesBrowseIds.buildSelect(safePage, 'all', sort, null),
     placeholder: 'Select a shape to view details...',
-    startIndex: pagination.startIndex,
+    startIndex,
     formatItem: shape => ({
       label: shape.name,
       value: shape.username,
@@ -125,8 +123,8 @@ export function buildBrowsePage(
   // Pagination + sort buttons (only if more than one page or to show sort toggle)
   if (sorted.length > 0) {
     const buttonRow = buildBrowseButtons({
-      currentPage: pagination.safePage,
-      totalPages: pagination.totalPages,
+      currentPage: safePage,
+      totalPages,
       filter: 'all' as const,
       currentSort: sort,
       query: null,
