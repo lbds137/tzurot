@@ -12,17 +12,17 @@
 
 import {
   MessageFlags,
-  EmbedBuilder,
   ButtonBuilder,
   ButtonStyle,
   ActionRowBuilder,
+  type EmbedBuilder,
   type MessageActionRowComponentBuilder,
   type ButtonInteraction,
 } from 'discord.js';
-import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { PersonaCustomIds } from '../../utils/customIds.js';
+import { buildEntityDetailCard } from '../../utils/detailCard.js';
 import { clientsFor } from '../../utils/gatewayClients.js';
 import { sendChunkedReply } from '../../utils/chunkedReply.js';
 import { replyError } from '../../utils/dashboard/replyError.js';
@@ -60,53 +60,51 @@ function buildPersonaEmbed(personaDetails: PersonaDetails): {
   embed: EmbedBuilder;
   components: ActionRowBuilder<MessageActionRowComponentBuilder>[];
 } {
-  const embed = new EmbedBuilder()
-    .setTitle('🎭 Your Persona')
-    .setColor(DISCORD_COLORS.BLURPLE)
-    .setTimestamp();
-
-  if (personaDetails.preferredName !== null && personaDetails.preferredName.length > 0) {
-    embed.addFields({
-      name: '📛 Preferred Name',
-      value: personaDetails.preferredName,
-      inline: true,
-    });
-  }
-
-  if (personaDetails.pronouns !== null && personaDetails.pronouns.length > 0) {
-    embed.addFields({ name: '🏷️ Pronouns', value: personaDetails.pronouns, inline: true });
-  }
-
-  const components: ActionRowBuilder<MessageActionRowComponentBuilder>[] = [];
+  // Content is a FIELD (not the description), so its preview truncation and
+  // the coupled expand button stay caller-owned; the shared card handles the
+  // scaffold + conditional fields.
   const contentText = personaDetails.content;
   const hasContent = contentText !== null && contentText.length > 0;
   const isTruncated = hasContent && contentText.length > CONTENT_PREVIEW_LENGTH;
-
-  if (hasContent && contentText !== null) {
-    const content = isTruncated
+  const contentValue = hasContent
+    ? isTruncated
       ? contentText.substring(0, CONTENT_PREVIEW_LENGTH) + '...'
-      : contentText;
-    embed.addFields({ name: CONTENT_FIELD_NAME, value: content, inline: false });
+      : contentText
+    : '*No content set. Use `/persona edit` to add information about yourself.*';
 
-    if (isTruncated) {
-      const expandButton = new ButtonBuilder()
-        .setCustomId(PersonaCustomIds.expand(personaDetails.id, 'content'))
-        .setLabel('Show Full Content')
-        .setStyle(ButtonStyle.Secondary)
-        .setEmoji('📖');
-      components.push(
-        new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(expandButton)
-      );
-    }
-  } else {
-    embed.addFields({
-      name: CONTENT_FIELD_NAME,
-      value: '*No content set. Use `/persona edit` to add information about yourself.*',
-      inline: false,
-    });
+  const { embed } = buildEntityDetailCard({
+    title: '🎭 Your Persona',
+    fields: [
+      personaDetails.preferredName !== null &&
+        personaDetails.preferredName.length > 0 && {
+          name: '📛 Preferred Name',
+          value: personaDetails.preferredName,
+          inline: true,
+        },
+      personaDetails.pronouns !== null &&
+        personaDetails.pronouns.length > 0 && {
+          name: '🏷️ Pronouns',
+          value: personaDetails.pronouns,
+          inline: true,
+        },
+      { name: CONTENT_FIELD_NAME, value: contentValue },
+    ],
+    footer: 'Use /persona edit to update • /settings to change options',
+    timestamp: true,
+  });
+
+  const components: ActionRowBuilder<MessageActionRowComponentBuilder>[] = [];
+  if (isTruncated) {
+    const expandButton = new ButtonBuilder()
+      .setCustomId(PersonaCustomIds.expand(personaDetails.id, 'content'))
+      .setLabel('Show Full Content')
+      .setStyle(ButtonStyle.Secondary)
+      .setEmoji('📖');
+    components.push(
+      new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(expandButton)
+    );
   }
 
-  embed.setFooter({ text: 'Use /persona edit to update • /settings to change options' });
   return { embed, components };
 }
 

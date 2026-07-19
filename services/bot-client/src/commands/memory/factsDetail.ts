@@ -25,6 +25,7 @@ import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
 import { formatDateTimeCompact } from '@tzurot/common-types/utils/dateFormatting';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { CUSTOM_ID_DELIMITER } from '../../utils/customIds.js';
+import { buildEntityDetailCard } from '../../utils/detailCard.js';
 import { buildToolkitModal } from '../../utils/modal/toolkit.js';
 import { clientsFor } from '../../utils/gatewayClients.js';
 import { showModalWithTimeoutCatch } from '../../utils/dashboard/showModalWithTimeoutCatch.js';
@@ -80,27 +81,22 @@ export function parseFactActionId(
 
 /** Build the detail embed for a single fact. */
 export function buildFactDetailEmbed(fact: FactItem): EmbedBuilder {
-  const embed = new EmbedBuilder()
-    .setTitle(`${fact.isLocked ? '🔒 ' : ''}Fact Details`)
-    .setColor(fact.isLocked ? DISCORD_COLORS.WARNING : DISCORD_COLORS.BLURPLE)
-    .setDescription(escapeMarkdown(fact.statement));
-
-  embed.addFields(
-    { name: 'Origin', value: TIER_LABELS[fact.tier] ?? fact.tier, inline: true },
-    { name: 'Status', value: fact.isLocked ? '🔒 Locked' : '🔓 Unlocked', inline: true },
-    { name: 'Learned', value: formatDateTimeCompact(fact.validFrom), inline: true }
-  );
-
-  if (fact.sourceMemoryIds.length > 0) {
-    embed.addFields({
-      name: 'Sources',
-      value: `${fact.sourceMemoryIds.length} conversation ${fact.sourceMemoryIds.length === 1 ? 'memory' : 'memories'}`,
-      inline: true,
-    });
-  }
-
-  embed.setFooter({ text: `Fact ID: ${fact.id.substring(0, 8)}...` });
-  return embed;
+  return buildEntityDetailCard({
+    title: `${fact.isLocked ? '🔒 ' : ''}Fact Details`,
+    color: fact.isLocked ? DISCORD_COLORS.WARNING : DISCORD_COLORS.BLURPLE,
+    description: escapeMarkdown(fact.statement),
+    fields: [
+      { name: 'Origin', value: TIER_LABELS[fact.tier] ?? fact.tier, inline: true },
+      { name: 'Status', value: fact.isLocked ? '🔒 Locked' : '🔓 Unlocked', inline: true },
+      { name: 'Learned', value: formatDateTimeCompact(fact.validFrom), inline: true },
+      fact.sourceMemoryIds.length > 0 && {
+        name: 'Sources',
+        value: `${fact.sourceMemoryIds.length} conversation ${fact.sourceMemoryIds.length === 1 ? 'memory' : 'memories'}`,
+        inline: true,
+      },
+    ],
+    footer: `Fact ID: ${fact.id.substring(0, 8)}...`,
+  }).embed;
 }
 
 /**
