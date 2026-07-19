@@ -15,10 +15,13 @@ vi.mock('../../utils/gatewayClients.js', () => ({
   clientsFor: clientsForMock,
 }));
 
-// The retry affordance stashes submitted values in a dashboard session
+// The retry affordance stashes submitted values in a dashboard session,
+// and the success path lands in the edit dashboard.
 const sessionSetMock = vi.hoisted(() => vi.fn());
 vi.mock('../../utils/dashboard/index.js', () => ({
   getSessionManager: () => ({ set: sessionSetMock }),
+  buildDashboardEmbed: vi.fn().mockReturnValue({ mock: 'embed' }),
+  buildDashboardComponents: vi.fn().mockReturnValue([{ mock: 'components' }]),
 }));
 
 vi.mock('@tzurot/common-types/utils/logger', async () => {
@@ -145,9 +148,22 @@ describe('handleCreateModalSubmit', () => {
     // result lands via editReply, never a bare reply.
     expect(mockDeferReply).toHaveBeenCalledWith({ flags: MessageFlags.Ephemeral });
     expect(mockReply).not.toHaveBeenCalled();
-    expect(mockEditReply).toHaveBeenCalledWith({
-      content: expect.stringContaining('Persona "Work Persona" created'),
-    });
+
+    // Success lands in the edit dashboard (consistent with character/preset
+    // creates), not a text confirmation.
+    expect(mockEditReply).toHaveBeenCalledWith(
+      expect.objectContaining({ embeds: expect.any(Array), components: expect.any(Array) })
+    );
+
+    // Seam: the dashboard session must be created against the reply message
+    // so the dashboard's components route on interaction.
+    expect(sessionSetMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        entityType: 'persona',
+        messageId: 'message-123',
+        data: expect.objectContaining({ name: 'Work Persona' }),
+      })
+    );
   });
 
   it('should surface a name-collision message instead of a generic error', async () => {

@@ -18,6 +18,17 @@ import type { ModalCommandContext } from '../../utils/commandContext/types.js';
 import { buildPersonaModalFields } from './utils/modalBuilder.js';
 import { buildToolkitModal } from '../../utils/modal/toolkit.js';
 import { replyWithModalRetry } from '../../utils/modal/retry.js';
+import {
+  buildDashboardEmbed,
+  buildDashboardComponents,
+  getSessionManager,
+} from '../../utils/dashboard/index.js';
+import {
+  PERSONA_DASHBOARD_CONFIG,
+  flattenPersonaData,
+  buildPersonaDashboardOptions,
+  type FlattenedPersonaData,
+} from './config.js';
 import { PersonaCustomIds } from '../../utils/customIds.js';
 import { clientsFor } from '../../utils/gatewayClients.js';
 import { CATALOG } from '../../ux/catalog/catalog.js';
@@ -153,32 +164,30 @@ export async function handleCreateModalSubmit(interaction: ModalSubmitInteractio
 
     const { persona } = result.data;
 
+    // Land in the edit dashboard — the same post-create flow character and
+    // preset creates use — instead of a text confirmation.
+    const flattenedData = flattenPersonaData(persona);
+    const embed = buildDashboardEmbed(PERSONA_DASHBOARD_CONFIG, flattenedData);
+    const components = buildDashboardComponents(
+      PERSONA_DASHBOARD_CONFIG,
+      persona.id,
+      flattenedData,
+      buildPersonaDashboardOptions(flattenedData)
+    );
+
+    const reply = await interaction.editReply({ embeds: [embed], components });
+
+    const sessionManager = getSessionManager();
+    await sessionManager.set<FlattenedPersonaData>({
+      userId: discordId,
+      entityType: 'persona', // Matches command name for component routing
+      entityId: persona.id,
+      data: flattenedData,
+      messageId: reply.id,
+      channelId: interaction.channelId ?? '',
+    });
+
     logger.info({ userId: discordId, personaId: persona.id, personaName }, 'Created new persona');
-
-    // Build response
-    const details: string[] = [];
-    if (persona.description !== null) {
-      details.push(`📋 Description: ${persona.description}`);
-    }
-    if (persona.preferredName !== null) {
-      details.push(`📛 Name: ${persona.preferredName}`);
-    }
-    if (persona.pronouns !== null) {
-      details.push(`🏷️ Pronouns: ${persona.pronouns}`);
-    }
-    if (persona.content !== null && persona.content.length > 0) {
-      details.push(
-        `📝 Content: ${persona.content.substring(0, 100)}${persona.content.length > 100 ? '...' : ''}`
-      );
-    }
-
-    let response = `✅ **Persona "${personaName}" created!**`;
-    if (details.length > 0) {
-      response += `\n\n${details.join('\n')}`;
-    }
-    response += '\n\nUse `/persona browse` to see all your personas.';
-
-    await interaction.editReply({ content: response });
   } catch (error) {
     logger.error({ err: error, userId: discordId }, 'Failed to create persona');
     // Post-defer: deferReply ran (and succeeded) before the try, so the
