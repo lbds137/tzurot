@@ -25,11 +25,13 @@ export const PRESET_OVERRIDE_PREFIX = 'settings-preset-override';
 
 const presetOverrideConfig: OverrideBrowseConfig = {
   prefix: PRESET_OVERRIDE_PREFIX,
-  title: '🎭 Your Preset Overrides',
+  entityEmoji: '🎭',
+  titleNoun: 'Preset Overrides',
   entityType: 'preset override',
   fallbackNoun: 'preset',
   emptyDescription:
-    "You haven't set any preset overrides.\n\nUse `/settings preset set` to override which preset a character uses.",
+    "You haven't set any preset overrides — use `/settings preset set` to " +
+    'override which preset a character uses.',
   clearCommandHint: '/settings preset clear',
   selectPlaceholder: 'Select an override to clear…',
   logger,
