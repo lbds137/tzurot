@@ -103,7 +103,9 @@ function buildVoiceBrowsePage(
       name: escapeMarkdown(voice.slug),
       // Provider tag disambiguates same-slug voices across BYOK accounts;
       // the provider-side voice id supports dashboard cross-referencing.
-      metadata: [voice.provider, `\`${voice.voiceId}\``],
+      // Same trust tier as the slug: backticks can't be escaped inside a
+      // code span, so strip them (mirrors the builder's techId guard).
+      metadata: [voice.provider, `\`${voice.voiceId.replaceAll('`', '')}\``],
     }),
     empty: {
       noItems:

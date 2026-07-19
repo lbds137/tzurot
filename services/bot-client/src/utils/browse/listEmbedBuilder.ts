@@ -121,7 +121,9 @@ function renderRow(spec: BrowseRowSpec, rowNumber: number, lines: string[]): voi
   }
   const badges = spec.badges !== undefined && spec.badges.length > 0 ? `${spec.badges} ` : '';
   const nameMarkup = spec.nameMarkup ?? `**${spec.name}**`;
-  const techId = spec.techId !== undefined ? ` (\`${spec.techId}\`)` : '';
+  // Backticks can't be escaped inside a code span — strip them so a hostile
+  // tech-id can't break out of its span and restyle the rest of the row.
+  const techId = spec.techId !== undefined ? ` (\`${spec.techId.replaceAll('`', '')}\`)` : '';
   lines.push(`**${rowNumber}.** ${badges}${nameMarkup}${techId}`);
   if (spec.metadata !== undefined && spec.metadata.length > 0) {
     lines.push(renderMetadataLine(spec.metadata));

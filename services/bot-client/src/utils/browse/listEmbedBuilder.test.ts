@@ -51,6 +51,16 @@ describe('buildBrowseListEmbed', () => {
     expect(embed.data.description).toContain('**1.** 🌐 **Lilith** (`lilith`)');
   });
 
+  it('strips backticks from tech-ids so they cannot break out of the code span', () => {
+    const { embed } = buildBrowseListEmbed<Item>({
+      ...baseOptions,
+      items: [{ name: 'Sneaky', slug: 'sl`ug' }],
+    });
+
+    expect(embed.data.description).toContain('(`slug`)');
+    expect(embed.data.description).not.toContain('sl`ug');
+  });
+
   it('omits the tech-id segment when none is provided', () => {
     const { embed } = buildBrowseListEmbed<Item>({
       ...baseOptions,
