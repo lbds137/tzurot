@@ -14,38 +14,40 @@
  */
 
 import {
-  ModalBuilder,
   ActionRowBuilder,
-  TextInputBuilder,
-  TextInputStyle,
   ButtonBuilder,
   ButtonStyle,
   EmbedBuilder,
   MessageFlags,
+  type ModalBuilder,
 } from 'discord.js';
 import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
 import { SHAPES_TOKEN_MIN_LENGTH } from '@tzurot/common-types/types/shapes-import';
 import type { ModalCommandContext } from '../../utils/commandContext/types.js';
+import { buildToolkitModal } from '../../utils/modal/toolkit.js';
 import { ShapesCustomIds } from '../../utils/customIds.js';
 
 /** Build the auth modal with a single cookie input field (Better Auth, 2026-04+) */
 export function buildAuthModal(): ModalBuilder {
-  const modal = new ModalBuilder()
-    .setCustomId(ShapesCustomIds.auth())
-    .setTitle('Shapes.inc Authentication');
-
-  const cookieValue = new TextInputBuilder()
-    .setCustomId('cookieValue')
-    .setLabel('Session cookie value')
-    .setStyle(TextInputStyle.Paragraph)
-    .setPlaceholder('Paste the value of __Secure-better-auth.session_token')
-    .setRequired(true)
-    .setMinLength(SHAPES_TOKEN_MIN_LENGTH)
-    .setMaxLength(4000);
-
-  modal.addComponents(new ActionRowBuilder<TextInputBuilder>().addComponents(cookieValue));
-
-  return modal;
+  return buildToolkitModal({
+    customId: ShapesCustomIds.auth(),
+    title: 'Shapes.inc Authentication',
+    items: [
+      {
+        kind: 'text',
+        id: 'cookieValue',
+        label: 'Session cookie value',
+        // The #1 auth trap from the instruction embed, repeated at the
+        // point of entry: the chat subdomain's cookie looks identical.
+        description: "From shapes.inc — a talk.shapes.inc cookie won't work.",
+        style: 'paragraph',
+        placeholder: 'Paste the value of __Secure-better-auth.session_token',
+        required: true,
+        minLength: SHAPES_TOKEN_MIN_LENGTH,
+        maxLength: 4000,
+      },
+    ],
+  });
 }
 
 /**

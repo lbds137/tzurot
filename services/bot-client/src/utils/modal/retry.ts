@@ -51,6 +51,12 @@ export interface ModalRetryStash {
   /** Consumer-defined modal kind (e.g. 'seed'). */
   kind: string;
   values: Record<string, string>;
+  /**
+   * Non-field context the rebuild needs (e.g. the personality UUID a modal
+   * customId embeds). Kept separate from `values` so prefills stay purely
+   * field-id-keyed.
+   */
+  meta?: Record<string, string>;
 }
 
 /** The "Try again" row attached to a validation-failure reply. */
@@ -81,12 +87,13 @@ export async function stashModalRetry(options: {
   messageId: string;
   kind: string;
   values: Record<string, string>;
+  meta?: Record<string, string>;
 }): Promise<void> {
   await getSessionManager().set<ModalRetryStash>({
     userId: options.userId,
     entityType: RETRY_ENTITY_TYPE,
     entityId: options.messageId,
-    data: { kind: options.kind, values: options.values },
+    data: { kind: options.kind, values: options.values, meta: options.meta },
     messageId: options.messageId,
     channelId: options.channelId,
   });
@@ -105,6 +112,7 @@ export async function replyWithModalRetry(
     kind: string;
     content: string;
     values: Record<string, string>;
+    meta?: Record<string, string>;
   }
 ): Promise<void> {
   const reply = await interaction.editReply({
@@ -119,6 +127,7 @@ export async function replyWithModalRetry(
     messageId: reply.id,
     kind: options.kind,
     values: options.values,
+    meta: options.meta,
   });
 }
 
@@ -129,7 +138,8 @@ export async function replyWithModalRetry(
  */
 export type ModalRetryRebuilder = (
   kind: string,
-  values: Record<string, string>
+  values: Record<string, string>,
+  meta?: Record<string, string>
 ) => ModalBuilder | null;
 
 /**
@@ -163,7 +173,7 @@ export async function handleModalRetry(
     return;
   }
 
-  const modal = rebuild(stash.data.kind, stash.data.values);
+  const modal = rebuild(stash.data.kind, stash.data.values, stash.data.meta);
   if (modal === null) {
     logger.warn({ kind: stash.data.kind }, 'No rebuilder for stashed modal kind');
     await ackWithTimeoutCatch(interaction, expiredReply, diag, retryCommandHint);

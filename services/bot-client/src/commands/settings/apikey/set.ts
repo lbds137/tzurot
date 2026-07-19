@@ -8,12 +8,12 @@
  * - Response is ephemeral (only visible to the user)
  */
 
-import { ModalBuilder, ActionRowBuilder, TextInputBuilder, TextInputStyle } from 'discord.js';
 import { AIProvider } from '@tzurot/common-types/constants/ai';
 import { API_KEY_FORMATS } from '@tzurot/common-types/constants/wallet';
 import { settingsApikeySetOptions } from '@tzurot/common-types/generated/commandOptions';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { ModalCommandContext } from '../../../utils/commandContext/types.js';
+import { buildToolkitModal } from '../../../utils/modal/toolkit.js';
 import { ApikeyCustomIds } from '../../../utils/customIds.js';
 
 const logger = createLogger('settings-apikey-set');
@@ -32,26 +32,26 @@ export async function handleSetKey(context: ModalCommandContext): Promise<void> 
   // Determine provider display name and help text
   const providerInfo = getProviderInfo(provider);
 
-  // Create modal with API key input
-  const modal = new ModalBuilder()
-    .setCustomId(ApikeyCustomIds.set(provider))
-    .setTitle(`Set ${providerInfo.displayName} API Key`);
+  // Single short line for security — a paragraph field would soft-wrap the
+  // key across lines and invite partial-selection copy mistakes.
+  const modal = buildToolkitModal({
+    customId: ApikeyCustomIds.set(provider),
+    title: `Set ${providerInfo.displayName} API Key`,
+    items: [
+      {
+        kind: 'text',
+        id: 'apiKey',
+        label: `${providerInfo.displayName} API Key`,
+        description: providerInfo.helpUrl.length > 0 ? `Get a key: ${providerInfo.helpUrl}` : '',
+        style: 'short',
+        placeholder: providerInfo.placeholder,
+        required: true,
+        minLength: 10,
+        maxLength: 200,
+      },
+    ],
+  });
 
-  // API Key input (required, single line for security)
-  const apiKeyInput = new TextInputBuilder()
-    .setCustomId('apiKey')
-    .setLabel(`${providerInfo.displayName} API Key`)
-    .setStyle(TextInputStyle.Short)
-    .setPlaceholder(providerInfo.placeholder)
-    .setRequired(true)
-    .setMinLength(10)
-    .setMaxLength(200);
-
-  // Add input to action row
-  const row = new ActionRowBuilder<TextInputBuilder>().addComponents(apiKeyInput);
-  modal.addComponents(row);
-
-  // Show modal to user
   await context.showModal(modal);
 
   logger.info({ provider, userId: context.user.id }, 'Showing API key input modal');

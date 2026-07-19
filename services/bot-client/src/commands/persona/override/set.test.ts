@@ -4,7 +4,11 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { handleOverrideSet, handleOverrideCreateModalSubmit } from './set.js';
+import {
+  handleOverrideSet,
+  handleOverrideCreateModalSubmit,
+  buildOverrideCreateModal,
+} from './set.js';
 import { MessageFlags } from 'discord.js';
 import { CREATE_NEW_PERSONA_VALUE } from '../autocomplete.js';
 import { API_ERROR_SUBCODE } from '@tzurot/common-types/constants/error';
@@ -18,6 +22,12 @@ import { makeOk, makeErr, asUserClient } from '../../../test/gatewayClientStubs.
 const clientsForMock = vi.hoisted(() => vi.fn());
 vi.mock('../../../utils/gatewayClients.js', () => ({
   clientsFor: clientsForMock,
+}));
+
+// The retry affordance stashes submitted values in a dashboard session
+const sessionSetMock = vi.hoisted(() => vi.fn());
+vi.mock('../../../utils/dashboard/index.js', () => ({
+  getSessionManager: () => ({ set: sessionSetMock }),
 }));
 
 vi.mock('@tzurot/common-types/utils/discord', async () => {
@@ -264,11 +274,14 @@ describe('handleOverrideCreateModalSubmit', () => {
     vi.clearAllMocks();
     stub = makeStub();
     clientsForMock.mockReturnValue({ userClient: asUserClient(stub) });
+    // Failure paths stash retry values against the error reply's message id
+    mockEditReply.mockResolvedValue({ id: 'message-123' });
   });
 
   function createMockModalInteraction(fields: Record<string, string>) {
     return {
       user: { id: '123456789', username: 'testuser' },
+      channelId: 'channel-123',
       fields: {
         getTextInputValue: (name: string) => fields[name] ?? '',
       },
@@ -336,9 +349,12 @@ describe('handleOverrideCreateModalSubmit', () => {
       'personality-uuid'
     );
 
-    expect(mockEditReply).toHaveBeenCalledWith({
-      content: expect.stringContaining('Persona name is required'),
-    });
+    expect(mockEditReply).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: expect.stringContaining('Persona name is required'),
+        components: expect.any(Array),
+      })
+    );
     expect(stub.createPersonaOverride).not.toHaveBeenCalled();
   });
 
@@ -401,9 +417,26 @@ describe('handleOverrideCreateModalSubmit', () => {
       'personality-uuid'
     );
 
-    expect(mockEditReply).toHaveBeenCalledWith({
-      content: expect.stringContaining('already have a persona named "Dup"'),
-    });
+    expect(mockEditReply).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: expect.stringContaining('already have a persona named "Dup"'),
+        components: expect.any(Array),
+      })
+    );
+
+    // Seam: values + the personality UUID (meta) must reach the retry stash
+    // so the Try-again button can rebuild the override modal's customId.
+    expect(sessionSetMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        entityType: 'modal-retry',
+        messageId: 'message-123',
+        data: {
+          kind: 'override-create',
+          values: expect.objectContaining({ personaName: 'Dup', content: 'whatever' }),
+          meta: { personalityId: 'personality-uuid' },
+        },
+      })
+    );
   });
 
   it('should handle gateway errors gracefully', async () => {
@@ -420,8 +453,104 @@ describe('handleOverrideCreateModalSubmit', () => {
       'personality-uuid'
     );
 
-    expect(mockEditReply).toHaveBeenCalledWith({
-      content: expect.stringContaining('Failed to create the persona'),
+    // Transient failures carry the retry affordance too
+    expect(mockEditReply).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: expect.stringContaining('Failed to create the persona'),
+        components: expect.any(Array),
+      })
+    );
+  });
+
+  it('carries the retry affordance on unmapped gateway failure results', async () => {
+    // Not NAME_COLLISION, not a mapOverrideError phrase → the classified
+    // fallthrough, which must stash for the Try-again reopen.
+    stub.createPersonaOverride.mockResolvedValue(makeErr(500, 'Internal error'));
+
+    await handleOverrideCreateModalSubmit(
+      createMockModalInteraction({
+        personaName: 'Test',
+        description: '',
+        preferredName: '',
+        pronouns: '',
+        content: 'about me',
+      }),
+      'personality-uuid'
+    );
+
+    expect(mockEditReply).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: expect.stringContaining('Internal error'),
+        components: expect.any(Array),
+      })
+    );
+    expect(sessionSetMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        entityType: 'modal-retry',
+        data: expect.objectContaining({
+          kind: 'override-create',
+          meta: { personalityId: 'personality-uuid' },
+        }),
+      })
+    );
+  });
+
+  it('falls through to the classified reply when the failure carries no error message', async () => {
+    // mapOverrideError's error === undefined guard → null → classified path
+    stub.createPersonaOverride.mockResolvedValue({
+      ok: false,
+      kind: 'http',
+      error: undefined,
+      status: 500,
     });
+
+    await handleOverrideCreateModalSubmit(
+      createMockModalInteraction({
+        personaName: 'Test',
+        description: '',
+        preferredName: '',
+        pronouns: '',
+        content: 'about me',
+      }),
+      'personality-uuid'
+    );
+
+    expect(mockEditReply).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: expect.stringContaining('create the persona'),
+        components: expect.any(Array),
+      })
+    );
+  });
+});
+
+describe('buildOverrideCreateModal', () => {
+  it('personalizes title and labels when the personality name is known', () => {
+    const json = buildOverrideCreateModal('pers-1', 'Lilith').toJSON() as {
+      custom_id: string;
+      title: string;
+      components: { label?: string }[];
+    };
+
+    expect(json.custom_id).toBe('persona::override-create::pers-1');
+    expect(json.title).toBe('New Persona for Lilith');
+    expect(json.components.map(c => c.label)).toContain('Preferred Name (what Lilith calls you)');
+  });
+
+  it('rebuilds with generic title and default labels when the name is unavailable (retry path)', () => {
+    const json = buildOverrideCreateModal('pers-1', null, { content: 'about me' }).toJSON() as {
+      custom_id: string;
+      title: string;
+      components: { label?: string; component?: { custom_id?: string; value?: string } }[];
+    };
+
+    // The customId must still carry the personality UUID so the resubmit routes
+    expect(json.custom_id).toBe('persona::override-create::pers-1');
+    expect(json.title).toBe('New Persona (Override)');
+    expect(json.components.map(c => c.label)).toContain('Preferred Name (what AI calls you)');
+
+    // The stashed values must land as prefills — the affordance's point
+    const contentField = json.components.find(c => c.component?.custom_id === 'content');
+    expect(contentField?.component?.value).toBe('about me');
   });
 });
