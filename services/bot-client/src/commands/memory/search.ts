@@ -18,10 +18,9 @@ import {
   type StringSelectMenuBuilder,
   type StringSelectMenuInteraction,
   escapeMarkdown,
-  EmbedBuilder,
+  type EmbedBuilder,
   MessageFlags,
 } from 'discord.js';
-import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
 import { memorySearchOptions } from '@tzurot/common-types/generated/commandOptions';
 import { type MemoryItem } from '@tzurot/common-types/schemas/api/memory';
 import { formatDateShort } from '@tzurot/common-types/utils/dateFormatting';
@@ -32,8 +31,8 @@ import { clientsFor } from '../../utils/gatewayClients.js';
 import {
   createBrowseCustomIdHelpers,
   buildBrowseButtons as buildSharedBrowseButtons,
+  buildBrowseListEmbed,
   buildBrowseSelectMenu,
-  joinFooter,
   formatPageIndicator,
 } from '../../utils/browse/index.js';
 import { resolveOptionalPersonality } from './resolveHelpers.js';
@@ -115,41 +114,44 @@ function buildSearchEmbed(options: BuildSearchEmbedOptions): EmbedBuilder {
   const { results, query, page, pageSize, totalPages, hasMore, searchType, personalityId } =
     options;
   const isTextFallback = searchType === 'text';
+  const escapedQuery = escapeMarkdown(truncateContent(query, 50));
 
-  const embed = new EmbedBuilder().setTitle('🔍 Memory Search').setColor(DISCORD_COLORS.BLURPLE);
-
-  if (results.length === 0) {
-    embed.setDescription(
-      `No memories found matching: **${escapeMarkdown(truncateContent(query, 50))}**\n\nTry a different search query or check if you have memories with this character.`
-    );
-    return embed;
-  }
-
-  // Build results description
-  const lines: string[] = [`Results for: **${escapeMarkdown(truncateContent(query, 50))}**`, ''];
-
-  results.forEach((memory, index) => {
-    const num = page * pageSize + index + 1;
-    const lockIcon = memory.isLocked ? ' 🔒' : '';
-    const similarity = formatSimilarity(memory.similarity);
-    const content = truncateContent(escapeMarkdown(memory.content));
-    const date = formatDateShort(memory.createdAt);
-    const personality = escapeMarkdown(memory.personalityName);
-
-    lines.push(`**${num}.** ${content}${lockIcon}`);
-    lines.push(`   _${personality} • ${similarity} • ${date}_`);
-    lines.push('');
-  });
-
-  embed.setDescription(lines.join('\n').trim());
-
-  // Build footer
-  embed.setFooter({
-    text: joinFooter(
+  // Rolling-window pagination has no server total — synthesize one that
+  // reproduces computeTotalPages under the builder's ceil-division, and
+  // keep the hasMore-aware page indicator in the footer (the button row's
+  // info label can't express the open-ended "of N+" state).
+  const { embed } = buildBrowseListEmbed<SearchResult>({
+    entityEmoji: '🔍',
+    titleNoun: 'Search Results',
+    items: results,
+    page,
+    itemsPerPage: pageSize,
+    serverPage: { totalItems: hasMore ? (page + 2) * pageSize : page * pageSize + results.length },
+    formatRow: memory => ({
+      badges: memory.isLocked ? '🔒' : undefined,
+      name: '', // unused — nameMarkup below overrides it
+      // Memory content is prose, not an entity name — skip the bold-name
+      // default so rows read as text, not headings.
+      nameMarkup: truncateContent(escapeMarkdown(memory.content)),
+      metadata: [
+        escapeMarkdown(memory.personalityName),
+        formatSimilarity(memory.similarity),
+        formatDateShort(memory.createdAt),
+      ],
+    }),
+    // The empty state already names the query — the preamble would repeat it.
+    preamble: results.length > 0 ? [`Results for: **${escapedQuery}**`, ''] : undefined,
+    empty: {
+      noItems:
+        `No memories found matching: **${escapedQuery}** — try a different ` +
+        'search query or check if you have memories with this character.',
+    },
+    footerSegments: [
       isTextFallback ? 'Text search' : 'Semantic search',
       personalityId !== undefined && 'Filtered',
-      formatPageIndicator(page + 1, totalPages, { hasMore })
-    ),
+      formatPageIndicator(page + 1, totalPages, { hasMore }),
+    ],
+    badgeLegend: 'Locked 🔒',
   });
 
   return embed;
