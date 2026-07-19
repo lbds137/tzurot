@@ -5,7 +5,8 @@
  */
 
 import {
-  EmbedBuilder,
+  escapeMarkdown,
+  type EmbedBuilder,
   type ButtonInteraction,
   type ActionRowBuilder,
   type ButtonBuilder,
@@ -21,6 +22,7 @@ import {
   ITEMS_PER_PAGE,
   createBrowseCustomIdHelpers,
   buildBrowseButtons,
+  buildBrowseListEmbed,
   pluralize,
 } from '../../../utils/browse/index.js';
 import type { VoicesListResponse } from './types.js';
@@ -86,42 +88,42 @@ function buildVoiceBrowsePage(
   // Color escalates to WARNING when any provider failed — visual signal
   // beyond the inline field, in case the user only glances at the embed.
   const hasWarnings = warnings !== undefined && warnings.length > 0;
-  const color = hasWarnings
-    ? DISCORD_COLORS.WARNING
-    : voices.length > 0
-      ? DISCORD_COLORS.SUCCESS
-      : DISCORD_COLORS.BLURPLE;
 
-  const embed = new EmbedBuilder().setTitle('🎤 Cloned Voices').setColor(color).setTimestamp();
+  const { embed, totalPages, safePage } = buildBrowseListEmbed<
+    VoicesListResponse['voices'][number]
+  >({
+    entityEmoji: '🎤',
+    titleNoun: 'Cloned Voices',
+    items: voices,
+    page,
+    itemsPerPage: ITEMS_PER_PAGE,
+    formatRow: voice => ({
+      // Slugs are read back from the provider account, where names can be
+      // hand-edited — not guaranteed markdown-safe.
+      name: escapeMarkdown(voice.slug),
+      // Provider tag disambiguates same-slug voices across BYOK accounts;
+      // the provider-side voice id supports dashboard cross-referencing.
+      metadata: [voice.provider, `\`${voice.voiceId}\``],
+    }),
+    empty: {
+      noItems:
+        'No Tzurot-cloned voices found. Voices are auto-cloned when you talk ' +
+        `to a character with voice enabled — your audio provider account(s) have **${totalVoices}** voices total.`,
+    },
+    footerSegments: [
+      voices.length > 0 &&
+        `${pluralize(tzurotCount, { singular: 'Tzurot voice', plural: 'Tzurot voices' })} / ${totalVoices} total across audio providers`,
+    ],
+    color: hasWarnings ? DISCORD_COLORS.WARNING : undefined,
+  });
 
   if (hasWarnings) {
     embed.addFields(renderWarningsField(warnings));
   }
 
   if (voices.length === 0) {
-    embed.setDescription(
-      'No Tzurot-cloned voices found.\n\n' +
-        'Voices are auto-cloned when you talk to a character with voice enabled.\n' +
-        `Your audio provider account(s) have **${totalVoices}** voices total.`
-    );
     return { embed, components: [] };
   }
-
-  const totalPages = Math.max(1, Math.ceil(voices.length / ITEMS_PER_PAGE));
-  const safePage = Math.max(0, Math.min(page, totalPages - 1));
-  const startIdx = safePage * ITEMS_PER_PAGE;
-  const pageVoices = voices.slice(startIdx, startIdx + ITEMS_PER_PAGE);
-
-  // Each line shows slug, provider tag, and voice id — provider tag lets
-  // users disambiguate same-slug voices that exist in both BYOK accounts.
-  const voiceLines = pageVoices.map(
-    (v, i) => `**${startIdx + i + 1}.** \`${v.slug}\` *(${v.provider})* — \`${v.voiceId}\``
-  );
-
-  embed.setDescription(voiceLines.join('\n'));
-  embed.setFooter({
-    text: `${pluralize(tzurotCount, { singular: 'Tzurot voice', plural: 'Tzurot voices' })} / ${totalVoices} total across audio providers`,
-  });
 
   // Show management hints only on first page to avoid clutter
   if (safePage === 0) {

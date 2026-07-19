@@ -107,6 +107,26 @@ describe('handleBrowseVoices', () => {
       ],
       components: [], // No pagination needed for 2 voices
     });
+
+    // §2.4 row grammar: bold slug, provider + code-span voice id metadata.
+    const embedData = mockEditReply.mock.calls[0][0].embeds[0].data;
+    expect(embedData.description).toContain('**1.** **alice**');
+    expect(embedData.description).toContain('└ elevenlabs · `v1`');
+  });
+
+  it('escapes markdown metacharacters in provider-derived slugs', async () => {
+    stub.listVoices.mockResolvedValue(
+      makeOk({
+        voices: [{ provider: 'elevenlabs', voiceId: 'v1', name: 'tzurot-a*b_c', slug: 'a*b_c' }],
+        totalVoices: 1,
+        tzurotCount: 1,
+      })
+    );
+
+    await handleBrowseVoices(createMockContext());
+
+    const embedData = mockEditReply.mock.calls[0][0].embeds[0].data;
+    expect(embedData.description).toContain('**a\\*b\\_c**');
   });
 
   it('should show pagination buttons when voices exceed page size', async () => {

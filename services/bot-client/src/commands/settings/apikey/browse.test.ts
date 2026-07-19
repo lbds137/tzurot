@@ -100,7 +100,7 @@ describe('handleBrowse', () => {
       embeds: [
         expect.objectContaining({
           data: expect.objectContaining({
-            title: '💳 API Wallet Browser',
+            title: '💳 API Keys',
           }),
         }),
       ],
@@ -117,7 +117,7 @@ describe('handleBrowse', () => {
       embeds: [
         expect.objectContaining({
           data: expect.objectContaining({
-            title: '💳 API Wallet Browser',
+            title: '💳 API Keys',
             description: expect.stringContaining('no API keys configured'),
           }),
         }),
@@ -174,5 +174,29 @@ describe('handleBrowse', () => {
         }),
       ],
     });
+  });
+
+  it('renders the §2.4 row grammar (bold name + provider slug techId)', async () => {
+    stub.listWalletKeys.mockResolvedValue(
+      makeOk(
+        mockListWalletKeysResponse([
+          {
+            provider: AIProvider.OpenRouter,
+            isActive: true,
+            createdAt: '2025-01-01T00:00:00Z',
+            lastUsedAt: null,
+          },
+        ])
+      )
+    );
+
+    const context = createMockContext();
+    await handleBrowse(context);
+
+    const embedData = mockEditReply.mock.calls[0][0].embeds[0].data;
+    expect(embedData.description).toContain('**1.** ⭐ **OpenRouter** (`openrouter`)');
+    expect(embedData.description).toContain('└ Active · Last used never');
+    expect(embedData.footer.text).toContain('1 key');
+    expect(embedData.footer.text).toContain('Active ⭐');
   });
 });

@@ -5,8 +5,12 @@
  * Shows a paginated list of user's personas with select menu to edit
  */
 
-import { EmbedBuilder, type ButtonInteraction, type StringSelectMenuInteraction } from 'discord.js';
-import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
+import {
+  escapeMarkdown,
+  type EmbedBuilder,
+  type ButtonInteraction,
+  type StringSelectMenuInteraction,
+} from 'discord.js';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { type UserClient } from '@tzurot/clients';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
@@ -20,9 +24,9 @@ import {
 import {
   ITEMS_PER_PAGE,
   buildBrowseButtons as buildSharedBrowseButtons,
+  buildBrowseListEmbed,
   buildBrowseSelectMenu,
   createBrowseCustomIdHelpers,
-  joinFooter,
   pluralize,
   formatSortNatural,
   formatSortVerbatim,
@@ -119,49 +123,34 @@ function buildBrowsePage(
   // Sort personas
   const sortedPersonas = sortPersonas(personas, sortType);
 
-  const totalPages = Math.max(1, Math.ceil(sortedPersonas.length / ITEMS_PER_PAGE));
-  const safePage = Math.min(Math.max(0, page), totalPages - 1);
-
-  const startIdx = safePage * ITEMS_PER_PAGE;
-  const endIdx = Math.min(startIdx + ITEMS_PER_PAGE, sortedPersonas.length);
-  const pageItems = sortedPersonas.slice(startIdx, endIdx);
-
-  // Build description lines
-  const lines: string[] = [];
-
-  if (sortedPersonas.length === 0) {
-    lines.push("_You don't have any personas yet._");
-    lines.push('');
-    lines.push('Use `/persona create` to create your first persona!');
-  } else {
-    pageItems.forEach((persona, index) => {
-      const num = startIdx + index + 1;
-      const defaultBadge = persona.isDefault ? '⭐' : '  ';
-      const preferredName =
-        persona.preferredName !== null &&
-        persona.preferredName !== undefined &&
-        persona.preferredName !== ''
-          ? ` (${persona.preferredName})`
-          : '';
-      lines.push(`${defaultBadge} **${num}.** ${persona.name}${preferredName}`);
+  const { embed, pageItems, startIndex, totalPages, safePage } =
+    buildBrowseListEmbed<PersonaSummary>({
+      entityEmoji: '👤',
+      titleNoun: 'Personas',
+      items: sortedPersonas,
+      page,
+      itemsPerPage: ITEMS_PER_PAGE,
+      formatRow: persona => ({
+        badges: persona.isDefault ? '⭐' : undefined,
+        name: escapeMarkdown(persona.name),
+        metadata:
+          persona.preferredName !== null &&
+          persona.preferredName !== undefined &&
+          persona.preferredName !== ''
+            ? [`Goes by ${escapeMarkdown(persona.preferredName)}`]
+            : undefined,
+      }),
+      empty: {
+        noItems: "You don't have any personas yet — create your first with `/persona create`.",
+      },
+      footerSegments: [
+        pluralize(sortedPersonas.length, { singular: 'persona', plural: 'personas' }),
+        sortType === 'date'
+          ? formatSortNatural('date')
+          : formatSortVerbatim('Sorted alphabetically'),
+      ],
+      badgeLegend: 'Default ⭐',
     });
-  }
-
-  // Build embed
-  const embed = new EmbedBuilder()
-    .setTitle('👤 Your Personas')
-    .setColor(DISCORD_COLORS.BLURPLE)
-    .setDescription(lines.join('\n'))
-    .setTimestamp();
-
-  // Footer
-  embed.setFooter({
-    text: joinFooter(
-      pluralize(sortedPersonas.length, { singular: 'persona', plural: 'personas' }),
-      sortType === 'date' ? formatSortNatural('date') : formatSortVerbatim('Sorted alphabetically'),
-      '\u2B50 Default'
-    ),
-  });
 
   // Build components
   const components: BrowseActionRow[] = [];
@@ -171,7 +160,7 @@ function buildBrowsePage(
     items: pageItems,
     customId: browseHelpers.buildSelect(safePage, 'all', sortType, null),
     placeholder: 'Select a persona to view/edit...',
-    startIndex: startIdx,
+    startIndex,
     formatItem: persona => ({
       label: formatPersonaSelectLabel(persona),
       value: persona.id,
