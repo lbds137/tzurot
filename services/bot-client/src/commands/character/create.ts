@@ -7,15 +7,7 @@
  * 3. Shows dashboard for further editing
  */
 
-import {
-  ModalBuilder,
-  TextInputBuilder,
-  TextInputStyle,
-  ActionRowBuilder,
-  type ModalActionRowComponentBuilder,
-  MessageFlags,
-  type ModalSubmitInteraction,
-} from 'discord.js';
+import { MessageFlags, type ModalSubmitInteraction } from 'discord.js';
 import { type EnvConfig } from '@tzurot/common-types/config/config';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { isBotOwner } from '@tzurot/common-types/utils/ownerMiddleware';
@@ -39,6 +31,7 @@ import {
   characterSeedFields,
   buildCharacterDashboardOptions,
 } from './config.js';
+import { buildToolkitModal, textFieldFromDefinition } from '../../utils/modal/toolkit.js';
 import { clientsFor } from '../../utils/gatewayClients.js';
 import { CATALOG } from '../../ux/catalog/catalog.js';
 import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
@@ -54,22 +47,11 @@ const logger = createLogger('character-create');
  * because this subcommand uses deferralMode: 'modal'.
  */
 export async function handleCreate(context: ModalCommandContext): Promise<void> {
-  const modal = new ModalBuilder()
-    .setCustomId(buildDashboardCustomId('character', 'seed'))
-    .setTitle('Create New Character');
-
-  for (const field of characterSeedFields) {
-    const input = new TextInputBuilder()
-      .setCustomId(field.id)
-      .setLabel(field.label)
-      .setPlaceholder(field.placeholder ?? '')
-      .setStyle(field.style === 'paragraph' ? TextInputStyle.Paragraph : TextInputStyle.Short)
-      .setRequired(field.required ?? false)
-      .setMaxLength(field.maxLength);
-
-    const row = new ActionRowBuilder<ModalActionRowComponentBuilder>().addComponents(input);
-    modal.addComponents(row);
-  }
+  const modal = buildToolkitModal({
+    customId: buildDashboardCustomId('character', 'seed'),
+    title: 'Create New Character',
+    items: characterSeedFields.map(textFieldFromDefinition),
+  });
 
   await context.showModal(modal);
 }
