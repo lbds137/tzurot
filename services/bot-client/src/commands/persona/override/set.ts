@@ -15,7 +15,7 @@
 import {
   escapeMarkdown,
   MessageFlags,
-  ModalBuilder,
+  type ModalBuilder,
   type ModalSubmitInteraction,
 } from 'discord.js';
 import { DISCORD_LIMITS } from '@tzurot/common-types/constants/discord';
@@ -26,6 +26,8 @@ import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { ModalCommandContext } from '../../../utils/commandContext/types.js';
 import { CREATE_NEW_PERSONA_VALUE } from '../autocomplete.js';
 import { buildPersonaModalFields } from '../utils/modalBuilder.js';
+import { buildToolkitModal } from '../../../utils/modal/toolkit.js';
+import { replyWithModalRetry } from '../../../utils/modal/retry.js';
 import { PersonaCustomIds } from '../../../utils/customIds.js';
 import {
   AUTOCOMPLETE_UNAVAILABLE_MESSAGE,
@@ -66,6 +68,38 @@ function mapOverrideError(error: string | undefined, personalitySlug: string): s
   return null;
 }
 
+/**
+ * Build the create-for-override modal. `personalityName === null` is the
+ * retry-rebuild path: the submit handler only has the personality UUID (from
+ * the modal customId), so the reopen uses the default labels and a generic
+ * title — the preserved field values are the affordance's point, and filled
+ * fields never show their placeholders anyway.
+ */
+export function buildOverrideCreateModal(
+  personalityId: string,
+  personalityName: string | null,
+  initialValues?: Record<string, string>
+): ModalBuilder {
+  return buildToolkitModal({
+    customId: PersonaCustomIds.overrideCreate(personalityId),
+    title:
+      personalityName === null
+        ? 'New Persona (Override)'
+        : `New Persona for ${truncateText(personalityName, DISCORD_LIMITS.MODAL_TITLE_DYNAMIC_CONTENT)}`,
+    items:
+      personalityName === null
+        ? buildPersonaModalFields(null)
+        : buildPersonaModalFields(null, {
+            namePlaceholder: `e.g., "My ${personalityName} Persona"`,
+            preferredNameLabel: `Preferred Name (what ${personalityName} calls you)`,
+            preferredNamePlaceholder: `What should ${personalityName} call you?`,
+            contentLabel: `About You (for ${personalityName})`,
+            contentPlaceholder: `Tell ${personalityName} specific things about yourself...`,
+          }),
+    initialValues,
+  });
+}
+
 /** Show modal to create a new persona for override */
 async function showCreateOverrideModal(
   context: ModalCommandContext,
@@ -98,20 +132,7 @@ async function showCreateOverrideModal(
   const { personality } = infoResult.data;
   const personalityName = personality.displayName ?? personality.name;
 
-  const modal = new ModalBuilder()
-    .setCustomId(PersonaCustomIds.overrideCreate(personality.id))
-    .setTitle(
-      `New Persona for ${truncateText(personalityName, DISCORD_LIMITS.MODAL_TITLE_DYNAMIC_CONTENT)}`
-    );
-
-  const inputFields = buildPersonaModalFields(null, {
-    namePlaceholder: `e.g., "My ${personalityName} Persona"`,
-    preferredNameLabel: `Preferred Name (what ${personalityName} calls you)`,
-    preferredNamePlaceholder: `What should ${personalityName} call you?`,
-    contentLabel: `About You (for ${personalityName})`,
-    contentPlaceholder: `Tell ${personalityName} specific things about yourself...`,
-  });
-  modal.addComponents(...inputFields);
+  const modal = buildOverrideCreateModal(personality.id, personalityName);
 
   // The getPersonaOverride fetch above already ate into the 3-second budget, and
   // this modal can't ack-first — its customId needs the fetched personality UUID.
@@ -237,22 +258,39 @@ export async function handleOverrideCreateModalSubmit(
   // confirmation. Everything inside the try is post-defer → editReply.
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
+  // Raw (untrimmed) values, captured up front so retryable failure paths can
+  // stash them for the Try-again prefill. The personality UUID rides in meta
+  // so the rebuild can reconstruct the customId.
+  const values = {
+    personaName: interaction.fields.getTextInputValue('personaName'),
+    description: interaction.fields.getTextInputValue('description'),
+    preferredName: interaction.fields.getTextInputValue('preferredName'),
+    pronouns: interaction.fields.getTextInputValue('pronouns'),
+    content: interaction.fields.getTextInputValue('content'),
+  };
+  const replyWithRetry = async (content: string): Promise<void> => {
+    await replyWithModalRetry(interaction, {
+      commandPrefix: 'persona',
+      kind: 'override-create',
+      content,
+      values,
+      meta: { personalityId },
+    });
+  };
+
   try {
-    // Get values from modal
-    const personaName = interaction.fields.getTextInputValue('personaName').trim();
-    const description = interaction.fields.getTextInputValue('description').trim() || null;
-    const preferredName = interaction.fields.getTextInputValue('preferredName').trim() || null;
-    const pronouns = interaction.fields.getTextInputValue('pronouns').trim() || null;
-    // Modal sets `.setRequired(true)` on content, so Discord guarantees a
+    const personaName = values.personaName.trim();
+    const description = values.description.trim() || null;
+    const preferredName = values.preferredName.trim() || null;
+    const pronouns = values.pronouns.trim() || null;
+    // Modal sets `required: true` on content, so Discord guarantees a
     // non-empty value here. Whitespace-only edge cases fall through to the
     // gateway's PersonaCreateSchema.content.min(1) validator.
-    const content = interaction.fields.getTextInputValue('content').trim();
+    const content = values.content.trim();
 
     // Persona name is required
     if (personaName.length === 0) {
-      await interaction.editReply({
-        content: renderSpec(CATALOG.error.validation('Persona name is required.')),
-      });
+      await replyWithRetry(renderSpec(CATALOG.error.validation('Persona name is required.')));
       return;
     }
 
@@ -267,13 +305,13 @@ export async function handleOverrideCreateModalSubmit(
 
     if (!result.ok) {
       if (result.code === API_ERROR_SUBCODE.NAME_COLLISION) {
-        await interaction.editReply({
-          content: renderSpec(
+        await replyWithRetry(
+          renderSpec(
             CATALOG.error.validation(
               `You already have a persona named "${personaName}". Pick a different name, or edit the existing one with \`/persona edit\`.`
             )
-          ),
-        });
+          )
+        );
         return;
       }
 
@@ -292,11 +330,15 @@ export async function handleOverrideCreateModalSubmit(
         { userId: discordId, personalityId, error: result.error },
         'Failed to create override persona via gateway'
       );
-      await interaction.editReply({
-        content: renderSpec(
+      // Transient failures also lose typed input — carry the retry
+      // affordance. A resubmit either succeeds or lands on NAME_COLLISION,
+      // so a blind retry is write-safe. (The mapped errors above stay plain:
+      // a deleted personality or missing account can't be retried into.)
+      await replyWithRetry(
+        renderSpec(
           classifyGatewayFailure(result, 'persona', { failedAction: 'create the persona' })
-        ),
-      });
+        )
+      );
       return;
     }
 
@@ -320,11 +362,10 @@ export async function handleOverrideCreateModalSubmit(
       'Failed to create override persona'
     );
     // Post-defer: deferReply ran (and succeeded) before the try, so the
-    // interaction is acked by the time any error reaches here.
-    await interaction.editReply({
-      content: renderSpec(
-        classifyGatewayFailure(error, 'persona', { failedAction: 'create the persona' })
-      ),
-    });
+    // interaction is acked by the time any error reaches here. Retry rides
+    // along — see the !result.ok fallthrough above for the write-safety note.
+    await replyWithRetry(
+      renderSpec(classifyGatewayFailure(error, 'persona', { failedAction: 'create the persona' }))
+    );
   }
 }

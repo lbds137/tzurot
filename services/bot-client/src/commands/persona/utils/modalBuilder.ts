@@ -1,13 +1,14 @@
 /**
  * Persona Modal Builder Utilities
  *
- * Shared utilities for building persona-create modals. Used by `/persona create`
- * and the create-new-persona-for-override flow. The edit/dashboard path uses
- * the generic ModalFactory instead.
+ * Shared field definitions for persona-create modals. Used by `/persona create`
+ * and the create-new-persona-for-override flow, which render them through the
+ * modal toolkit (`buildToolkitModal`). The edit/dashboard path uses the generic
+ * ModalFactory instead.
  */
 
-import { TextInputBuilder, TextInputStyle, ActionRowBuilder } from 'discord.js';
 import { DISCORD_LIMITS } from '@tzurot/common-types/constants/discord';
+import type { TextModalField } from '../../../utils/modal/types.js';
 
 /**
  * Existing persona data for pre-filling modal fields
@@ -53,111 +54,89 @@ const DEFAULT_OPTIONS: Required<PersonaModalOptions> = {
   contentPlaceholder: 'Tell the AI about yourself: interests, personality, context...',
 };
 
-/**
- * Check if a value is a non-empty string
- */
-function hasValue(value: string | null | undefined): value is string {
-  return value !== null && value !== undefined && value.length > 0;
+/** Pass through a prefill value, mapping the null/empty cases to "no prefill". */
+function prefill(value: string | null | undefined): string | undefined {
+  return value !== null && value !== undefined && value.length > 0 ? value : undefined;
 }
 
 /**
- * Set input value if data exists
- */
-function setValueIfExists(input: TextInputBuilder, value: string | null | undefined): void {
-  if (hasValue(value)) {
-    input.setValue(value);
-  }
-}
-
-/**
- * Build persona modal input fields
+ * Build persona modal field definitions
  *
- * Creates standardized input fields for persona modals with optional pre-filling.
- * Ensures consistent field IDs across all persona-related modals.
+ * Creates standardized text fields for persona modals with optional pre-filling.
+ * Ensures consistent field IDs across all persona-related modals. Prefill
+ * truncation (content can exceed the modal cap) is the toolkit's job.
  *
  * @param existingData - Existing persona data to pre-fill (optional)
  * @param options - Customization options for labels/placeholders
- * @returns Array of ActionRowBuilder components ready to add to a modal
+ * @returns Toolkit text fields ready for `buildToolkitModal`
  */
 export function buildPersonaModalFields(
   existingData?: PersonaModalData | null,
   options?: PersonaModalOptions
-): ActionRowBuilder<TextInputBuilder>[] {
+): TextModalField[] {
   const opts = { ...DEFAULT_OPTIONS, ...options };
-  const rows: ActionRowBuilder<TextInputBuilder>[] = [];
+  const fields: TextModalField[] = [];
 
   // Persona Name input (optional, but required when included)
   if (opts.includeNameField) {
-    const nameInput = new TextInputBuilder()
-      .setCustomId('personaName')
-      .setLabel('Persona Name')
-      .setPlaceholder(opts.namePlaceholder)
-      .setStyle(TextInputStyle.Short)
-      .setMaxLength(100)
-      .setRequired(true);
-
-    setValueIfExists(nameInput, existingData?.name);
-    rows.push(new ActionRowBuilder<TextInputBuilder>().addComponents(nameInput));
+    fields.push({
+      kind: 'text',
+      id: 'personaName',
+      label: 'Persona Name',
+      style: 'short',
+      placeholder: opts.namePlaceholder,
+      maxLength: 100,
+      required: true,
+      initialValue: prefill(existingData?.name),
+    });
   }
 
-  // Description input (short note for user's reference)
-  const descriptionInput = new TextInputBuilder()
-    .setCustomId('description')
-    .setLabel(opts.descriptionLabel)
-    .setPlaceholder(opts.descriptionPlaceholder)
-    .setStyle(TextInputStyle.Short)
-    .setMaxLength(255)
-    .setRequired(false);
+  fields.push(
+    {
+      kind: 'text',
+      id: 'description',
+      label: opts.descriptionLabel,
+      style: 'short',
+      placeholder: opts.descriptionPlaceholder,
+      maxLength: 255,
+      required: false,
+      initialValue: prefill(existingData?.description),
+    },
+    {
+      kind: 'text',
+      id: 'preferredName',
+      label: opts.preferredNameLabel,
+      style: 'short',
+      placeholder: opts.preferredNamePlaceholder,
+      maxLength: 255,
+      required: false,
+      initialValue: prefill(existingData?.preferredName),
+    },
+    {
+      kind: 'text',
+      id: 'pronouns',
+      label: 'Pronouns',
+      style: 'short',
+      placeholder: 'e.g., she/her, he/him, they/them',
+      maxLength: 100,
+      required: false,
+      initialValue: prefill(existingData?.pronouns),
+    },
+    // Content is required because PersonaCreateSchema validates `content`
+    // with `.min(1, 'Content is required')`. Without this flag, Discord
+    // would accept blank submissions and the gateway would reject them with
+    // an opaque 400 instead of Discord's native field-level error.
+    {
+      kind: 'text',
+      id: 'content',
+      label: opts.contentLabel,
+      style: 'paragraph',
+      placeholder: opts.contentPlaceholder,
+      maxLength: DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH,
+      required: true,
+      initialValue: prefill(existingData?.content),
+    }
+  );
 
-  setValueIfExists(descriptionInput, existingData?.description);
-  rows.push(new ActionRowBuilder<TextInputBuilder>().addComponents(descriptionInput));
-
-  // Preferred Name input
-  const preferredNameInput = new TextInputBuilder()
-    .setCustomId('preferredName')
-    .setLabel(opts.preferredNameLabel)
-    .setPlaceholder(opts.preferredNamePlaceholder)
-    .setStyle(TextInputStyle.Short)
-    .setMaxLength(255)
-    .setRequired(false);
-
-  setValueIfExists(preferredNameInput, existingData?.preferredName);
-  rows.push(new ActionRowBuilder<TextInputBuilder>().addComponents(preferredNameInput));
-
-  // Pronouns input
-  const pronounsInput = new TextInputBuilder()
-    .setCustomId('pronouns')
-    .setLabel('Pronouns')
-    .setPlaceholder('e.g., she/her, he/him, they/them')
-    .setStyle(TextInputStyle.Short)
-    .setMaxLength(100)
-    .setRequired(false);
-
-  setValueIfExists(pronounsInput, existingData?.pronouns);
-  rows.push(new ActionRowBuilder<TextInputBuilder>().addComponents(pronounsInput));
-
-  // Content input (longer text) - required because PersonaCreateSchema
-  // validates `content` with `.min(1, 'Content is required')`. Without this
-  // flag, Discord would accept blank submissions and the gateway would
-  // reject them with an opaque 400 instead of Discord's native field-level
-  // error.
-  const contentInput = new TextInputBuilder()
-    .setCustomId('content')
-    .setLabel(opts.contentLabel)
-    .setPlaceholder(opts.contentPlaceholder)
-    .setStyle(TextInputStyle.Paragraph)
-    .setMaxLength(DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH)
-    .setRequired(true);
-
-  if (hasValue(existingData?.content)) {
-    const truncatedContent =
-      existingData.content.length > DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH
-        ? existingData.content.substring(0, DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH)
-        : existingData.content;
-    contentInput.setValue(truncatedContent);
-  }
-
-  rows.push(new ActionRowBuilder<TextInputBuilder>().addComponents(contentInput));
-
-  return rows;
+  return fields;
 }

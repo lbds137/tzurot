@@ -6,17 +6,10 @@
  * scope changes, and persisting edits via the gateway API.
  */
 
-import {
-  ModalBuilder,
-  TextInputBuilder,
-  TextInputStyle,
-  ActionRowBuilder,
-  MessageFlags,
-  type ButtonInteraction,
-  type ModalSubmitInteraction,
-} from 'discord.js';
+import { MessageFlags, type ButtonInteraction, type ModalSubmitInteraction } from 'discord.js';
 import { type DenylistScope } from '@tzurot/common-types/schemas/api/denylist';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { buildToolkitModal } from '../../utils/modal/toolkit.js';
 import { getSessionManager } from '../../utils/dashboard/SessionManager.js';
 import { showModalWithTimeoutCatch } from '../../utils/dashboard/showModalWithTimeoutCatch.js';
 import { ackWithTimeoutCatch } from '../../utils/dashboard/ackWithTimeoutCatch.js';
@@ -33,6 +26,15 @@ import {
 } from './detailTypes.js';
 
 const logger = createLogger('deny-detail-edit');
+
+/** Longest valid scope is 'PERSONALITY' (11); anything longer is invalid anyway. */
+const MAX_SCOPE_LENGTH = 20;
+
+/** Snowflake (~20 chars) or personality UUID (36); '*' for BOT scope. */
+const MAX_SCOPE_ID_LENGTH = 100;
+
+/** Mirrors the post-submit validateEditInput cap so Discord enforces it natively. */
+const MAX_REASON_LENGTH = 500;
 
 /**
  * Session-expired first ack shared by handleEdit (button) and handleEditModal
@@ -74,39 +76,42 @@ export async function handleEdit(interaction: ButtonInteraction, entryId: string
   }
 
   const data = session.data;
-  const modal = new ModalBuilder()
-    .setCustomId(`deny::modal::${entryId}::edit`)
-    .setTitle('Edit Denylist Entry');
-
-  modal.addComponents(
-    new ActionRowBuilder<TextInputBuilder>().addComponents(
-      new TextInputBuilder()
-        .setCustomId('scope')
-        .setLabel('Scope')
-        .setPlaceholder('BOT, GUILD, CHANNEL, or PERSONALITY')
-        .setValue(data.scope)
-        .setStyle(TextInputStyle.Short)
-        .setRequired(true)
-    ),
-    new ActionRowBuilder<TextInputBuilder>().addComponents(
-      new TextInputBuilder()
-        .setCustomId('scopeId')
-        .setLabel('Scope ID')
-        .setPlaceholder('* for BOT, channel/personality ID for others')
-        .setValue(data.scopeId)
-        .setStyle(TextInputStyle.Short)
-        .setRequired(true)
-    ),
-    new ActionRowBuilder<TextInputBuilder>().addComponents(
-      new TextInputBuilder()
-        .setCustomId('reason')
-        .setLabel('Reason')
-        .setPlaceholder('Reason for the denial (optional)')
-        .setValue(data.reason ?? '')
-        .setStyle(TextInputStyle.Paragraph)
-        .setRequired(false)
-    )
-  );
+  const modal = buildToolkitModal({
+    customId: `deny::modal::${entryId}::edit`,
+    title: 'Edit Denylist Entry',
+    items: [
+      {
+        kind: 'text',
+        id: 'scope',
+        label: 'Scope',
+        style: 'short',
+        placeholder: 'BOT, GUILD, CHANNEL, or PERSONALITY',
+        maxLength: MAX_SCOPE_LENGTH,
+        required: true,
+        initialValue: data.scope,
+      },
+      {
+        kind: 'text',
+        id: 'scopeId',
+        label: 'Scope ID',
+        style: 'short',
+        placeholder: '* for BOT, channel/personality ID for others',
+        maxLength: MAX_SCOPE_ID_LENGTH,
+        required: true,
+        initialValue: data.scopeId,
+      },
+      {
+        kind: 'text',
+        id: 'reason',
+        label: 'Reason',
+        style: 'paragraph',
+        placeholder: 'Reason for the denial (optional)',
+        maxLength: MAX_REASON_LENGTH,
+        required: false,
+        initialValue: data.reason ?? undefined,
+      },
+    ],
+  });
 
   // Wrap showModal so the 3-second budget can't blow silently after the
   // preceding sessionManager.get() Redis lookup — see showModalWithTimeoutCatch JSDoc.
@@ -122,8 +127,6 @@ export async function handleEdit(interaction: ButtonInteraction, entryId: string
     '⏰ Took too long to open the editor. Please click the Edit button again.'
   );
 }
-
-const MAX_REASON_LENGTH = 500;
 
 /** Validate edit modal inputs. Returns error message if invalid, null if OK. */
 function validateEditInput(scope: string, scopeId: string, reason: string | null): string | null {

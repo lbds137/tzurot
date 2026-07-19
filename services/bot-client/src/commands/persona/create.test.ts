@@ -15,6 +15,12 @@ vi.mock('../../utils/gatewayClients.js', () => ({
   clientsFor: clientsForMock,
 }));
 
+// The retry affordance stashes submitted values in a dashboard session
+const sessionSetMock = vi.hoisted(() => vi.fn());
+vi.mock('../../utils/dashboard/index.js', () => ({
+  getSessionManager: () => ({ set: sessionSetMock }),
+}));
+
 vi.mock('@tzurot/common-types/utils/logger', async () => {
   const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
     '@tzurot/common-types/utils/logger'
@@ -86,11 +92,14 @@ describe('handleCreateModalSubmit', () => {
     vi.clearAllMocks();
     stub = makeStub();
     clientsForMock.mockReturnValue({ userClient: asUserClient(stub) });
+    // Failure paths stash retry values against the error reply's message id
+    mockEditReply.mockResolvedValue({ id: 'message-123' });
   });
 
   function createMockModalInteraction(fields: Record<string, string>) {
     return {
       user: { id: '123456789', username: 'testuser' },
+      channelId: 'channel-123',
       fields: {
         getTextInputValue: (name: string) => fields[name] ?? '',
       },
@@ -153,9 +162,25 @@ describe('handleCreateModalSubmit', () => {
       })
     );
 
-    expect(mockEditReply).toHaveBeenCalledWith({
-      content: expect.stringContaining('already have a persona named "Dup"'),
-    });
+    expect(mockEditReply).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: expect.stringContaining('already have a persona named "Dup"'),
+        components: expect.any(Array),
+      })
+    );
+
+    // Seam: the submitted values must reach the retry stash so the
+    // Try-again button can reopen the modal prefilled.
+    expect(sessionSetMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        entityType: 'modal-retry',
+        messageId: 'message-123',
+        data: {
+          kind: 'create',
+          values: expect.objectContaining({ personaName: 'Dup', content: 'whatever' }),
+        },
+      })
+    );
   });
 
   it('should require persona name', async () => {
@@ -169,9 +194,12 @@ describe('handleCreateModalSubmit', () => {
       })
     );
 
-    expect(mockEditReply).toHaveBeenCalledWith({
-      content: expect.stringContaining('Persona name is required'),
-    });
+    expect(mockEditReply).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: expect.stringContaining('Persona name is required'),
+        components: expect.any(Array),
+      })
+    );
     expect(stub.createPersona).not.toHaveBeenCalled();
   });
 
@@ -256,9 +284,13 @@ describe('handleCreateModalSubmit', () => {
       })
     );
 
-    expect(mockEditReply).toHaveBeenCalledWith({
-      content: expect.stringContaining('Gateway error'),
-    });
+    // Transient gateway failures carry the retry affordance too
+    expect(mockEditReply).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: expect.stringContaining('Gateway error'),
+        components: expect.any(Array),
+      })
+    );
   });
 
   it('should handle network errors gracefully', async () => {
@@ -274,8 +306,11 @@ describe('handleCreateModalSubmit', () => {
       })
     );
 
-    expect(mockEditReply).toHaveBeenCalledWith({
-      content: expect.stringContaining('Failed to create the persona'),
-    });
+    expect(mockEditReply).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: expect.stringContaining('Failed to create the persona'),
+        components: expect.any(Array),
+      })
+    );
   });
 });

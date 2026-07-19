@@ -4,21 +4,20 @@
  */
 
 import {
-  ModalBuilder,
-  TextInputBuilder,
-  TextInputStyle,
   ActionRowBuilder,
   MessageFlags,
   EmbedBuilder,
   ButtonBuilder,
   ButtonStyle,
   type ButtonInteraction,
+  type ModalBuilder,
   type ModalSubmitInteraction,
 } from 'discord.js';
 import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
 import { type MemoryItem } from '@tzurot/common-types/schemas/api/memory';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { buildMemoryActionId, buildDetailEmbed, buildDetailButtons } from './detail.js';
+import { buildToolkitModal, truncateByCodePoints } from '../../utils/modal/toolkit.js';
 import { clientsFor } from '../../utils/gatewayClients.js';
 import { showModalWithTimeoutCatch } from '../../utils/dashboard/showModalWithTimeoutCatch.js';
 import { ackWithTimeoutCatch } from '../../utils/dashboard/ackWithTimeoutCatch.js';
@@ -79,23 +78,21 @@ const EDIT_TRUNCATED_ACTION = 'edit-truncated';
  * @param contentOverride Optional content to use instead of memory.content (for truncated content)
  */
 export function buildEditModal(memory: MemoryItem, contentOverride?: string): ModalBuilder {
-  const modal = new ModalBuilder()
-    .setCustomId(buildMemoryActionId('edit', memory.id, 'modal'))
-    .setTitle('Edit Memory');
-
-  const content = contentOverride ?? memory.content;
-
-  const contentInput = new TextInputBuilder()
-    .setCustomId('content')
-    .setLabel('Memory Content')
-    .setStyle(TextInputStyle.Paragraph)
-    .setValue(content)
-    .setMaxLength(MAX_MODAL_CONTENT_LENGTH)
-    .setRequired(true);
-
-  modal.addComponents(new ActionRowBuilder<TextInputBuilder>().addComponents(contentInput));
-
-  return modal;
+  return buildToolkitModal({
+    customId: buildMemoryActionId('edit', memory.id, 'modal'),
+    title: 'Edit Memory',
+    items: [
+      {
+        kind: 'text',
+        id: 'content',
+        label: 'Memory Content',
+        style: 'paragraph',
+        maxLength: MAX_MODAL_CONTENT_LENGTH,
+        required: true,
+        initialValue: contentOverride ?? memory.content,
+      },
+    ],
+  });
 }
 
 /**
@@ -242,8 +239,9 @@ export async function handleEditTruncatedButton(
   }
   const { memory } = fetched;
 
-  // Truncate content to our max_length setting
-  const truncatedContent = memory.content.substring(0, MAX_MODAL_CONTENT_LENGTH);
+  // Truncate content to our max_length setting — by code point, so an
+  // astral character at the boundary never splits into a lone surrogate.
+  const truncatedContent = truncateByCodePoints(memory.content, MAX_MODAL_CONTENT_LENGTH);
 
   const modal = buildEditModal(memory, truncatedContent);
   await showModalWithTimeoutCatch(

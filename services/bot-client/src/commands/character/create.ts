@@ -191,10 +191,15 @@ export async function handleSeedModalSubmit(
       return;
     }
 
-    await interaction.editReply(
+    // Transient failures also lose typed input through no fault of the
+    // user's — carry the retry affordance. A resubmit either succeeds or
+    // lands on the 409 path above, so a blind retry is write-safe.
+    await replyWithRetry(
+      interaction,
       renderSpec(
         classifyGatewayFailure(error, 'character', { failedAction: 'create the character' })
-      )
+      ),
+      values
     );
   }
 }

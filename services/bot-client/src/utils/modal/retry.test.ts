@@ -97,6 +97,7 @@ describe('replyWithModalRetry', () => {
       kind: 'seed',
       content: '❌ nope',
       values: { name: 'Lilith' },
+      meta: { personalityId: 'pers-1' },
     });
 
     expect(editReply).toHaveBeenCalledWith(
@@ -107,7 +108,11 @@ describe('replyWithModalRetry', () => {
         entityType: 'modal-retry',
         entityId: 'reply-9',
         channelId: '',
-        data: { kind: 'seed', values: { name: 'Lilith' } },
+        data: {
+          kind: 'seed',
+          values: { name: 'Lilith' },
+          meta: { personalityId: 'pers-1' },
+        },
       })
     );
   });
@@ -127,7 +132,7 @@ describe('handleModalRetry', () => {
     await handleModalRetry(interaction, rebuild, '/character create');
 
     expect(sessionManagerMock.findByMessageId).toHaveBeenCalledWith('reply-1');
-    expect(rebuild).toHaveBeenCalledWith('seed', { name: 'Lilith' });
+    expect(rebuild).toHaveBeenCalledWith('seed', { name: 'Lilith' }, undefined);
     expect(showModalMock).toHaveBeenCalledWith(
       interaction,
       modal,
@@ -135,6 +140,28 @@ describe('handleModalRetry', () => {
       expect.any(String)
     );
     expect(interaction.reply).not.toHaveBeenCalled();
+  });
+
+  it('passes stashed meta through to the rebuilder', async () => {
+    sessionManagerMock.findByMessageId.mockResolvedValue({
+      userId: 'user-1',
+      data: {
+        kind: 'override-create',
+        values: { content: 'about me' },
+        meta: { personalityId: 'pers-1' },
+      },
+    });
+    const rebuild = vi.fn(() => modal);
+    const interaction = makeInteraction();
+
+    await handleModalRetry(interaction, rebuild, '/persona create');
+
+    expect(rebuild).toHaveBeenCalledWith(
+      'override-create',
+      { content: 'about me' },
+      { personalityId: 'pers-1' }
+    );
+    expect(showModalMock).toHaveBeenCalled();
   });
 
   it('degrades to the session-expired reply when the stash is gone', async () => {

@@ -29,7 +29,6 @@ import { clientsFor } from '../../utils/gatewayClients.js';
 import { createPreset } from './api.js';
 import { CATALOG } from '../../ux/catalog/catalog.js';
 import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
-import { replySpec } from '../../ux/render/reply.js';
 import { renderSpec } from '../../ux/render/render.js';
 
 const logger = createLogger('preset-create');
@@ -160,9 +159,13 @@ export async function handleSeedModalSubmit(interaction: ModalSubmitInteraction)
       return;
     }
 
-    await replySpec(
+    // Transient failures also lose typed input through no fault of the
+    // user's — carry the retry affordance. A resubmit either succeeds or
+    // lands on the 409 path above, so a blind retry is write-safe.
+    await replyWithRetry(
       interaction,
-      classifyGatewayFailure(error, 'preset', { failedAction: 'create the preset' })
+      renderSpec(classifyGatewayFailure(error, 'preset', { failedAction: 'create the preset' })),
+      values
     );
   }
 }
