@@ -2500,5 +2500,14 @@
         "type": 1
       }
     }
+  ],
+  "contextMenuCommands": [
+    {
+      "name": "Inspect Message",
+      "data": {
+        "name": "Inspect Message",
+        "type": 3
+      }
+    }
   ]
 }

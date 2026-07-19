@@ -15,6 +15,7 @@ import {
   MessageFlags,
   type ButtonInteraction,
   type ChatInputCommandInteraction,
+  type MessageContextMenuCommandInteraction,
   type ModalSubmitInteraction,
   type StringSelectMenuInteraction,
 } from 'discord.js';
@@ -28,6 +29,7 @@ const logger = createLogger('ux-reply');
 export type RepliableInteraction =
   | ChatInputCommandInteraction
   | ButtonInteraction
+  | MessageContextMenuCommandInteraction
   | StringSelectMenuInteraction
   | ModalSubmitInteraction;
 
