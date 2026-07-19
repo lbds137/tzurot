@@ -83,6 +83,15 @@ vi.mock('./defaults/edit.js', () => ({
   ),
 }));
 
+vi.mock('./data/delete.js', () => ({
+  handleDataDelete: vi.fn().mockResolvedValue(undefined),
+  handleDataDeleteButton: vi.fn().mockResolvedValue(undefined),
+  handleDataDeleteModal: vi.fn().mockResolvedValue(undefined),
+  // Must match the real operation constant — the account-delete routing
+  // tests build REAL DestructiveCustomIds against it (drift pins).
+  SETTINGS_ACCOUNT_DELETE_OPERATION: 'account-delete',
+}));
+
 // Mock logger
 vi.mock('@tzurot/common-types/utils/logger', async () => {
   const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
@@ -380,6 +389,34 @@ describe('Settings Command Index', () => {
       expect(handleApikeyModalSubmit).toHaveBeenCalledWith(interaction);
     });
 
+    it('routes account-delete modals via the REAL destructive customId (drift pin)', async () => {
+      const { handleDataDeleteModal } = await import('./data/delete.js');
+      const { DestructiveCustomIds } = await import('../../utils/customIds.js');
+
+      const interaction = {
+        customId: DestructiveCustomIds.modalSubmit('settings', 'account-delete'),
+      } as any;
+      await handleModal(interaction);
+
+      expect(handleDataDeleteModal).toHaveBeenCalledWith(interaction);
+    });
+
+    it('acks an unknown modal custom ID (unacked submits surface as "interaction failed")', async () => {
+      const reply = vi.fn().mockResolvedValue(undefined);
+      const interaction = {
+        customId: 'unknown-entity::modal::id',
+        deferred: false,
+        replied: false,
+        reply,
+      } as any;
+
+      await handleModal(interaction);
+
+      expect(reply).toHaveBeenCalledWith(
+        expect.objectContaining({ content: expect.stringContaining('Unknown modal submission') })
+      );
+    });
+
     it('should route user-defaults modals to defaults handler', async () => {
       const { handleUserDefaultsModal } = await import('./defaults/edit.js');
 
@@ -406,13 +443,47 @@ describe('Settings Command Index', () => {
       expect(handleUserDefaultsButton).toHaveBeenCalledWith(interaction);
     });
 
-    it('should log warning for unknown button custom ID', async () => {
+    it('routes preset-override buttons to the preset browse handler', async () => {
+      const { handlePresetBrowseButton, isPresetOverrideInteraction } =
+        await import('./preset/browse.js');
+      vi.mocked(isPresetOverrideInteraction).mockImplementation((id: string) =>
+        id.startsWith('settings-preset-override::')
+      );
+
+      const interaction = { customId: 'settings-preset-override::page::1' } as any;
+      await handleButton(interaction);
+
+      expect(handlePresetBrowseButton).toHaveBeenCalledWith(interaction);
+    });
+
+    it('routes account-delete buttons via the REAL destructive customId (drift pin)', async () => {
+      const { handleDataDeleteButton } = await import('./data/delete.js');
+      const { DestructiveCustomIds } = await import('../../utils/customIds.js');
+
+      const interaction = {
+        customId: DestructiveCustomIds.confirmButton('settings', 'account-delete'),
+      } as any;
+      await handleButton(interaction);
+
+      expect(handleDataDeleteButton).toHaveBeenCalledWith(interaction);
+    });
+
+    it('acks an unknown button custom ID instead of dead-ending it', async () => {
+      const reply = vi.fn().mockResolvedValue(undefined);
       const interaction = {
         customId: 'unknown-entity::action::id',
+        deferred: false,
+        replied: false,
+        reply,
       } as any;
 
-      // Unknown custom IDs are logged and ignored — the handler resolves without throwing.
-      await expect(handleButton(interaction)).resolves.toBeUndefined();
+      await handleButton(interaction);
+
+      // The unrouted fallback must acknowledge — a silent warn left the
+      // button dead with no user feedback.
+      expect(reply).toHaveBeenCalledWith(
+        expect.objectContaining({ content: expect.stringContaining('Unknown interaction') })
+      );
     });
   });
 
@@ -429,13 +500,33 @@ describe('Settings Command Index', () => {
       expect(handleUserDefaultsSelectMenu).toHaveBeenCalledWith(interaction);
     });
 
-    it('should log warning for unknown select menu custom ID', async () => {
+    it('routes preset-override selects to the preset browse handler', async () => {
+      const { handlePresetBrowseSelect, isPresetOverrideInteraction } =
+        await import('./preset/browse.js');
+      vi.mocked(isPresetOverrideInteraction).mockImplementation((id: string) =>
+        id.startsWith('settings-preset-override::')
+      );
+
+      const interaction = { customId: 'settings-preset-override::select::0' } as any;
+      await handleSelectMenu(interaction);
+
+      expect(handlePresetBrowseSelect).toHaveBeenCalledWith(interaction);
+    });
+
+    it('acks an unknown select menu custom ID instead of dead-ending it', async () => {
+      const reply = vi.fn().mockResolvedValue(undefined);
       const interaction = {
         customId: 'unknown-entity::select::id',
+        deferred: false,
+        replied: false,
+        reply,
       } as any;
 
-      // Unknown custom IDs are logged and ignored — the handler resolves without throwing.
-      await expect(handleSelectMenu(interaction)).resolves.toBeUndefined();
+      await handleSelectMenu(interaction);
+
+      expect(reply).toHaveBeenCalledWith(
+        expect.objectContaining({ content: expect.stringContaining('Unknown interaction') })
+      );
     });
   });
 

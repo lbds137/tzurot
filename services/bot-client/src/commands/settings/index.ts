@@ -12,13 +12,7 @@
  * - Consolidated from former /me timezone, /wallet, and /me preset commands
  */
 
-import {
-  SlashCommandBuilder,
-  type ModalSubmitInteraction,
-  type AutocompleteInteraction,
-  type ButtonInteraction,
-  type StringSelectMenuInteraction,
-} from 'discord.js';
+import { SlashCommandBuilder, type AutocompleteInteraction } from 'discord.js';
 import { CONFIG_SLOT_OPTION_DESCRIPTION } from '@tzurot/common-types/constants/ai';
 import { DISCORD_LIMITS, DISCORD_PROVIDER_CHOICES } from '@tzurot/common-types/constants/discord';
 import { TIMEZONE_OPTIONS } from '@tzurot/common-types/constants/timezone';
@@ -28,8 +22,10 @@ import type {
   SafeCommandContext,
   DeferredCommandContext,
 } from '../../utils/commandContext/types.js';
+import { createComponentRouter } from '../../utils/componentRouter.js';
 import { createTypedSubcommandRouter } from '../../utils/subcommandRouter.js';
 import { createMixedModeSubcommandRouter } from '../../utils/mixedModeSubcommandRouter.js';
+import { replyValidationError } from '../../utils/confirmation/confirmDestructive.js';
 
 // Timezone handlers
 import { handleTimezoneSet } from './timezone/set.js';
@@ -162,67 +158,39 @@ async function execute(context: SafeCommandContext): Promise<void> {
 }
 
 /**
- * Modal submit handler for API key input and user-defaults settings
+ * Component dispatch (apikey modal, defaults dashboard, preset-override
+ * browse, account-delete confirmation). The unrouted fallback ACKS: an
+ * unacknowledged modal submit surfaces as Discord's "This interaction
+ * failed", and a silent warn leaves buttons dead-ended with no feedback.
  */
-async function handleModal(interaction: ModalSubmitInteraction): Promise<void> {
-  // Check if this is an apikey modal (settings::apikey::*)
-  if (ApikeyCustomIds.isApikey(interaction.customId)) {
-    await handleApikeyModalSubmit(interaction);
-    return;
-  }
-
-  // Check if this is a user-defaults settings modal
-  if (isUserDefaultsInteraction(interaction.customId)) {
-    await handleUserDefaultsModal(interaction);
-    return;
-  }
-
-  if (isAccountDeleteInteraction(interaction.customId)) {
-    await handleDataDeleteModal(interaction);
-    return;
-  }
-
-  logger.warn({ customId: interaction.customId }, 'Unknown modal customId');
-}
-
-/**
- * Button interaction handler for user-defaults settings dashboard
- */
-async function handleButton(interaction: ButtonInteraction): Promise<void> {
-  if (isUserDefaultsInteraction(interaction.customId)) {
-    await handleUserDefaultsButton(interaction);
-    return;
-  }
-
-  if (isPresetOverrideInteraction(interaction.customId)) {
-    await handlePresetBrowseButton(interaction);
-    return;
-  }
-
-  if (isAccountDeleteInteraction(interaction.customId)) {
-    await handleDataDeleteButton(interaction);
-    return;
-  }
-
-  logger.warn({ customId: interaction.customId }, 'Unknown button customId');
-}
-
-/**
- * Select menu interaction handler for user-defaults settings dashboard
- */
-async function handleSelectMenu(interaction: StringSelectMenuInteraction): Promise<void> {
-  if (isUserDefaultsInteraction(interaction.customId)) {
-    await handleUserDefaultsSelectMenu(interaction);
-    return;
-  }
-
-  if (isPresetOverrideInteraction(interaction.customId)) {
-    await handlePresetBrowseSelect(interaction);
-    return;
-  }
-
-  logger.warn({ customId: interaction.customId }, 'Unknown select menu customId');
-}
+const settingsComponentRouter = createComponentRouter({
+  routes: [
+    { matches: ApikeyCustomIds.isApikey, onModal: handleApikeyModalSubmit },
+    {
+      matches: isUserDefaultsInteraction,
+      onButton: handleUserDefaultsButton,
+      onSelect: handleUserDefaultsSelectMenu,
+      onModal: handleUserDefaultsModal,
+    },
+    {
+      matches: isPresetOverrideInteraction,
+      onButton: handlePresetBrowseButton,
+      onSelect: handlePresetBrowseSelect,
+    },
+    {
+      matches: isAccountDeleteInteraction,
+      onButton: handleDataDeleteButton,
+      onModal: handleDataDeleteModal,
+    },
+  ],
+  unrouted: async (interaction, kind) => {
+    logger.warn({ customId: interaction.customId, kind }, 'Unrouted settings interaction');
+    await replyValidationError(
+      interaction,
+      kind === 'modal' ? 'Unknown modal submission.' : 'Unknown interaction.'
+    );
+  },
+});
 
 /**
  * Autocomplete handler for timezone, personality, and preset options
@@ -447,8 +415,8 @@ export default defineCommand({
     ),
   execute,
   autocomplete,
-  handleModal,
-  handleButton,
-  handleSelectMenu,
+  handleModal: settingsComponentRouter.handleModal,
+  handleButton: settingsComponentRouter.handleButton,
+  handleSelectMenu: settingsComponentRouter.handleSelectMenu,
   componentPrefixes: ['user-defaults-settings', PRESET_OVERRIDE_PREFIX],
 });

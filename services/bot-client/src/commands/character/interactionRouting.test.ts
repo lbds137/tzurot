@@ -71,6 +71,19 @@ vi.mock('./dashboard.js', () => ({
   handleModalSubmit: (...a: unknown[]) => dashboard.modal(...a),
 }));
 
+const alias = {
+  button: vi.fn(),
+  select: vi.fn(),
+  matches: vi.fn(),
+};
+vi.mock('./aliasBrowse.js', () => ({
+  aliasComponentRouter: {
+    handleButton: (...a: unknown[]) => alias.button(...a),
+    handleSelectMenu: (...a: unknown[]) => alias.select(...a),
+  },
+  isCharacterAliasInteraction: (id: string) => alias.matches(id) as boolean,
+}));
+
 import {
   handleSelectMenu,
   handleButton,
@@ -90,6 +103,30 @@ describe('character interaction routing', () => {
     browse.isCharacterBrowseSelectInteraction.mockReturnValue(false);
     settings.matches.mockReturnValue(false);
     overrides.matches.mockReturnValue(false);
+    alias.matches.mockReturnValue(false);
+  });
+
+  it('routes browse-pagination buttons to the browse handler, not the dashboard', async () => {
+    browse.isCharacterBrowseInteraction.mockImplementation((id: string) =>
+      id.startsWith('char-browse::')
+    );
+
+    await handleButton(interaction('char-browse::1::all::') as never);
+
+    expect(browse.handleBrowsePagination).toHaveBeenCalled();
+    expect(dashboard.button).not.toHaveBeenCalled();
+  });
+
+  it('delegates alias-surface ids to the alias sub-router for buttons and selects', async () => {
+    alias.matches.mockImplementation((id: string) => id.startsWith('character-alias::'));
+
+    await handleButton(interaction('character-alias::browse::0::all::') as never);
+    expect(alias.button).toHaveBeenCalled();
+    expect(dashboard.button).not.toHaveBeenCalled();
+
+    await handleSelectMenu(interaction('character-alias::select::0::all::') as never);
+    expect(alias.select).toHaveBeenCalled();
+    expect(dashboard.select).not.toHaveBeenCalled();
   });
 
   it('routes browse-select ids to the browse handler, not the dashboard', async () => {

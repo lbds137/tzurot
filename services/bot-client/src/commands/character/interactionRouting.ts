@@ -3,8 +3,10 @@
  *
  * Extracted from index.ts to keep the command file (which must hold the
  * SlashCommandBuilder inline for the command-types codegen's textual scan)
- * inside the max-lines cap. Pure customId-prefix dispatch: browse →
- * settings dashboard → overrides dashboard → edit dashboard fallback.
+ * inside the max-lines cap. Declared as a `createComponentRouter` table;
+ * the character EDIT dashboard is deliberately the `unrouted` fallback —
+ * any customId this command owns that no surface claims belongs to it
+ * (guard-free by design; the routing tests pin that fallback).
  */
 
 import {
@@ -13,6 +15,7 @@ import {
   type ButtonInteraction,
 } from 'discord.js';
 import { handleModalRetry, isModalRetryInteraction } from '../../utils/modal/retry.js';
+import { createComponentRouter } from '../../utils/componentRouter.js';
 import { buildCharacterSeedModal } from './create.js';
 import { getConfig } from '@tzurot/common-types/config/config';
 import {
@@ -40,105 +43,69 @@ import {
 } from './dashboard.js';
 import { aliasComponentRouter, isCharacterAliasInteraction } from './aliasBrowse.js';
 
-/**
- * Handle select menu interactions for character commands
- * Routes to browse select, settings dashboard, or edit dashboard based on customId prefix
- */
-export async function handleSelectMenu(interaction: StringSelectMenuInteraction): Promise<void> {
-  const config = getConfig();
+const characterComponentRouter = createComponentRouter({
+  routes: [
+    // Browse: select and pagination are separate surfaces sharing one family
+    // of prefixes; kind-scoped handlers keep them from claiming each other.
+    {
+      matches: isCharacterBrowseSelectInteraction,
+      onSelect: interaction => handleBrowseSelect(interaction, getConfig()),
+    },
+    {
+      matches: isCharacterBrowseInteraction,
+      onButton: interaction => handleBrowsePagination(interaction, getConfig()),
+    },
+    // Alias browse surface (its own declarative sub-router)
+    {
+      matches: isCharacterAliasInteraction,
+      onButton: interaction => aliasComponentRouter.handleButton(interaction),
+      onSelect: interaction => aliasComponentRouter.handleSelectMenu(interaction),
+    },
+    // Try-again for a failed create-modal submission (prefilled reopen)
+    {
+      matches: customId => isModalRetryInteraction(customId, 'character'),
+      onButton: interaction =>
+        handleModalRetry(
+          interaction,
+          (kind, values) => (kind === 'seed' ? buildCharacterSeedModal(values) : null),
+          '/character create'
+        ),
+    },
+    {
+      matches: isCharacterSettingsInteraction,
+      onButton: handleCharacterSettingsButton,
+      onSelect: handleCharacterSettingsSelectMenu,
+      onModal: handleCharacterSettingsModal,
+    },
+    {
+      matches: isCharacterOverridesInteraction,
+      onButton: handleCharacterOverridesButton,
+      onSelect: handleCharacterOverridesSelectMenu,
+      onModal: handleCharacterOverridesModal,
+    },
+  ],
+  // The edit dashboard is the fallback surface, not an error path. The
+  // kind-narrowing casts are sound: dispatch hands each kind's handler the
+  // interaction the same-kind entry point received.
+  unrouted: async (interaction, kind) => {
+    if (kind === 'button') {
+      await handleDashboardButton(interaction as ButtonInteraction);
+    } else if (kind === 'select') {
+      await handleDashboardSelectMenu(interaction as StringSelectMenuInteraction);
+    } else {
+      await handleModalSubmit(interaction as ModalSubmitInteraction, getConfig());
+    }
+  },
+});
 
-  // Check if it's a browse select interaction (user selected character from browse list)
-  if (isCharacterBrowseSelectInteraction(interaction.customId)) {
-    await handleBrowseSelect(interaction, config);
-    return;
-  }
+/** Select-menu dispatch for character commands (browse, alias, dashboards). */
+export const handleSelectMenu: (interaction: StringSelectMenuInteraction) => Promise<void> =
+  characterComponentRouter.handleSelectMenu;
 
-  // Alias browse surface (its own declarative router)
-  if (isCharacterAliasInteraction(interaction.customId)) {
-    await aliasComponentRouter.handleSelectMenu(interaction);
-    return;
-  }
+/** Button dispatch for character commands (browse, alias, retry, dashboards). */
+export const handleButton: (interaction: ButtonInteraction) => Promise<void> =
+  characterComponentRouter.handleButton;
 
-  // Check if it's a settings dashboard interaction
-  if (isCharacterSettingsInteraction(interaction.customId)) {
-    await handleCharacterSettingsSelectMenu(interaction);
-    return;
-  }
-
-  // Check if it's an overrides dashboard interaction
-  if (isCharacterOverridesInteraction(interaction.customId)) {
-    await handleCharacterOverridesSelectMenu(interaction);
-    return;
-  }
-
-  // Otherwise route to character edit dashboard
-  await handleDashboardSelectMenu(interaction);
-}
-
-/**
- * Handle button interactions for character commands
- * Routes to browse pagination, settings dashboard, or edit dashboard based on customId
- */
-export async function handleButton(interaction: ButtonInteraction): Promise<void> {
-  const config = getConfig();
-
-  // Handle browse pagination
-  if (isCharacterBrowseInteraction(interaction.customId)) {
-    await handleBrowsePagination(interaction, config);
-    return;
-  }
-
-  // Alias browse surface (pagination, filter toggle, remove confirm/cancel)
-  if (isCharacterAliasInteraction(interaction.customId)) {
-    await aliasComponentRouter.handleButton(interaction);
-    return;
-  }
-
-  // Try-again for a failed create-modal submission (prefilled reopen).
-  if (isModalRetryInteraction(interaction.customId, 'character')) {
-    await handleModalRetry(
-      interaction,
-      (kind, values) => (kind === 'seed' ? buildCharacterSeedModal(values) : null),
-      '/character create'
-    );
-    return;
-  }
-
-  // Check if it's a settings dashboard interaction
-  if (isCharacterSettingsInteraction(interaction.customId)) {
-    await handleCharacterSettingsButton(interaction);
-    return;
-  }
-
-  // Check if it's an overrides dashboard interaction
-  if (isCharacterOverridesInteraction(interaction.customId)) {
-    await handleCharacterOverridesButton(interaction);
-    return;
-  }
-
-  // Otherwise route to character edit dashboard
-  await handleDashboardButton(interaction);
-}
-
-/**
- * Handle modal interactions for character commands
- * Routes to settings dashboard or edit dashboard based on customId prefix
- */
-export async function handleCharacterModal(interaction: ModalSubmitInteraction): Promise<void> {
-  const config = getConfig();
-
-  // Check if it's a settings dashboard modal
-  if (isCharacterSettingsInteraction(interaction.customId)) {
-    await handleCharacterSettingsModal(interaction);
-    return;
-  }
-
-  // Check if it's an overrides dashboard modal
-  if (isCharacterOverridesInteraction(interaction.customId)) {
-    await handleCharacterOverridesModal(interaction);
-    return;
-  }
-
-  // Otherwise route to character edit dashboard
-  await handleModalSubmit(interaction, config);
-}
+/** Modal dispatch for character commands (settings, overrides, edit dashboard). */
+export const handleCharacterModal: (interaction: ModalSubmitInteraction) => Promise<void> =
+  characterComponentRouter.handleModal;
