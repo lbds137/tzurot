@@ -259,6 +259,18 @@ describe('handleSearch', () => {
         }),
       })
     );
+
+    // Shared list builder: §2.1 title, query preamble, prose rows unbolded
+    // with personality/similarity/date metadata.
+    const embedData = (
+      vi.mocked(context.editReply).mock.calls[0][0] as {
+        embeds: { data: { title: string; description: string } }[];
+      }
+    ).embeds[0].data;
+    expect(embedData.title).toBe('🔍 Search Results');
+    expect(embedData.description).toContain('Results for:');
+    expect(embedData.description).toContain('**1.** ');
+    expect(embedData.description).toContain('└ ');
   });
 
   it('honors the limit slash option when provided', async () => {
