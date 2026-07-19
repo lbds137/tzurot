@@ -34,7 +34,7 @@ import { type createLogger } from '@tzurot/common-types/utils/logger';
 import type { GatewayResult, UserClient } from '@tzurot/clients';
 import type { DeferredCommandContext } from './commandContext/types.js';
 import { clientsFor } from './gatewayClients.js';
-import { buildBrowseSelectMenu } from './browse/index.js';
+import { buildBrowseListEmbed, buildBrowseSelectMenu, pluralize } from './browse/index.js';
 
 /** Logger shape produced by {@link createLogger}. */
 type Logger = ReturnType<typeof createLogger>;
@@ -87,8 +87,10 @@ export interface OverrideBrowseConfig {
    * `componentPrefixes` so the CommandHandler routes components here.
    */
   prefix: string;
-  /** Embed title, e.g. `🎭 Your Preset Overrides`. */
-  title: string;
+  /** Entity emoji for the §2.1 title, e.g. `🎭`. */
+  entityEmoji: string;
+  /** Plural title noun, e.g. `Preset Overrides`. */
+  titleNoun: string;
   /** Entity-type noun for the confirm dialog, e.g. `preset override`. */
   entityType: string;
   /** Lowercase noun for the fallback sentence, e.g. `preset`. */
@@ -183,31 +185,36 @@ export function buildOverrideBrowseView(
   config: OverrideBrowseConfig,
   overrides: OverrideSummary[]
 ): { embeds: EmbedBuilder[]; components: ActionRowBuilder<StringSelectMenuBuilder>[] } {
-  const embed = new EmbedBuilder()
-    .setTitle(config.title)
-    .setColor(DISCORD_COLORS.BLURPLE)
-    .setTimestamp();
-
-  if (overrides.length === 0) {
-    embed.setDescription(config.emptyDescription);
-    return { embeds: [embed], components: [] };
-  }
-
-  const lines = overrides.map(o => {
-    const visionBadge = o.supportsVision === true ? '👁️ ' : '';
-    return `${visionBadge}**${escapeMarkdown(o.personalityName)}** → ${escapeMarkdown(o.configName ?? 'Unknown')}`;
-  });
-  embed.setDescription(lines.join('\n'));
-
   // The select menu can only hold 25 options; show the first 25 and point at
   // the autocomplete-based `clear` command for the rest (rare in practice).
   const selectable = overrides.slice(0, SELECT_LIMIT);
   const truncated = overrides.length > SELECT_LIMIT;
-  embed.setFooter({
-    text: truncated
-      ? `${overrides.length} overrides • Select one below to clear it (first ${SELECT_LIMIT} shown; use ${config.clearCommandHint} for the rest)`
-      : `${overrides.length} override(s) • Select one below to clear it`,
+
+  // Unpaginated by design (select-capped, not paged) — a single page holds
+  // every row so none silently vanish past a page boundary.
+  const { embed } = buildBrowseListEmbed<OverrideSummary>({
+    entityEmoji: config.entityEmoji,
+    titleNoun: config.titleNoun,
+    items: overrides,
+    page: 0,
+    itemsPerPage: Math.max(1, overrides.length),
+    formatRow: o => ({
+      badges: o.supportsVision === true ? '👁️' : undefined,
+      name: escapeMarkdown(o.personalityName),
+      metadata: [`→ ${escapeMarkdown(o.configName ?? 'Unknown')}`],
+    }),
+    empty: { noItems: config.emptyDescription },
+    footerSegments: [
+      pluralize(overrides.length, { singular: 'override', plural: 'overrides' }),
+      truncated
+        ? `Select one below to clear it (first ${SELECT_LIMIT} shown; use ${config.clearCommandHint} for the rest)`
+        : 'Select one below to clear it',
+    ],
   });
+
+  if (overrides.length === 0) {
+    return { embeds: [embed], components: [] };
+  }
 
   const ids = createOverrideBrowseCustomIds(config.prefix);
   const selectRow = buildBrowseSelectMenu<OverrideSummary>({
