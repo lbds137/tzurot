@@ -34,6 +34,8 @@
 
 import type {
   ChatInputCommandInteraction,
+  ContextMenuCommandBuilder,
+  MessageContextMenuCommandInteraction,
   ModalSubmitInteraction,
   AutocompleteInteraction,
   StringSelectMenuInteraction,
@@ -172,5 +174,39 @@ export const VALID_COMMAND_KEYS: readonly (keyof CommandDefinition)[] = [
  * @returns The same object, typed as CommandDefinition
  */
 export function defineCommand<T extends CommandDefinition>(definition: T): T {
+  return definition;
+}
+
+/**
+ * Message context-menu command definition (right-click → Apps → <name>).
+ *
+ * Deliberately minimal next to CommandDefinition: context-menu commands have
+ * no options, subcommands, autocomplete, or component surfaces of their own —
+ * they receive a target message and respond. The dispatcher defers the
+ * interaction EPHEMERAL before calling `execute`, so handlers start from an
+ * already-acked state and reply via `editReply`/`followUp`.
+ */
+export interface ContextMenuCommandDefinition {
+  /** Context-menu builder (name + type; Discord allows no description). */
+  data: ContextMenuCommandBuilder;
+  /** Runs with the interaction already deferred ephemeral by the dispatcher. */
+  execute: (interaction: MessageContextMenuCommandInteraction) => Promise<void>;
+}
+
+/**
+ * All valid keys a context-menu command module may export — the runtime
+ * mirror of {@link ContextMenuCommandDefinition}, kept symmetric with
+ * {@link VALID_COMMAND_KEYS}.
+ */
+export const VALID_CONTEXT_MENU_COMMAND_KEYS: readonly (keyof ContextMenuCommandDefinition)[] = [
+  'data',
+  'execute',
+] as const;
+
+/**
+ * Identity helper mirroring {@link defineCommand}: excess or typo'd
+ * properties fail to compile instead of being silently ignored at load time.
+ */
+export function defineContextMenuCommand<T extends ContextMenuCommandDefinition>(definition: T): T {
   return definition;
 }
