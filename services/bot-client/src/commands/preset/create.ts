@@ -7,15 +7,7 @@
  * 3. Shows dashboard for further editing
  */
 
-import {
-  ModalBuilder,
-  TextInputBuilder,
-  TextInputStyle,
-  ActionRowBuilder,
-  type ModalActionRowComponentBuilder,
-  MessageFlags,
-  type ModalSubmitInteraction,
-} from 'discord.js';
+import { MessageFlags, type ModalSubmitInteraction } from 'discord.js';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { ModalCommandContext } from '../../utils/commandContext/types.js';
 import {
@@ -31,6 +23,7 @@ import {
   presetSeedFields,
   buildPresetDashboardOptions,
 } from './config.js';
+import { buildToolkitModal, textFieldFromDefinition } from '../../utils/modal/toolkit.js';
 import { clientsFor } from '../../utils/gatewayClients.js';
 import { createPreset } from './api.js';
 import { CATALOG } from '../../ux/catalog/catalog.js';
@@ -49,22 +42,11 @@ export async function handleCreate(context: ModalCommandContext): Promise<void> 
   // No slot option: a preset's vision-capability is derived from its model
   // (`supportsVision`), not chosen at creation. The vision SLOT is picked later
   // when the preset is assigned (set/set-default/global).
-  const modal = new ModalBuilder()
-    .setCustomId(buildDashboardCustomId('preset', 'seed'))
-    .setTitle('Create New Preset');
-
-  for (const field of presetSeedFields) {
-    const input = new TextInputBuilder()
-      .setCustomId(field.id)
-      .setLabel(field.label)
-      .setPlaceholder(field.placeholder ?? '')
-      .setStyle(TextInputStyle.Short)
-      .setRequired(field.required ?? false)
-      .setMaxLength(field.maxLength);
-
-    const row = new ActionRowBuilder<ModalActionRowComponentBuilder>().addComponents(input);
-    modal.addComponents(row);
-  }
+  const modal = buildToolkitModal({
+    customId: buildDashboardCustomId('preset', 'seed'),
+    title: 'Create New Preset',
+    items: presetSeedFields.map(textFieldFromDefinition),
+  });
 
   await context.showModal(modal);
 }

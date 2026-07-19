@@ -84,14 +84,14 @@ describe('Preset Create', () => {
       expect(dashboardUtils.buildDashboardCustomId).toHaveBeenCalledWith('preset', 'seed');
     });
 
-    it('should include seed fields in modal', async () => {
+    it('should include seed fields in modal as Label-hosted inputs', async () => {
       await handleCreate(mockContext as unknown as Parameters<typeof handleCreate>[0]);
 
       const modalBuilder = vi.mocked(mockContext.showModal).mock.calls[0][0] as {
-        toJSON: () => { components: Array<{ components: Array<{ custom_id: string }> }> };
+        toJSON: () => { components: Array<{ label?: string; component?: { custom_id: string } }> };
       };
       const modalData = modalBuilder.toJSON();
-      const fieldIds = modalData.components.flatMap(row => row.components.map(c => c.custom_id));
+      const fieldIds = modalData.components.map(labelRow => labelRow.component?.custom_id);
 
       expect(fieldIds).toContain('name');
       expect(fieldIds).toContain('model');
