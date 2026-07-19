@@ -235,6 +235,18 @@ describe('handleBrowse', () => {
     expect(context.editReply).toHaveBeenCalledWith(
       expect.objectContaining({ embeds: expect.any(Array), components: expect.any(Array) })
     );
+
+    // Shared list builder: §2.1 title; prose rows stay unbolded (nameMarkup)
+    // with character + date on the metadata line.
+    const embedData = (
+      vi.mocked(context.editReply).mock.calls[0][0] as {
+        embeds: { data: { title: string; description: string } }[];
+      }
+    ).embeds[0].data;
+    expect(embedData.title).toBe('🧠 Memories');
+    expect(embedData.description).toContain('**1.** ');
+    expect(embedData.description).toContain('└ ');
+
     expect(mockSaveMemoryListSession).toHaveBeenCalledWith(
       expect.objectContaining({
         userId: TEST_USER_ID,
