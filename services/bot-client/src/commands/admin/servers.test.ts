@@ -421,10 +421,15 @@ describe('Admin Servers Browse', () => {
       await handleServers(context);
 
       const callArgs = vi.mocked(context.editReply).mock.calls[0][0] as {
-        embeds: { data: { description: string } }[];
+        embeds: { data: { title: string; description: string } }[];
       };
       const description = callArgs.embeds[0].data.description;
       expect(description).toContain('12.5K');
+      // Shared list builder: §2.1 title + §2.4 row grammar with the guild
+      // id as techId and members on the metadata line.
+      expect(callArgs.embeds[0].data.title).toBe('📋 Servers');
+      expect(description).toContain('**1.** **Large Server** (`111`)');
+      expect(description).toContain('└ 12.5K members');
     });
 
     it('should format very large member counts with M suffix', async () => {
