@@ -1,6 +1,6 @@
 {
   "name": "@tzurot/cache-invalidation",
-  "version": "3.0.0-beta.169",
+  "version": "3.0.0-beta.170",
   "private": true,
   "type": "module",
   "description": "Redis pub/sub cache-invalidation services: a generic base + per-domain invalidators (personality, llm/tts/stt config, persona, api-key, channel-activation, denylist)",
