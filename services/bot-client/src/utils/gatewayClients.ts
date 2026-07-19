@@ -22,6 +22,7 @@ import type {
   AutocompleteInteraction,
   ChatInputCommandInteraction,
   MessageComponentInteraction,
+  MessageContextMenuCommandInteraction,
   ModalSubmitInteraction,
   User as DiscordUser,
 } from 'discord.js';
@@ -75,6 +76,7 @@ export type ClientCarryingInteraction =
   | AutocompleteInteraction
   | ChatInputCommandInteraction
   | MessageComponentInteraction
+  | MessageContextMenuCommandInteraction
   | ModalSubmitInteraction;
 
 /**

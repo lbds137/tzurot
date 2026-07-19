@@ -408,6 +408,8 @@ client.on(Events.InteractionCreate, interaction => {
 
         // All commands use the typed context pattern with deferralMode metadata
         await handleCommandWithContext(interaction, command);
+      } else if (interaction.isMessageContextMenuCommand()) {
+        await commandHandler.handleContextMenuCommand(interaction);
       } else if (interaction.isModalSubmit()) {
         await commandHandler.handleInteraction(interaction);
       } else if (interaction.isAutocomplete()) {

@@ -24,6 +24,7 @@ import {
   type RequestContext,
 } from '@tzurot/common-types/types/schemas/personality';
 import type { DeferralMode, SafeCommandContext } from './utils/commandContext/index.js';
+import type { ContextMenuCommandDefinition } from './utils/defineCommand.js';
 
 // Re-export shared API types
 export type { GenerateResponse, LoadedPersonality, TranscribeResponse };
@@ -101,4 +102,15 @@ export interface Command {
    * Use this for sub-features with different prefixes (e.g., 'admin-settings').
    */
   componentPrefixes?: string[];
+}
+
+/**
+ * Loaded message context-menu command (definition + derived category).
+ * Registered in CommandHandler's separate context-menu map — the slash
+ * `Command` surfaces (autocomplete, component routing, deferral modes)
+ * don't apply to it.
+ */
+export interface ContextMenuCommand extends ContextMenuCommandDefinition {
+  /** Category derived from folder structure; root-level files have none. */
+  category?: string;
 }

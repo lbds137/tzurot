@@ -8,7 +8,7 @@
       "ignoreDependencies": ["@typescript-eslint/eslint-plugin", "@typescript-eslint/parser"]
     },
     "services/bot-client": {
-      "entry": ["src/**/*.test.ts", "src/commands/*/index.ts"]
+      "entry": ["src/**/*.test.ts", "src/commands/*.ts", "src/commands/*/index.ts"]
     },
     "services/api-gateway": {
       "entry": ["src/**/*.test.ts"],

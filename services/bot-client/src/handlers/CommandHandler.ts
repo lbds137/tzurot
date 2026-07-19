@@ -9,7 +9,9 @@ import { createLogger } from '@tzurot/common-types/utils/logger';
 import { InfraError } from '@tzurot/clients';
 import {
   Collection,
+  ContextMenuCommandBuilder,
   type ChatInputCommandInteraction,
+  type MessageContextMenuCommandInteraction,
   type ModalSubmitInteraction,
   type AutocompleteInteraction,
   type StringSelectMenuInteraction,
@@ -21,8 +23,13 @@ import type { MessageSpec } from '../ux/catalog/types.js';
 import { replySpecSafe } from '../ux/render/reply.js';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join } from 'node:path';
-import type { Command } from '../types.js';
-import { VALID_COMMAND_KEYS, type CommandDefinition } from '../utils/defineCommand.js';
+import type { Command, ContextMenuCommand } from '../types.js';
+import {
+  VALID_COMMAND_KEYS,
+  VALID_CONTEXT_MENU_COMMAND_KEYS,
+  type CommandDefinition,
+  type ContextMenuCommandDefinition,
+} from '../utils/defineCommand.js';
 import { getCommandFromCustomId } from '../utils/customIds.js';
 import { getCommandFiles } from '../utils/commandFileUtils.js';
 
@@ -45,6 +52,15 @@ export function topLevelErrorSpec(error: unknown, fallback: MessageSpec): Messag
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
+/** Category from the command's directory (e.g. commands/memory/… → 'Memory'). */
+function deriveCategory(filePath: string, commandsPath: string): string | undefined {
+  const relativePath = filePath.replace(commandsPath, '');
+  const pathParts = relativePath.split('/').filter(Boolean);
+  return pathParts.length > 1
+    ? pathParts[0].charAt(0).toUpperCase() + pathParts[0].slice(1)
+    : undefined;
+}
+
 /**
  * Command Handler - manages slash command registration and execution
  *
@@ -55,10 +71,12 @@ const __dirname = dirname(__filename);
  */
 export class CommandHandler {
   private commands: Collection<string, Command>;
+  private contextMenuCommands: Collection<string, ContextMenuCommand>;
   private prefixToCommand: Map<string, Command>;
 
   constructor() {
     this.commands = new Collection();
+    this.contextMenuCommands = new Collection();
     this.prefixToCommand = new Map();
   }
 
@@ -99,6 +117,17 @@ export class CommandHandler {
       return;
     }
 
+    // Context-menu commands register into their own map: none of the slash
+    // surfaces (autocomplete, component routing, deferral modes) apply.
+    if (cmdDef.data instanceof ContextMenuCommandBuilder) {
+      this.loadContextMenuCommand(
+        cmdDef as unknown as ContextMenuCommandDefinition,
+        filePath,
+        commandsPath
+      );
+      return;
+    }
+
     // Runtime validation: fail fast on unknown properties (catches typos like handleModalSubmit)
     for (const key of Object.keys(cmdDef)) {
       if (!VALID_COMMAND_KEYS.includes(key as keyof CommandDefinition)) {
@@ -111,12 +140,7 @@ export class CommandHandler {
     }
 
     // Determine category based on directory structure (DRY - no manual declaration needed)
-    const relativePath = filePath.replace(commandsPath, '');
-    const pathParts = relativePath.split('/').filter(Boolean);
-    const category =
-      pathParts.length > 1
-        ? pathParts[0].charAt(0).toUpperCase() + pathParts[0].slice(1)
-        : undefined;
+    const category = deriveCategory(filePath, commandsPath);
 
     // Create command object with category (don't mutate the imported module)
     const commandWithCategory: Command = {
@@ -146,6 +170,61 @@ export class CommandHandler {
     }
 
     logger.info({ commandName }, 'Loaded command');
+  }
+
+  /** Register a context-menu command (validated shape, derived category). */
+  private loadContextMenuCommand(
+    cmdDef: ContextMenuCommandDefinition,
+    filePath: string,
+    commandsPath: string
+  ): void {
+    for (const key of Object.keys(cmdDef)) {
+      if (!VALID_CONTEXT_MENU_COMMAND_KEYS.includes(key as keyof ContextMenuCommandDefinition)) {
+        throw new Error(
+          `Context-menu command "${cmdDef.data.name}" exports unknown property "${key}". ` +
+            `Valid properties: ${VALID_CONTEXT_MENU_COMMAND_KEYS.join(', ')}.`
+        );
+      }
+    }
+
+    this.contextMenuCommands.set(cmdDef.data.name, {
+      data: cmdDef.data,
+      execute: cmdDef.execute,
+      category: deriveCategory(filePath, commandsPath),
+    });
+
+    logger.info({ commandName: cmdDef.data.name }, 'Loaded context-menu command');
+  }
+
+  /**
+   * Handle a message context-menu invocation. The dispatcher owns the ack:
+   * defer EPHEMERAL before the handler runs (context-menu results are
+   * personal inspections, and deferring here keeps the 3-second rule out of
+   * every handler's hands), then the handler replies via editReply.
+   */
+  async handleContextMenuCommand(interaction: MessageContextMenuCommandInteraction): Promise<void> {
+    const command = this.contextMenuCommands.get(interaction.commandName);
+    if (command === undefined) {
+      logger.warn({ commandName: interaction.commandName }, 'Unknown context-menu command');
+      await interaction.reply({ content: 'Unknown command!', flags: MessageFlags.Ephemeral });
+      return;
+    }
+
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    try {
+      await command.execute(interaction);
+    } catch (error) {
+      logger.error(
+        { err: error, commandName: interaction.commandName },
+        'Context-menu command failed'
+      );
+      await replySpecSafe(interaction, topLevelErrorSpec(error, CATALOG.error.commandFailed()));
+    }
+  }
+
+  /** Loaded context-menu commands (manifest + tests). */
+  getContextMenuCommands(): Collection<string, ContextMenuCommand> {
+    return this.contextMenuCommands;
   }
 
   /**

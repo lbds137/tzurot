@@ -777,4 +777,114 @@ describe('CommandHandler', () => {
       expect(mockInteraction.respond).toHaveBeenCalledWith([]);
     });
   });
+
+  describe('handleContextMenuCommand', () => {
+    interface MockContextMenuInteraction {
+      commandName: string;
+      deferred: boolean;
+      replied: boolean;
+      reply: ReturnType<typeof vi.fn>;
+      deferReply: ReturnType<typeof vi.fn>;
+      editReply: ReturnType<typeof vi.fn>;
+      followUp: ReturnType<typeof vi.fn>;
+    }
+
+    function makeContextMenuInteraction(commandName: string): MockContextMenuInteraction {
+      const interaction: MockContextMenuInteraction = {
+        commandName,
+        deferred: false,
+        replied: false,
+        reply: vi.fn().mockResolvedValue(undefined),
+        deferReply: vi.fn().mockImplementation(() => {
+          interaction.deferred = true;
+          return Promise.resolve(undefined);
+        }),
+        editReply: vi.fn().mockResolvedValue(undefined),
+        followUp: vi.fn().mockResolvedValue(undefined),
+      };
+      return interaction;
+    }
+
+    it('replies ephemeral for an unknown context-menu command without deferring', async () => {
+      const interaction = makeContextMenuInteraction('Not Registered');
+
+      await handler.handleContextMenuCommand(interaction as never);
+
+      expect(interaction.reply).toHaveBeenCalledWith(
+        expect.objectContaining({ content: 'Unknown command!' })
+      );
+      expect(interaction.deferReply).not.toHaveBeenCalled();
+    });
+
+    it('defers EPHEMERAL before executing (dispatcher owns the ack)', async () => {
+      const execute = vi.fn().mockImplementation((i: MockContextMenuInteraction) => {
+        // Seam: by the time the handler runs, the interaction is acked
+        expect(i.deferred).toBe(true);
+        return Promise.resolve(undefined);
+      });
+      handler.getContextMenuCommands().set('Inspect Message', {
+        data: { name: 'Inspect Message' } as never,
+        execute: execute as never,
+      });
+      const interaction = makeContextMenuInteraction('Inspect Message');
+
+      await handler.handleContextMenuCommand(interaction as never);
+
+      expect(interaction.deferReply).toHaveBeenCalled();
+      expect(execute).toHaveBeenCalledWith(interaction);
+    });
+
+    it('routes an InfraError from execute to the transient copy via the deferred ack', async () => {
+      handler.getContextMenuCommands().set('Inspect Message', {
+        data: { name: 'Inspect Message' } as never,
+        execute: vi
+          .fn()
+          .mockRejectedValue(
+            new InfraError({ ok: false, kind: 'timeout', error: 'timed out', status: 0 })
+          ) as never,
+      });
+      const interaction = makeContextMenuInteraction('Inspect Message');
+
+      await handler.handleContextMenuCommand(interaction as never);
+
+      // deferred → the error lands via editReply, with the transient shape
+      expect(interaction.editReply).toHaveBeenCalledWith(
+        expect.objectContaining({ content: expect.stringContaining("Couldn't reach the server") })
+      );
+    });
+
+    it('routes a generic execute failure to the command-failed copy', async () => {
+      handler.getContextMenuCommands().set('Inspect Message', {
+        data: { name: 'Inspect Message' } as never,
+        execute: vi.fn().mockRejectedValue(new Error('boom')) as never,
+      });
+      const interaction = makeContextMenuInteraction('Inspect Message');
+
+      await handler.handleContextMenuCommand(interaction as never);
+
+      const { content } = interaction.editReply.mock.calls[0][0] as { content: string };
+      expect(content.length).toBeGreaterThan(0);
+      expect(content).not.toContain("Couldn't reach the server");
+    });
+
+    it('rejects a context-menu module exporting unknown properties (typo detection)', () => {
+      const load = (
+        handler as unknown as {
+          loadContextMenuCommand: (def: unknown, filePath: string, commandsPath: string) => void;
+        }
+      ).loadContextMenuCommand.bind(handler);
+
+      expect(() =>
+        load(
+          {
+            data: { name: 'Inspect Message' },
+            execute: vi.fn(),
+            handleButton: vi.fn(),
+          },
+          '/commands/inspectMessage.ts',
+          '/commands'
+        )
+      ).toThrow(/unknown property "handleButton"/);
+    });
+  });
 });

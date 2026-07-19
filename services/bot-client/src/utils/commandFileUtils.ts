@@ -38,9 +38,17 @@ export function getCommandFiles(dir: string, isRoot = true): string[] {
       if (isRoot) {
         files.push(...getCommandFiles(fullPath, false));
       }
-    } else if ((item.endsWith('.ts') || item.endsWith('.js')) && !item.endsWith('.d.ts')) {
+    } else if (
+      (item.endsWith('.ts') || item.endsWith('.js')) &&
+      !item.endsWith('.d.ts') &&
+      !item.endsWith('.test.ts') &&
+      !item.endsWith('.test.js')
+    ) {
       // Only include files that are command entry points:
-      // - Root level: any .ts/.js file (e.g., commands/ping.ts)
+      // - Root level: any non-test .ts/.js file (e.g., commands/ping.ts) —
+      //   colocated tests must be excluded because this scan also runs over
+      //   src/ (tsx dev + deploy), where importing a vitest file throws and
+      //   an unguarded import aborts the whole command deploy
       // - Subdirectory: only index.ts/index.js (e.g., commands/preset/index.ts)
       const isIndexFile = item === 'index.ts' || item === 'index.js';
       if (isRoot || isIndexFile) {

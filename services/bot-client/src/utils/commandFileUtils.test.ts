@@ -68,6 +68,21 @@ describe('getCommandFiles', () => {
       expect(files).toHaveLength(1);
     });
 
+    it('should exclude colocated .test files (importing them outside vitest throws)', () => {
+      vi.mocked(readdirSync).mockReturnValue([
+        'inspectMessage.ts',
+        'inspectMessage.test.ts',
+        'inspectMessage.test.js',
+      ] as unknown as ReturnType<typeof readdirSync>);
+      vi.mocked(statSync).mockReturnValue({ isDirectory: () => false } as ReturnType<
+        typeof statSync
+      >);
+
+      const files = getCommandFiles('/commands');
+
+      expect(files).toEqual(['/commands/inspectMessage.ts']);
+    });
+
     it('should include index.ts in subdirectories', () => {
       vi.mocked(readdirSync)
         .mockReturnValueOnce(['preset'] as unknown as ReturnType<typeof readdirSync>) // Root level
