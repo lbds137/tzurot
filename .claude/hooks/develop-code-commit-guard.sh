@@ -27,6 +27,15 @@
 #   that cd's into a DIFFERENT checkout/worktree is checked against the main
 #   checkout's branch. Accepted — the failure pattern this guards is in-repo.
 #
+# Posture note (decided at the guard-triple review): the extension match is
+# a deliberate BLOCKLIST, not a default-deny allowlist. This is a
+# visibility guard for the failure pattern that actually occurred (code
+# staged on develop), not a security boundary — a default-deny would block
+# every unenumerable doc/asset type (txt, images, csv…) and turn the guard
+# into recurring friction. Cost accepted: an exotic code type absent from
+# the list (.tf, .proto, extensionless scripts) bypasses; extend the list
+# when one enters the repo.
+#
 # Fixture check: run .claude/hooks/develop-code-commit-guard.probe.sh after
 # ANY edit to this file — it asserts the exit-code table over the command
 # shapes that have historically been missed (canonical heredoc commit form
@@ -98,13 +107,41 @@ fi
 # collapse to `?? dir/` and no extension ever matches — a fresh package full
 # of code would slip through. `cut -c4-` keeps full paths (porcelain =
 # 2 status chars + space) so space-containing filenames render correctly.
-GATED_FILES=$(git status --porcelain -uall 2>/dev/null \
+# --no-renames: a staged rename otherwise renders as one `R old -> new`
+# line and only the NEW path's extension gets checked — a gated→non-gated
+# rename would slip through; decomposed D/A lines check both sides.
+GATED_FILES=$(git status --porcelain -uall --no-renames 2>/dev/null \
   | cut -c4- \
-  | grep -E '\.(ts|tsx|js|jsx|mjs|cjs|py|prisma|sql|sh|yml|yaml|json|toml)$|(^|/)Dockerfile[^/]*$|^\.github/|^\.claude/(rules|skills|hooks)/' \
+  | grep -E '\.(ts|tsx|mts|cts|js|jsx|mjs|cjs|py|prisma|sql|sh|yml|yaml|json|toml)$|(^|/)Dockerfile[^/]*$|^\.github/|^\.claude/(rules|skills|hooks)/' \
   || true)
 
 if [ -z "$GATED_FILES" ]; then
   exit 0
+fi
+
+# Version-bump exception: a release bump dirties every workspace
+# package.json on exactly its "version" line — the one code-shape a
+# release lands directly on develop (owner call). Allowed only when ALL
+# gated files are TRACKED package.json files whose full diff vs HEAD
+# touches nothing but "version" lines; anything else falls through to
+# the block.
+if ! printf '%s\n' "$GATED_FILES" | grep -qvE '(^|/)package\.json$'; then
+  VERSION_ONLY=1
+  while IFS= read -r f; do
+    if ! git ls-files --error-unmatch "$f" >/dev/null 2>&1; then
+      VERSION_ONLY=0; break   # untracked/new manifest is not a bump shape
+    fi
+    # ([^+-]|$): a bare +/- (added/removed EMPTY line) is still a change —
+    # without the |$ alternative it would be invisible to the check.
+    CHANGED=$(git diff HEAD -U0 -- "$f" 2>/dev/null | grep -E '^[+-]([^+-]|$)' || true)
+    if [ -z "$CHANGED" ] \
+      || printf '%s\n' "$CHANGED" | grep -qvE '^[+-][[:space:]]*"version":'; then
+      VERSION_ONLY=0; break
+    fi
+  done <<< "$GATED_FILES"
+  if [ "$VERSION_ONLY" = "1" ]; then
+    exit 0
+  fi
 fi
 
 GATED_COUNT=$(printf '%s\n' "$GATED_FILES" | wc -l)
