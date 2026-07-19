@@ -7,8 +7,12 @@
  * state lives in a messageId-keyed dashboard session, no inline collectors.
  */
 
-import { EmbedBuilder, escapeMarkdown, MessageFlags, type ButtonInteraction } from 'discord.js';
-import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
+import {
+  escapeMarkdown,
+  MessageFlags,
+  type ButtonInteraction,
+  type EmbedBuilder,
+} from 'discord.js';
 import { memoryFactsOptions } from '@tzurot/common-types/generated/commandOptions';
 import { formatDateShort } from '@tzurot/common-types/utils/dateFormatting';
 import { createLogger } from '@tzurot/common-types/utils/logger';
@@ -19,11 +23,10 @@ import type { DashboardSession } from '../../utils/dashboard/types.js';
 import {
   createBrowseCustomIdHelpers,
   buildBrowseButtons,
+  buildBrowseListEmbed,
   buildBrowseSelectMenu,
   calculatePaginationState,
-  joinFooter,
   pluralize,
-  formatPageIndicator,
   type BrowseActionRow,
 } from '../../utils/browse/index.js';
 import { resolveRequiredPersonality } from './resolveHelpers.js';
@@ -75,35 +78,34 @@ function buildFactsEmbed(options: {
   facts: FactItem[];
   total: number;
   page: number;
-  totalPages: number;
 }): EmbedBuilder {
-  const { facts, total, page, totalPages } = options;
-  const embed = new EmbedBuilder().setTitle('📋 Known Facts').setColor(DISCORD_COLORS.BLURPLE);
+  const { facts, total, page } = options;
 
-  if (facts.length === 0) {
-    embed.setDescription(
-      "This character hasn't learned any facts about you yet.\n\n" +
-        'Facts are distilled automatically from your conversations.'
-    );
-    return embed;
-  }
-
-  const lines: string[] = [];
-  facts.forEach((fact, index) => {
-    const num = page * FACTS_PER_PAGE + index + 1;
-    const badges = `${fact.isLocked ? ' 🔒' : ''}${fact.tier === 'corrected' ? ' ✏️' : ''}`;
-    lines.push(`**${num}.** ${truncateContent(escapeMarkdown(fact.statement))}${badges}`);
-    lines.push(`   _${formatDateShort(fact.validFrom)}_`);
-    lines.push('');
+  // Server-paginated: `facts` is the fetched page; `total` drives the math.
+  const { embed } = buildBrowseListEmbed<FactItem>({
+    entityEmoji: '📋',
+    titleNoun: 'Known Facts',
+    items: facts,
+    page,
+    itemsPerPage: FACTS_PER_PAGE,
+    serverPage: { totalItems: total },
+    formatRow: fact => ({
+      badges: `${fact.isLocked ? '🔒' : ''}${fact.tier === 'corrected' ? '✏️' : ''}` || undefined,
+      name: '', // unused — nameMarkup below overrides it
+      // Statements are sentences, not entity names — bolding whole
+      // sentences makes rows shout, so override the bold-name default.
+      nameMarkup: truncateContent(escapeMarkdown(fact.statement)),
+      metadata: [formatDateShort(fact.validFrom)],
+    }),
+    empty: {
+      noItems:
+        "This character hasn't learned any facts about you yet — facts are " +
+        'distilled automatically from your conversations.',
+    },
+    footerSegments: [pluralize(total, { singular: 'fact', plural: 'facts' })],
+    badgeLegend: 'Locked 🔒 · Corrected ✏️',
   });
-  embed.setDescription(lines.join('\n').trim());
 
-  embed.setFooter({
-    text: joinFooter(
-      pluralize(total, { singular: 'fact', plural: 'facts' }),
-      formatPageIndicator(page + 1, totalPages)
-    ),
-  });
   return embed;
 }
 
@@ -165,7 +167,7 @@ export async function handleFacts(context: DeferredCommandContext): Promise<void
     }
 
     const { totalPages } = calculatePaginationState(data.total, FACTS_PER_PAGE, 0);
-    const embed = buildFactsEmbed({ facts: data.facts, total: data.total, page: 0, totalPages });
+    const embed = buildFactsEmbed({ facts: data.facts, total: data.total, page: 0 });
     const components = buildFactsComponents(data.facts, 0, totalPages);
 
     const response = await context.editReply({ embeds: [embed], components });
@@ -234,7 +236,6 @@ export async function handleFactsPagination(interaction: ButtonInteraction): Pro
     facts: data.facts,
     total: data.total,
     page: safePage,
-    totalPages,
   });
   await interaction.editReply({
     embeds: [embed],
@@ -296,7 +297,6 @@ export async function refreshFactsList(interaction: ButtonInteraction): Promise<
     facts: result.data.facts,
     total: result.data.total,
     page: result.page,
-    totalPages,
   });
   await interaction.editReply({
     embeds: [embed],
