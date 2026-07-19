@@ -18,11 +18,10 @@
 import {
   type ButtonInteraction,
   type StringSelectMenuInteraction,
-  EmbedBuilder,
+  type EmbedBuilder,
   escapeMarkdown,
   MessageFlags,
 } from 'discord.js';
-import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
 import { memoryBrowseOptions } from '@tzurot/common-types/generated/commandOptions';
 import { type MemoryItem, type MemoryListResponse } from '@tzurot/common-types/schemas/api/memory';
 import { formatDateShort } from '@tzurot/common-types/utils/dateFormatting';
@@ -33,12 +32,11 @@ import { clientsFor } from '../../utils/gatewayClients.js';
 import {
   createBrowseCustomIdHelpers,
   buildBrowseButtons as buildSharedBrowseButtons,
+  buildBrowseListEmbed,
   buildBrowseSelectMenu,
   calculatePaginationState,
-  joinFooter,
   pluralize,
   formatSortVerbatim,
-  formatPageIndicator,
   type BrowseActionRow,
 } from '../../utils/browse/index.js';
 import { resolveOptionalPersonality } from './resolveHelpers.js';
@@ -93,7 +91,6 @@ interface BuildBrowseViewOptions {
   memories: MemoryItem[];
   total: number;
   page: number;
-  totalPages: number;
   personalityId: string | undefined;
 }
 
@@ -101,42 +98,39 @@ interface BuildBrowseViewOptions {
  * Build the memory list embed
  */
 function buildBrowseEmbed(options: BuildBrowseViewOptions): EmbedBuilder {
-  const { memories, total, page, totalPages, personalityId } = options;
-  const embed = new EmbedBuilder().setTitle('🧠 Memory Browser').setColor(DISCORD_COLORS.BLURPLE);
+  const { memories, total, page, personalityId } = options;
 
-  if (memories.length === 0) {
-    embed.setDescription(
-      personalityId !== undefined
-        ? `No memories found for this character.\n\nTry browsing all memories or check your search filters.`
-        : `You don't have any memories yet.\n\nMemories are created automatically when you chat with characters.`
-    );
-    return embed;
-  }
-
-  // Build memory list
-  const lines: string[] = [];
-  memories.forEach((memory, index) => {
-    const lockIcon = memory.isLocked ? ' 🔒' : '';
-    const num = page * MEMORIES_PER_PAGE + index + 1;
-    const content = truncateContent(escapeMarkdown(memory.content));
-    const date = formatDateShort(memory.createdAt);
-    const personality = escapeMarkdown(memory.personalityName);
-
-    lines.push(`**${num}.** ${content}${lockIcon}`);
-    lines.push(`   _${personality} • ${date}_`);
-    lines.push('');
-  });
-
-  embed.setDescription(lines.join('\n').trim());
-
-  // Build footer
-  embed.setFooter({
-    text: joinFooter(
+  // Server-paginated: `memories` is the fetched page; `total` drives math.
+  const { embed } = buildBrowseListEmbed<MemoryItem>({
+    entityEmoji: '🧠',
+    titleNoun: 'Memories',
+    items: memories,
+    page,
+    itemsPerPage: MEMORIES_PER_PAGE,
+    serverPage: { totalItems: total },
+    formatRow: memory => ({
+      badges: memory.isLocked ? '🔒' : undefined,
+      name: '', // unused — nameMarkup below overrides it
+      // Memory content is prose, not an entity name — skip the bold-name
+      // default so rows read as text, not headings.
+      nameMarkup: truncateContent(escapeMarkdown(memory.content)),
+      metadata: [escapeMarkdown(memory.personalityName), formatDateShort(memory.createdAt)],
+    }),
+    empty: {
+      noItems:
+        "You don't have any memories yet — memories are created " +
+        'automatically when you chat with characters.',
+      noMatch:
+        'No memories found for this character — try browsing all memories ' +
+        'or check your search filters.',
+    },
+    filterActive: personalityId !== undefined,
+    footerSegments: [
       pluralize(total, { singular: 'memory', plural: 'memories' }),
       personalityId !== undefined && 'Filtered',
       formatSortVerbatim('Newest first'),
-      formatPageIndicator(page + 1, totalPages)
-    ),
+    ],
+    badgeLegend: 'Locked 🔒',
   });
 
   return embed;
@@ -243,7 +237,6 @@ export async function handleBrowse(context: DeferredCommandContext): Promise<voi
       memories,
       total,
       page: 0,
-      totalPages,
       personalityId,
     });
     const components = buildBrowseComponents(memories, 0, totalPages);
@@ -333,7 +326,6 @@ export async function handleBrowsePagination(interaction: ButtonInteraction): Pr
     memories: data.memories,
     total: data.total,
     page: safePage,
-    totalPages,
     personalityId,
   });
   const components = buildBrowseComponents(data.memories, safePage, totalPages);
@@ -410,7 +402,6 @@ export async function refreshBrowseList(interaction: ButtonInteraction): Promise
     memories: result.data.memories,
     total: result.data.total,
     page: result.page,
-    totalPages,
     personalityId,
   });
   const components = buildBrowseComponents(result.data.memories, result.page, totalPages);
