@@ -164,7 +164,7 @@ describe('refreshHandler', () => {
     it('should use buildOptions when provided', async () => {
       const data = { name: 'Test' };
       const fetchFn = vi.fn().mockResolvedValue(data);
-      const buildOptions = vi.fn().mockReturnValue({ showClose: true, showRefresh: true });
+      const buildOptions = vi.fn().mockReturnValue({ showDelete: true, showRefresh: true });
 
       const handler = createRefreshHandler({
         entityType: 'preset',
@@ -188,7 +188,7 @@ describe('refreshHandler', () => {
         mockConfig,
         'entity-abc',
         data,
-        { showClose: true, showRefresh: true }
+        { showDelete: true, showRefresh: true }
       );
     });
 

@@ -1,6 +1,6 @@
 /**
  * Settings dashboard button-row builders — the per-setting-type control rows
- * (tri-state / boolean / enum / edit) and the navigation rows (back / close /
+ * (tri-state / boolean / enum / edit) and the navigation rows (back /
  * pagination). Extracted from SettingsDashboardBuilder to keep it within the
  * max-lines budget; the Builder's message assemblers compose these.
  */
@@ -284,26 +284,6 @@ export function buildBackButton(
       .setCustomId(buildSettingsCustomId(config.entityType, 'back', session.entityId))
       .setLabel('Back to Overview')
       .setEmoji('⬅️')
-      .setStyle(ButtonStyle.Secondary)
-  );
-
-  return row;
-}
-
-/**
- * Build close button row for overview
- */
-export function buildCloseButton(
-  config: SettingsDashboardConfig,
-  session: SettingsDashboardSession
-): ActionRowBuilder<MessageActionRowComponentBuilder> {
-  const row = new ActionRowBuilder<MessageActionRowComponentBuilder>();
-
-  row.addComponents(
-    new ButtonBuilder()
-      .setCustomId(buildSettingsCustomId(config.entityType, 'close', session.entityId))
-      .setLabel('Close')
-      .setEmoji('✖️')
       .setStyle(ButtonStyle.Secondary)
   );
 

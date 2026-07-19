@@ -11,7 +11,6 @@ import {
   buildEnumButtons,
   buildEditButtons,
   buildBackButton,
-  buildCloseButton,
 } from './settingsButtonBuilders.js';
 import {
   type SettingDefinition,
@@ -439,20 +438,6 @@ describe('settingsButtonBuilders', () => {
       expect(buttons).toHaveLength(1);
       expect(buttons[0].label).toBe('Back to Overview');
       expect(buttons[0].custom_id).toBe('test-settings::back::test-entity');
-    });
-  });
-
-  describe('buildCloseButton', () => {
-    it('should create close button with correct custom ID', () => {
-      const config = createTestConfig();
-      const session = createTestSession();
-
-      const row = buildCloseButton(config, session);
-      const buttons = getButtons(row);
-
-      expect(buttons).toHaveLength(1);
-      expect(buttons[0].label).toBe('Close');
-      expect(buttons[0].custom_id).toBe('test-settings::close::test-entity');
     });
   });
 });

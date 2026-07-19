@@ -323,5 +323,24 @@ describe('Dashboard Actions', () => {
         })
       );
     });
+
+    it('prefers the update response canEdit over a stale session value', async () => {
+      const mockInteraction = createMockInteraction();
+      // Fresh response says the user can no longer edit; the stale session
+      // still claims true — the authoritative response value must win
+      // (`??` falls back only on null/undefined, never on false).
+      const updated = { ...createMockCharacter(), canEdit: false };
+      const mockSession = { data: { canEdit: true } };
+      vi.mocked(dashboardUtils.getSessionManager().get).mockResolvedValue(mockSession as never);
+
+      await refreshDashboardAfterUpdate(mockInteraction, 'test-char', updated);
+
+      expect(dashboardUtils.getSessionManager().update).toHaveBeenCalledWith(
+        'user-123',
+        'character',
+        'test-char',
+        expect.objectContaining({ canEdit: false })
+      );
+    });
   });
 });

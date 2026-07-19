@@ -310,7 +310,6 @@ describe('Preset Dashboard Buttons', () => {
       const data = createMockFlattenedPreset({ browseContext: undefined });
       const options = buildPresetDashboardOptions(data);
 
-      expect(options.showClose).toBe(true);
       expect(options.showBack).toBe(false);
     });
 
@@ -321,7 +320,6 @@ describe('Preset Dashboard Buttons', () => {
       const options = buildPresetDashboardOptions(data);
 
       expect(options.showBack).toBe(true);
-      expect(options.showClose).toBe(false);
     });
   });
 

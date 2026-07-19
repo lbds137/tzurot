@@ -134,7 +134,6 @@ export function buildEditMenu<T>(
  */
 export interface ActionButtonOptions {
   showDelete?: boolean;
-  showClose?: boolean;
   showRefresh?: boolean;
   showClone?: boolean;
   /** Show "Back to Browse" button instead of close (when opened from browse) */
@@ -201,15 +200,10 @@ export function buildActionButtons<T>(
     );
   }
 
-  if (options?.showClose === true) {
-    row.addComponents(
-      new ButtonBuilder()
-        .setCustomId(buildDashboardCustomId(config.entityType, 'close', entityId))
-        .setLabel('Close')
-        .setStyle(ButtonStyle.Secondary)
-        .setEmoji('✖️')
-    );
-  }
+  // No Close button (D18): ephemeral dashboards need no explicit Close —
+  // Discord's native dismiss covers it and the session TTL handles
+  // teardown. The 'close' ACTION stays routable for messages rendered
+  // before the removal.
 
   if (options?.showDelete === true) {
     row.addComponents(
@@ -241,7 +235,6 @@ export function buildDashboardComponents<T>(
   // Add action buttons if any options are enabled
   const hasButtonOptions =
     options?.showDelete === true ||
-    options?.showClose === true ||
     options?.showRefresh === true ||
     options?.showBack === true ||
     options?.showClone === true ||

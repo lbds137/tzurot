@@ -485,7 +485,7 @@ describe('SettingsDashboardBuilder', () => {
       const message = buildOverviewMessage(config, session);
 
       expect(message.embeds).toHaveLength(1);
-      expect(message.components).toHaveLength(2); // select menu + close button
+      expect(message.components).toHaveLength(1); // select menu only (no Close — D18)
     });
   });
 
@@ -682,20 +682,16 @@ describe('SettingsDashboardBuilder', () => {
       expect(lastButtons[2].disabled).toBe(true); // last page → Next disabled
     });
 
-    it('overview message swaps Close for the pagination row on paged configs only', () => {
+    it('overview renders pagination on paged configs and NO second row on flat (D18)', () => {
       const paged = buildOverviewMessage(pagedConfig(), pagedSession(0));
       const secondRow = paged.components[1].toJSON();
       const labels = (secondRow.components as APIButtonComponentWithCustomId[]).map(b => b.label);
       expect(labels).toContain('Prev');
       expect(labels).not.toContain('Close');
 
-      // Flat config keeps today's Close button.
+      // Flat config: select menu only — native dismiss replaces Close.
       const flat = buildOverviewMessage(createTestConfig(), createTestSession());
-      const flatSecond = flat.components[1].toJSON();
-      const flatLabels = (flatSecond.components as APIButtonComponentWithCustomId[]).map(
-        b => b.label
-      );
-      expect(flatLabels).toEqual(['Close']);
+      expect(flat.components).toHaveLength(1);
     });
 
     it('select menu scopes to the current page', () => {

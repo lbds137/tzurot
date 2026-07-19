@@ -277,7 +277,7 @@ describe('SettingsDashboardHandler', () => {
       expect(embedJson.title).toBe('Test Settings');
     });
 
-    it('should include select menu and close button', async () => {
+    it('should include the select menu only (no Close — D18)', async () => {
       const config = createTestConfig();
       const data = createTestData();
       const interaction = createMockInteraction();
@@ -291,7 +291,7 @@ describe('SettingsDashboardHandler', () => {
       });
 
       const editReplyCall = interaction.editReply.mock.calls[0][0];
-      expect(editReplyCall.components).toHaveLength(2);
+      expect(editReplyCall.components).toHaveLength(1);
     });
   });
 
