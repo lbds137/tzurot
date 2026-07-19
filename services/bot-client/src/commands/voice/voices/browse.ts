@@ -113,8 +113,7 @@ function buildVoiceBrowsePage(
         `to a character with voice enabled — your audio provider account(s) have **${totalVoices}** voices total.`,
     },
     footerSegments: [
-      voices.length > 0 &&
-        `${pluralize(tzurotCount, { singular: 'Tzurot voice', plural: 'Tzurot voices' })} / ${totalVoices} total across audio providers`,
+      `${pluralize(tzurotCount, { singular: 'Tzurot voice', plural: 'Tzurot voices' })} / ${totalVoices} total across audio providers`,
     ],
     color: hasWarnings ? DISCORD_COLORS.WARNING : undefined,
   });
