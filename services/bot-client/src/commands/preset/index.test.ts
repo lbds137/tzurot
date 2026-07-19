@@ -36,14 +36,21 @@ vi.mock('./browse.js', () => ({
   handleBrowsePagination: vi.fn(),
   isPresetBrowseInteraction: vi.fn(),
 }));
-vi.mock('./create.js', () => ({ handleCreate: vi.fn() }));
+vi.mock('./create.js', () => ({ handleCreate: vi.fn(), buildPresetSeedModal: vi.fn() }));
+const presetRetryHandle = vi.hoisted(() => vi.fn());
+vi.mock('../../utils/modal/retry.js', async importOriginal => {
+  const actual = await importOriginal<typeof import('../../utils/modal/retry.js')>();
+  return { ...actual, handleModalRetry: presetRetryHandle };
+});
 // Note: delete is now handled via the dashboard, not a standalone command
 
 // Mock global subcommand handlers
 vi.mock('./global/set-default.js', () => ({ handleGlobalSetDefault: vi.fn() }));
 vi.mock('./global/free-default.js', () => ({ handleGlobalSetFreeDefault: vi.fn() }));
 
-import { handleBrowse } from './browse.js';
+import { handleBrowse, isPresetBrowseInteraction } from './browse.js';
+import { buildPresetSeedModal } from './create.js';
+import { buildModalRetryRow } from '../../utils/modal/retry.js';
 import { handleCreate } from './create.js';
 import { handleGlobalSetDefault } from './global/set-default.js';
 import { handleGlobalSetFreeDefault } from './global/free-default.js';
@@ -153,5 +160,29 @@ describe('Preset Command', () => {
 
       expect(handleGlobalSetFreeDefault).toHaveBeenCalledWith(context);
     });
+  });
+});
+
+describe('button dispatch', () => {
+  it('routes the REAL retry-button customId to handleModalRetry (builder↔guard drift pin)', async () => {
+    vi.mocked(isPresetBrowseInteraction).mockReturnValue(false);
+    const row = buildModalRetryRow('preset').toJSON() as { components: { custom_id: string }[] };
+    const interaction = { customId: row.components[0].custom_id } as never;
+
+    await presetCommand.handleButton?.(interaction);
+
+    expect(presetRetryHandle).toHaveBeenCalled();
+
+    // Seam: exercise the captured rebuild closure — 'seed' must hit THIS
+    // command's builder with the stashed values; unknown kinds return null.
+    const rebuild = presetRetryHandle.mock.calls[0][1] as (
+      kind: string,
+      values: Record<string, string>
+    ) => unknown;
+    rebuild('seed', { model: 'anthropic/claude-sonnet-4' });
+    expect(vi.mocked(buildPresetSeedModal)).toHaveBeenCalledWith({
+      model: 'anthropic/claude-sonnet-4',
+    });
+    expect(rebuild('retired-kind', {})).toBeNull();
   });
 });

@@ -171,8 +171,23 @@ describe('Preset Create', () => {
 
       expect(mockInteraction.editReply).toHaveBeenCalledWith({
         content: '❌ Preset name is required.',
+        components: expect.any(Array),
       });
       expect(api.createPreset).not.toHaveBeenCalled();
+
+      // Seam: the submitted values must reach the retry stash so the
+      // Try-again button can reopen the modal prefilled.
+      const sessionSet = vi.mocked(dashboardUtils.getSessionManager)().set;
+      expect(sessionSet).toHaveBeenCalledWith(
+        expect.objectContaining({
+          entityType: 'modal-retry',
+          messageId: 'message-123',
+          data: {
+            kind: 'seed',
+            values: expect.objectContaining({ model: 'anthropic/claude-sonnet-4' }),
+          },
+        })
+      );
     });
 
     it('should reject empty model', async () => {
@@ -190,6 +205,7 @@ describe('Preset Create', () => {
 
       expect(mockInteraction.editReply).toHaveBeenCalledWith({
         content: '❌ Model ID is required.',
+        components: expect.any(Array),
       });
       expect(api.createPreset).not.toHaveBeenCalled();
     });
@@ -271,6 +287,7 @@ describe('Preset Create', () => {
 
       expect(mockInteraction.editReply).toHaveBeenCalledWith({
         content: expect.stringContaining('already exists'),
+        components: expect.any(Array),
       });
     });
 

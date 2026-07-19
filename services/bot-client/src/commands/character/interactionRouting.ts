@@ -12,6 +12,8 @@ import {
   type StringSelectMenuInteraction,
   type ButtonInteraction,
 } from 'discord.js';
+import { handleModalRetry, isModalRetryInteraction } from '../../utils/modal/retry.js';
+import { buildCharacterSeedModal } from './create.js';
 import { getConfig } from '@tzurot/common-types/config/config';
 import {
   handleBrowsePagination,
@@ -89,6 +91,16 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
   // Alias browse surface (pagination, filter toggle, remove confirm/cancel)
   if (isCharacterAliasInteraction(interaction.customId)) {
     await aliasComponentRouter.handleButton(interaction);
+    return;
+  }
+
+  // Try-again for a failed create-modal submission (prefilled reopen).
+  if (isModalRetryInteraction(interaction.customId, 'character')) {
+    await handleModalRetry(
+      interaction,
+      (kind, values) => (kind === 'seed' ? buildCharacterSeedModal(values) : null),
+      '/character create'
+    );
     return;
   }
 

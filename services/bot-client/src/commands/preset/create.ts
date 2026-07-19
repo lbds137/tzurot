@@ -7,7 +7,7 @@
  * 3. Shows dashboard for further editing
  */
 
-import { MessageFlags, type ModalSubmitInteraction } from 'discord.js';
+import { MessageFlags, type ModalBuilder, type ModalSubmitInteraction } from 'discord.js';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { ModalCommandContext } from '../../utils/commandContext/types.js';
 import {
@@ -24,11 +24,13 @@ import {
   buildPresetDashboardOptions,
 } from './config.js';
 import { buildToolkitModal, textFieldFromDefinition } from '../../utils/modal/toolkit.js';
+import { replyWithModalRetry } from '../../utils/modal/retry.js';
 import { clientsFor } from '../../utils/gatewayClients.js';
 import { createPreset } from './api.js';
 import { CATALOG } from '../../ux/catalog/catalog.js';
 import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
 import { replySpec } from '../../ux/render/reply.js';
+import { renderSpec } from '../../ux/render/render.js';
 
 const logger = createLogger('preset-create');
 
@@ -42,13 +44,31 @@ export async function handleCreate(context: ModalCommandContext): Promise<void> 
   // No slot option: a preset's vision-capability is derived from its model
   // (`supportsVision`), not chosen at creation. The vision SLOT is picked later
   // when the preset is assigned (set/set-default/global).
-  const modal = buildToolkitModal({
+  await context.showModal(buildPresetSeedModal());
+}
+
+/** Seed modal builder — shared by create and the retry affordance. */
+export function buildPresetSeedModal(initialValues?: Record<string, string>): ModalBuilder {
+  return buildToolkitModal({
     customId: buildDashboardCustomId('preset', 'seed'),
     title: 'Create New Preset',
     items: presetSeedFields.map(textFieldFromDefinition),
+    initialValues,
   });
+}
 
-  await context.showModal(modal);
+/** Validation-failure reply + prefill stash (shared D15 helper). */
+async function replyWithRetry(
+  interaction: ModalSubmitInteraction,
+  content: string,
+  values: Record<string, string>
+): Promise<void> {
+  await replyWithModalRetry(interaction, {
+    commandPrefix: 'preset',
+    kind: 'seed',
+    content,
+    values,
+  });
 }
 
 /**
@@ -64,12 +84,20 @@ export async function handleSeedModalSubmit(interaction: ModalSubmitInteraction)
 
   // Validate required fields
   if (!values.name || values.name.trim().length === 0) {
-    await replySpec(interaction, CATALOG.error.validation('Preset name is required.'));
+    await replyWithRetry(
+      interaction,
+      renderSpec(CATALOG.error.validation('Preset name is required.')),
+      values
+    );
     return;
   }
 
   if (!values.model || values.model.trim().length === 0) {
-    await replySpec(interaction, CATALOG.error.validation('Model ID is required.'));
+    await replyWithRetry(
+      interaction,
+      renderSpec(CATALOG.error.validation('Model ID is required.')),
+      values
+    );
     return;
   }
 
@@ -120,11 +148,14 @@ export async function handleSeedModalSubmit(interaction: ModalSubmitInteraction)
 
     // Check for duplicate name error (match structured format to avoid false positives)
     if (error instanceof Error && error.message.includes(': 409 ')) {
-      await replySpec(
+      await replyWithRetry(
         interaction,
-        CATALOG.error.validation(
-          `A preset with name "${values.name}" already exists.\nPlease choose a different name.`
-        )
+        renderSpec(
+          CATALOG.error.validation(
+            `A preset with name "${values.name}" already exists.\nPlease choose a different name.`
+          )
+        ),
+        values
       );
       return;
     }

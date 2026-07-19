@@ -25,6 +25,7 @@ import {
 } from 'discord.js';
 import { CONFIG_SLOT_OPTION_DESCRIPTION } from '@tzurot/common-types/constants/ai';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { handleModalRetry, isModalRetryInteraction } from '../../utils/modal/retry.js';
 import { defineCommand } from '../../utils/defineCommand.js';
 import { createTypedSubcommandRouter } from '../../utils/subcommandRouter.js';
 import { createMixedModeSubcommandRouter } from '../../utils/mixedModeSubcommandRouter.js';
@@ -40,7 +41,7 @@ import {
   handleBrowseSelect,
   isPresetBrowseSelectInteraction,
 } from './browse.js';
-import { handleCreate } from './create.js';
+import { handleCreate, buildPresetSeedModal } from './create.js';
 import { handleEdit } from './edit.js';
 import { handleExport } from './export.js';
 import { handleImport } from './import.js';
@@ -138,6 +139,16 @@ async function button(interaction: ButtonInteraction): Promise<void> {
   // Handle browse pagination
   if (isPresetBrowseInteraction(interaction.customId)) {
     await handleBrowsePagination(interaction);
+    return;
+  }
+
+  // Try-again for a failed create-modal submission (prefilled reopen).
+  if (isModalRetryInteraction(interaction.customId, 'preset')) {
+    await handleModalRetry(
+      interaction,
+      (kind, values) => (kind === 'seed' ? buildPresetSeedModal(values) : null),
+      '/preset create'
+    );
     return;
   }
 
