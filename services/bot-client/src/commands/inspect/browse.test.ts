@@ -3,8 +3,7 @@
  *
  * Tests the browse UI for recent diagnostic logs:
  * - fetchRecentLogs — API call and parsing via UserClient
- * - buildBrowsePage — embed + components assembly
- * - buildEmptyBrowseEmbed — empty state
+ * - buildBrowsePage — embed + components assembly (incl. empty state)
  * - handleRecentBrowse — slash command entry
  * - handleBrowsePagination — button navigation
  * - handleBrowseLogSelection — select menu drill-in
@@ -22,7 +21,6 @@ import type { GatewayResult, UserClient } from '@tzurot/clients';
 import {
   fetchRecentLogs,
   buildBrowsePage,
-  buildEmptyBrowseEmbed,
   handleRecentBrowse,
   handleBrowsePagination,
   handleBrowseLogSelection,
@@ -219,7 +217,10 @@ describe('buildBrowsePage', () => {
     const result = buildBrowsePage(logs, 0);
 
     expect(result.embeds).toHaveLength(1);
-    expect(result.embeds[0].data.title).toContain('Recent Diagnostic Logs');
+    expect(result.embeds[0].data.title).toBe('🔍 Diagnostic Logs');
+    // §2.4 row grammar: bold personality name, model/time/duration metadata.
+    expect(result.embeds[0].data.description).toContain('**1.** **Personality 0**');
+    expect(result.embeds[0].data.description).toContain('└ `claude-3-5-sonnet`');
     // Select row + button row
     expect(result.components).toHaveLength(2);
   });
@@ -229,6 +230,7 @@ describe('buildBrowsePage', () => {
 
     expect(result.embeds).toHaveLength(1);
     expect(result.embeds[0].data.description).toContain('No recent diagnostic logs');
+    expect(result.embeds[0].data.description).toContain('24 hours');
     expect(result.components).toHaveLength(0);
   });
 
@@ -236,8 +238,9 @@ describe('buildBrowsePage', () => {
     const logs = createMockLogs(5);
     const result = buildBrowsePage(logs, 99);
 
-    // Should clamp to page 0 (only 1 page of 5 items)
-    expect(result.embeds[0].data.footer?.text).toContain('Page 1 of 1');
+    // Should clamp to page 0 (only 1 page of 5 items): rows 1-5 render.
+    expect(result.embeds[0].data.description).toContain('**1.**');
+    expect(result.embeds[0].data.description).not.toContain('**6.**');
   });
 
   it('should handle null personalityName', () => {
@@ -245,13 +248,6 @@ describe('buildBrowsePage', () => {
     const result = buildBrowsePage(logs, 0);
 
     expect(result.embeds[0].data.description).toContain('Unknown');
-  });
-});
-
-describe('buildEmptyBrowseEmbed', () => {
-  it('should include retention note', () => {
-    const embed = buildEmptyBrowseEmbed();
-    expect(embed.data.description).toContain('24 hours');
   });
 });
 

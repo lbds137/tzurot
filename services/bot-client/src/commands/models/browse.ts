@@ -9,13 +9,12 @@
  */
 
 import {
-  EmbedBuilder,
   MessageFlags,
   escapeMarkdown,
+  type EmbedBuilder,
   type ButtonInteraction,
   type StringSelectMenuInteraction,
 } from 'discord.js';
-import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
 import { CATALOG } from '../../ux/catalog/catalog.js';
 import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
 import { renderSpec } from '../../ux/render/render.js';
@@ -25,9 +24,9 @@ import type { DeferredCommandContext } from '../../utils/commandContext/types.js
 import { type ClientCarryingInteraction, clientsFor } from '../../utils/gatewayClients.js';
 import {
   buildBrowseButtons,
+  buildBrowseListEmbed,
   buildBrowseSelectMenu,
   createBrowseCustomIdHelpers,
-  joinFooter,
   pluralize,
   type BrowseActionRow,
   type BrowseSortToggle,
@@ -139,9 +138,10 @@ function usabilityIcon(model: UsableCatalogModel): string {
   return model.canUse ? '✅' : '🔒';
 }
 
-/** A single description line for a model in the browse list. */
-function formatModelLine(model: BrowseModel, displayIndex: number): string {
-  const badges = [
+/** Badge glyph run for a model row: usability first, then features (§2.2). */
+function modelBadges(model: BrowseModel): string {
+  return [
+    usabilityIcon(model),
     model.isGlobalPreset ? '📌' : '',
     model.isRouter === true ? '🔀' : '',
     model.isZaiCoding ? '⚡' : '',
@@ -150,11 +150,6 @@ function formatModelLine(model: BrowseModel, displayIndex: number): string {
   ]
     .filter(Boolean)
     .join(' ');
-  const badgeSuffix = badges.length > 0 ? ` ${badges}` : '';
-  return (
-    `**${displayIndex}.** ${usabilityIcon(model)} ${model.name}${badgeSuffix}\n` +
-    `   └ \`${model.id}\` • ${formatContextLength(model.contextLength)}`
-  );
 }
 
 interface BrowseView {
@@ -173,60 +168,20 @@ const ACTIVE_SORT_LABEL: Record<ModelSort, string> = {
   recent: 'newest first',
 };
 
-function buildBrowseEmbed(view: BrowseView, pageItems: BrowseModel[]): EmbedBuilder {
-  const { items, page, capability, sort, query, capped } = view;
-  const startIdx = page * MODELS_PER_PAGE;
-
-  const lines: string[] = [];
-  const filterBits = [
-    capability !== 'all' ? `capability: ${capability}` : '',
-    query !== null ? `query: "${query}"` : '',
-    `sorted: ${ACTIVE_SORT_LABEL[sort]}`,
-  ].filter(Boolean);
-  lines.push(`_${filterBits.join(' · ')}_`);
-  // When the wallet fetch failed, every non-free model is `unknown` — explain
-  // the ❔ rather than leaving the user guessing why nothing shows ✅/🔒.
-  if (items.some(m => m.usability === 'unknown')) {
-    lines.push(
-      "⚠️ _Couldn't verify your API keys right now — usability shown as ❔. Try again shortly._"
-    );
-  }
-  if (items.length === 0) {
-    lines.push('_No models match your filters._');
-  } else {
-    lines.push(...pageItems.map((m, i) => formatModelLine(m, startIdx + i + 1)));
-  }
-
-  const embed = new EmbedBuilder()
-    .setTitle('🤖 Model Browser')
-    .setColor(DISCORD_COLORS.BLURPLE)
-    .setDescription(lines.join('\n'))
-    .setTimestamp();
-
-  embed.setFooter({
-    text: joinFooter(
-      pluralize(items.length, { singular: 'model', plural: 'models' }),
-      capped && `first ${BROWSE_FETCH_LIMIT} — refine with a query for more`,
-      '🆓 free  ✅ you can use  🔒 needs a key  ❔ unverified  📌 global preset  🔀 router  ⚡ z.ai'
-    ),
-  });
-  return embed;
-}
-
 function buildBrowseComponents(
   view: BrowseView,
   pageItems: BrowseModel[],
+  startIndex: number,
   totalPages: number
 ): BrowseActionRow[] {
   const { page, capability, sort, query } = view;
-  const startIdx = page * MODELS_PER_PAGE;
   const components: BrowseActionRow[] = [];
 
   const selectRow = buildBrowseSelectMenu<BrowseModel>({
     items: pageItems,
     customId: browseHelpers.buildSelect(page, capability, sort, query),
     placeholder: 'Select a model to view its card...',
-    startIndex: startIdx,
+    startIndex,
     formatItem: model => ({
       label: `${usabilityIcon(model)} ${model.name}`,
       value: model.id,
@@ -255,14 +210,52 @@ function buildBrowseComponents(
 }
 
 function buildBrowsePage(view: BrowseView): { embed: EmbedBuilder; components: BrowseActionRow[] } {
-  const totalPages = Math.max(1, Math.ceil(view.items.length / MODELS_PER_PAGE));
-  const safePage = Math.min(Math.max(0, view.page), totalPages - 1);
-  const startIdx = safePage * MODELS_PER_PAGE;
-  const pageItems = view.items.slice(startIdx, startIdx + MODELS_PER_PAGE);
+  const preamble: string[] = [];
+  const filterBits = [
+    view.capability !== 'all' ? `capability: ${view.capability}` : '',
+    view.query !== null ? `query: "${view.query}"` : '',
+    `sorted: ${ACTIVE_SORT_LABEL[view.sort]}`,
+  ].filter(Boolean);
+  preamble.push(`_${filterBits.join(' · ')}_`);
+  // When the wallet fetch failed, every non-free model is `unknown` — explain
+  // the ❔ rather than leaving the user guessing why nothing shows ✅/🔒.
+  if (view.items.some(m => m.usability === 'unknown')) {
+    preamble.push(
+      "⚠️ _Couldn't verify your API keys right now — usability shown as ❔. Try again shortly._"
+    );
+  }
+
+  const { embed, pageItems, startIndex, totalPages, safePage } = buildBrowseListEmbed<BrowseModel>({
+    entityEmoji: '🤖',
+    titleNoun: 'Models',
+    items: view.items,
+    page: view.page,
+    itemsPerPage: MODELS_PER_PAGE,
+    formatRow: model => ({
+      badges: modelBadges(model),
+      name: escapeMarkdown(model.name),
+      // Model ids are what users type in preset/override model fields.
+      techId: model.id,
+      metadata: [formatContextLength(model.contextLength)],
+    }),
+    preamble,
+    empty: {
+      noItems: 'No models found — the catalog may be temporarily unavailable.',
+      noMatch: 'No models match your filters — clear the query or capability to see more.',
+    },
+    filterActive: view.capability !== 'all' || view.query !== null,
+    footerSegments: [
+      pluralize(view.items.length, { singular: 'model', plural: 'models' }),
+      view.capped && `first ${BROWSE_FETCH_LIMIT} — refine with a query for more`,
+    ],
+    badgeLegend:
+      'Free 🆓 · Usable ✅ · Needs a key 🔒 · Unverified ❔ · Pinned preset 📌 · Router 🔀 · z.ai ⚡',
+  });
+
   const safeView: BrowseView = { ...view, page: safePage };
   return {
-    embed: buildBrowseEmbed(safeView, pageItems),
-    components: buildBrowseComponents(safeView, pageItems, totalPages),
+    embed,
+    components: buildBrowseComponents(safeView, pageItems, startIndex, totalPages),
   };
 }
 

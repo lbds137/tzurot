@@ -15,15 +15,15 @@
  */
 
 import {
-  EmbedBuilder,
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
+  escapeMarkdown,
+  type EmbedBuilder,
   type ButtonInteraction,
   type StringSelectMenuInteraction,
   type MessageActionRowComponentBuilder,
 } from 'discord.js';
-import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
 import { formatRelativeTime, normalizeDateTime } from '@tzurot/common-types/utils/dateFormatting';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { type UserClient } from '@tzurot/clients';
@@ -31,11 +31,9 @@ import {
   ITEMS_PER_PAGE,
   createBrowseCustomIdHelpers,
   buildBrowseButtons,
+  buildBrowseListEmbed,
   buildBrowseSelectMenu,
-  calculatePaginationState,
-  joinFooter,
   pluralize,
-  formatPageIndicator,
 } from '../../utils/browse/index.js';
 import { clientsFor } from '../../utils/gatewayClients.js';
 import { lookupByRequestId } from './lookup.js';
@@ -94,50 +92,6 @@ export async function fetchRecentLogs(
 }
 
 // ---------------------------------------------------------------------------
-// Embed builders
-// ---------------------------------------------------------------------------
-
-/** Build the browse embed showing a numbered list of logs */
-function buildBrowseEmbed(
-  pageItems: DiagnosticLogSummary[],
-  page: number,
-  totalPages: number,
-  totalCount: number
-): EmbedBuilder {
-  const startIdx = page * ITEMS_PER_PAGE;
-
-  const lines = pageItems.map((log, i) => {
-    const num = startIdx + i + 1;
-    const name = log.personalityName ?? 'Unknown';
-    const unix = Math.floor(new Date(log.createdAt).getTime() / 1000);
-    const timestamp = Number.isNaN(unix) ? 'unknown' : `<t:${unix}:R>`;
-    return `**${num}.** ${name} \u00b7 \`${log.model}\` \u00b7 ${timestamp} \u00b7 ${log.durationMs.toLocaleString()}ms`;
-  });
-
-  return new EmbedBuilder()
-    .setTitle('\ud83d\udd0d Recent Diagnostic Logs')
-    .setDescription(lines.join('\n'))
-    .setColor(DISCORD_COLORS.BLURPLE)
-    .setFooter({
-      text: joinFooter(
-        formatPageIndicator(page + 1, totalPages),
-        pluralize(totalCount, { singular: 'total log', plural: 'total logs' }),
-        'Select a log below to inspect'
-      ),
-    });
-}
-
-/** Build an empty-state embed when no logs exist */
-export function buildEmptyBrowseEmbed(): EmbedBuilder {
-  return new EmbedBuilder()
-    .setTitle('\ud83d\udd0d Recent Diagnostic Logs')
-    .setDescription(
-      'No recent diagnostic logs found.\n\u2022 Logs are retained for 24 hours\n\u2022 Logs are created when AI responses are generated'
-    )
-    .setColor(DISCORD_COLORS.BLURPLE);
-}
-
-// ---------------------------------------------------------------------------
 // Button builders
 // ---------------------------------------------------------------------------
 
@@ -183,25 +137,44 @@ export function buildBrowsePage(
   logs: DiagnosticLogSummary[],
   page: number
 ): { embeds: EmbedBuilder[]; components: ActionRowBuilder<MessageActionRowComponentBuilder>[] } {
+  const { embed, pageItems, startIndex, totalPages, safePage } =
+    buildBrowseListEmbed<DiagnosticLogSummary>({
+      entityEmoji: '\ud83d\udd0d',
+      titleNoun: 'Diagnostic Logs',
+      items: logs,
+      page,
+      itemsPerPage: ITEMS_PER_PAGE,
+      formatRow: log => {
+        const unix = Math.floor(new Date(log.createdAt).getTime() / 1000);
+        return {
+          name: escapeMarkdown(log.personalityName ?? 'Unknown'),
+          metadata: [
+            `\`${log.model}\``,
+            Number.isNaN(unix) ? 'unknown' : `<t:${unix}:R>`,
+            `${log.durationMs.toLocaleString()}ms`,
+          ],
+        };
+      },
+      empty: {
+        noItems:
+          'No recent diagnostic logs found \u2014 logs are created when AI ' +
+          'responses are generated and retained for 24 hours.',
+      },
+      footerSegments: [
+        logs.length > 0 && pluralize(logs.length, { singular: 'total log', plural: 'total logs' }),
+        logs.length > 0 && 'Select a log below to inspect',
+      ],
+    });
+
   if (logs.length === 0) {
-    return { embeds: [buildEmptyBrowseEmbed()], components: [] };
+    return { embeds: [embed], components: [] };
   }
-
-  const pagination = calculatePaginationState(logs.length, ITEMS_PER_PAGE, page);
-  const pageItems = logs.slice(pagination.startIndex, pagination.endIndex);
-
-  const embed = buildBrowseEmbed(
-    pageItems,
-    pagination.safePage,
-    pagination.totalPages,
-    logs.length
-  );
 
   const selectRow = buildBrowseSelectMenu<DiagnosticLogSummary>({
     items: pageItems,
-    customId: browseHelpers.buildSelect(pagination.safePage, 'all', 'date', null),
+    customId: browseHelpers.buildSelect(safePage, 'all', 'date', null),
     placeholder: 'Select a log to inspect...',
-    startIndex: pagination.startIndex,
+    startIndex,
     formatItem: log => {
       const name = log.personalityName ?? 'Unknown';
       return {
@@ -212,12 +185,12 @@ export function buildBrowsePage(
     },
   });
 
-  const buttonRow = buildInspectBrowseButtons(pagination.safePage, pagination.totalPages);
+  const buttonRow = buildInspectBrowseButtons(safePage, totalPages);
 
   // selectRow is null only when pageItems is empty, which can't happen here:
-  // we returned early on logs.length === 0 above, and calculatePaginationState
-  // clamps to safePage so the slice is non-empty. Defensive check satisfies
-  // the type system without adding a runtime branch that can fire.
+  // we returned early on logs.length === 0 above, and the builder clamps to
+  // safePage so the slice is non-empty. Defensive check satisfies the type
+  // system without adding a runtime branch that can fire.
   const components: ActionRowBuilder<MessageActionRowComponentBuilder>[] =
     selectRow !== null ? [selectRow, buttonRow] : [buttonRow];
 
