@@ -12,78 +12,73 @@
  * - Response is ephemeral (only visible to the user)
  */
 
-import { EmbedBuilder } from 'discord.js';
-import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
+import type { EmbedBuilder } from 'discord.js';
 import { type WalletKey } from '@tzurot/common-types/schemas/api/wallet';
 import { AUTOCOMPLETE_BADGES } from '@tzurot/common-types/utils/autocompleteFormat';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
 import { clientsFor } from '../../../utils/gatewayClients.js';
 import { getProviderDisplayName } from '../../../utils/providers.js';
+import { buildBrowseListEmbed, ITEMS_PER_PAGE, pluralize } from '../../../utils/browse/index.js';
 
 const logger = createLogger('settings-apikey-browse');
 
-/**
- * Format a single key entry for the browse embed
- */
-function formatKeyEntry(key: WalletKey, index: number): string {
-  const statusBadge = key.isActive ? AUTOCOMPLETE_BADGES.DEFAULT : '';
-  const statusText = key.isActive ? 'Active' : 'Inactive';
-  const providerName = getProviderDisplayName(key.provider);
-
-  const lastUsed =
-    key.lastUsedAt !== null
-      ? `<t:${Math.floor(new Date(key.lastUsedAt).getTime() / 1000)}:R>`
-      : 'Never';
-  const created = `<t:${Math.floor(new Date(key.createdAt).getTime() / 1000)}:D>`;
-
-  return [
-    `**${index + 1}.** ${statusBadge} ${providerName}`,
-    `   └ ${statusText} • Last used: ${lastUsed} • Added: ${created}`,
-  ].join('\n');
+/** Render a Discord timestamp for a key's last-used / created dates. */
+function discordTimestamp(iso: string, style: 'R' | 'D'): string {
+  return `<t:${Math.floor(new Date(iso).getTime() / 1000)}:${style}>`;
 }
 
 /**
- * Build the browse embed
+ * Build the browse embed on the shared list builder.
+ *
+ * Renders page 0 only, with no pagination components: the list is bounded
+ * by the AIProvider enum (one key per provider), which is far below one
+ * page. If the enum ever outgrows ITEMS_PER_PAGE, this needs a pager.
  */
 function buildBrowseEmbed(keys: WalletKey[]): EmbedBuilder {
-  const embed = new EmbedBuilder()
-    .setTitle('💳 API Wallet Browser')
-    .setColor(keys.length > 0 ? DISCORD_COLORS.SUCCESS : DISCORD_COLORS.BLURPLE)
-    .setTimestamp();
-
-  if (keys.length === 0) {
-    embed.setDescription(
-      'You have no API keys configured yet.\n\n' +
-        '**Getting Started:**\n' +
-        '• Use `/settings apikey set` to add your own API key\n' +
-        '• Get an OpenRouter key at https://openrouter.ai/keys\n\n' +
-        '_BYOK = Bring Your Own Key_'
-    );
-    return embed;
-  }
-
-  // Format key entries
-  const entries = keys.map((key, index) => formatKeyEntry(key, index));
-
-  embed.setDescription(entries.join('\n\n'));
-
-  // Add footer with count and legend
   const activeCount = keys.filter(k => k.isActive).length;
-  embed.setFooter({
-    text: `${keys.length} key${keys.length > 1 ? 's' : ''} configured • ${activeCount} active • ${AUTOCOMPLETE_BADGES.DEFAULT} = Active`,
+
+  const { embed } = buildBrowseListEmbed<WalletKey>({
+    entityEmoji: '💳',
+    titleNoun: 'API Keys',
+    items: keys,
+    page: 0,
+    itemsPerPage: ITEMS_PER_PAGE,
+    formatRow: key => ({
+      badges: key.isActive ? AUTOCOMPLETE_BADGES.DEFAULT : undefined,
+      name: getProviderDisplayName(key.provider),
+      // The provider slug is what users type in set/test/remove.
+      techId: key.provider,
+      metadata: [
+        key.isActive ? 'Active' : 'Inactive',
+        `Last used ${key.lastUsedAt !== null ? discordTimestamp(key.lastUsedAt, 'R') : 'never'}`,
+        `Added ${discordTimestamp(key.createdAt, 'D')}`,
+      ],
+    }),
+    empty: {
+      noItems:
+        'You have no API keys configured yet (BYOK = Bring Your Own Key). ' +
+        'Add one with `/settings apikey set` — get an OpenRouter key at <https://openrouter.ai/keys>.',
+    },
+    footerSegments: [
+      pluralize(keys.length, { singular: 'key', plural: 'keys' }),
+      `${activeCount} active`,
+    ],
+    badgeLegend: `Active ${AUTOCOMPLETE_BADGES.DEFAULT}`,
   });
 
-  // Add tip field
-  embed.addFields({
-    name: '💡 Management Commands',
-    value: [
-      '`/settings apikey set <provider>` - Add or update a key',
-      '`/settings apikey test <provider>` - Verify a key works',
-      '`/settings apikey remove <provider>` - Delete a key',
-    ].join('\n'),
-    inline: false,
-  });
+  // Management tip stays list-adjacent (there is no detail view for keys).
+  if (keys.length > 0) {
+    embed.addFields({
+      name: '💡 Management Commands',
+      value: [
+        '`/settings apikey set <provider>` - Add or update a key',
+        '`/settings apikey test <provider>` - Verify a key works',
+        '`/settings apikey remove <provider>` - Delete a key',
+      ].join('\n'),
+      inline: false,
+    });
+  }
 
   return embed;
 }

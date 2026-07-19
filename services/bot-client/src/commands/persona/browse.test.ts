@@ -114,6 +114,15 @@ describe('handleBrowse', () => {
       embeds: [expect.any(Object)],
       components: expect.any(Array),
     });
+
+    // Shared list builder: §2.1 title + §2.4 row grammar with the
+    // default badge and the preferred-name metadata line.
+    const embedData = mockEditReply.mock.calls[0][0].embeds[0].data;
+    expect(embedData.title).toBe('👤 Personas');
+    expect(embedData.description).toContain('**1.** ⭐ **Persona A**');
+    expect(embedData.description).toContain('└ Goes by Alice');
+    expect(embedData.description).toContain('**2.** **Persona B**');
+    expect(embedData.footer.text).toContain('Default ⭐');
   });
 
   it('should show empty state when user has no personas', async () => {
@@ -189,6 +198,24 @@ describe('handleBrowsePagination', () => {
     await handleBrowsePagination(createMockButtonInteraction('persona::other::action'));
 
     expect(mockDeferUpdate).not.toHaveBeenCalled();
+  });
+
+  it('keeps the existing view when the pagination fetch fails', async () => {
+    stub.listPersonas.mockResolvedValue(makeErr(500, 'Gateway error'));
+
+    await handleBrowsePagination(createMockButtonInteraction('persona::browse::1::all::name::'));
+
+    expect(mockDeferUpdate).toHaveBeenCalled();
+    expect(mockEditReply).not.toHaveBeenCalled();
+  });
+
+  it('keeps the existing view when the pagination fetch throws', async () => {
+    stub.listPersonas.mockRejectedValue(new Error('Network error'));
+
+    await handleBrowsePagination(createMockButtonInteraction('persona::browse::1::all::name::'));
+
+    expect(mockDeferUpdate).toHaveBeenCalled();
+    expect(mockEditReply).not.toHaveBeenCalled();
   });
 });
 
