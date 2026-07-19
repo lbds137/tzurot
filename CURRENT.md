@@ -9,6 +9,7 @@
 - **#1714** — PR-5b: dashboard ModalFactory → Label toolkit (every dashboard edit modal on the component-era shape); hardening trio shipped (narrowed catch, `truncateByCodePoints` across all four prefill sites, toolkit type split).
 - **#1715** — develop-guard triple: version-bump exception (next bump commits straight to develop), rename decomposition + `.mts`/`.cts` gaps, probe harness at 26 rows.
 - **#1716** — PR-5c: preserve-input retry affordance — failed create-modal submissions carry a Try-again button that reopens the modal prefilled (Redis stash keyed by the error reply's message id; all five validation/409 paths).
+- **#1717** — owner smoke findings: canEdit carried through character updates (post-edit Delete-button loss fixed at the API layer, precedence + seam pinned) **and D18 COMPLETE — Close buttons removed everywhere** (owner call: native dismiss covers ephemerals; the `close` action stays routable for pre-deploy messages). PR-7's scope shrinks to the router migration + D14 residual check.
 
 ## UX Epic — Phase 2 IN FLIGHT (2026-07-17 evening session)
 
