@@ -186,7 +186,7 @@ describe('alias browse pilot', () => {
   });
 
   describe('handleAliasBrowse — per-character mode', () => {
-    it('fetches the character΄s list and carries the slug as the query coordinate', async () => {
+    it("fetches the character's list and carries the slug as the query coordinate", async () => {
       const context = makeContext({ character: 'lila-elyona' });
 
       await handleAliasBrowse(context);
