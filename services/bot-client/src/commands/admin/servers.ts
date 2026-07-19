@@ -28,9 +28,10 @@ import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import {
   buildBrowseButtons,
+  buildBrowseListEmbed,
   buildBrowseSelectMenu,
   createBrowseCustomIdHelpers,
-  joinFooter,
+  pluralize,
   formatSortNatural,
   formatSortVerbatim,
   type BrowseSortToggle,
@@ -190,59 +191,38 @@ function buildBrowsePage(
   // Sort guilds
   const sortedGuilds = sortGuilds(guilds, sortType);
 
-  const totalPages = Math.max(1, Math.ceil(sortedGuilds.length / SERVERS_PER_PAGE));
-  const safePage = Math.min(Math.max(0, page), totalPages - 1);
-
-  const startIdx = safePage * SERVERS_PER_PAGE;
-  const endIdx = Math.min(startIdx + SERVERS_PER_PAGE, sortedGuilds.length);
-  const pageItems = sortedGuilds.slice(startIdx, endIdx);
-
-  // Build description lines
-  const lines: string[] = [];
-
-  if (sortedGuilds.length === 0) {
-    lines.push('_Bot is not in any servers._');
-  } else {
-    pageItems.forEach((guild, index) => {
-      const num = startIdx + index + 1;
-      lines.push(
-        `**${num}.** ${escapeMarkdown(guild.name)}\n` +
-          `    └ ${formatMemberCount(guild.memberCount)} members • \`${guild.id}\``
-      );
-    });
-  }
-
-  // Calculate total members
+  // Total members spans ALL servers, not just this page.
   const totalMembers = guilds.reduce((sum, g) => sum + g.memberCount, 0);
 
-  // Build embed
-  const embed = new EmbedBuilder()
-    .setTitle(`📋 Server List (${guilds.length} total)`)
-    .setColor(DISCORD_COLORS.BLURPLE)
-    .setDescription(lines.join('\n'))
-    .setTimestamp();
-
-  // Footer
-  embed.setFooter({
-    text: joinFooter(
+  const { embed, pageItems, startIndex, totalPages, safePage } = buildBrowseListEmbed<GuildInfo>({
+    entityEmoji: '📋',
+    titleNoun: 'Servers',
+    items: sortedGuilds,
+    page,
+    itemsPerPage: SERVERS_PER_PAGE,
+    formatRow: guild => ({
+      name: escapeMarkdown(guild.name),
+      techId: guild.id,
+      metadata: [`${formatMemberCount(guild.memberCount)} members`],
+    }),
+    empty: { noItems: 'The bot is not in any servers.' },
+    footerSegments: [
+      pluralize(guilds.length, { singular: 'server', plural: 'servers' }),
       `${formatMemberCount(totalMembers)} total members`,
       sortType === 'members'
         ? formatSortNatural('member count')
-        : formatSortVerbatim('Sorted alphabetically')
-    ),
+        : formatSortVerbatim('Sorted alphabetically'),
+    ],
   });
 
   // Build components
   const components: BrowseActionRow[] = [];
 
-  // Add select menu if there are items on this page. The factory returns
-  // null on empty input — the explicit length check is redundant with that
-  // but kept for symmetry with the embed-renders-empty-state path above.
   const selectRow = buildBrowseSelectMenu<GuildInfo>({
     items: pageItems,
     customId: browseHelpers.buildSelect(safePage, 'all', sortType, null),
     placeholder: 'Select a server to view details...',
-    startIndex: startIdx,
+    startIndex,
     formatItem: guild => ({
       label: `${guild.name} (${formatMemberCount(guild.memberCount)})`,
       value: guild.id,
