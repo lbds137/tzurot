@@ -119,6 +119,16 @@ describe('buildFactDetailEmbed', () => {
     expect(corrected.title).toContain('🔒');
     expect(corrected.fields?.find(f => f.name === 'Origin')?.value).toContain('Corrected');
   });
+
+  it('includes Sources only when the fact has source memories', () => {
+    const withSources = buildFactDetailEmbed(createMockFact()).toJSON();
+    expect(withSources.fields?.find(f => f.name === 'Sources')?.value).toBe(
+      '1 conversation memory'
+    );
+
+    const withoutSources = buildFactDetailEmbed(createMockFact({ sourceMemoryIds: [] })).toJSON();
+    expect(withoutSources.fields?.map(f => f.name)).toEqual(['Origin', 'Status', 'Learned']);
+  });
 });
 
 describe('buildFactDetailButtons', () => {

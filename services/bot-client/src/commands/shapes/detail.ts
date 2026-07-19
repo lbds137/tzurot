@@ -6,10 +6,10 @@
  * to stay within Discord's 100-char custom ID limit.
  */
 
-import { EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder } from 'discord.js';
-import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
+import { ButtonBuilder, ButtonStyle, ActionRowBuilder, type EmbedBuilder } from 'discord.js';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { type UserClient } from '@tzurot/clients';
+import { buildEntityDetailCard } from '../../utils/detailCard.js';
 import { ShapesCustomIds } from '../../utils/customIds.js';
 import type { BrowseSortType } from '../../utils/browse/constants.js';
 import {
@@ -130,16 +130,17 @@ export async function buildShapeDetailEmbed(
       ? formatCompactExportStatus(jobStatus.latestExport)
       : 'No exports yet';
 
-  const embed = new EmbedBuilder()
-    .setColor(DISCORD_COLORS.BLURPLE)
-    .setTitle(`\uD83D\uDD17 ${slug}`)
-    .setDescription(
+  const { embed } = buildEntityDetailCard({
+    title: `\uD83D\uDD17 ${slug}`,
+    description:
       `\uD83D\uDCE5 **Import**: ${importLine}\n` +
-        `\uD83D\uDCE4 **Export**: ${exportLine}\n\n` +
-        'Select an action below, or refresh to check job progress.'
-    )
-    .setFooter({ text: `slug:${slug}|sort:${sort}` })
-    .setTimestamp();
+      `\uD83D\uDCE4 **Export**: ${exportLine}\n\n` +
+      'Select an action below, or refresh to check job progress.',
+    // Machine-readable navigation state, not display text \u2014 the slug rides
+    // here to stay within Discord's 100-char customId limit.
+    footer: `slug:${slug}|sort:${sort}`,
+    timestamp: true,
+  });
 
   return { embed, components: buildDetailButtons() };
 }

@@ -170,6 +170,31 @@ describe('handleVoiceView', () => {
     });
   });
 
+  it('reports an unexpected exception through the classifier', async () => {
+    stub.getVoiceResolution.mockRejectedValue(new Error('boom'));
+    const context = makeContext();
+
+    await handleVoiceView(context as never);
+
+    expect(context.editReply).toHaveBeenCalledWith({
+      content: expect.stringContaining('voice settings'),
+    });
+  });
+
+  it('renders read-transient copy, never write-uncertainty, on a network-kind failure', async () => {
+    // This handler only READS — omitting operation:'read' would make a
+    // network failure claim "your change may still be applying" for a
+    // change that was never submitted.
+    stub.getVoiceResolution.mockResolvedValue(makeErr(0, 'connection lost'));
+    const context = makeContext();
+
+    await handleVoiceView(context as never);
+
+    const { content } = vi.mocked(context.editReply).mock.calls[0][0] as { content: string };
+    expect(content).toContain("Couldn't load the voice settings");
+    expect(content).not.toContain('may still');
+  });
+
   it('refuses the autocomplete error sentinel without calling the gateway', async () => {
     const apiCheck = await import('../../utils/apiCheck.js');
     vi.mocked(apiCheck.isAutocompleteErrorSentinel).mockReturnValueOnce(true);

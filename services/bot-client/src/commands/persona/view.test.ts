@@ -166,6 +166,13 @@ describe('handleViewPersona', () => {
     const call = mockEditReply.mock.calls[0][0];
     // Should have components (expand button)
     expect(call.components).toHaveLength(1);
+
+    // The content field renders the truncated preview, not the full text
+    const contentField = call.embeds[0]
+      .toJSON()
+      .fields?.find((f: { name: string }) => f.name.includes('Content'));
+    expect(contentField?.value.endsWith('...')).toBe(true);
+    expect(contentField?.value.length).toBeLessThan(1500);
   });
 
   it('should handle error when fetching details fails', async () => {
