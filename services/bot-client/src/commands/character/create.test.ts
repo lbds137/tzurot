@@ -127,6 +127,7 @@ describe('Character Create', () => {
 
       vi.mocked(api.createCharacter).mockResolvedValue({
         character: {
+          canEdit: true,
           id: 'new-uuid',
           name: 'Test Character',
           slug: 'test-character',
@@ -299,6 +300,7 @@ describe('Character Create', () => {
 
       vi.mocked(api.createCharacter).mockResolvedValue({
         character: {
+          canEdit: true,
           id: 'new-uuid',
           name: 'Test',
           slug: 'valid-slug-123',
@@ -352,6 +354,7 @@ describe('Character Create', () => {
 
       vi.mocked(api.createCharacter).mockResolvedValue({
         character: {
+          canEdit: true,
           id: 'new-uuid',
           name: 'New Character',
           slug: 'new-character',
@@ -487,6 +490,7 @@ describe('Character Create', () => {
 
       vi.mocked(api.createCharacter).mockResolvedValue({
         character: {
+          canEdit: true,
           id: 'new-uuid',
           name: 'Test',
           slug: 'test-slug',
@@ -550,6 +554,7 @@ describe('Character Create', () => {
 
       vi.mocked(api.createCharacter).mockResolvedValue({
         character: {
+          canEdit: true,
           id: 'new-uuid',
           name: 'Lila',
           slug: 'lila-slug',

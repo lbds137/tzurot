@@ -373,6 +373,10 @@ describe('Character API Client', () => {
 
       expect(stub.createPersonality).toHaveBeenCalledWith(input);
       expect(result.character.slug).toBe('new-character');
+      // Creator owns the new character — the graft drives the dashboard's
+      // Delete button (showDelete: data.canEdit); the create response itself
+      // carries no canEdit field.
+      expect(result.character.canEdit).toBe(true);
       // No shadowedAliases in the response → empty ride-along, never undefined.
       expect(result.shadowedAliases).toEqual([]);
     });

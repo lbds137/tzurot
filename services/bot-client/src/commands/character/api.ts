@@ -264,7 +264,7 @@ export async function createCharacter(
   },
   userClient: UserClient,
   _config: EnvConfig
-): Promise<{ character: CharacterData; shadowedAliases: string[] }> {
+): Promise<{ character: FetchedCharacter; shadowedAliases: string[] }> {
   const result = await userClient.createPersonality(data);
 
   if (!result.ok) {
@@ -279,7 +279,11 @@ export async function createCharacter(
   }
 
   return {
-    character: toCharacterData(result.data.personality),
+    // The create response carries no canEdit field (it would always be true:
+    // you own what you just created) — graft it so the dashboard's
+    // showDelete derivation sees an owned character, matching the
+    // fetch/update paths.
+    character: { ...toCharacterData(result.data.personality), canEdit: true },
     // Warn-don't-block ride-along: GLOBAL aliases the new name/slug shadows.
     shadowedAliases: result.data.shadowedAliases ?? [],
   };
