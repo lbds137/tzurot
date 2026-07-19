@@ -146,15 +146,15 @@ describe('DashboardBuilder', () => {
       expect(button.label).toBe('Refresh');
     });
 
-    it('should add close button when showClose is true', () => {
+    it('never renders a Close button (D18 — native dismiss covers it)', () => {
       const config = createTestConfig();
-      const options: ActionButtonOptions = { showClose: true };
-      const row = buildActionButtons(config, 'entity-123', options);
+      const row = buildActionButtons(config, 'entity-123', {
+        showRefresh: true,
+        showDelete: true,
+      });
 
-      expect(row.components).toHaveLength(1);
-      const button = getButtonData(row, 0);
-      expect(button.custom_id).toBe('test-entity::close::entity-123');
-      expect(button.label).toBe('Close');
+      const labels = row.components.map(component => (component.data as { label?: string }).label);
+      expect(labels).not.toContain('Close');
     });
 
     it('should add delete button when showDelete is true', () => {
@@ -216,20 +216,18 @@ describe('DashboardBuilder', () => {
         expect(button.emoji).toEqual(expect.objectContaining({ name: '🔒' }));
       });
 
-      it('should position toggle button between refresh and close', () => {
+      it('should position toggle button after refresh', () => {
         const config = createTestConfig();
         const options: ActionButtonOptions = {
           showRefresh: true,
-          showClose: true,
           toggleGlobal: { isGlobal: false, isOwned: true },
         };
         const row = buildActionButtons(config, 'entity-123', options);
 
-        // Order should be: Refresh, Toggle, Close
-        expect(row.components).toHaveLength(3);
+        // Order should be: Refresh, Toggle
+        expect(row.components).toHaveLength(2);
         expect(getButtonData(row, 0).label).toBe('Refresh');
         expect(getButtonData(row, 1).label).toBe('Make Global');
-        expect(getButtonData(row, 2).label).toBe('Close');
       });
     });
 
@@ -237,16 +235,14 @@ describe('DashboardBuilder', () => {
       const config = createTestConfig();
       const options: ActionButtonOptions = {
         showRefresh: true,
-        showClose: true,
         showDelete: true,
       };
       const row = buildActionButtons(config, 'entity-123', options);
 
-      // Order: Refresh, Close, Delete
-      expect(row.components).toHaveLength(3);
+      // Order: Refresh, Delete (destructive last).
+      expect(row.components).toHaveLength(2);
       expect(getButtonData(row, 0).label).toBe('Refresh');
-      expect(getButtonData(row, 1).label).toBe('Close');
-      expect(getButtonData(row, 2).label).toBe('Delete');
+      expect(getButtonData(row, 1).label).toBe('Delete');
     });
   });
 
@@ -260,7 +256,7 @@ describe('DashboardBuilder', () => {
 
     it('should return menu and button rows when options provided', () => {
       const config = createTestConfig();
-      const options: ActionButtonOptions = { showClose: true };
+      const options: ActionButtonOptions = { showRefresh: true };
       const components = buildDashboardComponents(config, 'entity-123', testEntity, options);
 
       expect(components).toHaveLength(2);

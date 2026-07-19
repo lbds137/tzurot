@@ -240,13 +240,12 @@ export const PRESET_DASHBOARD_CONFIG: DashboardConfig<FlattenedPresetData> = {
 
 /**
  * Build dashboard button options including toggle-global and delete for owned presets.
- * Shows back button when opened from browse, close button when opened directly.
+ * Shows back button when opened from browse; no Close (D18 — native dismiss).
  */
 export function buildPresetDashboardOptions(data: FlattenedPresetData): ActionButtonOptions {
   const hasBrowseContext = data.browseContext !== undefined;
   return {
     showBack: hasBrowseContext,
-    showClose: !hasBrowseContext,
     showRefresh: true,
     showClone: true,
     // Use server-computed canDelete so bot-owner/admin can delete any preset,

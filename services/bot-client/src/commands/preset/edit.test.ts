@@ -114,7 +114,6 @@ describe('handleEdit', () => {
       'preset-123',
       expect.objectContaining({ id: 'preset-123', name: 'Test Preset' }),
       expect.objectContaining({
-        showClose: true,
         showRefresh: true,
         showDelete: true, // isOwned is true
         showClone: true,

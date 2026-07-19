@@ -147,7 +147,7 @@ describe('Character Edit Handler', () => {
         expect.anything(),
         'my-char',
         mockCharacter,
-        expect.objectContaining({ showClose: true, showRefresh: true })
+        expect.objectContaining({ showRefresh: true })
       );
       expect(mockContext.editReply).toHaveBeenCalledWith({
         embeds: expect.any(Array),

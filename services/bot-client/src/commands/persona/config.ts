@@ -191,7 +191,6 @@ export const PERSONA_DASHBOARD_CONFIG: DashboardConfig<FlattenedPersonaData> = {
 export function buildPersonaDashboardOptions(data: FlattenedPersonaData): ActionButtonOptions {
   const hasBackContext = data.browseContext !== undefined;
   return {
-    showClose: !hasBackContext, // Only show close if not from browse
     showBack: hasBackContext, // Show back if opened from browse
     showRefresh: true,
     showDelete: !data.isDefault, // Can't delete default persona
