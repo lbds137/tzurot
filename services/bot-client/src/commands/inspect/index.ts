@@ -48,7 +48,12 @@ import {
   type DebugViewResult,
 } from './views.js';
 import { sendChunkedReply } from '../../utils/chunkedReply.js';
-import { buildPipelineHealthView } from './extendedViews.js';
+import {
+  buildPipelineHealthView,
+  buildInputView,
+  buildGenerationParamsView,
+  buildPostProcessingView,
+} from './extendedViews.js';
 import { computeViewContext } from './viewContext.js';
 
 const logger = createLogger('inspect');
@@ -71,6 +76,8 @@ async function renderViewResult(
       header: '',
       continuedHeader: viewResult.chunkedText.continuedHeader,
       components: viewResult.components ?? [],
+      maxChunks: viewResult.chunkedText.maxChunks,
+      overflowFilename: viewResult.chunkedText.overflowFilename,
     });
     return;
   }
@@ -88,6 +95,9 @@ const VIEW_BUILDERS = {
   [DebugViewType.CompactJson]: buildCompactJsonView,
   [DebugViewType.SystemPrompt]: buildSystemPromptView,
   [DebugViewType.Reasoning]: buildReasoningView,
+  [DebugViewType.Input]: buildInputView,
+  [DebugViewType.GenerationParams]: buildGenerationParamsView,
+  [DebugViewType.PostProcessing]: buildPostProcessingView,
   [DebugViewType.MemoryInspector]: buildMemoryInspectorView,
   [DebugViewType.TokenBudget]: buildTokenBudgetView,
   [DebugViewType.VoiceAttribution]: buildVoiceAttributionView,
