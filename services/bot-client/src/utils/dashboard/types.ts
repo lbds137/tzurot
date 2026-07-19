@@ -157,7 +157,11 @@ export interface DashboardConfig<T> {
   getTitle: (data: T) => string;
   /** Function to generate dashboard description */
   getDescription?: (data: T) => string;
-  /** Section definitions */
+  /**
+   * Section definitions. Keep to ~6 or fewer: past that, one select menu
+   * stops being scannable and the dashboard should paginate by concern
+   * instead (the settings dashboards' page model is the reference shape).
+   */
   sections: SectionDefinition<T>[];
   /** Additional actions (visibility, delete, etc.) */
   actions?: ActionDefinition[];
