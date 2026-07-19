@@ -79,15 +79,15 @@ describe('Character Create', () => {
       );
     });
 
-    it('should include seed fields in modal', async () => {
+    it('should include seed fields in modal as Label-hosted inputs', async () => {
       await handleCreate(mockInteraction);
 
       // Get the ModalBuilder and convert to JSON for inspection
       const modalBuilder = vi.mocked(mockInteraction.showModal).mock.calls[0][0] as {
-        toJSON: () => { components: Array<{ components: Array<{ custom_id: string }> }> };
+        toJSON: () => { components: Array<{ label?: string; component?: { custom_id: string } }> };
       };
       const modalData = modalBuilder.toJSON();
-      const fieldIds = modalData.components.flatMap(row => row.components.map(c => c.custom_id));
+      const fieldIds = modalData.components.map(labelRow => labelRow.component?.custom_id);
 
       expect(fieldIds).toContain('name');
       expect(fieldIds).toContain('slug');
