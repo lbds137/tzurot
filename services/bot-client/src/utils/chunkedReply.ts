@@ -12,6 +12,7 @@
  */
 
 import {
+  AttachmentBuilder,
   MessageFlags,
   type ActionRowBuilder,
   type ButtonInteraction,
@@ -44,6 +45,17 @@ export interface ChunkedReplyOptions {
    * The edit explicitly clears `embeds` so a reused message can never keep a
    * stale embed above the chunked text. */
   via?: 'editReply' | 'followUp';
+  /**
+   * Cap on INLINE chunks. When the content needs more, only the first
+   * `maxChunks` are sent and a final follow-up carries the COMPLETE content
+   * as a text-file attachment (self-contained — no stitching messages
+   * together). Bounds the ephemeral flood on very long content (a reasoning
+   * dump can be tens of chunks). Omit for the legacy send-everything
+   * behavior.
+   */
+  maxChunks?: number;
+  /** Filename for the overflow attachment (default 'full-content.txt'). */
+  overflowFilename?: string;
 }
 
 /**
@@ -54,7 +66,16 @@ export interface ChunkedReplyOptions {
  * and sends the first chunk as editReply, the rest as follow-ups.
  */
 export async function sendChunkedReply(options: ChunkedReplyOptions): Promise<void> {
-  const { interaction, content, header, continuedHeader, components, via = 'editReply' } = options;
+  const {
+    interaction,
+    content,
+    header,
+    continuedHeader,
+    components,
+    via = 'editReply',
+    maxChunks,
+    overflowFilename = 'full-content.txt',
+  } = options;
 
   const sendFirst = async (
     firstContent: string,
@@ -84,10 +105,17 @@ export async function sendChunkedReply(options: ChunkedReplyOptions): Promise<vo
   const contentChunks = splitMessage(content, maxContentLength);
 
   // Add headers to each chunk
-  const messages = contentChunks.map((chunk, index) => {
+  const allMessages = contentChunks.map((chunk, index) => {
     const chunkHeader = index === 0 ? header : continuedHeader;
     return chunkHeader + chunk;
   });
+
+  // Cap inline chunks; the overflow tail carries the COMPLETE content as an
+  // attachment so the reader never has to reassemble it from messages. Floor
+  // at 1: a zero cap would leave nothing to send as the first chunk.
+  const effectiveMax = maxChunks !== undefined ? Math.max(1, maxChunks) : undefined;
+  const overflowing = effectiveMax !== undefined && allMessages.length > effectiveMax;
+  const messages = overflowing ? allMessages.slice(0, effectiveMax) : allMessages;
 
   // Send first chunk (components ride the first chunk only)
   await sendFirst(messages[0], components ?? []);
@@ -115,6 +143,20 @@ export async function sendChunkedReply(options: ChunkedReplyOptions): Promise<vo
           logger.debug({ err: noticeError }, 'Part-way delivery notice also failed');
         });
       return;
+    }
+  }
+
+  if (overflowing) {
+    const remaining = allMessages.length - messages.length;
+    try {
+      await interaction.followUp({
+        content: `📎 ${remaining} more chunk${remaining === 1 ? '' : 's'} — full content attached.`,
+        files: [new AttachmentBuilder(Buffer.from(content, 'utf-8'), { name: overflowFilename })],
+        flags: MessageFlags.Ephemeral,
+      });
+    } catch (error) {
+      // Best-effort tail: the inline chunks already delivered the head.
+      logger.warn({ err: error }, 'Overflow attachment failed to send');
     }
   }
 }

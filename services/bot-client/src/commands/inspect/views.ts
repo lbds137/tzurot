@@ -38,8 +38,15 @@ export interface DebugViewResult {
   /** Long-form TEXT rendered inline via chunked ephemeral replies (owner
    * decision: no file-download dance for readable content — files are for
    * structured data like JSON/XML only). The dispatcher hands this to
-   * `sendChunkedReply`; `components` ride the first chunk. */
-  chunkedText?: { text: string; continuedHeader: string };
+   * `sendChunkedReply`; `components` ride the first chunk. `maxChunks`
+   * bounds the inline flood — past it the COMPLETE text arrives as a
+   * text-file attachment tail instead of dozens of follow-ups. */
+  chunkedText?: {
+    text: string;
+    continuedHeader: string;
+    maxChunks?: number;
+    overflowFilename?: string;
+  };
   embeds?: EmbedBuilder[];
   files?: AttachmentBuilder[];
   flags?: MessageFlags;
@@ -227,6 +234,10 @@ export function buildReasoningView(
     chunkedText: {
       text: `## Reasoning\n\n${thinking}`,
       continuedHeader: '_(reasoning continued)_\n',
+      // A reasoning dump can run tens of chunks — cap the inline flood and
+      // deliver the rest (complete, self-contained) as an attachment tail.
+      maxChunks: 3,
+      overflowFilename: 'reasoning-full.txt',
     },
     flags: MessageFlags.Ephemeral,
   };

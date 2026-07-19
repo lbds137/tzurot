@@ -77,6 +77,24 @@ export function buildInspectComponents(
         emoji: '📃',
       },
       {
+        label: 'Input',
+        description: 'Raw message, attachments, transcript, replies',
+        value: DebugViewType.Input,
+        emoji: '📥',
+      },
+      {
+        label: 'Generation Params',
+        description: 'Model, provider, and every sampling knob',
+        value: DebugViewType.GenerationParams,
+        emoji: '🎛️',
+      },
+      {
+        label: 'Post-Processing',
+        description: 'Raw model output vs the final content sent',
+        value: DebugViewType.PostProcessing,
+        emoji: '🔀',
+      },
+      {
         label: 'Memory Inspector',
         description: 'Search query, scored memories, inclusion status',
         value: DebugViewType.MemoryInspector,

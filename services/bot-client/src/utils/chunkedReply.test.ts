@@ -216,6 +216,61 @@ describe('sendChunkedReply', () => {
     ).rejects.toThrow('Discord API down');
   });
 
+  it('caps inline chunks at maxChunks and attaches the FULL content as an overflow tail', async () => {
+    const { sendChunkedReply } = await import('./chunkedReply.js');
+    const content = 'x'.repeat(9000); // ~5 chunks under the mocked splitter
+
+    await sendChunkedReply({
+      interaction,
+      content,
+      header: 'H: ',
+      continuedHeader: 'C: ',
+      maxChunks: 2,
+      overflowFilename: 'reasoning-full.txt',
+    });
+
+    // 1 editReply (first chunk) + 1 inline follow-up + 1 overflow tail
+    expect(interaction.editReply).toHaveBeenCalledTimes(1);
+    expect(interaction.followUp).toHaveBeenCalledTimes(2);
+
+    const tail = vi.mocked(interaction.followUp).mock.calls[1][0] as {
+      content: string;
+      files: unknown[];
+    };
+    expect(tail.content).toContain('full content attached');
+    expect(tail.files).toHaveLength(1);
+  });
+
+  it('sends everything inline when chunks fit within maxChunks (no tail)', async () => {
+    const { sendChunkedReply } = await import('./chunkedReply.js');
+    const content = 'x'.repeat(3000); // ~2 chunks
+
+    await sendChunkedReply({
+      interaction,
+      content,
+      header: 'H: ',
+      continuedHeader: 'C: ',
+      maxChunks: 3,
+    });
+
+    expect(interaction.editReply).toHaveBeenCalledTimes(1);
+    expect(interaction.followUp).toHaveBeenCalledTimes(1);
+    const lastFollowUp = vi.mocked(interaction.followUp).mock.calls.at(-1)?.[0] as {
+      content: string;
+    };
+    expect(lastFollowUp.content).not.toContain('full content attached');
+  });
+
+  it('keeps the legacy send-everything behavior when maxChunks is omitted', async () => {
+    const { sendChunkedReply } = await import('./chunkedReply.js');
+    const content = 'x'.repeat(9000); // ~5 chunks
+
+    await sendChunkedReply({ interaction, content, header: 'H: ', continuedHeader: 'C: ' });
+
+    expect(interaction.editReply).toHaveBeenCalledTimes(1);
+    expect(interaction.followUp).toHaveBeenCalledTimes(4);
+  });
+
   it('should use longer header for calculating max content length', async () => {
     // short header, long continuedHeader
     const header = 'H\n';
