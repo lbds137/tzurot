@@ -249,7 +249,7 @@ function buildBrowsePage(view: BrowseView): { embed: EmbedBuilder; components: B
       view.capped && `first ${BROWSE_FETCH_LIMIT} — refine with a query for more`,
     ],
     badgeLegend:
-      'Free 🆓 · Usable ✅ · Needs a key 🔒 · Unverified ❔ · Pinned preset 📌 · Router 🔀 · z.ai ⚡',
+      'Free 🆓 · Usable ✅ · Needs a key 🔒 · Unverified ❔ · Pinned preset 📌 · Router 🔀 · z.ai ⚡ · Vision 👁️ · Image gen 🎨',
   });
 
   const safeView: BrowseView = { ...view, page: safePage };

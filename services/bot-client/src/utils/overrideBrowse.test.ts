@@ -38,7 +38,8 @@ const PREFIX = 'test-override';
 function makeConfig(): OverrideBrowseConfig {
   return {
     prefix: PREFIX,
-    title: '🎭 Test Overrides',
+    entityEmoji: '🎭',
+    titleNoun: 'Test Overrides',
     entityType: 'test override',
     fallbackNoun: 'default',
     emptyDescription: 'No overrides set. Use /test set.',
@@ -128,9 +129,10 @@ describe('buildOverrideBrowseView', () => {
     const { embeds, components } = buildOverrideBrowseView(makeConfig(), overrides);
 
     const data = embeds[0].toJSON();
-    expect(data.description).toContain('Lilith');
-    expect(data.description).toContain('Fast Claude');
-    expect(data.footer?.text).toContain('2 override(s)');
+    // §2.4 row grammar: numbered bold name, config on the metadata line.
+    expect(data.description).toContain('**1.** **Lilith**');
+    expect(data.description).toContain('└ → Fast Claude');
+    expect(data.footer?.text).toContain('2 overrides');
 
     expect(components).toHaveLength(1);
     const row = components[0].toJSON() as {
