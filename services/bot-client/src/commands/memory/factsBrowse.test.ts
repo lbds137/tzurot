@@ -108,6 +108,19 @@ describe('handleFacts', () => {
     expect(context.editReply).toHaveBeenCalledWith(
       expect.objectContaining({ embeds: [expect.anything()] })
     );
+
+    // Shared list builder: §2.1 title; statements render UNBOLDED
+    // (nameMarkup override — sentences, not entity names) with the
+    // learned-date metadata line.
+    const embedData = (
+      vi.mocked(context.editReply).mock.calls[0][0] as {
+        embeds: { data: { title: string; description: string; footer: { text: string } } }[];
+      }
+    ).embeds[0].data;
+    expect(embedData.title).toBe('📋 Known Facts');
+    expect(embedData.description).toContain('**1.** The user has a cat named Miso');
+    expect(embedData.description).toContain("└ Jun 15, '26");
+    expect(embedData.footer.text).toContain('Locked 🔒 · Corrected ✏️');
     expect(sessionManagerMock.set).toHaveBeenCalledWith(
       expect.objectContaining({
         entityType: 'memory-fact-browse',
@@ -115,6 +128,22 @@ describe('handleFacts', () => {
         data: { personalityId: 'personality-456', currentPage: 0 },
       })
     );
+  });
+
+  it('renders both badges as a joined glyph run when a fact is locked AND corrected', async () => {
+    stub.listFacts.mockResolvedValue(
+      listResponse([createMockFact({ isLocked: true, tier: 'corrected' })])
+    );
+
+    await handleFacts(context);
+
+    const embedData = (
+      vi.mocked(context.editReply).mock.calls[0][0] as {
+        embeds: { data: { description: string } }[];
+      }
+    ).embeds[0].data;
+    // Established multi-badge convention: concatenated run, no separator.
+    expect(embedData.description).toContain('**1.** 🔒✏️ The user has a cat named Miso');
   });
 
   it('stops when personality resolution already replied (null contract)', async () => {
