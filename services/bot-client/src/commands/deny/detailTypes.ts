@@ -5,7 +5,7 @@
  * detail.ts (main handlers) and detailEdit.ts (edit handlers).
  */
 
-import { EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder } from 'discord.js';
+import { ButtonBuilder, ButtonStyle, ActionRowBuilder, type EmbedBuilder } from 'discord.js';
 import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
 import {
   type DenylistEntityType,
@@ -13,6 +13,7 @@ import {
   type DenylistMode,
 } from '@tzurot/common-types/schemas/api/denylist';
 import { formatDateShort } from '@tzurot/common-types/utils/dateFormatting';
+import { buildEntityDetailCard } from '../../utils/detailCard.js';
 import type { BrowseContext } from '../../utils/dashboard/types.js';
 import type { DenylistEntryResponse } from './browseTypes.js';
 
@@ -60,27 +61,23 @@ export function buildDetailEmbed(
   const modeIcon = entry.mode === 'BLOCK' ? '\u{1F6AB}' : '\u{1F507}';
   const scopeInfo = entry.scope === 'BOT' ? 'Bot-wide' : `${entry.scope}: \`${entry.scopeId}\``;
 
-  const fields = [
-    { name: 'Target', value: target, inline: true },
-    { name: 'Type', value: entry.type, inline: true },
-    { name: '\u200B', value: '\u200B', inline: true },
-    { name: 'Mode', value: `${modeIcon} ${entry.mode}`, inline: true },
-    { name: 'Scope', value: scopeInfo, inline: true },
-    { name: '\u200B', value: '\u200B', inline: true },
-  ];
-
-  if (entry.reason !== null) {
-    fields.push({ name: 'Reason', value: entry.reason, inline: false });
-  }
-
-  return new EmbedBuilder()
-    .setTitle(`${modeIcon} Denylist Entry`)
-    .setColor(entry.mode === 'BLOCK' ? DISCORD_COLORS.ERROR : DISCORD_COLORS.WARNING)
-    .addFields(fields)
-    .setFooter({
-      text: `Added ${formatDateShort(entry.addedAt)} \u2022 ID: ${entry.id}`,
-    })
-    .setTimestamp();
+  return buildEntityDetailCard({
+    title: `${modeIcon} Denylist Entry`,
+    color: entry.mode === 'BLOCK' ? DISCORD_COLORS.ERROR : DISCORD_COLORS.WARNING,
+    // Spacers close each row at 2 cells so Target/Type and Mode/Scope align
+    // vertically in Discord's 3-column field grid.
+    fields: [
+      { name: 'Target', value: target, inline: true },
+      { name: 'Type', value: entry.type, inline: true },
+      'spacer',
+      { name: 'Mode', value: `${modeIcon} ${entry.mode}`, inline: true },
+      { name: 'Scope', value: scopeInfo, inline: true },
+      'spacer',
+      entry.reason !== null && { name: 'Reason', value: entry.reason, inline: false },
+    ],
+    footer: `Added ${formatDateShort(entry.addedAt)} \u2022 ID: ${entry.id}`,
+    timestamp: true,
+  }).embed;
 }
 
 /** Build action buttons for the detail view */

@@ -20,6 +20,7 @@ import { type MemoryItem } from '@tzurot/common-types/schemas/api/memory';
 import { formatDateTimeCompact } from '@tzurot/common-types/utils/dateFormatting';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { CUSTOM_ID_DELIMITER } from '../../utils/customIds.js';
+import { buildEntityDetailCard } from '../../utils/detailCard.js';
 import { clientsFor } from '../../utils/gatewayClients.js';
 import { CATALOG } from '../../ux/catalog/catalog.js';
 import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
@@ -93,37 +94,26 @@ export function buildDetailEmbed(memory: MemoryItem): {
   embed: EmbedBuilder;
   isTruncated: boolean;
 } {
-  const escapedContent = escapeMarkdown(memory.content);
-  const isTruncated = escapedContent.length > EMBED_DESCRIPTION_SAFE_LIMIT;
+  const { embed, descriptionTruncated } = buildEntityDetailCard({
+    title: `${memory.isLocked ? '🔒 ' : ''}Memory Details`,
+    color: memory.isLocked ? DISCORD_COLORS.WARNING : DISCORD_COLORS.BLURPLE,
+    description: escapeMarkdown(memory.content),
+    descriptionCap: EMBED_DESCRIPTION_SAFE_LIMIT,
+    truncationNotice: '\n\n*... Content truncated. Click "📄 View Full" to see complete memory.*',
+    fields: [
+      { name: 'Personality', value: escapeMarkdown(memory.personalityName), inline: true },
+      { name: 'Status', value: memory.isLocked ? '🔒 Locked' : '🔓 Unlocked', inline: true },
+      { name: 'Created', value: formatDateTimeCompact(memory.createdAt), inline: true },
+      memory.updatedAt !== memory.createdAt && {
+        name: 'Updated',
+        value: formatDateTimeCompact(memory.updatedAt),
+        inline: true,
+      },
+    ],
+    footer: `Memory ID: ${memory.id.substring(0, 8)}...`,
+  });
 
-  // Truncate if needed, indicating there's more content
-  const displayContent = isTruncated
-    ? escapedContent.substring(0, EMBED_DESCRIPTION_SAFE_LIMIT - 50) +
-      '\n\n*... Content truncated. Click "📄 View Full" to see complete memory.*'
-    : escapedContent;
-
-  const embed = new EmbedBuilder()
-    .setTitle(`${memory.isLocked ? '🔒 ' : ''}Memory Details`)
-    .setColor(memory.isLocked ? DISCORD_COLORS.WARNING : DISCORD_COLORS.BLURPLE)
-    .setDescription(displayContent);
-
-  embed.addFields(
-    { name: 'Personality', value: escapeMarkdown(memory.personalityName), inline: true },
-    { name: 'Status', value: memory.isLocked ? '🔒 Locked' : '🔓 Unlocked', inline: true },
-    { name: 'Created', value: formatDateTimeCompact(memory.createdAt), inline: true }
-  );
-
-  if (memory.updatedAt !== memory.createdAt) {
-    embed.addFields({
-      name: 'Updated',
-      value: formatDateTimeCompact(memory.updatedAt),
-      inline: true,
-    });
-  }
-
-  embed.setFooter({ text: `Memory ID: ${memory.id.substring(0, 8)}...` });
-
-  return { embed, isTruncated };
+  return { embed, isTruncated: descriptionTruncated };
 }
 
 /**

@@ -13,8 +13,7 @@
  * tied to the picked character.
  */
 
-import { EmbedBuilder, escapeMarkdown } from 'discord.js';
-import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
+import { escapeMarkdown } from 'discord.js';
 import { voiceViewOptions } from '@tzurot/common-types/generated/commandOptions';
 import { type TtsResolutionSource } from '@tzurot/common-types/schemas/api/voice-resolution';
 import {
@@ -28,7 +27,10 @@ import {
   AUTOCOMPLETE_UNAVAILABLE_MESSAGE,
   isAutocompleteErrorSentinel,
 } from '../../utils/apiCheck.js';
+import { buildEntityDetailCard } from '../../utils/detailCard.js';
 import { clientsFor } from '../../utils/gatewayClients.js';
+import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
+import { renderSpec } from '../../ux/render/render.js';
 
 const logger = createLogger('voice-view');
 
@@ -89,7 +91,14 @@ export async function handleVoiceView(context: DeferredCommandContext): Promise<
 
     if (!result.ok) {
       logger.warn({ userId, personalityId, status: result.status }, 'Failed to resolve voice view');
-      await context.editReply({ content: `❌ Failed to fetch voice settings: ${result.error}` });
+      await context.editReply({
+        content: renderSpec(
+          classifyGatewayFailure(result, 'voice settings', {
+            operation: 'read',
+            failedAction: 'fetch voice settings',
+          })
+        ),
+      });
       return;
     }
 
@@ -105,14 +114,14 @@ export async function handleVoiceView(context: DeferredCommandContext): Promise<
       : stt.provider;
     const sttLine = `**${sttProviderLabel}** _(${sttSourceLabel(stt.source)})_`;
 
-    const embed = new EmbedBuilder()
-      .setTitle(`🎙️ Voice Settings for ${escapeMarkdown(personalityName)}`)
-      .setColor(DISCORD_COLORS.BLURPLE)
-      .addFields(
-        { name: '🔊 TTS (speaks as character)', value: ttsLine, inline: false },
-        { name: '🎤 STT (transcribes your voice)', value: sttLine, inline: false }
-      )
-      .setTimestamp();
+    const { embed } = buildEntityDetailCard({
+      title: `🎙️ Voice Settings for ${escapeMarkdown(personalityName)}`,
+      fields: [
+        { name: '🔊 TTS (speaks as character)', value: ttsLine },
+        { name: '🎤 STT (transcribes your voice)', value: sttLine },
+      ],
+      timestamp: true,
+    });
 
     await context.editReply({ embeds: [embed] });
 
@@ -129,6 +138,13 @@ export async function handleVoiceView(context: DeferredCommandContext): Promise<
     );
   } catch (error) {
     logger.error({ err: error, userId, command: 'Voice View' }, 'Error');
-    await context.editReply({ content: '❌ An error occurred. Please try again later.' });
+    await context.editReply({
+      content: renderSpec(
+        classifyGatewayFailure(error, 'voice settings', {
+          operation: 'read',
+          failedAction: 'fetch voice settings',
+        })
+      ),
+    });
   }
 }
