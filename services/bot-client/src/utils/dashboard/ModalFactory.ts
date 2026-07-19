@@ -3,15 +3,20 @@
  *
  * Creates modals for dashboard section editing with pre-filled values.
  * Reusable across /character, /profile, /preset, etc.
+ *
+ * Rendering is delegated to the Label-based modal toolkit
+ * (`utils/modal/toolkit.ts`): each text field renders inside a Label
+ * component rather than the legacy ActionRow shape. Submission reading is
+ * unchanged — `getTextInputValue` resolves by customId regardless of the
+ * hosting component.
  */
 
+import { type ModalBuilder } from 'discord.js';
 import {
-  ModalBuilder,
-  TextInputBuilder,
-  TextInputStyle,
-  ActionRowBuilder,
-  type ModalActionRowComponentBuilder,
-} from 'discord.js';
+  buildToolkitModal,
+  textFieldFromDefinition,
+  truncateByCodePoints,
+} from '../modal/toolkit.js';
 import {
   type DashboardConfig,
   type SectionDefinition,
@@ -20,6 +25,24 @@ import {
   buildDashboardCustomId,
   resolveContextAware,
 } from './types.js';
+
+/** Discord caps modals at five top-level components. */
+const MAX_MODAL_FIELDS = 5;
+
+/** Collect string prefills for the given fields from an entity record. */
+function collectInitialValues<T extends Record<string, unknown>>(
+  fields: FieldDefinition[],
+  currentData: T
+): Record<string, string> {
+  const values: Record<string, string> = {};
+  for (const field of fields) {
+    const currentValue = currentData[field.id];
+    if (currentValue !== undefined && currentValue !== null && typeof currentValue === 'string') {
+      values[field.id] = truncateByCodePoints(currentValue, field.maxLength);
+    }
+  }
+  return values;
+}
 
 /**
  * Build a modal for editing a dashboard section
@@ -37,10 +60,6 @@ export function buildSectionModal<T extends Record<string, unknown>>(
   currentData: T,
   context?: DashboardContext
 ): ModalBuilder {
-  const modal = new ModalBuilder()
-    .setCustomId(buildDashboardCustomId(config.entityType, 'modal', entityId, section.id))
-    .setTitle(`Edit ${section.label.replace(/^[^\w\s]+\s*/, '')}`); // Remove leading emoji
-
   // Filter out hidden fields when context is provided
   let visibleFields = section.fields;
   if (context !== undefined) {
@@ -49,57 +68,14 @@ export function buildSectionModal<T extends Record<string, unknown>>(
     );
   }
 
-  // Add fields (max 5 per Discord limit)
-  const fieldsToAdd = visibleFields.slice(0, 5);
+  const fieldsToAdd = visibleFields.slice(0, MAX_MODAL_FIELDS);
 
-  for (const field of fieldsToAdd) {
-    const textInput = buildTextInput(field, currentData);
-    const row = new ActionRowBuilder<ModalActionRowComponentBuilder>().addComponents(textInput);
-    modal.addComponents(row);
-  }
-
-  return modal;
-}
-
-/**
- * Build a text input component for a field
- */
-function buildTextInput<T extends Record<string, unknown>>(
-  field: FieldDefinition,
-  currentData: T
-): TextInputBuilder {
-  const input = new TextInputBuilder()
-    .setCustomId(field.id)
-    .setLabel(field.label)
-    .setStyle(field.style === 'paragraph' ? TextInputStyle.Paragraph : TextInputStyle.Short)
-    .setRequired(field.required ?? false);
-
-  // Set placeholder if provided
-  if (field.placeholder !== undefined && field.placeholder.length > 0) {
-    input.setPlaceholder(field.placeholder);
-  }
-
-  // `maxLength` is required on `FieldDefinition`, so no style-based
-  // fallback is needed — every field provides its own cap. A `maxLength: 0`
-  // typo would cause Discord to reject the modal at render time (API
-  // requires 1–4000), which is the intended fail-fast behavior; the
-  // `> 0` guard in `validateModalValues` is defense-in-depth for
-  // post-submission validation paths that run on pre-existing data.
-  input.setMaxLength(field.maxLength);
-
-  if (field.minLength !== undefined && field.minLength > 0) {
-    input.setMinLength(field.minLength);
-  }
-
-  // Pre-fill with current value if it exists
-  const currentValue = currentData[field.id];
-  if (currentValue !== undefined && currentValue !== null && typeof currentValue === 'string') {
-    // Discord modals require value to be within length constraints
-    const truncatedValue = currentValue.slice(0, field.maxLength);
-    input.setValue(truncatedValue);
-  }
-
-  return input;
+  return buildToolkitModal({
+    customId: buildDashboardCustomId(config.entityType, 'modal', entityId, section.id),
+    title: `Edit ${section.label.replace(/^[^\w\s]+\s*/, '')}`, // Remove leading emoji
+    items: fieldsToAdd.map(textFieldFromDefinition),
+    initialValues: collectInitialValues(fieldsToAdd, currentData),
+  });
 }
 
 /**
@@ -113,39 +89,12 @@ export function buildSimpleModal(
   fields: FieldDefinition[],
   initialValues?: Record<string, string>
 ): ModalBuilder {
-  const modal = new ModalBuilder().setCustomId(customId).setTitle(title);
-
-  // Add fields (max 5 per Discord limit)
-  const fieldsToAdd = fields.slice(0, 5);
-
-  for (const field of fieldsToAdd) {
-    const input = new TextInputBuilder()
-      .setCustomId(field.id)
-      .setLabel(field.label)
-      .setStyle(field.style === 'paragraph' ? TextInputStyle.Paragraph : TextInputStyle.Short)
-      .setRequired(field.required ?? false);
-
-    if (field.placeholder !== undefined && field.placeholder.length > 0) {
-      input.setPlaceholder(field.placeholder);
-    }
-
-    input.setMaxLength(field.maxLength);
-
-    if (field.minLength !== undefined && field.minLength > 0) {
-      input.setMinLength(field.minLength);
-    }
-
-    // Pre-fill if initial value provided
-    const initialValue = initialValues?.[field.id];
-    if (initialValue !== undefined && initialValue.length > 0) {
-      input.setValue(initialValue.slice(0, field.maxLength));
-    }
-
-    const row = new ActionRowBuilder<ModalActionRowComponentBuilder>().addComponents(input);
-    modal.addComponents(row);
-  }
-
-  return modal;
+  return buildToolkitModal({
+    customId,
+    title,
+    items: fields.slice(0, MAX_MODAL_FIELDS).map(textFieldFromDefinition),
+    initialValues,
+  });
 }
 
 /**
