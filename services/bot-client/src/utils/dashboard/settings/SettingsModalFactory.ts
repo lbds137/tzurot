@@ -12,6 +12,7 @@ import {
   ActionRowBuilder,
   type ModalActionRowComponentBuilder,
 } from 'discord.js';
+import { truncateByCodePoints } from '../../modal/toolkit.js';
 import { Duration, DurationParseError } from '@tzurot/common-types/utils/Duration';
 import { type SettingDefinition, buildSettingsCustomId, SettingType } from './types.js';
 
@@ -62,7 +63,7 @@ export function buildSettingEditModal(
   // throws in TextInputBuilder validation.
   const valueStr = formatValueForInput(currentValue);
   if (valueStr.length > 0) {
-    input.setValue(valueStr.slice(0, maxLength));
+    input.setValue(truncateByCodePoints(valueStr, maxLength));
   }
 
   input.setMaxLength(maxLength);

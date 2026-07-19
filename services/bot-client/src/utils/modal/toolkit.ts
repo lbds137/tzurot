@@ -9,19 +9,16 @@
  * interleave as section prose; they are NON-INTERACTIVE, so extraction
  * skips them.
  *
- * This module is the typed vocabulary over that API:
+ * The type vocabulary lives in `types.ts`; this module owns the behavior:
  *
- * - `ModalItem` — discriminated union of field kinds + display blocks.
  * - `buildToolkitModal` — items → a Label-based `ModalBuilder`.
  * - `extractSubmission` — kind-aware read of a submission into a value
  *   record (file uploads excluded: attachments aren't string-shaped —
  *   read them via `interaction.fields.getUploadedFiles`).
  * - `validateSubmission` — text-kind length/required rules, mirroring the
  *   dashboard ModalFactory's contract.
- *
- * The dashboard's `ModalFactory` (`buildSectionModal`/`buildSimpleModal`)
- * still renders the legacy ActionRow shape; it migrates onto this module
- * once Labels are runtime-proven on the create-modal exemplars.
+ * - `truncateByCodePoints` — the shared prefill-truncation helper (cuts by
+ *   code point so a surrogate pair never splits at the cap).
  */
 
 import {
@@ -40,94 +37,28 @@ import {
   TextInputStyle,
 } from 'discord.js';
 import type { FieldDefinition } from '../dashboard/types.js';
+import type {
+  BuildToolkitModalOptions,
+  CheckboxGroupModalField,
+  FileUploadModalField,
+  ModalChoice,
+  ModalField,
+  ModalItem,
+  RadioModalField,
+  SelectModalField,
+  SubmissionFieldReader,
+  SubmissionValue,
+  TextModalField,
+} from './types.js';
 
-/** One choice in a select / radio / checkbox-group field. */
-export interface ModalChoice {
-  label: string;
-  value: string;
-  description?: string;
-  default?: boolean;
-}
-
-interface ModalFieldBase {
-  /** Submission key; must be unique within the modal. */
-  id: string;
-  /** Label title shown above the input. */
-  label: string;
-  /** Inline docs rendered under the label (D15). */
-  description?: string;
-  required?: boolean;
-}
-
-export interface TextModalField extends ModalFieldBase {
-  kind: 'text';
-  style?: 'short' | 'paragraph';
-  placeholder?: string;
-  minLength?: number;
-  /** Required — every text field caps its own length (Discord: 1–4000). */
-  maxLength: number;
-  /** Pre-filled value (truncated to maxLength). */
-  initialValue?: string;
-}
-
-export interface SelectModalField extends ModalFieldBase {
-  kind: 'select';
-  options: ModalChoice[];
-  placeholder?: string;
-  minValues?: number;
-  maxValues?: number;
-}
-
-export interface RadioModalField extends ModalFieldBase {
-  kind: 'radio';
-  options: ModalChoice[];
-}
-
-export interface CheckboxGroupModalField extends ModalFieldBase {
-  kind: 'checkboxGroup';
-  options: ModalChoice[];
-  minValues?: number;
-  maxValues?: number;
-}
-
-export interface CheckboxModalField extends ModalFieldBase {
-  kind: 'checkbox';
-  /** Pre-checked state. */
-  default?: boolean;
-}
-
-export interface FileUploadModalField extends ModalFieldBase {
-  kind: 'fileUpload';
-  minFiles?: number;
-  maxFiles?: number;
-}
-
-/** Non-interactive prose block between fields; skipped by extraction. */
-export interface DisplayModalItem {
-  kind: 'display';
-  content: string;
-}
-
-export type ModalField =
-  | TextModalField
-  | SelectModalField
-  | RadioModalField
-  | CheckboxGroupModalField
-  | CheckboxModalField
-  | FileUploadModalField;
-
-export type ModalItem = ModalField | DisplayModalItem;
-
-export interface BuildToolkitModalOptions {
-  customId: string;
-  title: string;
-  items: ModalItem[];
-  /**
-   * Text-field prefills by field id — overrides each field's own
-   * `initialValue`. The preserve-input-on-validation-failure affordance
-   * feeds resubmitted values back through here.
-   */
-  initialValues?: Record<string, string>;
+/**
+ * Truncate to `max` code points — safe for astral-plane characters
+ * (emoji, some CJK) that a UTF-16 `.slice` would cut mid-surrogate. No
+ * ellipsis: callers truncate EDITABLE prefill content, not display text.
+ */
+export function truncateByCodePoints(value: string, max: number): string {
+  const codePoints = [...value];
+  return codePoints.length > max ? codePoints.slice(0, max).join('') : value;
 }
 
 /**
@@ -191,7 +122,7 @@ function buildTextInput(
   }
   const value = initialValues?.[field.id] ?? field.initialValue;
   if (value !== undefined && value.length > 0) {
-    input.setValue(value.slice(0, field.maxLength));
+    input.setValue(truncateByCodePoints(value, field.maxLength));
   }
   return input;
 }
@@ -296,20 +227,6 @@ export function buildToolkitModal(options: BuildToolkitModalOptions): ModalBuild
 }
 
 /**
- * Structural slice of `ModalSubmitFields` — lets tests stub submissions
- * without discord.js internals.
- */
-export interface SubmissionFieldReader {
-  getTextInputValue(customId: string): string;
-  getStringSelectValues(customId: string): readonly string[];
-  getRadioGroup(customId: string, required?: boolean): string | null;
-  getCheckboxGroup(customId: string): readonly string[];
-  getCheckbox(customId: string): boolean;
-}
-
-export type SubmissionValue = string | readonly string[] | boolean | null;
-
-/**
  * Kind-aware read of a submission. Display blocks are skipped (they are
  * non-interactive); file uploads are excluded — read attachments via
  * `interaction.fields.getUploadedFiles(id)`. A field absent from the
@@ -343,8 +260,13 @@ export function extractSubmission(
           values[item.id] = fields.getCheckbox(item.id);
           break;
       }
-    } catch {
-      // Field wasn't in the submission — skip it.
+    } catch (error) {
+      // Only "field absent from the submission" is skippable (hidden
+      // variants, partial submissions). Anything else — notably a
+      // kind/type mismatch — is a wiring bug and must surface.
+      if ((error as { code?: string }).code !== 'ModalSubmitInteractionFieldNotFound') {
+        throw error;
+      }
     }
   }
   return values;
