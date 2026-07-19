@@ -33,6 +33,7 @@ const ALLOWED_RELATIVE = new Set<string>([
   'utils/gatewayClients.ts', // typed-client transport base URL
   'utils/gatewayServiceCalls.ts', // service-to-service calls — attaches X-Service-Auth
   'commands/character/export.ts', // builds the PUBLIC /avatars asset URL (no auth gate)
+  'commands/character/viewV2.ts', // same PUBLIC /avatars asset URL, as the V2 header Thumbnail
 ]);
 
 function walk(dir: string): string[] {

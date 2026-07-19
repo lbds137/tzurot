@@ -36,7 +36,15 @@ export interface CharacterData extends PersonalityCharacterFields {
   hasVoiceReference: boolean;
   imageEnabled: boolean;
   ownerId: string;
-  avatarData: string | null; // Base64-encoded
+  avatarData: string | null; // Base64-encoded (write-direction only; always null on reads)
+  /**
+   * Whether a stored avatar exists — the READ-direction signal, emitted by
+   * the gateway response schema and carried through toCharacterData's
+   * spread. Optional: write-path constructions (create/import payloads)
+   * don't carry it. Never gate avatar display on avatarData (always null on
+   * reads); gate on this.
+   */
+  hasAvatar?: boolean;
   createdAt: string;
   updatedAt: string;
   /** Whether the current user can edit this character (set by API based on ownership) */
