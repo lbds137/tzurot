@@ -9,6 +9,7 @@
  */
 
 import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js';
+import { ENTITY_EMOJI } from '@tzurot/common-types/constants/uxVocabulary';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
 import {
@@ -26,7 +27,8 @@ export const TTS_OVERRIDE_PREFIX = 'voice-tts-override';
 
 const ttsOverrideConfig: OverrideBrowseConfig = {
   prefix: TTS_OVERRIDE_PREFIX,
-  entityEmoji: '🔊',
+  // 🎤 is the single voice-entity glyph (§2.1) — 🔊 variants collapse onto it.
+  entityEmoji: ENTITY_EMOJI.voice,
   titleNoun: 'TTS Overrides',
   entityType: 'TTS override',
   fallbackNoun: 'TTS config',

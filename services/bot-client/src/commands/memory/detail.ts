@@ -17,7 +17,8 @@ import {
 } from 'discord.js';
 import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
 import { type MemoryItem } from '@tzurot/common-types/schemas/api/memory';
-import { formatDateTimeCompact } from '@tzurot/common-types/utils/dateFormatting';
+import { AUTOCOMPLETE_BADGES } from '@tzurot/common-types/utils/autocompleteFormat';
+import { formatDiscordTimestamp } from '@tzurot/common-types/utils/dateFormatting';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { CUSTOM_ID_DELIMITER } from '../../utils/customIds.js';
 import { buildEntityDetailCard } from '../../utils/detailCard.js';
@@ -95,18 +96,24 @@ export function buildDetailEmbed(memory: MemoryItem): {
   isTruncated: boolean;
 } {
   const { embed, descriptionTruncated } = buildEntityDetailCard({
-    title: `${memory.isLocked ? '🔒 ' : ''}Memory Details`,
-    color: memory.isLocked ? DISCORD_COLORS.WARNING : DISCORD_COLORS.BLURPLE,
+    // 🔐 LOCKED (protection badge) — 🔒 is private-visibility. Detail views
+    // stay BLURPLE (§2.3: color encodes surface kind, not entity state); the
+    // lock speaks through the title badge and Status field.
+    title: `${memory.isLocked ? `${AUTOCOMPLETE_BADGES.LOCKED} ` : ''}Memory Details`,
     description: escapeMarkdown(memory.content),
     descriptionCap: EMBED_DESCRIPTION_SAFE_LIMIT,
     truncationNotice: '\n\n*... Content truncated. Click "📄 View Full" to see complete memory.*',
     fields: [
       { name: 'Personality', value: escapeMarkdown(memory.personalityName), inline: true },
-      { name: 'Status', value: memory.isLocked ? '🔒 Locked' : '🔓 Unlocked', inline: true },
-      { name: 'Created', value: formatDateTimeCompact(memory.createdAt), inline: true },
+      {
+        name: 'Status',
+        value: memory.isLocked ? `${AUTOCOMPLETE_BADGES.LOCKED} Locked` : '🔓 Unlocked',
+        inline: true,
+      },
+      { name: 'Created', value: formatDiscordTimestamp(memory.createdAt, 'D'), inline: true },
       memory.updatedAt !== memory.createdAt && {
         name: 'Updated',
-        value: formatDateTimeCompact(memory.updatedAt),
+        value: formatDiscordTimestamp(memory.updatedAt, 'D'),
         inline: true,
       },
     ],
@@ -126,7 +133,7 @@ export function buildDetailButtons(
   isTruncated = false
 ): ActionRowBuilder<ButtonBuilder> {
   // Use .setEmoji() separately for consistent button sizing
-  const lockEmoji = memory.isLocked ? '🔓' : '🔒';
+  const lockEmoji = memory.isLocked ? '🔓' : AUTOCOMPLETE_BADGES.LOCKED;
   const lockLabel = memory.isLocked ? 'Unlock' : 'Lock';
   const lockStyle = memory.isLocked ? ButtonStyle.Secondary : ButtonStyle.Primary;
 
@@ -389,7 +396,7 @@ export async function handleViewFullButton(
   });
 
   await interaction.editReply({
-    content: `📄 **Full Memory Content** (${memory.personalityName})\nCreated: ${formatDateTimeCompact(memory.createdAt)}`,
+    content: `📄 **Full Memory Content** (${memory.personalityName})\nCreated: ${formatDiscordTimestamp(memory.createdAt, 'D')}`,
     files: [attachment],
   });
 

@@ -117,10 +117,10 @@ describe('handleFacts', () => {
         embeds: { data: { title: string; description: string; footer: { text: string } } }[];
       }
     ).embeds[0].data;
-    expect(embedData.title).toBe('📋 Known Facts');
+    expect(embedData.title).toBe('🧠 Known Facts');
     expect(embedData.description).toContain('**1.** The user has a cat named Miso');
-    expect(embedData.description).toContain("└ Jun 15, '26");
-    expect(embedData.footer.text).toContain('Locked 🔒 · Corrected ✏️');
+    expect(embedData.description).toContain('└ <t:1781524800:D>');
+    expect(embedData.footer.text).toContain('Locked 🔐 · Corrected 📝');
     expect(sessionManagerMock.set).toHaveBeenCalledWith(
       expect.objectContaining({
         entityType: 'memory-fact-browse',
@@ -143,7 +143,7 @@ describe('handleFacts', () => {
       }
     ).embeds[0].data;
     // Established multi-badge convention: concatenated run, no separator.
-    expect(embedData.description).toContain('**1.** 🔒✏️ The user has a cat named Miso');
+    expect(embedData.description).toContain('**1.** 🔐📝 The user has a cat named Miso');
   });
 
   it('stops when personality resolution already replied (null contract)', async () => {

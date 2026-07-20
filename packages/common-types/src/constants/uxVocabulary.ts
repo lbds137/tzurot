@@ -91,7 +91,6 @@ export const BADGE_LEGEND_WORDS: Readonly<Record<keyof typeof AUTOCOMPLETE_BADGE
   GLOBAL: 'Public',
   PUBLIC: 'Public',
   OWNED: 'Private',
-  READ_ONLY: 'Read-only',
   OWNED_BY_OTHER: 'Other user',
   DEFAULT: 'Default',
   ACTIVE: 'Active',
@@ -99,6 +98,13 @@ export const BADGE_LEGEND_WORDS: Readonly<Record<keyof typeof AUTOCOMPLETE_BADGE
   LOCKED: 'Locked',
   NEEDS_KEY: 'Needs a key',
   VISION: 'Vision',
+  IMAGE_GEN: 'Image gen',
+  UNVERIFIED: 'Unverified',
+  ROUTER: 'Router',
+  ZAI_CODING: 'z.ai',
+  USER_TARGET: 'User',
+  GUILD_TARGET: 'Guild',
+  MUTED: 'Muted',
   EDITABLE: 'Yours',
   CORRECTED: 'Corrected',
   SHADOWED: 'Shadowed',
@@ -110,10 +116,12 @@ export type BadgeKey = keyof typeof AUTOCOMPLETE_BADGES;
  * A legend entry: a badge key (uses the standard word), or a key with a
  * surface-specific word override — for surfaces whose domain vocabulary
  * differs from the standard word (alias tiers say "Global/Personal" where the
- * registry says "Public/Private"). The GLYPH always comes from the registry;
- * only the word may vary, so glyph drift stays impossible.
+ * registry says "Public/Private") — and/or a trailing suffix appended after
+ * the glyph (preset browse annotates live counts: `Vision 👁️ (3)`). The GLYPH
+ * always comes from the registry; only the word may vary, so glyph drift
+ * stays impossible.
  */
-export type LegendEntry = BadgeKey | { key: BadgeKey; word: string };
+export type LegendEntry = BadgeKey | { key: BadgeKey; word?: string; suffix?: string };
 
 /**
  * Build a word-first badge legend (§2.2): `Private 🔒 · Locked 🔐` — for
@@ -126,8 +134,9 @@ export function buildBadgeLegend(badges: readonly LegendEntry[]): string {
   return badges
     .map(entry => {
       const key = typeof entry === 'string' ? entry : entry.key;
-      const word = typeof entry === 'string' ? BADGE_LEGEND_WORDS[key] : entry.word;
-      return `${word} ${AUTOCOMPLETE_BADGES[key]}`;
+      const word = (typeof entry === 'string' ? undefined : entry.word) ?? BADGE_LEGEND_WORDS[key];
+      const suffix = typeof entry === 'string' ? undefined : entry.suffix;
+      return `${word} ${AUTOCOMPLETE_BADGES[key]}${suffix !== undefined ? ` ${suffix}` : ''}`;
     })
     .join(' · ');
 }

@@ -12,8 +12,9 @@ import {
   type ButtonInteraction,
   type StringSelectMenuInteraction,
 } from 'discord.js';
-import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
-import { formatDateShort } from '@tzurot/common-types/utils/dateFormatting';
+import { ENTITY_EMOJI, buildBadgeLegend } from '@tzurot/common-types/constants/uxVocabulary';
+import { AUTOCOMPLETE_BADGES } from '@tzurot/common-types/utils/autocompleteFormat';
+import { formatDiscordTimestamp } from '@tzurot/common-types/utils/dateFormatting';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { isBotOwner } from '@tzurot/common-types/utils/ownerMiddleware';
 import { type OwnerClient } from '@tzurot/clients';
@@ -63,8 +64,9 @@ export function isDenyBrowseSelectInteraction(customId: string): boolean {
 /** In-place filter toggle display (§3.1 affordance). */
 const FILTER_TOGGLE_DISPLAY: Record<DenyBrowseFilter, FilterToggleDisplay> = {
   all: { label: 'Filter: All', shortLabel: 'All', emoji: '📋' },
-  user: { label: 'Filter: Users', shortLabel: 'Users', emoji: '👤' },
-  guild: { label: 'Filter: Guilds', shortLabel: 'Guilds', emoji: '🏢' },
+  // 🧍 USER_TARGET — 👤 belongs to the persona ENTITY register (§2.2).
+  user: { label: 'Filter: Users', shortLabel: 'Users', emoji: AUTOCOMPLETE_BADGES.USER_TARGET },
+  guild: { label: 'Filter: Guilds', shortLabel: 'Guilds', emoji: AUTOCOMPLETE_BADGES.GUILD_TARGET },
 };
 
 /**
@@ -75,7 +77,8 @@ const FILTER_TOGGLE_DISPLAY: Record<DenyBrowseFilter, FilterToggleDisplay> = {
  * type-emoji + discordId + mode-indicator portion.
  */
 function formatSelectLabel(entry: DenylistEntryResponse): string {
-  const typeEmoji = entry.type === 'USER' ? '\u{1F464}' : '\u{1F3E2}';
+  const typeEmoji =
+    entry.type === 'USER' ? AUTOCOMPLETE_BADGES.USER_TARGET : AUTOCOMPLETE_BADGES.GUILD_TARGET;
   const modeIndicator = entry.mode === 'MUTE' ? ' [MUTE]' : '';
   return `${typeEmoji} ${entry.discordId}${modeIndicator}`;
 }
@@ -115,22 +118,24 @@ function buildBrowsePage(
 ): { embed: EmbedBuilder; components: BrowseActionRow[] } {
   const { embed, pageItems, startIndex, totalPages, safePage } =
     buildBrowseListEmbed<DenylistEntryResponse>({
-      entityEmoji: '\u{1F6AB}',
+      entityEmoji: ENTITY_EMOJI.denial,
       titleNoun: 'Denylist',
       items: entries,
       page,
       itemsPerPage: ITEMS_PER_PAGE,
       formatRow: entry => ({
         badges:
-          (entry.type === 'USER' ? '\u{1F464}' : '\u{1F3E2}') +
-          (entry.mode === 'MUTE' ? '\u{1F507}' : ''),
+          (entry.type === 'USER'
+            ? AUTOCOMPLETE_BADGES.USER_TARGET
+            : AUTOCOMPLETE_BADGES.GUILD_TARGET) +
+          (entry.mode === 'MUTE' ? AUTOCOMPLETE_BADGES.MUTED : ''),
         // Users render as a live mention with the raw id as techId; guilds
         // only have the raw id, which becomes the name itself.
         name: entry.type === 'USER' ? `<@${entry.discordId}>` : entry.discordId,
         techId: entry.type === 'USER' ? entry.discordId : undefined,
         metadata: [
           entry.scope === 'BOT' ? 'Bot-wide' : `${entry.scope}:${entry.scopeId}`,
-          `Added ${formatDateShort(entry.addedAt)}`,
+          `Added ${formatDiscordTimestamp(entry.addedAt, 'D')}`,
           ...(entry.reason !== null ? [escapeMarkdown(entry.reason)] : []),
         ],
       }),
@@ -145,8 +150,9 @@ function buildBrowsePage(
         filter !== 'all' && formatFilterLabeled(FILTER_TOGGLE_DISPLAY[filter].shortLabel),
         sort === 'date' ? formatSortNatural('date') : formatSortNatural('target ID'),
       ],
-      badgeLegend: 'User \u{1F464} \u00B7 Guild \u{1F3E2} \u00B7 Muted \u{1F507}',
-      color: DISCORD_COLORS.ERROR,
+      badgeLegend: buildBadgeLegend(['USER_TARGET', 'GUILD_TARGET', 'MUTED']),
+      // No ERROR color: browse is an informational surface and stays BLURPLE
+      // (\u00A72.3 names "red deny lists" as the drift to kill).
     });
 
   const components: BrowseActionRow[] = [];

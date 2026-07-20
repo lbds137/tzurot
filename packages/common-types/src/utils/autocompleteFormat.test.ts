@@ -16,7 +16,7 @@ describe('autocompleteFormat', () => {
       expect(AUTOCOMPLETE_BADGES.GLOBAL).toBe('🌐');
       expect(AUTOCOMPLETE_BADGES.OWNED).toBe('🔒');
       expect(AUTOCOMPLETE_BADGES.PUBLIC).toBe('🌐');
-      expect(AUTOCOMPLETE_BADGES.READ_ONLY).toBe('📖');
+      expect(AUTOCOMPLETE_BADGES.OWNED_BY_OTHER).toBe('👥');
     });
 
     it('should have all expected status badges', () => {
@@ -144,15 +144,15 @@ describe('autocompleteFormat', () => {
       expect(result.name).toBe('🌐 Shared Bot (shared-bot)');
     });
 
-    it('should handle read-only personality correctly', () => {
+    it('should handle an owned-by-other personality correctly', () => {
       const result = formatAutocompleteOption({
         name: "Someone's Bot",
         value: 'others-bot',
-        scopeBadge: AUTOCOMPLETE_BADGES.READ_ONLY,
+        scopeBadge: AUTOCOMPLETE_BADGES.OWNED_BY_OTHER,
         identifier: 'others-bot',
       });
 
-      expect(result.name).toBe("📖 Someone's Bot (others-bot)");
+      expect(result.name).toBe("👥 Someone's Bot (others-bot)");
     });
 
     it('should handle global preset with default and free flags', () => {

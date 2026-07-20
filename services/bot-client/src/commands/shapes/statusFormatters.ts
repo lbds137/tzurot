@@ -6,7 +6,7 @@
  */
 
 import {
-  formatDateShort,
+  formatDiscordTimestamp,
   normalizeDateTime,
   normalizeDateTimeNullable,
 } from '@tzurot/common-types/utils/dateFormatting';
@@ -105,7 +105,7 @@ function formatTruncatedError(errorMessage: string): string {
 
 export function formatImportJobStatus(job: ImportJob): string {
   const emoji = STATUS_EMOJI[job.status] ?? '\u2753';
-  const date = formatDateShort(job.createdAt);
+  const date = formatDiscordTimestamp(job.createdAt, 'D');
   let line = `${emoji} **${job.sourceSlug}** \u2014 ${job.status} (${date})`;
 
   if (job.status === 'in_progress') {
@@ -138,15 +138,14 @@ export function formatFileSize(bytes: number): string {
 
 export function formatExportJobStatus(job: ExportJob): string {
   const emoji = STATUS_EMOJI[job.status] ?? '\u2753';
-  const date = formatDateShort(job.createdAt);
+  const date = formatDiscordTimestamp(job.createdAt, 'D');
   let line = `${emoji} **${job.sourceSlug}** (${job.format}) \u2014 ${job.status} (${date})`;
 
   if (job.status === 'completed' && job.downloadUrl !== null) {
     const size = job.fileSizeBytes !== null ? ` (${formatFileSize(job.fileSizeBytes)})` : '';
-    const expiresAt = new Date(job.expiresAt);
-    const hoursLeft = Math.max(0, Math.round((expiresAt.getTime() - Date.now()) / 3600000));
+    // <t:R> self-updates ("in 3 hours" \u2192 "in 2 hours") \u2014 no snapshot math.
     line += `\n   \uD83D\uDCE5 [Download${size}](${encodeURI(job.downloadUrl)})`;
-    line += ` \u2014 expires in ${hoursLeft}h`;
+    line += ` \u2014 expires ${formatDiscordTimestamp(job.expiresAt, 'R')}`;
   }
 
   if (job.status === 'failed' && job.errorMessage !== null) {
@@ -196,9 +195,8 @@ export function formatCompactExportStatus(job: ExportJob): string {
 
   if (job.status === 'completed' && job.downloadUrl !== null) {
     const size = job.fileSizeBytes !== null ? ` (${formatFileSize(job.fileSizeBytes)})` : '';
-    const expiresAt = new Date(job.expiresAt);
-    const hoursLeft = Math.max(0, Math.round((expiresAt.getTime() - Date.now()) / 3600000));
-    line += `\n   \uD83D\uDCE5 [Download${size}](${encodeURI(job.downloadUrl)}) \u2014 expires in ${hoursLeft}h`;
+    // <t:R> self-updates ("in 3 hours" \u2192 "in 2 hours") \u2014 no snapshot math.
+    line += `\n   \uD83D\uDCE5 [Download${size}](${encodeURI(job.downloadUrl)}) \u2014 expires ${formatDiscordTimestamp(job.expiresAt, 'R')}`;
   }
 
   if (job.status === 'failed' && job.errorMessage !== null) {

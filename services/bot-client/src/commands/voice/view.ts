@@ -14,6 +14,7 @@
  */
 
 import { escapeMarkdown } from 'discord.js';
+import { entityTitle } from '@tzurot/common-types/constants/uxVocabulary';
 import { voiceViewOptions } from '@tzurot/common-types/generated/commandOptions';
 import { type TtsResolutionSource } from '@tzurot/common-types/schemas/api/voice-resolution';
 import {
@@ -115,7 +116,8 @@ export async function handleVoiceView(context: DeferredCommandContext): Promise<
     const sttLine = `**${sttProviderLabel}** _(${sttSourceLabel(stt.source)})_`;
 
     const { embed } = buildEntityDetailCard({
-      title: `🎙️ Voice Settings for ${escapeMarkdown(personalityName)}`,
+      // 🎤 is the single voice-entity glyph (§2.1) — 🎙️ collapses onto it.
+      title: entityTitle('voice', `Voice Settings for ${escapeMarkdown(personalityName)}`),
       fields: [
         { name: '🔊 TTS (speaks as character)', value: ttsLine },
         { name: '🎤 STT (transcribes your voice)', value: sttLine },

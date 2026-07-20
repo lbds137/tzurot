@@ -22,7 +22,8 @@ import {
   type StringSelectMenuInteraction,
 } from 'discord.js';
 import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
-import { formatDateTimeCompact } from '@tzurot/common-types/utils/dateFormatting';
+import { AUTOCOMPLETE_BADGES } from '@tzurot/common-types/utils/autocompleteFormat';
+import { formatDiscordTimestamp } from '@tzurot/common-types/utils/dateFormatting';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { CUSTOM_ID_DELIMITER } from '../../utils/customIds.js';
 import { buildEntityDetailCard } from '../../utils/detailCard.js';
@@ -51,7 +52,7 @@ export const MAX_FACT_STATEMENT_LENGTH = 1000;
 const TIER_LABELS: Record<string, string> = {
   observed: '🔍 Learned from conversation',
   inferred: '🔮 Inferred',
-  corrected: '✏️ Corrected by you',
+  corrected: `${AUTOCOMPLETE_BADGES.CORRECTED} Corrected by you`,
 };
 
 type FactAction = 'select' | 'correct' | 'lock' | 'back' | 'forget' | 'confirm-forget';
@@ -82,13 +83,18 @@ export function parseFactActionId(
 /** Build the detail embed for a single fact. */
 export function buildFactDetailEmbed(fact: FactItem): EmbedBuilder {
   return buildEntityDetailCard({
-    title: `${fact.isLocked ? '🔒 ' : ''}Fact Details`,
-    color: fact.isLocked ? DISCORD_COLORS.WARNING : DISCORD_COLORS.BLURPLE,
+    // 🔐 LOCKED (protection badge) — 🔒 is private-visibility. Detail views
+    // stay BLURPLE (§2.3: color encodes surface kind, not entity state).
+    title: `${fact.isLocked ? `${AUTOCOMPLETE_BADGES.LOCKED} ` : ''}Fact Details`,
     description: escapeMarkdown(fact.statement),
     fields: [
       { name: 'Origin', value: TIER_LABELS[fact.tier] ?? fact.tier, inline: true },
-      { name: 'Status', value: fact.isLocked ? '🔒 Locked' : '🔓 Unlocked', inline: true },
-      { name: 'Learned', value: formatDateTimeCompact(fact.validFrom), inline: true },
+      {
+        name: 'Status',
+        value: fact.isLocked ? `${AUTOCOMPLETE_BADGES.LOCKED} Locked` : '🔓 Unlocked',
+        inline: true,
+      },
+      { name: 'Learned', value: formatDiscordTimestamp(fact.validFrom, 'D'), inline: true },
       fact.sourceMemoryIds.length > 0 && {
         name: 'Sources',
         value: `${fact.sourceMemoryIds.length} conversation ${fact.sourceMemoryIds.length === 1 ? 'memory' : 'memories'}`,
@@ -116,7 +122,7 @@ export function buildFactDetailButtons(fact: FactItem): ActionRowBuilder<ButtonB
       // Encode desired final state so a retried request can't flip the wrong way.
       .setCustomId(buildFactActionId('lock', fact.id, fact.isLocked ? '0' : '1'))
       .setLabel(fact.isLocked ? 'Unlock' : 'Lock')
-      .setEmoji(fact.isLocked ? '🔓' : '🔒')
+      .setEmoji(fact.isLocked ? '🔓' : AUTOCOMPLETE_BADGES.LOCKED)
       .setStyle(fact.isLocked ? ButtonStyle.Secondary : ButtonStyle.Primary),
     new ButtonBuilder()
       .setCustomId(buildFactActionId('back'))

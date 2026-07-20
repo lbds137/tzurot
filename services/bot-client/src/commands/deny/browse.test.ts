@@ -11,17 +11,6 @@ import type { DeferredCommandContext } from '../../utils/commandContext/types.js
 import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js';
 import { makeOk, makeErr, asOwnerClient } from '../../test/gatewayClientStubs.js';
 
-// Mock dependencies
-vi.mock('@tzurot/common-types/constants/discord', async () => {
-  const actual = await vi.importActual<typeof import('@tzurot/common-types/constants/discord')>(
-    '@tzurot/common-types/constants/discord'
-  );
-  return {
-    ...actual,
-    DISCORD_COLORS: { ERROR: 0xff0000 },
-  };
-});
-
 vi.mock('@tzurot/common-types/utils/dateFormatting', async () => {
   const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/dateFormatting')>(
     '@tzurot/common-types/utils/dateFormatting'

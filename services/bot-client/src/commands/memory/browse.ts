@@ -24,7 +24,9 @@ import {
 } from 'discord.js';
 import { memoryBrowseOptions } from '@tzurot/common-types/generated/commandOptions';
 import { type MemoryItem, type MemoryListResponse } from '@tzurot/common-types/schemas/api/memory';
-import { formatDateShort } from '@tzurot/common-types/utils/dateFormatting';
+import { ENTITY_EMOJI, buildBadgeLegend } from '@tzurot/common-types/constants/uxVocabulary';
+import { AUTOCOMPLETE_BADGES } from '@tzurot/common-types/utils/autocompleteFormat';
+import { formatDateShort, formatDiscordTimestamp } from '@tzurot/common-types/utils/dateFormatting';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { type UserClient } from '@tzurot/clients';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
@@ -102,19 +104,24 @@ function buildBrowseEmbed(options: BuildBrowseViewOptions): EmbedBuilder {
 
   // Server-paginated: `memories` is the fetched page; `total` drives math.
   const { embed } = buildBrowseListEmbed<MemoryItem>({
-    entityEmoji: '🧠',
+    entityEmoji: ENTITY_EMOJI.memory,
     titleNoun: 'Memories',
     items: memories,
     page,
     itemsPerPage: MEMORIES_PER_PAGE,
     serverPage: { totalItems: total },
     formatRow: memory => ({
-      badges: memory.isLocked ? '🔒' : undefined,
+      // 🔐 LOCKED (protection: can't be deleted/modified) — 🔒 is the
+      // private-VISIBILITY badge and doesn't apply to memories.
+      badges: memory.isLocked ? AUTOCOMPLETE_BADGES.LOCKED : undefined,
       name: '', // unused — nameMarkup below overrides it
       // Memory content is prose, not an entity name — skip the bold-name
       // default so rows read as text, not headings.
       nameMarkup: truncateContent(escapeMarkdown(memory.content)),
-      metadata: [escapeMarkdown(memory.personalityName), formatDateShort(memory.createdAt)],
+      metadata: [
+        escapeMarkdown(memory.personalityName),
+        formatDiscordTimestamp(memory.createdAt, 'D'),
+      ],
     }),
     empty: {
       noItems:
@@ -130,7 +137,7 @@ function buildBrowseEmbed(options: BuildBrowseViewOptions): EmbedBuilder {
       personalityId !== undefined && 'Filtered',
       formatSortVerbatim('Newest first'),
     ],
-    badgeLegend: 'Locked 🔒',
+    badgeLegend: buildBadgeLegend(['LOCKED']),
   });
 
   return embed;
@@ -153,9 +160,10 @@ function buildBrowseComponents(
     placeholder: 'Select a memory to manage...',
     startIndex: page * MEMORIES_PER_PAGE,
     formatItem: memory => ({
-      label: `${memory.isLocked ? '🔒 ' : ''}${memory.content}`,
+      label: `${memory.isLocked ? `${AUTOCOMPLETE_BADGES.LOCKED} ` : ''}${memory.content}`,
       value: memory.id,
-      description: `${memory.personalityName} • ${formatDateShort(memory.createdAt)}`,
+      // Select descriptions render no markdown — the date stays static text.
+      description: `${memory.personalityName} · ${formatDateShort(memory.createdAt)}`,
     }),
   });
   if (selectRow === null) {

@@ -2,6 +2,7 @@
 
 import { EmbedBuilder, MessageFlags } from 'discord.js';
 import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
+import { UX_SENTINELS } from '@tzurot/common-types/constants/uxVocabulary';
 import type { DiagnosticPayload, PipelineStep } from '@tzurot/common-types/types/diagnostic';
 import type { ViewContext } from './viewContext.js';
 import type { DebugViewResult } from './views.js';
@@ -68,8 +69,11 @@ export function buildPipelineHealthView(
 
   const { finalContent, thinkingContent, artifactsStripped } = payload.postProcessing;
   const thinkingLabel =
-    thinkingContent !== null ? `${thinkingContent.length.toLocaleString()} chars` : '_none_';
-  const artifactsLabel = artifactsStripped.length > 0 ? artifactsStripped.join(', ') : '_none_';
+    thinkingContent !== null
+      ? `${thinkingContent.length.toLocaleString()} chars`
+      : UX_SENTINELS.NOT_SET;
+  const artifactsLabel =
+    artifactsStripped.length > 0 ? artifactsStripped.join(', ') : UX_SENTINELS.NOT_SET;
 
   // Informational surface: BLURPLE always (design system). The step list has
   // a hard practical bound (a handful of pipeline stages), so the 4096

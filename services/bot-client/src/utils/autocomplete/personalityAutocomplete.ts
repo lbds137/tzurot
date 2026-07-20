@@ -29,7 +29,7 @@ const logger = createLogger('personality-autocomplete');
 interface PersonalityAutocompleteOptions {
   /** Filter to only owned personalities (for edit/delete operations) */
   ownedOnly?: boolean;
-  /** Include visibility indicators (🌐/🔒/📖) in display names */
+  /** Include visibility indicators (🌐/🔒/👥) in display names */
   showVisibility?: boolean;
   /** Option name to match (defaults to 'personality' or 'character') */
   optionName?: string | string[];

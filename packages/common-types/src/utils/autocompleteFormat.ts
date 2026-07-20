@@ -9,7 +9,7 @@
  * Examples:
  * - "🌐 Global Default · claude-sonnet-4"
  * - "🔒⭐ My Config (my-config) · claude-sonnet-4"
- * - "📖 Public Character (aria)"
+ * - "👥 Someone Else's Character (aria)"
  */
 
 /**
@@ -31,12 +31,6 @@ export const AUTOCOMPLETE_BADGES = {
   OWNED: '🔒',
   /** User-created but shared publicly with others (same "everyone" concept as GLOBAL) */
   PUBLIC: '🌐',
-  /**
-   * Visible but not editable (someone else's public resource).
-   * @deprecated Use OWNED_BY_OTHER — 📖 is retiring (it collides with the
-   * expand-button glyph) once the adoption sweep migrates the call sites.
-   */
-  READ_ONLY: '📖',
   /** Owned by another user (visible to you, theirs to edit) */
   OWNED_BY_OTHER: '👥',
 
@@ -53,6 +47,20 @@ export const AUTOCOMPLETE_BADGES = {
   NEEDS_KEY: '🔑',
   /** Vision-capable config (the model supports image input — `supportsVision`) */
   VISION: '👁️',
+  /** Model can generate images (`supportsImageGeneration`) */
+  IMAGE_GEN: '🎨',
+  /** Usability could not be verified (e.g. the wallet check failed) — neither usable nor needs-key */
+  UNVERIFIED: '❔',
+  /** Routes across underlying models (a router entry, not a single model) */
+  ROUTER: '🔀',
+  /** z.ai coding-plan catalog entry (piggybacks the coding-plan quota, not OpenRouter billing) */
+  ZAI_CODING: '⚡',
+  /** Denylist target is a single user (🧍 — 👤 belongs to the persona ENTITY register) */
+  USER_TARGET: '🧍',
+  /** Denylist target is a whole guild/server */
+  GUILD_TARGET: '🏢',
+  /** Mute-mode denial (messages ignored; harder BLOCK mode is the 🚫 entity's own glyph) */
+  MUTED: '🔇',
   /** Editable by you (own or co-owned) */
   EDITABLE: '✏️',
   /** A correction row (memory facts) — 📝 keeps it distinct from EDITABLE's ✏️ */
@@ -106,7 +114,7 @@ const DISCORD_MAX_LENGTH = 100;
  * `[ScopeBadge][StatusBadges] Name (identifier) · metadata`
  *
  * Where:
- * - ScopeBadge: Single emoji indicating ownership/visibility (🌐🔒📖)
+ * - ScopeBadge: Single emoji indicating ownership/visibility (🌐🔒👥)
  * - StatusBadges: Up to 2 additional status indicators (⭐🆓🔐)
  * - Name: The display name of the resource
  * - identifier: Optional disambiguation string in parentheses
