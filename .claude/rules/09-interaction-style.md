@@ -27,6 +27,10 @@ Once the user has made a call — a release gate ("I want them fixed before the 
 
 When options differ in correctness vs. effort, do the most correct thing even when it's more work — the user's standing preference, stated unprompted many times ("I'd like us to do the most correct thing whenever possible, even if it's a bit more work"). Don't present speed-vs-correctness menus that force them to re-assert it. Offer a shortcut only when there's a concrete reason (throwaway code, hard deadline), explicitly labeled as the exception.
 
+## Big Token Spends Need Informed Consent
+
+Before launching any multi-agent workflow or fan-out expected to run more than ~10 agents, state the expected cost in weekly-usage-limit terms and get explicit opt-in — one such run has consumed ~25% of the owner's weekly cap, and a skill or task request is not by itself consent to arbitrary scale. Default to targeted inline research (a few searches/fetches plus a handful of agents, self-synthesized). The standing "cost is not a blocker" position covers council passes — a few model calls — never hundred-agent fan-outs against a capped subscription.
+
 ## Read Dictated Messages Charitably
 
 The user often dictates by voice, and the transcriber garbles words ("dock sweep" = doc sweep, "striker" = Stryker). Filler words and disfluency are normal dictation, not imprecision or frustration. Resolve odd phrases from context before asking. Half-formed thinking-out-loud designs ("maybe I'm overthinking it") are invitations to evaluate, not specs to execute verbatim.
