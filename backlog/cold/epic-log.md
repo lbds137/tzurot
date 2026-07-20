@@ -23,7 +23,9 @@ Implementation plan council-passed 2026-07-07 (GLM 5.2 · Kimi K2.7-code · Qwen
 | D3d (#1560) | admin/models/history/help/deny families (~17 files); markdown-escaping + presence Redis-failure coverage; ratchet 153→92 | ✅ MERGED |
 | E (#1561) | `SlotOutcome` discriminated union; all-errored → per-persona in-character delivery; `deliverErrorNoPersist` + shared `buildSyntheticErrorResult` | ✅ MERGED |
 
-### Phase 2 — components (IN PROGRESS)
+### Phase 2 — components ✅ COMPLETE (2026-07-17 → 2026-07-20, released beta.170–beta.172)
+
+_The table below logs through PR-4 (#1703); the remaining slices shipped 2026-07-18/19/20 and are summarized in `active-epic.md`'s Phase 2 row + CURRENT.md session logs (git history): #1707/#1709/#1710 (browse retrofit 17/17), #1711–#1718 (modal wave, zero hand-rolled sites), #1719 (detail cards), #1720 (D14 + router migration), #1724/#1725 (`/inspect` + D16 context menu), #1726/#1730 (Components-V2 pilot, owner-eval PASSED). Close-out verified 2026-07-20._
 
 _Plan approved 2026-07-17 (`~/.claude/plans/radiant-tickling-candle.md`; 3-agent grounding + trio council; owner calls: bot-owner-only globals · warn-don't-block reverse shadow · names-first resolution + shadowed badge). Pilot = `/character alias` redesign + scoping tiers._
 
@@ -41,3 +43,20 @@ _**Owner design call (2026-07-18): in-place filter controls ADOPTED** — spec �
 _PR-4b scope additions (from #1700 r3 observations): fix the pre-existing double-blank-line edge (own-empty + others-present — CTA's trailing blank + builder separator stack; add the missing regression test for that combo) · consider a builder pre-flight (`totalPages`/`safePage`) if a third preamble-needs-pagination consumer appears · evaluate splitting the over-budget browse files (character 540 / preset 538 vs the 400 max-lines rule) while the sweep restructures them._
 
 _PR-7 scope additions (from #1698 review observations): settings' third hand-rolled chain joins the character-chain router migration (fixes its pre-existing no-ack fallthrough by construction); revisit `DestructiveCustomIds.parse`'s action cast only if an exhaustiveness-assuming switch consumer appears._
+
+### Phase 3 — vocabulary + enforcement (IN FLIGHT)
+
+_Plan approved 2026-07-20 (`~/.claude/plans/radiant-tickling-candle.md`; 6-agent census grounding + trio council GLM 5.2 · Kimi K2.7-code · Qwen 3.7 Max; owner calls resolved: tree moves = avatar/voice groups + `/chat` `/random` extraction · onboarding = `/help getting-started` · release = major-ping beta, beta-exit at epic completion). Council resequencing: guards-first (enforcement lands as soon as its precondition state exists), factory core before /deny, AST rule after the vocabulary surface settles._
+
+| Slice | What | Status |
+| --- | --- | --- |
+| PR-0 | Cheap ESLint guards over conformant code: ModalBuilder ban, Danger-button-order rule, builder-symbol restriction in commands/** (per-file×per-symbol shrink-only allowlist), CATEGORY_CONFIG completeness test | IN PROGRESS |
+| PR-1 | UX vocabulary registry in common-types (entity emojis §2.1 + badge glossary §2.2 + legend generator + sentinels §2.5 + `<t:>` helper + collision-rule test) | queued |
+| PR-2a/2b | Vocabulary adoption sweep, split by module (emoji/badges/legends/timestamps/sentinels/colors — each file touched once) | queued |
+| PR-3 | AST catalog-literal rule + grep-ratchet retirement (atomic: package.json + ci.yml + margins-row swap) | queued |
+| PR-4 | D8: `/settings preset` → `/preset override` | queued |
+| PR-5/5b/5c | Remaining renames (D9/D10/G11) · tree moves (avatar/voice groups, `/chat` `/random` extraction) · `/help` restructure + `getting-started` | queued |
+| PR-6a/6b | Unified action-id factory + pilot · destructive preset (own PR, invariant-tested) | queued |
+| PR-7 | `/deny` redesign (D13: modal form, autocomplete, display/terminal-render fixes, perms '0') | queued |
+| PR-8 | Picker hygiene (D11: /admin perms '0', 3 bespoke autocompletes onto the shared formatter, placeholders) | queued |
+| PR-9/10 | Factory migration sweep · router adoption (10 families) + raw-split ESLint ban | queued |
