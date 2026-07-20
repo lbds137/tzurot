@@ -529,4 +529,4 @@ Owner: env vars are "for stuff that is very implementation specific or for secre
 2. **Trend deltas**: persist each week's margins as a workflow artifact (or committed JSONL history under .github/baselines/); render `current (Δ vs last week)` per ratchet so stagnation is visible, not silent.
 3. **Auto-tighten proposal PRs**: when a live measure beats its baseline by more than noise, the weekly audit opens a baseline-tightening PR (never auto-merge — baselines are review-gated config). Turns "ratchet" from metaphor into mechanism.
 
-**Promote when**: owner schedules it (their raise), or the next weekly-audit touch.
+**Promote when**: ~~owner schedules it~~ **PROMOTED to the working queue (owner 2026-07-20)** — reinforced by session-mining finding 4b (ratchet stagnation recurred as an explicit concern; "they end up forgotten and accepted at whatever baseline we left them at"). Land the three increments in order; increment 1 (complete the margins section) is the cheap first slice. Pick it up as a Quick Win when a session has slack, or ride the next weekly-audit touch.
