@@ -6,7 +6,9 @@
 
 ## Unreleased on Develop
 
-#1724 (D16 context menu + infra) · #1725 (inspect Input/Params/Post-Processing views + chunk cap) · #1726 (Components-V2 pilot) · #1727 (hooks cwd fix) — **release proposal pending the owner's V2 pilot eval** (the pilot is the release's headline; eval feedback may want to ride).
+#1724 (D16 context menu + infra) · #1725 (inspect Input/Params/Post-Processing views + chunk cap) · #1726 (Components-V2 pilot) · #1727 (hooks cwd fix) · #1728 (session-mining skill) · #1729 (mutation-surface CI gate) — **release proposal pending the owner's V2 pilot eval** (the pilot is the release's headline; eval feedback may want to ride).
+
+**#1728 ✅ MERGED** (owner-requested): `/tzurot-session-mining` proceduralizes the mined-corpus friction audit (extract → mine → synthesize → operationalize; privacy boundary; violated-rule-vs-missing-rule fork). 3 review rounds; r2's regex work surfaced a REAL environment landmine: bare `grep` on this machine is **ugrep 7.5.0**, whose default engine silently drops a trailing `\b` in shared-prefix alternations (GNU grep matches; ugrep -P matches) — skill-eval patterns must be probed against BOTH greps (documented in the hook comment). **#1729 ✅ MERGED** (owner-approved option 1 of the CI-bottleneck assessment): `pnpm ops mutation:gate` — turbo-closure ∩ `MUTATED_PACKAGES` + explicit global triggers, total fail-open, develop/main bypass. Service-only/docs-only PRs drop from ~6–7min of Stryker to ~1min; lint (~3m50s) becomes CI's critical path. 4 review rounds, each strictly smaller (write-path fail-open → seam-args test + .npmrc → commands/test.ts trigger → converged "ready to merge"); matrix-split parked in follow-ups (promote: 6th tracked package).
 
 ## UX Epic — Phase 2 IN FLIGHT (2026-07-17 evening session)
 
