@@ -9,6 +9,7 @@ import {
   formatPromptTimestamp,
   formatDateShort,
   formatDateTimeCompact,
+  formatDiscordTimestamp,
   normalizeDateTime,
   normalizeDateTimeNullable,
 } from './dateFormatting.js';
@@ -373,6 +374,25 @@ describe('dateFormatting', () => {
       const date = new Date('2025-01-15T15:45:00Z');
       const result = formatDateTimeCompact(date, 'America/New_York');
       expect(result).toContain('10:45 AM');
+    });
+  });
+
+  describe('formatDiscordTimestamp', () => {
+    it('renders the relative style from a Date', () => {
+      const date = new Date('2025-01-15T15:45:00Z');
+      expect(formatDiscordTimestamp(date, 'R')).toBe('<t:1736955900:R>');
+    });
+
+    it('renders the long-date style from an ISO string', () => {
+      expect(formatDiscordTimestamp('2025-01-15T15:45:00Z', 'D')).toBe('<t:1736955900:D>');
+    });
+
+    it('floors sub-second precision to whole seconds', () => {
+      expect(formatDiscordTimestamp('2025-01-15T15:45:00.900Z', 'R')).toBe('<t:1736955900:R>');
+    });
+
+    it('returns Invalid Date for unparseable input', () => {
+      expect(formatDiscordTimestamp('not-a-date', 'R')).toBe('Invalid Date');
     });
   });
 

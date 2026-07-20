@@ -158,3 +158,14 @@ export { INTERNAL_DISCORD_ID_PREFIX } from './personaId.js';
 
 // Known message-proxy application IDs (PluralKit/TupperBox) for authorship classification
 export { KNOWN_PROXY_APP_IDS } from './proxyBots.js';
+
+// UX vocabulary registry (entity emojis, badge legend words, display sentinels)
+export {
+  ENTITY_EMOJI,
+  UX_SENTINELS,
+  BADGE_LEGEND_WORDS,
+  entityTitle,
+  buildBadgeLegend,
+  type UxEntityKind,
+  type BadgeKey,
+} from './uxVocabulary.js';
