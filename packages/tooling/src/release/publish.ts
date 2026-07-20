@@ -19,7 +19,7 @@
  */
 
 import { execFileSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import chalk from 'chalk';
 
 /**
@@ -41,6 +41,48 @@ export interface PublishOptions {
 /** Normalize `3.0.0-beta.155` or `v3.0.0-beta.155` to a `v`-prefixed tag. */
 export function toTag(version: string): string {
   return version.startsWith('v') ? version : `v${version}`;
+}
+
+/**
+ * Guard against publishing an UNFINALIZED or STALE notes file. `existsSync`
+ * already catches a mistyped/nonexistent path; this catches the two content
+ * misses that path-existence can't:
+ *  - `draft-notes` emits `…/compare/vOLD...HEAD` where the human must replace
+ *    `HEAD` with the new tag. Publishing with `HEAD` still present means the
+ *    finalize step was skipped (a recurring release-notes miss).
+ *  - A leftover previous-release notes file names the WRONG new tag in its
+ *    compare trailer — the file exists but is stale.
+ * Only asserts when a `/compare/…` trailer is present (hand-written notes
+ * without one are allowed through — verify-notes covers their PR-ref accuracy).
+ */
+export function assertNotesFinalized(notes: string, tag: string): void {
+  // Anchor to the "**Full Changelog**:" trailer line (05-tooling notes format),
+  // not any `/compare/…` substring — a hand-edited note can cite an upstream
+  // changelog's compare link, and matching that instead would false-reject.
+  const compare = /^\*\*Full Changelog\*\*:.*\/compare\/\S+?\.\.\.(\S+)/m.exec(notes);
+  if (compare === null) {
+    return;
+  }
+  // Strip trailing markdown/punctuation without a regex (avoids a ReDoS-shaped
+  // super-linear pattern). A tag never ends in `)`, `.`, or `,`, so this only
+  // trims trailer noise like a closing paren or sentence period.
+  let newRef = compare[1];
+  while (newRef.length > 0 && ').,'.includes(newRef[newRef.length - 1])) {
+    newRef = newRef.slice(0, -1);
+  }
+  if (newRef === 'HEAD') {
+    throw new Error(
+      `Release notes still contain the draft "...HEAD" compare placeholder.\n` +
+        `Replace HEAD with the new tag (${tag}) in the "**Full Changelog**" line before publishing.`
+    );
+  }
+  if (newRef !== tag) {
+    throw new Error(
+      `Release notes compare trailer targets ${newRef}, but you're publishing ${tag}.\n` +
+        `This looks like a stale notes file from a previous release — regenerate with ` +
+        `pnpm ops release:draft-notes and re-finalize the compare line.`
+    );
+  }
 }
 
 /**
@@ -231,6 +273,7 @@ export function publishRelease(version: string, opts: PublishOptions): void {
         `Prepare notes first (e.g. pnpm ops release:draft-notes > notes.md) and pass --notes-file.`
     );
   }
+  assertNotesFinalized(readFileSync(opts.notesFile, 'utf-8'), tag);
 
   console.log(
     chalk.bold(`Publishing ${tag}`) +

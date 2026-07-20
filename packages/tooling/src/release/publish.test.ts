@@ -1,15 +1,58 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { execFileSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 
 vi.mock('node:child_process', () => ({ execFileSync: vi.fn() }));
-vi.mock('node:fs', () => ({ existsSync: vi.fn(() => true) }));
+vi.mock('node:fs', () => ({ existsSync: vi.fn(() => true), readFileSync: vi.fn(() => '') }));
 
 const mockedExec = vi.mocked(execFileSync);
 const mockedExists = vi.mocked(existsSync);
+const mockedRead = vi.mocked(readFileSync);
 
 // Import AFTER the mocks so the module bindings capture the mocked versions.
-import { isPrereleaseVersion, toTag, findPreviousReleaseTag, publishRelease } from './publish.js';
+import {
+  isPrereleaseVersion,
+  toTag,
+  findPreviousReleaseTag,
+  publishRelease,
+  assertNotesFinalized,
+} from './publish.js';
+
+describe('assertNotesFinalized', () => {
+  it('accepts a finalized compare trailer matching the tag', () => {
+    const notes = 'blah\n**Full Changelog**: https://x/compare/v3.0.0-beta.170...v3.0.0-beta.171';
+    expect(() => assertNotesFinalized(notes, 'v3.0.0-beta.171')).not.toThrow();
+  });
+
+  it('accepts notes with no compare trailer at all (hand-written)', () => {
+    expect(() => assertNotesFinalized('### Features\n- x', 'v3.0.0-beta.171')).not.toThrow();
+  });
+
+  it('rejects the unreplaced ...HEAD draft placeholder', () => {
+    const notes = '**Full Changelog**: https://x/compare/v3.0.0-beta.170...HEAD';
+    expect(() => assertNotesFinalized(notes, 'v3.0.0-beta.171')).toThrow(/HEAD.*placeholder/s);
+  });
+
+  it('rejects a stale notes file naming the previous tag', () => {
+    const notes = '**Full Changelog**: https://x/compare/v3.0.0-beta.169...v3.0.0-beta.170';
+    expect(() => assertNotesFinalized(notes, 'v3.0.0-beta.171')).toThrow(/stale/);
+  });
+
+  it('tolerates trailing markdown/whitespace after the tag', () => {
+    const notes = '**Full Changelog**: https://x/compare/v3.0.0-beta.170...v3.0.0-beta.171\n';
+    expect(() => assertNotesFinalized(notes, 'v3.0.0-beta.171')).not.toThrow();
+  });
+
+  it('ignores a decoy /compare/ link in prose and validates only the trailer line', () => {
+    // A body citing an upstream changelog diff must not be matched instead of
+    // the real "Full Changelog" trailer (which would false-reject).
+    const notes =
+      '### Improvements\n' +
+      '- bumped dep (see https://github.com/up/stream/compare/v1.0.0...v2.0.0)\n\n' +
+      '**Full Changelog**: https://x/compare/v3.0.0-beta.170...v3.0.0-beta.171';
+    expect(() => assertNotesFinalized(notes, 'v3.0.0-beta.171')).not.toThrow();
+  });
+});
 
 describe('isPrereleaseVersion', () => {
   it.each([
@@ -50,6 +93,10 @@ describe('publishRelease', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockedExists.mockReturnValue(true);
+    // Default: notes with no compare trailer, so the finalize guard no-ops for
+    // the publish-flow tests that aren't about it (assertNotesFinalized has its
+    // own dedicated cases above).
+    mockedRead.mockReturnValue('### Features\n- something' as never);
   });
 
   /** Collect the (cmd, args) of every non-dry-run exec call. */
