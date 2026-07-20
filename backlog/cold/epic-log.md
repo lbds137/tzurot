@@ -50,7 +50,7 @@ _Plan approved 2026-07-20 (`~/.claude/plans/radiant-tickling-candle.md`; 6-agent
 
 | Slice | What | Status |
 | --- | --- | --- |
-| PR-0 | Cheap ESLint guards over conformant code: ModalBuilder ban, Danger-button-order rule, builder-symbol restriction in commands/** (per-file×per-symbol shrink-only allowlist), CATEGORY_CONFIG completeness test | IN PROGRESS |
+| PR-0 (#1740) | Cheap ESLint guards over conformant code: ModalBuilder ban (3 justified factory suppressions), Danger-button-order rule, builder-symbol restriction in commands/** (shrink-only allowlist, 51 files / 84 pairs), CATEGORY_CONFIG completeness test. **The button-order rule caught a real pre-existing violation on its first full-tree run** (memory/detailModals truncation confirm — fixed in-PR). r1 nit (double-setStyle precedence) owner-approved + fixed same PR; r2 clean ("no blocking issues"; dynamic-setStyle edge → follow-ups row) | ✅ MERGED 2026-07-20 (2 rounds) |
 | PR-1 | UX vocabulary registry in common-types (entity emojis §2.1 + badge glossary §2.2 + legend generator + sentinels §2.5 + `<t:>` helper + collision-rule test) | queued |
 | PR-2a/2b | Vocabulary adoption sweep, split by module (emoji/badges/legends/timestamps/sentinels/colors — each file touched once) | queued |
 | PR-3 | AST catalog-literal rule + grep-ratchet retirement (atomic: package.json + ci.yml + margins-row swap) | queued |
