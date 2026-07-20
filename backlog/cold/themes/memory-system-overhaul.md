@@ -12,6 +12,8 @@ _Focus: implement the ACCEPTED memory architecture — typed memories (episode/f
 2. **Evidence gates opening on phases 3–6** (scoping matrix, relationship layer, consolidation, curation).
 3. The `cold/follow-ups.md` promote-when rows: correction detection, write-side dedup, prompt temporal awareness, revival evidence-gate.
 
+**Re-entry FORMAT (owner-decided 2026-07-20): pilot Linked Intent Development.** The re-entry design pass runs in [LID](https://github.com/jszmajda/lid) format — HLD → per-component LLDs → EARS one-line requirements with greppable IDs → tests → code carrying `@spec` annotations — as a bounded methodology trial. Rationale: LID fills the one gap our process has (decision IDs like D8/G10 exist in artifacts but nothing in code cites them; implementation verification is archaeology, not grep), its grep-verifiable traceability matches this repo's verify-by-grep culture, and it's Claude-Code-first. Scope: THIS theme's re-entry only — the UX epic finishes on the established boulder/plan-mode/council process; nothing existing converts. Compatibility note recorded: `@spec` IDs referencing living specs are invariant references, not temporal-marker archaeology (the pre-commit scanner should not flag them; verify at first use). Success measure: does the agent actually keep spec↔code links fresh across the epic's life (the methodology's stated, unproven core bet) — audit at the epic's midpoint and close.
+
 ### Roadmap state at park (artifact §5)
 
 | Phase | Status |
