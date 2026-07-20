@@ -1,7 +1,7 @@
 ---
 name: tzurot-bug-remediation
-description: 'The recurring-bug remediation protocol: runtime evidence → root cause → exhaustive class sweep → seam-tier regression test → structural guard. Invoke with /tzurot-bug-remediation when a bug recurs, a "fixed" class regresses, or the owner says a failure "keeps biting".'
-lastUpdated: '2026-07-05'
+description: 'The recurring-bug remediation protocol: runtime evidence → root cause → exhaustive class sweep → seam-tier regression test → structural guard. Invoke with /tzurot-bug-remediation when a bug recurs, a "fixed" class regresses, the owner says a failure "keeps biting", OR at the FIRST fix of a path-specific UI/flow bug (create/edit/browse/view/delete) — to sweep sibling flows before declaring it fixed.'
+lastUpdated: '2026-07-20'
 ---
 
 # Bug Remediation Protocol
@@ -11,6 +11,8 @@ previously-"fixed" class regresses, or when the owner signals class-level pain
 ("keeps biting me", "this happens a lot", "why didn't tests catch it"). The
 protocol exists because under-remediation recurs in a fixed shape: a symptom
 patch on the one visible instance, a mocked unit test, and the class returns.
+
+**Also fires at the FIRST fix of any path-specific UI/flow bug** — a bug on one of a component family's parallel flows (create / edit / browse / view / delete). Before declaring it fixed: sweep every sibling flow of the same family for the same class, and label the claim **code-read-only** until the owner's runtime smoke confirms it. This class was lost repeatedly by waiting for recurrence: a `canEdit`/delete-button bug fixed on the edit path returned on the _create_ path one smoke round later; an avatar-seam bug "fixed" pre-merge was still broken at runtime. The recurrence trigger below is the backstop; this first-fix sweep is the cheaper catch.
 
 The five steps run IN ORDER. Skipping one is how the bug comes back.
 

@@ -1,7 +1,7 @@
 ---
 name: tzurot-testing
 description: 'Testing procedures. Invoke with /tzurot-testing for test execution, coverage audits, and debugging test failures.'
-lastUpdated: '2026-07-03'
+lastUpdated: '2026-07-20'
 ---
 
 # Testing Procedures
@@ -215,6 +215,14 @@ be answerable from the file). Justify every case — a bloated matrix wastes the
 user's time; each case states what it uniquely proves. After the user reports,
 close the loop with runtime evidence (logs) when the user-visible outcome can't
 prove the new code path ran.
+
+**Each checklist item carries a confidence tier** — _high_ (CI + review +
+blast-radius cover it; ships without a manual round) or _needs-smoke_ (with the
+one-line reason confidence is limited: runtime-unverified path, mobile
+rendering, a failure sequence tests can't reach). Surface only the needs-smoke
+tier for the owner to run — they don't want to hand-test high-confidence
+changes ("what's the level of confidence… I don't feel like testing them unless
+confidence is limited").
 
 ## Definition of Done
 

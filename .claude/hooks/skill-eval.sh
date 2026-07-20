@@ -47,8 +47,13 @@ if echo "$PROMPT" | grep -qiE 'doc.*audit|audit.*doc|documentation.*fresh|stale.
     RELEVANT_SKILLS="$RELEVANT_SKILLS tzurot-doc-audit"
 fi
 
-# Bug remediation → tzurot-bug-remediation skill
-if echo "$PROMPT" | grep -qiE 'keeps? (biting|happening|recurring)|recurring bug|regress(ed|ion)|why didn.t.*tests? catch|root.?cause'; then
+# Bug remediation → tzurot-bug-remediation skill. Two trigger families:
+# (a) recurrence language (a "fixed" class came back), and (b) the FIRST-fix
+# moment for a path-specific UI/flow bug — the skill's first-fix sibling-sweep
+# only helps if the skill loads THEN, not just on recurrence (the phrasing here
+# mirrors the owner's smoke-report shape: "delete button doesn't show up after
+# creation", "only shows up after edit").
+if echo "$PROMPT" | grep -qiE 'keeps? (biting|happening|recurring)|recurring bug|regress(ed|ion)|why didn.t.*tests? catch|root.?cause|(delete|edit|create|browse|view|save|submit) (button|flow|screen|dialog|modal)|does(n.?t| not) (show|appear|render)|only (shows?|appears?).*(after|on)'; then
     RELEVANT_SKILLS="$RELEVANT_SKILLS tzurot-bug-remediation"
 fi
 

@@ -1,7 +1,7 @@
 ---
 name: tzurot-git-workflow
 description: 'Git workflow procedures. Invoke with /tzurot-git-workflow for commit, PR, and release procedures.'
-lastUpdated: '2026-07-16'
+lastUpdated: '2026-07-20'
 ---
 
 # Git Workflow Procedures
@@ -191,6 +191,13 @@ raise confidence?" — answer it before being asked, as part of proposing the cu
 - For minor features, offer **observability-instead-of-smoke** ("logging is in
   place to check the first real use") as a first-class alternative to another
   manual round.
+- **The smoke request IS the CURRENT.md write** — never ask the owner to
+  smoke-test anything that isn't already a CURRENT.md checklist item with its
+  own status line. Asking in chat shorthand forces "remind me what to test?"
+  (recurred: the ask lived only in chat and scrolled away).
+- **Each smoke item carries a confidence tier** (canonical definition in
+  `/tzurot-testing` § Human-Verification Requests) — offer the owner only the
+  _needs-smoke_ tier, never the _high_ tier CI + review already cover.
 - Never cite "soaked in dev" as safety evidence (see /tzurot-deployment).
 
 ### 1. Version Bump
@@ -213,6 +220,14 @@ Write release notes following the Conventional Changelog format defined in `.cla
 **Source of truth**: `git log v<previous-tag>..HEAD --no-merges` — NOT CURRENT.md.
 CURRENT.md tracks session work; release notes track what shipped between tags.
 Using CURRENT.md caused duplicate entries in beta.94 (items from beta.93 re-listed).
+
+**Backlog sweep — same pass, same commit as the notes.** The release range
+enumerates every shipped PR anyway, which is the one deterministic moment the
+full shipped-list exists. For each PR in the range, grep `backlog/` (recursive,
+incl. `cold/`) for the item's topic and strike/remove the shipped entries. This
+mechanizes 06-backlog's session-end removal gate at the moment it's nearly free
+— removal-at-ship keeps being missed, which is what leaves the board stale
+enough that the owner's memory has to catch it ("didn't we already do X?").
 
 ```bash
 # 1. Find the previous release tag
