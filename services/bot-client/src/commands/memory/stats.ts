@@ -5,7 +5,8 @@
 
 import { escapeMarkdown } from 'discord.js';
 import { memoryStatsOptions } from '@tzurot/common-types/generated/commandOptions';
-import { formatDateTimeCompact } from '@tzurot/common-types/utils/dateFormatting';
+import { UX_SENTINELS } from '@tzurot/common-types/constants/uxVocabulary';
+import { formatDiscordTimestamp } from '@tzurot/common-types/utils/dateFormatting';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { clientsFor } from '../../utils/gatewayClients.js';
@@ -17,9 +18,9 @@ import { renderSpec } from '../../ux/render/render.js';
 
 const logger = createLogger('memory-stats');
 
-/** Format date or return 'N/A' for null */
-function formatDateOrNA(dateStr: string | null): string {
-  return dateStr !== null ? formatDateTimeCompact(dateStr) : 'N/A';
+/** Format date as a dynamic timestamp, or the empty-value sentinel for null */
+function formatDateOrSentinel(dateStr: string | null): string {
+  return dateStr !== null ? formatDiscordTimestamp(dateStr, 'D') : UX_SENTINELS.NOT_SET;
 }
 
 /**
@@ -91,7 +92,7 @@ export async function handleStats(context: DeferredCommandContext): Promise<void
     if (data.totalCount > 0) {
       embed.addFields({
         name: 'Date Range',
-        value: `${formatDateOrNA(data.oldestMemory)} - ${formatDateOrNA(data.newestMemory)}`,
+        value: `${formatDateOrSentinel(data.oldestMemory)} - ${formatDateOrSentinel(data.newestMemory)}`,
         inline: false,
       });
     }

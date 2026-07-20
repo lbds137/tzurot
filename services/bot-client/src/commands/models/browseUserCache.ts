@@ -4,7 +4,7 @@
  * Browse reads two user-scoped things on EVERY interaction (initial render, page
  * flip, filter change, search): the caller's active key providers (for the
  * ✅/🔒/❔ usability marker) and the set of models used by global presets (for
- * the 📌 pin). Neither changes meaningfully during a browse session, so a short
+ * the 🌐 global-preset pin). Neither changes meaningfully during a browse session, so a short
  * TTL cache avoids re-hitting the gateway on every button press. Mirrors the
  * single-key TTLCache pattern in `preset/autocomplete.ts`.
  *
@@ -40,7 +40,7 @@ function providerCache(): TTLCache<ReadonlySet<string>> {
 }
 
 /**
- * Lowercased model ids used by any global preset (drives the 📌 pin). Returns an
+ * Lowercased model ids used by any global preset (drives the 🌐 global-preset pin). Returns an
  * empty set — and does NOT cache — on fetch failure, so a transient error
  * doesn't suppress pinning for the whole TTL window.
  *

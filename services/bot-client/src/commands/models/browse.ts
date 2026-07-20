@@ -19,6 +19,8 @@ import { CATALOG } from '../../ux/catalog/catalog.js';
 import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
 import { renderSpec } from '../../ux/render/render.js';
 import { modelsBrowseOptions } from '@tzurot/common-types/generated/commandOptions';
+import { ENTITY_EMOJI, buildBadgeLegend } from '@tzurot/common-types/constants/uxVocabulary';
+import { AUTOCOMPLETE_BADGES } from '@tzurot/common-types/utils/autocompleteFormat';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { type ClientCarryingInteraction, clientsFor } from '../../utils/gatewayClients.js';
@@ -130,23 +132,27 @@ function sortModelsPinned(models: BrowseModel[], sort: ModelSort): BrowseModel[]
 /** Per-model usability marker for the list/select. */
 function usabilityIcon(model: UsableCatalogModel): string {
   if (model.usability === 'free') {
-    return '🆓';
+    return AUTOCOMPLETE_BADGES.FREE;
   }
   if (model.usability === 'unknown') {
-    return '❔';
+    return AUTOCOMPLETE_BADGES.UNVERIFIED;
   }
-  return model.canUse ? '✅' : '🔒';
+  // 🔑 NEEDS_KEY (add your own key to use) — 🔒 is the private-visibility
+  // badge and doesn't apply to catalog models.
+  return model.canUse ? AUTOCOMPLETE_BADGES.ACTIVE : AUTOCOMPLETE_BADGES.NEEDS_KEY;
 }
 
 /** Badge glyph run for a model row: usability first, then features (§2.2). */
 function modelBadges(model: BrowseModel): string {
   return [
     usabilityIcon(model),
-    model.isGlobalPreset ? '📌' : '',
-    model.isRouter === true ? '🔀' : '',
-    model.isZaiCoding ? '⚡' : '',
-    model.supportsVision ? '👁️' : '',
-    model.supportsImageGeneration ? '🎨' : '',
+    // 🌐 GLOBAL — the model backs a global preset (📌 retired; "pinned" is
+    // the sort behavior, the badge names the reason).
+    model.isGlobalPreset ? AUTOCOMPLETE_BADGES.GLOBAL : '',
+    model.isRouter === true ? AUTOCOMPLETE_BADGES.ROUTER : '',
+    model.isZaiCoding ? AUTOCOMPLETE_BADGES.ZAI_CODING : '',
+    model.supportsVision ? AUTOCOMPLETE_BADGES.VISION : '',
+    model.supportsImageGeneration ? AUTOCOMPLETE_BADGES.IMAGE_GEN : '',
   ]
     .filter(Boolean)
     .join(' ');
@@ -218,15 +224,15 @@ function buildBrowsePage(view: BrowseView): { embed: EmbedBuilder; components: B
   ].filter(Boolean);
   preamble.push(`_${filterBits.join(' · ')}_`);
   // When the wallet fetch failed, every non-free model is `unknown` — explain
-  // the ❔ rather than leaving the user guessing why nothing shows ✅/🔒.
+  // the ❔ rather than leaving the user guessing why nothing shows ✅/🔑.
   if (view.items.some(m => m.usability === 'unknown')) {
     preamble.push(
-      "⚠️ _Couldn't verify your API keys right now — usability shown as ❔. Try again shortly._"
+      `⚠️ _Couldn't verify your API keys right now — usability shown as ${AUTOCOMPLETE_BADGES.UNVERIFIED}. Try again shortly._`
     );
   }
 
   const { embed, pageItems, startIndex, totalPages, safePage } = buildBrowseListEmbed<BrowseModel>({
-    entityEmoji: '🤖',
+    entityEmoji: ENTITY_EMOJI.model,
     titleNoun: 'Models',
     items: view.items,
     page: view.page,
@@ -248,8 +254,17 @@ function buildBrowsePage(view: BrowseView): { embed: EmbedBuilder; components: B
       pluralize(view.items.length, { singular: 'model', plural: 'models' }),
       view.capped && `first ${BROWSE_FETCH_LIMIT} — refine with a query for more`,
     ],
-    badgeLegend:
-      'Free 🆓 · Usable ✅ · Needs a key 🔒 · Unverified ❔ · Pinned preset 📌 · Router 🔀 · z.ai ⚡ · Vision 👁️ · Image gen 🎨',
+    badgeLegend: buildBadgeLegend([
+      'FREE',
+      { key: 'ACTIVE', word: 'Usable' },
+      'NEEDS_KEY',
+      'UNVERIFIED',
+      { key: 'GLOBAL', word: 'Global preset' },
+      'ROUTER',
+      'ZAI_CODING',
+      'VISION',
+      'IMAGE_GEN',
+    ]),
   });
 
   const safeView: BrowseView = { ...view, page: safePage };

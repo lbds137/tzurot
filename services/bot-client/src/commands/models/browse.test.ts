@@ -320,7 +320,7 @@ describe('global-preset pinning + router badge', () => {
     });
   }
 
-  it('pins global-preset models to the top with a 📌 marker, overriding sort', async () => {
+  it('pins global-preset models to the top with a 🌐 marker, overriding sort', async () => {
     // 'zzz/pinned' would sort LAST alphabetically, but being a global preset
     // pins it ahead of 'aaa/model'.
     walletStub.listUserLlmConfigs.mockResolvedValue(
@@ -332,9 +332,9 @@ describe('global-preset pinning + router badge', () => {
     ]);
     const description = await renderViaPagination('models::browse::0::all::default::');
     expect(description.indexOf('zzz/pinned')).toBeLessThan(description.indexOf('aaa/model'));
-    // The pinned model's line carries the 📌 badge.
+    // The pinned model's line carries the 🌐 global-preset badge.
     const pinnedLine = description.split('\n').find(l => l.includes('Zzz Pinned'));
-    expect(pinnedLine).toContain('📌');
+    expect(pinnedLine).toContain('🌐');
   });
 
   it('only pins GLOBAL presets, not user-owned ones', async () => {
@@ -348,7 +348,7 @@ describe('global-preset pinning + router badge', () => {
     const description = await renderViaPagination('models::browse::0::all::default::');
     // No global preset → alphabetical, owned model not pinned.
     expect(description.indexOf('aaa/model')).toBeLessThan(description.indexOf('owned/model'));
-    expect(description.split('\n').find(l => l.includes('Owned'))).not.toContain('📌');
+    expect(description.split('\n').find(l => l.includes('Owned'))).not.toContain('🌐');
   });
 
   it('applies the active sort within both the pinned and non-pinned tiers', async () => {
@@ -403,7 +403,7 @@ describe('global-preset pinning + router badge', () => {
     expect(description).toContain('🔀');
   });
 
-  it('orders badges pin-before-router for a pinned meta-router (📌 🔀)', async () => {
+  it('orders badges pin-before-router for a pinned meta-router (🌐 🔀)', async () => {
     walletStub.listUserLlmConfigs.mockResolvedValue(
       makeOk(mockListLlmConfigsResponse([{ model: 'openrouter/auto', isGlobal: true }]))
     );
@@ -411,7 +411,7 @@ describe('global-preset pinning + router badge', () => {
       catalogModel({ id: 'openrouter/auto', name: 'Auto Router', isRouter: true }),
     ]);
     const description = await renderViaPagination('models::browse::0::all::default::');
-    expect(description).toContain('📌 🔀');
+    expect(description).toContain('🌐 🔀');
   });
 
   it('degrades gracefully (no pinning) when the preset fetch fails', async () => {
@@ -420,10 +420,10 @@ describe('global-preset pinning + router badge', () => {
     catalogMock.fetchModelCatalog.mockResolvedValue([catalogModel({ id: 'a/model', name: 'A' })]);
     const description = await renderViaPagination('models::browse::0::all::default::');
     expect(description).toContain('a/model');
-    expect(description).not.toContain('📌');
+    expect(description).not.toContain('🌐');
   });
 
-  it('shows ❔ unverified + a notice when the wallet fetch fails (no false 🔒)', async () => {
+  it('shows ❔ unverified + a notice when the wallet fetch fails (no false 🔑)', async () => {
     walletStub.listWalletKeys.mockResolvedValue(makeErr(429, 'rate limited'));
     catalogMock.fetchModelCatalog.mockResolvedValue([
       catalogModel({ id: 'anthropic/claude-sonnet-4', name: 'Claude' }),
@@ -431,7 +431,8 @@ describe('global-preset pinning + router badge', () => {
     const description = await renderViaPagination('models::browse::0::all::default::');
     expect(description).toContain('❔');
     expect(description).toContain("Couldn't verify your API keys");
-    expect(description).not.toContain('🔒');
+    // The needs-key badge is 🔑 — an unverified model must not falsely claim it.
+    expect(description).not.toContain('🔑');
   });
 });
 

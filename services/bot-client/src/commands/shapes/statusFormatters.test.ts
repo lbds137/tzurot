@@ -228,7 +228,7 @@ describe('formatExportJobStatus', () => {
     const result = formatExportJobStatus(makeExportJob());
     expect(result).toContain('Download');
     expect(result).toContain('1.0MB');
-    expect(result).toContain('expires in');
+    expect(result).toContain('expires <t:'); // <t:R> self-updating relative timestamp
   });
 
   it('should format failed export with error', () => {

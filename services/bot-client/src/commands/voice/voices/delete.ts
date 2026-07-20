@@ -12,6 +12,7 @@ import { CATALOG } from '../../../ux/catalog/catalog.js';
 import { classifyGatewayFailure } from '../../../ux/catalog/classify.js';
 import { renderSpec } from '../../../ux/render/render.js';
 import { DISCORD_COLORS, DISCORD_LIMITS } from '@tzurot/common-types/constants/discord';
+import { formatAutocompleteOption } from '@tzurot/common-types/utils/autocompleteFormat';
 import { isAudioProviderId, type AudioProviderId } from '@tzurot/common-types/types/audio-provider';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
@@ -124,14 +125,17 @@ export async function handleVoiceAutocomplete(interaction: AutocompleteInteracti
       .filter(v => v.slug.toLowerCase().includes(query) || v.voiceId.toLowerCase().includes(query))
       .slice(0, DISCORD_LIMITS.AUTOCOMPLETE_MAX_CHOICES);
 
-    const choices = filtered.map(v => ({
+    const choices = filtered.map(v =>
       // Display: `slug · provider` so the user can disambiguate same-slug
       // voices across providers (e.g., a personality cloned to both).
-      name: `${v.slug} · ${v.provider}`,
       // Value: composite `${provider}:${voiceId}` — the delete handler
       // splits on `:` to route to the right provider's API.
-      value: `${v.provider}:${v.voiceId}`,
-    }));
+      formatAutocompleteOption({
+        name: v.slug,
+        value: `${v.provider}:${v.voiceId}`,
+        metadata: v.provider,
+      })
+    );
 
     await interaction.respond(choices);
   } catch (error) {

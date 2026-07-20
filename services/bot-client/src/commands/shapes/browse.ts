@@ -14,6 +14,7 @@ import {
   type ButtonBuilder,
   type EmbedBuilder,
 } from 'discord.js';
+import { ENTITY_EMOJI } from '@tzurot/common-types/constants/uxVocabulary';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { type UserClient } from '@tzurot/clients';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
@@ -80,7 +81,7 @@ export function buildBrowsePage(
   const sorted = sortShapes(shapes, sort);
 
   const { embed, pageItems, startIndex, totalPages, safePage } = buildBrowseListEmbed<ShapeItem>({
-    entityEmoji: '\uD83D\uDD17',
+    entityEmoji: ENTITY_EMOJI.shapes,
     titleNoun: 'Shapes',
     items: sorted,
     page,

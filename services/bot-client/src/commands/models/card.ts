@@ -5,15 +5,17 @@
  * selecting an item in `/models browse`. Pure (no I/O) so it's directly
  * unit-testable.
  *
- * Layout: a usability-coded color bar (green = can run, orange = key needed),
- * a provider author line, a hyperlinked title, a compact slug + capabilities +
- * status description, and a single short inline field row (Context · Price ·
- * Access). No thumbnail — pure text/emoji, so there are no image assets to host.
+ * Layout: a provider author line, a hyperlinked title, a compact slug +
+ * capabilities + status description (usability speaks through the badge-coded
+ * status line — detail cards stay BLURPLE per §2.3), and a single short inline
+ * field row (Context · Price · Access). No thumbnail — pure text/emoji, so
+ * there are no image assets to host.
  */
 
 import { EmbedBuilder } from 'discord.js';
 import { buildModelInfoUrl, AIProvider } from '@tzurot/common-types/constants/ai';
 import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
+import { AUTOCOMPLETE_BADGES } from '@tzurot/common-types/utils/autocompleteFormat';
 import { formatContextLength } from '../../utils/modelAutocomplete.js';
 import {
   formatCapabilities,
@@ -21,15 +23,14 @@ import {
   type UsableCatalogModel,
 } from '../../utils/modelCatalog.js';
 
-/** Bold, emoji-prefixed status line for the description. */
+/** Bold, badge-prefixed status line for the description (glyphs from the registry). */
 const USABILITY_LINE: Record<ModelUsability, string> = {
-  free: '🆓 **Free** — available to everyone',
-  usable: '✅ **You can use this**',
-  'needs-openrouter-key': '🔑 **Needs an OpenRouter key** — add one with `/settings apikey set`',
-  'needs-zai-key': '🔑 **Needs a z.ai coding-plan key** — add one with `/settings apikey set`',
-  'needs-either-key':
-    '🔑 **Needs an OpenRouter or z.ai key** — add one with `/settings apikey set`',
-  unknown: "❔ **Couldn't verify your keys** — try again in a moment",
+  free: `${AUTOCOMPLETE_BADGES.FREE} **Free** — available to everyone`,
+  usable: `${AUTOCOMPLETE_BADGES.ACTIVE} **You can use this**`,
+  'needs-openrouter-key': `${AUTOCOMPLETE_BADGES.NEEDS_KEY} **Needs an OpenRouter key** — add one with \`/settings apikey set\``,
+  'needs-zai-key': `${AUTOCOMPLETE_BADGES.NEEDS_KEY} **Needs a z.ai coding-plan key** — add one with \`/settings apikey set\``,
+  'needs-either-key': `${AUTOCOMPLETE_BADGES.NEEDS_KEY} **Needs an OpenRouter or z.ai key** — add one with \`/settings apikey set\``,
+  unknown: `${AUTOCOMPLETE_BADGES.UNVERIFIED} **Couldn't verify your keys** — try again in a moment`,
 };
 
 /** Short one-word(ish) access category for the inline field. */
@@ -83,10 +84,10 @@ function formatPriceShort(model: UsableCatalogModel): string {
 function capabilityLine(model: UsableCatalogModel): string {
   const parts = [formatCapabilities(model)];
   if (model.isRouter === true) {
-    parts.push('🔀 meta-router');
+    parts.push(`${AUTOCOMPLETE_BADGES.ROUTER} meta-router`);
   }
   if (model.isZaiCoding) {
-    parts.push('⚡ z.ai coding-plan');
+    parts.push(`${AUTOCOMPLETE_BADGES.ZAI_CODING} z.ai coding-plan`);
   }
   return parts.join(SEP);
 }
@@ -118,7 +119,9 @@ export function buildModelCard(model: UsableCatalogModel): EmbedBuilder {
       : 'OpenRouter';
 
   const embed = new EmbedBuilder()
-    .setColor(model.canUse ? DISCORD_COLORS.SUCCESS : DISCORD_COLORS.WARNING)
+    // Detail cards stay BLURPLE (§2.3 — color encodes surface kind, not
+    // usability state); the status line's badge + words carry the signal.
+    .setColor(DISCORD_COLORS.BLURPLE)
     .setAuthor({ name: provider })
     .setTitle(title)
     .setDescription(

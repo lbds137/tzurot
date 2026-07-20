@@ -74,6 +74,19 @@ describe('buildBadgeLegend', () => {
       ])
     ).toBe('Global 🌐 · Personal 🔒 · Shadowed ⚠️');
   });
+
+  it('object entries without a word fall back to the standard legend word', () => {
+    expect(buildBadgeLegend([{ key: 'LOCKED' }])).toBe('Locked 🔐');
+  });
+
+  it('appends an entry suffix after the glyph (live-count annotations)', () => {
+    expect(buildBadgeLegend([{ key: 'VISION', suffix: '(3)' }, 'FREE'])).toBe(
+      'Vision 👁️ (3) · Free 🆓'
+    );
+    expect(buildBadgeLegend([{ key: 'FREE', word: 'Free tier', suffix: '(2)' }])).toBe(
+      'Free tier 🆓 (2)'
+    );
+  });
 });
 
 describe('UX_SENTINELS', () => {

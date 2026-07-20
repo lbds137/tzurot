@@ -17,6 +17,7 @@ import {
   type MessageActionRowComponentBuilder,
 } from 'discord.js';
 import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
+import { ENTITY_EMOJI, UX_SENTINELS } from '@tzurot/common-types/constants/uxVocabulary';
 import type {
   DiagnosticPayload,
   DiagnosticMemoryEntry,
@@ -320,7 +321,7 @@ export function buildMemoryInspectorView(
   const budgetDropped = allMemories.length - includedTotal;
 
   const lines: string[] = [
-    `**Search Query:** ${inputProcessing.searchQuery !== null ? `"${inputProcessing.searchQuery}"` : '_none_'} · **Focus:** ${memoryRetrieval.focusModeEnabled ? 'on' : 'off'}`,
+    `**Search Query:** ${inputProcessing.searchQuery !== null ? `"${inputProcessing.searchQuery}"` : UX_SENTINELS.NOT_SET} · **Focus:** ${memoryRetrieval.focusModeEnabled ? 'on' : 'off'}`,
   ];
 
   // State annotation and filter buttons only make sense when there's something
@@ -488,9 +489,10 @@ export function buildVoiceAttributionView(
   const hasTranscript =
     inputProcessing.voiceTranscript !== null && inputProcessing.voiceTranscript.length > 0;
 
-  // Informational surface: BLURPLE always (design system).
+  // Informational surface: BLURPLE always (design system). Title carries the
+  // single voice-entity glyph (§2.1 — 🎙️ collapses onto 🎤).
   const embed = new EmbedBuilder()
-    .setTitle('🎙️ Voice Attribution')
+    .setTitle(`${ENTITY_EMOJI.voice} Voice Attribution`)
     .setColor(DISCORD_COLORS.BLURPLE);
 
   if (!hasTts && !hasTranscript) {

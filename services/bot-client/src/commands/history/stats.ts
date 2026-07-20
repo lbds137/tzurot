@@ -11,7 +11,8 @@ import { CATALOG } from '../../ux/catalog/catalog.js';
 import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
 import { renderSpec } from '../../ux/render/render.js';
 import { historyStatsOptions } from '@tzurot/common-types/generated/commandOptions';
-import { formatDateTimeCompact } from '@tzurot/common-types/utils/dateFormatting';
+import { UX_SENTINELS } from '@tzurot/common-types/constants/uxVocabulary';
+import { formatDiscordTimestamp } from '@tzurot/common-types/utils/dateFormatting';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import {
@@ -23,9 +24,9 @@ import { createInfoEmbed } from '../../utils/commandHelpers.js';
 
 const logger = createLogger('history-stats');
 
-/** Format a date string or return 'N/A' for null */
+/** Format a date as a dynamic timestamp, or the empty-value sentinel for null */
 function formatDate(dateStr: string | null): string {
-  return dateStr !== null ? formatDateTimeCompact(dateStr) : 'N/A';
+  return dateStr !== null ? formatDiscordTimestamp(dateStr, 'D') : UX_SENTINELS.NOT_SET;
 }
 
 /**
@@ -86,8 +87,10 @@ export async function handleStats(context: DeferredCommandContext): Promise<void
         inline: true,
       },
       {
+        // Always the count — "0 messages" is honest and avoids the retired
+        // 'None' sentinel variant (§2.5).
         name: 'Hidden Messages',
-        value: data.hidden.count > 0 ? `${data.hidden.count} messages` : 'None',
+        value: `${data.hidden.count} messages`,
         inline: true,
       },
       {

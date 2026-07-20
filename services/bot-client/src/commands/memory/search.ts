@@ -23,7 +23,9 @@ import {
 } from 'discord.js';
 import { memorySearchOptions } from '@tzurot/common-types/generated/commandOptions';
 import { type MemoryItem } from '@tzurot/common-types/schemas/api/memory';
-import { formatDateShort } from '@tzurot/common-types/utils/dateFormatting';
+import { ENTITY_EMOJI, buildBadgeLegend } from '@tzurot/common-types/constants/uxVocabulary';
+import { AUTOCOMPLETE_BADGES } from '@tzurot/common-types/utils/autocompleteFormat';
+import { formatDateShort, formatDiscordTimestamp } from '@tzurot/common-types/utils/dateFormatting';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { type UserClient } from '@tzurot/clients';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
@@ -121,14 +123,17 @@ function buildSearchEmbed(options: BuildSearchEmbedOptions): EmbedBuilder {
   // keep the hasMore-aware page indicator in the footer (the button row's
   // info label can't express the open-ended "of N+" state).
   const { embed } = buildBrowseListEmbed<SearchResult>({
-    entityEmoji: '🔍',
+    // §2.1: the glyph is the ENTITY's identity — search is a view kind,
+    // expressed by the title words, never by swapping the glyph.
+    entityEmoji: ENTITY_EMOJI.memory,
     titleNoun: 'Search Results',
     items: results,
     page,
     itemsPerPage: pageSize,
     serverPage: { totalItems: hasMore ? (page + 2) * pageSize : page * pageSize + results.length },
     formatRow: memory => ({
-      badges: memory.isLocked ? '🔒' : undefined,
+      // 🔐 LOCKED (protection) — 🔒 is the private-visibility badge.
+      badges: memory.isLocked ? AUTOCOMPLETE_BADGES.LOCKED : undefined,
       name: '', // unused — nameMarkup below overrides it
       // Memory content is prose, not an entity name — skip the bold-name
       // default so rows read as text, not headings.
@@ -136,7 +141,7 @@ function buildSearchEmbed(options: BuildSearchEmbedOptions): EmbedBuilder {
       metadata: [
         escapeMarkdown(memory.personalityName),
         formatSimilarity(memory.similarity),
-        formatDateShort(memory.createdAt),
+        formatDiscordTimestamp(memory.createdAt, 'D'),
       ],
     }),
     // The empty state already names the query — the preamble would repeat it.
@@ -151,7 +156,7 @@ function buildSearchEmbed(options: BuildSearchEmbedOptions): EmbedBuilder {
       personalityId !== undefined && 'Filtered',
       formatPageIndicator(page + 1, totalPages, { hasMore }),
     ],
-    badgeLegend: 'Locked 🔒',
+    badgeLegend: buildBadgeLegend(['LOCKED']),
   });
 
   return embed;
@@ -206,9 +211,10 @@ function buildSearchView(opts: {
     placeholder: 'Select a memory to manage...',
     startIndex: page * pageSize,
     formatItem: memory => ({
-      label: `${memory.isLocked ? '🔒 ' : ''}${memory.content}`,
+      label: `${memory.isLocked ? `${AUTOCOMPLETE_BADGES.LOCKED} ` : ''}${memory.content}`,
       value: memory.id,
-      description: `${memory.personalityName} • ${formatDateShort(memory.createdAt)}`,
+      // Select descriptions render no markdown — the date stays static text.
+      description: `${memory.personalityName} · ${formatDateShort(memory.createdAt)}`,
     }),
   });
 

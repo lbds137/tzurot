@@ -169,8 +169,8 @@ describe('Memory Detail', () => {
       const { embed } = buildDetailEmbed(memory);
       const json = embed.toJSON();
 
-      expect(json.title).toBe('🔒 Memory Details');
-      expect(json.fields?.find(f => f.name === 'Status')?.value).toBe('🔒 Locked');
+      expect(json.title).toBe('🔐 Memory Details');
+      expect(json.fields?.find(f => f.name === 'Status')?.value).toBe('🔐 Locked');
     });
 
     it('should show updated date if different from created', () => {

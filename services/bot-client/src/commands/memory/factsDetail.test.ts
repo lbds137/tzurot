@@ -116,7 +116,7 @@ describe('buildFactDetailEmbed', () => {
     const corrected = buildFactDetailEmbed(
       createMockFact({ tier: 'corrected', isLocked: true })
     ).toJSON();
-    expect(corrected.title).toContain('🔒');
+    expect(corrected.title).toContain('🔐');
     expect(corrected.fields?.find(f => f.name === 'Origin')?.value).toContain('Corrected');
   });
 
