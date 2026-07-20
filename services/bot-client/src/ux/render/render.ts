@@ -4,7 +4,7 @@
  * The SINGLE source of the emoji map (design §4.2): error ❌ · warning ⚠️ ·
  * success ✅ · progress ⏳ · session-expiry ⏰ · loading 🔄. Call sites never
  * hand-write these prefixes; migrating a literal onto the catalog is what
- * moves the `ux:literals` ratchet down.
+ * shrinks a file's `@tzurot/no-raw-content-literals` budget.
  */
 
 import type { MessageIcon, MessageSeverity, MessageSpec } from '../catalog/types.js';

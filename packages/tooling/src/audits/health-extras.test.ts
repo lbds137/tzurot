@@ -19,7 +19,7 @@ import {
   collectLinesMarginBullets,
   collectCpdMarginBullets,
   collectMutationMarginBullets,
-  collectUxLiteralsMarginBullets,
+  collectRawContentMarginBullets,
   collectCoverageMarginBullets,
   collectHealthExtras,
   formatHealthExtras,
@@ -254,49 +254,14 @@ describe('collectMutationMarginBullets', () => {
   });
 });
 
-describe('collectUxLiteralsMarginBullets', () => {
-  it('reports the live literal count against the baseline ceiling', async () => {
-    await withTmpRepo(
-      {
-        '.github/baselines/ux-literals-baseline.json': JSON.stringify({
-          total: 5,
-          graceMargin: 2,
-        }),
-        // Two matches: one ❌ prefix + one retry invitation.
-        'services/bot-client/src/commands/foo.ts':
-          "const a = '❌ nope';\nconst b = 'Please try again later';\n",
-      },
-      async rootDir => {
-        expect(collectUxLiteralsMarginBullets(rootDir)).toEqual([
-          'ux-literals: 2/7 (5 headroom, baseline 5, live measure — ' +
-            'lower is better; a total well under baseline is a tightening candidate)',
-        ]);
-      }
+describe('collectRawContentMarginBullets', () => {
+  it('reports the grandfathered allowlist size (live, baseline-free)', () => {
+    const bullets = collectRawContentMarginBullets();
+    expect(bullets).toHaveLength(1);
+    expect(bullets[0]).toMatch(
+      /^raw-content allowlist: \d+ grandfathered literals across \d+ files /
     );
-  });
-
-  it('degrades when the baseline is missing', async () => {
-    await withTmpRepo({}, async rootDir => {
-      expect(collectUxLiteralsMarginBullets(rootDir)).toEqual([
-        'ux-literals: unavailable (no ux-literals-baseline.json)',
-      ]);
-    });
-  });
-
-  it('flags a zero-file scan as unmeasurable, never as zero literals', async () => {
-    await withTmpRepo(
-      {
-        '.github/baselines/ux-literals-baseline.json': JSON.stringify({
-          total: 5,
-          graceMargin: 2,
-        }),
-      },
-      async rootDir => {
-        expect(collectUxLiteralsMarginBullets(rootDir)).toEqual([
-          'ux-literals: unmeasurable (scan root matched zero files)',
-        ]);
-      }
-    );
+    expect(bullets[0]).toContain('shrink-only');
   });
 });
 
@@ -381,14 +346,15 @@ describe('collectHealthExtras', () => {
 
       expect(extras.security.dependabotPrs.available).toBe(false);
       expect(extras.security.dependabotAlerts.available).toBe(false);
-      // One degraded bullet each for lines/cpd/mutation/ux-literals, plus
-      // TWO live bullets from coverage (a missing baseline loads as empty,
-      // so the gap scan still runs — services + contracts rows).
+      // One degraded bullet each for lines/cpd/mutation, ONE live bullet
+      // from the raw-content allowlist (statically imported — no baseline
+      // file to miss), plus TWO live bullets from coverage (a missing
+      // baseline loads as empty, so the gap scan still runs).
       expect(extras.marginBullets).toHaveLength(6);
       expect(
         extras.marginBullets.filter(b => b.includes('unavailable')),
-        'the four baseline-gated ratchets degrade with a reason'
-      ).toHaveLength(4);
+        'the three baseline-gated ratchets degrade with a reason'
+      ).toHaveLength(3);
       expect(extras.docsOrphans).toEqual({ totalDocs: 0, orphans: [] });
     });
   });

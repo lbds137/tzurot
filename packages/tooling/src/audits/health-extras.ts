@@ -8,7 +8,7 @@
  * - **Security surface** — open Dependabot PRs + alerts via the `gh` CLI;
  *   degrades to "unavailable (<reason>)" when gh is missing/unauthenticated.
  * - **Ratchet margins** — headroom against the ratchet baselines that can be
- *   measured honestly without a heavy run: lines, ux-literals, and coverage
+ *   measured honestly without a heavy run: lines, raw-content, and coverage
  *   (cheap live measures), cpd (stale-ok, only if a prior `pnpm cpd` report
  *   exists on disk), mutation (baseline score + floor only — a live score
  *   needs a Stryker run).
@@ -30,11 +30,7 @@ import {
   type SurfaceMeasurement,
 } from './lines-check.js';
 import { parseMutationBaseline } from '../test/mutation-check.js';
-import {
-  measureUxLiterals,
-  parseUxLiteralsBaseline,
-  DEFAULT_UX_LITERALS_BASELINE_PATH,
-} from './ux-literals-check.js';
+import { RAW_CONTENT_ALLOWLIST, rawContentBudgetTotal } from '../eslint/raw-content-allowlist.js';
 import { loadUnifiedBaseline, collectUnifiedAuditData } from '../test/audit-unified.js';
 import { scanDocsOrphans, type DocsOrphanResult } from './docs-orphan-scan.js';
 
@@ -204,26 +200,18 @@ export function collectMutationMarginBullets(rootDir: string): string[] {
 }
 
 /**
- * UX-literals adoption ratchet — a cheap live measure (regex walk over
- * bot-client's commands dir). This ratchet counts DOWN: the goal is fewer
- * raw literals, so headroom-under-ceiling is slack the AST rule (Phase 3)
- * will eventually retire, and a shrinking total is progress worth seeing.
+ * Catalog-adoption allowlist — the AST successor to the retired ux:literals
+ * grep ratchet (`@tzurot/no-raw-content-literals`). The ESLint rule blocks
+ * NEW raw copy at lint time; this bullet surfaces the grandfathered budget so
+ * a static total across weekly reports reads as stalled catalog adoption
+ * (same stagnation signal, better metric).
  */
-export function collectUxLiteralsMarginBullets(rootDir: string): string[] {
-  const baselinePath = resolve(rootDir, DEFAULT_UX_LITERALS_BASELINE_PATH);
-  if (!existsSync(baselinePath)) {
-    return ['ux-literals: unavailable (no ux-literals-baseline.json)'];
-  }
-  const baseline = parseUxLiteralsBaseline(readFileSync(baselinePath, 'utf-8'), baselinePath);
-  const measurement = measureUxLiterals(rootDir);
-  if (measurement.fileCount === 0) {
-    return ['ux-literals: unmeasurable (scan root matched zero files)'];
-  }
-  const ceiling = baseline.total + baseline.graceMargin;
+export function collectRawContentMarginBullets(): string[] {
+  const files = Object.keys(RAW_CONTENT_ALLOWLIST).length;
+  const total = rawContentBudgetTotal();
   return [
-    `ux-literals: ${measurement.total}/${ceiling} ` +
-      `(${ceiling - measurement.total} headroom, baseline ${baseline.total}, live measure — ` +
-      `lower is better; a total well under baseline is a tightening candidate)`,
+    `raw-content allowlist: ${total} grandfathered literals across ${files} files ` +
+      '(shrink-only — lower is better; the exact-count staleness test banks every reduction)',
   ];
 }
 
@@ -297,7 +285,7 @@ export function collectHealthExtras(rootDir: string): HealthExtras {
     ...safeBullets('lines', () => collectLinesMarginBullets(rootDir)),
     ...safeBullets('cpd', () => collectCpdMarginBullets(rootDir)),
     ...safeBullets('mutation', () => collectMutationMarginBullets(rootDir)),
-    ...safeBullets('ux-literals', () => collectUxLiteralsMarginBullets(rootDir)),
+    ...safeBullets('raw-content', () => collectRawContentMarginBullets()),
     ...safeBullets('coverage', () => collectCoverageMarginBullets(rootDir)),
   ];
   let docsOrphans: HealthExtras['docsOrphans'];
