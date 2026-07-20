@@ -38,6 +38,14 @@ export interface CharacterData extends PersonalityCharacterFields {
   ownerId: string;
   avatarData: string | null; // Base64-encoded (write-direction only; always null on reads)
   /**
+   * Public cache-busting avatar URL from the API (null = no avatar).
+   * Gateway-derived where the public base URL is configured — never rebuild
+   * it from bot-client's own gateway base env var, which is the internal
+   * hostname and renders as a broken image when Discord's media proxy is
+   * the fetcher.
+   */
+  avatarUrl?: string | null;
+  /**
    * Whether a stored avatar exists — the READ-direction signal, emitted by
    * the gateway response schema and carried through toCharacterData's
    * spread. Optional: write-path constructions (create/import payloads)

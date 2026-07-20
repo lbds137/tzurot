@@ -5,16 +5,12 @@
  * participates in every case.
  */
 
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { ComponentType } from 'discord.js';
 import type { CharacterData } from './characterTypes.js';
 import { buildCharacterViewV2, buildViewV2Notice, viewAvatarUrl } from './viewV2.js';
 import { CharacterCustomIds } from '../../utils/customIds.js';
 import { toCharacterData } from './api.js';
-
-vi.mock('@tzurot/common-types/config/config', () => ({
-  getConfig: () => ({ GATEWAY_URL: 'https://gateway.example' }),
-}));
 
 function createTestCharacter(overrides: Partial<CharacterData> = {}): CharacterData {
   return {
@@ -78,26 +74,34 @@ function flatten(nodes: ComponentNode[]): ComponentNode[] {
 }
 
 describe('viewAvatarUrl', () => {
-  it('returns null when the character has no avatar', () => {
-    expect(viewAvatarUrl(createTestCharacter({ hasAvatar: false }))).toBeNull();
+  it('returns null when the API provides no avatar URL', () => {
+    expect(viewAvatarUrl(createTestCharacter({ avatarUrl: null }))).toBeNull();
     expect(viewAvatarUrl(createTestCharacter())).toBeNull();
   });
 
-  it('builds the public gateway avatar URL when an avatar exists', () => {
-    expect(viewAvatarUrl(createTestCharacter({ hasAvatar: true }))).toBe(
-      'https://gateway.example/avatars/test-character.png'
-    );
+  it('returns the API-provided public URL verbatim — never rebuilds it locally', () => {
+    // The URL must be gateway-derived: bot-client's own GATEWAY_URL is the
+    // internal hostname, and a URL built from it rendered as a broken image
+    // (Discord's media proxy is the fetcher, not the bot).
+    expect(
+      viewAvatarUrl(
+        createTestCharacter({ avatarUrl: 'https://public.example/avatars/test-character-123.png' })
+      )
+    ).toBe('https://public.example/avatars/test-character-123.png');
   });
 
-  it('detects avatars through the REAL read-path coercion (hasAvatar survives, avatarData does not)', () => {
-    // The seam that broke: toCharacterData ALWAYS nulls avatarData on reads,
-    // so a gate on avatarData renders no thumbnail for any real character.
-    // hasAvatar rides the spread — pin the wiring through the real coercion.
-    const withAvatar = toCharacterData({ ...createTestCharacter(), hasAvatar: true });
+  it('carries the avatar URL through the REAL read-path coercion (avatarUrl survives, avatarData does not)', () => {
+    // The seam that broke twice: toCharacterData ALWAYS nulls avatarData on
+    // reads, and a schema-undeclared field would be strip-deleted before the
+    // bot ever saw it. Pin the wiring through the real coercion.
+    const withAvatar = toCharacterData({
+      ...createTestCharacter(),
+      avatarUrl: 'https://public.example/avatars/test-character-123.png',
+    });
     expect(withAvatar.avatarData).toBeNull();
-    expect(viewAvatarUrl(withAvatar)).toBe('https://gateway.example/avatars/test-character.png');
+    expect(viewAvatarUrl(withAvatar)).toBe('https://public.example/avatars/test-character-123.png');
 
-    const without = toCharacterData({ ...createTestCharacter(), hasAvatar: false });
+    const without = toCharacterData({ ...createTestCharacter(), avatarUrl: null });
     expect(viewAvatarUrl(without)).toBeNull();
   });
 });
@@ -190,6 +194,28 @@ describe('buildCharacterViewV2', () => {
     expect(flat.some(n => n.type === ComponentType.Button)).toBe(false);
     expect(flat.some(n => n.type === ComponentType.Section)).toBe(false);
     expect(flat.some(n => n.content?.includes('definition is private') === true)).toBe(true);
+  });
+
+  it('renders Tone and Age as separate blocks, never one joined line (owner eval finding)', () => {
+    const flat = flatten(
+      toTree(
+        buildCharacterViewV2(
+          createTestCharacter({
+            personalityTone: 'a very long tone paragraph that would scrunch anything joined to it',
+            personalityAge: 'sounds about fifty',
+          }),
+          0,
+          null
+        )
+      )
+    );
+
+    const toneNode = flat.find(n => n.content?.startsWith('**🎨 Tone**') === true);
+    const ageNode = flat.find(n => n.content?.startsWith('**📅 Age**') === true);
+    expect(toneNode?.content).toContain('a very long tone paragraph');
+    expect(ageNode?.content).toContain('sounds about fifty');
+    // Age must not ride the tail of the Tone block.
+    expect(toneNode?.content).not.toContain('Age');
   });
 
   it('carries the date footer as subtext on every page', () => {

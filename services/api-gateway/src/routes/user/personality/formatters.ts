@@ -10,6 +10,10 @@ import {
   type PersonalityCharacterFields,
 } from '@tzurot/common-types/schemas/api/personality';
 import { type Prisma } from '@tzurot/common-types/services/prisma';
+import { createLogger } from '@tzurot/common-types/utils/logger';
+import { deriveAvatarUrl } from '@tzurot/identity';
+
+const logger = createLogger('personality-formatter');
 
 type PersonalityFromDb = Prisma.PersonalityGetPayload<{
   select: typeof PERSONALITY_DETAIL_SELECT;
@@ -65,6 +69,9 @@ export interface PersonalityResponse extends Omit<PersonalityCharacterFields, Re
   imageEnabled: boolean;
   ownerId: string;
   hasAvatar: boolean;
+  /** Public cache-busting avatar URL (null = no avatar). Derived here, where
+   *  PUBLIC_GATEWAY_URL exists — bot-client's GATEWAY_URL is internal-only. */
+  avatarUrl: string | null;
   hasVoiceReference: boolean;
   // Matches PersonalityFullSchema's declared shape — the create/update
   // schemas only ever store records in the Json? column.
@@ -116,6 +123,10 @@ export function formatPersonalityResponse(
     imageEnabled: personality.imageEnabled,
     ownerId: personality.ownerId,
     hasAvatar: personality.avatarData !== null,
+    avatarUrl:
+      personality.avatarData !== null
+        ? (deriveAvatarUrl(personality.slug, personality.updatedAt, logger) ?? null)
+        : null,
     // voiceReferenceType (not voiceReferenceData) is the proxy — PERSONALITY_DETAIL_SELECT
     // excludes the blob column to avoid loading up to 10MB into memory on every query.
     hasVoiceReference: personality.voiceReferenceType !== null,

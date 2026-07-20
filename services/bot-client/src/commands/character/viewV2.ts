@@ -31,7 +31,6 @@ import {
   escapeMarkdown,
 } from 'discord.js';
 import { DISCORD_COLORS, CHARACTER_VIEW_LIMITS } from '@tzurot/common-types/constants/discord';
-import { getConfig } from '@tzurot/common-types/config/config';
 import { formatDateShort } from '@tzurot/common-types/utils/dateFormatting';
 import { CharacterCustomIds } from '../../utils/customIds.js';
 import type { CharacterData } from './characterTypes.js';
@@ -63,19 +62,15 @@ export interface ViewV2Result {
 }
 
 /**
- * Public avatar URL for a character, or null when it has none. Uses the
- * gateway's public avatar route — the same URL Discord already fetches for
- * webhook avatars, so it is reachable from Discord's media proxy.
- *
- * Gates on `hasAvatar` (the read-direction signal) — `avatarData` is a
- * write-direction field that toCharacterData ALWAYS nulls on reads, so
- * gating on it would mean the thumbnail never renders.
+ * Public avatar URL for a character, or null when it has none. Consumes the
+ * API's gateway-derived `avatarUrl` — the thumbnail is fetched by DISCORD's
+ * media proxy, so it needs the PUBLIC gateway host, which only the gateway
+ * process knows (bot-client's own gateway base URL is the internal hostname
+ * and produced a broken image here; export.ts can use it only because the
+ * BOT does that fetch itself).
  */
 export function viewAvatarUrl(character: CharacterData): string | null {
-  if (character.hasAvatar !== true) {
-    return null;
-  }
-  return `${getConfig().GATEWAY_URL}/avatars/${encodeURIComponent(character.slug)}.png`;
+  return character.avatarUrl ?? null;
 }
 
 /** Label + truncated value as one markdown block, flagging expandability. */
@@ -122,16 +117,19 @@ function overviewBlocks(character: CharacterData): ViewBlock[] {
     `**Voice:** ${character.voiceEnabled ? '🎤 Enabled' : '❌ Disabled'}\n` +
     `**Images:** ${character.imageEnabled ? '🖼️ Enabled' : '❌ Disabled'}`;
 
-  const toneAge =
-    `**🎨 Tone:** ${character.personalityTone ?? '_Not set_'} · ` +
-    `**📅 Age:** ${character.personalityAge ?? '_Not set_'}`;
+  // Tone and Age are SEPARATE blocks, mirroring the embed view's separate
+  // inline fields — a mid-line `·` join scrunched Age onto the tail of an
+  // arbitrarily long Tone paragraph (owner eval finding).
+  const tone = `**🎨 Tone**\n${character.personalityTone ?? '_Not set_'}`;
+  const age = `**📅 Age**\n${character.personalityAge ?? '_Not set_'}`;
 
   return [
     { text: overviewDescription(character) },
     { text: identityBlock(character) },
     { text: settings },
     fieldBlock(character, 'personalityTraits', CHARACTER_VIEW_LIMITS.MEDIUM),
-    { text: toneAge },
+    { text: tone },
+    { text: age },
   ];
 }
 

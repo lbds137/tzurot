@@ -73,6 +73,15 @@ export const PersonalityFullSchema = z.object({
   imageEnabled: z.boolean(),
   ownerId: z.string(),
   hasAvatar: z.boolean(),
+  /**
+   * Public, cache-busting avatar URL, or null when the character has none.
+   * Derived GATEWAY-side (identity's deriveAvatarUrl over PUBLIC_GATEWAY_URL)
+   * because bot-client's own GATEWAY_URL is the internal hostname — a URL
+   * built from it renders as a broken image when Discord's media proxy is
+   * the fetcher (thumbnails), even though the bot's own fetches succeed.
+   * Must be DECLARED here or strip-mode deletes it (see customFields note).
+   */
+  avatarUrl: z.string().nullable(),
   hasVoiceReference: z.boolean(),
   // Must be DECLARED here or the typed client's Zod parse (default strip mode)
   // silently drops it from every response — the gateway sends it, but an

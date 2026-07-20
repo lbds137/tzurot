@@ -2,8 +2,17 @@
  * Tests for personality response formatters
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { formatPersonalityResponse, REDACTABLE_CARD_FIELDS } from './formatters.js';
+
+// deriveAvatarUrl reads PUBLIC_GATEWAY_URL at call time — pin it so the
+// expected avatarUrl below is deterministic regardless of .env.test.
+beforeEach(() => {
+  vi.stubEnv('PUBLIC_GATEWAY_URL', 'https://public.example');
+});
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
 
 function createMockPersonality(overrides: Record<string, unknown> = {}) {
   return {
@@ -71,6 +80,8 @@ describe('formatPersonalityResponse', () => {
       imageEnabled: true,
       ownerId: 'owner-123',
       hasAvatar: true,
+      // Public URL, cache-busted with the fixture's own updatedAt epoch
+      avatarUrl: `https://public.example/avatars/test-bot-${new Date('2026-02-01T00:00:00Z').getTime()}.png`,
       hasVoiceReference: false,
       customFields: { key: 'value' },
       systemPromptId: 'prompt-123',
@@ -137,6 +148,26 @@ describe('formatPersonalityResponse', () => {
     const personality = createMockPersonality({ avatarData: null });
     const result = formatPersonalityResponse(personality, { redact: false });
     expect(result.hasAvatar).toBe(false);
+  });
+
+  it('emits null avatarUrl when the character has no avatar (a derived URL would 404 → broken thumbnail)', () => {
+    const personality = createMockPersonality({ avatarData: null });
+    const result = formatPersonalityResponse(personality, { redact: false });
+    expect(result.avatarUrl).toBeNull();
+  });
+
+  it('keeps avatarUrl visible when redacted — avatar presence is not a card field', () => {
+    const result = formatPersonalityResponse(createMockPersonality(), { redact: true });
+    expect(result.avatarUrl).toContain('https://public.example/avatars/test-bot-');
+  });
+
+  it('falls back to GATEWAY_URL when PUBLIC_GATEWAY_URL is unset (local dev)', () => {
+    // stubEnv(undefined) DELETES the var — an empty string would NOT take
+    // the ?? fallback in deriveAvatarUrl and would yield null instead.
+    vi.stubEnv('PUBLIC_GATEWAY_URL', undefined);
+    vi.stubEnv('GATEWAY_URL', 'http://localhost:3000');
+    const result = formatPersonalityResponse(createMockPersonality(), { redact: false });
+    expect(result.avatarUrl).toContain('http://localhost:3000/avatars/test-bot-');
   });
 
   it('should set hasAvatar to true when avatarData is present', () => {
