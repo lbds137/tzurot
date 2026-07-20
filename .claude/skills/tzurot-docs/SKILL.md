@@ -1,7 +1,7 @@
 ---
 name: tzurot-docs
 description: 'Session workflow procedures. Invoke with /tzurot-docs for session start/end, CURRENT.md and backlog management.'
-lastUpdated: '2026-07-05'
+lastUpdated: '2026-07-20'
 ---
 
 # Documentation & Session Workflow
@@ -25,7 +25,8 @@ The backlog is HOT/COLD split — load only the HOT surface at start (see `BACKL
 4. **Run both BACKLOG gates** (see `.claude/rules/06-backlog.md`):
    - **Additions gate**: every promised backlog item from this session's plans is actually written to the appropriate `backlog/**/*.md` file
    - **Removals gate**: every item that shipped in this session's merged PRs is removed from its backlog file. `grep -r backlog/` (recursive — includes `cold/`) against the session's PR titles and scope terms; delete matches. This gate most often gets skipped, producing backlog rot. (Removal is for _shipped_ or _genuinely obsolete_ items only — never time-based pruning; aging escalates, it doesn't delete.)
-5. Commit with `wip:` prefix if session ended with incomplete work
+5. **Structural sweep**: name any failure that occurred twice-or-more this session and its disposition — rule / skill / hook / explicitly none-needed with the reason. "Nothing recurred" must be stated, not implied. The gap this closes is self-_initiation_: once the owner asks "do we need a rule/hook?" the response is reliably fast, so the miss is noticing at the moment of the second occurrence, not building. (`/tzurot-session-mining` is the periodic backstop; this is the per-session one.)
+6. Commit with `wip:` prefix if session ended with incomplete work
 
 ## Work Tracking Files
 
