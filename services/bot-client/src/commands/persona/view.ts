@@ -19,6 +19,7 @@ import {
   type MessageActionRowComponentBuilder,
   type ButtonInteraction,
 } from 'discord.js';
+import { entityTitle, UX_SENTINELS } from '@tzurot/common-types/constants/uxVocabulary';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { PersonaCustomIds } from '../../utils/customIds.js';
@@ -73,7 +74,9 @@ function buildPersonaEmbed(personaDetails: PersonaDetails): {
     : '*No content set. Use `/persona edit` to add information about yourself.*';
 
   const { embed } = buildEntityDetailCard({
-    title: '🎭 Your Persona',
+    // 🎭 is the CHARACTER entity's glyph — the persona view carries the
+    // persona register's 👤 (spec §2.1 reassignment).
+    title: entityTitle('persona', 'Your Persona'),
     fields: [
       personaDetails.preferredName !== null &&
         personaDetails.preferredName.length > 0 && {
@@ -193,7 +196,7 @@ export async function handleExpandContent(
 
     const content = result.data.persona.content;
     if (content === null || content.length === 0) {
-      await interaction.editReply('📝 Content\n\n_Not set_');
+      await interaction.editReply(`📝 Content\n\n${UX_SENTINELS.NOT_SET}`);
       return;
     }
 

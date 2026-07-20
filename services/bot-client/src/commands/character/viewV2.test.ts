@@ -221,7 +221,10 @@ describe('buildCharacterViewV2', () => {
   it('carries the date footer as subtext on every page', () => {
     for (const page of [0, 1, 2, 3]) {
       const flat = flatten(toTree(buildCharacterViewV2(createTestCharacter(), page, null)));
-      expect(flat.some(n => n.content?.startsWith('-# Created:') === true)).toBe(true);
+      const footer = flat.find(n => n.content?.startsWith('-# Created:') === true);
+      expect(footer).toBeDefined();
+      // Dynamic Discord timestamps (§2.5) — TextDisplay renders <t:> markup.
+      expect(footer?.content).toMatch(/<t:\d+:D>/);
     }
   });
 

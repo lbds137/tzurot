@@ -347,7 +347,7 @@ describe('handlePersonalityAutocomplete', () => {
       expect(mockRespond).toHaveBeenCalledWith([
         { name: '🌐 Public Owned (public-owned)', value: 'public-owned' },
         { name: '🔒 Private Owned (private-owned)', value: 'private-owned' },
-        { name: '📖 Public Not Owned (public-not-owned)', value: 'public-not-owned' },
+        { name: '👥 Public Not Owned (public-not-owned)', value: 'public-not-owned' },
       ]);
     });
 
@@ -448,14 +448,14 @@ describe('getVisibilityIcon', () => {
     expect(getVisibilityIcon(true, false)).toBe('🔒');
   });
 
-  it('should return 📖 (READ_ONLY) for cannot edit (public read-only)', () => {
-    // 📖 = someone else's public personality
-    expect(getVisibilityIcon(false, true)).toBe('📖');
+  it('should return 👥 (OWNED_BY_OTHER) for cannot edit (public read-only)', () => {
+    // 👥 = someone else's public personality
+    expect(getVisibilityIcon(false, true)).toBe('👥');
   });
 
-  it('should return 📖 (READ_ONLY) for cannot edit even if private', () => {
+  it('should return 👥 (OWNED_BY_OTHER) for cannot edit even if private', () => {
     // This case shouldn't happen in practice (private + cannot edit)
     // but the function should still handle it
-    expect(getVisibilityIcon(false, false)).toBe('📖');
+    expect(getVisibilityIcon(false, false)).toBe('👥');
   });
 });

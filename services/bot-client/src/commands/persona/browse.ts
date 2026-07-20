@@ -11,6 +11,8 @@ import {
   type ButtonInteraction,
   type StringSelectMenuInteraction,
 } from 'discord.js';
+import { AUTOCOMPLETE_BADGES } from '@tzurot/common-types/utils/autocompleteFormat';
+import { ENTITY_EMOJI, buildBadgeLegend } from '@tzurot/common-types/constants/uxVocabulary';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { type UserClient } from '@tzurot/clients';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
@@ -79,7 +81,7 @@ function sortPersonas(personas: PersonaSummary[], sortType: BrowseSortType): Per
  * (numbering is added by the buildBrowseSelectMenu factory).
  */
 function formatPersonaSelectLabel(persona: PersonaSummary): string {
-  const defaultBadge = persona.isDefault ? '⭐' : '';
+  const defaultBadge = persona.isDefault ? AUTOCOMPLETE_BADGES.DEFAULT : '';
   const nameBadge =
     persona.preferredName !== null &&
     persona.preferredName !== undefined &&
@@ -125,13 +127,13 @@ function buildBrowsePage(
 
   const { embed, pageItems, startIndex, totalPages, safePage } =
     buildBrowseListEmbed<PersonaSummary>({
-      entityEmoji: '👤',
+      entityEmoji: ENTITY_EMOJI.persona,
       titleNoun: 'Personas',
       items: sortedPersonas,
       page,
       itemsPerPage: ITEMS_PER_PAGE,
       formatRow: persona => ({
-        badges: persona.isDefault ? '⭐' : undefined,
+        badges: persona.isDefault ? AUTOCOMPLETE_BADGES.DEFAULT : undefined,
         name: escapeMarkdown(persona.name),
         metadata:
           persona.preferredName !== null &&
@@ -149,7 +151,7 @@ function buildBrowsePage(
           ? formatSortNatural('date')
           : formatSortVerbatim('Sorted alphabetically'),
       ],
-      badgeLegend: 'Default ⭐',
+      badgeLegend: buildBadgeLegend(['DEFAULT']),
     });
 
   // Build components

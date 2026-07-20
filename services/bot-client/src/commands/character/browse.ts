@@ -20,6 +20,8 @@ import {
 } from 'discord.js';
 import { type EnvConfig, getConfig } from '@tzurot/common-types/config/config';
 import { characterBrowseOptions } from '@tzurot/common-types/generated/commandOptions';
+import { AUTOCOMPLETE_BADGES } from '@tzurot/common-types/utils/autocompleteFormat';
+import { ENTITY_EMOJI, buildBadgeLegend } from '@tzurot/common-types/constants/uxVocabulary';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import type { UserClient } from '@tzurot/clients';
@@ -182,7 +184,7 @@ function buildBrowsePage(options: BuildBrowsePageOptions): {
     totalPages,
     safePage: renderedPage,
   } = buildBrowseListEmbed<ListItem>({
-    entityEmoji: '\u{1F3AD}',
+    entityEmoji: ENTITY_EMOJI.character,
     titleNoun: 'Characters',
     items: allItems,
     page,
@@ -190,7 +192,7 @@ function buildBrowsePage(options: BuildBrowsePageOptions): {
     preamble,
     formatRow: item => ({
       groupHeader: item.groupHeader,
-      badges: `${item.char.isPublic ? '\u{1F310}' : '\u{1F512}'}${item.isOwn ? '\u270F\uFE0F' : ''}`,
+      badges: `${item.char.isPublic ? AUTOCOMPLETE_BADGES.PUBLIC : AUTOCOMPLETE_BADGES.OWNED}${item.isOwn ? AUTOCOMPLETE_BADGES.EDITABLE : ''}`,
       name: escapeMarkdown(item.char.displayName ?? item.char.name),
       // Slugs are typed in @mentions — the §2.4 case where the tech-id
       // belongs in the row.
@@ -206,7 +208,7 @@ function buildBrowsePage(options: BuildBrowsePageOptions): {
       filter !== 'all' && formatFilterLabeled(FILTER_LABELS[filter]),
       sortType === 'date' ? formatSortNatural('date') : formatSortVerbatim('Sorted alphabetically'),
     ],
-    badgeLegend: 'Public \u{1F310} · Private \u{1F512} · Yours \u270F\uFE0F',
+    badgeLegend: buildBadgeLegend(['PUBLIC', 'OWNED', 'EDITABLE']),
   });
 
   // Build components
