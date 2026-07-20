@@ -64,6 +64,16 @@ describe('buildBadgeLegend', () => {
     expect(buildBadgeLegend(['ACTIVE', 'FREE'])).toBe('Active ✅ · Free 🆓');
     expect(buildBadgeLegend([])).toBe('');
   });
+
+  it('accepts surface-specific word overrides while the glyph stays registry-locked', () => {
+    expect(
+      buildBadgeLegend([
+        { key: 'GLOBAL', word: 'Global' },
+        { key: 'OWNED', word: 'Personal' },
+        'SHADOWED',
+      ])
+    ).toBe('Global 🌐 · Personal 🔒 · Shadowed ⚠️');
+  });
 });
 
 describe('UX_SENTINELS', () => {

@@ -30,7 +30,8 @@ export type UxEntityKind =
   | 'voice'
   | 'apiKey'
   | 'denial'
-  | 'shapes';
+  | 'shapes'
+  | 'alias';
 
 /**
  * Entity emoji registry (§2.1) — one glyph per entity, everywhere.
@@ -55,6 +56,9 @@ export const ENTITY_EMOJI: Readonly<Record<UxEntityKind, string>> = {
   apiKey: '💳',
   denial: '🚫',
   shapes: '🔗',
+  // Post-spec entity: character aliases became a first-class browsable surface
+  // after the spec's table was authored; 🏷️ was established with that surface.
+  alias: '🏷️',
 } as const;
 
 /**
@@ -103,12 +107,27 @@ export const BADGE_LEGEND_WORDS: Readonly<Record<keyof typeof AUTOCOMPLETE_BADGE
 export type BadgeKey = keyof typeof AUTOCOMPLETE_BADGES;
 
 /**
+ * A legend entry: a badge key (uses the standard word), or a key with a
+ * surface-specific word override — for surfaces whose domain vocabulary
+ * differs from the standard word (alias tiers say "Global/Personal" where the
+ * registry says "Public/Private"). The GLYPH always comes from the registry;
+ * only the word may vary, so glyph drift stays impossible.
+ */
+export type LegendEntry = BadgeKey | { key: BadgeKey; word: string };
+
+/**
  * Build a word-first badge legend (§2.2): `Private 🔒 · Locked 🔐` — for
  * exactly the badges present on the surface, in the caller's order. Replaces
  * hand-written `badgeLegend` strings so wording and glyphs can't drift from
  * the registry. Word-first keeps the legend scannable on mobile; keep the
  * badge list to what the embed actually renders.
  */
-export function buildBadgeLegend(badges: readonly BadgeKey[]): string {
-  return badges.map(key => `${BADGE_LEGEND_WORDS[key]} ${AUTOCOMPLETE_BADGES[key]}`).join(' · ');
+export function buildBadgeLegend(badges: readonly LegendEntry[]): string {
+  return badges
+    .map(entry => {
+      const key = typeof entry === 'string' ? entry : entry.key;
+      const word = typeof entry === 'string' ? BADGE_LEGEND_WORDS[key] : entry.word;
+      return `${word} ${AUTOCOMPLETE_BADGES[key]}`;
+    })
+    .join(' · ');
 }
