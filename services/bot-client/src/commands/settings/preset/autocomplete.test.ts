@@ -205,7 +205,7 @@ describe('handleAutocomplete', () => {
       ]);
     });
 
-    it('should show 📖 icon for public personalities not owned', async () => {
+    it('should show 👥 icon for public personalities not owned', async () => {
       // Cast to handle getFocused(true) return type
       vi.mocked(mockInteraction.options.getFocused).mockReturnValue({
         name: 'character',
@@ -227,9 +227,9 @@ describe('handleAutocomplete', () => {
 
       await handleAutocomplete(mockInteraction);
 
-      // 📖 = not owned (read-only)
+      // 👥 = owned by another user
       expect(mockInteraction.respond).toHaveBeenCalledWith([
-        { name: '📖 Shared Bot (sharedbot)', value: 'p1' },
+        { name: '👥 Shared Bot (sharedbot)', value: 'p1' },
       ]);
     });
 

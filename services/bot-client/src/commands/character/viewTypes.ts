@@ -3,6 +3,7 @@
  */
 
 import { DISCORD_LIMITS, TEXT_LIMITS } from '@tzurot/common-types/constants/discord';
+import { UX_SENTINELS } from '@tzurot/common-types/constants/uxVocabulary';
 import type { CharacterData } from './characterTypes.js';
 
 /** Field info for tracking truncation */
@@ -22,7 +23,7 @@ export function truncateField(
   maxLength = DISCORD_LIMITS.EMBED_FIELD - TEXT_LIMITS.TRUNCATION_SUFFIX.length
 ): FieldInfo {
   if (text === null || text === undefined || text.length === 0) {
-    return { value: '_Not set_', wasTruncated: false, originalLength: 0 };
+    return { value: UX_SENTINELS.NOT_SET, wasTruncated: false, originalLength: 0 };
   }
   // Ensure maxLength doesn't exceed Discord's limit minus suffix
   const safeMax = Math.min(

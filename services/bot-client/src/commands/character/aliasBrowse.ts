@@ -25,6 +25,12 @@ import {
   type StringSelectMenuInteraction,
 } from 'discord.js';
 import type { AliasScope } from '@tzurot/common-types/schemas/api/personality';
+import { AUTOCOMPLETE_BADGES } from '@tzurot/common-types/utils/autocompleteFormat';
+import {
+  ENTITY_EMOJI,
+  buildBadgeLegend,
+  type LegendEntry,
+} from '@tzurot/common-types/constants/uxVocabulary';
 import {
   ALIAS_FILTERS,
   applyFilter,
@@ -105,8 +111,20 @@ const FILTER_TOGGLE_DISPLAY: Record<AliasFilter, FilterToggleDisplay> = {
 };
 
 function scopeBadge(row: AliasRow): string {
-  const base = row.scope === 'global' ? '🌐' : '🔒';
-  return row.shadowed ? `${base}⚠️` : base;
+  const base = row.scope === 'global' ? AUTOCOMPLETE_BADGES.GLOBAL : AUTOCOMPLETE_BADGES.OWNED;
+  return row.shadowed ? `${base}${AUTOCOMPLETE_BADGES.SHADOWED}` : base;
+}
+
+/**
+ * Legend in the alias domain's words — Global/Personal (the filter toggle's
+ * vocabulary), overriding the registry's standard Public/Private.
+ */
+function aliasLegend(myMode: boolean): string {
+  const base: LegendEntry[] = [
+    { key: 'GLOBAL', word: 'Global' },
+    { key: 'OWNED', word: 'Personal' },
+  ];
+  return buildBadgeLegend(myMode ? [...base, 'SHADOWED'] : base);
 }
 
 interface BrowseCoords {
@@ -165,7 +183,7 @@ export async function renderAliasBrowse(
   }
 
   const { embed, pageItems, startIndex, totalPages, safePage } = buildBrowseListEmbed<AliasRow>({
-    entityEmoji: '🏷️',
+    entityEmoji: ENTITY_EMOJI.alias,
     titleNoun: 'Aliases',
     items: filtered,
     page: coords.page,
@@ -190,7 +208,7 @@ export async function renderAliasBrowse(
       filter !== 'all' && formatFilterLabeled(FILTER_TOGGLE_DISPLAY[filter].shortLabel),
       fetched.data.truncated && 'list truncated',
     ],
-    badgeLegend: myMode ? 'Global 🌐 · Personal 🔒 · Shadowed ⚠️' : 'Global 🌐 · Personal 🔒',
+    badgeLegend: aliasLegend(myMode),
   });
 
   const components: BrowseActionRow[] = [];
@@ -330,8 +348,8 @@ async function handleAliasSelect(interaction: StringSelectMenuInteraction): Prom
       ? 'This global alias resolves for everyone.'
       : 'This personal alias only affects you.';
   const { embed, components } = buildConfirmAction({
-    title: '🏷️ Remove Alias?',
-    description: `Remove ${row.scope === 'global' ? '🌐' : '🔒'} \`@${escapeMarkdown(row.alias)}\` from **${escapeMarkdown(characterDisplay)}**?\n${scopeNote}`,
+    title: `${ENTITY_EMOJI.alias} Remove Alias?`,
+    description: `Remove ${row.scope === 'global' ? AUTOCOMPLETE_BADGES.GLOBAL : AUTOCOMPLETE_BADGES.OWNED} \`@${escapeMarkdown(row.alias)}\` from **${escapeMarkdown(characterDisplay)}**?\n${scopeNote}`,
     confirmCustomId: buildRemoveCustomId(RM_YES_PREFIX, coords.page, coords.filter, coords.query),
     cancelCustomId: buildRemoveCustomId(RM_NO_PREFIX, coords.page, coords.filter, coords.query),
     confirmLabel: 'Remove Alias',
