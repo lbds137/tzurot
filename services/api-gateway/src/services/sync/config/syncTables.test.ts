@@ -7,9 +7,75 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { SYNC_CONFIG, SYNC_TABLE_ORDER, type SyncTableName } from './syncTables.js';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
+import {
+  SYNC_CONFIG,
+  SYNC_TABLE_ORDER,
+  EXCLUDED_TABLES,
+  type SyncTableName,
+} from './syncTables.js';
+
+/**
+ * Every DB table (Prisma model) must be a DELIBERATE sync decision — in
+ * SYNC_CONFIG (synced) or EXCLUDED_TABLES (explicitly not, with a reason).
+ * A new table that's in neither silently doesn't sync: exactly the class that
+ * broke prod db-sync when the alias-tier tables landed unclassified. Fails at
+ * authoring time so the classification can't be forgotten. Parsing
+ * schema.prisma (not the Prisma client) keeps this a pure unit test.
+ */
+function schemaTableNames(): string[] {
+  const here = dirname(fileURLToPath(import.meta.url));
+  // config → sync → services → src → api-gateway → services → repo root
+  const schema = readFileSync(
+    join(here, '..', '..', '..', '..', '..', '..', 'prisma', 'schema.prisma'),
+    'utf-8'
+  );
+  const tables: string[] = [];
+  // Assumes each model's closing brace is unindented on its own line (true for
+  // every block in this schema). If a future reformat breaks that, this test
+  // under-counts tables and quietly stops guarding — verify a schema reformat
+  // doesn't drop the completeness assertion.
+  for (const block of schema.matchAll(/\bmodel\s+(\w+)\s*\{([\s\S]*?)\n\}/g)) {
+    const mapped = block[2].match(/@@map\("([^"]+)"\)/);
+    tables.push(mapped ? mapped[1] : block[1]);
+  }
+  return tables;
+}
 
 describe('syncTables Configuration', () => {
+  describe('schema.prisma completeness (every table is a deliberate sync decision)', () => {
+    it('classifies every Prisma model table into SYNC_CONFIG or EXCLUDED_TABLES', () => {
+      const classified = new Set([...Object.keys(SYNC_CONFIG), ...Object.keys(EXCLUDED_TABLES)]);
+      const unclassified = schemaTableNames().filter(t => !classified.has(t));
+      expect(
+        unclassified,
+        `These schema.prisma tables are in NEITHER SYNC_CONFIG nor EXCLUDED_TABLES, ` +
+          `so db-sync silently skips them. Add each to SYNC_CONFIG (+ SYNC_TABLE_ORDER) ` +
+          `if it should sync, or to EXCLUDED_TABLES with a reason if it shouldn't: ` +
+          unclassified.join(', ')
+      ).toEqual([]);
+    });
+
+    it('has no EXCLUDED_TABLES / SYNC_CONFIG entry that no longer maps to a real table', () => {
+      const realTables = new Set(schemaTableNames());
+      const stale = [...Object.keys(SYNC_CONFIG), ...Object.keys(EXCLUDED_TABLES)].filter(
+        t => !realTables.has(t)
+      );
+      expect(
+        stale,
+        `These sync-config entries reference tables not in schema.prisma (renamed/dropped?): ` +
+          stale.join(', ')
+      ).toEqual([]);
+    });
+
+    it('never lists a table in BOTH SYNC_CONFIG and EXCLUDED_TABLES', () => {
+      const both = Object.keys(SYNC_CONFIG).filter(t => t in EXCLUDED_TABLES);
+      expect(both, `Tables in both synced and excluded lists: ${both.join(', ')}`).toEqual([]);
+    });
+  });
+
   describe('SYNC_TABLE_ORDER completeness', () => {
     it('should include all tables from SYNC_CONFIG', () => {
       const configTables = Object.keys(SYNC_CONFIG) as SyncTableName[];

@@ -33,6 +33,8 @@ export const EXCLUDED_TABLES: Record<string, string> = {
   usage_logs: 'Environment-specific usage tracking',
   import_jobs: 'Transient import job tracking (environment-specific, retryable)',
   export_jobs: 'Transient export job tracking (environment-specific, retryable)',
+  job_results:
+    'Transient per-job delivery state (PENDING_DELIVERY/DELIVERED, auto-cleaned) — environment-specific, never synced',
 
   // Release-notes delivery state (environment-specific: each environment
   // announces its own releases to its own users; syncing would double-blast
