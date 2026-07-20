@@ -15,6 +15,12 @@
 import type { EmbedBuilder } from 'discord.js';
 import { type WalletKey } from '@tzurot/common-types/schemas/api/wallet';
 import { AUTOCOMPLETE_BADGES } from '@tzurot/common-types/utils/autocompleteFormat';
+import {
+  ENTITY_EMOJI,
+  UX_SENTINELS,
+  buildBadgeLegend,
+} from '@tzurot/common-types/constants/uxVocabulary';
+import { formatDiscordTimestamp } from '@tzurot/common-types/utils/dateFormatting';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
 import { clientsFor } from '../../../utils/gatewayClients.js';
@@ -22,11 +28,6 @@ import { getProviderDisplayName } from '../../../utils/providers.js';
 import { buildBrowseListEmbed, ITEMS_PER_PAGE, pluralize } from '../../../utils/browse/index.js';
 
 const logger = createLogger('settings-apikey-browse');
-
-/** Render a Discord timestamp for a key's last-used / created dates. */
-function discordTimestamp(iso: string, style: 'R' | 'D'): string {
-  return `<t:${Math.floor(new Date(iso).getTime() / 1000)}:${style}>`;
-}
 
 /**
  * Build the browse embed on the shared list builder.
@@ -39,20 +40,22 @@ function buildBrowseEmbed(keys: WalletKey[]): EmbedBuilder {
   const activeCount = keys.filter(k => k.isActive).length;
 
   const { embed } = buildBrowseListEmbed<WalletKey>({
-    entityEmoji: '💳',
+    entityEmoji: ENTITY_EMOJI.apiKey,
     titleNoun: 'API Keys',
     items: keys,
     page: 0,
     itemsPerPage: ITEMS_PER_PAGE,
     formatRow: key => ({
-      badges: key.isActive ? AUTOCOMPLETE_BADGES.DEFAULT : undefined,
+      badges: key.isActive ? AUTOCOMPLETE_BADGES.ACTIVE : undefined,
       name: getProviderDisplayName(key.provider),
       // The provider slug is what users type in set/test/remove.
       techId: key.provider,
       metadata: [
         key.isActive ? 'Active' : 'Inactive',
-        `Last used ${key.lastUsedAt !== null ? discordTimestamp(key.lastUsedAt, 'R') : 'never'}`,
-        `Added ${discordTimestamp(key.createdAt, 'D')}`,
+        `Last used ${
+          key.lastUsedAt !== null ? formatDiscordTimestamp(key.lastUsedAt, 'R') : UX_SENTINELS.NEVER
+        }`,
+        `Added ${formatDiscordTimestamp(key.createdAt, 'D')}`,
       ],
     }),
     empty: {
@@ -64,7 +67,7 @@ function buildBrowseEmbed(keys: WalletKey[]): EmbedBuilder {
       pluralize(keys.length, { singular: 'key', plural: 'keys' }),
       `${activeCount} active`,
     ],
-    badgeLegend: `Active ${AUTOCOMPLETE_BADGES.DEFAULT}`,
+    badgeLegend: buildBadgeLegend(['ACTIVE']),
   });
 
   // Management tip stays list-adjacent (there is no detail view for keys).

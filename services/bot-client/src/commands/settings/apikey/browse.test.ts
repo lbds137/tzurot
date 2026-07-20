@@ -168,8 +168,9 @@ describe('handleBrowse', () => {
       embeds: [
         expect.objectContaining({
           data: expect.objectContaining({
-            // Description should contain the active badge (⭐)
-            description: expect.stringContaining('⭐'),
+            // Description should contain the active badge (✅ — registry ACTIVE;
+            // ⭐ means "default", which a wallet key is not)
+            description: expect.stringContaining('✅'),
           }),
         }),
       ],
@@ -194,9 +195,9 @@ describe('handleBrowse', () => {
     await handleBrowse(context);
 
     const embedData = mockEditReply.mock.calls[0][0].embeds[0].data;
-    expect(embedData.description).toContain('**1.** ⭐ **OpenRouter** (`openrouter`)');
-    expect(embedData.description).toContain('└ Active · Last used never');
+    expect(embedData.description).toContain('**1.** ✅ **OpenRouter** (`openrouter`)');
+    expect(embedData.description).toContain('└ Active · Last used Never');
     expect(embedData.footer.text).toContain('1 key');
-    expect(embedData.footer.text).toContain('Active ⭐');
+    expect(embedData.footer.text).toContain('Active ✅');
   });
 });
