@@ -298,12 +298,12 @@ describe('buildMemoryInspectorView', () => {
     expect(desc.replace(/\u200b/g, '')).toContain('```js x``');
   });
 
-  it('should show "none" for null search query', () => {
+  it('should show the Not-set sentinel for null search query', () => {
     const payload = createMockPayload();
     payload.inputProcessing.searchQuery = null;
     const result = buildMemoryInspectorView(payload, 'req-123', OWNER_CTX);
 
-    expect(result.embeds![0].data.description ?? '').toContain('_none_');
+    expect(result.embeds![0].data.description ?? '').toContain('_Not set_');
   });
 
   it('trims table rows from the tail when content would exceed one message', () => {
@@ -627,7 +627,7 @@ describe('buildVoiceAttributionView', () => {
     const result = buildVoiceAttributionView(payload, 'req-123', OWNER_CTX);
 
     expect(result.embeds![0].data.description ?? '').toContain('No voice activity');
-    expect(result.embeds![0].data.title).toBe('🎙️ Voice Attribution');
+    expect(result.embeds![0].data.title).toBe('🎤 Voice Attribution');
   });
 
   it('renders the TTS provider without a fallback suffix when no fallback fired', () => {

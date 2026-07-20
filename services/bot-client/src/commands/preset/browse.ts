@@ -17,7 +17,8 @@ import {
   type StringSelectMenuInteraction,
 } from 'discord.js';
 import { isFreeModelForUser, isFreeTierEligibleModel } from '@tzurot/common-types/constants/ai';
-import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
+import { ENTITY_EMOJI, buildBadgeLegend } from '@tzurot/common-types/constants/uxVocabulary';
+import { AUTOCOMPLETE_BADGES } from '@tzurot/common-types/utils/autocompleteFormat';
 import { presetBrowseOptions } from '@tzurot/common-types/generated/commandOptions';
 import { type LlmConfigSummary } from '@tzurot/common-types/schemas/api/llm-config';
 import { createLogger } from '@tzurot/common-types/utils/logger';
@@ -97,22 +98,23 @@ export function isPresetBrowseSelectInteraction(customId: string): boolean {
 function presetBadgeArray(preset: LlmConfigSummary, isGuestMode: boolean): string[] {
   const badges: string[] = [];
   if (preset.isGlobal) {
-    badges.push('🌐');
+    badges.push(AUTOCOMPLETE_BADGES.GLOBAL);
   } else if (preset.isOwned) {
-    badges.push('🔒');
+    badges.push(AUTOCOMPLETE_BADGES.OWNED);
   } else {
-    badges.push('👤');
+    // 👥 OWNED_BY_OTHER — 👤 now belongs to the persona ENTITY register.
+    badges.push(AUTOCOMPLETE_BADGES.OWNED_BY_OTHER);
   }
   if (preset.supportsVision) {
-    badges.push('👁️');
+    badges.push(AUTOCOMPLETE_BADGES.VISION);
   }
   if (preset.isDefault) {
-    badges.push('⭐');
+    badges.push(AUTOCOMPLETE_BADGES.DEFAULT);
   }
   // 🆓 is audience-aware: guests see the conditionally-free piggyback model
   // as free (it is their free experience); key-holders pay on their own key.
   if (isFreeModelForUser(preset.model, isGuestMode)) {
-    badges.push('🆓');
+    badges.push(AUTOCOMPLETE_BADGES.FREE);
   }
   return badges;
 }
@@ -212,7 +214,7 @@ function buildBrowsePage(
 
   const { embed, pageItems, startIndex, totalPages, safePage } =
     buildBrowseListEmbed<LlmConfigSummary>({
-      entityEmoji: '\u2699\uFE0F',
+      entityEmoji: ENTITY_EMOJI.preset,
       titleNoun: 'Presets',
       items: filtered,
       page,
@@ -234,13 +236,21 @@ function buildBrowsePage(
         noItems: 'No presets exist yet \u2014 create one with `/preset create`.',
         noMatch: 'No presets match \u2014 clear the search or filter to see all.',
       },
+      // No guest-mode color flip: browse stays BLURPLE (\u00A72.3 \u2014 color encodes
+      // surface kind, not user state); the \u26A0\uFE0F Guest Mode preamble is the signal.
       filterActive: query !== null || activeFilterLabel !== null,
-      color: isGuestMode ? DISCORD_COLORS.WARNING : undefined,
       footerSegments: [
         pluralize(filtered.length, { singular: 'preset', plural: 'presets' }),
         activeFilterLabel !== null && formatFilterLabeled(activeFilterLabel),
       ],
-      badgeLegend: `Global \u{1F310} \u00B7 Private \u{1F512} \u00B7 Other user \u{1F464} \u00B7 Vision \u{1F441}\uFE0F (${visionCount}) \u00B7 Default \u2B50 \u00B7 Free \u{1F193} (${freeCount})`,
+      badgeLegend: buildBadgeLegend([
+        { key: 'GLOBAL', word: 'Global' },
+        'OWNED',
+        'OWNED_BY_OTHER',
+        { key: 'VISION', suffix: `(${visionCount})` },
+        'DEFAULT',
+        { key: 'FREE', suffix: `(${freeCount})` },
+      ]),
     });
 
   // Build components

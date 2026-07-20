@@ -4,7 +4,7 @@
  */
 
 import { escapeMarkdown, type Client, type TextChannel } from 'discord.js';
-import { formatDateShort } from '@tzurot/common-types/utils/dateFormatting';
+import { formatDiscordTimestamp } from '@tzurot/common-types/utils/dateFormatting';
 import type { ChannelSettings } from '@tzurot/common-types/schemas/api/channel';
 import { createListComparator, type ListSortType } from '../../utils/listSorting.js';
 import type { BrowseSortType } from '../../utils/browse/index.js';
@@ -15,7 +15,7 @@ import { CHANNELS_PER_PAGE_ALL_SERVERS, type GuildPage } from './listTypes.js';
  */
 export function formatChannelSettings(settings: ChannelSettings): string {
   const channelMention = `<#${settings.channelId}>`;
-  const activatedDate = formatDateShort(settings.createdAt);
+  const activatedDate = formatDiscordTimestamp(settings.createdAt, 'D');
   const safeName = escapeMarkdown(settings.personalityName ?? 'Unknown');
   return `${channelMention} → **${safeName}** (\`${settings.personalitySlug}\`)\n  _Activated: ${activatedDate}_`;
 }

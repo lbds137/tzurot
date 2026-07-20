@@ -8,6 +8,7 @@
 
 import { EmbedBuilder } from 'discord.js';
 import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
+import { UX_SENTINELS } from '@tzurot/common-types/constants/uxVocabulary';
 import type { NotifyLevelValue } from '@tzurot/common-types/schemas/api/notifications';
 import { adminBroadcastOptions } from '@tzurot/common-types/generated/commandOptions';
 import { createLogger } from '@tzurot/common-types/utils/logger';
@@ -61,7 +62,7 @@ export async function handleBroadcast(context: DeferredCommandContext): Promise<
       const sampleText =
         data.sample.length > 0
           ? data.sample.map(entry => `• ${entry.username}`).join('\n')
-          : '_none_';
+          : UX_SENTINELS.NOT_SET;
       const embed = new EmbedBuilder()
         .setColor(DISCORD_COLORS.WARNING)
         .setTitle('📢 Broadcast — dry run')

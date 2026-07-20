@@ -15,6 +15,7 @@ import { CATALOG } from '../../ux/catalog/catalog.js';
 import { renderSpec } from '../../ux/render/render.js';
 import { getConfig } from '@tzurot/common-types/config/config';
 import { DISCORD_COLORS, DISCORD_LIMITS } from '@tzurot/common-types/constants/discord';
+import { ENTITY_EMOJI } from '@tzurot/common-types/constants/uxVocabulary';
 import { helpOptions } from '@tzurot/common-types/generated/commandOptions';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import {
@@ -39,21 +40,25 @@ const logger = createLogger('help-command');
 // Category = the command's top-level folder name (Title-cased), injected by
 // CommandHandler. Every folder needs an entry here or it falls into "Other" —
 // keep this in sync with services/bot-client/src/commands/*.
+// Entity-backed categories use the ENTITY_EMOJI registry (§2.1 — the glyph is
+// the entity's identity across every surface, help categories included).
+// Non-entity categories (Settings, Inspect, Admin, …) keep bespoke glyphs;
+// Settings moved off ⚙️ because that glyph is the PRESET entity's.
 export const CATEGORY_CONFIG: Record<string, { emoji: string; order: number }> = {
-  Character: { emoji: '🎭', order: 1 },
-  Persona: { emoji: '👤', order: 2 },
-  Preset: { emoji: '🎛️', order: 3 },
-  Settings: { emoji: '⚙️', order: 4 },
-  Voice: { emoji: '🔊', order: 5 },
-  Shapes: { emoji: '🧩', order: 6 },
-  Memory: { emoji: '🧠', order: 7 },
-  History: { emoji: '📜', order: 8 },
-  Channel: { emoji: '#️⃣', order: 9 },
+  Character: { emoji: ENTITY_EMOJI.character, order: 1 },
+  Persona: { emoji: ENTITY_EMOJI.persona, order: 2 },
+  Preset: { emoji: ENTITY_EMOJI.preset, order: 3 },
+  Settings: { emoji: '🛠️', order: 4 },
+  Voice: { emoji: ENTITY_EMOJI.voice, order: 5 },
+  Shapes: { emoji: ENTITY_EMOJI.shapes, order: 6 },
+  Memory: { emoji: ENTITY_EMOJI.memory, order: 7 },
+  History: { emoji: ENTITY_EMOJI.history, order: 8 },
+  Channel: { emoji: ENTITY_EMOJI.channel, order: 9 },
   Inspect: { emoji: '🔍', order: 10 },
-  Models: { emoji: '🤖', order: 11 },
+  Models: { emoji: ENTITY_EMOJI.model, order: 11 },
   Notifications: { emoji: '🔔', order: 12 },
   Feedback: { emoji: '💬', order: 13 },
-  Deny: { emoji: '🚫', order: 14 },
+  Deny: { emoji: ENTITY_EMOJI.denial, order: 14 },
   Admin: { emoji: '🛡️', order: 15 },
   Help: { emoji: '❓', order: 16 },
   Other: { emoji: '📦', order: 99 },

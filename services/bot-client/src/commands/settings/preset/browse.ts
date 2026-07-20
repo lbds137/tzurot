@@ -8,6 +8,7 @@
  */
 
 import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js';
+import { ENTITY_EMOJI } from '@tzurot/common-types/constants/uxVocabulary';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
 import {
@@ -25,7 +26,9 @@ export const PRESET_OVERRIDE_PREFIX = 'settings-preset-override';
 
 const presetOverrideConfig: OverrideBrowseConfig = {
   prefix: PRESET_OVERRIDE_PREFIX,
-  entityEmoji: '🎭',
+  // ⚙️ preset — the rows override which PRESET a character uses; 🎭 is the
+  // character entity's glyph (§2.1 one-glyph-per-entity).
+  entityEmoji: ENTITY_EMOJI.preset,
   titleNoun: 'Preset Overrides',
   entityType: 'preset override',
   fallbackNoun: 'preset',

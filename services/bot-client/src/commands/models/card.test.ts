@@ -34,7 +34,7 @@ describe('buildModelCard', () => {
     const json = embed.toJSON();
     expect(json.title).toBe('Claude Sonnet 4');
     expect(json.author?.name).toBe('anthropic'); // from slug (no "Provider: " prefix in name)
-    expect(json.color).toBe(0x00ff00); // usable → green
+    expect(json.color).toBe(0x5865f2); // detail cards stay BLURPLE (§2.3)
     expect(json.description).toContain('`anthropic/claude-sonnet-4`');
     expect(json.description).toContain('✅ **You can use this**');
     const fields = json.fields ?? [];
@@ -68,7 +68,7 @@ describe('buildModelCard', () => {
       })
     ).toJSON();
     const fields = json.fields ?? [];
-    expect(json.color).toBe(0xffa500); // needs key → orange
+    expect(json.color).toBe(0x5865f2); // detail cards stay BLURPLE (§2.3)
     expect(fields.find(f => f.name === 'Context')?.value).toBe('1M tokens');
     expect(fields.find(f => f.name === 'Price')?.value).toBe('z.ai plan');
     expect(fields.find(f => f.name === 'Access')?.value).toBe('z.ai key');
@@ -108,7 +108,7 @@ describe('buildModelCard', () => {
       })
     ).toJSON();
     expect(json.description).toContain('OpenRouter or z.ai');
-    expect(json.color).toBe(0xffa500); // can't use (no keys) → orange
+    expect(json.color).toBe(0x5865f2); // detail cards stay BLURPLE (§2.3)
     // 'both' source routes via OpenRouter (shown pricing) OR a z.ai key — the
     // footer names both so a z.ai-key-only viewer isn't misled.
     expect(json.footer?.text).toContain('via OpenRouter (also z.ai coding-plan)');

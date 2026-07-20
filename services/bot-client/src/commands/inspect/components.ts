@@ -108,9 +108,10 @@ export function buildInspectComponents(
       },
       {
         label: 'Voice Attribution',
+        // 🎤 matches the view's title glyph (single voice-entity glyph, §2.1).
         description: 'TTS provider used (incl. fallbacks) + voice transcript',
         value: DebugViewType.VoiceAttribution,
-        emoji: '🎙️',
+        emoji: '🎤',
       },
       {
         label: 'Pipeline Health',

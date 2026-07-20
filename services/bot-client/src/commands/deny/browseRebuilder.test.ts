@@ -1,16 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { makeOk, makeErr, asOwnerClient } from '../../test/gatewayClientStubs.js';
 
-vi.mock('@tzurot/common-types/constants/discord', async () => {
-  const actual = await vi.importActual<typeof import('@tzurot/common-types/constants/discord')>(
-    '@tzurot/common-types/constants/discord'
-  );
-  return {
-    ...actual,
-    DISCORD_COLORS: { ERROR: 0xff0000 },
-  };
-});
-
 vi.mock('@tzurot/common-types/utils/dateFormatting', async () => {
   const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/dateFormatting')>(
     '@tzurot/common-types/utils/dateFormatting'

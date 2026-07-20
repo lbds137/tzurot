@@ -267,7 +267,7 @@ describe('handleSearch', () => {
         embeds: { data: { title: string; description: string } }[];
       }
     ).embeds[0].data;
-    expect(embedData.title).toBe('🔍 Search Results');
+    expect(embedData.title).toBe('🧠 Search Results');
     expect(embedData.description).toContain('Results for:');
     expect(embedData.description).toContain('**1.** ');
     expect(embedData.description).toContain('└ ');

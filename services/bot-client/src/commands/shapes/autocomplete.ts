@@ -8,15 +8,14 @@
  */
 
 import type { AutocompleteInteraction } from 'discord.js';
+import { DISCORD_LIMITS } from '@tzurot/common-types/constants/discord';
+import { formatAutocompleteOption } from '@tzurot/common-types/utils/autocompleteFormat';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { getCachedShapes } from '../../utils/autocomplete/autocompleteCache.js';
 import { clientsFor } from '../../utils/gatewayClients.js';
-import { truncateForSelect } from '../../utils/browse/truncation.js';
 import { AUTOCOMPLETE_ERROR_SENTINEL } from '../../utils/apiCheck.js';
 
 const logger = createLogger('shapes-autocomplete');
-
-const MAX_AUTOCOMPLETE_RESULTS = 25;
 
 /**
  * Handle autocomplete for shapes slug options.
@@ -43,13 +42,16 @@ export async function handleShapesSlugAutocomplete(
 
     const filtered = result.value
       .filter(s => s.name.toLowerCase().includes(query) || s.username.toLowerCase().includes(query))
-      .slice(0, MAX_AUTOCOMPLETE_RESULTS);
+      .slice(0, DISCORD_LIMITS.AUTOCOMPLETE_MAX_CHOICES);
 
     await interaction.respond(
-      filtered.map(s => ({
-        name: truncateForSelect(`${s.name} \u00B7 ${s.username}`, 100),
-        value: s.username,
-      }))
+      filtered.map(s =>
+        formatAutocompleteOption({
+          name: s.name,
+          value: s.username,
+          metadata: s.username,
+        })
+      )
     );
   } catch (error) {
     logger.error({ err: error, userId }, 'Autocomplete error');

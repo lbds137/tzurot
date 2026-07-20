@@ -28,6 +28,7 @@ import {
   type BrowseSortType,
 } from '../../utils/browse/index.js';
 import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
+import { ENTITY_EMOJI, entityTitle } from '@tzurot/common-types/constants/uxVocabulary';
 import { CATALOG } from '../../ux/catalog/catalog.js';
 import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
 import { renderSpec } from '../../ux/render/render.js';
@@ -130,7 +131,7 @@ function buildEmbedSingleGuild(
   const pageActivations = activations.slice(start, start + CHANNELS_PER_PAGE);
 
   const embed = new EmbedBuilder()
-    .setTitle('📍 Channel Browser')
+    .setTitle(entityTitle('channel', 'Channel Browser'))
     .setColor(DISCORD_COLORS.BLURPLE)
     .setTimestamp();
 
@@ -179,7 +180,7 @@ function buildEmbedAllServers(
   // this path directly reachable (toggle to All Servers on an empty bot).
   if (guildPages.length === 0) {
     return new EmbedBuilder()
-      .setTitle('📍 Channel Browser')
+      .setTitle(entityTitle('channel', 'Channel Browser'))
       .setColor(DISCORD_COLORS.BLURPLE)
       .setDescription(
         query !== null
@@ -194,7 +195,7 @@ function buildEmbedAllServers(
   const safePage = Math.min(Math.max(0, page), totalPages - 1);
   const guildPage = guildPages[safePage];
 
-  let title = `📍 ${escapeMarkdown(guildPage.guildName)}`;
+  let title = `${ENTITY_EMOJI.channel} ${escapeMarkdown(guildPage.guildName)}`;
   if (guildPage.isContinuation) {
     title += ' (continued)';
   }

@@ -14,7 +14,9 @@ import {
   type EmbedBuilder,
 } from 'discord.js';
 import { memoryFactsOptions } from '@tzurot/common-types/generated/commandOptions';
-import { formatDateShort } from '@tzurot/common-types/utils/dateFormatting';
+import { ENTITY_EMOJI, buildBadgeLegend } from '@tzurot/common-types/constants/uxVocabulary';
+import { AUTOCOMPLETE_BADGES } from '@tzurot/common-types/utils/autocompleteFormat';
+import { formatDateShort, formatDiscordTimestamp } from '@tzurot/common-types/utils/dateFormatting';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { clientsFor } from '../../utils/gatewayClients.js';
@@ -83,19 +85,25 @@ function buildFactsEmbed(options: {
 
   // Server-paginated: `facts` is the fetched page; `total` drives the math.
   const { embed } = buildBrowseListEmbed<FactItem>({
-    entityEmoji: '📋',
+    // §2.1: facts are a view of the memory entity — the title words carry
+    // the view kind, the glyph stays the entity's.
+    entityEmoji: ENTITY_EMOJI.memory,
     titleNoun: 'Known Facts',
     items: facts,
     page,
     itemsPerPage: FACTS_PER_PAGE,
     serverPage: { totalItems: total },
     formatRow: fact => ({
-      badges: `${fact.isLocked ? '🔒' : ''}${fact.tier === 'corrected' ? '✏️' : ''}` || undefined,
+      // 🔐 LOCKED (protection) + 📝 CORRECTED (correction row — ✏️ is the
+      // editable-by-you badge, a different concept).
+      badges:
+        `${fact.isLocked ? AUTOCOMPLETE_BADGES.LOCKED : ''}${fact.tier === 'corrected' ? AUTOCOMPLETE_BADGES.CORRECTED : ''}` ||
+        undefined,
       name: '', // unused — nameMarkup below overrides it
       // Statements are sentences, not entity names — bolding whole
       // sentences makes rows shout, so override the bold-name default.
       nameMarkup: truncateContent(escapeMarkdown(fact.statement)),
-      metadata: [formatDateShort(fact.validFrom)],
+      metadata: [formatDiscordTimestamp(fact.validFrom, 'D')],
     }),
     empty: {
       noItems:
@@ -103,7 +111,7 @@ function buildFactsEmbed(options: {
         'distilled automatically from your conversations.',
     },
     footerSegments: [pluralize(total, { singular: 'fact', plural: 'facts' })],
-    badgeLegend: 'Locked 🔒 · Corrected ✏️',
+    badgeLegend: buildBadgeLegend(['LOCKED', 'CORRECTED']),
   });
 
   return embed;
@@ -120,8 +128,9 @@ function buildFactsComponents(
     placeholder: 'Select a fact to manage...',
     startIndex: page * FACTS_PER_PAGE,
     formatItem: fact => ({
-      label: `${fact.isLocked ? '🔒 ' : ''}${fact.statement}`,
+      label: `${fact.isLocked ? `${AUTOCOMPLETE_BADGES.LOCKED} ` : ''}${fact.statement}`,
       value: fact.id,
+      // Select descriptions render no markdown — the date stays static text.
       description: formatDateShort(fact.validFrom),
     }),
   });

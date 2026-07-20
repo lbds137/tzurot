@@ -11,7 +11,7 @@ import {
   type ActionRowBuilder,
   type ButtonBuilder,
 } from 'discord.js';
-import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
+import { ENTITY_EMOJI } from '@tzurot/common-types/constants/uxVocabulary';
 import { classifyGatewayFailure } from '../../../ux/catalog/classify.js';
 import { renderSpec } from '../../../ux/render/render.js';
 import { type AudioProviderId } from '@tzurot/common-types/types/audio-provider';
@@ -85,14 +85,12 @@ function buildVoiceBrowsePage(
 ): { embed: EmbedBuilder; components: ActionRowBuilder<ButtonBuilder>[] } {
   const { voices, totalVoices, tzurotCount, warnings } = data;
 
-  // Color escalates to WARNING when any provider failed — visual signal
-  // beyond the inline field, in case the user only glances at the embed.
   const hasWarnings = warnings !== undefined && warnings.length > 0;
 
   const { embed, totalPages, safePage } = buildBrowseListEmbed<
     VoicesListResponse['voices'][number]
   >({
-    entityEmoji: '🎤',
+    entityEmoji: ENTITY_EMOJI.voice,
     titleNoun: 'Cloned Voices',
     items: voices,
     page,
@@ -115,7 +113,8 @@ function buildVoiceBrowsePage(
     footerSegments: [
       `${pluralize(tzurotCount, { singular: 'Tzurot voice', plural: 'Tzurot voices' })} / ${totalVoices} total across audio providers`,
     ],
-    color: hasWarnings ? DISCORD_COLORS.WARNING : undefined,
+    // Browse stays BLURPLE even with provider warnings (§2.3 — color encodes
+    // surface kind, not state); the ⚠️ warnings field is the signal.
   });
 
   if (hasWarnings) {
