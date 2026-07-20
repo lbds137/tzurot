@@ -451,3 +451,19 @@ export function formatDateTimeCompact(date: Date | string | number, timezone?: s
     timeZone: tz,
   });
 }
+
+/**
+ * Discord dynamic timestamp (design-system spec §2.5): `<t:unix:R>` renders
+ * "3 days ago" (recency/activity), `<t:unix:D>` a long date (creation dates).
+ * The only timezone-correct, self-updating form — Discord renders it in each
+ * viewer's own timezone, so no `timezone` parameter exists here by design.
+ * Static formatters above remain for file exports (attachments render no
+ * markup) and non-Discord surfaces.
+ */
+export function formatDiscordTimestamp(date: Date | string | number, style: 'R' | 'D'): string {
+  const d = parseTimestamp(date);
+  if (!d) {
+    return INVALID;
+  }
+  return `<t:${Math.floor(d.getTime() / 1000)}:${style}>`;
+}

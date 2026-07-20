@@ -13,29 +13,56 @@
  */
 
 /**
- * Standard emoji badges for autocomplete options.
- * Single source of truth - all autocomplete must use these.
+ * THE badge registry (design-system spec §2.2) — one glyph, one meaning,
+ * everywhere: autocomplete options, browse rows, and footer legends all
+ * import from here (legend words + the word-first builder live in
+ * `constants/uxVocabulary.ts`). The §2.2 collision rule — no glyph serves
+ * both the entity register and the badge register — is pinned by
+ * `constants/uxVocabulary.test.ts`.
+ *
+ * The 🔒 vs 🔐 split: 🔒 private = VISIBILITY (others can't see it);
+ * 🔐 locked = PROTECTION (visible but can't be deleted/modified).
  */
 export const AUTOCOMPLETE_BADGES = {
   // Scope badges (mutually exclusive - pick one)
-  /** System-provided resource, available to all users */
+  /** System-provided resource, available to all users (same "everyone" concept as PUBLIC) */
   GLOBAL: '🌐',
   /** User-created resource, only visible to owner */
   OWNED: '🔒',
-  /** User-created but shared publicly with others */
+  /** User-created but shared publicly with others (same "everyone" concept as GLOBAL) */
   PUBLIC: '🌐',
-  /** Visible but not editable (e.g., someone else's public resource) */
+  /**
+   * Visible but not editable (someone else's public resource).
+   * @deprecated Use OWNED_BY_OTHER — 📖 is retiring (it collides with the
+   * expand-button glyph) once the adoption sweep migrates the call sites.
+   */
   READ_ONLY: '📖',
+  /** Owned by another user (visible to you, theirs to edit) */
+  OWNED_BY_OTHER: '👥',
 
   // Status badges (can combine with scope badge)
-  /** Currently active/default selection */
+  /** The one used when you don't choose (fallback selection) */
   DEFAULT: '⭐',
+  /** Currently active / in effect (distinct from DEFAULT — an active key vs a fallback preset) */
+  ACTIVE: '✅',
   /** Uses free tier model (no API key required) */
   FREE: '🆓',
   /** Admin-locked, cannot be modified */
   LOCKED: '🔐',
+  /** Requires your own API key (BYOK) to use */
+  NEEDS_KEY: '🔑',
   /** Vision-capable config (the model supports image input — `supportsVision`) */
   VISION: '👁️',
+  /** Editable by you (own or co-owned) */
+  EDITABLE: '✏️',
+  /** A correction row (memory facts) — 📝 keeps it distinct from EDITABLE's ✏️ */
+  CORRECTED: '📝',
+  /**
+   * Shadowed by a real name/slug (alias resolution loses). ⚠️ also serves the
+   * renderer's warning-severity register — deliberate: the two never co-occur
+   * in one string, and the §2.2 rule scopes to entity-vs-badge only.
+   */
+  SHADOWED: '⚠️',
 } as const;
 
 export type AutocompleteBadge = (typeof AUTOCOMPLETE_BADGES)[keyof typeof AUTOCOMPLETE_BADGES];
