@@ -19,6 +19,8 @@ import {
   collectLinesMarginBullets,
   collectCpdMarginBullets,
   collectMutationMarginBullets,
+  collectUxLiteralsMarginBullets,
+  collectCoverageMarginBullets,
   collectHealthExtras,
   formatHealthExtras,
   type HealthExtras,
@@ -252,6 +254,122 @@ describe('collectMutationMarginBullets', () => {
   });
 });
 
+describe('collectUxLiteralsMarginBullets', () => {
+  it('reports the live literal count against the baseline ceiling', async () => {
+    await withTmpRepo(
+      {
+        '.github/baselines/ux-literals-baseline.json': JSON.stringify({
+          total: 5,
+          graceMargin: 2,
+        }),
+        // Two matches: one ❌ prefix + one retry invitation.
+        'services/bot-client/src/commands/foo.ts':
+          "const a = '❌ nope';\nconst b = 'Please try again later';\n",
+      },
+      async rootDir => {
+        expect(collectUxLiteralsMarginBullets(rootDir)).toEqual([
+          'ux-literals: 2/7 (5 headroom, baseline 5, live measure — ' +
+            'lower is better; a total well under baseline is a tightening candidate)',
+        ]);
+      }
+    );
+  });
+
+  it('degrades when the baseline is missing', async () => {
+    await withTmpRepo({}, async rootDir => {
+      expect(collectUxLiteralsMarginBullets(rootDir)).toEqual([
+        'ux-literals: unavailable (no ux-literals-baseline.json)',
+      ]);
+    });
+  });
+
+  it('flags a zero-file scan as unmeasurable, never as zero literals', async () => {
+    await withTmpRepo(
+      {
+        '.github/baselines/ux-literals-baseline.json': JSON.stringify({
+          total: 5,
+          graceMargin: 2,
+        }),
+      },
+      async rootDir => {
+        expect(collectUxLiteralsMarginBullets(rootDir)).toEqual([
+          'ux-literals: unmeasurable (scan root matched zero files)',
+        ]);
+      }
+    );
+  });
+});
+
+describe('collectCoverageMarginBullets', () => {
+  it('reports clean live gap counts when nothing is untested and knownGaps is empty', async () => {
+    await withTmpRepo(
+      {
+        '.github/baselines/test-coverage-baseline.json': JSON.stringify({
+          version: 1,
+          lastUpdated: 'x',
+          services: { knownGaps: [] },
+          contracts: { knownGaps: [] },
+        }),
+      },
+      async rootDir => {
+        const bullets = collectCoverageMarginBullets(rootDir);
+        expect(bullets).toHaveLength(2);
+        expect(bullets[0]).toContain('coverage services: 0 untested');
+        expect(bullets[0]).toContain('0 known gaps in baseline');
+        expect(bullets[0]).not.toContain('NEW');
+        expect(bullets[1]).toContain('coverage contracts: 0 untested');
+      }
+    );
+  });
+
+  it('labels non-zero knownGaps as parked debt AND a vanished gap as fixed-but-stale', async () => {
+    await withTmpRepo(
+      {
+        '.github/baselines/test-coverage-baseline.json': JSON.stringify({
+          version: 1,
+          lastUpdated: 'x',
+          services: { knownGaps: ['services/x/src/gone.service.ts'] },
+          contracts: { knownGaps: [] },
+        }),
+      },
+      async rootDir => {
+        const bullets = collectCoverageMarginBullets(rootDir);
+        expect(bullets[0]).toContain('1 known gap in baseline');
+        expect(bullets[0]).toContain('non-zero knownGaps is parked debt');
+        // The listed gap doesn't exist on disk → it counts as FIXED but the
+        // baseline still carries it: paid debt not yet reclaimed.
+        expect(bullets[0]).toContain('1 fixed-but-still-in-baseline (run test:audit --update)');
+      }
+    );
+  });
+
+  it('flags a genuinely NEW unbaselined gap — the string that would fail the real gate', async () => {
+    await withTmpRepo(
+      {
+        '.github/baselines/test-coverage-baseline.json': JSON.stringify({
+          version: 1,
+          lastUpdated: 'x',
+          services: { knownGaps: [] },
+          contracts: { knownGaps: [] },
+        }),
+        // A Prisma-using *Service.ts in a scanned dir with NO colocated
+        // .component.test.ts and NO baseline entry → newGaps = 1.
+        'services/api-gateway/src/OrphanService.ts':
+          "import { PrismaClient } from '@prisma/client';\n" +
+          'export class OrphanService {\n' +
+          '  constructor(private prisma: PrismaClient) {}\n' +
+          '  find(): unknown { return this.prisma.user; }\n' +
+          '}\n',
+      },
+      async rootDir => {
+        const bullets = collectCoverageMarginBullets(rootDir);
+        expect(bullets[0]).toContain('coverage services: 1 untested');
+        expect(bullets[0]).toContain('1 NEW');
+      }
+    );
+  });
+});
+
 describe('collectHealthExtras', () => {
   it('never throws — every section degrades in place on a bare directory', async () => {
     vi.mocked(execFileSync).mockImplementation(() => {
@@ -263,8 +381,14 @@ describe('collectHealthExtras', () => {
 
       expect(extras.security.dependabotPrs.available).toBe(false);
       expect(extras.security.dependabotAlerts.available).toBe(false);
-      // One degraded bullet per ratchet (lines, cpd, mutation).
-      expect(extras.marginBullets).toHaveLength(3);
+      // One degraded bullet each for lines/cpd/mutation/ux-literals, plus
+      // TWO live bullets from coverage (a missing baseline loads as empty,
+      // so the gap scan still runs — services + contracts rows).
+      expect(extras.marginBullets).toHaveLength(6);
+      expect(
+        extras.marginBullets.filter(b => b.includes('unavailable')),
+        'the four baseline-gated ratchets degrade with a reason'
+      ).toHaveLength(4);
       expect(extras.docsOrphans).toEqual({ totalDocs: 0, orphans: [] });
     });
   });
