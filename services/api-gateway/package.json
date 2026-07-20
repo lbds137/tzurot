@@ -44,7 +44,7 @@
     "@types/express": "^5.0.6",
     "@types/node": "^26.1.1",
     "@types/pg": "^8.20.0",
-    "@types/supertest": "^7.2.0",
+    "@types/supertest": "^7.2.1",
     "@tzurot/clients": "workspace:*",
     "@tzurot/test-utils": "workspace:*",
     "fast-check": "^4.9.0",
