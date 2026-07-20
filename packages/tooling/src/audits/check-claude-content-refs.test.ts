@@ -319,6 +319,7 @@ describe('findContentRefs (against real repo)', () => {
       'db:migrate',
       'db:safe-migrate',
       'mutation:check',
+      'mutation:gate',
       'mutation:update-baseline',
       'secrets:mark-rotated',
       'secrets:rotation-status',
