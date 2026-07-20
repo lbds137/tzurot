@@ -444,6 +444,14 @@ export default tseslint.config(
       // confirmation factories own the order for factory-built rows).
       '@tzurot/button-order-danger-last': 'error',
 
+      // Catalog adoption (design-system Phase 3, §4.5 stage two — the AST
+      // successor to the retired ux:literals grep ratchet): raw string
+      // literals must not reach Discord messaging-call content in command
+      // files; copy renders through ux/catalog. Grandfathered budgets live in
+      // the shrink-only allowlist
+      // (packages/tooling/src/eslint/raw-content-allowlist.ts).
+      '@tzurot/no-raw-content-literals': 'error',
+
       // ============================================================================
       // SONARJS RULES - Additional code quality checks
       // ============================================================================
