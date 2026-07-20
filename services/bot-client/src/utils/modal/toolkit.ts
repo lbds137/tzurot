@@ -208,6 +208,7 @@ function attachComponent(
 
 /** Build a Label-based modal from typed items. */
 export function buildToolkitModal(options: BuildToolkitModalOptions): ModalBuilder {
+  // eslint-disable-next-line no-restricted-syntax -- THE modal toolkit's single construction site; every other module builds modals through this function
   const modal = new ModalBuilder().setCustomId(options.customId).setTitle(options.title);
 
   for (const item of options.items) {

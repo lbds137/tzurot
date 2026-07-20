@@ -20,6 +20,8 @@
 
 import noSingletonExport from './no-singleton-export.js';
 import componentHandlerAckFirst from './component-handler-ack-first.js';
+import noDiscordBuildersInCommands from './no-discord-builders-in-commands.js';
+import buttonOrderDangerLast from './button-order-danger-last.js';
 
 const plugin = {
   meta: {
@@ -29,6 +31,8 @@ const plugin = {
   rules: {
     'no-singleton-export': noSingletonExport,
     'component-handler-ack-first': componentHandlerAckFirst,
+    'no-discord-builders-in-commands': noDiscordBuildersInCommands,
+    'button-order-danger-last': buttonOrderDangerLast,
   },
 };
 

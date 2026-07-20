@@ -151,6 +151,7 @@ export function buildConfirmationModal(
   parsed: DestructiveParseResult,
   display: DestructiveModalDisplay
 ): ModalBuilder {
+  // eslint-disable-next-line no-restricted-syntax -- Tier-B typed-phrase confirmation factory: the modal customId MUST derive from the button's parsed segments (routing-continuity invariant), which the toolkit deliberately doesn't model
   const modal = new ModalBuilder()
     .setCustomId(DestructiveCustomIds.modalSubmitFromParsed(parsed))
     .setTitle(display.modalTitle);
