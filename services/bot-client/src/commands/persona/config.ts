@@ -9,6 +9,7 @@
  */
 
 import { DISCORD_COLORS, DISCORD_LIMITS } from '@tzurot/common-types/constants/discord';
+import { entityTitle } from '@tzurot/common-types/constants/uxVocabulary';
 import {
   SectionStatus,
   type SectionDefinition,
@@ -159,7 +160,7 @@ const identitySection: SectionDefinition<FlattenedPersonaData> = {
  */
 export const PERSONA_DASHBOARD_CONFIG: DashboardConfig<FlattenedPersonaData> = {
   entityType: 'persona', // Matches command name - no componentPrefixes needed!
-  getTitle: data => `👤 Persona: ${data.name}`,
+  getTitle: data => entityTitle('persona', `Persona: ${data.name}`),
   getDescription: data => {
     const badges: string[] = [];
     if (data.isDefault) {

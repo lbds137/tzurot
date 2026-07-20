@@ -113,7 +113,8 @@ describe('handleViewPersona', () => {
       embeds: [
         expect.objectContaining({
           data: expect.objectContaining({
-            title: '🎭 Your Persona',
+            // 👤 = persona entity glyph; 🎭 belongs to characters (§2.1)
+            title: '👤 Your Persona',
           }),
         }),
       ],

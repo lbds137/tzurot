@@ -7,7 +7,7 @@
  * Uses standardized badges from @tzurot/common-types:
  * - 🌐 PUBLIC = User's public personality (can edit)
  * - 🔒 OWNED = User's private personality (can edit)
- * - 📖 READ_ONLY = Someone else's public personality
+ * - 👥 OWNED_BY_OTHER = Someone else's public personality
  */
 
 import type { AutocompleteInteraction } from 'discord.js';
@@ -126,12 +126,12 @@ export async function handlePersonalityAutocomplete(
       // Determine scope badge based on permissions
       // 🌐 PUBLIC = can edit + public (user's shared personality)
       // 🔒 OWNED = can edit + private (user's private personality)
-      // 📖 READ_ONLY = cannot edit (someone else's public personality)
+      // 👥 OWNED_BY_OTHER = cannot edit (someone else's public personality)
       const scopeBadge = p.permissions.canEdit
         ? p.isPublic
           ? AUTOCOMPLETE_BADGES.PUBLIC
           : AUTOCOMPLETE_BADGES.OWNED
-        : AUTOCOMPLETE_BADGES.READ_ONLY;
+        : AUTOCOMPLETE_BADGES.OWNED_BY_OTHER;
 
       return formatAutocompleteOption({
         name: displayName,
@@ -165,7 +165,7 @@ export async function handlePersonalityAutocomplete(
  * Uses standardized badges from AUTOCOMPLETE_BADGES:
  * - 🌐 PUBLIC = can edit + public
  * - 🔒 OWNED = can edit + private
- * - 📖 READ_ONLY = cannot edit
+ * - 👥 OWNED_BY_OTHER = cannot edit
  *
  * @param canEdit - Whether the user can edit this personality (from permissions.canEdit)
  * @param isPublic - Whether the personality is public
@@ -175,5 +175,5 @@ export function getVisibilityIcon(canEdit: boolean, isPublic: boolean): string {
   if (canEdit) {
     return isPublic ? AUTOCOMPLETE_BADGES.PUBLIC : AUTOCOMPLETE_BADGES.OWNED;
   }
-  return AUTOCOMPLETE_BADGES.READ_ONLY;
+  return AUTOCOMPLETE_BADGES.OWNED_BY_OTHER;
 }

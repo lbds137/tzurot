@@ -14,6 +14,7 @@ import {
 import { type EnvConfig } from '@tzurot/common-types/config/config';
 import { DISCORD_COLORS, CHARACTER_VIEW_LIMITS } from '@tzurot/common-types/constants/discord';
 import { characterViewOptions } from '@tzurot/common-types/generated/commandOptions';
+import { UX_SENTINELS } from '@tzurot/common-types/constants/uxVocabulary';
 import { formatDateShort } from '@tzurot/common-types/utils/dateFormatting';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { GatewayApiError, type UserClient } from '@tzurot/clients';
@@ -86,7 +87,7 @@ function buildOverviewPage(
       name: '🏷️ Identity',
       value:
         `**Name:** ${escapeMarkdown(character.name)}\n` +
-        `**Display Name:** ${character.displayName !== null && character.displayName !== undefined ? escapeMarkdown(character.displayName) : '_Not set_'}\n` +
+        `**Display Name:** ${character.displayName !== null && character.displayName !== undefined ? escapeMarkdown(character.displayName) : UX_SENTINELS.NOT_SET}\n` +
         `**Slug:** \`${character.slug}\``,
       inline: false,
     },
@@ -107,8 +108,8 @@ function buildOverviewPage(
   embed.addFields({ name: '🎭 Personality Traits', value: traits.value, inline: false });
 
   embed.addFields(
-    { name: '🎨 Tone', value: character.personalityTone ?? '_Not set_', inline: true },
-    { name: '📅 Age', value: character.personalityAge ?? '_Not set_', inline: true }
+    { name: '🎨 Tone', value: character.personalityTone ?? UX_SENTINELS.NOT_SET, inline: true },
+    { name: '📅 Age', value: character.personalityAge ?? UX_SENTINELS.NOT_SET, inline: true }
   );
 }
 
@@ -213,11 +214,14 @@ export function buildRedactedViewPage(character: CharacterData): ViewPageResult 
       name: '🏷️ Identity',
       value:
         `**Name:** ${escapeMarkdown(character.name)}\n` +
-        `**Display Name:** ${character.displayName !== null && character.displayName !== undefined ? escapeMarkdown(character.displayName) : '_Not set_'}\n` +
+        `**Display Name:** ${character.displayName !== null && character.displayName !== undefined ? escapeMarkdown(character.displayName) : UX_SENTINELS.NOT_SET}\n` +
         `**Slug:** \`${character.slug}\``,
       inline: false,
     });
 
+  // Static dates by necessity: embed FOOTERS don't render <t:> markup, so
+  // the §2.5 dynamic-timestamp rule can't apply here (same carve-out class
+  // as file exports).
   const created = formatDateShort(character.createdAt);
   const updated = formatDateShort(character.updatedAt);
   embed.setFooter({ text: `Created: ${created} • Updated: ${updated}` });
@@ -502,7 +506,7 @@ export async function handleExpandField(
     // Get the full content
     const content = character[fieldInfo.key] as string | null;
     if (content === null || content === undefined || content.length === 0) {
-      await interaction.editReply(`${fieldInfo.label}\n\n_Not set_`);
+      await interaction.editReply(`${fieldInfo.label}\n\n${UX_SENTINELS.NOT_SET}`);
       return;
     }
 

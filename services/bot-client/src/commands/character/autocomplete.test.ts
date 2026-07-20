@@ -195,7 +195,7 @@ describe('handleAutocomplete', () => {
 
     expect(mockRespond).toHaveBeenCalledWith([
       { name: '🔒 MyChar (my-char)', value: 'my-char' },
-      { name: '📖 Public Bot (public-char)', value: 'public-char' },
+      { name: '👥 Public Bot (public-char)', value: 'public-char' },
     ]);
   });
 
@@ -369,7 +369,7 @@ describe('handleAutocomplete', () => {
     expect(mockRespond).toHaveBeenCalledWith([
       { name: '🔒 Private (private-owned)', value: 'private-owned' },
       { name: '🌐 Public (public-owned)', value: 'public-owned' },
-      { name: '📖 Other (public-other)', value: 'public-other' },
+      { name: '👥 Other (public-other)', value: 'public-other' },
     ]);
   });
 });

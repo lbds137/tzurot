@@ -31,7 +31,8 @@ import {
   escapeMarkdown,
 } from 'discord.js';
 import { DISCORD_COLORS, CHARACTER_VIEW_LIMITS } from '@tzurot/common-types/constants/discord';
-import { formatDateShort } from '@tzurot/common-types/utils/dateFormatting';
+import { UX_SENTINELS } from '@tzurot/common-types/constants/uxVocabulary';
+import { formatDiscordTimestamp } from '@tzurot/common-types/utils/dateFormatting';
 import { CharacterCustomIds } from '../../utils/customIds.js';
 import type { CharacterData } from './characterTypes.js';
 import {
@@ -89,7 +90,7 @@ function identityBlock(character: CharacterData): string {
   const displayName =
     character.displayName !== null && character.displayName !== undefined
       ? escapeMarkdown(character.displayName)
-      : '_Not set_';
+      : UX_SENTINELS.NOT_SET;
   return (
     `**🏷️ Identity**\n` +
     `**Name:** ${escapeMarkdown(character.name)}\n` +
@@ -120,8 +121,8 @@ function overviewBlocks(character: CharacterData): ViewBlock[] {
   // Tone and Age are SEPARATE blocks, mirroring the embed view's separate
   // inline fields — a mid-line `·` join scrunched Age onto the tail of an
   // arbitrarily long Tone paragraph (owner eval finding).
-  const tone = `**🎨 Tone**\n${character.personalityTone ?? '_Not set_'}`;
-  const age = `**📅 Age**\n${character.personalityAge ?? '_Not set_'}`;
+  const tone = `**🎨 Tone**\n${character.personalityTone ?? UX_SENTINELS.NOT_SET}`;
+  const age = `**📅 Age**\n${character.personalityAge ?? UX_SENTINELS.NOT_SET}`;
 
   return [
     { text: overviewDescription(character) },
@@ -178,8 +179,10 @@ function appendBlock(container: ContainerBuilder, slug: string, block: ViewBlock
 }
 
 function footerText(character: CharacterData): string {
-  const created = formatDateShort(character.createdAt);
-  const updated = formatDateShort(character.updatedAt);
+  // TextDisplay content renders markdown — dynamic timestamps work here,
+  // unlike classic embed footers (see view.ts).
+  const created = formatDiscordTimestamp(character.createdAt, 'D');
+  const updated = formatDiscordTimestamp(character.updatedAt, 'D');
   return `-# Created: ${created} • Updated: ${updated}`;
 }
 
