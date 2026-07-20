@@ -12,6 +12,8 @@
  */
 
 import { VOICE_REFERENCE_LIMITS } from '@tzurot/common-types/constants/media';
+import { CATALOG } from '../../ux/catalog/catalog.js';
+import { renderSpec } from '../../ux/render/render.js';
 import { VALID_IMAGE_TYPES, MAX_INPUT_SIZE_MB, MAX_INPUT_SIZE_BYTES } from './avatarUtils.js';
 
 const VALID_AUDIO_PREFIX = 'audio/';
@@ -30,10 +32,18 @@ export interface AttachmentLike {
  */
 export function validateImageAttachment(attachment: AttachmentLike): string | null {
   if (attachment.contentType === null || !VALID_IMAGE_TYPES.includes(attachment.contentType)) {
-    return '❌ Invalid image format. Please upload a PNG, JPG, GIF, or WebP image.';
+    return renderSpec(
+      CATALOG.error.validation(
+        'Invalid image format. Please upload a PNG, JPG, GIF, or WebP image.'
+      )
+    );
   }
   if (attachment.size > MAX_INPUT_SIZE_BYTES) {
-    return `❌ Image too large. Please upload a file under ${MAX_INPUT_SIZE_MB}MB.`;
+    return renderSpec(
+      CATALOG.error.validation(
+        `Image too large. Please upload a file under ${MAX_INPUT_SIZE_MB}MB.`
+      )
+    );
   }
   return null;
 }
@@ -44,10 +54,14 @@ export function validateImageAttachment(attachment: AttachmentLike): string | nu
  */
 export function validateAudioAttachment(attachment: AttachmentLike): string | null {
   if (attachment.contentType?.startsWith(VALID_AUDIO_PREFIX) !== true) {
-    return '❌ Invalid audio format. Please upload a WAV, MP3, OGG, or FLAC file.';
+    return renderSpec(
+      CATALOG.error.validation('Invalid audio format. Please upload a WAV, MP3, OGG, or FLAC file.')
+    );
   }
   if (attachment.size > MAX_AUDIO_BYTES) {
-    return `❌ Audio too large. Please upload a file under ${MAX_AUDIO_MB}MB.`;
+    return renderSpec(
+      CATALOG.error.validation(`Audio too large. Please upload a file under ${MAX_AUDIO_MB}MB.`)
+    );
   }
   return null;
 }
