@@ -8,9 +8,10 @@
  * - **Security surface** — open Dependabot PRs + alerts via the `gh` CLI;
  *   degrades to "unavailable (<reason>)" when gh is missing/unauthenticated.
  * - **Ratchet margins** — headroom against the ratchet baselines that can be
- *   measured honestly without a heavy run: lines (cheap live measure), cpd
- *   (stale-ok, only if a prior `pnpm cpd` report exists on disk), mutation
- *   (baseline score + floor only — a live score needs a Stryker run).
+ *   measured honestly without a heavy run: lines, ux-literals, and coverage
+ *   (cheap live measures), cpd (stale-ok, only if a prior `pnpm cpd` report
+ *   exists on disk), mutation (baseline score + floor only — a live score
+ *   needs a Stryker run).
  * - **Docs orphans** — `docs/reference` files with zero inbound markdown
  *   links (see `docs-orphan-scan.ts`).
  *
@@ -29,6 +30,12 @@ import {
   type SurfaceMeasurement,
 } from './lines-check.js';
 import { parseMutationBaseline } from '../test/mutation-check.js';
+import {
+  measureUxLiterals,
+  parseUxLiteralsBaseline,
+  DEFAULT_UX_LITERALS_BASELINE_PATH,
+} from './ux-literals-check.js';
+import { loadUnifiedBaseline, collectUnifiedAuditData } from '../test/audit-unified.js';
 import { scanDocsOrphans, type DocsOrphanResult } from './docs-orphan-scan.js';
 
 /** One security metric, degraded independently of its siblings. */
@@ -196,6 +203,75 @@ export function collectMutationMarginBullets(rootDir: string): string[] {
   });
 }
 
+/**
+ * UX-literals adoption ratchet — a cheap live measure (regex walk over
+ * bot-client's commands dir). This ratchet counts DOWN: the goal is fewer
+ * raw literals, so headroom-under-ceiling is slack the AST rule (Phase 3)
+ * will eventually retire, and a shrinking total is progress worth seeing.
+ */
+export function collectUxLiteralsMarginBullets(rootDir: string): string[] {
+  const baselinePath = resolve(rootDir, DEFAULT_UX_LITERALS_BASELINE_PATH);
+  if (!existsSync(baselinePath)) {
+    return ['ux-literals: unavailable (no ux-literals-baseline.json)'];
+  }
+  const baseline = parseUxLiteralsBaseline(readFileSync(baselinePath, 'utf-8'), baselinePath);
+  const measurement = measureUxLiterals(rootDir);
+  if (measurement.fileCount === 0) {
+    return ['ux-literals: unmeasurable (scan root matched zero files)'];
+  }
+  const ceiling = baseline.total + baseline.graceMargin;
+  return [
+    `ux-literals: ${measurement.total}/${ceiling} ` +
+      `(${ceiling - measurement.total} headroom, baseline ${baseline.total}, live measure — ` +
+      `lower is better; a total well under baseline is a tightening candidate)`,
+  ];
+}
+
+/**
+ * Test-coverage ratchet — live gap scan (static fs walk over service files +
+ * schema/test colocation; no test run). knownGaps sitting non-zero across
+ * reports is exactly the "accepted at whatever baseline we left it" slack
+ * this section exists to surface.
+ */
+export function collectCoverageMarginBullets(rootDir: string): string[] {
+  const baseline = loadUnifiedBaseline(rootDir);
+  const audit = collectUnifiedAuditData(rootDir, baseline);
+  interface CoverageRow {
+    label: string;
+    untested: number;
+    known: number;
+    fresh: number;
+    stale: number;
+    cov: number;
+  }
+  const fmt = ({ label, untested, known, fresh, stale, cov }: CoverageRow): string =>
+    `coverage ${label}: ${untested} untested (${cov.toFixed(1)}% covered), ` +
+    `${known} known gap${known === 1 ? '' : 's'} in baseline` +
+    (fresh > 0 ? `, ${fresh} NEW` : '') +
+    // A knownGaps entry whose gap no longer exists is paid debt the baseline
+    // hasn't reclaimed — the purest stagnation signal this row can show.
+    (stale > 0 ? `, ${stale} fixed-but-still-in-baseline (run test:audit --update)` : '') +
+    ` (live measure${known > 0 ? ' — non-zero knownGaps is parked debt' : ''})`;
+  return [
+    fmt({
+      label: 'services',
+      untested: audit.services.untestedServices.length,
+      known: baseline.services.knownGaps.length,
+      fresh: audit.services.newGaps.length,
+      stale: audit.services.fixedGaps.length,
+      cov: audit.services.coverage,
+    }),
+    fmt({
+      label: 'contracts',
+      untested: audit.contracts.untestedSchemas.length,
+      known: baseline.contracts.knownGaps.length,
+      fresh: audit.contracts.newGaps.length,
+      stale: audit.contracts.fixedGaps.length,
+      cov: audit.contracts.coverage,
+    }),
+  ];
+}
+
 export interface HealthExtras {
   security: SecuritySurface;
   marginBullets: string[];
@@ -221,6 +297,8 @@ export function collectHealthExtras(rootDir: string): HealthExtras {
     ...safeBullets('lines', () => collectLinesMarginBullets(rootDir)),
     ...safeBullets('cpd', () => collectCpdMarginBullets(rootDir)),
     ...safeBullets('mutation', () => collectMutationMarginBullets(rootDir)),
+    ...safeBullets('ux-literals', () => collectUxLiteralsMarginBullets(rootDir)),
+    ...safeBullets('coverage', () => collectCoverageMarginBullets(rootDir)),
   ];
   let docsOrphans: HealthExtras['docsOrphans'];
   try {
