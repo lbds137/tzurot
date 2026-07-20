@@ -120,14 +120,14 @@ function buildTruncationWarningEmbed(memory: MemoryItem): EmbedBuilder {
 function buildTruncationButtons(memoryId: string): ActionRowBuilder<ButtonBuilder> {
   return new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
+      .setCustomId(buildMemoryActionId('cancel-edit', memoryId))
+      .setLabel('Cancel')
+      .setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder()
       .setCustomId(buildMemoryActionId(EDIT_TRUNCATED_ACTION, memoryId))
       .setLabel('Edit with Truncation')
       .setStyle(ButtonStyle.Danger)
-      .setEmoji('✂️'),
-    new ButtonBuilder()
-      .setCustomId(buildMemoryActionId('cancel-edit', memoryId))
-      .setLabel('Cancel')
-      .setStyle(ButtonStyle.Secondary)
+      .setEmoji('✂️')
   );
 }
 
