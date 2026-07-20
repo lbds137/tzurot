@@ -28,8 +28,6 @@ _Small tasks that can be done between major features. Good for momentum._
 
 - 🐛 `[FIX]` **DuplicateDetectionFlow P2002 flake — recurrence trigger FIRED 2026-07-18** (first seen #1568, filed-on-recurrence per its note; second hit: #1699 CI, `mixed chronological order` case) — `generateConversationHistoryUuid(channelId, personalityId, personaId, createdAt)` collides when a test inserts two rows in the same millisecond. Fix shape: the test passes explicit distinct timestamps per insert (test-only change in `DuplicateDetectionFlow.component.test.ts` / its history seeding helper); consider whether OTHER component tests seed history the same racy way. Filed 2026-07-18.
 
-- 🧹 `[CHORE]` **Ratchet-margins section — increment 1** (promoted from `cold/ideas.md` § "Ratchet trend report", owner 2026-07-20 via session-mining finding 4b) — add ux:literals + test:audit coverage to the weekly-audit ratchet-margins block (both have cheap live measures; today only lines/cpd/mutation render). The cheap first slice of the 3-increment plan; increments 2 (trend deltas) + 3 (auto-tighten PRs) stay in the idea. Start: `health-extras.ts`.
-
 
 ### 📥 Untriaged (max 10)
 
