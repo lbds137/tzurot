@@ -49,6 +49,7 @@ function createBasePersonality(overrides?: Partial<PersonalityFull>): Personalit
     imageEnabled: false,
     ownerId: DEFAULT_OWNER_ID,
     hasAvatar: false,
+    avatarUrl: null,
     hasVoiceReference: false,
     customFields: null,
     createdAt: now,
