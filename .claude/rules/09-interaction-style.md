@@ -17,6 +17,8 @@ Rules about how to interact with the user during sessions. These supplement, not
 
 When a user message contains a question, answer it BEFORE advancing your own agenda — the release flow, the next task, or a re-ask of your own pending question. Multi-part messages get every part addressed; enumerate the parts if that's what it takes. Skipping an embedded question forces the user to halt the work and re-ask ("can you answer my webhook question first?", "did you see my question?" — both real).
 
+**Two mechanical checkpoints** (the rule alone kept being violated under monitor-notification interleave — these attach it to deterministic moments): (a) a user message that arrives **mid-turn** gets an explicit one-line receipt at the TOP of the next reply, restating the ask before continuing — this also surfaces a harness-swallowed message within one turn; (b) before **ending any turn**, re-scan the user's last message for question marks and enumerated parts, and either answer each or name which remain pending. "Did you see my earlier question / recommendation?" recurred across every mined corpus — the fix is checking at these two points, not trying harder to remember.
+
 ## User Directives Are Immutable Session State
 
 Once the user has made a call — a release gate ("I want them fixed before the release is cut"), a scope decision, a design choice — do not re-propose the alternative in later turns. Re-litigating forces escalation ("I'm not budging on that"). Genuinely new information may justify surfacing the tradeoff once more, explicitly framed as new information; convenience or effort never does.
