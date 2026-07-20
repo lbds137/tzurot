@@ -40,6 +40,7 @@ export function buildSettingEditModal(
   setting: SettingDefinition,
   currentValue: unknown
 ): ModalBuilder {
+  // eslint-disable-next-line no-restricted-syntax -- settings-dashboard modal factory: single-input modal whose customId encodes the settings routing contract; not expressible via the toolkit's item union
   const modal = new ModalBuilder()
     .setCustomId(buildSettingsCustomId(entityType, 'modal', entityId, setting.id))
     .setTitle(`Edit ${setting.label}`);

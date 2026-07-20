@@ -95,6 +95,20 @@ const COMPONENT_ROUTING_RULES = [
   },
 ];
 
+// UX design-system enforcement (Phase 3 / machinery §4.5): modal construction
+// is factory-owned. The Phase 2 modal wave migrated every hand-rolled site onto
+// the modal toolkit / dashboard ModalFactory / destructive-confirmation
+// factory; this selector keeps the class dead. The three factory modules
+// themselves carry justified eslint-disable suppressions at their single
+// construction sites.
+const MODAL_FACTORY_RULES = [
+  {
+    selector: "NewExpression[callee.name='ModalBuilder']",
+    message:
+      "Don't construct ModalBuilder directly — modals are factory-owned. Use buildToolkitModal (utils/modal/toolkit.ts), the dashboard ModalFactory, or the destructive-confirmation factory; if none fits, extend the toolkit rather than hand-rolling.",
+  },
+];
+
 // Forward-safety: in the envelope-building path (contextBuilder/ +
 // MessageContextBuilder), the trigger `message`'s content-bearing fields are
 // EMPTY for a native Discord forward — the real content lives in
@@ -355,6 +369,7 @@ export default tseslint.config(
         ...IDENTITY_PROVISIONING_RULES,
         ...SEND_TYPING_RULES,
         ...COMPONENT_ROUTING_RULES,
+        ...MODAL_FACTORY_RULES,
       ],
 
       // ============================================================================
@@ -418,6 +433,16 @@ export default tseslint.config(
       // `.claude/rules/04-discord.md`. 'error' because a violation is a real bug —
       // the user gets no response.
       '@tzurot/component-handler-ack-first': 'error',
+
+      // UX boundary (design-system Phase 3 / G10): command files must not
+      // value-import discord.js message-UI builders — they compose the shared
+      // ux/ builders. Grandfathered sites live in the shrink-only allowlist
+      // (packages/tooling/src/eslint/builder-import-allowlist.ts).
+      '@tzurot/no-discord-builders-in-commands': 'error',
+
+      // Danger-styled buttons come last in a hand-built action row (the
+      // confirmation factories own the order for factory-built rows).
+      '@tzurot/button-order-danger-last': 'error',
 
       // ============================================================================
       // SONARJS RULES - Additional code quality checks
