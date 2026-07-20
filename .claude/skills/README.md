@@ -20,6 +20,7 @@
 | [tzurot-bug-remediation](./tzurot-bug-remediation/SKILL.md) | Recurring-bug protocol: evidence → class sweep → guard         | `/tzurot-bug-remediation` |
 | [tzurot-reuse-scout](./tzurot-reuse-scout/SKILL.md)         | Pre-write reuse scouting, drifted-duplicate consolidation      | `/tzurot-reuse-scout`     |
 | [tzurot-design-boulder](./tzurot-design-boulder/SKILL.md)   | Grounded, council-reviewed design sessions → ACCEPTED artifact | `/tzurot-design-boulder`  |
+| [tzurot-session-mining](./tzurot-session-mining/SKILL.md)   | Mine session logs for recurring friction → structural fixes    | `/tzurot-session-mining`  |
 
 ## Rules (Auto-Loaded)
 
@@ -53,4 +54,4 @@ The following rules load automatically every session — no invocation needed:
 
 **Session End**: `/tzurot-docs` → update CURRENT.md
 
-**Audits**: `/tzurot-doc-audit` (docs + memory) · `/tzurot-arch-audit` (boundaries + health)
+**Audits**: `/tzurot-doc-audit` (docs + memory) · `/tzurot-arch-audit` (boundaries + health) · `/tzurot-session-mining` (session friction → structural fixes)

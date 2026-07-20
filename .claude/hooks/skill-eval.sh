@@ -72,6 +72,18 @@ if echo "$PROMPT" | grep -qiE 'arch.*audit|audit.*arch|boundary.*check|depcruise
     RELEVANT_SKILLS="$RELEVANT_SKILLS tzurot-arch-audit"
 fi
 
+# Session mining → tzurot-session-mining skill
+# \b anchors "mine" so "determine/undermine ... session" don't false-match.
+# Keep the pattern free of a trailing \b before "session": with ugrep's
+# default engine standing in for grep (some dev machines), that form
+# returned zero matches for the first branch while GNU grep matched —
+# probe any edit against BOTH greps. "keep (happen|occur|recur)" scopes
+# to the meta/process phrasing; bare "keep" swallowed bug-report language
+# ("keep failing in CI") that belongs to tzurot-bug-remediation.
+if echo "$PROMPT" | grep -qiE '\bmine\b.*session|session.*mining|mined[ -]corpus|friction.*(audit|mining|report)|why do(es)? th(is|ese) keep (happen|occur|recur)'; then
+    RELEVANT_SKILLS="$RELEVANT_SKILLS tzurot-session-mining"
+fi
+
 # Trim whitespace
 RELEVANT_SKILLS=$(echo "$RELEVANT_SKILLS" | xargs)
 
