@@ -21,3 +21,7 @@ export {
 export { resolveRoutingContext, type RoutingContextDeps } from './RoutingContextResolver.js';
 export { type PersonaPromptData, PersonaResolver } from './resolvers/index.js';
 export { PersonalityService } from './personality/index.js';
+// Canonical public avatar-URL derivation (PUBLIC_GATEWAY_URL + cache-busting
+// timestamp). Exported so gateway responses and webhook payloads share ONE
+// URL shape — hand-built variants have shipped unreachable internal URLs.
+export { deriveAvatarUrl } from './personality/PersonalityDefaults.js';

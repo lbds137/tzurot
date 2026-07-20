@@ -630,6 +630,7 @@ describe('Personality API Contract Tests', () => {
       imageEnabled: false,
       ownerId: '44444444-4444-5444-8444-444444444444',
       hasAvatar: true,
+      avatarUrl: 'https://public.example/avatars/test-character-1737385800000.png',
       hasVoiceReference: false,
       customFields: null,
       createdAt: '2025-01-15T12:00:00.000Z',
@@ -638,6 +639,24 @@ describe('Personality API Contract Tests', () => {
 
     it('should validate complete personality data', () => {
       const result = PersonalityFullSchema.safeParse(validFull);
+      expect(result.success).toBe(true);
+    });
+
+    it('avatarUrl survives the parse (strip-mode deletes undeclared fields)', () => {
+      // The pin that matters for the V2 thumbnail: an undeclared field would
+      // parse fine and silently vanish — the bot would render no avatar with
+      // every unit test green.
+      const result = PersonalityFullSchema.safeParse(validFull);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.avatarUrl).toBe(
+          'https://public.example/avatars/test-character-1737385800000.png'
+        );
+      }
+    });
+
+    it('accepts null avatarUrl (no avatar)', () => {
+      const result = PersonalityFullSchema.safeParse({ ...validFull, avatarUrl: null });
       expect(result.success).toBe(true);
     });
 
@@ -707,6 +726,7 @@ describe('Personality API Contract Tests', () => {
       imageEnabled: false,
       ownerId: '44444444-4444-5444-8444-444444444444',
       hasAvatar: false,
+      avatarUrl: null,
       hasVoiceReference: false,
       customFields: null,
       createdAt: '2025-01-15T12:00:00.000Z',
@@ -752,6 +772,7 @@ describe('Personality API Contract Tests', () => {
       imageEnabled: false,
       ownerId: '44444444-4444-5444-8444-444444444444',
       hasAvatar: false,
+      avatarUrl: null,
       hasVoiceReference: false,
       customFields: null,
       createdAt: '2025-01-15T12:00:00.000Z',
