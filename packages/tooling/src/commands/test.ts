@@ -26,6 +26,20 @@ function registerMutationCommands(cli: CAC): void {
 
   cli
     .command(
+      'mutation:gate',
+      'Decide whether the diff can have moved any tracked mutation score (CI skip gate; fail-open)'
+    )
+    .option('--base <ref>', 'Git ref to diff against (merge-base semantics)', {
+      default: 'origin/develop',
+    })
+    .example('pnpm ops mutation:gate')
+    .action(async (options: { base: string }) => {
+      const { runMutationGate } = await import('../test/mutation-gate.js');
+      runMutationGate({ base: options.base });
+    });
+
+  cli
+    .command(
       'mutation:update-baseline',
       'Write current mutation scores to the baseline (run after intentional score changes)'
     )
