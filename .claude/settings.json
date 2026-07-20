@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/skill-eval.sh"
+            "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" && .claude/hooks/skill-eval.sh"
           }
         ]
       }
@@ -16,15 +16,15 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/pr-merge-review-check.sh"
+            "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" && .claude/hooks/pr-merge-review-check.sh"
           },
           {
             "type": "command",
-            "command": ".claude/hooks/git-commit-filter-guard.sh"
+            "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" && .claude/hooks/git-commit-filter-guard.sh"
           },
           {
             "type": "command",
-            "command": ".claude/hooks/develop-code-commit-guard.sh"
+            "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" && .claude/hooks/develop-code-commit-guard.sh"
           }
         ]
       }
@@ -34,7 +34,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/session-start.sh"
+            "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" && .claude/hooks/session-start.sh"
           }
         ]
       }
@@ -45,7 +45,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/eslint-on-edit.sh"
+            "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" && .claude/hooks/eslint-on-edit.sh"
           }
         ]
       },
@@ -54,11 +54,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/pr-monitor-reminder.sh"
+            "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" && .claude/hooks/pr-monitor-reminder.sh"
           },
           {
             "type": "command",
-            "command": ".claude/hooks/release-finalize-reminder.sh"
+            "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" && .claude/hooks/release-finalize-reminder.sh"
           }
         ]
       }
