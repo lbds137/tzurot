@@ -1261,16 +1261,33 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
 exports[`CommandHandler (component) > command structure snapshots > has a stable option structure for every registered command > help-command-options 1`] = `
 [
   {
-    "autocomplete": true,
-    "choices": undefined,
-    "description": "Get detailed help for a specific command",
+    "description": "Show all available commands",
     "description_localizations": undefined,
-    "max_length": undefined,
-    "min_length": undefined,
-    "name": "command",
+    "name": "commands",
     "name_localizations": undefined,
-    "required": false,
-    "type": 3,
+    "options": [
+      {
+        "autocomplete": true,
+        "choices": undefined,
+        "description": "Get detailed help for a specific command",
+        "description_localizations": undefined,
+        "max_length": undefined,
+        "min_length": undefined,
+        "name": "command",
+        "name_localizations": undefined,
+        "required": false,
+        "type": 3,
+      },
+    ],
+    "type": 1,
+  },
+  {
+    "description": "What Tzurot is and the first commands to try",
+    "description_localizations": undefined,
+    "name": "getting-started",
+    "name_localizations": undefined,
+    "options": [],
+    "type": 1,
   },
 ]
 `;

@@ -16,7 +16,7 @@ import { renderSpec } from '../../ux/render/render.js';
 import { getConfig } from '@tzurot/common-types/config/config';
 import { DISCORD_COLORS, DISCORD_LIMITS } from '@tzurot/common-types/constants/discord';
 import { ENTITY_EMOJI } from '@tzurot/common-types/constants/uxVocabulary';
-import { helpOptions } from '@tzurot/common-types/generated/commandOptions';
+import { helpCommandsOptions } from '@tzurot/common-types/generated/commandOptions';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import {
   defineCommand,
@@ -82,6 +82,16 @@ export const CATEGORY_CONFIG: Record<string, { emoji: string; order: number }> =
 async function execute(ctx: SafeCommandContext): Promise<void> {
   // Cast to the specific context type we expect for this deferralMode
   const context = ctx as DeferredCommandContext;
+  const config = getConfig();
+  const mentionChar = config.BOT_MENTION_CHAR;
+
+  // The onboarding screen is static — it doesn't need the commands collection.
+  if (context.getSubcommand() === 'getting-started') {
+    await showGettingStarted(context, mentionChar);
+    return;
+  }
+
+  // 'commands' — the index/detail browser.
   // Access commands via the interaction.client - attached during bot startup
   const commands = context.interaction.client.commands;
 
@@ -93,16 +103,61 @@ async function execute(ctx: SafeCommandContext): Promise<void> {
     return;
   }
 
-  const options = helpOptions(context.interaction);
+  const options = helpCommandsOptions(context.interaction);
   const specificCommand = options.command();
-  const config = getConfig();
-  const mentionChar = config.BOT_MENTION_CHAR;
 
   if (specificCommand !== null && specificCommand !== '') {
     await showCommandDetails(context, commands, specificCommand);
   } else {
     await showAllCommands(context, commands, mentionChar);
   }
+}
+
+/**
+ * The `/help getting-started` onboarding screen: what the bot is, the first
+ * commands to try, and where the full guide lives. Condensed from
+ * docs/guides/getting-started.md — the guide (rendered at tzurot.org) stays
+ * the canonical long-form version; this embed is the in-Discord front door.
+ */
+async function showGettingStarted(
+  context: DeferredCommandContext,
+  mentionChar: string
+): Promise<void> {
+  const embed = new EmbedBuilder()
+    .setColor(DISCORD_COLORS.BLURPLE)
+    .setTitle('🚀 Getting Started with Tzurot')
+    .setDescription(
+      'Tzurot lets you talk to customizable AI characters — each with its own ' +
+        'personality, voice, and long-term memory.\n\n' +
+        'Tzurot is for adults: chatting with characters requires confirming you are 18 or older.'
+    )
+    .addFields(
+      {
+        name: '💬 Your first conversation',
+        value:
+          `• \`${mentionChar}CharacterName your message\` — talk to a character anywhere the bot can see\n` +
+          '• `/character browse` — see who is available\n' +
+          '• `/chat` — start a conversation via slash command (`/random` picks the character for you)',
+        inline: false,
+      },
+      {
+        name: '🎭 Make it yours',
+        value:
+          '• `/character create` — build your own character\n' +
+          '• `/persona edit` — tell characters who *you* are',
+        inline: false,
+      },
+      {
+        name: '📚 Learn more',
+        value:
+          '[Full getting-started guide](https://tzurot.org/docs/getting-started) · ' +
+          '[Command reference](https://tzurot.org/docs/commands)\n' +
+          'Or `/help commands` for everything the bot can do.',
+        inline: false,
+      }
+    );
+
+  await context.editReply({ embeds: [embed] });
 }
 
 /** Discord application-command option-type discriminators. */
@@ -199,7 +254,7 @@ async function showCommandDetails(
       content: renderSpec(
         CATALOG.error.notFound('Command', {
           name: `/${value}`,
-          hint: 'Use `/help` to see all available commands.',
+          hint: 'Use `/help commands` to see all available commands.',
         })
       ),
     });
@@ -271,7 +326,7 @@ async function showAllCommands(
     .setColor(DISCORD_COLORS.BLURPLE)
     .setTitle('📚 Available Commands')
     .setDescription(
-      'Use `/help <command>` for detailed information about a specific command.\n\n' +
+      'Use `/help commands <command>` for detailed information about a specific command.\n\n' +
         'You can also interact with AI characters by @mentioning them!'
     )
     .setTimestamp();
@@ -339,16 +394,29 @@ async function showAllCommands(
   await context.editReply({ embeds: [embed] });
 }
 
-// Build command data outside defineCommand to get proper type inference
+// Build command data outside defineCommand to get proper type inference.
+// Subcommand shape: Discord removes a command's bare invocation once it has
+// subcommands, so the old flat `/help [command]` becomes `/help commands
+// [command]`, making room for `/help getting-started` (and future sections).
 const commandData = new SlashCommandBuilder()
   .setName('help')
-  .setDescription('Show all available commands')
-  .addStringOption(option =>
-    option
-      .setName('command')
-      .setDescription('Get detailed help for a specific command')
-      .setRequired(false)
-      .setAutocomplete(true)
+  .setDescription('Learn what Tzurot is and browse every command')
+  .addSubcommand(subcommand =>
+    subcommand
+      .setName('commands')
+      .setDescription('Show all available commands')
+      .addStringOption(option =>
+        option
+          .setName('command')
+          .setDescription('Get detailed help for a specific command')
+          .setRequired(false)
+          .setAutocomplete(true)
+      )
+  )
+  .addSubcommand(subcommand =>
+    subcommand
+      .setName('getting-started')
+      .setDescription('What Tzurot is and the first commands to try')
   );
 
 /** Discord caps an autocomplete choice's display name at 100 characters. */
