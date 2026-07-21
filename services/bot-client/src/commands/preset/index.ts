@@ -9,6 +9,8 @@
  * - /preset export - Export a preset as JSON file
  * - /preset import - Import a preset from JSON file
  * - /preset template - Download JSON template for import
+ * - /preset override browse|set|clear|set-default|clear-default - Per-character
+ *   preset overrides + your global default (moved from /settings preset)
  * - /preset global default - Set system default (owner only)
  * - /preset global free-default - Set free tier default (owner only)
  *
@@ -56,6 +58,20 @@ import {
   isPresetDashboardInteraction,
 } from './dashboard.js';
 
+// Override handlers (per-character preset overrides — moved from /settings preset)
+import {
+  handlePresetBrowse as handleOverrideBrowse,
+  handlePresetBrowseSelect as handleOverrideBrowseSelect,
+  handlePresetBrowseButton as handleOverrideBrowseButton,
+  isPresetOverrideInteraction,
+  PRESET_OVERRIDE_PREFIX,
+} from './override/browse.js';
+import { handleSet as handleOverrideSet } from './override/set.js';
+import { handleClear as handleOverrideClear } from './override/clear.js';
+import { handleSetDefault as handleOverrideSetDefault } from './override/set-default.js';
+import { handleClearDefault as handleOverrideClearDefault } from './override/clear-default.js';
+import { handleAutocomplete as handleOverrideAutocomplete } from './override/autocomplete.js';
+
 const logger = createLogger('preset-command');
 
 /**
@@ -79,6 +95,20 @@ const userRouter = createMixedModeSubcommandRouter(
 );
 
 /**
+ * Override subcommand group router (all deferred)
+ */
+const overrideRouter = createTypedSubcommandRouter(
+  {
+    browse: handleOverrideBrowse,
+    set: handleOverrideSet,
+    clear: handleOverrideClear,
+    'set-default': handleOverrideSetDefault,
+    'clear-default': handleOverrideClearDefault,
+  },
+  { logger, logPrefix: '[Preset/Override]' }
+);
+
+/**
  * Create global preset router (owner only)
  */
 const globalRouter = createTypedSubcommandRouter(
@@ -96,6 +126,10 @@ const globalRouter = createTypedSubcommandRouter(
 async function execute(context: SafeCommandContext): Promise<void> {
   const group = context.getSubcommandGroup();
 
+  if (group === 'override') {
+    await overrideRouter(context as DeferredCommandContext);
+    return;
+  }
   if (group === 'global') {
     // Owner-only check for global subcommand group
     const deferredCtx = context as DeferredCommandContext;
@@ -113,6 +147,13 @@ async function execute(context: SafeCommandContext): Promise<void> {
  * Autocomplete handler for preset options
  */
 async function autocomplete(interaction: AutocompleteInteraction): Promise<void> {
+  // Route by GROUP before option name: both the override group and the base
+  // subcommands focus an option named 'preset', but they suggest different
+  // things (assignable configs w/ guest upsell vs your editable presets).
+  if (interaction.options.getSubcommandGroup() === 'override') {
+    await handleOverrideAutocomplete(interaction);
+    return;
+  }
   await handleAutocomplete(interaction);
 }
 
@@ -120,6 +161,12 @@ async function autocomplete(interaction: AutocompleteInteraction): Promise<void>
  * Select menu interaction handler for preset dashboard and browse
  */
 async function selectMenu(interaction: StringSelectMenuInteraction): Promise<void> {
+  // Override-browse select (select an override to clear)
+  if (isPresetOverrideInteraction(interaction.customId)) {
+    await handleOverrideBrowseSelect(interaction);
+    return;
+  }
+
   // Handle browse select - opens dashboard from browse list
   if (isPresetBrowseSelectInteraction(interaction.customId)) {
     await handleBrowseSelect(interaction);
@@ -136,6 +183,12 @@ async function selectMenu(interaction: StringSelectMenuInteraction): Promise<voi
  * Button interaction handler for preset dashboard and browse pagination
  */
 async function button(interaction: ButtonInteraction): Promise<void> {
+  // Override-browse confirm/cancel buttons
+  if (isPresetOverrideInteraction(interaction.customId)) {
+    await handleOverrideBrowseButton(interaction);
+    return;
+  }
+
   // Handle browse pagination
   if (isPresetBrowseInteraction(interaction.customId)) {
     await handleBrowsePagination(interaction);
@@ -291,6 +344,92 @@ export default defineCommand({
                 .addChoices({ name: 'Chat', value: 'text' }, { name: 'Vision', value: 'vision' })
             )
         )
+    )
+    .addSubcommandGroup(group =>
+      group
+        .setName('override')
+        .setDescription('Per-character preset overrides and your default preset')
+        .addSubcommand(subcommand =>
+          subcommand
+            .setName('browse')
+            .setDescription('Browse your preset overrides (select to clear)')
+        )
+        .addSubcommand(subcommand =>
+          subcommand
+            .setName('set')
+            .setDescription('Override preset for a character')
+            .addStringOption(option =>
+              option
+                .setName('character')
+                .setDescription('The character to override')
+                .setRequired(true)
+                .setAutocomplete(true)
+            )
+            .addStringOption(option =>
+              option
+                .setName('preset')
+                .setDescription('The preset to use')
+                .setRequired(true)
+                .setAutocomplete(true)
+            )
+            .addStringOption(option =>
+              option
+                .setName('slot')
+                .setDescription(CONFIG_SLOT_OPTION_DESCRIPTION)
+                .setRequired(false)
+                .addChoices({ name: 'Chat', value: 'text' }, { name: 'Vision', value: 'vision' })
+            )
+        )
+        .addSubcommand(subcommand =>
+          subcommand
+            .setName('clear')
+            .setDescription('Remove preset override for a character')
+            .addStringOption(option =>
+              option
+                .setName('character')
+                .setDescription('The character to clear')
+                .setRequired(true)
+                .setAutocomplete(true)
+            )
+            .addStringOption(option =>
+              option
+                .setName('slot')
+                .setDescription(CONFIG_SLOT_OPTION_DESCRIPTION)
+                .setRequired(false)
+                .addChoices({ name: 'Chat', value: 'text' }, { name: 'Vision', value: 'vision' })
+            )
+        )
+        .addSubcommand(subcommand =>
+          subcommand
+            .setName('set-default')
+            .setDescription('Set your global default preset')
+            .addStringOption(option =>
+              option
+                .setName('preset')
+                .setDescription('The preset to use as default')
+                .setRequired(true)
+                .setAutocomplete(true)
+            )
+            .addStringOption(option =>
+              option
+                .setName('slot')
+                .setDescription(CONFIG_SLOT_OPTION_DESCRIPTION)
+                .setRequired(false)
+                .addChoices({ name: 'Chat', value: 'text' }, { name: 'Vision', value: 'vision' })
+            )
+        )
+        .addSubcommand(subcommand =>
+          subcommand
+            .setName('clear-default')
+            .setDescription('Clear your global default preset')
+            .addStringOption(option =>
+              option
+                .setName('slot')
+                .setDescription(CONFIG_SLOT_OPTION_DESCRIPTION)
+                .setRequired(false)
+                .addChoices({ name: 'Chat', value: 'text' }, { name: 'Vision', value: 'vision' })
+            )
+        )
     ),
   deferralMode: 'ephemeral',
   subcommandDeferralModes: {
@@ -301,4 +440,8 @@ export default defineCommand({
   handleSelectMenu: selectMenu,
   handleButton: button,
   handleModal: modal,
+  // The override-browse prefix keeps its historical 'settings-preset-override'
+  // string so in-flight components from pre-rename messages still route; only
+  // the OWNING command changed (moved from /settings preset).
+  componentPrefixes: [PRESET_OVERRIDE_PREFIX],
 });

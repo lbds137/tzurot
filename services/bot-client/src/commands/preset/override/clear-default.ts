@@ -1,28 +1,30 @@
 /**
- * Settings Preset Clear-Default Handler
- * Handles /settings preset clear-default subcommand
+ * Preset Override Clear-Default Handler
+ * Handles /preset override clear-default subcommand
  * Clears the user's global default preset
  */
 
 import { EmbedBuilder } from 'discord.js';
 import { toModelSlot } from '@tzurot/common-types/constants/ai';
 import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
-import { settingsPresetClearDefaultOptions } from '@tzurot/common-types/generated/commandOptions';
+import { presetOverrideClearDefaultOptions } from '@tzurot/common-types/generated/commandOptions';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
 import { clientsFor } from '../../../utils/gatewayClients.js';
+import { classifyGatewayFailure } from '../../../ux/catalog/classify.js';
+import { renderSpec } from '../../../ux/render/render.js';
 
-const logger = createLogger('settings-preset-clear-default');
+const logger = createLogger('preset-override-clear-default');
 
 /**
- * Handle /settings preset clear-default
+ * Handle /preset override clear-default
  */
 export async function handleClearDefault(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;
   // No slot → clear BOTH defaults (`all`); an explicit slot clears just that one.
   // The vision default is a separate FK from the text default, so a no-slot clear
   // has to target both or it silently leaves the other in place.
-  const slotOption = settingsPresetClearDefaultOptions(context.interaction).slot();
+  const slotOption = presetOverrideClearDefaultOptions(context.interaction).slot();
   const slot = slotOption !== null ? toModelSlot(slotOption) : 'all';
 
   try {
@@ -31,7 +33,11 @@ export async function handleClearDefault(context: DeferredCommandContext): Promi
 
     if (!result.ok) {
       logger.warn({ userId, status: result.status }, 'Failed to clear default');
-      await context.editReply({ content: `❌ Failed to clear default: ${result.error}` });
+      await context.editReply({
+        content: renderSpec(
+          classifyGatewayFailure(result, 'default preset', { failedAction: 'clear the default' })
+        ),
+      });
       return;
     }
 
@@ -85,6 +91,10 @@ export async function handleClearDefault(context: DeferredCommandContext): Promi
     );
   } catch (error) {
     logger.error({ err: error, userId, command: 'Preset Clear-Default' }, 'Error');
-    await context.editReply({ content: '❌ An error occurred. Please try again later.' });
+    await context.editReply({
+      content: renderSpec(
+        classifyGatewayFailure(error, 'default preset', { failedAction: 'clear the default' })
+      ),
+    });
   }
 }

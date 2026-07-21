@@ -179,7 +179,7 @@ describe('Preset Command Handlers', () => {
       await handleSet(createMockContext('invalid', 'c1'));
 
       expect(mockEditReply).toHaveBeenCalledWith({
-        content: expect.stringContaining('Failed to set preset'),
+        content: expect.stringContaining('Personality not found'),
       });
     });
   });
@@ -219,7 +219,7 @@ describe('Preset Command Handlers', () => {
       await handleClear(createMockContext());
 
       expect(mockEditReply).toHaveBeenCalledWith({
-        content: expect.stringContaining('Failed to clear preset'),
+        content: expect.stringContaining('No override found'),
       });
     });
 
@@ -229,7 +229,7 @@ describe('Preset Command Handlers', () => {
       await handleClear(createMockContext());
 
       expect(mockEditReply).toHaveBeenCalledWith({
-        content: expect.stringContaining('An error occurred'),
+        content: expect.stringContaining('Failed to clear the override'),
       });
     });
   });

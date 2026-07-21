@@ -13,7 +13,7 @@ Commands should be organized by **user intent**, not database schema or internal
 ✅ GOOD: /preset create       (user understands "preset")
 
 ❌ BAD: /model set-default    (abstract - "model" of what?)
-✅ GOOD: /settings preset set  (clear - MY settings, MY preset choice)
+✅ GOOD: /preset override set  (clear - the preset entity, MY override)
 ```
 
 ### 2. Discoverability
@@ -398,8 +398,8 @@ await interaction.reply({
 await interaction.reply({
   content:
     '✅ Preset saved!\n\n' +
-    'Use `/settings preset set` to set it as your default, or\n' +
-    '`/persona override set` to use it for specific characters.',
+    'Use `/preset override set-default` to set it as your default, or\n' +
+    '`/preset override set` to use it for specific characters.',
   flags: MessageFlags.Ephemeral,
 });
 ```

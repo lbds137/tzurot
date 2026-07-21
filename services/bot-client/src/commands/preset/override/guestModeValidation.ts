@@ -3,7 +3,7 @@
  *
  * Shared logic for validating guest mode users' access to premium models
  * and showing the "Unlock All Models" upsell embed.
- * Used by both /settings preset default and /settings preset set handlers.
+ * Used by both /preset override set-default and /preset override set handlers.
  */
 
 import { EmbedBuilder } from 'discord.js';
@@ -14,7 +14,7 @@ import { type UserClient } from '@tzurot/clients';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
 import { UNLOCK_MODELS_VALUE } from './autocomplete.js';
 
-const logger = createLogger('settings-preset-guest-mode');
+const logger = createLogger('preset-override-guest-mode');
 
 /**
  * Show the "Unlock All Models" upsell embed when a guest user selects the upsell option.

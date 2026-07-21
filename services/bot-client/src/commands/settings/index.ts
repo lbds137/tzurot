@@ -5,15 +5,14 @@
  *
  * - /settings timezone get|set - Manage timezone
  * - /settings apikey set|browse|remove|test - Manage API keys (BYOK)
- * - /settings preset browse|set|clear|set-default|clear-default - Manage preset overrides
  * - /settings defaults edit - Manage global default settings (config cascade)
  *
  * HISTORY:
  * - Consolidated from former /me timezone, /wallet, and /me preset commands
+ * - Preset overrides moved to /preset override (Phase 3 rename batch)
  */
 
 import { SlashCommandBuilder, type AutocompleteInteraction } from 'discord.js';
-import { CONFIG_SLOT_OPTION_DESCRIPTION } from '@tzurot/common-types/constants/ai';
 import { DISCORD_LIMITS, DISCORD_PROVIDER_CHOICES } from '@tzurot/common-types/constants/discord';
 import { TIMEZONE_OPTIONS } from '@tzurot/common-types/constants/timezone';
 import { createLogger } from '@tzurot/common-types/utils/logger';
@@ -38,20 +37,6 @@ import { handleRemoveKey } from './apikey/remove.js';
 import { handleTestKey } from './apikey/test.js';
 import { handleApikeyModalSubmit } from './apikey/modal.js';
 import { ApikeyCustomIds, DestructiveCustomIds } from '../../utils/customIds.js';
-
-// Preset handlers
-import {
-  handlePresetBrowse,
-  handlePresetBrowseSelect,
-  handlePresetBrowseButton,
-  isPresetOverrideInteraction,
-  PRESET_OVERRIDE_PREFIX,
-} from './preset/browse.js';
-import { handleSet as handlePresetSet } from './preset/set.js';
-import { handleClear as handlePresetClear } from './preset/clear.js';
-import { handleSetDefault as handlePresetSetDefault } from './preset/set-default.js';
-import { handleClearDefault as handlePresetClearDefault } from './preset/clear-default.js';
-import { handleAutocomplete as handlePresetAutocomplete } from './preset/autocomplete.js';
 
 // Data-rights handlers (account export + deletion)
 import { handleDataExport } from './data/export.js';
@@ -109,20 +94,6 @@ const apikeyRouter = createMixedModeSubcommandRouter(
 );
 
 /**
- * Preset subcommand group router (all deferred)
- */
-const presetRouter = createTypedSubcommandRouter(
-  {
-    browse: handlePresetBrowse,
-    set: handlePresetSet,
-    clear: handlePresetClear,
-    'set-default': handlePresetSetDefault,
-    'clear-default': handlePresetClearDefault,
-  },
-  { logger, logPrefix: '[Settings/Preset]' }
-);
-
-/**
  * Data-rights subcommand group router (all deferred)
  */
 const dataRouter = createTypedSubcommandRouter(
@@ -143,8 +114,6 @@ async function execute(context: SafeCommandContext): Promise<void> {
     await timezoneRouter(context as DeferredCommandContext);
   } else if (group === 'apikey') {
     await apikeyRouter(context);
-  } else if (group === 'preset') {
-    await presetRouter(context as DeferredCommandContext);
   } else if (group === 'data') {
     await dataRouter(context as DeferredCommandContext);
   } else if (group === 'defaults') {
@@ -158,10 +127,10 @@ async function execute(context: SafeCommandContext): Promise<void> {
 }
 
 /**
- * Component dispatch (apikey modal, defaults dashboard, preset-override
- * browse, account-delete confirmation). The unrouted fallback ACKS: an
- * unacknowledged modal submit surfaces as Discord's "This interaction
- * failed", and a silent warn leaves buttons dead-ended with no feedback.
+ * Component dispatch (apikey modal, defaults dashboard, account-delete
+ * confirmation). The unrouted fallback ACKS: an unacknowledged modal submit
+ * surfaces as Discord's "This interaction failed", and a silent warn leaves
+ * buttons dead-ended with no feedback.
  */
 const settingsComponentRouter = createComponentRouter({
   routes: [
@@ -171,11 +140,6 @@ const settingsComponentRouter = createComponentRouter({
       onButton: handleUserDefaultsButton,
       onSelect: handleUserDefaultsSelectMenu,
       onModal: handleUserDefaultsModal,
-    },
-    {
-      matches: isPresetOverrideInteraction,
-      onButton: handlePresetBrowseButton,
-      onSelect: handlePresetBrowseSelect,
     },
     {
       matches: isAccountDeleteInteraction,
@@ -193,11 +157,10 @@ const settingsComponentRouter = createComponentRouter({
 });
 
 /**
- * Autocomplete handler for timezone, personality, and preset options
+ * Autocomplete handler for timezone options
  */
 async function autocomplete(interaction: AutocompleteInteraction): Promise<void> {
   const focusedOption = interaction.options.getFocused(true);
-  const subcommandGroup = interaction.options.getSubcommandGroup();
 
   if (focusedOption.name === 'timezone') {
     // Inline timezone autocomplete
@@ -216,9 +179,6 @@ async function autocomplete(interaction: AutocompleteInteraction): Promise<void>
     }));
 
     await interaction.respond(choices);
-  } else if (subcommandGroup === 'preset') {
-    // handlePresetAutocomplete handles both 'character' and 'preset' options
-    await handlePresetAutocomplete(interaction);
   } else {
     await interaction.respond([]);
   }
@@ -301,93 +261,6 @@ export default defineCommand({
             )
         )
     )
-    // Preset subcommand group
-    .addSubcommandGroup(group =>
-      group
-        .setName('preset')
-        .setDescription('Manage preset/model overrides')
-        .addSubcommand(subcommand =>
-          subcommand
-            .setName('browse')
-            .setDescription('Browse your preset overrides (select to clear)')
-        )
-        .addSubcommand(subcommand =>
-          subcommand
-            .setName('set')
-            .setDescription('Override preset for a character')
-            .addStringOption(option =>
-              option
-                .setName('character')
-                .setDescription('The character to override')
-                .setRequired(true)
-                .setAutocomplete(true)
-            )
-            .addStringOption(option =>
-              option
-                .setName('preset')
-                .setDescription('The preset to use')
-                .setRequired(true)
-                .setAutocomplete(true)
-            )
-            .addStringOption(option =>
-              option
-                .setName('slot')
-                .setDescription(CONFIG_SLOT_OPTION_DESCRIPTION)
-                .setRequired(false)
-                .addChoices({ name: 'Chat', value: 'text' }, { name: 'Vision', value: 'vision' })
-            )
-        )
-        .addSubcommand(subcommand =>
-          subcommand
-            .setName('clear')
-            .setDescription('Remove preset override for a character')
-            .addStringOption(option =>
-              option
-                .setName('character')
-                .setDescription('The character to clear')
-                .setRequired(true)
-                .setAutocomplete(true)
-            )
-            .addStringOption(option =>
-              option
-                .setName('slot')
-                .setDescription(CONFIG_SLOT_OPTION_DESCRIPTION)
-                .setRequired(false)
-                .addChoices({ name: 'Chat', value: 'text' }, { name: 'Vision', value: 'vision' })
-            )
-        )
-        .addSubcommand(subcommand =>
-          subcommand
-            .setName('set-default')
-            .setDescription('Set your global default preset')
-            .addStringOption(option =>
-              option
-                .setName('preset')
-                .setDescription('The preset to use as default')
-                .setRequired(true)
-                .setAutocomplete(true)
-            )
-            .addStringOption(option =>
-              option
-                .setName('slot')
-                .setDescription(CONFIG_SLOT_OPTION_DESCRIPTION)
-                .setRequired(false)
-                .addChoices({ name: 'Chat', value: 'text' }, { name: 'Vision', value: 'vision' })
-            )
-        )
-        .addSubcommand(subcommand =>
-          subcommand
-            .setName('clear-default')
-            .setDescription('Clear your global default preset')
-            .addStringOption(option =>
-              option
-                .setName('slot')
-                .setDescription(CONFIG_SLOT_OPTION_DESCRIPTION)
-                .setRequired(false)
-                .addChoices({ name: 'Chat', value: 'text' }, { name: 'Vision', value: 'vision' })
-            )
-        )
-    )
     // Defaults subcommand group (user-default config cascade settings)
     .addSubcommandGroup(group =>
       group
@@ -418,5 +291,5 @@ export default defineCommand({
   handleModal: settingsComponentRouter.handleModal,
   handleButton: settingsComponentRouter.handleButton,
   handleSelectMenu: settingsComponentRouter.handleSelectMenu,
-  componentPrefixes: ['user-defaults-settings', PRESET_OVERRIDE_PREFIX],
+  componentPrefixes: ['user-defaults-settings'],
 });
