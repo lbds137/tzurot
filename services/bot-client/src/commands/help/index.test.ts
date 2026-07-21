@@ -68,14 +68,22 @@ describe('Help Command', () => {
   describe('command definition', () => {
     it('should have correct name and description', () => {
       expect(data.name).toBe('help');
-      expect(data.description).toBe('Show all available commands');
+      expect(data.description).toBe('Learn what Tzurot is and browse every command');
     });
 
-    it('should have optional command option', () => {
+    it('splits into commands + getting-started subcommands', () => {
       const json = data.toJSON();
-      expect(json.options).toHaveLength(1);
-      expect(json.options![0].name).toBe('command');
-      expect(json.options![0].required).toBe(false);
+      expect(json.options?.map(opt => opt.name)).toEqual(['commands', 'getting-started']);
+    });
+
+    it('keeps the optional command option under the commands subcommand', () => {
+      const json = data.toJSON();
+      const commandsSub = json.options?.find(opt => opt.name === 'commands') as {
+        options?: { name: string; required?: boolean }[];
+      };
+      expect(commandsSub.options).toHaveLength(1);
+      expect(commandsSub.options![0].name).toBe('command');
+      expect(commandsSub.options![0].required).toBe(false);
     });
 
     it('should have deferralMode set to ephemeral', () => {
@@ -137,7 +145,8 @@ describe('Help Command', () => {
      */
     function createMockContext(
       commandOption: string | null = null,
-      commands?: Map<string, Command>
+      commands?: Map<string, Command>,
+      subcommand: string = 'commands'
     ): SafeCommandContext {
       // Mock the underlying interaction
       const mockInteraction = {
@@ -167,13 +176,31 @@ describe('Help Command', () => {
           return null;
         },
         getRequiredOption: vi.fn(),
-        getSubcommand: () => null,
+        getSubcommand: () => subcommand,
         getSubcommandGroup: () => null,
         editReply: mockEditReply,
         followUp: vi.fn(),
         deleteReply: vi.fn(),
       } as unknown as SafeCommandContext;
     }
+
+    it('shows the getting-started screen without needing the commands collection', async () => {
+      // commands deliberately undefined: the onboarding screen must not depend
+      // on the collection (the commands-path guard would error here instead).
+      const interaction = createMockContext(null, undefined, 'getting-started');
+
+      await execute(interaction);
+
+      const embed = mockEditReply.mock.calls[0][0].embeds[0];
+      const json = embed.toJSON();
+      expect(json.title).toContain('Getting Started');
+
+      const allText = JSON.stringify(json);
+      expect(allText).toContain('/chat');
+      expect(allText).toContain('/character browse');
+      expect(allText).toContain('/persona edit');
+      expect(allText).toContain('tzurot.org/docs/getting-started');
+    });
 
     it('should show error when commands not provided', async () => {
       const interaction = createMockContext(null, undefined);

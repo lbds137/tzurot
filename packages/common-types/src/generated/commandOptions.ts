@@ -279,9 +279,9 @@ export const feedbackOptions = defineTypedOptions({
 // =============================================================================
 
 /**
- * /help <command>
+ * /help commands <command>
  */
-export const helpOptions = defineTypedOptions({
+export const helpCommandsOptions = defineTypedOptions({
   command: { type: 'string', required: false },
 });
 
