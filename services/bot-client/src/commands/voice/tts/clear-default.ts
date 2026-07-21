@@ -3,7 +3,7 @@
  * Handles /voice tts clear-default subcommand
  * Clears the user's global default TTS config
  *
- * Mirrors `/preset override clear-default` UX shape exactly.
+ * Mirrors `/preset clear-default` UX shape exactly.
  */
 
 import { EmbedBuilder } from 'discord.js';

@@ -46,26 +46,28 @@ const logger = createLogger('help-command');
 // Settings moved off ⚙️ because that glyph is the PRESET entity's.
 export const CATEGORY_CONFIG: Record<string, { emoji: string; order: number }> = {
   Character: { emoji: ENTITY_EMOJI.character, order: 1 },
-  // Invoke-verb commands (/chat, /random) sit right behind the entity they
-  // act on. Bespoke glyphs: 💬 belongs to Feedback, so Chat uses the
-  // left-speech-bubble variant; 🎲 mirrors the "Picked at random" notice.
+  // Invoke-verb commands (/chat, /random, /chime-in) sit right behind the
+  // entity they act on. Bespoke glyphs: 💬 belongs to Feedback, so Chat uses
+  // the left-speech-bubble variant; 🎲 mirrors the "Picked at random" notice;
+  // 🗣️ is the summon (a character speaks up).
   Chat: { emoji: '🗨️', order: 2 },
   Random: { emoji: '🎲', order: 3 },
-  Persona: { emoji: ENTITY_EMOJI.persona, order: 4 },
-  Preset: { emoji: ENTITY_EMOJI.preset, order: 5 },
-  Settings: { emoji: '🛠️', order: 6 },
-  Voice: { emoji: ENTITY_EMOJI.voice, order: 7 },
-  Shapes: { emoji: ENTITY_EMOJI.shapes, order: 8 },
-  Memory: { emoji: ENTITY_EMOJI.memory, order: 9 },
-  History: { emoji: ENTITY_EMOJI.history, order: 10 },
-  Channel: { emoji: ENTITY_EMOJI.channel, order: 11 },
-  Inspect: { emoji: '🔍', order: 12 },
-  Models: { emoji: ENTITY_EMOJI.model, order: 13 },
-  Notifications: { emoji: '🔔', order: 14 },
-  Feedback: { emoji: '💬', order: 15 },
-  Deny: { emoji: ENTITY_EMOJI.denial, order: 16 },
-  Admin: { emoji: '🛡️', order: 17 },
-  Help: { emoji: '❓', order: 18 },
+  'Chime-in': { emoji: '🗣️', order: 4 },
+  Persona: { emoji: ENTITY_EMOJI.persona, order: 5 },
+  Preset: { emoji: ENTITY_EMOJI.preset, order: 6 },
+  Settings: { emoji: '🛠️', order: 7 },
+  Voice: { emoji: ENTITY_EMOJI.voice, order: 8 },
+  Shapes: { emoji: ENTITY_EMOJI.shapes, order: 9 },
+  Memory: { emoji: ENTITY_EMOJI.memory, order: 10 },
+  History: { emoji: ENTITY_EMOJI.history, order: 11 },
+  Channel: { emoji: ENTITY_EMOJI.channel, order: 12 },
+  Inspect: { emoji: '🔍', order: 13 },
+  Models: { emoji: ENTITY_EMOJI.model, order: 14 },
+  Notifications: { emoji: '🔔', order: 15 },
+  Feedback: { emoji: '💬', order: 16 },
+  Deny: { emoji: ENTITY_EMOJI.denial, order: 17 },
+  Admin: { emoji: '🛡️', order: 18 },
+  Help: { emoji: '❓', order: 19 },
   Other: { emoji: '📦', order: 99 },
 };
 
@@ -426,7 +428,7 @@ const AUTOCOMPLETE_NAME_LIMIT = 100;
  * Autocomplete for the `command` option.
  *
  * Offers the discrete invocable command paths (subcommands like
- * "character chime-in", group subcommands like "admin presence set") so users pick
+ * "admin presence set", group subcommands like "preset override set") so users pick
  * the exact thing they want help with — mirroring Discord's own slash-command
  * picker. A freeform value that doesn't resolve lands on the "Unknown command"
  * path, so steering users to real paths here is the whole point. Matches the

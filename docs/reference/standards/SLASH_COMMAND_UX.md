@@ -108,12 +108,13 @@ Use groups to organize related functionality within a command:
 
 **Invoke = top-level; configure/manage = under the entity.** A command whose
 whole point is _doing the thing the bot exists for_ (starting a character
-conversation: `/chat`, `/random`) earns a top-level slot. Commands that
-_configure or manage_ an entity live as subcommands under that entity's noun
-(`/character edit`, `/character avatar set`). `/character chime-in` stays
-under the entity deliberately: it names a character and reads as a
-character-management summon, while `/chat` and `/random` are the everyday
-invocation verbs.
+conversation: `/chat`, `/random`, `/chime-in`) earns a top-level slot.
+Commands that _configure or manage_ an entity live as subcommands under that
+entity's noun (`/character edit`, `/character avatar set`). `/chime-in` is
+the instructive case: it was briefly kept under `/character` on a
+"reads as a summon" argument, then promoted once a council review agreed the
+rule's own definition decides it — anything that runs a conversation turn is
+an invoke-verb, regardless of whether it names a character.
 
 Top-level slots are a scarce, user-facing namespace — every addition competes
 for discoverability in Discord's command picker. Extract a subcommand to
@@ -431,7 +432,7 @@ await interaction.reply({
 await interaction.reply({
   content:
     '✅ Preset saved!\n\n' +
-    'Use `/preset override set-default` to set it as your default, or\n' +
+    'Use `/preset set-default` to set it as your default, or\n' +
     '`/preset override set` to use it for specific characters.',
   flags: MessageFlags.Ephemeral,
 });

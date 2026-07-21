@@ -3,10 +3,10 @@
  * Manage conversation history (Short-Term Memory)
  *
  * Commands:
- * - /history clear <personality> - Soft reset conversation context
- * - /history undo <personality> - Restore cleared context
- * - /history stats <personality> - View conversation statistics
- * - /history hard-delete <personality> - Permanently delete conversation history
+ * - /history clear <character> - Soft reset conversation context
+ * - /history undo <character> - Restore cleared context
+ * - /history stats <character> - View conversation statistics
+ * - /history purge <character> - Permanently delete conversation history
  */
 
 import {
@@ -26,7 +26,7 @@ import type {
 import { handleClear } from './clear.js';
 import { handleUndo } from './undo.js';
 import { handleStats } from './stats.js';
-import { handleHardDelete, parseHardDeleteEntityId } from './hard-delete.js';
+import { handlePurgeHistory, parsePurgeEntityId } from './purge.js';
 import { handlePersonalityAutocomplete, handlePersonaAutocomplete } from './autocomplete.js';
 import { DestructiveCustomIds } from '../../utils/customIds.js';
 import {
@@ -42,7 +42,10 @@ import { createSuccessEmbed } from '../../utils/commandHelpers.js';
 
 const logger = createLogger('history-command');
 
-const HARD_DELETE_OPERATION = 'hard-delete';
+// The wire token deliberately differs from the 'purge' subcommand name: it
+// replaced the historical 'hard-delete' token at the rename, and namespacing
+// it as 'history-purge' keeps destructive operations globally distinct.
+const HISTORY_PURGE_OPERATION = 'history-purge';
 const PERSONA_OPTION_DESCRIPTION = 'Which persona (defaults to your active persona)';
 
 /**
@@ -54,7 +57,7 @@ const historyRouter = createSubcommandContextRouter(
     clear: handleClear,
     undo: handleUndo,
     stats: handleStats,
-    [HARD_DELETE_OPERATION]: handleHardDelete,
+    purge: handlePurgeHistory,
   },
   { logger, logPrefix: '[History]' }
 );
@@ -69,9 +72,9 @@ async function execute(ctx: SafeCommandContext): Promise<void> {
 }
 
 /**
- * Build the hard-delete execution callback for modal submission
+ * Build the purge execution callback for modal submission
  */
-function buildHardDeleteOperation(
+function buildPurgeOperation(
   userClient: UserClient,
   userId: string,
   personalitySlug: string,
@@ -83,7 +86,7 @@ function buildHardDeleteOperation(
     if (!result.ok) {
       logger.error(
         { userId, personalitySlug, channelId, error: result.error },
-        'Hard-delete API failed'
+        'History-purge API failed'
       );
       return {
         success: false,
@@ -96,7 +99,7 @@ function buildHardDeleteOperation(
 
     const { deletedCount } = result.data;
 
-    logger.info({ userId, personalitySlug, channelId, deletedCount }, 'Hard-delete completed');
+    logger.info({ userId, personalitySlug, channelId, deletedCount }, 'History-purge completed');
 
     return {
       success: true,
@@ -123,9 +126,8 @@ async function handleModal(interaction: ModalSubmitInteraction): Promise<void> {
       return;
     }
 
-    if (parsed.operation === HARD_DELETE_OPERATION && parsed.action === 'modal_submit') {
-      const entityInfo =
-        parsed.entityId !== undefined ? parseHardDeleteEntityId(parsed.entityId) : null;
+    if (parsed.operation === HISTORY_PURGE_OPERATION && parsed.action === 'modal_submit') {
+      const entityInfo = parsed.entityId !== undefined ? parsePurgeEntityId(parsed.entityId) : null;
 
       if (entityInfo === null) {
         await interaction.reply({
@@ -137,7 +139,7 @@ async function handleModal(interaction: ModalSubmitInteraction): Promise<void> {
 
       const { personalitySlug, channelId } = entityInfo;
       const { userClient } = clientsFor(interaction);
-      const executeOperation = buildHardDeleteOperation(
+      const executeOperation = buildPurgeOperation(
         userClient,
         interaction.user.id,
         personalitySlug,
@@ -172,13 +174,13 @@ async function autocomplete(interaction: AutocompleteInteraction): Promise<void>
 }
 
 /**
- * Handle the confirm button for hard-delete operations
+ * Handle the confirm button for history-purge operations
  */
-async function handleHardDeleteConfirm(
+async function handlePurgeConfirm(
   interaction: ButtonInteraction,
   entityId: string | undefined
 ): Promise<void> {
-  const entityInfo = entityId !== undefined ? parseHardDeleteEntityId(entityId) : null;
+  const entityInfo = entityId !== undefined ? parsePurgeEntityId(entityId) : null;
 
   if (entityInfo === null) {
     logger.warn({ entityId }, 'Failed to parse entityId');
@@ -212,13 +214,13 @@ async function handleButton(interaction: ButtonInteraction): Promise<void> {
       return;
     }
 
-    if (parsed.operation === HARD_DELETE_OPERATION) {
+    if (parsed.operation === HISTORY_PURGE_OPERATION) {
       if (parsed.action === 'cancel_button') {
-        await handleDestructiveCancel(interaction, 'Hard-delete cancelled.');
+        await handleDestructiveCancel(interaction, 'History purge cancelled.');
         return;
       }
       if (parsed.action === 'confirm_button') {
-        await handleHardDeleteConfirm(interaction, parsed.entityId);
+        await handlePurgeConfirm(interaction, parsed.entityId);
         return;
       }
     }
@@ -298,10 +300,11 @@ export default defineCommand({
     )
     .addSubcommand(subcommand =>
       subcommand
-        // Literal string (not the HARD_DELETE_OPERATION variable) so the
-        // generate:command-types parser picks it up — its static analysis
-        // only tracks `setName('literal')` calls, not variable references.
-        .setName('hard-delete')
+        // Literal string (the wire token HISTORY_PURGE_OPERATION is a
+        // different, namespaced value) — also required because the
+        // generate:command-types parser's static analysis only tracks
+        // `setName('literal')` calls, not variable references.
+        .setName('purge')
         .setDescription('PERMANENTLY delete conversation history (cannot be undone!)')
         .addStringOption(option =>
           option

@@ -65,19 +65,28 @@ describe('CommandHandler (component)', () => {
 
       expect(characterCommand).toBeDefined();
       expect(characterCommand?.subcommandDeferralModes).toBeDefined();
-      // `chime-in` defers ephemerally so errors land invoker-only; the
-      // character webhook reply is independent of defer mode and stays
-      // public. (Its sibling turn commands are top-level /chat and /random.)
-      expect(characterCommand?.subcommandDeferralModes?.['chime-in']).toBe('ephemeral');
-      // `create` shows a modal; cross-check it's still set up correctly.
+      // `create` shows a modal; everything else rides the ephemeral default.
       expect(characterCommand?.subcommandDeferralModes?.create).toBe('modal');
     });
 
     it('should preserve ephemeral deferralMode for the top-level turn commands', () => {
-      // /chat and /random carry the invoker-only rationale on their own
-      // definitions after the extraction from /character.
+      // /chat, /random, and /chime-in carry the invoker-only rationale on
+      // their own definitions after the extraction from /character.
       expect(handler.getCommand('chat')?.deferralMode).toBe('ephemeral');
       expect(handler.getCommand('random')?.deferralMode).toBe('ephemeral');
+      expect(handler.getCommand('chime-in')?.deferralMode).toBe('ephemeral');
+    });
+
+    it('keeps the owner-only commands hidden from non-admin pickers', () => {
+      // Picker hygiene (default_member_permissions '0'); the runtime owner
+      // gates stay authoritative. Pinned here because the option snapshot
+      // only covers data.options — a builder edit could otherwise drop the
+      // permission silently.
+      for (const name of ['admin', 'deny']) {
+        const json = handler.getCommand(name)?.data.toJSON() as
+          { default_member_permissions?: string | null } | undefined;
+        expect(json?.default_member_permissions).toBe('0');
+      }
     });
 
     it('should preserve subcommandDeferralModes for persona command', () => {

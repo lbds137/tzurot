@@ -4,6 +4,7 @@
     "Character",
     "Chat",
     "Random",
+    "Chime-in",
     "Persona",
     "Preset",
     "Settings",
@@ -294,6 +295,7 @@
         ],
         "name": "admin",
         "description": "Admin commands (Owner only)",
+        "default_member_permissions": "0",
         "type": 1
       }
     },
@@ -646,26 +648,6 @@
           },
           {
             "type": 1,
-            "name": "chime-in",
-            "description": "Have a character chime in on the recent conversation (no message from you)",
-            "options": [
-              {
-                "autocomplete": true,
-                "type": 3,
-                "name": "character",
-                "description": "Which character",
-                "required": true
-              },
-              {
-                "name": "incognito",
-                "description": "Anonymous by default (no persona/memories). Set False to use your persona + memories.",
-                "required": false,
-                "type": 5
-              }
-            ]
-          },
-          {
-            "type": 1,
             "name": "settings",
             "description": "Open character settings dashboard (owner only)",
             "options": [
@@ -729,6 +711,39 @@
         ],
         "name": "chat",
         "description": "Chat one-on-one with a character",
+        "type": 1
+      }
+    },
+    {
+      "name": "chime-in",
+      "category": "Chime-in",
+      "description": "Have a character chime in on the recent conversation (no message from you)",
+      "handlers": {
+        "execute": true,
+        "autocomplete": true,
+        "selectMenu": false,
+        "button": false,
+        "modal": false
+      },
+      "componentPrefixes": [],
+      "data": {
+        "options": [
+          {
+            "autocomplete": true,
+            "type": 3,
+            "name": "character",
+            "description": "Which character",
+            "required": true
+          },
+          {
+            "name": "incognito",
+            "description": "Anonymous by default (no persona/memories). Set False to use your persona + memories.",
+            "required": false,
+            "type": 5
+          }
+        ],
+        "name": "chime-in",
+        "description": "Have a character chime in on the recent conversation (no message from you)",
         "type": 1
       }
     },
@@ -969,6 +984,7 @@
         ],
         "name": "deny",
         "description": "Manage user and server denials",
+        "default_member_permissions": "0",
         "type": 1
       }
     },
@@ -1118,7 +1134,7 @@
           },
           {
             "type": 1,
-            "name": "hard-delete",
+            "name": "purge",
             "description": "PERMANENTLY delete conversation history (cannot be undone!)",
             "options": [
               {
@@ -1605,7 +1621,7 @@
     {
       "name": "persona",
       "category": "Persona",
-      "description": "Manage your AI personas",
+      "description": "Manage your personas — how characters see you",
       "handlers": {
         "execute": true,
         "autocomplete": true,
@@ -1706,7 +1722,7 @@
           }
         ],
         "name": "persona",
-        "description": "Manage your AI personas",
+        "description": "Manage your personas — how characters see you",
         "type": 1
       }
     },
@@ -1837,6 +1853,59 @@
             "options": []
           },
           {
+            "type": 1,
+            "name": "set-default",
+            "description": "Set your default preset — used for every character without an override",
+            "options": [
+              {
+                "autocomplete": true,
+                "type": 3,
+                "name": "preset",
+                "description": "Which preset",
+                "required": true
+              },
+              {
+                "type": 3,
+                "choices": [
+                  {
+                    "name": "Chat",
+                    "value": "text"
+                  },
+                  {
+                    "name": "Vision",
+                    "value": "vision"
+                  }
+                ],
+                "name": "slot",
+                "description": "Which slot to target: Chat (default) or Vision",
+                "required": false
+              }
+            ]
+          },
+          {
+            "type": 1,
+            "name": "clear-default",
+            "description": "Clear your default preset",
+            "options": [
+              {
+                "type": 3,
+                "choices": [
+                  {
+                    "name": "Chat",
+                    "value": "text"
+                  },
+                  {
+                    "name": "Vision",
+                    "value": "vision"
+                  }
+                ],
+                "name": "slot",
+                "description": "Which slot to target: Chat (default) or Vision",
+                "required": false
+              }
+            ]
+          },
+          {
             "type": 2,
             "name": "global",
             "description": "Manage global presets (Owner only)",
@@ -1906,7 +1975,7 @@
           {
             "type": 2,
             "name": "override",
-            "description": "Per-character preset overrides and your default preset",
+            "description": "Per-character preset overrides",
             "options": [
               {
                 "type": 1,
@@ -1963,59 +2032,6 @@
                     "description": "Which character",
                     "required": true
                   },
-                  {
-                    "type": 3,
-                    "choices": [
-                      {
-                        "name": "Chat",
-                        "value": "text"
-                      },
-                      {
-                        "name": "Vision",
-                        "value": "vision"
-                      }
-                    ],
-                    "name": "slot",
-                    "description": "Which slot to target: Chat (default) or Vision",
-                    "required": false
-                  }
-                ]
-              },
-              {
-                "type": 1,
-                "name": "set-default",
-                "description": "Set your global default preset",
-                "options": [
-                  {
-                    "autocomplete": true,
-                    "type": 3,
-                    "name": "preset",
-                    "description": "Which preset",
-                    "required": true
-                  },
-                  {
-                    "type": 3,
-                    "choices": [
-                      {
-                        "name": "Chat",
-                        "value": "text"
-                      },
-                      {
-                        "name": "Vision",
-                        "value": "vision"
-                      }
-                    ],
-                    "name": "slot",
-                    "description": "Which slot to target: Chat (default) or Vision",
-                    "required": false
-                  }
-                ]
-              },
-              {
-                "type": 1,
-                "name": "clear-default",
-                "description": "Clear your global default preset",
-                "options": [
                   {
                     "type": 3,
                     "choices": [
@@ -2520,7 +2536,7 @@
           {
             "type": 2,
             "name": "voices",
-            "description": "Manage your ElevenLabs cloned voices",
+            "description": "Manage your cloned voices",
             "options": [
               {
                 "type": 1,

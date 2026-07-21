@@ -277,7 +277,7 @@ export default defineCommand({
   // NO componentPrefixes needed - command name = entityType = 'persona'
   data: new SlashCommandBuilder()
     .setName('persona')
-    .setDescription('Manage your AI personas')
+    .setDescription('Manage your personas — how characters see you')
     .addSubcommand(subcommand =>
       subcommand.setName('view').setDescription('View your current persona')
     )

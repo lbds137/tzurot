@@ -32,7 +32,6 @@ import { handleEdit } from './edit.js';
 import { handleAvatar } from './avatar.js';
 import { handleVoice } from './voice.js';
 import { handleBrowse } from './browse.js';
-import { handleChimeIn } from '../../services/character/characterTurn.js';
 import { handleSettings } from './settings.js';
 import { handleOverrides } from './overrides.js';
 import {
@@ -68,7 +67,6 @@ function createCharacterRouter(): (context: SafeCommandContext) => Promise<void>
         import: (ctx: DeferredCommandContext) => handleImport(ctx, config),
         export: (ctx: DeferredCommandContext) => handleExport(ctx, config),
         template: (ctx: DeferredCommandContext) => handleTemplate(ctx, config),
-        'chime-in': (ctx: DeferredCommandContext) => handleChimeIn(ctx),
         settings: (ctx: DeferredCommandContext) => handleSettings(ctx, config),
         overrides: (ctx: DeferredCommandContext) => handleOverrides(ctx, config),
       },
@@ -124,11 +122,6 @@ export default defineCommand({
   deferralMode: 'ephemeral', // Default for most subcommands
   subcommandDeferralModes: {
     create: 'modal', // /character create shows a modal
-    // chime-in defers ephemerally so error responses (editReply) land as
-    // invoker-only messages. The character's webhook reply is independent of
-    // the defer mode and remains public. (The sibling turn commands /chat and
-    // /random carry the same rationale on their own definitions.)
-    'chime-in': 'ephemeral',
   },
   data: new SlashCommandBuilder()
     .setName('character')
@@ -330,28 +323,6 @@ export default defineCommand({
     )
     .addSubcommand(subcommand =>
       subcommand.setName('template').setDescription('Show the JSON template for character import')
-    )
-    .addSubcommand(subcommand =>
-      subcommand
-        .setName('chime-in')
-        .setDescription(
-          'Have a character chime in on the recent conversation (no message from you)'
-        )
-        .addStringOption(option =>
-          option
-            .setName('character')
-            .setDescription(SELECTOR_DESCRIPTION.character)
-            .setRequired(true)
-            .setAutocomplete(true)
-        )
-        .addBooleanOption(option =>
-          option
-            .setName('incognito')
-            .setDescription(
-              'Anonymous by default (no persona/memories). Set False to use your persona + memories.'
-            )
-            .setRequired(false)
-        )
     )
     .addSubcommand(subcommand =>
       subcommand

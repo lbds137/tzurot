@@ -1,6 +1,6 @@
 /**
  * Denylist + NSFW gates for the character-turn slash path
- * (`/chat`, `/random`, `/character chime-in`).
+ * (`/chat`, `/random`, `/chime-in`).
  *
  * The message pipeline runs these gates in `PersonalityChatManager.runGates`;
  * the slash path historically skipped them entirely, so a denylisted personality

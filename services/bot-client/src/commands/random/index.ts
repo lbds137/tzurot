@@ -4,7 +4,7 @@
  *
  * Thin command surface over the shared character-turn engine
  * (services/character/characterTurn.ts), which also powers `/chat` and
- * `/character chime-in`. Extracted from `/character random`: invoking a
+ * `/chime-in`. Extracted from `/character random`: invoking a
  * character is the bot's primary action, so it lives at the top level.
  *
  * With a message it's a chat; with no message the random pick reads the

@@ -3,7 +3,7 @@
  *
  * Shared logic for validating guest mode users' access to premium models
  * and showing the "Unlock All Models" upsell embed.
- * Used by both /preset override set-default and /preset override set handlers.
+ * Used by both /preset set-default and /preset override set handlers.
  */
 
 import { EmbedBuilder } from 'discord.js';

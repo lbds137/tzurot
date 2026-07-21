@@ -241,6 +241,9 @@ export default defineCommand({
   data: new SlashCommandBuilder()
     .setName('admin')
     .setDescription('Admin commands (Owner only)')
+    // Hide from non-admin members' command pickers. The bot-owner runtime
+    // gate stays authoritative — this is picker hygiene, not access control.
+    .setDefaultMemberPermissions('0')
     .addSubcommand(subcommand =>
       subcommand.setName('ping').setDescription('Check bot responsiveness and latency')
     )

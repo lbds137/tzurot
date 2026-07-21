@@ -49,9 +49,6 @@ vi.mock('./browse.js', () => ({
   isCharacterBrowseInteraction: vi.fn().mockReturnValue(false),
   isCharacterBrowseSelectInteraction: vi.fn().mockReturnValue(false),
 }));
-vi.mock('../../services/character/characterTurn.js', () => ({
-  handleChimeIn: vi.fn().mockResolvedValue(undefined),
-}));
 vi.mock('./settings.js', () => ({
   handleSettings: vi.fn().mockResolvedValue(undefined),
   handleCharacterSettingsSelectMenu: vi.fn().mockResolvedValue(undefined),

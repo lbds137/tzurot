@@ -187,14 +187,6 @@ export const characterExportOptions = defineTypedOptions({
 });
 
 /**
- * /character chime-in <character, incognito>
- */
-export const characterChimeInOptions = defineTypedOptions({
-  character: { type: 'string', required: true },
-  incognito: { type: 'boolean', required: false },
-});
-
-/**
  * /character settings <character>
  */
 export const characterSettingsOptions = defineTypedOptions({
@@ -218,6 +210,18 @@ export const characterOverridesOptions = defineTypedOptions({
 export const chatOptions = defineTypedOptions({
   character: { type: 'string', required: true },
   message: { type: 'string', required: true },
+});
+
+// =============================================================================
+// CHIME-IN COMMAND
+// =============================================================================
+
+/**
+ * /chime-in <character, incognito>
+ */
+export const chimeInOptions = defineTypedOptions({
+  character: { type: 'string', required: true },
+  incognito: { type: 'boolean', required: false },
 });
 
 // =============================================================================
@@ -314,9 +318,9 @@ export const historyStatsOptions = defineTypedOptions({
 });
 
 /**
- * /history hard-delete <character>
+ * /history purge <character>
  */
-export const historyHardDeleteOptions = defineTypedOptions({
+export const historyPurgeOptions = defineTypedOptions({
   character: { type: 'string', required: true },
 });
 
@@ -525,21 +529,6 @@ export const presetOverrideClearOptions = defineTypedOptions({
 });
 
 /**
- * /preset override set-default <preset, slot>
- */
-export const presetOverrideSetDefaultOptions = defineTypedOptions({
-  preset: { type: 'string', required: true },
-  slot: { type: 'string', required: false },
-});
-
-/**
- * /preset override clear-default <slot>
- */
-export const presetOverrideClearDefaultOptions = defineTypedOptions({
-  slot: { type: 'string', required: false },
-});
-
-/**
  * /preset browse <query, filter, capability>
  */
 export const presetBrowseOptions = defineTypedOptions({
@@ -567,6 +556,21 @@ export const presetExportOptions = defineTypedOptions({
  */
 export const presetImportOptions = defineTypedOptions({
   file: { type: 'attachment', required: true },
+});
+
+/**
+ * /preset set-default <preset, slot>
+ */
+export const presetSetDefaultOptions = defineTypedOptions({
+  preset: { type: 'string', required: true },
+  slot: { type: 'string', required: false },
+});
+
+/**
+ * /preset clear-default <slot>
+ */
+export const presetClearDefaultOptions = defineTypedOptions({
+  slot: { type: 'string', required: false },
 });
 
 // =============================================================================

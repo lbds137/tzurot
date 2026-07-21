@@ -14,7 +14,7 @@ export function buildVoiceVoicesSubcommandGroup(
 ): SlashCommandSubcommandGroupBuilder {
   return group
     .setName('voices')
-    .setDescription('Manage your ElevenLabs cloned voices')
+    .setDescription('Manage your cloned voices')
     .addSubcommand(subcommand =>
       subcommand.setName('browse').setDescription('Browse your cloned voices')
     )
