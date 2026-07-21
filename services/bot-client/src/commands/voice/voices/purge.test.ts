@@ -1,5 +1,5 @@
 /**
- * Tests for Voice Clear Handler
+ * Tests for Voice Purge Handler
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -9,11 +9,11 @@ import type {
   ModalSubmitInteraction,
 } from 'discord.js';
 import {
-  handleClearVoices,
-  handleVoiceClearButton,
-  handleVoiceClearModal,
-  VOICE_CLEAR_OPERATION,
-} from './clear.js';
+  handlePurgeVoices,
+  handleVoicePurgeButton,
+  handleVoicePurgeModal,
+  VOICE_PURGE_OPERATION,
+} from './purge.js';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
 import { makeOk, makeErr } from '../../../test/gatewayClientStubs.js';
 import type { UserClient } from '@tzurot/clients';
@@ -76,7 +76,7 @@ vi.mock('../../../utils/customIds.js', () => ({
   },
 }));
 
-describe('handleClearVoices', () => {
+describe('handlePurgeVoices', () => {
   const mockEditReply = vi.fn();
 
   beforeEach(() => {
@@ -106,7 +106,7 @@ describe('handleClearVoices', () => {
       deleteReply: vi.fn(),
       getOption: vi.fn(),
       getRequiredOption: vi.fn(),
-      getSubcommand: vi.fn().mockReturnValue('clear'),
+      getSubcommand: vi.fn().mockReturnValue('purge'),
       getSubcommandGroup: vi.fn().mockReturnValue('voices'),
     } as unknown as DeferredCommandContext;
   }
@@ -123,12 +123,12 @@ describe('handleClearVoices', () => {
       })
     );
 
-    await handleClearVoices(createMockContext());
+    await handlePurgeVoices(createMockContext());
 
     expect(mockBuildDestructiveWarning).toHaveBeenCalledWith(
       expect.objectContaining({
         entityType: 'cloned voices',
-        operation: VOICE_CLEAR_OPERATION,
+        operation: VOICE_PURGE_OPERATION,
       })
     );
     expect(mockEditReply).toHaveBeenCalled();
@@ -146,7 +146,7 @@ describe('handleClearVoices', () => {
       })
     );
 
-    await handleClearVoices(createMockContext());
+    await handlePurgeVoices(createMockContext());
 
     const callArg = mockBuildDestructiveWarning.mock.calls[0]?.[0] as
       { entityName?: string } | undefined;
@@ -158,10 +158,10 @@ describe('handleClearVoices', () => {
   it('should show message when no voices to clear', async () => {
     stub.listVoices.mockResolvedValue(makeOk({ voices: [], totalVoices: 5, tzurotCount: 0 }));
 
-    await handleClearVoices(createMockContext());
+    await handlePurgeVoices(createMockContext());
 
     expect(mockEditReply).toHaveBeenCalledWith({
-      content: 'No Tzurot voices to clear.',
+      content: 'No Tzurot voices to purge.',
     });
     expect(mockBuildDestructiveWarning).not.toHaveBeenCalled();
   });
@@ -169,7 +169,7 @@ describe('handleClearVoices', () => {
   it('should handle API error', async () => {
     stub.listVoices.mockResolvedValue(makeErr(404, 'ElevenLabs API key not found'));
 
-    await handleClearVoices(createMockContext());
+    await handlePurgeVoices(createMockContext());
 
     expect(mockEditReply).toHaveBeenCalledWith({
       content: '❌ ElevenLabs API key not found',
@@ -179,41 +179,41 @@ describe('handleClearVoices', () => {
   it('should handle exceptions', async () => {
     stub.listVoices.mockRejectedValue(new Error('Network error'));
 
-    await handleClearVoices(createMockContext());
+    await handlePurgeVoices(createMockContext());
 
     expect(mockEditReply).toHaveBeenCalledWith({
-      content: '❌ Failed to clear your voices. Please try again.',
+      content: '❌ Failed to purge your voices. Please try again.',
     });
   });
 });
 
-describe('handleVoiceClearButton', () => {
+describe('handleVoicePurgeButton', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
   it('should handle cancel button', async () => {
     const interaction = {
-      customId: `voice::destructive::cancel_button::${VOICE_CLEAR_OPERATION}::all`,
+      customId: `voice::destructive::cancel_button::${VOICE_PURGE_OPERATION}::all`,
     } as unknown as ButtonInteraction;
 
-    await handleVoiceClearButton(interaction);
+    await handleVoicePurgeButton(interaction);
 
-    expect(mockHandleDestructiveCancel).toHaveBeenCalledWith(interaction, 'Voice clear cancelled.');
+    expect(mockHandleDestructiveCancel).toHaveBeenCalledWith(interaction, 'Voice purge cancelled.');
   });
 
   it('should handle confirm button', async () => {
     const interaction = {
-      customId: `voice::destructive::confirm_button::${VOICE_CLEAR_OPERATION}::all`,
+      customId: `voice::destructive::confirm_button::${VOICE_PURGE_OPERATION}::all`,
     } as unknown as ButtonInteraction;
 
-    await handleVoiceClearButton(interaction);
+    await handleVoicePurgeButton(interaction);
 
     expect(mockHandleDestructiveConfirmButton).toHaveBeenCalled();
   });
 });
 
-describe('handleVoiceClearModal', () => {
+describe('handleVoicePurgeModal', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     stub.clearVoices.mockReset();
@@ -221,11 +221,11 @@ describe('handleVoiceClearModal', () => {
 
   it('should handle modal submit', async () => {
     const interaction = {
-      customId: `voice::destructive::modal_submit::${VOICE_CLEAR_OPERATION}::all`,
+      customId: `voice::destructive::modal_submit::${VOICE_PURGE_OPERATION}::all`,
       user: { id: 'user-123' },
     } as unknown as ModalSubmitInteraction;
 
-    await handleVoiceClearModal(interaction);
+    await handleVoicePurgeModal(interaction);
 
     expect(mockHandleDestructiveModalSubmit).toHaveBeenCalled();
   });
@@ -244,11 +244,11 @@ describe('handleVoiceClearModal', () => {
       data: { deleted: 3, total: 3 },
     });
     const interaction = {
-      customId: `voice::destructive::modal_submit::${VOICE_CLEAR_OPERATION}::all`,
+      customId: `voice::destructive::modal_submit::${VOICE_PURGE_OPERATION}::all`,
       user: { id: 'user-123' },
     } as unknown as ModalSubmitInteraction;
 
-    await handleVoiceClearModal(interaction);
+    await handleVoicePurgeModal(interaction);
 
     expect(stub.clearVoices).toHaveBeenCalled();
   });

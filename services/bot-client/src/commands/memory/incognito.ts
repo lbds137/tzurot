@@ -123,7 +123,7 @@ export async function handleIncognitoEnable(context: DeferredCommandContext): Pr
   const { userClient } = clientsFor(context.interaction);
   const options = memoryIncognitoEnableOptions(context.interaction);
   const personalityInput = options.character();
-  const duration = options.duration() as IncognitoDuration;
+  const duration = options.timeframe() as IncognitoDuration;
 
   try {
     const resolved = await resolveIncognitoTargetOrReply(context, userClient, personalityInput);

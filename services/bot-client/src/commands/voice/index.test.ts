@@ -49,11 +49,11 @@ vi.mock('./voices/delete.js', () => ({
   handleDeleteVoice: vi.fn(),
   handleVoiceAutocomplete: vi.fn(),
 }));
-vi.mock('./voices/clear.js', () => ({
-  handleClearVoices: vi.fn(),
-  handleVoiceClearButton: vi.fn(),
-  handleVoiceClearModal: vi.fn(),
-  VOICE_CLEAR_OPERATION: 'voice-clear',
+vi.mock('./voices/purge.js', () => ({
+  handlePurgeVoices: vi.fn(),
+  handleVoicePurgeButton: vi.fn(),
+  handleVoicePurgeModal: vi.fn(),
+  VOICE_PURGE_OPERATION: 'voice-purge',
 }));
 
 import { handleTtsBrowse } from './tts/browse.js';
@@ -69,10 +69,10 @@ import {
 } from './voices/browse.js';
 import { handleDeleteVoice, handleVoiceAutocomplete } from './voices/delete.js';
 import {
-  handleClearVoices,
-  handleVoiceClearButton,
-  handleVoiceClearModal,
-} from './voices/clear.js';
+  handlePurgeVoices,
+  handleVoicePurgeButton,
+  handleVoicePurgeModal,
+} from './voices/purge.js';
 
 describe('Voice Command', () => {
   const mockEditReply = vi.fn();
@@ -118,7 +118,7 @@ describe('Voice Command', () => {
       const voicesSubcommands = ((voices as { options?: { name: string }[] }).options ?? [])
         .map(s => s.name)
         .sort();
-      expect(voicesSubcommands).toEqual(['browse', 'clear', 'delete']);
+      expect(voicesSubcommands).toEqual(['browse', 'delete', 'purge']);
     });
   });
 
@@ -165,10 +165,10 @@ describe('Voice Command', () => {
       expect(handleDeleteVoice).toHaveBeenCalledOnce();
     });
 
-    it('routes /voice voices clear to handleClearVoices', async () => {
-      const ctx = createMockContext('clear', 'voices');
+    it('routes /voice voices purge to handlePurgeVoices', async () => {
+      const ctx = createMockContext('purge', 'voices');
       await execute(ctx as any);
-      expect(handleClearVoices).toHaveBeenCalledOnce();
+      expect(handlePurgeVoices).toHaveBeenCalledOnce();
     });
 
     it('replies with error on unknown subcommand group', async () => {
@@ -229,13 +229,13 @@ describe('Voice Command', () => {
       expect(handleVoiceBrowsePagination).toHaveBeenCalledOnce();
     });
 
-    it('routes destructive voice-clear customIds to handleVoiceClearButton', async () => {
+    it('routes destructive voice-purge customIds to handleVoicePurgeButton', async () => {
       vi.mocked(isVoiceBrowseInteraction).mockReturnValue(false);
       const interaction = {
-        customId: 'voice::destructive::confirm_button::voice-clear::all',
+        customId: 'voice::destructive::confirm_button::voice-purge::all',
       };
       await handleButton!(interaction as any);
-      expect(handleVoiceClearButton).toHaveBeenCalledOnce();
+      expect(handleVoicePurgeButton).toHaveBeenCalledOnce();
     });
 
     it('does not route destructive customIds for unrelated operations', async () => {
@@ -244,23 +244,23 @@ describe('Voice Command', () => {
         customId: 'voice::destructive::confirm_button::other-op::all',
       };
       await handleButton!(interaction as any);
-      expect(handleVoiceClearButton).not.toHaveBeenCalled();
+      expect(handleVoicePurgeButton).not.toHaveBeenCalled();
     });
   });
 
   describe('handleModal', () => {
-    it('routes destructive voice-clear modal customIds to handleVoiceClearModal', async () => {
+    it('routes destructive voice-purge modal customIds to handleVoicePurgeModal', async () => {
       const interaction = {
-        customId: 'voice::destructive::modal_submit::voice-clear::all',
+        customId: 'voice::destructive::modal_submit::voice-purge::all',
       };
       await handleModal!(interaction as any);
-      expect(handleVoiceClearModal).toHaveBeenCalledOnce();
+      expect(handleVoicePurgeModal).toHaveBeenCalledOnce();
     });
 
     it('does not route non-destructive modal customIds', async () => {
       const interaction = { customId: 'settings::apikey::modal' };
       await handleModal!(interaction as any);
-      expect(handleVoiceClearModal).not.toHaveBeenCalled();
+      expect(handleVoicePurgeModal).not.toHaveBeenCalled();
     });
   });
 

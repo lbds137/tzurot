@@ -96,14 +96,14 @@ describe('handleUsage', () => {
     vi.restoreAllMocks();
   });
 
-  function createMockContext(period: string | null = null): DeferredCommandContext {
+  function createMockContext(timeframe: string | null = null): DeferredCommandContext {
     const mockEditReply = vi.fn().mockResolvedValue(undefined);
     return {
       interaction: {
         user: { id: 'user-123' },
         options: {
           getString: vi.fn((name: string) => {
-            if (name === 'period') return period;
+            if (name === 'timeframe') return timeframe;
             return null;
           }),
           getBoolean: vi.fn(() => null),
@@ -119,7 +119,7 @@ describe('handleUsage', () => {
       commandName: 'admin',
       isEphemeral: true,
       getOption: vi.fn((name: string) => {
-        if (name === 'period') return period;
+        if (name === 'timeframe') return timeframe;
         return null;
       }),
       getRequiredOption: vi.fn(),

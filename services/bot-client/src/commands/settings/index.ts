@@ -3,7 +3,7 @@
  *
  * Consolidates user settings in one place:
  *
- * - /settings timezone get|set - Manage timezone
+ * - /settings timezone view|set - Manage timezone
  * - /settings apikey set|browse|remove|test - Manage API keys (BYOK)
  * - /settings defaults edit - Manage global default settings (config cascade)
  *
@@ -28,7 +28,7 @@ import { replyValidationError } from '../../utils/confirmation/confirmDestructiv
 
 // Timezone handlers
 import { handleTimezoneSet } from './timezone/set.js';
-import { handleTimezoneGet } from './timezone/get.js';
+import { handleTimezoneView } from './timezone/view.js';
 
 // API key handlers (moved from /wallet)
 import { handleSetKey } from './apikey/set.js';
@@ -71,7 +71,7 @@ const logger = createLogger('settings-command');
 const timezoneRouter = createTypedSubcommandRouter(
   {
     set: handleTimezoneSet,
-    get: handleTimezoneGet,
+    view: handleTimezoneView,
   },
   { logger, logPrefix: '[Settings/Timezone]' }
 );
@@ -213,7 +213,7 @@ export default defineCommand({
             )
         )
         .addSubcommand(subcommand =>
-          subcommand.setName('get').setDescription('Show your current timezone')
+          subcommand.setName('view').setDescription('Show your current timezone')
         )
     )
     // API key subcommand group

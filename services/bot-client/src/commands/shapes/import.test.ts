@@ -43,7 +43,7 @@ describe('handleImport', () => {
     vi.resetAllMocks();
     mockGetString.mockImplementation((name: string) => {
       if (name === 'slug') return 'test-character';
-      if (name === 'import_type') return null;
+      if (name === 'import-type') return null;
       return null;
     });
     stub = {

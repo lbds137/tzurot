@@ -19,7 +19,7 @@ const logger = createLogger('admin-cleanup');
 
 export async function handleCleanup(context: DeferredCommandContext): Promise<void> {
   const options = adminCleanupOptions(context.interaction);
-  const daysToKeep = options.days() ?? CLEANUP_DEFAULTS.DAYS_TO_KEEP_HISTORY;
+  const daysToKeep = options.timeframe() ?? CLEANUP_DEFAULTS.DAYS_TO_KEEP_HISTORY;
   // Discord's slash-command option type comes through as `string`, but the
   // server schema enums to ('history' | 'tombstones' | 'all'). The slash
   // command itself only exposes those three choices to users, so the cast

@@ -18,6 +18,7 @@
  */
 
 import { describe, it, expect, vi, beforeAll } from 'vitest';
+import { SELECTOR_DESCRIPTION } from '@tzurot/common-types/constants/uxVocabulary';
 import { CommandHandler } from './CommandHandler.js';
 import { CATEGORY_CONFIG } from '../commands/help/index.js';
 import type { Command } from '../types.js';
@@ -108,5 +109,59 @@ describe('command manifest', () => {
     await expect(JSON.stringify(manifest, null, 2) + '\n').toMatchFileSnapshot(
       '../../command-manifest.json'
     );
+  });
+
+  it('every entity-selector option uses the §4.2 SELECTOR_DESCRIPTION phrasing', () => {
+    // Selector-phrasing drift arrives through shapes a source grep misses
+    // (inline literals, pre-existing named constants, novel phrasings).
+    // Grep-by-expected-phrasing cannot prove completeness; walking the LIVE
+    // command tree can — this is the structural guard for §4.2.
+    const BASES: Record<string, string> = {
+      character: SELECTOR_DESCRIPTION.character,
+      preset: SELECTOR_DESCRIPTION.preset,
+      persona: SELECTOR_DESCRIPTION.persona,
+      voice: SELECTOR_DESCRIPTION.voice,
+      tts: SELECTOR_DESCRIPTION.ttsConfig,
+    };
+    // /deny keeps its bespoke wording until its planned redesign rebuilds
+    // that surface (raw-ID target + scope-conditional options — a different
+    // shape); remove this exemption when it lands.
+    const EXEMPT_COMMANDS = new Set(['deny']);
+
+    interface OptionNode {
+      type: number;
+      name: string;
+      description?: string;
+      options?: OptionNode[];
+    }
+    const violations: string[] = [];
+    const walk = (options: OptionNode[] | undefined, path: string): void => {
+      for (const opt of options ?? []) {
+        if (opt.type === 1 || opt.type === 2) {
+          walk(opt.options, `${path} ${opt.name}`);
+        } else if (opt.name in BASES) {
+          const base = BASES[opt.name];
+          const desc = opt.description ?? '';
+          // Base form, a qualified `${base} — …` clause, or a `${base} (…)`
+          // parenthetical are conforming; anything else is drift. GLOBAL
+          // preset's "Which global preset" is its own registry entry.
+          const ok =
+            desc === base ||
+            desc.startsWith(`${base} `) ||
+            desc === SELECTOR_DESCRIPTION.globalPreset;
+          if (!ok) {
+            violations.push(`${path} [${opt.name}]: ${desc}`);
+          }
+        }
+      }
+    };
+    for (const cmd of handler.getCommands().values()) {
+      if (EXEMPT_COMMANDS.has(cmd.data.name)) {
+        continue;
+      }
+      const json = cmd.data.toJSON() as { options?: OptionNode[] };
+      walk(json.options, `/${cmd.data.name}`);
+    }
+    expect(violations).toEqual([]);
   });
 });

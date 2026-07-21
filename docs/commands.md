@@ -27,7 +27,7 @@ TTS + STT provider selection and cloned-voice library lifecycle. Per-character T
 | `/voice` | `view <character>`                             | Resolved TTS + STT for a character (with cascade source) |
 |          | `tts list set clear set-default clear-default` | Per-character + user-default TTS provider config         |
 |          | `stt set clear`                                | Transcription provider preference (user-scoped)          |
-|          | `voices browse delete clear`                   | Cloned-voice library lifecycle                           |
+|          | `voices browse delete purge`                   | Cloned-voice library lifecycle                           |
 
 ## Presets & Channels
 
@@ -55,7 +55,7 @@ TTS + STT provider selection and cloned-voice library lifecycle. Per-character T
 
 | Command          | Subcommands                                         | Purpose                                                                                                                                                                                                                                                                                                            |
 | ---------------- | --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `/settings`      | `timezone` (`set` `get`)                            | Timezone for timestamps                                                                                                                                                                                                                                                                                            |
+| `/settings`      | `timezone` (`set` `view`)                           | Timezone for timestamps                                                                                                                                                                                                                                                                                            |
 |                  | `apikey` (`set` `browse` `remove` `test`)           | BYOK API key management                                                                                                                                                                                                                                                                                            |
 |                  | `defaults` (`edit`)                                 | User default settings dashboard                                                                                                                                                                                                                                                                                    |
 |                  | `data` (`export` `delete`)                          | Data rights: export everything your account owns (ZIP, 24h link) or permanently erase the account (typed confirmation)                                                                                                                                                                                             |

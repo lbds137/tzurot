@@ -72,6 +72,21 @@ export function entityTitle(kind: UxEntityKind, title: string): string {
 }
 
 /**
+ * Unified selector-option descriptions (§4.2): one shared phrasing per
+ * selector noun — "Which character", never five variants of "Character to
+ * update/edit/view". Qualified sites append an em-dash clause
+ * (`${SELECTOR_DESCRIPTION.character} — or "all" …`).
+ */
+export const SELECTOR_DESCRIPTION = {
+  character: 'Which character',
+  preset: 'Which preset',
+  globalPreset: 'Which global preset',
+  persona: 'Which persona',
+  voice: 'Which voice',
+  ttsConfig: 'Which TTS config',
+} as const;
+
+/**
  * Display sentinels (§2.5/D6) — the ONLY sanctioned empty-value strings.
  * `_Not configured_`, `—`, `_none_`, `None`, and `N/A` are retired.
  */

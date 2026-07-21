@@ -36,7 +36,7 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
     "type": 1,
   },
   {
-    "description": "List all servers the bot is in",
+    "description": "Browse all servers the bot is in",
     "description_localizations": undefined,
     "name": "servers",
     "name_localizations": undefined,
@@ -89,11 +89,11 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
             "value": "30d",
           },
         ],
-        "description": "Time period for stats",
+        "description": "Time window for stats",
         "description_localizations": undefined,
         "max_length": undefined,
         "min_length": undefined,
-        "name": "period",
+        "name": "timeframe",
         "name_localizations": undefined,
         "required": false,
         "type": 3,
@@ -187,11 +187,11 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
       {
         "autocomplete": undefined,
         "choices": undefined,
-        "description": "Keep history from the last N days (default: 30)",
+        "description": "Time window in days — keep history newer than this (default: 30)",
         "description_localizations": undefined,
         "max_value": 365,
         "min_value": 1,
-        "name": "days",
+        "name": "timeframe",
         "name_localizations": undefined,
         "required": false,
         "type": 4,
@@ -371,7 +371,7 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
       {
         "autocomplete": true,
         "choices": undefined,
-        "description": "The character to activate",
+        "description": "Which character",
         "description_localizations": undefined,
         "max_length": undefined,
         "min_length": undefined,
@@ -465,7 +465,7 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
       {
         "autocomplete": true,
         "choices": undefined,
-        "description": "Character to edit",
+        "description": "Which character",
         "description_localizations": undefined,
         "max_length": undefined,
         "min_length": undefined,
@@ -486,7 +486,7 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
       {
         "autocomplete": true,
         "choices": undefined,
-        "description": "Character to view",
+        "description": "Which character",
         "description_localizations": undefined,
         "max_length": undefined,
         "min_length": undefined,
@@ -513,7 +513,7 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
           {
             "autocomplete": true,
             "choices": undefined,
-            "description": "Character to inspect (omit to see all your aliases)",
+            "description": "Which character (omit to see all your aliases)",
             "description_localizations": undefined,
             "max_length": undefined,
             "min_length": undefined,
@@ -534,7 +534,7 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
           {
             "autocomplete": true,
             "choices": undefined,
-            "description": "Character the alias points to",
+            "description": "Which character the alias points to",
             "description_localizations": undefined,
             "max_length": undefined,
             "min_length": undefined,
@@ -642,7 +642,7 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
       {
         "autocomplete": true,
         "choices": undefined,
-        "description": "Character to update",
+        "description": "Which character",
         "description_localizations": undefined,
         "max_length": undefined,
         "min_length": undefined,
@@ -671,7 +671,7 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
       {
         "autocomplete": true,
         "choices": undefined,
-        "description": "Character to update",
+        "description": "Which character",
         "description_localizations": undefined,
         "max_length": undefined,
         "min_length": undefined,
@@ -692,7 +692,7 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
       {
         "autocomplete": true,
         "choices": undefined,
-        "description": "Character to update",
+        "description": "Which character",
         "description_localizations": undefined,
         "max_length": undefined,
         "min_length": undefined,
@@ -713,7 +713,7 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
     "type": 1,
   },
   {
-    "description": "Remove a character voice reference and disable TTS",
+    "description": "Clear a character's voice reference and disable TTS",
     "description_localizations": undefined,
     "name": "voice-clear",
     "name_localizations": undefined,
@@ -721,7 +721,7 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
       {
         "autocomplete": true,
         "choices": undefined,
-        "description": "Character to update",
+        "description": "Which character",
         "description_localizations": undefined,
         "max_length": undefined,
         "min_length": undefined,
@@ -775,7 +775,7 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
       {
         "autocomplete": true,
         "choices": undefined,
-        "description": "Character to export",
+        "description": "Which character",
         "description_localizations": undefined,
         "max_length": undefined,
         "min_length": undefined,
@@ -804,7 +804,7 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
       {
         "autocomplete": true,
         "choices": undefined,
-        "description": "Character to chat with",
+        "description": "Which character",
         "description_localizations": undefined,
         "max_length": undefined,
         "min_length": undefined,
@@ -882,7 +882,7 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
       {
         "autocomplete": true,
         "choices": undefined,
-        "description": "Character to chime in",
+        "description": "Which character",
         "description_localizations": undefined,
         "max_length": undefined,
         "min_length": undefined,
@@ -911,7 +911,7 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
       {
         "autocomplete": true,
         "choices": undefined,
-        "description": "Character to manage",
+        "description": "Which character",
         "description_localizations": undefined,
         "max_length": undefined,
         "min_length": undefined,
@@ -932,7 +932,7 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
       {
         "autocomplete": true,
         "choices": undefined,
-        "description": "Character to override settings for",
+        "description": "Which character",
         "description_localizations": undefined,
         "max_length": undefined,
         "min_length": undefined,
@@ -1317,7 +1317,7 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
       {
         "autocomplete": true,
         "choices": undefined,
-        "description": "The character to clear history for",
+        "description": "Which character",
         "description_localizations": undefined,
         "max_length": undefined,
         "min_length": undefined,
@@ -1329,7 +1329,7 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
       {
         "autocomplete": true,
         "choices": undefined,
-        "description": "The persona to use (defaults to your active persona)",
+        "description": "Which persona (defaults to your active persona)",
         "description_localizations": undefined,
         "max_length": undefined,
         "min_length": undefined,
@@ -1350,7 +1350,7 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
       {
         "autocomplete": true,
         "choices": undefined,
-        "description": "The character to restore history for",
+        "description": "Which character",
         "description_localizations": undefined,
         "max_length": undefined,
         "min_length": undefined,
@@ -1362,7 +1362,7 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
       {
         "autocomplete": true,
         "choices": undefined,
-        "description": "The persona to use (defaults to your active persona)",
+        "description": "Which persona (defaults to your active persona)",
         "description_localizations": undefined,
         "max_length": undefined,
         "min_length": undefined,
@@ -1383,7 +1383,7 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
       {
         "autocomplete": true,
         "choices": undefined,
-        "description": "The character to view stats for",
+        "description": "Which character",
         "description_localizations": undefined,
         "max_length": undefined,
         "min_length": undefined,
@@ -1395,7 +1395,7 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
       {
         "autocomplete": true,
         "choices": undefined,
-        "description": "The persona to use (defaults to your active persona)",
+        "description": "Which persona (defaults to your active persona)",
         "description_localizations": undefined,
         "max_length": undefined,
         "min_length": undefined,
@@ -1416,7 +1416,7 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
       {
         "autocomplete": true,
         "choices": undefined,
-        "description": "The character to delete history for",
+        "description": "Which character",
         "description_localizations": undefined,
         "max_length": undefined,
         "min_length": undefined,
@@ -1459,7 +1459,7 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
       {
         "autocomplete": true,
         "choices": undefined,
-        "description": "The character to view stats for",
+        "description": "Which character",
         "description_localizations": undefined,
         "max_length": undefined,
         "min_length": undefined,
@@ -1480,7 +1480,7 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
       {
         "autocomplete": true,
         "choices": undefined,
-        "description": "Filter by character (optional)",
+        "description": "Which character — omit for all",
         "description_localizations": undefined,
         "max_length": undefined,
         "min_length": undefined,
@@ -1501,7 +1501,7 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
       {
         "autocomplete": true,
         "choices": undefined,
-        "description": "The character whose facts to manage",
+        "description": "Which character",
         "description_localizations": undefined,
         "max_length": undefined,
         "min_length": undefined,
@@ -1534,7 +1534,7 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
       {
         "autocomplete": true,
         "choices": undefined,
-        "description": "Filter by character (optional)",
+        "description": "Which character — omit for all",
         "description_localizations": undefined,
         "max_length": undefined,
         "min_length": undefined,
@@ -1567,7 +1567,7 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
       {
         "autocomplete": true,
         "choices": undefined,
-        "description": "The character to delete memories for",
+        "description": "Which character",
         "description_localizations": undefined,
         "max_length": undefined,
         "min_length": undefined,
@@ -1626,7 +1626,7 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
       {
         "autocomplete": true,
         "choices": undefined,
-        "description": "The character to purge all memories for",
+        "description": "Which character",
         "description_localizations": undefined,
         "max_length": undefined,
         "min_length": undefined,
@@ -1653,7 +1653,7 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
           {
             "autocomplete": true,
             "choices": undefined,
-            "description": "The character to enable focus mode for",
+            "description": "Which character",
             "description_localizations": undefined,
             "max_length": undefined,
             "min_length": undefined,
@@ -1674,7 +1674,7 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
           {
             "autocomplete": true,
             "choices": undefined,
-            "description": "The character to disable focus mode for",
+            "description": "Which character",
             "description_localizations": undefined,
             "max_length": undefined,
             "min_length": undefined,
@@ -1695,7 +1695,7 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
           {
             "autocomplete": true,
             "choices": undefined,
-            "description": "The character to check status for",
+            "description": "Which character",
             "description_localizations": undefined,
             "max_length": undefined,
             "min_length": undefined,
@@ -1725,7 +1725,7 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
           {
             "autocomplete": true,
             "choices": undefined,
-            "description": "Character or "all" for global incognito",
+            "description": "Which character — or "all" for global incognito",
             "description_localizations": undefined,
             "max_length": undefined,
             "min_length": undefined,
@@ -1762,7 +1762,7 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
             "description_localizations": undefined,
             "max_length": undefined,
             "min_length": undefined,
-            "name": "duration",
+            "name": "timeframe",
             "name_localizations": undefined,
             "required": true,
             "type": 3,
@@ -1779,7 +1779,7 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
           {
             "autocomplete": true,
             "choices": undefined,
-            "description": "Character or "all" to disable global incognito",
+            "description": "Which character — or "all" to disable global incognito",
             "description_localizations": undefined,
             "max_length": undefined,
             "min_length": undefined,
@@ -1808,7 +1808,7 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
           {
             "autocomplete": true,
             "choices": undefined,
-            "description": "Character or "all" for all characters",
+            "description": "Which character — or "all" for all characters",
             "description_localizations": undefined,
             "max_length": undefined,
             "min_length": undefined,
@@ -2059,7 +2059,7 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
       {
         "autocomplete": true,
         "choices": undefined,
-        "description": "The persona to set as default",
+        "description": "Which persona",
         "description_localizations": undefined,
         "max_length": undefined,
         "min_length": undefined,
@@ -2086,7 +2086,7 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
           {
             "autocomplete": true,
             "choices": undefined,
-            "description": "The character to override",
+            "description": "Which character",
             "description_localizations": undefined,
             "max_length": undefined,
             "min_length": undefined,
@@ -2098,7 +2098,7 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
           {
             "autocomplete": true,
             "choices": undefined,
-            "description": "The persona to use (or create new)",
+            "description": "Which persona — or a new name to create one",
             "description_localizations": undefined,
             "max_length": undefined,
             "min_length": undefined,
@@ -2119,7 +2119,7 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
           {
             "autocomplete": true,
             "choices": undefined,
-            "description": "The character to clear override for",
+            "description": "Which character",
             "description_localizations": undefined,
             "max_length": undefined,
             "min_length": undefined,
@@ -2238,7 +2238,7 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
       {
         "autocomplete": true,
         "choices": undefined,
-        "description": "Preset to edit",
+        "description": "Which preset",
         "description_localizations": undefined,
         "max_length": undefined,
         "min_length": undefined,
@@ -2259,7 +2259,7 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
       {
         "autocomplete": true,
         "choices": undefined,
-        "description": "Preset to export",
+        "description": "Which preset",
         "description_localizations": undefined,
         "max_length": undefined,
         "min_length": undefined,
@@ -2311,7 +2311,7 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
           {
             "autocomplete": true,
             "choices": undefined,
-            "description": "Global preset to set as default",
+            "description": "Which global preset",
             "description_localizations": undefined,
             "max_length": undefined,
             "min_length": undefined,
@@ -2355,7 +2355,7 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
           {
             "autocomplete": true,
             "choices": undefined,
-            "description": "Global preset to set as free tier default",
+            "description": "Which global preset",
             "description_localizations": undefined,
             "max_length": undefined,
             "min_length": undefined,
@@ -2416,7 +2416,7 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
           {
             "autocomplete": true,
             "choices": undefined,
-            "description": "The character to override",
+            "description": "Which character",
             "description_localizations": undefined,
             "max_length": undefined,
             "min_length": undefined,
@@ -2428,7 +2428,7 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
           {
             "autocomplete": true,
             "choices": undefined,
-            "description": "The preset to use",
+            "description": "Which preset",
             "description_localizations": undefined,
             "max_length": undefined,
             "min_length": undefined,
@@ -2464,7 +2464,7 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
         "type": 1,
       },
       {
-        "description": "Remove preset override for a character",
+        "description": "Clear the preset override for a character",
         "description_localizations": undefined,
         "name": "clear",
         "name_localizations": undefined,
@@ -2472,7 +2472,7 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
           {
             "autocomplete": true,
             "choices": undefined,
-            "description": "The character to clear",
+            "description": "Which character",
             "description_localizations": undefined,
             "max_length": undefined,
             "min_length": undefined,
@@ -2516,7 +2516,7 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
           {
             "autocomplete": true,
             "choices": undefined,
-            "description": "The preset to use as default",
+            "description": "Which preset",
             "description_localizations": undefined,
             "max_length": undefined,
             "min_length": undefined,
@@ -2621,7 +2621,7 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
       {
         "description": "Show your current timezone",
         "description_localizations": undefined,
-        "name": "get",
+        "name": "view",
         "name_localizations": undefined,
         "options": [],
         "type": 1,
@@ -2879,7 +2879,7 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
         "description_localizations": undefined,
         "max_length": undefined,
         "min_length": undefined,
-        "name": "import_type",
+        "name": "import-type",
         "name_localizations": undefined,
         "required": false,
         "type": 3,
@@ -2953,7 +2953,7 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
       {
         "autocomplete": true,
         "choices": undefined,
-        "description": "Which character to inspect",
+        "description": "Which character",
         "description_localizations": undefined,
         "max_length": undefined,
         "min_length": undefined,
@@ -2988,7 +2988,7 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
           {
             "autocomplete": true,
             "choices": undefined,
-            "description": "The character to override",
+            "description": "Which character",
             "description_localizations": undefined,
             "max_length": undefined,
             "min_length": undefined,
@@ -3000,7 +3000,7 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
           {
             "autocomplete": true,
             "choices": undefined,
-            "description": "The TTS config to use",
+            "description": "Which TTS config",
             "description_localizations": undefined,
             "max_length": undefined,
             "min_length": undefined,
@@ -3013,7 +3013,7 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
         "type": 1,
       },
       {
-        "description": "Remove TTS config override for a character",
+        "description": "Clear the TTS override for a character",
         "description_localizations": undefined,
         "name": "clear",
         "name_localizations": undefined,
@@ -3021,7 +3021,7 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
           {
             "autocomplete": true,
             "choices": undefined,
-            "description": "The character to clear",
+            "description": "Which character",
             "description_localizations": undefined,
             "max_length": undefined,
             "min_length": undefined,
@@ -3042,7 +3042,7 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
           {
             "autocomplete": true,
             "choices": undefined,
-            "description": "The TTS config to use as default",
+            "description": "Which TTS config",
             "description_localizations": undefined,
             "max_length": undefined,
             "min_length": undefined,
@@ -3142,7 +3142,7 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
           {
             "autocomplete": true,
             "choices": undefined,
-            "description": "The voice to delete",
+            "description": "Which voice",
             "description_localizations": undefined,
             "max_length": undefined,
             "min_length": undefined,
@@ -3155,9 +3155,9 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
         "type": 1,
       },
       {
-        "description": "Delete all Tzurot cloned voices",
+        "description": "Permanently delete ALL Tzurot cloned voices",
         "description_localizations": undefined,
-        "name": "clear",
+        "name": "purge",
         "name_localizations": undefined,
         "options": [],
         "type": 1,

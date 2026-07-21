@@ -271,14 +271,14 @@ describe('CommandHandler (component)', () => {
       // source: 'voice' (not 'settings') so destructive confirm/cancel/modal
       // interactions route to /voice's handleButton + handleModal. Using
       // source: 'settings' silently fails because /settings.handleButton
-      // no longer dispatches voice-clear after the /voice consolidation.
+      // no longer dispatches voice-purge after the /voice consolidation.
       const voiceCommand = handler.getCommand('voice');
       expect(voiceCommand?.handleButton).toBeDefined();
 
       const handleButtonSpy = vi.spyOn(voiceCommand!, 'handleButton');
 
       const interaction = createMockButtonInteraction(
-        'voice::destructive::confirm_button::voice-clear::all'
+        'voice::destructive::confirm_button::voice-purge::all'
       );
       await handler.handleComponentInteraction(interaction);
 
