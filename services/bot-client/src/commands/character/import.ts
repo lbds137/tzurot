@@ -231,7 +231,7 @@ async function validateAndProcessAvatar(
 /**
  * Validate + download the optional voice attachment.
  * Returns a base64 data URI (the voice column stores a data URI, matching the
- * /character voice upload path).
+ * /character voice set upload path).
  */
 async function validateAndProcessVoice(
   audio: AttachmentOption

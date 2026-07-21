@@ -70,7 +70,7 @@ function buildCreateData(
       media.voiceReferenceBuffer !== undefined ? new Uint8Array(media.voiceReferenceBuffer) : null,
     voiceReferenceType: media.voiceReferenceMimeType ?? null,
     // Auto-enable voice when a reference is provided at creation, mirroring the
-    // /character voice upload path (which sets voiceEnabled: true on update).
+    // /character voice set upload path (which sets voiceEnabled: true on update).
     // This is what makes voice-at-import actually turn voice on, rather than
     // silently storing a reference that stays disabled.
     voiceEnabled: media.voiceReferenceBuffer !== undefined,

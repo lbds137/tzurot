@@ -1,5 +1,6 @@
 /**
- * Denylist + NSFW gates for the `/character chat|random|chime-in` slash path.
+ * Denylist + NSFW gates for the character-turn slash path
+ * (`/chat`, `/random`, `/character chime-in`).
  *
  * The message pipeline runs these gates in `PersonalityChatManager.runGates`;
  * the slash path historically skipped them entirely, so a denylisted personality
@@ -15,7 +16,7 @@ import { createLogger } from '@tzurot/common-types/utils/logger';
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import type { UserClient } from '@tzurot/clients';
 import { type DeferredCommandContext } from '../../utils/commandContext/types.js';
-import { getDenylistCache } from '../../services/serviceRegistry.js';
+import { getDenylistCache } from '../serviceRegistry.js';
 import {
   evaluateNsfwGate,
   sendVerificationConfirmation,

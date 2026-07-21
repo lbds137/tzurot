@@ -113,7 +113,7 @@ describe('BotMentionProcessor', () => {
       expect(replyArg.content).toContain('multiple AI personalities');
       expect(replyArg.content).toContain('@personality');
       expect(replyArg.content).toContain('/character browse');
-      expect(replyArg.content).toContain('/character chat');
+      expect(replyArg.content).toContain('/chat');
     });
 
     it('should include mention character from config in help message', async () => {

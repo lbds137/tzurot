@@ -63,9 +63,8 @@ const KNOWN_SUBCOMMAND_NAMES = new Set<string>([
   // to opted-in users; not a rename candidate — "send"/"notify" would collide
   // with nothing and describe less)
   'broadcast',
-  // /character chat-mode verbs (chat / random / chime-in) — deliberate, established
-  'chat',
-  'random',
+  // character summon verb (its siblings /chat and /random are top-level
+  // commands, outside this subcommand-name check)
   'chime-in',
   'overrides',
   'activate',
@@ -76,10 +75,6 @@ const KNOWN_SUBCOMMAND_NAMES = new Set<string>([
   'usage',
   'cleanup',
   'presence',
-  'avatar',
-  'avatar-clear',
-  'voice',
-  'voice-clear',
   'kick',
   'servers',
   'db-sync',

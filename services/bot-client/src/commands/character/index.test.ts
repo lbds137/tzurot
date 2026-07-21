@@ -39,6 +39,9 @@ vi.mock('./edit.js', () => ({
 vi.mock('./avatar.js', () => ({
   handleAvatar: vi.fn().mockResolvedValue(undefined),
 }));
+vi.mock('./voice.js', () => ({
+  handleVoice: vi.fn().mockResolvedValue(undefined),
+}));
 vi.mock('./browse.js', () => ({
   handleBrowse: vi.fn().mockResolvedValue(undefined),
   handleBrowsePagination: vi.fn().mockResolvedValue(undefined),
@@ -46,8 +49,8 @@ vi.mock('./browse.js', () => ({
   isCharacterBrowseInteraction: vi.fn().mockReturnValue(false),
   isCharacterBrowseSelectInteraction: vi.fn().mockReturnValue(false),
 }));
-vi.mock('./chat.js', () => ({
-  handleChat: vi.fn().mockResolvedValue(undefined),
+vi.mock('../../services/character/characterTurn.js', () => ({
+  handleChimeIn: vi.fn().mockResolvedValue(undefined),
 }));
 vi.mock('./settings.js', () => ({
   handleSettings: vi.fn().mockResolvedValue(undefined),
@@ -87,6 +90,8 @@ vi.mock('@tzurot/common-types/utils/logger', async () => {
 import characterCommand from './index.js';
 import { handleSettings } from './settings.js';
 import { handleOverrides } from './overrides.js';
+import { handleAvatar } from './avatar.js';
+import { handleVoice } from './voice.js';
 import {
   handleCharacterOverridesSelectMenu,
   handleCharacterOverridesButton,
@@ -140,7 +145,10 @@ describe('/character command group', () => {
   });
 
   describe('execute', () => {
-    function createMockContext(subcommand: string): SafeCommandContext {
+    function createMockContext(
+      subcommand: string,
+      group: string | null = null
+    ): SafeCommandContext {
       return {
         interaction: {},
         user: { id: 'user-123' },
@@ -154,7 +162,7 @@ describe('/character command group', () => {
         getOption: vi.fn(),
         getRequiredOption: vi.fn(),
         getSubcommand: () => subcommand,
-        getSubcommandGroup: () => null,
+        getSubcommandGroup: () => group,
         editReply: vi.fn(),
         followUp: vi.fn(),
         deleteReply: vi.fn(),
@@ -171,6 +179,20 @@ describe('/character command group', () => {
       const context = createMockContext('overrides');
       await execute(context);
       expect(handleOverrides).toHaveBeenCalled();
+    });
+
+    it('should route the avatar group to the avatar handler', async () => {
+      const context = createMockContext('set', 'avatar');
+      await execute(context);
+      expect(handleAvatar).toHaveBeenCalled();
+      expect(handleVoice).not.toHaveBeenCalled();
+    });
+
+    it('should route the voice group to the voice handler', async () => {
+      const context = createMockContext('clear', 'voice');
+      await execute(context);
+      expect(handleVoice).toHaveBeenCalled();
+      expect(handleAvatar).not.toHaveBeenCalled();
     });
   });
 

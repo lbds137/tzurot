@@ -65,12 +65,19 @@ describe('CommandHandler (component)', () => {
 
       expect(characterCommand).toBeDefined();
       expect(characterCommand?.subcommandDeferralModes).toBeDefined();
-      // `chat` defers ephemerally so the random-pick notice + errors land
-      // invoker-only; the character webhook reply and user-mirror are
-      // independent of defer mode and stay public.
-      expect(characterCommand?.subcommandDeferralModes?.chat).toBe('ephemeral');
+      // `chime-in` defers ephemerally so errors land invoker-only; the
+      // character webhook reply is independent of defer mode and stays
+      // public. (Its sibling turn commands are top-level /chat and /random.)
+      expect(characterCommand?.subcommandDeferralModes?.['chime-in']).toBe('ephemeral');
       // `create` shows a modal; cross-check it's still set up correctly.
       expect(characterCommand?.subcommandDeferralModes?.create).toBe('modal');
+    });
+
+    it('should preserve ephemeral deferralMode for the top-level turn commands', () => {
+      // /chat and /random carry the invoker-only rationale on their own
+      // definitions after the extraction from /character.
+      expect(handler.getCommand('chat')?.deferralMode).toBe('ephemeral');
+      expect(handler.getCommand('random')?.deferralMode).toBe('ephemeral');
     });
 
     it('should preserve subcommandDeferralModes for persona command', () => {

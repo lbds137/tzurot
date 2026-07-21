@@ -336,7 +336,7 @@ export const PersonalityUpdateSchema = z.object({
   // null = clear existing voice reference, undefined = don't change, string = set new
   voiceReferenceData: z.string().nullable().optional(),
 
-  // Voice toggle (auto-set by /character voice upload/clear)
+  // Voice toggle (auto-set by /character voice set|clear)
   voiceEnabled: z.boolean().optional(),
 });
 

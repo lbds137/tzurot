@@ -61,7 +61,8 @@ describe('handleAutocomplete', () => {
   function createMockInteraction(
     focusedName: string,
     focusedValue: string,
-    subcommand: string | null = 'edit'
+    subcommand: string | null = 'edit',
+    group: string | null = null
   ) {
     return {
       user: { id: '123456789' },
@@ -73,6 +74,7 @@ describe('handleAutocomplete', () => {
           value: focusedValue,
         }),
         getSubcommand: vi.fn().mockReturnValue(subcommand),
+        getSubcommandGroup: vi.fn().mockReturnValue(group),
       },
       respond: mockRespond,
     } as any;
@@ -134,41 +136,42 @@ describe('handleAutocomplete', () => {
       ],
     });
 
-    await handleAutocomplete(createMockInteraction('character', '', 'avatar'));
+    await handleAutocomplete(createMockInteraction('character', '', 'set', 'avatar'));
 
     expect(mockRespond).toHaveBeenCalledWith([{ name: '🌐 MyChar (my-char)', value: 'my-char' }]);
   });
 
   // 'alias' deliberately absent: the alias group is visibility-scoped
   // (anyone may add a personal alias to any character they can see).
-  it.each(['voice', 'voice-clear', 'avatar-clear'])(
-    'should return only owned characters for %s subcommand',
-    async sub => {
-      mockGetCachedPersonalities.mockResolvedValue({
-        kind: 'ok',
-        value: [
-          createMockPersonality({
-            slug: 'my-char',
-            name: 'MyChar',
-            displayName: null,
-            isOwned: true,
-            isPublic: false,
-          }),
-          createMockPersonality({
-            slug: 'public-char',
-            name: 'PublicChar',
-            displayName: null,
-            isOwned: false,
-            isPublic: true,
-          }),
-        ],
-      });
+  it.each([
+    ['avatar', 'clear'],
+    ['voice', 'set'],
+    ['voice', 'clear'],
+  ])('should return only owned characters for the %s group %s subcommand', async (group, sub) => {
+    mockGetCachedPersonalities.mockResolvedValue({
+      kind: 'ok',
+      value: [
+        createMockPersonality({
+          slug: 'my-char',
+          name: 'MyChar',
+          displayName: null,
+          isOwned: true,
+          isPublic: false,
+        }),
+        createMockPersonality({
+          slug: 'public-char',
+          name: 'PublicChar',
+          displayName: null,
+          isOwned: false,
+          isPublic: true,
+        }),
+      ],
+    });
 
-      await handleAutocomplete(createMockInteraction('character', '', sub));
+    await handleAutocomplete(createMockInteraction('character', '', sub, group));
 
-      expect(mockRespond).toHaveBeenCalledWith([{ name: '🔒 MyChar (my-char)', value: 'my-char' }]);
-    }
-  );
+    expect(mockRespond).toHaveBeenCalledWith([{ name: '🔒 MyChar (my-char)', value: 'my-char' }]);
+  });
 
   it('should return all characters for view subcommand', async () => {
     mockGetCachedPersonalities.mockResolvedValue({
