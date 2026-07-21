@@ -1,7 +1,7 @@
 /**
  * Tests for Character Avatar Handler
  *
- * Tests /character avatar subcommand:
+ * Tests the /character avatar group:
  * - Invalid image format
  * - Image too large
  * - Character not found
@@ -69,7 +69,7 @@ describe('Character Avatar Handler', () => {
       ...overrides,
     }) as Attachment;
 
-  const createMockContext = (slug: string, attachment: Attachment, subcommand = 'avatar') =>
+  const createMockContext = (slug: string, attachment: Attachment, subcommand = 'set') =>
     ({
       user: { id: 'user-123' },
       interaction: {
@@ -353,9 +353,9 @@ describe('Character Avatar Handler', () => {
     );
   });
 
-  describe('avatar-clear', () => {
+  describe('avatar clear', () => {
     it('classifies a clear-write timeout as outcome-uncertain', async () => {
-      const mockContext = createMockContext('my-char', createMockAttachment(), 'avatar-clear');
+      const mockContext = createMockContext('my-char', createMockAttachment(), 'clear');
       vi.mocked(api.fetchCharacter).mockResolvedValue(createMockCharacter({ slug: 'my-char' }));
       vi.mocked(api.updateCharacter).mockRejectedValue(
         new GatewayApiError('Failed to update personality: 0 - timed out', 0, 'timeout')
@@ -370,7 +370,7 @@ describe('Character Avatar Handler', () => {
 
     it('nulls avatarData and confirms removal on success', async () => {
       const attachment = createMockAttachment();
-      const mockContext = createMockContext('my-char', attachment, 'avatar-clear');
+      const mockContext = createMockContext('my-char', attachment, 'clear');
       vi.mocked(api.fetchCharacter).mockResolvedValue(createMockCharacter({ slug: 'my-char' }));
       vi.mocked(api.updateCharacter).mockResolvedValue({
         character: createMockCharacter(),
@@ -392,7 +392,7 @@ describe('Character Avatar Handler', () => {
 
     it('does not update when the character is not editable', async () => {
       const attachment = createMockAttachment();
-      const mockContext = createMockContext('my-char', attachment, 'avatar-clear');
+      const mockContext = createMockContext('my-char', attachment, 'clear');
       vi.mocked(api.fetchCharacter).mockResolvedValue(
         createMockCharacter({ slug: 'my-char', canEdit: false })
       );

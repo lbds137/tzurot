@@ -207,7 +207,7 @@ function createServices(): Services {
   // timeout. See its module-level docstring for the dual-routing story.
 
   // Routing-read loader: personality resolution for routing (mention parsing,
-  // reply resolution, activation, multi-tag recovery, /character chat) goes
+  // reply resolution, activation, multi-tag recovery, /chat) goes
   // through the gateway's internal endpoint with positive/negative caching
   // instead of direct Prisma.
   const routingPersonalityLoader = new HttpPersonalityLoader();

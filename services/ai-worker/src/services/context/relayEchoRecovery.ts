@@ -1,7 +1,7 @@
 /**
  * Relay-echo identity recovery.
  *
- * A `/character chat` relay-echo is the bot reposting user input as
+ * A `/chat` relay-echo is the bot reposting user input as
  * `**Name:** …` (the DM-style path where webhooks don't work). It's
  * bot-authored, so the extended-context fetch can't see the human behind it —
  * the message arrives role=user with no resolvable persona (the resolver strips

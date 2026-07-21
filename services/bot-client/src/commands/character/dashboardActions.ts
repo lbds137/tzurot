@@ -151,7 +151,7 @@ export async function handleAction(
     await interaction.reply({
       content:
         '🖼️ **Avatar Upload**\n\n' +
-        'Please use `/character avatar` to upload a new avatar image.\n' +
+        'Please use `/character avatar set` to upload a new avatar image.\n' +
         '(Discord modals cannot accept file uploads)',
       flags: MessageFlags.Ephemeral,
     });
@@ -163,8 +163,8 @@ export async function handleAction(
     await interaction.reply({
       content:
         '🎤 **Voice Reference**\n\n' +
-        'Use `/character voice` to upload a voice reference for TTS cloning.\n' +
-        'Use `/character voice-clear` to remove it and disable TTS.\n' +
+        'Use `/character voice set` to upload a voice reference for TTS cloning.\n' +
+        'Use `/character voice clear` to remove it and disable TTS.\n' +
         '(Discord modals cannot accept file uploads)',
       flags: MessageFlags.Ephemeral,
     });
@@ -190,7 +190,7 @@ export async function handleAction(
     }
 
     // Guard: the toggle button is only shown when hasVoiceReference is true,
-    // but a stale session could allow this action after voice-clear was run.
+    // but a stale session could allow this action after `voice clear` was run.
     if (!character.hasVoiceReference) {
       logger.warn({ slug: entityId }, 'voice-toggle called but no voice reference exists');
       await refreshDashboardAfterUpdate(interaction, entityId, character);

@@ -17,12 +17,11 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { handleChat, handleRandom, handleChimeIn, WEIGH_IN_MESSAGE } from './chat.js';
+import { handleChat, handleRandom, handleChimeIn, WEIGH_IN_MESSAGE } from './characterTurn.js';
 import { runSlashChatGates } from './slashChatGates.js';
-import { resolveChatLlmConfig } from '../../services/character/chatConfigResolution.js';
+import { resolveChatLlmConfig } from './chatConfigResolution.js';
 import type { GuildMember } from 'discord.js';
 import { ChannelType } from 'discord.js';
-import type { EnvConfig } from '@tzurot/common-types/config/config';
 import { InfraError } from '@tzurot/clients';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 
@@ -49,7 +48,7 @@ const mockConversationPersistence = {
 
 const mockResolveUserContext = vi.fn();
 
-vi.mock('../../services/serviceRegistry.js', () => ({
+vi.mock('../serviceRegistry.js', () => ({
   getPersonalityLoader: () => mockPersonalityService,
   getMessageContextBuilder: () => mockMessageContextBuilder,
   getConversationPersistence: () => mockConversationPersistence,
@@ -59,7 +58,7 @@ vi.mock('../../services/serviceRegistry.js', () => ({
 // chat.ts resolves the invoker's persona (id + display name) through the
 // routing-context helper — bot-client never touches Prisma. Mocking the helper
 // directly means the getServiceClient() stub it's handed is never exercised.
-vi.mock('../../services/contextBuilder/UserContextResolver.js', () => ({
+vi.mock('../contextBuilder/UserContextResolver.js', () => ({
   resolveUserContext: (...args: unknown[]) => mockResolveUserContext(...args),
 }));
 
@@ -101,7 +100,7 @@ vi.mock('../../utils/gatewayClients.js', () => ({
 vi.mock('./slashChatGates.js', () => ({
   runSlashChatGates: vi.fn().mockResolvedValue(false),
 }));
-vi.mock('../../services/character/chatConfigResolution.js', () => ({
+vi.mock('./chatConfigResolution.js', () => ({
   resolveChatLlmConfig: vi.fn().mockResolvedValue({ config: { model: 'm' }, source: 'hardcoded' }),
   buildExtendedContextSettings: vi.fn().mockReturnValue({
     maxMessages: 50,
@@ -130,9 +129,7 @@ vi.mock('@tzurot/common-types/utils/logger', async () => {
   };
 });
 
-describe('Character Chat Handler (push delivery)', () => {
-  const mockConfig = { GATEWAY_URL: 'http://localhost:3000' } as EnvConfig;
-
+describe('Character Turn Engine (push delivery)', () => {
   // A distinctive createdAt so tests can assert the echo's REAL Discord time (not a
   // pre-send new Date()) anchors both the user row and the assistant's userMessageTime.
   const ECHO_CREATED_AT = new Date('2026-07-01T23:10:54.101Z');
@@ -266,7 +263,7 @@ describe('Character Chat Handler (push delivery)', () => {
       const ctx = createMockContext('nonexistent', 'Hello!');
       mockPersonalityService.loadPersonality.mockResolvedValue(null);
 
-      await handleChat(ctx, mockConfig);
+      await handleChat(ctx);
 
       expect(ctx.editReply).toHaveBeenCalledWith({
         content: expect.stringContaining('not found'),
@@ -277,7 +274,7 @@ describe('Character Chat Handler (push delivery)', () => {
       const ctx = createMockContext('cool_char*', 'Hello!');
       mockPersonalityService.loadPersonality.mockResolvedValue(null);
 
-      await handleChat(ctx, mockConfig);
+      await handleChat(ctx);
 
       expect(ctx.editReply).toHaveBeenCalledWith({
         content: expect.stringContaining('cool\\_char\\*'),
@@ -292,7 +289,7 @@ describe('Character Chat Handler (push delivery)', () => {
         new InfraError({ ok: false, kind: 'timeout', status: 0, error: 'boom' })
       );
 
-      await handleChat(ctx, mockConfig);
+      await handleChat(ctx);
 
       expect(ctx.editReply).toHaveBeenCalledWith({
         content: expect.stringContaining('Please try again'),
@@ -308,7 +305,7 @@ describe('Character Chat Handler (push delivery)', () => {
       const ctx = createMockContext('test-char', 'Hello!', voiceChannel);
       mockPersonalityService.loadPersonality.mockResolvedValue(createMockPersonality());
 
-      await handleChat(ctx, mockConfig);
+      await handleChat(ctx);
 
       expect(ctx.editReply).toHaveBeenCalledWith({
         content: expect.stringContaining('channel type is not supported'),
@@ -327,7 +324,7 @@ describe('Character Chat Handler (push delivery)', () => {
       mockPersonalityService.loadPersonalityStrict.mockResolvedValue(personality);
       vi.mocked(runSlashChatGates).mockResolvedValueOnce(true);
 
-      await handleChat(ctx, mockConfig);
+      await handleChat(ctx);
 
       // The gate saw the RIGHT data across the seam (02 §7 — not just the return
       // effect): the loaded personality and the validated channel.
@@ -349,7 +346,7 @@ describe('Character Chat Handler (push delivery)', () => {
       mockPersonalityService.loadPersonality.mockResolvedValue(createMockPersonality());
       mockGatewayClient.generate.mockResolvedValue({ jobId: 'job-1', requestId: 'req-1' });
 
-      await handleChat(ctx, mockConfig);
+      await handleChat(ctx);
 
       // Config resolution ran with the VALIDATED channel's id across the seam
       // (02 §7) — a wrong/stale channel would surface here, not just downstream.
@@ -384,7 +381,7 @@ describe('Character Chat Handler (push delivery)', () => {
       mockPersonalityService.loadPersonality.mockResolvedValue(createMockPersonality());
       mockGatewayClient.generate.mockResolvedValue({ jobId: 'job-1', requestId: 'req-1' });
 
-      await handleChat(ctx, mockConfig);
+      await handleChat(ctx);
 
       // User row persisted at the echo's createdAt (not a pre-send new Date()).
       expect(mockConversationPersistence.saveUserMessageFromFields).toHaveBeenCalledWith(
@@ -404,7 +401,7 @@ describe('Character Chat Handler (push delivery)', () => {
       mockPersonalityService.loadPersonality.mockResolvedValue(createMockPersonality());
       mockGatewayClient.generate.mockResolvedValue({ jobId: 'job-1', requestId: 'req-1' });
 
-      await handleChat(ctx, mockConfig);
+      await handleChat(ctx);
 
       expect(mockJobTracker.trackJob).toHaveBeenCalled();
     });
@@ -415,7 +412,7 @@ describe('Character Chat Handler (push delivery)', () => {
       mockPersonalityService.loadPersonality.mockResolvedValue(createMockPersonality());
       mockGatewayClient.generate.mockResolvedValue({ jobId: 'job-1', requestId: 'req-1' });
 
-      await handleChat(ctx, mockConfig);
+      await handleChat(ctx);
 
       expect(channel.send).toHaveBeenCalled();
       expect(mockJobTracker.trackJob).toHaveBeenCalledWith(
@@ -436,7 +433,7 @@ describe('Character Chat Handler (push delivery)', () => {
       mockPersonalityService.loadPersonality.mockResolvedValue(createMockPersonality());
       mockGatewayClient.generate.mockResolvedValue({ jobId: 'job-1', requestId: 'req-1' });
 
-      await handleChat(ctx, mockConfig);
+      await handleChat(ctx);
 
       expect(channel.send).toHaveBeenCalledWith(expect.stringContaining('Hi there'));
       expect(mockConversationPersistence.saveUserMessageFromFields).toHaveBeenCalledWith(
@@ -455,7 +452,7 @@ describe('Character Chat Handler (push delivery)', () => {
       mockGatewayClient.generate.mockResolvedValue({ jobId: 'job-1', requestId: 'req-1' });
       mockResolveUserContext.mockResolvedValueOnce(buildUserContext({ personaName: 'Cool Name' }));
 
-      await handleChat(ctx, mockConfig);
+      await handleChat(ctx);
 
       expect(channel.send).toHaveBeenCalledWith(expect.stringContaining('**Cool Name:**'));
     });
@@ -466,7 +463,7 @@ describe('Character Chat Handler (push delivery)', () => {
       mockPersonalityService.loadPersonality.mockResolvedValue(createMockPersonality());
       mockGatewayClient.generate.mockResolvedValue({ jobId: 'job-1', requestId: 'req-1' });
 
-      await handleChat(ctx, mockConfig);
+      await handleChat(ctx);
 
       expect(mockGatewayClient.generate).toHaveBeenCalledWith(
         expect.anything(),
@@ -483,7 +480,7 @@ describe('Character Chat Handler (push delivery)', () => {
       mockMessageContextBuilder.buildContext.mockResolvedValueOnce(createMockContextBuildResult());
       mockGatewayClient.generate.mockResolvedValue({ jobId: 'job-1', requestId: 'req-1' });
 
-      await handleChimeIn(ctx, mockConfig);
+      await handleChimeIn(ctx);
 
       // The only send should be from a possible error path — the user message
       // send path is gated on isWeighInMode === false.
@@ -505,7 +502,7 @@ describe('Character Chat Handler (push delivery)', () => {
       mockMessageContextBuilder.buildContext.mockResolvedValueOnce(createMockContextBuildResult());
       mockGatewayClient.generate.mockResolvedValue({ jobId: 'job-1', requestId: 'req-1' });
 
-      await handleChimeIn(ctx, mockConfig);
+      await handleChimeIn(ctx);
 
       expect(channel.send).not.toHaveBeenCalledWith(
         expect.stringContaining('Start a conversation first')
@@ -527,7 +524,7 @@ describe('Character Chat Handler (push delivery)', () => {
       mockMessageContextBuilder.buildContext.mockResolvedValueOnce(createMockContextBuildResult());
       mockGatewayClient.generate.mockResolvedValue({ jobId: 'job-1', requestId: 'req-1' });
 
-      await handleChimeIn(ctx, mockConfig);
+      await handleChimeIn(ctx);
 
       expect(channel.send).not.toHaveBeenCalledWith(
         expect.stringContaining('No conversation history')
@@ -553,7 +550,7 @@ describe('Character Chat Handler (push delivery)', () => {
       mockMessageContextBuilder.buildContext.mockResolvedValueOnce(createMockContextBuildResult());
       mockGatewayClient.generate.mockResolvedValue({ jobId: 'job-1', requestId: 'req-1' });
 
-      await handleChimeIn(ctx, mockConfig);
+      await handleChimeIn(ctx);
 
       expect(mockMessageContextBuilder.buildContext).toHaveBeenCalledTimes(1);
       const anchorArg = mockMessageContextBuilder.buildContext.mock.calls[0][0] as {
@@ -580,7 +577,7 @@ describe('Character Chat Handler (push delivery)', () => {
       const ctx = createMockContext('test-char', 'Hi', channel);
       mockPersonalityService.loadPersonality.mockRejectedValueOnce(new Error('boom'));
 
-      await handleChat(ctx, mockConfig);
+      await handleChat(ctx);
 
       expect(ctx.editReply).toHaveBeenCalledWith({
         content: expect.stringContaining('Failed to process the chat request'),
@@ -594,7 +591,7 @@ describe('Character Chat Handler (push delivery)', () => {
       mockPersonalityService.loadPersonality.mockResolvedValue(createMockPersonality());
       mockGatewayClient.generate.mockRejectedValueOnce(new Error('gateway down'));
 
-      await handleChat(ctx, mockConfig);
+      await handleChat(ctx);
 
       expect(ctx.editReply).toHaveBeenCalledWith({
         content: expect.stringContaining('Failed to process the chat request'),
@@ -609,7 +606,7 @@ describe('Character Chat Handler (push delivery)', () => {
       // editReply itself throws → handleChatError's catch falls back to the channel
       vi.mocked(ctx.editReply).mockRejectedValueOnce(new Error('editReply unavailable'));
 
-      await handleChat(ctx, mockConfig);
+      await handleChat(ctx);
 
       expect(channel.send).toHaveBeenCalledWith(
         expect.stringContaining('Failed to process the chat request')
@@ -636,7 +633,7 @@ describe('Character Chat Handler (push delivery)', () => {
         ],
       });
 
-      await handleRandom(ctx, mockConfig);
+      await handleRandom(ctx);
 
       // editReply is called by finalizeDeferredReply with the picked-character notice.
       expect(ctx.editReply).toHaveBeenCalled();
@@ -662,7 +659,7 @@ describe('Character Chat Handler (push delivery)', () => {
         ],
       });
 
-      await handleRandom(ctx, mockConfig);
+      await handleRandom(ctx);
 
       // No user message sent (weigh-in), but the picked-character notice still
       // posts via finalizeDeferredReply, and the job is tracked as a weigh-in.

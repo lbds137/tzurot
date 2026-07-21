@@ -46,21 +46,26 @@ const logger = createLogger('help-command');
 // Settings moved off ⚙️ because that glyph is the PRESET entity's.
 export const CATEGORY_CONFIG: Record<string, { emoji: string; order: number }> = {
   Character: { emoji: ENTITY_EMOJI.character, order: 1 },
-  Persona: { emoji: ENTITY_EMOJI.persona, order: 2 },
-  Preset: { emoji: ENTITY_EMOJI.preset, order: 3 },
-  Settings: { emoji: '🛠️', order: 4 },
-  Voice: { emoji: ENTITY_EMOJI.voice, order: 5 },
-  Shapes: { emoji: ENTITY_EMOJI.shapes, order: 6 },
-  Memory: { emoji: ENTITY_EMOJI.memory, order: 7 },
-  History: { emoji: ENTITY_EMOJI.history, order: 8 },
-  Channel: { emoji: ENTITY_EMOJI.channel, order: 9 },
-  Inspect: { emoji: '🔍', order: 10 },
-  Models: { emoji: ENTITY_EMOJI.model, order: 11 },
-  Notifications: { emoji: '🔔', order: 12 },
-  Feedback: { emoji: '💬', order: 13 },
-  Deny: { emoji: ENTITY_EMOJI.denial, order: 14 },
-  Admin: { emoji: '🛡️', order: 15 },
-  Help: { emoji: '❓', order: 16 },
+  // Invoke-verb commands (/chat, /random) sit right behind the entity they
+  // act on. Bespoke glyphs: 💬 belongs to Feedback, so Chat uses the
+  // left-speech-bubble variant; 🎲 mirrors the "Picked at random" notice.
+  Chat: { emoji: '🗨️', order: 2 },
+  Random: { emoji: '🎲', order: 3 },
+  Persona: { emoji: ENTITY_EMOJI.persona, order: 4 },
+  Preset: { emoji: ENTITY_EMOJI.preset, order: 5 },
+  Settings: { emoji: '🛠️', order: 6 },
+  Voice: { emoji: ENTITY_EMOJI.voice, order: 7 },
+  Shapes: { emoji: ENTITY_EMOJI.shapes, order: 8 },
+  Memory: { emoji: ENTITY_EMOJI.memory, order: 9 },
+  History: { emoji: ENTITY_EMOJI.history, order: 10 },
+  Channel: { emoji: ENTITY_EMOJI.channel, order: 11 },
+  Inspect: { emoji: '🔍', order: 12 },
+  Models: { emoji: ENTITY_EMOJI.model, order: 13 },
+  Notifications: { emoji: '🔔', order: 14 },
+  Feedback: { emoji: '💬', order: 15 },
+  Deny: { emoji: ENTITY_EMOJI.denial, order: 16 },
+  Admin: { emoji: '🛡️', order: 17 },
+  Help: { emoji: '❓', order: 18 },
   Other: { emoji: '📦', order: 99 },
 };
 
@@ -327,7 +332,7 @@ async function showAllCommands(
     value:
       `• \`${mentionChar}CharacterName your message\` - Start a conversation\n` +
       '• Reply to their messages to continue chatting\n' +
-      '• Use `/character chat` to start via slash command',
+      '• Use `/chat` to start via slash command',
     inline: false,
   });
 
@@ -353,7 +358,7 @@ const AUTOCOMPLETE_NAME_LIMIT = 100;
  * Autocomplete for the `command` option.
  *
  * Offers the discrete invocable command paths (subcommands like
- * "character chat", group subcommands like "admin presence set") so users pick
+ * "character chime-in", group subcommands like "admin presence set") so users pick
  * the exact thing they want help with — mirroring Discord's own slash-command
  * picker. A freeform value that doesn't resolve lands on the "Unknown command"
  * path, so steering users to real paths here is the whole point. Matches the

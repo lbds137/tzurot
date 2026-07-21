@@ -25,8 +25,9 @@ conversation.
 ## Make your own character
 
 - `/character create` starts a new character; `/character edit` opens its
-  dashboard, and `/character avatar` sets its face.
-- `/character chat` talks to a character directly from any channel.
+  dashboard, and `/character avatar set` sets its face.
+- `/chat` talks to a character directly from any channel (`/random` picks
+  one for you).
 - Coming from elsewhere? `/character import` accepts a JSON export (and
   `/shapes import` migrates shapes.inc characters), while `/character export`
   and `/character template` get you portable JSON back out.
@@ -57,7 +58,7 @@ yours to inspect:
 
 - **Talk to characters**: send a Discord voice message and it gets
   transcribed and answered like text.
-- **Hear them back**: characters can reply with speech. `/character voice`
+- **Hear them back**: characters can reply with speech. `/character voice set`
   enrolls a cloned voice for a character from reference audio; `/voice`
   configures which text-to-speech and transcription providers are used and
   manages your cloned-voice library.

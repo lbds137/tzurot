@@ -179,13 +179,13 @@ describe('Dashboard Actions', () => {
       });
     });
 
-    it('should mention voice-clear in the message', async () => {
+    it('should mention voice clear in the message', async () => {
       const mockInteraction = createMockInteraction();
 
       await handleAction(mockInteraction, 'test-char', 'voice', mockConfig);
 
       expect(mockInteraction.reply).toHaveBeenCalledWith({
-        content: expect.stringContaining('/character voice-clear'),
+        content: expect.stringContaining('/character voice clear'),
         flags: MessageFlags.Ephemeral,
       });
     });

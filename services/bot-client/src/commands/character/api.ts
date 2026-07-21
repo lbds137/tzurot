@@ -19,7 +19,7 @@
  *     create/update flows in import.ts); the gateway response carries
  *     `hasAvatar: boolean` instead. Defaulted to `null` on incoming data.
  *     The create/update schemas accept `null` (= no avatar), so it round-trips
- *     cleanly; the avatar itself is set separately via `/character avatar`.
+ *     cleanly; the avatar itself is set separately via `/character avatar set`.
  */
 
 import {

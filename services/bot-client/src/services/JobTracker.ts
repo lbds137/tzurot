@@ -45,7 +45,8 @@ export interface MessageJobContext extends BaseJobContext {
 }
 
 /**
- * Context for a job submitted via /character chat slash command.
+ * Context for a job submitted via a character-turn slash command
+ * (/chat, /random, /character chime-in).
  * No anchor Message — the interaction is the entry point and delivery
  * goes to `channel` directly (webhook in guilds, channel.send in DMs).
  *

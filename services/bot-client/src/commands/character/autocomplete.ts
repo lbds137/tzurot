@@ -15,23 +15,23 @@ const logger = createLogger('character-autocomplete');
 /**
  * Handle autocomplete for /character commands
  *
- * - For 'edit', 'avatar', 'voice', 'voice-clear': only shows user-owned characters
- * - For 'view', 'chat', 'chime-in', etc.: shows all accessible characters (owned + public)
+ * - For 'edit' and the 'avatar'/'voice' groups: only shows user-owned characters
+ * - For 'view', 'chime-in', etc.: shows all accessible characters (owned + public)
  *
  * Note: Delete is now handled via the edit dashboard, not a standalone command.
  */
 export async function handleAutocomplete(interaction: AutocompleteInteraction): Promise<void> {
   const subcommand = interaction.options.getSubcommand(false);
+  const group = interaction.options.getSubcommandGroup(false);
 
   await runGuardedAutocomplete(interaction, logger, async () => {
-    // Determine if we should only show owned characters.
-    // getSubcommand(false) returns string | null — null when focused option isn't in a subcommand.
+    // Determine if we should only show owned characters. Media management
+    // (the 'avatar'/'voice' groups) and 'edit' are owner-only writes.
     // The alias GROUP's subcommands ('browse', 'add') are deliberately NOT
     // here: aliases are visibility-scoped (anyone may add a personal alias
     // to any character they can see), so its autocomplete shows all
     // accessible characters.
-    const ownedOnlySubcommands = ['edit', 'avatar', 'avatar-clear', 'voice', 'voice-clear'];
-    const ownedOnly = subcommand !== null && ownedOnlySubcommands.includes(subcommand);
+    const ownedOnly = subcommand === 'edit' || group === 'avatar' || group === 'voice';
 
     const handled = await handlePersonalityAutocomplete(interaction, {
       optionName: 'character',

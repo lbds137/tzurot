@@ -64,7 +64,7 @@ describe('handleVoice', () => {
 
   describe('voice', () => {
     it('should reject non-audio files', async () => {
-      const context = createMockContext('voice', {
+      const context = createMockContext('set', {
         character: 'test-char',
         audio: { contentType: 'image/png', size: 1024, url: 'https://cdn.discordapp.com/file.png' },
       });
@@ -78,7 +78,7 @@ describe('handleVoice', () => {
     });
 
     it('should reject files that are too large', async () => {
-      const context = createMockContext('voice', {
+      const context = createMockContext('set', {
         character: 'test-char',
         audio: {
           contentType: 'audio/wav',
@@ -93,7 +93,7 @@ describe('handleVoice', () => {
     });
 
     it('should reject if character not found', async () => {
-      const context = createMockContext('voice', {
+      const context = createMockContext('set', {
         character: 'nonexistent',
         audio: { contentType: 'audio/wav', size: 1024, url: 'https://cdn.discordapp.com/file.wav' },
       });
@@ -106,7 +106,7 @@ describe('handleVoice', () => {
     });
 
     it('should reject if user cannot edit character', async () => {
-      const context = createMockContext('voice', {
+      const context = createMockContext('set', {
         character: 'test-char',
         audio: { contentType: 'audio/wav', size: 1024, url: 'https://cdn.discordapp.com/file.wav' },
       });
@@ -132,7 +132,7 @@ describe('handleVoice', () => {
       };
       vi.stubGlobal('fetch', vi.fn().mockResolvedValue(mockFetchResponse));
 
-      const context = createMockContext('voice', {
+      const context = createMockContext('set', {
         character: 'test-char',
         audio: {
           contentType: 'audio/wav',
@@ -178,7 +178,7 @@ describe('handleVoice', () => {
           arrayBuffer: vi.fn().mockResolvedValue(mockAudioBuffer.buffer),
         })
       );
-      const context = createMockContext('voice', {
+      const context = createMockContext('set', {
         character: 'test-char',
         audio: {
           contentType: 'audio/wav',
@@ -207,7 +207,7 @@ describe('handleVoice', () => {
     it('should handle download failure', async () => {
       vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false }));
 
-      const context = createMockContext('voice', {
+      const context = createMockContext('set', {
         character: 'test-char',
         audio: {
           contentType: 'audio/wav',
@@ -228,7 +228,7 @@ describe('handleVoice', () => {
     });
 
     it('should accept null contentType as invalid', async () => {
-      const context = createMockContext('voice', {
+      const context = createMockContext('set', {
         character: 'test-char',
         audio: { contentType: null, size: 1024, url: 'https://cdn.discordapp.com/file' },
       });
@@ -241,7 +241,7 @@ describe('handleVoice', () => {
     });
 
     it('should reject malformed attachment URLs', async () => {
-      const context = createMockContext('voice', {
+      const context = createMockContext('set', {
         character: 'test-char',
         audio: {
           contentType: 'audio/wav',
@@ -257,7 +257,7 @@ describe('handleVoice', () => {
     });
 
     it('should reject non-Discord CDN URLs', async () => {
-      const context = createMockContext('voice', {
+      const context = createMockContext('set', {
         character: 'test-char',
         audio: {
           contentType: 'audio/wav',
@@ -275,7 +275,7 @@ describe('handleVoice', () => {
     });
 
     it('rejects the autocomplete-error sentinel before validating attachment', async () => {
-      const context = createMockContext('voice', {
+      const context = createMockContext('set', {
         character: '__autocomplete_error__',
         audio: { contentType: 'audio/wav', size: 1024, url: 'https://cdn.discordapp.com/file.wav' },
       });
@@ -291,7 +291,7 @@ describe('handleVoice', () => {
   });
 
   it('classifies a READ-phase failure as a load error, never write-uncertain', async () => {
-    const context = createMockContext('voice', {
+    const context = createMockContext('set', {
       character: 'test-char',
       audio: {
         contentType: 'audio/wav',
@@ -315,7 +315,7 @@ describe('handleVoice', () => {
     const abortError = new Error('aborted');
     abortError.name = 'AbortError';
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(abortError));
-    const context = createMockContext('voice', {
+    const context = createMockContext('set', {
       character: 'test-char',
       audio: {
         contentType: 'audio/wav',
@@ -338,7 +338,7 @@ describe('handleVoice', () => {
 
   it('renders the download-failure line on a non-OK CDN response', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 502 }));
-    const context = createMockContext('voice', {
+    const context = createMockContext('set', {
       character: 'test-char',
       audio: {
         contentType: 'audio/wav',
@@ -359,9 +359,9 @@ describe('handleVoice', () => {
     );
   });
 
-  describe('voice-clear', () => {
+  describe('voice clear', () => {
     it('classifies a clear-write timeout as outcome-uncertain', async () => {
-      const context = createMockContext('voice-clear', { character: 'test-char' });
+      const context = createMockContext('clear', { character: 'test-char' });
       (fetchCharacter as ReturnType<typeof vi.fn>).mockResolvedValue({
         name: 'Test',
         displayName: 'Test Character',
@@ -381,7 +381,7 @@ describe('handleVoice', () => {
     });
 
     it('should reject if character not found', async () => {
-      const context = createMockContext('voice-clear', { character: 'nonexistent' });
+      const context = createMockContext('clear', { character: 'nonexistent' });
 
       (fetchCharacter as ReturnType<typeof vi.fn>).mockResolvedValue(null);
 
@@ -391,7 +391,7 @@ describe('handleVoice', () => {
     });
 
     it('should reject if user cannot edit character', async () => {
-      const context = createMockContext('voice-clear', { character: 'test-char' });
+      const context = createMockContext('clear', { character: 'test-char' });
 
       (fetchCharacter as ReturnType<typeof vi.fn>).mockResolvedValue({
         name: 'Test',
@@ -407,7 +407,7 @@ describe('handleVoice', () => {
     });
 
     it('should clear voice reference and disable voice on success', async () => {
-      const context = createMockContext('voice-clear', { character: 'test-char' });
+      const context = createMockContext('clear', { character: 'test-char' });
 
       (fetchCharacter as ReturnType<typeof vi.fn>).mockResolvedValue({
         name: 'Test',
@@ -430,7 +430,7 @@ describe('handleVoice', () => {
     });
 
     it('rejects the autocomplete-error sentinel before calling the gateway', async () => {
-      const context = createMockContext('voice-clear', { character: '__autocomplete_error__' });
+      const context = createMockContext('clear', { character: '__autocomplete_error__' });
 
       await handleVoice(context, mockConfig);
 

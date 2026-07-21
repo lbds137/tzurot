@@ -31,11 +31,8 @@ export const RAW_CONTENT_ALLOWLIST: Readonly<Record<string, number>> = {
   'services/bot-client/src/commands/character/aliasBrowse.ts': 2,
   'services/bot-client/src/commands/character/avatar.ts': 2,
   'services/bot-client/src/commands/character/browseHelpers.ts': 1,
-  'services/bot-client/src/commands/character/chat.ts': 2,
   'services/bot-client/src/commands/character/dashboardActions.ts': 10,
   'services/bot-client/src/commands/character/dashboardDeleteHandlers.ts': 1,
-  'services/bot-client/src/commands/character/randomPick.ts': 1,
-  'services/bot-client/src/commands/character/slashChatGates.ts': 1,
   'services/bot-client/src/commands/character/template.ts': 5,
   'services/bot-client/src/commands/character/view.ts': 3,
   'services/bot-client/src/commands/character/voice.ts': 2,
@@ -85,6 +82,11 @@ export const RAW_CONTENT_ALLOWLIST: Readonly<Record<string, number>> = {
   'services/bot-client/src/commands/voice/tts/set-default.ts': 2,
   'services/bot-client/src/commands/voice/tts/set.ts': 2,
   'services/bot-client/src/commands/voice/voices/purge.ts': 1,
+  // The character-turn engine lives outside commands/, but the rule lints all
+  // of src/, so its grandfathered budgets are keyed at its services/ home.
+  'services/bot-client/src/services/character/characterTurn.ts': 2,
+  'services/bot-client/src/services/character/randomPick.ts': 1,
+  'services/bot-client/src/services/character/slashChatGates.ts': 1,
 };
 
 /** Total grandfathered literals — the shrink-only ceiling pinned by the test. */

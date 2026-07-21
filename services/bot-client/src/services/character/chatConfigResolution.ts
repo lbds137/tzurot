@@ -1,7 +1,7 @@
 /**
  * Shared LLM-config resolution for the two chat entry paths — the message
  * pipeline (`PersonalityChatManager`, serving reply/mention/activation) and the
- * `/character chat` slash command (`chat.ts`). Both resolve the cascade config
+ * slash turn engine (`characterTurn.ts`). Both resolve the cascade config
  * from the gateway and derive extended-context settings from it; keeping ONE
  * copy here is what lets the slash path honour user/channel overrides instead of
  * silently running as if resolution had failed.

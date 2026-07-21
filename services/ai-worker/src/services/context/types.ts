@@ -93,7 +93,7 @@ export interface ContextDataSource {
 
   /**
    * Persisted user identities keyed by Discord message id, for relay-echo
-   * recovery. A `/character chat` relay-echo (the bot reposting user input as
+   * recovery. A `/chat` relay-echo (the bot reposting user input as
    * `**Name:** …`) is bot-authored, so the extended-context fetch can't see the
    * human behind it — it arrives role=user with no personaId and the bot's
    * webhook name as discordUsername. But the same message was persisted with the

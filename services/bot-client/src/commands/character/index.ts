@@ -32,7 +32,7 @@ import { handleEdit } from './edit.js';
 import { handleAvatar } from './avatar.js';
 import { handleVoice } from './voice.js';
 import { handleBrowse } from './browse.js';
-import { handleChat, handleRandom, handleChimeIn } from './chat.js';
+import { handleChimeIn } from '../../services/character/characterTurn.js';
 import { handleSettings } from './settings.js';
 import { handleOverrides } from './overrides.js';
 import {
@@ -65,16 +65,10 @@ function createCharacterRouter(): (context: SafeCommandContext) => Promise<void>
         edit: (ctx: DeferredCommandContext) => handleEdit(ctx, config),
         view: (ctx: DeferredCommandContext) => handleView(ctx, config),
         browse: (ctx: DeferredCommandContext) => handleBrowse(ctx, config),
-        avatar: (ctx: DeferredCommandContext) => handleAvatar(ctx, config),
-        'avatar-clear': (ctx: DeferredCommandContext) => handleAvatar(ctx, config),
-        voice: (ctx: DeferredCommandContext) => handleVoice(ctx, config),
-        'voice-clear': (ctx: DeferredCommandContext) => handleVoice(ctx, config),
         import: (ctx: DeferredCommandContext) => handleImport(ctx, config),
         export: (ctx: DeferredCommandContext) => handleExport(ctx, config),
         template: (ctx: DeferredCommandContext) => handleTemplate(ctx, config),
-        chat: (ctx: DeferredCommandContext) => handleChat(ctx, config),
-        random: (ctx: DeferredCommandContext) => handleRandom(ctx, config),
-        'chime-in': (ctx: DeferredCommandContext) => handleChimeIn(ctx, config),
+        'chime-in': (ctx: DeferredCommandContext) => handleChimeIn(ctx),
         settings: (ctx: DeferredCommandContext) => handleSettings(ctx, config),
         overrides: (ctx: DeferredCommandContext) => handleOverrides(ctx, config),
       },
@@ -87,16 +81,24 @@ function createCharacterRouter(): (context: SafeCommandContext) => Promise<void>
  * Command execution router
  */
 async function execute(context: SafeCommandContext): Promise<void> {
-  // The alias GROUP dispatches before the flat router: its subcommand
-  // names ('browse', 'add') collide with flat siblings under
-  // getSubcommand(), which is all the mixed router keys on.
-  if (context.getSubcommandGroup() === 'alias') {
+  // GROUPS dispatch before the flat router: their subcommand names collide
+  // across groups and with flat siblings under getSubcommand(), which is all
+  // the mixed router keys on ('alias browse' vs flat 'browse'; 'avatar set'
+  // vs 'voice set').
+  const group = context.getSubcommandGroup();
+  if (group === 'alias') {
     const ctx = context as DeferredCommandContext;
     if (ctx.getSubcommand() === 'add') {
       await handleAliasAdd(ctx);
     } else {
       await handleAliasBrowse(ctx);
     }
+    return;
+  }
+  if (group === 'avatar' || group === 'voice') {
+    const ctx = context as DeferredCommandContext;
+    const config = getConfig();
+    await (group === 'avatar' ? handleAvatar(ctx, config) : handleVoice(ctx, config));
     return;
   }
   const router = createCharacterRouter();
@@ -122,13 +124,10 @@ export default defineCommand({
   deferralMode: 'ephemeral', // Default for most subcommands
   subcommandDeferralModes: {
     create: 'modal', // /character create shows a modal
-    // chat / random / chime-in defer ephemerally so the random-pick notice
-    // ("🎲 Picked X", now on /character random) and any error responses
-    // (editReply) land as invoker-only messages. The user-mirror
-    // (`channel.send` in chat.ts) and the character's webhook reply are
-    // independent of the defer mode and remain public.
-    chat: 'ephemeral',
-    random: 'ephemeral',
+    // chime-in defers ephemerally so error responses (editReply) land as
+    // invoker-only messages. The character's webhook reply is independent of
+    // the defer mode and remains public. (The sibling turn commands /chat and
+    // /random carry the same rationale on their own definitions.)
     'chime-in': 'ephemeral',
   },
   data: new SlashCommandBuilder()
@@ -224,64 +223,74 @@ export default defineCommand({
             )
         )
     )
-    .addSubcommand(subcommand =>
-      subcommand
+    .addSubcommandGroup(group =>
+      group
         .setName('avatar')
-        .setDescription('Upload or replace a character avatar')
-        .addStringOption(option =>
-          option
-            .setName('character')
-            .setDescription(SELECTOR_DESCRIPTION.character)
-            .setRequired(true)
-            .setAutocomplete(true)
+        .setDescription("Manage a character's avatar image")
+        .addSubcommand(subcommand =>
+          subcommand
+            .setName('set')
+            .setDescription("Set a character's avatar image")
+            .addStringOption(option =>
+              option
+                .setName('character')
+                .setDescription(SELECTOR_DESCRIPTION.character)
+                .setRequired(true)
+                .setAutocomplete(true)
+            )
+            .addAttachmentOption(option =>
+              option
+                .setName('image')
+                .setDescription('Avatar image (PNG, JPG, GIF, WebP)')
+                .setRequired(true)
+            )
         )
-        .addAttachmentOption(option =>
-          option
-            .setName('image')
-            .setDescription('Avatar image (PNG, JPG, GIF, WebP)')
-            .setRequired(true)
+        .addSubcommand(subcommand =>
+          subcommand
+            .setName('clear')
+            .setDescription("Clear a character's avatar image")
+            .addStringOption(option =>
+              option
+                .setName('character')
+                .setDescription(SELECTOR_DESCRIPTION.character)
+                .setRequired(true)
+                .setAutocomplete(true)
+            )
         )
     )
-    .addSubcommand(subcommand =>
-      subcommand
-        .setName('avatar-clear')
-        .setDescription("Remove a character's avatar image")
-        .addStringOption(option =>
-          option
-            .setName('character')
-            .setDescription(SELECTOR_DESCRIPTION.character)
-            .setRequired(true)
-            .setAutocomplete(true)
-        )
-    )
-    .addSubcommand(subcommand =>
-      subcommand
+    .addSubcommandGroup(group =>
+      group
         .setName('voice')
-        .setDescription('Upload or replace a character voice reference for TTS cloning')
-        .addStringOption(option =>
-          option
-            .setName('character')
-            .setDescription(SELECTOR_DESCRIPTION.character)
-            .setRequired(true)
-            .setAutocomplete(true)
+        .setDescription("Manage a character's voice reference for TTS cloning")
+        .addSubcommand(subcommand =>
+          subcommand
+            .setName('set')
+            .setDescription("Set a character's voice reference for TTS cloning")
+            .addStringOption(option =>
+              option
+                .setName('character')
+                .setDescription(SELECTOR_DESCRIPTION.character)
+                .setRequired(true)
+                .setAutocomplete(true)
+            )
+            .addAttachmentOption(option =>
+              option
+                .setName('audio')
+                .setDescription('Voice reference audio (WAV, MP3, OGG, FLAC)')
+                .setRequired(true)
+            )
         )
-        .addAttachmentOption(option =>
-          option
-            .setName('audio')
-            .setDescription('Voice reference audio (WAV, MP3, OGG, FLAC)')
-            .setRequired(true)
-        )
-    )
-    .addSubcommand(subcommand =>
-      subcommand
-        .setName('voice-clear')
-        .setDescription("Clear a character's voice reference and disable TTS")
-        .addStringOption(option =>
-          option
-            .setName('character')
-            .setDescription(SELECTOR_DESCRIPTION.character)
-            .setRequired(true)
-            .setAutocomplete(true)
+        .addSubcommand(subcommand =>
+          subcommand
+            .setName('clear')
+            .setDescription("Clear a character's voice reference and disable TTS")
+            .addStringOption(option =>
+              option
+                .setName('character')
+                .setDescription(SELECTOR_DESCRIPTION.character)
+                .setRequired(true)
+                .setAutocomplete(true)
+            )
         )
     )
     .addSubcommand(subcommand =>
@@ -321,61 +330,6 @@ export default defineCommand({
     )
     .addSubcommand(subcommand =>
       subcommand.setName('template').setDescription('Show the JSON template for character import')
-    )
-    .addSubcommand(subcommand =>
-      subcommand
-        .setName('chat')
-        .setDescription('Chat one-on-one with a character')
-        .addStringOption(option =>
-          option
-            .setName('character')
-            .setDescription(SELECTOR_DESCRIPTION.character)
-            .setRequired(true)
-            .setAutocomplete(true)
-        )
-        .addStringOption(option =>
-          option
-            .setName('message')
-            .setDescription('Message to send to the character')
-            .setRequired(true)
-            .setMaxLength(2000)
-        )
-    )
-    .addSubcommand(subcommand =>
-      subcommand
-        .setName('random')
-        .setDescription(
-          'Chat with a random character — or, with no message, have them read the room'
-        )
-        .addStringOption(option =>
-          option
-            .setName('message')
-            .setDescription(
-              'Message to send (leave empty to have the random pick react to recent chat)'
-            )
-            .setRequired(false)
-            .setMaxLength(2000)
-        )
-        .addBooleanOption(option =>
-          option
-            .setName('incognito')
-            .setDescription(
-              'Hide your persona & memories. Defaults on with no message, off when you send one.'
-            )
-            .setRequired(false)
-        )
-        .addBooleanOption(option =>
-          option
-            .setName('exclude-private')
-            .setDescription('Only consider public characters (skip your private ones)')
-            .setRequired(false)
-        )
-        .addBooleanOption(option =>
-          option
-            .setName('only-mine')
-            .setDescription('Only consider characters you own (composable with exclude-private)')
-            .setRequired(false)
-        )
     )
     .addSubcommand(subcommand =>
       subcommand

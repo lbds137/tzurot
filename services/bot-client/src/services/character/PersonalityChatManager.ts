@@ -8,7 +8,7 @@
  * Does NOT own delivery or tracking — the caller (PersonalityMessageHandler)
  * receives a tracking context and hands it to JobTracker.
  *
- * The slash-command path (`/character chat`) builds its own context with
+ * The slash-command path (`/chat`) builds its own context with
  * command-invoker identity overrides and weigh-in semantics, so it bypasses
  * the manager entirely — the manager exists for the canonical Discord-Message
  * pipeline only.

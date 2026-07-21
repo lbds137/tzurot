@@ -569,7 +569,7 @@ describe('POST /user/personality (create)', () => {
             voiceReferenceData: new Uint8Array(audioBytes),
             voiceReferenceType: 'audio/wav',
             // Providing a voice reference at creation auto-enables voice,
-            // matching the /character voice upload path.
+            // matching the /character voice set upload path.
             voiceEnabled: true,
           }),
         })

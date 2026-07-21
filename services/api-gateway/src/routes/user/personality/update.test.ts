@@ -517,7 +517,7 @@ describe('PUT /user/personality/:slug (update)', () => {
 
     it('clearAvatar:true actually NULLs the stored avatar (avatarData:null is a no-op)', async () => {
       // Real-route seam test: the bot-client sends { clearAvatar: true } for
-      // avatar-clear. Proves it reaches prisma as avatarData:null — the bug the
+      // avatar clear. Proves it reaches prisma as avatarData:null — the bug the
       // mocked bot-client test could not catch (avatarData:null alone no-ops).
       mockGlob.mockReturnValue(createAsyncGenerator([]));
       const router = createPersonalityRoutes({

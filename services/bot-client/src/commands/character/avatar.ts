@@ -58,7 +58,7 @@ async function fetchEditableCharacter(
 }
 
 /**
- * Handle /character avatar upload
+ * Handle /character avatar set
  */
 async function handleAvatarUpload(
   context: DeferredCommandContext,
@@ -157,7 +157,7 @@ async function handleAvatarUpload(
 }
 
 /**
- * Handle /character avatar-clear
+ * Handle /character avatar clear
  */
 async function handleAvatarClear(
   context: DeferredCommandContext,
@@ -206,18 +206,18 @@ async function handleAvatarClear(
 }
 
 /**
- * Handle /character avatar subcommands.
- * Routes to upload or clear based on subcommand name (registered flat:
- * 'avatar', 'avatar-clear').
+ * Handle the /character avatar group.
+ * Routes to upload or clear based on subcommand name ('set' | 'clear'
+ * under the 'avatar' subcommand group).
  */
 export async function handleAvatar(
   context: DeferredCommandContext,
   config: EnvConfig
 ): Promise<void> {
   const subcommand = context.interaction.options.getSubcommand();
-  if (subcommand === 'avatar') {
+  if (subcommand === 'set') {
     await handleAvatarUpload(context, config);
-  } else if (subcommand === 'avatar-clear') {
+  } else if (subcommand === 'clear') {
     await handleAvatarClear(context, config);
   } else {
     logger.warn({ subcommand }, 'Unexpected avatar subcommand');

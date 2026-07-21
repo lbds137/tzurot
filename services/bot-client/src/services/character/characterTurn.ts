@@ -1,7 +1,8 @@
 /**
- * Character Chat Command Handler
+ * Character Turn Engine
  *
- * Allows users to chat with a character using a slash command.
+ * The shared core behind the three character-turn commands (`/chat`,
+ * `/random`, `/character chime-in`).
  * Push-based delivery: submits the job, registers a slash-context with
  * JobTracker, and returns. MessageHandler.handleSlashJobResult delivers
  * the response when the ResultsListener stream emits the result. This
@@ -18,15 +19,14 @@
  *    - Character is "summoned" to contribute to the ongoing conversation
  *    - Uses conversation history to generate a contextual response
  *
- * DMs are supported: a `/character chat` invocation in a DM is delivered
- * via DMChannel.send (the same surface @mention chat in DMs uses).
+ * DMs are supported: a `/chat` invocation in a DM is delivered via
+ * DMChannel.send (the same surface @mention chat in DMs uses).
  */
 
 import { Collection, escapeMarkdown, type Message } from 'discord.js';
-import { type EnvConfig } from '@tzurot/common-types/config/config';
 import {
-  characterChatOptions,
-  characterRandomOptions,
+  chatOptions,
+  randomOptions,
   characterChimeInOptions,
 } from '@tzurot/common-types/generated/commandOptions';
 import { isTypingChannel, type TypingChannel } from '@tzurot/common-types/types/discord-types';
@@ -38,14 +38,14 @@ import {
   getMessageContextBuilder,
   getConversationPersistence,
   getJobTracker,
-} from '../../services/serviceRegistry.js';
-import { resolveUserContext } from '../../services/contextBuilder/UserContextResolver.js';
+} from '../serviceRegistry.js';
+import { resolveUserContext } from '../contextBuilder/UserContextResolver.js';
 import { clientsForUser, getServiceClient } from '../../utils/gatewayClients.js';
 import {
   resolveChatLlmConfig,
   buildExtendedContextSettings,
   type ExtendedContextSettings,
-} from '../../services/character/chatConfigResolution.js';
+} from './chatConfigResolution.js';
 import { runSlashChatGates } from './slashChatGates.js';
 import { generate } from '../../utils/gatewayServiceCalls.js';
 import type { MessageContext } from '../../types.js';
@@ -53,7 +53,7 @@ import { resolveCharacterSlug, finalizeDeferredReply } from './randomPick.js';
 import { CATALOG } from '../../ux/catalog/catalog.js';
 import { renderSpec } from '../../ux/render/render.js';
 
-const logger = createLogger('character-chat');
+const logger = createLogger('character-turn');
 
 /**
  * Validate that the channel supports the push-delivery surface
@@ -366,7 +366,7 @@ async function submitAndTrackJob(params: SubmitJobParams): Promise<void> {
  * lives here where it's the function's only concern. Each filter is
  * independent — see `ResolveCharacterSlugOptions` for the AND-composition.
  */
-function readRandomPickFilters(options: ReturnType<typeof characterRandomOptions>): {
+function readRandomPickFilters(options: ReturnType<typeof randomOptions>): {
   excludePrivate: boolean;
   onlyMine: boolean;
 } {
@@ -377,11 +377,11 @@ function readRandomPickFilters(options: ReturnType<typeof characterRandomOptions
 }
 
 /**
- * Shared core for the three character-turn commands (`chat`, `random`,
- * `chime-in`). They differ only in how they resolve their inputs:
+ * Shared core for the three character-turn commands (`/chat`, `/random`,
+ * `/character chime-in`). They differ only in how they resolve their inputs:
  *
- * - **`/character chat`**: a named character + a required message → chat mode.
- * - **`/character random`**: `characterArg=null` forces a random pick; with a
+ * - **`/chat`**: a named character + a required message → chat mode.
+ * - **`/random`**: `characterArg=null` forces a random pick; with a
  *   message it's a chat, with no message it's a weigh-in ("read the room").
  * - **`/character chime-in`**: a named character + no message → weigh-in mode
  *   (anonymous, no persona, no LTM, no STM-reset epoch).
@@ -433,7 +433,6 @@ async function resolveTurnPrereqs(
 
 async function runCharacterTurn(
   context: DeferredCommandContext,
-  _config: EnvConfig,
   params: {
     /** Provided character slug, or null to force a random pick. */
     characterArg: string | null;
@@ -444,7 +443,7 @@ async function runCharacterTurn(
     /**
      * The `incognito` option from chime-in/random (null when unset). null →
      * default to weigh-in mode (no-message summons are anonymous, with-message
-     * are personal); explicit true/false overrides. Absent for /character chat.
+     * are personal); explicit true/false overrides. Absent for /chat.
      */
     incognitoOption?: boolean | null;
   }
@@ -572,16 +571,13 @@ async function runCharacterTurn(
 }
 
 /**
- * `/character chat` — chat one-on-one with a named character. Both args are
+ * `/chat` — chat one-on-one with a named character. Both args are
  * required (the message-required invariant is what makes Discord block the old
  * "omit message = weigh-in" ambiguity at the UI level).
  */
-export async function handleChat(
-  context: DeferredCommandContext,
-  config: EnvConfig
-): Promise<void> {
-  const options = characterChatOptions(context.interaction);
-  await runCharacterTurn(context, config, {
+export async function handleChat(context: DeferredCommandContext): Promise<void> {
+  const options = chatOptions(context.interaction);
+  await runCharacterTurn(context, {
     characterArg: options.character(),
     message: options.message(),
     filters: { excludePrivate: false, onlyMine: false },
@@ -589,15 +585,12 @@ export async function handleChat(
 }
 
 /**
- * `/character random` — pick a random accessible character. With a message it's
+ * `/random` — pick a random accessible character. With a message it's
  * a chat; with no message the random pick reads the room (weigh-in).
  */
-export async function handleRandom(
-  context: DeferredCommandContext,
-  config: EnvConfig
-): Promise<void> {
-  const options = characterRandomOptions(context.interaction);
-  await runCharacterTurn(context, config, {
+export async function handleRandom(context: DeferredCommandContext): Promise<void> {
+  const options = randomOptions(context.interaction);
+  await runCharacterTurn(context, {
     characterArg: null, // null forces the random pick in resolveCharacterSlug
     message: options.message(),
     filters: readRandomPickFilters(options),
@@ -610,12 +603,9 @@ export async function handleRandom(
  * conversation with no message from the invoker (weigh-in semantics: anonymous,
  * no persona attachment, no LTM read/write, no STM-reset epoch).
  */
-export async function handleChimeIn(
-  context: DeferredCommandContext,
-  config: EnvConfig
-): Promise<void> {
+export async function handleChimeIn(context: DeferredCommandContext): Promise<void> {
   const options = characterChimeInOptions(context.interaction);
-  await runCharacterTurn(context, config, {
+  await runCharacterTurn(context, {
     characterArg: options.character(),
     message: null, // no message → weigh-in mode
     filters: { excludePrivate: false, onlyMine: false },
