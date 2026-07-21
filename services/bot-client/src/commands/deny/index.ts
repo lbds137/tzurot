@@ -117,6 +117,9 @@ export default defineCommand({
   data: new SlashCommandBuilder()
     .setName('deny')
     .setDescription('Manage user and server denials')
+    // Hide from non-admin members' command pickers. The owner runtime gates
+    // stay authoritative — this is picker hygiene, not access control.
+    .setDefaultMemberPermissions('0')
     .addSubcommand(sub =>
       sub
         .setName('add')

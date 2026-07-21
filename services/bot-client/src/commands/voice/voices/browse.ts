@@ -158,7 +158,7 @@ function buildVoiceBrowsePage(
 
 /**
  * Handle /voice voices browse
- * Lists all tzurot-prefixed cloned voices from ElevenLabs.
+ * Lists all tzurot-prefixed cloned voices from every configured provider.
  *
  * Intentionally does NOT use the voiceCache (autocomplete cache) — browse
  * should always show fresh data since users invoke it to verify state after

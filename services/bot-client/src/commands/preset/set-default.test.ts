@@ -12,7 +12,7 @@ import {
   mockListWalletKeysResponse,
   mockListLlmConfigsResponse,
 } from '@tzurot/test-factories';
-import { makeOk, makeErr } from '../../../test/gatewayClientStubs.js';
+import { makeOk, makeErr } from '../../test/gatewayClientStubs.js';
 import type { UserClient } from '@tzurot/clients';
 
 // Mock logger
@@ -37,7 +37,7 @@ const stub = {
   setDefaultModelConfig: vi.fn(),
 };
 
-vi.mock('../../../utils/gatewayClients.js', () => ({
+vi.mock('../../utils/gatewayClients.js', () => ({
   clientsFor: vi.fn(() => ({ userClient: stub as unknown as UserClient })),
 }));
 

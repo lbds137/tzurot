@@ -58,8 +58,8 @@ vi.mock('./override/browse.js', () => ({
 }));
 vi.mock('./override/set.js', () => ({ handleSet: vi.fn() }));
 vi.mock('./override/clear.js', () => ({ handleClear: vi.fn() }));
-vi.mock('./override/set-default.js', () => ({ handleSetDefault: vi.fn() }));
-vi.mock('./override/clear-default.js', () => ({ handleClearDefault: vi.fn() }));
+vi.mock('./set-default.js', () => ({ handleSetDefault: vi.fn() }));
+vi.mock('./clear-default.js', () => ({ handleClearDefault: vi.fn() }));
 vi.mock('./override/autocomplete.js', () => ({ handleAutocomplete: vi.fn() }));
 
 import { handleBrowse, isPresetBrowseInteraction } from './browse.js';
@@ -76,8 +76,8 @@ import {
 } from './override/browse.js';
 import { handleSet as handleOverrideSet } from './override/set.js';
 import { handleClear as handleOverrideClear } from './override/clear.js';
-import { handleSetDefault as handleOverrideSetDefault } from './override/set-default.js';
-import { handleClearDefault as handleOverrideClearDefault } from './override/clear-default.js';
+import { handleSetDefault } from './set-default.js';
+import { handleClearDefault } from './clear-default.js';
 import { handleAutocomplete as handleOverrideAutocomplete } from './override/autocomplete.js';
 
 describe('Preset Command', () => {
@@ -143,14 +143,17 @@ describe('Preset Command', () => {
       const subcommands = ((overrideGroup as { options?: { name: string }[] })?.options ?? []).map(
         s => s.name
       );
-      // Names mirror the /voice tts pattern: action verb (set / clear) +
-      // optional scope qualifier (-default for global vs no suffix for
-      // per-character). `browse` is the interactive select-to-clear view.
-      expect(subcommands).toContain('browse');
-      expect(subcommands).toContain('set');
-      expect(subcommands).toContain('clear');
-      expect(subcommands).toContain('set-default');
-      expect(subcommands).toContain('clear-default');
+      // The override group is per-character only; the account-default pair
+      // (set-default/clear-default) lives at the command ROOT — a default is
+      // a baseline, not an override.
+      expect(subcommands).toEqual(['browse', 'set', 'clear']);
+    });
+
+    it('exposes the account-default pair as root subcommands', () => {
+      const json = presetCommand.data.toJSON();
+      const rootSubNames = (json.options ?? []).filter(opt => opt.type === 1).map(opt => opt.name);
+      expect(rootSubNames).toContain('set-default');
+      expect(rootSubNames).toContain('clear-default');
     });
 
     it('keeps the historical override componentPrefix for in-flight components', () => {
@@ -220,10 +223,17 @@ describe('Preset Command', () => {
       ['browse', handleOverrideBrowse],
       ['set', handleOverrideSet],
       ['clear', handleOverrideClear],
-      ['set-default', handleOverrideSetDefault],
-      ['clear-default', handleOverrideClearDefault],
     ])('routes override %s to its handler', async (subcommand, handler) => {
       const context = createMockContext(subcommand as string, 'override');
+      await execute(context);
+      expect(handler).toHaveBeenCalledWith(context);
+    });
+
+    it.each([
+      ['set-default', handleSetDefault],
+      ['clear-default', handleClearDefault],
+    ])('routes root %s to the account-default handler', async (subcommand, handler) => {
+      const context = createMockContext(subcommand as string, null);
       await execute(context);
       expect(handler).toHaveBeenCalledWith(context);
     });
@@ -241,6 +251,23 @@ describe('Preset Command', () => {
         options: {
           getFocused: () => ({ name: 'preset', value: '' }),
           getSubcommandGroup: () => 'override',
+        },
+      } as never;
+
+      await presetCommand.autocomplete?.(interaction);
+
+      expect(handleOverrideAutocomplete).toHaveBeenCalledWith(interaction);
+    });
+
+    it('routes root set-default autocomplete to the ASSIGNABLE pool handler', async () => {
+      // set-default assigns a preset like override set does, so it shares the
+      // override autocomplete (assignable configs + guest-mode upsell) rather
+      // than the base pool of your editable presets.
+      const interaction = {
+        options: {
+          getFocused: () => ({ name: 'preset', value: '' }),
+          getSubcommandGroup: () => null,
+          getSubcommand: () => 'set-default',
         },
       } as never;
 

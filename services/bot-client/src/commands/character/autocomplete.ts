@@ -16,7 +16,7 @@ const logger = createLogger('character-autocomplete');
  * Handle autocomplete for /character commands
  *
  * - For 'edit' and the 'avatar'/'voice' groups: only shows user-owned characters
- * - For 'view', 'chime-in', etc.: shows all accessible characters (owned + public)
+ * - For 'view', 'export', etc.: shows all accessible characters (owned + public)
  *
  * Note: Delete is now handled via the edit dashboard, not a standalone command.
  */

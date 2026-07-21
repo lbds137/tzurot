@@ -63,9 +63,10 @@ const KNOWN_SUBCOMMAND_NAMES = new Set<string>([
   // to opted-in users; not a rename candidate — "send"/"notify" would collide
   // with nothing and describe less)
   'broadcast',
-  // character summon verb (its siblings /chat and /random are top-level
-  // commands, outside this subcommand-name check)
-  'chime-in',
+  // /help sections — deliberate nouns: 'commands' is the browsable index,
+  // 'getting-started' the onboarding screen
+  'commands',
+  'getting-started',
   'overrides',
   'activate',
   'deactivate',
@@ -80,7 +81,6 @@ const KNOWN_SUBCOMMAND_NAMES = new Set<string>([
   'db-sync',
   'purge',
   'search',
-  'hard-delete',
   'test',
   'set',
   // noun subcommands opening a second browsable entity under one command

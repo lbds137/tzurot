@@ -814,35 +814,6 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
     "type": 1,
   },
   {
-    "description": "Have a character chime in on the recent conversation (no message from you)",
-    "description_localizations": undefined,
-    "name": "chime-in",
-    "name_localizations": undefined,
-    "options": [
-      {
-        "autocomplete": true,
-        "choices": undefined,
-        "description": "Which character",
-        "description_localizations": undefined,
-        "max_length": undefined,
-        "min_length": undefined,
-        "name": "character",
-        "name_localizations": undefined,
-        "required": true,
-        "type": 3,
-      },
-      {
-        "description": "Anonymous by default (no persona/memories). Set False to use your persona + memories.",
-        "description_localizations": undefined,
-        "name": "incognito",
-        "name_localizations": undefined,
-        "required": false,
-        "type": 5,
-      },
-    ],
-    "type": 1,
-  },
-  {
     "description": "Open character settings dashboard (owner only)",
     "description_localizations": undefined,
     "name": "settings",
@@ -912,6 +883,31 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
     "name_localizations": undefined,
     "required": true,
     "type": 3,
+  },
+]
+`;
+
+exports[`CommandHandler (component) > command structure snapshots > has a stable option structure for every registered command > chime-in-command-options 1`] = `
+[
+  {
+    "autocomplete": true,
+    "choices": undefined,
+    "description": "Which character",
+    "description_localizations": undefined,
+    "max_length": undefined,
+    "min_length": undefined,
+    "name": "character",
+    "name_localizations": undefined,
+    "required": true,
+    "type": 3,
+  },
+  {
+    "description": "Anonymous by default (no persona/memories). Set False to use your persona + memories.",
+    "description_localizations": undefined,
+    "name": "incognito",
+    "name_localizations": undefined,
+    "required": false,
+    "type": 5,
   },
 ]
 `;
@@ -1396,7 +1392,7 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
   {
     "description": "PERMANENTLY delete conversation history (cannot be undone!)",
     "description_localizations": undefined,
-    "name": "hard-delete",
+    "name": "purge",
     "name_localizations": undefined,
     "options": [
       {
@@ -2283,6 +2279,82 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
     "type": 1,
   },
   {
+    "description": "Set your default preset — used for every character without an override",
+    "description_localizations": undefined,
+    "name": "set-default",
+    "name_localizations": undefined,
+    "options": [
+      {
+        "autocomplete": true,
+        "choices": undefined,
+        "description": "Which preset",
+        "description_localizations": undefined,
+        "max_length": undefined,
+        "min_length": undefined,
+        "name": "preset",
+        "name_localizations": undefined,
+        "required": true,
+        "type": 3,
+      },
+      {
+        "autocomplete": undefined,
+        "choices": [
+          {
+            "name": "Chat",
+            "name_localizations": undefined,
+            "value": "text",
+          },
+          {
+            "name": "Vision",
+            "name_localizations": undefined,
+            "value": "vision",
+          },
+        ],
+        "description": "Which slot to target: Chat (default) or Vision",
+        "description_localizations": undefined,
+        "max_length": undefined,
+        "min_length": undefined,
+        "name": "slot",
+        "name_localizations": undefined,
+        "required": false,
+        "type": 3,
+      },
+    ],
+    "type": 1,
+  },
+  {
+    "description": "Clear your default preset",
+    "description_localizations": undefined,
+    "name": "clear-default",
+    "name_localizations": undefined,
+    "options": [
+      {
+        "autocomplete": undefined,
+        "choices": [
+          {
+            "name": "Chat",
+            "name_localizations": undefined,
+            "value": "text",
+          },
+          {
+            "name": "Vision",
+            "name_localizations": undefined,
+            "value": "vision",
+          },
+        ],
+        "description": "Which slot to target: Chat (default) or Vision",
+        "description_localizations": undefined,
+        "max_length": undefined,
+        "min_length": undefined,
+        "name": "slot",
+        "name_localizations": undefined,
+        "required": false,
+        "type": 3,
+      },
+    ],
+    "type": 1,
+  },
+  {
     "description": "Manage global presets (Owner only)",
     "description_localizations": undefined,
     "name": "global",
@@ -2380,7 +2452,7 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
     "type": 2,
   },
   {
-    "description": "Per-character preset overrides and your default preset",
+    "description": "Per-character preset overrides",
     "description_localizations": undefined,
     "name": "override",
     "name_localizations": undefined,
@@ -2467,82 +2539,6 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
             "required": true,
             "type": 3,
           },
-          {
-            "autocomplete": undefined,
-            "choices": [
-              {
-                "name": "Chat",
-                "name_localizations": undefined,
-                "value": "text",
-              },
-              {
-                "name": "Vision",
-                "name_localizations": undefined,
-                "value": "vision",
-              },
-            ],
-            "description": "Which slot to target: Chat (default) or Vision",
-            "description_localizations": undefined,
-            "max_length": undefined,
-            "min_length": undefined,
-            "name": "slot",
-            "name_localizations": undefined,
-            "required": false,
-            "type": 3,
-          },
-        ],
-        "type": 1,
-      },
-      {
-        "description": "Set your global default preset",
-        "description_localizations": undefined,
-        "name": "set-default",
-        "name_localizations": undefined,
-        "options": [
-          {
-            "autocomplete": true,
-            "choices": undefined,
-            "description": "Which preset",
-            "description_localizations": undefined,
-            "max_length": undefined,
-            "min_length": undefined,
-            "name": "preset",
-            "name_localizations": undefined,
-            "required": true,
-            "type": 3,
-          },
-          {
-            "autocomplete": undefined,
-            "choices": [
-              {
-                "name": "Chat",
-                "name_localizations": undefined,
-                "value": "text",
-              },
-              {
-                "name": "Vision",
-                "name_localizations": undefined,
-                "value": "vision",
-              },
-            ],
-            "description": "Which slot to target: Chat (default) or Vision",
-            "description_localizations": undefined,
-            "max_length": undefined,
-            "min_length": undefined,
-            "name": "slot",
-            "name_localizations": undefined,
-            "required": false,
-            "type": 3,
-          },
-        ],
-        "type": 1,
-      },
-      {
-        "description": "Clear your global default preset",
-        "description_localizations": undefined,
-        "name": "clear-default",
-        "name_localizations": undefined,
-        "options": [
           {
             "autocomplete": undefined,
             "choices": [
@@ -3147,7 +3143,7 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
     "type": 2,
   },
   {
-    "description": "Manage your ElevenLabs cloned voices",
+    "description": "Manage your cloned voices",
     "description_localizations": undefined,
     "name": "voices",
     "name_localizations": undefined,
@@ -3201,6 +3197,7 @@ exports[`CommandHandler (component) > command structure snapshots > registers a 
   "channel",
   "character",
   "chat",
+  "chime-in",
   "deny",
   "feedback",
   "help",

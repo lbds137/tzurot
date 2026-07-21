@@ -1,6 +1,6 @@
 /**
- * History Hard-Delete Handler
- * Handles /history hard-delete command - permanently delete conversation history
+ * History Purge Handler
+ * Handles /history purge command - permanently delete conversation history
  *
  * This is a destructive operation that uses the DestructiveConfirmation flow:
  * 1. Shows warning with danger button
@@ -12,7 +12,7 @@
  * because the parent command uses deferralMode: 'ephemeral'.
  */
 
-import { historyHardDeleteOptions } from '@tzurot/common-types/generated/commandOptions';
+import { historyPurgeOptions } from '@tzurot/common-types/generated/commandOptions';
 import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
 import { renderSpec } from '../../ux/render/render.js';
 import { createLogger } from '@tzurot/common-types/utils/logger';
@@ -26,16 +26,16 @@ import {
   createHardDeleteConfig,
 } from '../../utils/confirmation/confirmDestructive.js';
 
-const logger = createLogger('history-hard-delete');
+const logger = createLogger('history-purge');
 
 /**
- * Handle /history hard-delete
+ * Handle /history purge
  * Shows warning with danger button. Actual deletion happens in button handler.
  */
-export async function handleHardDelete(context: DeferredCommandContext): Promise<void> {
+export async function handlePurgeHistory(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;
   const channelId = context.channelId;
-  const options = historyHardDeleteOptions(context.interaction);
+  const options = historyPurgeOptions(context.interaction);
   const personalitySlug = options.character();
 
   if (isAutocompleteErrorSentinel(personalitySlug)) {
@@ -56,8 +56,12 @@ export async function handleHardDelete(context: DeferredCommandContext): Promise
         '• Your messages\n' +
         '• The character\u2019s responses to you\n' +
         '• Any hidden messages from context clears',
+      // 'history-purge' replaced the historical 'hard-delete' token when the
+      // subcommand was renamed. Safe rename class: destructive-confirm
+      // customIds live only minutes and FAIL CLOSED — an in-flight confirm
+      // from before a deploy simply stops routing, never mis-executes.
       source: 'history',
-      operation: 'hard-delete',
+      operation: 'history-purge',
       // Include channelId in entityId so button handler knows which channel
       // Use | delimiter since :: is used by customId parsing
       entityId: `${personalitySlug}|${channelId}`,
@@ -71,12 +75,12 @@ export async function handleHardDelete(context: DeferredCommandContext): Promise
       components: warning.components,
     });
 
-    logger.info({ userId, personalitySlug, channelId }, 'Showing hard-delete confirmation');
+    logger.info({ userId, personalitySlug, channelId }, 'Showing purge confirmation');
   } catch (error) {
-    logger.error({ err: error, userId, command: 'History Hard-Delete' }, 'Error');
+    logger.error({ err: error, userId, command: 'History Purge' }, 'Error');
     await context.editReply({
       content: renderSpec(
-        classifyGatewayFailure(error, 'history', { failedAction: 'hard-delete history' })
+        classifyGatewayFailure(error, 'history', { failedAction: 'purge history' })
       ),
     });
   }
@@ -86,7 +90,7 @@ export async function handleHardDelete(context: DeferredCommandContext): Promise
  * Parse the entityId back to personalitySlug and channelId
  * Uses | as delimiter to avoid conflict with :: in customId parsing
  */
-export function parseHardDeleteEntityId(entityId: string): {
+export function parsePurgeEntityId(entityId: string): {
   personalitySlug: string;
   channelId: string;
 } | null {

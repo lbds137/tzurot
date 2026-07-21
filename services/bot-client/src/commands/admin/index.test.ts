@@ -81,6 +81,11 @@ describe('admin command', () => {
       expect(data.description).toBe('Admin commands (Owner only)');
     });
 
+    it('is hidden from non-admin member pickers (perms 0)', () => {
+      // Picker hygiene only — the bot-owner runtime gate stays authoritative.
+      expect(data.toJSON().default_member_permissions).toBe('0');
+    });
+
     it('should have db-sync subcommand', () => {
       const options = data.options ?? [];
       const dbSyncSubcommand = options.find(opt => 'name' in opt && opt.name === 'db-sync');

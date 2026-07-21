@@ -2,7 +2,7 @@
  * Character Turn Engine
  *
  * The shared core behind the three character-turn commands (`/chat`,
- * `/random`, `/character chime-in`).
+ * `/random`, `/chime-in`).
  * Push-based delivery: submits the job, registers a slash-context with
  * JobTracker, and returns. MessageHandler.handleSlashJobResult delivers
  * the response when the ResultsListener stream emits the result. This
@@ -27,7 +27,7 @@ import { Collection, escapeMarkdown, type Message } from 'discord.js';
 import {
   chatOptions,
   randomOptions,
-  characterChimeInOptions,
+  chimeInOptions,
 } from '@tzurot/common-types/generated/commandOptions';
 import { isTypingChannel, type TypingChannel } from '@tzurot/common-types/types/discord-types';
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
@@ -378,12 +378,12 @@ function readRandomPickFilters(options: ReturnType<typeof randomOptions>): {
 
 /**
  * Shared core for the three character-turn commands (`/chat`, `/random`,
- * `/character chime-in`). They differ only in how they resolve their inputs:
+ * `/chime-in`). They differ only in how they resolve their inputs:
  *
  * - **`/chat`**: a named character + a required message → chat mode.
  * - **`/random`**: `characterArg=null` forces a random pick; with a
  *   message it's a chat, with no message it's a weigh-in ("read the room").
- * - **`/character chime-in`**: a named character + no message → weigh-in mode
+ * - **`/chime-in`**: a named character + no message → weigh-in mode
  *   (anonymous, no persona, no LTM, no STM-reset epoch).
  *
  * Weigh-in is derived purely from `message` being absent/empty, so all three
@@ -599,12 +599,12 @@ export async function handleRandom(context: DeferredCommandContext): Promise<voi
 }
 
 /**
- * `/character chime-in` — have a named character react to the recent
+ * `/chime-in` — have a named character react to the recent
  * conversation with no message from the invoker (weigh-in semantics: anonymous,
  * no persona attachment, no LTM read/write, no STM-reset epoch).
  */
 export async function handleChimeIn(context: DeferredCommandContext): Promise<void> {
-  const options = characterChimeInOptions(context.interaction);
+  const options = chimeInOptions(context.interaction);
   await runCharacterTurn(context, {
     characterArg: options.character(),
     message: null, // no message → weigh-in mode

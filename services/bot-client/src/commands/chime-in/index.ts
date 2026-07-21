@@ -1,17 +1,15 @@
 /**
- * Chat Command
- * Top-level `/chat` — chat one-on-one with a character.
+ * Chime-In Command
+ * Top-level `/chime-in` — have a character react to the recent conversation.
  *
  * Thin command surface over the shared character-turn engine
- * (services/character/characterTurn.ts), which also powers `/random` and
- * `/chime-in`. Extracted from `/character chat`: invoking a
- * character is the bot's primary action, so it lives at the top level;
- * configuring characters stays under `/character`.
+ * (services/character/characterTurn.ts), which also powers `/chat` and
+ * `/random`. Extracted from `/character chime-in`: summoning a character is
+ * an invoke action, so it lives top-level beside its sibling turn commands.
  *
- * This command uses deferralMode: 'ephemeral' so the random-pick notice and
- * error responses (editReply) land as invoker-only messages. The user-mirror
- * (`channel.send` in characterTurn.ts) and the character's webhook reply are
- * independent of the defer mode and remain public.
+ * The summon carries no message from the invoker (weigh-in semantics:
+ * anonymous by default — no persona attachment, no long-term-memory
+ * read/write; the `incognito` option overrides the anonymity).
  */
 
 import { SlashCommandBuilder, type AutocompleteInteraction } from 'discord.js';
@@ -22,14 +20,14 @@ import {
   type DeferredCommandContext,
   type SafeCommandContext,
 } from '../../utils/defineCommand.js';
-import { handleChat } from '../../services/character/characterTurn.js';
+import { handleChimeIn } from '../../services/character/characterTurn.js';
 import { handlePersonalityAutocomplete } from '../../utils/autocomplete/index.js';
 import { runGuardedAutocomplete } from '../../utils/autocomplete/guardedAutocomplete.js';
 
-const logger = createLogger('chat-command');
+const logger = createLogger('chime-in-command');
 
 async function execute(ctx: SafeCommandContext): Promise<void> {
-  await handleChat(ctx as DeferredCommandContext);
+  await handleChimeIn(ctx as DeferredCommandContext);
 }
 
 /**
@@ -52,8 +50,8 @@ async function autocomplete(interaction: AutocompleteInteraction): Promise<void>
 export default defineCommand({
   deferralMode: 'ephemeral',
   data: new SlashCommandBuilder()
-    .setName('chat')
-    .setDescription('Chat one-on-one with a character')
+    .setName('chime-in')
+    .setDescription('Have a character chime in on the recent conversation (no message from you)')
     .addStringOption(option =>
       option
         .setName('character')
@@ -61,12 +59,13 @@ export default defineCommand({
         .setRequired(true)
         .setAutocomplete(true)
     )
-    .addStringOption(option =>
+    .addBooleanOption(option =>
       option
-        .setName('message')
-        .setDescription('Message to send to the character')
-        .setRequired(true)
-        .setMaxLength(2000)
+        .setName('incognito')
+        .setDescription(
+          'Anonymous by default (no persona/memories). Set False to use your persona + memories.'
+        )
+        .setRequired(false)
     ),
   execute,
   autocomplete,

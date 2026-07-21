@@ -7,7 +7,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
-import { handleHardDelete, parseHardDeleteEntityId } from './hard-delete.js';
+import { handlePurgeHistory, parsePurgeEntityId } from './purge.js';
 
 // Mock common-types
 vi.mock('@tzurot/common-types/utils/logger', async () => {
@@ -29,7 +29,7 @@ vi.mock('@tzurot/common-types/utils/logger', async () => {
 const mockBuildDestructiveWarning = vi.fn();
 const mockCreateHardDeleteConfig = vi.fn(() => ({
   source: 'history',
-  operation: 'hard-delete',
+  operation: 'history-purge',
   entityId: 'lilith|channel-123',
 }));
 vi.mock('../../utils/confirmation/confirmDestructive.js', () => ({
@@ -39,7 +39,7 @@ vi.mock('../../utils/confirmation/confirmDestructive.js', () => ({
     mockCreateHardDeleteConfig(...(args as Parameters<typeof mockCreateHardDeleteConfig>)),
 }));
 
-describe('handleHardDelete', () => {
+describe('handlePurgeHistory', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockBuildDestructiveWarning.mockReturnValue({
@@ -81,7 +81,7 @@ describe('handleHardDelete', () => {
         if (name === 'character') return personalitySlug;
         throw new Error(`Unknown required option: ${name}`);
       }),
-      getSubcommand: () => 'hard-delete',
+      getSubcommand: () => 'purge',
       getSubcommandGroup: () => null,
       editReply: mockEditReply,
       followUp: vi.fn(),
@@ -91,14 +91,14 @@ describe('handleHardDelete', () => {
 
   it('should show destructive warning with danger button', async () => {
     const context = createMockContext();
-    await handleHardDelete(context);
+    await handlePurgeHistory(context);
 
     expect(mockCreateHardDeleteConfig).toHaveBeenCalledWith({
       entityType: 'conversation history',
       entityName: 'lilith',
       additionalWarning: expect.stringContaining('PERMANENT'),
       source: 'history',
-      operation: 'hard-delete',
+      operation: 'history-purge',
       entityId: 'lilith|channel-123',
     });
     // The warning must state the TRUE scope (persona-scoped) — the old copy
@@ -119,7 +119,7 @@ describe('handleHardDelete', () => {
 
   it('should include channelId in entityId', async () => {
     const context = createMockContext('test-personality', 'channel-456');
-    await handleHardDelete(context);
+    await handlePurgeHistory(context);
 
     expect(mockCreateHardDeleteConfig).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -134,16 +134,16 @@ describe('handleHardDelete', () => {
     });
 
     const context = createMockContext();
-    await handleHardDelete(context);
+    await handlePurgeHistory(context);
 
     expect(context.editReply).toHaveBeenCalledWith({
-      content: '❌ Failed to hard-delete history. Please try again.',
+      content: '❌ Failed to purge history. Please try again.',
     });
   });
 
   it('rejects the autocomplete-error sentinel before building the warning', async () => {
     const context = createMockContext('__autocomplete_error__');
-    await handleHardDelete(context);
+    await handlePurgeHistory(context);
 
     expect(mockBuildDestructiveWarning).not.toHaveBeenCalled();
     expect(context.editReply).toHaveBeenCalledWith({
@@ -152,9 +152,9 @@ describe('handleHardDelete', () => {
   });
 });
 
-describe('parseHardDeleteEntityId', () => {
+describe('parsePurgeEntityId', () => {
   it('should parse valid entityId', () => {
-    const result = parseHardDeleteEntityId('lilith|channel-123');
+    const result = parsePurgeEntityId('lilith|channel-123');
 
     expect(result).toEqual({
       personalitySlug: 'lilith',
@@ -163,7 +163,7 @@ describe('parseHardDeleteEntityId', () => {
   });
 
   it('should handle entityId with complex personality slug', () => {
-    const result = parseHardDeleteEntityId('my-custom-personality|123456789012345678');
+    const result = parsePurgeEntityId('my-custom-personality|123456789012345678');
 
     expect(result).toEqual({
       personalitySlug: 'my-custom-personality',
@@ -172,25 +172,25 @@ describe('parseHardDeleteEntityId', () => {
   });
 
   it('should return null for invalid entityId (no separator)', () => {
-    const result = parseHardDeleteEntityId('lilith-channel-123');
+    const result = parsePurgeEntityId('lilith-channel-123');
 
     expect(result).toBeNull();
   });
 
   it('should return null for invalid entityId (too many separators)', () => {
-    const result = parseHardDeleteEntityId('lilith|channel|123');
+    const result = parsePurgeEntityId('lilith|channel|123');
 
     expect(result).toBeNull();
   });
 
   it('should return null for empty entityId', () => {
-    const result = parseHardDeleteEntityId('');
+    const result = parsePurgeEntityId('');
 
     expect(result).toBeNull();
   });
 
   it('should return null for entityId with only separator', () => {
-    const result = parseHardDeleteEntityId('|');
+    const result = parsePurgeEntityId('|');
 
     expect(result).toEqual({
       personalitySlug: '',
@@ -199,7 +199,7 @@ describe('parseHardDeleteEntityId', () => {
   });
 
   it('should handle single-part entityId', () => {
-    const result = parseHardDeleteEntityId('lilith');
+    const result = parsePurgeEntityId('lilith');
 
     expect(result).toBeNull();
   });
