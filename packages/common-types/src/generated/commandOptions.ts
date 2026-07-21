@@ -46,10 +46,10 @@ export const adminKickOptions = defineTypedOptions({
 });
 
 /**
- * /admin usage <period>
+ * /admin usage <timeframe>
  */
 export const adminUsageOptions = defineTypedOptions({
-  period: { type: 'string', required: false },
+  timeframe: { type: 'string', required: false },
 });
 
 /**
@@ -64,10 +64,10 @@ export const adminBroadcastOptions = defineTypedOptions({
 });
 
 /**
- * /admin cleanup <days, target>
+ * /admin cleanup <timeframe, target>
  */
 export const adminCleanupOptions = defineTypedOptions({
-  days: { type: 'integer', required: false },
+  timeframe: { type: 'integer', required: false },
   target: { type: 'string', required: false },
 });
 
@@ -363,11 +363,11 @@ export const memoryFocusStatusOptions = defineTypedOptions({
 });
 
 /**
- * /memory incognito enable <character, duration>
+ * /memory incognito enable <character, timeframe>
  */
 export const memoryIncognitoEnableOptions = defineTypedOptions({
   character: { type: 'string', required: true },
-  duration: { type: 'string', required: true },
+  timeframe: { type: 'string', required: true },
 });
 
 /**
@@ -612,11 +612,11 @@ export const settingsApikeyTestOptions = defineTypedOptions({
 // =============================================================================
 
 /**
- * /shapes import <slug, import_type>
+ * /shapes import <slug, import-type>
  */
 export const shapesImportOptions = defineTypedOptions({
   slug: { type: 'string', required: true },
-  import_type: { type: 'string', required: false },
+  'import-type': { type: 'string', required: false },
 });
 
 /**

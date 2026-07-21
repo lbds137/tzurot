@@ -66,7 +66,7 @@
           {
             "type": 1,
             "name": "servers",
-            "description": "List all servers the bot is in",
+            "description": "Browse all servers the bot is in",
             "options": []
           },
           {
@@ -104,8 +104,8 @@
                     "value": "30d"
                   }
                 ],
-                "name": "period",
-                "description": "Time period for stats",
+                "name": "timeframe",
+                "description": "Time window for stats",
                 "required": false
               }
             ]
@@ -172,8 +172,8 @@
                 "max_value": 365,
                 "min_value": 1,
                 "type": 4,
-                "name": "days",
-                "description": "Keep history from the last N days (default: 30)",
+                "name": "timeframe",
+                "description": "Time window in days — keep history newer than this (default: 30)",
                 "required": false
               },
               {
@@ -320,7 +320,7 @@
                 "autocomplete": true,
                 "type": 3,
                 "name": "character",
-                "description": "The character to activate",
+                "description": "Which character",
                 "required": true
               }
             ]
@@ -405,7 +405,7 @@
                 "autocomplete": true,
                 "type": 3,
                 "name": "character",
-                "description": "Character to edit",
+                "description": "Which character",
                 "required": true
               }
             ]
@@ -419,7 +419,7 @@
                 "autocomplete": true,
                 "type": 3,
                 "name": "character",
-                "description": "Character to view",
+                "description": "Which character",
                 "required": true
               }
             ]
@@ -438,7 +438,7 @@
                     "autocomplete": true,
                     "type": 3,
                     "name": "character",
-                    "description": "Character to inspect (omit to see all your aliases)",
+                    "description": "Which character (omit to see all your aliases)",
                     "required": false
                   }
                 ]
@@ -452,7 +452,7 @@
                     "autocomplete": true,
                     "type": 3,
                     "name": "character",
-                    "description": "Character the alias points to",
+                    "description": "Which character the alias points to",
                     "required": true
                   },
                   {
@@ -524,7 +524,7 @@
                 "autocomplete": true,
                 "type": 3,
                 "name": "character",
-                "description": "Character to update",
+                "description": "Which character",
                 "required": true
               },
               {
@@ -544,7 +544,7 @@
                 "autocomplete": true,
                 "type": 3,
                 "name": "character",
-                "description": "Character to update",
+                "description": "Which character",
                 "required": true
               }
             ]
@@ -558,7 +558,7 @@
                 "autocomplete": true,
                 "type": 3,
                 "name": "character",
-                "description": "Character to update",
+                "description": "Which character",
                 "required": true
               },
               {
@@ -572,13 +572,13 @@
           {
             "type": 1,
             "name": "voice-clear",
-            "description": "Remove a character voice reference and disable TTS",
+            "description": "Clear a character's voice reference and disable TTS",
             "options": [
               {
                 "autocomplete": true,
                 "type": 3,
                 "name": "character",
-                "description": "Character to update",
+                "description": "Which character",
                 "required": true
               }
             ]
@@ -617,7 +617,7 @@
                 "autocomplete": true,
                 "type": 3,
                 "name": "character",
-                "description": "Character to export",
+                "description": "Which character",
                 "required": true
               }
             ]
@@ -637,7 +637,7 @@
                 "autocomplete": true,
                 "type": 3,
                 "name": "character",
-                "description": "Character to chat with",
+                "description": "Which character",
                 "required": true
               },
               {
@@ -690,7 +690,7 @@
                 "autocomplete": true,
                 "type": 3,
                 "name": "character",
-                "description": "Character to chime in",
+                "description": "Which character",
                 "required": true
               },
               {
@@ -710,7 +710,7 @@
                 "autocomplete": true,
                 "type": 3,
                 "name": "character",
-                "description": "Character to manage",
+                "description": "Which character",
                 "required": true
               }
             ]
@@ -724,7 +724,7 @@
                 "autocomplete": true,
                 "type": 3,
                 "name": "character",
-                "description": "Character to override settings for",
+                "description": "Which character",
                 "required": true
               }
             ]
@@ -1052,14 +1052,14 @@
                 "autocomplete": true,
                 "type": 3,
                 "name": "character",
-                "description": "The character to clear history for",
+                "description": "Which character",
                 "required": true
               },
               {
                 "autocomplete": true,
                 "type": 3,
                 "name": "persona",
-                "description": "The persona to use (defaults to your active persona)",
+                "description": "Which persona (defaults to your active persona)",
                 "required": false
               }
             ]
@@ -1073,14 +1073,14 @@
                 "autocomplete": true,
                 "type": 3,
                 "name": "character",
-                "description": "The character to restore history for",
+                "description": "Which character",
                 "required": true
               },
               {
                 "autocomplete": true,
                 "type": 3,
                 "name": "persona",
-                "description": "The persona to use (defaults to your active persona)",
+                "description": "Which persona (defaults to your active persona)",
                 "required": false
               }
             ]
@@ -1094,14 +1094,14 @@
                 "autocomplete": true,
                 "type": 3,
                 "name": "character",
-                "description": "The character to view stats for",
+                "description": "Which character",
                 "required": true
               },
               {
                 "autocomplete": true,
                 "type": 3,
                 "name": "persona",
-                "description": "The persona to use (defaults to your active persona)",
+                "description": "Which persona (defaults to your active persona)",
                 "required": false
               }
             ]
@@ -1115,7 +1115,7 @@
                 "autocomplete": true,
                 "type": 3,
                 "name": "character",
-                "description": "The character to delete history for",
+                "description": "Which character",
                 "required": true
               }
             ]
@@ -1181,7 +1181,7 @@
                 "autocomplete": true,
                 "type": 3,
                 "name": "character",
-                "description": "The character to view stats for",
+                "description": "Which character",
                 "required": true
               }
             ]
@@ -1195,7 +1195,7 @@
                 "autocomplete": true,
                 "type": 3,
                 "name": "character",
-                "description": "Filter by character (optional)",
+                "description": "Which character — omit for all",
                 "required": false
               }
             ]
@@ -1209,7 +1209,7 @@
                 "autocomplete": true,
                 "type": 3,
                 "name": "character",
-                "description": "The character whose facts to manage",
+                "description": "Which character",
                 "required": true
               }
             ]
@@ -1229,7 +1229,7 @@
                 "autocomplete": true,
                 "type": 3,
                 "name": "character",
-                "description": "Filter by character (optional)",
+                "description": "Which character — omit for all",
                 "required": false
               },
               {
@@ -1251,7 +1251,7 @@
                 "autocomplete": true,
                 "type": 3,
                 "name": "character",
-                "description": "The character to delete memories for",
+                "description": "Which character",
                 "required": true
               },
               {
@@ -1293,7 +1293,7 @@
                 "autocomplete": true,
                 "type": 3,
                 "name": "character",
-                "description": "The character to purge all memories for",
+                "description": "Which character",
                 "required": true
               }
             ]
@@ -1312,7 +1312,7 @@
                     "autocomplete": true,
                     "type": 3,
                     "name": "character",
-                    "description": "The character to enable focus mode for",
+                    "description": "Which character",
                     "required": true
                   }
                 ]
@@ -1326,7 +1326,7 @@
                     "autocomplete": true,
                     "type": 3,
                     "name": "character",
-                    "description": "The character to disable focus mode for",
+                    "description": "Which character",
                     "required": true
                   }
                 ]
@@ -1340,7 +1340,7 @@
                     "autocomplete": true,
                     "type": 3,
                     "name": "character",
-                    "description": "The character to check status for",
+                    "description": "Which character",
                     "required": true
                   }
                 ]
@@ -1361,7 +1361,7 @@
                     "autocomplete": true,
                     "type": 3,
                     "name": "character",
-                    "description": "Character or \"all\" for global incognito",
+                    "description": "Which character — or \"all\" for global incognito",
                     "required": true
                   },
                   {
@@ -1384,7 +1384,7 @@
                         "value": "forever"
                       }
                     ],
-                    "name": "duration",
+                    "name": "timeframe",
                     "description": "How long to stay in incognito mode",
                     "required": true
                   }
@@ -1399,7 +1399,7 @@
                     "autocomplete": true,
                     "type": 3,
                     "name": "character",
-                    "description": "Character or \"all\" to disable global incognito",
+                    "description": "Which character — or \"all\" to disable global incognito",
                     "required": true
                   }
                 ]
@@ -1419,7 +1419,7 @@
                     "autocomplete": true,
                     "type": 3,
                     "name": "character",
-                    "description": "Character or \"all\" for all characters",
+                    "description": "Which character — or \"all\" for all characters",
                     "required": true
                   },
                   {
@@ -1647,7 +1647,7 @@
                 "autocomplete": true,
                 "type": 3,
                 "name": "persona",
-                "description": "The persona to set as default",
+                "description": "Which persona",
                 "required": true
               }
             ]
@@ -1666,14 +1666,14 @@
                     "autocomplete": true,
                     "type": 3,
                     "name": "character",
-                    "description": "The character to override",
+                    "description": "Which character",
                     "required": true
                   },
                   {
                     "autocomplete": true,
                     "type": 3,
                     "name": "persona",
-                    "description": "The persona to use (or create new)",
+                    "description": "Which persona — or a new name to create one",
                     "required": true
                   }
                 ]
@@ -1687,7 +1687,7 @@
                     "autocomplete": true,
                     "type": 3,
                     "name": "character",
-                    "description": "The character to clear override for",
+                    "description": "Which character",
                     "required": true
                   }
                 ]
@@ -1788,7 +1788,7 @@
                 "autocomplete": true,
                 "type": 3,
                 "name": "preset",
-                "description": "Preset to edit",
+                "description": "Which preset",
                 "required": true
               }
             ]
@@ -1802,7 +1802,7 @@
                 "autocomplete": true,
                 "type": 3,
                 "name": "preset",
-                "description": "Preset to export",
+                "description": "Which preset",
                 "required": true
               }
             ]
@@ -1840,7 +1840,7 @@
                     "autocomplete": true,
                     "type": 3,
                     "name": "preset",
-                    "description": "Global preset to set as default",
+                    "description": "Which global preset",
                     "required": true
                   },
                   {
@@ -1870,7 +1870,7 @@
                     "autocomplete": true,
                     "type": 3,
                     "name": "preset",
-                    "description": "Global preset to set as free tier default",
+                    "description": "Which global preset",
                     "required": true
                   },
                   {
@@ -1913,14 +1913,14 @@
                     "autocomplete": true,
                     "type": 3,
                     "name": "character",
-                    "description": "The character to override",
+                    "description": "Which character",
                     "required": true
                   },
                   {
                     "autocomplete": true,
                     "type": 3,
                     "name": "preset",
-                    "description": "The preset to use",
+                    "description": "Which preset",
                     "required": true
                   },
                   {
@@ -1944,13 +1944,13 @@
               {
                 "type": 1,
                 "name": "clear",
-                "description": "Remove preset override for a character",
+                "description": "Clear the preset override for a character",
                 "options": [
                   {
                     "autocomplete": true,
                     "type": 3,
                     "name": "character",
-                    "description": "The character to clear",
+                    "description": "Which character",
                     "required": true
                   },
                   {
@@ -1980,7 +1980,7 @@
                     "autocomplete": true,
                     "type": 3,
                     "name": "preset",
-                    "description": "The preset to use as default",
+                    "description": "Which preset",
                     "required": true
                   },
                   {
@@ -2069,7 +2069,7 @@
               },
               {
                 "type": 1,
-                "name": "get",
+                "name": "view",
                 "description": "Show your current timezone",
                 "options": []
               }
@@ -2275,7 +2275,7 @@
                     "value": "memory_only"
                   }
                 ],
-                "name": "import_type",
+                "name": "import-type",
                 "description": "Import type (default: full)",
                 "required": false
               }
@@ -2349,7 +2349,7 @@
                 "autocomplete": true,
                 "type": 3,
                 "name": "character",
-                "description": "Which character to inspect",
+                "description": "Which character",
                 "required": true
               }
             ]
@@ -2374,14 +2374,14 @@
                     "autocomplete": true,
                     "type": 3,
                     "name": "character",
-                    "description": "The character to override",
+                    "description": "Which character",
                     "required": true
                   },
                   {
                     "autocomplete": true,
                     "type": 3,
                     "name": "tts",
-                    "description": "The TTS config to use",
+                    "description": "Which TTS config",
                     "required": true
                   }
                 ]
@@ -2389,13 +2389,13 @@
               {
                 "type": 1,
                 "name": "clear",
-                "description": "Remove TTS config override for a character",
+                "description": "Clear the TTS override for a character",
                 "options": [
                   {
                     "autocomplete": true,
                     "type": 3,
                     "name": "character",
-                    "description": "The character to clear",
+                    "description": "Which character",
                     "required": true
                   }
                 ]
@@ -2409,7 +2409,7 @@
                     "autocomplete": true,
                     "type": 3,
                     "name": "tts",
-                    "description": "The TTS config to use as default",
+                    "description": "Which TTS config",
                     "required": true
                   }
                 ]
@@ -2482,15 +2482,15 @@
                     "autocomplete": true,
                     "type": 3,
                     "name": "voice",
-                    "description": "The voice to delete",
+                    "description": "Which voice",
                     "required": true
                   }
                 ]
               },
               {
                 "type": 1,
-                "name": "clear",
-                "description": "Delete all Tzurot cloned voices",
+                "name": "purge",
+                "description": "Permanently delete ALL Tzurot cloned voices",
                 "options": []
               }
             ]

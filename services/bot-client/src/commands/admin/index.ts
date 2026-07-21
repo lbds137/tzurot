@@ -230,6 +230,13 @@ async function handleModal(interaction: ModalSubmitInteraction): Promise<void> {
  * Export command definition using defineCommand for type safety
  * Category is injected by CommandHandler based on folder structure
  */
+/** §4.2 `timeframe` choice set for /admin usage (G11: named constant, not inline). */
+const USAGE_TIMEFRAME_CHOICES: { name: string; value: string }[] = [
+  { name: 'Last 24 hours', value: '24h' },
+  { name: 'Last 7 days', value: '7d' },
+  { name: 'Last 30 days', value: '30d' },
+];
+
 export default defineCommand({
   data: new SlashCommandBuilder()
     .setName('admin')
@@ -255,7 +262,7 @@ export default defineCommand({
         )
     )
     .addSubcommand(subcommand =>
-      subcommand.setName('servers').setDescription('List all servers the bot is in')
+      subcommand.setName('servers').setDescription('Browse all servers the bot is in')
     )
     .addSubcommand(subcommand =>
       subcommand
@@ -275,14 +282,10 @@ export default defineCommand({
         .setDescription('View API usage statistics')
         .addStringOption(option =>
           option
-            .setName('period')
-            .setDescription('Time period for stats')
+            .setName('timeframe')
+            .setDescription('Time window for stats')
             .setRequired(false)
-            .addChoices(
-              { name: 'Last 24 hours', value: '24h' },
-              { name: 'Last 7 days', value: '7d' },
-              { name: 'Last 30 days', value: '30d' }
-            )
+            .addChoices(...USAGE_TIMEFRAME_CHOICES)
         )
     )
     .addSubcommand(subcommand =>
@@ -332,9 +335,12 @@ export default defineCommand({
         .setName('cleanup')
         .setDescription('Clean up old conversation history and tombstones')
         .addIntegerOption(option =>
+          // Unlike the enum-window `timeframe`s (usage, incognito, memory
+          // delete), cleanup's is a RAW DAY COUNT — arbitrary N-days is real
+          // admin utility a fixed choice set would destroy (§4.2/D10 call).
           option
-            .setName('days')
-            .setDescription('Keep history from the last N days (default: 30)')
+            .setName('timeframe')
+            .setDescription('Time window in days — keep history newer than this (default: 30)')
             .setRequired(false)
             .setMinValue(1)
             .setMaxValue(365)

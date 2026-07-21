@@ -15,6 +15,7 @@ import {
   type ButtonInteraction,
   type ModalSubmitInteraction,
 } from 'discord.js';
+import { SELECTOR_DESCRIPTION } from '@tzurot/common-types/constants/uxVocabulary';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { defineCommand } from '../../utils/defineCommand.js';
 import { createSubcommandContextRouter } from '../../utils/subcommandContextRouter.js';
@@ -42,7 +43,7 @@ import { createSuccessEmbed } from '../../utils/commandHelpers.js';
 const logger = createLogger('history-command');
 
 const HARD_DELETE_OPERATION = 'hard-delete';
-const PERSONA_OPTION_DESCRIPTION = 'The persona to use (defaults to your active persona)';
+const PERSONA_OPTION_DESCRIPTION = 'Which persona (defaults to your active persona)';
 
 /**
  * Context-aware subcommand router
@@ -245,7 +246,7 @@ export default defineCommand({
         .addStringOption(option =>
           option
             .setName('character')
-            .setDescription('The character to clear history for')
+            .setDescription(SELECTOR_DESCRIPTION.character)
             .setRequired(true)
             .setAutocomplete(true)
         )
@@ -264,7 +265,7 @@ export default defineCommand({
         .addStringOption(option =>
           option
             .setName('character')
-            .setDescription('The character to restore history for')
+            .setDescription(SELECTOR_DESCRIPTION.character)
             .setRequired(true)
             .setAutocomplete(true)
         )
@@ -283,7 +284,7 @@ export default defineCommand({
         .addStringOption(option =>
           option
             .setName('character')
-            .setDescription('The character to view stats for')
+            .setDescription(SELECTOR_DESCRIPTION.character)
             .setRequired(true)
             .setAutocomplete(true)
         )
@@ -305,7 +306,7 @@ export default defineCommand({
         .addStringOption(option =>
           option
             .setName('character')
-            .setDescription('The character to delete history for')
+            .setDescription(SELECTOR_DESCRIPTION.character)
             .setRequired(true)
             .setAutocomplete(true)
         )

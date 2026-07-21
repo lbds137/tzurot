@@ -96,7 +96,7 @@ describe('handleCleanup', () => {
           }),
           getBoolean: vi.fn(() => null),
           getInteger: vi.fn((name: string) => {
-            if (name === 'days') return days;
+            if (name === 'timeframe') return days;
             return null;
           }),
         },
@@ -110,7 +110,7 @@ describe('handleCleanup', () => {
       commandName: 'admin',
       isEphemeral: true,
       getOption: vi.fn((name: string) => {
-        if (name === 'days') return days;
+        if (name === 'timeframe') return days;
         if (name === 'target') return target;
         return null;
       }),

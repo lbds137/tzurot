@@ -123,7 +123,7 @@ export const BUILDER_IMPORT_ALLOWLIST: Readonly<Record<string, readonly string[]
   'services/bot-client/src/commands/voice/tts/guestModeValidation.ts': ['EmbedBuilder'],
   'services/bot-client/src/commands/voice/tts/set-default.ts': ['EmbedBuilder'],
   'services/bot-client/src/commands/voice/tts/set.ts': ['EmbedBuilder'],
-  'services/bot-client/src/commands/voice/voices/clear.ts': ['EmbedBuilder'],
+  'services/bot-client/src/commands/voice/voices/purge.ts': ['EmbedBuilder'],
   'services/bot-client/src/commands/voice/voices/delete.ts': ['EmbedBuilder'],
 };
 

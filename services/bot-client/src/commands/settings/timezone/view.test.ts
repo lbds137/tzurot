@@ -1,12 +1,12 @@
 /**
- * Tests for Timezone Get Handler
+ * Tests for Timezone View Handler
  *
  * Note: This command uses editReply() because interactions are deferred
  * at the top level in index.ts. Ephemerality is set by deferReply().
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { handleTimezoneGet } from './get.js';
+import { handleTimezoneView } from './view.js';
 import { mockGetTimezoneResponse } from '@tzurot/test-factories';
 import { makeOk, makeErr } from '../../../test/gatewayClientStubs.js';
 import type { UserClient } from '@tzurot/clients';
@@ -67,7 +67,7 @@ vi.mock('../../../utils/commandHelpers.js', () => ({
     mockCreateInfoEmbed(...(args as [string, string | undefined])),
 }));
 
-describe('handleTimezoneGet', () => {
+describe('handleTimezoneView', () => {
   const mockEditReply = vi.fn();
 
   beforeEach(() => {
@@ -83,7 +83,7 @@ describe('handleTimezoneGet', () => {
       user: { id: '123456789', username: 'testuser' },
       interaction: {} as never,
       editReply: mockEditReply,
-    } as unknown as Parameters<typeof handleTimezoneGet>[0];
+    } as unknown as Parameters<typeof handleTimezoneView>[0];
   }
 
   it('should get timezone successfully', async () => {
@@ -91,7 +91,7 @@ describe('handleTimezoneGet', () => {
       makeOk(mockGetTimezoneResponse({ timezone: 'America/New_York', isDefault: false }))
     );
 
-    await handleTimezoneGet(createMockContext());
+    await handleTimezoneView(createMockContext());
 
     expect(stub.getTimezone).toHaveBeenCalled();
     expect(mockEditReply).toHaveBeenCalledWith({
@@ -106,7 +106,7 @@ describe('handleTimezoneGet', () => {
       makeOk(mockGetTimezoneResponse({ timezone: 'UTC', isDefault: true }))
     );
 
-    await handleTimezoneGet(createMockContext());
+    await handleTimezoneView(createMockContext());
 
     expect(mockEditReply).toHaveBeenCalledWith({
       embeds: [
@@ -122,20 +122,33 @@ describe('handleTimezoneGet', () => {
   it('should handle API error', async () => {
     stub.getTimezone.mockResolvedValue(makeErr(500, 'Server error'));
 
-    await handleTimezoneGet(createMockContext());
+    await handleTimezoneView(createMockContext());
 
     expect(mockEditReply).toHaveBeenCalledWith({
-      content: '❌ Failed to get timezone. Please try again later.',
+      content: '❌ Server error',
     });
+  });
+
+  it('renders read-shaped copy on a timeout — never a write-outcome claim', async () => {
+    // kind 'timeout' hits the read/write branch the http-kind pins bypass; a
+    // pure GET must never render "your change may still be applying".
+    stub.getTimezone.mockResolvedValue(makeErr(0, 'timed out', undefined, 'timeout'));
+
+    const context = createMockContext();
+    await handleTimezoneView(context);
+
+    const call = vi.mocked(context.editReply).mock.calls[0][0] as { content: string };
+    expect(call.content).not.toContain('may still be applying');
+    expect(call.content).not.toContain('was saved');
   });
 
   it('should handle exceptions', async () => {
     stub.getTimezone.mockRejectedValue(new Error('Network error'));
 
-    await handleTimezoneGet(createMockContext());
+    await handleTimezoneView(createMockContext());
 
     expect(mockEditReply).toHaveBeenCalledWith({
-      content: '❌ An error occurred. Please try again later.',
+      content: '❌ Failed to fetch your timezone. Please try again.',
     });
   });
 });

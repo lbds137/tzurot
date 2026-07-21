@@ -5,7 +5,7 @@
  *
  * - /voice tts browse|set|clear|set-default|clear-default — TTS provider config (per-character + user-default)
  * - /voice stt set|clear — transcription provider preference (user-scoped; STT is speaker-bound)
- * - /voice voices browse|delete|clear — cloned-voice lifecycle
+ * - /voice voices browse|delete|purge — cloned-voice lifecycle
  * - /voice view <character> — unified TTS+STT+voices dashboard
  */
 
@@ -16,6 +16,7 @@ import {
   type ModalSubmitInteraction,
   type StringSelectMenuInteraction,
 } from 'discord.js';
+import { SELECTOR_DESCRIPTION } from '@tzurot/common-types/constants/uxVocabulary';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { CATALOG } from '../../ux/catalog/catalog.js';
 import { renderSpec } from '../../ux/render/render.js';
@@ -56,11 +57,11 @@ import {
 } from './voices/browse.js';
 import { handleDeleteVoice, handleVoiceAutocomplete } from './voices/delete.js';
 import {
-  handleClearVoices,
-  handleVoiceClearButton,
-  handleVoiceClearModal,
-  VOICE_CLEAR_OPERATION,
-} from './voices/clear.js';
+  handlePurgeVoices,
+  handleVoicePurgeButton,
+  handleVoicePurgeModal,
+  VOICE_PURGE_OPERATION,
+} from './voices/purge.js';
 
 import { buildVoiceTtsSubcommandGroup } from './tts/subcommandBuilder.js';
 import { buildVoiceVoicesSubcommandGroup } from './voices/subcommandBuilder.js';
@@ -93,7 +94,7 @@ const voicesRouter = createTypedSubcommandRouter(
   {
     browse: handleBrowseVoices,
     delete: handleDeleteVoice,
-    clear: handleClearVoices,
+    purge: handlePurgeVoices,
   },
   { logger, logPrefix: '[Voice/Voices]' }
 );
@@ -173,8 +174,8 @@ async function handleButton(interaction: ButtonInteraction): Promise<void> {
 
   if (DestructiveCustomIds.isDestructive(interaction.customId)) {
     const parsed = DestructiveCustomIds.parse(interaction.customId);
-    if (parsed?.operation === VOICE_CLEAR_OPERATION) {
-      await handleVoiceClearButton(interaction);
+    if (parsed?.operation === VOICE_PURGE_OPERATION) {
+      await handleVoicePurgeButton(interaction);
       return;
     }
   }
@@ -185,8 +186,8 @@ async function handleButton(interaction: ButtonInteraction): Promise<void> {
 async function handleModal(interaction: ModalSubmitInteraction): Promise<void> {
   if (DestructiveCustomIds.isDestructive(interaction.customId)) {
     const parsed = DestructiveCustomIds.parse(interaction.customId);
-    if (parsed?.operation === VOICE_CLEAR_OPERATION) {
-      await handleVoiceClearModal(interaction);
+    if (parsed?.operation === VOICE_PURGE_OPERATION) {
+      await handleVoicePurgeModal(interaction);
       return;
     }
   }
@@ -214,7 +215,7 @@ export default defineCommand({
         .addStringOption(option =>
           option
             .setName('character')
-            .setDescription('Which character to inspect')
+            .setDescription(SELECTOR_DESCRIPTION.character)
             .setRequired(true)
             .setAutocomplete(true)
         )

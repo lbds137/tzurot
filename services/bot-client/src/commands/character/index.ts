@@ -10,6 +10,7 @@
  */
 
 import { SlashCommandBuilder, type AutocompleteInteraction } from 'discord.js';
+import { SELECTOR_DESCRIPTION } from '@tzurot/common-types/constants/uxVocabulary';
 import { getConfig } from '@tzurot/common-types/config/config';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { defineCommand } from '../../utils/defineCommand.js';
@@ -43,7 +44,6 @@ import {
 const logger = createLogger('character-command');
 
 /** Shared description for subcommands that modify a character */
-const CHARACTER_TO_UPDATE_DESC = 'Character to update';
 
 /**
  * Create character router with mixed deferral modes
@@ -144,7 +144,7 @@ export default defineCommand({
         .addStringOption(option =>
           option
             .setName('character')
-            .setDescription('Character to edit')
+            .setDescription(SELECTOR_DESCRIPTION.character)
             .setRequired(true)
             .setAutocomplete(true)
         )
@@ -156,7 +156,7 @@ export default defineCommand({
         .addStringOption(option =>
           option
             .setName('character')
-            .setDescription('Character to view')
+            .setDescription(SELECTOR_DESCRIPTION.character)
             .setRequired(true)
             .setAutocomplete(true)
         )
@@ -172,7 +172,7 @@ export default defineCommand({
             .addStringOption(option =>
               option
                 .setName('character')
-                .setDescription('Character to inspect (omit to see all your aliases)')
+                .setDescription(`${SELECTOR_DESCRIPTION.character} (omit to see all your aliases)`)
                 .setAutocomplete(true)
             )
         )
@@ -183,7 +183,7 @@ export default defineCommand({
             .addStringOption(option =>
               option
                 .setName('character')
-                .setDescription('Character the alias points to')
+                .setDescription(`${SELECTOR_DESCRIPTION.character} the alias points to`)
                 .setRequired(true)
                 .setAutocomplete(true)
             )
@@ -231,7 +231,7 @@ export default defineCommand({
         .addStringOption(option =>
           option
             .setName('character')
-            .setDescription(CHARACTER_TO_UPDATE_DESC)
+            .setDescription(SELECTOR_DESCRIPTION.character)
             .setRequired(true)
             .setAutocomplete(true)
         )
@@ -249,7 +249,7 @@ export default defineCommand({
         .addStringOption(option =>
           option
             .setName('character')
-            .setDescription(CHARACTER_TO_UPDATE_DESC)
+            .setDescription(SELECTOR_DESCRIPTION.character)
             .setRequired(true)
             .setAutocomplete(true)
         )
@@ -261,7 +261,7 @@ export default defineCommand({
         .addStringOption(option =>
           option
             .setName('character')
-            .setDescription(CHARACTER_TO_UPDATE_DESC)
+            .setDescription(SELECTOR_DESCRIPTION.character)
             .setRequired(true)
             .setAutocomplete(true)
         )
@@ -275,11 +275,11 @@ export default defineCommand({
     .addSubcommand(subcommand =>
       subcommand
         .setName('voice-clear')
-        .setDescription('Remove a character voice reference and disable TTS')
+        .setDescription("Clear a character's voice reference and disable TTS")
         .addStringOption(option =>
           option
             .setName('character')
-            .setDescription(CHARACTER_TO_UPDATE_DESC)
+            .setDescription(SELECTOR_DESCRIPTION.character)
             .setRequired(true)
             .setAutocomplete(true)
         )
@@ -314,7 +314,7 @@ export default defineCommand({
         .addStringOption(option =>
           option
             .setName('character')
-            .setDescription('Character to export')
+            .setDescription(SELECTOR_DESCRIPTION.character)
             .setRequired(true)
             .setAutocomplete(true)
         )
@@ -329,7 +329,7 @@ export default defineCommand({
         .addStringOption(option =>
           option
             .setName('character')
-            .setDescription('Character to chat with')
+            .setDescription(SELECTOR_DESCRIPTION.character)
             .setRequired(true)
             .setAutocomplete(true)
         )
@@ -386,7 +386,7 @@ export default defineCommand({
         .addStringOption(option =>
           option
             .setName('character')
-            .setDescription('Character to chime in')
+            .setDescription(SELECTOR_DESCRIPTION.character)
             .setRequired(true)
             .setAutocomplete(true)
         )
@@ -406,7 +406,7 @@ export default defineCommand({
         .addStringOption(option =>
           option
             .setName('character')
-            .setDescription('Character to manage')
+            .setDescription(SELECTOR_DESCRIPTION.character)
             .setRequired(true)
             .setAutocomplete(true)
         )
@@ -418,7 +418,7 @@ export default defineCommand({
         .addStringOption(option =>
           option
             .setName('character')
-            .setDescription('Character to override settings for')
+            .setDescription(SELECTOR_DESCRIPTION.character)
             .setRequired(true)
             .setAutocomplete(true)
         )

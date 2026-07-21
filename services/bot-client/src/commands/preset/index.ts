@@ -25,6 +25,7 @@ import {
   type ButtonInteraction,
   type ModalSubmitInteraction,
 } from 'discord.js';
+import { SELECTOR_DESCRIPTION } from '@tzurot/common-types/constants/uxVocabulary';
 import { CONFIG_SLOT_OPTION_DESCRIPTION } from '@tzurot/common-types/constants/ai';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { handleModalRetry, isModalRetryInteraction } from '../../utils/modal/retry.js';
@@ -274,7 +275,7 @@ export default defineCommand({
         .addStringOption(option =>
           option
             .setName('preset')
-            .setDescription('Preset to edit')
+            .setDescription(SELECTOR_DESCRIPTION.preset)
             .setRequired(true)
             .setAutocomplete(true)
         )
@@ -286,7 +287,7 @@ export default defineCommand({
         .addStringOption(option =>
           option
             .setName('preset')
-            .setDescription('Preset to export')
+            .setDescription(SELECTOR_DESCRIPTION.preset)
             .setRequired(true)
             .setAutocomplete(true)
         )
@@ -313,7 +314,7 @@ export default defineCommand({
             .addStringOption(option =>
               option
                 .setName('preset')
-                .setDescription('Global preset to set as default')
+                .setDescription(SELECTOR_DESCRIPTION.globalPreset)
                 .setRequired(true)
                 .setAutocomplete(true)
             )
@@ -332,7 +333,7 @@ export default defineCommand({
             .addStringOption(option =>
               option
                 .setName('preset')
-                .setDescription('Global preset to set as free tier default')
+                .setDescription(SELECTOR_DESCRIPTION.globalPreset)
                 .setRequired(true)
                 .setAutocomplete(true)
             )
@@ -361,14 +362,14 @@ export default defineCommand({
             .addStringOption(option =>
               option
                 .setName('character')
-                .setDescription('The character to override')
+                .setDescription(SELECTOR_DESCRIPTION.character)
                 .setRequired(true)
                 .setAutocomplete(true)
             )
             .addStringOption(option =>
               option
                 .setName('preset')
-                .setDescription('The preset to use')
+                .setDescription(SELECTOR_DESCRIPTION.preset)
                 .setRequired(true)
                 .setAutocomplete(true)
             )
@@ -383,11 +384,11 @@ export default defineCommand({
         .addSubcommand(subcommand =>
           subcommand
             .setName('clear')
-            .setDescription('Remove preset override for a character')
+            .setDescription('Clear the preset override for a character')
             .addStringOption(option =>
               option
                 .setName('character')
-                .setDescription('The character to clear')
+                .setDescription(SELECTOR_DESCRIPTION.character)
                 .setRequired(true)
                 .setAutocomplete(true)
             )
@@ -406,7 +407,7 @@ export default defineCommand({
             .addStringOption(option =>
               option
                 .setName('preset')
-                .setDescription('The preset to use as default')
+                .setDescription(SELECTOR_DESCRIPTION.preset)
                 .setRequired(true)
                 .setAutocomplete(true)
             )

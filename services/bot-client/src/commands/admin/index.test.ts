@@ -99,7 +99,7 @@ describe('admin command', () => {
       expect(serversSubcommand).toBeDefined();
       if (serversSubcommand && 'name' in serversSubcommand && 'description' in serversSubcommand) {
         expect(serversSubcommand.name).toBe('servers');
-        expect(serversSubcommand.description).toBe('List all servers the bot is in');
+        expect(serversSubcommand.description).toBe('Browse all servers the bot is in');
       }
     });
 

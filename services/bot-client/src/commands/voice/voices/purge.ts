@@ -1,6 +1,8 @@
 /**
- * Voice Clear Handler
- * Deletes ALL tzurot-prefixed voices with destructive confirmation.
+ * Voice Purge Handler
+ * Handles /voice voices purge — destroys ALL tzurot-prefixed voices behind a
+ * typed-phrase destructive confirmation (§4.1: `purge` is the destroy-all
+ * verb; `clear` never destroys entities).
  *
  * `source: 'voice'` in the warning config is load-bearing: it prefixes the
  * customIds `voice::destructive::...` so CommandHandler routes confirm/
@@ -28,25 +30,29 @@ import {
 import { DestructiveCustomIds } from '../../../utils/customIds.js';
 import { invalidateVoiceCache } from './voiceCache.js';
 
-const logger = createLogger('voice-voices-clear');
+const logger = createLogger('voice-voices-purge');
 
-/** Shared failedAction verb for the clear-voices classify paths. */
-const CLEAR_VOICES_ACTION = 'clear your voices';
+/** Shared failedAction verb for the purge-voices classify paths. */
+const PURGE_VOICES_ACTION = 'purge your voices';
 
-/** Operation name for destructive confirmation custom IDs */
-export const VOICE_CLEAR_OPERATION = 'voice-clear';
+/**
+ * Operation name for destructive confirmation custom IDs. Renamed with the
+ * subcommand (unlike browse prefixes, destructive confirms are minutes-lived
+ * and an unmatched in-flight confirm fails CLOSED — the user just re-runs).
+ */
+export const VOICE_PURGE_OPERATION = 'voice-purge';
 
 /**
  * Entity name shared by the warning config and the modal-submit validation so
  * the dynamic confirmation phrase can't drift between the two.
  */
-const VOICE_CLEAR_ENTITY_NAME = 'all your Tzurot voices';
+const VOICE_PURGE_ENTITY_NAME = 'all your Tzurot voices';
 
 /**
- * Handle /voice voices clear
- * Shows destructive confirmation before clearing all tzurot voices
+ * Handle /voice voices purge
+ * Shows destructive confirmation before purging all tzurot voices
  */
-export async function handleClearVoices(context: DeferredCommandContext): Promise<void> {
+export async function handlePurgeVoices(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;
 
   try {
@@ -56,14 +62,14 @@ export async function handleClearVoices(context: DeferredCommandContext): Promis
     if (!result.ok) {
       await context.editReply({
         content: renderSpec(
-          classifyGatewayFailure(result, 'voices', { failedAction: CLEAR_VOICES_ACTION })
+          classifyGatewayFailure(result, 'voices', { failedAction: PURGE_VOICES_ACTION })
         ),
       });
       return;
     }
 
     if (result.data.voices.length === 0) {
-      await context.editReply({ content: 'No Tzurot voices to clear.' });
+      await context.editReply({ content: 'No Tzurot voices to purge.' });
       return;
     }
 
@@ -77,12 +83,12 @@ export async function handleClearVoices(context: DeferredCommandContext): Promis
     const count = result.data.voices.length;
     const config = createHardDeleteConfig({
       entityType: 'cloned voices',
-      entityName: VOICE_CLEAR_ENTITY_NAME,
+      entityName: VOICE_PURGE_ENTITY_NAME,
       additionalWarning:
         'This will remove all auto-cloned voices from your audio provider accounts.\n' +
         'They will be re-cloned automatically when needed.',
       source: 'voice',
-      operation: VOICE_CLEAR_OPERATION,
+      operation: VOICE_PURGE_OPERATION,
       entityId: 'all',
     });
 
@@ -94,35 +100,35 @@ export async function handleClearVoices(context: DeferredCommandContext): Promis
     logger.error({ err: error, userId }, 'Unexpected error');
     await context.editReply({
       content: renderSpec(
-        classifyGatewayFailure(error, 'voices', { failedAction: CLEAR_VOICES_ACTION })
+        classifyGatewayFailure(error, 'voices', { failedAction: PURGE_VOICES_ACTION })
       ),
     });
   }
 }
 
 /**
- * Handle confirm button for voice-clear operation.
+ * Handle confirm button for voice-purge operation.
  *
  * Display-only: the modal's routing customId is derived from the button's own
  * customId inside the factory. (The previous config-rebuild here carried
  * `source: 'settings'`, which routed the modal to /settings — whose handleModal
- * has no voice-clear branch — silently dropping the typed confirmation.)
+ * has no voice-purge branch — silently dropping the typed confirmation.)
  */
-export async function handleVoiceClearConfirmButton(interaction: ButtonInteraction): Promise<void> {
+export async function handleVoicePurgeConfirmButton(interaction: ButtonInteraction): Promise<void> {
   await handleDestructiveConfirmButton(
     interaction,
-    hardDeleteModalDisplay(VOICE_CLEAR_ENTITY_NAME)
+    hardDeleteModalDisplay(VOICE_PURGE_ENTITY_NAME)
   );
 }
 
 /**
- * Handle modal submit for voice-clear operation
+ * Handle modal submit for voice-purge operation
  */
-export async function handleVoiceClearModalSubmit(
+export async function handleVoicePurgeModalSubmit(
   interaction: ModalSubmitInteraction
 ): Promise<void> {
   const userId = interaction.user.id;
-  const { confirmationPhrase } = hardDeleteModalDisplay(VOICE_CLEAR_ENTITY_NAME);
+  const { confirmationPhrase } = hardDeleteModalDisplay(VOICE_PURGE_ENTITY_NAME);
 
   const executeOperation = async (): Promise<DestructiveOperationResult> => {
     const { userClient } = clientsFor(interaction);
@@ -132,7 +138,7 @@ export async function handleVoiceClearModalSubmit(
       return {
         success: false,
         errorMessage: renderSpec(
-          classifyGatewayFailure(result, 'voices', { failedAction: CLEAR_VOICES_ACTION })
+          classifyGatewayFailure(result, 'voices', { failedAction: PURGE_VOICES_ACTION })
         ),
       };
     }
@@ -140,7 +146,7 @@ export async function handleVoiceClearModalSubmit(
     const { deleted, total, errors } = result.data;
 
     const embed = new EmbedBuilder()
-      .setTitle('🗑️ Voices Cleared')
+      .setTitle('🗑️ Voices Purged')
       .setColor(DISCORD_COLORS.SUCCESS)
       .setTimestamp();
 
@@ -164,45 +170,45 @@ export async function handleVoiceClearModalSubmit(
     // Invalidate autocomplete cache so deleted voices don't appear in /voice voices delete
     invalidateVoiceCache(userId);
 
-    logger.info({ userId, deleted, total }, 'Cleared voices');
+    logger.info({ userId, deleted, total }, 'Purged voices');
 
     return { success: true, successEmbed: embed };
   };
 
   await handleDestructiveModalSubmit(interaction, confirmationPhrase, executeOperation, {
-    progressContent: 'Clearing voices…',
+    progressContent: 'Purging voices…',
   });
 }
 
 /**
- * Route button interactions for voice-clear destructive confirmation
+ * Route button interactions for voice-purge destructive confirmation
  */
-export async function handleVoiceClearButton(interaction: ButtonInteraction): Promise<void> {
+export async function handleVoicePurgeButton(interaction: ButtonInteraction): Promise<void> {
   const parsed = DestructiveCustomIds.parse(interaction.customId);
   if (parsed === null) {
     return;
   }
 
   if (parsed.action === 'cancel_button') {
-    await handleDestructiveCancel(interaction, 'Voice clear cancelled.');
+    await handleDestructiveCancel(interaction, 'Voice purge cancelled.');
     return;
   }
 
   if (parsed.action === 'confirm_button') {
-    await handleVoiceClearConfirmButton(interaction);
+    await handleVoicePurgeConfirmButton(interaction);
   }
 }
 
 /**
- * Route modal interactions for voice-clear destructive confirmation
+ * Route modal interactions for voice-purge destructive confirmation
  */
-export async function handleVoiceClearModal(interaction: ModalSubmitInteraction): Promise<void> {
+export async function handleVoicePurgeModal(interaction: ModalSubmitInteraction): Promise<void> {
   const parsed = DestructiveCustomIds.parse(interaction.customId);
   if (parsed === null) {
     return;
   }
 
   if (parsed.action === 'modal_submit') {
-    await handleVoiceClearModalSubmit(interaction);
+    await handleVoicePurgeModalSubmit(interaction);
   }
 }

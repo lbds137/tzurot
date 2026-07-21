@@ -1,12 +1,13 @@
 /**
  * Voices subcommand group builder for /voice.
  *
- * Cloned-voice lifecycle operations: browse, delete (one), clear (all).
+ * Cloned-voice lifecycle operations: browse, delete (one), purge (all).
  * Schema preserved verbatim from the legacy /settings voices group; only
  * the parent command moved (settings → voice).
  */
 
 import type { SlashCommandSubcommandGroupBuilder } from 'discord.js';
+import { SELECTOR_DESCRIPTION } from '@tzurot/common-types/constants/uxVocabulary';
 
 export function buildVoiceVoicesSubcommandGroup(
   group: SlashCommandSubcommandGroupBuilder
@@ -24,12 +25,12 @@ export function buildVoiceVoicesSubcommandGroup(
         .addStringOption(option =>
           option
             .setName('voice')
-            .setDescription('The voice to delete')
+            .setDescription(SELECTOR_DESCRIPTION.voice)
             .setRequired(true)
             .setAutocomplete(true)
         )
     )
     .addSubcommand(subcommand =>
-      subcommand.setName('clear').setDescription('Delete all Tzurot cloned voices')
+      subcommand.setName('purge').setDescription('Permanently delete ALL Tzurot cloned voices')
     );
 }

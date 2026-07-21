@@ -13,6 +13,7 @@ import {
   ActionRowBuilder,
   type MessageComponentInteraction,
 } from 'discord.js';
+import { shapesImportOptions } from '@tzurot/common-types/generated/commandOptions';
 import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
 import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
 import { renderSpec } from '../../ux/render/render.js';
@@ -113,7 +114,7 @@ export async function handleImport(context: DeferredCommandContext): Promise<voi
     return;
   }
   const slug = rawSlug.trim().toLowerCase();
-  const importTypeRaw = context.interaction.options.getString('import_type') ?? 'full';
+  const importTypeRaw = shapesImportOptions(context.interaction)['import-type']() ?? 'full';
   const importType: 'full' | 'memory_only' =
     importTypeRaw === 'memory_only' ? 'memory_only' : 'full';
 

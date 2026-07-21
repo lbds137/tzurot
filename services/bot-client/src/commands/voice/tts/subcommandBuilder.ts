@@ -12,6 +12,7 @@
  */
 
 import type { SlashCommandSubcommandGroupBuilder } from 'discord.js';
+import { SELECTOR_DESCRIPTION } from '@tzurot/common-types/constants/uxVocabulary';
 
 export function buildVoiceTtsSubcommandGroup(
   group: SlashCommandSubcommandGroupBuilder
@@ -29,14 +30,14 @@ export function buildVoiceTtsSubcommandGroup(
         .addStringOption(option =>
           option
             .setName('character')
-            .setDescription('The character to override')
+            .setDescription(SELECTOR_DESCRIPTION.character)
             .setRequired(true)
             .setAutocomplete(true)
         )
         .addStringOption(option =>
           option
             .setName('tts')
-            .setDescription('The TTS config to use')
+            .setDescription(SELECTOR_DESCRIPTION.ttsConfig)
             .setRequired(true)
             .setAutocomplete(true)
         )
@@ -44,11 +45,11 @@ export function buildVoiceTtsSubcommandGroup(
     .addSubcommand(subcommand =>
       subcommand
         .setName('clear')
-        .setDescription('Remove TTS config override for a character')
+        .setDescription('Clear the TTS override for a character')
         .addStringOption(option =>
           option
             .setName('character')
-            .setDescription('The character to clear')
+            .setDescription(SELECTOR_DESCRIPTION.character)
             .setRequired(true)
             .setAutocomplete(true)
         )
@@ -60,7 +61,7 @@ export function buildVoiceTtsSubcommandGroup(
         .addStringOption(option =>
           option
             .setName('tts')
-            .setDescription('The TTS config to use as default')
+            .setDescription(SELECTOR_DESCRIPTION.ttsConfig)
             .setRequired(true)
             .setAutocomplete(true)
         )
