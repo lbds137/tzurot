@@ -87,7 +87,7 @@ export class ConversationRetentionService {
   /**
    * Clear conversation history for a channel + personality
    * Optionally filter by personaId for per-persona deletion
-   * (useful for /reset and /history hard-delete commands)
+   * (useful for /history clear and /history purge)
    *
    * Creates tombstone records for deleted messages to prevent db-sync from
    * restoring them. Tombstones are small (just IDs) and can be periodically purged.

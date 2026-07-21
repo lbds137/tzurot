@@ -107,7 +107,7 @@ describe('Persona Command Index', () => {
   describe('command data', () => {
     it('should have correct name and description', () => {
       expect(data.name).toBe('persona');
-      expect(data.description).toBe('Manage your AI personas');
+      expect(data.description).toBe('Manage your personas — how characters see you');
     });
 
     it('should have expected top-level subcommands', () => {

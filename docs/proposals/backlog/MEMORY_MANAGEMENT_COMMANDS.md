@@ -182,7 +182,7 @@ Incognito mode is a **timed session state**, not a permanent toggle:
 
 **Flow**:
 
-1. User runs `/history hard-delete personality:Lilith timeframe:24h`
+1. User runs `/history purge character:Lilith`
 2. System shows warning: "This will permanently delete {N} messages. This cannot be undone."
 3. Red "Delete Permanently" button
 4. On confirm, actually DELETE rows from database
@@ -408,7 +408,7 @@ No Postgres migration needed - incognito state is ephemeral in Redis:
 - [x] Update conversation history queries to filter by epoch
 - [x] Implement `/history clear` command
 - [x] Implement `/history undo` command
-- [x] Implement `/history hard-delete` with confirmation
+- [x] Implement `/history purge` (formerly hard-delete) with confirmation
 - [x] Implement `/history view` command (later renamed to `/history stats`)
 - [x] Add gateway routes for STM operations
 - [x] Write tests for epoch filtering logic

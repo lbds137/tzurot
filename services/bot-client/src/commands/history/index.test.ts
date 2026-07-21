@@ -29,8 +29,8 @@ vi.mock('@tzurot/common-types/utils/logger', async () => {
 const mockHandleClear = vi.fn();
 const mockHandleUndo = vi.fn();
 const mockHandleStats = vi.fn();
-const mockHandleHardDelete = vi.fn();
-const mockParseHardDeleteEntityId = vi.fn();
+const mockHandlePurgeHistory = vi.fn();
+const mockParsePurgeEntityId = vi.fn();
 vi.mock('./clear.js', () => ({
   handleClear: (...args: unknown[]) => mockHandleClear(...args),
 }));
@@ -40,9 +40,9 @@ vi.mock('./undo.js', () => ({
 vi.mock('./stats.js', () => ({
   handleStats: (...args: unknown[]) => mockHandleStats(...args),
 }));
-vi.mock('./hard-delete.js', () => ({
-  handleHardDelete: (...args: unknown[]) => mockHandleHardDelete(...args),
-  parseHardDeleteEntityId: (...args: unknown[]) => mockParseHardDeleteEntityId(...args),
+vi.mock('./purge.js', () => ({
+  handlePurgeHistory: (...args: unknown[]) => mockHandlePurgeHistory(...args),
+  parsePurgeEntityId: (...args: unknown[]) => mockParsePurgeEntityId(...args),
 }));
 
 // Mock autocomplete handlers
@@ -154,14 +154,13 @@ describe('History Command Definition', () => {
     expect(statsSubcommand).toBeDefined();
   });
 
-  it('should have hard-delete subcommand without profile option', () => {
+  it('should have purge subcommand without profile option', () => {
     const json = data.toJSON();
-    const hardDeleteSubcommand = json.options?.find(
-      (opt: { name: string }) => opt.name === 'hard-delete'
-    ) as { options?: Array<{ name: string }> } | undefined;
-    expect(hardDeleteSubcommand).toBeDefined();
-    expect(hardDeleteSubcommand?.options).toHaveLength(1);
-    expect(hardDeleteSubcommand?.options?.[0]?.name).toBe('character');
+    const purgeSubcommand = json.options?.find((opt: { name: string }) => opt.name === 'purge') as
+      { options?: Array<{ name: string }> } | undefined;
+    expect(purgeSubcommand).toBeDefined();
+    expect(purgeSubcommand?.options).toHaveLength(1);
+    expect(purgeSubcommand?.options?.[0]?.name).toBe('character');
   });
 
   // Note: category is now injected by CommandHandler based on folder structure
@@ -205,8 +204,8 @@ describe('handleModal', () => {
     vi.clearAllMocks();
   });
 
-  it('should handle modal submit for hard-delete', async () => {
-    mockParseHardDeleteEntityId.mockReturnValue({
+  it('should handle modal submit for history purge', async () => {
+    mockParsePurgeEntityId.mockReturnValue({
       personalitySlug: 'lilith',
       channelId: 'channel-123',
     });
@@ -215,7 +214,7 @@ describe('handleModal', () => {
     });
 
     const mockInteraction = {
-      customId: 'history::destructive::modal_submit::hard-delete::lilith_channel-123',
+      customId: 'history::destructive::modal_submit::history-purge::lilith_channel-123',
       user: { id: '123456789' },
       reply: vi.fn(),
     };
@@ -226,11 +225,11 @@ describe('handleModal', () => {
   });
 
   it('should reply with error for invalid entityId in modal', async () => {
-    mockParseHardDeleteEntityId.mockReturnValue(null);
+    mockParsePurgeEntityId.mockReturnValue(null);
 
     const mockReply = vi.fn();
     const mockInteraction = {
-      customId: 'history::destructive::modal_submit::hard-delete::invalid',
+      customId: 'history::destructive::modal_submit::history-purge::invalid',
       user: { id: '123456789' },
       reply: mockReply,
     };
@@ -243,15 +242,15 @@ describe('handleModal', () => {
     });
   });
 
-  // Coverage for the closure built by `buildHardDeleteOperation`. The closure
+  // Coverage for the closure built by `buildPurgeOperation`. The closure
   // is passed as the 3rd arg to `handleDestructiveModalSubmit` and stored for
   // the confirm-button click — exercising it here mirrors what production
   // would do on confirm, without the Discord button round-trip.
-  describe('buildHardDeleteOperation callback', () => {
+  describe('buildPurgeOperation callback', () => {
     async function setupAndExtractCallback(
       hardDeleteHistoryStub: ReturnType<typeof vi.fn>
     ): Promise<() => Promise<unknown>> {
-      mockParseHardDeleteEntityId.mockReturnValue({
+      mockParsePurgeEntityId.mockReturnValue({
         personalitySlug: 'lilith',
         channelId: 'channel-123',
       });
@@ -260,7 +259,7 @@ describe('handleModal', () => {
       });
 
       await handleModal({
-        customId: 'history::destructive::modal_submit::hard-delete::lilith_channel-123',
+        customId: 'history::destructive::modal_submit::history-purge::lilith_channel-123',
         user: { id: '123456789' },
         reply: vi.fn(),
       } as never);
@@ -367,25 +366,25 @@ describe('handleButton', () => {
 
   it('should handle cancel button', async () => {
     const mockInteraction = {
-      customId: 'history::destructive::cancel_button::hard-delete::lilith_channel-123',
+      customId: 'history::destructive::cancel_button::history-purge::lilith_channel-123',
     };
 
     await handleButton(mockInteraction as never);
 
     expect(mockHandleDestructiveCancel).toHaveBeenCalledWith(
       mockInteraction,
-      'Hard-delete cancelled.'
+      'History purge cancelled.'
     );
   });
 
   it('should handle confirm button and show modal', async () => {
-    mockParseHardDeleteEntityId.mockReturnValue({
+    mockParsePurgeEntityId.mockReturnValue({
       personalitySlug: 'lilith',
       channelId: 'channel-123',
     });
 
     const mockInteraction = {
-      customId: 'history::destructive::confirm_button::hard-delete::lilith_channel-123',
+      customId: 'history::destructive::confirm_button::history-purge::lilith_channel-123',
     };
 
     await handleButton(mockInteraction as never);
@@ -399,11 +398,11 @@ describe('handleButton', () => {
   });
 
   it('should update with error for invalid entityId on confirm', async () => {
-    mockParseHardDeleteEntityId.mockReturnValue(null);
+    mockParsePurgeEntityId.mockReturnValue(null);
 
     const mockUpdate = vi.fn();
     const mockInteraction = {
-      customId: 'history::destructive::confirm_button::hard-delete::invalid',
+      customId: 'history::destructive::confirm_button::history-purge::invalid',
       update: mockUpdate,
     };
 

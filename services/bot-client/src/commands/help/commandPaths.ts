@@ -2,7 +2,7 @@
  * Command-path utilities for /help.
  *
  * Flattens a command's option tree into the discrete invocation paths users
- * actually see in Discord's slash-command picker (e.g. "character chime-in",
+ * actually see in Discord's slash-command picker (e.g. "admin presence set",
  * "admin presence set"), and resolves a typed/selected help value back to a
  * command overview or a single subcommand.
  *
@@ -29,7 +29,7 @@ export interface CommandOptionNode {
 
 /** One discrete, invocable command path plus its description. */
 export interface CommandLeaf {
-  /** Space-joined path, e.g. "character chime-in" or "admin presence set". */
+  /** Space-joined path, e.g. "memory facts" or "admin presence set". */
   path: string;
   description: string;
 }
@@ -84,7 +84,7 @@ export type HelpTarget =
   | { kind: 'subcommand'; command: Command; label: string; option: CommandOptionNode };
 
 /**
- * Resolve a /help value ("character", "character chime-in", "admin presence set")
+ * Resolve a /help value ("character", "memory facts", "admin presence set")
  * to a command overview, a single subcommand, or unknown. The value mirrors
  * the leaf `path` emitted by {@link flattenCommandLeaves}, so an autocomplete
  * pick always resolves to a concrete target.

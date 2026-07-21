@@ -1,28 +1,31 @@
 /**
- * Preset Override Set-Default Handler
- * Handles /preset override set-default subcommand
+ * Preset Set-Default Handler
+ * Handles /preset set-default subcommand
  * Sets the user's global default preset (applies to all characters)
  */
 
 import { EmbedBuilder } from 'discord.js';
 import { DEFAULT_MODEL_SLOT, toModelSlot } from '@tzurot/common-types/constants/ai';
 import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
-import { presetOverrideSetDefaultOptions } from '@tzurot/common-types/generated/commandOptions';
+import { presetSetDefaultOptions } from '@tzurot/common-types/generated/commandOptions';
 import { createLogger } from '@tzurot/common-types/utils/logger';
-import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
-import { clientsFor } from '../../../utils/gatewayClients.js';
-import { classifyGatewayFailure } from '../../../ux/catalog/classify.js';
-import { renderSpec } from '../../../ux/render/render.js';
-import { handleUnlockModelsUpsell, checkGuestModePremiumAccess } from './guestModeValidation.js';
+import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
+import { clientsFor } from '../../utils/gatewayClients.js';
+import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
+import { renderSpec } from '../../ux/render/render.js';
+import {
+  handleUnlockModelsUpsell,
+  checkGuestModePremiumAccess,
+} from './override/guestModeValidation.js';
 
-const logger = createLogger('preset-override-set-default');
+const logger = createLogger('preset-set-default');
 
 /**
- * Handle /preset override set-default
+ * Handle /preset set-default
  */
 export async function handleSetDefault(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;
-  const options = presetOverrideSetDefaultOptions(context.interaction);
+  const options = presetSetDefaultOptions(context.interaction);
   const configId = options.preset();
   // The slot (text = chat default, or vision) decides which default FK the value
   // writes; the gateway capability-gates the vision slot. Without sending it a
@@ -63,7 +66,7 @@ export async function handleSetDefault(context: DeferredCommandContext): Promise
           `**${data.default.configName}**.\n\n` +
           'This will be used for all characters unless you have a specific override.'
       )
-      .setFooter({ text: 'Use /preset override clear-default to remove this setting' })
+      .setFooter({ text: 'Use /preset clear-default to remove this setting' })
       .setTimestamp();
 
     await context.editReply({ embeds: [embed] });

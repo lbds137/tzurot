@@ -472,7 +472,7 @@ describe('Character Turn Engine (push delivery)', () => {
     });
   });
 
-  describe('weigh-in mode (/character chime-in — named character, no message)', () => {
+  describe('weigh-in mode (/chime-in — named character, no message)', () => {
     it('does not send a user message in weigh-in mode', async () => {
       const channel = createMockChannel(ChannelType.GuildText);
       const ctx = createMockContext('test-char', null, channel);

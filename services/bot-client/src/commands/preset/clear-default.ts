@@ -1,30 +1,30 @@
 /**
- * Preset Override Clear-Default Handler
- * Handles /preset override clear-default subcommand
+ * Preset Clear-Default Handler
+ * Handles /preset clear-default subcommand
  * Clears the user's global default preset
  */
 
 import { EmbedBuilder } from 'discord.js';
 import { toModelSlot } from '@tzurot/common-types/constants/ai';
 import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
-import { presetOverrideClearDefaultOptions } from '@tzurot/common-types/generated/commandOptions';
+import { presetClearDefaultOptions } from '@tzurot/common-types/generated/commandOptions';
 import { createLogger } from '@tzurot/common-types/utils/logger';
-import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
-import { clientsFor } from '../../../utils/gatewayClients.js';
-import { classifyGatewayFailure } from '../../../ux/catalog/classify.js';
-import { renderSpec } from '../../../ux/render/render.js';
+import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
+import { clientsFor } from '../../utils/gatewayClients.js';
+import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
+import { renderSpec } from '../../ux/render/render.js';
 
-const logger = createLogger('preset-override-clear-default');
+const logger = createLogger('preset-clear-default');
 
 /**
- * Handle /preset override clear-default
+ * Handle /preset clear-default
  */
 export async function handleClearDefault(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;
   // No slot → clear BOTH defaults (`all`); an explicit slot clears just that one.
   // The vision default is a separate FK from the text default, so a no-slot clear
   // has to target both or it silently leaves the other in place.
-  const slotOption = presetOverrideClearDefaultOptions(context.interaction).slot();
+  const slotOption = presetClearDefaultOptions(context.interaction).slot();
   const slot = slotOption !== null ? toModelSlot(slotOption) : 'all';
 
   try {
