@@ -3,7 +3,9 @@
 Tzurot lets you talk to customizable AI characters in Discord — each with its
 own personality, voice, and long-term memory. This guide covers your first
 conversation through to making the bot your own. For the complete command
-list, see the [command reference](https://tzurot.org/docs/commands).
+list, see the [command reference](https://tzurot.org/docs/commands) — and in
+Discord itself, `/help getting-started` shows a condensed version of this
+guide.
 
 > Tzurot is for adults: chatting with characters requires confirming you are
 > 18 or older. Everything below assumes the bot is in a server with you.
