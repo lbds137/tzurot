@@ -72,7 +72,7 @@ voice, no setup. When you want more:
 - `/settings apikey set` connects your own provider key (BYOK) — your usage,
   your account, access to 400+ models.
 - `/models browse` shows what's available; `/preset create` builds reusable
-  model + parameter presets, and `/settings preset set` applies them
+  model + parameter presets, and `/preset override set` applies them
   per-character.
 
 ## Your data

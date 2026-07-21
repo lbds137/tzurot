@@ -249,7 +249,7 @@ export function toModelSlot(value: string): ModelSlot {
 /**
  * Shared description for the `slot` slash-command option (Chat | Vision) across the
  * preset/settings setter commands. Single source so the user-facing label can't
- * silently diverge between `/preset` and `/settings preset`. The option NAME +
+ * silently diverge between `/preset` and `/preset override`. The option NAME +
  * required flag stay inline at each call site because the command-types codegen
  * reads them as string literals (it does not read the description). The encoded
  * choice values stay `text`/`vision` (the gateway's `?slot=` wire contract); only

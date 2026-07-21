@@ -1,6 +1,7 @@
 /**
- * Settings Preset Autocomplete Handler
- * Provides autocomplete suggestions for personality and preset options
+ * Preset Override Autocomplete Handler
+ * Provides autocomplete suggestions for the override group's character and
+ * preset options (assignable configs, with the guest-mode upsell)
  */
 
 import type { AutocompleteInteraction } from 'discord.js';
@@ -26,10 +27,10 @@ import {
  */
 export const UNLOCK_MODELS_VALUE = '__unlock_all_models__';
 
-const logger = createLogger('settings-preset-autocomplete');
+const logger = createLogger('preset-override-autocomplete');
 
 /**
- * Handle autocomplete for /settings preset commands
+ * Handle autocomplete for /preset override commands
  */
 export async function handleAutocomplete(interaction: AutocompleteInteraction): Promise<void> {
   const focusedOption = interaction.options.getFocused(true);

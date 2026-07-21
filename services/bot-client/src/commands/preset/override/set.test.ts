@@ -220,7 +220,7 @@ describe('Me Preset Set Handler', () => {
       await handleSet(createMockContext('personality-1', 'config-1'));
 
       expect(mockEditReply).toHaveBeenCalledWith({
-        content: '❌ Failed to set preset: Personality not found',
+        content: '❌ Personality not found',
       });
     });
 
@@ -230,7 +230,7 @@ describe('Me Preset Set Handler', () => {
       await handleSet(createMockContext('personality-1', 'config-1'));
 
       expect(mockEditReply).toHaveBeenCalledWith({
-        content: '❌ An error occurred. Please try again later.',
+        content: '❌ Failed to set the override. Please try again.',
       });
     });
 

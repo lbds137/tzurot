@@ -425,7 +425,7 @@ model PersonalityAlias {
 /// Per-(user, personality) overrides. Aggregates four orthogonal override
 /// slices into one row: persona, LLM config, TTS config, and a configOverrides
 /// JSON blob. Each slice is independently nullable because routes set them
-/// independently: /settings preset writes llmConfigId, /voice tts writes
+/// independently: /preset override writes llmConfigId, /voice tts writes
 /// ttsConfigId, /persona override writes personaId, and /channel context
 /// writes configOverrides. The row's existence is the upsert anchor; nullability
 /// of each slice means "no override for this slice on this (user, personality)."

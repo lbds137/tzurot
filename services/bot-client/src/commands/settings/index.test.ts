@@ -1,6 +1,6 @@
 /**
  * Tests for Settings Command Index
- * Tests command routing for consolidated settings (timezone, apikey, preset, defaults)
+ * Tests command routing for consolidated settings (timezone, apikey, defaults, data)
  *
  * History:
  * - Consolidated from former /me timezone, /wallet, and /me preset commands
@@ -41,35 +41,6 @@ vi.mock('./apikey/test.js', () => ({
 
 vi.mock('./apikey/modal.js', () => ({
   handleApikeyModalSubmit: vi.fn().mockResolvedValue(undefined),
-}));
-
-// Mock preset handlers
-vi.mock('./preset/browse.js', () => ({
-  handlePresetBrowse: vi.fn().mockResolvedValue(undefined),
-  handlePresetBrowseSelect: vi.fn().mockResolvedValue(undefined),
-  handlePresetBrowseButton: vi.fn().mockResolvedValue(undefined),
-  isPresetOverrideInteraction: vi.fn(() => false),
-  PRESET_OVERRIDE_PREFIX: 'settings-preset-override',
-}));
-
-vi.mock('./preset/set.js', () => ({
-  handleSet: vi.fn().mockResolvedValue(undefined),
-}));
-
-vi.mock('./preset/clear.js', () => ({
-  handleClear: vi.fn().mockResolvedValue(undefined),
-}));
-
-vi.mock('./preset/set-default.js', () => ({
-  handleSetDefault: vi.fn().mockResolvedValue(undefined),
-}));
-
-vi.mock('./preset/clear-default.js', () => ({
-  handleClearDefault: vi.fn().mockResolvedValue(undefined),
-}));
-
-vi.mock('./preset/autocomplete.js', () => ({
-  handleAutocomplete: vi.fn().mockResolvedValue(undefined),
 }));
 
 // Mock defaults handlers
@@ -154,29 +125,6 @@ describe('Settings Command Index', () => {
       expect(subcommands).toContain('test');
     });
 
-    it('should have preset subcommand group with symmetric set/clear/set-default/clear-default', () => {
-      const json = data.toJSON();
-      const options = json.options ?? [];
-
-      const groups = options.filter((opt: { type: number }) => opt.type === 2);
-      const presetGroup = groups.find((g: { name: string }) => g.name === 'preset');
-
-      expect(presetGroup).toBeDefined();
-
-      const subcommands = (
-        (presetGroup as { options?: Array<{ name: string }> })?.options ?? []
-      ).map(s => s.name);
-      // Names mirror the /voice tts pattern: action verb (set / clear) +
-      // optional scope qualifier (-default for global vs no suffix for
-      // per-character). `browse` is the interactive select-to-clear view of
-      // the user's overrides.
-      expect(subcommands).toContain('browse');
-      expect(subcommands).toContain('set');
-      expect(subcommands).toContain('clear');
-      expect(subcommands).toContain('set-default');
-      expect(subcommands).toContain('clear-default');
-    });
-
     it('should have defaults subcommand group with edit', () => {
       const json = data.toJSON();
       const options = json.options ?? [];
@@ -205,13 +153,11 @@ describe('Settings Command Index', () => {
       expect(groupNames).not.toContain('voices');
     });
 
-    it('should have componentPrefixes for user-defaults and preset-override', () => {
+    it('should have componentPrefixes for user-defaults only', () => {
       // Account-delete customIds start with 'settings::' and route natively
       // by command name — no extra prefix needed since the Tier-B migration.
-      expect(settingsCommand.componentPrefixes).toEqual([
-        'user-defaults-settings',
-        'settings-preset-override',
-      ]);
+      // The preset-override prefix re-homed to /preset with the override group.
+      expect(settingsCommand.componentPrefixes).toEqual(['user-defaults-settings']);
     });
 
     it('should have correct deferral modes', () => {
@@ -307,53 +253,6 @@ describe('Settings Command Index', () => {
       });
     });
 
-    describe('preset group', () => {
-      it('should route /preset browse to handlePresetBrowse', async () => {
-        const { handlePresetBrowse } = await import('./preset/browse.js');
-        const context = createMockContext('preset', 'browse');
-
-        await execute(context);
-
-        expect(handlePresetBrowse).toHaveBeenCalledWith(context);
-      });
-
-      it('should route to preset set handler', async () => {
-        const { handleSet } = await import('./preset/set.js');
-        const context = createMockContext('preset', 'set');
-
-        await execute(context);
-
-        expect(handleSet).toHaveBeenCalledWith(context);
-      });
-
-      it('should route to preset clear handler', async () => {
-        const { handleClear } = await import('./preset/clear.js');
-        const context = createMockContext('preset', 'clear');
-
-        await execute(context);
-
-        expect(handleClear).toHaveBeenCalledWith(context);
-      });
-
-      it('should route to preset set-default handler', async () => {
-        const { handleSetDefault } = await import('./preset/set-default.js');
-        const context = createMockContext('preset', 'set-default');
-
-        await execute(context);
-
-        expect(handleSetDefault).toHaveBeenCalledWith(context);
-      });
-
-      it('should route to preset clear-default handler', async () => {
-        const { handleClearDefault } = await import('./preset/clear-default.js');
-        const context = createMockContext('preset', 'clear-default');
-
-        await execute(context);
-
-        expect(handleClearDefault).toHaveBeenCalledWith(context);
-      });
-    });
-
     describe('defaults group', () => {
       it('should route to defaults edit handler', async () => {
         const { handleDefaultsEdit } = await import('./defaults/edit.js');
@@ -443,19 +342,6 @@ describe('Settings Command Index', () => {
       expect(handleUserDefaultsButton).toHaveBeenCalledWith(interaction);
     });
 
-    it('routes preset-override buttons to the preset browse handler', async () => {
-      const { handlePresetBrowseButton, isPresetOverrideInteraction } =
-        await import('./preset/browse.js');
-      vi.mocked(isPresetOverrideInteraction).mockImplementation((id: string) =>
-        id.startsWith('settings-preset-override::')
-      );
-
-      const interaction = { customId: 'settings-preset-override::page::1' } as any;
-      await handleButton(interaction);
-
-      expect(handlePresetBrowseButton).toHaveBeenCalledWith(interaction);
-    });
-
     it('routes account-delete buttons via the REAL destructive customId (drift pin)', async () => {
       const { handleDataDeleteButton } = await import('./data/delete.js');
       const { DestructiveCustomIds } = await import('../../utils/customIds.js');
@@ -500,19 +386,6 @@ describe('Settings Command Index', () => {
       expect(handleUserDefaultsSelectMenu).toHaveBeenCalledWith(interaction);
     });
 
-    it('routes preset-override selects to the preset browse handler', async () => {
-      const { handlePresetBrowseSelect, isPresetOverrideInteraction } =
-        await import('./preset/browse.js');
-      vi.mocked(isPresetOverrideInteraction).mockImplementation((id: string) =>
-        id.startsWith('settings-preset-override::')
-      );
-
-      const interaction = { customId: 'settings-preset-override::select::0' } as any;
-      await handleSelectMenu(interaction);
-
-      expect(handlePresetBrowseSelect).toHaveBeenCalledWith(interaction);
-    });
-
     it('acks an unknown select menu custom ID instead of dead-ending it', async () => {
       const reply = vi.fn().mockResolvedValue(undefined);
       const interaction = {
@@ -546,22 +419,6 @@ describe('Settings Command Index', () => {
       const choices = interaction.respond.mock.calls[0][0];
       // Should filter to timezones matching "eastern" (label includes "Eastern Time")
       expect(choices.some((c: { value: string }) => c.value.includes('New_York'))).toBe(true);
-    });
-
-    it('should route preset autocomplete to preset handler', async () => {
-      const { handleAutocomplete: handlePresetAutocomplete } =
-        await import('./preset/autocomplete.js');
-
-      const interaction = {
-        options: {
-          getFocused: () => ({ name: 'character', value: '' }),
-          getSubcommandGroup: () => 'preset',
-        },
-      } as any;
-
-      await autocomplete(interaction);
-
-      expect(handlePresetAutocomplete).toHaveBeenCalledWith(interaction);
     });
 
     it('should return empty array for unknown options', async () => {

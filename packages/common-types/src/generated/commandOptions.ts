@@ -514,6 +514,38 @@ export const presetGlobalFreeDefaultOptions = defineTypedOptions({
 });
 
 /**
+ * /preset override set <character, preset, slot>
+ */
+export const presetOverrideSetOptions = defineTypedOptions({
+  character: { type: 'string', required: true },
+  preset: { type: 'string', required: true },
+  slot: { type: 'string', required: false },
+});
+
+/**
+ * /preset override clear <character, slot>
+ */
+export const presetOverrideClearOptions = defineTypedOptions({
+  character: { type: 'string', required: true },
+  slot: { type: 'string', required: false },
+});
+
+/**
+ * /preset override set-default <preset, slot>
+ */
+export const presetOverrideSetDefaultOptions = defineTypedOptions({
+  preset: { type: 'string', required: true },
+  slot: { type: 'string', required: false },
+});
+
+/**
+ * /preset override clear-default <slot>
+ */
+export const presetOverrideClearDefaultOptions = defineTypedOptions({
+  slot: { type: 'string', required: false },
+});
+
+/**
  * /preset browse <query, filter, capability>
  */
 export const presetBrowseOptions = defineTypedOptions({
@@ -573,38 +605,6 @@ export const settingsApikeyRemoveOptions = defineTypedOptions({
  */
 export const settingsApikeyTestOptions = defineTypedOptions({
   provider: { type: 'string', required: true },
-});
-
-/**
- * /settings preset set <character, preset, slot>
- */
-export const settingsPresetSetOptions = defineTypedOptions({
-  character: { type: 'string', required: true },
-  preset: { type: 'string', required: true },
-  slot: { type: 'string', required: false },
-});
-
-/**
- * /settings preset clear <character, slot>
- */
-export const settingsPresetClearOptions = defineTypedOptions({
-  character: { type: 'string', required: true },
-  slot: { type: 'string', required: false },
-});
-
-/**
- * /settings preset set-default <preset, slot>
- */
-export const settingsPresetSetDefaultOptions = defineTypedOptions({
-  preset: { type: 'string', required: true },
-  slot: { type: 'string', required: false },
-});
-
-/**
- * /settings preset clear-default <slot>
- */
-export const settingsPresetClearDefaultOptions = defineTypedOptions({
-  slot: { type: 'string', required: false },
 });
 
 // =============================================================================

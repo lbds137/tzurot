@@ -48,12 +48,37 @@ vi.mock('../../utils/modal/retry.js', async importOriginal => {
 vi.mock('./global/set-default.js', () => ({ handleGlobalSetDefault: vi.fn() }));
 vi.mock('./global/free-default.js', () => ({ handleGlobalSetFreeDefault: vi.fn() }));
 
+// Mock override subcommand handlers (moved from /settings preset)
+vi.mock('./override/browse.js', () => ({
+  handlePresetBrowse: vi.fn(),
+  handlePresetBrowseSelect: vi.fn(),
+  handlePresetBrowseButton: vi.fn(),
+  isPresetOverrideInteraction: vi.fn(() => false),
+  PRESET_OVERRIDE_PREFIX: 'settings-preset-override',
+}));
+vi.mock('./override/set.js', () => ({ handleSet: vi.fn() }));
+vi.mock('./override/clear.js', () => ({ handleClear: vi.fn() }));
+vi.mock('./override/set-default.js', () => ({ handleSetDefault: vi.fn() }));
+vi.mock('./override/clear-default.js', () => ({ handleClearDefault: vi.fn() }));
+vi.mock('./override/autocomplete.js', () => ({ handleAutocomplete: vi.fn() }));
+
 import { handleBrowse, isPresetBrowseInteraction } from './browse.js';
 import { buildPresetSeedModal } from './create.js';
 import { buildModalRetryRow } from '../../utils/modal/retry.js';
 import { handleCreate } from './create.js';
 import { handleGlobalSetDefault } from './global/set-default.js';
 import { handleGlobalSetFreeDefault } from './global/free-default.js';
+import {
+  handlePresetBrowse as handleOverrideBrowse,
+  handlePresetBrowseSelect as handleOverrideBrowseSelect,
+  handlePresetBrowseButton as handleOverrideBrowseButton,
+  isPresetOverrideInteraction,
+} from './override/browse.js';
+import { handleSet as handleOverrideSet } from './override/set.js';
+import { handleClear as handleOverrideClear } from './override/clear.js';
+import { handleSetDefault as handleOverrideSetDefault } from './override/set-default.js';
+import { handleClearDefault as handleOverrideClearDefault } from './override/clear-default.js';
+import { handleAutocomplete as handleOverrideAutocomplete } from './override/autocomplete.js';
 
 describe('Preset Command', () => {
   const mockEditReply = vi.fn();
@@ -104,6 +129,34 @@ describe('Preset Command', () => {
       expect(globalSubcommands).toContain('free-default');
       // Note: 'create' was removed - global presets are created via /preset create + toggle
       // Note: 'edit' was removed - global presets can be edited via /preset edit
+    });
+
+    it('should have override subcommand group with symmetric set/clear/set-default/clear-default', () => {
+      const json = data.toJSON();
+      const options = json.options ?? [];
+
+      const groups = options.filter((opt: { type: number }) => opt.type === 2);
+      const overrideGroup = groups.find((g: { name: string }) => g.name === 'override');
+
+      expect(overrideGroup).toBeDefined();
+
+      const subcommands = ((overrideGroup as { options?: { name: string }[] })?.options ?? []).map(
+        s => s.name
+      );
+      // Names mirror the /voice tts pattern: action verb (set / clear) +
+      // optional scope qualifier (-default for global vs no suffix for
+      // per-character). `browse` is the interactive select-to-clear view.
+      expect(subcommands).toContain('browse');
+      expect(subcommands).toContain('set');
+      expect(subcommands).toContain('clear');
+      expect(subcommands).toContain('set-default');
+      expect(subcommands).toContain('clear-default');
+    });
+
+    it('keeps the historical override componentPrefix for in-flight components', () => {
+      // The string predates the /settings preset → /preset override move —
+      // renaming it would dead-end components on pre-rename messages.
+      expect(presetCommand.componentPrefixes).toEqual(['settings-preset-override']);
     });
   });
 
@@ -161,10 +214,60 @@ describe('Preset Command', () => {
       expect(handleGlobalSetFreeDefault).toHaveBeenCalledWith(context);
     });
   });
+
+  describe('override group routing (moved from /settings preset)', () => {
+    it.each([
+      ['browse', handleOverrideBrowse],
+      ['set', handleOverrideSet],
+      ['clear', handleOverrideClear],
+      ['set-default', handleOverrideSetDefault],
+      ['clear-default', handleOverrideClearDefault],
+    ])('routes override %s to its handler', async (subcommand, handler) => {
+      const context = createMockContext(subcommand as string, 'override');
+      await execute(context);
+      expect(handler).toHaveBeenCalledWith(context);
+    });
+
+    it('does NOT owner-gate the override group', async () => {
+      const context = createMockContext('browse', 'override');
+      await execute(context);
+      expect(mockRequireBotOwnerContext).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('autocomplete routing', () => {
+    it('routes override-group autocomplete to the override handler', async () => {
+      const interaction = {
+        options: {
+          getFocused: () => ({ name: 'preset', value: '' }),
+          getSubcommandGroup: () => 'override',
+        },
+      } as never;
+
+      await presetCommand.autocomplete?.(interaction);
+
+      expect(handleOverrideAutocomplete).toHaveBeenCalledWith(interaction);
+    });
+  });
 });
 
 describe('button dispatch', () => {
+  it('routes override-browse buttons and selects via the historical prefix', async () => {
+    vi.mocked(isPresetOverrideInteraction).mockImplementation((id: string) =>
+      id.startsWith('settings-preset-override::')
+    );
+
+    const button = { customId: 'settings-preset-override::clear::p1::text' } as never;
+    await presetCommand.handleButton?.(button);
+    expect(handleOverrideBrowseButton).toHaveBeenCalledWith(button);
+
+    const select = { customId: 'settings-preset-override::select::0' } as never;
+    await presetCommand.handleSelectMenu?.(select);
+    expect(handleOverrideBrowseSelect).toHaveBeenCalledWith(select);
+  });
+
   it('routes the REAL retry-button customId to handleModalRetry (builder↔guard drift pin)', async () => {
+    vi.mocked(isPresetOverrideInteraction).mockReturnValue(false);
     vi.mocked(isPresetBrowseInteraction).mockReturnValue(false);
     const row = buildModalRetryRow('preset').toJSON() as { components: { custom_id: string }[] };
     const interaction = { customId: row.components[0].custom_id } as never;

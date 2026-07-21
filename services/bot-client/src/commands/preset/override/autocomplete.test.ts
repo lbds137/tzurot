@@ -479,7 +479,7 @@ describe('handleAutocomplete', () => {
     it('shows the z.ai piggyback preset to guests (conditionally free)', async () => {
       // GLM-4.5-Air is not literally free on OpenRouter but IS free-tier
       // eligible — the guest picker must offer it (this exact absence was the
-      // reported bug: not selectable in /settings preset set-default).
+      // reported bug: not selectable in /preset override set-default).
       vi.mocked(mockInteraction.options.getFocused).mockReturnValue({
         name: 'preset',
         value: '',

@@ -11,7 +11,7 @@
  * Fail-open on transient gateway errors: if the BYOK check itself fails
  * (gateway down, network blip), let the user proceed and let ai-worker's
  * dispatcher enforce at synthesis. Mirrors the
- * `commands/settings/preset/guestModeValidation.ts` pattern.
+ * `commands/preset/override/guestModeValidation.ts` pattern.
  */
 
 import { EmbedBuilder } from 'discord.js';

@@ -1711,7 +1711,9 @@
         "button": true,
         "modal": true
       },
-      "componentPrefixes": [],
+      "componentPrefixes": [
+        "settings-preset-override"
+      ],
       "data": {
         "options": [
           {
@@ -1890,6 +1892,139 @@
                 ]
               }
             ]
+          },
+          {
+            "type": 2,
+            "name": "override",
+            "description": "Per-character preset overrides and your default preset",
+            "options": [
+              {
+                "type": 1,
+                "name": "browse",
+                "description": "Browse your preset overrides (select to clear)",
+                "options": []
+              },
+              {
+                "type": 1,
+                "name": "set",
+                "description": "Override preset for a character",
+                "options": [
+                  {
+                    "autocomplete": true,
+                    "type": 3,
+                    "name": "character",
+                    "description": "The character to override",
+                    "required": true
+                  },
+                  {
+                    "autocomplete": true,
+                    "type": 3,
+                    "name": "preset",
+                    "description": "The preset to use",
+                    "required": true
+                  },
+                  {
+                    "type": 3,
+                    "choices": [
+                      {
+                        "name": "Chat",
+                        "value": "text"
+                      },
+                      {
+                        "name": "Vision",
+                        "value": "vision"
+                      }
+                    ],
+                    "name": "slot",
+                    "description": "Which slot to target: Chat (default) or Vision",
+                    "required": false
+                  }
+                ]
+              },
+              {
+                "type": 1,
+                "name": "clear",
+                "description": "Remove preset override for a character",
+                "options": [
+                  {
+                    "autocomplete": true,
+                    "type": 3,
+                    "name": "character",
+                    "description": "The character to clear",
+                    "required": true
+                  },
+                  {
+                    "type": 3,
+                    "choices": [
+                      {
+                        "name": "Chat",
+                        "value": "text"
+                      },
+                      {
+                        "name": "Vision",
+                        "value": "vision"
+                      }
+                    ],
+                    "name": "slot",
+                    "description": "Which slot to target: Chat (default) or Vision",
+                    "required": false
+                  }
+                ]
+              },
+              {
+                "type": 1,
+                "name": "set-default",
+                "description": "Set your global default preset",
+                "options": [
+                  {
+                    "autocomplete": true,
+                    "type": 3,
+                    "name": "preset",
+                    "description": "The preset to use as default",
+                    "required": true
+                  },
+                  {
+                    "type": 3,
+                    "choices": [
+                      {
+                        "name": "Chat",
+                        "value": "text"
+                      },
+                      {
+                        "name": "Vision",
+                        "value": "vision"
+                      }
+                    ],
+                    "name": "slot",
+                    "description": "Which slot to target: Chat (default) or Vision",
+                    "required": false
+                  }
+                ]
+              },
+              {
+                "type": 1,
+                "name": "clear-default",
+                "description": "Clear your global default preset",
+                "options": [
+                  {
+                    "type": 3,
+                    "choices": [
+                      {
+                        "name": "Chat",
+                        "value": "text"
+                      },
+                      {
+                        "name": "Vision",
+                        "value": "vision"
+                      }
+                    ],
+                    "name": "slot",
+                    "description": "Which slot to target: Chat (default) or Vision",
+                    "required": false
+                  }
+                ]
+              }
+            ]
           }
         ],
         "name": "preset",
@@ -1909,8 +2044,7 @@
         "modal": true
       },
       "componentPrefixes": [
-        "user-defaults-settings",
-        "settings-preset-override"
+        "user-defaults-settings"
       ],
       "data": {
         "options": [
@@ -2042,139 +2176,6 @@
                     "name": "provider",
                     "description": "AI provider to test",
                     "required": true
-                  }
-                ]
-              }
-            ]
-          },
-          {
-            "type": 2,
-            "name": "preset",
-            "description": "Manage preset/model overrides",
-            "options": [
-              {
-                "type": 1,
-                "name": "browse",
-                "description": "Browse your preset overrides (select to clear)",
-                "options": []
-              },
-              {
-                "type": 1,
-                "name": "set",
-                "description": "Override preset for a character",
-                "options": [
-                  {
-                    "autocomplete": true,
-                    "type": 3,
-                    "name": "character",
-                    "description": "The character to override",
-                    "required": true
-                  },
-                  {
-                    "autocomplete": true,
-                    "type": 3,
-                    "name": "preset",
-                    "description": "The preset to use",
-                    "required": true
-                  },
-                  {
-                    "type": 3,
-                    "choices": [
-                      {
-                        "name": "Chat",
-                        "value": "text"
-                      },
-                      {
-                        "name": "Vision",
-                        "value": "vision"
-                      }
-                    ],
-                    "name": "slot",
-                    "description": "Which slot to target: Chat (default) or Vision",
-                    "required": false
-                  }
-                ]
-              },
-              {
-                "type": 1,
-                "name": "clear",
-                "description": "Remove preset override for a character",
-                "options": [
-                  {
-                    "autocomplete": true,
-                    "type": 3,
-                    "name": "character",
-                    "description": "The character to clear",
-                    "required": true
-                  },
-                  {
-                    "type": 3,
-                    "choices": [
-                      {
-                        "name": "Chat",
-                        "value": "text"
-                      },
-                      {
-                        "name": "Vision",
-                        "value": "vision"
-                      }
-                    ],
-                    "name": "slot",
-                    "description": "Which slot to target: Chat (default) or Vision",
-                    "required": false
-                  }
-                ]
-              },
-              {
-                "type": 1,
-                "name": "set-default",
-                "description": "Set your global default preset",
-                "options": [
-                  {
-                    "autocomplete": true,
-                    "type": 3,
-                    "name": "preset",
-                    "description": "The preset to use as default",
-                    "required": true
-                  },
-                  {
-                    "type": 3,
-                    "choices": [
-                      {
-                        "name": "Chat",
-                        "value": "text"
-                      },
-                      {
-                        "name": "Vision",
-                        "value": "vision"
-                      }
-                    ],
-                    "name": "slot",
-                    "description": "Which slot to target: Chat (default) or Vision",
-                    "required": false
-                  }
-                ]
-              },
-              {
-                "type": 1,
-                "name": "clear-default",
-                "description": "Clear your global default preset",
-                "options": [
-                  {
-                    "type": 3,
-                    "choices": [
-                      {
-                        "name": "Chat",
-                        "value": "text"
-                      },
-                      {
-                        "name": "Vision",
-                        "value": "vision"
-                      }
-                    ],
-                    "name": "slot",
-                    "description": "Which slot to target: Chat (default) or Vision",
-                    "required": false
                   }
                 ]
               }

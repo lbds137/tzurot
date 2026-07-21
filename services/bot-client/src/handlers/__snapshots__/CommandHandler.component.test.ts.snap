@@ -2393,196 +2393,10 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
     ],
     "type": 2,
   },
-]
-`;
-
-exports[`CommandHandler (component) > command structure snapshots > has a stable option structure for every registered command > settings-command-options 1`] = `
-[
   {
-    "description": "Manage your timezone settings",
+    "description": "Per-character preset overrides and your default preset",
     "description_localizations": undefined,
-    "name": "timezone",
-    "name_localizations": undefined,
-    "options": [
-      {
-        "description": "Set your timezone",
-        "description_localizations": undefined,
-        "name": "set",
-        "name_localizations": undefined,
-        "options": [
-          {
-            "autocomplete": true,
-            "choices": undefined,
-            "description": "Your timezone (e.g., America/New_York)",
-            "description_localizations": undefined,
-            "max_length": undefined,
-            "min_length": undefined,
-            "name": "timezone",
-            "name_localizations": undefined,
-            "required": true,
-            "type": 3,
-          },
-        ],
-        "type": 1,
-      },
-      {
-        "description": "Show your current timezone",
-        "description_localizations": undefined,
-        "name": "get",
-        "name_localizations": undefined,
-        "options": [],
-        "type": 1,
-      },
-    ],
-    "type": 2,
-  },
-  {
-    "description": "Manage your API keys (BYOK - Bring Your Own Key)",
-    "description_localizations": undefined,
-    "name": "apikey",
-    "name_localizations": undefined,
-    "options": [
-      {
-        "description": "Set your API key for a provider",
-        "description_localizations": undefined,
-        "name": "set",
-        "name_localizations": undefined,
-        "options": [
-          {
-            "autocomplete": undefined,
-            "choices": [
-              {
-                "name": "OpenRouter",
-                "name_localizations": undefined,
-                "value": "openrouter",
-              },
-              {
-                "name": "ElevenLabs (Voice)",
-                "name_localizations": undefined,
-                "value": "elevenlabs",
-              },
-              {
-                "name": "Z.AI Coding Plan",
-                "name_localizations": undefined,
-                "value": "zai-coding",
-              },
-              {
-                "name": "Mistral (Voxtral TTS/STT)",
-                "name_localizations": undefined,
-                "value": "mistral",
-              },
-            ],
-            "description": "AI provider to configure",
-            "description_localizations": undefined,
-            "max_length": undefined,
-            "min_length": undefined,
-            "name": "provider",
-            "name_localizations": undefined,
-            "required": true,
-            "type": 3,
-          },
-        ],
-        "type": 1,
-      },
-      {
-        "description": "Browse your configured API keys",
-        "description_localizations": undefined,
-        "name": "browse",
-        "name_localizations": undefined,
-        "options": [],
-        "type": 1,
-      },
-      {
-        "description": "Remove your API key for a provider",
-        "description_localizations": undefined,
-        "name": "remove",
-        "name_localizations": undefined,
-        "options": [
-          {
-            "autocomplete": undefined,
-            "choices": [
-              {
-                "name": "OpenRouter",
-                "name_localizations": undefined,
-                "value": "openrouter",
-              },
-              {
-                "name": "ElevenLabs (Voice)",
-                "name_localizations": undefined,
-                "value": "elevenlabs",
-              },
-              {
-                "name": "Z.AI Coding Plan",
-                "name_localizations": undefined,
-                "value": "zai-coding",
-              },
-              {
-                "name": "Mistral (Voxtral TTS/STT)",
-                "name_localizations": undefined,
-                "value": "mistral",
-              },
-            ],
-            "description": "AI provider to remove",
-            "description_localizations": undefined,
-            "max_length": undefined,
-            "min_length": undefined,
-            "name": "provider",
-            "name_localizations": undefined,
-            "required": true,
-            "type": 3,
-          },
-        ],
-        "type": 1,
-      },
-      {
-        "description": "Test your API key validity",
-        "description_localizations": undefined,
-        "name": "test",
-        "name_localizations": undefined,
-        "options": [
-          {
-            "autocomplete": undefined,
-            "choices": [
-              {
-                "name": "OpenRouter",
-                "name_localizations": undefined,
-                "value": "openrouter",
-              },
-              {
-                "name": "ElevenLabs (Voice)",
-                "name_localizations": undefined,
-                "value": "elevenlabs",
-              },
-              {
-                "name": "Z.AI Coding Plan",
-                "name_localizations": undefined,
-                "value": "zai-coding",
-              },
-              {
-                "name": "Mistral (Voxtral TTS/STT)",
-                "name_localizations": undefined,
-                "value": "mistral",
-              },
-            ],
-            "description": "AI provider to test",
-            "description_localizations": undefined,
-            "max_length": undefined,
-            "min_length": undefined,
-            "name": "provider",
-            "name_localizations": undefined,
-            "required": true,
-            "type": 3,
-          },
-        ],
-        "type": 1,
-      },
-    ],
-    "type": 2,
-  },
-  {
-    "description": "Manage preset/model overrides",
-    "description_localizations": undefined,
-    "name": "preset",
+    "name": "override",
     "name_localizations": undefined,
     "options": [
       {
@@ -2764,6 +2578,192 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
             "name": "slot",
             "name_localizations": undefined,
             "required": false,
+            "type": 3,
+          },
+        ],
+        "type": 1,
+      },
+    ],
+    "type": 2,
+  },
+]
+`;
+
+exports[`CommandHandler (component) > command structure snapshots > has a stable option structure for every registered command > settings-command-options 1`] = `
+[
+  {
+    "description": "Manage your timezone settings",
+    "description_localizations": undefined,
+    "name": "timezone",
+    "name_localizations": undefined,
+    "options": [
+      {
+        "description": "Set your timezone",
+        "description_localizations": undefined,
+        "name": "set",
+        "name_localizations": undefined,
+        "options": [
+          {
+            "autocomplete": true,
+            "choices": undefined,
+            "description": "Your timezone (e.g., America/New_York)",
+            "description_localizations": undefined,
+            "max_length": undefined,
+            "min_length": undefined,
+            "name": "timezone",
+            "name_localizations": undefined,
+            "required": true,
+            "type": 3,
+          },
+        ],
+        "type": 1,
+      },
+      {
+        "description": "Show your current timezone",
+        "description_localizations": undefined,
+        "name": "get",
+        "name_localizations": undefined,
+        "options": [],
+        "type": 1,
+      },
+    ],
+    "type": 2,
+  },
+  {
+    "description": "Manage your API keys (BYOK - Bring Your Own Key)",
+    "description_localizations": undefined,
+    "name": "apikey",
+    "name_localizations": undefined,
+    "options": [
+      {
+        "description": "Set your API key for a provider",
+        "description_localizations": undefined,
+        "name": "set",
+        "name_localizations": undefined,
+        "options": [
+          {
+            "autocomplete": undefined,
+            "choices": [
+              {
+                "name": "OpenRouter",
+                "name_localizations": undefined,
+                "value": "openrouter",
+              },
+              {
+                "name": "ElevenLabs (Voice)",
+                "name_localizations": undefined,
+                "value": "elevenlabs",
+              },
+              {
+                "name": "Z.AI Coding Plan",
+                "name_localizations": undefined,
+                "value": "zai-coding",
+              },
+              {
+                "name": "Mistral (Voxtral TTS/STT)",
+                "name_localizations": undefined,
+                "value": "mistral",
+              },
+            ],
+            "description": "AI provider to configure",
+            "description_localizations": undefined,
+            "max_length": undefined,
+            "min_length": undefined,
+            "name": "provider",
+            "name_localizations": undefined,
+            "required": true,
+            "type": 3,
+          },
+        ],
+        "type": 1,
+      },
+      {
+        "description": "Browse your configured API keys",
+        "description_localizations": undefined,
+        "name": "browse",
+        "name_localizations": undefined,
+        "options": [],
+        "type": 1,
+      },
+      {
+        "description": "Remove your API key for a provider",
+        "description_localizations": undefined,
+        "name": "remove",
+        "name_localizations": undefined,
+        "options": [
+          {
+            "autocomplete": undefined,
+            "choices": [
+              {
+                "name": "OpenRouter",
+                "name_localizations": undefined,
+                "value": "openrouter",
+              },
+              {
+                "name": "ElevenLabs (Voice)",
+                "name_localizations": undefined,
+                "value": "elevenlabs",
+              },
+              {
+                "name": "Z.AI Coding Plan",
+                "name_localizations": undefined,
+                "value": "zai-coding",
+              },
+              {
+                "name": "Mistral (Voxtral TTS/STT)",
+                "name_localizations": undefined,
+                "value": "mistral",
+              },
+            ],
+            "description": "AI provider to remove",
+            "description_localizations": undefined,
+            "max_length": undefined,
+            "min_length": undefined,
+            "name": "provider",
+            "name_localizations": undefined,
+            "required": true,
+            "type": 3,
+          },
+        ],
+        "type": 1,
+      },
+      {
+        "description": "Test your API key validity",
+        "description_localizations": undefined,
+        "name": "test",
+        "name_localizations": undefined,
+        "options": [
+          {
+            "autocomplete": undefined,
+            "choices": [
+              {
+                "name": "OpenRouter",
+                "name_localizations": undefined,
+                "value": "openrouter",
+              },
+              {
+                "name": "ElevenLabs (Voice)",
+                "name_localizations": undefined,
+                "value": "elevenlabs",
+              },
+              {
+                "name": "Z.AI Coding Plan",
+                "name_localizations": undefined,
+                "value": "zai-coding",
+              },
+              {
+                "name": "Mistral (Voxtral TTS/STT)",
+                "name_localizations": undefined,
+                "value": "mistral",
+              },
+            ],
+            "description": "AI provider to test",
+            "description_localizations": undefined,
+            "max_length": undefined,
+            "min_length": undefined,
+            "name": "provider",
+            "name_localizations": undefined,
+            "required": true,
             "type": 3,
           },
         ],

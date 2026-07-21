@@ -2,7 +2,7 @@
  * Voice TTS Autocomplete Handler
  * Provides autocomplete suggestions for personality and tts options.
  *
- * Mirrors `commands/settings/preset/autocomplete.ts` shape:
+ * Mirrors `commands/preset/override/autocomplete.ts` shape:
  *  - personality option → reuse handlePersonalityAutocomplete
  *  - tts option → fetch /user/tts-config, format with provider badges
  *

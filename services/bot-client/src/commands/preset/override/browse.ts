@@ -1,10 +1,7 @@
 /**
- * Settings Preset Browse Handler
- * Handles /settings preset browse — lists the user's per-character preset
- * overrides and lets them clear one by selecting it.
- *
- * Replaces the old /settings preset list (display-only) with an interactive
- * select → clear flow built on the shared override browser.
+ * Preset Override Browse Handler
+ * Handles /preset override browse — lists the user's per-character preset
+ * overrides and lets them clear one by selecting it (shared override browser).
  */
 
 import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js';
@@ -19,9 +16,13 @@ import {
   createOverrideBrowseCustomIds,
 } from '../../../utils/overrideBrowse.js';
 
-const logger = createLogger('settings-preset-browse');
+const logger = createLogger('preset-override-browse');
 
-/** customId prefix — must match settings/index.ts componentPrefixes. */
+/**
+ * customId prefix — must match preset/index.ts componentPrefixes. Keeps its
+ * historical 'settings-preset-override' string so in-flight components from
+ * pre-rename messages still route; only the owning command moved.
+ */
 export const PRESET_OVERRIDE_PREFIX = 'settings-preset-override';
 
 const presetOverrideConfig: OverrideBrowseConfig = {
@@ -33,9 +34,9 @@ const presetOverrideConfig: OverrideBrowseConfig = {
   entityType: 'preset override',
   fallbackNoun: 'preset',
   emptyDescription:
-    "You haven't set any preset overrides — use `/settings preset set` to " +
+    "You haven't set any preset overrides — use `/preset override set` to " +
     'override which preset a character uses.',
-  clearCommandHint: '/settings preset clear',
+  clearCommandHint: '/preset override clear',
   selectPlaceholder: 'Select an override to clear…',
   logger,
   // One all-slots call: the gateway emits a row per non-null FK, each tagged with
@@ -61,7 +62,7 @@ export function isPresetOverrideInteraction(customId: string): boolean {
   return presetOverrideIds.isOwn(customId);
 }
 
-/** Handle /settings preset browse */
+/** Handle /preset override browse */
 export function handlePresetBrowse(context: DeferredCommandContext): Promise<void> {
   return handleOverrideBrowse(presetOverrideConfig, context);
 }

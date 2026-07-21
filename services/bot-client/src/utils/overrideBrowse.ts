@@ -1,7 +1,7 @@
 /**
  * Shared per-character override browser (select → clear).
  *
- * `/settings preset browse` and `/voice tts browse` are structurally
+ * `/preset override browse` and `/voice tts browse` are structurally
  * identical: both list the user's per-character overrides (personality →
  * config) and let the user clear one by selecting it. The only differences
  * are the gateway list/delete calls, the customId prefix, and a few display
@@ -97,11 +97,11 @@ export interface OverrideBrowseConfig {
   fallbackNoun: string;
   /** Description shown when the user has no overrides. */
   emptyDescription: string;
-  /** Slash-command path used in footer hints, e.g. `/settings preset clear`. */
+  /** Slash-command path used in footer hints, e.g. `/preset override clear`. */
   clearCommandHint: string;
   /** Select-menu placeholder. */
   selectPlaceholder: string;
-  /** Domain logger (e.g. `settings-preset-browse`). */
+  /** Domain logger (e.g. `preset-override-browse`). */
   logger: Logger;
   /**
    * Fetch the user's overrides. Returns the rows (optionally slot-tagged), or

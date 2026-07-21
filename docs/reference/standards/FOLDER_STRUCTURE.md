@@ -215,9 +215,8 @@ commands/settings/
 ├── apikey/                     # /settings apikey <subcommand>
 │   ├── set.ts                  # /settings apikey set
 │   └── remove.ts               # /settings apikey remove
-└── preset/                     # /settings preset <subcommand>
-    ├── set.ts                  # /settings preset set
-    └── clear.ts                # /settings preset clear
+└── defaults/                   # /settings defaults <subcommand>
+    └── edit.ts                 # /settings defaults edit
 ```
 
 #### Anti-Patterns to Avoid
