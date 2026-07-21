@@ -155,7 +155,7 @@ describe('handleSetDefault', () => {
     await handleSetDefault(createMockContext('00000000-0000-4000-8000-000000000123'));
 
     expect(mockEditReply).toHaveBeenCalledWith({
-      content: '❌ Failed to set default: Config not found',
+      content: '❌ Config not found',
     });
   });
 
@@ -165,7 +165,7 @@ describe('handleSetDefault', () => {
     await handleSetDefault(createMockContext('00000000-0000-4000-8000-000000000123'));
 
     expect(mockEditReply).toHaveBeenCalledWith({
-      content: '❌ An error occurred. Please try again later.',
+      content: '❌ Failed to set the default. Please try again.',
     });
   });
 

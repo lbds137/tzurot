@@ -180,7 +180,7 @@ describe('handleClearDefault', () => {
     await handleClearDefault(createMockContext());
 
     expect(mockEditReply).toHaveBeenCalledWith({
-      content: '❌ Failed to clear default: Internal server error',
+      content: '❌ Internal server error',
     });
   });
 
@@ -190,7 +190,7 @@ describe('handleClearDefault', () => {
     await handleClearDefault(createMockContext());
 
     expect(mockEditReply).toHaveBeenCalledWith({
-      content: '❌ An error occurred. Please try again later.',
+      content: '❌ Failed to clear the default. Please try again.',
     });
   });
 });

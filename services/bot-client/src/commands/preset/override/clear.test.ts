@@ -140,7 +140,7 @@ describe('Preset Clear Handler', () => {
       await handleClear(createMockContext('nonexistent'));
 
       expect(mockEditReply).toHaveBeenCalledWith({
-        content: '❌ Failed to clear preset: Override not found',
+        content: '❌ Override not found',
       });
     });
 
@@ -150,7 +150,7 @@ describe('Preset Clear Handler', () => {
       await handleClear(createMockContext('personality-123'));
 
       expect(mockEditReply).toHaveBeenCalledWith({
-        content: '❌ An error occurred. Please try again later.',
+        content: '❌ Failed to clear the override. Please try again.',
       });
     });
 

@@ -1,10 +1,10 @@
 /**
- * Settings Preset Clear Handler
- * Handles /settings preset clear subcommand
+ * Preset Override Clear Handler
+ * Handles /preset override clear subcommand
  */
 
 import { toModelSlot } from '@tzurot/common-types/constants/ai';
-import { settingsPresetClearOptions } from '@tzurot/common-types/generated/commandOptions';
+import { presetOverrideClearOptions } from '@tzurot/common-types/generated/commandOptions';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
 import {
@@ -13,15 +13,17 @@ import {
 } from '../../../utils/apiCheck.js';
 import { clientsFor } from '../../../utils/gatewayClients.js';
 import { createSuccessEmbed, createInfoEmbed } from '../../../utils/commandHelpers.js';
+import { classifyGatewayFailure } from '../../../ux/catalog/classify.js';
+import { renderSpec } from '../../../ux/render/render.js';
 
-const logger = createLogger('settings-preset-clear');
+const logger = createLogger('preset-override-clear');
 
 /**
- * Handle /settings preset clear
+ * Handle /preset override clear
  */
 export async function handleClear(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;
-  const options = settingsPresetClearOptions(context.interaction);
+  const options = presetOverrideClearOptions(context.interaction);
   const personalityId = options.character();
   // No slot → clear BOTH slots (`all`); an explicit slot clears just that one.
   // A vision override is a separate FK from the text override, so a no-slot
@@ -40,7 +42,11 @@ export async function handleClear(context: DeferredCommandContext): Promise<void
 
     if (!result.ok) {
       logger.warn({ userId, status: result.status, personalityId }, 'Failed to clear override');
-      await context.editReply({ content: `❌ Failed to clear preset: ${result.error}` });
+      await context.editReply({
+        content: renderSpec(
+          classifyGatewayFailure(result, 'preset override', { failedAction: 'clear the override' })
+        ),
+      });
       return;
     }
 
@@ -62,6 +68,10 @@ export async function handleClear(context: DeferredCommandContext): Promise<void
     logger.info({ userId, personalityId, slot, wasSet }, 'Cleared override');
   } catch (error) {
     logger.error({ err: error, userId, command: 'Preset Clear' }, 'Error');
-    await context.editReply({ content: '❌ An error occurred. Please try again later.' });
+    await context.editReply({
+      content: renderSpec(
+        classifyGatewayFailure(error, 'preset override', { failedAction: 'clear the override' })
+      ),
+    });
   }
 }

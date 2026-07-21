@@ -1,12 +1,12 @@
 /**
- * Settings Preset Set Handler
- * Handles /settings preset set subcommand
+ * Preset Override Set Handler
+ * Handles /preset override set subcommand
  */
 
 import { EmbedBuilder } from 'discord.js';
 import { DEFAULT_MODEL_SLOT, toModelSlot } from '@tzurot/common-types/constants/ai';
 import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
-import { settingsPresetSetOptions } from '@tzurot/common-types/generated/commandOptions';
+import { presetOverrideSetOptions } from '@tzurot/common-types/generated/commandOptions';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
 import {
@@ -14,16 +14,18 @@ import {
   isAutocompleteErrorSentinel,
 } from '../../../utils/apiCheck.js';
 import { clientsFor } from '../../../utils/gatewayClients.js';
+import { classifyGatewayFailure } from '../../../ux/catalog/classify.js';
+import { renderSpec } from '../../../ux/render/render.js';
 import { handleUnlockModelsUpsell, checkGuestModePremiumAccess } from './guestModeValidation.js';
 
-const logger = createLogger('settings-preset-set');
+const logger = createLogger('preset-override-set');
 
 /**
- * Handle /settings preset set
+ * Handle /preset override set
  */
 export async function handleSet(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;
-  const options = settingsPresetSetOptions(context.interaction);
+  const options = presetOverrideSetOptions(context.interaction);
   const personalityId = options.character();
   const configId = options.preset();
   // The slot (text = chat default, or vision) decides which FK the override
@@ -55,7 +57,11 @@ export async function handleSet(context: DeferredCommandContext): Promise<void> 
         { userId, status: result.status, personalityId, configId, slot },
         'Failed to set override'
       );
-      await context.editReply({ content: `❌ Failed to set preset: ${result.error}` });
+      await context.editReply({
+        content: renderSpec(
+          classifyGatewayFailure(result, 'preset override', { failedAction: 'set the override' })
+        ),
+      });
       return;
     }
 
@@ -69,7 +75,7 @@ export async function handleSet(context: DeferredCommandContext): Promise<void> 
           slot === 'vision' ? 'vision (image)' : 'chat'
         } messages.`
       )
-      .setFooter({ text: 'Use /settings preset clear to remove this override' })
+      .setFooter({ text: 'Use /preset override clear to remove this override' })
       .setTimestamp();
 
     await context.editReply({ embeds: [embed] });
@@ -88,6 +94,10 @@ export async function handleSet(context: DeferredCommandContext): Promise<void> 
     );
   } catch (error) {
     logger.error({ err: error, userId, command: 'Preset Set' }, 'Error');
-    await context.editReply({ content: '❌ An error occurred. Please try again later.' });
+    await context.editReply({
+      content: renderSpec(
+        classifyGatewayFailure(error, 'preset override', { failedAction: 'set the override' })
+      ),
+    });
   }
 }

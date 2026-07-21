@@ -3,7 +3,7 @@
  * Handles /voice tts browse — lists the user's per-character TTS overrides
  * and lets them clear one by selecting it.
  *
- * Mirrors `/settings preset browse`; both are built on the shared override
+ * Mirrors `/preset override browse`; both are built on the shared override
  * browser. Shows the user's overrides, not the underlying TtsConfig catalog
  * (the catalog is reachable through `/voice tts set` autocomplete).
  */

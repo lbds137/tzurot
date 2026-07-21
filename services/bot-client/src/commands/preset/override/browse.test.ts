@@ -1,5 +1,5 @@
 /**
- * Tests for the settings preset browse wrapper.
+ * Tests for the preset override browse wrapper.
  *
  * The interaction logic lives in `utils/overrideBrowse.ts` (tested there);
  * this verifies the preset config is wired to the right client calls and
