@@ -1002,7 +1002,7 @@
     {
       "name": "help",
       "category": "Help",
-      "description": "Show all available commands",
+      "description": "Learn what Tzurot is and browse every command",
       "handlers": {
         "execute": true,
         "autocomplete": true,
@@ -1014,15 +1014,28 @@
       "data": {
         "options": [
           {
-            "autocomplete": true,
-            "type": 3,
-            "name": "command",
-            "description": "Get detailed help for a specific command",
-            "required": false
+            "type": 1,
+            "name": "commands",
+            "description": "Show all available commands",
+            "options": [
+              {
+                "autocomplete": true,
+                "type": 3,
+                "name": "command",
+                "description": "Get detailed help for a specific command",
+                "required": false
+              }
+            ]
+          },
+          {
+            "type": 1,
+            "name": "getting-started",
+            "description": "What Tzurot is and the first commands to try",
+            "options": []
           }
         ],
         "name": "help",
-        "description": "Show all available commands",
+        "description": "Learn what Tzurot is and browse every command",
         "type": 1
       }
     },
