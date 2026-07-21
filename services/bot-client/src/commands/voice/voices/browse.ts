@@ -131,7 +131,7 @@ function buildVoiceBrowsePage(
       name: '💡 Management',
       value: [
         '`/voice voices delete <voice>` - Remove a single voice',
-        '`/voice voices clear` - Remove all Tzurot voices',
+        '`/voice voices purge` - Permanently delete all Tzurot voices',
       ].join('\n'),
       inline: false,
     });

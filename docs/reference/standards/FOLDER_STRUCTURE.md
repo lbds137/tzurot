@@ -210,8 +210,8 @@ commands/settings/
 ├── timezone/                   # /settings timezone <subcommand>
 │   ├── set.ts                  # /settings timezone set
 │   ├── set.test.ts
-│   ├── get.ts                  # /settings timezone get
-│   └── get.test.ts
+│   ├── view.ts                 # /settings timezone view
+│   └── view.test.ts
 ├── apikey/                     # /settings apikey <subcommand>
 │   ├── set.ts                  # /settings apikey set
 │   └── remove.ts               # /settings apikey remove

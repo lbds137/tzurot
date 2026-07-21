@@ -1,6 +1,6 @@
 /**
- * Timezone Get Handler
- * Handles /settings timezone get command
+ * Timezone View Handler
+ * Handles /settings timezone view command
  */
 
 import { TIMEZONE_DISCORD_CHOICES } from '@tzurot/common-types/constants/timezone';
@@ -9,13 +9,15 @@ import type { DeferredCommandContext } from '../../../utils/commandContext/types
 import { clientsFor } from '../../../utils/gatewayClients.js';
 import { createInfoEmbed } from '../../../utils/commandHelpers.js';
 import { getCurrentTimeInTimezone } from './utils.js';
+import { classifyGatewayFailure } from '../../../ux/catalog/classify.js';
+import { renderSpec } from '../../../ux/render/render.js';
 
-const logger = createLogger('timezone-get');
+const logger = createLogger('timezone-view');
 
 /**
- * Handle /settings timezone get
+ * Handle /settings timezone view
  */
-export async function handleTimezoneGet(context: DeferredCommandContext): Promise<void> {
+export async function handleTimezoneView(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;
 
   try {
@@ -24,7 +26,14 @@ export async function handleTimezoneGet(context: DeferredCommandContext): Promis
 
     if (!result.ok) {
       logger.warn({ userId, status: result.status }, 'Failed to get timezone');
-      await context.editReply({ content: '❌ Failed to get timezone. Please try again later.' });
+      await context.editReply({
+        content: renderSpec(
+          classifyGatewayFailure(result, 'timezone', {
+            operation: 'read',
+            failedAction: 'fetch your timezone',
+          })
+        ),
+      });
       return;
     }
 
@@ -49,7 +58,14 @@ export async function handleTimezoneGet(context: DeferredCommandContext): Promis
 
     await context.editReply({ embeds: [embed] });
   } catch (error) {
-    logger.error({ err: error, userId, command: 'Timezone Get' }, 'Error');
-    await context.editReply({ content: '❌ An error occurred. Please try again later.' });
+    logger.error({ err: error, userId, command: 'Timezone View' }, 'Error');
+    await context.editReply({
+      content: renderSpec(
+        classifyGatewayFailure(error, 'timezone', {
+          operation: 'read',
+          failedAction: 'fetch your timezone',
+        })
+      ),
+    });
   }
 }

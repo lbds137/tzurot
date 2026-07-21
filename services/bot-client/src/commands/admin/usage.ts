@@ -18,7 +18,7 @@ const logger = createLogger('admin-usage');
 
 export async function handleUsage(context: DeferredCommandContext): Promise<void> {
   const options = adminUsageOptions(context.interaction);
-  const periodOption = options.period();
+  const periodOption = options.timeframe();
   const timeframe =
     periodOption !== undefined && periodOption !== null && periodOption.length > 0
       ? periodOption

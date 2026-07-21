@@ -14,7 +14,7 @@ describe('allowlist contract (shrink-only)', () => {
     // Shrinking (migrating copy onto ux/catalog) passes without touching this
     // pin; new raw copy fails it. Lower the ceiling opportunistically when
     // the total drops.
-    expect(rawContentBudgetTotal()).toBeLessThanOrEqual(168);
+    expect(rawContentBudgetTotal()).toBeLessThanOrEqual(166);
   });
 
   it('contains no stale entries — every allowlisted file still exists', () => {

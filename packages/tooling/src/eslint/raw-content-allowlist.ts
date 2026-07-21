@@ -71,7 +71,6 @@ export const RAW_CONTENT_ALLOWLIST: Readonly<Record<string, number>> = {
   'services/bot-client/src/commands/settings/apikey/browse.ts': 2,
   'services/bot-client/src/commands/settings/apikey/test.ts': 3,
   'services/bot-client/src/commands/settings/data/export.ts': 3,
-  'services/bot-client/src/commands/settings/timezone/get.ts': 2,
   'services/bot-client/src/commands/settings/timezone/set.ts': 2,
   'services/bot-client/src/commands/shapes/browse.ts': 4,
   'services/bot-client/src/commands/shapes/detailHandlers.ts': 7,
@@ -85,7 +84,7 @@ export const RAW_CONTENT_ALLOWLIST: Readonly<Record<string, number>> = {
   'services/bot-client/src/commands/voice/tts/clear.ts': 2,
   'services/bot-client/src/commands/voice/tts/set-default.ts': 2,
   'services/bot-client/src/commands/voice/tts/set.ts': 2,
-  'services/bot-client/src/commands/voice/voices/clear.ts': 1,
+  'services/bot-client/src/commands/voice/voices/purge.ts': 1,
 };
 
 /** Total grandfathered literals — the shrink-only ceiling pinned by the test. */

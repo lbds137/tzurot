@@ -18,8 +18,8 @@ vi.mock('./timezone/set.js', () => ({
   handleTimezoneSet: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock('./timezone/get.js', () => ({
-  handleTimezoneGet: vi.fn().mockResolvedValue(undefined),
+vi.mock('./timezone/view.js', () => ({
+  handleTimezoneView: vi.fn().mockResolvedValue(undefined),
 }));
 
 // Mock apikey handlers
@@ -103,7 +103,7 @@ describe('Settings Command Index', () => {
       const subcommands = (
         (timezoneGroup as { options?: Array<{ name: string }> })?.options ?? []
       ).map(s => s.name);
-      expect(subcommands).toContain('get');
+      expect(subcommands).toContain('view');
       expect(subcommands).toContain('set');
     });
 
@@ -196,13 +196,13 @@ describe('Settings Command Index', () => {
     }
 
     describe('timezone group', () => {
-      it('should route to timezone get handler', async () => {
-        const { handleTimezoneGet } = await import('./timezone/get.js');
-        const context = createMockContext('timezone', 'get');
+      it('should route to timezone view handler', async () => {
+        const { handleTimezoneView } = await import('./timezone/view.js');
+        const context = createMockContext('timezone', 'view');
 
         await execute(context);
 
-        expect(handleTimezoneGet).toHaveBeenCalledWith(context);
+        expect(handleTimezoneView).toHaveBeenCalledWith(context);
       });
 
       it('should route to timezone set handler', async () => {

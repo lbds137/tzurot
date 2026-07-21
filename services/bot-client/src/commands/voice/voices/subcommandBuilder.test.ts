@@ -8,7 +8,7 @@ import { SlashCommandBuilder } from 'discord.js';
 import { buildVoiceVoicesSubcommandGroup } from './subcommandBuilder.js';
 
 describe('buildVoiceVoicesSubcommandGroup', () => {
-  it('attaches the 3 expected subcommands (browse / delete / clear)', () => {
+  it('attaches the 3 expected subcommands (browse / delete / purge)', () => {
     const builder = new SlashCommandBuilder().setName('test').setDescription('test');
     builder.addSubcommandGroup(group => buildVoiceVoicesSubcommandGroup(group));
 
@@ -22,7 +22,7 @@ describe('buildVoiceVoicesSubcommandGroup', () => {
     const subcommandNames = (voicesGroup?.options as Array<{ name: string }> | undefined)?.map(
       s => s.name
     );
-    expect(subcommandNames).toEqual(['browse', 'delete', 'clear']);
+    expect(subcommandNames).toEqual(['browse', 'delete', 'purge']);
   });
 
   it('delete subcommand requires the voice option with autocomplete', () => {
@@ -37,8 +37,7 @@ describe('buildVoiceVoicesSubcommandGroup', () => {
       voicesGroup?.options as Array<{ name: string; options?: unknown[] }> | undefined
     )?.find(s => s.name === 'delete');
     const opts = deleteSubcommand?.options as
-      | Array<{ name: string; required?: boolean; autocomplete?: boolean }>
-      | undefined;
+      Array<{ name: string; required?: boolean; autocomplete?: boolean }> | undefined;
 
     expect(opts?.length).toBe(1);
     expect(opts?.[0].name).toBe('voice');
@@ -46,7 +45,7 @@ describe('buildVoiceVoicesSubcommandGroup', () => {
     expect(opts?.[0].autocomplete).toBe(true);
   });
 
-  it('browse and clear subcommands take no options', () => {
+  it('browse and purge subcommands take no options', () => {
     const builder = new SlashCommandBuilder().setName('test').setDescription('test');
     builder.addSubcommandGroup(group => buildVoiceVoicesSubcommandGroup(group));
 
@@ -55,10 +54,9 @@ describe('buildVoiceVoicesSubcommandGroup', () => {
       (o): o is typeof o & { options?: unknown[] } => o.name === 'voices'
     );
     const subcommands = voicesGroup?.options as
-      | Array<{ name: string; options?: unknown[] }>
-      | undefined;
+      Array<{ name: string; options?: unknown[] }> | undefined;
 
     expect(subcommands?.find(s => s.name === 'browse')?.options ?? []).toEqual([]);
-    expect(subcommands?.find(s => s.name === 'clear')?.options ?? []).toEqual([]);
+    expect(subcommands?.find(s => s.name === 'purge')?.options ?? []).toEqual([]);
   });
 });

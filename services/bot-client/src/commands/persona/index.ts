@@ -25,6 +25,7 @@ import {
   type ButtonInteraction,
   type StringSelectMenuInteraction,
 } from 'discord.js';
+import { SELECTOR_DESCRIPTION } from '@tzurot/common-types/constants/uxVocabulary';
 import { personaEditOptions } from '@tzurot/common-types/generated/commandOptions';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { defineCommand } from '../../utils/defineCommand.js';
@@ -287,7 +288,9 @@ export default defineCommand({
         .addStringOption(option =>
           option
             .setName('persona')
-            .setDescription('Which persona to edit (optional, defaults to your default)')
+            .setDescription(
+              `${SELECTOR_DESCRIPTION.persona} to edit (optional, defaults to your default)`
+            )
             .setRequired(false)
             .setAutocomplete(true)
         )
@@ -305,7 +308,7 @@ export default defineCommand({
         .addStringOption(option =>
           option
             .setName('persona')
-            .setDescription('The persona to set as default')
+            .setDescription(SELECTOR_DESCRIPTION.persona)
             .setRequired(true)
             .setAutocomplete(true)
         )
@@ -321,14 +324,14 @@ export default defineCommand({
             .addStringOption(option =>
               option
                 .setName('character')
-                .setDescription('The character to override')
+                .setDescription(SELECTOR_DESCRIPTION.character)
                 .setRequired(true)
                 .setAutocomplete(true)
             )
             .addStringOption(option =>
               option
                 .setName('persona')
-                .setDescription('The persona to use (or create new)')
+                .setDescription(`${SELECTOR_DESCRIPTION.persona} — or a new name to create one`)
                 .setRequired(true)
                 .setAutocomplete(true)
             )
@@ -340,7 +343,7 @@ export default defineCommand({
             .addStringOption(option =>
               option
                 .setName('character')
-                .setDescription('The character to clear override for')
+                .setDescription(SELECTOR_DESCRIPTION.character)
                 .setRequired(true)
                 .setAutocomplete(true)
             )

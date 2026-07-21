@@ -89,6 +89,17 @@ describe('buildBadgeLegend', () => {
   });
 });
 
+describe('SELECTOR_DESCRIPTION', () => {
+  it('every selector phrase uses the §4.2 "Which …" form and stays unique', async () => {
+    const { SELECTOR_DESCRIPTION } = await import('./uxVocabulary.js');
+    const values = Object.values(SELECTOR_DESCRIPTION);
+    for (const value of values) {
+      expect(value).toMatch(/^Which [a-z]/i);
+    }
+    expect(new Set(values).size).toBe(values.length);
+  });
+});
+
 describe('UX_SENTINELS', () => {
   it('pins the sanctioned sentinel strings', () => {
     expect(UX_SENTINELS.NOT_SET).toBe('_Not set_');

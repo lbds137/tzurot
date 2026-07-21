@@ -94,8 +94,9 @@ describe('Memory Incognito Handlers', () => {
         options: {
           getString: (name: string, _required?: boolean) => {
             if (name === 'character') return options.character ?? 'lilith';
-            if (name === 'duration') return options.duration ?? '1h';
-            if (name === 'timeframe') return options.timeframe ?? '15m';
+            // Both enable (duration semantics) and forget (window semantics)
+            // now share the §4.2 `timeframe` option name.
+            if (name === 'timeframe') return options.duration ?? options.timeframe ?? '1h';
             return null;
           },
         },

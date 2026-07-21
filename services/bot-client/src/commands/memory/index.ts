@@ -18,6 +18,7 @@
  */
 
 import { SlashCommandBuilder, type AutocompleteInteraction } from 'discord.js';
+import { SELECTOR_DESCRIPTION } from '@tzurot/common-types/constants/uxVocabulary';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { defineCommand } from '../../utils/defineCommand.js';
 import type {
@@ -122,6 +123,22 @@ async function autocomplete(interaction: AutocompleteInteraction): Promise<void>
  *
  * deferralMode: 'ephemeral' means all subcommands receive DeferredCommandContext.
  */
+/** §4.2 `timeframe` choice sets (G11: named constants, not inline; sets differ per domain). */
+const DELETE_TIMEFRAME_CHOICES: { name: string; value: string }[] = [
+  { name: 'Last 24 hours', value: '24h' },
+  { name: 'Last 7 days', value: '7d' },
+  { name: 'Last 30 days', value: '30d' },
+  { name: 'Last year', value: '1y' },
+  { name: 'All time', value: 'all' },
+];
+
+const INCOGNITO_TIMEFRAME_CHOICES: { name: string; value: string }[] = [
+  { name: '30 minutes', value: '30m' },
+  { name: '1 hour', value: '1h' },
+  { name: '4 hours', value: '4h' },
+  { name: 'Until manually disabled', value: 'forever' },
+];
+
 export default defineCommand({
   deferralMode: 'ephemeral',
   data: new SlashCommandBuilder()
@@ -134,7 +151,7 @@ export default defineCommand({
         .addStringOption(option =>
           option
             .setName('character')
-            .setDescription('The character to view stats for')
+            .setDescription(SELECTOR_DESCRIPTION.character)
             .setRequired(true)
             .setAutocomplete(true)
         )
@@ -146,7 +163,7 @@ export default defineCommand({
         .addStringOption(option =>
           option
             .setName('character')
-            .setDescription('Filter by character (optional)')
+            .setDescription(`${SELECTOR_DESCRIPTION.character} — omit for all`)
             .setRequired(false)
             .setAutocomplete(true)
         )
@@ -158,7 +175,7 @@ export default defineCommand({
         .addStringOption(option =>
           option
             .setName('character')
-            .setDescription('The character whose facts to manage')
+            .setDescription(SELECTOR_DESCRIPTION.character)
             .setRequired(true)
             .setAutocomplete(true)
         )
@@ -176,7 +193,7 @@ export default defineCommand({
         .addStringOption(option =>
           option
             .setName('character')
-            .setDescription('Filter by character (optional)')
+            .setDescription(`${SELECTOR_DESCRIPTION.character} — omit for all`)
             .setRequired(false)
             .setAutocomplete(true)
         )
@@ -196,7 +213,7 @@ export default defineCommand({
         .addStringOption(option =>
           option
             .setName('character')
-            .setDescription('The character to delete memories for')
+            .setDescription(SELECTOR_DESCRIPTION.character)
             .setRequired(true)
             .setAutocomplete(true)
         )
@@ -205,13 +222,7 @@ export default defineCommand({
             .setName('timeframe')
             .setDescription('Only delete memories from this time period (e.g., 7d, 30d, 1y)')
             .setRequired(false)
-            .addChoices(
-              { name: 'Last 24 hours', value: '24h' },
-              { name: 'Last 7 days', value: '7d' },
-              { name: 'Last 30 days', value: '30d' },
-              { name: 'Last year', value: '1y' },
-              { name: 'All time', value: 'all' }
-            )
+            .addChoices(...DELETE_TIMEFRAME_CHOICES)
         )
     )
     .addSubcommand(subcommand =>
@@ -221,7 +232,7 @@ export default defineCommand({
         .addStringOption(option =>
           option
             .setName('character')
-            .setDescription('The character to purge all memories for')
+            .setDescription(SELECTOR_DESCRIPTION.character)
             .setRequired(true)
             .setAutocomplete(true)
         )
@@ -237,7 +248,7 @@ export default defineCommand({
             .addStringOption(option =>
               option
                 .setName('character')
-                .setDescription('The character to enable focus mode for')
+                .setDescription(SELECTOR_DESCRIPTION.character)
                 .setRequired(true)
                 .setAutocomplete(true)
             )
@@ -249,7 +260,7 @@ export default defineCommand({
             .addStringOption(option =>
               option
                 .setName('character')
-                .setDescription('The character to disable focus mode for')
+                .setDescription(SELECTOR_DESCRIPTION.character)
                 .setRequired(true)
                 .setAutocomplete(true)
             )
@@ -261,7 +272,7 @@ export default defineCommand({
             .addStringOption(option =>
               option
                 .setName('character')
-                .setDescription('The character to check status for')
+                .setDescription(SELECTOR_DESCRIPTION.character)
                 .setRequired(true)
                 .setAutocomplete(true)
             )
@@ -278,21 +289,16 @@ export default defineCommand({
             .addStringOption(option =>
               option
                 .setName('character')
-                .setDescription('Character or "all" for global incognito')
+                .setDescription(`${SELECTOR_DESCRIPTION.character} — or "all" for global incognito`)
                 .setRequired(true)
                 .setAutocomplete(true)
             )
             .addStringOption(option =>
               option
-                .setName('duration')
+                .setName('timeframe')
                 .setDescription('How long to stay in incognito mode')
                 .setRequired(true)
-                .addChoices(
-                  { name: '30 minutes', value: '30m' },
-                  { name: '1 hour', value: '1h' },
-                  { name: '4 hours', value: '4h' },
-                  { name: 'Until manually disabled', value: 'forever' }
-                )
+                .addChoices(...INCOGNITO_TIMEFRAME_CHOICES)
             )
         )
         .addSubcommand(subcommand =>
@@ -302,7 +308,9 @@ export default defineCommand({
             .addStringOption(option =>
               option
                 .setName('character')
-                .setDescription('Character or "all" to disable global incognito')
+                .setDescription(
+                  `${SELECTOR_DESCRIPTION.character} — or "all" to disable global incognito`
+                )
                 .setRequired(true)
                 .setAutocomplete(true)
             )
@@ -317,7 +325,7 @@ export default defineCommand({
             .addStringOption(option =>
               option
                 .setName('character')
-                .setDescription('Character or "all" for all characters')
+                .setDescription(`${SELECTOR_DESCRIPTION.character} — or "all" for all characters`)
                 .setRequired(true)
                 .setAutocomplete(true)
             )

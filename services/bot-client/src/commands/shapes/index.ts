@@ -47,6 +47,12 @@ async function handleModal(interaction: ModalSubmitInteraction): Promise<void> {
   await handleShapesModalSubmit(interaction);
 }
 
+/** Import-type choice set (G11: named constant; values are wire/API vocabulary). */
+const IMPORT_TYPE_CHOICES: { name: string; value: string }[] = [
+  { name: 'Full Character', value: 'full' },
+  { name: 'Memory Only', value: 'memory_only' },
+];
+
 export default defineCommand({
   deferralMode: 'ephemeral',
   subcommandDeferralModes: {
@@ -77,12 +83,9 @@ export default defineCommand({
         )
         .addStringOption(option =>
           option
-            .setName('import_type')
+            .setName('import-type')
             .setDescription('Import type (default: full)')
-            .addChoices(
-              { name: 'Full Character', value: 'full' },
-              { name: 'Memory Only', value: 'memory_only' }
-            )
+            .addChoices(...IMPORT_TYPE_CHOICES)
         )
     )
     .addSubcommand(subcommand =>
