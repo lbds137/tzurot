@@ -408,7 +408,7 @@ describe('Help Command', () => {
       expect(interactionField?.value).toContain(`${mockConfig.BOT_MENTION_CHAR}CharacterName`);
     });
 
-    it('should include /character chat reference in character interactions', async () => {
+    it('should include /chat reference in character interactions', async () => {
       const commands = createMockCommands();
       const interaction = createMockContext(null, commands);
 
@@ -420,7 +420,7 @@ describe('Help Command', () => {
       const interactionField = json.fields.find((f: { name: string }) =>
         f.name.includes('Interactions')
       );
-      expect(interactionField?.value).toContain('/character chat');
+      expect(interactionField?.value).toContain('/chat');
     });
 
     it('should use custom mention char from config', async () => {

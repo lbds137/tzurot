@@ -20,7 +20,7 @@ vi.mock('@tzurot/common-types/utils/ownerMiddleware', async importOriginal => {
 });
 
 const mockGetDenylistCache = vi.fn();
-vi.mock('../../services/serviceRegistry.js', () => ({
+vi.mock('../serviceRegistry.js', () => ({
   getDenylistCache: () => mockGetDenylistCache(),
 }));
 

@@ -1,11 +1,11 @@
 /**
- * Character Chat — Random-Pick Helpers
+ * Character Turn — Random-Pick Helpers
  *
- * The `/character chat` subcommand makes the `character` argument optional.
- * When omitted, `resolveCharacterSlug` picks a random personality from the
- * user's accessible pool (matching the autocomplete scope: owned + public).
- * `finalizeDeferredReply` then either surfaces the pick to the channel or
- * cleans up the deferred "thinking..." reply for the explicit-pick path.
+ * `/random` passes a null character slug, which makes `resolveCharacterSlug`
+ * pick a random personality from the user's accessible pool (matching the
+ * autocomplete scope: owned + public). `finalizeDeferredReply` then either
+ * surfaces the pick to the channel or cleans up the deferred "thinking..."
+ * reply for the explicit-pick path (`/chat`, `/character chime-in`).
  */
 
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';

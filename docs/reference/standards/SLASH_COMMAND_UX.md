@@ -80,12 +80,17 @@ Use groups to organize related functionality within a command:
 
 /settings             // User preferences
   ├── timezone
-  │   ├── get
-  │   └── set
-  ├── apikey
   │   ├── set
-  │   └── remove
-  └── preset
+  │   └── view
+  └── apikey
+      ├── set
+      └── remove
+
+/character            // Paired set/clear actions become a group
+  ├── avatar
+  │   ├── set
+  │   └── clear
+  └── voice
       ├── set
       └── clear
 ```
@@ -94,7 +99,35 @@ Use groups to organize related functionality within a command:
 
 - Use groups when you have 3+ subcommands for a distinct sub-feature
 - Use flat subcommands for simple commands with 1-4 actions
+- **Pairs become groups**: two flat subcommands that manage one facet
+  (`avatar` + `avatar-clear`) collapse into a `set|clear` group — the group
+  name carries the noun, the subcommands carry the verbs
 - Never nest deeper than one group level (Discord limitation)
+
+### Top-Level Placement Rule
+
+**Invoke = top-level; configure/manage = under the entity.** A command whose
+whole point is _doing the thing the bot exists for_ (starting a character
+conversation: `/chat`, `/random`) earns a top-level slot. Commands that
+_configure or manage_ an entity live as subcommands under that entity's noun
+(`/character edit`, `/character avatar set`). `/character chime-in` stays
+under the entity deliberately: it names a character and reads as a
+character-management summon, while `/chat` and `/random` are the everyday
+invocation verbs.
+
+Top-level slots are a scarce, user-facing namespace — every addition competes
+for discoverability in Discord's command picker. Extract a subcommand to
+top-level only when it clears the invoke bar, not for convenience.
+
+**Budget alarms** (check before adding a command or subcommand):
+
+| Surface                  | Discord cap | Alarm threshold                    |
+| ------------------------ | ----------- | ---------------------------------- |
+| Top-level slash commands | 100         | 80 — design a consolidation first  |
+| Entries per command      | 25          | 20 — split or group before growing |
+
+At the alarm threshold, treat further growth as a design problem (consolidate,
+group, or retire) rather than spending the remaining headroom.
 
 ---
 

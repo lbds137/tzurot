@@ -4,7 +4,7 @@
  * Implements IPersonalityLoader over the gateway's internal
  * `GET /api/internal/personality/load` route — bot-client's loader for the
  * routing paths (mention parsing, reply resolution, channel activation,
- * multi-tag recovery, /character chat), keeping Prisma off those paths.
+ * multi-tag recovery, /chat), keeping Prisma off those paths.
  *
  * Caching is load-bearing here, not an optimization: PersonalityService
  * skips its own cache whenever a userId is present (access control is

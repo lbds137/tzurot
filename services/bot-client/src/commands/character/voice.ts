@@ -58,7 +58,7 @@ async function fetchEditableCharacter(
 }
 
 /**
- * Handle /character voice upload
+ * Handle /character voice set
  */
 async function handleVoiceUpload(
   context: DeferredCommandContext,
@@ -215,8 +215,9 @@ async function handleVoiceClear(context: DeferredCommandContext, config: EnvConf
 }
 
 /**
- * Handle /character voice subcommands
- * Routes to upload or clear based on subcommand name
+ * Handle the /character voice group.
+ * Routes to upload or clear based on subcommand name ('set' | 'clear'
+ * under the 'voice' subcommand group).
  */
 export async function handleVoice(
   context: DeferredCommandContext,
@@ -224,10 +225,9 @@ export async function handleVoice(
 ): Promise<void> {
   const subcommand = context.interaction.options.getSubcommand();
 
-  // Subcommands are registered flat: 'voice', 'voice-clear'
-  if (subcommand === 'voice') {
+  if (subcommand === 'set') {
     await handleVoiceUpload(context, config);
-  } else if (subcommand === 'voice-clear') {
+  } else if (subcommand === 'clear') {
     await handleVoiceClear(context, config);
   } else {
     logger.warn({ subcommand }, 'Unexpected voice subcommand');

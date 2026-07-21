@@ -106,7 +106,7 @@ export function getChannelActivationCacheInvalidationService(): ChannelActivatio
 
 /**
  * Get the MessageContextBuilder instance
- * Used by /character chat to build context from interactions
+ * Used by the character-turn slash commands to build context from interactions
  * @throws Error if services not registered
  */
 export function getMessageContextBuilder(): MessageContextBuilder {
@@ -118,7 +118,7 @@ export function getMessageContextBuilder(): MessageContextBuilder {
 
 /**
  * Get the ConversationPersistence instance
- * Used by /character chat to save messages to conversation history
+ * Used by the character-turn slash commands to save messages to conversation history
  * @throws Error if services not registered
  */
 export function getConversationPersistence(): ConversationPersistence {

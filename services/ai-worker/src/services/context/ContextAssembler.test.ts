@@ -621,7 +621,7 @@ describe('ContextAssembler.assembleCore', () => {
   });
 
   it('skips cross-channel for an incognito chat (persona nulled) even when enabled', async () => {
-    // Regression: /character random with a message + incognito:true has
+    // Regression: /random with a message + incognito:true has
     // isWeighIn=false (a real chat turn) but incognito nulls the persona.
     // Cross-channel is persona-scoped, so it must be skipped rather than throwing
     // "[ContextAssembler] cross-channel enabled with a null persona".

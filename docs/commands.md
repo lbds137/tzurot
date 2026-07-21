@@ -8,15 +8,18 @@ Complete reference for every `/` command Tzurot exposes in Discord. For a high-l
 
 ## Characters & Personas
 
-| Command      | Subcommands                               | Purpose                                                |
-| ------------ | ----------------------------------------- | ------------------------------------------------------ |
-| `/character` | `create` `edit` `view` `browse`           | Manage AI characters                                   |
-|              | `import` `export` `template`              | Character portability (JSON)                           |
-|              | `chat` `avatar` `voice` `voice-clear`     | Interaction and per-character voice cloning enrollment |
-|              | `settings` `overrides`                    | Per-character config and personal overrides            |
-|              | `alias browse` `alias add`                | @mention aliases — personal (just you) or global tiers |
-| `/persona`   | `view` `edit` `create` `browse` `default` | User persona management                                |
-|              | `override set` `override clear`           | Per-character persona overrides                        |
+| Command      | Subcommands                                      | Purpose                                                   |
+| ------------ | ------------------------------------------------ | --------------------------------------------------------- |
+| `/chat`      | _(top-level)_                                    | Chat one-on-one with a character                          |
+| `/random`    | _(top-level)_                                    | Chat with a random character — or have them read the room |
+| `/character` | `create` `edit` `view` `browse`                  | Manage AI characters                                      |
+|              | `import` `export` `template`                     | Character portability (JSON)                              |
+|              | `avatar` (`set` `clear`) `voice` (`set` `clear`) | Per-character avatar image and voice cloning enrollment   |
+|              | `chime-in`                                       | Summon a character to react to the recent conversation    |
+|              | `settings` `overrides`                           | Per-character config and personal overrides               |
+|              | `alias browse` `alias add`                       | @mention aliases — personal (just you) or global tiers    |
+| `/persona`   | `view` `edit` `create` `browse` `default`        | User persona management                                   |
+|              | `override set` `override clear`                  | Per-character persona overrides                           |
 
 ## Voice Configuration
 

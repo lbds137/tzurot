@@ -119,6 +119,36 @@ export const characterAliasAddOptions = defineTypedOptions({
 });
 
 /**
+ * /character avatar set <character, image>
+ */
+export const characterAvatarSetOptions = defineTypedOptions({
+  character: { type: 'string', required: true },
+  image: { type: 'attachment', required: true },
+});
+
+/**
+ * /character avatar clear <character>
+ */
+export const characterAvatarClearOptions = defineTypedOptions({
+  character: { type: 'string', required: true },
+});
+
+/**
+ * /character voice set <character, audio>
+ */
+export const characterVoiceSetOptions = defineTypedOptions({
+  character: { type: 'string', required: true },
+  audio: { type: 'attachment', required: true },
+});
+
+/**
+ * /character voice clear <character>
+ */
+export const characterVoiceClearOptions = defineTypedOptions({
+  character: { type: 'string', required: true },
+});
+
+/**
  * /character edit <character>
  */
 export const characterEditOptions = defineTypedOptions({
@@ -141,36 +171,6 @@ export const characterBrowseOptions = defineTypedOptions({
 });
 
 /**
- * /character avatar <character, image>
- */
-export const characterAvatarOptions = defineTypedOptions({
-  character: { type: 'string', required: true },
-  image: { type: 'attachment', required: true },
-});
-
-/**
- * /character avatar-clear <character>
- */
-export const characterAvatarClearOptions = defineTypedOptions({
-  character: { type: 'string', required: true },
-});
-
-/**
- * /character voice <character, audio>
- */
-export const characterVoiceOptions = defineTypedOptions({
-  character: { type: 'string', required: true },
-  audio: { type: 'attachment', required: true },
-});
-
-/**
- * /character voice-clear <character>
- */
-export const characterVoiceClearOptions = defineTypedOptions({
-  character: { type: 'string', required: true },
-});
-
-/**
  * /character import <file, image, audio>
  */
 export const characterImportOptions = defineTypedOptions({
@@ -184,24 +184,6 @@ export const characterImportOptions = defineTypedOptions({
  */
 export const characterExportOptions = defineTypedOptions({
   character: { type: 'string', required: true },
-});
-
-/**
- * /character chat <character, message>
- */
-export const characterChatOptions = defineTypedOptions({
-  character: { type: 'string', required: true },
-  message: { type: 'string', required: true },
-});
-
-/**
- * /character random <message, incognito, exclude-private, only-mine>
- */
-export const characterRandomOptions = defineTypedOptions({
-  message: { type: 'string', required: false },
-  incognito: { type: 'boolean', required: false },
-  'exclude-private': { type: 'boolean', required: false },
-  'only-mine': { type: 'boolean', required: false },
 });
 
 /**
@@ -224,6 +206,18 @@ export const characterSettingsOptions = defineTypedOptions({
  */
 export const characterOverridesOptions = defineTypedOptions({
   character: { type: 'string', required: true },
+});
+
+// =============================================================================
+// CHAT COMMAND
+// =============================================================================
+
+/**
+ * /chat <character, message>
+ */
+export const chatOptions = defineTypedOptions({
+  character: { type: 'string', required: true },
+  message: { type: 'string', required: true },
 });
 
 // =============================================================================
@@ -573,6 +567,20 @@ export const presetExportOptions = defineTypedOptions({
  */
 export const presetImportOptions = defineTypedOptions({
   file: { type: 'attachment', required: true },
+});
+
+// =============================================================================
+// RANDOM COMMAND
+// =============================================================================
+
+/**
+ * /random <message, incognito, exclude-private, only-mine>
+ */
+export const randomOptions = defineTypedOptions({
+  message: { type: 'string', required: false },
+  incognito: { type: 'boolean', required: false },
+  'exclude-private': { type: 'boolean', required: false },
+  'only-mine': { type: 'boolean', required: false },
 });
 
 // =============================================================================
