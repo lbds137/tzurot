@@ -24,6 +24,7 @@ import {
   buildDetailEmbed,
   buildDetailButtons,
 } from './detailTypes.js';
+import { ackUpdate } from '../../ux/render/reply.js';
 
 const logger = createLogger('deny-detail-edit');
 
@@ -180,7 +181,7 @@ export async function handleEditModal(
   // expiry, followUp — reply would throw on the already-acked interaction. (The
   // modal-OPEN handler keeps showModalWithTimeoutCatch: showModal cannot be
   // preceded by a defer, so that path's getSession-before-ack is unavoidable.)
-  await interaction.deferUpdate();
+  await ackUpdate(interaction);
 
   const sessionManager = getSessionManager();
   const session = await sessionManager.get<DenyDetailSession>(

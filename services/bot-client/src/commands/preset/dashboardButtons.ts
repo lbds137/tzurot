@@ -35,6 +35,7 @@ import { fetchPreset, updatePreset, fetchGlobalPreset } from './api.js';
 import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
 import { renderSpec } from '../../ux/render/render.js';
 import { createClonedPreset } from './cloneName.js';
+import { ackUpdate } from '../../ux/render/reply.js';
 
 // Re-export for backward compatibility
 export { buildPresetDashboardOptions } from './config.js';
@@ -68,7 +69,7 @@ export async function handleRefreshButton(
   interaction: ButtonInteraction,
   entityId: string
 ): Promise<void> {
-  await interaction.deferUpdate();
+  await ackUpdate(interaction);
 
   // Get existing session to preserve browseContext
   const sessionManager = getSessionManager();
@@ -225,7 +226,7 @@ export async function handleDeleteButton(
   interaction: ButtonInteraction,
   entityId: string
 ): Promise<void> {
-  await interaction.deferUpdate();
+  await ackUpdate(interaction);
 
   // Get session data or follow up with expired message (interaction already deferred)
   const data = await getSessionDataOrFollowUp<FlattenedPresetData>(interaction, 'preset', entityId);
@@ -270,7 +271,7 @@ export async function handleConfirmDeleteButton(
   interaction: ButtonInteraction,
   entityId: string
 ): Promise<void> {
-  await interaction.deferUpdate();
+  await ackUpdate(interaction);
 
   const sessionManager = getSessionManager();
   const session = await sessionManager.get<FlattenedPresetData>(

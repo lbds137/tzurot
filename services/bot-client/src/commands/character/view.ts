@@ -40,6 +40,7 @@ import {
   viewAvatarUrl,
 } from './viewV2.js';
 import { sendChunkedReply } from '../../utils/chunkedReply.js';
+import { ackUpdate } from '../../ux/render/reply.js';
 
 const logger = createLogger('character-view');
 
@@ -398,7 +399,7 @@ export async function handleViewPagination(
   page: number,
   config: EnvConfig
 ): Promise<void> {
-  await interaction.deferUpdate();
+  await ackUpdate(interaction);
 
   try {
     const { userClient } = clientsFor(interaction);

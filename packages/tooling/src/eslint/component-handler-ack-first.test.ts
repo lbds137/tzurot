@@ -295,6 +295,51 @@ describe('wrapper-ack family — a necessarily-late ack via *WithTimeoutCatch is
   });
 });
 
+describe('ack-wrapper family — ackUpdate/ackDeferReply are bare-ack-equivalent (must run first)', () => {
+  // Unlike the *WithTimeoutCatch wrappers, ackUpdate/ackDeferReply carry no
+  // timeout safety net — they're a raw deferUpdate/deferReply + a stamp — so a
+  // preceding await must still flag them. (no-raw-defer-update funnels every
+  // deferUpdate through ackUpdate, so losing this coverage would blind the rule
+  // to the whole deferUpdate path.)
+  it('fetch then ackUpdate(interaction) is flagged (bare ack after async)', () => {
+    const messages = lint(`async function handleFoo(interaction: ButtonInteraction) {
+      const session = await findSession(interaction.message.id);
+      await ackUpdate(interaction);
+    }`);
+    expect(messages).toHaveLength(1);
+    expect(messages[0].messageId).toBe('ackAfterAsync');
+  });
+
+  it('fetch then ackDeferReply(interaction) is flagged', () => {
+    expect(
+      lint(`async function handleBar(interaction: ButtonInteraction) {
+        const row = await loadRow(id);
+        await ackDeferReply(interaction, { ephemeral: true });
+      }`)
+    ).toHaveLength(1);
+  });
+
+  it('ackUpdate(interaction) as the first await passes (ack-first)', () => {
+    expect(
+      lint(`async function handleBaz(interaction: ButtonInteraction) {
+        await ackUpdate(interaction);
+        const session = await findSession(interaction.message.id);
+      }`)
+    ).toHaveLength(0);
+  });
+
+  it('a router entry with ackUpdate before async passes', () => {
+    expect(
+      lint(`defineCommand({
+        handleButton: async interaction => {
+          await ackUpdate(interaction);
+          const session = await findSession(interaction.message.id);
+        },
+      });`)
+    ).toHaveLength(0);
+  });
+});
+
 describe('detection coverage — handleModal router key', () => {
   it('flags a handleModal router entry that acks after async', () => {
     // handleModal is a raw-interaction router key too; an untyped arrow entry

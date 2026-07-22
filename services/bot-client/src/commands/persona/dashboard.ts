@@ -56,6 +56,7 @@ import {
 import './browse.js';
 import { CATALOG } from '../../ux/catalog/catalog.js';
 import { renderSpec } from '../../ux/render/render.js';
+import { ackUpdate } from '../../ux/render/reply.js';
 
 const logger = createLogger('persona-dashboard');
 const BROWSE_COMMAND = '/persona browse';
@@ -94,7 +95,7 @@ async function handleSectionModalSubmit(
   entityId: string,
   sectionId: string
 ): Promise<void> {
-  await interaction.deferUpdate();
+  await ackUpdate(interaction);
 
   const sessionManager = getSessionManager();
   const session = await sessionManager.get<FlattenedPersonaData>(
@@ -256,7 +257,7 @@ async function handleDeleteButton(interaction: ButtonInteraction, entityId: stri
   // gateway isDefaultPersona() call. Use the deferred session helper (followUp on
   // expiry) + followUp/editReply for the responses, since reply/update would
   // throw on the already-acked interaction.
-  await interaction.deferUpdate();
+  await ackUpdate(interaction);
 
   const data = await getSessionDataOrFollowUp<FlattenedPersonaData>(
     interaction,
@@ -305,7 +306,7 @@ async function handleConfirmDeleteButton(
   interaction: ButtonInteraction,
   entityId: string
 ): Promise<void> {
-  await interaction.deferUpdate();
+  await ackUpdate(interaction);
 
   const sessionManager = getSessionManager();
   const session = await sessionManager.get<FlattenedPersonaData>(
@@ -413,7 +414,7 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
       await handleCloseButton(interaction, entityId);
       break;
     case 'back':
-      await interaction.deferUpdate();
+      await ackUpdate(interaction);
       await handleSharedBackButton(interaction, 'persona', entityId);
       break;
     case 'refresh':

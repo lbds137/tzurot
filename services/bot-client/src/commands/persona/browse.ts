@@ -48,6 +48,7 @@ import type { PersonaSummary } from './types.js';
 import { CATALOG } from '../../ux/catalog/catalog.js';
 import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
 import { renderSpec } from '../../ux/render/render.js';
+import { ackUpdate } from '../../ux/render/reply.js';
 
 const logger = createLogger('persona-browse');
 
@@ -221,7 +222,7 @@ export async function handleBrowsePagination(interaction: ButtonInteraction): Pr
     return;
   }
 
-  await interaction.deferUpdate();
+  await ackUpdate(interaction);
 
   try {
     const userId = interaction.user.id;
@@ -256,7 +257,7 @@ export async function handleBrowseSelect(interaction: StringSelectMenuInteractio
   const page = parsed?.page ?? 0;
   const sort = parsed?.sort ?? DEFAULT_SORT;
 
-  await interaction.deferUpdate();
+  await ackUpdate(interaction);
 
   try {
     const { userClient } = clientsFor(interaction);

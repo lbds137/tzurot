@@ -40,6 +40,7 @@ import {
   buildDetailButtons,
 } from './detailTypes.js';
 import { handleEdit, handleEditModal } from './detailEdit.js';
+import { ackUpdate } from '../../ux/render/reply.js';
 
 const logger = createLogger('deny-detail');
 
@@ -282,7 +283,7 @@ export async function handleDetailButton(interaction: ButtonInteraction): Promis
     return;
   }
 
-  await interaction.deferUpdate();
+  await ackUpdate(interaction);
 
   switch (action) {
     case 'mode':

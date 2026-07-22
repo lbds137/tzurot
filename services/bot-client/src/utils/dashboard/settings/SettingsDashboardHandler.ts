@@ -38,6 +38,7 @@ import {
 } from './SettingsDashboardBuilder.js';
 import { buildSettingEditModal } from './SettingsModalFactory.js';
 import { storeSession, getSession, deleteSession } from './SettingsSessionStorage.js';
+import { ackUpdate } from '../../../ux/render/reply.js';
 
 const logger = createLogger('SettingsDashboardHandler');
 
@@ -137,7 +138,7 @@ export async function handleSettingsSelectMenu(
   // Ack first (3-second rule): deferUpdate before the Redis session read + store.
   // A select menu never opens a modal, so it can always defer; the responses
   // below become followUp (errors) / editReply (the drill-down).
-  await interaction.deferUpdate();
+  await ackUpdate(interaction);
 
   const session = await resolveValidatedSession(
     interaction,
@@ -167,13 +168,8 @@ export async function handleSettingsSelectMenu(
   session.lastActivityAt = new Date();
   await storeSession(session, config.entityType);
 
-  // Build and update message
-  const message = buildSettingMessage(config, session, setting);
-
-  await interaction.editReply({
-    embeds: message.embeds,
-    components: message.components,
-  });
+  // Build and update message (the builder returns exactly the editReply payload)
+  await interaction.editReply(buildSettingMessage(config, session, setting));
 
   logger.debug(
     { entityType: config.entityType, entityId: parsed.entityId, settingId },
@@ -203,7 +199,7 @@ export async function handleSettingsButton(
   // notices then use followUp (post-defer) vs reply (the not-yet-acked modal paths).
   const isModalAction = parsed.action === 'edit' || parsed.action === 'retry';
   if (!isModalAction) {
-    await interaction.deferUpdate();
+    await ackUpdate(interaction);
   }
   // The edit action can't defer (showModal is its ack), so its guard replies are
   // un-acked — route them through replyEditGuard so a budget-blown 10062 degrades

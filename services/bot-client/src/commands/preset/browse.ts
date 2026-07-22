@@ -67,6 +67,7 @@ import {
   type PresetCapabilityFilter,
   type PresetScopeFilter,
 } from './browseFilter.js';
+import { ackUpdate } from '../../ux/render/reply.js';
 
 const logger = createLogger('preset-browse');
 
@@ -423,7 +424,7 @@ export async function handleBrowsePagination(interaction: ButtonInteraction): Pr
   // deferUpdate). A stale pre-deploy customId (bare-scope filter like `all`
   // instead of `all.all`) fails `parse` against VALID_PRESET_FILTERS — acking
   // before that guard avoids a "This interaction failed" on old browse buttons.
-  await interaction.deferUpdate();
+  await ackUpdate(interaction);
 
   const parsed = browseHelpers.parse(interaction.customId);
   if (parsed === null) {
@@ -461,7 +462,7 @@ export async function handleBrowseSelect(interaction: StringSelectMenuInteractio
   // Parse browse context from customId
   const browseContext = browseHelpers.parseSelect(interaction.customId);
 
-  await interaction.deferUpdate();
+  await ackUpdate(interaction);
 
   try {
     // Fetch the preset

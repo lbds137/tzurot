@@ -23,6 +23,7 @@ import componentHandlerAckFirst from './component-handler-ack-first.js';
 import noDiscordBuildersInCommands from './no-discord-builders-in-commands.js';
 import buttonOrderDangerLast from './button-order-danger-last.js';
 import noRawContentLiterals from './no-raw-content-literals.js';
+import noRawDeferUpdate from './no-raw-defer-update.js';
 
 const plugin = {
   meta: {
@@ -35,6 +36,7 @@ const plugin = {
     'no-discord-builders-in-commands': noDiscordBuildersInCommands,
     'button-order-danger-last': buttonOrderDangerLast,
     'no-raw-content-literals': noRawContentLiterals,
+    'no-raw-defer-update': noRawDeferUpdate,
   },
 };
 

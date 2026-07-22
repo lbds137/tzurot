@@ -58,6 +58,7 @@ import {
 } from './truncationWarning.js';
 import { detectOverLengthFields } from '../../utils/dashboard/truncationGate/index.js';
 import { resolveCharacterSectionContext } from './sectionContext.js';
+import { ackUpdate } from '../../ux/render/reply.js';
 
 const logger = createLogger('character-dashboard');
 
@@ -106,7 +107,7 @@ async function handleSectionModalSubmit(
   sectionId: string,
   config: EnvConfig
 ): Promise<void> {
-  await interaction.deferUpdate();
+  await ackUpdate(interaction);
 
   // SECURITY: Re-verify admin status for admin section edits
   // Never trust session data - always check server-side
@@ -386,7 +387,7 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
   }
 
   if (action === 'back') {
-    await interaction.deferUpdate();
+    await ackUpdate(interaction);
     await handleSharedBackButton(interaction, 'character', entityId);
     return;
   }

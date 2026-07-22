@@ -16,6 +16,7 @@ import { resolveRequiredPersonality } from './resolveHelpers.js';
 import { CATALOG } from '../../ux/catalog/catalog.js';
 import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
 import { renderSpec } from '../../ux/render/render.js';
+import { ackUpdate } from '../../ux/render/reply.js';
 
 const logger = createLogger('memory-batch-delete');
 
@@ -147,7 +148,7 @@ export async function handleBatchDelete(context: DeferredCommandContext): Promis
       }
 
       // User confirmed - perform deletion
-      await buttonInteraction.deferUpdate();
+      await ackUpdate(buttonInteraction);
 
       const deleteResult = await userClient.batchDelete({ previewToken: preview.previewToken });
 

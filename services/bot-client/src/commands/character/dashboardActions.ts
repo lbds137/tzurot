@@ -27,6 +27,7 @@ import {
 import type { CharacterData } from './characterTypes.js';
 import { clientsFor } from '../../utils/gatewayClients.js';
 import { fetchCharacter, updateCharacter, toggleVisibility } from './api.js';
+import { ackUpdate } from '../../ux/render/reply.js';
 
 const logger = createLogger('character-dashboard-actions');
 
@@ -89,7 +90,7 @@ async function handleDefinitionVisibilityToggle(
   entityId: string,
   config: EnvConfig
 ): Promise<void> {
-  await interaction.deferUpdate();
+  await ackUpdate(interaction);
 
   const { userClient } = clientsFor(interaction);
   const character = await fetchCharacter(entityId, config, userClient);
@@ -126,7 +127,7 @@ export async function handleAction(
   if (actionId === 'visibility') {
     // Uses a dedicated API endpoint (PATCH /personalities/:slug/visibility) rather than
     // the general update endpoint, since visibility changes may have additional side effects.
-    await interaction.deferUpdate();
+    await ackUpdate(interaction);
 
     const { userClient } = clientsFor(interaction);
     const character = await fetchCharacter(entityId, config, userClient);
@@ -180,8 +181,8 @@ export async function handleAction(
     // TOCTOU note: We fetch-then-toggle, so a concurrent toggle could invert
     // the wrong value. Acceptable for a single-user dashboard — the user can
     // just click again if the state looks wrong.
-    // eslint-disable-next-line @tzurot/component-handler-ack-first -- Branch-leak FP: this deferUpdate IS ack-first for the voice-toggle branch (fetchCharacter/updateCharacter follow it); sawRealAsync leaked from the sibling `visibility` branch's async above.
-    await interaction.deferUpdate();
+    // eslint-disable-next-line @tzurot/component-handler-ack-first -- Branch-leak FP: this ackUpdate IS ack-first for the voice-toggle branch (fetchCharacter/updateCharacter follow it); sawRealAsync leaked from the sibling `visibility` branch's async above.
+    await ackUpdate(interaction);
 
     const { userClient } = clientsFor(interaction);
     const character = await fetchCharacter(entityId, config, userClient);

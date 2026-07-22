@@ -26,6 +26,7 @@ import {
   pluralize,
 } from '../../../utils/browse/index.js';
 import type { VoicesListResponse } from './types.js';
+import { ackUpdate } from '../../../ux/render/reply.js';
 
 /**
  * Display names for audio providers in user-facing warning messages.
@@ -203,7 +204,7 @@ export async function handleVoiceBrowsePagination(interaction: ButtonInteraction
     return;
   }
 
-  await interaction.deferUpdate();
+  await ackUpdate(interaction);
 
   const userId = interaction.user.id;
 

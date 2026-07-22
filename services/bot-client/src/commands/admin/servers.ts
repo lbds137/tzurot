@@ -37,6 +37,7 @@ import {
   type BrowseSortToggle,
   type BrowseActionRow,
 } from '../../utils/browse/index.js';
+import { ackUpdate } from '../../ux/render/reply.js';
 
 const logger = createLogger('admin-servers');
 
@@ -344,7 +345,7 @@ export async function handleServersBrowsePagination(interaction: ButtonInteracti
     return;
   }
 
-  await interaction.deferUpdate();
+  await ackUpdate(interaction);
 
   try {
     const guildsCache = interaction.client.guilds.cache;
@@ -373,7 +374,7 @@ export async function handleServersSelect(interaction: StringSelectMenuInteracti
   }
 
   const guildId = interaction.values[0];
-  await interaction.deferUpdate();
+  await ackUpdate(interaction);
 
   try {
     const guild = interaction.client.guilds.cache.get(guildId);
