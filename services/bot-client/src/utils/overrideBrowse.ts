@@ -35,6 +35,7 @@ import type { GatewayResult, UserClient } from '@tzurot/clients';
 import type { DeferredCommandContext } from './commandContext/types.js';
 import { clientsFor } from './gatewayClients.js';
 import { buildBrowseListEmbed, buildBrowseSelectMenu, pluralize } from './browse/index.js';
+import { ackUpdate } from '../ux/render/reply.js';
 
 /** Logger shape produced by {@link createLogger}. */
 type Logger = ReturnType<typeof createLogger>;
@@ -268,7 +269,7 @@ export async function handleOverrideBrowseSelect(
   config: OverrideBrowseConfig,
   interaction: StringSelectMenuInteraction
 ): Promise<void> {
-  await interaction.deferUpdate();
+  await ackUpdate(interaction);
 
   // The select value is `personalityId` or `personalityId::slot` (slot-aware
   // domains) — split so `(personalityId, slot)` identifies the exact override.
@@ -336,7 +337,7 @@ export async function handleOverrideBrowseButton(
     return;
   }
 
-  await interaction.deferUpdate();
+  await ackUpdate(interaction);
   const userId = interaction.user.id;
   try {
     const { userClient } = clientsFor(interaction);

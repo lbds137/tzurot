@@ -56,6 +56,7 @@ import {
 import './browse.js';
 import { CATALOG } from '../../ux/catalog/catalog.js';
 import { renderSpec } from '../../ux/render/render.js';
+import { ackUpdate } from '../../ux/render/reply.js';
 
 const logger = createLogger('preset-dashboard');
 
@@ -100,7 +101,7 @@ async function handleSectionModalSubmit(
   entityId: string,
   sectionId: string
 ): Promise<void> {
-  await interaction.deferUpdate();
+  await ackUpdate(interaction);
 
   const sessionManager = getSessionManager();
   const session = await sessionManager.get<FlattenedPresetData>(
@@ -242,7 +243,7 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
       await handleCloseButton(interaction, entityId);
       break;
     case 'back':
-      await interaction.deferUpdate();
+      await ackUpdate(interaction);
       await handleSharedBackButton(interaction, 'preset', entityId);
       break;
     case 'refresh':

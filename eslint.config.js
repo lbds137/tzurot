@@ -452,6 +452,13 @@ export default tseslint.config(
       // (packages/tooling/src/eslint/raw-content-allowlist.ts).
       '@tzurot/no-raw-content-literals': 'error',
 
+      // Ack-tracking: raw `interaction.deferUpdate()` is banned — use the
+      // `ackUpdate` wrapper (ux/render/reply.ts), which stamps the defer kind so
+      // `replySpec`/`replyContent` deliver an ephemeral followUp instead of a
+      // component-message-clobbering editReply. The one legitimate raw call lives
+      // inside `ackUpdate`; reply.ts is exempted below.
+      '@tzurot/no-raw-defer-update': 'error',
+
       // ============================================================================
       // SONARJS RULES - Additional code quality checks
       // ============================================================================
@@ -485,6 +492,16 @@ export default tseslint.config(
       //   as the engine slides the match start position.
       'regexp/no-super-linear-backtracking': 'error',
       'regexp/no-super-linear-move': 'error',
+    },
+  },
+
+  // The ONE legitimate raw `interaction.deferUpdate()` lives inside the
+  // `ackUpdate` wrapper here — this file is the exemption to
+  // `@tzurot/no-raw-defer-update` (every other caller must use the wrapper).
+  {
+    files: ['services/bot-client/src/ux/render/reply.ts'],
+    rules: {
+      '@tzurot/no-raw-defer-update': 'off',
     },
   },
 
@@ -608,6 +625,10 @@ export default tseslint.config(
       '@typescript-eslint/no-inferrable-types': 'off',
       '@typescript-eslint/consistent-type-definitions': 'off',
       '@typescript-eslint/ban-ts-comment': 'off', // tests legitimately use @ts-expect-error
+      // Tests construct/drive mock interactions directly (a `deferUpdate()` call
+      // in a fixture is not a production ack path); the wrapper ban is
+      // production-only.
+      '@tzurot/no-raw-defer-update': 'off',
       // High-signal, low-false-positive vitest rules. no-unused-vars stays ON
       // (dead test imports are real).
       //

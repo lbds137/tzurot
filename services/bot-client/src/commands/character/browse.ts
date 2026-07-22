@@ -74,6 +74,7 @@ import {
   buildCharacterDescription,
   formatCharacterSelectLabel,
 } from './browseHelpers.js';
+import { ackUpdate } from '../../ux/render/reply.js';
 
 const logger = createLogger('character-browse');
 
@@ -395,7 +396,7 @@ export async function handleBrowsePagination(
     return;
   }
 
-  await interaction.deferUpdate();
+  await ackUpdate(interaction);
 
   try {
     const { userClient } = clientsFor(interaction);
@@ -456,7 +457,7 @@ export async function handleBrowseSelect(
   // Parse browse context from customId
   const browseContext = browseHelpers.parseSelect(interaction.customId);
 
-  await interaction.deferUpdate();
+  await ackUpdate(interaction);
 
   try {
     const { userClient } = clientsFor(interaction);

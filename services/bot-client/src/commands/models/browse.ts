@@ -43,6 +43,7 @@ import {
 } from '../../utils/modelCatalog.js';
 import { buildModelCard } from './card.js';
 import { getActiveProviders, getGlobalPresetModelIds } from './browseUserCache.js';
+import { ackUpdate } from '../../ux/render/reply.js';
 
 const logger = createLogger('models-browse');
 
@@ -339,7 +340,7 @@ export async function handleBrowsePagination(interaction: ButtonInteraction): Pr
   if (parsed === null) {
     return;
   }
-  await interaction.deferUpdate();
+  await ackUpdate(interaction);
   try {
     const models = await loadAnnotatedModels(interaction, parsed.filter, parsed.query, parsed.sort);
     const { embed, components } = buildBrowsePage({
@@ -365,7 +366,7 @@ export async function handleBrowsePagination(interaction: ButtonInteraction): Pr
  */
 export async function handleBrowseSelect(interaction: StringSelectMenuInteraction): Promise<void> {
   const modelId = interaction.values[0];
-  await interaction.deferUpdate();
+  await ackUpdate(interaction);
   try {
     const { userClient } = clientsFor(interaction);
     const [model, activeProviders] = await Promise.all([

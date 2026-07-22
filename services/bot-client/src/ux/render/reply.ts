@@ -33,20 +33,86 @@ export type RepliableInteraction =
   | StringSelectMenuInteraction
   | ModalSubmitInteraction;
 
+/**
+ * Component/modal interactions that can be acked with `deferUpdate` — the subset
+ * of `RepliableInteraction` excluding `ChatInputCommandInteraction` and
+ * `MessageContextMenuCommandInteraction` (application commands defer via
+ * `deferReply`, never `deferUpdate`).
+ */
+export type DeferUpdatableInteraction =
+  ButtonInteraction | StringSelectMenuInteraction | ModalSubmitInteraction;
+
 export type AckMethod = 'editReply' | 'followUp' | 'reply';
+
+/**
+ * Which defer a handler performed. `deferUpdate` and `deferReply` both leave
+ * `deferred = true` / `replied = false`, and discord.js exposes no flag telling
+ * them apart — yet the delivery method must differ: `editReply` fills a
+ * `deferReply` "Thinking…" placeholder, but CLOBBERS the component message a
+ * `deferUpdate` left in place. The ack wrappers stamp the kind so the delivery
+ * helpers pick correctly without the caller having to remember.
+ */
+export type DeferKind = 'update' | 'reply';
+
+/**
+ * Per-interaction defer-kind stamp, set by {@link ackUpdate} / {@link ackDeferReply}.
+ * A WeakMap so it neither mutates the discord.js object nor leaks (an entry GCs
+ * with its interaction). An UNSTAMPED interaction reads as `undefined`, and the
+ * matrix keeps its historical behavior (`deferred → editReply`) — so nothing off
+ * the `deferUpdate` path changes.
+ */
+const deferKindByInteraction = new WeakMap<RepliableInteraction, DeferKind>();
+
+/**
+ * Ack a component interaction with `deferUpdate` (no new message — the component
+ * message stays) AND record that kind, so a later `replySpec`/`replyContent`
+ * follows up ephemerally instead of clobbering the message. Use this in place of
+ * a raw `interaction.deferUpdate()` — the `@tzurot/no-raw-defer-update` rule
+ * enforces it, which is what keeps the stamp reliably present.
+ */
+export async function ackUpdate(interaction: DeferUpdatableInteraction): Promise<void> {
+  await interaction.deferUpdate();
+  deferKindByInteraction.set(interaction, 'update');
+}
+
+/**
+ * Ack with `deferReply` and record the kind. Optional to adopt — an unstamped
+ * deferred interaction already resolves to `editReply` (the correct
+ * fill-the-placeholder behavior) — but explicit stamping keeps the two ack
+ * paths symmetric.
+ */
+export async function ackDeferReply(
+  interaction: RepliableInteraction,
+  opts: { ephemeral?: boolean } = {}
+): Promise<void> {
+  await interaction.deferReply(opts.ephemeral === true ? { flags: MessageFlags.Ephemeral } : {});
+  deferKindByInteraction.set(interaction, 'reply');
+}
+
+/** Read the recorded defer kind for an interaction (undefined if unstamped). */
+export function deferKindOf(interaction: RepliableInteraction): DeferKind | undefined {
+  return deferKindByInteraction.get(interaction);
+}
 
 /**
  * Pure ack matrix — unit-testable without discord.js mocks.
  *
- * | deferred | replied | method    | why                                    |
- * |----------|---------|-----------|----------------------------------------|
- * | true     | false   | editReply | fill the deferral placeholder          |
- * | *        | true    | followUp  | original reply stands; add a follow-up |
- * | false    | false   | reply     | fresh interaction                      |
+ * | deferred | replied | deferKind | method    | why                                    |
+ * |----------|---------|-----------|-----------|----------------------------------------|
+ * | true     | false   | 'update'  | followUp  | component message stays; don't clobber |
+ * | true     | false   | else      | editReply | fill the deferReply placeholder        |
+ * | *        | true    | *         | followUp  | original reply stands; add a follow-up |
+ * | false    | false   | *         | reply     | fresh interaction                      |
  */
-export function ackMethodFor(state: { deferred: boolean; replied: boolean }): AckMethod {
+export function ackMethodFor(state: {
+  deferred: boolean;
+  replied: boolean;
+  deferKind?: DeferKind;
+}): AckMethod {
   if (state.deferred && !state.replied) {
-    return 'editReply';
+    // A deferUpdate left the component message in place — editReply would
+    // overwrite it, so deliver as an ephemeral followUp instead.
+    return state.deferKind === 'update' ? 'followUp' : 'editReply';
   }
   if (state.replied) {
     return 'followUp';
@@ -69,7 +135,11 @@ export async function replyContent(
   interaction: RepliableInteraction,
   content: string
 ): Promise<void> {
-  const method = ackMethodFor({ deferred: interaction.deferred, replied: interaction.replied });
+  const method = ackMethodFor({
+    deferred: interaction.deferred,
+    replied: interaction.replied,
+    deferKind: deferKindByInteraction.get(interaction),
+  });
 
   switch (method) {
     case 'editReply':
@@ -92,13 +162,10 @@ export async function replyContent(
 
 /**
  * Deliver a MessageSpec to an interaction (render + ack-state-adaptive send).
- * THE reply path for catalog messages.
- *
- * NOT for `deferUpdate`d component handlers: `deferred` is true after BOTH
- * `deferReply` (editReply fills a "Thinking…" placeholder — correct) and
- * `deferUpdate` (editReply CLOBBERS the original component message — wrong).
- * Discord.js exposes no flag distinguishing them, so a handler that called
- * `deferUpdate` must use `followUpSpec` instead.
+ * THE reply path for catalog messages — safe after ANY ack: when the handler
+ * acked via {@link ackUpdate}, the stamp routes this to an ephemeral followUp
+ * instead of a message-clobbering editReply. (Pre-stamp, this required calling
+ * {@link followUpSpec} by hand after a deferUpdate.)
  */
 export async function replySpec(
   interaction: RepliableInteraction,
@@ -109,10 +176,11 @@ export async function replySpec(
 }
 
 /**
- * Ephemeral follow-up delivery for `deferUpdate`d component handlers, where
- * the ack matrix's editReply branch would overwrite the component message
- * (the browse list, the dashboard) instead of filling a placeholder. The
- * caller owns knowing which defer it performed — see replySpec's JSDoc.
+ * Explicit ephemeral follow-up delivery. LEGACY: now that {@link ackUpdate}
+ * stamps the defer kind, {@link replySpec} auto-selects followUp after a
+ * deferUpdate, so new code can just use `replySpec`. Kept for the existing call
+ * sites and for the rare handler that wants to force a followUp regardless of
+ * ack state.
  */
 export async function followUpSpec(
   interaction: RepliableInteraction,

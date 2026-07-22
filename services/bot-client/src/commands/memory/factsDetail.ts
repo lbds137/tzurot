@@ -34,7 +34,7 @@ import { ackWithTimeoutCatch } from '../../utils/dashboard/ackWithTimeoutCatch.j
 import { CATALOG } from '../../ux/catalog/catalog.js';
 import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
 import { renderSpec } from '../../ux/render/render.js';
-import { followUpSpec } from '../../ux/render/reply.js';
+import { followUpSpec, ackUpdate } from '../../ux/render/reply.js';
 import { fetchFact, correctFact, forgetFact, setFactLock, type FactItem } from './factsApi.js';
 
 const logger = createLogger('memory-facts-detail');
@@ -152,7 +152,7 @@ async function showDetailView(
 /** Select-menu handler — user picked a fact from the browse list. */
 export async function handleFactSelect(interaction: StringSelectMenuInteraction): Promise<void> {
   const factId = interaction.values[0];
-  await interaction.deferUpdate();
+  await ackUpdate(interaction);
 
   const { userClient } = clientsFor(interaction);
   let fact: FactItem | null;
@@ -245,7 +245,7 @@ export async function handleCorrectModalSubmit(
   const userId = interaction.user.id;
   const statement = interaction.fields.getTextInputValue('statement');
 
-  await interaction.deferUpdate();
+  await ackUpdate(interaction);
 
   const { userClient } = clientsFor(interaction);
   let survivor: FactItem | null;
@@ -272,7 +272,7 @@ export async function handleFactLockButton(
   factId: string,
   desiredState: boolean
 ): Promise<void> {
-  await interaction.deferUpdate();
+  await ackUpdate(interaction);
 
   const { userClient } = clientsFor(interaction);
   let updated: FactItem | null;
@@ -299,7 +299,7 @@ export async function handleForgetButton(
   interaction: ButtonInteraction,
   factId: string
 ): Promise<void> {
-  await interaction.deferUpdate();
+  await ackUpdate(interaction);
 
   const { userClient } = clientsFor(interaction);
   let fact: FactItem | null;
@@ -347,7 +347,7 @@ export async function handleForgetConfirm(
   factId: string
 ): Promise<boolean> {
   if (!interaction.deferred && !interaction.replied) {
-    await interaction.deferUpdate();
+    await ackUpdate(interaction);
   }
 
   const { userClient } = clientsFor(interaction);

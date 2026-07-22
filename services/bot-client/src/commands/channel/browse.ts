@@ -53,6 +53,7 @@ import {
   formatChannelSettings,
   sortChannelSettings,
 } from './browseHelpers.js';
+import { ackUpdate } from '../../ux/render/reply.js';
 
 const logger = createLogger('channel-browse');
 
@@ -445,7 +446,7 @@ export async function handleBrowsePagination(
     return;
   }
 
-  await interaction.deferUpdate();
+  await ackUpdate(interaction);
 
   const { page, filter, sort, query } = parsed;
   const userId = interaction.user.id;

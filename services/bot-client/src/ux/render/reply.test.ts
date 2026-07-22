@@ -2,10 +2,14 @@ import { describe, it, expect, vi } from 'vitest';
 import { MessageFlags } from 'discord.js';
 import {
   ackMethodFor,
+  ackUpdate,
+  ackDeferReply,
+  deferKindOf,
   followUpSpec,
   replySpec,
   replySpecSafe,
   type RepliableInteraction,
+  type DeferUpdatableInteraction,
 } from './reply.js';
 import { CATALOG } from '../catalog/catalog.js';
 
@@ -23,12 +27,17 @@ function mockInteraction(state: { deferred: boolean; replied: boolean }): Replia
   reply: ReturnType<typeof vi.fn>;
   editReply: ReturnType<typeof vi.fn>;
   followUp: ReturnType<typeof vi.fn>;
+  deferUpdate: ReturnType<typeof vi.fn>;
+  deferReply: ReturnType<typeof vi.fn>;
 } {
   return {
     ...state,
+    id: 'interaction-1',
     reply: vi.fn().mockResolvedValue(undefined),
     editReply: vi.fn().mockResolvedValue(undefined),
     followUp: vi.fn().mockResolvedValue(undefined),
+    deferUpdate: vi.fn().mockResolvedValue(undefined),
+    deferReply: vi.fn().mockResolvedValue(undefined),
   } as never;
 }
 
@@ -43,6 +52,51 @@ describe('ackMethodFor (the pure ack matrix)', () => {
     [{ deferred: false, replied: false }, 'reply'],
   ] as const)('%o → %s', (state, expected) => {
     expect(ackMethodFor(state)).toBe(expected);
+  });
+
+  // deferKind splits the deferred && !replied row: a deferUpdate left the
+  // component message in place (followUp), a deferReply left a placeholder
+  // (editReply). Unstamped keeps the historical editReply behavior.
+  it.each([
+    [{ deferred: true, replied: false, deferKind: 'update' }, 'followUp'],
+    [{ deferred: true, replied: false, deferKind: 'reply' }, 'editReply'],
+    [{ deferred: true, replied: false }, 'editReply'], // unstamped
+    [{ deferred: true, replied: true, deferKind: 'update' }, 'followUp'], // replied wins
+  ] as const)('%o → %s', (state, expected) => {
+    expect(ackMethodFor(state)).toBe(expected);
+  });
+});
+
+describe('ack wrappers stamp the defer kind', () => {
+  it('ackUpdate defers-update, records "update", and makes replySpec follow up (no clobber)', async () => {
+    const interaction = mockInteraction({ deferred: true, replied: false });
+
+    await ackUpdate(interaction as unknown as DeferUpdatableInteraction);
+
+    expect(interaction.deferUpdate).toHaveBeenCalledOnce();
+    expect(deferKindOf(interaction)).toBe('update');
+
+    // The core payoff: replySpec on a deferUpdate'd interaction follows up
+    // ephemerally instead of clobbering the component message via editReply.
+    await replySpec(interaction, CATALOG.error.notFound('Character'));
+    expect(interaction.followUp).toHaveBeenCalledWith({
+      content: '❌ Character not found.',
+      flags: MessageFlags.Ephemeral,
+    });
+    expect(interaction.editReply).not.toHaveBeenCalled();
+  });
+
+  it('ackDeferReply records "reply" and keeps replySpec on editReply (fills the placeholder)', async () => {
+    const interaction = mockInteraction({ deferred: true, replied: false });
+
+    await ackDeferReply(interaction, { ephemeral: true });
+
+    expect(interaction.deferReply).toHaveBeenCalledWith({ flags: MessageFlags.Ephemeral });
+    expect(deferKindOf(interaction)).toBe('reply');
+
+    await replySpec(interaction, CATALOG.error.notFound('Character'));
+    expect(interaction.editReply).toHaveBeenCalledWith({ content: '❌ Character not found.' });
+    expect(interaction.followUp).not.toHaveBeenCalled();
   });
 });
 

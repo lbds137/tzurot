@@ -15,6 +15,7 @@ import { createLogger } from '@tzurot/common-types/utils/logger';
 import { getSessionManager } from './SessionManager.js';
 import { type DashboardSession } from './types.js';
 import { DASHBOARD_MESSAGES, formatSessionExpiredMessage } from './messages.js';
+import { ackUpdate } from '../../ux/render/reply.js';
 
 const logger = createLogger('session-helpers');
 
@@ -138,7 +139,7 @@ export async function requireDeferredSession<T>(
   entityId: string,
   command: string
 ): Promise<DashboardSession<T> | null> {
-  await interaction.deferUpdate();
+  await ackUpdate(interaction);
   return getSessionOrExpired<T>(interaction, entityType, entityId, command);
 }
 

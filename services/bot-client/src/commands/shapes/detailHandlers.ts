@@ -24,6 +24,7 @@ import { startImport } from './import.js';
 import { startExport } from './export.js';
 import { clientsFor } from '../../utils/gatewayClients.js';
 import { buildShapeDetailEmbed } from './detail.js';
+import { ackUpdate } from '../../ux/render/reply.js';
 
 const logger = createLogger('shapes-detail-handlers');
 
@@ -75,7 +76,7 @@ export async function showDetailView(
   // budget. Some callers may already have acked (nested-router pattern
   // per .claude/rules/04-discord.md), so guard the defer.
   if (!interaction.deferred && !interaction.replied) {
-    await interaction.deferUpdate();
+    await ackUpdate(interaction);
   }
   const { userClient } = clientsFor(interaction);
   const { embed, components } = await buildShapeDetailEmbed(

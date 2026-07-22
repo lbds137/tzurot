@@ -15,6 +15,7 @@ import {
 import type { BrowseContext, DashboardConfig } from './types.js';
 import { DASHBOARD_MESSAGES } from './messages.js';
 import { renderTerminalScreen, type BrowseCapableEntityType } from './terminalScreen.js';
+import { ackUpdate } from '../../ux/render/reply.js';
 
 const logger = createLogger('dashboard-refresh');
 
@@ -78,7 +79,7 @@ export function createRefreshHandler<TData, TRaw = TData>(
   } = options;
 
   return async (interaction: ButtonInteraction, entityId: string): Promise<void> => {
-    await interaction.deferUpdate();
+    await ackUpdate(interaction);
 
     // Fetch the existing session up-front so browseContext is available on
     // both the happy path (preserved into the refreshed session) and the

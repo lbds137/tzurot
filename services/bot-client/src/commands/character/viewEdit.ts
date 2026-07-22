@@ -16,8 +16,7 @@ import { createLogger } from '@tzurot/common-types/utils/logger';
 import { isBotOwner } from '@tzurot/common-types/utils/ownerMiddleware';
 import { CATALOG } from '../../ux/catalog/catalog.js';
 import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
-import type { MessageSpec } from '../../ux/catalog/types.js';
-import { replySpec, followUpSpec } from '../../ux/render/reply.js';
+import { replySpec, ackUpdate, ackDeferReply } from '../../ux/render/reply.js';
 import { clientsFor } from '../../utils/gatewayClients.js';
 import {
   buildDashboardEmbed,
@@ -41,34 +40,31 @@ export async function handleViewEdit(
   slug: string,
   config: EnvConfig
 ): Promise<void> {
-  // Synchronous flag read before the ack: the ack SHAPE depends on it
-  // (deferUpdate edits in place; a V2 source needs a new ephemeral reply).
+  // Synchronous flag read before the ack: the ack SHAPE depends on it. A
+  // classic-embed source is edited in place (ackUpdate); a V2 source can't host
+  // the embed dashboard, so it gets a fresh ephemeral reply (ackDeferReply).
+  // Both stamp the defer kind, so replySpec below auto-delivers errors correctly
+  // — followUp (no clobber) after ackUpdate, editReply (fill placeholder) after
+  // ackDeferReply — with no manual fork.
   const sourceIsV2 = interaction.message.flags.has(MessageFlags.IsComponentsV2);
   if (sourceIsV2) {
-    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    await ackDeferReply(interaction, { ephemeral: true });
   } else {
-    await interaction.deferUpdate();
+    await ackUpdate(interaction);
   }
-
-  // Error delivery must fork the SAME way the ack did. After deferUpdate,
-  // editReply (which replySpec resolves to) would overwrite the character-view
-  // message with a bare error — so the deferUpdate branch follows up ephemerally
-  // and leaves the view intact. After deferReply, replySpec fills the ephemeral
-  // placeholder (correct). See reply.ts replySpec/followUpSpec JSDoc.
-  const deliverError = (spec: MessageSpec): Promise<void> =>
-    sourceIsV2 ? replySpec(interaction, spec) : followUpSpec(interaction, spec);
 
   try {
     const { userClient } = clientsFor(interaction);
     const character = await fetchCharacter(slug, config, userClient);
     if (!character) {
-      await deliverError(CATALOG.error.notFound('Character'));
+      await replySpec(interaction, CATALOG.error.notFound('Character'));
       return;
     }
     if (!character.canEdit) {
       // Stale button after a permission change — name the state instead of
       // rendering a dashboard the gateway would reject every write to.
-      await deliverError(
+      await replySpec(
+        interaction,
         CATALOG.error.validation("You don't have permission to edit this character.")
       );
       return;
@@ -109,6 +105,6 @@ export async function handleViewEdit(
     );
   } catch (error) {
     logger.error({ err: error, slug }, 'Failed to open edit dashboard from view');
-    await deliverError(classifyGatewayFailure(error, 'character', { operation: 'read' }));
+    await replySpec(interaction, classifyGatewayFailure(error, 'character', { operation: 'read' }));
   }
 }

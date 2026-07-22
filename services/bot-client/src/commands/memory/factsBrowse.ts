@@ -39,6 +39,7 @@ import { renderSpec } from '../../ux/render/render.js';
 import { fetchPageWithEmptyFallback } from './browseSession.js';
 import { buildFactActionId } from './factsDetail.js';
 import { fetchFacts, type FactItem } from './factsApi.js';
+import { ackUpdate } from '../../ux/render/reply.js';
 
 const logger = createLogger('memory-facts-browse');
 
@@ -208,7 +209,7 @@ export async function handleFactsPagination(interaction: ButtonInteraction): Pro
 
   // Ephemeral deferral means only the invoker can click — no user check needed
   // (same reasoning as episode browse; revisit if deferral mode ever changes).
-  await interaction.deferUpdate();
+  await ackUpdate(interaction);
 
   const messageId = interaction.message.id;
   const session = await findFactBrowseSession(messageId);

@@ -55,6 +55,7 @@ import {
   fetchPageWithEmptyFallback,
   MEMORY_BROWSE_ENTITY_TYPE,
 } from './browseSession.js';
+import { ackUpdate } from '../../ux/render/reply.js';
 
 const logger = createLogger('memory-browse');
 
@@ -297,7 +298,7 @@ export async function handleBrowsePagination(interaction: ButtonInteraction): Pr
   // the 3-second interaction window. Matches the pattern in
   // character/browse.ts. After deferUpdate, error paths must use followUp
   // instead of reply (the interaction is already acknowledged).
-  await interaction.deferUpdate();
+  await ackUpdate(interaction);
 
   const messageId = interaction.message.id;
   const session = await findMemoryListSessionByMessage(messageId);

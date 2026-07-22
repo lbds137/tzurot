@@ -41,6 +41,7 @@ import { buildDiagnosticEmbed } from './embed.js';
 import { buildInspectComponents } from './components.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import type { DiagnosticLogSummary } from './types.js';
+import { ackUpdate } from '../../ux/render/reply.js';
 
 const logger = createLogger('inspect-browse');
 
@@ -233,7 +234,7 @@ export async function handleBrowsePagination(interaction: ButtonInteraction): Pr
     return;
   }
 
-  await interaction.deferUpdate();
+  await ackUpdate(interaction);
 
   const { userClient } = clientsFor(interaction);
   try {
@@ -261,7 +262,7 @@ export async function handleBrowseLogSelection(
     return;
   }
 
-  await interaction.deferUpdate();
+  await ackUpdate(interaction);
 
   const { userClient } = clientsFor(interaction);
   const requestId = interaction.values[0];

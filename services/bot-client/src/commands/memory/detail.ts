@@ -25,7 +25,7 @@ import { buildEntityDetailCard } from '../../utils/detailCard.js';
 import { clientsFor } from '../../utils/gatewayClients.js';
 import { CATALOG } from '../../ux/catalog/catalog.js';
 import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
-import { followUpSpec, replySpec } from '../../ux/render/reply.js';
+import { followUpSpec, replySpec, ackUpdate } from '../../ux/render/reply.js';
 
 import { fetchMemory, setMemoryLock, deleteMemory } from './detailApi.js';
 import { EMBED_DESCRIPTION_SAFE_LIMIT } from './formatters.js';
@@ -215,7 +215,7 @@ export function buildDeleteConfirmButtons(memoryId: string): ActionRowBuilder<Bu
 export async function handleMemorySelect(interaction: StringSelectMenuInteraction): Promise<void> {
   const memoryId = interaction.values[0];
 
-  await interaction.deferUpdate();
+  await ackUpdate(interaction);
 
   const { userClient } = clientsFor(interaction);
   let memory: MemoryItem | null;
@@ -256,7 +256,7 @@ export async function handleLockButton(
 ): Promise<void> {
   const userId = interaction.user.id;
 
-  await interaction.deferUpdate();
+  await ackUpdate(interaction);
 
   const { userClient } = clientsFor(interaction);
   let updatedMemory: MemoryItem | null;
@@ -292,7 +292,7 @@ export async function handleDeleteButton(
   interaction: ButtonInteraction,
   memoryId: string
 ): Promise<void> {
-  await interaction.deferUpdate();
+  await ackUpdate(interaction);
 
   const { userClient } = clientsFor(interaction);
   let memory: MemoryItem | null;
@@ -340,7 +340,7 @@ export async function handleDeleteConfirm(
   const userId = interaction.user.id;
 
   if (!interaction.deferred && !interaction.replied) {
-    await interaction.deferUpdate();
+    await ackUpdate(interaction);
   }
 
   const { userClient } = clientsFor(interaction);

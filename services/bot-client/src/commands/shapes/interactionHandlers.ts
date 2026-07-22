@@ -39,6 +39,7 @@ import {
   handleImportCancel,
   handleImportConfirm,
 } from './detailHandlers.js';
+import { ackUpdate } from '../../ux/render/reply.js';
 
 const logger = createLogger('shapes-interactions');
 
@@ -228,7 +229,7 @@ async function handleBrowsePage(
   // a gateway call that cannot be allowed to consume the budget. Guard the
   // defer per the nested-router pattern (.claude/rules/04-discord.md).
   if (!interaction.deferred && !interaction.replied) {
-    await interaction.deferUpdate();
+    await ackUpdate(interaction);
   }
   const { userClient } = clientsFor(interaction);
   const result = await fetchShapesList(userClient);

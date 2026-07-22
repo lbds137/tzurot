@@ -36,6 +36,7 @@ import {
   type FilterToggleDisplay,
   type BrowseActionRow,
 } from '../../utils/browse/index.js';
+import { ackUpdate } from '../../ux/render/reply.js';
 
 const logger = createLogger('deny-browse');
 
@@ -273,7 +274,7 @@ export async function handleBrowsePagination(interaction: ButtonInteraction): Pr
     return;
   }
 
-  await interaction.deferUpdate();
+  await ackUpdate(interaction);
 
   const { page, filter, sort } = parsed;
 
@@ -302,7 +303,7 @@ export async function handleBrowseSelect(interaction: StringSelectMenuInteractio
     return;
   }
 
-  await interaction.deferUpdate();
+  await ackUpdate(interaction);
 
   const selectedId = interaction.values[0];
   if (selectedId === undefined) {

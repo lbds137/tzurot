@@ -64,6 +64,18 @@ import type { Node } from 'estree';
 const ACK_METHODS = new Set(['deferUpdate', 'deferReply', 'reply', 'update', 'showModal']);
 
 /**
+ * Ack WRAPPER functions that are bare-ack-equivalent: `ackUpdate(interaction)` /
+ * `ackDeferReply(interaction)` (ux/render/reply.ts) are just a raw `deferUpdate`/
+ * `deferReply` plus a defer-kind stamp — they carry NO timeout safety net and MUST
+ * run first, exactly like the raw call they replace. They are matched here (an
+ * Identifier callee passed the interaction) so a preceding `sawRealAsync` still
+ * flags them. This is the crucial distinction from the `*WithTimeoutCatch`
+ * wrappers below (`passesInteractionToCallee`), which are DESIGNED to be called
+ * late and catch the 10062 timeout — those stay exempt; these do not.
+ */
+const ACK_WRAPPER_FUNCTIONS = new Set(['ackUpdate', 'ackDeferReply']);
+
+/**
  * POST-ack response methods on the interaction. These run only AFTER an ack, so
  * an `await interaction.followUp()` / `editReply()` is a response, NOT a data
  * fetch — it must NOT count as "real async work" that would flag a following bare
@@ -247,6 +259,25 @@ function isBareAckCall(argument: Node | null | undefined, interactionName: strin
 }
 
 /**
+ * True if the awaited expression is a bare-ack-equivalent WRAPPER call
+ * (`ackUpdate(interaction)` / `ackDeferReply(interaction)`) — an Identifier
+ * callee in ACK_WRAPPER_FUNCTIONS. These stamp the defer kind but are otherwise
+ * a raw ack with no timeout safety net, so they must be treated exactly like a
+ * bare ack (flagged when they follow real async work), NOT lumped in with the
+ * late-safe `*WithTimeoutCatch` wrappers that `passesInteractionToCallee` exempts.
+ */
+function isAckWrapperCall(argument: Node | null | undefined): boolean {
+  if (argument?.type !== 'CallExpression') {
+    return false;
+  }
+  const callee = (argument as Node & { callee: Node }).callee;
+  return (
+    callee.type === 'Identifier' &&
+    ACK_WRAPPER_FUNCTIONS.has((callee as Node & { name: string }).name)
+  );
+}
+
+/**
  * True if the awaited expression is a POST-ack response on the interaction
  * (`interaction.followUp()` / `editReply()` / `deleteReply()`) — a response, not
  * a fetch. The visitor treats it as neutral (see RESPONSE_METHODS).
@@ -268,7 +299,7 @@ const rule: Rule.RuleModule = {
     },
     messages: {
       ackAfterAsync:
-        "This handler does awaited work (often a Redis/DB/gateway call) BEFORE this bare interaction ack — that risks blowing Discord's 3-second budget before the ack lands, and the user gets a silent failure. Either move the ack (deferUpdate/deferReply/reply/update/showModal) ahead of the awaited work, or — if the data is needed to shape the ack (e.g. a modal's prefilled fields) — route it through a *WithTimeoutCatch wrapper so a blown budget degrades to a followUp. (followUp/editReply are post-ack and exempt; sync-only guards may precede the ack.)",
+        "This handler does awaited work (often a Redis/DB/gateway call) BEFORE this bare interaction ack — that risks blowing Discord's 3-second budget before the ack lands, and the user gets a silent failure. Either move the ack (deferUpdate/deferReply/reply/update/showModal, or the ackUpdate/ackDeferReply wrappers) ahead of the awaited work, or — if the data is needed to shape the ack (e.g. a modal's prefilled fields) — route it through a *WithTimeoutCatch wrapper so a blown budget degrades to a followUp. (followUp/editReply are post-ack and exempt; sync-only guards may precede the ack.)",
     },
     schema: [],
   },
@@ -313,8 +344,12 @@ const rule: Rule.RuleModule = {
         const argument =
           raw?.type === 'ChainExpression' ? (raw as Node & { expression: Node }).expression : raw;
 
-        // A bare ack AFTER real async work is the bug.
-        if (isBareAckCall(argument, frame.interactionName)) {
+        // A bare ack AFTER real async work is the bug. The ackUpdate/ackDeferReply
+        // wrappers are bare-ack-equivalent (no timeout safety net), so they count
+        // here too — otherwise `passesInteractionToCallee` below would wrongly
+        // exempt them as late-safe wrappers and blind the rule to the whole
+        // deferUpdate path (which no-raw-defer-update now funnels through them).
+        if (isBareAckCall(argument, frame.interactionName) || isAckWrapperCall(argument)) {
           if (frame.sawRealAsync) {
             context.report({ node, messageId: 'ackAfterAsync' });
           }

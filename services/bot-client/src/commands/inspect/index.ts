@@ -55,6 +55,7 @@ import {
   buildPostProcessingView,
 } from './extendedViews.js';
 import { computeViewContext } from './viewContext.js';
+import { ackUpdate } from '../../ux/render/reply.js';
 
 const logger = createLogger('inspect');
 
@@ -231,7 +232,7 @@ async function handleButton(interaction: ButtonInteraction): Promise<void> {
   // ephemeral per click. View-navigation buttons (Reasoning, FullJson, etc.) keep
   // deferReply because they semantically open a new view as a separate ephemeral.
   if (parsed.memoryState !== undefined) {
-    await interaction.deferUpdate();
+    await ackUpdate(interaction);
   } else {
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   }
