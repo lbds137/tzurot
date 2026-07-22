@@ -111,6 +111,9 @@ export const CharacterCustomIds = {
   /** Build view pagination button customId */
   viewPage: (slug: string, page: number) => `character::view::${slug}::${page}` as const,
 
+  /** Build view Edit button customId (opens the edit dashboard from view) */
+  viewEdit: (slug: string) => `character::view-edit::${slug}` as const,
+
   /** Build view page info button customId (disabled) */
   viewInfo: (slug: string) => `character::view::${slug}::info` as const,
 

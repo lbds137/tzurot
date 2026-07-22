@@ -17,7 +17,6 @@ import { characterViewOptions } from '@tzurot/common-types/generated/commandOpti
 import { UX_SENTINELS } from '@tzurot/common-types/constants/uxVocabulary';
 import { formatDateShort } from '@tzurot/common-types/utils/dateFormatting';
 import { createLogger } from '@tzurot/common-types/utils/logger';
-import { GatewayApiError, type UserClient } from '@tzurot/clients';
 import { CATALOG } from '../../ux/catalog/catalog.js';
 import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
 import { renderSpec } from '../../ux/render/render.js';
@@ -26,7 +25,7 @@ import type { CharacterData } from './characterTypes.js';
 import { CharacterCustomIds } from '../../utils/customIds.js';
 import { clientsFor } from '../../utils/gatewayClients.js';
 import { replyError } from '../../utils/dashboard/replyError.js';
-import { toCharacterData } from './api.js';
+import { fetchCharacter } from './api.js';
 import {
   VIEW_TOTAL_PAGES,
   VIEW_PAGE_TITLES,
@@ -265,12 +264,23 @@ function buildCharacterViewPage(character: CharacterData, page: number): ViewPag
 function buildViewComponents(
   slug: string,
   currentPage: number,
-  truncatedFields: string[]
+  truncatedFields: string[],
+  canEdit: boolean
 ): ActionRowBuilder<ButtonBuilder>[] {
   const rows: ActionRowBuilder<ButtonBuilder>[] = [];
 
-  // Navigation row
+  // Navigation row. Edit leads it (primary actions before navigation);
+  // visibility mirrors the server-computed canEdit (owner or bot admin).
   const navRow = new ActionRowBuilder<ButtonBuilder>();
+  if (canEdit) {
+    navRow.addComponents(
+      new ButtonBuilder()
+        .setCustomId(CharacterCustomIds.viewEdit(slug))
+        .setLabel('Edit')
+        .setEmoji('✏️')
+        .setStyle(ButtonStyle.Primary)
+    );
+  }
   navRow.addComponents(
     new ButtonBuilder()
       .setCustomId(CharacterCustomIds.viewPage(slug, currentPage - 1))
@@ -333,38 +343,6 @@ function buildViewComponents(
 }
 
 // ============================================================================
-// API FUNCTIONS
-// ============================================================================
-
-/**
- * Fetch a character by slug. Local helper (separate from `api.ts`'s
- * `fetchCharacter`) because the view command only needs the response shape
- * and intentionally discards the `canEdit` field. Coercion goes through
- * `api.ts:toCharacterData` so the schema/local-type bridge stays in one place.
- */
-async function fetchCharacterForView(
-  slug: string,
-  userClient: UserClient
-): Promise<CharacterData | null> {
-  const result = await userClient.getPersonality(slug);
-
-  if (!result.ok) {
-    if (result.status === 404 || result.status === 403) {
-      // 403 → absence deliberately (privacy: "not visible" ≡ "not found").
-      return null;
-    }
-    // Typed throw preserves the transport kind for honest classification.
-    throw new GatewayApiError(
-      `Failed to fetch character: ${result.status} - ${result.error}`,
-      result.status,
-      result.kind
-    );
-  }
-
-  return toCharacterData(result.data.personality);
-}
-
-// ============================================================================
 // COMMAND HANDLERS
 // ============================================================================
 
@@ -373,14 +351,14 @@ async function fetchCharacterForView(
  */
 export async function handleView(
   context: DeferredCommandContext,
-  _config: EnvConfig
+  config: EnvConfig
 ): Promise<void> {
   const options = characterViewOptions(context.interaction);
   const slug = options.character();
 
   try {
     const { userClient } = clientsFor(context.interaction);
-    const character = await fetchCharacterForView(slug, userClient);
+    const character = await fetchCharacter(slug, config, userClient);
     if (!character) {
       await context.editReply(
         renderSpec(CATALOG.error.notFound('Character', { name: escapeMarkdown(slug) }))
@@ -391,7 +369,7 @@ export async function handleView(
     // Build paginated view starting at page 0. The redacted view is a single
     // informational page — no pagination or expand buttons.
     if (USE_COMPONENTS_V2) {
-      const view = buildCharacterViewV2(character, 0, viewAvatarUrl(character));
+      const view = buildCharacterViewV2(character, 0, viewAvatarUrl(character), character.canEdit);
       await context.editReply({
         components: view.components,
         flags: MessageFlags.IsComponentsV2,
@@ -402,7 +380,7 @@ export async function handleView(
     const { embed, truncatedFields } = buildCharacterViewPage(character, 0);
     const components = character.definitionRedacted
       ? []
-      : buildViewComponents(slug, 0, truncatedFields);
+      : buildViewComponents(slug, 0, truncatedFields, character.canEdit);
 
     await context.editReply({ embeds: [embed], components });
   } catch (error) {
@@ -418,13 +396,13 @@ export async function handleViewPagination(
   interaction: ButtonInteraction,
   slug: string,
   page: number,
-  _config: EnvConfig
+  config: EnvConfig
 ): Promise<void> {
   await interaction.deferUpdate();
 
   try {
     const { userClient } = clientsFor(interaction);
-    const character = await fetchCharacterForView(slug, userClient);
+    const character = await fetchCharacter(slug, config, userClient);
     if (!character) {
       const notFoundText = renderSpec(CATALOG.error.notFound('Character'));
       if (USE_COMPONENTS_V2) {
@@ -450,7 +428,12 @@ export async function handleViewPagination(
     if (USE_COMPONENTS_V2) {
       // The flag must ride EVERY edit — page flips are editReply edits, and
       // an edit without it could degrade the message out of V2 rendering.
-      const view = buildCharacterViewV2(character, page, viewAvatarUrl(character));
+      const view = buildCharacterViewV2(
+        character,
+        page,
+        viewAvatarUrl(character),
+        character.canEdit
+      );
       await interaction.editReply({
         components: view.components,
         flags: MessageFlags.IsComponentsV2,
@@ -461,7 +444,7 @@ export async function handleViewPagination(
     const { embed, truncatedFields } = buildCharacterViewPage(character, page);
     const components = character.definitionRedacted
       ? []
-      : buildViewComponents(slug, page, truncatedFields);
+      : buildViewComponents(slug, page, truncatedFields, character.canEdit);
 
     await interaction.editReply({ embeds: [embed], components });
   } catch (error) {
@@ -477,13 +460,13 @@ export async function handleExpandField(
   interaction: ButtonInteraction,
   slug: string,
   fieldName: string,
-  _config: EnvConfig
+  config: EnvConfig
 ): Promise<void> {
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   try {
     const { userClient } = clientsFor(interaction);
-    const character = await fetchCharacterForView(slug, userClient);
+    const character = await fetchCharacter(slug, config, userClient);
     if (!character) {
       await replyError(interaction, renderSpec(CATALOG.error.notFound('Character')));
       return;

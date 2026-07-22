@@ -11,6 +11,7 @@ import {
   isCharacterBrowseSelectInteraction,
 } from './browse.js';
 import { registerBrowseRebuilder, buildDashboardEmbed } from '../../utils/dashboard/index.js';
+import { getCharacterDashboardConfig } from './config.js';
 import * as api from './api.js';
 import type { EnvConfig } from '@tzurot/common-types/config/config';
 import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js';
@@ -71,6 +72,11 @@ vi.mock('./config.js', () => ({
     showRefresh: true,
     showDelete: false,
   }),
+}));
+
+const mockIsBotOwner = vi.fn();
+vi.mock('@tzurot/common-types/utils/ownerMiddleware', () => ({
+  isBotOwner: (id: string) => mockIsBotOwner(id),
 }));
 
 describe('handleBrowse', () => {
@@ -826,6 +832,9 @@ describe('handleBrowseSelect', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockSessionSet.mockResolvedValue(undefined);
+    // Default: the selecting user is a non-admin owner (canEdit true from the
+    // mock character, isBotOwner false) — the admin-section leak scenario.
+    mockIsBotOwner.mockReturnValue(false);
   });
 
   function createMockSelectInteraction(slug: string) {
@@ -896,6 +905,37 @@ describe('handleBrowseSelect', () => {
       embeds: expect.any(Array),
       components: expect.any(Array),
     });
+  });
+
+  it('gates the dashboard admin section on isBotOwner, NOT canEdit', async () => {
+    // A non-admin OWNER (canEdit true, isBotOwner false) selecting their own
+    // character must not get the bot-owner-only admin section on the initial
+    // render — getCharacterDashboardConfig's first arg is isAdmin.
+    const mockCharacter = createMockCharacter({ canEdit: true, hasVoiceReference: false });
+    vi.mocked(api.fetchCharacter).mockResolvedValue(mockCharacter);
+
+    const interaction = createMockSelectInteraction('luna');
+    await handleBrowseSelect(interaction, mockConfig);
+
+    expect(mockIsBotOwner).toHaveBeenCalledWith('123456789');
+    expect(vi.mocked(getCharacterDashboardConfig)).toHaveBeenCalledWith(false, false);
+    expect(mockSessionSet).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ _isAdmin: false }) })
+    );
+  });
+
+  it('passes isAdmin=true to the dashboard config when the selector is the bot owner', async () => {
+    mockIsBotOwner.mockReturnValue(true);
+    const mockCharacter = createMockCharacter({ canEdit: true });
+    vi.mocked(api.fetchCharacter).mockResolvedValue(mockCharacter);
+
+    const interaction = createMockSelectInteraction('luna');
+    await handleBrowseSelect(interaction, mockConfig);
+
+    expect(vi.mocked(getCharacterDashboardConfig)).toHaveBeenCalledWith(true, false);
+    expect(mockSessionSet).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ _isAdmin: true }) })
+    );
   });
 
   it('shows the private-definition state instead of the dashboard when redacted', async () => {

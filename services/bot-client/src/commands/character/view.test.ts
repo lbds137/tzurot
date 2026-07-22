@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { MessageFlags } from 'discord.js';
+import { ButtonStyle, MessageFlags } from 'discord.js';
 import { _testExports, handleView, handleViewPagination, handleExpandField } from './view.js';
 import type { CharacterData } from './characterTypes.js';
 import { DISCORD_LIMITS, TEXT_LIMITS } from '@tzurot/common-types/constants/discord';
@@ -406,7 +406,7 @@ describe('buildCharacterViewPage', () => {
 
 describe('buildViewComponents', () => {
   it('should include navigation buttons', () => {
-    const components = buildViewComponents('test-slug', 1, []);
+    const components = buildViewComponents('test-slug', 1, [], false);
 
     expect(components.length).toBeGreaterThan(0);
 
@@ -417,8 +417,26 @@ describe('buildViewComponents', () => {
     expect(navButtons.length).toBe(3); // Previous, Page indicator, Next
   });
 
+  it('leads the nav row with an Edit button when the viewer can edit', () => {
+    const components = buildViewComponents('test-slug', 1, [], true);
+    const navButtons = components[0].components;
+
+    expect(navButtons.length).toBe(4);
+    const edit = navButtons[0].data as { custom_id?: string; label?: string; style?: number };
+    expect(edit.custom_id).toBe('character::view-edit::test-slug');
+    expect(edit.label).toBe('Edit');
+    expect(edit.style).toBe(ButtonStyle.Primary);
+  });
+
+  it('omits the Edit button when the viewer cannot edit', () => {
+    const components = buildViewComponents('test-slug', 1, [], false);
+    const ids = components[0].components.map(b => (b.data as { custom_id?: string }).custom_id);
+
+    expect(ids.some(id => id?.includes('view-edit') === true)).toBe(false);
+  });
+
   it('should disable previous button on first page', () => {
-    const components = buildViewComponents('test-slug', 0, []);
+    const components = buildViewComponents('test-slug', 0, [], false);
     const navRow = components[0];
     const prevButton = navRow.components[0];
 
@@ -426,7 +444,7 @@ describe('buildViewComponents', () => {
   });
 
   it('should disable next button on last page', () => {
-    const components = buildViewComponents('test-slug', VIEW_TOTAL_PAGES - 1, []);
+    const components = buildViewComponents('test-slug', VIEW_TOTAL_PAGES - 1, [], false);
     const navRow = components[0];
     const nextButton = navRow.components[2];
 
@@ -435,7 +453,7 @@ describe('buildViewComponents', () => {
 
   it('should add expand buttons for truncated fields', () => {
     const truncatedFields = ['characterInfo', 'personalityLikes'];
-    const components = buildViewComponents('test-slug', 1, truncatedFields);
+    const components = buildViewComponents('test-slug', 1, truncatedFields, false);
 
     // Should have nav row + expand row
     expect(components.length).toBe(2);
@@ -445,7 +463,7 @@ describe('buildViewComponents', () => {
   });
 
   it('should not add expand row when no fields are truncated', () => {
-    const components = buildViewComponents('test-slug', 0, []);
+    const components = buildViewComponents('test-slug', 0, [], false);
 
     expect(components.length).toBe(1); // Only nav row
   });
@@ -460,7 +478,7 @@ describe('buildViewComponents', () => {
       'conversationalGoals',
       'conversationalExamples',
     ];
-    const components = buildViewComponents('test-slug', 0, manyTruncatedFields);
+    const components = buildViewComponents('test-slug', 0, manyTruncatedFields, false);
 
     // First row is nav, subsequent rows are expand buttons
     for (let i = 1; i < components.length; i++) {
@@ -479,7 +497,7 @@ describe('buildViewComponents', () => {
       'conversationalExamples',
       'errorMessage',
     ];
-    const components = buildViewComponents('test-slug', 0, manyTruncatedFields);
+    const components = buildViewComponents('test-slug', 0, manyTruncatedFields, false);
 
     expect(components.length).toBeLessThanOrEqual(5);
   });
@@ -516,6 +534,34 @@ describe('handleView / handleViewPagination', () => {
     expect(call.flags).toBe(MessageFlags.IsComponentsV2);
     expect(call.components.length).toBeGreaterThan(0);
     expect(call.embeds).toBeUndefined();
+  });
+
+  it('forwards canEdit into the render: the Edit button appears for an editor', async () => {
+    // Seam pin: the real handler must forward the server's canEdit into the
+    // renderer — a hardcoded false or a dropped field would silently hide the
+    // Edit button for every owner. gateway `canEdit` rides `result.data`, not
+    // the personality sub-object.
+    stub.getPersonality.mockResolvedValue(
+      makeOk({ personality: createTestCharacter(), canEdit: true })
+    );
+
+    await handleView(viewContext(), config);
+
+    const components = editReply.mock.calls[0][0].components as { toJSON: () => unknown }[];
+    const rendered = JSON.stringify(components.map(c => c.toJSON()));
+    expect(rendered).toContain('character::view-edit::test-character');
+  });
+
+  it('omits the Edit button when the viewer cannot edit', async () => {
+    stub.getPersonality.mockResolvedValue(
+      makeOk({ personality: createTestCharacter(), canEdit: false })
+    );
+
+    await handleView(viewContext(), config);
+
+    const components = editReply.mock.calls[0][0].components as { toJSON: () => unknown }[];
+    const rendered = JSON.stringify(components.map(c => c.toJSON()));
+    expect(rendered).not.toContain('view-edit');
   });
 
   it('shows a not-found message on a 404', async () => {

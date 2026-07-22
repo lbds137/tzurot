@@ -162,7 +162,10 @@ export async function fetchAllCharacters(
       slug: p.slug,
       isPublic: p.isPublic,
       ownerId: p.ownerDiscordId, // Use Discord ID for fetching display names
-      // These fields are not in the list response, but needed for CharacterData interface
+      // These fields are not in the list response, but needed for CharacterData interface.
+      // definitionPublic/definitionRedacted are placeholder `false` here — the
+      // list summary carries no card visibility — so consumers must re-fetch the
+      // full character on select (browse/select does) before trusting them.
       definitionPublic: false,
       definitionRedacted: false,
       characterInfo: '',

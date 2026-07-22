@@ -23,6 +23,7 @@ import { characterBrowseOptions } from '@tzurot/common-types/generated/commandOp
 import { AUTOCOMPLETE_BADGES } from '@tzurot/common-types/utils/autocompleteFormat';
 import { ENTITY_EMOJI, buildBadgeLegend } from '@tzurot/common-types/constants/uxVocabulary';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { isBotOwner } from '@tzurot/common-types/utils/ownerMiddleware';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import type { UserClient } from '@tzurot/clients';
 import { clientsFor } from '../../utils/gatewayClients.js';
@@ -40,6 +41,7 @@ import {
   buildCharacterDashboardOptions,
   type CharacterBrowseFilter,
   type CharacterBrowseSortType,
+  type CharacterSessionData,
 } from './config.js';
 import type { CharacterData } from './characterTypes.js';
 import { buildRedactedViewPage } from './view.js';
@@ -470,9 +472,16 @@ export async function handleBrowseSelect(
       return;
     }
 
+    // isAdmin gates the bot-owner-only Admin Settings section — it is NOT
+    // canEdit (true for any character owner). Deriving it from isBotOwner
+    // keeps a non-admin owner from seeing an admin section on the initial
+    // render (downstream handlers re-verify, but the first paint uses this).
+    const isAdmin = isBotOwner(userId);
+
     // Create session data with browse context for back navigation
-    const sessionData: CharacterData = {
+    const sessionData: CharacterSessionData = {
       ...character,
+      _isAdmin: isAdmin,
       browseContext: browseContext
         ? {
             source: 'browse',
@@ -487,18 +496,14 @@ export async function handleBrowseSelect(
     if (character.definitionRedacted) {
       await showRedactedDetail(interaction, character, browseContext !== null);
     } else {
-      // Get dashboard config based on edit permissions
-      const dashboardConfig = getCharacterDashboardConfig(
-        character.canEdit,
-        character.hasVoiceReference
-      );
+      const dashboardConfig = getCharacterDashboardConfig(isAdmin, character.hasVoiceReference);
 
       // Build dashboard embed and components using shared options builder
       const embed = buildDashboardEmbed(dashboardConfig, character);
       const components = buildDashboardComponents(
         dashboardConfig,
         character.slug,
-        character,
+        sessionData,
         buildCharacterDashboardOptions(sessionData)
       );
 
@@ -509,7 +514,7 @@ export async function handleBrowseSelect(
     // Store session for tracking
     const sessionManager = getSessionManager();
 
-    await sessionManager.set<CharacterData>({
+    await sessionManager.set<CharacterSessionData>({
       userId,
       entityType: 'character',
       entityId: character.slug,

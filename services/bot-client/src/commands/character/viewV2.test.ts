@@ -51,6 +51,7 @@ interface ComponentNode {
   accessory?: { type: number; custom_id?: string; media?: { url: string } };
   content?: string;
   custom_id?: string;
+  label?: string;
   disabled?: boolean;
 }
 
@@ -112,7 +113,8 @@ describe('buildCharacterViewV2', () => {
       buildCharacterViewV2(
         createTestCharacter({ hasAvatar: true }),
         0,
-        'https://gateway.example/avatars/test-character.png'
+        'https://gateway.example/avatars/test-character.png',
+        false
       )
     );
 
@@ -126,7 +128,7 @@ describe('buildCharacterViewV2', () => {
   });
 
   it('renders a plain title (no Section) when there is no avatar', () => {
-    const tree = toTree(buildCharacterViewV2(createTestCharacter(), 0, null));
+    const tree = toTree(buildCharacterViewV2(createTestCharacter(), 0, null, false));
 
     const flat = flatten(tree);
     // No thumbnail anywhere, but the title text still renders
@@ -139,7 +141,7 @@ describe('buildCharacterViewV2', () => {
   it('gives a truncated expandable field its own Section with a 📖 accessory carrying the REAL expand customId', () => {
     const longInfo = 'x'.repeat(2000); // over the 1024-cap default
     const tree = toTree(
-      buildCharacterViewV2(createTestCharacter({ characterInfo: longInfo }), 1, null)
+      buildCharacterViewV2(createTestCharacter({ characterInfo: longInfo }), 1, null, false)
     );
 
     const flat = flatten(tree);
@@ -157,7 +159,7 @@ describe('buildCharacterViewV2', () => {
   });
 
   it('renders non-truncated fields as plain TextDisplay (no accessory)', () => {
-    const tree = toTree(buildCharacterViewV2(createTestCharacter(), 1, null));
+    const tree = toTree(buildCharacterViewV2(createTestCharacter(), 1, null, false));
 
     const flat = flatten(tree);
     expect(flat.some(n => n.type === ComponentType.Section)).toBe(false);
@@ -165,7 +167,7 @@ describe('buildCharacterViewV2', () => {
   });
 
   it('keeps the nav row with byte-identical viewPage customIds and correct disabled states', () => {
-    const tree = toTree(buildCharacterViewV2(createTestCharacter(), 0, null));
+    const tree = toTree(buildCharacterViewV2(createTestCharacter(), 0, null, false));
 
     const nav = tree[1];
     expect(nav.type).toBe(ComponentType.ActionRow);
@@ -178,15 +180,27 @@ describe('buildCharacterViewV2', () => {
   });
 
   it('disables Next on the last page', () => {
-    const tree = toTree(buildCharacterViewV2(createTestCharacter(), 3, null));
+    const tree = toTree(buildCharacterViewV2(createTestCharacter(), 3, null, false));
     const nav = tree[1];
     const next = nav.components?.[2];
     expect(next?.disabled).toBe(true);
   });
 
+  it('leads the nav row with an Edit button when the viewer can edit', () => {
+    const tree = toTree(buildCharacterViewV2(createTestCharacter(), 0, null, true));
+    const nav = tree[1];
+
+    expect(nav.components).toHaveLength(4);
+    const edit = nav.components?.[0];
+    expect(edit?.custom_id).toBe(CharacterCustomIds.viewEdit('test-character'));
+    expect(edit?.label).toBe('Edit');
+    // Pagination trio keeps its shape after the Edit button
+    expect(nav.components?.[1]?.custom_id).toBe(CharacterCustomIds.viewPage('test-character', -1));
+  });
+
   it('renders the redacted variant as a single Container with no interactive components', () => {
     const tree = toTree(
-      buildCharacterViewV2(createTestCharacter({ definitionRedacted: true }), 0, null)
+      buildCharacterViewV2(createTestCharacter({ definitionRedacted: true }), 0, null, false)
     );
 
     expect(tree).toHaveLength(1);
@@ -205,7 +219,8 @@ describe('buildCharacterViewV2', () => {
             personalityAge: 'sounds about fifty',
           }),
           0,
-          null
+          null,
+          false
         )
       )
     );
@@ -220,7 +235,7 @@ describe('buildCharacterViewV2', () => {
 
   it('carries the date footer as subtext on every page', () => {
     for (const page of [0, 1, 2, 3]) {
-      const flat = flatten(toTree(buildCharacterViewV2(createTestCharacter(), page, null)));
+      const flat = flatten(toTree(buildCharacterViewV2(createTestCharacter(), page, null, false)));
       const footer = flat.find(n => n.content?.startsWith('-# Created:') === true);
       expect(footer).toBeDefined();
       // Dynamic Discord timestamps (§2.5) — TextDisplay renders <t:> markup.
@@ -229,7 +244,7 @@ describe('buildCharacterViewV2', () => {
   });
 
   it('clamps out-of-range pages instead of throwing', () => {
-    const tree = toTree(buildCharacterViewV2(createTestCharacter(), 99, null));
+    const tree = toTree(buildCharacterViewV2(createTestCharacter(), 99, null, false));
     const flat = flatten(tree);
     // Clamped to the last page (Conversation)
     expect(flat.some(n => n.content?.includes('Conversation') === true)).toBe(true);
