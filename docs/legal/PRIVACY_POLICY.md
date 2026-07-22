@@ -60,7 +60,7 @@ We never sell your data.
 
 ## Your controls
 
-- **Memory**: browse, search, correct, and forget individual memories and facts (`/memory`); batch-delete or purge a character's memories. Honest detail: forgetting removes a memory from use and from view **immediately**, but the underlying row is retained (marked deleted) until it is hard-erased — which happens when you delete the associated persona or character, when you use incognito's retroactive forget, or when you delete your account (`/settings data delete`). **Focus mode** stops memory reads; **incognito mode** stops memory writes for a session, with retroactive (hard-deleting) forget.
+- **Memory**: browse, search, correct, and forget individual memories and facts (`/memory`); batch-delete or purge a character's memories. Honest detail: forgetting removes a memory from use and from view **immediately**, but the underlying row is retained (marked deleted) until it is hard-erased — which happens when you delete the associated persona or character, when you use incognito's retroactive forget, or when you delete your account (`/settings data delete`). **Fresh mode** stops memory reads for a session; **incognito mode** stops memory writes for a session, with retroactive (hard-deleting) forget.
 - **History**: clear your conversation history (`/history clear` — a soft reset, with undo).
 - **Notifications**: release announcements are sent only to accounts that have actually used the bot (a real conversation, a connected key, or an explicit `/notifications` preference — never mere presence in a channel the bot can read), default to breaking-change releases only, and are opt-out (`/notifications disable`, or pick a level).
 - **Keys**: remove a connected API key at any time (immediate hard delete).
