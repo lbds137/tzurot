@@ -294,7 +294,7 @@ describe('DiscordResponseSender', () => {
       expect(calledContent).toContain('🆓 Using free model (no API key required)');
     });
 
-    it('should add focus mode indicator when focusModeEnabled is true', async () => {
+    it('should add fresh mode indicator when freshModeEnabled is true', async () => {
       const mockChannel = createMockTextChannel('channel-123');
       const mockMessage = createMockMessage(mockChannel, { id: 'guild-123' });
 
@@ -303,15 +303,15 @@ describe('DiscordResponseSender', () => {
         personality: mockPersonality,
         ...senderTargetFrom(mockMessage),
         modelUsed: 'test-model',
-        focusModeEnabled: true,
+        freshModeEnabled: true,
       });
 
       const calledContent = mockWebhookManager.sendAsPersonality.mock.calls[0][2];
       expect(calledContent).toContain('Response content');
-      expect(calledContent).toContain('🔒 Focus Mode • LTM retrieval disabled');
+      expect(calledContent).toContain('🌱 Fresh Mode • Memories not being used');
     });
 
-    it('should not add focus mode indicator when focusModeEnabled is false', async () => {
+    it('should not add fresh mode indicator when freshModeEnabled is false', async () => {
       const mockChannel = createMockTextChannel('channel-123');
       const mockMessage = createMockMessage(mockChannel, { id: 'guild-123' });
 
@@ -320,16 +320,16 @@ describe('DiscordResponseSender', () => {
         personality: mockPersonality,
         ...senderTargetFrom(mockMessage),
         modelUsed: 'test-model',
-        focusModeEnabled: false,
+        freshModeEnabled: false,
       });
 
       const calledContent = mockWebhookManager.sendAsPersonality.mock.calls[0][2];
       expect(calledContent).toContain('Response content');
-      expect(calledContent).not.toContain('🔒');
-      expect(calledContent).not.toContain('Focus Mode');
+      expect(calledContent).not.toContain('🌱');
+      expect(calledContent).not.toContain('Fresh Mode');
     });
 
-    it('should add all four indicators: model, auto-response, guest mode, and focus mode', async () => {
+    it('should add all four indicators: model, auto-response, guest mode, and fresh mode', async () => {
       const mockChannel = createMockTextChannel('channel-123');
       const mockMessage = createMockMessage(mockChannel, { id: 'guild-123' });
 
@@ -340,7 +340,7 @@ describe('DiscordResponseSender', () => {
         modelUsed: 'x-ai/grok-4.1-fast:free',
         isGuestMode: true,
         isAutoResponse: true,
-        focusModeEnabled: true,
+        freshModeEnabled: true,
       });
 
       const calledContent = mockWebhookManager.sendAsPersonality.mock.calls[0][2];
@@ -351,7 +351,7 @@ describe('DiscordResponseSender', () => {
       // Guest mode on separate line
       expect(calledContent).toContain('🆓 Using free model (no API key required)');
       // Focus mode on separate line
-      expect(calledContent).toContain('🔒 Focus Mode • LTM retrieval disabled');
+      expect(calledContent).toContain('🌱 Fresh Mode • Memories not being used');
     });
 
     it('should add incognito mode indicator when incognitoModeActive is true', async () => {
@@ -389,7 +389,7 @@ describe('DiscordResponseSender', () => {
       expect(calledContent).not.toContain('Incognito Mode');
     });
 
-    it('should add all five indicators: model, auto-response, guest mode, focus mode, and incognito', async () => {
+    it('should add all five indicators: model, auto-response, guest mode, fresh mode, and incognito', async () => {
       const mockChannel = createMockTextChannel('channel-123');
       const mockMessage = createMockMessage(mockChannel, { id: 'guild-123' });
 
@@ -400,7 +400,7 @@ describe('DiscordResponseSender', () => {
         modelUsed: 'x-ai/grok-4.1-fast:free',
         isGuestMode: true,
         isAutoResponse: true,
-        focusModeEnabled: true,
+        freshModeEnabled: true,
         incognitoModeActive: true,
       });
 
@@ -412,7 +412,7 @@ describe('DiscordResponseSender', () => {
       // Guest mode on separate line
       expect(calledContent).toContain('🆓 Using free model (no API key required)');
       // Focus mode on separate line
-      expect(calledContent).toContain('🔒 Focus Mode • LTM retrieval disabled');
+      expect(calledContent).toContain('🌱 Fresh Mode • Memories not being used');
       // Incognito mode on separate line
       expect(calledContent).toContain('👻 Incognito Mode • Memories not being saved');
     });
@@ -463,7 +463,7 @@ describe('DiscordResponseSender', () => {
         ...senderTargetFrom(mockMessage),
         modelUsed: 'test-model',
         isGuestMode: true,
-        focusModeEnabled: true,
+        freshModeEnabled: true,
         incognitoModeActive: true,
         showModelFooter: false,
       });
@@ -471,7 +471,7 @@ describe('DiscordResponseSender', () => {
       const calledContent = mockWebhookManager.sendAsPersonality.mock.calls[0][2];
       expect(calledContent).not.toContain('Model:');
       expect(calledContent).toContain('🆓 Using free model');
-      expect(calledContent).toContain('🔒 Focus Mode');
+      expect(calledContent).toContain('🌱 Fresh Mode');
       expect(calledContent).toContain('👻 Incognito Mode');
     });
 
@@ -617,13 +617,13 @@ describe('DiscordResponseSender', () => {
    * Systematic tests for all 16 realistic indicator combinations.
    *
    * For successful AI responses, modelUsed is always present (set by LLMInvoker).
-   * The 4 boolean flags (isAutoResponse, isGuestMode, focusModeEnabled, incognitoModeActive)
+   * The 4 boolean flags (isAutoResponse, isGuestMode, freshModeEnabled, incognitoModeActive)
    * give 2^4 = 16 combinations.
    *
    * Expected footer format:
    * - Line 1: Model: [name](url) [• 📍 auto] (auto appended to same line if present)
    * - Line 2: 🆓 Using free model... (if guest mode)
-   * - Line 3: 🔒 Focus Mode • LTM retrieval disabled (if focus mode)
+   * - Line 3: 🌱 Fresh Mode • Memories not being used (if fresh mode)
    * - Line 4: 👻 Incognito Mode • Memories not being saved (if incognito mode)
    */
   describe('sendResponse - Indicator Combinations (systematic)', () => {
@@ -635,7 +635,7 @@ describe('DiscordResponseSender', () => {
         flags: {
           isAutoResponse: false,
           isGuestMode: false,
-          focusModeEnabled: false,
+          freshModeEnabled: false,
           incognitoModeActive: false,
         },
         expected: { model: true, auto: false, guest: false, focus: false, incognito: false },
@@ -645,7 +645,7 @@ describe('DiscordResponseSender', () => {
         flags: {
           isAutoResponse: true,
           isGuestMode: false,
-          focusModeEnabled: false,
+          freshModeEnabled: false,
           incognitoModeActive: false,
         },
         expected: { model: true, auto: true, guest: false, focus: false, incognito: false },
@@ -655,17 +655,17 @@ describe('DiscordResponseSender', () => {
         flags: {
           isAutoResponse: false,
           isGuestMode: true,
-          focusModeEnabled: false,
+          freshModeEnabled: false,
           incognitoModeActive: false,
         },
         expected: { model: true, auto: false, guest: true, focus: false, incognito: false },
       },
       {
-        name: 'model + focus',
+        name: 'model + fresh',
         flags: {
           isAutoResponse: false,
           isGuestMode: false,
-          focusModeEnabled: true,
+          freshModeEnabled: true,
           incognitoModeActive: false,
         },
         expected: { model: true, auto: false, guest: false, focus: true, incognito: false },
@@ -675,37 +675,37 @@ describe('DiscordResponseSender', () => {
         flags: {
           isAutoResponse: true,
           isGuestMode: true,
-          focusModeEnabled: false,
+          freshModeEnabled: false,
           incognitoModeActive: false,
         },
         expected: { model: true, auto: true, guest: true, focus: false, incognito: false },
       },
       {
-        name: 'model + auto + focus',
+        name: 'model + auto + fresh',
         flags: {
           isAutoResponse: true,
           isGuestMode: false,
-          focusModeEnabled: true,
+          freshModeEnabled: true,
           incognitoModeActive: false,
         },
         expected: { model: true, auto: true, guest: false, focus: true, incognito: false },
       },
       {
-        name: 'model + guest + focus',
+        name: 'model + guest + fresh',
         flags: {
           isAutoResponse: false,
           isGuestMode: true,
-          focusModeEnabled: true,
+          freshModeEnabled: true,
           incognitoModeActive: false,
         },
         expected: { model: true, auto: false, guest: true, focus: true, incognito: false },
       },
       {
-        name: 'model + auto + guest + focus',
+        name: 'model + auto + guest + fresh',
         flags: {
           isAutoResponse: true,
           isGuestMode: true,
-          focusModeEnabled: true,
+          freshModeEnabled: true,
           incognitoModeActive: false,
         },
         expected: { model: true, auto: true, guest: true, focus: true, incognito: false },
@@ -716,7 +716,7 @@ describe('DiscordResponseSender', () => {
         flags: {
           isAutoResponse: false,
           isGuestMode: false,
-          focusModeEnabled: false,
+          freshModeEnabled: false,
           incognitoModeActive: true,
         },
         expected: { model: true, auto: false, guest: false, focus: false, incognito: true },
@@ -726,7 +726,7 @@ describe('DiscordResponseSender', () => {
         flags: {
           isAutoResponse: true,
           isGuestMode: false,
-          focusModeEnabled: false,
+          freshModeEnabled: false,
           incognitoModeActive: true,
         },
         expected: { model: true, auto: true, guest: false, focus: false, incognito: true },
@@ -736,17 +736,17 @@ describe('DiscordResponseSender', () => {
         flags: {
           isAutoResponse: false,
           isGuestMode: true,
-          focusModeEnabled: false,
+          freshModeEnabled: false,
           incognitoModeActive: true,
         },
         expected: { model: true, auto: false, guest: true, focus: false, incognito: true },
       },
       {
-        name: 'model + focus + incognito (both privacy modes)',
+        name: 'model + fresh + incognito (both privacy modes)',
         flags: {
           isAutoResponse: false,
           isGuestMode: false,
-          focusModeEnabled: true,
+          freshModeEnabled: true,
           incognitoModeActive: true,
         },
         expected: { model: true, auto: false, guest: false, focus: true, incognito: true },
@@ -756,27 +756,27 @@ describe('DiscordResponseSender', () => {
         flags: {
           isAutoResponse: true,
           isGuestMode: true,
-          focusModeEnabled: false,
+          freshModeEnabled: false,
           incognitoModeActive: true,
         },
         expected: { model: true, auto: true, guest: true, focus: false, incognito: true },
       },
       {
-        name: 'model + auto + focus + incognito',
+        name: 'model + auto + fresh + incognito',
         flags: {
           isAutoResponse: true,
           isGuestMode: false,
-          focusModeEnabled: true,
+          freshModeEnabled: true,
           incognitoModeActive: true,
         },
         expected: { model: true, auto: true, guest: false, focus: true, incognito: true },
       },
       {
-        name: 'model + guest + focus + incognito',
+        name: 'model + guest + fresh + incognito',
         flags: {
           isAutoResponse: false,
           isGuestMode: true,
-          focusModeEnabled: true,
+          freshModeEnabled: true,
           incognitoModeActive: true,
         },
         expected: { model: true, auto: false, guest: true, focus: true, incognito: true },
@@ -786,7 +786,7 @@ describe('DiscordResponseSender', () => {
         flags: {
           isAutoResponse: true,
           isGuestMode: true,
-          focusModeEnabled: true,
+          freshModeEnabled: true,
           incognitoModeActive: true,
         },
         expected: { model: true, auto: true, guest: true, focus: true, incognito: true },
@@ -833,9 +833,9 @@ describe('DiscordResponseSender', () => {
 
         // Focus mode indicator
         if (expected.focus) {
-          expect(calledContent).toContain('🔒 Focus Mode');
+          expect(calledContent).toContain('🌱 Fresh Mode');
         } else {
-          expect(calledContent).not.toContain('🔒');
+          expect(calledContent).not.toContain('🌱');
         }
 
         // Incognito mode indicator
@@ -847,7 +847,7 @@ describe('DiscordResponseSender', () => {
       }
     );
 
-    it('should render indicators in correct order (model+auto, guest, focus, incognito)', async () => {
+    it('should render indicators in correct order (model+auto, guest, fresh, incognito)', async () => {
       const mockChannel = createMockTextChannel('channel-123');
       const mockMessage = createMockMessage(mockChannel, { id: 'guild-123' });
 
@@ -858,7 +858,7 @@ describe('DiscordResponseSender', () => {
         modelUsed: 'test-model',
         isAutoResponse: true,
         isGuestMode: true,
-        focusModeEnabled: true,
+        freshModeEnabled: true,
         incognitoModeActive: true,
       });
 
@@ -868,7 +868,7 @@ describe('DiscordResponseSender', () => {
       const modelPos = calledContent.indexOf('Model:');
       const autoPos = calledContent.indexOf('📍 auto');
       const guestPos = calledContent.indexOf('🆓');
-      const focusPos = calledContent.indexOf('🔒');
+      const focusPos = calledContent.indexOf('🌱');
       const incognitoPos = calledContent.indexOf('👻');
 
       // Verify order: model < auto (same line), then guest, then focus, then incognito
@@ -889,7 +889,7 @@ describe('DiscordResponseSender', () => {
         modelUsed: 'anthropic/claude-sonnet-4.5',
         isAutoResponse: true,
         isGuestMode: true,
-        focusModeEnabled: true,
+        freshModeEnabled: true,
         incognitoModeActive: true,
       });
 
@@ -898,7 +898,7 @@ describe('DiscordResponseSender', () => {
       // Count footer lines (lines starting with -#)
       const footerLines = calledContent.split('\n').filter(line => line.startsWith('-#'));
 
-      // Should have 4 footer lines max: model+auto, guest, focus, incognito
+      // Should have 4 footer lines max: model+auto, guest, fresh, incognito
       expect(footerLines.length).toBeLessThanOrEqual(4);
     });
   });

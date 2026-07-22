@@ -46,7 +46,7 @@ describe('ConfigOverridesSchema', () => {
         maxImages: 5,
         memoryScoreThreshold: 0.8,
         memoryLimit: 10,
-        focusModeEnabled: true,
+        crossChannelHistoryEnabled: true,
         showModelFooter: false,
       };
       const result = ConfigOverridesSchema.safeParse(full);
@@ -153,8 +153,8 @@ describe('ConfigOverridesSchema', () => {
       expect(result.success).toBe(false);
     });
 
-    it('should reject non-boolean focusModeEnabled', () => {
-      const result = ConfigOverridesSchema.safeParse({ focusModeEnabled: 'yes' });
+    it('should reject non-boolean crossChannelHistoryEnabled', () => {
+      const result = ConfigOverridesSchema.safeParse({ crossChannelHistoryEnabled: 'yes' });
       expect(result.success).toBe(false);
     });
 
@@ -204,7 +204,7 @@ describe('HARDCODED_CONFIG_DEFAULTS', () => {
     expect(HARDCODED_CONFIG_DEFAULTS.maxImages).toBe(10);
     expect(HARDCODED_CONFIG_DEFAULTS.memoryScoreThreshold).toBe(0.5);
     expect(HARDCODED_CONFIG_DEFAULTS.memoryLimit).toBe(20);
-    expect(HARDCODED_CONFIG_DEFAULTS.focusModeEnabled).toBe(false);
+    expect(HARDCODED_CONFIG_DEFAULTS.crossChannelHistoryEnabled).toBe(false);
     expect(HARDCODED_CONFIG_DEFAULTS.showModelFooter).toBe(true);
     expect(HARDCODED_CONFIG_DEFAULTS.voiceResponseMode).toBe('always');
     expect(HARDCODED_CONFIG_DEFAULTS.voiceTranscriptionEnabled).toBe(true);
@@ -228,7 +228,7 @@ describe('HARDCODED_CONFIG_DEFAULTS', () => {
       maxImages: HARDCODED_CONFIG_DEFAULTS.maxImages,
       memoryScoreThreshold: HARDCODED_CONFIG_DEFAULTS.memoryScoreThreshold,
       memoryLimit: HARDCODED_CONFIG_DEFAULTS.memoryLimit,
-      focusModeEnabled: HARDCODED_CONFIG_DEFAULTS.focusModeEnabled,
+      crossChannelHistoryEnabled: HARDCODED_CONFIG_DEFAULTS.crossChannelHistoryEnabled,
     });
     expect(result.success).toBe(true);
   });
@@ -327,7 +327,7 @@ describe('Config-Overrides Response Schemas', () => {
 
   describe('UpdateConfigDefaultsResponseSchema', () => {
     it('accepts merged configDefaults', () => {
-      const data = { configDefaults: { maxMessages: 30, focusModeEnabled: true } };
+      const data = { configDefaults: { maxMessages: 30, crossChannelHistoryEnabled: true } };
       expect(UpdateConfigDefaultsResponseSchema.safeParse(data).success).toBe(true);
     });
 
@@ -384,7 +384,7 @@ describe('Config-Overrides Response Schemas', () => {
 
   describe('UpdateChannelConfigOverridesRequestSchema', () => {
     it('accepts a partial overrides record', () => {
-      const data = { maxMessages: 50, focusModeEnabled: true };
+      const data = { maxMessages: 50, crossChannelHistoryEnabled: true };
       expect(UpdateChannelConfigOverridesRequestSchema.safeParse(data).success).toBe(true);
     });
 
@@ -401,7 +401,7 @@ describe('Config-Overrides Response Schemas', () => {
 
   describe('UpdateChannelConfigOverridesResponseSchema', () => {
     it('accepts merged configOverrides', () => {
-      const data = { configOverrides: { maxMessages: 30, focusModeEnabled: true } };
+      const data = { configOverrides: { maxMessages: 30, crossChannelHistoryEnabled: true } };
       expect(UpdateChannelConfigOverridesResponseSchema.safeParse(data).success).toBe(true);
     });
 

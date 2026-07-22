@@ -19,7 +19,7 @@ describe('buildResultMetadataPassthrough', () => {
           mode: 'reactive',
         },
         isGuestMode: true,
-        focusModeEnabled: false,
+        freshModeEnabled: false,
         incognitoModeActive: false,
         thinkingContent: 'thoughts',
         showThinking: true,

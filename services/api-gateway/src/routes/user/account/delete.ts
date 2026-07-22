@@ -35,7 +35,7 @@ import {
   SuperuserDeletionError,
   type AccountDeletionSummary,
 } from '../../../services/AccountDeletionService.js';
-import { IncognitoSessionManager } from '../../../services/IncognitoSessionManager.js';
+import { MemoryModeSessionManager } from '../../../services/MemoryModeSessionManager.js';
 import { getOrCreateUserService } from '../../../services/AuthMiddleware.js';
 import { UserCacheInvalidationService } from '@tzurot/cache-invalidation';
 
@@ -83,12 +83,22 @@ async function cleanupAfterDeletion(
 ): Promise<void> {
   const tasks: Promise<void>[] = [
     (async () => {
-      try {
-        if (deps.redis !== undefined) {
-          await new IncognitoSessionManager(deps.redis).disableAll(discordUserId);
+      const redis = deps.redis;
+      if (redis === undefined) {
+        return;
+      }
+      // Settle both sweeps independently — a transient failure on one mode
+      // must not skip the other (a 'forever' session has no TTL to fall
+      // back on, so a skipped sweep would orphan the key indefinitely).
+      const results = await Promise.allSettled(
+        (['incognito', 'fresh'] as const).map(mode =>
+          new MemoryModeSessionManager(redis, mode).disableAll(discordUserId)
+        )
+      );
+      for (const result of results) {
+        if (result.status === 'rejected') {
+          logger.warn({ err: result.reason }, 'Post-deletion memory-mode cleanup failed');
         }
-      } catch (error) {
-        logger.warn({ err: error }, 'Post-deletion incognito cleanup failed');
       }
     })(),
     ...summary.characterIds.map(async personalityId => {

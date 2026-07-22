@@ -19,7 +19,6 @@ import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/perso
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { contentToText } from '../utils/baseMessageContent.js';
 import { logAndThrow } from '../utils/errorHandling.js';
-import { validateAIProvider } from '../utils/providerValidation.js';
 import { ReferencedMessageFormatter } from './ReferencedMessageFormatter.js';
 import { LLMInvoker } from './LLMInvoker.js';
 import { MemoryRetriever } from './MemoryRetriever.js';
@@ -32,7 +31,11 @@ import { ContextWindowManager } from './context/ContextWindowManager.js';
 import { type PersonaResolver } from '@tzurot/identity';
 import { UserReferenceResolver } from './UserReferenceResolver.js';
 import { ContentBudgetManager } from './ContentBudgetManager.js';
-import { buildAttachmentDescriptions, countMediaAttachments } from './RAGUtils.js';
+import {
+  buildAttachmentDescriptions,
+  buildModelSamplingConfig,
+  countMediaAttachments,
+} from './RAGUtils.js';
 import { redisService, checkModelReasoningSupport } from '../redis.js';
 import { resolveEffectiveContextWindow } from './contextWindowResolver.js';
 import { deriveCacheKeyId } from './RateLimitCache.js';
@@ -81,7 +84,13 @@ export class ConversationalRAGService {
     extractionTrigger?: ExtractionTrigger
   ) {
     this.llmInvoker = new LLMInvoker();
-    this.memoryRetriever = new MemoryRetriever(prisma, memoryManager, personaResolver);
+    // redisService doubles as the fresh-mode read-gate checker (FreshModeChecker seam)
+    this.memoryRetriever = new MemoryRetriever(
+      prisma,
+      memoryManager,
+      personaResolver,
+      redisService
+    );
     // Fact retrieval (Phase 2 slice 4a); undefined without a memory manager,
     // gated at call time by the runtime factsInPromptEnabled setting.
     this.factRetriever = createFactRetriever(prisma, memoryManager);
@@ -144,43 +153,9 @@ export class ConversationalRAGService {
         : undefined;
 
     // Get model with all LLM sampling parameters (retry config overrides for duplicate detection)
-    const { model, modelName } = this.llmInvoker.getModel({
-      modelName: personality.model,
-      // Per-request provider override — drives ModelFactory's branch selection
-      // (OpenRouter vs zai-coding baseURL). Plumbed through PR 2 Phase A from
-      // LlmConfig.provider; AuthStep applies any ProviderRouter fallthrough
-      // overrides before this read. Defensive runtime guard at this consumption
-      // boundary (per common-types LlmConfigMapper docs: "Consumers that need
-      // to switch on it should validate against the AIProvider enum at the
-      // consumption boundary") — if a future provider lands in the DB column
-      // ahead of the AIProvider enum (data migration, manual DB edit, AuthStep
-      // override gap), fall back to OpenRouter with a logged warning rather
-      // than handing ModelFactory a string that doesn't match any branch.
-      provider: validateAIProvider(personality.provider),
-      apiKey: userApiKey,
-      temperature: retryConfig?.temperatureOverride ?? personality.temperature,
-      topP: personality.topP,
-      topK: personality.topK,
-      frequencyPenalty: retryConfig?.frequencyPenaltyOverride ?? personality.frequencyPenalty,
-      presencePenalty: personality.presencePenalty,
-      repetitionPenalty: personality.repetitionPenalty,
-      maxTokens: personality.maxTokens,
-      // Advanced sampling
-      minP: personality.minP,
-      topA: personality.topA,
-      seed: personality.seed,
-      // Output control
-      logitBias: personality.logitBias,
-      responseFormat: personality.responseFormat,
-      showThinking: personality.showThinking,
-      // Reasoning (for thinking models: o1/o3, Claude, DeepSeek R1)
-      reasoning: personality.reasoning,
-      supportsReasoning,
-      // OpenRouter-specific
-      transforms: personality.transforms,
-      route: personality.route,
-      verbosity: personality.verbosity,
-    });
+    const { model, modelName } = this.llmInvoker.getModel(
+      buildModelSamplingConfig({ personality, userApiKey, retryConfig, supportsReasoning })
+    );
 
     // Calculate attachment counts for timeout
     const { imageCount, audioCount } = countMediaAttachments(context.attachments);
@@ -406,7 +381,7 @@ export class ConversationalRAGService {
       // Step 3: Retrieve memories + facts (gate/scope semantics live on the helper)
       const {
         memories: retrievedMemories,
-        focusModeEnabled,
+        freshModeEnabled,
         facts,
       } = await retrieveMemoriesAndFacts({
         memoryRetriever: this.memoryRetriever,
@@ -431,7 +406,7 @@ export class ConversationalRAGService {
         recordBudgetDiagnostics({
           collector: diagnosticCollector,
           retrievedMemories,
-          focusModeEnabled,
+          freshModeEnabled,
           budgetResult,
           retrievedFactsCount: facts.length,
           contextWindowSize: effectiveContextWindowTokens,
@@ -517,7 +492,7 @@ export class ConversationalRAGService {
         referencedMessagesDescriptions: inputs.referencedMessagesDescriptions,
         modelUsed: modelResult.modelName,
         userMessageContent: budgetResult.contentForStorage,
-        focusModeEnabled,
+        freshModeEnabled,
         incognitoModeActive,
         deferredMemoryData,
         thinkingContent: modelResult.thinkingContent,

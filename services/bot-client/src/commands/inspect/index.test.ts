@@ -93,7 +93,7 @@ function createMockDiagnosticPayload(): DiagnosticPayload {
       memoriesFound: [
         { id: 'mem-1', score: 0.95, preview: 'Memory preview...', includedInPrompt: true },
       ],
-      focusModeEnabled: false,
+      freshModeEnabled: false,
     },
     tokenBudget: {
       contextWindowSize: 128000,

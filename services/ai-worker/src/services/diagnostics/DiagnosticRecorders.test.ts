@@ -174,7 +174,7 @@ describe('DiagnosticRecorders', () => {
       recordBudgetDiagnostics({
         collector: mockCollector,
         retrievedMemories: memories,
-        focusModeEnabled: true,
+        freshModeEnabled: true,
         budgetResult,
         retrievedFactsCount: 0,
         contextWindowSize: 24576,
@@ -184,7 +184,7 @@ describe('DiagnosticRecorders', () => {
       expect(mockCollector.recordMemoryRetrieval).toHaveBeenCalledWith({
         retrievedMemories: memories,
         selectedMemories: memories,
-        focusModeEnabled: true,
+        freshModeEnabled: true,
       });
       expect(mockCollector.recordTokenBudget).toHaveBeenCalledWith({
         contextWindowSize: 24576,
@@ -224,7 +224,7 @@ describe('DiagnosticRecorders', () => {
       recordBudgetDiagnostics({
         collector: mockCollector,
         retrievedMemories: [],
-        focusModeEnabled: false,
+        freshModeEnabled: false,
         budgetResult,
         retrievedFactsCount: 5,
         contextWindowSize: 24576,

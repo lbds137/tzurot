@@ -42,7 +42,7 @@ function createMockPayload(overrides?: Partial<DiagnosticPayload>): DiagnosticPa
         { id: 'mem-1', score: 0.95, preview: 'Memory preview text', includedInPrompt: true },
         { id: 'mem-2', score: 0.52, preview: 'Low score memory', includedInPrompt: false },
       ],
-      focusModeEnabled: false,
+      freshModeEnabled: false,
     },
     tokenBudget: {
       contextWindowSize: 128000,
@@ -233,13 +233,13 @@ describe('buildMemoryInspectorView', () => {
     expect(result.embeds![0].data.color).toBe(DISCORD_COLORS.BLURPLE);
   });
 
-  it('should include search query and focus mode status', () => {
+  it('should include search query and fresh mode status', () => {
     const payload = createMockPayload();
     const result = buildMemoryInspectorView(payload, 'req-123', OWNER_CTX);
 
     const desc = result.embeds![0].data.description ?? '';
     expect(desc).toContain('"hello"');
-    expect(desc).toContain('**Focus:** off');
+    expect(desc).toContain('**Fresh:** off');
   });
 
   it('should include memory table with scores and status', () => {

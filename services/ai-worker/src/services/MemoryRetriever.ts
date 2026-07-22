@@ -29,10 +29,10 @@ const logger = createLogger('MemoryRetriever');
  */
 export interface MemoryRetrievalResult {
   memories: MemoryDocument[];
-  focusModeEnabled: boolean;
+  freshModeEnabled: boolean;
   /**
    * The resolved persona for this turn — present ONLY when LTM retrieval
-   * actually ran. Undefined when retrieval was skipped (incognito, focus mode,
+   * actually ran. Undefined when retrieval was skipped (incognito, fresh mode,
    * memoryLimit 0, or no persona), so the fact-retrieval path (Phase 2 slice
    * 4a) inherits the exact same scope AND the same skip decisions from one
    * source of truth.
@@ -40,18 +40,30 @@ export interface MemoryRetrievalResult {
   personaId?: string;
 }
 
+/**
+ * Narrow seam for the fresh-mode read gate: satisfied by RedisService.
+ * Injected (rather than importing the redis singleton) so unit tests never
+ * touch a live connection; absent checker = fresh treated as inactive.
+ */
+export interface FreshModeChecker {
+  isFreshActive(userId: string, personalityId: string): Promise<boolean>;
+}
+
 export class MemoryRetriever {
   private memoryManager?: PgvectorMemoryAdapter;
   private personaResolver: PersonaResolver;
+  private freshChecker?: FreshModeChecker;
 
   constructor(
     prisma: PrismaClient,
     memoryManager?: PgvectorMemoryAdapter,
-    personaResolver?: PersonaResolver
+    personaResolver?: PersonaResolver,
+    freshChecker?: FreshModeChecker
   ) {
     this.memoryManager = memoryManager;
     // Create default PersonaResolver if not provided (for backwards compatibility)
     this.personaResolver = personaResolver ?? new PersonaResolver(prisma);
+    this.freshChecker = freshChecker;
   }
 
   /**
@@ -163,10 +175,9 @@ export class MemoryRetriever {
   /**
    * Retrieve and log relevant memories from vector store
    *
-   * @param configOverrides - Cascade-resolved values for memoryLimit,
-   *   memoryScoreThreshold, and focusModeEnabled. These come from the config
-   *   cascade (with AI_DEFAULTS as the fallback), NOT the retired LlmConfig
-   *   columns.
+   * @param configOverrides - Cascade-resolved values for memoryLimit and
+   *   memoryScoreThreshold. These come from the config cascade (with
+   *   AI_DEFAULTS as the fallback), NOT the retired LlmConfig columns.
    */
   async retrieveRelevantMemories(
     personality: LoadedPersonality,
@@ -183,7 +194,24 @@ export class MemoryRetriever {
         { userId: context.userId, personalityId: personality.id },
         'Incognito mode - skipping LTM retrieval'
       );
-      return { memories: [], focusModeEnabled: false };
+      return { memories: [], freshModeEnabled: false };
+    }
+
+    // Fresh mode (user-toggled Redis session, specific-or-global) — skip
+    // retrieval but continue saving memories. Checked before persona
+    // resolution so an active session short-circuits the extra queries.
+    const freshModeEnabled =
+      (await this.freshChecker?.isFreshActive(context.userId, personality.id)) ?? false;
+    if (freshModeEnabled) {
+      logger.info(
+        {
+          userId: context.userId,
+          personalityId: personality.id,
+          personalityName: personality.name,
+        },
+        '[MemoryRetriever] Fresh mode enabled - skipping LTM retrieval (memories still being saved)'
+      );
+      return { memories: [], freshModeEnabled: true };
     }
 
     const excludeNewerThan = this.calculateDeduplicationCutoff(context);
@@ -199,7 +227,7 @@ export class MemoryRetriever {
         { userId: context.userId, personalityName: personality.name },
         'No persona found, skipping memory retrieval'
       );
-      return { memories: [], focusModeEnabled: false };
+      return { memories: [], freshModeEnabled: false };
     }
 
     const { personaId } = personaResult;
@@ -207,23 +235,6 @@ export class MemoryRetriever {
     // Read shareLtmAcrossPersonalities from cascade (fully resolved, always boolean).
     // configOverrides is always provided when cascade is active; fallback for legacy/test callers.
     const shareLtmAcrossPersonalities = configOverrides?.shareLtmAcrossPersonalities ?? false;
-
-    // Determine focusModeEnabled: cascade overrides > DB column (from persona resolver)
-    const focusModeEnabled = configOverrides?.focusModeEnabled ?? personaResult.focusModeEnabled;
-
-    // Check if focus mode is enabled - skip retrieval but continue saving memories
-    if (focusModeEnabled) {
-      logger.info(
-        {
-          userId: context.userId,
-          personalityId: personality.id,
-          personalityName: personality.name,
-          source: configOverrides !== undefined ? 'cascade' : 'db-column',
-        },
-        '[MemoryRetriever] Focus mode enabled - skipping LTM retrieval (memories still being saved)'
-      );
-      return { memories: [], focusModeEnabled: true };
-    }
 
     // Memory retrieval params come from the config cascade, which resolves from
     // a hardcoded 0.5/20 baseline (HARDCODED_CONFIG_DEFAULTS) so a value is
@@ -242,13 +253,13 @@ export class MemoryRetriever {
     // personaId is deliberately OMITTED, like every other skip branch: the
     // fact-retrieval path gates on it, so facts (distilled memories) stay
     // suppressed together with the memories they derive from — full parity
-    // with the focus-mode skip.
+    // with the fresh-mode skip.
     if (effectiveMemoryLimit === 0) {
       logger.info(
         { userId: context.userId, personalityId: personality.id },
         '[MemoryRetriever] memoryLimit is 0 - skipping LTM retrieval (memories still being saved)'
       );
-      return { memories: [], focusModeEnabled: false };
+      return { memories: [], freshModeEnabled: false };
     }
 
     const memoryQueryOptions: MemoryQueryOptions = {
@@ -276,7 +287,7 @@ export class MemoryRetriever {
 
     this.logRetrievedMemories(relevantMemories, personality.name);
 
-    return { memories: relevantMemories, focusModeEnabled: false, personaId };
+    return { memories: relevantMemories, freshModeEnabled: false, personaId };
   }
 
   /**
@@ -486,12 +497,12 @@ export class MemoryRetriever {
    *
    * @param discordUserId - The user's Discord ID (snowflake)
    * @param personalityId - The personality UUID
-   * @returns Object with personaId and focusModeEnabled flag, or null if not found
+   * @returns Object with personaId, or null if not found
    */
   async resolvePersonaForMemory(
     discordUserId: string,
     personalityId: string
-  ): Promise<{ personaId: string; focusModeEnabled: boolean } | null> {
+  ): Promise<{ personaId: string } | null> {
     return this.personaResolver.resolveForMemory(discordUserId, personalityId);
   }
 }

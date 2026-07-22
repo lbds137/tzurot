@@ -220,7 +220,7 @@ describe('DiagnosticCollector', () => {
           },
         ],
         selectedMemories: [{ pageContent: 'Memory about cats', metadata: { id: 'mem-1' } }],
-        focusModeEnabled: false,
+        freshModeEnabled: false,
       });
 
       const payload = collector.finalize();
@@ -235,15 +235,15 @@ describe('DiagnosticCollector', () => {
       expect(payload.memoryRetrieval.memoriesFound[1].includedInPrompt).toBe(false);
     });
 
-    it('should track focus mode status', () => {
+    it('should track fresh mode status', () => {
       collector.recordMemoryRetrieval({
         retrievedMemories: [],
         selectedMemories: [],
-        focusModeEnabled: true,
+        freshModeEnabled: true,
       });
 
       const payload = collector.finalize();
-      expect(payload.memoryRetrieval.focusModeEnabled).toBe(true);
+      expect(payload.memoryRetrieval.freshModeEnabled).toBe(true);
     });
 
     it('should create preview for long content', () => {
@@ -252,7 +252,7 @@ describe('DiagnosticCollector', () => {
       collector.recordMemoryRetrieval({
         retrievedMemories: [{ pageContent: longContent, metadata: { id: 'mem-1', score: 0.9 } }],
         selectedMemories: [],
-        focusModeEnabled: false,
+        freshModeEnabled: false,
       });
 
       const payload = collector.finalize();
@@ -736,7 +736,7 @@ describe('DiagnosticCollector', () => {
       collector.recordMemoryRetrieval({
         retrievedMemories: [],
         selectedMemories: [],
-        focusModeEnabled: false,
+        freshModeEnabled: false,
       });
 
       const payload = collector.finalize();
@@ -789,7 +789,7 @@ describe('DiagnosticCollector', () => {
 
       expect(payload.memoryRetrieval).toEqual({
         memoriesFound: [],
-        focusModeEnabled: false,
+        freshModeEnabled: false,
       });
     });
 
@@ -1097,7 +1097,7 @@ describe('DiagnosticCollector', () => {
       collector.recordMemoryRetrieval({
         retrievedMemories: [{ pageContent: 'Memory content', metadata: {} }],
         selectedMemories: [],
-        focusModeEnabled: false,
+        freshModeEnabled: false,
       });
 
       const payload = collector.finalize();
@@ -1108,7 +1108,7 @@ describe('DiagnosticCollector', () => {
       collector.recordMemoryRetrieval({
         retrievedMemories: [{ pageContent: 'Memory content', metadata: { id: 'test' } }],
         selectedMemories: [],
-        focusModeEnabled: false,
+        freshModeEnabled: false,
       });
 
       const payload = collector.finalize();

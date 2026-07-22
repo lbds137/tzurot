@@ -25,7 +25,6 @@ describe('buildCascadeSettingsData', () => {
       maxImages: 15,
       memoryScoreThreshold: 0.7,
       memoryLimit: 30,
-      focusModeEnabled: true,
       crossChannelHistoryEnabled: false,
       shareLtmAcrossPersonalities: false,
       showModelFooter: true,
@@ -37,7 +36,6 @@ describe('buildCascadeSettingsData', () => {
         maxImages: 'admin',
         memoryScoreThreshold: 'hardcoded',
         memoryLimit: 'channel',
-        focusModeEnabled: 'user-default',
         crossChannelHistoryEnabled: 'hardcoded',
         shareLtmAcrossPersonalities: 'hardcoded',
         showModelFooter: 'hardcoded',
@@ -54,9 +52,6 @@ describe('buildCascadeSettingsData', () => {
 
     expect(result.maxAge.effectiveValue).toBe(3600);
     expect(result.maxAge.source).toBe('personality');
-
-    expect(result.focusModeEnabled.effectiveValue).toBe(true);
-    expect(result.focusModeEnabled.source).toBe('user-default');
   });
 
   it('should populate localValue from localOverrides', () => {
@@ -66,7 +61,6 @@ describe('buildCascadeSettingsData', () => {
       maxImages: 10,
       memoryScoreThreshold: 0.5,
       memoryLimit: 20,
-      focusModeEnabled: false,
       crossChannelHistoryEnabled: false,
       shareLtmAcrossPersonalities: false,
       showModelFooter: true,
@@ -78,7 +72,6 @@ describe('buildCascadeSettingsData', () => {
         maxImages: 'hardcoded',
         memoryScoreThreshold: 'hardcoded',
         memoryLimit: 'hardcoded',
-        focusModeEnabled: 'hardcoded',
         crossChannelHistoryEnabled: 'hardcoded',
         shareLtmAcrossPersonalities: 'hardcoded',
         showModelFooter: 'hardcoded',
@@ -134,7 +127,6 @@ describe('buildCascadeSettingsData', () => {
       maxImages: 5,
       memoryScoreThreshold: 0.5,
       memoryLimit: 20,
-      focusModeEnabled: false,
       crossChannelHistoryEnabled: false,
       shareLtmAcrossPersonalities: false,
       showModelFooter: true,
@@ -146,7 +138,6 @@ describe('buildCascadeSettingsData', () => {
         maxImages: 'user-personality',
         memoryScoreThreshold: 'hardcoded',
         memoryLimit: 'hardcoded',
-        focusModeEnabled: 'hardcoded',
         crossChannelHistoryEnabled: 'hardcoded',
         shareLtmAcrossPersonalities: 'hardcoded',
         showModelFooter: 'hardcoded',
@@ -169,7 +160,7 @@ describe('buildCascadeSettingsData', () => {
     expect(result.maxImages.effectiveValue).toBe(5);
   });
 
-  it('should include all 12 config fields', () => {
+  it('should include all 11 config fields', () => {
     const result = buildCascadeSettingsData(null, null, 'admin');
 
     const expectedFields = [
@@ -178,7 +169,6 @@ describe('buildCascadeSettingsData', () => {
       'maxImages',
       'memoryScoreThreshold',
       'memoryLimit',
-      'focusModeEnabled',
       'crossChannelHistoryEnabled',
       'shareLtmAcrossPersonalities',
       'showModelFooter',
@@ -201,7 +191,6 @@ describe('convertResolveDefaultsResponse', () => {
       maxMessages: 75,
       maxAge: null,
       maxImages: 10,
-      focusModeEnabled: false,
       crossChannelHistoryEnabled: false,
       shareLtmAcrossPersonalities: false,
       memoryScoreThreshold: 0.5,
@@ -213,7 +202,6 @@ describe('convertResolveDefaultsResponse', () => {
         maxMessages: 'admin',
         maxAge: 'hardcoded',
         maxImages: 'hardcoded',
-        focusModeEnabled: 'hardcoded',
         crossChannelHistoryEnabled: 'hardcoded',
         shareLtmAcrossPersonalities: 'hardcoded',
         memoryScoreThreshold: 'hardcoded',
@@ -239,7 +227,6 @@ describe('convertResolveDefaultsResponse', () => {
       maxMessages: HARDCODED_CONFIG_DEFAULTS.maxMessages,
       maxAge: HARDCODED_CONFIG_DEFAULTS.maxAge,
       maxImages: HARDCODED_CONFIG_DEFAULTS.maxImages,
-      focusModeEnabled: false,
       crossChannelHistoryEnabled: false,
       shareLtmAcrossPersonalities: false,
       memoryScoreThreshold: 0.5,
@@ -251,7 +238,6 @@ describe('convertResolveDefaultsResponse', () => {
         maxMessages: 'hardcoded',
         maxAge: 'hardcoded',
         maxImages: 'hardcoded',
-        focusModeEnabled: 'hardcoded',
         crossChannelHistoryEnabled: 'hardcoded',
         shareLtmAcrossPersonalities: 'hardcoded',
         memoryScoreThreshold: 'hardcoded',
@@ -282,7 +268,6 @@ describe('buildFallbackSettingsData', () => {
     expect(result.maxAge.localValue).toBeNull();
 
     expect(result.maxImages.effectiveValue).toBe(HARDCODED_CONFIG_DEFAULTS.maxImages);
-    expect(result.focusModeEnabled.effectiveValue).toBe(false);
     expect(result.crossChannelHistoryEnabled.effectiveValue).toBe(false);
     expect(result.shareLtmAcrossPersonalities.effectiveValue).toBe(false);
     expect(result.memoryScoreThreshold.effectiveValue).toBe(0.5);
@@ -296,7 +281,6 @@ describe('buildFallbackSettingsData', () => {
     expect(result.maxMessages.localValue).toBeNull();
     expect(result.maxAge.localValue).toBeNull();
     expect(result.maxImages.localValue).toBeNull();
-    expect(result.focusModeEnabled.localValue).toBeNull();
     expect(result.crossChannelHistoryEnabled.localValue).toBeNull();
     expect(result.shareLtmAcrossPersonalities.localValue).toBeNull();
     expect(result.memoryScoreThreshold.localValue).toBeNull();

@@ -1,15 +1,15 @@
 /**
- * Memory Incognito API Contract Tests
+ * Memory Mode API Contract Tests (shared by incognito + fresh endpoints)
  */
 
 import { describe, it, expect } from 'vitest';
 import {
-  GetIncognitoStatusResponseSchema,
-  EnableIncognitoResponseSchema,
-  DisableIncognitoResponseSchema,
+  GetMemoryModeStatusResponseSchema,
+  EnableMemoryModeResponseSchema,
+  DisableMemoryModeResponseSchema,
   IncognitoForgetResponseSchema,
-  IncognitoSessionWithRemainingSchema,
-} from './memoryIncognito.js';
+  MemoryModeSessionWithRemainingSchema,
+} from './memoryModes.js';
 
 const sampleSession = {
   userId: 'u1',
@@ -19,13 +19,13 @@ const sampleSession = {
   duration: '1h' as const,
 };
 
-describe('IncognitoSessionWithRemainingSchema', () => {
+describe('MemoryModeSessionWithRemainingSchema', () => {
   // `timeRemaining` is a human-formatted string the handler computes via
-  // `IncognitoSessionManager.getTimeRemaining` — emits "1 hour", "30 minutes",
+  // `MemoryModeSessionManager.getTimeRemaining` — emits "1 hour", "30 minutes",
   // "Until manually disabled", or "Expired".
   it('accepts session enriched with a human-formatted timeRemaining string', () => {
     const data = { ...sampleSession, timeRemaining: '1 hour' };
-    expect(IncognitoSessionWithRemainingSchema.safeParse(data).success).toBe(true);
+    expect(MemoryModeSessionWithRemainingSchema.safeParse(data).success).toBe(true);
   });
 
   it('accepts the "Until manually disabled" sentinel for forever sessions', () => {
@@ -35,19 +35,19 @@ describe('IncognitoSessionWithRemainingSchema', () => {
       expiresAt: null,
       timeRemaining: 'Until manually disabled',
     };
-    expect(IncognitoSessionWithRemainingSchema.safeParse(data).success).toBe(true);
+    expect(MemoryModeSessionWithRemainingSchema.safeParse(data).success).toBe(true);
   });
 
   it('rejects missing timeRemaining', () => {
-    expect(IncognitoSessionWithRemainingSchema.safeParse(sampleSession).success).toBe(false);
+    expect(MemoryModeSessionWithRemainingSchema.safeParse(sampleSession).success).toBe(false);
   });
 });
 
-describe('Memory Incognito API Contract Tests', () => {
-  describe('GetIncognitoStatusResponseSchema', () => {
+describe('Memory Mode API Contract Tests', () => {
+  describe('GetMemoryModeStatusResponseSchema', () => {
     it('accepts inactive state with empty sessions', () => {
       expect(
-        GetIncognitoStatusResponseSchema.safeParse({ active: false, sessions: [] }).success
+        GetMemoryModeStatusResponseSchema.safeParse({ active: false, sessions: [] }).success
       ).toBe(true);
     });
 
@@ -56,7 +56,7 @@ describe('Memory Incognito API Contract Tests', () => {
         active: true,
         sessions: [{ ...sampleSession, timeRemaining: '30 minutes' }],
       };
-      expect(GetIncognitoStatusResponseSchema.safeParse(data).success).toBe(true);
+      expect(GetMemoryModeStatusResponseSchema.safeParse(data).success).toBe(true);
     });
 
     it('accepts forever-session sentinel string', () => {
@@ -71,11 +71,11 @@ describe('Memory Incognito API Contract Tests', () => {
           },
         ],
       };
-      expect(GetIncognitoStatusResponseSchema.safeParse(data).success).toBe(true);
+      expect(GetMemoryModeStatusResponseSchema.safeParse(data).success).toBe(true);
     });
   });
 
-  describe('EnableIncognitoResponseSchema', () => {
+  describe('EnableMemoryModeResponseSchema', () => {
     it('accepts newly-enabled response', () => {
       const data = {
         session: sampleSession,
@@ -83,7 +83,7 @@ describe('Memory Incognito API Contract Tests', () => {
         wasAlreadyActive: false,
         message: 'Incognito mode enabled.',
       };
-      expect(EnableIncognitoResponseSchema.safeParse(data).success).toBe(true);
+      expect(EnableMemoryModeResponseSchema.safeParse(data).success).toBe(true);
     });
 
     it('accepts already-active response', () => {
@@ -93,19 +93,19 @@ describe('Memory Incognito API Contract Tests', () => {
         wasAlreadyActive: true,
         message: 'Already active.',
       };
-      expect(EnableIncognitoResponseSchema.safeParse(data).success).toBe(true);
+      expect(EnableMemoryModeResponseSchema.safeParse(data).success).toBe(true);
     });
   });
 
-  describe('DisableIncognitoResponseSchema', () => {
+  describe('DisableMemoryModeResponseSchema', () => {
     it('accepts disabled=true', () => {
       const data = { disabled: true, message: 'Disabled.' };
-      expect(DisableIncognitoResponseSchema.safeParse(data).success).toBe(true);
+      expect(DisableMemoryModeResponseSchema.safeParse(data).success).toBe(true);
     });
 
     it('accepts disabled=false (was not active)', () => {
       const data = { disabled: false, message: 'Was not active.' };
-      expect(DisableIncognitoResponseSchema.safeParse(data).success).toBe(true);
+      expect(DisableMemoryModeResponseSchema.safeParse(data).success).toBe(true);
     });
   });
 

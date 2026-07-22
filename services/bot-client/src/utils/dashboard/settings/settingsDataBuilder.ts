@@ -57,7 +57,6 @@ export interface ResolveDefaultsResponse {
   maxMessages: number;
   maxAge: number | null;
   maxImages: number;
-  focusModeEnabled: boolean;
   crossChannelHistoryEnabled: boolean;
   shareLtmAcrossPersonalities: boolean;
   memoryScoreThreshold: number;
@@ -82,7 +81,6 @@ export function convertResolveDefaultsResponse(response: ResolveDefaultsResponse
     maxMessages: response.maxMessages,
     maxAge: response.maxAge,
     maxImages: response.maxImages,
-    focusModeEnabled: response.focusModeEnabled,
     crossChannelHistoryEnabled: response.crossChannelHistoryEnabled,
     shareLtmAcrossPersonalities: response.shareLtmAcrossPersonalities,
     memoryScoreThreshold: response.memoryScoreThreshold,

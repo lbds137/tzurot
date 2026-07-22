@@ -9,6 +9,7 @@ import type { StoredReferencedMessage } from '@tzurot/common-types/types/schemas
 import { AI_DEFAULTS } from '@tzurot/common-types/constants/ai';
 import {
   buildAttachmentDescriptions,
+  buildModelSamplingConfig,
   extractContentDescriptions,
   injectImageDescriptions,
   countMediaAttachments,
@@ -704,5 +705,33 @@ describe('RAGUtils', () => {
       );
       expect(result).toBe('hello\nhi there');
     });
+  });
+});
+
+describe('buildModelSamplingConfig', () => {
+  const personality = {
+    model: 'anthropic/claude-sonnet-4',
+    provider: 'openrouter',
+    temperature: 0.7,
+    frequencyPenalty: 0.1,
+    topP: 0.9,
+  } as never;
+
+  it('maps personality sampling params and validates the provider', () => {
+    const config = buildModelSamplingConfig({ personality, userApiKey: 'key-1' });
+    expect(config.modelName).toBe('anthropic/claude-sonnet-4');
+    expect(config.provider).toBe('openrouter');
+    expect(config.apiKey).toBe('key-1');
+    expect(config.temperature).toBe(0.7);
+    expect(config.frequencyPenalty).toBe(0.1);
+  });
+
+  it('lets duplicate-retry overrides win over personality values', () => {
+    const config = buildModelSamplingConfig({
+      personality,
+      retryConfig: { temperatureOverride: 1.2, frequencyPenaltyOverride: 0.5 } as never,
+    });
+    expect(config.temperature).toBe(1.2);
+    expect(config.frequencyPenalty).toBe(0.5);
   });
 });

@@ -34,13 +34,13 @@ vi.mock('./stats.js', () => ({
   handleStats: (...args: unknown[]) => mockHandleStats(...args),
 }));
 
-const mockHandleFocusEnable = vi.fn();
-const mockHandleFocusDisable = vi.fn();
-const mockHandleFocusStatus = vi.fn();
-vi.mock('./focus.js', () => ({
-  handleFocusEnable: (...args: unknown[]) => mockHandleFocusEnable(...args),
-  handleFocusDisable: (...args: unknown[]) => mockHandleFocusDisable(...args),
-  handleFocusStatus: (...args: unknown[]) => mockHandleFocusStatus(...args),
+const mockHandleFreshEnable = vi.fn();
+const mockHandleFreshDisable = vi.fn();
+const mockHandleFreshStatus = vi.fn();
+vi.mock('./fresh.js', () => ({
+  handleFreshEnable: (...args: unknown[]) => mockHandleFreshEnable(...args),
+  handleFreshDisable: (...args: unknown[]) => mockHandleFreshDisable(...args),
+  handleFreshStatus: (...args: unknown[]) => mockHandleFreshStatus(...args),
 }));
 
 const mockHandleIncognitoEnable = vi.fn();
@@ -139,9 +139,9 @@ describe('Memory Command', () => {
       expect(statsSubcommand).toBeDefined();
     });
 
-    it('should have focus subcommand group with enable/disable/status', () => {
+    it('should have fresh subcommand group with enable/disable/status', () => {
       const json = data.toJSON();
-      const focusGroup = json.options?.find((opt: { name: string }) => opt.name === 'focus');
+      const focusGroup = json.options?.find((opt: { name: string }) => opt.name === 'fresh');
       expect(focusGroup).toBeDefined();
 
       const focusOptions = (focusGroup as any)?.options ?? [];
@@ -189,28 +189,28 @@ describe('Memory Command', () => {
       expect(mockHandleStats).toHaveBeenCalledWith(context);
     });
 
-    it('should route /memory focus enable to handleFocusEnable', async () => {
-      const context = createMockContext('focus', 'enable');
+    it('should route /memory fresh enable to handleFreshEnable', async () => {
+      const context = createMockContext('fresh', 'enable');
 
       await execute(context as never);
 
-      expect(mockHandleFocusEnable).toHaveBeenCalledWith(context);
+      expect(mockHandleFreshEnable).toHaveBeenCalledWith(context);
     });
 
-    it('should route /memory focus disable to handleFocusDisable', async () => {
-      const context = createMockContext('focus', 'disable');
+    it('should route /memory fresh disable to handleFreshDisable', async () => {
+      const context = createMockContext('fresh', 'disable');
 
       await execute(context as never);
 
-      expect(mockHandleFocusDisable).toHaveBeenCalledWith(context);
+      expect(mockHandleFreshDisable).toHaveBeenCalledWith(context);
     });
 
-    it('should route /memory focus status to handleFocusStatus', async () => {
-      const context = createMockContext('focus', 'status');
+    it('should route /memory fresh status to handleFreshStatus', async () => {
+      const context = createMockContext('fresh', 'status');
 
       await execute(context as never);
 
-      expect(mockHandleFocusStatus).toHaveBeenCalledWith(context);
+      expect(mockHandleFreshStatus).toHaveBeenCalledWith(context);
     });
 
     it('should route /memory incognito enable to handleIncognitoEnable', async () => {

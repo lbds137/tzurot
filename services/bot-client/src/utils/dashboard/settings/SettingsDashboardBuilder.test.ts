@@ -75,12 +75,6 @@ const createTestSession = (
       effectiveValue: false,
       source: 'hardcoded',
     },
-    focusModeEnabled: {
-      localValue: null,
-      hasLocalOverride: false,
-      effectiveValue: false,
-      source: 'hardcoded',
-    },
     shareLtmAcrossPersonalities: {
       localValue: null,
       hasLocalOverride: false,

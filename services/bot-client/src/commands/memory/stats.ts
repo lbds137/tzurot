@@ -59,8 +59,9 @@ export async function handleStats(context: DeferredCommandContext): Promise<void
     // Build description
     let description = `Memory statistics for **${escapeMarkdown(data.personalityName)}**`;
 
-    if (data.focusModeEnabled) {
-      description += '\n\n**Focus Mode Active** - Long-term memories are not being retrieved.';
+    if (data.freshModeEnabled) {
+      description +=
+        '\n\n**Fresh Mode Active** - Replies are not using your memories (they are kept).';
     }
 
     if (data.personaId === null) {
@@ -82,8 +83,8 @@ export async function handleStats(context: DeferredCommandContext): Promise<void
         inline: true,
       },
       {
-        name: 'Focus Mode',
-        value: data.focusModeEnabled ? 'Enabled' : 'Disabled',
+        name: 'Fresh Mode',
+        value: data.freshModeEnabled ? 'Enabled' : 'Disabled',
         inline: true,
       }
     );
@@ -105,7 +106,7 @@ export async function handleStats(context: DeferredCommandContext): Promise<void
         personalityId,
         totalCount: data.totalCount,
         lockedCount: data.lockedCount,
-        focusModeEnabled: data.focusModeEnabled,
+        freshModeEnabled: data.freshModeEnabled,
       },
       'Stats retrieved'
     );

@@ -59,16 +59,6 @@ export const EXTENDED_CONTEXT_SETTINGS: SettingDefinition[] = [
  */
 export const MEMORY_SETTINGS: SettingDefinition[] = [
   {
-    id: 'focusModeEnabled',
-    label: 'Focus Mode',
-    emoji: '🎯',
-    description:
-      'When enabled, only the most recent messages are used for context. ' +
-      'Disables extended context features like cross-channel history and memory retrieval.',
-    type: SettingType.TRI_STATE,
-    helpText: 'Useful for performance-sensitive channels or when context is not needed',
-  },
-  {
     id: 'crossChannelHistoryEnabled',
     label: 'Cross-Channel History',
     emoji: '🔀',
@@ -130,7 +120,7 @@ export const DISPLAY_SETTINGS: SettingDefinition[] = [
     emoji: '🏷️',
     description:
       'Show the model indicator line (e.g., "Model: [claude-sonnet-4](…)") at the bottom of AI responses. ' +
-      'Disabling hides the model line but other indicators (guest mode, focus mode, incognito) still appear.',
+      'Disabling hides the model line but other indicators (guest mode, fresh mode, incognito) still appear.',
     type: SettingType.TRI_STATE,
     helpText: 'When disabled, the model name is hidden from responses',
   },

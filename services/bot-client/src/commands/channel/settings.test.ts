@@ -94,7 +94,6 @@ function defaultResolvedData() {
     maxImages: 10,
     memoryScoreThreshold: 0.5,
     memoryLimit: 20,
-    focusModeEnabled: false,
     crossChannelHistoryEnabled: false,
     shareLtmAcrossPersonalities: false,
     showModelFooter: true,
@@ -106,7 +105,6 @@ function defaultResolvedData() {
       maxImages: 'hardcoded',
       memoryScoreThreshold: 'hardcoded',
       memoryLimit: 'hardcoded',
-      focusModeEnabled: 'hardcoded',
       crossChannelHistoryEnabled: 'hardcoded',
       shareLtmAcrossPersonalities: 'hardcoded',
       showModelFooter: 'hardcoded',
@@ -234,7 +232,7 @@ describe('Channel Settings Dashboard', () => {
       expect(embedJson.description).toContain('<#channel-123>');
     });
 
-    it('should include all 10 settings fields (extended context + memory + display + voice)', async () => {
+    it('should include all 9 settings fields (extended context + memory + display + voice)', async () => {
       const context = createMockContext(true);
       mockGetChannelSettings.mockResolvedValue(mockChannelSettings);
 
@@ -244,14 +242,13 @@ describe('Channel Settings Dashboard', () => {
       const embedJson = editReplyCall.embeds[0].toJSON();
 
       // Both extended context and memory settings are shown at channel tier
-      expect(embedJson.fields).toHaveLength(10);
+      expect(embedJson.fields).toHaveLength(9);
       const fieldNames = embedJson.fields.map((f: { name: string }) => f.name);
       expect(fieldNames).toEqual(
         expect.arrayContaining([
           expect.stringContaining('Max Messages'),
           expect.stringContaining('Max Age'),
           expect.stringContaining('Max Images'),
-          expect.stringContaining('Focus Mode'),
           expect.stringContaining('Cross-Channel History'),
           expect.stringContaining('Share Memories'),
           expect.stringContaining('Memory Relevance'),
@@ -294,7 +291,6 @@ describe('Channel Settings Dashboard', () => {
           maxImages: 10,
           memoryScoreThreshold: 0.5,
           memoryLimit: 20,
-          focusModeEnabled: false,
           crossChannelHistoryEnabled: false,
           shareLtmAcrossPersonalities: false,
           showModelFooter: true,
@@ -306,7 +302,6 @@ describe('Channel Settings Dashboard', () => {
             maxImages: 'hardcoded',
             memoryScoreThreshold: 'hardcoded',
             memoryLimit: 'hardcoded',
-            focusModeEnabled: 'hardcoded',
             crossChannelHistoryEnabled: 'hardcoded',
             shareLtmAcrossPersonalities: 'hardcoded',
             showModelFooter: 'hardcoded',

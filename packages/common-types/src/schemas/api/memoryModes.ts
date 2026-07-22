@@ -1,18 +1,17 @@
 /**
- * Zod schemas for /user/memory/incognito API endpoints
+ * Zod schemas for the /user/memory/{incognito,fresh} API endpoints
  *
- * Incognito mode temporarily suspends memory writing (the inverse of focus
- * mode, which suspends reading). State lives in Redis keyed by
- * (userId, personalityId), so endpoints are inherently per-personality —
- * `personalityId: 'all'` is the global toggle.
- *
- * Input schemas live in types/incognito.ts (where the IncognitoSession type
- * and Redis-key shape already live); this file holds only the response
- * schemas the gateway sends back.
+ * Both memory modes are Redis-TTL sessions keyed by (userId, personalityId)
+ * — `personalityId: 'all'` is the global toggle — and their endpoints return
+ * identical shapes, so the response schemas are shared. Incognito suspends
+ * memory WRITING; fresh suspends memory READING (memories are kept, just not
+ * used). Input schemas live in types/memory-modes.ts (with the session type
+ * and Redis-key shape); this file holds only the response schemas the
+ * gateway sends back.
  */
 
 import { z } from 'zod';
-import { IncognitoSessionSchema } from '../../types/incognito.js';
+import { MemoryModeSessionSchema } from '../../types/memory-modes.js';
 
 /**
  * A session enriched with `timeRemaining` (human-formatted string) computed
@@ -20,30 +19,30 @@ import { IncognitoSessionSchema } from '../../types/incognito.js';
  * "Until manually disabled" (for `duration: 'forever'`), or "Expired"
  * (when the session is past expiry but hasn't been swept yet).
  */
-export const IncognitoSessionWithRemainingSchema = IncognitoSessionSchema.extend({
+export const MemoryModeSessionWithRemainingSchema = MemoryModeSessionSchema.extend({
   timeRemaining: z.string().min(1),
 });
 
-export type IncognitoSessionWithRemaining = z.infer<typeof IncognitoSessionWithRemainingSchema>;
+export type MemoryModeSessionWithRemaining = z.infer<typeof MemoryModeSessionWithRemainingSchema>;
 
 // ============================================================================
-// GET /user/memory/incognito
+// GET /user/memory/incognito · GET /user/memory/fresh
 // ============================================================================
 
-export const GetIncognitoStatusResponseSchema = z.object({
+export const GetMemoryModeStatusResponseSchema = z.object({
   active: z.boolean(),
-  sessions: z.array(IncognitoSessionWithRemainingSchema),
+  sessions: z.array(MemoryModeSessionWithRemainingSchema),
 });
 
 // ============================================================================
-// POST /user/memory/incognito (enable)
+// POST /user/memory/incognito · POST /user/memory/fresh (enable)
 // Returns CREATED when newly enabled, OK when wasAlreadyActive is true.
 // ============================================================================
 
-export const EnableIncognitoResponseSchema = z.object({
-  session: IncognitoSessionSchema,
+export const EnableMemoryModeResponseSchema = z.object({
+  session: MemoryModeSessionSchema,
   /**
-   * Human-formatted string computed by `IncognitoSessionManager.getTimeRemaining`;
+   * Human-formatted string computed by `MemoryModeSessionManager.getTimeRemaining`;
    * never a raw millisecond count. One of "<n> minutes/hours/days/...",
    * "Until manually disabled" (for `duration: 'forever'`), or "Expired".
    */
@@ -53,10 +52,10 @@ export const EnableIncognitoResponseSchema = z.object({
 });
 
 // ============================================================================
-// DELETE /user/memory/incognito (disable)
+// DELETE /user/memory/incognito · DELETE /user/memory/fresh (disable)
 // ============================================================================
 
-export const DisableIncognitoResponseSchema = z.object({
+export const DisableMemoryModeResponseSchema = z.object({
   disabled: z.boolean(),
   message: z.string(),
 });
@@ -64,6 +63,8 @@ export const DisableIncognitoResponseSchema = z.object({
 // ============================================================================
 // POST /user/memory/incognito/forget
 // Retroactively delete memories created in the last `timeframe` window.
+// (Write-side only — there is no fresh-side analog to retroactively
+// suppress reads.)
 // ============================================================================
 
 export const IncognitoForgetResponseSchema = z.object({

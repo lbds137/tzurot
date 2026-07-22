@@ -49,10 +49,10 @@ vi.mock('../../../services/AccountDeletionService.js', async () => {
   };
 });
 
-const incognitoMock = vi.hoisted(() => ({ disableAll: vi.fn().mockResolvedValue(0) }));
-vi.mock('../../../services/IncognitoSessionManager.js', () => ({
-  IncognitoSessionManager: function MockIncognito() {
-    return incognitoMock;
+const memoryModeMock = vi.hoisted(() => ({ disableAll: vi.fn().mockResolvedValue(0) }));
+vi.mock('../../../services/MemoryModeSessionManager.js', () => ({
+  MemoryModeSessionManager: function MockMemoryModeManager() {
+    return memoryModeMock;
   },
 }));
 
@@ -228,7 +228,9 @@ describe('Account Deletion Routes', () => {
         'user-uuid-123',
         'discord-user-123'
       );
-      expect(incognitoMock.disableAll).toHaveBeenCalledWith('discord-user-123');
+      // Both memory modes (incognito + fresh) get their sessions swept
+      expect(memoryModeMock.disableAll).toHaveBeenCalledTimes(2);
+      expect(memoryModeMock.disableAll).toHaveBeenCalledWith('discord-user-123');
       expect(deps.cacheInvalidationService?.invalidatePersonality).toHaveBeenCalledWith('x1');
       expect(deleteAvatarsMock).toHaveBeenCalledWith('xbot', 'Account delete');
       // The provisioning cache must be evicted so the next request re-creates
@@ -249,6 +251,20 @@ describe('Account Deletion Routes', () => {
       const { req, res } = createMockReqRes(VALID_BODY);
       await handleDeleteAccount(makeDeps())(req, res, vi.fn());
 
+      const payload = (res.json as ReturnType<typeof vi.fn>).mock.calls[0][0];
+      expect(payload.success).toBe(true);
+    });
+
+    it('still sweeps the second memory mode when the first sweep rejects', async () => {
+      // A transient Redis failure on one mode must not skip the other — a
+      // 'forever' session has no TTL, so a skipped sweep orphans its key.
+      memoryModeMock.disableAll
+        .mockRejectedValueOnce(new Error('redis blip'))
+        .mockResolvedValueOnce(1);
+      const { req, res } = createMockReqRes(VALID_BODY);
+      await handleDeleteAccount(makeDeps())(req, res, vi.fn());
+
+      expect(memoryModeMock.disableAll).toHaveBeenCalledTimes(2);
       const payload = (res.json as ReturnType<typeof vi.fn>).mock.calls[0][0];
       expect(payload.success).toBe(true);
     });

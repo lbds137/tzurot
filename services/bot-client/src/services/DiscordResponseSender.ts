@@ -89,8 +89,8 @@ interface SendResponseOptions {
   isGuestMode?: boolean;
   /** Whether this is an auto-response from channel activation (not @mention) */
   isAutoResponse?: boolean;
-  /** Whether focus mode was active (LTM retrieval skipped) */
-  focusModeEnabled?: boolean;
+  /** Whether fresh mode was active (LTM retrieval skipped; memories kept) */
+  freshModeEnabled?: boolean;
   /** Whether incognito mode was active (LTM storage skipped) */
   incognitoModeActive?: boolean;
   /**
@@ -285,7 +285,7 @@ export class DiscordResponseSender {
       quotaFallback,
       isGuestMode,
       isAutoResponse,
-      focusModeEnabled,
+      freshModeEnabled,
       incognitoModeActive,
       showModelFooter,
     } = options;
@@ -304,8 +304,8 @@ export class DiscordResponseSender {
     if (isGuestMode === true) {
       footer += `\n-# ${GUEST_MODE.FOOTER_MESSAGE}`;
     }
-    if (focusModeEnabled === true) {
-      footer += `\n-# ${BOT_FOOTER_TEXT.FOCUS_MODE}`;
+    if (freshModeEnabled === true) {
+      footer += `\n-# ${BOT_FOOTER_TEXT.FRESH_MODE}`;
     }
     if (incognitoModeActive === true) {
       footer += `\n-# ${BOT_FOOTER_TEXT.INCOGNITO_MODE}`;

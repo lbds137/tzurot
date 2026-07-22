@@ -233,7 +233,7 @@ describe('handlePurge (slash command entry)', () => {
         lockedCount: 0,
         oldestMemory: null,
         newestMemory: null,
-        focusModeEnabled: false,
+        freshModeEnabled: false,
       })
     );
     const context = createMockContext();
@@ -256,7 +256,7 @@ describe('handlePurge (slash command entry)', () => {
         lockedCount: 2,
         oldestMemory: null,
         newestMemory: null,
-        focusModeEnabled: false,
+        freshModeEnabled: false,
       })
     );
     const context = createMockContext();

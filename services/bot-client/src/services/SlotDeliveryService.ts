@@ -130,7 +130,7 @@ export class SlotDeliveryService {
       quotaFallback: result.metadata?.quotaFallback,
       isGuestMode: result.metadata?.isGuestMode,
       isAutoResponse: slot.isAutoResponse,
-      focusModeEnabled: result.metadata?.focusModeEnabled,
+      freshModeEnabled: result.metadata?.freshModeEnabled,
       incognitoModeActive: result.metadata?.incognitoModeActive,
       thinkingContent: result.metadata?.thinkingContent,
       showThinking: result.metadata?.showThinking,
@@ -269,7 +269,7 @@ export class SlotDeliveryService {
         quotaFallback: result.metadata?.quotaFallback,
         isGuestMode: result.metadata?.isGuestMode,
         isAutoResponse: slot.isAutoResponse,
-        focusModeEnabled: result.metadata?.focusModeEnabled,
+        freshModeEnabled: result.metadata?.freshModeEnabled,
         incognitoModeActive: result.metadata?.incognitoModeActive,
         showModelFooter: result.metadata?.showModelFooter,
       });

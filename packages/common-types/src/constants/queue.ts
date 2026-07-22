@@ -103,6 +103,8 @@ export const REDIS_KEY_PREFIXES = {
   RATE_LIMIT: 'ratelimit:',
   /** Prefix for incognito mode sessions (memory writing disabled) */
   INCOGNITO: 'incognito:',
+  /** Prefix for fresh mode sessions (memory retrieval disabled; memories kept) */
+  FRESH: 'fresh:',
   /** Prefix for dashboard sessions (e.g., character editing) */
   SESSION: 'session:',
   /** Prefix for dashboard session message ID index (messageId -> sessionKey lookup) */

@@ -13,7 +13,7 @@
  * const mock = getMemoryRetrieverMock();
  * mock.retrieveRelevantMemories.mockResolvedValue({
  *   memories: [{ pageContent: 'memory', metadata: {} }],
- *   focusModeEnabled: false,
+ *   freshModeEnabled: false,
  * });
  * ```
  */
@@ -36,24 +36,24 @@ let mockInstance: MockMemoryRetrieverInstance | null = null;
  * Create fresh mock functions with default implementations
  *
  * **Default Behaviors:**
- * - `retrieveRelevantMemories()` → Resolves to `{ memories: [], focusModeEnabled: false }` (empty memories - tests can add via override)
+ * - `retrieveRelevantMemories()` → Resolves to `{ memories: [], freshModeEnabled: false }` (empty memories - tests can add via override)
  * - `getAllParticipantPersonas()` → Resolves to empty `Map()` (no participants)
- * - `resolvePersonaForMemory()` → Resolves to `{ personaId: 'persona-123', focusModeEnabled: false }`
+ * - `resolvePersonaForMemory()` → Resolves to `{ personaId: 'persona-123' }`
  * - `getUserPersonaForPersonality()` → Same as resolvePersonaForMemory
  *
- * Override in tests: `getMemoryRetrieverMock().retrieveRelevantMemories.mockResolvedValue({ memories: [...], focusModeEnabled: false })`
+ * Override in tests: `getMemoryRetrieverMock().retrieveRelevantMemories.mockResolvedValue({ memories: [...], freshModeEnabled: false })`
  */
 function createMockFunctions(): MockMemoryRetrieverInstance {
   return {
-    retrieveRelevantMemories: vi.fn().mockResolvedValue({ memories: [], focusModeEnabled: false }),
+    retrieveRelevantMemories: vi.fn().mockResolvedValue({ memories: [], freshModeEnabled: false }),
     getAllParticipantPersonas: vi.fn().mockResolvedValue(new Map()),
     resolvePersonaForMemory: vi.fn().mockResolvedValue({
       personaId: 'persona-123',
-      focusModeEnabled: false,
+      freshModeEnabled: false,
     }),
     getUserPersonaForPersonality: vi.fn().mockResolvedValue({
       personaId: 'persona-123',
-      focusModeEnabled: false,
+      freshModeEnabled: false,
     }),
   };
 }

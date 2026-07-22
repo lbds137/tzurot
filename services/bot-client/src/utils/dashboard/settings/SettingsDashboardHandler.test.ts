@@ -62,12 +62,6 @@ const createTestData = (): SettingsData => ({
     effectiveValue: 10,
     source: 'admin',
   },
-  focusModeEnabled: {
-    localValue: null,
-    hasLocalOverride: false,
-    effectiveValue: false,
-    source: 'hardcoded',
-  },
   crossChannelHistoryEnabled: {
     localValue: null,
     hasLocalOverride: false,
@@ -376,12 +370,6 @@ describe('SettingsDashboardHandler', () => {
           effectiveValue: 0,
           source: 'admin',
         },
-        focusModeEnabled: {
-          localValue: null,
-          hasLocalOverride: false,
-          effectiveValue: false,
-          source: 'hardcoded',
-        },
         crossChannelHistoryEnabled: {
           localValue: null,
           hasLocalOverride: false,
@@ -454,12 +442,6 @@ describe('SettingsDashboardHandler', () => {
           source: 'channel',
         },
         maxImages: { localValue: 5, hasLocalOverride: true, effectiveValue: 5, source: 'channel' },
-        focusModeEnabled: {
-          localValue: null,
-          hasLocalOverride: false,
-          effectiveValue: false,
-          source: 'hardcoded',
-        },
         crossChannelHistoryEnabled: {
           localValue: null,
           hasLocalOverride: false,

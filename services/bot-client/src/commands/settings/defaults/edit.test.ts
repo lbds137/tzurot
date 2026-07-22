@@ -64,7 +64,6 @@ describe('User Default Settings Dashboard', () => {
     maxMessages: HARDCODED_CONFIG_DEFAULTS.maxMessages,
     maxAge: HARDCODED_CONFIG_DEFAULTS.maxAge,
     maxImages: HARDCODED_CONFIG_DEFAULTS.maxImages,
-    focusModeEnabled: HARDCODED_CONFIG_DEFAULTS.focusModeEnabled,
     crossChannelHistoryEnabled: HARDCODED_CONFIG_DEFAULTS.crossChannelHistoryEnabled,
     shareLtmAcrossPersonalities: HARDCODED_CONFIG_DEFAULTS.shareLtmAcrossPersonalities,
     memoryScoreThreshold: HARDCODED_CONFIG_DEFAULTS.memoryScoreThreshold,
@@ -73,7 +72,6 @@ describe('User Default Settings Dashboard', () => {
       maxMessages: 'hardcoded',
       maxAge: 'hardcoded',
       maxImages: 'hardcoded',
-      focusModeEnabled: 'hardcoded',
       crossChannelHistoryEnabled: 'hardcoded',
       shareLtmAcrossPersonalities: 'hardcoded',
       memoryScoreThreshold: 'hardcoded',
@@ -200,7 +198,7 @@ describe('User Default Settings Dashboard', () => {
       expect(embedJson.title).toBe('Your Default Settings · Memory');
     });
 
-    it('opens on the Memory page with its 5 settings (paged overview)', async () => {
+    it('opens on the Memory page with its 4 settings (paged overview)', async () => {
       const context = createMockContext();
 
       await handleDefaultsEdit(context);
@@ -209,10 +207,9 @@ describe('User Default Settings Dashboard', () => {
       const embedJson = editReplyCall.embeds[0].toJSON();
 
       // D14 page 1 = Memory (5 settings); Context & Display and Voice follow.
-      expect(embedJson.fields).toHaveLength(5);
+      expect(embedJson.fields).toHaveLength(4);
       expect(embedJson.fields.map((f: { name: string }) => f.name)).toEqual(
         expect.arrayContaining([
-          expect.stringContaining('Focus Mode'),
           expect.stringContaining('Cross-Channel History'),
           expect.stringContaining('Share Memories'),
           expect.stringContaining('Memory Relevance'),

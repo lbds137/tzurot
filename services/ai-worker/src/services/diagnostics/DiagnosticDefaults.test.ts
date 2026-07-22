@@ -24,7 +24,7 @@ describe('DiagnosticDefaults', () => {
   it('should return default memory retrieval', () => {
     expect(getDefaultMemoryRetrieval()).toEqual({
       memoriesFound: [],
-      focusModeEnabled: false,
+      freshModeEnabled: false,
     });
   });
 

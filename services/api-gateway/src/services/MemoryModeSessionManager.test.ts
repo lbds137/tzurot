@@ -1,12 +1,12 @@
 /**
- * Tests for IncognitoSessionManager
+ * Tests for MemoryModeSessionManager
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Redis } from 'ioredis';
-import { IncognitoSessionManager } from './IncognitoSessionManager.js';
+import { MemoryModeSessionManager } from './MemoryModeSessionManager.js';
 import { REDIS_KEY_PREFIXES } from '@tzurot/common-types/constants/queue';
-import { type IncognitoSession } from '@tzurot/common-types/types/incognito';
+import { type MemoryModeSession } from '@tzurot/common-types/types/memory-modes';
 
 /**
  * Create a mock Redis client
@@ -23,15 +23,15 @@ function createMockRedis(): Redis {
   } as unknown as Redis;
 }
 
-describe('IncognitoSessionManager', () => {
+describe('MemoryModeSessionManager', () => {
   let redis: Redis;
-  let manager: IncognitoSessionManager;
+  let manager: MemoryModeSessionManager;
 
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-01-15T12:00:00.000Z'));
     redis = createMockRedis();
-    manager = new IncognitoSessionManager(redis);
+    manager = new MemoryModeSessionManager(redis, 'incognito');
   });
 
   describe('enable', () => {
@@ -108,7 +108,7 @@ describe('IncognitoSessionManager', () => {
 
   describe('getSession', () => {
     it('returns parsed session if exists and not expired', async () => {
-      const storedSession: IncognitoSession = {
+      const storedSession: MemoryModeSession = {
         userId: 'user123',
         personalityId: 'personality456',
         enabledAt: '2026-01-15T11:00:00.000Z',
@@ -151,7 +151,7 @@ describe('IncognitoSessionManager', () => {
     it('trusts Redis TTL for expiration - returns session if key exists', async () => {
       // Even if expiresAt is in the past, if Redis still has the key, return it
       // This trusts Redis TTL to handle actual expiration atomically
-      const session: IncognitoSession = {
+      const session: MemoryModeSession = {
         userId: 'user123',
         personalityId: 'personality456',
         enabledAt: '2026-01-15T10:00:00.000Z',
@@ -170,7 +170,7 @@ describe('IncognitoSessionManager', () => {
 
   describe('isActive', () => {
     it('returns true if specific personality session exists', async () => {
-      const session: IncognitoSession = {
+      const session: MemoryModeSession = {
         userId: 'user123',
         personalityId: 'personality456',
         enabledAt: '2026-01-15T11:00:00.000Z',
@@ -192,7 +192,7 @@ describe('IncognitoSessionManager', () => {
     });
 
     it('returns true if global "all" session exists', async () => {
-      const session: IncognitoSession = {
+      const session: MemoryModeSession = {
         userId: 'user123',
         personalityId: 'all',
         enabledAt: '2026-01-15T11:00:00.000Z',
@@ -225,7 +225,7 @@ describe('IncognitoSessionManager', () => {
 
   describe('getActiveSession', () => {
     it('returns specific session over global when both exist', async () => {
-      const specificSession: IncognitoSession = {
+      const specificSession: MemoryModeSession = {
         userId: 'user123',
         personalityId: 'personality456',
         enabledAt: '2026-01-15T11:00:00.000Z',
@@ -233,7 +233,7 @@ describe('IncognitoSessionManager', () => {
         duration: '1h',
       };
 
-      const globalSession: IncognitoSession = {
+      const globalSession: MemoryModeSession = {
         userId: 'user123',
         personalityId: 'all',
         enabledAt: '2026-01-15T10:00:00.000Z',
@@ -258,7 +258,7 @@ describe('IncognitoSessionManager', () => {
     });
 
     it('returns global session when specific does not exist', async () => {
-      const globalSession: IncognitoSession = {
+      const globalSession: MemoryModeSession = {
         userId: 'user123',
         personalityId: 'all',
         enabledAt: '2026-01-15T10:00:00.000Z',
@@ -282,7 +282,7 @@ describe('IncognitoSessionManager', () => {
 
   describe('getStatus', () => {
     it('returns all active sessions for a user', async () => {
-      const session1: IncognitoSession = {
+      const session1: MemoryModeSession = {
         userId: 'user123',
         personalityId: 'p1',
         enabledAt: '2026-01-15T11:00:00.000Z',
@@ -290,7 +290,7 @@ describe('IncognitoSessionManager', () => {
         duration: '1h',
       };
 
-      const session2: IncognitoSession = {
+      const session2: MemoryModeSession = {
         userId: 'user123',
         personalityId: 'p2',
         enabledAt: '2026-01-15T11:30:00.000Z',
@@ -347,7 +347,7 @@ describe('IncognitoSessionManager', () => {
     });
 
     it('iterates through multiple SCAN batches', async () => {
-      const session1: IncognitoSession = {
+      const session1: MemoryModeSession = {
         userId: 'user123',
         personalityId: 'p1',
         enabledAt: '2026-01-15T11:00:00.000Z',
@@ -355,7 +355,7 @@ describe('IncognitoSessionManager', () => {
         duration: '1h',
       };
 
-      const session2: IncognitoSession = {
+      const session2: MemoryModeSession = {
         userId: 'user123',
         personalityId: 'p2',
         enabledAt: '2026-01-15T11:30:00.000Z',
@@ -455,7 +455,7 @@ describe('IncognitoSessionManager', () => {
 
   describe('getTimeRemaining', () => {
     it('returns human-readable time for hours remaining', () => {
-      const session: IncognitoSession = {
+      const session: MemoryModeSession = {
         userId: 'user123',
         personalityId: 'p1',
         enabledAt: '2026-01-15T11:00:00.000Z',
@@ -469,7 +469,7 @@ describe('IncognitoSessionManager', () => {
     });
 
     it('returns just hours when no extra minutes', () => {
-      const session: IncognitoSession = {
+      const session: MemoryModeSession = {
         userId: 'user123',
         personalityId: 'p1',
         enabledAt: '2026-01-15T11:00:00.000Z',
@@ -483,7 +483,7 @@ describe('IncognitoSessionManager', () => {
     });
 
     it('returns minutes when less than an hour', () => {
-      const session: IncognitoSession = {
+      const session: MemoryModeSession = {
         userId: 'user123',
         personalityId: 'p1',
         enabledAt: '2026-01-15T11:00:00.000Z',
@@ -497,7 +497,7 @@ describe('IncognitoSessionManager', () => {
     });
 
     it('returns special message for forever duration', () => {
-      const session: IncognitoSession = {
+      const session: MemoryModeSession = {
         userId: 'user123',
         personalityId: 'p1',
         enabledAt: '2026-01-15T11:00:00.000Z',
@@ -511,7 +511,7 @@ describe('IncognitoSessionManager', () => {
     });
 
     it('returns Expired for past expiration', () => {
-      const session: IncognitoSession = {
+      const session: MemoryModeSession = {
         userId: 'user123',
         personalityId: 'p1',
         enabledAt: '2026-01-15T10:00:00.000Z',
@@ -522,6 +522,31 @@ describe('IncognitoSessionManager', () => {
       const remaining = manager.getTimeRemaining(session);
 
       expect(remaining).toBe('Expired');
+    });
+  });
+
+  describe('fresh mode prefix', () => {
+    it('keys fresh sessions under the fresh: prefix', async () => {
+      const freshManager = new MemoryModeSessionManager(redis, 'fresh');
+      await freshManager.enable('user123', 'personality456', '1h');
+      expect(redis.setex).toHaveBeenCalledWith(
+        `${REDIS_KEY_PREFIXES.FRESH}user123:personality456`,
+        3600,
+        expect.any(String)
+      );
+    });
+
+    it('scans fresh keys for status (modes never see each other)', async () => {
+      const freshManager = new MemoryModeSessionManager(redis, 'fresh');
+      vi.mocked(redis.scan).mockResolvedValue(['0', []]);
+      await freshManager.getStatus('user123');
+      expect(redis.scan).toHaveBeenCalledWith(
+        '0',
+        'MATCH',
+        `${REDIS_KEY_PREFIXES.FRESH}user123:*`,
+        'COUNT',
+        100
+      );
     });
   });
 });
