@@ -77,6 +77,9 @@ vi.mock('./config.js', () => ({
 const mockIsBotOwner = vi.fn();
 vi.mock('@tzurot/common-types/utils/ownerMiddleware', () => ({
   isBotOwner: (id: string) => mockIsBotOwner(id),
+  // Runtime passthrough — the IsAdmin brand is compile-time only, so the handler's
+  // asIsAdmin(isBotOwner(...)) wrap must not vanish under this mock.
+  asIsAdmin: (v: boolean) => v,
 }));
 
 describe('handleBrowse', () => {

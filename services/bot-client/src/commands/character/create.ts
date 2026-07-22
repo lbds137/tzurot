@@ -10,7 +10,7 @@
 import { MessageFlags, type ModalBuilder, type ModalSubmitInteraction } from 'discord.js';
 import { type EnvConfig } from '@tzurot/common-types/config/config';
 import { createLogger } from '@tzurot/common-types/utils/logger';
-import { isBotOwner } from '@tzurot/common-types/utils/ownerMiddleware';
+import { isBotOwner, asIsAdmin } from '@tzurot/common-types/utils/ownerMiddleware';
 import { normalizeSlugForUser, suggestSlugExample } from '@tzurot/common-types/utils/slugUtils';
 import {
   SLUG_PATTERN,
@@ -144,7 +144,7 @@ export async function handleSeedModalSubmit(
     // User just created this character, so they own it (createCharacter
     // grafts canEdit: true — the create response has no such field)
     // New characters never have a voice reference yet (hasVoiceReference: false)
-    const isAdmin = isBotOwner(interaction.user.id);
+    const isAdmin = asIsAdmin(isBotOwner(interaction.user.id));
     const dashboardConfig = getCharacterDashboardConfig(isAdmin, character.hasVoiceReference);
     const embed = buildDashboardEmbed(dashboardConfig, character);
     const components = buildDashboardComponents(

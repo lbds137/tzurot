@@ -13,7 +13,7 @@
 import { MessageFlags, type ButtonInteraction } from 'discord.js';
 import { type EnvConfig } from '@tzurot/common-types/config/config';
 import { createLogger } from '@tzurot/common-types/utils/logger';
-import { isBotOwner } from '@tzurot/common-types/utils/ownerMiddleware';
+import { isBotOwner, asIsAdmin } from '@tzurot/common-types/utils/ownerMiddleware';
 import { CATALOG } from '../../ux/catalog/catalog.js';
 import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
 import { replySpec, ackUpdate, ackDeferReply } from '../../ux/render/reply.js';
@@ -74,7 +74,7 @@ export async function handleViewEdit(
     // canEdit (which is true for any character owner). Every other
     // dashboard-opening path derives it from isBotOwner — matching here keeps
     // a non-admin owner from seeing an admin section on the initial render.
-    const isAdmin = isBotOwner(interaction.user.id);
+    const isAdmin = asIsAdmin(isBotOwner(interaction.user.id));
     const dashboardConfig = getCharacterDashboardConfig(isAdmin, character.hasVoiceReference);
     const embed = buildDashboardEmbed(dashboardConfig, character);
     const sessionData: CharacterSessionData = { ...character, _isAdmin: isAdmin };

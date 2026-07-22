@@ -7,7 +7,7 @@
 
 import type { ButtonInteraction } from 'discord.js';
 import { getConfig } from '@tzurot/common-types/config/config';
-import { isBotOwner } from '@tzurot/common-types/utils/ownerMiddleware';
+import { isBotOwner, asIsAdmin } from '@tzurot/common-types/utils/ownerMiddleware';
 import {
   buildDashboardEmbed,
   buildDashboardComponents,
@@ -64,7 +64,7 @@ export async function handleRefreshButton(
     return;
   }
 
-  const isAdmin = isBotOwner(interaction.user.id);
+  const isAdmin = asIsAdmin(isBotOwner(interaction.user.id));
   const dashboardConfig = getCharacterDashboardConfig(isAdmin, character.hasVoiceReference);
 
   // Preserve browseContext from existing session
