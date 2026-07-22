@@ -28,6 +28,7 @@ import {
 import { buildSettingMessage, getSettingById } from './SettingsDashboardBuilder.js';
 import { storeSession, getSession } from './SettingsSessionStorage.js';
 import { parseNumericInputValue, parseDurationInputValue } from './settingsInputParser.js';
+import { ackUpdate } from '../../../ux/render/reply.js';
 
 const logger = createLogger('SettingsModalSubmit');
 
@@ -84,7 +85,7 @@ export async function handleSettingsModal(
   // Ack first (3-second rule): deferUpdate before the Redis getSession and the
   // validation below. Every error path after this point uses followUp (the
   // interaction is already acked); the success path editReplies the dashboard.
-  await interaction.deferUpdate();
+  await ackUpdate(interaction);
 
   // Get session
   const session = await getSession(interaction.user.id, config.entityType, parsed.entityId);

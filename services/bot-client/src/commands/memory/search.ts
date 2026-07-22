@@ -52,6 +52,7 @@ import {
   fetchPageWithEmptyFallback,
   MEMORY_SEARCH_ENTITY_TYPE,
 } from './browseSession.js';
+import { ackUpdate } from '../../ux/render/reply.js';
 
 /** Union type for action rows containing buttons or select menus */
 type SearchActionRow = ActionRowBuilder<ButtonBuilder> | ActionRowBuilder<StringSelectMenuBuilder>;
@@ -390,7 +391,7 @@ export async function handleSearchPagination(interaction: ButtonInteraction): Pr
   // window rather than the 3-second interaction window. Matches the
   // pattern in character/browse.ts. After deferUpdate, error paths must
   // use followUp instead of reply (the interaction is already acknowledged).
-  await interaction.deferUpdate();
+  await ackUpdate(interaction);
 
   const messageId = interaction.message.id;
   const session = await findMemoryListSessionByMessage(messageId);

@@ -25,7 +25,7 @@ import { fetchMemory, updateMemory } from './detailApi.js';
 import { CATALOG } from '../../ux/catalog/catalog.js';
 import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
 import { renderSpec } from '../../ux/render/render.js';
-import { followUpSpec } from '../../ux/render/reply.js';
+import { followUpSpec, ackUpdate } from '../../ux/render/reply.js';
 
 const logger = createLogger('memory-detail-modals');
 
@@ -279,7 +279,7 @@ export async function handleEditModalSubmit(
   const newContent = interaction.fields.getTextInputValue('content');
 
   try {
-    await interaction.deferUpdate();
+    await ackUpdate(interaction);
   } catch (deferError) {
     // Interaction may have expired or already been responded to
     logger.warn(

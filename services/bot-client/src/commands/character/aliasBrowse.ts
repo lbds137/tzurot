@@ -57,6 +57,7 @@ import { buildConfirmAction } from '../../utils/confirmation/confirmAction.js';
 import { createComponentRouter, type ComponentRouter } from '../../utils/componentRouter.js';
 import { CATALOG } from '../../ux/catalog/catalog.js';
 import { renderSpec } from '../../ux/render/render.js';
+import { ackUpdate } from '../../ux/render/reply.js';
 
 const logger = createLogger('character-alias-browse');
 
@@ -323,7 +324,7 @@ function findRowByValue(rows: AliasRow[], value: string): AliasRow | null {
 }
 
 async function handleAliasSelect(interaction: StringSelectMenuInteraction): Promise<void> {
-  await interaction.deferUpdate();
+  await ackUpdate(interaction);
   const coords = aliasHelpers.parseSelect(interaction.customId);
   if (coords === null) {
     await interaction.followUp({
@@ -362,7 +363,7 @@ async function handleAliasSelect(interaction: StringSelectMenuInteraction): Prom
 }
 
 async function handleRemoveConfirm(interaction: ButtonInteraction): Promise<void> {
-  await interaction.deferUpdate();
+  await ackUpdate(interaction);
   const coords = parseRemoveCustomId(interaction.customId, RM_YES_PREFIX);
   const state = parseConfirmFooterState(interaction.message.embeds[0]?.footer?.text);
   const { userClient } = clientsFor(interaction);
@@ -398,7 +399,7 @@ async function handleRemoveConfirm(interaction: ButtonInteraction): Promise<void
 }
 
 async function handleRemoveCancel(interaction: ButtonInteraction): Promise<void> {
-  await interaction.deferUpdate();
+  await ackUpdate(interaction);
   const coords = parseRemoveCustomId(interaction.customId, RM_NO_PREFIX);
   if (coords === null) {
     await interaction.followUp({
@@ -411,7 +412,7 @@ async function handleRemoveCancel(interaction: ButtonInteraction): Promise<void>
 }
 
 async function handleAliasPagination(interaction: ButtonInteraction): Promise<void> {
-  await interaction.deferUpdate();
+  await ackUpdate(interaction);
   const coords = aliasHelpers.parse(interaction.customId);
   if (coords === null) {
     await interaction.followUp({

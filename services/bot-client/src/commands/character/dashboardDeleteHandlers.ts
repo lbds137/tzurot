@@ -17,6 +17,7 @@ import { CharacterCustomIds } from '../../utils/customIds.js';
 import { clientsFor } from '../../utils/gatewayClients.js';
 import { fetchCharacter } from './api.js';
 import type { CharacterData } from './characterTypes.js';
+import { ackUpdate } from '../../ux/render/reply.js';
 
 const logger = createLogger('character-dashboard');
 
@@ -33,7 +34,7 @@ export async function handleDeleteAction(
   slug: string,
   config: EnvConfig
 ): Promise<void> {
-  await interaction.deferUpdate();
+  await ackUpdate(interaction);
 
   const { userClient } = clientsFor(interaction);
   // Re-fetch to verify current state and permissions
@@ -115,7 +116,7 @@ export async function handleDeleteButton(
 
   // User clicked confirm — ack the button. No intermediate "Deleting..."
   // message; the user sees the button's spinner while the DELETE resolves.
-  await interaction.deferUpdate();
+  await ackUpdate(interaction);
 
   // Fetch the session so browseContext (if any) can carry into the post-action
   // screen. Users who opened this dashboard from /character browse get the

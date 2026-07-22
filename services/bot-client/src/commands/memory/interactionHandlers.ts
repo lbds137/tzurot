@@ -56,6 +56,7 @@ import {
 } from './factsDetail.js';
 import { CATALOG } from '../../ux/catalog/catalog.js';
 import { renderSpec } from '../../ux/render/render.js';
+import { ackUpdate } from '../../ux/render/reply.js';
 
 const logger = createLogger('memory-command');
 
@@ -109,7 +110,7 @@ async function handleDetailButton(interaction: ButtonInteraction): Promise<void>
     return;
   }
 
-  await interaction.deferUpdate();
+  await ackUpdate(interaction);
 
   const session = await findMemoryListSessionByMessage(interaction.message.id);
   if (session === null) {
@@ -164,12 +165,12 @@ async function handleFactButton(interaction: ButtonInteraction): Promise<void> {
     return;
   }
   if (action === 'back') {
-    await interaction.deferUpdate();
+    await ackUpdate(interaction);
     await refreshFactsList(interaction);
     return;
   }
   if (action === 'confirm-forget' && factId !== undefined) {
-    await interaction.deferUpdate();
+    await ackUpdate(interaction);
     const forgotten = await handleForgetConfirm(interaction, factId);
     if (forgotten) {
       await refreshFactsList(interaction);

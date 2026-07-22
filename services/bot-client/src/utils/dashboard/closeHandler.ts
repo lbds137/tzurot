@@ -8,6 +8,7 @@
 import type { ButtonInteraction } from 'discord.js';
 import { getSessionManager } from './SessionManager.js';
 import { DASHBOARD_MESSAGES } from './messages.js';
+import { ackUpdate } from '../../ux/render/reply.js';
 
 /**
  * Handle dashboard close button click.
@@ -32,7 +33,7 @@ export async function handleDashboardClose(
   // Ack first (3-second rule): deferUpdate before the Redis session delete, then
   // editReply the closed-state message. deferUpdate→editReply reaches the same end
   // state as a bare update() while keeping the Redis round-trip off the 3s budget.
-  await interaction.deferUpdate();
+  await ackUpdate(interaction);
 
   const sessionManager = getSessionManager();
   await sessionManager.delete(interaction.user.id, entityType, entityId);

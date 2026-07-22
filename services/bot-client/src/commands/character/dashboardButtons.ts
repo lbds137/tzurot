@@ -24,6 +24,7 @@ import {
 import type { CharacterData } from './characterTypes.js';
 import { clientsFor } from '../../utils/gatewayClients.js';
 import { fetchCharacter } from './api.js';
+import { ackUpdate } from '../../ux/render/reply.js';
 
 /**
  * Handle refresh button - reload character data while preserving browseContext
@@ -33,7 +34,7 @@ export async function handleRefreshButton(
   entityId: string
 ): Promise<void> {
   const config = getConfig();
-  await interaction.deferUpdate();
+  await ackUpdate(interaction);
 
   // Get existing session to preserve browseContext
   const sessionManager = getSessionManager();

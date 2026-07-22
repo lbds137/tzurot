@@ -34,6 +34,7 @@ import { escapeFenceBreaks } from '../../utils/fenceEscape.js';
 import { sendChunkedReply } from '../../utils/chunkedReply.js';
 import { storeDbSyncReport, fetchDbSyncReport } from './dbSyncReportStore.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
+import { ackUpdate } from '../../ux/render/reply.js';
 
 const logger = createLogger('admin-db-sync');
 
@@ -245,7 +246,7 @@ export function isDbSyncDetailsButton(customId: string): boolean {
  */
 export async function handleDbSyncDetailsButton(interaction: ButtonInteraction): Promise<void> {
   // Ack FIRST (04-discord) — the Redis fetch happens after.
-  await interaction.deferUpdate();
+  await ackUpdate(interaction);
 
   const key = interaction.customId.slice(DB_SYNC_DETAILS_PREFIX.length);
   const report = await fetchDbSyncReport(key);
