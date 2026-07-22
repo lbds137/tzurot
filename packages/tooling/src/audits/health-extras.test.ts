@@ -89,6 +89,21 @@ describe('collectSecuritySurface', () => {
     );
   });
 
+  it('uses the provided alerts override instead of a second live alerts call', () => {
+    vi.mocked(execFileSync).mockReturnValue('2\n' as never);
+
+    const surface = collectSecuritySurface({ available: true, count: 5 });
+
+    // The count came from the override; the PR-list call still ran.
+    expect(surface.dependabotAlerts).toEqual({ available: true, count: 5 });
+    expect(surface.dependabotPrs).toEqual({ available: true, count: 2 });
+    // The alerts endpoint was NOT queried — the health report already has the list.
+    const invocations = vi
+      .mocked(execFileSync)
+      .mock.calls.map(call => (call[1] as string[]).join(' '));
+    expect(invocations.some(args => args.includes('dependabot/alerts'))).toBe(false);
+  });
+
   it('degrades to unavailable with the gh stderr diagnostic when gh fails', () => {
     vi.mocked(execFileSync).mockImplementation(() => {
       const error = new Error('Command failed: gh pr list') as Error & { stderr: string };
