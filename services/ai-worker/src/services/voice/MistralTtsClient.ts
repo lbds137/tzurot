@@ -11,7 +11,10 @@
  * - `POST /v1/audio/voices` — clone a voice from base64 reference audio.
  *   Mistral SILENTLY DROPS slug/languages/gender/age/tags on creation;
  *   only `name` survives. Cache strategy uses `name` as the find-or-create key.
- * - `GET  /v1/audio/voices?page=N&page_size=50` — paginated list. Walks
+ * - `GET  /v1/audio/voices?limit=50&offset=N` — paginated list. `limit` and
+ *   `offset` are the documented REQUEST params; `page`/`page_size`/
+ *   `total_pages` exist only in the response (sending them as params is
+ *   silently ignored and returns the same window every request). Walks
  *   pagination up to `VOICE_LIST_MAX_PAGES` (20 pages = 1000 voices) before
  *   returning a partial result with a WARN log. The find-by-name path is
  *   resilient to the cap because a missing voice falls through to clone.
@@ -422,22 +425,17 @@ export async function mistralCloneVoice(opts: MistralCloneOptions): Promise<Mist
   };
 }
 
-/** Safety cap on pagination — at page_size=50, this is 1000 voices.
+/** Safety cap on pagination — at limit=50, this is 1000 voices.
  *  Beyond this, something pathological is going on (compromised account
  *  or runaway clone-bug), so the cap prevents an infinite loop on a bad
  *  Mistral response while still covering any realistic legitimate scale. */
 const VOICE_LIST_MAX_PAGES = 20;
 
-interface VoicesPage {
-  items: MistralVoiceInfo[];
-  totalPages: number;
-}
-
-/** Fetch a single page of the voices listing. Internal helper for the
+/** Fetch a single window of the voices listing. Internal helper for the
  *  pagination walker. */
-async function fetchVoicesPage(apiKey: string, page: number): Promise<VoicesPage> {
+async function fetchVoicesPage(apiKey: string, offset: number): Promise<MistralVoiceInfo[]> {
   const response = await mistralFetch(
-    `/audio/voices?page=${page}&page_size=${VOICE_LIST_PAGE_SIZE}`,
+    `/audio/voices?limit=${VOICE_LIST_PAGE_SIZE}&offset=${offset}`,
     {
       method: 'GET',
       headers: { Authorization: `Bearer ${apiKey}` },
@@ -451,21 +449,16 @@ async function fetchVoicesPage(apiKey: string, page: number): Promise<VoicesPage
 
   const json = (await response.json()) as {
     items?: { id: string; name: string; user_id: string | null }[];
-    total?: number;
-    total_pages?: number;
   };
   if (!Array.isArray(json.items)) {
     throw new MistralResponseShapeError('/v1/audio/voices', 'items');
   }
 
-  return {
-    items: json.items.map(item => ({
-      id: item.id,
-      name: item.name,
-      userId: item.user_id,
-    })),
-    totalPages: typeof json.total_pages === 'number' ? json.total_pages : 1,
-  };
+  return json.items.map(item => ({
+    id: item.id,
+    name: item.name,
+    userId: item.user_id,
+  }));
 }
 
 /**
@@ -484,28 +477,49 @@ async function fetchVoicesPage(apiKey: string, page: number): Promise<VoicesPage
 export async function mistralListVoices(
   apiKey: string
 ): Promise<{ voices: MistralVoiceInfo[]; truncated: boolean }> {
-  const all: MistralVoiceInfo[] = [];
-  let page = 1;
+  const byId = new Map<string, MistralVoiceInfo>();
+  let offset = 0;
 
-  while (page <= VOICE_LIST_MAX_PAGES) {
-    const { items, totalPages } = await fetchVoicesPage(apiKey, page);
-    all.push(...items);
+  for (let pageCount = 0; pageCount < VOICE_LIST_MAX_PAGES; pageCount++) {
+    const items = await fetchVoicesPage(apiKey, offset);
 
-    if (page >= totalPages) {
-      return { voices: all, truncated: false };
+    let newItems = 0;
+    for (const item of items) {
+      if (!byId.has(item.id)) {
+        byId.set(item.id, item);
+        newItems++;
+      }
     }
-    page++;
+    offset += items.length;
+
+    // A short page means the listing is exhausted — exhaustive result.
+    if (items.length < VOICE_LIST_PAGE_SIZE) {
+      return { voices: [...byId.values()], truncated: false };
+    }
+    // A full page with zero new ids means the provider is repeating a window
+    // regardless of offset — walking further can't surface anything new. The
+    // visible window IS the account's listing as far as we can ever observe,
+    // so this returns `truncated: false`: marking it truncated would make
+    // find-by-name refuse to clone permanently, while the worst case of
+    // treating it exhaustive (a duplicate clone) is recoverable via purge.
+    if (newItems === 0) {
+      logger.warn(
+        { event: 'mistral.voiceListRepeatedWindow', offset, uniqueCount: byId.size },
+        'Mistral voice list repeated a full page with no new ids — treating visible window as exhaustive'
+      );
+      return { voices: [...byId.values()], truncated: false };
+    }
   }
 
   logger.warn(
     {
       event: 'mistral.voiceListTruncated',
       maxPages: VOICE_LIST_MAX_PAGES,
-      returnedCount: all.length,
+      returnedCount: byId.size,
     },
     'Mistral voice list pagination cap reached — find-by-name will refuse to clone if voice not found in truncated prefix'
   );
-  return { voices: all, truncated: true };
+  return { voices: [...byId.values()], truncated: true };
 }
 
 /**

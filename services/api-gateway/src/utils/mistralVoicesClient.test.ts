@@ -31,6 +31,18 @@ function jsonResponse(status: number, body: unknown): Response {
   } as unknown as Response;
 }
 
+/** Build a full page (50 items) of unique voices with the given id prefix. */
+function fullPage(
+  idPrefix: string,
+  namer: (i: number) => string
+): { id: string; name: string; user_id: string }[] {
+  return Array.from({ length: 50 }, (_, i) => ({
+    id: `${idPrefix}-${i}`,
+    name: namer(i),
+    user_id: 'u',
+  }));
+}
+
 beforeEach(() => {
   mockFetch.mockReset();
 });
@@ -44,7 +56,6 @@ describe('listMistralTzurotVoices', () => {
           { id: 'v2', name: 'random-other', user_id: 'u' },
           { id: 'v3', name: 'tzurot-bob', user_id: 'u' },
         ],
-        total_pages: 1,
       })
     );
 
@@ -56,20 +67,20 @@ describe('listMistralTzurotVoices', () => {
       expect(result.totalVoices).toBe(3); // unfiltered count
       expect(result.voices.map(v => v.name)).toEqual(['tzurot-alice', 'tzurot-bob']);
     }
+    // Single short page → no second request
+    expect(mockFetch).toHaveBeenCalledTimes(1);
   });
 
-  it('walks pagination and aggregates filtered results across pages', async () => {
+  it('walks pagination via limit/offset and aggregates filtered results', async () => {
     mockFetch
       .mockResolvedValueOnce(
         jsonResponse(200, {
-          items: [{ id: 'v1', name: 'tzurot-alice', user_id: 'u' }],
-          total_pages: 2,
+          items: fullPage('p1', i => (i === 0 ? 'tzurot-alice' : `other-${i}`)),
         })
       )
       .mockResolvedValueOnce(
         jsonResponse(200, {
-          items: [{ id: 'v2', name: 'tzurot-bob', user_id: 'u' }],
-          total_pages: 2,
+          items: [{ id: 'p2-0', name: 'tzurot-bob', user_id: 'u' }],
         })
       );
 
@@ -78,10 +89,48 @@ describe('listMistralTzurotVoices', () => {
     expect('voices' in result).toBe(true);
     if ('voices' in result) {
       expect(result.voices.map(v => v.name)).toEqual(['tzurot-alice', 'tzurot-bob']);
+      expect(result.totalVoices).toBe(51);
     }
     expect(mockFetch).toHaveBeenCalledTimes(2);
-    expect(mockFetch.mock.calls[0][0]).toContain('page=1');
-    expect(mockFetch.mock.calls[1][0]).toContain('page=2');
+    expect(mockFetch.mock.calls[0][0]).toContain('limit=50&offset=0');
+    expect(mockFetch.mock.calls[1][0]).toContain('limit=50&offset=50');
+  });
+
+  it('stops walking and dedupes when the provider repeats a full page', async () => {
+    // Provider ignores offset and returns the identical window on every
+    // request. The walker must dedupe by id and stop after the first
+    // no-new-ids page instead of collecting 20 copies of each voice.
+    const repeatedWindow = fullPage('rep', i => `tzurot-voice-${i}`);
+    mockFetch.mockResolvedValue(jsonResponse(200, { items: repeatedWindow }));
+
+    const result = await listMistralTzurotVoices('mi-key', 'tzurot-');
+
+    expect('voices' in result).toBe(true);
+    if ('voices' in result) {
+      expect(result.voices).toHaveLength(50);
+      expect(result.totalVoices).toBe(50);
+      expect(new Set(result.voices.map(v => v.voiceId)).size).toBe(50);
+    }
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('returns after the pagination cap when every window keeps producing new ids', async () => {
+    let call = 0;
+    mockFetch.mockImplementation(() => {
+      const window = call++;
+      return Promise.resolve(
+        jsonResponse(200, { items: fullPage(`w${window}`, i => `tzurot-w${window}-${i}`) })
+      );
+    });
+
+    const result = await listMistralTzurotVoices('mi-key', 'tzurot-');
+
+    expect(mockFetch).toHaveBeenCalledTimes(20);
+    expect('voices' in result).toBe(true);
+    if ('voices' in result) {
+      expect(result.voices).toHaveLength(1000);
+      expect(result.totalVoices).toBe(1000);
+    }
   });
 
   it('returns errorResponse on 401', async () => {
