@@ -1,7 +1,7 @@
 ---
 name: tzurot-git-workflow
 description: 'Git workflow procedures. Invoke with /tzurot-git-workflow for commit, PR, and release procedures.'
-lastUpdated: '2026-07-20'
+lastUpdated: '2026-07-22'
 ---
 
 # Git Workflow Procedures
@@ -268,15 +268,23 @@ in commands.md for a day after the blast-radius fix).
 
 ### 3. Create Release PR
 
-**Security preflight first**: check open Dependabot PRs and the GitHub security
-tab before cutting the release — the user has repeatedly been the one to notice
-new advisories mid-release, and a fixable vuln is cheaper to ride along than to
-hotfix after.
+**Security preflight first**: enumerate open advisories before cutting the
+release — the user has repeatedly been the one to notice new advisories
+mid-release, and a fixable vuln is cheaper to ride along than to hotfix after.
 
 ```bash
-gh pr list --author "app/dependabot" --state open
-gh api repos/{owner}/{repo}/dependabot/alerts --jq '[.[] | select(.state=="open")] | length'
+pnpm ops security:advisories        # each advisory + severity + fix version + direct/transitive + action
+gh pr list --author "app/dependabot" --state open   # any auto-PRs to ride along
 ```
+
+`security:advisories` is the primary check: it prints each open advisory with
+its fix version and — crucially — whether it's a **direct** dep (Dependabot
+will auto-PR it) or **transitive-only** (Dependabot _can't_ PR it; it needs a
+manual `pnpm.overrides` bump and otherwise lingers open indefinitely). A
+transitive-with-fix advisory is the ride-along candidate: widen/add the
+override, `pnpm install`, verify the lockfile resolves the patched version.
+(`--json` for machine output; `--strict` exits nonzero on an actionable
+high/critical.) The same list also appears in `pnpm ops health`.
 
 ```bash
 gh pr create --base main --head develop --title "Release v3.0.0-beta.XX: Description"

@@ -130,6 +130,13 @@ export const AUDIT_TOOL_REGISTRY: readonly AuditToolEntry[] = [
   // a threshold"). If memory:analyze gains an ongoing periodic use case,
   // re-add it here. The WHY.md path is on the UNREGISTERED_WHY_PATHS
   // allowlist below so the orphan-WHY sweep doesn't flag it.
+  //
+  // NOTE: `security:advisories` is intentionally NOT in the registry either.
+  // Audit-class means a ratcheting MEASUREMENT against a baseline (test:audit,
+  // cpd:check, mutation:check). This is a point-in-time REPORT of current
+  // Dependabot advisories with no baseline/drift — and `--strict` is an
+  // absolute gate (any actionable high/critical), not baseline-relative. It's
+  // reporting/guard-shaped, like `memory:analyze`; no WHY.md/canary needed.
 ];
 
 /**
