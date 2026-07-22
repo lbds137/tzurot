@@ -12,6 +12,10 @@ import { type AttachmentMetadata } from '@tzurot/common-types/types/schemas/disc
 import { type StoredReferencedMessage } from '@tzurot/common-types/types/schemas/message';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { neutralizeWrapperClosingTags } from '@tzurot/common-types/utils/promptSanitizer';
+import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
+import { validateAIProvider } from '../utils/providerValidation.js';
+import { type ModelConfig } from './ModelFactory.js';
+import type { DuplicateRetryConfig } from './ConversationalRAGTypes.js';
 import type { VisionDescriptionCache } from './VisionDescriptionCache.js';
 import type { ProcessedAttachment } from './MultimodalProcessor.js';
 import type { InlineImageDescription } from '../jobs/utils/conversationUtils.js';
@@ -407,4 +411,51 @@ export async function enrichConversationHistory(
   }
 
   await hydrateStoredReferences(rawHistory, prisma, visionCache);
+}
+
+/**
+ * Build the ModelFactory config for a generation turn from the personality's
+ * sampling parameters, applying duplicate-retry overrides. Pure mapping —
+ * extracted from ConversationalRAGService.invokeModelAndClean.
+ */
+export function buildModelSamplingConfig(opts: {
+  personality: LoadedPersonality;
+  userApiKey?: string;
+  retryConfig?: DuplicateRetryConfig;
+  supportsReasoning?: boolean;
+}): ModelConfig {
+  const { personality, userApiKey, retryConfig, supportsReasoning } = opts;
+  return {
+    modelName: personality.model,
+    // Per-request provider override — drives ModelFactory's branch selection
+    // (OpenRouter vs zai-coding baseURL). Defensive runtime guard at this
+    // consumption boundary (per common-types LlmConfigMapper docs): if a
+    // future provider lands in the DB column ahead of the AIProvider enum,
+    // fall back to OpenRouter with a logged warning rather than handing
+    // ModelFactory a string that doesn't match any branch.
+    provider: validateAIProvider(personality.provider),
+    apiKey: userApiKey,
+    temperature: retryConfig?.temperatureOverride ?? personality.temperature,
+    topP: personality.topP,
+    topK: personality.topK,
+    frequencyPenalty: retryConfig?.frequencyPenaltyOverride ?? personality.frequencyPenalty,
+    presencePenalty: personality.presencePenalty,
+    repetitionPenalty: personality.repetitionPenalty,
+    maxTokens: personality.maxTokens,
+    // Advanced sampling
+    minP: personality.minP,
+    topA: personality.topA,
+    seed: personality.seed,
+    // Output control
+    logitBias: personality.logitBias,
+    responseFormat: personality.responseFormat,
+    showThinking: personality.showThinking,
+    // Reasoning (for thinking models: o1/o3, Claude, DeepSeek R1)
+    reasoning: personality.reasoning,
+    supportsReasoning,
+    // OpenRouter-specific
+    transforms: personality.transforms,
+    route: personality.route,
+    verbosity: personality.verbosity,
+  };
 }

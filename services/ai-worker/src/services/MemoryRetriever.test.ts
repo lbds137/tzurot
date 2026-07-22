@@ -86,7 +86,6 @@ describe('MemoryRetriever', () => {
     it('should delegate to PersonaResolver.resolveForMemory', async () => {
       mockPersonaResolver.resolveForMemory.mockResolvedValue({
         personaId: 'persona-123',
-        focusModeEnabled: false,
       });
 
       const result = await retriever.resolvePersonaForMemory('discord-123', 'personality-123');
@@ -97,7 +96,6 @@ describe('MemoryRetriever', () => {
       );
       expect(result).toEqual({
         personaId: 'persona-123',
-        focusModeEnabled: false,
       });
     });
 
@@ -517,7 +515,7 @@ describe('MemoryRetriever', () => {
         context
       );
 
-      expect(result).toEqual({ memories: [], focusModeEnabled: false });
+      expect(result).toEqual({ memories: [], freshModeEnabled: false });
       expect(mockMemoryManager.queryMemories).not.toHaveBeenCalled();
     });
 
@@ -533,7 +531,7 @@ describe('MemoryRetriever', () => {
         incognitoContext
       );
 
-      expect(result).toEqual({ memories: [], focusModeEnabled: false });
+      expect(result).toEqual({ memories: [], freshModeEnabled: false });
       // Should NOT even resolve persona or query memories
       expect(mockPersonaResolver.resolveForMemory).not.toHaveBeenCalled();
       expect(mockMemoryManager.queryMemories).not.toHaveBeenCalled();
@@ -542,7 +540,6 @@ describe('MemoryRetriever', () => {
     it('retrieves LTM for a personal summon (even with weigh-in framing)', async () => {
       mockPersonaResolver.resolveForMemory.mockResolvedValue({
         personaId: 'persona-123',
-        focusModeEnabled: false,
       });
       const mockMemories = [{ pageContent: 'Memory content', metadata: { id: 'mem-1' } }];
       (mockMemoryManager.queryMemories as any).mockResolvedValue(mockMemories);
@@ -570,27 +567,32 @@ describe('MemoryRetriever', () => {
       expect(mockMemoryManager.queryMemories).toHaveBeenCalled();
     });
 
-    it('should return empty array when focus mode is enabled', async () => {
-      mockPersonaResolver.resolveForMemory.mockResolvedValue({
-        personaId: 'persona-123',
-        focusModeEnabled: true, // Focus mode enabled!
-      });
+    it('should return empty array when fresh mode is enabled', async () => {
+      const isFreshActive = vi.fn().mockResolvedValue(true);
+      const freshRetriever = new MemoryRetriever(
+        mockPrismaClient,
+        mockMemoryManager as unknown as PgvectorMemoryAdapter,
+        mockPersonaResolver as unknown as PersonaResolver,
+        { isFreshActive }
+      );
 
-      const result = await retriever.retrieveRelevantMemories(
+      const result = await freshRetriever.retrieveRelevantMemories(
         mockPersonality,
         'test query',
         context
       );
 
-      expect(result).toEqual({ memories: [], focusModeEnabled: true });
-      // Should NOT query memories when focus mode is on
+      expect(result).toEqual({ memories: [], freshModeEnabled: true });
+      // The checker is consulted with the interacting user + personality
+      expect(isFreshActive).toHaveBeenCalledWith('discord-user-123', 'personality-123');
+      // Should NOT query memories (or even resolve the persona) when fresh mode is on
+      expect(mockPersonaResolver.resolveForMemory).not.toHaveBeenCalled();
       expect(mockMemoryManager.queryMemories).not.toHaveBeenCalled();
     });
 
-    it('should query memories normally when focus mode is disabled', async () => {
+    it('should query memories normally when fresh mode is inactive', async () => {
       mockPersonaResolver.resolveForMemory.mockResolvedValue({
         personaId: 'persona-123',
-        focusModeEnabled: false, // Focus mode disabled
       });
 
       const mockMemories = [{ pageContent: 'Memory content', metadata: { id: 'mem-1' } }];
@@ -604,10 +606,10 @@ describe('MemoryRetriever', () => {
 
       expect(result).toEqual({
         memories: mockMemories,
-        focusModeEnabled: false,
+        freshModeEnabled: false,
         personaId: 'persona-123',
       });
-      // Should query memories when focus mode is off
+      // Should query memories when fresh mode is off (no checker = inactive)
       expect(mockMemoryManager.queryMemories).toHaveBeenCalled();
     });
 
@@ -620,7 +622,6 @@ describe('MemoryRetriever', () => {
 
       mockPersonaResolver.resolveForMemory.mockResolvedValue({
         personaId: 'persona-123',
-        focusModeEnabled: false,
       });
 
       const result = await retrieverWithoutMemory.retrieveRelevantMemories(
@@ -631,13 +632,12 @@ describe('MemoryRetriever', () => {
 
       // No memory manager → no episodes, but the persona still resolves (facts
       // path in ConversationalRAGService inherits this personaId).
-      expect(result).toEqual({ memories: [], focusModeEnabled: false, personaId: 'persona-123' });
+      expect(result).toEqual({ memories: [], freshModeEnabled: false, personaId: 'persona-123' });
     });
 
     it('should query memories with correct parameters', async () => {
       mockPersonaResolver.resolveForMemory.mockResolvedValue({
         personaId: 'persona-123',
-        focusModeEnabled: false,
       });
 
       const mockMemories = [
@@ -669,7 +669,7 @@ describe('MemoryRetriever', () => {
 
       expect(result).toEqual({
         memories: mockMemories,
-        focusModeEnabled: false,
+        freshModeEnabled: false,
         personaId: 'persona-123',
       });
       // No configOverrides passed → retrieval params fall back to AI_DEFAULTS
@@ -688,7 +688,6 @@ describe('MemoryRetriever', () => {
     it('should apply STM/LTM deduplication buffer', async () => {
       mockPersonaResolver.resolveForMemory.mockResolvedValue({
         personaId: 'persona-123',
-        focusModeEnabled: false,
       });
 
       const oldestTimestamp = Date.now() - 3600000; // 1 hour ago
@@ -712,7 +711,6 @@ describe('MemoryRetriever', () => {
     it('exact mode: cutoff = oldest SHIPPED message PLUS buffer (over-retrieve past the boundary)', async () => {
       mockPersonaResolver.resolveForMemory.mockResolvedValue({
         personaId: 'persona-123',
-        focusModeEnabled: false,
       });
 
       const oldestShipped = Date.now() - 3600000;
@@ -734,7 +732,6 @@ describe('MemoryRetriever', () => {
     it('exact mode: refs/cross-channel keep the pessimistic MINUS-buffer bound when older', async () => {
       mockPersonaResolver.resolveForMemory.mockResolvedValue({
         personaId: 'persona-123',
-        focusModeEnabled: false,
       });
 
       const oldestShipped = Date.now() - 3600000;
@@ -756,7 +753,6 @@ describe('MemoryRetriever', () => {
     it('exact mode: nothing shipped and no refs → NO cutoff (everything-truncated turns keep full LTM coverage)', async () => {
       mockPersonaResolver.resolveForMemory.mockResolvedValue({
         personaId: 'persona-123',
-        focusModeEnabled: false,
       });
 
       const contextExact: ConversationContext = {
@@ -777,7 +773,6 @@ describe('MemoryRetriever', () => {
     it('should use session context if provided', async () => {
       mockPersonaResolver.resolveForMemory.mockResolvedValue({
         personaId: 'persona-123',
-        focusModeEnabled: false,
       });
 
       const contextWithSession: ConversationContext = {
@@ -802,7 +797,6 @@ describe('MemoryRetriever', () => {
         maxImages: 5,
         memoryScoreThreshold: 0.8,
         memoryLimit: 10,
-        focusModeEnabled: false,
         crossChannelHistoryEnabled: false,
         shareLtmAcrossPersonalities: false,
         showModelFooter: true,
@@ -814,7 +808,6 @@ describe('MemoryRetriever', () => {
           maxImages: 'personality',
           memoryScoreThreshold: 'admin',
           memoryLimit: 'user-default',
-          focusModeEnabled: 'hardcoded',
           crossChannelHistoryEnabled: 'hardcoded' as const,
           shareLtmAcrossPersonalities: 'hardcoded' as const,
           showModelFooter: 'hardcoded' as const,
@@ -826,7 +819,6 @@ describe('MemoryRetriever', () => {
       it('should exclude personalityId when shareLtmAcrossPersonalities is true in configOverrides', async () => {
         mockPersonaResolver.resolveForMemory.mockResolvedValue({
           personaId: 'persona-123',
-          focusModeEnabled: false,
         });
 
         const shareLtmOverrides: ResolvedConfigOverrides = {
@@ -853,7 +845,6 @@ describe('MemoryRetriever', () => {
       it('should use cascade memoryLimit and memoryScoreThreshold over AI_DEFAULTS', async () => {
         mockPersonaResolver.resolveForMemory.mockResolvedValue({
           personaId: 'persona-123',
-          focusModeEnabled: false,
         });
 
         await retriever.retrieveRelevantMemories(
@@ -875,7 +866,6 @@ describe('MemoryRetriever', () => {
       it('skips retrieval entirely when cascade memoryLimit is 0 (disabled)', async () => {
         mockPersonaResolver.resolveForMemory.mockResolvedValue({
           personaId: 'persona-123',
-          focusModeEnabled: false,
         });
 
         const disabledOverrides: ResolvedConfigOverrides = {
@@ -898,57 +888,15 @@ describe('MemoryRetriever', () => {
         // memories) suppressed together with the memories.
         expect(result).toEqual({
           memories: [],
-          focusModeEnabled: false,
+          freshModeEnabled: false,
         });
         expect(result.personaId).toBeUndefined();
         expect(mockMemoryManager.queryMemories).not.toHaveBeenCalled();
       });
 
-      it('should use cascade focusModeEnabled over DB column value', async () => {
-        mockPersonaResolver.resolveForMemory.mockResolvedValue({
-          personaId: 'persona-123',
-          focusModeEnabled: false, // DB says disabled
-        });
-
-        const focusOverrides: ResolvedConfigOverrides = {
-          ...cascadeOverrides,
-          focusModeEnabled: true, // Cascade says enabled
-        };
-
-        const result = await retriever.retrieveRelevantMemories(
-          mockPersonality,
-          'test query',
-          context,
-          focusOverrides
-        );
-
-        expect(result).toEqual({ memories: [], focusModeEnabled: true });
-        expect(mockMemoryManager.queryMemories).not.toHaveBeenCalled();
-      });
-
-      it('should fall back to DB focusModeEnabled when cascade says false and DB says true', async () => {
-        mockPersonaResolver.resolveForMemory.mockResolvedValue({
-          personaId: 'persona-123',
-          focusModeEnabled: true, // DB says enabled
-        });
-
-        // Cascade says disabled — cascade takes priority
-        const result = await retriever.retrieveRelevantMemories(
-          mockPersonality,
-          'test query',
-          context,
-          cascadeOverrides // focusModeEnabled: false
-        );
-
-        // Cascade value (false) overrides DB column (true)
-        expect(result.focusModeEnabled).toBe(false);
-        expect(mockMemoryManager.queryMemories).toHaveBeenCalled();
-      });
-
       it('should fall back to AI_DEFAULTS when configOverrides is undefined', async () => {
         mockPersonaResolver.resolveForMemory.mockResolvedValue({
           personaId: 'persona-123',
-          focusModeEnabled: false,
         });
 
         await retriever.retrieveRelevantMemories(
@@ -971,7 +919,6 @@ describe('MemoryRetriever', () => {
     it('should use channel-scoped retrieval when channels are referenced', async () => {
       mockPersonaResolver.resolveForMemory.mockResolvedValue({
         personaId: 'persona-123',
-        focusModeEnabled: false,
       });
 
       const contextWithChannels: ConversationContext = {

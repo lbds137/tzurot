@@ -4,8 +4,6 @@
  *
  * GET /user/memory/stats - Get memory statistics for a personality
  * GET /user/memory/list - Paginated list of memories for browsing
- * GET /user/memory/focus - Get focus mode status
- * POST /user/memory/focus - Enable/disable focus mode
  * POST /user/memory/search - Semantic search of memories
  * POST /user/memory/delete/preview - Preview batch delete; issues PreviewToken
  * POST /user/memory/delete - Execute batch delete using PreviewToken
@@ -16,26 +14,19 @@
  * DELETE /user/memory/:id - Delete a single memory
  * PUT /user/memory/:id/lock - Set memory lock state explicitly (idempotent on retry)
  *
- * Incognito mode (sub-routes mounted at /user/memory/incognito):
- * GET /user/memory/incognito - Get incognito status
- * POST /user/memory/incognito - Enable incognito mode
- * DELETE /user/memory/incognito - Disable incognito mode
- * POST /user/memory/incognito/forget - Retroactively delete recent memories
+ * Memory-mode sub-routes (incognito at /user/memory/incognito, fresh at
+ * /user/memory/fresh): status/enable/disable each, plus incognito's forget.
  */
 
 import { Router, type RequestHandler, type Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
-import { FocusModeSchema } from '@tzurot/common-types/schemas/api/memory';
-import { Prisma } from '@tzurot/common-types/services/prisma';
-import { generateUserPersonalityConfigUuid } from '@tzurot/common-types/utils/deterministicUuid';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { RouteDeps } from '../routeDeps.js';
-import { pruneEmptyPersonalityConfig } from './pruneEmptyPersonalityConfig.js';
 import { requireUserAuth, requireProvisionedUser } from '../../services/AuthMiddleware.js';
+import { MemoryModeSessionManager } from '../../services/MemoryModeSessionManager.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
-import { sendZodError } from '../../utils/zodHelpers.js';
 import type { ProvisionedRequest } from '../../types.js';
 import { handleSearch } from './memorySearch.js';
 import { handleList } from './memoryList.js';
@@ -52,6 +43,7 @@ import {
   handlePurge,
 } from './memoryBatch.js';
 import { createIncognitoRoutes } from './memoryIncognito.js';
+import { createFreshRoutes } from './memoryFresh.js';
 import { resolveProvisionedUserId } from '../../utils/resolveProvisionedUserId.js';
 import { getDefaultPersonaId, getPersonalityById } from './memoryHelpers.js';
 
@@ -79,8 +71,18 @@ export const handleGetStats = (deps: RouteDeps): RequestHandler => {
 
     const config = await prisma.userPersonalityConfig.findUnique({
       where: { userId_personalityId: { userId, personalityId } },
-      select: { personaId: true, configOverrides: true },
+      select: { personaId: true },
     });
+
+    // Fresh mode is a Redis session (specific-or-global); without Redis the
+    // honest answer for a stats display is "not active".
+    const freshModeEnabled =
+      deps.redis !== undefined
+        ? await new MemoryModeSessionManager(deps.redis, 'fresh').isActive(
+            discordUserId,
+            personalityId
+          )
+        : false;
 
     const personaId = config?.personaId ?? (await getDefaultPersonaId(prisma, userId));
 
@@ -95,7 +97,7 @@ export const handleGetStats = (deps: RouteDeps): RequestHandler => {
           lockedCount: 0,
           oldestMemory: null,
           newestMemory: null,
-          focusModeEnabled: false,
+          freshModeEnabled,
         },
         StatusCodes.OK
       );
@@ -134,123 +136,7 @@ export const handleGetStats = (deps: RouteDeps): RequestHandler => {
         lockedCount,
         oldestMemory: oldestMemory?.createdAt?.toISOString() ?? null,
         newestMemory: newestMemory?.createdAt?.toISOString() ?? null,
-        focusModeEnabled:
-          (config?.configOverrides as Record<string, unknown> | null)?.focusModeEnabled === true,
-      },
-      StatusCodes.OK
-    );
-  });
-};
-
-/** Handler for GET /user/memory/focus */
-export const handleGetFocus = (deps: RouteDeps): RequestHandler => {
-  const { prisma } = deps;
-  return asyncHandler(async (req: ProvisionedRequest, res: Response) => {
-    const { personalityId } = req.query as { personalityId?: string };
-
-    if (personalityId === undefined || personalityId === '') {
-      sendError(res, ErrorResponses.validationError('personalityId query parameter is required'));
-      return;
-    }
-
-    const userId = resolveProvisionedUserId(req);
-
-    const config = await prisma.userPersonalityConfig.findUnique({
-      where: { userId_personalityId: { userId, personalityId } },
-      select: { configOverrides: true },
-    });
-
-    sendCustomSuccess(
-      res,
-      {
-        personalityId,
-        focusModeEnabled:
-          (config?.configOverrides as Record<string, unknown> | null)?.focusModeEnabled === true,
-      },
-      StatusCodes.OK
-    );
-  });
-};
-
-/** Handler for POST /user/memory/focus */
-
-export const handleSetFocus = (deps: RouteDeps): RequestHandler => {
-  const { prisma } = deps;
-  return asyncHandler(async (req: ProvisionedRequest, res: Response) => {
-    const discordUserId = req.userId;
-
-    const parseResult = FocusModeSchema.safeParse(req.body);
-    if (!parseResult.success) {
-      sendZodError(res, parseResult.error);
-      return;
-    }
-
-    const { personalityId, enabled } = parseResult.data;
-
-    const userId = resolveProvisionedUserId(req);
-
-    const personality = await getPersonalityById(prisma, personalityId, res);
-    if (!personality) {
-      return;
-    }
-
-    // Read existing configOverrides to merge focusModeEnabled into JSONB
-    const upcId = generateUserPersonalityConfigUuid(userId, personalityId);
-    const existing = await prisma.userPersonalityConfig.findUnique({
-      where: { id: upcId },
-      select: { configOverrides: true },
-    });
-
-    const existingOverrides =
-      existing?.configOverrides !== null &&
-      existing?.configOverrides !== undefined &&
-      typeof existing.configOverrides === 'object' &&
-      !Array.isArray(existing.configOverrides)
-        ? (existing.configOverrides as Record<string, unknown>)
-        : {};
-
-    // Merge focusModeEnabled into JSONB (dual-write: column + JSONB).
-    // Strip false to keep JSONB clean (false is the default).
-    const mergedOverrides: Record<string, unknown> = { ...existingOverrides };
-    if (enabled) {
-      mergedOverrides.focusModeEnabled = true;
-    } else {
-      delete mergedOverrides.focusModeEnabled;
-    }
-    const configOverridesValue =
-      Object.keys(mergedOverrides).length > 0
-        ? (mergedOverrides as Prisma.InputJsonValue)
-        : Prisma.JsonNull;
-
-    const upserted = await prisma.userPersonalityConfig.upsert({
-      where: { userId_personalityId: { userId, personalityId } },
-      update: { configOverrides: configOverridesValue },
-      create: {
-        id: upcId,
-        userId,
-        personalityId,
-        configOverrides: configOverridesValue,
-      },
-      select: { id: true },
-    });
-    // Disabling focus clears the only slice this route sets — if nothing else
-    // is set, don't leave (or create) a dead anchor row.
-    await pruneEmptyPersonalityConfig(prisma, upserted.id);
-
-    logger.info(
-      { discordUserId, personalityId, enabled },
-      `Focus mode ${enabled ? 'enabled' : 'disabled'}`
-    );
-
-    sendCustomSuccess(
-      res,
-      {
-        personalityId,
-        personalityName: personality.name,
-        focusModeEnabled: enabled,
-        message: enabled
-          ? `Focus mode enabled for ${personality.name}. Memory retrieval is now paused — the AI will only use the current conversation context.`
-          : `Focus mode disabled for ${personality.name}. Memory retrieval is active — the AI will use past memories during conversations.`,
+        freshModeEnabled,
       },
       StatusCodes.OK
     );
@@ -264,22 +150,21 @@ export const handleSetFocus = (deps: RouteDeps): RequestHandler => {
  * identically and this factory becomes the legacy path to delete.
  *
  * Registration order matters: literal paths (`/stats`, `/list`, `/search`,
- * `/delete*`, `/purge*`, `/focus`) must come before `/:id` so they don't get
+ * `/delete*`, `/purge*`) must come before `/:id` so they don't get
  * shadowed by the parameterised route.
  */
 export function createMemoryRoutes(deps: RouteDeps): Router {
   const router = Router();
   const { prisma, redis } = deps;
 
-  // Incognito mode routes (requires Redis)
+  // Memory-mode routes (require Redis)
   if (redis !== undefined) {
     router.use('/incognito', createIncognitoRoutes(prisma, redis));
+    router.use('/fresh', createFreshRoutes(prisma, redis));
   }
 
   const requireProvisioned = requireProvisionedUser(prisma);
   router.get('/stats', requireUserAuth(), requireProvisioned, handleGetStats(deps));
-  router.get('/focus', requireUserAuth(), requireProvisioned, handleGetFocus(deps));
-  router.post('/focus', requireUserAuth(), requireProvisioned, handleSetFocus(deps));
   router.get('/list', requireUserAuth(), requireProvisioned, handleList(deps));
   router.post('/search', requireUserAuth(), requireProvisioned, handleSearch(deps));
   router.post(

@@ -50,10 +50,10 @@ yours to inspect:
   `/memory facts` shows the specific facts it has learned about you — and
   lets you correct them.
 - `/memory delete` and `/memory purge` remove memories outright.
-- **Focus mode** (`/memory focus`) temporarily stops a character from
-  _reading_ long-term memory; **incognito mode** (`/memory incognito`) stops
-  it from _writing_ new memories, with a retroactive forget when you turn it
-  off.
+- **Fresh mode** (`/memory fresh`) temporarily stops a character from
+  _reading_ its long-term memories of you — they're kept, just not used;
+  **incognito mode** (`/memory incognito`) stops it from _writing_ new
+  memories, with a retroactive forget when you turn it off.
 - `/history clear` resets the recent conversation (with undo).
 
 ## Voice

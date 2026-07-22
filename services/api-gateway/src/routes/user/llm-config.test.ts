@@ -15,7 +15,6 @@ const { mockResolveOverrides, mockResolveConfig } = vi.hoisted(() => ({
     maxImages: 10,
     memoryScoreThreshold: 0.5,
     memoryLimit: 20,
-    focusModeEnabled: false,
     crossChannelHistoryEnabled: false,
     shareLtmAcrossPersonalities: false,
     showModelFooter: true,
@@ -25,7 +24,6 @@ const { mockResolveOverrides, mockResolveConfig } = vi.hoisted(() => ({
       maxImages: 'hardcoded' as const,
       memoryScoreThreshold: 'hardcoded' as const,
       memoryLimit: 'hardcoded' as const,
-      focusModeEnabled: 'hardcoded' as const,
       crossChannelHistoryEnabled: 'hardcoded' as const,
       shareLtmAcrossPersonalities: 'hardcoded' as const,
       showModelFooter: 'hardcoded' as const,
@@ -1816,7 +1814,6 @@ describe('/user/llm-config routes', () => {
           maxMessages: 50,
           maxAge: null,
           maxImages: 10,
-          focusModeEnabled: false,
           sources: expect.objectContaining({
             maxMessages: 'hardcoded',
             maxAge: 'hardcoded',

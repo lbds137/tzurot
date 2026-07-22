@@ -36,12 +36,6 @@ describe('SettingsSessionStorage', () => {
         source: 'hardcoded',
       },
       maxImages: { localValue: 5, hasLocalOverride: true, effectiveValue: 5, source: 'admin' },
-      focusModeEnabled: {
-        localValue: null,
-        hasLocalOverride: false,
-        effectiveValue: false,
-        source: 'hardcoded',
-      },
       crossChannelHistoryEnabled: {
         localValue: null,
         hasLocalOverride: false,

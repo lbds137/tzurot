@@ -1,54 +1,67 @@
 /**
- * IncognitoSessionManager
+ * MemoryModeSessionManager
  *
- * Manages incognito mode sessions in Redis with TTL-based expiration.
+ * Manages memory-mode sessions (incognito, fresh) in Redis with TTL-based
+ * expiration. The two modes share identical session mechanics and differ only
+ * in which memory gate they close — incognito blocks WRITES, fresh blocks
+ * READS — so one manager serves both, parameterized by key prefix.
  *
- * Incognito mode temporarily disables memory WRITING (not reading).
- * This is distinct from Focus Mode which disables memory READING.
- *
- * Key pattern: incognito:{userId}:{personalityId|all}
+ * Key pattern: {prefix}{userId}:{personalityId|all}
  *
  * Features:
- * - Enable/disable incognito for specific personality or all
+ * - Enable/disable a mode for a specific personality or all
  * - Auto-expiration via Redis TTL (30m, 1h, 4h, or forever)
- * - Check if incognito is active for a user/personality combo
+ * - Check if a mode is active for a user/personality combo
  * - List all active sessions for a user
  */
 
 import type { Redis } from 'ioredis';
 import { REDIS_KEY_PREFIXES } from '@tzurot/common-types/constants/queue';
 import {
-  type IncognitoSession,
-  type IncognitoDuration,
-  type IncognitoStatusResponse,
-  INCOGNITO_DURATIONS,
-  IncognitoSessionSchema,
-} from '@tzurot/common-types/types/incognito';
+  type MemoryModeSession,
+  type MemoryModeDuration,
+  type MemoryModeStatusResponse,
+  MEMORY_MODE_DURATIONS,
+  MemoryModeSessionSchema,
+} from '@tzurot/common-types/types/memory-modes';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 
-const logger = createLogger('IncognitoSessionManager');
+const logger = createLogger('MemoryModeSessionManager');
 
-/**
- * Build Redis key for incognito session
- */
-function buildKey(userId: string, personalityId: string): string {
-  return `${REDIS_KEY_PREFIXES.INCOGNITO}${userId}:${personalityId}`;
-}
+/** The two session-backed memory modes and their Redis key prefixes. */
+export const MEMORY_MODE_PREFIXES = {
+  incognito: REDIS_KEY_PREFIXES.INCOGNITO,
+  fresh: REDIS_KEY_PREFIXES.FRESH,
+} as const;
+
+export type MemoryMode = keyof typeof MEMORY_MODE_PREFIXES;
 
 /**
  * Calculate TTL in seconds from duration
  * Returns null for 'forever' (no expiration)
  */
-function getTtlSeconds(duration: IncognitoDuration): number | null {
-  const ms = INCOGNITO_DURATIONS[duration];
+function getTtlSeconds(duration: MemoryModeDuration): number | null {
+  const ms = MEMORY_MODE_DURATIONS[duration];
   if (ms === null) {
     return null; // 'forever' - no TTL
   }
   return Math.floor(ms / 1000);
 }
 
-export class IncognitoSessionManager {
-  constructor(private redis: Redis) {}
+export class MemoryModeSessionManager {
+  private readonly prefix: string;
+
+  constructor(
+    private redis: Redis,
+    private readonly mode: MemoryMode
+  ) {
+    this.prefix = MEMORY_MODE_PREFIXES[mode];
+  }
+
+  /** Build the Redis key for a session */
+  private buildKey(userId: string, personalityId: string): string {
+    return `${this.prefix}${userId}:${personalityId}`;
+  }
 
   /**
    * Scan for keys matching a pattern without blocking Redis
@@ -74,25 +87,25 @@ export class IncognitoSessionManager {
   }
 
   /**
-   * Enable incognito mode for a user/personality combination
+   * Enable the mode for a user/personality combination
    *
    * @param userId - Discord user ID (or internal user ID)
-   * @param personalityId - Personality ID or 'all' for global incognito
-   * @param duration - How long incognito should last
+   * @param personalityId - Personality ID or 'all' for a global session
+   * @param duration - How long the session should last
    * @returns The created session
    */
   async enable(
     userId: string,
     personalityId: string,
-    duration: IncognitoDuration
-  ): Promise<IncognitoSession> {
-    const key = buildKey(userId, personalityId);
+    duration: MemoryModeDuration
+  ): Promise<MemoryModeSession> {
+    const key = this.buildKey(userId, personalityId);
     const now = new Date();
 
-    const ttlMs = INCOGNITO_DURATIONS[duration];
+    const ttlMs = MEMORY_MODE_DURATIONS[duration];
     const expiresAt = ttlMs !== null ? new Date(now.getTime() + ttlMs).toISOString() : null;
 
-    const session: IncognitoSession = {
+    const session: MemoryModeSession = {
       userId,
       personalityId,
       enabledAt: now.toISOString(),
@@ -112,6 +125,7 @@ export class IncognitoSessionManager {
 
     logger.info(
       {
+        mode: this.mode,
         userId,
         personalityId,
         duration,
@@ -125,19 +139,19 @@ export class IncognitoSessionManager {
   }
 
   /**
-   * Disable incognito mode for a user/personality combination
+   * Disable the mode for a user/personality combination
    *
    * @param userId - Discord user ID
    * @param personalityId - Personality ID or 'all'
    * @returns true if session was disabled, false if it didn't exist
    */
   async disable(userId: string, personalityId: string): Promise<boolean> {
-    const key = buildKey(userId, personalityId);
+    const key = this.buildKey(userId, personalityId);
     const deleted = await this.redis.del(key);
 
     const wasActive = deleted > 0;
     logger.info(
-      { userId, personalityId, wasActive },
+      { mode: this.mode, userId, personalityId, wasActive },
       `Session ${wasActive ? 'disabled' : 'not found'}`
     );
 
@@ -145,14 +159,14 @@ export class IncognitoSessionManager {
   }
 
   /**
-   * Get incognito session for a specific user/personality
+   * Get the session for a specific user/personality
    *
    * @param userId - Discord user ID
    * @param personalityId - Personality ID or 'all'
    * @returns The session if active, null otherwise
    */
-  async getSession(userId: string, personalityId: string): Promise<IncognitoSession | null> {
-    const key = buildKey(userId, personalityId);
+  async getSession(userId: string, personalityId: string): Promise<MemoryModeSession | null> {
+    const key = this.buildKey(userId, personalityId);
     const data = await this.redis.get(key);
 
     if (data === null) {
@@ -162,7 +176,7 @@ export class IncognitoSessionManager {
     try {
       const parsed = JSON.parse(data) as unknown;
       // Trust Redis TTL for expiration - if the key exists, the session is active
-      return IncognitoSessionSchema.parse(parsed);
+      return MemoryModeSessionSchema.parse(parsed);
     } catch (error) {
       logger.warn({ err: error, key }, 'Failed to parse session data');
       // Invalid data - clean it up
@@ -172,12 +186,12 @@ export class IncognitoSessionManager {
   }
 
   /**
-   * Check if incognito is active for a user interacting with a personality.
-   * Checks both the specific personality and 'all' (global incognito).
+   * Check if the mode is active for a user interacting with a personality.
+   * Checks both the specific personality and 'all' (global session).
    *
    * @param userId - Discord user ID
    * @param personalityId - Personality ID being interacted with
-   * @returns true if incognito is active (either specific or global)
+   * @returns true if the mode is active (either specific or global)
    */
   async isActive(userId: string, personalityId: string): Promise<boolean> {
     // Check both specific personality and global 'all' in parallel
@@ -190,14 +204,14 @@ export class IncognitoSessionManager {
   }
 
   /**
-   * Get active session that applies to a user/personality interaction.
+   * Get the active session that applies to a user/personality interaction.
    * Returns the specific session if it exists, otherwise the global session.
    *
    * @param userId - Discord user ID
    * @param personalityId - Personality ID being interacted with
    * @returns The applicable session if any
    */
-  async getActiveSession(userId: string, personalityId: string): Promise<IncognitoSession | null> {
+  async getActiveSession(userId: string, personalityId: string): Promise<MemoryModeSession | null> {
     // Specific takes precedence over global
     const specificSession = await this.getSession(userId, personalityId);
     if (specificSession !== null) {
@@ -214,13 +228,13 @@ export class IncognitoSessionManager {
   private static readonly MAX_SESSIONS_PER_USER = 100;
 
   /**
-   * Get all active incognito sessions for a user
+   * Get all active sessions of this mode for a user
    *
    * @param userId - Discord user ID
    * @returns Status with all active sessions
    */
-  async getStatus(userId: string): Promise<IncognitoStatusResponse> {
-    const pattern = `${REDIS_KEY_PREFIXES.INCOGNITO}${userId}:*`;
+  async getStatus(userId: string): Promise<MemoryModeStatusResponse> {
+    const pattern = `${this.prefix}${userId}:*`;
     const allKeys = await this.scanKeys(pattern);
 
     if (allKeys.length === 0) {
@@ -228,15 +242,15 @@ export class IncognitoSessionManager {
     }
 
     // Bound the query to prevent memory issues from malicious key creation
-    const keys = allKeys.slice(0, IncognitoSessionManager.MAX_SESSIONS_PER_USER);
-    if (allKeys.length > IncognitoSessionManager.MAX_SESSIONS_PER_USER) {
+    const keys = allKeys.slice(0, MemoryModeSessionManager.MAX_SESSIONS_PER_USER);
+    if (allKeys.length > MemoryModeSessionManager.MAX_SESSIONS_PER_USER) {
       logger.warn(
-        { userId, total: allKeys.length, fetched: keys.length },
+        { mode: this.mode, userId, total: allKeys.length, fetched: keys.length },
         'User has excessive sessions - truncating'
       );
     }
 
-    const sessions: IncognitoSession[] = [];
+    const sessions: MemoryModeSession[] = [];
 
     // Fetch sessions in parallel (bounded)
     const values = await this.redis.mget(keys);
@@ -245,7 +259,7 @@ export class IncognitoSessionManager {
       if (value !== null) {
         try {
           const parsed = JSON.parse(value) as unknown;
-          const validated = IncognitoSessionSchema.parse(parsed);
+          const validated = MemoryModeSessionSchema.parse(parsed);
           sessions.push(validated);
         } catch {
           // Skip invalid entries
@@ -260,13 +274,13 @@ export class IncognitoSessionManager {
   }
 
   /**
-   * Disable all incognito sessions for a user
+   * Disable all sessions of this mode for a user
    *
    * @param userId - Discord user ID
    * @returns Number of sessions that were disabled
    */
   async disableAll(userId: string): Promise<number> {
-    const pattern = `${REDIS_KEY_PREFIXES.INCOGNITO}${userId}:*`;
+    const pattern = `${this.prefix}${userId}:*`;
     const allKeys = await this.scanKeys(pattern);
 
     if (allKeys.length === 0) {
@@ -274,16 +288,16 @@ export class IncognitoSessionManager {
     }
 
     // Bound the deletion to prevent issues from malicious key creation
-    const keys = allKeys.slice(0, IncognitoSessionManager.MAX_SESSIONS_PER_USER);
-    if (allKeys.length > IncognitoSessionManager.MAX_SESSIONS_PER_USER) {
+    const keys = allKeys.slice(0, MemoryModeSessionManager.MAX_SESSIONS_PER_USER);
+    if (allKeys.length > MemoryModeSessionManager.MAX_SESSIONS_PER_USER) {
       logger.warn(
-        { userId, total: allKeys.length, deleting: keys.length },
+        { mode: this.mode, userId, total: allKeys.length, deleting: keys.length },
         'User has excessive sessions - only deleting first batch'
       );
     }
 
     const deleted = await this.redis.del(...keys);
-    logger.info({ userId, count: deleted }, 'All sessions disabled');
+    logger.info({ mode: this.mode, userId, count: deleted }, 'All sessions disabled');
 
     return deleted;
   }
@@ -291,10 +305,10 @@ export class IncognitoSessionManager {
   /**
    * Get time remaining for a session in human-readable format
    *
-   * @param session - The incognito session
-   * @returns Human-readable time remaining, or 'forever' if no expiration
+   * @param session - The memory-mode session
+   * @returns Human-readable time remaining, or the manual-disable sentinel
    */
-  getTimeRemaining(session: IncognitoSession): string {
+  getTimeRemaining(session: MemoryModeSession): string {
     if (session.expiresAt === null) {
       return 'Until manually disabled';
     }

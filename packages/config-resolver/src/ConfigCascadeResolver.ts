@@ -272,7 +272,6 @@ export class ConfigCascadeResolver {
       maxImages: values.maxImages as number,
       memoryScoreThreshold: values.memoryScoreThreshold as number,
       memoryLimit: values.memoryLimit as number,
-      focusModeEnabled: values.focusModeEnabled as boolean,
       crossChannelHistoryEnabled: values.crossChannelHistoryEnabled as boolean,
       shareLtmAcrossPersonalities: values.shareLtmAcrossPersonalities as boolean,
       showModelFooter: values.showModelFooter as boolean,

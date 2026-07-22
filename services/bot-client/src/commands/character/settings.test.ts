@@ -84,7 +84,6 @@ describe('Character Settings Dashboard', () => {
     maxImages: 5,
     memoryScoreThreshold: 0.5,
     memoryLimit: 20,
-    focusModeEnabled: false,
     crossChannelHistoryEnabled: false,
     shareLtmAcrossPersonalities: false,
     showModelFooter: true,
@@ -96,7 +95,6 @@ describe('Character Settings Dashboard', () => {
       maxImages: 'personality',
       memoryScoreThreshold: 'personality',
       memoryLimit: 'personality',
-      focusModeEnabled: 'personality',
       crossChannelHistoryEnabled: 'personality',
       shareLtmAcrossPersonalities: 'personality',
       showModelFooter: 'hardcoded',
@@ -198,7 +196,7 @@ describe('Character Settings Dashboard', () => {
       expect(embedJson.description).toContain('Aurora');
     });
 
-    it('should include all 10 settings fields', async () => {
+    it('should include all 9 settings fields', async () => {
       const context = createMockContext();
       stub.getPersonality.mockResolvedValue({ ok: true, data: mockPersonality });
       stub.resolvePersonalityCascade.mockResolvedValue({ ok: true, data: mockResolvedOverrides });
@@ -208,7 +206,7 @@ describe('Character Settings Dashboard', () => {
       const editReplyCall = context.editReply.mock.calls[0][0];
       const embedJson = editReplyCall.embeds[0].toJSON();
 
-      expect(embedJson.fields).toHaveLength(10);
+      expect(embedJson.fields).toHaveLength(9);
     });
 
     it('should extract personality-tier overrides as local values', async () => {

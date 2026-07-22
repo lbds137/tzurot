@@ -82,13 +82,13 @@ describe('mergeConfigOverrides', () => {
     const result = mergeConfigOverrides(existing, {
       maxMessages: 30,
       maxImages: 5,
-      focusModeEnabled: true,
+      crossChannelHistoryEnabled: true,
     });
     expect(result).toEqual({
       maxMessages: 30,
       maxImages: 5,
       memoryLimit: 20,
-      focusModeEnabled: true,
+      crossChannelHistoryEnabled: true,
     });
   });
 

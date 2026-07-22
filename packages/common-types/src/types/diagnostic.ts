@@ -117,8 +117,8 @@ export interface DiagnosticInputProcessing {
 export interface DiagnosticMemoryRetrieval {
   /** Memories found during retrieval */
   memoriesFound: DiagnosticMemoryEntry[];
-  /** Whether focus mode was enabled (skips LTM retrieval) */
-  focusModeEnabled: boolean;
+  /** Whether fresh mode was enabled (skips LTM retrieval; memories kept) */
+  freshModeEnabled: boolean;
 }
 
 /**

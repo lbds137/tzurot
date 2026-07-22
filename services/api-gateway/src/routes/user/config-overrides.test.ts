@@ -24,7 +24,6 @@ const { mockGetOrCreateUser, mockGetOrCreateUserShell, mockResolveOverrides } = 
     maxImages: 10,
     memoryScoreThreshold: 0.5,
     memoryLimit: 20,
-    focusModeEnabled: false,
     crossChannelHistoryEnabled: false,
     shareLtmAcrossPersonalities: false,
     showModelFooter: true,
@@ -34,7 +33,6 @@ const { mockGetOrCreateUser, mockGetOrCreateUserShell, mockResolveOverrides } = 
       maxImages: 'hardcoded',
       memoryScoreThreshold: 'hardcoded',
       memoryLimit: 'hardcoded',
-      focusModeEnabled: 'hardcoded',
       crossChannelHistoryEnabled: 'hardcoded',
       shareLtmAcrossPersonalities: 'hardcoded',
       showModelFooter: 'hardcoded',
@@ -217,7 +215,7 @@ describe('/user/config-overrides routes', () => {
 
     it('should return admin values when admin has set overrides', async () => {
       mockPrisma.adminSettings.findUnique.mockResolvedValue({
-        configDefaults: { maxMessages: 75, focusModeEnabled: true },
+        configDefaults: { maxMessages: 75, crossChannelHistoryEnabled: true },
       });
 
       const router = createConfigOverrideRoutes(mockDeps);
@@ -230,11 +228,11 @@ describe('/user/config-overrides routes', () => {
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
           maxMessages: 75,
-          focusModeEnabled: true,
+          crossChannelHistoryEnabled: true,
           maxImages: HARDCODED_CONFIG_DEFAULTS.maxImages,
           sources: expect.objectContaining({
             maxMessages: 'admin',
-            focusModeEnabled: 'admin',
+            crossChannelHistoryEnabled: 'admin',
             maxImages: 'hardcoded',
           }),
           userOverrides: null,

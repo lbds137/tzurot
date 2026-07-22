@@ -35,8 +35,6 @@ export const ConfigOverridesSchema = z
     memoryScoreThreshold: z.number().min(0).max(1).optional(),
     /** Maximum number of memories to retrieve (0 = disabled) */
     memoryLimit: z.number().int().min(0).optional(),
-    /** Focus mode: disable LTM retrieval (memories still saved) */
-    focusModeEnabled: z.boolean().optional(),
     /** Fill unused context budget with history from other channels */
     crossChannelHistoryEnabled: z.boolean().optional(),
     /** Share long-term memories across all personalities (migrated from Persona column) */
@@ -112,7 +110,6 @@ export const HARDCODED_CONFIG_DEFAULTS: {
   // both the type and value derive from AI_DEFAULTS — the two cannot silently drift.
   readonly memoryScoreThreshold: typeof AI_DEFAULTS.MEMORY_SCORE_THRESHOLD;
   readonly memoryLimit: typeof AI_DEFAULTS.MEMORY_LIMIT;
-  readonly focusModeEnabled: false;
   readonly crossChannelHistoryEnabled: false;
   readonly shareLtmAcrossPersonalities: false;
   readonly showModelFooter: true;
@@ -124,7 +121,6 @@ export const HARDCODED_CONFIG_DEFAULTS: {
   maxImages: 10,
   memoryScoreThreshold: AI_DEFAULTS.MEMORY_SCORE_THRESHOLD,
   memoryLimit: AI_DEFAULTS.MEMORY_LIMIT,
-  focusModeEnabled: false,
   crossChannelHistoryEnabled: false,
   shareLtmAcrossPersonalities: false,
   showModelFooter: true,
@@ -157,7 +153,6 @@ export interface ResolvedConfigOverrides {
   maxImages: number;
   memoryScoreThreshold: number;
   memoryLimit: number;
-  focusModeEnabled: boolean;
   crossChannelHistoryEnabled: boolean;
   shareLtmAcrossPersonalities: boolean;
   showModelFooter: boolean;
@@ -196,7 +191,6 @@ export const CONFIG_OVERRIDES_KEYS = [
   'maxImages',
   'memoryScoreThreshold',
   'memoryLimit',
-  'focusModeEnabled',
   'crossChannelHistoryEnabled',
   'shareLtmAcrossPersonalities',
   'showModelFooter',

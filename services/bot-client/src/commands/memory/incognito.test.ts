@@ -83,7 +83,7 @@ describe('Memory Incognito Handlers', () => {
   });
 
   function createMockContext(options: {
-    character?: string;
+    character?: string | null;
     duration?: string;
     timeframe?: string;
   }) {
@@ -93,7 +93,8 @@ describe('Memory Incognito Handlers', () => {
         user: { id: '123456789', username: 'testuser' },
         options: {
           getString: (name: string, _required?: boolean) => {
-            if (name === 'character') return options.character ?? 'lilith';
+            if (name === 'character')
+              return options.character === undefined ? 'lilith' : options.character;
             // Both enable (duration semantics) and forget (window semantics)
             // now share the §4.2 `timeframe` option name.
             if (name === 'timeframe') return options.duration ?? options.timeframe ?? '1h';
@@ -411,13 +412,26 @@ describe('Memory Incognito Handlers', () => {
         })
       );
 
-      const context = createMockContext({});
+      const context = createMockContext({ character: null });
       await handleIncognitoStatus(context);
 
       expect(mockCreateInfoEmbed).toHaveBeenCalledWith(
         '👻 Incognito Status',
         expect.stringContaining('not active')
       );
+    });
+
+    it('passes the resolved character as a status filter', async () => {
+      mockResolvePersonalityId.mockResolvedValue({ kind: 'found', id: 'personality-uuid-123' });
+      mockGetPersonalityName.mockResolvedValue('Lilith');
+      stub.getIncognitoStatus.mockResolvedValue(makeOk({ active: false, sessions: [] }));
+
+      const context = createMockContext({ character: 'lilith' });
+      await handleIncognitoStatus(context);
+
+      expect(stub.getIncognitoStatus).toHaveBeenCalledWith({
+        personalityId: 'personality-uuid-123',
+      });
     });
 
     it('should show active status with single session', async () => {
@@ -442,7 +456,7 @@ describe('Memory Incognito Handlers', () => {
         })
       );
 
-      const context = createMockContext({});
+      const context = createMockContext({ character: null });
       await handleIncognitoStatus(context);
 
       expect(mockCreateWarningEmbed).toHaveBeenCalledWith(
@@ -485,7 +499,7 @@ describe('Memory Incognito Handlers', () => {
         })
       );
 
-      const context = createMockContext({});
+      const context = createMockContext({ character: null });
       await handleIncognitoStatus(context);
 
       expect(mockGetPersonalityName).toHaveBeenCalledTimes(2);
@@ -513,7 +527,7 @@ describe('Memory Incognito Handlers', () => {
         })
       );
 
-      const context = createMockContext({});
+      const context = createMockContext({ character: null });
       await handleIncognitoStatus(context);
 
       // 'all' doesn't call getPersonalityName
@@ -527,7 +541,7 @@ describe('Memory Incognito Handlers', () => {
     it('should handle API error', async () => {
       stub.getIncognitoStatus.mockResolvedValue(makeErr(500, 'Server error'));
 
-      const context = createMockContext({});
+      const context = createMockContext({ character: null });
       await handleIncognitoStatus(context);
 
       expect(mockEditReply).toHaveBeenCalledWith({
@@ -539,7 +553,7 @@ describe('Memory Incognito Handlers', () => {
       const error = new Error('Network error');
       stub.getIncognitoStatus.mockRejectedValue(error);
 
-      const context = createMockContext({});
+      const context = createMockContext({ character: null });
       await handleIncognitoStatus(context);
 
       expect(mockEditReply).toHaveBeenCalledWith({

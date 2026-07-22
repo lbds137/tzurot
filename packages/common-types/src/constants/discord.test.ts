@@ -114,7 +114,7 @@ describe('Bot Footer Text Constants', () => {
     it('should have expected footer text values', () => {
       expect(BOT_FOOTER_TEXT.AUTO_BADGE_COMPACT).toBe(' • 📍 auto');
       expect(BOT_FOOTER_TEXT.AUTO_RESPONSE).toBe('📍 auto-response');
-      expect(BOT_FOOTER_TEXT.FOCUS_MODE).toBe('🔒 Focus Mode • LTM retrieval disabled');
+      expect(BOT_FOOTER_TEXT.FRESH_MODE).toBe('🌱 Fresh Mode • Memories not being used');
       expect(BOT_FOOTER_TEXT.INCOGNITO_MODE).toBe('👻 Incognito Mode • Memories not being saved');
     });
 
@@ -123,14 +123,20 @@ describe('Bot Footer Text Constants', () => {
       const autoResponse = `-# ${BOT_FOOTER_TEXT.AUTO_RESPONSE}`;
       expect(BOT_FOOTER_PATTERNS.AUTO_RESPONSE.test(autoResponse)).toBe(true);
 
-      const focusMode = `-# ${BOT_FOOTER_TEXT.FOCUS_MODE}`;
+      const freshMode = `-# ${BOT_FOOTER_TEXT.FRESH_MODE}`;
       // Reset regex state (global flag)
-      BOT_FOOTER_PATTERNS.FOCUS_MODE.lastIndex = 0;
-      expect(BOT_FOOTER_PATTERNS.FOCUS_MODE.test(focusMode)).toBe(true);
+      BOT_FOOTER_PATTERNS.FRESH_MODE.lastIndex = 0;
+      expect(BOT_FOOTER_PATTERNS.FRESH_MODE.test(freshMode)).toBe(true);
 
       const incognitoMode = `-# ${BOT_FOOTER_TEXT.INCOGNITO_MODE}`;
       BOT_FOOTER_PATTERNS.INCOGNITO_MODE.lastIndex = 0;
       expect(BOT_FOOTER_PATTERNS.INCOGNITO_MODE.test(incognitoMode)).toBe(true);
+    });
+
+    it('legacy focus-mode pattern still strips the pre-rename footer', () => {
+      const legacyFooter = '-# 🔒 Focus Mode • LTM retrieval disabled';
+      BOT_FOOTER_PATTERNS.LEGACY_FOCUS_MODE.lastIndex = 0;
+      expect(BOT_FOOTER_PATTERNS.LEGACY_FOCUS_MODE.test(legacyFooter)).toBe(true);
     });
   });
 

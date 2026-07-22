@@ -40,15 +40,6 @@ export const PurgeTokenSchema = z
   .brand<'PurgeToken'>();
 
 // ============================================================================
-// POST /user/memory/focus
-// ============================================================================
-
-export const FocusModeSchema = z.object({
-  personalityId: z.string().min(1, PERSONALITY_ID_REQUIRED),
-  enabled: z.boolean({ error: 'enabled must be a boolean' }),
-});
-
-// ============================================================================
 // PUT /user/memory/:id/lock
 // Sets the lock state explicitly (idempotent on retry, unlike the prior
 // toggle-on-POST shape).
@@ -177,7 +168,7 @@ export const MemoryStatsResponseSchema = z.object({
   lockedCount: z.number(),
   oldestMemory: z.string().nullable(),
   newestMemory: z.string().nullable(),
-  focusModeEnabled: z.boolean(),
+  freshModeEnabled: z.boolean(),
 });
 
 /** GET /user/memory/list */
@@ -190,20 +181,6 @@ export const MemoryListResponseSchema = z.object({
 });
 
 export type MemoryListResponse = z.infer<typeof MemoryListResponseSchema>;
-
-/** GET /user/memory/focus */
-export const FocusModeStatusResponseSchema = z.object({
-  personalityId: z.string(),
-  focusModeEnabled: z.boolean(),
-});
-
-/** POST /user/memory/focus */
-export const SetFocusResponseSchema = z.object({
-  personalityId: z.string(),
-  personalityName: z.string(),
-  focusModeEnabled: z.boolean(),
-  message: z.string(),
-});
 
 /** Search result row: MemoryItem extended with a per-row similarity score
  *  (null when the response falls back to text search). The wrapping

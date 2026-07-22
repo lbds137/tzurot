@@ -302,15 +302,15 @@ export {
   VoiceModelSchema,
 } from './voices.js';
 
-// Memory incognito mode endpoints
+// Memory mode endpoints (shared by incognito + fresh)
 export {
-  DisableIncognitoResponseSchema,
-  EnableIncognitoResponseSchema,
-  GetIncognitoStatusResponseSchema,
+  DisableMemoryModeResponseSchema,
+  EnableMemoryModeResponseSchema,
+  GetMemoryModeStatusResponseSchema,
   IncognitoForgetResponseSchema,
-  type IncognitoSessionWithRemaining,
-  IncognitoSessionWithRemainingSchema,
-} from './memoryIncognito.js';
+  type MemoryModeSessionWithRemaining,
+  MemoryModeSessionWithRemainingSchema,
+} from './memoryModes.js';
 
 // Account data-rights endpoints live in './account.js' — import via the
 // subpath (schemas/api/account); not re-exported here (max-lines budget).
@@ -362,8 +362,6 @@ export {
   BatchDeleteResponseSchema,
   BatchDeleteSchema,
   DeleteMemoryResponseSchema,
-  FocusModeSchema,
-  FocusModeStatusResponseSchema,
   IssuePurgeTokenResponseSchema,
   IssuePurgeTokenSchema,
   type MemoryItem,
@@ -379,7 +377,6 @@ export {
   PurgeMemoriesResponseSchema,
   PurgeMemoriesSchema,
   PurgeTokenSchema,
-  SetFocusResponseSchema,
   SetMemoryLockSchema,
   SingleMemoryResponseSchema,
 } from './memory.js';

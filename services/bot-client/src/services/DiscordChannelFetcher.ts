@@ -432,7 +432,7 @@ export class DiscordChannelFetcher {
 
     // Normalize ONLY messages WE authored: strip the bot-added `**Name:** `
     // relay/DM prefix and our `-#` subtext footers (model indicator,
-    // incognito/focus mode, auto-response, transcription) so the model never
+    // incognito/fresh mode, auto-response, transcription) so the model never
     // sees them in extended context and roleplays around them. Real users'
     // content is theirs — `-#`/`**…:**` text there is user-authored, left
     // intact. Single source of truth shared with the DB-sync path

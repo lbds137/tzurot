@@ -34,7 +34,7 @@ export function getDefaultInputProcessing(): DiagnosticInputProcessing {
 export function getDefaultMemoryRetrieval(): DiagnosticMemoryRetrieval {
   return {
     memoriesFound: [],
-    focusModeEnabled: false,
+    freshModeEnabled: false,
   };
 }
 

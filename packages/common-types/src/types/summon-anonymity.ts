@@ -12,7 +12,7 @@
  * caught the drift.
  *
  * NOT to be confused with the Redis `/memory incognito` *session*
- * (`IncognitoSession` in `./incognito.ts`): that is a user-toggled, time-bounded
+ * (`MemoryModeSession` in `./memory-modes.ts`): that is a user-toggled, time-bounded
  * "don't remember this conversation" mode checked separately at write time. This
  * union is the per-summon framing decided when a `/character` command runs.
  *

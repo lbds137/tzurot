@@ -8,17 +8,30 @@
 import type { Redis } from 'ioredis';
 import { MULTI_TAG } from '@tzurot/common-types/constants/message';
 import { REDIS_KEY_PREFIXES } from '@tzurot/common-types/constants/queue';
-import { IncognitoSessionSchema } from '@tzurot/common-types/types/incognito';
+import { MemoryModeSessionSchema } from '@tzurot/common-types/types/memory-modes';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 
 const logger = createLogger('RedisService');
 
 /**
- * Build Redis key for incognito session
- * @param personalityId - Personality UUID or 'all' for global incognito
+ * The two session-backed memory modes the worker gates on: incognito blocks
+ * memory WRITES (checked before persistence), fresh blocks memory READS
+ * (checked before retrieval). Sessions are written by the api-gateway's
+ * MemoryModeSessionManager; the key shape must stay in lockstep.
  */
-function buildIncognitoKey(userId: string, personalityId: string): string {
-  return `${REDIS_KEY_PREFIXES.INCOGNITO}${userId}:${personalityId}`;
+const MEMORY_MODE_PREFIXES = {
+  incognito: REDIS_KEY_PREFIXES.INCOGNITO,
+  fresh: REDIS_KEY_PREFIXES.FRESH,
+} as const;
+
+type MemoryMode = keyof typeof MEMORY_MODE_PREFIXES;
+
+/**
+ * Build Redis key for a memory-mode session
+ * @param personalityId - Personality UUID or 'all' for a global session
+ */
+function buildModeKey(mode: MemoryMode, userId: string, personalityId: string): string {
+  return `${MEMORY_MODE_PREFIXES[mode]}${userId}:${personalityId}`;
 }
 
 export class RedisService {
@@ -108,19 +121,19 @@ export class RedisService {
   }
 
   /**
-   * Check if incognito mode is active for a user and personality
-   * Checks both the specific personality and 'all' (global incognito)
-   *
-   * @param userId Discord user ID
-   * @param personalityId Personality ID
-   * @returns true if incognito is active
+   * Check if a memory mode is active for a user and personality.
+   * Checks both the specific personality and 'all' (global session).
    */
-  async isIncognitoActive(userId: string, personalityId: string): Promise<boolean> {
+  private async isModeActive(
+    mode: MemoryMode,
+    userId: string,
+    personalityId: string
+  ): Promise<boolean> {
     try {
       // Check both specific personality and global 'all' in parallel
       const [specificKey, globalKey] = [
-        buildIncognitoKey(userId, personalityId),
-        buildIncognitoKey(userId, 'all'),
+        buildModeKey(mode, userId, personalityId),
+        buildModeKey(mode, userId, 'all'),
       ];
 
       const [specificSession, globalSession] = await Promise.all([
@@ -133,42 +146,62 @@ export class RedisService {
 
       if (specificSession !== null) {
         try {
-          IncognitoSessionSchema.parse(JSON.parse(specificSession));
+          MemoryModeSessionSchema.parse(JSON.parse(specificSession));
           isActive = true;
         } catch {
           // Invalid session data - clean up
           await this.redis.del(specificKey);
-          logger.warn({ key: specificKey }, 'Cleaned up invalid incognito session');
+          logger.warn({ mode, key: specificKey }, 'Cleaned up invalid memory-mode session');
         }
       }
 
       if (!isActive && globalSession !== null) {
         try {
-          IncognitoSessionSchema.parse(JSON.parse(globalSession));
+          MemoryModeSessionSchema.parse(JSON.parse(globalSession));
           isActive = true;
         } catch {
           // Invalid session data - clean up
           await this.redis.del(globalKey);
-          logger.warn({ key: globalKey }, 'Cleaned up invalid incognito session');
+          logger.warn({ mode, key: globalKey }, 'Cleaned up invalid memory-mode session');
         }
       }
 
       if (isActive) {
-        logger.debug(
-          { userId, personalityId },
-          'Incognito mode active - memory storage will be skipped'
-        );
+        logger.debug({ mode, userId, personalityId }, 'Memory mode active');
       }
 
       return isActive;
     } catch (error) {
       logger.error(
-        { err: error, userId, personalityId },
-        'Error checking incognito status - defaulting to active storage'
+        { err: error, mode, userId, personalityId },
+        'Error checking memory-mode status - defaulting to inactive'
       );
-      // On error, default to normal behavior (don't block memory storage)
+      // On error, default to normal behavior (don't gate memory operations)
       return false;
     }
+  }
+
+  /**
+   * Check if incognito mode is active (memory WRITES should be skipped)
+   *
+   * @param userId Discord user ID
+   * @param personalityId Personality ID
+   * @returns true if incognito is active
+   */
+  async isIncognitoActive(userId: string, personalityId: string): Promise<boolean> {
+    return this.isModeActive('incognito', userId, personalityId);
+  }
+
+  /**
+   * Check if fresh mode is active (memory READS should be skipped —
+   * memories are kept, just not used)
+   *
+   * @param userId Discord user ID
+   * @param personalityId Personality ID
+   * @returns true if fresh mode is active
+   */
+  async isFreshActive(userId: string, personalityId: string): Promise<boolean> {
+    return this.isModeActive('fresh', userId, personalityId);
   }
 
   /**

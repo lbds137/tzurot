@@ -46,7 +46,7 @@ export interface InputProcessingData {
 export interface MemoryRetrievalData {
   retrievedMemories: MemoryDocument[];
   selectedMemories: MemoryDocument[];
-  focusModeEnabled: boolean;
+  freshModeEnabled: boolean;
 }
 
 /**

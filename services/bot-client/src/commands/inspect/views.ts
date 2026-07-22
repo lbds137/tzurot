@@ -321,7 +321,7 @@ export function buildMemoryInspectorView(
   const budgetDropped = allMemories.length - includedTotal;
 
   const lines: string[] = [
-    `**Search Query:** ${inputProcessing.searchQuery !== null ? `"${inputProcessing.searchQuery}"` : UX_SENTINELS.NOT_SET} · **Focus:** ${memoryRetrieval.focusModeEnabled ? 'on' : 'off'}`,
+    `**Search Query:** ${inputProcessing.searchQuery !== null ? `"${inputProcessing.searchQuery}"` : UX_SENTINELS.NOT_SET} · **Fresh:** ${memoryRetrieval.freshModeEnabled ? 'on' : 'off'}`,
   ];
 
   // State annotation and filter buttons only make sense when there's something

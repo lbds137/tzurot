@@ -73,7 +73,6 @@ describe('ConfigCascadeResolver', () => {
       expect(result.maxImages).toBe(HARDCODED_CONFIG_DEFAULTS.maxImages);
       expect(result.memoryScoreThreshold).toBe(HARDCODED_CONFIG_DEFAULTS.memoryScoreThreshold);
       expect(result.memoryLimit).toBe(HARDCODED_CONFIG_DEFAULTS.memoryLimit);
-      expect(result.focusModeEnabled).toBe(HARDCODED_CONFIG_DEFAULTS.focusModeEnabled);
       expect(result.crossChannelHistoryEnabled).toBe(
         HARDCODED_CONFIG_DEFAULTS.crossChannelHistoryEnabled
       );
@@ -185,7 +184,7 @@ describe('ConfigCascadeResolver', () => {
         configDefaults: { maxMessages: 60 },
         personalityConfigs: [
           {
-            configOverrides: { maxMessages: 10, focusModeEnabled: true },
+            configOverrides: { maxMessages: 10, crossChannelHistoryEnabled: true },
           },
         ],
       });
@@ -194,8 +193,8 @@ describe('ConfigCascadeResolver', () => {
 
       expect(result.maxMessages).toBe(10);
       expect(result.sources.maxMessages).toBe('user-personality');
-      expect(result.focusModeEnabled).toBe(true);
-      expect(result.sources.focusModeEnabled).toBe('user-personality');
+      expect(result.crossChannelHistoryEnabled).toBe(true);
+      expect(result.sources.crossChannelHistoryEnabled).toBe('user-personality');
       // Admin memoryLimit persists (not overridden by higher tiers)
       expect(result.memoryLimit).toBe(30);
       expect(result.sources.memoryLimit).toBe('admin');

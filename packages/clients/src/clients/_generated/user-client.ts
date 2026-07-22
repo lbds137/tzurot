@@ -1712,47 +1712,6 @@ export class UserClient {
   /**
    * @safeRead Server-side has no observable mutation — safe to cache client-side.
    */
-  async getFocus(options: { personalityId: string }): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.getFocus.output>>> {
-    const fullPath = '/api/user/memory/focus' + buildQueryString([['personalityId', options.personalityId]]);
-    return callGateway({
-      baseUrl: this.baseUrl,
-      serviceSecret: this.serviceSecret,
-      method: 'GET',
-      path: fullPath,
-      headers: {
-        'X-User-Id': this.actor,
-        'X-User-Username': encodeURIComponent(this.user.username),
-        'X-User-DisplayName': encodeURIComponent(this.user.displayName),
-        'X-User-Is-Bot': String(this.user.isBot),
-      },
-      outputSchema: ROUTE_MANIFEST.getFocus.output,
-    });
-  }
-
-  /**
-   * @idempotent Replaying the exact same request lands the same final state — safe to retry on network failure.
-   */
-  async setFocus(input: z.input<typeof ROUTE_MANIFEST.setFocus.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.setFocus.output>>> {
-    const fullPath = '/api/user/memory/focus';
-    return callGateway({
-      baseUrl: this.baseUrl,
-      serviceSecret: this.serviceSecret,
-      method: 'POST',
-      path: fullPath,
-      headers: {
-        'X-User-Id': this.actor,
-        'X-User-Username': encodeURIComponent(this.user.username),
-        'X-User-DisplayName': encodeURIComponent(this.user.displayName),
-        'X-User-Is-Bot': String(this.user.isBot),
-      },
-      body: input,
-      outputSchema: ROUTE_MANIFEST.setFocus.output,
-    });
-  }
-
-  /**
-   * @safeRead Server-side has no observable mutation — safe to cache client-side.
-   */
   async search(input: z.input<typeof ROUTE_MANIFEST.search.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.search.output>>> {
     const fullPath = '/api/user/memory/search';
     return callGateway({
@@ -1932,8 +1891,8 @@ export class UserClient {
   /**
    * @safeRead Server-side has no observable mutation — safe to cache client-side.
    */
-  async getIncognitoStatus(): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.getIncognitoStatus.output>>> {
-    const fullPath = '/api/user/memory/incognito';
+  async getIncognitoStatus(options: { personalityId?: string } = {}): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.getIncognitoStatus.output>>> {
+    const fullPath = '/api/user/memory/incognito' + buildQueryString([['personalityId', options.personalityId]]);
     return callGateway({
       baseUrl: this.baseUrl,
       serviceSecret: this.serviceSecret,
@@ -2000,6 +1959,62 @@ export class UserClient {
       },
       body: input,
       outputSchema: ROUTE_MANIFEST.incognitoForget.output,
+    });
+  }
+
+  /**
+   * @safeRead Server-side has no observable mutation — safe to cache client-side.
+   */
+  async getFreshStatus(options: { personalityId?: string } = {}): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.getFreshStatus.output>>> {
+    const fullPath = '/api/user/memory/fresh' + buildQueryString([['personalityId', options.personalityId]]);
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'GET',
+      path: fullPath,
+      headers: {
+        'X-User-Id': this.actor,
+        'X-User-Username': encodeURIComponent(this.user.username),
+        'X-User-DisplayName': encodeURIComponent(this.user.displayName),
+        'X-User-Is-Bot': String(this.user.isBot),
+      },
+      outputSchema: ROUTE_MANIFEST.getFreshStatus.output,
+    });
+  }
+
+  async enableFresh(input: z.input<typeof ROUTE_MANIFEST.enableFresh.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.enableFresh.output>>> {
+    const fullPath = '/api/user/memory/fresh';
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'POST',
+      path: fullPath,
+      headers: {
+        'X-User-Id': this.actor,
+        'X-User-Username': encodeURIComponent(this.user.username),
+        'X-User-DisplayName': encodeURIComponent(this.user.displayName),
+        'X-User-Is-Bot': String(this.user.isBot),
+      },
+      body: input,
+      outputSchema: ROUTE_MANIFEST.enableFresh.output,
+    });
+  }
+
+  async disableFresh(input: z.input<typeof ROUTE_MANIFEST.disableFresh.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.disableFresh.output>>> {
+    const fullPath = '/api/user/memory/fresh';
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'DELETE',
+      path: fullPath,
+      headers: {
+        'X-User-Id': this.actor,
+        'X-User-Username': encodeURIComponent(this.user.username),
+        'X-User-DisplayName': encodeURIComponent(this.user.displayName),
+        'X-User-Is-Bot': String(this.user.isBot),
+      },
+      body: input,
+      outputSchema: ROUTE_MANIFEST.disableFresh.output,
     });
   }
 
