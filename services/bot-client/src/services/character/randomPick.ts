@@ -8,6 +8,7 @@
  * reply for the explicit-pick path (`/chat`, `/chime-in`).
  */
 
+import { randomInt } from 'node:crypto';
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
@@ -105,9 +106,11 @@ export async function resolveCharacterSlug(
       ),
     };
   }
-  // Index lands in [0, length-1] — Math.random() is half-open so floor() never
-  // hits length itself; the length>0 guard above keeps the denominator safe.
-  const picked = candidates[Math.floor(Math.random() * candidates.length)];
+  // The pick is pure UX (which accessible persona responds), not a security
+  // decision. randomInt(max) returns a secure integer in [0, max) — used over
+  // Math.random so the insecure-randomness analyzer flag stays quiet without a
+  // per-relocation suppression; the length>0 guard above keeps max valid.
+  const picked = candidates[randomInt(candidates.length)];
   return { kind: 'slug', slug: picked.slug, randomPick: true };
 }
 
