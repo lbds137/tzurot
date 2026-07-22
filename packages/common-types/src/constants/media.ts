@@ -90,6 +90,20 @@ export const VOICE_REFERENCE_LIMITS = {
 } as const;
 
 /**
+ * Nonstandard audio MIME aliases some clients emit, mapped to their canonical
+ * type. Normalized at the intake boundary (`voiceReferenceProcessor`) so
+ * stored and forwarded types are always canonical members of `ALLOWED_TYPES`.
+ * The MP3 family is the repeat offender: `audio/mpeg` is the registered type,
+ * but `audio/mp3`, `audio/mpeg3`, and `audio/x-mpeg-3` all appear in the wild
+ * (Discord attachments carry whatever the uploading client claimed).
+ */
+export const AUDIO_MIME_ALIASES: Record<string, string> = {
+  'audio/mp3': CONTENT_TYPES.AUDIO_MP3,
+  'audio/mpeg3': CONTENT_TYPES.AUDIO_MP3,
+  'audio/x-mpeg-3': CONTENT_TYPES.AUDIO_MP3,
+};
+
+/**
  * Attachment types for multimodal processing
  */
 export enum AttachmentType {

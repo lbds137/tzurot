@@ -5,7 +5,7 @@
  * Unlike avatars, voice references are stored as-is (no optimization/resizing).
  */
 
-import { VOICE_REFERENCE_LIMITS } from '@tzurot/common-types/constants/media';
+import { AUDIO_MIME_ALIASES, VOICE_REFERENCE_LIMITS } from '@tzurot/common-types/constants/media';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { ErrorResponses, type ErrorResponse } from './errorResponses.js';
 
@@ -60,8 +60,8 @@ export function processVoiceReferenceData(
 
   try {
     // Extract MIME type from data URI
-    const mimeType = extractMimeType(voiceReferenceData);
-    if (mimeType === null) {
+    const rawMimeType = extractMimeType(voiceReferenceData);
+    if (rawMimeType === null) {
       return {
         ok: false,
         error: ErrorResponses.validationError(
@@ -69,6 +69,12 @@ export function processVoiceReferenceData(
         ),
       };
     }
+
+    // Normalize case (MIME types are case-insensitive) and nonstandard
+    // aliases (e.g. `audio/mpeg3` → `audio/mpeg`) so storage and serving
+    // only ever see canonical members of ALLOWED_TYPES.
+    const lowered = rawMimeType.toLowerCase();
+    const mimeType = AUDIO_MIME_ALIASES[lowered] ?? lowered;
 
     // Validate MIME type
     if (!VOICE_REFERENCE_LIMITS.ALLOWED_TYPES.includes(mimeType)) {

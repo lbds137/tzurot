@@ -110,6 +110,30 @@ describe('processVoiceReferenceData', () => {
     }
   });
 
+  it('normalizes nonstandard MP3 aliases to audio/mpeg', () => {
+    const base64 = Buffer.from('fake-mp3-data').toString('base64');
+
+    for (const alias of ['audio/mp3', 'audio/mpeg3', 'audio/x-mpeg-3']) {
+      const result = processVoiceReferenceData(`data:${alias};base64,${base64}`, 'test');
+      expect(result).not.toBeNull();
+      expect(result!.ok).toBe(true);
+      if (result !== null && result.ok) {
+        expect(result.mimeType).toBe('audio/mpeg');
+      }
+    }
+  });
+
+  it('normalizes MIME type case before validating', () => {
+    const base64 = Buffer.from('fake-wav-data').toString('base64');
+
+    const result = processVoiceReferenceData(`data:Audio/WAV;base64,${base64}`, 'test');
+    expect(result).not.toBeNull();
+    expect(result!.ok).toBe(true);
+    if (result !== null && result.ok) {
+      expect(result.mimeType).toBe('audio/wav');
+    }
+  });
+
   it('returns success for valid OGG data URI', () => {
     const audioBytes = Buffer.from('fake-ogg-data');
     const base64 = audioBytes.toString('base64');
