@@ -19,6 +19,7 @@ import type { SafeCommandContext } from '../../utils/commandContext/index.js';
 // Mock common-types
 const mockConfig = {
   BOT_MENTION_CHAR: '@',
+  PUBLIC_SITE_URL: 'https://tzurot.org',
 };
 
 vi.mock('@tzurot/common-types/config/config', async () => {
@@ -200,6 +201,29 @@ describe('Help Command', () => {
       expect(allText).toContain('/character browse');
       expect(allText).toContain('/persona edit');
       expect(allText).toContain('tzurot.org/docs/getting-started');
+    });
+
+    it('brands from the runtime bot identity and links to the configured site', async () => {
+      // Dev runs the same code as prod but as a different Discord app on a
+      // different site — the embed must follow both, not hardcode Tzurot.
+      const context = createMockContext(null, undefined, 'getting-started');
+      (context.interaction as unknown as { client: { user?: { username: string } } }).client.user =
+        { username: 'Rotzot' };
+      mockConfig.PUBLIC_SITE_URL = 'https://rotzot.example';
+
+      try {
+        await execute(context);
+      } finally {
+        mockConfig.PUBLIC_SITE_URL = 'https://tzurot.org';
+      }
+
+      const json = mockEditReply.mock.calls[0][0].embeds[0].toJSON();
+      expect(json.title).toBe('🚀 Getting Started with Rotzot');
+      expect(json.description).not.toContain('Tzurot');
+      const allText = JSON.stringify(json);
+      expect(allText).toContain('https://rotzot.example/docs/getting-started');
+      expect(allText).toContain('https://rotzot.example/docs/commands');
+      expect(allText).not.toContain('tzurot.org');
     });
 
     it('should show error when commands not provided', async () => {
@@ -454,21 +478,24 @@ describe('Help Command', () => {
       // Change mention char to dev mode
       mockConfig.BOT_MENTION_CHAR = '&';
 
-      const commands = createMockCommands();
-      const interaction = createMockContext(null, commands);
+      try {
+        const commands = createMockCommands();
+        const interaction = createMockContext(null, commands);
 
-      await execute(interaction);
+        await execute(interaction);
 
-      const embed = mockEditReply.mock.calls[0][0].embeds[0];
-      const json = embed.toJSON();
+        const embed = mockEditReply.mock.calls[0][0].embeds[0];
+        const json = embed.toJSON();
 
-      const interactionField = json.fields.find((f: { name: string }) =>
-        f.name.includes('Interactions')
-      );
-      expect(interactionField?.value).toContain('&CharacterName');
-
-      // Reset to default
-      mockConfig.BOT_MENTION_CHAR = '@';
+        const interactionField = json.fields.find((f: { name: string }) =>
+          f.name.includes('Interactions')
+        );
+        expect(interactionField?.value).toContain('&CharacterName');
+      } finally {
+        // Restore in finally so a failed assertion can't leak the mutation
+        // into later tests (the mockConfig object is shared file-wide).
+        mockConfig.BOT_MENTION_CHAR = '@';
+      }
     });
 
     it('should sort categories by configured order', async () => {

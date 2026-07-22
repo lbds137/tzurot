@@ -25,6 +25,11 @@ WORKDIR /app
 # its own source and the repo markdown it renders (every content.config.ts
 # collection base must be copied here — a missing one fails the build loudly
 # via the pages' getEntry throw).
+#
+# Every COPY'd content path below must ALSO appear in the Railway service's
+# watch patterns (dashboard setting, both environments) — a path baked at
+# build time but absent from the watch list means pushes touching it are
+# SKIPPED and the live site silently serves stale docs.
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY services/website ./services/website
 COPY docs/legal ./docs/legal
