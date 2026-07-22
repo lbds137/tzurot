@@ -7,6 +7,7 @@
 
 import { DISCORD_COLORS, DISCORD_LIMITS } from '@tzurot/common-types/constants/discord';
 import { formatDateShort } from '@tzurot/common-types/utils/dateFormatting';
+import type { IsAdmin } from '@tzurot/common-types/utils/ownerMiddleware';
 import {
   type DashboardConfig,
   type ActionButtonOptions,
@@ -125,12 +126,15 @@ const baseCharacterDashboardConfig: DashboardConfig<CharacterData> = {
  * Use this instead of `baseCharacterDashboardConfig` directly so that admin-only
  * sections and voice-dependent actions are correctly included/excluded.
  *
- * @param isAdmin - Whether the current user is a bot owner (adds admin section)
+ * @param isAdmin - Branded {@link IsAdmin} (from `isBotOwner`) — adds the
+ *   bot-owner-only admin section. Requiring the brand (not a plain boolean)
+ *   makes passing `canEdit` here a compile error — that mix-up leaked the admin
+ *   section to non-admin owners.
  * @param hasVoiceReference - Whether the character has a voice reference uploaded
  *   (adds "Toggle Voice" action when true)
  */
 export function getCharacterDashboardConfig(
-  isAdmin: boolean,
+  isAdmin: IsAdmin,
   hasVoiceReference: boolean
 ): DashboardConfig<CharacterData> {
   const sections = [identitySection, biographySection, preferencesSection, conversationSection];

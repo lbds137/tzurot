@@ -5,7 +5,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { ChatInputCommandInteraction } from 'discord.js';
 import { MessageFlags } from 'discord.js';
-import { requireBotOwner } from './ownerMiddleware.js';
+import { requireBotOwner, asIsAdmin } from './ownerMiddleware.js';
 import * as config from '../config/index.js';
 
 // Mock getConfig
@@ -108,5 +108,12 @@ describe('requireBotOwner', () => {
 
     expect(result).toBe(true);
     expect(mockInteraction.reply).not.toHaveBeenCalled();
+  });
+});
+
+describe('asIsAdmin', () => {
+  it('passes the boolean through at runtime (the brand is a compile-time phantom)', () => {
+    expect(asIsAdmin(true)).toBe(true);
+    expect(asIsAdmin(false)).toBe(false);
   });
 });

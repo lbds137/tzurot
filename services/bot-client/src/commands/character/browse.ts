@@ -23,7 +23,7 @@ import { characterBrowseOptions } from '@tzurot/common-types/generated/commandOp
 import { AUTOCOMPLETE_BADGES } from '@tzurot/common-types/utils/autocompleteFormat';
 import { ENTITY_EMOJI, buildBadgeLegend } from '@tzurot/common-types/constants/uxVocabulary';
 import { createLogger } from '@tzurot/common-types/utils/logger';
-import { isBotOwner } from '@tzurot/common-types/utils/ownerMiddleware';
+import { isBotOwner, asIsAdmin } from '@tzurot/common-types/utils/ownerMiddleware';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import type { UserClient } from '@tzurot/clients';
 import { clientsFor } from '../../utils/gatewayClients.js';
@@ -477,7 +477,7 @@ export async function handleBrowseSelect(
     // canEdit (true for any character owner). Deriving it from isBotOwner
     // keeps a non-admin owner from seeing an admin section on the initial
     // render (downstream handlers re-verify, but the first paint uses this).
-    const isAdmin = isBotOwner(userId);
+    const isAdmin = asIsAdmin(isBotOwner(userId));
 
     // Create session data with browse context for back navigation
     const sessionData: CharacterSessionData = {
