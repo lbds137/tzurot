@@ -44,6 +44,7 @@ import { handleSeedModalSubmit } from './create.js';
 import { handleDeleteAction, handleDeleteButton } from './dashboardDeleteHandlers.js';
 // Note: Browse pagination is handled in index.ts via handleBrowsePagination
 import { handleViewPagination, handleExpandField } from './view.js';
+import { handleViewEdit } from './viewEdit.js';
 import { handleRefreshButton, handleCloseButton } from './dashboardButtons.js';
 // Side-effect import: registers the character browse rebuilder used by
 // renderPostActionScreen + handleSharedBackButton.
@@ -327,6 +328,14 @@ async function handleCharacterButtonAction(
         characterParsed.fieldName,
         config
       );
+      return true;
+    }
+
+    case 'view-edit': {
+      if (characterParsed.characterId === undefined) {
+        return true;
+      }
+      await handleViewEdit(interaction, characterParsed.characterId, config);
       return true;
     }
 

@@ -79,6 +79,16 @@ describe('customIds', () => {
         );
       });
 
+      it('should build viewEdit customId that parses back to the slug', () => {
+        const customId = CharacterCustomIds.viewEdit('my-character');
+        expect(customId).toBe('character::view-edit::my-character');
+        expect(CharacterCustomIds.parse(customId)).toEqual({
+          command: 'character',
+          action: 'view-edit',
+          characterId: 'my-character',
+        });
+      });
+
       it('should build expand customId with slug and fieldName', () => {
         expect(CharacterCustomIds.expand('my-character', 'characterInfo')).toBe(
           'character::expand::my-character::characterInfo'

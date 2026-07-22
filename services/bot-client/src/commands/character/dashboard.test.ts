@@ -14,6 +14,7 @@ import * as api from './api.js';
 import { GatewayApiError } from '@tzurot/clients';
 import * as createModule from './create.js';
 import * as viewModule from './view.js';
+import * as viewEditModule from './viewEdit.js';
 import * as truncationWarning from './truncationWarning.js';
 import * as dashboardUtils from '../../utils/dashboard/index.js';
 import * as customIds from '../../utils/customIds.js';
@@ -72,6 +73,10 @@ vi.mock('./create.js', () => ({
 vi.mock('./view.js', () => ({
   handleViewPagination: vi.fn(),
   handleExpandField: vi.fn(),
+}));
+
+vi.mock('./viewEdit.js', () => ({
+  handleViewEdit: vi.fn(),
 }));
 
 vi.mock('./truncationWarning.js', () => ({
@@ -746,6 +751,24 @@ describe('Character Dashboard', () => {
         mockInteraction,
         'test-char',
         2,
+        expect.any(Object)
+      );
+    });
+
+    it('should dispatch the view Edit button to handleViewEdit', async () => {
+      vi.mocked(customIds.CharacterCustomIds.parse).mockReturnValue({
+        command: 'character',
+        action: 'view-edit',
+        characterId: 'test-char',
+      });
+
+      const mockInteraction = createMockButtonInteraction('character::view-edit::test-char');
+
+      await handleButton(mockInteraction);
+
+      expect(viewEditModule.handleViewEdit).toHaveBeenCalledWith(
+        mockInteraction,
+        'test-char',
         expect.any(Object)
       );
     });
