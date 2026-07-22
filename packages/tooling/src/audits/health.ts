@@ -26,7 +26,8 @@
 import { execFileSync } from 'node:child_process';
 import chalk from 'chalk';
 import { parseSummary, type AuditSummary } from './summary.js';
-import { collectHealthExtras, formatHealthExtras } from './health-extras.js';
+import { collectHealthExtras, formatHealthExtras, type SecurityCount } from './health-extras.js';
+import { collectOpenAdvisories, formatAdvisoriesReport } from './advisories.js';
 
 /**
  * The static tool roster. Add a tool when it gains `--summary` support AND
@@ -198,7 +199,23 @@ export function runHealth(options: { noFail?: boolean; rootDir?: string } = {}):
   // orphans) — printed after the tool bullets, NEVER part of the verdict or
   // the exit code. Every collector degrades in place rather than throwing.
   console.log('');
-  console.log(formatHealthExtras(collectHealthExtras(options.rootDir ?? process.cwd())));
+  const rootDir = options.rootDir ?? process.cwd();
+
+  // Fetch the full advisory list ONCE and derive the alerts-count bullet from
+  // it, rather than paying a second live call to the same endpoint.
+  const advisorySurface = collectOpenAdvisories(rootDir);
+  const alertsCount: SecurityCount = advisorySurface.available
+    ? { available: true, count: advisorySurface.advisories.length }
+    : { available: false, reason: advisorySurface.reason };
+  console.log(formatHealthExtras(collectHealthExtras(rootDir, alertsCount)));
+
+  // Actionable advisory detail (below the bare alert count). Printed only when
+  // there's something to act on — the alerts API is unreadable in CI, and a
+  // clean/unavailable state is already conveyed by the count bullet above.
+  if (advisorySurface.available && advisorySurface.advisories.length > 0) {
+    console.log('');
+    console.log(formatAdvisoriesReport(advisorySurface));
+  }
 
   if (report.overall === 'fail' && options.noFail !== true) {
     process.exitCode = 1;

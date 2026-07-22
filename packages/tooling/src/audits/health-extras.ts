@@ -51,7 +51,7 @@ export interface SecuritySurface {
 }
 
 /** Budget for each gh subprocess — a hung gh must degrade, not stall health. */
-const GH_TIMEOUT_MS = 30 * 1000;
+export const GH_TIMEOUT_MS = 30 * 1000;
 
 /** Run one gh command that emits a single integer (via --jq) on stdout. */
 function runGhCount(args: string[]): number {
@@ -68,7 +68,7 @@ function runGhCount(args: string[]): number {
 }
 
 /** Compose a one-line degradation reason, preferring gh's own stderr. */
-function describeGhFailure(error: unknown): string {
+export function describeGhFailure(error: unknown): string {
   const execError = error as { stderr?: string | Buffer };
   // FIRST non-empty line: gh's multi-line hints lead with the explanation
   // ("set the GH_TOKEN environment variable") and trail with an example
@@ -101,7 +101,7 @@ function safeGhCount(args: string[]): SecurityCount {
  * without alerts access) legitimately can't answer one or both, and the
  * security section must degrade per-metric rather than break the report.
  */
-export function collectSecuritySurface(): SecuritySurface {
+export function collectSecuritySurface(alertsOverride?: SecurityCount): SecuritySurface {
   return {
     dependabotPrs: safeGhCount([
       'pr',
@@ -115,12 +115,16 @@ export function collectSecuritySurface(): SecuritySurface {
       '--jq',
       'length',
     ]),
-    dependabotAlerts: safeGhCount([
-      'api',
-      'repos/{owner}/{repo}/dependabot/alerts',
-      '--jq',
-      '[.[] | select(.state=="open")] | length',
-    ]),
+    // Callers with the full advisory list already in hand (the health report)
+    // pass its count here so the alerts endpoint is hit once, not twice.
+    dependabotAlerts:
+      alertsOverride ??
+      safeGhCount([
+        'api',
+        'repos/{owner}/{repo}/dependabot/alerts',
+        '--jq',
+        '[.[] | select(.state=="open")] | length',
+      ]),
   };
 }
 
@@ -280,7 +284,7 @@ function safeBullets(label: string, collect: () => string[]): string[] {
  * Collect all three report-only sections. Every collector degrades in place;
  * this function never throws, so `runHealth` can call it unconditionally.
  */
-export function collectHealthExtras(rootDir: string): HealthExtras {
+export function collectHealthExtras(rootDir: string, alertsOverride?: SecurityCount): HealthExtras {
   const marginBullets = [
     ...safeBullets('lines', () => collectLinesMarginBullets(rootDir)),
     ...safeBullets('cpd', () => collectCpdMarginBullets(rootDir)),
@@ -294,7 +298,7 @@ export function collectHealthExtras(rootDir: string): HealthExtras {
   } catch (error) {
     docsOrphans = { unavailable: error instanceof Error ? error.message : String(error) };
   }
-  return { security: collectSecuritySurface(), marginBullets, docsOrphans };
+  return { security: collectSecuritySurface(alertsOverride), marginBullets, docsOrphans };
 }
 
 /** Render one security metric as its report bullet. */

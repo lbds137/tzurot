@@ -14,7 +14,16 @@ vi.mock('chalk', () => ({
   default: { dim: (s: string) => s, red: (s: string) => s, green: (s: string) => s },
 }));
 
+// Mock the advisory module so runHealth's alerts-count derivation is hermetic:
+// collectOpenAdvisories otherwise walks the real filesystem (findPackageJsonFiles)
+// against process.cwd(). The advisory logic itself is covered in advisories.test.ts.
+vi.mock('./advisories.js', () => ({
+  collectOpenAdvisories: vi.fn(),
+  formatAdvisoriesReport: vi.fn(() => ''),
+}));
+
 import { execFileSync } from 'node:child_process';
+import { collectOpenAdvisories, formatAdvisoriesReport } from './advisories.js';
 import {
   HEALTH_TOOLS,
   extractSummaryLine,
@@ -119,6 +128,9 @@ describe('runHealth', () => {
     vi.clearAllMocks();
     vi.spyOn(console, 'log').mockImplementation(() => {});
     process.exitCode = undefined;
+    // Default: advisories available + empty (no alerts). Individual tests
+    // override to exercise the count-derivation and degradation paths.
+    vi.mocked(collectOpenAdvisories).mockReturnValue({ available: true, advisories: [] });
   });
 
   it('runs every roster tool via `pnpm ops <tool> --summary`', () => {
@@ -264,12 +276,50 @@ describe('runHealth', () => {
     expect(report.overall).toBe('ok');
   });
 
+  it('derives the alerts count from the single advisory fetch (no second gh call)', () => {
+    vi.mocked(execFileSync).mockImplementation((cmd, args) => {
+      if (cmd === 'gh') {
+        return (args as string[])[0] === 'pr' ? '0\n' : '99\n';
+      }
+      return summaryLine((args as string[])[1], 'ok');
+    });
+    // Two open advisories — the alerts count must reflect THIS, not the gh
+    // count call (which would report 99). The objects only need a length here.
+    vi.mocked(collectOpenAdvisories).mockReturnValue({
+      available: true,
+      advisories: [{}, {}] as never,
+    });
+
+    runHealth({ noFail: true });
+
+    const output = vi
+      .mocked(console.log)
+      .mock.calls.flat()
+      .map(arg => String(arg))
+      .join('\n');
+    expect(output).toContain('- Dependabot alerts open: 2');
+    // The alerts endpoint was NOT queried a second time for a count.
+    const alertsCountCalls = vi
+      .mocked(execFileSync)
+      .mock.calls.filter(
+        call => call[0] === 'gh' && (call[1] as string[]).includes('dependabot/alerts')
+      );
+    expect(alertsCountCalls).toHaveLength(0);
+    // With advisories present, the actionable detail block is rendered.
+    expect(formatAdvisoriesReport).toHaveBeenCalled();
+  });
+
   it('extras degradation never affects the verdict or exit code', () => {
     vi.mocked(execFileSync).mockImplementation((cmd, args) => {
       if (cmd === 'gh') {
         throw new Error('gh: command not found');
       }
       return summaryLine((args as string[])[1], 'ok');
+    });
+    // The alerts count now derives from the advisory fetch — degrade it too.
+    vi.mocked(collectOpenAdvisories).mockReturnValue({
+      available: false,
+      reason: 'gh: command not found',
     });
 
     const report = runHealth();

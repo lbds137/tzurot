@@ -112,6 +112,16 @@ pnpm ops secrets:rotate-byok --env prod --stage 1 # staged BYOK key rotation (1=
 
 The ledger (`secret_rotations`, per-env, sync-excluded) drives a daily bot-client check that posts an owner-channel nag when a secret passes its interval (BYOK 180d, others 365d). BYOK rotation is breakage-free via the dual-key window in `common-types/utils/encryption.ts` — never rotate `API_KEY_ENCRYPTION_KEY` by hand-replacing the variable; always use the staged command.
 
+### Security Advisories
+
+```bash
+pnpm ops security:advisories            # open Dependabot advisories: severity + fix version + direct/transitive
+pnpm ops security:advisories --json     # machine-readable surface
+pnpm ops security:advisories --strict   # exit nonzero on an actionable (fix-available) high/critical
+```
+
+Reads the GitHub Dependabot alerts API and prints each open advisory with its fix version and — the actionable bit — whether it's a **direct** dep (Dependabot auto-PRs the fix) or **transitive-only** (Dependabot _can't_ PR it; needs a manual `pnpm.overrides` bump and otherwise lingers open with no PR). **Decision-point trigger:** the release security-preflight (`/tzurot-git-workflow` § Release) — run it before cutting a release and ride any transitive-with-fix advisory into the release via an override. The same list also appears in `pnpm ops health`. Degrades to "unavailable" (never blocks) when the alerts API can't be read — CI tokens lack the `security-events` scope. Not an audit-class tool (a point-in-time report, no baseline/ratchet — see the exclusion note in `audit-tool-registry.ts`).
+
 ### Test Audits
 
 ```bash
