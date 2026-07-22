@@ -338,7 +338,7 @@ export class MistralTtsProvider implements TtsProvider {
         return existing.id;
       }
       if (listResult.truncated) {
-        // Voice not found in the first VOICE_LIST_MAX_PAGES * page_size voices,
+        // Voice not found within the pagination cap (VOICE_LIST_MAX_PAGES windows),
         // but there could be more on later pages. Cloning would risk a
         // duplicate. Surface a typed error rather than silently adding to
         // the duplicate count.

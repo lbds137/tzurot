@@ -253,6 +253,15 @@ describe('mistralCloneVoice', () => {
 
 // ===== mistralListVoices ====================================================
 
+/** Build a full window (50 items) of unique voices with the given id prefix. */
+function fullVoicesPage(idPrefix: string): { id: string; name: string; user_id: null }[] {
+  return Array.from({ length: 50 }, (_, i) => ({
+    id: `${idPrefix}-${i}`,
+    name: `voice-${idPrefix}-${i}`,
+    user_id: null,
+  }));
+}
+
 describe('mistralListVoices', () => {
   it('returns the items array mapped to MistralVoiceInfo shape', async () => {
     mockFetch.mockResolvedValueOnce(
@@ -277,11 +286,12 @@ describe('mistralListVoices', () => {
     expect(result.truncated).toBe(false);
   });
 
-  it('uses page_size=50 in the query string', async () => {
-    mockFetch.mockResolvedValueOnce(jsonResponse(200, { items: [], total: 0 }));
+  it('uses limit=50 and offset=0 in the query string', async () => {
+    mockFetch.mockResolvedValueOnce(jsonResponse(200, { items: [] }));
     await mistralListVoices('k');
     const [url] = mockFetch.mock.calls[0];
-    expect(url).toContain('page_size=50');
+    expect(url).toContain('limit=50');
+    expect(url).toContain('offset=0');
   });
 
   it('throws MistralResponseShapeError when items is missing', async () => {
@@ -291,47 +301,33 @@ describe('mistralListVoices', () => {
     await expect(promise).rejects.toThrow(/missing items/);
   });
 
-  it('walks pagination when total_pages > 1 and aggregates results', async () => {
-    // Two pages, 2 items each = 4 total
+  it('walks pagination via offset and aggregates results', async () => {
+    // Full first window (50) then a short second window (2) = 52 total
     mockFetch
-      .mockResolvedValueOnce(
-        jsonResponse(200, {
-          items: [
-            { id: 'p1-v1', name: 'a', user_id: null },
-            { id: 'p1-v2', name: 'b', user_id: null },
-          ],
-          total: 4,
-          total_pages: 2,
-        })
-      )
+      .mockResolvedValueOnce(jsonResponse(200, { items: fullVoicesPage('p1') }))
       .mockResolvedValueOnce(
         jsonResponse(200, {
           items: [
             { id: 'p2-v1', name: 'c', user_id: null },
             { id: 'p2-v2', name: 'd', user_id: null },
           ],
-          total: 4,
-          total_pages: 2,
         })
       );
 
     const result = await mistralListVoices('k');
 
-    expect(result.voices.map(v => v.id)).toEqual(['p1-v1', 'p1-v2', 'p2-v1', 'p2-v2']);
+    expect(result.voices).toHaveLength(52);
+    expect(result.voices.at(-1)?.id).toBe('p2-v2');
     expect(result.truncated).toBe(false);
     expect(mockFetch).toHaveBeenCalledTimes(2);
-    // First call requests page 1, second requests page 2
-    expect(mockFetch.mock.calls[0][0]).toContain('page=1');
-    expect(mockFetch.mock.calls[1][0]).toContain('page=2');
+    expect(mockFetch.mock.calls[0][0]).toContain('limit=50&offset=0');
+    expect(mockFetch.mock.calls[1][0]).toContain('limit=50&offset=50');
   });
 
-  it('stops fetching when total_pages indicates we have all items', async () => {
-    // Single page response: total_pages=1, fetch should not loop
+  it('stops fetching after a single short window', async () => {
     mockFetch.mockResolvedValueOnce(
       jsonResponse(200, {
         items: [{ id: 'v1', name: 'only', user_id: null }],
-        total: 1,
-        total_pages: 1,
       })
     );
 
@@ -339,25 +335,33 @@ describe('mistralListVoices', () => {
     expect(mockFetch).toHaveBeenCalledTimes(1);
   });
 
+  it('dedupes and treats a repeated full window as exhaustive (truncated: false)', async () => {
+    // Provider ignores offset and returns the identical window on every
+    // request. The walker must dedupe by id, stop after the first
+    // no-new-ids window, and NOT set `truncated` — marking it truncated
+    // would make find-by-name refuse to clone permanently.
+    mockFetch.mockResolvedValue(jsonResponse(200, { items: fullVoicesPage('rep') }));
+
+    const result = await mistralListVoices('k');
+
+    expect(result.voices).toHaveLength(50);
+    expect(new Set(result.voices.map(v => v.id)).size).toBe(50);
+    expect(result.truncated).toBe(false);
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+  });
+
   it('returns truncated: true when pagination cap (VOICE_LIST_MAX_PAGES = 20) is reached', async () => {
-    // Each of 20 pages returns one item with `total_pages = 99` so the walker
-    // never satisfies its early-exit condition (`page >= totalPages`) and runs
-    // out the cap. The provider's find-by-name path uses `truncated: true` to
-    // refuse cloning when no match is found in the prefix — this test pins
-    // the producer side of that contract.
+    // Each of 20 windows returns 50 NEW items, so the walker keeps making
+    // progress until it runs out the cap. The provider's find-by-name path
+    // uses `truncated: true` to refuse cloning when no match is found in
+    // the prefix — this test pins the producer side of that contract.
     for (let i = 0; i < 20; i++) {
-      mockFetch.mockResolvedValueOnce(
-        jsonResponse(200, {
-          items: [{ id: `v-page-${i + 1}`, name: `voice-${i + 1}`, user_id: null }],
-          total: 99 * 50,
-          total_pages: 99,
-        })
-      );
+      mockFetch.mockResolvedValueOnce(jsonResponse(200, { items: fullVoicesPage(`w${i}`) }));
     }
 
     const result = await mistralListVoices('k');
 
-    expect(result.voices).toHaveLength(20);
+    expect(result.voices).toHaveLength(1000);
     expect(result.truncated).toBe(true);
     expect(mockFetch).toHaveBeenCalledTimes(20);
   });
