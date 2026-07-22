@@ -235,6 +235,26 @@ describe('config', () => {
       expect(withEmpty.VOICE_ENGINE_API_KEY).toBeUndefined();
     });
 
+    it('defaults PUBLIC_SITE_URL to the prod site when unset or empty', () => {
+      expect(envSchema.parse({}).PUBLIC_SITE_URL).toBe('https://tzurot.org');
+      expect(envSchema.parse({ PUBLIC_SITE_URL: '' }).PUBLIC_SITE_URL).toBe('https://tzurot.org');
+    });
+
+    it('honors an explicit PUBLIC_SITE_URL and strips a trailing slash', () => {
+      expect(envSchema.parse({ PUBLIC_SITE_URL: 'https://rotzot.example' }).PUBLIC_SITE_URL).toBe(
+        'https://rotzot.example'
+      );
+      // Trailing slash stripped so `${SITE}/docs/...` never double-slashes.
+      expect(envSchema.parse({ PUBLIC_SITE_URL: 'https://rotzot.example/' }).PUBLIC_SITE_URL).toBe(
+        'https://rotzot.example'
+      );
+    });
+
+    it('rejects a PUBLIC_SITE_URL without a scheme', () => {
+      // A bare domain fails `.url()` — fail-fast at startup beats a broken link.
+      expect(() => envSchema.parse({ PUBLIC_SITE_URL: 'rotzot.example' })).toThrow();
+    });
+
     it('should transform ENABLE_HEALTH_SERVER correctly', () => {
       const enabled = envSchema.parse({ ENABLE_HEALTH_SERVER: 'true' });
       expect(enabled.ENABLE_HEALTH_SERVER).toBe(true);

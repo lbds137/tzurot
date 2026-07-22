@@ -123,6 +123,14 @@ export const envSchema = z.object({
     .url()
     .optional()
     .or(z.literal('').transform(() => undefined)), // Public HTTPS URL for external resources (Discord avatar fetching)
+  PUBLIC_SITE_URL: z
+    .string()
+    .url()
+    .optional()
+    .or(z.literal('').transform(() => undefined))
+    // Strip a trailing slash so callers can concatenate `${SITE}/docs/...`
+    // without risking a double slash regardless of how the value is set.
+    .transform(val => (val ?? 'https://tzurot.org').replace(/\/$/, '')), // Public website base URL; dev sets its own domain so user-facing links stay in-environment
   CORS_ORIGINS: z
     .string()
     .optional()
@@ -273,6 +281,7 @@ export function createTestConfig(overrides: Partial<EnvConfig> = {}): EnvConfig 
     API_GATEWAY_PORT: SERVICE_DEFAULTS.API_GATEWAY_PORT,
     GATEWAY_URL: `http://localhost:${SERVICE_DEFAULTS.API_GATEWAY_PORT}`,
     PUBLIC_GATEWAY_URL: undefined,
+    PUBLIC_SITE_URL: 'https://tzurot.org',
     CORS_ORIGINS: ['*'],
 
     // Environment

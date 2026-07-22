@@ -118,20 +118,25 @@ async function execute(ctx: SafeCommandContext): Promise<void> {
 /**
  * The `/help getting-started` onboarding screen: what the bot is, the first
  * commands to try, and where the full guide lives. Condensed from
- * docs/guides/getting-started.md — the guide (rendered at tzurot.org) stays
- * the canonical long-form version; this embed is the in-Discord front door.
+ * docs/guides/getting-started.md — the guide (rendered at the configured
+ * site URL) stays the canonical long-form version; this embed is the
+ * in-Discord front door.
  */
 async function showGettingStarted(
   context: DeferredCommandContext,
   mentionChar: string
 ): Promise<void> {
+  // Brand from the bot's own Discord identity (dev = Rotzot, prod = Tzurot)
+  // and the site from env — neither can drift per-environment.
+  const botName = context.interaction.client.user?.username ?? 'Tzurot';
+  const siteUrl = getConfig().PUBLIC_SITE_URL;
   const embed = new EmbedBuilder()
     .setColor(DISCORD_COLORS.BLURPLE)
-    .setTitle('🚀 Getting Started with Tzurot')
+    .setTitle(`🚀 Getting Started with ${botName}`)
     .setDescription(
-      'Tzurot lets you talk to customizable AI characters — each with its own ' +
+      `${botName} lets you talk to customizable AI characters — each with its own ` +
         'personality, voice, and long-term memory.\n\n' +
-        'Tzurot is for adults: chatting with characters requires confirming you are 18 or older.'
+        `${botName} is for adults: chatting with characters requires confirming you are 18 or older.`
     )
     .addFields(
       {
@@ -152,8 +157,8 @@ async function showGettingStarted(
       {
         name: '📚 Learn more',
         value:
-          '[Full getting-started guide](https://tzurot.org/docs/getting-started) · ' +
-          '[Command reference](https://tzurot.org/docs/commands)\n' +
+          `[Full getting-started guide](${siteUrl}/docs/getting-started) · ` +
+          `[Command reference](${siteUrl}/docs/commands)\n` +
           'Or `/help commands` for everything the bot can do.',
         inline: false,
       }
