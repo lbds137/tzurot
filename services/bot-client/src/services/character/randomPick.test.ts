@@ -34,7 +34,19 @@ vi.mock('../../utils/gatewayClients.js', () => ({
   clientsFor: vi.fn(() => ({ userClient: {} })),
 }));
 
+// Partial-mock node:crypto so the random pick index is controllable while every
+// other crypto function (used transitively) keeps its real implementation.
+vi.mock('node:crypto', async importActual => ({
+  ...(await importActual<typeof import('node:crypto')>()),
+  randomInt: vi.fn(),
+}));
+
+import { randomInt } from 'node:crypto';
 import { resolveCharacterSlug, finalizeDeferredReply } from './randomPick.js';
+
+// randomInt is overloaded (sync → number, async-callback → void); pin the sync
+// form so mockReturnValue takes a number rather than the callback overload's void.
+const mockedRandomInt = vi.mocked(randomInt as (max: number) => number);
 
 const makeSummary = (
   slug: string,
@@ -58,11 +70,12 @@ const makeContext = (): DeferredCommandContext =>
     deleteReply: vi.fn().mockResolvedValue(undefined),
   }) as unknown as DeferredCommandContext;
 
-// File-scope hooks: cover both describe blocks. `restoreAllMocks` is
-// load-bearing because tests use `vi.spyOn(Math, 'random')` which would
-// otherwise leak across suites and into other test files.
+// File-scope hooks: cover both describe blocks. randomInt is reset to a stable
+// default (index 0) each test so an untargeted pick is deterministic; the two
+// indexing tests override it. `restoreAllMocks` keeps any spies from leaking.
 beforeEach(() => {
   vi.clearAllMocks();
+  mockedRandomInt.mockReturnValue(0);
 });
 
 afterEach(() => {
@@ -116,15 +129,15 @@ describe('resolveCharacterSlug', () => {
     expect(result).toEqual({ kind: 'slug', slug: 'only-one', randomPick: true });
   });
 
-  it('uses Math.random output to index into the pool', async () => {
+  it('uses randomInt output to index into the pool', async () => {
     const pool = ['a', 'b', 'c', 'd'].map(s => makeSummary(s));
     mockGetCachedPersonalities.mockResolvedValue({ kind: 'ok', value: pool });
-    // 0.75 * 4 = 3 → index 3 → slug 'd'
-    vi.spyOn(Math, 'random').mockReturnValue(0.75);
+    mockedRandomInt.mockReturnValue(3); // index 3 → slug 'd'
 
     const result = await resolveCharacterSlug(null, makeContext());
 
     expect(result).toEqual({ kind: 'slug', slug: 'd', randomPick: true });
+    expect(mockedRandomInt).toHaveBeenCalledWith(4); // pool length, half-open upper bound
   });
 
   it('with excludePrivate=true, filters out non-public personalities before picking', async () => {
@@ -136,8 +149,7 @@ describe('resolveCharacterSlug', () => {
         makeSummary('public-two', { isPublic: true }),
       ],
     });
-    // index 1 of 2 candidates → 'public-two'
-    vi.spyOn(Math, 'random').mockReturnValue(0.5);
+    mockedRandomInt.mockReturnValue(1); // index 1 of 2 candidates → 'public-two'
 
     const result = await resolveCharacterSlug(null, makeContext(), { excludePrivate: true });
 
@@ -185,7 +197,7 @@ describe('resolveCharacterSlug', () => {
         makeSummary('not-mine-other', { isPublic: true, isOwned: false }),
       ],
     });
-    vi.spyOn(Math, 'random').mockReturnValue(0); // pick index 0 of survivors
+    mockedRandomInt.mockReturnValue(0); // pick index 0 of survivors
 
     const result = await resolveCharacterSlug(null, makeContext(), { onlyMine: true });
 
@@ -202,7 +214,7 @@ describe('resolveCharacterSlug', () => {
         makeSummary('mine-public-2', { isPublic: true, isOwned: true }),
       ],
     });
-    vi.spyOn(Math, 'random').mockReturnValue(0); // pick index 0 of survivors
+    mockedRandomInt.mockReturnValue(0); // pick index 0 of survivors
 
     const result = await resolveCharacterSlug(null, makeContext(), {
       onlyMine: true,
