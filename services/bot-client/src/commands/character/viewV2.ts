@@ -186,8 +186,24 @@ function footerText(character: CharacterData): string {
   return `-# Created: ${created} • Updated: ${updated}`;
 }
 
-function navRow(slug: string, currentPage: number): ActionRowBuilder<ButtonBuilder> {
-  return new ActionRowBuilder<ButtonBuilder>().addComponents(
+function navRow(
+  slug: string,
+  currentPage: number,
+  canEdit: boolean
+): ActionRowBuilder<ButtonBuilder> {
+  const row = new ActionRowBuilder<ButtonBuilder>();
+  // Edit leads the row (primary actions before navigation); visibility
+  // mirrors the server-computed canEdit (owner or bot admin).
+  if (canEdit) {
+    row.addComponents(
+      new ButtonBuilder()
+        .setCustomId(CharacterCustomIds.viewEdit(slug))
+        .setLabel('Edit')
+        .setEmoji('✏️')
+        .setStyle(ButtonStyle.Primary)
+    );
+  }
+  return row.addComponents(
     new ButtonBuilder()
       .setCustomId(CharacterCustomIds.viewPage(slug, currentPage - 1))
       .setLabel('Previous')
@@ -250,7 +266,8 @@ function buildRedactedV2(character: CharacterData): ViewV2Result {
 export function buildCharacterViewV2(
   character: CharacterData,
   page: number,
-  avatarUrl: string | null
+  avatarUrl: string | null,
+  canEdit: boolean
 ): ViewV2Result {
   if (character.definitionRedacted) {
     return buildRedactedV2(character);
@@ -285,5 +302,5 @@ export function buildCharacterViewV2(
     .addSeparatorComponents(new SeparatorBuilder())
     .addTextDisplayComponents(new TextDisplayBuilder().setContent(footerText(character)));
 
-  return { components: [container, navRow(character.slug, safePage)] };
+  return { components: [container, navRow(character.slug, safePage, canEdit)] };
 }
