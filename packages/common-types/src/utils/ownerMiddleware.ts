@@ -10,6 +10,30 @@ import { MessageFlags } from 'discord-api-types/v10';
 import { getConfig } from '../config/index.js';
 
 /**
+ * Branded boolean marking "the current user is the bot owner / admin". Only
+ * {@link isBotOwner} and the explicit {@link asIsAdmin} escape hatch produce it,
+ * so a parameter typed `IsAdmin` (e.g. a dashboard's admin-section gate) CANNOT
+ * be handed a plain boolean like `canEdit` by accident — that is a compile error.
+ * Guards the isAdmin-vs-canEdit confusion class that leaked the bot-owner-only
+ * Admin Settings section to non-admin owners.
+ *
+ * The brand is a compile-time phantom (erased at runtime, survives JSON
+ * round-trips as a plain boolean), so it costs nothing and needs no migration.
+ */
+export type IsAdmin = boolean & { readonly __brand: 'IsAdmin' };
+
+/**
+ * Assert a plain boolean IS an admin flag, producing the branded {@link IsAdmin}.
+ * The ONLY sanctioned construction outside {@link isBotOwner} — for tests and the
+ * rare case where a bot-owner status was already computed/cached as a plain
+ * boolean. Do NOT wrap `canEdit` (true for any character owner, not just admins):
+ * that is exactly the confusion this brand exists to prevent.
+ */
+export function asIsAdmin(value: boolean): IsAdmin {
+  return value as IsAdmin;
+}
+
+/**
  * Check if a Discord ID matches the configured bot owner
  *
  * Used for:
@@ -18,6 +42,11 @@ import { getConfig } from '../config/index.js';
  *
  * @param discordId - Discord user ID to check
  * @returns true if the ID matches BOT_OWNER_ID config
+ *
+ * Returns a plain `boolean` (not the branded {@link IsAdmin}) so the ~40 test
+ * files that mock this function keep working with plain `mockReturnValue(true)`.
+ * Callers that feed a dashboard's admin gate wrap the result in {@link asIsAdmin}
+ * at the call site — that one explicit wrap is what the brand-guard keys on.
  */
 export function isBotOwner(discordId: string): boolean {
   const config = getConfig();

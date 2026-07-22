@@ -28,7 +28,7 @@ import { CATALOG } from '../../ux/catalog/catalog.js';
 import { renderSpec } from '../../ux/render/render.js';
 import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js';
 import { type EnvConfig } from '@tzurot/common-types/config/config';
-import { isBotOwner } from '@tzurot/common-types/utils/ownerMiddleware';
+import { isBotOwner, asIsAdmin } from '@tzurot/common-types/utils/ownerMiddleware';
 import {
   type DashboardConfig,
   type DashboardContext,
@@ -82,7 +82,7 @@ export function findCharacterSection(
   sectionId: string,
   userId: string
 ): CharacterSectionSync | null {
-  const isAdmin = isBotOwner(userId);
+  const isAdmin = asIsAdmin(isBotOwner(userId));
   const dashboardConfig = getCharacterDashboardConfig(isAdmin, false);
   const section = dashboardConfig.sections.find(s => s.id === sectionId);
   if (!section) {

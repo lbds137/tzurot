@@ -13,7 +13,7 @@
 import { MessageFlags, type StringSelectMenuInteraction } from 'discord.js';
 import { type EnvConfig } from '@tzurot/common-types/config/config';
 import { createLogger } from '@tzurot/common-types/utils/logger';
-import { isBotOwner } from '@tzurot/common-types/utils/ownerMiddleware';
+import { isBotOwner, asIsAdmin } from '@tzurot/common-types/utils/ownerMiddleware';
 import {
   buildDashboardEmbed,
   buildDashboardComponents,
@@ -42,7 +42,7 @@ export async function refreshDashboardAfterUpdate(
   entityId: string,
   updated: CharacterData
 ): Promise<void> {
-  const isAdmin = isBotOwner(interaction.user.id);
+  const isAdmin = asIsAdmin(isBotOwner(interaction.user.id));
   const dashboardConfig = getCharacterDashboardConfig(isAdmin, updated.hasVoiceReference);
 
   const sessionManager = getSessionManager();

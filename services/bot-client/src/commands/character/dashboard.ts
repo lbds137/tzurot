@@ -15,7 +15,7 @@ import {
 } from 'discord.js';
 import { getConfig, type EnvConfig } from '@tzurot/common-types/config/config';
 import { createLogger } from '@tzurot/common-types/utils/logger';
-import { isBotOwner } from '@tzurot/common-types/utils/ownerMiddleware';
+import { isBotOwner, asIsAdmin } from '@tzurot/common-types/utils/ownerMiddleware';
 import {
   buildDashboardEmbed,
   buildDashboardComponents,
@@ -111,7 +111,7 @@ async function handleSectionModalSubmit(
 
   // SECURITY: Re-verify admin status for admin section edits
   // Never trust session data - always check server-side
-  const isAdmin = isBotOwner(interaction.user.id);
+  const isAdmin = asIsAdmin(isBotOwner(interaction.user.id));
   if (sectionId === 'admin' && !isAdmin) {
     logger.warn(
       { userId: interaction.user.id, entityId, sectionId },
@@ -222,7 +222,7 @@ export async function handleSelectMenu(interaction: StringSelectMenuInteraction)
   // rest of the section context (dashboardConfig, data, DashboardContext)
   // is resolved inside resolveCharacterSectionContext so the select-menu
   // path shares its preamble with the truncation-warning button handlers.
-  const isAdmin = isBotOwner(interaction.user.id);
+  const isAdmin = asIsAdmin(isBotOwner(interaction.user.id));
 
   // Handle section edit selection
   if (value.startsWith('edit-')) {
