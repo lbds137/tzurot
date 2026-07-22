@@ -340,24 +340,25 @@ export const inspectOptions = defineTypedOptions({
 // =============================================================================
 
 /**
- * /memory focus enable <character>
+ * /memory fresh enable <character, timeframe>
  */
-export const memoryFocusEnableOptions = defineTypedOptions({
+export const memoryFreshEnableOptions = defineTypedOptions({
+  character: { type: 'string', required: true },
+  timeframe: { type: 'string', required: true },
+});
+
+/**
+ * /memory fresh disable <character>
+ */
+export const memoryFreshDisableOptions = defineTypedOptions({
   character: { type: 'string', required: true },
 });
 
 /**
- * /memory focus disable <character>
+ * /memory fresh status <character>
  */
-export const memoryFocusDisableOptions = defineTypedOptions({
-  character: { type: 'string', required: true },
-});
-
-/**
- * /memory focus status <character>
- */
-export const memoryFocusStatusOptions = defineTypedOptions({
-  character: { type: 'string', required: true },
+export const memoryFreshStatusOptions = defineTypedOptions({
+  character: { type: 'string', required: false },
 });
 
 /**
@@ -373,6 +374,13 @@ export const memoryIncognitoEnableOptions = defineTypedOptions({
  */
 export const memoryIncognitoDisableOptions = defineTypedOptions({
   character: { type: 'string', required: true },
+});
+
+/**
+ * /memory incognito status <character>
+ */
+export const memoryIncognitoStatusOptions = defineTypedOptions({
+  character: { type: 'string', required: false },
 });
 
 /**

@@ -296,7 +296,7 @@ export class GenerationStep implements IPipelineStep {
             configSource,
             isGuestMode,
             crossTurnDuplicateDetected: duplicateRetries > 0,
-            focusModeEnabled: response.focusModeEnabled,
+            freshModeEnabled: response.freshModeEnabled,
             incognitoModeActive: response.incognitoModeActive,
             thinkingContent: response.thinkingContent,
             showThinking: effectivePersonality.showThinking,

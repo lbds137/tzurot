@@ -44,7 +44,7 @@ async function seedMemory(
 }
 
 export const userMemoryFixtures: Record<string, ConformanceEntry> = {
-  // ---- Stats / list / focus -------------------------------------------------
+  // ---- Stats / list ----------------------------------------------------------
 
   getStats: {
     seed: async ctx => {
@@ -64,20 +64,6 @@ export const userMemoryFixtures: Record<string, ConformanceEntry> = {
       const personality = await createPersonality(ctx, 'conf-memory-list');
       await seedMemory(ctx, '3e300000-0000-4000-8000-000000000002', personality.id, 'List memory.');
       return { query: { personalityId: personality.id } };
-    },
-  },
-
-  getFocus: {
-    seed: async ctx => {
-      const personality = await createPersonality(ctx, 'conf-memory-focus-get');
-      return { query: { personalityId: personality.id } };
-    },
-  },
-
-  setFocus: {
-    seed: async ctx => {
-      const personality = await createPersonality(ctx, 'conf-memory-focus-set');
-      return { body: { personalityId: personality.id, enabled: true } };
     },
   },
 
@@ -254,6 +240,28 @@ export const userMemoryFixtures: Record<string, ConformanceEntry> = {
         'Forget memory.'
       );
       return { body: { personalityId: personality.id, timeframe: '15m' } };
+    },
+  },
+
+  // ---- Fresh ------------------------------------------------------------------
+
+  getFreshStatus: {},
+
+  enableFresh: {
+    seed: async ctx => {
+      const personality = await createPersonality(ctx, 'conf-fresh-enable');
+      return { body: { personalityId: personality.id, duration: '30m' } };
+    },
+  },
+
+  disableFresh: {
+    seed: async ctx => {
+      const personality = await createPersonality(ctx, 'conf-fresh-disable');
+      await ctx.call('post', '/api/user/memory/fresh', {
+        personalityId: personality.id,
+        duration: '30m',
+      });
+      return { body: { personalityId: personality.id } };
     },
   },
 };

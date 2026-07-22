@@ -1,8 +1,9 @@
 /**
  * User-audience memory routes.
  *
- * Covers memory CRUD, batch operations, and incognito mode (temporary
- * memory-write suspension). All routes require a provisioned user.
+ * Covers memory CRUD, batch operations, and the two memory modes —
+ * incognito (temporary memory-write suspension) and fresh (temporary
+ * memory-read suspension). All routes require a provisioned user.
  */
 
 import { z } from 'zod';
@@ -12,8 +13,6 @@ import {
   BatchDeleteResponseSchema,
   BatchDeleteSchema,
   DeleteMemoryResponseSchema,
-  FocusModeSchema,
-  FocusModeStatusResponseSchema,
   IssuePurgeTokenResponseSchema,
   IssuePurgeTokenSchema,
   MemoryListResponseSchema,
@@ -23,24 +22,24 @@ import {
   MemoryUpdateSchema,
   PurgeMemoriesResponseSchema,
   PurgeMemoriesSchema,
-  SetFocusResponseSchema,
   SetMemoryLockSchema,
   SingleMemoryResponseSchema,
 } from '@tzurot/common-types/schemas/api/memory';
 import {
-  DisableIncognitoResponseSchema,
-  EnableIncognitoResponseSchema,
-  GetIncognitoStatusResponseSchema,
+  DisableMemoryModeResponseSchema,
+  EnableMemoryModeResponseSchema,
+  GetMemoryModeStatusResponseSchema,
   IncognitoForgetResponseSchema,
-} from '@tzurot/common-types/schemas/api/memoryIncognito';
+} from '@tzurot/common-types/schemas/api/memoryModes';
 import {
-  DisableIncognitoRequestSchema,
-  EnableIncognitoRequestSchema,
+  DisableMemoryModeRequestSchema,
+  EnableMemoryModeRequestSchema,
   IncognitoForgetRequestSchema,
-} from '@tzurot/common-types/types/incognito';
+} from '@tzurot/common-types/types/memory-modes';
 import type { RouteDef } from '../types.js';
 
 const MEMORY_INCOGNITO_PATH = '/memory/incognito';
+const MEMORY_FRESH_PATH = '/memory/fresh';
 /** `/memory/:id` is reused by GET / PATCH / DELETE — extracted to satisfy
  *  sonarjs/no-duplicate-string. */
 const MEMORY_BY_ID_PATH = '/memory/:id';
@@ -76,28 +75,6 @@ export const userMemoryRoutes = {
     output: MemoryListResponseSchema,
     requiresProvisionedUser: true,
     meta: { safeRead: true, softDeleteAware: true },
-  },
-
-  getFocus: {
-    audience: 'user',
-    method: 'get',
-    path: '/memory/focus',
-    id: 'getFocus',
-    query: { personalityId: z.string() },
-    output: FocusModeStatusResponseSchema,
-    requiresProvisionedUser: true,
-    meta: { safeRead: true },
-  },
-
-  setFocus: {
-    audience: 'user',
-    method: 'post',
-    path: '/memory/focus',
-    id: 'setFocus',
-    input: FocusModeSchema,
-    output: SetFocusResponseSchema,
-    requiresProvisionedUser: true,
-    meta: { idempotent: true },
   },
 
   search: {
@@ -224,7 +201,8 @@ export const userMemoryRoutes = {
     method: 'get',
     path: MEMORY_INCOGNITO_PATH,
     id: 'getIncognitoStatus',
-    output: GetIncognitoStatusResponseSchema,
+    query: { personalityId: z.string().optional() },
+    output: GetMemoryModeStatusResponseSchema,
     requiresProvisionedUser: true,
     meta: { safeRead: true },
   },
@@ -234,8 +212,8 @@ export const userMemoryRoutes = {
     method: 'post',
     path: MEMORY_INCOGNITO_PATH,
     id: 'enableIncognito',
-    input: EnableIncognitoRequestSchema,
-    output: EnableIncognitoResponseSchema,
+    input: EnableMemoryModeRequestSchema,
+    output: EnableMemoryModeResponseSchema,
     requiresProvisionedUser: true,
   },
 
@@ -249,8 +227,8 @@ export const userMemoryRoutes = {
     method: 'delete',
     path: MEMORY_INCOGNITO_PATH,
     id: 'disableIncognito',
-    input: DisableIncognitoRequestSchema,
-    output: DisableIncognitoResponseSchema,
+    input: DisableMemoryModeRequestSchema,
+    output: DisableMemoryModeResponseSchema,
     requiresProvisionedUser: true,
   },
 
@@ -261,6 +239,43 @@ export const userMemoryRoutes = {
     id: 'incognitoForget',
     input: IncognitoForgetRequestSchema,
     output: IncognitoForgetResponseSchema,
+    requiresProvisionedUser: true,
+  },
+
+  // ============================================================================
+  // Memory Fresh (per-personality memory-read suspension — memories are kept,
+  // just not used; mirrors the incognito session shape)
+  // ============================================================================
+
+  getFreshStatus: {
+    audience: 'user',
+    method: 'get',
+    path: MEMORY_FRESH_PATH,
+    id: 'getFreshStatus',
+    query: { personalityId: z.string().optional() },
+    output: GetMemoryModeStatusResponseSchema,
+    requiresProvisionedUser: true,
+    meta: { safeRead: true },
+  },
+
+  enableFresh: {
+    audience: 'user',
+    method: 'post',
+    path: MEMORY_FRESH_PATH,
+    id: 'enableFresh',
+    input: EnableMemoryModeRequestSchema,
+    output: EnableMemoryModeResponseSchema,
+    requiresProvisionedUser: true,
+  },
+
+  // Same DELETE-with-body caveat as disableIncognito above.
+  disableFresh: {
+    audience: 'user',
+    method: 'delete',
+    path: MEMORY_FRESH_PATH,
+    id: 'disableFresh',
+    input: DisableMemoryModeRequestSchema,
+    output: DisableMemoryModeResponseSchema,
     requiresProvisionedUser: true,
   },
 } as const satisfies Record<string, RouteDef>;

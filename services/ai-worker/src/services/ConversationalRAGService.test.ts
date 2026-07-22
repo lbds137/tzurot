@@ -113,7 +113,7 @@ vi.mock('./factRetrievalHelper.js', () => {
             q: string,
             c: unknown,
             o: unknown
-          ) => Promise<{ memories: unknown[]; focusModeEnabled: boolean; personaId?: string }>;
+          ) => Promise<{ memories: unknown[]; freshModeEnabled: boolean; personaId?: string }>;
         };
         factRetriever: unknown;
         personality: { id: string };
@@ -295,7 +295,7 @@ describe('ConversationalRAGService', () => {
           ctx: { stmLtmCutoffInputs?: { oldestSelectedTs?: number } }
         ) => {
           cutoffSeenByRetrieval = ctx.stmLtmCutoffInputs?.oldestSelectedTs ?? undefined;
-          return { memories: [], focusModeEnabled: false };
+          return { memories: [], freshModeEnabled: false };
         }
       );
 
@@ -399,7 +399,7 @@ describe('ConversationalRAGService', () => {
       ];
       getMemoryRetrieverMock().retrieveRelevantMemories.mockResolvedValue({
         memories,
-        focusModeEnabled: false,
+        freshModeEnabled: false,
       });
 
       const personality = createMockPersonality();
@@ -426,7 +426,7 @@ describe('ConversationalRAGService', () => {
       vi.mocked(retrieveFactsForPrompt).mockResolvedValue(facts);
       getMemoryRetrieverMock().retrieveRelevantMemories.mockResolvedValue({
         memories: [],
-        focusModeEnabled: false,
+        freshModeEnabled: false,
         personaId: 'persona-x',
       });
       const personality = createMockPersonality();
@@ -522,7 +522,7 @@ describe('ConversationalRAGService', () => {
     it('should handle empty memory results gracefully', async () => {
       getMemoryRetrieverMock().retrieveRelevantMemories.mockResolvedValue({
         memories: [],
-        focusModeEnabled: false,
+        freshModeEnabled: false,
       });
 
       const personality = createMockPersonality();
@@ -539,7 +539,7 @@ describe('ConversationalRAGService', () => {
     it('should store interaction to LTM when persona exists', async () => {
       getMemoryRetrieverMock().getUserPersonaForPersonality.mockResolvedValue({
         personaId: 'persona-123',
-        focusModeEnabled: false,
+        freshModeEnabled: false,
       });
 
       const personality = createMockPersonality();
@@ -570,7 +570,7 @@ describe('ConversationalRAGService', () => {
     it('should store LTM to resolved persona when configOverrides specifies shared memories', async () => {
       getMemoryRetrieverMock().resolvePersonaForMemory.mockResolvedValue({
         personaId: 'persona-456',
-        focusModeEnabled: false,
+        freshModeEnabled: false,
       });
 
       const personality = createMockPersonality();
@@ -603,7 +603,7 @@ describe('ConversationalRAGService', () => {
 
       getMemoryRetrieverMock().resolvePersonaForMemory.mockResolvedValue({
         personaId: 'persona-123',
-        focusModeEnabled: false,
+        freshModeEnabled: false,
       });
 
       const personality = createMockPersonality();
@@ -632,7 +632,7 @@ describe('ConversationalRAGService', () => {
     it('should defer memory storage when skipMemoryStorage is true', async () => {
       getMemoryRetrieverMock().resolvePersonaForMemory.mockResolvedValue({
         personaId: 'persona-123',
-        focusModeEnabled: false,
+        freshModeEnabled: false,
       });
 
       const personality = createMockPersonality();
@@ -655,7 +655,7 @@ describe('ConversationalRAGService', () => {
     it('should store memory immediately when skipMemoryStorage is false (default)', async () => {
       getMemoryRetrieverMock().resolvePersonaForMemory.mockResolvedValue({
         personaId: 'persona-123',
-        focusModeEnabled: false,
+        freshModeEnabled: false,
       });
 
       const personality = createMockPersonality();
@@ -687,7 +687,7 @@ describe('ConversationalRAGService', () => {
     it('should not return deferredMemoryData when the summon is incognito', async () => {
       getMemoryRetrieverMock().resolvePersonaForMemory.mockResolvedValue({
         personaId: 'persona-123',
-        focusModeEnabled: false,
+        freshModeEnabled: false,
       });
 
       const personality = createMockPersonality();
@@ -708,7 +708,7 @@ describe('ConversationalRAGService', () => {
 
       getMemoryRetrieverMock().resolvePersonaForMemory.mockResolvedValue({
         personaId: 'persona-123',
-        focusModeEnabled: false,
+        freshModeEnabled: false,
       });
 
       const personality = createMockPersonality();
@@ -1500,7 +1500,7 @@ describe('ConversationalRAGService', () => {
 
       getMemoryRetrieverMock().resolvePersonaForMemory.mockResolvedValue({
         personaId: 'persona-123',
-        focusModeEnabled: false,
+        freshModeEnabled: false,
       });
 
       const personality = createMockPersonality();

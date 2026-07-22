@@ -272,8 +272,8 @@ export const BOT_FOOTER_TEXT = {
   AUTO_BADGE_COMPACT: ' • 📍 auto',
   /** Auto-response indicator (standalone, when no model shown) */
   AUTO_RESPONSE: '📍 auto-response',
-  /** Focus mode indicator (LTM retrieval disabled) */
-  FOCUS_MODE: '🔒 Focus Mode • LTM retrieval disabled',
+  /** Fresh mode indicator (LTM retrieval disabled; memories kept) */
+  FRESH_MODE: '🌱 Fresh Mode • Memories not being used',
   /** Incognito mode indicator (memories not saved) */
   INCOGNITO_MODE: '👻 Incognito Mode • Memories not being saved',
 } as const;
@@ -419,8 +419,14 @@ export const BOT_FOOTER_PATTERNS = {
   GUEST_MODE: /(?:^|\n)-# 🆓 Using free model \(no API key required\)/g,
   /** Auto-response indicator (standalone) */
   AUTO_RESPONSE: /(?:^|\n)-# 📍 auto-response/g,
-  /** Focus mode indicator (LTM retrieval disabled) */
-  FOCUS_MODE: /(?:^|\n)-# 🔒 Focus Mode • LTM retrieval disabled/g,
+  /** Fresh mode indicator (LTM retrieval disabled; memories kept) */
+  FRESH_MODE: /(?:^|\n)-# 🌱 Fresh Mode • Memories not being used/g,
+  /**
+   * Pre-rename fresh-mode indicator ("Focus Mode"). Messages sent before the
+   * rename still carry this footer in channel history, so it must keep being
+   * stripped when history is fed back to the model.
+   */
+  LEGACY_FOCUS_MODE: /(?:^|\n)-# 🔒 Focus Mode • LTM retrieval disabled/g,
   /** Incognito mode indicator (memories not saved) */
   INCOGNITO_MODE: /(?:^|\n)-# 👻 Incognito Mode • Memories not being saved/g,
   /**

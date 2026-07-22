@@ -35,6 +35,7 @@ const USER_LLM_CONFIG = '../user/llm-config.js';
 const USER_MEMORY = '../user/memory.js';
 const USER_MEMORY_BATCH = '../user/memoryBatch.js';
 const USER_MEMORY_INCOGNITO = '../user/memoryIncognito.js';
+const USER_MEMORY_FRESH = '../user/memoryFresh.js';
 const USER_MEMORY_LIST = '../user/memoryList.js';
 const USER_MEMORY_SEARCH = '../user/memorySearch.js';
 const USER_MEMORY_SINGLE = '../user/memorySingle.js';
@@ -237,10 +238,13 @@ const PATH_MAP: Readonly<Record<string, string>> = {
   disableIncognito: USER_MEMORY_INCOGNITO,
   incognitoForget: USER_MEMORY_INCOGNITO,
 
-  // User memory (stats / focus — handlers in memory.ts)
+  // User memory (fresh mode)
+  getFreshStatus: USER_MEMORY_FRESH,
+  enableFresh: USER_MEMORY_FRESH,
+  disableFresh: USER_MEMORY_FRESH,
+
+  // User memory (stats — handler in memory.ts)
   getStats: USER_MEMORY,
-  getFocus: USER_MEMORY,
-  setFocus: USER_MEMORY,
 
   // User memory (list + search)
   list: USER_MEMORY_LIST,

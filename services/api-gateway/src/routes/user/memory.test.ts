@@ -168,24 +168,6 @@ describe('/user/memory routes', () => {
 
       expect(findRoute(router, 'get', '/stats')).toBeDefined();
     });
-
-    it('should have GET /focus route registered', () => {
-      const router = createMemoryRoutes({
-        ...stubRouteResolvers(),
-        prisma: mockPrisma as unknown as PrismaClient,
-      });
-
-      expect(findRoute(router, 'get', '/focus')).toBeDefined();
-    });
-
-    it('should have POST /focus route registered', () => {
-      const router = createMemoryRoutes({
-        ...stubRouteResolvers(),
-        prisma: mockPrisma as unknown as PrismaClient,
-      });
-
-      expect(findRoute(router, 'post', '/focus')).toBeDefined();
-    });
   });
 
   describe('GET /user/memory/stats', () => {
@@ -247,7 +229,7 @@ describe('/user/memory routes', () => {
           lockedCount: 0,
           oldestMemory: null,
           newestMemory: null,
-          focusModeEnabled: false,
+          freshModeEnabled: false,
         })
       );
     });
@@ -282,20 +264,31 @@ describe('/user/memory routes', () => {
           lockedCount: 5,
           oldestMemory: oldestDate.toISOString(),
           newestMemory: newestDate.toISOString(),
-          focusModeEnabled: false,
+          freshModeEnabled: false,
         })
       );
     });
 
-    it('should return focusModeEnabled true when enabled', async () => {
-      mockPrisma.userPersonalityConfig.findUnique.mockResolvedValue({
-        personaId: TEST_PERSONA_ID,
-        configOverrides: { focusModeEnabled: true },
+    it('should return freshModeEnabled true when a fresh session is active', async () => {
+      const freshSession = JSON.stringify({
+        userId: TEST_DISCORD_USER_ID,
+        personalityId: TEST_PERSONALITY_ID,
+        enabledAt: '2026-01-15T12:00:00.000Z',
+        expiresAt: null,
+        duration: 'forever',
       });
+      const mockRedis = {
+        get: vi
+          .fn()
+          .mockImplementation((key: string) =>
+            Promise.resolve(key.endsWith(`:${TEST_PERSONALITY_ID}`) ? freshSession : null)
+          ),
+      };
 
       const router = createMemoryRoutes({
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
+        redis: mockRedis as unknown as import('ioredis').Redis,
       });
       const handler = getHandler(router, 'get', '/stats');
       const { req, res } = createMockReqRes({}, { personalityId: TEST_PERSONALITY_ID });
@@ -304,253 +297,7 @@ describe('/user/memory routes', () => {
 
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
-          focusModeEnabled: true,
-        })
-      );
-    });
-  });
-
-  describe('GET /user/memory/focus', () => {
-    it('should reject missing personalityId', async () => {
-      const router = createMemoryRoutes({
-        ...stubRouteResolvers(),
-        prisma: mockPrisma as unknown as PrismaClient,
-      });
-      const handler = getHandler(router, 'get', '/focus');
-      const { req, res } = createMockReqRes({}, {});
-
-      await handler(req, res);
-
-      expect(res.status).toHaveBeenCalledWith(400);
-      expect(res.json).toHaveBeenCalledWith(
-        expect.objectContaining({
-          message: expect.stringContaining('personalityId'),
-        })
-      );
-    });
-
-    it('should return focusModeEnabled false when no config exists', async () => {
-      mockPrisma.userPersonalityConfig.findUnique.mockResolvedValue(null);
-
-      const router = createMemoryRoutes({
-        ...stubRouteResolvers(),
-        prisma: mockPrisma as unknown as PrismaClient,
-      });
-      const handler = getHandler(router, 'get', '/focus');
-      const { req, res } = createMockReqRes({}, { personalityId: TEST_PERSONALITY_ID });
-
-      await handler(req, res);
-
-      expect(res.status).toHaveBeenCalledWith(200);
-      expect(res.json).toHaveBeenCalledWith(
-        expect.objectContaining({
-          personalityId: TEST_PERSONALITY_ID,
-          focusModeEnabled: false,
-        })
-      );
-    });
-
-    it('should return focusModeEnabled true when enabled', async () => {
-      mockPrisma.userPersonalityConfig.findUnique.mockResolvedValue({
-        configOverrides: { focusModeEnabled: true },
-      });
-
-      const router = createMemoryRoutes({
-        ...stubRouteResolvers(),
-        prisma: mockPrisma as unknown as PrismaClient,
-      });
-      const handler = getHandler(router, 'get', '/focus');
-      const { req, res } = createMockReqRes({}, { personalityId: TEST_PERSONALITY_ID });
-
-      await handler(req, res);
-
-      expect(res.status).toHaveBeenCalledWith(200);
-      expect(res.json).toHaveBeenCalledWith(
-        expect.objectContaining({
-          personalityId: TEST_PERSONALITY_ID,
-          focusModeEnabled: true,
-        })
-      );
-    });
-  });
-
-  describe('POST /user/memory/focus', () => {
-    it('should reject missing personalityId', async () => {
-      const router = createMemoryRoutes({
-        ...stubRouteResolvers(),
-        prisma: mockPrisma as unknown as PrismaClient,
-      });
-      const handler = getHandler(router, 'post', '/focus');
-      const { req, res } = createMockReqRes({ enabled: true });
-
-      await handler(req, res);
-
-      expect(res.status).toHaveBeenCalledWith(400);
-      expect(res.json).toHaveBeenCalledWith(
-        expect.objectContaining({
-          message: expect.stringContaining('personalityId'),
-        })
-      );
-    });
-
-    it('should reject missing enabled field', async () => {
-      const router = createMemoryRoutes({
-        ...stubRouteResolvers(),
-        prisma: mockPrisma as unknown as PrismaClient,
-      });
-      const handler = getHandler(router, 'post', '/focus');
-      const { req, res } = createMockReqRes({ personalityId: TEST_PERSONALITY_ID });
-
-      await handler(req, res);
-
-      expect(res.status).toHaveBeenCalledWith(400);
-      expect(res.json).toHaveBeenCalledWith(
-        expect.objectContaining({
-          message: expect.stringContaining('enabled'),
-        })
-      );
-    });
-
-    it('should reject non-boolean enabled', async () => {
-      const router = createMemoryRoutes({
-        ...stubRouteResolvers(),
-        prisma: mockPrisma as unknown as PrismaClient,
-      });
-      const handler = getHandler(router, 'post', '/focus');
-      const { req, res } = createMockReqRes({
-        personalityId: TEST_PERSONALITY_ID,
-        enabled: 'true', // string instead of boolean
-      });
-
-      await handler(req, res);
-
-      expect(res.status).toHaveBeenCalledWith(400);
-    });
-
-    it('should return 404 when personality not found', async () => {
-      mockPrisma.personality.findUnique.mockResolvedValue(null);
-
-      const router = createMemoryRoutes({
-        ...stubRouteResolvers(),
-        prisma: mockPrisma as unknown as PrismaClient,
-      });
-      const handler = getHandler(router, 'post', '/focus');
-      const { req, res } = createMockReqRes({
-        personalityId: TEST_PERSONALITY_ID,
-        enabled: true,
-      });
-
-      await handler(req, res);
-
-      expect(res.status).toHaveBeenCalledWith(404);
-    });
-
-    it('should enable focus mode by writing to configOverrides JSONB', async () => {
-      // No existing UPC record
-      mockPrisma.userPersonalityConfig.findUnique.mockResolvedValue(null);
-
-      const router = createMemoryRoutes({
-        ...stubRouteResolvers(),
-        prisma: mockPrisma as unknown as PrismaClient,
-      });
-      const handler = getHandler(router, 'post', '/focus');
-      const { req, res } = createMockReqRes({
-        personalityId: TEST_PERSONALITY_ID,
-        enabled: true,
-      });
-
-      await handler(req, res);
-
-      // Should read existing configOverrides before writing
-      expect(mockPrisma.userPersonalityConfig.findUnique).toHaveBeenCalled();
-
-      // Should write JSONB only (no column dual-write)
-      expect(mockPrisma.userPersonalityConfig.upsert).toHaveBeenCalledWith(
-        expect.objectContaining({
-          update: {
-            configOverrides: { focusModeEnabled: true },
-          },
-          create: expect.objectContaining({
-            userId: TEST_USER_ID,
-            personalityId: TEST_PERSONALITY_ID,
-            configOverrides: { focusModeEnabled: true },
-          }),
-        })
-      );
-
-      expect(res.status).toHaveBeenCalledWith(200);
-      expect(res.json).toHaveBeenCalledWith(
-        expect.objectContaining({
-          personalityId: TEST_PERSONALITY_ID,
-          personalityName: 'Test Personality',
-          focusModeEnabled: true,
-          message: expect.stringContaining('enabled'),
-        })
-      );
-    });
-
-    it('should disable focus mode and strip focusModeEnabled from configOverrides', async () => {
-      // Existing UPC with focusModeEnabled in JSONB
-      mockPrisma.userPersonalityConfig.findUnique.mockResolvedValue({
-        configOverrides: { focusModeEnabled: true, maxMessages: 30 },
-      });
-
-      const router = createMemoryRoutes({
-        ...stubRouteResolvers(),
-        prisma: mockPrisma as unknown as PrismaClient,
-      });
-      const handler = getHandler(router, 'post', '/focus');
-      const { req, res } = createMockReqRes({
-        personalityId: TEST_PERSONALITY_ID,
-        enabled: false,
-      });
-
-      await handler(req, res);
-
-      // Should preserve other fields but remove focusModeEnabled (false is the default)
-      expect(mockPrisma.userPersonalityConfig.upsert).toHaveBeenCalledWith(
-        expect.objectContaining({
-          update: {
-            configOverrides: { maxMessages: 30 },
-          },
-          create: expect.objectContaining({
-            configOverrides: { maxMessages: 30 },
-          }),
-        })
-      );
-
-      expect(res.json).toHaveBeenCalledWith(
-        expect.objectContaining({
-          focusModeEnabled: false,
-          message: expect.stringContaining('disabled'),
-        })
-      );
-    });
-
-    it('should merge focusModeEnabled with existing configOverrides', async () => {
-      // Existing UPC with other overrides but no focusModeEnabled
-      mockPrisma.userPersonalityConfig.findUnique.mockResolvedValue({
-        configOverrides: { maxMessages: 25, maxImages: 5 },
-      });
-
-      const router = createMemoryRoutes({
-        ...stubRouteResolvers(),
-        prisma: mockPrisma as unknown as PrismaClient,
-      });
-      const handler = getHandler(router, 'post', '/focus');
-      const { req, res } = createMockReqRes({
-        personalityId: TEST_PERSONALITY_ID,
-        enabled: true,
-      });
-
-      await handler(req, res);
-
-      // Should merge focusModeEnabled into existing overrides
-      expect(mockPrisma.userPersonalityConfig.upsert).toHaveBeenCalledWith(
-        expect.objectContaining({
-          update: {
-            configOverrides: { maxMessages: 25, maxImages: 5, focusModeEnabled: true },
-          },
+          freshModeEnabled: true,
         })
       );
     });

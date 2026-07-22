@@ -5,8 +5,8 @@
  * Incognito Mode disables LTM writing without affecting retrieval.
  * Memories won't be saved, but existing memories can still be retrieved.
  *
- * This is the opposite of Focus Mode:
- * - Focus Mode: Disable READING (memories still saved)
+ * This is the opposite of Fresh Mode:
+ * - Fresh Mode: Disable READING (memories still saved)
  * - Incognito Mode: Disable WRITING (memories still retrieved)
  */
 
@@ -14,14 +14,15 @@ import { escapeMarkdown } from 'discord.js';
 import {
   memoryIncognitoEnableOptions,
   memoryIncognitoDisableOptions,
+  memoryIncognitoStatusOptions,
   memoryIncognitoForgetOptions,
 } from '@tzurot/common-types/generated/commandOptions';
-import { type IncognitoSessionWithRemaining } from '@tzurot/common-types/schemas/api/memoryIncognito';
+import { type MemoryModeSessionWithRemaining } from '@tzurot/common-types/schemas/api/memoryModes';
 import {
   getDurationLabel,
   IncognitoForgetRequestSchema,
-  type IncognitoDuration,
-} from '@tzurot/common-types/types/incognito';
+  type MemoryModeDuration,
+} from '@tzurot/common-types/types/memory-modes';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import {
@@ -47,24 +48,25 @@ const UNEXPECTED_ERROR_LOG_MESSAGE = 'Unexpected error';
 /** Shared resource noun for the incognito classify paths. */
 const INCOGNITO_RESOURCE = 'incognito mode';
 
-const ALL_PERSONALITIES_LABEL = 'all characters';
+export const ALL_PERSONALITIES_LABEL = 'all characters';
 
 /** Local alias for the schema-derived session-with-time-remaining shape. */
-type SessionWithTime = IncognitoSessionWithRemaining;
+type SessionWithTime = MemoryModeSessionWithRemaining;
 
 /**
- * Format session info for display
+ * Format session info for display (shared with the fresh-mode sibling)
  */
-function formatSessionInfo(session: SessionWithTime, personalityName?: string): string {
+export function formatSessionInfo(session: SessionWithTime, personalityName?: string): string {
   const target =
     session.personalityId === 'all' ? ALL_PERSONALITIES_LABEL : (personalityName ?? 'Unknown');
   return `• **${escapeMarkdown(target)}** (${session.timeRemaining})`;
 }
 
 /**
- * Resolve the incognito `character` option (a slug/ID, or the literal "all") to
+ * Resolve a memory-mode `character` option (a slug/ID, or the literal "all") to
  * a target, replying with the right error and returning `null` on the failure
- * shapes. Shared by enable / disable / forget, which all accept the same
+ * shapes. Shared by incognito enable / disable / forget and the fresh-mode
+ * sibling handlers, which all accept the same
  * "or all" input. Distinguishes a genuine miss ("not found") from an infra
  * failure fetching the personality list ("try again") — collapsing both to a
  * false "not found" was the infra-vs-negative bug.
@@ -73,7 +75,7 @@ function formatSessionInfo(session: SessionWithTime, personalityName?: string): 
  *   `null` after having ALREADY replied (sentinel / not-found / unavailable).
  *   Callers MUST return early on `null` to avoid a double Discord reply.
  */
-async function resolveIncognitoTargetOrReply(
+export async function resolveMemoryModeTargetOrReply(
   context: DeferredCommandContext,
   userClient: UserClient,
   personalityInput: string
@@ -123,10 +125,10 @@ export async function handleIncognitoEnable(context: DeferredCommandContext): Pr
   const { userClient } = clientsFor(context.interaction);
   const options = memoryIncognitoEnableOptions(context.interaction);
   const personalityInput = options.character();
-  const duration = options.timeframe() as IncognitoDuration;
+  const duration = options.timeframe() as MemoryModeDuration;
 
   try {
-    const resolved = await resolveIncognitoTargetOrReply(context, userClient, personalityInput);
+    const resolved = await resolveMemoryModeTargetOrReply(context, userClient, personalityInput);
     if (resolved === null) {
       return;
     }
@@ -183,7 +185,7 @@ export async function handleIncognitoDisable(context: DeferredCommandContext): P
   const personalityInput = options.character();
 
   try {
-    const resolved = await resolveIncognitoTargetOrReply(context, userClient, personalityInput);
+    const resolved = await resolveMemoryModeTargetOrReply(context, userClient, personalityInput);
     if (resolved === null) {
       return;
     }
@@ -235,9 +237,23 @@ export async function handleIncognitoDisable(context: DeferredCommandContext): P
 export async function handleIncognitoStatus(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;
   const { userClient } = clientsFor(context.interaction);
+  const options = memoryIncognitoStatusOptions(context.interaction);
+  const characterInput = options.character();
 
   try {
-    const result = await userClient.getIncognitoStatus();
+    // Optional filter: a specific character narrows the overview to sessions
+    // that apply to it (its own + any global 'all' session). "all" or omitted
+    // shows everything.
+    let personalityId: string | undefined;
+    if (characterInput !== null && characterInput.toLowerCase() !== 'all') {
+      const resolved = await resolveMemoryModeTargetOrReply(context, userClient, characterInput);
+      if (resolved === null) {
+        return;
+      }
+      personalityId = resolved.id;
+    }
+
+    const result = await userClient.getIncognitoStatus({ personalityId });
 
     if (!result.ok) {
       logger.warn({ userId, status: result.status }, 'Status check failed');
@@ -299,7 +315,7 @@ export async function handleIncognitoForget(context: DeferredCommandContext): Pr
   const timeframe = options.timeframe();
 
   try {
-    const resolved = await resolveIncognitoTargetOrReply(context, userClient, personalityInput);
+    const resolved = await resolveMemoryModeTargetOrReply(context, userClient, personalityInput);
     if (resolved === null) {
       return;
     }

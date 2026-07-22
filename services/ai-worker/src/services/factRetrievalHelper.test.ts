@@ -83,7 +83,7 @@ describe('retrieveMemoriesAndFacts (Step-3 wiring)', () => {
     const memoryRetriever = {
       retrieveRelevantMemories: vi.fn().mockResolvedValue({
         memories: [{ pageContent: 'm1', metadata: {} }],
-        focusModeEnabled: true,
+        freshModeEnabled: true,
         personaId: 'persona-7',
       }),
     } as unknown as MemoryRetriever;
@@ -114,7 +114,7 @@ describe('retrieveMemoriesAndFacts (Step-3 wiring)', () => {
     // shared scope → personality filter drops (null), personaId from retrieval
     expect(factRetriever.retrieveFacts).toHaveBeenCalledWith('tea preferences', null, 'persona-7');
     expect(result.memories).toHaveLength(1);
-    expect(result.focusModeEnabled).toBe(true);
+    expect(result.freshModeEnabled).toBe(true);
     expect(result.facts).toEqual([{ statement: 'likes tea' }]);
   });
 
@@ -123,7 +123,7 @@ describe('retrieveMemoriesAndFacts (Step-3 wiring)', () => {
     const memoryRetriever = {
       retrieveRelevantMemories: vi.fn().mockResolvedValue({
         memories: [],
-        focusModeEnabled: false,
+        freshModeEnabled: false,
         // personaId undefined — incognito/focus/no-persona turn
       }),
     } as unknown as MemoryRetriever;

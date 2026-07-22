@@ -141,7 +141,7 @@ function buildReasoningDebug(
 interface BudgetDiagnosticOptions {
   collector: DiagnosticCollector;
   retrievedMemories: MemoryDocument[];
-  focusModeEnabled: boolean;
+  freshModeEnabled: boolean;
   budgetResult: BudgetAllocationResult;
   /** How many facts retrieval produced BEFORE the budget's fact slice applied */
   retrievedFactsCount: number;
@@ -152,11 +152,11 @@ interface BudgetDiagnosticOptions {
 
 /** Record memory retrieval and token budget allocation to the diagnostic collector */
 export function recordBudgetDiagnostics(opts: BudgetDiagnosticOptions): void {
-  const { collector, retrievedMemories, focusModeEnabled, budgetResult, contextWindowSize } = opts;
+  const { collector, retrievedMemories, freshModeEnabled, budgetResult, contextWindowSize } = opts;
   collector.recordMemoryRetrieval({
     retrievedMemories,
     selectedMemories: budgetResult.relevantMemories,
-    focusModeEnabled,
+    freshModeEnabled,
   });
   collector.recordTokenBudget({
     contextWindowSize,

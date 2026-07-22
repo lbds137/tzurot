@@ -57,24 +57,16 @@ describe('mapSettingToApiUpdate', () => {
     });
   });
 
+  describe('retired settings', () => {
+    it('returns null for the removed focusModeEnabled knob', () => {
+      expect(mapSettingToApiUpdate('focusModeEnabled', true)).toBeNull();
+    });
+  });
+
   describe('shareLtmAcrossPersonalities', () => {
     it('should map boolean value', () => {
       expect(mapSettingToApiUpdate('shareLtmAcrossPersonalities', false)).toEqual({
         shareLtmAcrossPersonalities: false,
-      });
-    });
-  });
-
-  describe('focusModeEnabled', () => {
-    it('should map boolean value', () => {
-      expect(mapSettingToApiUpdate('focusModeEnabled', true)).toEqual({
-        focusModeEnabled: true,
-      });
-    });
-
-    it('should map null (auto/clear)', () => {
-      expect(mapSettingToApiUpdate('focusModeEnabled', null)).toEqual({
-        focusModeEnabled: null,
       });
     });
   });

@@ -151,7 +151,7 @@ describe('Admin Diagnostic Routes', () => {
     },
     memoryRetrieval: {
       memoriesFound: [],
-      focusModeEnabled: false,
+      freshModeEnabled: false,
     },
     tokenBudget: {
       contextWindowSize: 128000,

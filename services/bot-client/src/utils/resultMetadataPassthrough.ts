@@ -17,7 +17,7 @@ export interface ResultMetadataPassthrough {
     category: QuotaFallbackCategoryValue;
   };
   isGuestMode?: boolean;
-  focusModeEnabled?: boolean;
+  freshModeEnabled?: boolean;
   incognitoModeActive?: boolean;
   thinkingContent?: string;
   showThinking?: boolean;
@@ -36,7 +36,7 @@ export function buildResultMetadataPassthrough(
     fallbackProviderAttempted: result.metadata?.fallbackProviderAttempted,
     quotaFallback: result.metadata?.quotaFallback,
     isGuestMode: result.metadata?.isGuestMode,
-    focusModeEnabled: result.metadata?.focusModeEnabled,
+    freshModeEnabled: result.metadata?.freshModeEnabled,
     incognitoModeActive: result.metadata?.incognitoModeActive,
     thinkingContent: result.metadata?.thinkingContent,
     showThinking: result.metadata?.showThinking,

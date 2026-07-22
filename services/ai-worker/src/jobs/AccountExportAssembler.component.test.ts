@@ -228,7 +228,7 @@ describe('assembleAccountExport (component, PGLite)', () => {
         id: liveId,
         userId: USER_A,
         personalityId: PERSONALITY_X,
-        configOverrides: { focusModeEnabled: true },
+        configOverrides: { crossChannelHistoryEnabled: true },
       },
     });
     const deadId = nextId();

@@ -46,14 +46,14 @@ TTS + STT provider selection and cloned-voice library lifecycle. Per-character T
 
 ## Memory & History
 
-| Command    | Subcommands                                        | Purpose                                            |
-| ---------- | -------------------------------------------------- | -------------------------------------------------- |
-| `/memory`  | `browse` `search` `stats`                          | Browse and search long-term memories               |
-|            | `facts`                                            | Browse/correct facts a character learned about you |
-|            | `delete` `purge`                                   | Memory management operations                       |
-|            | `focus` (`enable` `disable` `status`)              | Temporarily disable LTM retrieval                  |
-|            | `incognito` (`enable` `disable` `status` `forget`) | Privacy mode (no LTM writes)                       |
-| `/history` | `clear` `stats` `undo` `purge`                     | Conversation history management                    |
+| Command    | Subcommands                                        | Purpose                                                               |
+| ---------- | -------------------------------------------------- | --------------------------------------------------------------------- |
+| `/memory`  | `browse` `search` `stats`                          | Browse and search long-term memories                                  |
+|            | `facts`                                            | Browse/correct facts a character learned about you                    |
+|            | `delete` `purge`                                   | Memory management operations                                          |
+|            | `fresh` (`enable` `disable` `status`)              | Fresh-start mode — replies stop using memories of you (they are kept) |
+|            | `incognito` (`enable` `disable` `status` `forget`) | Privacy mode (no LTM writes)                                          |
+| `/history` | `clear` `stats` `undo` `purge`                     | Conversation history management                                       |
 
 ## Settings & Tools
 

@@ -143,7 +143,7 @@ export class DiagnosticCollector {
 
     this.memoryRetrieval = {
       memoriesFound: data.retrievedMemories.map(mem => this.buildMemoryEntry(mem, selectedIds)),
-      focusModeEnabled: data.focusModeEnabled,
+      freshModeEnabled: data.freshModeEnabled,
     };
   }
 

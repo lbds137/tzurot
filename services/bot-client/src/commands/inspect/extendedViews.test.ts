@@ -29,7 +29,7 @@ function createMockPayload(overrides?: Partial<DiagnosticPayload>): DiagnosticPa
       referencedMessagesContent: [],
       searchQuery: null,
     },
-    memoryRetrieval: { memoriesFound: [], focusModeEnabled: false },
+    memoryRetrieval: { memoriesFound: [], freshModeEnabled: false },
     tokenBudget: {
       contextWindowSize: 128000,
       systemPromptTokens: 4000,

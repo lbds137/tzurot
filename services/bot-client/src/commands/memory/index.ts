@@ -8,9 +8,9 @@
  * - /memory search <query> [personality] [limit] - Semantic search of memories
  * - /memory delete <personality> [timeframe] - Batch delete memories (skips locked)
  * - /memory purge <personality> - Delete ALL memories for personality (typed confirmation)
- * - /memory focus enable <personality> - Disable LTM retrieval
- * - /memory focus disable <personality> - Re-enable LTM retrieval
- * - /memory focus status <personality> - Check focus mode status
+ * - /memory fresh enable <personality> <duration> - Disable LTM retrieval (memories kept, not used)
+ * - /memory fresh disable <personality> - Re-enable LTM retrieval
+ * - /memory fresh status [personality] - Overview of active fresh sessions
  * - /memory incognito enable <personality> <duration> - Disable LTM writing (memories not saved)
  * - /memory incognito disable <personality> - Re-enable LTM writing
  * - /memory incognito status - Check incognito mode status
@@ -29,7 +29,7 @@ import { createTypedSubcommandRouter } from '../../utils/subcommandRouter.js';
 import { handleStats } from './stats.js';
 import { handleBrowse, MEMORY_BROWSE_PREFIX } from './browse.js';
 import { handleSearch, MEMORY_SEARCH_PREFIX } from './search.js';
-import { handleFocusEnable, handleFocusDisable, handleFocusStatus } from './focus.js';
+import { handleFreshEnable, handleFreshDisable, handleFreshStatus } from './fresh.js';
 import {
   handleIncognitoEnable,
   handleIncognitoDisable,
@@ -47,15 +47,15 @@ import { handleButton, handleModal, handleSelectMenu } from './interactionHandle
 const logger = createLogger('memory-command');
 
 /**
- * Focus subcommand router (typed for DeferredCommandContext)
+ * Fresh subcommand router (typed for DeferredCommandContext)
  */
-const focusRouter = createTypedSubcommandRouter(
+const freshRouter = createTypedSubcommandRouter(
   {
-    enable: handleFocusEnable,
-    disable: handleFocusDisable,
-    status: handleFocusStatus,
+    enable: handleFreshEnable,
+    disable: handleFreshDisable,
+    status: handleFreshStatus,
   },
-  { logger, logPrefix: '[Memory/Focus]' }
+  { logger, logPrefix: '[Memory/Fresh]' }
 );
 
 /**
@@ -83,8 +83,8 @@ async function execute(ctx: SafeCommandContext): Promise<void> {
   const subcommandGroup = context.getSubcommandGroup();
   const subcommand = context.getSubcommand();
 
-  if (subcommandGroup === 'focus') {
-    await focusRouter(context);
+  if (subcommandGroup === 'fresh') {
+    await freshRouter(context);
   } else if (subcommandGroup === 'incognito') {
     await incognitoRouter(context);
   } else if (subcommand === 'stats') {
@@ -132,7 +132,7 @@ const DELETE_TIMEFRAME_CHOICES: { name: string; value: string }[] = [
   { name: 'All time', value: 'all' },
 ];
 
-const INCOGNITO_TIMEFRAME_CHOICES: { name: string; value: string }[] = [
+const MODE_TIMEFRAME_CHOICES: { name: string; value: string }[] = [
   { name: '30 minutes', value: '30m' },
   { name: '1 hour', value: '1h' },
   { name: '4 hours', value: '4h' },
@@ -239,28 +239,41 @@ export default defineCommand({
     )
     .addSubcommandGroup(group =>
       group
-        .setName('focus')
-        .setDescription('Manage focus mode (disable LTM retrieval)')
+        .setName('fresh')
+        .setDescription(
+          'Fresh-start mode — replies stop using memories of you (nothing is deleted)'
+        )
         .addSubcommand(subcommand =>
           subcommand
             .setName('enable')
-            .setDescription('Enable focus mode - stop retrieving long-term memories')
+            .setDescription(
+              'Start fresh — the character stops using its memories of you (kept, not deleted)'
+            )
             .addStringOption(option =>
               option
                 .setName('character')
-                .setDescription(SELECTOR_DESCRIPTION.character)
+                .setDescription(`${SELECTOR_DESCRIPTION.character} — or "all" for every character`)
                 .setRequired(true)
                 .setAutocomplete(true)
+            )
+            .addStringOption(option =>
+              option
+                .setName('timeframe')
+                .setDescription('How long to stay fresh')
+                .setRequired(true)
+                .addChoices(...MODE_TIMEFRAME_CHOICES)
             )
         )
         .addSubcommand(subcommand =>
           subcommand
             .setName('disable')
-            .setDescription('Disable focus mode - resume retrieving long-term memories')
+            .setDescription('End fresh mode — the character uses its memories of you again')
             .addStringOption(option =>
               option
                 .setName('character')
-                .setDescription(SELECTOR_DESCRIPTION.character)
+                .setDescription(
+                  `${SELECTOR_DESCRIPTION.character} — or "all" to end a global session`
+                )
                 .setRequired(true)
                 .setAutocomplete(true)
             )
@@ -268,12 +281,12 @@ export default defineCommand({
         .addSubcommand(subcommand =>
           subcommand
             .setName('status')
-            .setDescription('Check current focus mode status')
+            .setDescription('See where fresh mode is active')
             .addStringOption(option =>
               option
                 .setName('character')
-                .setDescription(SELECTOR_DESCRIPTION.character)
-                .setRequired(true)
+                .setDescription(`${SELECTOR_DESCRIPTION.character} — omit for all active sessions`)
+                .setRequired(false)
                 .setAutocomplete(true)
             )
         )
@@ -298,7 +311,7 @@ export default defineCommand({
                 .setName('timeframe')
                 .setDescription('How long to stay in incognito mode')
                 .setRequired(true)
-                .addChoices(...INCOGNITO_TIMEFRAME_CHOICES)
+                .addChoices(...MODE_TIMEFRAME_CHOICES)
             )
         )
         .addSubcommand(subcommand =>
@@ -316,7 +329,16 @@ export default defineCommand({
             )
         )
         .addSubcommand(subcommand =>
-          subcommand.setName('status').setDescription('Check current incognito mode status')
+          subcommand
+            .setName('status')
+            .setDescription('Check current incognito mode status')
+            .addStringOption(option =>
+              option
+                .setName('character')
+                .setDescription(`${SELECTOR_DESCRIPTION.character} — omit for all active sessions`)
+                .setRequired(false)
+                .setAutocomplete(true)
+            )
         )
         .addSubcommand(subcommand =>
           subcommand

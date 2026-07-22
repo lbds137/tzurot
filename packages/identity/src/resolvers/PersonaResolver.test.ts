@@ -376,63 +376,13 @@ describe('PersonaResolver', () => {
         ownedPersonas: [],
       });
 
-      mockPrismaClient.userPersonalityConfig.findFirst
-        .mockResolvedValueOnce(null) // persona override check
-        .mockResolvedValueOnce({ configOverrides: null }); // focus mode check (no overrides)
+      mockPrismaClient.userPersonalityConfig.findFirst.mockResolvedValueOnce(null); // persona override check
 
       const result = await resolver.resolveForMemory('discord-123', 'personality-456');
 
       expect(result).toEqual({
         personaId: 'persona-123',
-        focusModeEnabled: false,
       });
-    });
-
-    it('should return focusModeEnabled true when focus mode is enabled', async () => {
-      mockPrismaClient.user.findUnique.mockResolvedValueOnce({
-        id: 'user-uuid',
-        defaultPersonaId: 'persona-123',
-        defaultPersona: {
-          id: 'persona-123',
-          preferredName: 'Name',
-          pronouns: 'they/them',
-          content: 'Content',
-        },
-        ownedPersonas: [],
-      });
-
-      mockPrismaClient.userPersonalityConfig.findFirst
-        .mockResolvedValueOnce(null) // persona override
-        .mockResolvedValueOnce({ configOverrides: { focusModeEnabled: true } }); // focus mode enabled
-
-      const result = await resolver.resolveForMemory('discord-123', 'personality-456');
-
-      expect(result).toEqual({
-        personaId: 'persona-123',
-        focusModeEnabled: true,
-      });
-    });
-
-    it('should default focusModeEnabled to false when no config exists (or user missing)', async () => {
-      mockPrismaClient.user.findUnique.mockResolvedValueOnce({
-        id: 'user-uuid',
-        defaultPersonaId: 'persona-123',
-        defaultPersona: {
-          id: 'persona-123',
-          preferredName: 'Name',
-          pronouns: null,
-          content: 'Content',
-        },
-        ownedPersonas: [],
-      });
-
-      mockPrismaClient.userPersonalityConfig.findFirst
-        .mockResolvedValueOnce(null) // persona override
-        .mockResolvedValueOnce(null); // no config for focus mode (covers both "user missing" and "user exists but no config" — single JOIN query)
-
-      const result = await resolver.resolveForMemory('discord-123', 'personality-456');
-
-      expect(result?.focusModeEnabled).toBe(false);
     });
 
     it('should return null for system-default resolution', async () => {
@@ -457,36 +407,10 @@ describe('PersonaResolver', () => {
 
       expect(result).toBeNull();
     });
-
-    it('should handle focus mode check errors gracefully', async () => {
-      mockPrismaClient.user.findUnique.mockResolvedValueOnce({
-        id: 'user-uuid',
-        defaultPersonaId: 'persona-123',
-        defaultPersona: {
-          id: 'persona-123',
-          preferredName: 'Name',
-          pronouns: null,
-          content: 'Content',
-        },
-        ownedPersonas: [],
-      });
-
-      mockPrismaClient.userPersonalityConfig.findFirst
-        .mockResolvedValueOnce(null) // persona override lookup
-        .mockRejectedValueOnce(new Error('DB error')); // focus mode findFirst fails
-
-      const result = await resolver.resolveForMemory('discord-123', 'personality-456');
-
-      // Should still return valid result with focusModeEnabled defaulting to false
-      expect(result).toEqual({
-        personaId: 'persona-123',
-        focusModeEnabled: false,
-      });
-    });
   });
 
   describe('resolvePersonaIdOnly', () => {
-    it('should return the resolved persona id without querying focus mode', async () => {
+    it('should return the resolved persona id with a single config lookup', async () => {
       mockPrismaClient.user.findUnique.mockResolvedValueOnce({
         id: 'user-uuid',
         defaultPersonaId: 'persona-123',
@@ -499,14 +423,12 @@ describe('PersonaResolver', () => {
         ownedPersonas: [],
       });
 
-      // Only the persona-override lookup (from resolveFresh); NO focus-mode
-      // findFirst should fire because resolvePersonaIdOnly skips it.
+      // Only the persona-override lookup (from resolveFresh) fires.
       mockPrismaClient.userPersonalityConfig.findFirst.mockResolvedValueOnce(null);
 
       const result = await resolver.resolvePersonaIdOnly('discord-123', 'personality-456');
 
       expect(result).toBe('persona-123');
-      // The whole point: one fewer Prisma round-trip than resolveForMemory.
       expect(mockPrismaClient.userPersonalityConfig.findFirst).toHaveBeenCalledTimes(1);
     });
 

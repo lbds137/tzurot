@@ -8,7 +8,6 @@ import { describe, it, expect } from 'vitest';
 import {
   PreviewTokenSchema,
   PurgeTokenSchema,
-  FocusModeSchema,
   SetMemoryLockSchema,
   MemoryUpdateSchema,
   BatchDeletePreviewSchema,
@@ -19,8 +18,6 @@ import {
   MemoryItemSchema,
   MemoryStatsResponseSchema,
   MemoryListResponseSchema,
-  FocusModeStatusResponseSchema,
-  SetFocusResponseSchema,
   MemorySearchResultSchema,
   MemorySearchResponseSchema,
   BatchDeletePreviewResponseSchema,
@@ -32,50 +29,6 @@ import {
 } from './memory.js';
 
 describe('Memory API Input Schema Tests', () => {
-  describe('FocusModeSchema', () => {
-    it('should accept valid input', () => {
-      const result = FocusModeSchema.safeParse({
-        personalityId: 'abc-123',
-        enabled: true,
-      });
-      expect(result.success).toBe(true);
-    });
-
-    it('should accept enabled: false', () => {
-      const result = FocusModeSchema.safeParse({
-        personalityId: 'abc-123',
-        enabled: false,
-      });
-      expect(result.success).toBe(true);
-    });
-
-    it('should reject empty personalityId', () => {
-      const result = FocusModeSchema.safeParse({
-        personalityId: '',
-        enabled: true,
-      });
-      expect(result.success).toBe(false);
-    });
-
-    it('should reject missing personalityId', () => {
-      const result = FocusModeSchema.safeParse({ enabled: true });
-      expect(result.success).toBe(false);
-    });
-
-    it('should reject missing enabled', () => {
-      const result = FocusModeSchema.safeParse({ personalityId: 'abc' });
-      expect(result.success).toBe(false);
-    });
-
-    it('should reject non-boolean enabled', () => {
-      const result = FocusModeSchema.safeParse({
-        personalityId: 'abc',
-        enabled: 'true',
-      });
-      expect(result.success).toBe(false);
-    });
-  });
-
   describe('SetMemoryLockSchema', () => {
     it('accepts locked: true', () => {
       const result = SetMemoryLockSchema.safeParse({ locked: true });
@@ -355,7 +308,7 @@ describe('Memory API Input Schema Tests', () => {
         lockedCount: 2,
         oldestMemory: '2025-01-01T00:00:00Z',
         newestMemory: '2026-01-01T00:00:00Z',
-        focusModeEnabled: false,
+        freshModeEnabled: false,
       });
       expect(result.success).toBe(true);
     });
@@ -369,7 +322,7 @@ describe('Memory API Input Schema Tests', () => {
         lockedCount: 0,
         oldestMemory: null,
         newestMemory: null,
-        focusModeEnabled: false,
+        freshModeEnabled: false,
       });
       expect(result.success).toBe(true);
     });
@@ -383,7 +336,7 @@ describe('Memory API Input Schema Tests', () => {
         lockedCount: 0,
         oldestMemory: null,
         newestMemory: null,
-        focusModeEnabled: false,
+        freshModeEnabled: false,
       });
       expect(result.success).toBe(false);
     });
@@ -410,31 +363,6 @@ describe('Memory API Input Schema Tests', () => {
         hasMore: false,
       });
       expect(result.success).toBe(false);
-    });
-  });
-
-  describe('FocusModeStatusResponseSchema', () => {
-    it('accepts a valid status response', () => {
-      expect(
-        FocusModeStatusResponseSchema.safeParse({ personalityId: 'p1', focusModeEnabled: true })
-          .success
-      ).toBe(true);
-    });
-
-    it('rejects missing focusModeEnabled', () => {
-      expect(FocusModeStatusResponseSchema.safeParse({ personalityId: 'p1' }).success).toBe(false);
-    });
-  });
-
-  describe('SetFocusResponseSchema', () => {
-    it('accepts a valid set-focus response', () => {
-      const result = SetFocusResponseSchema.safeParse({
-        personalityId: 'p1',
-        personalityName: 'Test',
-        focusModeEnabled: true,
-        message: 'Focus mode enabled',
-      });
-      expect(result.success).toBe(true);
     });
   });
 

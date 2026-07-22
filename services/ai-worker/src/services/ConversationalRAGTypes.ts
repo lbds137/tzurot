@@ -185,8 +185,8 @@ export interface RAGResponse {
   referencedMessagesDescriptions?: string;
   modelUsed?: string;
   userMessageContent?: string;
-  /** Whether focus mode was active (LTM retrieval was skipped) */
-  focusModeEnabled?: boolean;
+  /** Whether fresh mode was active (LTM retrieval was skipped) */
+  freshModeEnabled?: boolean;
   /** Whether incognito mode was active (LTM storage was skipped) */
   incognitoModeActive?: boolean;
   /**

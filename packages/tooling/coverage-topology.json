@@ -688,11 +688,39 @@
       ]
     },
     {
+      "id": "client:api-gateway:disableFresh",
+      "kind": "http-route",
+      "producer": "client",
+      "consumer": "api-gateway",
+      "schemaRef": "DELETE /memory/fresh",
+      "mechanism": "route-conformance",
+      "requiredTiers": [
+        "component"
+      ],
+      "actualTiers": [
+        "component"
+      ]
+    },
+    {
       "id": "client:api-gateway:disableIncognito",
       "kind": "http-route",
       "producer": "client",
       "consumer": "api-gateway",
       "schemaRef": "DELETE /memory/incognito",
+      "mechanism": "route-conformance",
+      "requiredTiers": [
+        "component"
+      ],
+      "actualTiers": [
+        "component"
+      ]
+    },
+    {
+      "id": "client:api-gateway:enableFresh",
+      "kind": "http-route",
+      "producer": "client",
+      "consumer": "api-gateway",
+      "schemaRef": "POST /memory/fresh",
       "mechanism": "route-conformance",
       "requiredTiers": [
         "component"
@@ -898,11 +926,11 @@
       ]
     },
     {
-      "id": "client:api-gateway:getFocus",
+      "id": "client:api-gateway:getFreshStatus",
       "kind": "http-route",
       "producer": "client",
       "consumer": "api-gateway",
-      "schemaRef": "GET /memory/focus",
+      "schemaRef": "GET /memory/fresh",
       "mechanism": "route-conformance",
       "requiredTiers": [
         "component"
@@ -1953,20 +1981,6 @@
       "producer": "client",
       "consumer": "api-gateway",
       "schemaRef": "PUT /fact/:id/lock",
-      "mechanism": "route-conformance",
-      "requiredTiers": [
-        "component"
-      ],
-      "actualTiers": [
-        "component"
-      ]
-    },
-    {
-      "id": "client:api-gateway:setFocus",
-      "kind": "http-route",
-      "producer": "client",
-      "consumer": "api-gateway",
-      "schemaRef": "POST /memory/focus",
       "mechanism": "route-conformance",
       "requiredTiers": [
         "component"

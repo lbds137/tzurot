@@ -87,7 +87,7 @@ describe('handleStats', () => {
         lockedCount: 5,
         oldestMemory: '2025-01-01T00:00:00.000Z',
         newestMemory: '2025-06-15T12:00:00.000Z',
-        focusModeEnabled: false,
+        freshModeEnabled: false,
       })
     );
 
@@ -105,7 +105,7 @@ describe('handleStats', () => {
     expect(mockEditReply).toHaveBeenCalledWith({ embeds: [expect.any(Object)] });
   });
 
-  it('should show focus mode active indicator', async () => {
+  it('should show fresh mode active indicator', async () => {
     const mockEmbed = { addFields: vi.fn().mockReturnThis() };
     mockCreateInfoEmbed.mockReturnValue(mockEmbed);
     mockResolvePersonalityId.mockResolvedValue({ kind: 'found', id: 'personality-uuid-123' });
@@ -119,7 +119,7 @@ describe('handleStats', () => {
         lockedCount: 2,
         oldestMemory: '2025-01-01T00:00:00.000Z',
         newestMemory: '2025-06-15T12:00:00.000Z',
-        focusModeEnabled: true,
+        freshModeEnabled: true,
       })
     );
 
@@ -128,7 +128,7 @@ describe('handleStats', () => {
 
     expect(mockCreateInfoEmbed).toHaveBeenCalledWith(
       'Memory Statistics',
-      expect.stringContaining('Focus Mode Active')
+      expect.stringContaining('Fresh Mode Active')
     );
   });
 
@@ -146,7 +146,7 @@ describe('handleStats', () => {
         lockedCount: 0,
         oldestMemory: null,
         newestMemory: null,
-        focusModeEnabled: false,
+        freshModeEnabled: false,
       })
     );
 

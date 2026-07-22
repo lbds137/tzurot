@@ -20,7 +20,7 @@ describe('isEmptyPersonalityConfig', () => {
     expect(isEmptyPersonalityConfig({ ...EMPTY, visionConfigId: 'v' })).toBe(false);
     expect(isEmptyPersonalityConfig({ ...EMPTY, ttsConfigId: 't' })).toBe(false);
     expect(
-      isEmptyPersonalityConfig({ ...EMPTY, configOverrides: { focusModeEnabled: true } })
+      isEmptyPersonalityConfig({ ...EMPTY, configOverrides: { crossChannelHistoryEnabled: true } })
     ).toBe(false);
   });
 });

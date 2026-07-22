@@ -246,7 +246,7 @@ export function buildDiagnosticEmbed(payload: DiagnosticPayload): EmbedBuilder {
         value: [
           formatMemoryFoundLine(memoryRetrieval.memoriesFound),
           `**Included:** ${memoryRetrieval.memoriesFound.filter(m => m.includedInPrompt).length}`,
-          `**Focus Mode:** ${memoryRetrieval.focusModeEnabled ? 'Yes' : 'No'}`,
+          `**Fresh Mode:** ${memoryRetrieval.freshModeEnabled ? 'Yes' : 'No'}`,
         ].join('\n'),
         inline: true,
       }

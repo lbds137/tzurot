@@ -99,7 +99,7 @@ function createMockDiagnosticPayload(): DiagnosticPayload {
       referencedMessagesContent: [],
       searchQuery: 'hello',
     },
-    memoryRetrieval: { memoriesFound: [], focusModeEnabled: false },
+    memoryRetrieval: { memoriesFound: [], freshModeEnabled: false },
     tokenBudget: {
       contextWindowSize: 128000,
       systemPromptTokens: 500,

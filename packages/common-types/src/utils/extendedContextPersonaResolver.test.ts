@@ -47,7 +47,6 @@ function createMockPersonaResolver(
       return { config: { personaId: '', preferredName: null } };
     }),
     resolveForMemory: vi.fn(),
-    getFocusModeStatus: vi.fn(),
     resolveFresh: vi.fn(),
     getMemoriesForPersona: vi.fn(),
     canRespondToUser: vi.fn(),

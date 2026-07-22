@@ -60,16 +60,16 @@ export interface ResolvedPersona extends CorePersonaConfig {
 }
 
 /**
- * Lightweight persona info (just ID and focus mode) for memory queries
+ * Lightweight persona info (just the ID) for memory queries
  * @public used in PersonaResolver public method signatures
  *
  * Note: shareLtmAcrossPersonalities was migrated to the config cascade
  * and is now read from ResolvedConfigOverrides instead of the persona.
+ * Fresh mode (LTM retrieval suspension) is a Redis session checked by the
+ * ai-worker at retrieval time, not persona/config state.
  */
 export interface PersonaMemoryInfo {
   personaId: string;
-  /** Whether focus mode is enabled (disables LTM retrieval) */
-  focusModeEnabled: boolean;
 }
 
 /**
@@ -107,10 +107,10 @@ export class PersonaResolver extends BaseConfigResolver<ResolvedPersona> {
   }
 
   /**
-   * Resolve persona for memory retrieval (lightweight - just ID, LTM flag, and focus mode)
+   * Resolve persona for memory retrieval (lightweight - just the ID)
    *
    * This is optimized for the memory retrieval path where we don't need
-   * the full persona content, just the ID, sharing preference, and focus mode status.
+   * the full persona content, just the ID.
    */
   async resolveForMemory(
     discordUserId: string,
@@ -122,25 +122,18 @@ export class PersonaResolver extends BaseConfigResolver<ResolvedPersona> {
       return null;
     }
 
-    // Query focusModeEnabled separately (it's per-user-per-personality, not part of persona)
-    const focusModeEnabled = await this.getFocusModeStatus(discordUserId, personalityId);
-
     return {
       personaId: result.config.personaId,
-      focusModeEnabled,
     };
   }
 
   /**
-   * Resolve just the persona UUID via the cascade. Cheaper variant of
-   * `resolveForMemory` for callers that only need the FK (no focus-mode
-   * lookup, no full persona content). Returns null when the cascade falls
-   * through to SYSTEM_DEFAULT (user has no personas at all).
+   * Resolve just the persona UUID via the cascade. Equivalent to
+   * `resolveForMemory` but returns the bare FK. Returns null when the
+   * cascade falls through to SYSTEM_DEFAULT (user has no personas at all).
    *
    * Used by recovery-time paths where the slot only needs a valid
-   * `personas.id` for `saveAssistantMessage` and the focus-mode flag is
-   * never consumed — avoids the extra `userPersonalityConfig.findFirst`
-   * query that `resolveForMemory` would otherwise run.
+   * `personas.id` for `saveAssistantMessage`.
    */
   async resolvePersonaIdOnly(discordUserId: string, personalityId: string): Promise<string | null> {
     const result = await this.resolve(discordUserId, personalityId);
@@ -148,37 +141,6 @@ export class PersonaResolver extends BaseConfigResolver<ResolvedPersona> {
       return null;
     }
     return result.config.personaId;
-  }
-
-  /**
-   * Check if focus mode is enabled for a user-personality combination
-   * Focus mode disables LTM retrieval without affecting memory storage
-   */
-  private async getFocusModeStatus(discordUserId: string, personalityId: string): Promise<boolean> {
-    try {
-      // findFirst (not findUnique) because Prisma doesn't allow nested
-      // relation filters (`user: { discordId }`) on findUnique — even though
-      // (userId, personalityId) is composite-unique, findFirst is required here.
-      const config = await this.prisma.userPersonalityConfig.findFirst({
-        where: {
-          user: { discordId: discordUserId },
-          personalityId,
-        },
-        select: { configOverrides: true },
-      });
-
-      if (config?.configOverrides === null || config?.configOverrides === undefined) {
-        return false;
-      }
-      const overrides = config.configOverrides as Record<string, unknown>;
-      return overrides.focusModeEnabled === true;
-    } catch (error) {
-      logger.error(
-        { err: error, discordUserId, personalityId },
-        'Failed to get focus mode status, defaulting to disabled'
-      );
-      return false;
-    }
   }
 
   /**

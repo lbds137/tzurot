@@ -776,7 +776,7 @@ describe('MessageHandler', () => {
         metadata: {
           modelUsed: 'anthropic/claude-3-5-sonnet',
           isGuestMode: true,
-          focusModeEnabled: false,
+          freshModeEnabled: false,
           incognitoModeActive: true,
         },
       } as unknown as LLMGenerationResult;
@@ -811,7 +811,7 @@ describe('MessageHandler', () => {
           metadata: expect.objectContaining({
             modelUsed: 'anthropic/claude-3-5-sonnet',
             isGuestMode: true,
-            focusModeEnabled: false,
+            freshModeEnabled: false,
             incognitoModeActive: true,
           }),
         }),
@@ -872,7 +872,7 @@ describe('MessageHandler', () => {
         metadata: {
           modelUsed: 'openai/gpt-4o',
           isGuestMode: false,
-          focusModeEnabled: true,
+          freshModeEnabled: true,
         },
       };
 
@@ -905,7 +905,7 @@ describe('MessageHandler', () => {
           metadata: expect.objectContaining({
             modelUsed: 'openai/gpt-4o',
             isGuestMode: false,
-            focusModeEnabled: true,
+            freshModeEnabled: true,
           }),
         }),
         expect.any(Object)
