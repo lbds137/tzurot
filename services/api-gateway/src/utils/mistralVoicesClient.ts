@@ -20,7 +20,7 @@ import { type ErrorResponse, ErrorResponses } from './errorResponses.js';
 
 const logger = createLogger('MistralVoicesClient');
 
-const MISTRAL_VOICES_PAGE_SIZE = 50;
+const MISTRAL_VOICES_PAGE_LIMIT = 50;
 const MISTRAL_VOICES_MAX_PAGES = 20;
 
 const MistralVoiceSchema = z.object({
@@ -31,7 +31,6 @@ const MistralVoiceSchema = z.object({
 
 const MistralVoicesPageSchema = z.object({
   items: z.array(MistralVoiceSchema),
-  total_pages: z.number().optional(),
 });
 
 export interface MistralCloned {
@@ -39,77 +38,112 @@ export interface MistralCloned {
   name: string;
 }
 
+/** Fetch a single window of the voices listing, mapping auth/parse failures
+ *  to the route-facing errorResponse shape. */
+async function fetchMistralVoicesWindow(
+  apiKey: string,
+  offset: number
+): Promise<{ items: z.infer<typeof MistralVoiceSchema>[] } | { errorResponse: ErrorResponse }> {
+  const response = await fetch(
+    `${AI_ENDPOINTS.MISTRAL_BASE_URL}/audio/voices?limit=${MISTRAL_VOICES_PAGE_LIMIT}&offset=${offset}`,
+    {
+      headers: { Authorization: `Bearer ${apiKey}` },
+      signal: AbortSignal.timeout(VALIDATION_TIMEOUTS.EXTERNAL_AUDIO_API_CALL),
+    }
+  );
+
+  if (!response.ok) {
+    if (response.status === 401 || response.status === 403) {
+      logger.warn({ status: response.status }, 'Mistral rejected API key');
+      return {
+        errorResponse: ErrorResponses.unauthorized(
+          'Mistral API key is invalid or expired. Update it with /settings apikey set'
+        ),
+      };
+    }
+    logger.error(
+      { status: response.status, statusText: response.statusText },
+      'Mistral API error listing voices'
+    );
+    return {
+      errorResponse: ErrorResponses.internalError('Failed to list voices from Mistral'),
+    };
+  }
+
+  const parseResult = MistralVoicesPageSchema.safeParse(await response.json());
+  if (!parseResult.success) {
+    logger.error(
+      { errors: parseResult.error.format() },
+      'Unexpected Mistral voices list response format'
+    );
+    return {
+      errorResponse: ErrorResponses.internalError('Unexpected voices response from Mistral'),
+    };
+  }
+
+  return { items: parseResult.data.items };
+}
+
 /**
  * List all tzurot-prefixed voices in the user's Mistral account, walking
  * pagination. Mirrors the ai-worker's `mistralListVoices` shape but filters
  * by name prefix in api-gateway since that's what the route consumer needs.
+ *
+ * Pagination uses `limit`/`offset` — Mistral's documented request params.
+ * (`page`/`page_size`/`total_pages` exist only in the RESPONSE; sending them
+ * as request params gets silently ignored, returning the same default window
+ * on every request. That shape once inflated a 10-voice account into a
+ * 200-entry listing here.) The seen-id dedupe plus the no-new-ids early exit
+ * keep the walk correct even if the provider repeats a window.
  */
 export async function listMistralTzurotVoices(
   apiKey: string,
   prefix: string
 ): Promise<{ voices: MistralCloned[]; totalVoices: number } | { errorResponse: ErrorResponse }> {
   const all: { voiceId: string; name: string }[] = [];
-  let totalVoices = 0;
-  let page = 1;
+  const seenIds = new Set<string>();
+  let offset = 0;
 
-  while (page <= MISTRAL_VOICES_MAX_PAGES) {
-    const response = await fetch(
-      `${AI_ENDPOINTS.MISTRAL_BASE_URL}/audio/voices?page=${page}&page_size=${MISTRAL_VOICES_PAGE_SIZE}`,
-      {
-        headers: { Authorization: `Bearer ${apiKey}` },
-        signal: AbortSignal.timeout(VALIDATION_TIMEOUTS.EXTERNAL_AUDIO_API_CALL),
-      }
-    );
-
-    if (!response.ok) {
-      if (response.status === 401 || response.status === 403) {
-        logger.warn({ status: response.status }, 'Mistral rejected API key');
-        return {
-          errorResponse: ErrorResponses.unauthorized(
-            'Mistral API key is invalid or expired. Update it with /settings apikey set'
-          ),
-        };
-      }
-      logger.error(
-        { status: response.status, statusText: response.statusText },
-        'Mistral API error listing voices'
-      );
-      return {
-        errorResponse: ErrorResponses.internalError('Failed to list voices from Mistral'),
-      };
+  for (let pageCount = 0; pageCount < MISTRAL_VOICES_MAX_PAGES; pageCount++) {
+    const windowResult = await fetchMistralVoicesWindow(apiKey, offset);
+    if ('errorResponse' in windowResult) {
+      return windowResult;
     }
 
-    const parseResult = MistralVoicesPageSchema.safeParse(await response.json());
-    if (!parseResult.success) {
-      logger.error(
-        { errors: parseResult.error.format() },
-        'Unexpected Mistral voices list response format'
-      );
-      return {
-        errorResponse: ErrorResponses.internalError('Unexpected voices response from Mistral'),
-      };
-    }
-
-    const { items, total_pages } = parseResult.data;
-    totalVoices += items.length;
+    const { items } = windowResult;
+    let newItems = 0;
     for (const item of items) {
+      if (seenIds.has(item.id)) {
+        continue;
+      }
+      seenIds.add(item.id);
+      newItems++;
       if (item.name.startsWith(prefix)) {
         all.push({ voiceId: item.id, name: item.name });
       }
     }
+    offset += items.length;
 
-    const pages = total_pages ?? 1;
-    if (page >= pages) {
-      return { voices: all, totalVoices };
+    // A short page means the listing is exhausted. A full page with zero new
+    // ids means the provider is repeating a window — walking further can't
+    // surface anything new, so stop rather than collecting duplicates.
+    if (items.length < MISTRAL_VOICES_PAGE_LIMIT) {
+      return { voices: all, totalVoices: seenIds.size };
     }
-    page++;
+    if (newItems === 0) {
+      logger.warn(
+        { offset, uniqueCount: seenIds.size },
+        'Mistral voice list repeated a full page with no new ids — stopping walk'
+      );
+      return { voices: all, totalVoices: seenIds.size };
+    }
   }
 
   logger.warn(
     { maxPages: MISTRAL_VOICES_MAX_PAGES, returnedCount: all.length },
     'Mistral voice list pagination cap reached'
   );
-  return { voices: all, totalVoices };
+  return { voices: all, totalVoices: seenIds.size };
 }
 
 /**

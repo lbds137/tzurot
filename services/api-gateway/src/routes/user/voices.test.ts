@@ -450,6 +450,28 @@ describe('Voice Management Routes', () => {
       expect(res.body.errors[0]).toContain('elevenlabs');
     });
 
+    it('counts a 404 delete as removed, not failed (voice already gone)', async () => {
+      userWithKeys(['elevenlabs']);
+      let deleteCallCount = 0;
+      setProviderFetchMocks({
+        elevenlabsList: () => jsonOk(elevenLabsVoicesResponse),
+        elevenlabsDelete: () => {
+          deleteCallCount++;
+          // First delete succeeds, second 404s (already absent at the provider)
+          if (deleteCallCount === 1) return { ok: true, status: 200 } as unknown as Response;
+          return { ok: false, status: 404, statusText: 'Not Found' } as unknown as Response;
+        },
+      });
+
+      const res = await request(app).post('/voices/clear');
+
+      expect(res.status).toBe(200);
+      // Already-gone voices satisfy the purge goal — no scary failure output
+      expect(res.body.deleted).toBe(2);
+      expect(res.body.total).toBe(2);
+      expect(res.body.errors).toBeUndefined();
+    });
+
     it('shows actionable message for rate-limited deletions', async () => {
       userWithKeys(['elevenlabs']);
       let deleteCallCount = 0;

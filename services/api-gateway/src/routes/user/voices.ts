@@ -417,6 +417,7 @@ async function clearVoicesImpl(
   // Bot-client uses GATEWAY_TIMEOUTS.BULK_OPERATION (30s) for this call;
   // gateway timeout would abort but deletions continue server-side.
   let deleted = 0;
+  let alreadyGone = 0;
   const errors: string[] = [];
 
   for (let i = 0; i < voices.length; i += DELETE_BATCH_SIZE) {
@@ -430,6 +431,13 @@ async function clearVoicesImpl(
           throw new Error(`${voice.name}: ${voice.provider} key disappeared mid-clear`);
         }
         const response = await deleteVoiceAtProvider(voice.provider, apiKey, voice.voiceId);
+        if (response.status === 404) {
+          // Already absent at the provider (deleted concurrently, or a stale
+          // listing entry). The purge goal for this voice is met — reporting
+          // it as a failure just alarms the user about a voice that's gone.
+          alreadyGone++;
+          return;
+        }
         if (!response.ok) {
           // Surface actionable messages — "429" alone is meaningless to end users.
           // voice.name is safe to embed: it's tzurot-prefix-filtered (no user-controlled
@@ -453,7 +461,7 @@ async function clearVoicesImpl(
   }
 
   logger.info(
-    { discordUserId, deleted, total: voices.length, errors: errors.length },
+    { discordUserId, deleted, alreadyGone, total: voices.length, errors: errors.length },
     'Cleared cloned voices across providers'
   );
 
