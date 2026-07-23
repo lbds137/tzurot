@@ -28,8 +28,7 @@ _Recently resolved items move to the GitHub release notes at ship time — this 
 
 _Small tasks that can be done between major features. Good for momentum._
 
-- 🐛 `[FIX]` **dmErrorClassifier: bot-level quarantine class for Discord 20026** — runtime-confirmed 2026-07-20 on dev: every release blast reports `1 transient-failed`, which is really the Rotzot quarantine (appeal **DENIED 2026-07-22 — now permanent**, see CURRENT.md Watches) surfacing as `discord-20026` on createDM. 20026 is neither transient nor user-permanent (bot-level — it must NOT stamp the recipient's two-consecutive-permanents auto-disable counter; the user isn't unreachable, the bot is). Fix shape: third `bot_level` class in `dmErrorClassifier.ts` (sibling of the shipped 50278 reclassification); blast-report embed names it plainly ("bot quarantined (permanent)") instead of counting it in either failure bucket. Ride-along: StartupDMPrewarmer tally drift — `warmed=1 failed=0` logged while the createDM actually 403'd (fire-and-forget accounting in DMCacheWarmer). Filed 2026-07-20.
-
+_(empty — the queue cleared during the beta.175 ride-along sweep)_
 
 ### 📥 Untriaged (max 10)
 
