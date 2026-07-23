@@ -31,6 +31,17 @@ describe('ConversationSyncService Integration Test', () => {
   const testChannelId = '123456789012345678';
   const testGuildId = '987654321098765432';
 
+  // A row's id is a DETERMINISTIC UUID over (channelId, personalityId, personaId,
+  // createdAt). When a test inserts rows sharing the first three keys and lets
+  // createdAt default to `new Date()`, two inserts in the same millisecond collide
+  // on the id → `Unique constraint failed on (id)` (an intermittent CI flake). Seed a
+  // strictly-increasing explicit timestamp per row so each id is deterministic AND
+  // unique; the 1s spacing also pins the insertion order the assertions rely on.
+  // (Same helper as ConversationHistoryService.component.test.ts — one convention
+  // across the package.)
+  const seededTimestamp = (i: number): Date =>
+    new Date(new Date('2026-06-01T00:00:00Z').getTime() + i * 1000);
+
   beforeAll(async () => {
     // Set up PGlite with pgvector extension (required by schema)
     pglite = createTestPGlite();
@@ -222,6 +233,7 @@ describe('ConversationSyncService Integration Test', () => {
         content: 'Message 1',
         guildId: testGuildId,
         discordMessageId: 'discord-1',
+        timestamp: seededTimestamp(0),
       });
       await historyService.addMessage({
         channelId: testChannelId,
@@ -231,6 +243,7 @@ describe('ConversationSyncService Integration Test', () => {
         content: 'Message 2',
         guildId: testGuildId,
         discordMessageId: 'discord-2',
+        timestamp: seededTimestamp(1),
       });
 
       // Get message IDs
@@ -343,6 +356,7 @@ describe('ConversationSyncService Integration Test', () => {
         content: 'First message',
         guildId: testGuildId,
         discordMessageId: 'discord-aaa',
+        timestamp: seededTimestamp(0),
       });
       await historyService.addMessage({
         channelId: testChannelId,
@@ -352,6 +366,7 @@ describe('ConversationSyncService Integration Test', () => {
         content: 'Second message',
         guildId: testGuildId,
         discordMessageId: 'discord-bbb',
+        timestamp: seededTimestamp(1),
       });
 
       // Look up by Discord IDs
@@ -431,10 +446,11 @@ describe('ConversationSyncService Integration Test', () => {
 
   describe('getMessagesInTimeWindow', () => {
     it('should return messages within time window', async () => {
-      const beforeTime = new Date();
-      await new Promise(resolve => setTimeout(resolve, 50));
+      // A cutoff strictly before the first seeded message; getMessagesInTimeWindow
+      // filters `createdAt >= since`, so both seeds fall inside the window. Deterministic
+      // seeded timestamps replace real-clock + setTimeout (collision-free, no wall-clock flake).
+      const beforeTime = new Date(seededTimestamp(0).getTime() - 1000);
 
-      // Add messages after beforeTime
       await historyService.addMessage({
         channelId: testChannelId,
         personalityId: testPersonalityId,
@@ -443,6 +459,7 @@ describe('ConversationSyncService Integration Test', () => {
         content: 'Recent message 1',
         guildId: testGuildId,
         discordMessageId: 'discord-recent-1',
+        timestamp: seededTimestamp(0),
       });
       await historyService.addMessage({
         channelId: testChannelId,
@@ -452,6 +469,7 @@ describe('ConversationSyncService Integration Test', () => {
         content: 'Recent message 2',
         guildId: testGuildId,
         discordMessageId: 'discord-recent-2',
+        timestamp: seededTimestamp(1),
       });
 
       const result = await syncService.getMessagesInTimeWindow(
@@ -466,10 +484,9 @@ describe('ConversationSyncService Integration Test', () => {
     });
 
     it('should exclude soft-deleted messages', async () => {
-      const beforeTime = new Date();
-      await new Promise(resolve => setTimeout(resolve, 50));
+      // Deterministic cutoff strictly before the seeds (createdAt >= since window).
+      const beforeTime = new Date(seededTimestamp(0).getTime() - 1000);
 
-      // Add messages
       await historyService.addMessage({
         channelId: testChannelId,
         personalityId: testPersonalityId,
@@ -478,6 +495,7 @@ describe('ConversationSyncService Integration Test', () => {
         content: 'Will be deleted',
         guildId: testGuildId,
         discordMessageId: 'discord-del',
+        timestamp: seededTimestamp(0),
       });
       await historyService.addMessage({
         channelId: testChannelId,
@@ -487,6 +505,7 @@ describe('ConversationSyncService Integration Test', () => {
         content: 'Will stay',
         guildId: testGuildId,
         discordMessageId: 'discord-stay',
+        timestamp: seededTimestamp(1),
       });
 
       // Soft delete first message
@@ -506,8 +525,8 @@ describe('ConversationSyncService Integration Test', () => {
     });
 
     it('should exclude messages without Discord ID', async () => {
-      const beforeTime = new Date();
-      await new Promise(resolve => setTimeout(resolve, 50));
+      // Deterministic cutoff strictly before the seeds (createdAt >= since window).
+      const beforeTime = new Date(seededTimestamp(0).getTime() - 1000);
 
       // Add message without Discord ID
       await historyService.addMessage({
@@ -518,6 +537,7 @@ describe('ConversationSyncService Integration Test', () => {
         content: 'No Discord ID',
         guildId: testGuildId,
         // No discordMessageId
+        timestamp: seededTimestamp(0),
       });
 
       // Add message with Discord ID
@@ -529,6 +549,7 @@ describe('ConversationSyncService Integration Test', () => {
         content: 'Has Discord ID',
         guildId: testGuildId,
         discordMessageId: 'discord-has-id',
+        timestamp: seededTimestamp(1),
       });
 
       const result = await syncService.getMessagesInTimeWindow(
@@ -542,8 +563,8 @@ describe('ConversationSyncService Integration Test', () => {
     });
 
     it('should respect limit parameter', async () => {
-      const beforeTime = new Date();
-      await new Promise(resolve => setTimeout(resolve, 50));
+      // Deterministic cutoff strictly before the seeds (createdAt >= since window).
+      const beforeTime = new Date(seededTimestamp(0).getTime() - 1000);
 
       // Add multiple messages
       for (let i = 0; i < 5; i++) {
@@ -555,6 +576,7 @@ describe('ConversationSyncService Integration Test', () => {
           content: `Message ${i}`,
           guildId: testGuildId,
           discordMessageId: `discord-limit-${i}`,
+          timestamp: seededTimestamp(i),
         });
       }
 
@@ -578,10 +600,11 @@ describe('ConversationSyncService Integration Test', () => {
         content: 'Old message',
         guildId: testGuildId,
         discordMessageId: 'discord-old',
+        timestamp: seededTimestamp(0),
       });
 
-      const futureTime = new Date();
-      futureTime.setDate(futureTime.getDate() + 1);
+      // Deterministic future cutoff, well after the seed (createdAt >= since → empty).
+      const futureTime = seededTimestamp(100);
 
       const result = await syncService.getMessagesInTimeWindow(
         testChannelId,
