@@ -70,7 +70,8 @@ model User {
   /// every shared server, 50007 = DMs closed or bot blocked); stays fixed
   /// through the unreachable streak, never advancing while already non-null.
   /// Cleared back to NULL on the user's next deliberate use (same seams that
-  /// clear notifyAutoDisabledAt). Reads guard with != null.
+  /// clear notifyAutoDisabledAt). Reads guard with != null. The stamp + clear
+  /// write path lands in a later PR — currently always NULL.
   dmUndeliverableSince  DateTime?                  @map("dm_undeliverable_since")
   createdAt             DateTime                   @default(now()) @map("created_at")
   updatedAt             DateTime                   @updatedAt @map("updated_at")
