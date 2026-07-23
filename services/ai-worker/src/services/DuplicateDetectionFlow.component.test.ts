@@ -44,6 +44,22 @@ describe('Duplicate Detection Data Flow', () => {
   const testChannelId = 'test-channel-123';
   const testGuildId = 'test-guild-456';
 
+  // Every conversation-history row's deterministic UUID is keyed on
+  // (channelId, personalityId, personaId, createdAt), so two inserts in the same
+  // millisecond collide on the primary key (P2002) — a tight seed loop is racy
+  // against the wall clock. Seed each message with a distinct, monotonically
+  // increasing timestamp so inserts stay unique AND chronological. Reset per
+  // test in beforeEach.
+  const SEED_BASE_MS = Date.parse('2026-01-01T00:00:00.000Z');
+  let messageSeq = 0;
+  const seedMessage = (
+    opts: Omit<Parameters<ConversationHistoryService['addMessage']>[0], 'timestamp'>
+  ): Promise<void> =>
+    conversationService.addMessage({
+      ...opts,
+      timestamp: new Date(SEED_BASE_MS + messageSeq++ * 1000),
+    });
+
   beforeAll(async () => {
     // Initialize PGLite with pgvector
     pglite = createTestPGlite();
@@ -94,6 +110,7 @@ describe('Duplicate Detection Data Flow', () => {
   });
 
   beforeEach(async () => {
+    messageSeq = 0;
     // Clean up any existing conversation history for our test channel
     await prisma.conversationHistory.deleteMany({
       where: { channelId: testChannelId },
@@ -103,7 +120,7 @@ describe('Duplicate Detection Data Flow', () => {
   describe('Role value preservation through database layer', () => {
     it('should preserve lowercase "assistant" role through Prisma', async () => {
       // Add an assistant message via the service
-      await conversationService.addMessage({
+      await seedMessage({
         channelId: testChannelId,
         personalityId: testPersonalityId,
         personaId: testPersonaId,
@@ -123,7 +140,7 @@ describe('Duplicate Detection Data Flow', () => {
     });
 
     it('should preserve lowercase "user" role through Prisma', async () => {
-      await conversationService.addMessage({
+      await seedMessage({
         channelId: testChannelId,
         personalityId: testPersonalityId,
         personaId: testPersonaId,
@@ -145,7 +162,7 @@ describe('Duplicate Detection Data Flow', () => {
   describe('getRecentAssistantMessages with database data', () => {
     it('should extract assistant messages from ConversationHistoryService results', async () => {
       // Add mixed conversation history
-      await conversationService.addMessage({
+      await seedMessage({
         channelId: testChannelId,
         personalityId: testPersonalityId,
         personaId: testPersonaId,
@@ -154,7 +171,7 @@ describe('Duplicate Detection Data Flow', () => {
         guildId: testGuildId,
       });
 
-      await conversationService.addMessage({
+      await seedMessage({
         channelId: testChannelId,
         personalityId: testPersonalityId,
         personaId: testPersonaId,
@@ -163,7 +180,7 @@ describe('Duplicate Detection Data Flow', () => {
         guildId: testGuildId,
       });
 
-      await conversationService.addMessage({
+      await seedMessage({
         channelId: testChannelId,
         personalityId: testPersonalityId,
         personaId: testPersonaId,
@@ -172,7 +189,7 @@ describe('Duplicate Detection Data Flow', () => {
         guildId: testGuildId,
       });
 
-      await conversationService.addMessage({
+      await seedMessage({
         channelId: testChannelId,
         personalityId: testPersonalityId,
         personaId: testPersonaId,
@@ -200,7 +217,7 @@ describe('Duplicate Detection Data Flow', () => {
     });
 
     it('should correctly identify role types after Prisma serialization', async () => {
-      await conversationService.addMessage({
+      await seedMessage({
         channelId: testChannelId,
         personalityId: testPersonalityId,
         personaId: testPersonaId,
@@ -227,7 +244,7 @@ describe('Duplicate Detection Data Flow', () => {
 
     it('should detect duplicate when same response exists in history', async () => {
       // Add a conversation with the long response
-      await conversationService.addMessage({
+      await seedMessage({
         channelId: testChannelId,
         personalityId: testPersonalityId,
         personaId: testPersonaId,
@@ -236,7 +253,7 @@ describe('Duplicate Detection Data Flow', () => {
         guildId: testGuildId,
       });
 
-      await conversationService.addMessage({
+      await seedMessage({
         channelId: testChannelId,
         personalityId: testPersonalityId,
         personaId: testPersonaId,
@@ -260,7 +277,7 @@ describe('Duplicate Detection Data Flow', () => {
     });
 
     it('should NOT detect duplicate for genuinely different response', async () => {
-      await conversationService.addMessage({
+      await seedMessage({
         channelId: testChannelId,
         personalityId: testPersonalityId,
         personaId: testPersonaId,
@@ -288,7 +305,7 @@ describe('Duplicate Detection Data Flow', () => {
       const oldResponse = LONG_RESPONSE;
       const recentResponse = '*I wave dismissively.* Moving on to more important matters...';
 
-      await conversationService.addMessage({
+      await seedMessage({
         channelId: testChannelId,
         personalityId: testPersonalityId,
         personaId: testPersonaId,
@@ -297,7 +314,7 @@ describe('Duplicate Detection Data Flow', () => {
         guildId: testGuildId,
       });
 
-      await conversationService.addMessage({
+      await seedMessage({
         channelId: testChannelId,
         personalityId: testPersonalityId,
         personaId: testPersonaId,
@@ -306,7 +323,7 @@ describe('Duplicate Detection Data Flow', () => {
         guildId: testGuildId,
       });
 
-      await conversationService.addMessage({
+      await seedMessage({
         channelId: testChannelId,
         personalityId: testPersonalityId,
         personaId: testPersonaId,
@@ -315,7 +332,7 @@ describe('Duplicate Detection Data Flow', () => {
         guildId: testGuildId,
       });
 
-      await conversationService.addMessage({
+      await seedMessage({
         channelId: testChannelId,
         personalityId: testPersonalityId,
         personaId: testPersonaId,
@@ -342,7 +359,7 @@ describe('Duplicate Detection Data Flow', () => {
 
   describe('Edge cases for role comparison', () => {
     it('should handle history with only user messages (no assistant to compare)', async () => {
-      await conversationService.addMessage({
+      await seedMessage({
         channelId: testChannelId,
         personalityId: testPersonalityId,
         personaId: testPersonaId,
@@ -351,7 +368,7 @@ describe('Duplicate Detection Data Flow', () => {
         guildId: testGuildId,
       });
 
-      await conversationService.addMessage({
+      await seedMessage({
         channelId: testChannelId,
         personalityId: testPersonalityId,
         personaId: testPersonaId,
@@ -388,7 +405,7 @@ describe('Duplicate Detection Data Flow', () => {
       // Messages are added in order; getChannelHistory returns them in chronological order
       // getRecentAssistantMessages expects most recent first (reversed)
       for (let i = 1; i <= 5; i++) {
-        await conversationService.addMessage({
+        await seedMessage({
           channelId: testChannelId,
           personalityId: testPersonalityId,
           personaId: testPersonaId,
@@ -397,7 +414,7 @@ describe('Duplicate Detection Data Flow', () => {
           guildId: testGuildId,
         });
 
-        await conversationService.addMessage({
+        await seedMessage({
           channelId: testChannelId,
           personalityId: testPersonalityId,
           personaId: testPersonaId,
