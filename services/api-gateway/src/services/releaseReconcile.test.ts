@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { PrismaClient } from '@tzurot/common-types/services/prisma';
+import type { BroadcastCompletionSummary } from '@tzurot/common-types/schemas/api/broadcast';
 import type { Queue } from 'bullmq';
 
 const announceMock = vi.hoisted(() => vi.fn());
@@ -196,8 +197,9 @@ describe('sweepIncompleteBroadcasts', () => {
       sent: 4,
       failedPermanent: 1,
       failedTransient: 0,
+      failedBotLevel: 0,
       optedOut: 0,
-    });
+    } satisfies BroadcastCompletionSummary);
   });
 
   afterEach(() => {

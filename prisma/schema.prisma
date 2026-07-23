@@ -1016,6 +1016,12 @@ enum DeliveryStatus {
   sent
   failed_transient
   failed_permanent
+  /// Bot-level failure (Discord 20026 — the bot is quarantined/limited and
+  /// cannot create DMs). Terminal like the failed_* siblings, but the recipient
+  /// is reachable — the BOT is not — so it must never feed the user's
+  /// auto-disable streak or the retention dm_undeliverable_since stamp. Reported
+  /// separately in the blast tally instead of inflating either failure bucket.
+  failed_bot_level
 
   @@map("delivery_status")
 }

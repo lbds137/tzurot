@@ -278,6 +278,7 @@ export async function computeCompletionSummary(
       group => group.status === 'failed_permanent' && group.errorCode !== 'opted_out'
     ),
     failedTransient: countWhere(group => group.status === 'failed_transient'),
+    failedBotLevel: countWhere(group => group.status === 'failed_bot_level'),
     optedOut: countWhere(
       group => group.status === 'failed_permanent' && group.errorCode === 'opted_out'
     ),
