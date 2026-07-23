@@ -882,7 +882,10 @@ describe('ConversationHistoryService Component Test', () => {
       const chOlder = 'cross-order-ch2';
       const chNewer = 'cross-order-ch3';
 
-      // Add older message to chOlder
+      // Explicit timestamps pin chOlder strictly before chNewer: the groups are
+      // sorted by each channel's newest activity, so a same-millisecond tie on the
+      // default `new Date()` would leave the group order unstable (a latent flake,
+      // distinct from the P2002 collision — see seededTimestamp note).
       await service.addMessage({
         channelId: chOlder,
         personalityId: testPersonalityId,
@@ -890,6 +893,7 @@ describe('ConversationHistoryService Component Test', () => {
         role: MessageRole.User,
         content: 'Older channel 2 message',
         guildId: testGuildId,
+        timestamp: seededTimestamp(0),
       });
 
       // Add newer message to chNewer
@@ -900,6 +904,7 @@ describe('ConversationHistoryService Component Test', () => {
         role: MessageRole.User,
         content: 'Newer channel 3 message',
         guildId: testGuildId,
+        timestamp: seededTimestamp(1),
       });
 
       const result = await service.getCrossChannelHistory(
