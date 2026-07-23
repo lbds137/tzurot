@@ -291,6 +291,12 @@ export const internalFixtures: Record<string, ConformanceEntry> = {
     // The provisioned actor row itself is the "recent user" — zero extra seed.
   },
 
+  stampUserActivity: {
+    // The provisioned actor row is the stamp target — no extra DB seed. Passing
+    // the actor's own discordId exercises the success path (stamped: true).
+    seed: ctx => Promise.resolve({ body: { discordId: ctx.actorDiscordId } }),
+  },
+
   secretRotationStatus: {
     // Empty ledger is a valid (pre-seed) state; the route returns
     // entries: [] + overdueCount: 0 — zero seed needed.

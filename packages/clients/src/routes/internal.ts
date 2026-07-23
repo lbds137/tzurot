@@ -39,6 +39,8 @@ import {
   ConversationSyncResponseSchema,
   DmSessionSetRequestSchema,
   DmSessionSetResponseSchema,
+  StampUserActivityRequestSchema,
+  StampUserActivityResponseSchema,
   LoadPersonalityInternalResponseSchema,
   MessagePersonalityResponseSchema,
   PersistAssistantMessageRequestSchema,
@@ -189,6 +191,22 @@ export const internalRoutes = {
     id: 'setDmSession',
     input: DmSessionSetRequestSchema,
     output: DmSessionSetResponseSchema,
+    serviceOnly: true,
+  },
+
+  /**
+   * POST /api/internal/users/activity
+   * Fire-and-forget retention activity stamp for pure-client slash commands
+   * (e.g. /help) that never reach the gateway; refreshes last_active_at and
+   * clears dm_undeliverable_since for the user.
+   */
+  stampUserActivity: {
+    audience: 'internal',
+    method: 'post',
+    path: '/users/activity',
+    id: 'stampUserActivity',
+    input: StampUserActivityRequestSchema,
+    output: StampUserActivityResponseSchema,
     serviceOnly: true,
   },
 

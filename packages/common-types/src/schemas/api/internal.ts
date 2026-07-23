@@ -33,6 +33,24 @@ export const RecentUsersResponseSchema = z.object({
 });
 
 // ============================================================================
+// POST /internal/users/activity
+// Fire-and-forget activity stamp for pure-client slash commands (e.g. /help)
+// that never otherwise reach the gateway. Refreshes last_active_at and clears
+// dm_undeliverable_since for the user, keyed by Discord ID (best-effort; a
+// no-op when the user isn't provisioned yet). Mirrors the getOrCreateUser
+// activity stamp — a raw UPDATE, so updated_at stays off the sync LWW resolver.
+// ============================================================================
+
+export const StampUserActivityRequestSchema = z.object({
+  discordId: DiscordSnowflakeSchema,
+});
+
+export const StampUserActivityResponseSchema = z.object({
+  /** True when a user row was updated; false when the user isn't provisioned yet. */
+  stamped: z.boolean(),
+});
+
+// ============================================================================
 // POST /internal/channel/dm-session/set
 // Records active personality in a DM session. Called by bot-client after a
 // multi-tag reply selects a personality; the gateway stores it so subsequent
