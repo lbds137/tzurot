@@ -55,6 +55,12 @@ const results = await prisma.$queryRaw<SimilarMemory[]>`
 
 Corollary for removals: `idx_scan = 0` alone never justifies a drop. Verify no query exists (raw AND Prisma) — an index backing a real query on a still-small table shows 0 scans only because the planner seq-scans; it becomes load-bearing as the table grows. PK/unique indexes are constraints, never drop candidates.
 
+## Sync-Tracked Tables & `updated_at` (dev↔prod LWW)
+
+`DatabaseSyncService` reconciles dev↔prod rows by **last-write-wins on `updated_at`** (`syncTables.ts`). Any Prisma client-level write (`update`/`updateMany`/`upsert`) auto-bumps `@updatedAt` — so a **high-frequency or non-semantic** write (an activity stamp, a counter, a `last_seen`) makes that env's row "win" the next sync and can silently clobber the other env's genuine edits.
+
+**Rule**: write high-frequency/non-semantic columns on a sync-tracked table via **raw SQL** (`$executeRaw`) — it bypasses `@updatedAt`, leaving `updated_at` for genuine, sync-worthy state changes only. Reference: the retention `lastActiveAt`/`dmUndeliverableSince` stamps write via `$executeRaw` for exactly this reason.
+
 ## Migrations
 
 ### The One True Workflow
