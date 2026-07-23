@@ -83,7 +83,16 @@ export const ReleaseBroadcastPendingResponseSchema = z.object({
 // ============================================================================
 
 /** Terminal delivery outcomes the worker may report (pending is not reportable). */
-export const DeliveryOutcomeSchema = z.enum(['sent', 'failed_transient', 'failed_permanent']);
+export const DeliveryOutcomeSchema = z.enum([
+  'sent',
+  'failed_transient',
+  'failed_permanent',
+  // Bot-level failure (Discord 20026 — bot quarantined/limited, cannot create
+  // DMs). Terminal, but the recipient is reachable, so it is neither a permanent
+  // nor a transient failure: it never feeds the auto-disable streak or the
+  // retention undeliverable stamp, and it is tallied in its own bucket.
+  'failed_bot_level',
+]);
 
 export type DeliveryOutcome = z.infer<typeof DeliveryOutcomeSchema>;
 
@@ -121,6 +130,13 @@ export const BroadcastCompletionSummarySchema = z.object({
   /** Genuine delivery failures ONLY — resweep eligibility exclusions are not here. */
   failedPermanent: z.number().int().min(0),
   failedTransient: z.number().int().min(0),
+  /**
+   * Rows that failed because the BOT is quarantined/limited (Discord 20026),
+   * not because the recipient is unreachable. Kept out of both failure buckets:
+   * the users are reachable, so this must not read as delivery ill-health nor
+   * feed the per-user auto-disable streak.
+   */
+  failedBotLevel: z.number().int().min(0),
   /**
    * Rows terminalized by the incomplete-broadcast resweep because the user
    * was no longer eligible (opted out / raised their level). Administrative

@@ -396,6 +396,7 @@ describe('POST /internal/release-broadcast/:releaseId/deliveries', () => {
       sent: 2,
       failedPermanent: 1,
       failedTransient: 0,
+      failedBotLevel: 0,
       optedOut: 0,
     });
   });
@@ -424,7 +425,36 @@ describe('POST /internal/release-broadcast/:releaseId/deliveries', () => {
       sent: 3,
       failedPermanent: 1,
       failedTransient: 0,
+      failedBotLevel: 0,
       optedOut: 2,
+    });
+  });
+
+  it('counts failed_bot_level rows in their own bucket, not permanent or transient', async () => {
+    mockPrisma.releaseDeliveryLog.count.mockResolvedValueOnce(0);
+    mockPrisma.releaseDeliveryLog.groupBy.mockResolvedValueOnce([
+      { status: 'sent', errorCode: null, _count: { _all: 1 } },
+      { status: 'failed_bot_level', errorCode: '20026', _count: { _all: 5 } },
+    ]);
+    const handler = handleReleaseBroadcastDeliveries(makeDeps());
+    const { req, res } = createMockReqRes({
+      results: [{ deliveryLogId: LOG_A, status: 'sent' }],
+    });
+
+    await handler(req, res, vi.fn());
+
+    const payload = (res.json as ReturnType<typeof vi.fn>).mock.calls[0][0] as {
+      summary?: unknown;
+    };
+    // The bot-quarantine rows are reachable users — kept out of both failure
+    // buckets so neither number reads as recipient ill-health.
+    expect(payload.summary).toEqual({
+      version: 'v-test',
+      sent: 1,
+      failedPermanent: 0,
+      failedTransient: 0,
+      failedBotLevel: 5,
+      optedOut: 0,
     });
   });
 
