@@ -35,6 +35,9 @@ const mockPrisma = {
   user: {
     update: vi.fn(),
   },
+  // Retention undeliverable stamp writes via raw SQL (keeps updated_at off the
+  // sync LWW resolver). Default resolves so the happy path needs no per-test setup.
+  $executeRaw: vi.fn().mockResolvedValue(1),
 };
 
 import {
@@ -293,6 +296,80 @@ describe('POST /internal/release-broadcast/:releaseId/deliveries', () => {
     await handler(req, res, vi.fn());
 
     expect(mockPrisma.user.update).not.toHaveBeenCalled();
+  });
+
+  it('stamps dm_undeliverable_since (first-failure guard) on a 50278 permanent failure', async () => {
+    mockPrisma.releaseDeliveryLog.findUnique.mockResolvedValueOnce({ userId: USER_A });
+    mockPrisma.releaseDeliveryLog.findFirst.mockResolvedValueOnce(null); // no auto-disable
+    const handler = handleReleaseBroadcastDeliveries(makeDeps());
+    const { req, res } = createMockReqRes({
+      results: [{ deliveryLogId: LOG_A, status: 'failed_permanent', errorCode: '50278' }],
+    });
+
+    await handler(req, res, vi.fn());
+
+    // The undeliverable clock starts via a raw UPDATE keyed by the user id, with
+    // a `dm_undeliverable_since IS NULL` guard so only the FIRST failure records
+    // (never advancing a live streak) and updated_at stays untouched.
+    expect(mockPrisma.$executeRaw).toHaveBeenCalledTimes(1);
+    const [template, userId] = mockPrisma.$executeRaw.mock.calls[0] as [string[], string];
+    expect(template.join('')).toContain('dm_undeliverable_since');
+    expect(template.join('')).toContain('IS NULL');
+    expect(template.join('')).not.toContain('updated_at');
+    expect(userId).toBe(USER_A);
+  });
+
+  it('stamps dm_undeliverable_since on a 50007 permanent failure', async () => {
+    mockPrisma.releaseDeliveryLog.findUnique.mockResolvedValueOnce({ userId: USER_A });
+    mockPrisma.releaseDeliveryLog.findFirst.mockResolvedValueOnce(null);
+    const handler = handleReleaseBroadcastDeliveries(makeDeps());
+    const { req, res } = createMockReqRes({
+      results: [{ deliveryLogId: LOG_A, status: 'failed_permanent', errorCode: '50007' }],
+    });
+
+    await handler(req, res, vi.fn());
+
+    expect(mockPrisma.$executeRaw).toHaveBeenCalledTimes(1);
+    const [template] = mockPrisma.$executeRaw.mock.calls[0] as [string[], string];
+    expect(template.join('')).toContain('dm_undeliverable_since');
+  });
+
+  it('does NOT stamp dm_undeliverable_since on a non-unreachable permanent code (e.g. 10013)', async () => {
+    // 10013 = deleted account: a distinct, stronger signal handled in the Phase 2
+    // purge branch, NOT the 180-day undeliverable clock. Only 50278/50007 stamp.
+    mockPrisma.releaseDeliveryLog.findUnique.mockResolvedValueOnce({ userId: USER_A });
+    mockPrisma.releaseDeliveryLog.findFirst.mockResolvedValueOnce(null);
+    const handler = handleReleaseBroadcastDeliveries(makeDeps());
+    const { req, res } = createMockReqRes({
+      results: [{ deliveryLogId: LOG_A, status: 'failed_permanent', errorCode: '10013' }],
+    });
+
+    await handler(req, res, vi.fn());
+
+    expect(mockPrisma.$executeRaw).not.toHaveBeenCalled();
+  });
+
+  it('swallows an undeliverable-stamp failure and keeps processing the rest of the batch', async () => {
+    // The row's terminal transition already committed before the stamp runs, so
+    // a thrown stamp must NOT 500 the batch — that would strand this row on
+    // retry (its pending guard already flipped) AND skip every later row. The
+    // side-effects are best-effort; swallow + continue.
+    mockPrisma.releaseDeliveryLog.findUnique.mockResolvedValueOnce({ userId: USER_A });
+    mockPrisma.$executeRaw.mockRejectedValueOnce(new Error('db blip'));
+    const handler = handleReleaseBroadcastDeliveries(makeDeps());
+    const { req, res } = createMockReqRes({
+      results: [
+        { deliveryLogId: LOG_A, status: 'failed_permanent', errorCode: '50278' },
+        { deliveryLogId: LOG_B, status: 'sent' },
+      ],
+    });
+
+    // No throw propagates (pre-fix this rejected); both rows transition — the
+    // later, unrelated row must still be processed.
+    await handler(req, res, vi.fn());
+
+    const payload = (res.json as ReturnType<typeof vi.fn>).mock.calls[0][0] as { updated: number };
+    expect(payload.updated).toBe(2);
   });
 
   it('stamps completedAt when no pending rows remain and carries the summary tally', async () => {
