@@ -5,32 +5,31 @@ settings:
   excludeLinksFromLockfile: false
 
 overrides:
-  adm-zip@<0.6.0: '>=0.6.0'
-  sharp@<0.35.0: '>=0.35.0'
+  adm-zip@<0.6.0: '>=0.6.0 <0.7.0'
+  sharp@<0.35.0: '>=0.35.0 <0.36.0'
   undici: ^6.27.0
-  path-to-regexp@>=8.0.0 <8.4.0: '>=8.4.0'
+  path-to-regexp@>=8.0.0 <8.4.0: '>=8.4.0 <9.0.0'
   ioredis: ^5.11.1
-  minimatch@<3.1.4: '>=3.1.4'
-  minimatch@>=10.0.0 <10.2.3: '>=10.2.3'
-  hono@<4.12.27: '>=4.12.27'
+  minimatch@<3.1.4: '>=3.1.4 <4.0.0'
+  minimatch@>=10.0.0 <10.2.3: '>=10.2.3 <11.0.0'
+  hono@<4.12.27: '>=4.12.27 <5.0.0'
   '@hono/node-server@<2.0.10': '>=2.0.10 <3.0.0'
-  fast-xml-builder@<1.1.7: '>=1.1.7'
-  fast-uri@<3.1.2: '>=3.1.2'
-  fast-uri@>=4.0.0 <4.1.1: '>=4.1.1'
-  lodash@>=4.0.0 <=4.17.22: '>=4.17.23'
+  fast-xml-builder@<1.1.7: '>=1.1.7 <2.0.0'
+  fast-uri@<4.1.1: '>=4.1.1 <5.0.0'
+  lodash@>=4.0.0 <=4.17.22: '>=4.17.23 <5.0.0'
   ajv@>=6.0.0 <6.14.0: '>=6.14.0 <7.0.0'
-  tar@<=7.5.10: '>=7.5.11'
-  langsmith@<0.5.19: '>=0.5.19'
+  tar@<=7.5.10: '>=7.5.11 <8.0.0'
+  langsmith@<0.5.19: '>=0.5.19 <0.9.0'
   protobufjs@<7.6.5: '>=7.6.5 <8.0.0'
   protobufjs@>=8.0.0 <8.0.1: '>=8.0.1 <9.0.0'
   '@protobufjs/utf8@<1.1.1': '>=1.1.1 <2.0.0'
-  uuid@<14.0.0: '>=14.0.0'
+  uuid@<14.0.0: '>=14.0.0 <15.0.0'
   qs@>=6.11.1 <6.15.2: '>=6.15.2 <7.0.0'
-  esbuild@>=0.27.3 <0.28.1: '>=0.28.1'
-  ws@>=8.0.0 <8.21.0: '>=8.21.0'
-  form-data@>=4.0.0 <4.0.6: '>=4.0.6'
+  esbuild@>=0.27.3 <0.28.1: '>=0.28.1 <0.29.0'
+  ws@>=8.0.0 <8.21.0: '>=8.21.0 <9.0.0'
+  form-data@>=4.0.0 <4.0.6: '>=4.0.6 <5.0.0'
   read-yaml-file@<2.0.0: '>=2.0.0 <3.0.0'
-  body-parser@<2.3.0: '>=2.3.0'
+  body-parser@<2.3.0: '>=2.3.0 <3.0.0'
 
 importers:
 
@@ -1490,7 +1489,7 @@ packages:
     resolution: {integrity: sha512-bjD221KPLoJTWUwso1J6fGKiTXEUFedG/s0visavY4zakFPkeGURMRNly+FhBHs7T8Dz4qHaZIMX9ZoJHSJtKA==}
     engines: {node: '>=20'}
     peerDependencies:
-      hono: '>=4.12.27'
+      hono: '>=4.12.27 <5.0.0'
 
   '@huggingface/jinja@0.5.8':
     resolution: {integrity: sha512-ZdElB7DPS7QQS8ZnFc5RPPtkg+eN11z8AmIZWAyes6pSbwXqiFB/POVevvm01begdSX1ho9Gxln/F6qlQMsuaA==}
@@ -4826,7 +4825,7 @@ packages:
       '@opentelemetry/exporter-trace-otlp-proto': '*'
       '@opentelemetry/sdk-trace-base': '*'
       openai: '*'
-      ws: '>=8.21.0'
+      ws: '>=8.21.0 <9.0.0'
     peerDependenciesMeta:
       '@opentelemetry/api':
         optional: true
@@ -5290,7 +5289,7 @@ packages:
       '@aws-sdk/credential-provider-node': '>=3.972.0 <4'
       '@smithy/hash-node': '>=4.3.0 <5'
       '@smithy/signature-v4': '>=5.4.0 <6'
-      ws: '>=8.21.0'
+      ws: '>=8.21.0 <9.0.0'
       zod: ^3.25 || ^4.0
     peerDependenciesMeta:
       '@aws-sdk/credential-provider-node':
@@ -6505,7 +6504,7 @@ packages:
     peerDependencies:
       '@types/node': ^20.19.0 || >=22.12.0
       '@vitejs/devtools': ^0.3.0
-      esbuild: '>=0.28.1'
+      esbuild: '>=0.28.1 <0.29.0'
       jiti: '>=1.21.0'
       less: ^4.0.0
       sass: ^1.70.0
