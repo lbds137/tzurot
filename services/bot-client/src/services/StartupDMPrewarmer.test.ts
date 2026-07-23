@@ -13,13 +13,15 @@ vi.mock('@tzurot/common-types/utils/outboundDmAllowlist', () => ({
   getOutboundDmAllowlist: () => allowlistMock.value,
 }));
 
+// Stable info spy so the completion-tally log ({ warmed, failed }) is assertable.
+const loggerInfoMock = vi.hoisted(() => vi.fn());
 vi.mock('@tzurot/common-types/utils/logger', async () => {
   const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
     '@tzurot/common-types/utils/logger'
   );
   return {
     ...actual,
-    createLogger: () => ({ debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }),
+    createLogger: () => ({ debug: vi.fn(), info: loggerInfoMock, warn: vi.fn(), error: vi.fn() }),
   };
 });
 
@@ -38,15 +40,18 @@ function mockUser(id: string): User {
 describe('StartupDMPrewarmer', () => {
   let prewarmer: StartupDMPrewarmer;
   let mockClient: { users: { fetch: ReturnType<typeof vi.fn> } };
-  let mockWarmer: { warm: ReturnType<typeof vi.fn> };
+  let mockWarmer: { warmAwaitable: ReturnType<typeof vi.fn> };
   let mockSleep: ReturnType<typeof vi.fn<(ms: number) => Promise<void>>>;
 
   beforeEach(() => {
     vi.useFakeTimers();
     mockRecentUsers.mockReset();
+    loggerInfoMock.mockReset();
     allowlistMock.value = null;
     mockClient = { users: { fetch: vi.fn() } };
-    mockWarmer = { warm: vi.fn() };
+    // Default: every warm succeeds (createDM resolved). Tests that exercise a
+    // failure override this per call.
+    mockWarmer = { warmAwaitable: vi.fn().mockResolvedValue(true) };
     mockSleep = vi.fn<(ms: number) => Promise<void>>().mockResolvedValue(undefined);
     prewarmer = new StartupDMPrewarmer({
       client: mockClient as unknown as Client,
@@ -70,7 +75,7 @@ describe('StartupDMPrewarmer', () => {
 
     expect(mockClient.users.fetch).toHaveBeenCalledTimes(1);
     expect(mockClient.users.fetch).toHaveBeenCalledWith('allowed-1');
-    expect(mockWarmer.warm).toHaveBeenCalledTimes(1);
+    expect(mockWarmer.warmAwaitable).toHaveBeenCalledTimes(1);
   });
 
   it('warms each user returned by the recent-users endpoint', async () => {
@@ -89,7 +94,7 @@ describe('StartupDMPrewarmer', () => {
     expect(mockClient.users.fetch).toHaveBeenCalledTimes(2);
     expect(mockClient.users.fetch).toHaveBeenCalledWith('111111111111111111');
     expect(mockClient.users.fetch).toHaveBeenCalledWith('222222222222222222');
-    expect(mockWarmer.warm).toHaveBeenCalledTimes(2);
+    expect(mockWarmer.warmAwaitable).toHaveBeenCalledTimes(2);
     expect(mockSleep).toHaveBeenCalledWith(1000);
   });
 
@@ -118,7 +123,7 @@ describe('StartupDMPrewarmer', () => {
     await prewarmer.run();
 
     expect(mockSleep).not.toHaveBeenCalled();
-    expect(mockWarmer.warm).toHaveBeenCalledTimes(1);
+    expect(mockWarmer.warmAwaitable).toHaveBeenCalledTimes(1);
   });
 
   it('continues when a single user fetch fails (e.g. deleted account)', async () => {
@@ -136,7 +141,25 @@ describe('StartupDMPrewarmer', () => {
     await prewarmer.run();
 
     expect(mockClient.users.fetch).toHaveBeenCalledTimes(3);
-    expect(mockWarmer.warm).toHaveBeenCalledTimes(2);
+    expect(mockWarmer.warmAwaitable).toHaveBeenCalledTimes(2);
+  });
+
+  it('counts createDM failures in the failed tally (honest bot-quarantine accounting)', async () => {
+    mockRecentUsers.mockResolvedValue(
+      okResult({ discordIds: ['111111111111111111', '222222222222222222'], sinceDays: 30 })
+    );
+    mockClient.users.fetch.mockImplementation((id: string) => Promise.resolve(mockUser(id)));
+    // First user's createDM succeeds; the second is refused (e.g. bot quarantined).
+    mockWarmer.warmAwaitable.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
+
+    await prewarmer.run();
+
+    // The old fire-and-forget path would have logged warmed=2 failed=0; awaiting
+    // the real outcome makes the tally honest about a refused DM.
+    expect(loggerInfoMock).toHaveBeenCalledWith(
+      { warmed: 1, failed: 1, elapsedSec: expect.any(Number) },
+      'DM cache pre-warm complete'
+    );
   });
 
   it('skips warming entirely when api-gateway fetch fails on every retry (network errors)', async () => {
@@ -145,7 +168,7 @@ describe('StartupDMPrewarmer', () => {
     await prewarmer.run();
 
     expect(mockClient.users.fetch).not.toHaveBeenCalled();
-    expect(mockWarmer.warm).not.toHaveBeenCalled();
+    expect(mockWarmer.warmAwaitable).not.toHaveBeenCalled();
     // 1 initial attempt + 3 retries = 4 total calls
     expect(mockRecentUsers).toHaveBeenCalledTimes(4);
   });
@@ -158,7 +181,7 @@ describe('StartupDMPrewarmer', () => {
     await prewarmer.run();
 
     expect(mockClient.users.fetch).not.toHaveBeenCalled();
-    expect(mockWarmer.warm).not.toHaveBeenCalled();
+    expect(mockWarmer.warmAwaitable).not.toHaveBeenCalled();
     expect(mockRecentUsers).toHaveBeenCalledTimes(4);
     // Sleep called once per retry delay (3 retries → 3 sleeps; no sleep
     // before the initial attempt or after the final failure).
@@ -178,7 +201,7 @@ describe('StartupDMPrewarmer', () => {
     await prewarmer.run();
 
     expect(mockRecentUsers).toHaveBeenCalledTimes(2);
-    expect(mockWarmer.warm).toHaveBeenCalledTimes(1);
+    expect(mockWarmer.warmAwaitable).toHaveBeenCalledTimes(1);
     expect(mockSleep).toHaveBeenCalledWith(5000); // first retry delay
   });
 
@@ -191,7 +214,7 @@ describe('StartupDMPrewarmer', () => {
     await prewarmer.run();
 
     expect(mockRecentUsers).toHaveBeenCalledTimes(2);
-    expect(mockWarmer.warm).toHaveBeenCalledTimes(1);
+    expect(mockWarmer.warmAwaitable).toHaveBeenCalledTimes(1);
   });
 
   it.each([
