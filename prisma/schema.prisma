@@ -55,6 +55,22 @@ model User {
   /// infrastructure history). Distinguishes infrastructure-disabled from
   /// user-opted-out; a user-chosen opt-out always has this null.
   notifyAutoDisabledAt  DateTime?                  @map("notify_auto_disabled_at")
+  /// Deferred-set: the MAX of the user's most-recent activity across usage_logs,
+  /// conversation_history, and their persona/character/memory create-or-update
+  /// times. NULL until the one-time historical backfill runs
+  /// (pnpm ops retention:backfill-last-active) and for users with zero recorded
+  /// activity; thereafter maintained forward by the activity-stamp path. Readers
+  /// treat NULL as "no known activity" (fall back to createdAt), never as
+  /// "active now". Backing signal for the retention 180-day inactivity window.
+  lastActiveAt          DateTime?                  @map("last_active_at")
+  /// State machine (mirrors notifyAutoDisabledAt): NULL while the user's DMs are
+  /// deliverable. Set to the first-failure timestamp when a release DM
+  /// permanently fails with a per-user unreachable code (Discord 50278 = left
+  /// every shared server, 50007 = DMs closed or bot blocked); stays fixed
+  /// through the unreachable streak, never advancing while already non-null.
+  /// Cleared back to NULL on the user's next deliberate use (same seams that
+  /// clear notifyAutoDisabledAt). Reads guard with != null.
+  dmUndeliverableSince  DateTime?                  @map("dm_undeliverable_since")
   createdAt             DateTime                   @default(now()) @map("created_at")
   updatedAt             DateTime                   @updatedAt @map("updated_at")
   releaseDeliveries     ReleaseDeliveryLog[]
