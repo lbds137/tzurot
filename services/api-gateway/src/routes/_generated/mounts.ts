@@ -38,6 +38,7 @@ import { handleAiConfirmDelivery } from '../ai/confirmDelivery.js';
 import { handleReleaseBroadcastPending, handleReleaseBroadcastDeliveries } from '../internal/releaseBroadcast.js';
 import { handleReleaseBroadcastReconcile } from '../internal/releaseReconcile.js';
 import { handleSetDmSession } from '../internal/dmSessionSet.js';
+import { handleStampUserActivity } from '../internal/usersActivity.js';
 import { handleLookupPersonalityFromMessage } from '../user/conversationLookup.js';
 import { handlePersistAssistantMessage } from '../internal/conversationAssistantMessage.js';
 import { handlePersistUserMessage } from '../internal/conversationUserMessage.js';
@@ -115,6 +116,7 @@ export function mountInternalRoutes(app: Express, deps: RouteDeps): void {
   app.post('/api/internal/ai/transcribe', handleAiTranscribe(deps));
   app.post('/api/internal/release-broadcast/reconcile', handleReleaseBroadcastReconcile(deps));
   app.post('/api/internal/channel/dm-session/set', handleSetDmSession(deps));
+  app.post('/api/internal/users/activity', handleStampUserActivity(deps));
   app.get('/api/internal/conversation/message-personality', handleLookupPersonalityFromMessage(deps));
   app.post('/api/internal/conversation/assistant-message', handlePersistAssistantMessage(deps));
   app.post('/api/internal/conversation/user-message', handlePersistUserMessage(deps));

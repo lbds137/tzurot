@@ -15,6 +15,7 @@ const mockServiceClient = {
   setDmSession: vi.fn(),
   lookupPersonalityFromMessage: vi.fn(),
   updateDiagnosticResponseIds: vi.fn(),
+  stampUserActivity: vi.fn(),
   aiGenerate: vi.fn(),
   aiConfirmDelivery: vi.fn(),
   releaseBroadcastPending: vi.fn(),
@@ -35,6 +36,7 @@ import {
   setDmSessionPersonality,
   lookupPersonalityFromMessage,
   updateDiagnosticResponseIds,
+  stampUserActivity,
   generate,
   confirmDelivery,
   filterPendingDeliveries,
@@ -169,6 +171,17 @@ describe('fire-and-forget helpers', () => {
     await expect(updateDiagnosticResponseIds('req-1', ['m1', 'm2'])).resolves.toBeUndefined();
     expect(mockServiceClient.updateDiagnosticResponseIds).toHaveBeenCalledWith('req-1', {
       responseMessageIds: ['m1', 'm2'],
+    });
+  });
+
+  it('stampUserActivity forwards the discordId as { discordId } and never throws on failure', async () => {
+    mockServiceClient.stampUserActivity.mockResolvedValue(err(500));
+    // Seam assertion: the wrapper must forward the raw snowflake as the request
+    // body shape the endpoint expects, and a failed stamp must not surface to
+    // the fire-and-forget caller.
+    await expect(stampUserActivity('123456789012345678')).resolves.toBeUndefined();
+    expect(mockServiceClient.stampUserActivity).toHaveBeenCalledWith({
+      discordId: '123456789012345678',
     });
   });
 
