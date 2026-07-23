@@ -5,6 +5,7 @@ import {
   AudioTooLongError,
   SttUnavailableError,
 } from '@tzurot/common-types/utils/errors';
+import type { BroadcastCompletionSummary } from '@tzurot/common-types/schemas/api/broadcast';
 
 // Mock the ServiceClient factory + the service-secret accessor so the helpers
 // run without real config/network. (The context write-path helpers live in
@@ -222,8 +223,9 @@ describe('fire-and-forget helpers', () => {
       sent: 3,
       failedPermanent: 0,
       failedTransient: 1,
+      failedBotLevel: 0,
       optedOut: 0,
-    };
+    } satisfies BroadcastCompletionSummary;
     mockServiceClient.releaseBroadcastDeliveries.mockResolvedValue(
       ok({ updated: 1, autoDisabledUserIds: [], completed: true, summary })
     );

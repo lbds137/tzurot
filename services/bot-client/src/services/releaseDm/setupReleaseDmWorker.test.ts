@@ -7,6 +7,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { DiscordAPIError, type Client } from 'discord.js';
 import { JobType } from '@tzurot/common-types/constants/queue';
 import type { ReleaseBroadcastRecipient } from '@tzurot/common-types/types/jobs';
+import type { BroadcastCompletionSummary } from '@tzurot/common-types/schemas/api/broadcast';
 import type { Job } from 'bullmq';
 
 vi.mock('@tzurot/common-types/utils/logger', async () => {
@@ -137,6 +138,32 @@ describe('createReleaseDmProcessor', () => {
     ]);
     expect(deps.report).toHaveBeenNthCalledWith(2, RELEASE_ID, [
       { deliveryLogId: LOG_B, status: 'sent', sentMessageId: 'sent-b' },
+    ]);
+    expect(result).toEqual({ sent: 1, failed: 1, skipped: 0 });
+  });
+
+  it('classifies a 20026 as failed_bot_level (bot quarantined, recipient reachable)', async () => {
+    const quarantined = new DiscordAPIError(
+      { code: 20026, message: 'This application cannot send DMs' },
+      20026,
+      403,
+      'POST',
+      'url',
+      {}
+    );
+    const deps = makeDeps(userId =>
+      userId === '111111111111111111'
+        ? Promise.reject(quarantined)
+        : Promise.resolve({ id: 'sent-b' })
+    );
+    const processor = createReleaseDmProcessor(deps);
+
+    const result = await processor(asJob(makePayload()));
+
+    // Its own terminal status — never failed_permanent (would feed auto-disable)
+    // nor failed_transient (would count as recipient ill-health).
+    expect(deps.report).toHaveBeenNthCalledWith(1, RELEASE_ID, [
+      { deliveryLogId: LOG_A, status: 'failed_bot_level', errorCode: '20026' },
     ]);
     expect(result).toEqual({ sent: 1, failed: 1, skipped: 0 });
   });
@@ -290,13 +317,16 @@ describe('createReleaseDmProcessor', () => {
   });
 
   describe('completion ops report', () => {
+    // `satisfies` makes the compiler break this fixture when the summary shape
+    // moves (per 02-code-standards §8 — type your mock payloads).
     const SUMMARY = {
       version: 'adhoc-test',
       sent: 5,
       failedPermanent: 1,
       failedTransient: 0,
+      failedBotLevel: 0,
       optedOut: 2,
-    };
+    } satisfies BroadcastCompletionSummary;
 
     it('posts one owner-channel embed when a report flips the blast to completed', async () => {
       const deps = makeDeps();
@@ -317,6 +347,27 @@ describe('createReleaseDmProcessor', () => {
       expect(embed.data.description).toContain('5 sent');
       expect(embed.data.description).toContain('1 permanent-failed');
       expect(embed.data.description).toContain('2 excluded (opted out mid-blast)');
+      // No quarantine this blast — the bot-level note stays absent.
+      expect(embed.data.description).not.toContain('bot-quarantined');
+    });
+
+    it('names bot-quarantined failures plainly when the bot is limited', async () => {
+      const quarantinedSummary = {
+        ...SUMMARY,
+        failedBotLevel: 3,
+      } satisfies BroadcastCompletionSummary;
+      const deps = makeDeps();
+      deps.report
+        .mockResolvedValueOnce(undefined)
+        .mockResolvedValueOnce({ completed: true, summary: quarantinedSummary });
+      const processor = createReleaseDmProcessor(deps);
+
+      await processor(asJob(makePayload()));
+
+      const embed = postOwnerChannelEmbedMock.mock.calls[0][1] as {
+        data: { description?: string };
+      };
+      expect(embed.data.description).toContain('3 bot-quarantined');
     });
 
     it('posts nothing when no report claims completion (including lost-report undefined)', async () => {

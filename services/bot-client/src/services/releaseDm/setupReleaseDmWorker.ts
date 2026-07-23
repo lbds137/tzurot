@@ -54,6 +54,13 @@ const defaultSleep = (ms: number): Promise<void> => new Promise(resolve => setTi
 /** Discord "Unknown Message" — the previous DM is already gone; goal state reached. */
 const UNKNOWN_MESSAGE_CODE = 10008;
 
+/** Classified failure kind → ledger status. bot_level is its own terminal outcome. */
+const DELIVERY_STATUS_BY_KIND = {
+  permanent: 'failed_permanent',
+  bot_level: 'failed_bot_level',
+  transient: 'failed_transient',
+} as const satisfies Record<ReturnType<typeof classifyDmError>['kind'], DeliveryReport['status']>;
+
 /**
  * Best-effort delete of the user's prior release DM so the channel holds at
  * most one release note. Never blocks the send: a failure just leaves the
@@ -115,7 +122,7 @@ async function sendOne(
       'Broadcast DM failed'
     );
     return {
-      status: classified.kind === 'permanent' ? 'failed_permanent' : 'failed_transient',
+      status: DELIVERY_STATUS_BY_KIND[classified.kind],
       errorCode: dmErrorCode(classified),
       deletedPreviousDeliveryLogId,
     };
@@ -194,13 +201,17 @@ async function postBlastCompletionReport(
 ): Promise<void> {
   const optedOutNote =
     summary.optedOut > 0 ? `, ${summary.optedOut} excluded (opted out mid-blast)` : '';
+  // Only surfaced when the bot is quarantined (Discord 20026) — a bot-level
+  // failure, not the recipients', so it reads separately from the failure buckets.
+  const botLevelNote =
+    summary.failedBotLevel > 0 ? `, ${summary.failedBotLevel} bot-quarantined` : '';
   const embed = new EmbedBuilder()
     .setColor(DISCORD_COLORS.SUCCESS)
     .setTitle('📣 Release blast completed')
     .setDescription(
       `**${summary.version}** — ${summary.sent} sent, ` +
         `${summary.failedPermanent} permanent-failed, ` +
-        `${summary.failedTransient} transient-failed${optedOutNote}`
+        `${summary.failedTransient} transient-failed${botLevelNote}${optedOutNote}`
     )
     .setTimestamp();
   await postOwnerChannelEmbed(client, embed);

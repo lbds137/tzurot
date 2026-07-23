@@ -154,6 +154,7 @@ describe('ReleaseBroadcastDeliveriesResponseSchema', () => {
         sent: 117,
         failedPermanent: 2,
         failedTransient: 1,
+        failedBotLevel: 0,
         optedOut: 0,
       },
     });
@@ -169,9 +170,23 @@ describe('BroadcastCompletionSummarySchema', () => {
       sent: 117,
       failedPermanent: 0,
       failedTransient: 0,
+      failedBotLevel: 4,
       optedOut: 0,
     });
     expect(result.success).toBe(true);
+  });
+
+  it('requires failedBotLevel (its own bucket, distinct from the failure buckets)', async () => {
+    const { BroadcastCompletionSummarySchema } = await import('./broadcast.js');
+    expect(
+      BroadcastCompletionSummarySchema.safeParse({
+        version: 'v3.0.0-beta.167',
+        sent: 1,
+        failedPermanent: 0,
+        failedTransient: 0,
+        optedOut: 0,
+      }).success
+    ).toBe(false);
   });
 
   it('rejects negative counts and a missing version', async () => {
@@ -182,6 +197,7 @@ describe('BroadcastCompletionSummarySchema', () => {
         sent: -1,
         failedPermanent: 0,
         failedTransient: 0,
+        failedBotLevel: 0,
         optedOut: 0,
       }).success
     ).toBe(false);
@@ -190,6 +206,7 @@ describe('BroadcastCompletionSummarySchema', () => {
         sent: 1,
         failedPermanent: 0,
         failedTransient: 0,
+        failedBotLevel: 0,
         optedOut: 0,
       }).success
     ).toBe(false);
@@ -209,6 +226,7 @@ describe('internal route inputs', () => {
   it('deliveries: accepts terminal outcomes and rejects pending', () => {
     expect(DeliveryOutcomeSchema.safeParse('sent').success).toBe(true);
     expect(DeliveryOutcomeSchema.safeParse('failed_permanent').success).toBe(true);
+    expect(DeliveryOutcomeSchema.safeParse('failed_bot_level').success).toBe(true);
     expect(DeliveryOutcomeSchema.safeParse('pending').success).toBe(false);
 
     const result = ReleaseBroadcastDeliveriesInputSchema.safeParse({

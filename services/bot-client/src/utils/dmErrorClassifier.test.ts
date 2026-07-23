@@ -29,6 +29,11 @@ describe('classifyDmError', () => {
     expect(result).toEqual({ kind: 'permanent', code: 50278 });
   });
 
+  it('classifies 20026 (bot quarantined) as bot_level, not permanent or transient', () => {
+    const result = classifyDmError(makeDiscordError(20026));
+    expect(result).toEqual({ kind: 'bot_level', code: 20026 });
+  });
+
   it('classifies other Discord API errors as transient', () => {
     const result = classifyDmError(makeDiscordError(0, 500));
     expect(result.kind).toBe('transient');
@@ -48,6 +53,10 @@ describe('classifyDmError', () => {
 describe('dmErrorCode', () => {
   it('uses the numeric code for permanent failures', () => {
     expect(dmErrorCode({ kind: 'permanent', code: 50007 })).toBe('50007');
+  });
+
+  it('uses the numeric code for bot_level failures', () => {
+    expect(dmErrorCode({ kind: 'bot_level', code: 20026 })).toBe('20026');
   });
 
   it('caps transient causes at the ledger column width', () => {

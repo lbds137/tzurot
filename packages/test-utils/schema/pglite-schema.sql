@@ -11,7 +11,7 @@ CREATE EXTENSION IF NOT EXISTS "vector";
 CREATE TYPE "notify_level" AS ENUM ('major', 'minor', 'patch');
 
 -- CreateEnum
-CREATE TYPE "delivery_status" AS ENUM ('pending', 'sent', 'failed_transient', 'failed_permanent');
+CREATE TYPE "delivery_status" AS ENUM ('pending', 'sent', 'failed_transient', 'failed_permanent', 'failed_bot_level');
 
 -- CreateEnum
 CREATE TYPE "feedback_status" AS ENUM ('new', 'read', 'archived');
