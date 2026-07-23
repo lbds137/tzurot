@@ -4,6 +4,8 @@ import {
   RecentUsersResponseSchema,
   DmSessionSetRequestSchema,
   DmSessionSetResponseSchema,
+  StampUserActivityRequestSchema,
+  StampUserActivityResponseSchema,
   MessagePersonalityResponseSchema,
   PersistAssistantMessageRequestSchema,
   PersistAssistantMessageResponseSchema,
@@ -147,6 +149,33 @@ describe('DmSessionSetRequestSchema and DmSessionSetResponseSchema', () => {
 
   it('request rejects missing channelId', () => {
     expect(DmSessionSetRequestSchema.safeParse({ personalitySlug: 'lila' }).success).toBe(false);
+  });
+});
+
+describe('StampUserActivityRequestSchema and StampUserActivityResponseSchema', () => {
+  it('request accepts a valid Discord snowflake', () => {
+    expect(
+      StampUserActivityRequestSchema.safeParse({ discordId: '123456789012345678' }).success
+    ).toBe(true);
+  });
+
+  it('request rejects a non-snowflake discordId', () => {
+    expect(StampUserActivityRequestSchema.safeParse({ discordId: 'not-a-snowflake' }).success).toBe(
+      false
+    );
+  });
+
+  it('request rejects a missing discordId', () => {
+    expect(StampUserActivityRequestSchema.safeParse({}).success).toBe(false);
+  });
+
+  it('response accepts stamped true and false', () => {
+    expect(StampUserActivityResponseSchema.safeParse({ stamped: true }).success).toBe(true);
+    expect(StampUserActivityResponseSchema.safeParse({ stamped: false }).success).toBe(true);
+  });
+
+  it('response rejects a non-boolean stamped', () => {
+    expect(StampUserActivityResponseSchema.safeParse({ stamped: 'yes' }).success).toBe(false);
   });
 });
 

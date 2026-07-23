@@ -2186,6 +2186,20 @@
       ]
     },
     {
+      "id": "client:api-gateway:stampUserActivity",
+      "kind": "http-route",
+      "producer": "client",
+      "consumer": "api-gateway",
+      "schemaRef": "POST /users/activity",
+      "mechanism": "route-conformance",
+      "requiredTiers": [
+        "component"
+      ],
+      "actualTiers": [
+        "component"
+      ]
+    },
+    {
       "id": "client:api-gateway:startAccountExport",
       "kind": "http-route",
       "producer": "client",

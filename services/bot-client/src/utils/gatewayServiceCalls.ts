@@ -215,6 +215,19 @@ export async function updateDiagnosticResponseIds(
 }
 
 /**
+ * Refresh the caller's retention activity signal for a pure-client slash command
+ * — one that renders entirely bot-side (e.g. /help) and never otherwise reaches
+ * the gateway. Best-effort: logs on failure, never throws. The interaction path
+ * must neither wait on nor fail for this (called fire-and-forget from the funnel).
+ */
+export async function stampUserActivity(discordId: string): Promise<void> {
+  const result = await getServiceClient().stampUserActivity({ discordId });
+  if (!result.ok) {
+    logger.warn({ discordId, status: result.status }, 'Failed to stamp user activity');
+  }
+}
+
+/**
  * Submit an async AI generation job. Returns the job/request IDs immediately;
  * the result is delivered later via the Redis result stream (JobTracker).
  * Throws on failure — the chat path needs to surface submission errors.

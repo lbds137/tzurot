@@ -24,6 +24,7 @@ import {
   clearAllChannelSettingsCache,
   confirmDelivery,
   healthCheck,
+  stampUserActivity,
 } from './utils/gatewayServiceCalls.js';
 import { WebhookManager } from './utils/WebhookManager.js';
 import { getServiceClient } from './utils/gatewayClients.js';
@@ -405,6 +406,16 @@ client.on(Events.InteractionCreate, interaction => {
           logger.warn({ commandName: interaction.commandName }, 'Unknown command');
           return;
         }
+
+        // Retention: pure-client commands (e.g. /help) render bot-side and never
+        // reach the gateway, so stamp activity here for every chat-input command.
+        // Fire-and-forget — the wrapper logs on failure and never throws; the
+        // redundant stamp for gateway-reaching commands (which already stamp via
+        // getOrCreateUser) is a harmless idempotent NOW-write. Not awaited: the
+        // stamp must never delay or fail the 3-second ack path.
+        void stampUserActivity(interaction.user.id).catch(() => {
+          /* wrapper already logs; swallow so a rejection can't become unhandled */
+        });
 
         // All commands use the typed context pattern with deferralMode metadata
         await handleCommandWithContext(interaction, command);

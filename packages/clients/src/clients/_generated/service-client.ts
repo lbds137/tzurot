@@ -140,6 +140,18 @@ export class ServiceClient {
     });
   }
 
+  async stampUserActivity(input: z.input<typeof ROUTE_MANIFEST.stampUserActivity.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.stampUserActivity.output>>> {
+    const fullPath = '/api/internal/users/activity';
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'POST',
+      path: fullPath,
+      body: input,
+      outputSchema: ROUTE_MANIFEST.stampUserActivity.output,
+    });
+  }
+
   /**
    * @safeRead Server-side has no observable mutation — safe to cache client-side.
    */
