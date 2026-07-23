@@ -40,6 +40,7 @@ describe('UserService', () => {
     user: {
       findUnique: ReturnType<typeof vi.fn>;
       update: ReturnType<typeof vi.fn>;
+      updateMany: ReturnType<typeof vi.fn>;
     };
     persona: {
       findUnique: ReturnType<typeof vi.fn>;
@@ -107,6 +108,7 @@ describe('UserService', () => {
       user: {
         findUnique: vi.fn(),
         update: vi.fn(),
+        updateMany: vi.fn(),
       },
       persona: {
         findUnique: vi.fn(),
@@ -172,6 +174,56 @@ describe('UserService', () => {
 
       // findUnique should only be called once
       expect(mockPrisma.user.findUnique).toHaveBeenCalledTimes(1);
+    });
+
+    it('stamps lastActiveAt on the provisioning cache-miss path', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce({
+        id: 'active-user-id',
+        isSuperuser: false,
+        username: 'testuser',
+        defaultPersonaId: 'persona-id',
+      });
+
+      await userService.getOrCreateUser('123456', 'testuser');
+
+      // The retention last-active stamp must cross the seam to the DB, keyed by
+      // the provisioned user id, with a Date value (updateMany, so a deleted row
+      // is a no-op rather than a throw).
+      expect(mockPrisma.user.updateMany).toHaveBeenCalledWith({
+        where: { id: 'active-user-id' },
+        data: { lastActiveAt: expect.any(Date) },
+      });
+    });
+
+    it('does not re-stamp lastActiveAt on a cache hit', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce({
+        id: 'cached-user-id',
+        isSuperuser: false,
+        username: 'testuser',
+        defaultPersonaId: 'cached-persona-id',
+      });
+
+      await userService.getOrCreateUser('123456', 'testuser'); // miss → stamps
+      await userService.getOrCreateUser('123456', 'testuser'); // hit → must not
+
+      // The 1h cache throttles the stamp: the cache-hit returns before reaching
+      // the stamp, so exactly one write for two calls.
+      expect(mockPrisma.user.updateMany).toHaveBeenCalledTimes(1);
+    });
+
+    it('swallows a lastActiveAt stamp failure without failing provisioning', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce({
+        id: 'user-id',
+        isSuperuser: false,
+        username: 'testuser',
+        defaultPersonaId: 'persona-id',
+      });
+      mockPrisma.user.updateMany.mockRejectedValueOnce(new Error('db blip'));
+
+      // The stamp is non-critical — a write failure is caught + logged, and the
+      // caller still gets its provisioned user rather than a thrown request.
+      const result = await userService.getOrCreateUser('123456', 'testuser');
+      expect(result?.userId).toBe('user-id');
     });
 
     it('invalidateUser evicts the cache so the next call re-reads the DB', async () => {
@@ -274,8 +326,8 @@ describe('UserService', () => {
     });
 
     it('should update placeholder username AND rename placeholder persona when real username is provided', async () => {
-      // User was created by api-gateway via getOrCreateUserShell with discordId
-      // as placeholder username AND persona name ("User {discordId}"). On first
+      // User was created by api-gateway with discordId as placeholder username
+      // AND persona name ("User {discordId}"). On first
       // bot-client interaction with a real username, both get upgraded
       // sequentially in the same `runMaintenanceTasks` pass. The two writes
       // (user.update + persona.updateMany) are NOT wrapped in a transaction;

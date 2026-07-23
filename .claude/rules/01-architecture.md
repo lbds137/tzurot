@@ -53,7 +53,7 @@ Mount order matters: `requireProvisionedUser` runs AFTER `requireUserAuth` and r
 
 During the shadow-mode window (PR B → PR C), `provisionedUserId` is **optional** on the request type because the middleware degrades gracefully on missing headers or malformed URI encoding. PR C tightens the invariant once bot-client has been fully rolled out.
 
-Handlers that need the internal UUID should prefer `req.provisionedUserId` over calling `getOrCreateUserShell(req.userId)` going forward.
+Handlers that need the internal UUID should prefer `req.provisionedUserId` (set by the middleware) over provisioning the user themselves.
 
 ## Design Principles
 
