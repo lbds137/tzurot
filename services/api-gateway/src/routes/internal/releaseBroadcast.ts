@@ -89,6 +89,58 @@ async function maybeAutoDisable(
   return true;
 }
 
+/**
+ * Handle a freshly-transitioned permanent-failure row: start the retention
+ * undeliverable clock (per-user unreachable codes only) and escalate to
+ * auto-disable on a second consecutive failure. Returns the userId IFF this
+ * call auto-disabled them (so the caller can report it), else null.
+ *
+ * Retention: 50278 = user left every shared server; 50007 = DMs closed or bot
+ * blocked. NEVER 20026 (bot-wide quarantine — would false-flag every recipient)
+ * or 10013 (deleted account — a distinct, stronger signal deferred to the Phase
+ * 2 purge branch). The `dm_undeliverable_since IS NULL` guard records the FIRST
+ * failure only (never advances a live streak); raw SQL keeps the column off
+ * updated_at, the dev<->prod sync LWW resolver — same reasoning as the
+ * getOrCreateUser lastActiveAt stamp.
+ *
+ * Best-effort, never fatal (mirrors the getOrCreateUser stamp's swallow): these
+ * are non-critical signals that self-heal on the next release blast (a still-
+ * unreachable user fails again and re-stamps). The caller has ALREADY committed
+ * this row's terminal transition before calling us, so a thrown error here would
+ * both 500 the whole batch (asyncHandler → unrelated later rows never process)
+ * AND permanently strand this row — a retry's `status: 'pending'` guard now
+ * matches 0, so it skips the row entirely and its stamp/escalation are lost for
+ * good. Swallow + log instead; return null (no auto-disable reported).
+ */
+async function recordPermanentFailure(
+  prisma: PrismaClient,
+  deliveryLogId: string,
+  errorCode: string | undefined
+): Promise<string | null> {
+  try {
+    const row = await prisma.releaseDeliveryLog.findUnique({
+      where: { id: deliveryLogId },
+      select: { userId: true },
+    });
+    if (row === null) {
+      return null;
+    }
+    if (errorCode === '50278' || errorCode === '50007') {
+      await prisma.$executeRaw`
+        UPDATE users SET dm_undeliverable_since = NOW()
+        WHERE id = ${row.userId}::uuid AND dm_undeliverable_since IS NULL
+      `;
+    }
+    return (await maybeAutoDisable(prisma, deliveryLogId, row.userId)) ? row.userId : null;
+  } catch (err) {
+    logger.warn(
+      { err, deliveryLogId },
+      'Permanent-failure side-effects (undeliverable stamp / auto-disable) failed; non-fatal'
+    );
+    return null;
+  }
+}
+
 /** POST /api/internal/release-broadcast/:releaseId/deliveries */
 export const handleReleaseBroadcastDeliveries = (deps: RouteDeps): RequestHandler => {
   const { prisma } = deps;
@@ -133,12 +185,13 @@ export const handleReleaseBroadcastDeliveries = (deps: RouteDeps): RequestHandle
       updated += 1;
 
       if (result.status === 'failed_permanent') {
-        const row = await prisma.releaseDeliveryLog.findUnique({
-          where: { id: result.deliveryLogId },
-          select: { userId: true },
-        });
-        if (row !== null && (await maybeAutoDisable(prisma, result.deliveryLogId, row.userId))) {
-          autoDisabledUserIds.push(row.userId);
+        const autoDisabledUserId = await recordPermanentFailure(
+          prisma,
+          result.deliveryLogId,
+          result.errorCode
+        );
+        if (autoDisabledUserId !== null) {
+          autoDisabledUserIds.push(autoDisabledUserId);
         }
       }
     }

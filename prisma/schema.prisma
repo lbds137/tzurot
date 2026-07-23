@@ -70,9 +70,10 @@ model User {
   /// permanently fails with a per-user unreachable code (Discord 50278 = left
   /// every shared server, 50007 = DMs closed or bot blocked); stays fixed
   /// through the unreachable streak, never advancing while already non-null.
-  /// Cleared back to NULL on the user's next deliberate use (same seams that
-  /// clear notifyAutoDisabledAt). Reads guard with != null. The stamp + clear
-  /// write path lands in a later PR — currently always NULL.
+  /// Cleared back to NULL on the user's next activity — folded into the same
+  /// getOrCreateUser cache-miss stamp that maintains lastActiveAt, so any active
+  /// user is never left flagged unreachable (an inactive user stops clearing it,
+  /// which is exactly the retention cohort). Reads guard with != null.
   dmUndeliverableSince  DateTime?                  @map("dm_undeliverable_since")
   createdAt             DateTime                   @default(now()) @map("created_at")
   updatedAt             DateTime                   @updatedAt @map("updated_at")
