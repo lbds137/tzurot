@@ -6,7 +6,8 @@
 
 ## Unreleased on Develop
 
-- **#1764** — retention epic **Phase 1a**: `User.lastActiveAt` + `dmUndeliverableSince` (additive migration, applied to dev) + `pnpm ops retention:backfill-last-active` (dev backfilled **271 users**; idempotent re-run verified). No behavior change — the write paths land next (1b forward activity stamp via the gateway `getOrCreateUser` cache-miss seam; 1c undeliverable stamp on 50278/50007 + clear-on-reach). CPD baseline 1750→1762 (env-scoped-op preamble clone; extraction filed as a follow-up). Prod backfill sequenced AFTER 1b deploys — see `active-epic.md`.
+- **#1764** — retention epic **Phase 1a**: `User.lastActiveAt` + `dmUndeliverableSince` (additive migration, applied to dev) + `pnpm ops retention:backfill-last-active` (dev backfilled **271 users**; idempotent re-run verified). No behavior change. CPD baseline 1750→1762 (env-scoped-op preamble clone; extraction filed as a follow-up). Prod backfill sequenced AFTER 1b deploys — see `active-epic.md`.
+- **#1765** — retention epic **Phase 1b** (gateway forward stamp): `lastActiveAt = NOW()` stamped on `UserService.getOrCreateUser`'s cache-miss path (~1×/user/hour via the 1h cache). **Review caught a real bug** — the initial `updateMany` bumped `users.updated_at` via `@updatedAt`, which `DatabaseSyncService` uses as the dev↔prod LWW resolver (would silently clobber dev edits on sync); fixed by writing via `$executeRaw` so `updated_at` stays independent. Ride-along: `01-architecture.md` stale `getOrCreateUserShell` ref fixed. **Still open**: 1c (undeliverable stamp on 50278/50007 + clear-on-reach) · 1d (pure-client `/help` touch — new endpoint, lowest priority).
 
 ## UX Epic — Phase 3 IN FLIGHT (2026-07-20 → )
 
