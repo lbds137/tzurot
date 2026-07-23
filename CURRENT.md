@@ -6,7 +6,7 @@
 
 ## Unreleased on Develop
 
-_(clean — beta.174 carried #1747–#1762; develop is SHA-aligned with main.)_
+- **#1764** — retention epic **Phase 1a**: `User.lastActiveAt` + `dmUndeliverableSince` (additive migration, applied to dev) + `pnpm ops retention:backfill-last-active` (dev backfilled **271 users**; idempotent re-run verified). No behavior change — the write paths land next (1b forward activity stamp via the gateway `getOrCreateUser` cache-miss seam; 1c undeliverable stamp on 50278/50007 + clear-on-reach). CPD baseline 1750→1762 (env-scoped-op preamble clone; extraction filed as a follow-up). Prod backfill sequenced AFTER 1b deploys — see `active-epic.md`.
 
 ## UX Epic — Phase 3 IN FLIGHT (2026-07-20 → )
 

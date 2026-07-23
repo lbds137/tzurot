@@ -8,10 +8,12 @@ _Focus: a non-commercial solo-operator bot should not retain per-user data (conv
 
 | Phase | Contents | Status |
 | --- | --- | --- |
-| 1 — tracking | schema (`lastActiveAt`, `dmUndeliverableSince`) + migration + historical backfill; central activity stamp (gateway enrichment + bot-client touch); undeliverable stamp on 50278/50007 in the DM-failure path; clear-on-reach. No purge yet — just start the clock. | NEXT |
+| 1 — tracking | **Split into 3 PRs.** (1a) schema (`lastActiveAt`, `dmUndeliverableSince`) + migration + `retention:backfill-last-active` — **✅ MERGED #1764** (dev migrated + backfilled: 271 users; idempotent re-run verified). (1b) forward activity stamp (gateway `getOrCreateUser` cache-miss seam; optional bot-client `/help` touch — owner call). (1c) undeliverable stamp on 50278/50007 + clear-on-reach (blast path). No purge yet — just start the clock. | 1a ✅ · 1b/1c NEXT |
 | 2 — preview + unreachable purge | `pnpm ops retention:preview` (dry-run) + the daily job's unreachable branch behind manual approval. The 26 = first real preview batch at their backfilled ship+180d. | pending Phase 1 |
 | 3 — reachable branch | notify + `AccountExportJob` offer + grace + notify-send-failure re-route; circuit breaker. Verify `AccountExportJob` delivery path (25MB DM cap / link expiry) first. | pending Phase 2 |
 | 4 — policy + autonomous | privacy-policy 180-day-window entry; flip to autonomous-with-circuit-breaker once trusted. | pending Phase 3 |
+
+**Prod-backfill sequencing** (reviewer #1764 finding): the one-time historical backfill and the forward-stamp path (1b) have a coverage gap — activity between the backfill run and 1b's deploy isn't reflected in `lastActiveAt`. Since 1a/1b/1c ride the SAME next release, run the prod backfill ONCE _after_ that release deploys all three (forward-stamp already live → no gap). The backfill is idempotent, so a re-run is always safe. (Dev already backfilled 2026-07-22 during 1a; low-stakes there — no organic traffic.)
 
 **Ride-along Quick Win** (sibling class): `dmErrorClassifier` gains the `bot_level` class for `20026` (filed in `now.md`) — the classifier side of the same "20026 isn't the user's fault" ruling.
 
