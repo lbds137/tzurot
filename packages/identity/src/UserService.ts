@@ -171,6 +171,22 @@ export class UserService {
         displayName
       );
 
+      // Retention tracking: stamp last-active on the provisioning cache-miss
+      // path. The 1h cache short-circuits cache-hits above, so this fires at
+      // most ~once per user per hour — far finer than the 180-day inactivity
+      // window needs, at near-zero write cost. The stamp is non-critical and
+      // self-healing (the next cache-miss re-stamps), so a failure must never
+      // fail provisioning: swallow + log. updateMany (not update) so a
+      // mid-flight account deletion is a harmless 0-row no-op, not a P2025 throw.
+      try {
+        await this.prisma.user.updateMany({
+          where: { id: user.id },
+          data: { lastActiveAt: new Date() },
+        });
+      } catch (stampError) {
+        logger.warn({ err: stampError, discordId }, 'Failed to stamp lastActiveAt (non-fatal)');
+      }
+
       const provisioned: ProvisionedUser = { userId: user.id, defaultPersonaId };
       // TOCTOU guard: if the cache was invalidated for anyone between our
       // cache-miss and now, an account deletion may have raced our DB read —
