@@ -185,12 +185,18 @@ export class UserService {
       // ~hourly per active user would make prod rows always "win" and silently
       // clobber dev-only edits on the next sync. `lastActiveAt` is a SEPARATE
       // column precisely to keep retention tracking off `updated_at`'s
-      // semantics; a raw UPDATE writes only `last_active_at` and leaves
+      // semantics; a raw UPDATE writes only the retention columns and leaves
       // `updated_at` untouched. A raw UPDATE on a mid-flight-deleted row matches
       // 0 rows without throwing, matching the TOCTOU cache guard below.
+      //
+      // The same stamp also CLEARS dm_undeliverable_since: activity is proof of
+      // reach, so an active user is never left flagged unreachable. Both are
+      // retention signals maintained together on this one activity seam — the
+      // release-blast path sets the flag, any provisioning clears it (a later
+      // failure re-stamps fresh, since the clear resets the first-failure guard).
       try {
         await this.prisma.$executeRaw`
-          UPDATE users SET last_active_at = NOW() WHERE id = ${user.id}::uuid
+          UPDATE users SET last_active_at = NOW(), dm_undeliverable_since = NULL WHERE id = ${user.id}::uuid
         `;
       } catch (stampError) {
         logger.warn({ err: stampError, discordId }, 'Failed to stamp lastActiveAt (non-fatal)');
