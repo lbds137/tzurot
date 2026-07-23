@@ -176,13 +176,22 @@ export class UserService {
       // most ~once per user per hour — far finer than the 180-day inactivity
       // window needs, at near-zero write cost. The stamp is non-critical and
       // self-healing (the next cache-miss re-stamps), so a failure must never
-      // fail provisioning: swallow + log. updateMany (not update) so a
-      // mid-flight account deletion is a harmless 0-row no-op, not a P2025 throw.
+      // fail provisioning: swallow + log.
+      //
+      // RAW UPDATE, not the Prisma client, and deliberately so: `updated_at` has
+      // `@updatedAt`, which auto-bumps on ANY client-level update — but
+      // DatabaseSyncService uses `users.updated_at` as the dev<->prod
+      // last-write-wins conflict resolver (see syncTables.ts). Bumping it
+      // ~hourly per active user would make prod rows always "win" and silently
+      // clobber dev-only edits on the next sync. `lastActiveAt` is a SEPARATE
+      // column precisely to keep retention tracking off `updated_at`'s
+      // semantics; a raw UPDATE writes only `last_active_at` and leaves
+      // `updated_at` untouched. A raw UPDATE on a mid-flight-deleted row matches
+      // 0 rows without throwing, matching the TOCTOU cache guard below.
       try {
-        await this.prisma.user.updateMany({
-          where: { id: user.id },
-          data: { lastActiveAt: new Date() },
-        });
+        await this.prisma.$executeRaw`
+          UPDATE users SET last_active_at = NOW() WHERE id = ${user.id}::uuid
+        `;
       } catch (stampError) {
         logger.warn({ err: stampError, discordId }, 'Failed to stamp lastActiveAt (non-fatal)');
       }

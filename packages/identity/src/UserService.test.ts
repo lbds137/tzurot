@@ -40,7 +40,6 @@ describe('UserService', () => {
     user: {
       findUnique: ReturnType<typeof vi.fn>;
       update: ReturnType<typeof vi.fn>;
-      updateMany: ReturnType<typeof vi.fn>;
     };
     persona: {
       findUnique: ReturnType<typeof vi.fn>;
@@ -99,6 +98,20 @@ describe('UserService', () => {
     };
   }
 
+  /**
+   * Count `$executeRaw` calls that are NOT the retention last-active stamp — i.e.
+   * genuine creation-CTE calls. The stamp shares `$executeRaw` (it must be a raw
+   * write so it doesn't bump `updated_at`) but only ever writes `last_active_at`,
+   * so filtering on that keyword isolates creation. The tests below use "did the
+   * create-CTE run?" as their signal, which the shared mock would otherwise
+   * conflate with the stamp.
+   */
+  function creationCallCount(): number {
+    return mockPrisma.$executeRaw.mock.calls.filter(
+      (call: unknown[]) => !(call[0] as string[]).join('').includes('last_active_at')
+    ).length;
+  }
+
   beforeEach(() => {
     // Set up deterministic UUID mock return values for each test
     mockGenerateUserUuid.mockReturnValue('test-user-uuid');
@@ -108,7 +121,6 @@ describe('UserService', () => {
       user: {
         findUnique: vi.fn(),
         update: vi.fn(),
-        updateMany: vi.fn(),
       },
       persona: {
         findUnique: vi.fn(),
@@ -186,13 +198,16 @@ describe('UserService', () => {
 
       await userService.getOrCreateUser('123456', 'testuser');
 
-      // The retention last-active stamp must cross the seam to the DB, keyed by
-      // the provisioned user id, with a Date value (updateMany, so a deleted row
-      // is a no-op rather than a throw).
-      expect(mockPrisma.user.updateMany).toHaveBeenCalledWith({
-        where: { id: 'active-user-id' },
-        data: { lastActiveAt: expect.any(Date) },
-      });
+      // The stamp crosses the seam as a RAW UPDATE of last_active_at ONLY — it
+      // must NOT touch updated_at (that column is the dev<->prod sync's
+      // last-write-wins resolver; bumping it hourly would clobber dev edits).
+      // findUnique returns an existing user, so no creation query fires —
+      // $executeRaw is the stamp alone, keyed by the provisioned user id.
+      expect(mockPrisma.$executeRaw).toHaveBeenCalledTimes(1);
+      const [template, userId] = mockPrisma.$executeRaw.mock.calls[0] as [string[], string];
+      expect(template.join('')).toContain('last_active_at');
+      expect(template.join('')).not.toContain('updated_at');
+      expect(userId).toBe('active-user-id');
     });
 
     it('does not re-stamp lastActiveAt on a cache hit', async () => {
@@ -207,8 +222,9 @@ describe('UserService', () => {
       await userService.getOrCreateUser('123456', 'testuser'); // hit → must not
 
       // The 1h cache throttles the stamp: the cache-hit returns before reaching
-      // the stamp, so exactly one write for two calls.
-      expect(mockPrisma.user.updateMany).toHaveBeenCalledTimes(1);
+      // the stamp, so exactly one raw stamp for two calls (existing user → no
+      // creation query to confound the count).
+      expect(mockPrisma.$executeRaw).toHaveBeenCalledTimes(1);
     });
 
     it('swallows a lastActiveAt stamp failure without failing provisioning', async () => {
@@ -218,7 +234,7 @@ describe('UserService', () => {
         username: 'testuser',
         defaultPersonaId: 'persona-id',
       });
-      mockPrisma.user.updateMany.mockRejectedValueOnce(new Error('db blip'));
+      mockPrisma.$executeRaw.mockRejectedValueOnce(new Error('db blip'));
 
       // The stamp is non-critical — a write failure is caught + logged, and the
       // caller still gets its provisioned user rather than a thrown request.
@@ -322,7 +338,9 @@ describe('UserService', () => {
 
       expect(result?.userId).toBe('existing-user-id');
       expect(result?.defaultPersonaId).toBe('existing-persona-id');
-      expect(mockPrisma.$executeRaw).not.toHaveBeenCalled();
+      // No creation CTE for an existing user — the only raw query is the
+      // last-active stamp, which creationCallCount filters out.
+      expect(creationCallCount()).toBe(0);
     });
 
     it('should update placeholder username AND rename placeholder persona when real username is provided', async () => {
@@ -676,8 +694,9 @@ describe('UserService', () => {
       const result = await userService.getOrCreateUser('123456', 'testuser');
 
       expect(result?.userId).toBe('existing-user-id');
-      // Must not run the create-user CTE when the user already exists
-      expect(mockPrisma.$executeRaw).not.toHaveBeenCalled();
+      // Must not run the create-user CTE when the user already exists (the
+      // last-active stamp shares $executeRaw but is not a creation call).
+      expect(creationCallCount()).toBe(0);
     });
 
     it('should return null when isBot is true', async () => {
@@ -707,7 +726,9 @@ describe('UserService', () => {
 
       expect(result?.userId).toBe('test-user-uuid');
       expect(mockPrisma.user.findUnique).toHaveBeenCalled();
-      expect(mockPrisma.$executeRaw).toHaveBeenCalledTimes(1);
+      // One creation CTE fired (the last-active stamp shares $executeRaw but is
+      // filtered out by creationCallCount).
+      expect(creationCallCount()).toBe(1);
     });
 
     it('should create user normally when isBot is undefined', async () => {
@@ -717,7 +738,9 @@ describe('UserService', () => {
 
       expect(result?.userId).toBe('test-user-uuid');
       expect(mockPrisma.user.findUnique).toHaveBeenCalled();
-      expect(mockPrisma.$executeRaw).toHaveBeenCalledTimes(1);
+      // One creation CTE fired (the last-active stamp shares $executeRaw but is
+      // filtered out by creationCallCount).
+      expect(creationCallCount()).toBe(1);
     });
   });
 
