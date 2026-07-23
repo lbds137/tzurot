@@ -59,9 +59,10 @@ model User {
   /// conversation_history, and their persona/character/memory create-or-update
   /// times. NULL until the one-time historical backfill runs
   /// (pnpm ops retention:backfill-last-active) and for users with zero recorded
-  /// activity; thereafter maintained forward by the activity-stamp path. Readers
-  /// treat NULL as "no known activity" (fall back to createdAt), never as
-  /// "active now". Backing signal for the retention 180-day inactivity window.
+  /// activity; a later PR wires the forward activity-stamp path that maintains it
+  /// thereafter. Readers treat NULL as "no known activity" (fall back to
+  /// createdAt), never as "active now". Backing signal for the retention 180-day
+  /// inactivity window.
   lastActiveAt          DateTime?                  @map("last_active_at")
   /// State machine (mirrors notifyAutoDisabledAt): NULL while the user's DMs are
   /// deliverable. Set to the first-failure timestamp when a release DM
