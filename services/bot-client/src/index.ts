@@ -76,6 +76,7 @@ import {
   validateDiscordToken,
   validateRedisUrl,
   validateInternalServiceSecret,
+  validateOutboundDmAllowlist,
   logGatewayHealthStatus,
 } from './startup.js';
 import { restoreBotPresence } from './commands/admin/presence.js';
@@ -92,6 +93,7 @@ const envConfig = getConfig();
 // Validate bot-client specific required env vars
 validateDiscordToken();
 validateInternalServiceSecret();
+validateOutboundDmAllowlist();
 
 // Configuration from environment
 const config = {

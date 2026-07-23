@@ -47,6 +47,33 @@ export function validateInternalServiceSecret(config = getConfig()): void {
 }
 
 /**
+ * Fail-closed guard for the outbound-DM allowlist. On any NON-production
+ * environment, `OUTBOUND_DM_ALLOWLIST` MUST be set: dev's database is synced
+ * from prod, so an unset allowlist points the dev bot at real prod users — the
+ * exact boot-time DM-burst shape that earned a Discord DM quarantine.
+ * `getOutboundDmAllowlist()` treats unset as "unrestricted" (correct for prod),
+ * so without this assertion a fresh or misconfigured dev deploy silently falls
+ * open. Refuse to boot instead. Prod is intentionally unrestricted and returns
+ * early. The empty-check mirrors `getOutboundDmAllowlist`'s own null condition.
+ *
+ * @throws Error on a non-production environment with an unset/empty allowlist
+ */
+export function validateOutboundDmAllowlist(config = getConfig()): void {
+  if (config.NODE_ENV === 'production') {
+    return;
+  }
+  const raw = config.OUTBOUND_DM_ALLOWLIST;
+  if (raw === undefined || raw.trim() === '') {
+    throw new Error(
+      `OUTBOUND_DM_ALLOWLIST must be set on non-production environments ` +
+        `(NODE_ENV=${config.NODE_ENV}) — the dev database is synced from prod, so ` +
+        `an unset allowlist lets the dev bot DM real prod users. Set it to your ` +
+        `own Discord ID(s), comma-separated.`
+    );
+  }
+}
+
+/**
  * Return the validated `INTERNAL_SERVICE_SECRET` for use in outbound
  * `X-Service-Auth` headers. Pairs with `validateInternalServiceSecret()`
  * which runs at process startup — this helper throws loud at call time

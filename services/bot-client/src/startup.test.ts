@@ -40,6 +40,7 @@ import {
   validateDiscordToken,
   validateRedisUrl,
   validateInternalServiceSecret,
+  validateOutboundDmAllowlist,
   getValidatedServiceSecret,
   logGatewayHealthStatus,
 } from './startup.js';
@@ -82,6 +83,43 @@ describe('Startup Utilities', () => {
           config as ReturnType<typeof import('@tzurot/common-types/config/config').getConfig>
         )
       ).toThrow('DISCORD_TOKEN environment variable is required');
+    });
+  });
+
+  describe('validateOutboundDmAllowlist', () => {
+    const asConfig = (c: Record<string, unknown>) =>
+      c as ReturnType<typeof import('@tzurot/common-types/config/config').getConfig>;
+
+    it('throws on a non-production environment with an unset allowlist', () => {
+      expect(() =>
+        validateOutboundDmAllowlist(
+          asConfig({ NODE_ENV: 'development', OUTBOUND_DM_ALLOWLIST: undefined })
+        )
+      ).toThrow('OUTBOUND_DM_ALLOWLIST must be set on non-production');
+    });
+
+    it('throws on a non-production environment with a whitespace-only allowlist', () => {
+      expect(() =>
+        validateOutboundDmAllowlist(
+          asConfig({ NODE_ENV: 'development', OUTBOUND_DM_ALLOWLIST: '   ' })
+        )
+      ).toThrow('OUTBOUND_DM_ALLOWLIST must be set on non-production');
+    });
+
+    it('does not throw on a non-production environment when the allowlist is set', () => {
+      expect(() =>
+        validateOutboundDmAllowlist(
+          asConfig({ NODE_ENV: 'development', OUTBOUND_DM_ALLOWLIST: '123456789012345678' })
+        )
+      ).not.toThrow();
+    });
+
+    it('does not throw in production even when unset (prod is unrestricted by design)', () => {
+      expect(() =>
+        validateOutboundDmAllowlist(
+          asConfig({ NODE_ENV: 'production', OUTBOUND_DM_ALLOWLIST: undefined })
+        )
+      ).not.toThrow();
     });
   });
 
