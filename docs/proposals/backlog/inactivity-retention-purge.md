@@ -40,3 +40,14 @@
 2. **Preview + unreachable purge**: `retention:preview` (dry-run) + the daily job's unreachable branch behind manual approval. The 26 become the first real preview batch at ship+their-backfilled-180d.
 3. **Reachable branch**: notify + `AccountExportJob` offer + grace + notify-send-failure re-route; circuit breaker.
 4. **Privacy policy + autonomous flip** (autonomous-with-circuit-breaker once trusted).
+
+## Open calls deferred to later phases
+
+- **Discord `10013` (deleted account) — Phase 2 purge-branch decision.** `10013`
+  (Unknown User) is in the DM permanent-failure set alongside 50278/50007, but it is
+  a *different, stronger* signal: the account is gone entirely, not merely unreachable.
+  Phase 1 deliberately does **not** stamp `dmUndeliverableSince` on `10013` (the
+  undeliverable signal is scoped to 50278/50007). Phase 2's purge branch should decide
+  whether a `10013` account warrants *immediate* purge — there is nothing to reach and
+  no one to notify, so the 180-day inactivity wait buys nothing — rather than routing it
+  through the standard inactivity path. Surfaced during Phase 1 grounding (2026-07-22).
