@@ -60,10 +60,10 @@ model User {
   /// times. NULL until the one-time historical backfill runs
   /// (pnpm ops retention:backfill-last-active) and for users with zero recorded
   /// activity. Forward-maintained by the gateway getOrCreateUser cache-miss
-  /// stamp; commands that never reach the gateway (pure-client /help etc.) are a
-  /// pending follow-up. Readers treat NULL as "no known activity" (fall back to
-  /// createdAt), never as "active now". Backing signal for the retention 180-day
-  /// inactivity window.
+  /// stamp AND — for commands that never reach the gateway (pure-client /help
+  /// etc.) — by the bot-client POST /internal/users/activity funnel call. Readers
+  /// treat NULL as "no known activity" (fall back to createdAt), never as
+  /// "active now". Backing signal for the retention 180-day inactivity window.
   lastActiveAt          DateTime?                  @map("last_active_at")
   /// State machine (mirrors notifyAutoDisabledAt): NULL while the user's DMs are
   /// deliverable. Set to the first-failure timestamp when a release DM
