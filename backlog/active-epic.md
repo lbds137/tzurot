@@ -19,8 +19,8 @@ _Focus: a non-commercial solo-operator bot should not retain per-user data (conv
 
 ## ⏸ Parked next-up: Platform-Portable UX Layer (Discord Design System) — resume after retention
 
-_The beta-exit gate (owner 2026-07-17). PARKED mid-Phase-3 on 2026-07-23 to let the retention epic through; resumes as the immediate next epic. Full roadmap + pilot + owner-design-inputs preserved in this file's git history (pre-2026-07-23); authoritative detail in the two ACCEPTED artifacts + the per-PR log._
+_The beta-exit gate (owner 2026-07-17). PARKED mid-Phase-3 on 2026-07-23 to let the retention epic through; resumes as the immediate next epic. **Full roadmap + pilot + owner-design-inputs live in [`cold/themes/platform-portable-ux-layer.md`](cold/themes/platform-portable-ux-layer.md)** (the parked home); authoritative design detail in the two ACCEPTED artifacts + the per-PR log._
 
 - **Phase 1 (catalog + voice)** ✅ COMPLETE (beta ≤172). **Phase 2 (components)** ✅ COMPLETE (beta.170–172). **Phase 3 (vocabulary + enforcement)** IN FLIGHT — **Waves 0–3 ✅ RELEASED** (beta.173 waves 0–2; **beta.174 wave 3, the breaking rename batch**). **Remaining: Waves 4–6** — PR-6a factory core+pilot → 6b destructive preset → 7 `/deny` redesign → 8 remaining picker hygiene → 9/10 factory sweep + router adoption (normal minors). Phase 4 (adapter) trigger-gated on a real second platform.
 - Artifacts: [`docs/proposals/backlog/ux-design-system-spec.md`](../docs/proposals/backlog/ux-design-system-spec.md) (WHAT) · [`docs/proposals/backlog/platform-portable-ux-design.md`](../docs/proposals/backlog/platform-portable-ux-design.md) (HOW) · plan file `~/.claude/plans/radiant-tickling-candle.md` · per-PR detail [`cold/epic-log.md`](cold/epic-log.md).
-- Phase-1 follow-ups + the alias-redesign pilot + scoping-tier design inputs: preserved in git history of this file + `cold/follow-ups.md`.
+- Phase-1 follow-ups + the alias-redesign pilot + scoping-tier design inputs: in the parked-home theme file above + `cold/follow-ups.md`.
