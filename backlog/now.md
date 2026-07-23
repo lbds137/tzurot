@@ -20,7 +20,9 @@ _Recently resolved items move to the GitHub release notes at ship time — this 
 
 ### 🎯 Current Focus (max 3)
 
-**🏗️ `[LIFT]` Platform-Portable UX Layer — ACTIVE EPIC, the beta-exit gate** — Phases 1 ✅ and 2 ✅ COMPLETE (released through beta.172). **Phase 3 (vocabulary + enforcement) IN FLIGHT — plan APPROVED 2026-07-20** (6-agent grounding + trio council; all three owner calls resolved: tree moves = avatar/voice groups + `/chat` `/random` top-level extraction; onboarding = `/help getting-started` (forces /help subcommand shape — rides the batch); release = major-ping beta now, beta-exit 3.0.0 at epic completion). Train: Wave 0 cheap ESLint guards → vocabulary registry + adoption sweeps → AST literal rule + ratchet retirement → the breaking rename batch (D8/D9/D10 + tree moves + /help) → custom-ID factory core → /deny redesign + picker hygiene → factory sweep + router adoption. Plan file: `~/.claude/plans/radiant-tickling-candle.md`; roadmap in [`active-epic.md`](active-epic.md).
+**🧹 `[FEAT]` Automated Inactivity Retention & Purge — ACTIVE EPIC (2026-07-23)** — owner data-minimization directive; design ACCEPTED (owner + council) → [`active-epic.md`](active-epic.md) + [`docs/proposals/backlog/inactivity-retention-purge.md`](../docs/proposals/backlog/inactivity-retention-purge.md). Single 180-day window; `lastActiveAt` (backfilled) + `dmUndeliverableSince` (50278/50007, never 20026); circuit-breaker + manual-approval-first. **NEXT: Phase 1** (tracking schema + backfill + stamps, no purge yet). Triggered by beta.174's 26 undeliverable users.
+
+**🏗️ `[LIFT]` Platform-Portable UX Layer — PARKED next-up (the beta-exit gate)** — Phases 1 ✅ 2 ✅ done; Phase 3 Waves 0–3 RELEASED (beta.173/174); **Waves 4–6 remain** (factory core → destructive preset → /deny redesign → picker hygiene → factory sweep + router). Resumes the moment retention ships. State: `active-epic.md` § Parked + the two UX artifacts + `cold/epic-log.md`.
 
 ### ⚡ Quick Wins (max 5)
 
