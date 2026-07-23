@@ -8,7 +8,7 @@ _Focus: a non-commercial solo-operator bot should not retain per-user data (conv
 
 | Phase | Contents | Status |
 | --- | --- | --- |
-| 1 — tracking | **Split into 3 PRs.** (1a) schema (`lastActiveAt`, `dmUndeliverableSince`) + migration + `retention:backfill-last-active` — **✅ MERGED #1764** (dev migrated + backfilled: 271 users; idempotent re-run verified). (1b) forward activity stamp (gateway `getOrCreateUser` cache-miss seam; optional bot-client `/help` touch — owner call). (1c) undeliverable stamp on 50278/50007 + clear-on-reach (blast path). No purge yet — just start the clock. | 1a ✅ · 1b/1c NEXT |
+| 1 — tracking | **Split into PRs.** (1a) schema + migration + `retention:backfill-last-active` — **✅ MERGED #1764** (dev migrated + backfilled 271 users; idempotent). (1b) gateway forward stamp (`getOrCreateUser` cache-miss, raw SQL so `updated_at` stays off the sync LWW resolver) — **✅ MERGED #1765**. (1c) undeliverable stamp on 50278/50007 + clear-on-reach (blast path) — **NEXT**. (1d) pure-client `/help` touch (new internal endpoint) — lowest priority. No purge yet — just start the clock. | 1a/1b ✅ · 1c NEXT · 1d last |
 | 2 — preview + unreachable purge | `pnpm ops retention:preview` (dry-run) + the daily job's unreachable branch behind manual approval. The 26 = first real preview batch at their backfilled ship+180d. | pending Phase 1 |
 | 3 — reachable branch | notify + `AccountExportJob` offer + grace + notify-send-failure re-route; circuit breaker. Verify `AccountExportJob` delivery path (25MB DM cap / link expiry) first. | pending Phase 2 |
 | 4 — policy + autonomous | privacy-policy 180-day-window entry; flip to autonomous-with-circuit-breaker once trusted. | pending Phase 3 |
