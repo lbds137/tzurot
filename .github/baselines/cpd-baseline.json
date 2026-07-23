@@ -1,18 +1,18 @@
 {
   "version": 1,
-  "lastUpdated": "2026-07-22T02:22:40.592Z",
-  "filteredLines": 1750,
-  "filteredCount": 114,
-  "rawDedupedLines": 1678,
-  "rawCount": 118,
+  "lastUpdated": "2026-07-23T01:50:56.833Z",
+  "filteredLines": 1762,
+  "filteredCount": 115,
+  "rawDedupedLines": 1689,
+  "rawCount": 119,
   "threshold": 0.8,
   "graceMargin": 10,
   "notes": "Filtered = jscpd clones minus fragments where >=80% of classifiable lines are call-expression shape (i.e., helper-call-shape uniformity, not real duplication). See docs/reference/CPD_CAMPAIGN_AUDIT.md for the campaign close-out audit and the rationale for accepting structural-skeleton duplication as design intent. The ratchet enforces filteredLines + graceMargin; raw jscpd output stays informational. NOTE: filteredLines uses sum-of-per-clone-lines (counts overlap multiply); rawDedupedLines is jscpd's deduplicated count (each line counted once even if part of multiple clones). The two are not directly comparable — filtered may exceed rawDeduped on small clone sets due to the counting-method difference, not because the filter made things worse.",
   "meta": {
     "toolVersion": "cpd-check/1.0",
     "configHash": "a7f4e5150567",
-    "nodeVersion": "v24.11.1",
-    "generatedFromSha": "ea99271772fdb5c07583489c4744b021ffe76725",
-    "generatedAt": "2026-07-22T02:22:40.592Z"
+    "nodeVersion": "v25.4.0",
+    "generatedFromSha": "8e1c65380455586bd358f7c5ec7418407b3ae122",
+    "generatedAt": "2026-07-23T01:50:56.832Z"
   }
 }

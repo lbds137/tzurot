@@ -35,6 +35,8 @@ CREATE TABLE "users" (
     "notify_level" "notify_level" NOT NULL DEFAULT 'major',
     "notify_opted_in_at" TIMESTAMP(3),
     "notify_auto_disabled_at" TIMESTAMP(3),
+    "last_active_at" TIMESTAMP(3),
+    "dm_undeliverable_since" TIMESTAMP(3),
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
 
