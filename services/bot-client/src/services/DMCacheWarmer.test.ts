@@ -76,6 +76,51 @@ describe('DMCacheWarmer', () => {
     await vi.runAllTimersAsync();
   });
 
+  it('warmAwaitable returns true when createDM resolves', async () => {
+    const createDM = vi.fn().mockResolvedValue({});
+    const result = await warmer.warmAwaitable(mockUser('user-1', createDM));
+
+    expect(result).toBe(true);
+    expect(createDM).toHaveBeenCalledTimes(1);
+    expect(warmer.has('user-1')).toBe(true);
+  });
+
+  it('warmAwaitable returns false when createDM rejects (but still memoizes)', async () => {
+    const createDM = vi.fn().mockRejectedValue(new Error('bot quarantined'));
+    const result = await warmer.warmAwaitable(mockUser('user-1', createDM));
+
+    expect(result).toBe(false);
+    // Memoized despite failure — one attempt per process lifetime, same as warm().
+    expect(warmer.has('user-1')).toBe(true);
+  });
+
+  it('warmAwaitable returns the STORED failure on a repeat call, not a hardcoded true', async () => {
+    const createDM = vi.fn().mockRejectedValue(new Error('bot quarantined'));
+    const user = mockUser('user-1', createDM);
+
+    const first = await warmer.warmAwaitable(user);
+    const second = await warmer.warmAwaitable(user);
+
+    // The memo tracks OUTCOME, not just "attempted": a failed user must stay
+    // false on the next call. The race this guards: the live event path warms
+    // (and fails) a user, then the startup prewarmer reaches the same user and
+    // must count them failed, not warmed.
+    expect(first).toBe(false);
+    expect(second).toBe(false);
+    expect(createDM).toHaveBeenCalledTimes(1);
+  });
+
+  it('warmAwaitable returns true for an already-warmed user without a second createDM', async () => {
+    const createDM = vi.fn().mockResolvedValue({});
+    const user = mockUser('user-1', createDM);
+
+    await warmer.warmAwaitable(user);
+    const second = await warmer.warmAwaitable(user);
+
+    expect(second).toBe(true);
+    expect(createDM).toHaveBeenCalledTimes(1);
+  });
+
   it('clear() empties the memo', () => {
     warmer.warm(mockUser('user-1'));
     warmer.warm(mockUser('user-2'));

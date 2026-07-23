@@ -3,8 +3,10 @@
  *
  * On bot startup, fetches the list of recently active Discord user IDs from
  * api-gateway (`GET /internal/users/recent`), then walks the list at a slow
- * rate-limited cadence calling `client.users.fetch(id).then(u => warmer.warm(u))`
- * to pre-populate Discord.js's DM channel cache for those users.
+ * rate-limited cadence, awaiting `warmer.warmAwaitable(user)` per user, to
+ * pre-populate Discord.js's DM channel cache for those users. Awaiting (vs the
+ * event path's fire-and-forget `warm`) is what lets the completion tally count
+ * real createDM failures rather than mere attempts.
  *
  * Why slow (1/sec): the Discord.js REST manager processes requests through
  * a queue. Bursting createDM calls would compete with live user-traffic
@@ -111,8 +113,16 @@ export class StartupDMPrewarmer {
       const discordId = discordIds[i];
       try {
         const user = await this.client.users.fetch(discordId);
-        this.warmer.warm(user);
-        warmed += 1;
+        // Await the warm so the tally reflects the REAL createDM outcome: a
+        // quarantined bot (every createDM 403s) now shows warmed=0 failed=N
+        // instead of the fire-and-forget path's misleading warmed=N failed=0.
+        // The loop already paces at RATE_LIMIT_DELAY_MS, so awaiting adds only
+        // the createDM latency, not a new burst.
+        if (await this.warmer.warmAwaitable(user)) {
+          warmed += 1;
+        } else {
+          failed += 1;
+        }
       } catch (err) {
         // Common: deleted accounts (10013), accounts the bot can't see, etc.
         // Logging at debug to avoid noise from expected attrition over a
@@ -129,10 +139,10 @@ export class StartupDMPrewarmer {
     }
 
     const elapsedSec = Math.round((Date.now() - start) / 1000);
-    // `warmed` = users.fetch() succeeded and warm() was invoked. createDM()
-    // inside warm() runs fire-and-forget, so this counts "warming attempted"
-    // not "DM channel definitively cached." `failed` counts users.fetch()
-    // errors only (deleted accounts, etc.).
+    // `warmed` = createDM() actually resolved (DM channel truly cached).
+    // `failed` counts BOTH users.fetch() errors AND createDM() failures
+    // (blocked DMs, deleted accounts, or a bot-level quarantine) — an honest
+    // tally, since it awaits warmAwaitable rather than firing-and-forgetting.
     logger.info({ warmed, failed, elapsedSec }, 'DM cache pre-warm complete');
   }
 
