@@ -18,6 +18,8 @@ import {
   RoutingContextResponseSchema,
   SecretRotationEntrySchema,
   SecretRotationStatusResponseSchema,
+  RetentionPreviewUserSchema,
+  RetentionPreviewResponseSchema,
 } from './internal.js';
 
 describe('DiscordSnowflakeSchema', () => {
@@ -643,5 +645,70 @@ describe('SecretRotationEntrySchema', () => {
   it('requires every field (no partial ledger rows on the wire)', () => {
     const { overdueDays: _dropped, ...partial } = entry;
     expect(SecretRotationEntrySchema.safeParse(partial).success).toBe(false);
+  });
+});
+
+describe('RetentionPreviewUserSchema', () => {
+  const user = {
+    discordId: '900000000000000071',
+    inactiveSince: '2025-01-01T00:00:00.000Z',
+    reason: 'unreachable' as const,
+    ownedCharacters: { toDelete: 2, toReHome: 1 },
+  };
+
+  it('accepts both eligibility reasons', () => {
+    expect(RetentionPreviewUserSchema.safeParse(user).success).toBe(true);
+    expect(RetentionPreviewUserSchema.safeParse({ ...user, reason: 'account_gone' }).success).toBe(
+      true
+    );
+  });
+
+  it('rejects an unknown reason (the purge branches on it)', () => {
+    expect(RetentionPreviewUserSchema.safeParse({ ...user, reason: 'inactive' }).success).toBe(
+      false
+    );
+  });
+
+  it('rejects a non-snowflake discordId and negative character counts', () => {
+    expect(RetentionPreviewUserSchema.safeParse({ ...user, discordId: 'nope' }).success).toBe(
+      false
+    );
+    expect(
+      RetentionPreviewUserSchema.safeParse({
+        ...user,
+        ownedCharacters: { toDelete: -1, toReHome: 0 },
+      }).success
+    ).toBe(false);
+  });
+});
+
+describe('RetentionPreviewResponseSchema', () => {
+  const response = {
+    users: [],
+    totals: {
+      eligibleCount: 0,
+      userbaseCount: 270,
+      percentOfUserbase: 0,
+      charactersToDelete: 0,
+      charactersToReHome: 0,
+      breakerWarning: false,
+    },
+  };
+
+  it('accepts an empty cohort (the healthy steady state)', () => {
+    expect(RetentionPreviewResponseSchema.safeParse(response).success).toBe(true);
+  });
+
+  it('accepts a fractional percentage (one decimal place)', () => {
+    const parsed = RetentionPreviewResponseSchema.safeParse({
+      ...response,
+      totals: { ...response.totals, eligibleCount: 26, percentOfUserbase: 9.6 },
+    });
+    expect(parsed.success).toBe(true);
+  });
+
+  it('requires the breaker flag (a missing warning must not read as false)', () => {
+    const { breakerWarning: _dropped, ...totals } = response.totals;
+    expect(RetentionPreviewResponseSchema.safeParse({ ...response, totals }).success).toBe(false);
   });
 });

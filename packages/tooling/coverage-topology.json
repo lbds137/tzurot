@@ -1906,6 +1906,20 @@
       ]
     },
     {
+      "id": "client:api-gateway:retentionPreview",
+      "kind": "http-route",
+      "producer": "client",
+      "consumer": "api-gateway",
+      "schemaRef": "GET /retention/preview",
+      "mechanism": "route-conformance",
+      "requiredTiers": [
+        "component"
+      ],
+      "actualTiers": [
+        "component"
+      ]
+    },
+    {
       "id": "client:api-gateway:routingContextCreate",
       "kind": "http-route",
       "producer": "client",

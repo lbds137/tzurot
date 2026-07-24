@@ -293,3 +293,41 @@ export const SecretRotationStatusResponseSchema = z.object({
   entries: z.array(SecretRotationEntrySchema),
   overdueCount: z.number().int().nonnegative(),
 });
+
+// ============================================================================
+// GET /internal/retention/preview — purge-eligible cohort (Retention Phase 2)
+// ============================================================================
+
+/**
+ * One purge-eligible user, with what would happen to the characters they own.
+ * Read-only reporting: the preview mutates nothing.
+ */
+export const RetentionPreviewUserSchema = z.object({
+  discordId: DiscordSnowflakeSchema,
+  /** Inactivity anchor as ISO — last_active_at, or created_at when never stamped. */
+  inactiveSince: z.string().datetime(),
+  /** `account_gone` (Discord 10013) is the stronger signal and wins when both are set. */
+  reason: z.enum(['unreachable', 'account_gone']),
+  ownedCharacters: z.object({
+    /** Nobody else has data on them — deleted with the account. */
+    toDelete: z.number().int().nonnegative(),
+    /** Other users have data on them — re-homed to the orphan sentinel (D11). */
+    toReHome: z.number().int().nonnegative(),
+  }),
+});
+
+export const RetentionPreviewResponseSchema = z.object({
+  users: z.array(RetentionPreviewUserSchema),
+  totals: z.object({
+    eligibleCount: z.number().int().nonnegative(),
+    userbaseCount: z.number().int().nonnegative(),
+    /** Cohort as a percentage of the userbase, one decimal place. */
+    percentOfUserbase: z.number().nonnegative(),
+    charactersToDelete: z.number().int().nonnegative(),
+    charactersToReHome: z.number().int().nonnegative(),
+    /** Cohort exceeds the breaker's warning share — review before purging. */
+    breakerWarning: z.boolean(),
+  }),
+});
+
+export type RetentionPreviewResponse = z.infer<typeof RetentionPreviewResponseSchema>;
