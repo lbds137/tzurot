@@ -257,7 +257,7 @@ When the monitor fires, **all four** of the following must happen before the cyc
 
    **Read every `###` section of each review body — do not rely on the trailing "Summary" / "Actionable items" section.** Reviewer output is tiered (verdict → strengths → major → minor → observations → summary), and the summary is a shortcut that commonly under-reports items the body flags. When a review is 100+ lines, treat length itself as a skimming red flag. Cross-check correlated signals: if codecov flags missing lines, grep the review body for a corresponding test-gap call-out. If multiple `claude[bot]` entries exist (e.g., one per push cycle), read every one — don't assume only the latest matters.
 
-4. **Apply review feedback per `08-review-response.md`.** That rule distinguishes trivial edit shapes (auto-apply via `--fixup` commit, test-gated) from semantic-shape edits (ASK). Batch-present all auto-applied + asked items in one end-of-round message. Cap automated iteration at 3 rounds; escalate to user on round 4. The prior "report only, never fix" stance produced review-cycle rubber-stamping fatigue on multi-round PRs — see `08-review-response.md` §"Why this rule exists" for the full rationale.
+4. **Apply review feedback — INVOKE `/tzurot-review-response` first, before touching anything.** That skill carries the full procedure: classify each finding by edit shape (trivial → auto-apply as a test-gated `--fixup` commit; semantic → ASK), check for reviewer-vs-agent signal conflict, batch-present the four sections, cap at 3 automated rounds. Loading it is not optional politeness — applying review feedback from memory is how the rubber-stamping fatigue this procedure exists to prevent creeps back in.
 
 Two failure modes to guard against — both matter:
 

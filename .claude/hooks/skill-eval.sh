@@ -89,6 +89,19 @@ if echo "$PROMPT" | grep -qiE '\bmine\b.*session|session.*mining|mined[ -]corpus
     RELEVANT_SKILLS="$RELEVANT_SKILLS tzurot-session-mining"
 fi
 
+# PR review response → tzurot-review-response skill
+# The primary trigger is agent-internal (05-tooling's PR-monitoring step 4 says
+# to INVOKE the skill), so this hook is the SECOND path: the owner asking about
+# review findings directly. That redundancy is the point — the procedure lives
+# in a skill rather than an always-loaded rule, so a missed invoke means the
+# rubber-stamping it prevents comes back.
+# Scoping: "review" is qualified by a feedback noun so "review this code" and
+# "let's review the backlog" don't false-match — those want a code read, not
+# this procedure.
+if echo "$PROMPT" | grep -qiE 'review (feedback|finding|comment)|claude.?review|apply.*review|address.*(review|finding)|reviewer said'; then
+    RELEVANT_SKILLS="$RELEVANT_SKILLS tzurot-review-response"
+fi
+
 # Trim whitespace
 RELEVANT_SKILLS=$(echo "$RELEVANT_SKILLS" | xargs)
 

@@ -1,10 +1,16 @@
+---
+name: tzurot-review-response
+description: 'PR review-response iteration: classify each finding by EDIT SHAPE (trivial → auto-apply as a test-gated fixup commit; semantic → ASK), check reviewer-vs-agent signal conflict, batch-present the four sections, cap at 3 automated rounds. Invoke with /tzurot-review-response the moment a claude-review or human reviewer posts findings on a PR — before applying anything.'
+lastUpdated: '2026-07-24'
+---
+
 # Review-Response Iteration
 
 When `claude-review` or any PR reviewer returns findings, the agent follows this procedure **instead of** asking the user about every item. Applied from step 4 of the PR-monitoring procedure in `05-tooling.md`.
 
-## Why this rule exists
+## Why this procedure exists
 
-The prior rule was "report only, never fix without user approval." Rigorously safe but produces decision fatigue — a typical PR reaches 3–5 review rounds with ~10 trivial findings per session, and the user spent meaningful attention rubber-stamping items the agent could have safely auto-applied. This procedure shifts trivial chores to auto-apply (under tight constraints) while preserving explicit approval for anything that changes program behavior.
+The prior policy was "report only, never fix without user approval." Rigorously safe but produces decision fatigue — a typical PR reaches 3–5 review rounds with ~10 trivial findings per session, and the user spent meaningful attention rubber-stamping items the agent could have safely auto-applied. This procedure shifts trivial chores to auto-apply (under tight constraints) while preserving explicit approval for anything that changes program behavior.
 
 **Key design principle**: `claude-review` is the same model family as the agent. It has no special epistemic authority. When the reviewer's severity label conflicts with the agent's own classification, that's **uncertainty**, not an override opportunity in either direction. The safe resolution is always ASK.
 
@@ -160,7 +166,7 @@ This is a constraint on the _reviewer's_ behavior, not the agent's — but since
 
 ## Edit-shape whitelist
 
-The whitelist is loaded with the rule. Entries are evaluated in order. The user may extend either list as they develop priors about the agent's judgment.
+The whitelist loads with this skill. Entries are evaluated in order. The user may extend either list as they develop priors about the agent's judgment.
 
 ### Trivial shapes (auto-apply eligible, subject to test gate)
 
@@ -195,7 +201,7 @@ When the user observes the agent making a category of change it handles well, ad
 
 When the user observes a mis-classification the agent should have avoided, add the specific shape to **Explicit non-trivial** with the mis-classification incident noted.
 
-The whitelist is expected to drift over time as trust develops. Keep each entry self-contained so an observer can verify the rule against a candidate diff without reading the full file.
+The whitelist is expected to drift over time as trust develops. Keep each entry self-contained so an observer can verify a candidate diff against one entry without reading the full file.
 
 ## Checklist for the agent
 
@@ -209,9 +215,9 @@ Before each round's consolidated message:
 - [ ] Round-N message contains all four sections, even empty ones (rule 4)
 - [ ] If this is round 4+, consolidated status menu presented instead of another iteration (rule 5)
 
-## Relationship to other rules
+## Relationship to the rules
 
-- **`00-critical.md`** § "Merge Approval" governs the merge gate (standing authorization for feature/fix PRs once truly ready; the release PR always needs explicit approval). This rule governs iteration _before_ that gate; nothing here loosens it.
+- **`00-critical.md`** § "Merge Approval" governs the merge gate (standing authorization for feature/fix PRs once truly ready; the release PR always needs explicit approval). This procedure governs iteration _before_ that gate; nothing here loosens it.
 - **`00-critical.md`** "NEVER modify tests to make them pass" remains in force. The test-suite gate in rule 3 fails closed — a trivial-shape edit that breaks tests is escalated, not covered up by modifying tests.
-- **`05-tooling.md`** PR-monitoring step 4 delegates to this file.
+- **`05-tooling.md`** PR-monitoring step 4 delegates to this skill.
 - **`06-backlog.md`** out-of-scope tracking still applies — items explicitly flagged as follow-ups are added to the appropriate `backlog/**/*.md` file per rule 4's "Backlog candidates" section.

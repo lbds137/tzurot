@@ -1,7 +1,7 @@
 ---
 name: tzurot-git-workflow
 description: 'Git workflow procedures. Invoke with /tzurot-git-workflow for commit, PR, and release procedures.'
-lastUpdated: '2026-07-22'
+lastUpdated: '2026-07-24'
 ---
 
 # Git Workflow Procedures
@@ -109,7 +109,7 @@ When the monitor fires, **all four** of the following must happen — do not sto
 
    **Each `claude[bot]` entry is a separate review cycle.** If multiple exist (pre-rebase + post-rebase, push + re-push), read every one — don't assume only the latest matters. Track `created_at` of the last-reported comment so future fetches dedup correctly across session boundaries.
 
-4. Apply review feedback per `.claude/rules/08-review-response.md` — trivial-shape edits auto-apply (test-gated fixup commits), semantic-shape edits ASK; batch-present all items in one end-of-round message.
+4. Apply review feedback per `/tzurot-review-response` — trivial-shape edits auto-apply (test-gated fixup commits), semantic-shape edits ASK; batch-present all items in one end-of-round message.
 
 The #1-without-#2 failure mode is worth guarding against: all-green CI feels complete, but new review comments can still carry blocking findings or non-blocking observations the user wants to triage.
 

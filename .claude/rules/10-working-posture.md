@@ -66,7 +66,7 @@ its output shape — including its FAILURE shape — is known.
 
 ## Reviews are collaborators, not gates to survive
 
-Procedure in `08-review-response.md`; two postures on top. When a reviewer
+Procedure in `/tzurot-review-response`; two postures on top. When a reviewer
 catches you mis-reporting your own work, the correction goes in the next
 user-facing message, plainly, before the fix. And the reviewer's
 "verified, not just read" standard is the norm for your own PR bodies:
