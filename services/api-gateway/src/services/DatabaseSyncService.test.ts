@@ -10,13 +10,11 @@ import { SYNC_CONFIG, SYNC_TABLE_ORDER } from './sync/config/syncTables.js';
 // Healthy trigger inventory derived from SYNC_CONFIG so the tombstone-trigger
 // drift guard stays quiet in these tests (its scenario matrix lives in
 // syncValidation.test.ts). Derivation keeps this in step when tables change.
+// Only sync_tombstones (the ledger table itself) is exempt from the
+// sync_tombstone_capture trigger — conversation_history now hard-deletes
+// through the generalized trigger like every other synced table.
 const HEALTHY_TRIGGER_ROWS = Object.entries(SYNC_CONFIG)
-  .filter(
-    ([table]) =>
-      !['conversation_history', 'conversation_history_tombstones', 'sync_tombstones'].includes(
-        table
-      )
-  )
+  .filter(([table]) => table !== 'sync_tombstones')
   .map(([table, config]) => ({
     event_object_table: table,
     action_statement: `EXECUTE FUNCTION sync_tombstone_capture(${(typeof config.pk === 'string'
@@ -41,12 +39,10 @@ const createMockPrismaClient = () => {
     // (the mock itself) as the `tx` handle so upserts inside the callback
     // route to the same $executeRawUnsafe the rest of the test asserts on.
     $transaction: ReturnType<typeof vi.fn>;
-    conversationHistoryTombstone: { findMany: ReturnType<typeof vi.fn> };
     syncTombstone: {
       findMany: ReturnType<typeof vi.fn>;
       deleteMany: ReturnType<typeof vi.fn>;
     };
-    conversationHistory: { deleteMany: ReturnType<typeof vi.fn> };
     llmConfig: {
       findMany: ReturnType<typeof vi.fn>;
       findUnique: ReturnType<typeof vi.fn>;
@@ -65,14 +61,8 @@ const createMockPrismaClient = () => {
     $executeRaw: vi.fn().mockResolvedValue(0),
     $executeRawUnsafe: vi.fn().mockResolvedValue(0),
     $transaction: vi.fn(),
-    conversationHistoryTombstone: {
-      findMany: vi.fn().mockResolvedValue([]),
-    },
     syncTombstone: {
       findMany: vi.fn().mockResolvedValue([]),
-      deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
-    },
-    conversationHistory: {
       deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
     },
     llmConfig: {
@@ -727,30 +717,34 @@ describe('DatabaseSyncService', () => {
     });
 
     it('should use createdAt when updatedAt is not available', async () => {
-      // conversation_history table only has createdAt
-      const userId = 'shared-conv-1';
+      // personality_aliases has no updatedAt (aliases are immutable), so LWW
+      // conflict resolution falls back to created_at. (conversation_history used
+      // to be this example, but it gained an updated_at column when it moved to
+      // the generalized sync-tombstone system.)
+      const aliasId = '4f9b0f66-0000-4000-8000-0000000000c1';
+      const personalityId = '4f9b0f66-0000-4000-8000-0000000000c2';
       const devRow = {
-        id: userId,
-        persona_id: 'persona-1',
-        content: 'Hello',
+        id: aliasId,
+        personality_id: personalityId,
+        alias: 'shared',
         created_at: new Date('2025-01-15'), // Newer
       };
       const prodRow = {
-        id: userId,
-        persona_id: 'persona-1',
-        content: 'Hello',
+        id: aliasId,
+        personality_id: personalityId,
+        alias: 'shared',
         created_at: new Date('2025-01-10'), // Older
       };
 
       devClient.$queryRawUnsafe.mockImplementation(async query => {
-        if (String(query).includes('FROM "conversation_history"')) {
+        if (String(query).includes('FROM "personality_aliases"')) {
           return [devRow];
         }
         return [];
       });
 
       prodClient.$queryRawUnsafe.mockImplementation(async query => {
-        if (String(query).includes('FROM "conversation_history"')) {
+        if (String(query).includes('FROM "personality_aliases"')) {
           return [prodRow];
         }
         return [];
@@ -759,8 +753,8 @@ describe('DatabaseSyncService', () => {
       const result = await service.sync({ dryRun: false });
 
       // Should resolve conflict using createdAt (dev newer)
-      expect(result.stats.conversation_history.devToProd).toBe(1);
-      expect(result.stats.conversation_history.conflicts).toBe(1);
+      expect(result.stats.personality_aliases.devToProd).toBe(1);
+      expect(result.stats.personality_aliases.conflicts).toBe(1);
     });
   });
 
@@ -801,7 +795,7 @@ describe('DatabaseSyncService', () => {
 
     it('should sync tables in SYNC_TABLE_ORDER order', async () => {
       // Track the order of table syncs by capturing SELECT * queries
-      // (excludes SELECT id queries like loadTombstoneIds which runs before the sync loop)
+      // (excludes SELECT id queries and information_schema probes)
       const syncedTables: string[] = [];
 
       devClient.$queryRawUnsafe.mockImplementation(async query => {
@@ -809,7 +803,7 @@ describe('DatabaseSyncService', () => {
         // Match SELECT * FROM "tablename" pattern (full row fetches during sync)
         // Also match the vector-table queries (explicit column lists starting
         // with id, due to the embedding::text cast — memories, memory_facts)
-        // Excludes: SELECT id FROM (tombstone loading), information_schema
+        // Excludes: information_schema probes
         const selectStarMatch = queryStr.match(/SELECT \* FROM "([^"]+)"/);
         const vectorTableMatch = queryStr.match(/SELECT\s+id,.*FROM "([^"]+)"/s);
         if (selectStarMatch) {

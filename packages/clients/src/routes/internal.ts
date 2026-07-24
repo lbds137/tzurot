@@ -271,7 +271,7 @@ export const internalRoutes = {
    * POST /api/internal/conversation/sync
    * Opportunistic edit/delete sync: bot-client ships its fetched Discord
    * snapshot; the gateway diffs against DB state and applies content updates
-   * + soft-deletes with tombstones. Idempotent — an already-applied snapshot
+   * + soft-deletes. Idempotent — an already-applied snapshot
    * yields { updated: 0, deleted: 0 }.
    */
   syncConversation: {

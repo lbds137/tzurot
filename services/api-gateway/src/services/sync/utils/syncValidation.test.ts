@@ -143,7 +143,10 @@ describe('validateSyncConfig — table existence + uuid-column parity', () => {
 });
 
 describe('validateTombstoneTriggers — per-table trigger existence + pk-arg-order parity', () => {
-  const EXEMPT = ['conversation_history', 'conversation_history_tombstones', 'sync_tombstones'];
+  // Only the ledger table itself is exempt from the sync_tombstone trigger;
+  // conversation_history now hard-deletes through the generalized trigger like
+  // every other synced table.
+  const EXEMPT = ['sync_tombstones'];
 
   /** The healthy inventory: one trigger row per non-exempt SYNC_CONFIG table,
    * TG_ARGV in SYNC_CONFIG.pk order — what a correctly-migrated DB reports. */
@@ -215,8 +218,8 @@ describe('validateTombstoneTriggers — per-table trigger existence + pk-arg-ord
     expect(warnings[0]).toContain('SYNC_CONFIG.pk is (personality_id, user_id)');
   });
 
-  it('never flags the exempt tables (bespoke conversation_history path + the ledgers)', async () => {
-    // Healthy inventory deliberately contains NO rows for the exempt tables.
+  it('never flags the exempt ledger table (sync_tombstones)', async () => {
+    // Healthy inventory deliberately contains NO rows for the exempt table.
     const warnings = await validateTombstoneTriggers(
       triggerClient(healthyTriggerRows()),
       triggerClient(healthyTriggerRows())

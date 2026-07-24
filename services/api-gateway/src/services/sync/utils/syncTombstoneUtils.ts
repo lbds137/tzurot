@@ -8,12 +8,10 @@
  * environment is DELETE-propagated to the other instead of resurrected
  * (the "delete presets twice" failure this system exists to kill).
  *
- * The bespoke conversation_history tombstone path (tombstoneUtils.ts) stays
- * separate — adjudicated, not just deferred: its tombstones are written at
- * SOFT-delete time (app-level intent a DB trigger can't see), and the bulk
- * retention path (1000-row createMany batches, unbounded total) would suffer
- * per-row trigger amplification for zero benefit. Consolidation would DRY
- * only the storage table while keeping both write disciplines.
+ * conversation_history uses this generalized mechanism like every other synced
+ * table: hard deletes fire the AFTER DELETE trigger, and soft-deletes/edits
+ * propagate via its updated_at last-write-wins column (added so it no longer
+ * needs a bespoke soft-delete-time tombstone).
  */
 
 import { type PrismaClient } from '@tzurot/common-types/services/prisma';
@@ -23,7 +21,7 @@ import { assertValidTableName } from './syncValidation.js';
 
 const logger = createLogger('db-sync-tombstones');
 
-/** Batch size for paginated tombstone loading (mirrors tombstoneUtils). */
+/** Batch size for paginated tombstone loading. */
 const TOMBSTONE_BATCH_SIZE = 1000;
 
 /** Tombstones older than this are pruned once both sides have synced. */
@@ -71,8 +69,7 @@ async function loadFromDb(client: PrismaClient, dbName: string): Promise<Map<str
 }
 
 /**
- * Union of both sides' tombstones, latest deleted_at winning per key — the
- * same both-sides-merge shape as the bespoke loadTombstoneIds.
+ * Union of both sides' tombstones, latest deleted_at winning per key.
  */
 export async function loadSyncTombstones(
   devClient: PrismaClient,

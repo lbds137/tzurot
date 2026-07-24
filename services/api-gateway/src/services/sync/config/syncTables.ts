@@ -90,7 +90,6 @@ export type SyncTableName =
   | 'user_personality_configs'
   | 'user_persona_history_configs'
   | 'conversation_history'
-  | 'conversation_history_tombstones'
   // NOTE: activated_channels intentionally NOT synced - dev/prod have different bot instances
   // and syncing would cause double-responses in channels where both bots are present
   | 'memories'
@@ -249,16 +248,13 @@ export const SYNC_CONFIG: Record<SyncTableName, TableSyncConfig> = {
   conversation_history: {
     pk: 'id',
     createdAt: 'created_at',
-    // No updatedAt - append-only
+    // updated_at is the last-write-wins anchor: soft-deletes and edits are
+    // UPDATEs that bump it and propagate as column values; hard deletes
+    // propagate via the sync_tombstone_conversation_history AFTER DELETE
+    // trigger, like every other synced table.
+    updatedAt: 'updated_at',
     uuidColumns: ['id', 'persona_id', 'personality_id'],
-    timestampColumns: ['created_at'],
-  },
-  conversation_history_tombstones: {
-    pk: 'id',
-    createdAt: 'deleted_at', // Use deleted_at as the timestamp for sync
-    // No updatedAt - tombstones are immutable
-    uuidColumns: ['id', 'persona_id', 'personality_id'],
-    timestampColumns: ['deleted_at'],
+    timestampColumns: ['created_at', 'updated_at', 'deleted_at', 'edited_at'],
   },
   // NOTE: activated_channels intentionally NOT synced - see SyncTableName comment
   memories: {
@@ -360,9 +356,6 @@ export const SYNC_TABLE_ORDER: SyncTableName[] = [
   'personality_aliases',
   'user_personality_configs',
   'user_persona_history_configs',
-  // Tombstones MUST be synced BEFORE conversation_history
-  // so sync can check tombstones and skip/delete tombstoned messages
-  'conversation_history_tombstones',
   // Data tables
   'conversation_history',
   // NOTE: activated_channels intentionally NOT synced (different bot instances per environment)

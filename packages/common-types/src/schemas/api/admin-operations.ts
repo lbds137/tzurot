@@ -61,7 +61,7 @@ export const DbSyncResponseSchema = z.object({
 });
 
 /**
- * Response for POST /admin/cleanup — orphan history / tombstone purge.
+ * Response for POST /admin/cleanup — old conversation-history purge.
  * `message` is a pre-formatted human-readable summary the bot-client
  * renders directly to Discord. The numeric counts and timestamp are
  * the load-bearing fields the bot-client embeds rely on.
@@ -70,7 +70,6 @@ export const AdminCleanupResponseSchema = z.object({
   success: z.literal(true),
   message: z.string(),
   historyDeleted: z.number().int().nonnegative(),
-  tombstonesDeleted: z.number().int().nonnegative(),
   daysKept: z.number().int().nonnegative(),
   timestamp: z.string(),
 });

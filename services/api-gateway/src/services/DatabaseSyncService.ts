@@ -51,7 +51,6 @@ import {
   validateSyncConfig,
   validateTombstoneTriggers,
 } from './sync/utils/syncValidation.js';
-import { loadTombstoneIds, deleteMessagesWithTombstones } from './sync/utils/tombstoneUtils.js';
 import {
   loadSyncTombstones,
   flushPendingDeletes,
@@ -190,7 +189,6 @@ export class DatabaseSyncService {
       const warnings: string[] = [...configValidation.warnings, ...triggerWarnings];
       const info: string[] = [...configValidation.info];
 
-      const tombstoneIds = await loadTombstoneIds(this.devClient, this.prodClient);
       // Generalized deletion ledger (union of both sides, latest wins): a row
       // present on only one side whose tombstone is NEWER than the row gets
       // DELETE-propagated instead of resurrected.
@@ -219,21 +217,7 @@ export class DatabaseSyncService {
         const config = SYNC_CONFIG[tableName];
         logger.info({ table: tableName }, 'Scanning table');
 
-        if (tableName === 'conversation_history') {
-          const { devDeleted, prodDeleted } = await deleteMessagesWithTombstones(
-            this.devClient,
-            this.prodClient,
-            tombstoneIds,
-            options.dryRun
-          );
-          if (devDeleted > 0 || prodDeleted > 0) {
-            warnings.push(
-              `conversation_history: ${devDeleted + prodDeleted} messages deleted (had tombstones)`
-            );
-          }
-        }
-
-        const tableStats = await this.scanTable(tableName, config, tombstoneIds, {
+        const tableStats = await this.scanTable(tableName, config, {
           devBoundWrites,
           prodBoundWrites,
           devBoundDeletes,
@@ -410,7 +394,6 @@ export class DatabaseSyncService {
   private async scanTable(
     tableName: string,
     config: TableSyncConfig,
-    tombstoneIds: Set<string> | undefined,
     buckets: {
       devBoundWrites: PendingWrite[];
       prodBoundWrites: PendingWrite[];
@@ -436,7 +419,6 @@ export class DatabaseSyncService {
     const prodMap = buildRowMap(prodRows, config.pk);
 
     const allKeys = new Set([...devMap.keys(), ...prodMap.keys()]);
-    const shouldSkipTombstones = tableName === 'conversation_history' && tombstoneIds !== undefined;
 
     const writeBase: Omit<PendingWrite, 'row'> = {
       tableName,
@@ -449,9 +431,6 @@ export class DatabaseSyncService {
     const totals = { devToProd: 0, prodToDev: 0, conflicts: 0, deleted: 0 };
 
     for (const key of allKeys) {
-      if (shouldSkipTombstones && tombstoneIds?.has(key) === true) {
-        continue;
-      }
       classifyAndQueueRow({
         tableName,
         rowKey: key,

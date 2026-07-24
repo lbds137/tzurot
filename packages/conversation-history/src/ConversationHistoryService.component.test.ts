@@ -779,8 +779,8 @@ describe('ConversationHistoryService Component Test', () => {
       const deletedMsgId = '00000000-0000-0000-0000-000000000098';
       await prisma.$executeRaw`
         INSERT INTO conversation_history
-        (id, channel_id, guild_id, personality_id, persona_id, role, content, deleted_at, created_at)
-        VALUES (${deletedMsgId}, ${chOther}, ${testGuildId}, ${testPersonalityId}, ${testPersonaId}, 'user', 'Deleted message', NOW(), NOW())
+        (id, channel_id, guild_id, personality_id, persona_id, role, content, deleted_at, created_at, updated_at)
+        VALUES (${deletedMsgId}, ${chOther}, ${testGuildId}, ${testPersonalityId}, ${testPersonaId}, 'user', 'Deleted message', NOW(), NOW(), NOW())
       `;
 
       const result = await service.getCrossChannelHistory(

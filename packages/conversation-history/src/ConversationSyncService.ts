@@ -6,7 +6,8 @@
  * - Sync operations (detecting edits/deletes) from core CRUD operations
  * - Bot-client specific sync logic from general history management
  *
- * Uses tombstones to prevent db-sync from restoring deleted messages.
+ * Edits and soft-deletes propagate cross-environment via db-sync's updated_at
+ * last-write-wins column; hard deletes via the sync_tombstone AFTER DELETE trigger.
  */
 
 import { SYNC_LIMITS } from '@tzurot/common-types/constants/timing';
@@ -158,7 +159,7 @@ export class ConversationSyncService {
   /**
    * Delete-detection pass: DB rows inside the observed time window whose
    * Discord IDs are all absent from the snapshot were deleted on Discord —
-   * soft-delete them with tombstones.
+   * soft-delete them (the updated_at bump propagates the deletion via db-sync).
    */
   private async applyDeletes(
     channelId: string,
@@ -241,7 +242,7 @@ export class ConversationSyncService {
   }
 
   /**
-   * Bulk soft delete messages and create tombstones
+   * Bulk soft delete messages
    * Used during opportunistic sync when Discord messages are detected as deleted
    *
    * @param messageIds Array of internal database message IDs to soft delete
@@ -253,45 +254,25 @@ export class ConversationSyncService {
     }
 
     try {
-      // First get the message details for tombstone creation
-      // Bounded query to prevent OOM with large arrays
+      // Fetch the affected discord message IDs so the same turns' memory rows
+      // can be soft-deleted too. Bounded query to prevent OOM with large arrays.
       const messages = await this.prisma.conversationHistory.findMany({
         where: { id: { in: messageIds } },
         select: {
-          id: true,
-          channelId: true,
-          personalityId: true,
-          personaId: true,
           discordMessageId: true,
         },
         take: Math.min(messageIds.length, SYNC_LIMITS.MAX_MESSAGE_BATCH),
       });
 
-      // Soft delete messages and create tombstones in a transaction
-      const now = new Date();
-      await this.prisma.$transaction([
-        // Soft delete all messages
-        this.prisma.conversationHistory.updateMany({
-          where: { id: { in: messageIds } },
-          data: { deletedAt: now },
-        }),
-        // Create tombstones to prevent resurrection during db-sync
-        this.prisma.conversationHistoryTombstone.createMany({
-          data: messages.map(msg => ({
-            id: msg.id,
-            channelId: msg.channelId,
-            personalityId: msg.personalityId,
-            personaId: msg.personaId,
-            deletedAt: now,
-          })),
-          skipDuplicates: true,
-        }),
-      ]);
+      // Soft delete: the @updatedAt bump propagates the deletion to the other
+      // environment via db-sync's last-write-wins column comparison (no
+      // app-level tombstone — hard deletes use the AFTER DELETE trigger).
+      await this.prisma.conversationHistory.updateMany({
+        where: { id: { in: messageIds } },
+        data: { deletedAt: new Date() },
+      });
 
-      logger.info(
-        { count: messageIds.length },
-        `Soft deleted ${messageIds.length} messages with tombstones`
-      );
+      logger.info({ count: messageIds.length }, `Soft deleted ${messageIds.length} messages`);
 
       // NOTE: propagation shares the tombstone fetch's MAX_MESSAGE_BATCH bound —
       // a >1000-id bulk delete would soft-delete all rows but only propagate the

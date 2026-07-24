@@ -540,6 +540,12 @@ model ConversationHistory {
   /// when Discord message content differs from stored content
   editedAt         DateTime?      @map("edited_at")
   createdAt        DateTime       @default(now()) @map("created_at")
+  /// Last-write-wins anchor for db-sync. @updatedAt bumps on every update
+  /// (soft-delete, edit, enrichment), so a change propagates via column-LWW
+  /// exactly like every other synced table; hard deletes propagate via the
+  /// sync_tombstone_conversation_history AFTER DELETE trigger. This is what
+  /// lets conversation_history use the one generalized tombstone mechanism.
+  updatedAt        DateTime       @updatedAt @map("updated_at")
   persona          Persona        @relation(fields: [personaId], references: [id], onDelete: Cascade)
   personality      Personality    @relation(fields: [personalityId], references: [id], onDelete: Cascade)
   pendingMemory    PendingMemory?
@@ -554,21 +560,6 @@ model ConversationHistory {
   // if a real containment query (@>, Prisma `path`/`has`) is introduced.
   @@index([deletedAt]) // For cleanup queries and filtering soft-deleted messages
   @@map("conversation_history")
-}
-
-/// Tombstone records for hard-deleted conversation history messages
-/// Used by db-sync to prevent resurrection of deleted messages
-/// The actual message data is deleted; this just records the deletion event
-model ConversationHistoryTombstone {
-  id            String   @id @db.Uuid // Same ID as the deleted message
-  channelId     String   @map("channel_id") @db.VarChar(20)
-  personalityId String   @map("personality_id") @db.Uuid
-  personaId     String   @map("persona_id") @db.Uuid
-  deletedAt     DateTime @default(now()) @map("deleted_at")
-
-  @@index([channelId, personalityId, personaId])
-  @@index([deletedAt]) // For periodic cleanup of old tombstones
-  @@map("conversation_history_tombstones")
 }
 
 /// Generalized deletion ledger for db-sync: one row per hard-deleted row of a
