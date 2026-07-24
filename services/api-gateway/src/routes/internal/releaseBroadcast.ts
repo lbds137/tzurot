@@ -96,12 +96,13 @@ async function maybeAutoDisable(
  * call auto-disabled them (so the caller can report it), else null.
  *
  * Retention: 50278 = user left every shared server; 50007 = DMs closed or bot
- * blocked. NEVER 20026 (bot-wide quarantine — would false-flag every recipient)
- * or 10013 (deleted account — a distinct, stronger signal deferred to the Phase
- * 2 purge branch). The `dm_undeliverable_since IS NULL` guard records the FIRST
- * failure only (never advances a live streak); raw SQL keeps the column off
- * updated_at, the dev<->prod sync LWW resolver — same reasoning as the
- * getOrCreateUser lastActiveAt stamp.
+ * blocked, both → dm_undeliverable_since. 10013 = deleted account (a distinct,
+ * stronger signal) → discord_account_gone_at, kept separate because a gone
+ * account warrants a faster purge policy (immediate, not the 180-day wait).
+ * NEVER 20026 (bot-wide quarantine — would false-flag every recipient). Each
+ * `... IS NULL` guard records the FIRST failure only (never advances a live
+ * streak); raw SQL keeps the columns off updated_at, the dev<->prod sync LWW
+ * resolver — same reasoning as the getOrCreateUser lastActiveAt stamp.
  *
  * Best-effort, never fatal (mirrors the getOrCreateUser stamp's swallow): these
  * are non-critical signals that self-heal on the next release blast (a still-
@@ -130,6 +131,11 @@ async function recordPermanentFailure(
         UPDATE users SET dm_undeliverable_since = NOW()
         WHERE id = ${row.userId}::uuid AND dm_undeliverable_since IS NULL
       `;
+    } else if (errorCode === '10013') {
+      await prisma.$executeRaw`
+        UPDATE users SET discord_account_gone_at = NOW()
+        WHERE id = ${row.userId}::uuid AND discord_account_gone_at IS NULL
+      `;
     }
     return (await maybeAutoDisable(prisma, deliveryLogId, row.userId)) ? row.userId : null;
   } catch (err) {
@@ -138,6 +144,39 @@ async function recordPermanentFailure(
       'Permanent-failure side-effects (undeliverable stamp / auto-disable) failed; non-fatal'
     );
     return null;
+  }
+}
+
+/**
+ * D10 (blast-success clear): a successful delivery proves the user is reachable
+ * again — clear any stale dm_undeliverable_since (e.g. they went undeliverable,
+ * rejoined a server so THIS blast reached them, but never otherwise interacted,
+ * so the getOrCreateUser activity-clear never fired). Batched over the sent set
+ * in one UPDATE; raw SQL keeps the write off updated_at (the sync LWW resolver);
+ * the IS NOT NULL guard makes it a targeted clear, not a per-row no-op each
+ * blast. Best-effort — the delivery rows are already committed, so a throw here
+ * must not 500 the batch (same swallow rationale as recordPermanentFailure).
+ */
+async function clearUndeliverableForSent(
+  prisma: PrismaClient,
+  sentDeliveryLogIds: string[]
+): Promise<void> {
+  if (sentDeliveryLogIds.length === 0) {
+    return;
+  }
+  try {
+    await prisma.$executeRaw`
+      UPDATE users SET dm_undeliverable_since = NULL
+      WHERE dm_undeliverable_since IS NOT NULL
+        AND id IN (
+          SELECT user_id FROM release_delivery_log WHERE id = ANY(${sentDeliveryLogIds}::uuid[])
+        )
+    `;
+  } catch (err) {
+    logger.warn(
+      { err, count: sentDeliveryLogIds.length },
+      'Blast-success undeliverable clear failed; non-fatal'
+    );
   }
 }
 
@@ -154,6 +193,7 @@ export const handleReleaseBroadcastDeliveries = (deps: RouteDeps): RequestHandle
 
     let updated = 0;
     const autoDisabledUserIds: string[] = [];
+    const sentDeliveryLogIds: string[] = [];
 
     for (const result of parseResult.data.results) {
       // The worker deleted this user's PRIOR release DM before sending —
@@ -184,6 +224,10 @@ export const handleReleaseBroadcastDeliveries = (deps: RouteDeps): RequestHandle
       }
       updated += 1;
 
+      if (result.status === 'sent') {
+        sentDeliveryLogIds.push(result.deliveryLogId);
+      }
+
       if (result.status === 'failed_permanent') {
         const autoDisabledUserId = await recordPermanentFailure(
           prisma,
@@ -195,6 +239,8 @@ export const handleReleaseBroadcastDeliveries = (deps: RouteDeps): RequestHandle
         }
       }
     }
+
+    await clearUndeliverableForSent(prisma, sentDeliveryLogIds);
 
     const summary = await stampCompletionIfFinal(prisma, releaseId, now);
     const completed = summary !== undefined;

@@ -52,6 +52,8 @@ export const EXCLUDED_TABLES: Record<string, string> = {
   // Operational state
   secret_rotations:
     'Environment-local secret-rotation ledger — each env rotates (and nags) on its own clock',
+  retention_purge_log:
+    'Environment-local retention purge audit + off-DB reconciliation ledger — each env purges its own userbase',
 };
 
 export interface TableSyncConfig {

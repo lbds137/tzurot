@@ -75,6 +75,21 @@ model User {
   /// user is never left flagged unreachable (an inactive user stops clearing it,
   /// which is exactly the retention cohort). Reads guard with != null.
   dmUndeliverableSince  DateTime?                  @map("dm_undeliverable_since")
+  /// State machine (sibling of dmUndeliverableSince, a stronger signal): NULL
+  /// until a release DM permanently fails with Discord 10013 (Unknown User =
+  /// the account is DELETED, not merely unreachable). Set to the first-failure
+  /// time; never advances while non-null. A deleted account cannot clear it via
+  /// activity, so it persists — the retention purge branch (Phase 2) treats a
+  /// persisted gone-account as immediate-purge-eligible (skips the 180-day
+  /// inactivity wait). Kept DISTINCT from dmUndeliverableSince because 10013
+  /// warrants a different, faster purge policy than 50278/50007. Reads guard
+  /// with != null.
+  discordAccountGoneAt  DateTime?                  @map("discord_account_gone_at")
+  /// Operator-set exemption: when true, the retention purge job never selects
+  /// this user (test/burner/VIP/pending-dispute accounts). Distinct from
+  /// isSuperuser (which grants admin powers — the wrong lever for an exemption).
+  /// Never set by any automated path; owner-controlled. Default false.
+  retentionExempt       Boolean                    @default(false) @map("retention_exempt")
   createdAt             DateTime                   @default(now()) @map("created_at")
   updatedAt             DateTime                   @updatedAt @map("updated_at")
   releaseDeliveries     ReleaseDeliveryLog[]
@@ -105,6 +120,34 @@ model User {
   @@index([defaultTtsConfigId])
   @@index([defaultPersonaId])
   @@map("users")
+}
+
+/// Audit + off-DB reconciliation ledger for retention purges (Retention Phase 2,
+/// D14). One row per purged account. Deliberately NO relation to users — the
+/// purge deletes the user row, so target_discord_id is a plain string record.
+/// Doubles as the off-DB retry queue: a row whose off_db_reconciled is not
+/// 'done' is picked up by the reconciliation sweep (its backing index ships
+/// with that query in the purge PR, per index-ships-with-its-query).
+model RetentionPurgeLog {
+  /// DB-generated (gen_random_uuid) rather than the app-generated deterministic
+  /// UUIDs most models use — this is a pure non-relational audit ledger, nothing
+  /// needs the id before insert, so there is no determinism requirement.
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// The purged user's Discord snowflake (the user row itself is deleted).
+  targetDiscordId String   @map("target_discord_id") @db.VarChar(20)
+  purgedAt        DateTime @default(now()) @map("purged_at")
+  /// Operator/run label identifying who or what triggered the purge run.
+  runContext      String?  @map("run_context")
+  /// Per-table deletion counts (the AccountDeletionSummary shape).
+  deletionCounts  Json     @map("deletion_counts")
+  /// 'success' once the erasure transaction committed; 'failed' otherwise.
+  dbOutcome       String   @map("db_outcome") @db.VarChar(16)
+  /// Off-DB cleanup (avatar unlink / Redis eviction / cache broadcast)
+  /// reconciliation state: 'pending' | 'done' | 'failed'. A non-'done' row is
+  /// the retry queue for the off-DB reconciliation sweep.
+  offDbReconciled String   @default("pending") @map("off_db_reconciled") @db.VarChar(16)
+
+  @@map("retention_purge_log")
 }
 
 /// Tracks API usage per user for monitoring, billing, and abuse prevention.
@@ -372,6 +415,13 @@ model Personality {
   voiceReferenceType     String? @map("voice_reference_type") @db.VarChar(50)
   /// JSONB config cascade defaults (personality tier). Validated against ConfigOverridesSchema at runtime.
   configDefaults         Json?   @map("config_defaults")
+  /// Orphan-bucket provenance (Retention Phase 2, D11): NULL for normally-owned
+  /// characters. Set to the ORIGINAL owner's Discord ID when a retention purge
+  /// re-homes a character with cross-user reach to the "Orphaned Characters"
+  /// sentinel owner (instead of deleting it out from under active users). Lets a
+  /// later reclamation flow hand ownership back if the original owner returns.
+  /// Reads guard with != null.
+  originalOwnerDiscordId String? @map("original_owner_discord_id") @db.VarChar(20)
 
   createdAt               DateTime                        @default(now()) @map("created_at")
   updatedAt               DateTime                        @updatedAt @map("updated_at")
