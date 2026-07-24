@@ -8,7 +8,7 @@
 
 _(empty — beta.175 shipped the retention Phase 1 line and all its ride-alongs; next work lands here.)_
 
-**Retention epic — next**: Phase 1 tracking COMPLETE (1a–1d shipped in beta.175; prod backfilled 270 users). Next is Phase 2 (preview + unreachable purge — design-heavy). See `active-epic.md`. Follow-ups still open: blast-success clear (→ Phase 2), `sendCustomSuccess`→`sendContractSuccess` internal-routes sweep, two fake-optional columns.
+**Retention epic — next**: Phase 1 tracking COMPLETE (1a–1d shipped in beta.175; prod backfilled 270 users). **Phase 2 design ACCEPTED 2026-07-23** (council trio + 6 owner calls → [`docs/proposals/backlog/inactivity-retention-purge-phase2.md`](docs/proposals/backlog/inactivity-retention-purge-phase2.md)), with a prerequisite **Phase 1.5 — CH sync unification** ([`docs/proposals/backlog/conversation-history-sync-unification.md`](docs/proposals/backlog/conversation-history-sync-unification.md), option iii: add `updatedAt` + generalized AFTER-DELETE trigger, retire the bespoke tombstone — also fixes a latent self-serve-delete resurrection gap). **NEXT to build: Phase 1.5**, then Phase 2 PRs A–D. Owner calls locked: orphan-bucket sentinel + `original_owner_discord_id`, `retention_exempt` column, 10013 immediate-purge-with-guard, single `retention_purge_log` (audit+DLQ), mode-aware `eraseAccount`, TOCTOU re-check. Follow-ups still open: blast-success clear (→ Phase 2 D10/PR-A), `sendCustomSuccess`→`sendContractSuccess` internal-routes sweep, two fake-optional columns.
 
 ## UX Epic — Phase 3 IN FLIGHT (2026-07-20 → )
 

@@ -37,7 +37,7 @@
 ## Phasing (multi-PR)
 
 1. **Tracking**: schema (`lastActiveAt`, `dmUndeliverableSince`) + migration + historical backfill; central activity stamp; undeliverable stamp on 50278/50007 in the DM-failure path; clear-on-reach. (No purge yet — just start the clock.)
-2. **Preview + unreachable purge**: `retention:preview` (dry-run) + the daily job's unreachable branch behind manual approval. The 26 become the first real preview batch at ship+their-backfilled-180d.
+2. **Preview + unreachable purge**: `retention:preview` (dry-run) + the daily job's unreachable branch behind manual approval. The 26 become the first real preview batch at ship+their-backfilled-180d. → **detailed design ACCEPTED**: [`inactivity-retention-purge-phase2.md`](inactivity-retention-purge-phase2.md) (+ prerequisite Phase 1.5 [`conversation-history-sync-unification.md`](conversation-history-sync-unification.md)).
 3. **Reachable branch**: notify + `AccountExportJob` offer + grace + notify-send-failure re-route; circuit breaker.
 4. **Privacy policy + autonomous flip** (autonomous-with-circuit-breaker once trusted).
 
@@ -51,3 +51,6 @@
   whether a `10013` account warrants *immediate* purge — there is nothing to reach and
   no one to notify, so the 180-day inactivity wait buys nothing — rather than routing it
   through the standard inactivity path. Surfaced during Phase 1 grounding (2026-07-22).
+  **DISPOSITIONED 2026-07-23 → Phase 2 D13**: stamp a distinct `discord_account_gone_at`
+  now; immediate-purge past the 180-day wait, guarded by flag-persistence-to-the-next-run
+  (a real deletion persists; a freak transient self-corrects). See the Phase 2 doc.
