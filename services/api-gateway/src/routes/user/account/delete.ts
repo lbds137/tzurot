@@ -25,7 +25,6 @@ import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../../utils/errorResponses.js';
 import { sendZodError } from '../../../utils/zodHelpers.js';
-import { deleteAllAvatarVersions } from '../../../utils/avatarPaths.js';
 import type { ProvisionedRequest } from '../../../types.js';
 import { resolveProvisionedUserId } from '../../../utils/resolveProvisionedUserId.js';
 import { requireRedis } from '../memoryBatchHelpers.js';
@@ -35,9 +34,7 @@ import {
   SuperuserDeletionError,
   type AccountDeletionSummary,
 } from '../../../services/AccountDeletionService.js';
-import { MemoryModeSessionManager } from '../../../services/MemoryModeSessionManager.js';
-import { getOrCreateUserService } from '../../../services/AuthMiddleware.js';
-import { UserCacheInvalidationService } from '@tzurot/cache-invalidation';
+import { AccountEraserService } from '../../../services/AccountEraserService.js';
 
 const logger = createLogger('account-delete');
 
@@ -67,58 +64,6 @@ async function rejectSuperuser(
     return false;
   }
   return true;
-}
-
-/**
- * Best-effort post-transaction cleanup: cached state that outlives the DB
- * rows but self-heals or TTL-expires. Failures are logged, never surfaced —
- * the account is already gone. Runs concurrently (every task swallows its
- * own error) so per-character work doesn't stack sequentially onto the
- * response's wall-clock time.
- */
-async function cleanupAfterDeletion(
-  deps: RouteDeps,
-  discordUserId: string,
-  summary: AccountDeletionSummary
-): Promise<void> {
-  const tasks: Promise<void>[] = [
-    (async () => {
-      const redis = deps.redis;
-      if (redis === undefined) {
-        return;
-      }
-      // Settle both sweeps independently — a transient failure on one mode
-      // must not skip the other (a 'forever' session has no TTL to fall
-      // back on, so a skipped sweep would orphan the key indefinitely).
-      const results = await Promise.allSettled(
-        (['incognito', 'fresh'] as const).map(mode =>
-          new MemoryModeSessionManager(redis, mode).disableAll(discordUserId)
-        )
-      );
-      for (const result of results) {
-        if (result.status === 'rejected') {
-          logger.warn({ err: result.reason }, 'Post-deletion memory-mode cleanup failed');
-        }
-      }
-    })(),
-    ...summary.characterIds.map(async personalityId => {
-      try {
-        await deps.cacheInvalidationService?.invalidatePersonality(personalityId);
-      } catch (error) {
-        logger.warn({ err: error, personalityId }, 'Post-deletion cache invalidation failed');
-      }
-    }),
-    // Avatars are served filesystem-first; without the unlink, deleted
-    // characters' avatars stay publicly downloadable forever.
-    ...summary.characterSlugs.map(async slug => {
-      try {
-        await deleteAllAvatarVersions(slug, 'Account delete');
-      } catch (error) {
-        logger.warn({ err: error, slug }, 'Post-deletion avatar unlink failed');
-      }
-    }),
-  ];
-  await Promise.all(tasks);
 }
 
 /** GET /api/user/account/delete/preview */
@@ -215,7 +160,15 @@ export const handleDeleteAccount = (deps: RouteDeps): RequestHandler =>
 
     let summary: AccountDeletionSummary;
     try {
-      summary = await new AccountDeletionService(deps.prisma).deleteAccount(userId, discordUserId);
+      // self-serve mode: deletes owned characters for everyone (the user is
+      // warned loudly at token-issue time). The service owns both the DB
+      // transaction and the off-DB cleanup (avatar unlink, cache eviction +
+      // broadcast) — see AccountEraserService.
+      summary = await new AccountEraserService(deps).erase({
+        userId,
+        discordUserId,
+        mode: 'self-serve',
+      });
     } catch (error) {
       if (error instanceof SuperuserDeletionError) {
         sendError(res, ErrorResponses.forbidden(error.message));
@@ -223,32 +176,6 @@ export const handleDeleteAccount = (deps: RouteDeps): RequestHandler =>
       }
       throw error;
     }
-
-    // CORRECTNESS-CRITICAL (not best-effort): the provisioning cache still
-    // maps this discordId to the just-deleted userId. Without eviction, the
-    // user's very next request returns the dead id and any write against it
-    // FK-violates (observed: an export retried right after deletion 500'd on
-    // export_jobs_user_id_fkey).
-    //   (1) Evict THIS process synchronously (tightest fix; no round-trip).
-    getOrCreateUserService(deps.prisma).invalidateUser(discordUserId);
-    //   (2) Broadcast so every OTHER process (ai-worker's context pipeline
-    //       has its own long-lived UserService) drops the mapping too — else
-    //       a queued generation job within the ~1h TTL re-hits the dead id.
-    //       `redis` is already non-null (requireRedis returned early above).
-    try {
-      await new UserCacheInvalidationService(redis).invalidateUser(discordUserId);
-    } catch (error) {
-      // Swallowed on purpose: THIS process was evicted synchronously above and
-      // the account is already gone, so the delete must still return 200. Blast
-      // radius of a failed broadcast: other processes' UserService caches (e.g.
-      // ai-worker's context pipeline) stay stale until the 1h TTL expires — a
-      // queued generation job for this discordId in that window can still
-      // FK-violate on the usage-log insert. Bounded and self-healing; not worth
-      // failing the deletion over.
-      logger.warn({ err: error }, 'Post-deletion user-cache broadcast failed');
-    }
-
-    await cleanupAfterDeletion(deps, discordUserId, summary);
 
     const { characterSlugs: _slugs, characterIds: _ids, ...clientSummary } = summary;
     sendCustomSuccess(res, { success: true, summary: clientSummary }, StatusCodes.OK);

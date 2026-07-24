@@ -144,7 +144,12 @@ export { MEMORY_NAMESPACE, hashContent, deterministicMemoryUuid } from './memory
 export { WALLET_ERROR_MESSAGES, API_KEY_FORMATS } from './wallet.js';
 
 // Persona constants
-export { DEFAULT_PERSONA_DESCRIPTION } from './persona.js';
+export {
+  DEFAULT_PERSONA_DESCRIPTION,
+  ORPHAN_SENTINEL_DISCORD_ID,
+  ORPHAN_SENTINEL_USERNAME,
+  ORPHAN_SENTINEL_DESCRIPTION,
+} from './persona.js';
 
 // Redis cache-key prefixes (shared by services and ops tooling)
 export { CACHE_KEY_PREFIXES } from './redis-keys.js';
