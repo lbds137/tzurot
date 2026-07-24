@@ -56,6 +56,13 @@ function makeDeps(): RouteDeps {
   return { prisma: mockPrisma as unknown as PrismaClient } as unknown as RouteDeps;
 }
 
+/** True if any $executeRaw call's SQL skeleton contains `substr`. */
+function executeRawSqlIncludes(substr: string): boolean {
+  return (mockPrisma.$executeRaw as ReturnType<typeof vi.fn>).mock.calls.some(call =>
+    (call[0] as TemplateStringsArray).join(' ').includes(substr)
+  );
+}
+
 function createMockReqRes(body: Record<string, unknown>) {
   const req = { body, params: { releaseId: RELEASE_ID } } as unknown as Request;
   const res = {
@@ -241,6 +248,82 @@ describe('POST /internal/release-broadcast/:releaseId/deliveries', () => {
     expect(payload.autoDisabledUserIds).toEqual([USER_A]);
   });
 
+  it('stamps discord_account_gone_at (NOT dm_undeliverable_since) on a 10013 deleted-account failure', async () => {
+    mockPrisma.releaseDeliveryLog.updateMany.mockResolvedValue({ count: 1 });
+    mockPrisma.releaseDeliveryLog.count.mockResolvedValue(1); // pending remains → no completion flip
+    mockPrisma.releaseDeliveryLog.findUnique.mockResolvedValueOnce({ userId: USER_A });
+    mockPrisma.releaseDeliveryLog.findFirst.mockResolvedValueOnce({ status: 'sent' }); // no auto-disable
+    const handler = handleReleaseBroadcastDeliveries(makeDeps());
+    const { req, res } = createMockReqRes({
+      results: [{ deliveryLogId: LOG_A, status: 'failed_permanent', errorCode: '10013' }],
+    });
+
+    await handler(req, res, vi.fn());
+
+    // 10013 = deleted account → the DISTINCT gone-account stamp (its own
+    // first-failure guard), not the 50278/50007 unreachable stamp.
+    expect(executeRawSqlIncludes('discord_account_gone_at = NOW()')).toBe(true);
+    expect(executeRawSqlIncludes('dm_undeliverable_since = NOW()')).toBe(false);
+  });
+
+  it('clears dm_undeliverable_since for the sent set (blast-success clear)', async () => {
+    mockPrisma.releaseDeliveryLog.updateMany.mockResolvedValue({ count: 1 });
+    mockPrisma.releaseDeliveryLog.count.mockResolvedValue(1); // pending remains → no completion flip
+    const handler = handleReleaseBroadcastDeliveries(makeDeps());
+    const { req, res } = createMockReqRes({
+      results: [{ deliveryLogId: LOG_A, status: 'sent', sentMessageId: 'm-1' }],
+    });
+
+    await handler(req, res, vi.fn());
+
+    // A reached-again user (rejoined a server so THIS blast landed but never
+    // otherwise interacted) gets their stale unreachable flag cleared, batched
+    // over the sent set — otherwise the purge branch would route them to
+    // unreachable-purge-without-notice.
+    expect(executeRawSqlIncludes('dm_undeliverable_since = NULL')).toBe(true);
+  });
+
+  it('swallows a failed blast-success clear without failing the batch', async () => {
+    mockPrisma.releaseDeliveryLog.updateMany.mockResolvedValue({ count: 1 });
+    mockPrisma.releaseDeliveryLog.count.mockResolvedValue(1); // pending remains → no completion flip
+    // The clear is best-effort: delivery rows are already committed, so a raw-SQL
+    // failure must not 500 the batch. A sent-only result routes $executeRaw solely
+    // to the clear, so this rejection exercises exactly its catch — the batch must
+    // still report its success payload.
+    mockPrisma.$executeRaw.mockRejectedValueOnce(new Error('db unavailable'));
+    const handler = handleReleaseBroadcastDeliveries(makeDeps());
+    const { req, res } = createMockReqRes({
+      results: [{ deliveryLogId: LOG_A, status: 'sent', sentMessageId: 'm-1' }],
+    });
+
+    await handler(req, res, vi.fn());
+
+    expect(res.json).toHaveBeenCalledWith({
+      updated: 1,
+      autoDisabledUserIds: [],
+      completed: false,
+    });
+  });
+
+  it('stamps NO retention signal on an unrecognized permanent-failure code', async () => {
+    mockPrisma.releaseDeliveryLog.updateMany.mockResolvedValue({ count: 1 });
+    mockPrisma.releaseDeliveryLog.count.mockResolvedValue(1);
+    mockPrisma.releaseDeliveryLog.findUnique.mockResolvedValueOnce({ userId: USER_A });
+    mockPrisma.releaseDeliveryLog.findFirst.mockResolvedValueOnce(null);
+    const handler = handleReleaseBroadcastDeliveries(makeDeps());
+    const { req, res } = createMockReqRes({
+      // Neither a per-user unreachable code (50278/50007) nor deleted-account
+      // (10013) → stamps nothing. Guards the if/else-if from silently growing a
+      // branch that stamps unconditionally (a wrong stamp = wrong purge later).
+      results: [{ deliveryLogId: LOG_A, status: 'failed_permanent', errorCode: '99999' }],
+    });
+
+    await handler(req, res, vi.fn());
+
+    expect(executeRawSqlIncludes('dm_undeliverable_since = NOW()')).toBe(false);
+    expect(executeRawSqlIncludes('discord_account_gone_at = NOW()')).toBe(false);
+  });
+
   it('does NOT auto-disable when the previous delivery was non-permanent (counter resets)', async () => {
     mockPrisma.releaseDeliveryLog.findUnique.mockResolvedValueOnce({ userId: USER_A });
     mockPrisma.releaseDeliveryLog.findFirst.mockResolvedValueOnce({ status: 'sent' });
@@ -332,21 +415,6 @@ describe('POST /internal/release-broadcast/:releaseId/deliveries', () => {
     expect(mockPrisma.$executeRaw).toHaveBeenCalledTimes(1);
     const [template] = mockPrisma.$executeRaw.mock.calls[0] as [string[], string];
     expect(template.join('')).toContain('dm_undeliverable_since');
-  });
-
-  it('does NOT stamp dm_undeliverable_since on a non-unreachable permanent code (e.g. 10013)', async () => {
-    // 10013 = deleted account: a distinct, stronger signal handled in the Phase 2
-    // purge branch, NOT the 180-day undeliverable clock. Only 50278/50007 stamp.
-    mockPrisma.releaseDeliveryLog.findUnique.mockResolvedValueOnce({ userId: USER_A });
-    mockPrisma.releaseDeliveryLog.findFirst.mockResolvedValueOnce(null);
-    const handler = handleReleaseBroadcastDeliveries(makeDeps());
-    const { req, res } = createMockReqRes({
-      results: [{ deliveryLogId: LOG_A, status: 'failed_permanent', errorCode: '10013' }],
-    });
-
-    await handler(req, res, vi.fn());
-
-    expect(mockPrisma.$executeRaw).not.toHaveBeenCalled();
   });
 
   it('swallows an undeliverable-stamp failure and keeps processing the rest of the batch', async () => {
