@@ -226,7 +226,8 @@ describe('Account Deletion Routes', () => {
 
       expect(deletionServiceMock.deleteAccount).toHaveBeenCalledWith(
         'user-uuid-123',
-        'discord-user-123'
+        'discord-user-123',
+        'self-serve'
       );
       // Both memory modes (incognito + fresh) get their sessions swept
       expect(memoryModeMock.disableAll).toHaveBeenCalledTimes(2);

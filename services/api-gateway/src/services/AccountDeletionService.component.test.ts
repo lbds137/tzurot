@@ -12,6 +12,8 @@ import { type PGlite } from '@electric-sql/pglite';
 import { PrismaPGlite } from 'pglite-prisma-adapter';
 import { PrismaClient } from '@tzurot/common-types/services/prisma';
 import { createTestPGlite, loadPGliteSchema, seedUserWithPersona } from '@tzurot/test-utils';
+import { generateUserUuid } from '@tzurot/common-types/utils/deterministicUuid';
+import { ORPHAN_SENTINEL_DISCORD_ID } from '@tzurot/common-types/constants/persona';
 import { AccountDeletionService, SuperuserDeletionError } from './AccountDeletionService.js';
 
 const USER_A = 'de1e0000-0000-4000-8000-0000000000a1';
@@ -364,7 +366,7 @@ describe('AccountDeletionService (component, PGLite)', () => {
   });
 
   it('erases the account with zero residue while the survivor keeps everything', async () => {
-    const summary = await service.deleteAccount(USER_A, DISCORD_A);
+    const summary = await service.deleteAccount(USER_A, DISCORD_A, 'self-serve');
 
     // --- Summary numbers match the seed ---
     expect(summary.personas).toBe(2);
@@ -459,9 +461,141 @@ describe('AccountDeletionService (component, PGLite)', () => {
   it('refuses to delete a superuser account inside the transaction', async () => {
     await prisma.user.update({ where: { id: USER_B }, data: { isSuperuser: true } });
 
-    await expect(service.deleteAccount(USER_B, DISCORD_B)).rejects.toThrow(SuperuserDeletionError);
+    await expect(service.deleteAccount(USER_B, DISCORD_B, 'self-serve')).rejects.toThrow(
+      SuperuserDeletionError
+    );
     // Nothing was deleted.
     expect(await prisma.user.findUnique({ where: { id: USER_B } })).not.toBeNull();
     expect(await prisma.personality.findUnique({ where: { id: PERSONALITY_Y } })).not.toBeNull();
+  });
+});
+
+/**
+ * Retention-mode proof (Phase 2 D11): a departed user's character that ANOTHER
+ * active user uses is re-homed to the Orphaned-Characters sentinel (surviving
+ * the cascade, with provenance) rather than deleted, and the other user's data
+ * on it is untouched — while a solo character is deleted normally.
+ */
+describe('AccountDeletionService retention mode (component, PGLite)', () => {
+  const USER_D = 'de1e0000-0000-4000-8000-0000000000d1'; // departed (purged)
+  const PERSONA_D = 'de1e0000-0000-4000-8000-0000000000d2';
+  const USER_E = 'de1e0000-0000-4000-8000-0000000000e1'; // survivor
+  const PERSONA_E = 'de1e0000-0000-4000-8000-0000000000e2';
+  const PERSONALITY_XR = 'de1e0000-0000-4000-8000-0000000000f1'; // shared → re-home
+  const PERSONALITY_ZR = 'de1e0000-0000-4000-8000-0000000000f2'; // solo → delete
+  const DISCORD_D = '900000000000000081';
+  const DISCORD_E = '900000000000000082';
+  const SENTINEL_ID = generateUserUuid(ORPHAN_SENTINEL_DISCORD_ID);
+
+  let rseq = 0;
+  const rid = (): string =>
+    `de1e0000-0000-4000-8000-0000000002${(rseq++).toString().padStart(2, '0')}`;
+
+  let pglite: PGlite;
+  let prisma: PrismaClient;
+  let service: AccountDeletionService;
+
+  beforeAll(async () => {
+    pglite = createTestPGlite();
+    await pglite.exec(loadPGliteSchema());
+    prisma = new PrismaClient({ adapter: new PrismaPGlite(pglite) }) as PrismaClient;
+    service = new AccountDeletionService(prisma);
+
+    await seedUserWithPersona(prisma, {
+      userId: USER_D,
+      personaId: PERSONA_D,
+      discordId: DISCORD_D,
+      username: 'departeddana',
+      personaName: 'Dana Persona',
+      personaContent: 'Persona D content',
+    });
+    await seedUserWithPersona(prisma, {
+      userId: USER_E,
+      personaId: PERSONA_E,
+      discordId: DISCORD_E,
+      username: 'survivorevan',
+      personaName: 'Evan Persona',
+      personaContent: 'Persona E content',
+    });
+
+    // Both owned by D. XR is used by E (cross-user reach); ZR by no one else.
+    // XR seeded with an OLD updated_at so the re-home's @updatedAt bump is
+    // unambiguous (proves the write goes through the Prisma client, not raw SQL —
+    // the sync-LWW-safety fix).
+    await prisma.$executeRaw`
+      INSERT INTO personalities (id, name, slug, character_info, personality_traits, owner_id, updated_at)
+      VALUES (${PERSONALITY_XR}::uuid, 'Shared', 'shared-xr', 'shared char', 'Warm', ${USER_D}::uuid, '2020-01-01T00:00:00Z'),
+             (${PERSONALITY_ZR}::uuid, 'Solo', 'solo-zr', 'solo char', 'Quiet', ${USER_D}::uuid, NOW())
+    `;
+
+    await prisma.memory.createMany({
+      data: [
+        // E's memory on the shared char — must SURVIVE the purge (other user's data).
+        {
+          id: rid(),
+          personaId: PERSONA_E,
+          personalityId: PERSONALITY_XR,
+          content: 'e-with-xr',
+          senders: ['survivorevan'],
+        },
+        // D's own memory on the shared char — dies with D (persona-arm sweep).
+        {
+          id: rid(),
+          personaId: PERSONA_D,
+          personalityId: PERSONALITY_XR,
+          content: 'd-with-xr',
+          senders: ['departeddana'],
+        },
+        // D's memory on the solo char — dies with D (the char cascades too).
+        {
+          id: rid(),
+          personaId: PERSONA_D,
+          personalityId: PERSONALITY_ZR,
+          content: 'd-with-zr',
+          senders: ['departeddana'],
+        },
+      ],
+    });
+  });
+
+  afterAll(async () => {
+    await prisma.$disconnect();
+    await pglite.close();
+  });
+
+  it('re-homes the cross-user character, deletes the solo one, and spares the other user', async () => {
+    const summary = await service.deleteAccount(USER_D, DISCORD_D, 'retention');
+
+    // Only the solo character is reported deleted; the shared one is re-homed.
+    expect(summary.characters).toBe(1);
+    expect(summary.characterIds).toEqual([PERSONALITY_ZR]);
+    expect(summary.characterNames).toEqual(['Solo']);
+
+    // Shared character SURVIVES, re-homed to the sentinel with reclamation provenance.
+    const xr = await prisma.personality.findUnique({ where: { id: PERSONALITY_XR } });
+    expect(xr).not.toBeNull();
+    expect(xr?.ownerId).toBe(SENTINEL_ID);
+    expect(xr?.originalOwnerDiscordId).toBe(DISCORD_D);
+    // The re-home bumped updated_at (Prisma @updatedAt) past the seeded old value
+    // — so the change wins the dev<->prod sync LWW and can't be silently reverted.
+    // A raw-SQL re-home would leave the seeded timestamp untouched and fail this.
+    expect(xr?.updatedAt.getTime()).toBeGreaterThan(new Date('2020-06-01T00:00:00Z').getTime());
+
+    // Solo character is gone (cascaded with the departed owner).
+    expect(await prisma.personality.findUnique({ where: { id: PERSONALITY_ZR } })).toBeNull();
+
+    // The other user's memory on the survivor is intact; the departed user's is gone.
+    expect(await prisma.memory.count({ where: { content: 'e-with-xr' } })).toBe(1);
+    expect(await prisma.memory.count({ where: { personaId: PERSONA_D } })).toBe(0);
+
+    // The departed user is fully erased.
+    expect(await prisma.user.findUnique({ where: { id: USER_D } })).toBeNull();
+    expect(await prisma.persona.count({ where: { ownerId: USER_D } })).toBe(0);
+
+    // The sentinel exists, is retention-exempt (never re-purged), and is NOT a superuser.
+    const sentinel = await prisma.user.findUnique({ where: { id: SENTINEL_ID } });
+    expect(sentinel).not.toBeNull();
+    expect(sentinel?.retentionExempt).toBe(true);
+    expect(sentinel?.isSuperuser).toBe(false);
   });
 });

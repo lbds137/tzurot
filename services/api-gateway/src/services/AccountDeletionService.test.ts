@@ -24,6 +24,7 @@ function makeTx(overrides: Record<string, unknown> = {}): Record<string, unknown
     },
     personality: {
       findMany: vi.fn().mockResolvedValue([{ id: 'x1', name: 'XBot', slug: 'xbot' }]),
+      updateMany: vi.fn().mockResolvedValue({ count: 1 }),
     },
     conversationHistory: { count: vi.fn().mockResolvedValue(3) },
     memory: { count: vi.fn().mockResolvedValue(2) },
@@ -98,7 +99,7 @@ describe('AccountDeletionService.deleteAccount', () => {
     ).findUniqueOrThrow.mockResolvedValue({ username: 'owner', isSuperuser: true });
 
     await expect(
-      new AccountDeletionService(prisma).deleteAccount('user-1', 'discord-1')
+      new AccountDeletionService(prisma).deleteAccount('user-1', 'discord-1', 'self-serve')
     ).rejects.toThrow(SuperuserDeletionError);
 
     expect((tx.user as { delete: ReturnType<typeof vi.fn> }).delete).not.toHaveBeenCalled();
@@ -108,7 +109,7 @@ describe('AccountDeletionService.deleteAccount', () => {
   });
 
   it('builds a lowercased user: tag vocabulary from username + persona names', async () => {
-    await new AccountDeletionService(prisma).deleteAccount('user-1', 'discord-1');
+    await new AccountDeletionService(prisma).deleteAccount('user-1', 'discord-1', 'self-serve');
 
     // $executeRaw is a template tag: call args are (strings, ...values); the
     // sweep's only interpolated value is the tag list. Call 0 is
@@ -122,7 +123,11 @@ describe('AccountDeletionService.deleteAccount', () => {
   });
 
   it('sweeps pending memories in both arms and returns the full summary', async () => {
-    const summary = await new AccountDeletionService(prisma).deleteAccount('user-1', 'discord-1');
+    const summary = await new AccountDeletionService(prisma).deleteAccount(
+      'user-1',
+      'discord-1',
+      'self-serve'
+    );
 
     const pendingWhere = (tx.pendingMemory as { deleteMany: ReturnType<typeof vi.fn> }).deleteMany
       .mock.calls[0][0].where;
@@ -152,5 +157,76 @@ describe('AccountDeletionService.deleteAccount', () => {
         characterIds: ['x1'],
       })
     );
+  });
+});
+
+describe('AccountDeletionService.deleteAccount (retention mode)', () => {
+  it('re-homes cross-user characters to the sentinel and excludes them from the summary + sweep scope', async () => {
+    const personalityUpdateMany = vi.fn().mockResolvedValue({ count: 1 });
+    const tx = makeTx({
+      personality: {
+        findMany: vi.fn().mockResolvedValue([
+          { id: 'x1', name: 'Shared', slug: 'shared' }, // cross-user reach → re-home
+          { id: 'z1', name: 'Solo', slug: 'solo' }, // nobody else → delete
+        ]),
+        updateMany: personalityUpdateMany,
+      },
+      // partitionOwnedByReach: only x1 has cross-user reach.
+      $queryRaw: vi.fn().mockResolvedValue([{ personalityId: 'x1' }]),
+      $executeRaw: vi.fn().mockResolvedValue(0),
+    });
+    const prisma = makePrisma(tx);
+    // ensureOrphanSentinel's prisma.$queryRaw (the sentinel bootstrap CTE).
+    (prisma.$queryRaw as ReturnType<typeof vi.fn>).mockResolvedValue([{ created: false }]);
+
+    const summary = await new AccountDeletionService(prisma).deleteAccount(
+      'user-1',
+      'discord-1',
+      'retention'
+    );
+
+    // Re-home is a Prisma client write (NOT raw SQL) so @updatedAt bumps and the
+    // change wins the sync LWW. It targets ONLY the reach-holding character (x1)
+    // and stamps the departed owner's Discord id as provenance.
+    expect(personalityUpdateMany).toHaveBeenCalledWith({
+      where: { id: { in: ['x1'] } },
+      data: { ownerId: expect.any(String), originalOwnerDiscordId: 'discord-1' },
+    });
+
+    // Summary + sweep scope cover ONLY the deleted (non-re-homed) character.
+    expect(summary.characterIds).toEqual(['z1']);
+    expect(summary.characterNames).toEqual(['Solo']);
+    expect(summary.characters).toBe(1);
+
+    const pendingWhere = (tx.pendingMemory as { deleteMany: ReturnType<typeof vi.fn> }).deleteMany
+      .mock.calls[0][0].where;
+    expect(pendingWhere.OR).toEqual([
+      { personaId: { in: ['p1'] } },
+      { personalityId: { in: ['z1'] } },
+    ]);
+  });
+
+  it('deletes every owned character normally when none have cross-user reach', async () => {
+    const personalityUpdateMany = vi.fn().mockResolvedValue({ count: 0 });
+    const tx = makeTx({
+      personality: {
+        findMany: vi.fn().mockResolvedValue([{ id: 'z1', name: 'Solo', slug: 'solo' }]),
+        updateMany: personalityUpdateMany,
+      },
+      $queryRaw: vi.fn().mockResolvedValue([]), // no cross-user reach
+      $executeRaw: vi.fn().mockResolvedValue(0),
+    });
+    const prisma = makePrisma(tx);
+    (prisma.$queryRaw as ReturnType<typeof vi.fn>).mockResolvedValue([{ created: false }]);
+
+    const summary = await new AccountDeletionService(prisma).deleteAccount(
+      'user-1',
+      'discord-1',
+      'retention'
+    );
+
+    // No re-home fired — nothing had cross-user reach.
+    expect(personalityUpdateMany).not.toHaveBeenCalled();
+    expect(summary.characterIds).toEqual(['z1']);
   });
 });
