@@ -64,49 +64,6 @@ This applies to all comment shapes: full-line `//`, JSDoc `*` body, block `/* */
 - Be explicit: `!== null`, `!== undefined` (no implicit boolean coercion)
 - **No unused parameters** — `noUnusedParameters: true` is enforced. If a function no longer uses a parameter, remove it from the signature and update callers. The `_` prefix escape hatch is for cases where you don't control the signature (callbacks, interface implementations, error params) — not for keeping dead parameters "for compatibility."
 
-## Refactoring Patterns
-
-### Options Object Pattern (max-params fix)
-
-```typescript
-// ❌ BAD - 6 parameters
-function process(a, b, c, d, e, f) { ... }
-
-// ✅ GOOD - Options object
-interface ProcessOptions { a: A; b: B; c: C; d: D; e: E; f: F; }
-function process(opts: ProcessOptions) { ... }
-```
-
-### Data-Driven Approach (complexity fix)
-
-```typescript
-// ❌ BAD - High complexity from repeated if/else
-if (a) { ... } if (b) { ... } if (c) { ... }
-
-// ✅ GOOD - Data-driven, complexity stays at 2
-const FIELDS = [{ key: 'a' }, { key: 'b' }, { key: 'c' }] as const;
-FIELDS.map(({ key }) => /* handle */);
-```
-
-### Early Return Pattern (max-depth fix)
-
-```typescript
-// ❌ BAD - Deep nesting
-if (data) {
-  if (data.isValid) {
-    if (data.items.length > 0) {
-      /* logic */
-    }
-  }
-}
-
-// ✅ GOOD - Early returns, flat
-if (!data) return defaultResult;
-if (!data.isValid) return invalidResult;
-if (data.items.length === 0) return emptyResult;
-// actual logic at depth 1
-```
-
 ## Pino Logger Format
 
 ```typescript
@@ -253,61 +210,7 @@ default to the old major.
 
 ## Python Standards (voice-engine)
 
-The `services/voice-engine/` service uses Python 3.11+ with FastAPI. These
-patterns are enforced by `ruff`, `mypy --strict`, and `pytest`.
-
-### Error Handling
-
-```python
-# ❌ WRONG — HTTPException gets caught by the generic handler
-except Exception as e:
-    raise HTTPException(...)
-
-# ✅ CORRECT — re-raise HTTPException before the generic catch
-except HTTPException:
-    raise
-except Exception:
-    logger.error("Operation failed", exc_info=True)
-    raise HTTPException(status_code=500, detail="Operation failed")
-```
-
-### Input Validation
-
-| Check                     | Pattern                                                 |
-| ------------------------- | ------------------------------------------------------- |
-| File size                 | `len(await file.read()) > MAX_AUDIO_UPLOAD_BYTES` → 413 |
-| Voice ID (path traversal) | `_VOICE_ID_RE.match(voice_id)` → 400                    |
-| MIME type                 | `content_type not in _AUDIO_EXTENSIONS` → 400           |
-| Text length               | `len(text) > MAX_TTS_TEXT_LENGTH` → 400                 |
-
-### Temp File Cleanup
-
-Always use `try/finally` for temp files — model errors must not leak files:
-
-```python
-ref_tmp_path = None
-try:
-    # ... write temp file, do inference ...
-finally:
-    if ref_tmp_path is not None and os.path.exists(ref_tmp_path):
-        os.unlink(ref_tmp_path)
-```
-
-### Logging
-
-Use stdlib `logging` with structured fields (not `print()`):
-
-```python
-logger.info("Transcribed audio", extra={"chars": len(text)})
-logger.warning("Voice not found", extra={"voice_id": voice_id})
-logger.error("Operation failed", exc_info=True)
-```
-
-### Type Hints
-
-- All functions must have parameter and return type annotations
-- Use `Any` for NeMo/PocketTTS objects (no type stubs) — justify with `# type: ignore[import-untyped]`
-- Target: `mypy --strict` passes
+Moved to [`services/voice-engine/CLAUDE.md`](../../services/voice-engine/CLAUDE.md) — it loads automatically when working under that directory, which is the only time it applies.
 
 ## Duplication, Helpers, and the CPD Ratchet
 

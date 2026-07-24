@@ -63,24 +63,7 @@ Corollary for removals: `idx_scan = 0` alone never justifies a drop. Verify no q
 
 ## Migrations
 
-### The One True Workflow
-
-```bash
-# 1. Create migration (sanitizes drift patterns automatically)
-pnpm ops db:safe-migrate --name <migration_name>
-
-# 2. Apply locally
-pnpm ops db:migrate
-
-# 3. Regenerate PGLite test schema
-pnpm ops test:generate-schema
-
-# 4. Check status / deploy to Railway
-pnpm ops db:status --env dev
-pnpm ops db:migrate --env dev
-```
-
-All commands work in non-interactive environments (AI assistants, CI).
+Step-by-step workflow (safe-migrate → migrate → regenerate PGLite schema → deploy): `/tzurot-db-vector`.
 
 **NEVER** use `prisma migrate reset` (destroys all data) or raw `prisma migrate` commands.
 
