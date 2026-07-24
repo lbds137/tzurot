@@ -62,15 +62,7 @@ Handlers that need the internal UUID should prefer `req.provisionedUserId` (set 
 3. **No circular dependencies** - Services can't import from each other
 4. **Shared code in common-types** - Cross-service types, utils, services
 5. **Constructor injection** - Simple dependency passing, no DI containers
-
-## Anti-Patterns (DON'T DO)
-
-| Pattern                                     | Why Not         | v3 Alternative               |
-| ------------------------------------------- | --------------- | ---------------------------- |
-| Generic `IRepository<T>`                    | Too abstract    | Concrete service methods     |
-| DI containers                               | Over-engineered | Direct instantiation         |
-| `Controller→UseCase→Service→Repository→ORM` | Too many layers | `Route→Service→Prisma`       |
-| Complex event bus                           | Unnecessary     | Redis pub/sub for cache only |
+6. **`Route→Service→Prisma`** - the whole layering. No use-case/repository tiers, no generic `IRepository<T>`, no event bus (Redis pub/sub is for cache invalidation only).
 
 ## When to Extract a Service
 
