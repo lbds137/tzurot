@@ -119,7 +119,7 @@ export const adminRoutes = {
   },
 
   /**
-   * POST /api/admin/cleanup — Purge orphan history rows + tombstones.
+   * POST /api/admin/cleanup — Purge old conversation-history rows.
    *
    * Slow route — duration is data-dependent: the retention sweep loops
    * unbounded over aged rows, so large purges scale past tens of seconds.
@@ -147,7 +147,6 @@ export const adminRoutes = {
     // route-local and there's no second consumer; extracting would add
     // an indirection without buying reusability.
     input: z.object({
-      target: z.enum(['history', 'tombstones', 'all']).default('all'),
       daysToKeep: z.number().int().positive().optional(),
     }),
     output: AdminCleanupResponseSchema,

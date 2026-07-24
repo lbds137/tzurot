@@ -573,6 +573,122 @@ describe('DatabaseSyncService Integration (Ouroboros pattern)', () => {
   }, 30000);
 
   /**
+   * Phase 1.5: conversation_history joins the generalized tombstone mechanism
+   * (it gained updated_at + the sync_tombstone_conversation_history trigger,
+   * retiring its bespoke tombstone table). Two properties must hold like every
+   * other synced table: a SOFT delete (an UPDATE of deleted_at that bumps
+   * updated_at) propagates via last-write-wins, and a HARD delete propagates via
+   * the AFTER DELETE trigger instead of resurrecting from the peer (the
+   * account-purge / self-serve-delete gap this closes).
+   */
+  describe('conversation_history sync (Phase 1.5 unification)', () => {
+    const seedChatMessage = async (
+      prisma: PrismaClient,
+      opts: { userId: string; personaId: string; discordId: string; username: string }
+    ): Promise<string> => {
+      const systemPromptId = generatePersonaUuid('chat-prompt', opts.userId);
+      const personalityId = generatePersonaUuid('chat-personality', opts.userId);
+      const messageId = generatePersonaUuid('chat-message', opts.userId);
+      await seedUserWithPersona(prisma, {
+        userId: opts.userId,
+        personaId: opts.personaId,
+        discordId: opts.discordId,
+        username: opts.username,
+        personaName: opts.username,
+      });
+      // Backdated updated_at throughout so a same-millisecond delete doesn't tie
+      // the LWW comparison (see the llm_configs tests above).
+      await prisma.$executeRawUnsafe(
+        `INSERT INTO system_prompts (id, name, content, updated_at)
+         VALUES ($1::uuid, 'chat-prompt', 'p', NOW() - INTERVAL '1 minute')
+         ON CONFLICT (id) DO NOTHING`,
+        systemPromptId
+      );
+      await prisma.$executeRawUnsafe(
+        `INSERT INTO personalities (id, name, display_name, slug, system_prompt_id, character_info, personality_traits, owner_id, updated_at)
+         VALUES ($1::uuid, 'ChatBot', 'Chat Bot', $4, $2::uuid, 'c', 'p', $3::uuid, NOW() - INTERVAL '1 minute')`,
+        personalityId,
+        systemPromptId,
+        opts.userId,
+        `chat-bot-${opts.discordId}`
+      );
+      await prisma.$executeRawUnsafe(
+        `INSERT INTO conversation_history (id, channel_id, personality_id, persona_id, role, content, created_at, updated_at)
+         VALUES ($1::uuid, '999000999000999000', $2::uuid, $3::uuid, 'user', 'hello', NOW() - INTERVAL '1 minute', NOW() - INTERVAL '1 minute')`,
+        messageId,
+        personalityId,
+        opts.personaId
+      );
+      return messageId;
+    };
+
+    it('propagates a SOFT delete cross-env via updated_at last-write-wins', async () => {
+      const discordId = '77700077700077700077';
+      const userId = generateUserUuid(discordId);
+      const personaId = generatePersonaUuid('softdel-user', userId);
+      let messageId = '';
+      for (const prisma of [devPrisma, prodPrisma]) {
+        messageId = await seedChatMessage(prisma, {
+          userId,
+          personaId,
+          discordId,
+          username: 'softdel-user',
+        });
+      }
+
+      // Soft delete on dev: an UPDATE that bumps updated_at newer than prod's.
+      await devPrisma.$executeRawUnsafe(
+        `UPDATE conversation_history SET deleted_at = NOW(), updated_at = NOW() WHERE id = $1::uuid`,
+        messageId
+      );
+
+      await service.sync({ dryRun: false });
+
+      // Prod's row is soft-deleted too — propagated as a column value, NOT
+      // hard-deleted (the row still exists on both sides).
+      const prodRow = await prodPrisma.conversationHistory.findUnique({ where: { id: messageId } });
+      expect(prodRow).not.toBeNull();
+      expect(prodRow?.deletedAt).not.toBeNull();
+    }, 30000);
+
+    it('propagates a HARD delete via the trigger — not resurrected from the peer', async () => {
+      const discordId = '88800088800088800088';
+      const userId = generateUserUuid(discordId);
+      const personaId = generatePersonaUuid('harddel-user', userId);
+      let messageId = '';
+      for (const prisma of [devPrisma, prodPrisma]) {
+        messageId = await seedChatMessage(prisma, {
+          userId,
+          personaId,
+          discordId,
+          username: 'harddel-user',
+        });
+      }
+
+      // Hard delete on dev — the AFTER DELETE trigger captures it into
+      // dev's sync_tombstones.
+      await devPrisma.$executeRawUnsafe(
+        `DELETE FROM conversation_history WHERE id = $1::uuid`,
+        messageId
+      );
+      const devTombs = await devPrisma.syncTombstone.findMany({
+        where: { tableName: 'conversation_history' },
+      });
+      expect(devTombs.map(t => t.rowPk)).toContain(messageId); // trigger fired
+
+      await service.sync({ dryRun: false });
+
+      // Deleted on prod too, NOT resurrected on dev.
+      expect(
+        await prodPrisma.conversationHistory.findUnique({ where: { id: messageId } })
+      ).toBeNull();
+      expect(
+        await devPrisma.conversationHistory.findUnique({ where: { id: messageId } })
+      ).toBeNull();
+    }, 30000);
+  });
+
+  /**
    * The migration-soak-window regression: a DEFERRABLE migration reaches dev
    * before prod on every release cycle, so the sync must NOT name a
    * constraint the target can't defer (SET CONSTRAINTS throws 42809 and

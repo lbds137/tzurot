@@ -169,7 +169,7 @@
           {
             "type": 1,
             "name": "cleanup",
-            "description": "Clean up old conversation history and tombstones",
+            "description": "Clean up old conversation history",
             "options": [
               {
                 "max_value": 365,
@@ -177,26 +177,6 @@
                 "type": 4,
                 "name": "timeframe",
                 "description": "Time window in days — keep history newer than this (default: 30)",
-                "required": false
-              },
-              {
-                "type": 3,
-                "choices": [
-                  {
-                    "name": "All (history + tombstones)",
-                    "value": "all"
-                  },
-                  {
-                    "name": "History only",
-                    "value": "history"
-                  },
-                  {
-                    "name": "Tombstones only",
-                    "value": "tombstones"
-                  }
-                ],
-                "name": "target",
-                "description": "What to clean up (default: all)",
                 "required": false
               }
             ]

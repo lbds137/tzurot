@@ -287,19 +287,9 @@ CREATE TABLE "conversation_history" (
     "deleted_at" TIMESTAMP(3),
     "edited_at" TIMESTAMP(3),
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "conversation_history_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "conversation_history_tombstones" (
-    "id" UUID NOT NULL,
-    "channel_id" VARCHAR(20) NOT NULL,
-    "personality_id" UUID NOT NULL,
-    "persona_id" UUID NOT NULL,
-    "deleted_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
-    CONSTRAINT "conversation_history_tombstones_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -718,12 +708,6 @@ CREATE INDEX "conversation_history_discord_message_id_idx" ON "conversation_hist
 
 -- CreateIndex
 CREATE INDEX "conversation_history_deleted_at_idx" ON "conversation_history"("deleted_at");
-
--- CreateIndex
-CREATE INDEX "conversation_history_tombstones_channel_id_personality_id_p_idx" ON "conversation_history_tombstones"("channel_id", "personality_id", "persona_id");
-
--- CreateIndex
-CREATE INDEX "conversation_history_tombstones_deleted_at_idx" ON "conversation_history_tombstones"("deleted_at");
 
 -- CreateIndex
 CREATE INDEX "sync_tombstones_deleted_at_idx" ON "sync_tombstones"("deleted_at");
@@ -1206,3 +1190,5 @@ CREATE TRIGGER sync_tombstone_memories AFTER DELETE ON "memories" FOR EACH ROW E
 CREATE TRIGGER sync_tombstone_memory_facts AFTER DELETE ON "memory_facts" FOR EACH ROW EXECUTE FUNCTION sync_tombstone_capture('id');
 
 CREATE TRIGGER sync_tombstone_shapes_persona_mappings AFTER DELETE ON "shapes_persona_mappings" FOR EACH ROW EXECUTE FUNCTION sync_tombstone_capture('id');
+
+CREATE TRIGGER sync_tombstone_conversation_history AFTER DELETE ON "conversation_history" FOR EACH ROW EXECUTE FUNCTION sync_tombstone_capture('id');

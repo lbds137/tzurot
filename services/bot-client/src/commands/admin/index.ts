@@ -336,7 +336,7 @@ export default defineCommand({
     .addSubcommand(subcommand =>
       subcommand
         .setName('cleanup')
-        .setDescription('Clean up old conversation history and tombstones')
+        .setDescription('Clean up old conversation history')
         .addIntegerOption(option =>
           // Unlike the enum-window `timeframe`s (usage, incognito, memory
           // delete), cleanup's is a RAW DAY COUNT — arbitrary N-days is real
@@ -347,17 +347,6 @@ export default defineCommand({
             .setRequired(false)
             .setMinValue(1)
             .setMaxValue(365)
-        )
-        .addStringOption(option =>
-          option
-            .setName('target')
-            .setDescription('What to clean up (default: all)')
-            .setRequired(false)
-            .addChoices(
-              { name: 'All (history + tombstones)', value: 'all' },
-              { name: 'History only', value: 'history' },
-              { name: 'Tombstones only', value: 'tombstones' }
-            )
         )
     )
     .addSubcommandGroup(group =>

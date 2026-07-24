@@ -179,7 +179,7 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
     "type": 1,
   },
   {
-    "description": "Clean up old conversation history and tombstones",
+    "description": "Clean up old conversation history",
     "description_localizations": undefined,
     "name": "cleanup",
     "name_localizations": undefined,
@@ -195,34 +195,6 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
         "name_localizations": undefined,
         "required": false,
         "type": 4,
-      },
-      {
-        "autocomplete": undefined,
-        "choices": [
-          {
-            "name": "All (history + tombstones)",
-            "name_localizations": undefined,
-            "value": "all",
-          },
-          {
-            "name": "History only",
-            "name_localizations": undefined,
-            "value": "history",
-          },
-          {
-            "name": "Tombstones only",
-            "name_localizations": undefined,
-            "value": "tombstones",
-          },
-        ],
-        "description": "What to clean up (default: all)",
-        "description_localizations": undefined,
-        "max_length": undefined,
-        "min_length": undefined,
-        "name": "target",
-        "name_localizations": undefined,
-        "required": false,
-        "type": 3,
       },
     ],
     "type": 1,

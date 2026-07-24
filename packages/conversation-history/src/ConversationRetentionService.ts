@@ -6,7 +6,9 @@
  * - Cold path (scheduled cleanup jobs) from hot path (CRUD operations)
  * - Retention policy logic from message management logic
  *
- * Uses tombstones to prevent db-sync from restoring deleted messages.
+ * Hard deletes are recorded for db-sync by the
+ * sync_tombstone_conversation_history AFTER DELETE trigger, so no app-level
+ * tombstone write is needed.
  */
 
 import { CLEANUP_DEFAULTS, SYNC_LIMITS } from '@tzurot/common-types/constants/timing';
@@ -16,20 +18,19 @@ import { createLogger } from '@tzurot/common-types/utils/logger';
 const logger = createLogger('ConversationRetentionService');
 
 /**
- * Delete messages matching the where clause and create tombstones to prevent db-sync restoration.
- * Processes in batches to prevent OOM on large datasets.
+ * Delete messages matching the where clause in batches, so a large sweep never
+ * holds row locks across the whole operation. The AFTER DELETE sync_tombstone
+ * trigger records each deletion for db-sync — no app-level tombstone write.
  *
- * Atomicity is PER BATCH — each batch's tombstone-create + delete commits in its own
- * transaction, releasing row locks between batches. A single sweep-wide transaction
- * would hold every deleted row's lock until the final commit, and the main pool's
- * `lock_timeout` (3s) would then fail any concurrent writer waiting on one of those
- * rows for the whole sweep duration. Cross-batch atomicity is not needed: a partial
- * sweep just leaves rows for the next run, and the tombstone-before-delete invariant
- * (the thing that actually matters for db-sync) holds within each batch. No cursor
- * needed — each committed batch removes its rows from the `where` result set, so a
- * plain re-fetch naturally advances.
+ * Atomicity is PER BATCH — each batch commits in its own transaction, releasing
+ * row locks between batches. A single sweep-wide transaction would hold every
+ * deleted row's lock until the final commit, and the main pool's `lock_timeout`
+ * (3s) would then fail any concurrent writer waiting on one of those rows for the
+ * whole sweep duration. Cross-batch atomicity is not needed: a partial sweep just
+ * leaves rows for the next run. No cursor needed — each committed batch removes
+ * its rows from the `where` result set, so a plain re-fetch naturally advances.
  */
-async function deleteMessagesWithTombstones(
+async function deleteMessagesInBatches(
   prisma: PrismaClient,
   where: Prisma.ConversationHistoryWhereInput
 ): Promise<number> {
@@ -39,12 +40,7 @@ async function deleteMessagesWithTombstones(
     const fetched = await prisma.$transaction(async tx => {
       const batch = await tx.conversationHistory.findMany({
         where,
-        select: {
-          id: true,
-          channelId: true,
-          personalityId: true,
-          personaId: true,
-        },
+        select: { id: true },
         take: SYNC_LIMITS.RETENTION_BATCH_SIZE,
         orderBy: { id: 'asc' },
       });
@@ -52,18 +48,6 @@ async function deleteMessagesWithTombstones(
       if (batch.length === 0) {
         return 0;
       }
-
-      // Create tombstones for this batch BEFORE deleting — prevents db-sync
-      // from restoring the rows if it runs between batches.
-      await tx.conversationHistoryTombstone.createMany({
-        data: batch.map(msg => ({
-          id: msg.id,
-          channelId: msg.channelId,
-          personalityId: msg.personalityId,
-          personaId: msg.personaId,
-        })),
-        skipDuplicates: true, // In case tombstone already exists
-      });
 
       const deleteResult = await tx.conversationHistory.deleteMany({
         where: { id: { in: batch.map(msg => msg.id) } },
@@ -89,14 +73,11 @@ export class ConversationRetentionService {
    * Optionally filter by personaId for per-persona deletion
    * (useful for /history clear and /history purge)
    *
-   * Creates tombstone records for deleted messages to prevent db-sync from
-   * restoring them. Tombstones are small (just IDs) and can be periodically purged.
-   *
    * NOT atomic end-to-end: deletion commits per batch (see
-   * deleteMessagesWithTombstones), so a mid-sweep failure leaves a partial
-   * delete — already-deleted rows stay tombstoned, and a retry picks up the
-   * remainder. Chosen over all-or-nothing so a large clear can't hold row
-   * locks across the whole sweep.
+   * deleteMessagesInBatches), so a mid-sweep failure leaves a partial delete and
+   * a retry picks up the remainder. Chosen over all-or-nothing so a large clear
+   * can't hold row locks across the whole sweep. Each hard delete is recorded for
+   * db-sync by the AFTER DELETE trigger.
    *
    * @param channelId Channel ID
    * @param personalityId Personality ID
@@ -114,7 +95,7 @@ export class ConversationRetentionService {
         ...(personaId !== undefined && personaId.length > 0 && { personaId }),
       };
 
-      const count = await deleteMessagesWithTombstones(this.prisma, where);
+      const count = await deleteMessagesInBatches(this.prisma, where);
 
       logger.info(
         {
@@ -124,7 +105,7 @@ export class ConversationRetentionService {
           personaIdPrefix:
             personaId !== undefined && personaId.length > 0 ? personaId.substring(0, 8) : null,
         },
-        'Cleared messages from history with tombstones'
+        'Cleared messages from history'
       );
       return count;
     } catch (error) {
@@ -135,8 +116,8 @@ export class ConversationRetentionService {
 
   /**
    * Clean up old history (older than X days)
-   * Call this periodically to prevent unbounded growth.
-   * Creates tombstones to prevent db-sync from restoring deleted messages.
+   * Call this periodically to prevent unbounded growth. Each hard delete is
+   * recorded for db-sync by the AFTER DELETE trigger.
    */
   async cleanupOldHistory(
     daysToKeep: number = CLEANUP_DEFAULTS.DAYS_TO_KEEP_HISTORY
@@ -145,11 +126,11 @@ export class ConversationRetentionService {
       const cutoffDate = new Date();
       cutoffDate.setDate(cutoffDate.getDate() - daysToKeep);
 
-      const count = await deleteMessagesWithTombstones(this.prisma, {
+      const count = await deleteMessagesInBatches(this.prisma, {
         createdAt: { lt: cutoffDate },
       });
 
-      logger.info({ count, daysToKeep }, 'Cleaned up old messages with tombstones');
+      logger.info({ count, daysToKeep }, 'Cleaned up old messages');
       return count;
     } catch (error) {
       logger.error({ err: error }, 'Failed to cleanup old conversation history');
@@ -158,45 +139,15 @@ export class ConversationRetentionService {
   }
 
   /**
-   * Clean up old tombstones (older than X days)
-   * Tombstones only need to exist long enough for db-sync to propagate deletions.
-   * Call this periodically to prevent unbounded growth.
-   */
-  async cleanupOldTombstones(
-    daysToKeep: number = CLEANUP_DEFAULTS.DAYS_TO_KEEP_TOMBSTONES
-  ): Promise<number> {
-    try {
-      const cutoffDate = new Date();
-      cutoffDate.setDate(cutoffDate.getDate() - daysToKeep);
-
-      const result = await this.prisma.conversationHistoryTombstone.deleteMany({
-        where: {
-          deletedAt: {
-            lt: cutoffDate,
-          },
-        },
-      });
-
-      logger.info({ count: result.count, daysToKeep }, 'Cleaned up old tombstones');
-      return result.count;
-    } catch (error) {
-      logger.error({ err: error }, 'Failed to cleanup old tombstones');
-      throw error;
-    }
-  }
-
-  /**
    * Hard delete soft-deleted messages (those with deletedAt set) older than X days.
-   * Soft-deleted messages are excluded from context but still take up space.
-   * This performs the final cleanup after the soft-delete grace period.
-   *
-   * Note: Tombstones already exist for these messages (created during soft delete),
-   * so we can safely delete them without creating new tombstones.
+   * Soft-deleted messages are excluded from context but still take up space; this
+   * is the final cleanup after the soft-delete grace period. Each hard delete is
+   * recorded for db-sync by the AFTER DELETE trigger.
    *
    * @param daysToKeep Only delete soft-deleted messages older than this many days
    */
   async cleanupSoftDeletedMessages(
-    daysToKeep: number = CLEANUP_DEFAULTS.DAYS_TO_KEEP_TOMBSTONES
+    daysToKeep: number = CLEANUP_DEFAULTS.DAYS_TO_KEEP_SOFT_DELETED
   ): Promise<number> {
     try {
       const cutoffDate = new Date();

@@ -224,10 +224,10 @@ export const CLEANUP_DEFAULTS = {
   /** Default days to keep conversation history before cleanup (30 days) */
   DAYS_TO_KEEP_HISTORY: 30,
   /**
-   * Default days to keep tombstones before cleanup (30 days)
-   * Tombstones only need to exist long enough for db-sync to propagate deletions
+   * Default grace period (days) a soft-deleted conversation_history row
+   * survives before it is hard-deleted (cleanupSoftDeletedMessages).
    */
-  DAYS_TO_KEEP_TOMBSTONES: 30,
+  DAYS_TO_KEEP_SOFT_DELETED: 30,
   /**
    * Days to keep HANDLED feedback (status read/archived). Untriaged rows
    * (status 'new') are never purged — the owner hasn't seen them yet.
