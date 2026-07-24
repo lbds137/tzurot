@@ -98,9 +98,8 @@ describe('AdminCleanupResponseSchema', () => {
     expect(
       AdminCleanupResponseSchema.safeParse({
         success: true,
-        message: 'Cleaned 10 history rows and 2 tombstones',
+        message: 'Cleaned 10 history rows',
         historyDeleted: 10,
-        tombstonesDeleted: 2,
         daysKept: 30,
         timestamp: '2026-01-01T00:00:00.000Z',
       }).success

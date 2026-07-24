@@ -25,9 +25,6 @@ const createMockPrismaClient = () => {
       update: vi.fn(),
       updateMany: vi.fn(),
     },
-    conversationHistoryTombstone: {
-      createMany: vi.fn().mockResolvedValue({ count: 0 }),
-    },
     memory: {
       updateMany: vi.fn().mockResolvedValue({ count: 0 }),
       count: vi.fn().mockResolvedValue(0),
@@ -61,33 +58,25 @@ describe('ConversationSyncService', () => {
       expect(mockPrismaClient.conversationHistory.findMany).not.toHaveBeenCalled();
     });
 
-    it('should soft delete messages and create tombstones in transaction', async () => {
+    it('should soft delete messages and propagate to memory rows', async () => {
       const messageIds = ['msg-1', 'msg-2', 'msg-3'];
       const mockMessages = messageIds.map(id => ({
-        id,
-        channelId: 'channel-123',
-        personalityId: 'personality-456',
-        personaId: 'persona-789',
         discordMessageId: [`discord-${id}`],
       }));
 
       mockPrismaClient.conversationHistory.findMany.mockResolvedValue(mockMessages);
       mockPrismaClient.conversationHistory.updateMany.mockResolvedValue({ count: 3 });
-      mockPrismaClient.conversationHistoryTombstone.createMany.mockResolvedValue({ count: 3 });
-
-      // Mock transaction to execute the operations
-      mockPrismaClient.$transaction.mockImplementation(async operations => {
-        if (Array.isArray(operations)) {
-          // Execute each operation
-          return Promise.all(operations);
-        }
-        return operations(mockPrismaClient);
-      });
 
       const result = await service.softDeleteMessages(messageIds);
 
       expect(result).toBe(3);
-      // Bulk propagation seam: the flattened Discord ids reach memory.updateMany
+      // Soft delete stamps deletedAt; the @updatedAt bump is what propagates the
+      // deletion cross-environment via db-sync (no app-level tombstone).
+      expect(mockPrismaClient.conversationHistory.updateMany).toHaveBeenCalledWith({
+        where: { id: { in: messageIds } },
+        data: { deletedAt: expect.any(Date) },
+      });
+      // Bulk propagation seam: the flattened Discord ids reach memory.updateMany.
       expect(mockPrismaClient.memory.updateMany).toHaveBeenCalledWith({
         where: {
           messageIds: { hasSome: ['discord-msg-1', 'discord-msg-2', 'discord-msg-3'] },
@@ -96,32 +85,10 @@ describe('ConversationSyncService', () => {
         },
         data: { visibility: 'deleted' },
       });
-      // The transaction's two operations carry the exact soft-delete + tombstone
-      // shapes: deletedAt stamped on the rows, tombstones duplicate-safe.
-      expect(mockPrismaClient.conversationHistory.updateMany).toHaveBeenCalledWith({
-        where: { id: { in: messageIds } },
-        data: { deletedAt: expect.any(Date) },
-      });
-      expect(mockPrismaClient.conversationHistoryTombstone.createMany).toHaveBeenCalledWith({
-        data: mockMessages.map(msg => ({
-          id: msg.id,
-          channelId: msg.channelId,
-          personalityId: msg.personalityId,
-          personaId: msg.personaId,
-          deletedAt: expect.any(Date),
-        })),
-        skipDuplicates: true,
-      });
-      expect(mockPrismaClient.memory.updateMany).toHaveBeenCalledWith(
-        expect.objectContaining({ data: { visibility: 'deleted' } })
-      );
+      // Only the discord ids are fetched now — they drive the memory propagation.
       expect(mockPrismaClient.conversationHistory.findMany).toHaveBeenCalledWith({
         where: { id: { in: messageIds } },
         select: {
-          id: true,
-          channelId: true,
-          personalityId: true,
-          personaId: true,
           discordMessageId: true,
         },
         take: 3, // Math.min(messageIds.length, SYNC_LIMITS.MAX_MESSAGE_BATCH)

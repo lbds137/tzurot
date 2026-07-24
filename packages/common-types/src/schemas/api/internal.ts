@@ -165,7 +165,7 @@ export type PersistUserMessageResponse = z.infer<typeof PersistUserMessageRespon
 // Opportunistic edit/delete sync. bot-client ships the Discord snapshot it
 // fetched for a channel+personality; the gateway runs the diff against DB
 // state (detecting edited content and deleted messages) and applies the
-// writes (content updates, soft-deletes + tombstones). Replaces bot-client's
+// writes (content updates, soft-deletes). Replaces bot-client's
 // direct-Prisma SyncExecutor path. Idempotent: re-posting an already-applied
 // snapshot finds zero work.
 // ============================================================================

@@ -1,6 +1,6 @@
 /**
  * POST /admin/cleanup
- * Manually trigger cleanup of old conversation history and tombstones
+ * Manually trigger cleanup of old conversation history.
  */
 
 import { Router, type Request, type RequestHandler, type Response } from 'express';
@@ -16,28 +16,14 @@ const logger = createLogger('admin-cleanup');
 
 interface CleanupResult {
   historyDeleted: number;
-  tombstonesDeleted: number;
   daysKept: number;
 }
 
 /**
- * Build a human-readable cleanup message based on target
+ * Build a human-readable cleanup message.
  */
-function buildCleanupMessage(
-  target: 'history' | 'tombstones' | 'all',
-  historyDeleted: number,
-  tombstonesDeleted: number,
-  daysToKeep: number
-): string {
-  const suffix = `(older than ${daysToKeep} days)`;
-  switch (target) {
-    case 'history':
-      return `Cleanup complete: ${historyDeleted} history messages deleted ${suffix}`;
-    case 'tombstones':
-      return `Cleanup complete: ${tombstonesDeleted} tombstones deleted ${suffix}`;
-    case 'all':
-      return `Cleanup complete: ${historyDeleted} history messages and ${tombstonesDeleted} tombstones deleted ${suffix}`;
-  }
+function buildCleanupMessage(historyDeleted: number, daysToKeep: number): string {
+  return `Cleanup complete: ${historyDeleted} history messages deleted (older than ${daysToKeep} days)`;
 }
 
 /**
@@ -55,11 +41,8 @@ export const handleCleanup = (deps: RouteDeps): RequestHandler => {
   }
   return asyncHandler(async (req: Request, res: Response) => {
     // Handle missing body gracefully
-    const body = (req.body ?? {}) as {
-      daysToKeep?: number;
-      target?: 'history' | 'tombstones' | 'all';
-    };
-    const { daysToKeep = CLEANUP_DEFAULTS.DAYS_TO_KEEP_HISTORY, target = 'all' } = body;
+    const body = (req.body ?? {}) as { daysToKeep?: number };
+    const { daysToKeep = CLEANUP_DEFAULTS.DAYS_TO_KEEP_HISTORY } = body;
 
     // Validate daysToKeep
     if (
@@ -75,42 +58,22 @@ export const handleCleanup = (deps: RouteDeps): RequestHandler => {
       );
     }
 
-    // Validate target
-    if (!['history', 'tombstones', 'all'].includes(target)) {
-      return sendError(
-        res,
-        ErrorResponses.validationError('target must be "history", "tombstones", or "all"')
-      );
-    }
-
-    let historyDeleted = 0;
-    let tombstonesDeleted = 0;
-
-    if (target === 'history' || target === 'all') {
-      historyDeleted = await retentionService.cleanupOldHistory(daysToKeep);
-      // Parity with the scheduled daily job: "history cleanup" also hard-deletes
-      // soft-deleted rows past their grace period (its OWN default window, not
-      // daysToKeep — the soft-delete grace is a separate retention policy). Both
-      // delete conversation_history rows, so the counts fold together.
-      historyDeleted += await retentionService.cleanupSoftDeletedMessages();
-      logger.info({ historyDeleted, daysToKeep }, 'Cleaned up old conversation history');
-    }
-
-    if (target === 'tombstones' || target === 'all') {
-      tombstonesDeleted = await retentionService.cleanupOldTombstones(daysToKeep);
-      logger.info({ tombstonesDeleted, daysToKeep }, 'Cleaned up old tombstones');
-    }
+    let historyDeleted = await retentionService.cleanupOldHistory(daysToKeep);
+    // Parity with the scheduled daily job: also hard-delete soft-deleted rows
+    // past their grace period (its OWN default window, not daysToKeep — a
+    // separate policy). Both delete conversation_history rows, so counts fold.
+    historyDeleted += await retentionService.cleanupSoftDeletedMessages();
+    logger.info({ historyDeleted, daysToKeep }, 'Cleaned up old conversation history');
 
     const result: CleanupResult = {
       historyDeleted,
-      tombstonesDeleted,
       daysKept: daysToKeep,
     };
 
     sendCustomSuccess(res, {
       success: true,
       ...result,
-      message: buildCleanupMessage(target, historyDeleted, tombstonesDeleted, daysToKeep),
+      message: buildCleanupMessage(historyDeleted, daysToKeep),
       timestamp: new Date().toISOString(),
     });
   });

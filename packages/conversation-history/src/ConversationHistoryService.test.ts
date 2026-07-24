@@ -29,9 +29,6 @@ const createMockPrismaClient = () => {
       deleteMany: vi.fn(),
       count: vi.fn(),
     },
-    conversationHistoryTombstone: {
-      createMany: vi.fn().mockResolvedValue({ count: 0 }),
-    },
     // $transaction executes the callback with the mock client as the transaction
     $transaction: vi.fn(async (callback: (tx: unknown) => Promise<unknown>) => {
       return callback(client);

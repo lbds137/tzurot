@@ -64,11 +64,10 @@ export const adminBroadcastOptions = defineTypedOptions({
 });
 
 /**
- * /admin cleanup <timeframe, target>
+ * /admin cleanup <timeframe>
  */
 export const adminCleanupOptions = defineTypedOptions({
   timeframe: { type: 'integer', required: false },
-  target: { type: 'string', required: false },
 });
 
 /**

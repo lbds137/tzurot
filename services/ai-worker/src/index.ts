@@ -293,10 +293,9 @@ async function setupScheduledJobs(
         const retention = new ConversationRetentionService(prisma);
         const oldHistory = await retention.cleanupOldHistory();
         const softDeleted = await retention.cleanupSoftDeletedMessages();
-        const tombstones = await retention.cleanupOldTombstones();
         // Returned object lands in the worker's `completed` log line — the
         // per-table counts are what make a daily run verifiable in Railway logs.
-        return { oldHistory, softDeleted, tombstones };
+        return { oldHistory, softDeleted };
       }
       if (job.name === SCHEDULED_JOBS.CLEANUP_NOTIFICATIONS_RETENTION) {
         // 90d handled-only purge (feedback read/archived, settled delivery

@@ -43,7 +43,7 @@ export const adminFixtures: Record<string, ConformanceEntry> = {
   },
 
   cleanup: {
-    body: { target: 'tombstones' },
+    body: {},
   },
 
   invalidateCache: {

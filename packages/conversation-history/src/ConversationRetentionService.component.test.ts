@@ -2,14 +2,13 @@
  * Service Test: ConversationRetentionService
  *
  * Tests conversation cleanup and retention with REAL database (PGlite in-memory PostgreSQL).
- * Service tests verify the "plumbing" - database interactions, queries, tombstone creation.
+ * Service tests verify the "plumbing" - database interactions and queries.
  *
  * Key behaviors tested:
- * - Clearing history with tombstone creation
+ * - Clearing history for a channel + personality
  * - Persona-scoped history clearing
  * - Batch deletion with cursor-based pagination
  * - Old history cleanup
- * - Tombstone cleanup
  * - Soft-deleted message cleanup
  */
 
@@ -68,7 +67,6 @@ describe('ConversationRetentionService', () => {
     // Clear tables between tests. Because of the Restrict FK on
     // users.default_persona_id we delete users FIRST — the Cascade on
     // persona.owner_id removes personas in the same statement.
-    await prisma.conversationHistoryTombstone.deleteMany();
     await prisma.conversationHistory.deleteMany();
     await prisma.personality.deleteMany();
     await prisma.user.deleteMany();
@@ -150,9 +148,9 @@ describe('ConversationRetentionService', () => {
   }
 
   describe('clearHistory', () => {
-    it('should delete all messages for a channel+personality and create tombstones', async () => {
+    it('should delete all messages for a channel+personality', async () => {
       // Arrange: Create test messages
-      const messageIds = await createTestMessages(5);
+      await createTestMessages(5);
 
       // Act: Clear history
       const count = await service.clearHistory(testChannelId, testPersonalityId);
@@ -165,13 +163,6 @@ describe('ConversationRetentionService', () => {
         where: { channelId: testChannelId, personalityId: testPersonalityId },
       });
       expect(remainingMessages).toBe(0);
-
-      // Verify tombstones were created
-      const tombstones = await prisma.conversationHistoryTombstone.findMany({
-        where: { channelId: testChannelId, personalityId: testPersonalityId },
-      });
-      expect(tombstones).toHaveLength(5);
-      expect(tombstones.map(t => t.id).sort()).toEqual(messageIds.sort());
     });
 
     it('should only delete messages for specific persona when personaId provided', async () => {
@@ -226,10 +217,6 @@ describe('ConversationRetentionService', () => {
       // Verify recent messages still exist
       const remainingMessages = await prisma.conversationHistory.count();
       expect(remainingMessages).toBe(2);
-
-      // Verify tombstones created for deleted messages
-      const tombstones = await prisma.conversationHistoryTombstone.count();
-      expect(tombstones).toBe(3);
     });
 
     it('should not delete messages within retention period', async () => {
@@ -246,47 +233,6 @@ describe('ConversationRetentionService', () => {
 
       const remainingMessages = await prisma.conversationHistory.count();
       expect(remainingMessages).toBe(5);
-    });
-  });
-
-  describe('cleanupOldTombstones', () => {
-    it('should delete tombstones older than specified days', async () => {
-      // Arrange: Create messages and clear them to generate tombstones
-      await createTestMessages(5);
-      await service.clearHistory(testChannelId, testPersonalityId);
-
-      // Manually backdate some tombstones
-      const oldDate = new Date();
-      oldDate.setDate(oldDate.getDate() - 100);
-
-      await prisma.conversationHistoryTombstone.updateMany({
-        where: {},
-        data: { deletedAt: oldDate },
-      });
-
-      // Act: Cleanup tombstones older than 30 days
-      const count = await service.cleanupOldTombstones(30);
-
-      // Assert: All old tombstones deleted
-      expect(count).toBe(5);
-
-      const remainingTombstones = await prisma.conversationHistoryTombstone.count();
-      expect(remainingTombstones).toBe(0);
-    });
-
-    it('should not delete recent tombstones', async () => {
-      // Arrange: Create messages and clear them to generate tombstones
-      await createTestMessages(3);
-      await service.clearHistory(testChannelId, testPersonalityId);
-
-      // Act: Cleanup tombstones older than 30 days
-      const count = await service.cleanupOldTombstones(30);
-
-      // Assert: No tombstones deleted (they're fresh)
-      expect(count).toBe(0);
-
-      const remainingTombstones = await prisma.conversationHistoryTombstone.count();
-      expect(remainingTombstones).toBe(3);
     });
   });
 
@@ -340,10 +286,6 @@ describe('ConversationRetentionService', () => {
 
       // Assert: All messages deleted
       expect(count).toBe(messageCount);
-
-      // Verify all tombstones created
-      const tombstones = await prisma.conversationHistoryTombstone.count();
-      expect(tombstones).toBe(messageCount);
     });
   });
 
@@ -374,13 +316,14 @@ describe('ConversationRetentionService', () => {
       }) as PrismaClient;
     }
 
-    it('a batch-2 failure preserves batch 1 (deletes committed WITH tombstones) and leaves the rest untouched', async () => {
+    it('a batch-2 failure preserves batch 1 (deletes committed) and leaves the rest untouched', async () => {
       // The contract under test: atomicity is PER BATCH. A sweep that dies on
-      // batch 2 must leave batch 1 fully committed — its rows deleted AND
-      // tombstoned (the tombstone-before-delete invariant is what stops
-      // db-sync from resurrecting them) — while the unswept remainder is
-      // untouched and a later retry can drain it. Unit tests can't verify
-      // this: it's transaction-commit behavior, which needs a real database.
+      // batch 2 must leave batch 1 fully committed (its rows deleted) while the
+      // unswept remainder is untouched and a later retry can drain it. Unit
+      // tests can't verify this: it's transaction-commit behavior, which needs a
+      // real database. (Hard deletes are recorded for db-sync by the AFTER
+      // DELETE sync_tombstone trigger; that propagation is covered by the
+      // DatabaseSyncService sync tests, not here.)
       const BATCH = SYNC_LIMITS.RETENTION_BATCH_SIZE;
       const REMAINDER = 100;
       const oldDate = new Date();
@@ -407,24 +350,15 @@ describe('ConversationRetentionService', () => {
         'simulated mid-sweep failure'
       );
 
-      // Batch 1 (BATCH rows, ascending id order) committed: rows gone,
-      // tombstones present. The REMAINDER rows survive untouched.
+      // Batch 1 (BATCH rows, ascending id order) committed: those rows are gone.
+      // The REMAINDER rows survive untouched.
       const remaining = await prisma.conversationHistory.count();
-      const tombstones = await prisma.conversationHistoryTombstone.count();
       expect(remaining).toBe(REMAINDER);
-      expect(tombstones).toBe(BATCH);
 
-      // The tombstone-before-delete invariant: every deleted row has a
-      // tombstone. Since batch order is `id: 'asc'`, the tombstoned ids are
-      // exactly the first BATCH seeded ids — spot-check both boundaries.
-      const firstDeleted = `00000000-0000-0000-0002-${String(0).padStart(12, '0')}`;
-      const lastDeleted = `00000000-0000-0000-0002-${String(BATCH - 1).padStart(12, '0')}`;
+      // Batch order is `id: 'asc'`, so the first un-swept row (id == BATCH) is
+      // the boundary survivor — batch 1 (ids 0..BATCH-1) was deleted, the rest
+      // remains for the retry to drain.
       const firstSurvivor = `00000000-0000-0000-0002-${String(BATCH).padStart(12, '0')}`;
-      expect(
-        await prisma.conversationHistoryTombstone.count({
-          where: { id: { in: [firstDeleted, lastDeleted] } },
-        })
-      ).toBe(2);
       expect(await prisma.conversationHistory.count({ where: { id: firstSurvivor } })).toBe(1);
 
       // A retry with a healthy client drains the remainder — the partial

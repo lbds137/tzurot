@@ -5,7 +5,7 @@
  *
  * WHY THIS IS CRITICAL:
  * - ConversationSyncService handles Discord/DB synchronization
- * - Tests verify soft delete, tombstone creation, and sync lookups
+ * - Tests verify soft delete and sync lookups
  * - Ensures edit detection and bulk operations work correctly
  */
 
@@ -87,9 +87,10 @@ describe('ConversationSyncService Integration Test', () => {
   }, 30000); // 30 second timeout for PGlite WASM initialization
 
   beforeEach(async () => {
-    // Clear conversation history and tombstones between tests
-    await prisma.$executeRawUnsafe(`DELETE FROM conversation_history_tombstones`);
+    // Clear conversation history between tests. Its deletion fires the
+    // sync_tombstone trigger, so clear the ledger afterwards to stay isolated.
     await prisma.$executeRawUnsafe(`DELETE FROM conversation_history`);
+    await prisma.$executeRawUnsafe(`DELETE FROM sync_tombstones`);
   });
 
   afterAll(async () => {
@@ -98,7 +99,7 @@ describe('ConversationSyncService Integration Test', () => {
   }, 30000);
 
   describe('softDeleteMessages (single row)', () => {
-    it('should soft delete a single message and write its tombstone', async () => {
+    it('should soft delete a single message', async () => {
       // Add a message
       await historyService.addMessage({
         channelId: testChannelId,
@@ -114,32 +115,26 @@ describe('ConversationSyncService Integration Test', () => {
       const history = await historyService.getChannelHistory(testChannelId, 10);
       const messageId = history[0].id;
 
-      // Soft delete via the production path (the plural is the only writer;
-      // the tombstone-less singular was deleted as a resurrection landmine)
+      // Soft delete via the production path (the plural is the only writer).
       const result = await syncService.softDeleteMessages([messageId]);
 
       expect(result).toBe(1);
 
-      // Verify message is soft deleted (deleted_at is set)
+      // Verify message is soft deleted (deleted_at is set; the @updatedAt bump
+      // is what propagates the deletion cross-env via db-sync).
       const rows = await prisma.$queryRaw<{ deleted_at: Date | null }[]>`
         SELECT deleted_at FROM conversation_history WHERE id = ${messageId}::uuid
       `;
       expect(rows[0].deleted_at).not.toBeNull();
-
-      // And the anti-resurrection tombstone exists
-      const tombstones = await prisma.$queryRaw<{ id: string }[]>`
-        SELECT id FROM conversation_history_tombstones WHERE id = ${messageId}::uuid
-      `;
-      expect(tombstones).toHaveLength(1);
     });
 
-    it('no-ops (no phantom tombstone) for a non-existent message', async () => {
+    it('no-ops (no phantom row) for a non-existent message', async () => {
       await syncService.softDeleteMessages(['00000000-0000-0000-0000-000000000099']);
-      const tombstones = await prisma.$queryRaw<{ id: string }[]>`
-        SELECT id FROM conversation_history_tombstones
+      const rows = await prisma.$queryRaw<{ id: string }[]>`
+        SELECT id FROM conversation_history
         WHERE id = ${'00000000-0000-0000-0000-000000000099'}::uuid
       `;
-      expect(tombstones).toHaveLength(0);
+      expect(rows).toHaveLength(0);
     });
   });
 
@@ -210,7 +205,7 @@ describe('ConversationSyncService Integration Test', () => {
   });
 
   describe('softDeleteMessages', () => {
-    it('should bulk soft delete messages with tombstones', async () => {
+    it('should bulk soft delete messages', async () => {
       // A memory linked to one of the bulk-deleted turns — the bulk path must
       // propagate exactly like the singular path (same seam, different caller).
       await prisma.memory.create({
@@ -260,12 +255,6 @@ describe('ConversationSyncService Integration Test', () => {
         SELECT deleted_at FROM conversation_history WHERE deleted_at IS NOT NULL
       `;
       expect(deletedRows).toHaveLength(2);
-
-      // Verify tombstones created
-      const tombstones = await prisma.$queryRaw<{ id: string }[]>`
-        SELECT id FROM conversation_history_tombstones
-      `;
-      expect(tombstones).toHaveLength(2);
 
       // Bulk propagation: the linked memory flipped to deleted
       const linked = await prisma.memory.findUnique({

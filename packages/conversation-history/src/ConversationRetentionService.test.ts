@@ -26,10 +26,6 @@ function createMockPrismaClient() {
       findMany: vi.fn(),
       deleteMany: vi.fn(),
     },
-    conversationHistoryTombstone: {
-      createMany: vi.fn(),
-      deleteMany: vi.fn(),
-    },
     $transaction: vi.fn(),
   };
 
@@ -58,45 +54,23 @@ describe('ConversationRetentionService', () => {
   });
 
   describe('clearHistory', () => {
-    it('should delete all messages for channel and personality with tombstones using batching', async () => {
-      const mockMessages = [
-        {
-          id: 'msg-1',
-          channelId: 'channel-123',
-          personalityId: 'personality-456',
-          personaId: 'persona-1',
-        },
-        {
-          id: 'msg-2',
-          channelId: 'channel-123',
-          personalityId: 'personality-456',
-          personaId: 'persona-1',
-        },
-      ];
+    it('should delete all messages for channel and personality using batching', async () => {
+      const mockMessages = [{ id: 'msg-1' }, { id: 'msg-2' }];
       mockPrismaClient.conversationHistory.findMany.mockResolvedValue(mockMessages);
       mockPrismaClient.conversationHistory.deleteMany.mockResolvedValue({ count: 2 });
-      mockPrismaClient.conversationHistoryTombstone.createMany.mockResolvedValue({ count: 2 });
 
       const count = await service.clearHistory('channel-123', 'personality-456');
 
       expect(count).toBe(2);
-      // Verify batched query includes pagination params
+      // Batched query: pagination params + an id-only select (the tombstone
+      // fields are gone; the AFTER DELETE trigger records the deletion for db-sync).
       expect(mockPrismaClient.conversationHistory.findMany).toHaveBeenCalledWith({
         where: { channelId: 'channel-123', personalityId: 'personality-456' },
-        select: { id: true, channelId: true, personalityId: true, personaId: true },
+        select: { id: true },
         take: 1000, // SYNC_LIMITS.RETENTION_BATCH_SIZE
         orderBy: { id: 'asc' },
       });
-      expect(mockPrismaClient.conversationHistoryTombstone.createMany).toHaveBeenCalledWith({
-        data: mockMessages.map(msg => ({
-          id: msg.id,
-          channelId: msg.channelId,
-          personalityId: msg.personalityId,
-          personaId: msg.personaId,
-        })),
-        skipDuplicates: true,
-      });
-      // Batched deletion uses IDs from the batch
+      // Batched deletion uses IDs from the batch.
       expect(mockPrismaClient.conversationHistory.deleteMany).toHaveBeenCalledWith({
         where: { id: { in: ['msg-1', 'msg-2'] } },
       });
@@ -108,7 +82,6 @@ describe('ConversationRetentionService', () => {
       const count = await service.clearHistory('channel-empty', 'personality-456');
 
       expect(count).toBe(0);
-      expect(mockPrismaClient.conversationHistoryTombstone.createMany).not.toHaveBeenCalled();
       expect(mockPrismaClient.conversationHistory.deleteMany).not.toHaveBeenCalled();
     });
 
@@ -117,34 +90,20 @@ describe('ConversationRetentionService', () => {
       // each iteration commits its own transaction so row locks release between
       // batches (a sweep-wide transaction + the pool's lock_timeout would 55P03
       // concurrent writers for the whole sweep).
-      const fullBatch = Array.from({ length: 1000 }, (_, i) => ({
-        id: `msg-${i}`,
-        channelId: 'channel-123',
-        personalityId: 'personality-456',
-        personaId: 'persona-1',
-      }));
-      const shortBatch = [
-        {
-          id: 'msg-last',
-          channelId: 'channel-123',
-          personalityId: 'personality-456',
-          personaId: 'persona-1',
-        },
-      ];
+      const fullBatch = Array.from({ length: 1000 }, (_, i) => ({ id: `msg-${i}` }));
+      const shortBatch = [{ id: 'msg-last' }];
       mockPrismaClient.conversationHistory.findMany
         .mockResolvedValueOnce(fullBatch)
         .mockResolvedValueOnce(shortBatch);
       mockPrismaClient.conversationHistory.deleteMany
         .mockResolvedValueOnce({ count: 1000 })
         .mockResolvedValueOnce({ count: 1 });
-      mockPrismaClient.conversationHistoryTombstone.createMany.mockResolvedValue({ count: 0 });
 
       const count = await service.clearHistory('channel-123', 'personality-456');
 
       expect(count).toBe(1001);
       // One transaction PER batch — the lock-release boundary this rework exists for.
       expect(mockPrismaClient.$transaction).toHaveBeenCalledTimes(2);
-      expect(mockPrismaClient.conversationHistoryTombstone.createMany).toHaveBeenCalledTimes(2);
       expect(mockPrismaClient.conversationHistory.deleteMany).toHaveBeenNthCalledWith(2, {
         where: { id: { in: ['msg-last'] } },
       });
@@ -160,17 +119,8 @@ describe('ConversationRetentionService', () => {
     });
 
     it('should delete only messages for specific persona when personaId provided', async () => {
-      const mockMessages = [
-        {
-          id: 'msg-1',
-          channelId: 'channel-123',
-          personalityId: 'personality-456',
-          personaId: 'persona-789',
-        },
-      ];
-      mockPrismaClient.conversationHistory.findMany.mockResolvedValue(mockMessages);
+      mockPrismaClient.conversationHistory.findMany.mockResolvedValue([{ id: 'msg-1' }]);
       mockPrismaClient.conversationHistory.deleteMany.mockResolvedValue({ count: 1 });
-      mockPrismaClient.conversationHistoryTombstone.createMany.mockResolvedValue({ count: 1 });
 
       const count = await service.clearHistory('channel-123', 'personality-456', 'persona-789');
 
@@ -181,7 +131,7 @@ describe('ConversationRetentionService', () => {
           personalityId: 'personality-456',
           personaId: 'persona-789',
         },
-        select: { id: true, channelId: true, personalityId: true, personaId: true },
+        select: { id: true },
         take: 1000,
         orderBy: { id: 'asc' },
       });
@@ -200,46 +150,19 @@ describe('ConversationRetentionService', () => {
   });
 
   describe('cleanupOldHistory', () => {
-    it('should delete messages older than specified days and create tombstones using batching', async () => {
+    it('should delete messages older than specified days using batching', async () => {
       vi.useFakeTimers();
-      const fixedDate = new Date('2025-11-18T00:00:00Z');
-      vi.setSystemTime(fixedDate);
+      vi.setSystemTime(new Date('2025-11-18T00:00:00Z'));
 
-      const mockOldMessages = [
-        {
-          id: 'msg-1',
-          channelId: 'channel-123',
-          personalityId: 'personality-456',
-          personaId: 'persona-789',
-        },
-        {
-          id: 'msg-2',
-          channelId: 'channel-123',
-          personalityId: 'personality-456',
-          personaId: 'persona-789',
-        },
-      ];
-      mockPrismaClient.conversationHistory.findMany.mockResolvedValue(mockOldMessages);
-      mockPrismaClient.conversationHistoryTombstone.createMany.mockResolvedValue({ count: 2 });
+      mockPrismaClient.conversationHistory.findMany.mockResolvedValue([
+        { id: 'msg-1' },
+        { id: 'msg-2' },
+      ]);
       mockPrismaClient.conversationHistory.deleteMany.mockResolvedValue({ count: 2 });
 
       const count = await service.cleanupOldHistory(30);
 
       expect(count).toBe(2);
-
-      const expectedCutoff = new Date(fixedDate);
-      expectedCutoff.setDate(expectedCutoff.getDate() - 30);
-
-      expect(mockPrismaClient.conversationHistoryTombstone.createMany).toHaveBeenCalledWith({
-        data: mockOldMessages.map(msg => ({
-          id: msg.id,
-          channelId: msg.channelId,
-          personalityId: msg.personalityId,
-          personaId: msg.personaId,
-        })),
-        skipDuplicates: true,
-      });
-      // Batched deletion uses IDs from the batch
       expect(mockPrismaClient.conversationHistory.deleteMany).toHaveBeenCalledWith({
         where: { id: { in: ['msg-1', 'msg-2'] } },
       });
@@ -250,15 +173,7 @@ describe('ConversationRetentionService', () => {
       const fixedDate = new Date('2025-11-18T00:00:00Z');
       vi.setSystemTime(fixedDate);
 
-      mockPrismaClient.conversationHistory.findMany.mockResolvedValue([
-        {
-          id: 'msg-1',
-          channelId: 'channel-123',
-          personalityId: 'personality-456',
-          personaId: null,
-        },
-      ]);
-      mockPrismaClient.conversationHistoryTombstone.createMany.mockResolvedValue({ count: 1 });
+      mockPrismaClient.conversationHistory.findMany.mockResolvedValue([{ id: 'msg-1' }]);
       mockPrismaClient.conversationHistory.deleteMany.mockResolvedValue({ count: 1 });
 
       const count = await service.cleanupOldHistory();
@@ -268,10 +183,9 @@ describe('ConversationRetentionService', () => {
       const expectedCutoff = new Date(fixedDate);
       expectedCutoff.setDate(expectedCutoff.getDate() - 30);
 
-      // Verify batched query includes pagination params
       expect(mockPrismaClient.conversationHistory.findMany).toHaveBeenCalledWith({
         where: { createdAt: { lt: expectedCutoff } },
-        select: { id: true, channelId: true, personalityId: true, personaId: true },
+        select: { id: true },
         take: 1000,
         orderBy: { id: 'asc' },
       });
@@ -283,7 +197,6 @@ describe('ConversationRetentionService', () => {
       const count = await service.cleanupOldHistory(30);
 
       expect(count).toBe(0);
-      expect(mockPrismaClient.conversationHistoryTombstone.createMany).not.toHaveBeenCalled();
       expect(mockPrismaClient.conversationHistory.deleteMany).not.toHaveBeenCalled();
     });
 
@@ -292,79 +205,6 @@ describe('ConversationRetentionService', () => {
       mockPrismaClient.conversationHistory.findMany.mockRejectedValue(error);
 
       await expect(service.cleanupOldHistory(30)).rejects.toThrow('Database connection failed');
-    });
-
-    it('should create tombstones before deleting messages (transaction ordering)', async () => {
-      const mockMessages = [
-        { id: 'msg-1', channelId: 'ch-1', personalityId: 'p-1', personaId: null },
-      ];
-      const callOrder: string[] = [];
-
-      mockPrismaClient.conversationHistory.findMany.mockImplementation(async () => {
-        callOrder.push('findMany');
-        return mockMessages;
-      });
-      mockPrismaClient.conversationHistoryTombstone.createMany.mockImplementation(async () => {
-        callOrder.push('createMany');
-        return { count: 1 };
-      });
-      mockPrismaClient.conversationHistory.deleteMany.mockImplementation(async () => {
-        callOrder.push('deleteMany');
-        return { count: 1 };
-      });
-
-      await service.cleanupOldHistory(30);
-
-      expect(callOrder).toEqual(['findMany', 'createMany', 'deleteMany']);
-    });
-  });
-
-  describe('cleanupOldTombstones', () => {
-    it('should delete tombstones older than specified days', async () => {
-      vi.useFakeTimers();
-      const fixedDate = new Date('2025-11-18T00:00:00Z');
-      vi.setSystemTime(fixedDate);
-
-      mockPrismaClient.conversationHistoryTombstone.deleteMany.mockResolvedValue({ count: 5 });
-
-      const count = await service.cleanupOldTombstones(7);
-
-      expect(count).toBe(5);
-
-      const expectedCutoff = new Date(fixedDate);
-      expectedCutoff.setDate(expectedCutoff.getDate() - 7);
-
-      expect(mockPrismaClient.conversationHistoryTombstone.deleteMany).toHaveBeenCalledWith({
-        where: { deletedAt: { lt: expectedCutoff } },
-      });
-    });
-
-    it('should use default days if not specified', async () => {
-      vi.useFakeTimers();
-      const fixedDate = new Date('2025-11-18T00:00:00Z');
-      vi.setSystemTime(fixedDate);
-
-      mockPrismaClient.conversationHistoryTombstone.deleteMany.mockResolvedValue({ count: 3 });
-
-      const count = await service.cleanupOldTombstones();
-
-      expect(count).toBe(3);
-      expect(mockPrismaClient.conversationHistoryTombstone.deleteMany).toHaveBeenCalled();
-    });
-
-    it('should return 0 when no old tombstones to delete', async () => {
-      mockPrismaClient.conversationHistoryTombstone.deleteMany.mockResolvedValue({ count: 0 });
-
-      const count = await service.cleanupOldTombstones(7);
-
-      expect(count).toBe(0);
-    });
-
-    it('should throw error on database failure', async () => {
-      const error = new Error('Database connection failed');
-      mockPrismaClient.conversationHistoryTombstone.deleteMany.mockRejectedValue(error);
-
-      await expect(service.cleanupOldTombstones(7)).rejects.toThrow('Database connection failed');
     });
   });
 
@@ -390,8 +230,7 @@ describe('ConversationRetentionService', () => {
 
     it('should use default days if not specified', async () => {
       vi.useFakeTimers();
-      const fixedDate = new Date('2025-11-18T00:00:00Z');
-      vi.setSystemTime(fixedDate);
+      vi.setSystemTime(new Date('2025-11-18T00:00:00Z'));
 
       mockPrismaClient.conversationHistory.deleteMany.mockResolvedValue({ count: 5 });
 

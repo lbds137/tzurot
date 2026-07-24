@@ -3,7 +3,7 @@
  *
  * Opportunistic edit/delete sync. bot-client ships the Discord snapshot it
  * fetched for a channel+personality; the gateway runs the diff against DB
- * state and applies the writes (content updates, soft-deletes + tombstones).
+ * state and applies the writes (content updates, soft-deletes).
  *
  * The algorithm lives in ConversationSyncService.runSync (common-types) —
  * the same implementation bot-client's legacy direct path delegates to — so

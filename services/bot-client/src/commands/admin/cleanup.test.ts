@@ -51,7 +51,6 @@ function createMockCleanupResponse(
   overrides: Partial<{
     success: boolean;
     historyDeleted: number;
-    tombstonesDeleted: number;
     daysKept: number;
     message: string;
     timestamp: string;
@@ -60,9 +59,8 @@ function createMockCleanupResponse(
   return {
     success: true,
     historyDeleted: 10,
-    tombstonesDeleted: 5,
     daysKept: 30,
-    message: 'Cleanup complete: 10 history messages and 5 tombstones deleted (older than 30 days)',
+    message: 'Cleanup complete: 10 history messages deleted (older than 30 days)',
     timestamp: new Date().toISOString(),
     ...overrides,
   };
@@ -81,19 +79,13 @@ describe('handleCleanup', () => {
     vi.restoreAllMocks();
   });
 
-  function createMockContext(
-    days: number | null = null,
-    target: string | null = null
-  ): DeferredCommandContext {
+  function createMockContext(days: number | null = null): DeferredCommandContext {
     const mockEditReply = vi.fn().mockResolvedValue(undefined);
     return {
       interaction: {
         user: { id: 'user-123' },
         options: {
-          getString: vi.fn((name: string) => {
-            if (name === 'target') return target;
-            return null;
-          }),
+          getString: vi.fn(() => null),
           getBoolean: vi.fn(() => null),
           getInteger: vi.fn((name: string) => {
             if (name === 'timeframe') return days;
@@ -111,7 +103,6 @@ describe('handleCleanup', () => {
       isEphemeral: true,
       getOption: vi.fn((name: string) => {
         if (name === 'timeframe') return days;
-        if (name === 'target') return target;
         return null;
       }),
       getRequiredOption: vi.fn(),
@@ -126,49 +117,25 @@ describe('handleCleanup', () => {
   it('should use default daysToKeep of 30 when not provided', async () => {
     stub.cleanup.mockResolvedValue(ok(createMockCleanupResponse()));
 
-    const context = createMockContext(null, null);
+    const context = createMockContext(null);
     await handleCleanup(context);
 
-    expect(stub.cleanup).toHaveBeenCalledWith(
-      expect.objectContaining({ daysToKeep: 30, target: 'all' })
-    );
+    expect(stub.cleanup).toHaveBeenCalledWith(expect.objectContaining({ daysToKeep: 30 }));
   });
 
   it('should use provided daysToKeep value', async () => {
     stub.cleanup.mockResolvedValue(ok(createMockCleanupResponse({ daysKept: 7 })));
 
-    const context = createMockContext(7, null);
+    const context = createMockContext(7);
     await handleCleanup(context);
 
-    expect(stub.cleanup).toHaveBeenCalledWith(
-      expect.objectContaining({ daysToKeep: 7, target: 'all' })
-    );
-  });
-
-  it('should use default target of "all" when not provided', async () => {
-    stub.cleanup.mockResolvedValue(ok(createMockCleanupResponse()));
-
-    const context = createMockContext(null, null);
-    await handleCleanup(context);
-
-    expect(stub.cleanup).toHaveBeenCalledWith(expect.objectContaining({ target: 'all' }));
-  });
-
-  it('should use provided target value', async () => {
-    stub.cleanup.mockResolvedValue(ok(createMockCleanupResponse({ tombstonesDeleted: 0 })));
-
-    const context = createMockContext(null, 'history');
-    await handleCleanup(context);
-
-    expect(stub.cleanup).toHaveBeenCalledWith(expect.objectContaining({ target: 'history' }));
+    expect(stub.cleanup).toHaveBeenCalledWith(expect.objectContaining({ daysToKeep: 7 }));
   });
 
   it('should display success message with cleanup results', async () => {
-    stub.cleanup.mockResolvedValue(
-      ok(createMockCleanupResponse({ historyDeleted: 25, tombstonesDeleted: 10 }))
-    );
+    stub.cleanup.mockResolvedValue(ok(createMockCleanupResponse({ historyDeleted: 25 })));
 
-    const context = createMockContext(null, null);
+    const context = createMockContext(null);
     await handleCleanup(context);
 
     expect(context.editReply).toHaveBeenCalledWith({
@@ -179,7 +146,7 @@ describe('handleCleanup', () => {
   it('should handle HTTP errors', async () => {
     stub.cleanup.mockResolvedValue(makeErr(500, 'Internal Server Error'));
 
-    const context = createMockContext(null, null);
+    const context = createMockContext(null);
     await handleCleanup(context);
 
     expect(context.editReply).toHaveBeenCalledWith({
@@ -190,7 +157,7 @@ describe('handleCleanup', () => {
   it('should handle network errors', async () => {
     stub.cleanup.mockRejectedValue(new Error('Network error'));
 
-    const context = createMockContext(null, null);
+    const context = createMockContext(null);
     await handleCleanup(context);
 
     expect(context.editReply).toHaveBeenCalledWith({
@@ -199,11 +166,9 @@ describe('handleCleanup', () => {
   });
 
   it('should handle zero deletions', async () => {
-    stub.cleanup.mockResolvedValue(
-      ok(createMockCleanupResponse({ historyDeleted: 0, tombstonesDeleted: 0 }))
-    );
+    stub.cleanup.mockResolvedValue(ok(createMockCleanupResponse({ historyDeleted: 0 })));
 
-    const context = createMockContext(null, null);
+    const context = createMockContext(null);
     await handleCleanup(context);
 
     expect(context.editReply).toHaveBeenCalledWith({
@@ -214,7 +179,7 @@ describe('handleCleanup', () => {
   it('should handle 403 unauthorized response', async () => {
     stub.cleanup.mockResolvedValue(makeErr(403, 'Unauthorized'));
 
-    const context = createMockContext(null, null);
+    const context = createMockContext(null);
     await handleCleanup(context);
 
     expect(context.editReply).toHaveBeenCalledWith({
@@ -225,7 +190,7 @@ describe('handleCleanup', () => {
   it('should display daysKept in the response', async () => {
     stub.cleanup.mockResolvedValue(ok(createMockCleanupResponse({ daysKept: 60 })));
 
-    const context = createMockContext(60, null);
+    const context = createMockContext(60);
     await handleCleanup(context);
 
     expect(context.editReply).toHaveBeenCalledWith({

@@ -38,7 +38,6 @@ vi.mock('../../services/AuthMiddleware.js', () => ({
 describe('Admin Cleanup Routes', () => {
   let mockService: {
     cleanupOldHistory: ReturnType<typeof vi.fn>;
-    cleanupOldTombstones: ReturnType<typeof vi.fn>;
     cleanupSoftDeletedMessages: ReturnType<typeof vi.fn>;
   };
   let app: express.Express;
@@ -48,7 +47,6 @@ describe('Admin Cleanup Routes', () => {
 
     mockService = {
       cleanupOldHistory: vi.fn().mockResolvedValue(0),
-      cleanupOldTombstones: vi.fn().mockResolvedValue(0),
       cleanupSoftDeletedMessages: vi.fn().mockResolvedValue(0),
     };
 
@@ -69,92 +67,43 @@ describe('Admin Cleanup Routes', () => {
   });
 
   describe('POST /admin/cleanup', () => {
-    it('should cleanup all targets with default daysToKeep', async () => {
+    it('should cleanup history with default daysToKeep', async () => {
       mockService.cleanupOldHistory.mockResolvedValue(10);
-      mockService.cleanupOldTombstones.mockResolvedValue(5);
 
       const response = await request(app).post('/admin/cleanup');
 
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
       expect(response.body.historyDeleted).toBe(10);
-      expect(response.body.tombstonesDeleted).toBe(5);
       expect(response.body.daysKept).toBe(30);
       expect(response.body.message).toContain('10 history messages');
-      expect(response.body.message).toContain('5 tombstones deleted');
       expect(response.body.timestamp).toBeDefined();
 
       expect(mockService.cleanupOldHistory).toHaveBeenCalledWith(30);
-      expect(mockService.cleanupOldTombstones).toHaveBeenCalledWith(30);
     });
 
     it('should accept custom daysToKeep', async () => {
       mockService.cleanupOldHistory.mockResolvedValue(20);
-      mockService.cleanupOldTombstones.mockResolvedValue(10);
 
       const response = await request(app).post('/admin/cleanup').send({ daysToKeep: 7 });
 
       expect(response.status).toBe(200);
       expect(response.body.daysKept).toBe(7);
       expect(mockService.cleanupOldHistory).toHaveBeenCalledWith(7);
-      expect(mockService.cleanupOldTombstones).toHaveBeenCalledWith(7);
-    });
-
-    it('should cleanup only history when target is "history"', async () => {
-      mockService.cleanupOldHistory.mockResolvedValue(15);
-
-      const response = await request(app).post('/admin/cleanup').send({ target: 'history' });
-
-      expect(response.status).toBe(200);
-      expect(response.body.historyDeleted).toBe(15);
-      expect(response.body.tombstonesDeleted).toBe(0);
-      expect(mockService.cleanupOldHistory).toHaveBeenCalledWith(30);
-      expect(mockService.cleanupOldTombstones).not.toHaveBeenCalled();
-    });
-
-    it('should cleanup only tombstones when target is "tombstones"', async () => {
-      mockService.cleanupOldTombstones.mockResolvedValue(8);
-
-      const response = await request(app).post('/admin/cleanup').send({ target: 'tombstones' });
-
-      expect(response.status).toBe(200);
-      expect(response.body.historyDeleted).toBe(0);
-      expect(response.body.tombstonesDeleted).toBe(8);
-      expect(mockService.cleanupOldHistory).not.toHaveBeenCalled();
-      expect(mockService.cleanupOldTombstones).toHaveBeenCalledWith(30);
-      // The soft-deleted hard-delete rides the HISTORY target only.
-      expect(mockService.cleanupSoftDeletedMessages).not.toHaveBeenCalled();
     });
 
     it('folds soft-deleted hard-deletes into historyDeleted (scheduled-job parity seam)', async () => {
-      // The seam: the history target must CALL cleanupSoftDeletedMessages (no
-      // daysToKeep arg — the soft-delete grace is its own retention window) and
-      // SUM its count into historyDeleted. A dropped call or wrong operator
-      // passes every other test in this suite trivially.
+      // The seam: cleanup must CALL cleanupSoftDeletedMessages (no daysToKeep
+      // arg — the soft-delete grace is its own retention window) and SUM its
+      // count into historyDeleted. A dropped call or wrong operator passes
+      // every other test in this suite trivially.
       mockService.cleanupOldHistory.mockResolvedValue(10);
       mockService.cleanupSoftDeletedMessages.mockResolvedValue(4);
 
-      const response = await request(app).post('/admin/cleanup').send({ target: 'history' });
+      const response = await request(app).post('/admin/cleanup');
 
       expect(response.status).toBe(200);
       expect(response.body.historyDeleted).toBe(14);
-      expect(mockService.cleanupSoftDeletedMessages).toHaveBeenCalledWith();
-    });
-
-    it("folds soft-deleted hard-deletes into historyDeleted on target 'all' too", async () => {
-      // 'all' shares the `target === 'history' || target === 'all'` branch with
-      // the test above, but nothing structural guarantees that — a refactor
-      // splitting the branch could silently drop the fold from 'all' while the
-      // 'history' seam test stays green. Pin both entry points.
-      mockService.cleanupOldHistory.mockResolvedValue(7);
-      mockService.cleanupSoftDeletedMessages.mockResolvedValue(2);
-      mockService.cleanupOldTombstones.mockResolvedValue(3);
-
-      const response = await request(app).post('/admin/cleanup').send({ target: 'all' });
-
-      expect(response.status).toBe(200);
-      expect(response.body.historyDeleted).toBe(9);
-      expect(response.body.tombstonesDeleted).toBe(3);
       expect(mockService.cleanupSoftDeletedMessages).toHaveBeenCalledWith();
     });
 
@@ -182,32 +131,20 @@ describe('Admin Cleanup Routes', () => {
       expect(response.body.message).toContain('daysToKeep must be a number between 1 and 365');
     });
 
-    it('should return validation error for invalid target', async () => {
-      const response = await request(app).post('/admin/cleanup').send({ target: 'invalid' });
-
-      expect(response.status).toBe(400);
-      expect(response.body.error).toBe('VALIDATION_ERROR');
-      expect(response.body.message).toContain('target must be "history", "tombstones", or "all"');
-    });
-
     it('should handle zero deletions gracefully', async () => {
       // Ensure mocks are set up properly before this test
       mockService.cleanupOldHistory.mockResolvedValue(0);
-      mockService.cleanupOldTombstones.mockResolvedValue(0);
 
-      const response = await request(app).post('/admin/cleanup').send({ target: 'all' });
+      const response = await request(app).post('/admin/cleanup');
 
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
       expect(response.body.historyDeleted).toBe(0);
-      expect(response.body.tombstonesDeleted).toBe(0);
       expect(response.body.message).toContain('0 history messages');
-      expect(response.body.message).toContain('0 tombstones deleted');
     });
 
     it('should accept boundary value daysToKeep=1', async () => {
       mockService.cleanupOldHistory.mockResolvedValue(100);
-      mockService.cleanupOldTombstones.mockResolvedValue(50);
 
       const response = await request(app).post('/admin/cleanup').send({ daysToKeep: 1 });
 
@@ -217,7 +154,6 @@ describe('Admin Cleanup Routes', () => {
 
     it('should accept boundary value daysToKeep=365', async () => {
       mockService.cleanupOldHistory.mockResolvedValue(0);
-      mockService.cleanupOldTombstones.mockResolvedValue(0);
 
       const response = await request(app).post('/admin/cleanup').send({ daysToKeep: 365 });
 

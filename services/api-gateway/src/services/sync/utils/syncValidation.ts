@@ -199,15 +199,10 @@ export async function validateSyncConfig(
   return { warnings, info };
 }
 
-/** Synced tables that intentionally carry NO sync_tombstone trigger:
- * conversation_history keeps its bespoke soft-delete-time tombstones (a DB
- * trigger can't see soft-deletes), and the two tombstone tables are the
- * ledgers themselves. */
-const TOMBSTONE_TRIGGER_EXEMPT = new Set<string>([
-  'conversation_history',
-  'conversation_history_tombstones',
-  'sync_tombstones',
-]);
+/** Synced tables that intentionally carry NO sync_tombstone trigger: only the
+ * ledger table itself. Every other synced table (conversation_history
+ * included) hard-deletes through the generalized sync_tombstone trigger. */
+const TOMBSTONE_TRIGGER_EXEMPT = new Set<string>(['sync_tombstones']);
 
 /** Extract the pk-column args from a trigger's
  * `EXECUTE FUNCTION sync_tombstone_capture('col_a', 'col_b')` statement. */
