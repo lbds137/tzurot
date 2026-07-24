@@ -302,6 +302,12 @@ export const internalFixtures: Record<string, ConformanceEntry> = {
     // entries: [] + overdueCount: 0 — zero seed needed.
   },
 
+  retentionPreview: {
+    // An empty cohort is the healthy steady state (and the conformance actor is
+    // recent + reachable, so it can't be eligible): the route returns
+    // users: [] with zeroed totals — zero seed needed.
+  },
+
   getModels: {
     // No DB seed: the catalog comes from the harness's fake modelCache.
     query: { search: 'claude', limit: '10' },

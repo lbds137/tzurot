@@ -139,6 +139,7 @@ const PATH_MAP: Readonly<Record<string, string>> = {
   removePersonalityAlias: PERSONALITY_ALIASES_PATH,
   listMyAliases: PERSONALITY_ALIASES_PATH,
   secretRotationStatus: '../internal/secretRotationStatus.js',
+  retentionPreview: '../internal/retentionPreview.js',
   getModels: '../internal/models.js',
   setDmSession: '../internal/dmSessionSet.js',
   lookupPersonalityFromMessage: '../user/conversationLookup.js',
