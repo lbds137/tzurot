@@ -1,0 +1,47 @@
+import { describe, it, expect, vi } from 'vitest';
+import type { Prisma } from '@tzurot/common-types/services/prisma';
+import { findCrossUserReachIds } from './crossUserReach.js';
+
+/** Join the template-strings array (call[0]) to assert on the SQL skeleton. */
+function joinSql(call: unknown[]): string {
+  return (call[0] as TemplateStringsArray).join(' ');
+}
+
+function makeDb(rows: { personalityId: string }[]) {
+  const queryRaw = vi.fn().mockResolvedValue(rows);
+  return { db: { $queryRaw: queryRaw } as unknown as Prisma.TransactionClient, queryRaw };
+}
+
+describe('findCrossUserReachIds', () => {
+  it('returns the ids other users have data on', async () => {
+    const { db } = makeDb([{ personalityId: 'x1' }, { personalityId: 'x2' }]);
+
+    expect(await findCrossUserReachIds(db, 'user-1', ['x1', 'x2', 'z1'])).toEqual(['x1', 'x2']);
+  });
+
+  it('short-circuits without querying when the user owns nothing', async () => {
+    const { db, queryRaw } = makeDb([]);
+
+    expect(await findCrossUserReachIds(db, 'user-1', [])).toEqual([]);
+    expect(queryRaw).not.toHaveBeenCalled();
+  });
+
+  it('spans all three personality-scoped tables and excludes the owner themself', async () => {
+    const { db, queryRaw } = makeDb([]);
+
+    await findCrossUserReachIds(db, 'user-1', ['x1']);
+
+    const sql = joinSql(queryRaw.mock.calls[0]);
+    // Reach = memories ∪ conversation_history ∪ facts (D11's broadened signal).
+    // A narrowing regression here silently deletes characters other people use.
+    expect(sql).toContain('FROM memories m');
+    expect(sql).toContain('FROM conversation_history ch');
+    expect(sql).toContain('FROM memory_facts f');
+    // Reach is about ANOTHER user — the owner's own rows must not count.
+    expect(sql).toContain('p.owner_id != ');
+    // INNER JOINs drop null-persona (world) rows: un-owned content isn't reach.
+    expect(sql).toContain('JOIN personas p');
+    // The departed user's id and the owned ids cross the seam as bound values.
+    expect(queryRaw.mock.calls[0]).toEqual(expect.arrayContaining([['x1'], 'user-1']));
+  });
+});

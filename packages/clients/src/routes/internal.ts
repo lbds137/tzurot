@@ -48,6 +48,7 @@ import {
   PersistUserMessageRequestSchema,
   PersistUserMessageResponseSchema,
   RecentUsersResponseSchema,
+  RetentionPreviewResponseSchema,
   RoutingContextRequestSchema,
   RoutingContextResponseSchema,
   SecretRotationStatusResponseSchema,
@@ -354,6 +355,24 @@ export const internalRoutes = {
     path: '/secret-rotations',
     id: 'secretRotationStatus',
     output: SecretRotationStatusResponseSchema,
+    serviceOnly: true,
+    meta: { safeRead: true },
+  },
+
+  /**
+   * GET /api/internal/retention/preview
+   * The purge-eligible cohort (Retention Phase 2, D2/D3) with per-user
+   * character impact and the circuit-breaker annotation. READ-ONLY — it
+   * reports; the purge itself is a separate, later endpoint. Consumed by the
+   * `pnpm ops retention:preview` CLI and (later) the daily owner-channel nag,
+   * both reading the same predicate so their counts can never drift.
+   */
+  retentionPreview: {
+    audience: 'internal',
+    method: 'get',
+    path: '/retention/preview',
+    id: 'retentionPreview',
+    output: RetentionPreviewResponseSchema,
     serviceOnly: true,
     meta: { safeRead: true },
   },

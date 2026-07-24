@@ -64,6 +64,29 @@ Commands for analyzing and managing pgvector memories:
 
 **Use case:** After migrations or data imports, check for and clean up duplicate memory embeddings.
 
+## Retention Commands
+
+Data-minimization tooling for the inactivity retention/purge epic:
+
+| Command                                                       | Description                                                               |
+| ------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| `pnpm ops retention:preview --env dev`                        | Report the purge-eligible cohort + character impact (**read-only**)       |
+| `pnpm ops retention:backfill-last-active --env dev --dry-run` | Report which users' `last_active_at` would advance                        |
+| `pnpm ops retention:backfill-last-active --env dev`           | Seed `last_active_at` from historical activity (forward-only, idempotent) |
+| `pnpm ops retention:backfill-last-active --env prod --force`  | Skip the production confirmation prompt                                   |
+
+**`retention:preview` is safe to run against prod** — it mutates nothing and has
+no confirmation prompt. It reads the cohort from the gateway
+(`GET /internal/retention/preview`) rather than querying locally, so the report
+reflects exactly the eligibility predicate a purge would act on. It needs the
+Railway CLI logged in (credentials come from the `api-gateway` service's
+variables).
+
+A user is purge-eligible when they are **unreachable** (DMs permanently failed,
+or their Discord account is gone) **and** inactive past the retention window.
+The bot owner and any `retention_exempt` account — including the Orphaned
+Characters sentinel — are always excluded.
+
 ## Context Commands
 
 Quick codebase state for AI session startup:

@@ -31,4 +31,15 @@ export function registerRetentionCommands(cli: CAC): void {
         force: options.force,
       });
     });
+
+  cli
+    .command(
+      'retention:preview',
+      'Report the purge-eligible cohort and its character impact (read-only)'
+    )
+    .option(ENV_OPTION, ENV_OPTION_DESC, ENV_OPTION_DEFAULT)
+    .action(async (options: { env?: Environment }) => {
+      const { retentionPreview } = await import('../retention/preview.js');
+      await retentionPreview({ env: options.env ?? 'dev' });
+    });
 }

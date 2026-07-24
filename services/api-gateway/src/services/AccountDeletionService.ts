@@ -24,10 +24,11 @@ import {
   ACCOUNT_DELETE_CONFIRMATION_PHRASE,
   type OwnedCharacterImpactSchema,
 } from '@tzurot/common-types/schemas/api/account';
-import { type PrismaClient, type Prisma } from '@tzurot/common-types/services/prisma';
+import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { z } from 'zod';
 import { ensureOrphanSentinel } from './OrphanSentinelBootstrap.js';
+import { findCrossUserReachIds } from './retention/crossUserReach.js';
 
 const logger = createLogger('AccountDeletionService');
 
@@ -138,40 +139,6 @@ export class AccountDeletionService {
     return new Map(rows.map(row => [row.personalityId, row.otherUsers]));
   }
 
-  /**
-   * Owned characters with CROSS-USER reach (Retention Phase 2, D11): another
-   * user — a persona owner other than the departed one — has a memory,
-   * conversation-history row, OR fact scoped to the character. These are the
-   * characters a retention purge re-homes to the sentinel instead of deleting,
-   * so the other users keep using them. Broadens `fetchOtherUserReach`'s
-   * memories-only signal to all three personality-scoped tables (council). The
-   * INNER JOINs drop world/orphan rows with a null `persona_id` — reach is
-   * about another USER, not un-owned content. Returns the ids to re-home.
-   */
-  private async partitionOwnedByReach(
-    tx: Prisma.TransactionClient,
-    userId: string,
-    ownedIds: string[]
-  ): Promise<string[]> {
-    const rows = await tx.$queryRaw<{ personalityId: string }[]>`
-      SELECT DISTINCT reach.personality_id AS "personalityId"
-      FROM (
-        SELECT m.personality_id FROM memories m
-          JOIN personas p ON m.persona_id = p.id
-          WHERE m.personality_id = ANY(${ownedIds}::uuid[]) AND p.owner_id != ${userId}::uuid
-        UNION ALL
-        SELECT ch.personality_id FROM conversation_history ch
-          JOIN personas p ON ch.persona_id = p.id
-          WHERE ch.personality_id = ANY(${ownedIds}::uuid[]) AND p.owner_id != ${userId}::uuid
-        UNION ALL
-        SELECT f.personality_id FROM memory_facts f
-          JOIN personas p ON f.persona_id = p.id
-          WHERE f.personality_id = ANY(${ownedIds}::uuid[]) AND p.owner_id != ${userId}::uuid
-      ) reach
-    `;
-    return rows.map(row => row.personalityId);
-  }
-
   async preview(userId: string): Promise<AccountDeletePreview> {
     // Intentionally unbounded (exception to the bounded-findMany rule): the
     // deletion scope must cover the COMPLETE owned set — a paginated page
@@ -261,7 +228,7 @@ export class AccountDeletionService {
         // other-user data is never touched (D11).
         let deletedCharacters = ownedCharacters;
         if (mode === 'retention' && sentinelId !== null && ownedIds.length > 0) {
-          const reHomeIds = await this.partitionOwnedByReach(tx, userId, ownedIds);
+          const reHomeIds = await findCrossUserReachIds(tx, userId, ownedIds);
           if (reHomeIds.length > 0) {
             // Prisma client write (NOT raw SQL) so `@updatedAt` bumps: personalities
             // is a sync-tracked table and re-home is a SEMANTIC ownership change that
