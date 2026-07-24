@@ -89,7 +89,7 @@ fi
 
 # Origin-language scan: reviews that scope findings as "pre-existing" /
 # "not a regression" invite dismissal-by-origin — the shortcut the rules ban
-# (00-critical § Always Leave Code Better; 08-review-response § rule 2's
+# (00-critical § Always Leave Code Better; /tzurot-review-response § rule 2's
 # origin-language row). Origin is not a correctness verdict, so when the
 # vocabulary appears, the injected block below demands a per-finding merits
 # disposition before the merge retry. Line-count (not boolean) so the warning
@@ -143,7 +143,7 @@ RULE='━━━━━━━━━━━━━━━━━━━━━━━━�
     if [ "${ORIGIN_HITS:-0}" -gt 0 ] 2>/dev/null; then
         printf '⚠ ORIGIN-LANGUAGE DETECTED (%s matching line(s)). This review scopes at\n' "$ORIGIN_HITS"
         printf 'least one finding as pre-existing / not-a-regression. Origin is NOT a\n'
-        printf 'correctness verdict (.claude/rules/08-review-response.md, rule 2). Before\n'
+        printf 'correctness verdict (/tzurot-review-response, rule 2). Before\n'
         printf 'retrying the merge, give each such finding a merits disposition in your\n'
         printf 'user-facing summary: fix now / backlog entry with promote-when /\n'
         printf 'correct-as-is WITH the technical reason. "Pre-existing" may not be the\n'

@@ -111,7 +111,7 @@ When it fires:
    silently misses inline line comments — the most common place human
    reviewers leave blocking feedback.)
 - Report CI state + reviewer findings in one message (blocking vs. non-blocking).
-- Apply feedback per .claude/rules/08-review-response.md (trivial-shape
+- Apply feedback per /tzurot-review-response (trivial-shape
   auto-apply via test-gated fixups; semantic-shape ASK; batch-present).
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 EOF

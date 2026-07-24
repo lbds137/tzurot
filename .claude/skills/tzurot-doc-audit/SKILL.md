@@ -1,7 +1,7 @@
 ---
 name: tzurot-doc-audit
 description: 'Documentation and auto-memory freshness audit. Invoke with /tzurot-doc-audit to review docs and Claude auto-memory for staleness, items in the wrong layer, and missing-tool drift.'
-lastUpdated: '2026-07-01'
+lastUpdated: '2026-07-24'
 ---
 
 # Documentation Audit Procedure
@@ -115,8 +115,8 @@ Auto-memory audit runs as part of the recurring `/tzurot-doc-audit` cycle — th
 | `05-tooling.md`           | All `pnpm ops` commands listed? `pnpm quality` description accurate?                                                                                                               |
 | `06-backlog.md`           | HOT/COLD topology table matches actual `backlog/` layout (`now.md` + `active-epic.md` hot; `cold/` themes/ideas/follow-ups/epic-log)? Granularity-ladder + staleness rules intact? |
 | `07-documentation.md`     | Placement table covers all `docs/reference/` subdirs? Lifecycle rules current?                                                                                                     |
-| `08-review-response.md`   | Edit-shape whitelist current? Round-cap + fixup-commit procedure matches the CI `fixup-check` job?                                                                                 |
 | `09-interaction-style.md` | Interaction guidance still reflects current feedback (no premature-stopping, etc.)?                                                                                                |
+| `10-working-posture.md`   | Each posture still names a trigger → behavior? Cross-references to rules/skills resolve?                                                                                           |
 
 **How to verify 05-tooling.md:**
 
@@ -137,6 +137,13 @@ For each skill:
 ```bash
 ls .claude/skills/*/SKILL.md
 ```
+
+Skills whose procedure is coupled to something enforced elsewhere need a
+deeper check than the generic list above — the coupling drifts silently:
+
+| Skill                     | Extra check                                                                                        |
+| ------------------------- | -------------------------------------------------------------------------------------------------- |
+| `/tzurot-review-response` | Edit-shape whitelist current? Round-cap + fixup-commit procedure matches the CI `fixup-check` job? |
 
 ### 4. Reference Docs by Subdirectory
 

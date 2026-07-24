@@ -19,6 +19,7 @@
 | [tzurot-arch-audit](./tzurot-arch-audit/SKILL.md)           | Architecture health audit                                      | `/tzurot-arch-audit`      |
 | [tzurot-bug-remediation](./tzurot-bug-remediation/SKILL.md) | Recurring-bug protocol: evidence → class sweep → guard         | `/tzurot-bug-remediation` |
 | [tzurot-reuse-scout](./tzurot-reuse-scout/SKILL.md)         | Pre-write reuse scouting, drifted-duplicate consolidation      | `/tzurot-reuse-scout`     |
+| [tzurot-review-response](./tzurot-review-response/SKILL.md) | PR review-response: edit-shape triage, auto-apply vs ASK       | `/tzurot-review-response` |
 | [tzurot-design-boulder](./tzurot-design-boulder/SKILL.md)   | Grounded, council-reviewed design sessions → ACCEPTED artifact | `/tzurot-design-boulder`  |
 | [tzurot-session-mining](./tzurot-session-mining/SKILL.md)   | Mine session logs for recurring friction → structural fixes    | `/tzurot-session-mining`  |
 
@@ -26,19 +27,18 @@
 
 The following rules load automatically every session — no invocation needed:
 
-| Rule                      | Content                                       |
-| ------------------------- | --------------------------------------------- |
-| `00-critical.md`          | Security, git safety, testing                 |
-| `01-architecture.md`      | Service boundaries, where code belongs        |
-| `02-code-standards.md`    | ESLint limits, TypeScript, testing patterns   |
-| `03-database.md`          | Prisma, pgvector, caching                     |
-| `04-discord.md`           | 3-second deferral, slash commands, BullMQ     |
-| `05-tooling.md`           | CLI reference, commit & release standards     |
-| `06-backlog.md`           | Backlog structure, session workflow           |
-| `07-documentation.md`     | Doc placement, naming, lifecycle              |
-| `08-review-response.md`   | PR review-response iteration (auto-apply/ASK) |
-| `09-interaction-style.md` | Session interaction style                     |
-| `10-working-posture.md`   | How to drive a session                        |
+| Rule                      | Content                                     |
+| ------------------------- | ------------------------------------------- |
+| `00-critical.md`          | Security, git safety, testing               |
+| `01-architecture.md`      | Service boundaries, where code belongs      |
+| `02-code-standards.md`    | ESLint limits, TypeScript, testing patterns |
+| `03-database.md`          | Prisma, pgvector, caching                   |
+| `04-discord.md`           | 3-second deferral, slash commands, BullMQ   |
+| `05-tooling.md`           | CLI reference, commit & release standards   |
+| `06-backlog.md`           | Backlog structure, session workflow         |
+| `07-documentation.md`     | Doc placement, naming, lifecycle            |
+| `09-interaction-style.md` | Session interaction style                   |
+| `10-working-posture.md`   | How to drive a session                      |
 
 ## Common Workflows
 
@@ -51,6 +51,8 @@ The following rules load automatically every session — no invocation needed:
 **Deploy Issue**: `/tzurot-deployment` → check logs
 
 **Big Design**: `/tzurot-design-boulder` (grounding → council → ACCEPTED artifact)
+
+**PR Review Lands**: `/tzurot-review-response` FIRST (edit-shape triage) → apply → batch-present the four sections
 
 **Session End**: `/tzurot-docs` → update CURRENT.md
 
