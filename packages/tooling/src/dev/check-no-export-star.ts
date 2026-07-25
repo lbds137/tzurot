@@ -35,12 +35,21 @@ export interface StarExportViolation {
   text: string;
 }
 
-/** A scanned production source file: `.ts`, not a test/declaration file, not exempt. */
+/**
+ * A scanned production source file: `.ts`/`.tsx`, not a test/declaration file,
+ * not exempt.
+ *
+ * `.tsx` is covered pre-emptively: no `.tsx` exists under any `packages/*\/src`
+ * or `services/*\/src` today, so a React-based service could otherwise land
+ * `export *` re-exports this guard would silently skip.
+ */
 export function isScannedSourceFile(filePath: string): boolean {
   return (
-    filePath.endsWith('.ts') &&
+    (filePath.endsWith('.ts') || filePath.endsWith('.tsx')) &&
     !filePath.endsWith('.test.ts') &&
+    !filePath.endsWith('.test.tsx') &&
     !filePath.endsWith('.spec.ts') &&
+    !filePath.endsWith('.spec.tsx') &&
     !filePath.endsWith('.d.ts') &&
     !EXEMPT_PATH.test(filePath)
   );

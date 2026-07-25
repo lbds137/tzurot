@@ -10,10 +10,16 @@ describe('isScannedSourceFile', () => {
     expect(isScannedSourceFile('/repo/packages/a/src/foo.ts')).toBe(true);
   });
 
+  it('includes .tsx production files', () => {
+    expect(isScannedSourceFile('/repo/services/web/src/App.tsx')).toBe(true);
+  });
+
   it('excludes test, spec, and declaration files', () => {
     expect(isScannedSourceFile('/repo/packages/a/src/foo.test.ts')).toBe(false);
     expect(isScannedSourceFile('/repo/packages/a/src/foo.spec.ts')).toBe(false);
     expect(isScannedSourceFile('/repo/packages/a/src/foo.d.ts')).toBe(false);
+    expect(isScannedSourceFile('/repo/services/web/src/App.test.tsx')).toBe(false);
+    expect(isScannedSourceFile('/repo/services/web/src/App.spec.tsx')).toBe(false);
   });
 
   it('exempts generated code and test infrastructure', () => {
