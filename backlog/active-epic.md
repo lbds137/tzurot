@@ -20,9 +20,13 @@ _Focus: a non-commercial solo-operator bot should not retain per-user data (conv
 
 ---
 
-## ⏸ Parked next-up: Platform-Portable UX Layer (Discord Design System) — resume after retention
+## ⏸ Parked: Platform-Portable UX Layer (Discord Design System) — NO LONGER next-up
 
-_The beta-exit gate (owner 2026-07-17). PARKED mid-Phase-3 on 2026-07-23 to let the retention epic through; resumes as the immediate next epic. **Full roadmap + pilot + owner-design-inputs live in [`cold/themes/platform-portable-ux-layer.md`](cold/themes/platform-portable-ux-layer.md)** (the parked home); authoritative design detail in the two ACCEPTED artifacts + the per-PR log._
+> **Owner call 2026-07-25 — beta-exit is deprioritized; the backlog drain is the focus.** _"I'm not in a huge rush for getting out of beta tbh since it's a small project. what I want to focus on is draining the backlog."_ Supersedes the 2026-07-23 "resumes as the immediate next epic" note. **Next epic once retention Phase 2 closes (PR-D): promote [`cold/themes/follow-up-pool-drain.md`](cold/themes/follow-up-pool-drain.md).**
+>
+> Consequence worth stating up front: the drain can no longer interleave with UX waves, because there won't be any in flight. Its Phase-1 domain batches must stand alone as PRs that do the work their rows asked for — which was the theme's original shape, but it means the browse/UI cluster no longer gets a free ride on picker-hygiene work.
+
+_The beta-exit gate (owner 2026-07-17). PARKED mid-Phase-3 on 2026-07-23 to let the retention epic through. **Full roadmap + pilot + owner-design-inputs live in [`cold/themes/platform-portable-ux-layer.md`](cold/themes/platform-portable-ux-layer.md)** (the parked home); authoritative design detail in the two ACCEPTED artifacts + the per-PR log._
 
 - **Phase 1 (catalog + voice)** ✅ COMPLETE (beta ≤172). **Phase 2 (components)** ✅ COMPLETE (beta.170–172). **Phase 3 (vocabulary + enforcement)** IN FLIGHT — **Waves 0–3 ✅ RELEASED** (beta.173 waves 0–2; **beta.174 wave 3, the breaking rename batch**). **Remaining: Waves 4–6** — PR-6a factory core+pilot → 6b destructive preset → 7 `/deny` redesign → 8 remaining picker hygiene → 9/10 factory sweep + router adoption (normal minors). Phase 4 (adapter) trigger-gated on a real second platform.
 - Artifacts: [`docs/proposals/backlog/ux-design-system-spec.md`](../docs/proposals/backlog/ux-design-system-spec.md) (WHAT) · [`docs/proposals/backlog/platform-portable-ux-design.md`](../docs/proposals/backlog/platform-portable-ux-design.md) (HOW) · per-PR detail [`cold/epic-log.md`](cold/epic-log.md).
