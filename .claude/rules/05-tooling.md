@@ -237,11 +237,22 @@ sleep 60; gh pr checks N --watch --interval=30 > /dev/null 2>&1; sleep 5; echo "
 
 The 60s prefix lets check-runs register; the `--watch` then correctly waits for all of them; the trailing 5s lets state propagate before the final-state query. This pattern is required for any monitor armed immediately after a `git push` — including post-autosquash. Custom `until` loops parsing `gh pr checks --json bucket` are still wrong (different race: partial check lists momentarily appearing "all non-pending" before slow checks register), but the bare `--watch` without startup delay is also wrong on fresh pushes. Use the sleep-prefixed canonical pattern.
 
+**A green `gh pr checks` list is not proof CI ran — confirm the RUN list for the head SHA.** Check-runs are a derived view: a workflow run that dies before dispatch (`startup_failure`, typically a GitHub Actions incident) creates **zero jobs and therefore zero check-runs**, so it is absent from `gh pr checks` entirely and the surviving workflows print as a clean green list. Verified against a real `startup_failure` run — `actions/runs/<id>/jobs` returned `total_count: 0` while the same commit's check-run list showed 22 green entries. Both times this fired, the monitor reported a short all-green list (1 of ~27 checks) that read as success.
+
+```bash
+gh api "repos/{owner}/{repo}/actions/runs?head_sha=$(git rev-parse HEAD)" \
+  --jq '.workflow_runs[] | "\(.status) \(.conclusion // "-") \(.name)"'
+```
+
+`head_sha` filters **server-side**, so the result is exhaustive for that commit with no `--limit` window to outgrow. Don't substitute `gh run list --limit N | jq 'select(.headSha==…)'`: that lists runs repo-wide and filters client-side _after_ the window is applied, so other branches, dependabot, and cron runs share the budget — worst during an incident, when reruns spike repo activity and this check matters most.
+
+Anything not `completed success` (or `skipped`) is a finding. **The died-before-dispatch case is the one `gh pr checks` structurally cannot show you** — a run `cancelled` or `timed_out` _after_ its jobs started still emits check-runs carrying that conclusion, so those DO surface in the check list; it is the zero-job run that vanishes from it. **Pin on the SHA, never a timestamp window**: a window silently spans two pushes and will report an older push's completion under the newer one's label. This is a verification step after the monitor fires, not a replacement watch loop — the sleep-prefixed `--watch` above is still how you wait.
+
 Pass to `Monitor` with `timeout_ms: 900000` (15 min — GitHub CI + CodeQL usually finishes well inside that; if it exceeds, re-arm).
 
 When the monitor fires, **all four** of the following must happen before the cycle is complete — do not stop after step 1 even if every check passed:
 
-1. Note the final CI state from the `gh pr checks N` output.
+1. Note the final CI state from the `gh pr checks N` output, **and run the SHA-pinned run-list query above** — a check list can be green because a whole run never dispatched.
 2. Fetch new reviewer feedback. GitHub splits it across **three** endpoints that the raw `gh api /issues/N/comments` call does **not** cover together:
    - `pnpm ops gh:pr-comments N` — conversation comments + inline line-level review comments
    - `pnpm ops gh:pr-reviews N` — review summaries (Approve / Request Changes / Comment)
