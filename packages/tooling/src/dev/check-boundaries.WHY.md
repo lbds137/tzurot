@@ -5,7 +5,8 @@
 Scans every source file across services and packages for forbidden imports defined in `BOUNDARY_RULES`. The current rules enforce:
 
 - `bot-client` never imports from `@prisma/client` directly (must go through `api-gateway` HTTP endpoints)
-- `bot-client` never imports Prisma-backed code (`getPrismaClient`, `PrismaClient`, `PersonaResolver`, `PersonalityService`, `ConversationHistoryService`, `PersonaCacheInvalidationService`, …) re-exported from the `@tzurot/common-types` barrel
+- `bot-client` never imports the Prisma **client** symbols still re-exported from the `@tzurot/common-types` barrel — `createPrismaClient`, `PrismaClient`, `Prisma`. The authoritative set is `BOT_CLIENT_BANNED_COMMON_TYPES_PRISMA_SYMBOLS` in `check-boundaries.ts`, and a colocated drift test asserts every entry is a real common-types export, so a renamed or deleted symbol fails CI rather than silently no-op-matching
+  - **Not this rule**: the former Prisma-backed _services_ (`PersonaResolver`, `PersonalityService`, `ConversationHistoryService`, the cache invalidators) moved to dedicated packages and are banned by their own per-package **depcruise** rules. They are a different enforcement mechanism with a different failure message — look there, not here, when one of them trips
 - No cross-service imports (services may only import from `@tzurot/common-types`)
 - `ai-worker` internals are not exposed outside the service
 

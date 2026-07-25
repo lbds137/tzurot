@@ -71,7 +71,7 @@ ignore:
   - 'services/ai-worker/src/index.ts'
   - 'services/bot-client/src/index.ts'
   - 'services/api-gateway/src/queue.ts'
-  # DB composition root: getPrismaClient() wires pg.Pool + the driver adapter +
+  # DB composition root: createPrismaClient() wires pg.Pool + the driver adapter +
   # PrismaClient. Same class as the entry points above — unit-testing it means
   # mocking pg/adapter/client (testing the mocks). The real logic (pool sizing,
   # the saturation gauge) lives in the fully-tested poolConfig.ts. Already

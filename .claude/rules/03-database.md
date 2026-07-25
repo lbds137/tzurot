@@ -3,12 +3,16 @@
 ## Connection Management
 
 ```typescript
-// ✅ GOOD - Reuse singleton from common-types
-import { getPrismaClient } from '@tzurot/common-types';
+// ✅ GOOD - the shared factory owns the pg.Pool + driver adapter
+import { createPrismaClient } from '@tzurot/common-types/services/prisma';
 
-// ❌ BAD - Creates new connection every time
-const prisma = new PrismaClient(); // Don't do this!
+const { prisma, dispose } = createPrismaClient();
+
+// ❌ BAD - bypasses the adapter entirely; under Prisma 7 it THROWS at construction
+const prisma = new PrismaClient();
 ```
+
+Call `dispose()` when a one-shot process finishes — it stops the pool-stats gauge and closes the pool. One-shot scripts and migrations should also pass the transient pool size rather than the long-running app default: `createPrismaClient({ max: DB_POOL_DEFAULTS.TRANSIENT_MAX })`, with `DB_POOL_DEFAULTS` from `@tzurot/common-types/services/poolConfig`.
 
 **Pool configuration:** The Prisma 7 driver adapter (`@prisma/adapter-pg`) runs over an explicit node-postgres `pg.Pool` configured in `packages/common-types/src/services/poolConfig.ts` — **default `max = 20` per service process**, env-tunable via `DATABASE_POOL_MAX`, with a finite `DATABASE_POOL_CONN_TIMEOUT_MS` (default 10s) acquisition timeout. **Gotcha:** the driver adapter **ignores the `?connection_limit=` URL param** — pool size MUST be set in `poolConfig.ts`/env, never on `DATABASE_URL`. The pool previously fell back to pg's defaults (`max = 10`, wait-forever acquisition), which starved under load. Set `DATABASE_POOL_STATS_INTERVAL_MS` to enable the saturation gauge (warns when connections queue). Keep total connections (Σ `max` across all service processes/replicas) under the Postgres `max_connections` (~100 on Railway).
 

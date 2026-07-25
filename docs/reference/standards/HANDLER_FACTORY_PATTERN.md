@@ -201,9 +201,9 @@ function createHandler(
   cacheService?: CacheInvalidationService
 ) { ... }
 
-// Bad - importing singletons inside handler
+// Bad - constructing the client inside the handler
 function createHandler() {
-  const prisma = getPrismaClient();  // Hidden dependency
+  const { prisma } = createPrismaClient();  // Hidden dependency, and its own pool
 }
 ```
 
