@@ -28,7 +28,6 @@ _Recently resolved items move to the GitHub release notes at ship time — this 
 
 _Small tasks that can be done between major features. Good for momentum._
 
-- 🧹 `[CHORE]` **Fold the monitor-pattern caveat into `05-tooling.md`** — the canonical CI-monitor snippet there (`sleep 60; gh pr checks N --watch`) fails in a way that reads as success, twice observed 2026-07-25: `--watch` snapshots the check list at start, and a workflow run that never starts registers **no check-runs at all**, so the watch exits on whatever registered first and the trailing `gh pr checks` prints a short green list. Seen with queued runs and again with `startup_failure` during the Actions outage — 1 of 27 checks both times. **Fix**: document polling run-level state (`gh run list --json status,conclusion,headSha`) and treating `startup_failure` as distinct from success; pin the monitor loop on the exact head SHA rather than a timestamp window (a timestamp window silently spans two pushes — it reported round 5's completion under round 4's label). Rules file, so review-gated PR. _Was tracked only inside the unrun-CI Quick Win, and was lost for ~20 minutes when that entry was removed — refiled 2026-07-25._
 
 ### 📥 Untriaged (max 10)
 
