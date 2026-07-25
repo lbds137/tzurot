@@ -32,7 +32,9 @@ That's the whole session-start surface (~350 lines). **Do NOT load `backlog/cold
 
 ## Where does a new item go? (filing decision-tree)
 
-File by **size/granularity** — NOT by whether it has a trigger. ("Promote when…" is an optional field on any item, never a filing rule. This is the lesson from the old Deferred-vs-Icebox collapse.)
+**First, the admission bar — should this be filed at all?** Check what would have to happen for the item to be picked up. If the trigger is future work in **this same file or diff** ("next time we touch this"), **do it now** in the work that surfaced it — it's colocated and small by construction, and nobody greps a several-hundred-row table before unrelated work. If it's a **named batch across files** ("next tooling-DRY pass"), file the _batch_ as a theme phase or `cold/ideas.md` section and make this item one of its members — grep `cold/` first so you join an existing entry instead of fragmenting. Only an **observable** trigger (a user report, a metric threshold, a provider change) gets filed as its own item. Full rule: [`.claude/rules/06-backlog.md`](.claude/rules/06-backlog.md) § The admission bar.
+
+Then file by **size/granularity** — NOT by whether it has a trigger. ("Promote when…" is an optional field on any item, never a filing rule. This is the lesson from the old Deferred-vs-Icebox collapse.)
 
 1. **Active production bug?** → `now.md` › 🚨 Production Issues (fix before features)
 2. **Working on it this week?** → `now.md` › 🎯 Current Focus (max 3)
@@ -46,7 +48,7 @@ File by **size/granularity** — NOT by whether it has a trigger. ("Promote when
 
 ## Staleness — aging escalates, it never deletes
 
-Items are **never** deleted by calendar. An untouched follow-up that's aged RISES in priority and gets surfaced for a conscious decision (do it now / confirm the trigger is still pending) — it is not swept under the rug. An item leaves the backlog only when it is **done** or **genuinely obsolete** (the code/condition it references no longer exists — verify by grep, not by date). Completed items are removed; git is the archive.
+Items are **never** deleted by calendar. An untouched follow-up that's aged RISES in priority and gets surfaced for a conscious decision (do it now / confirm the trigger is still pending) — it is not swept under the rug. An item leaves the backlog on exactly **three** exits: **done** (removed; git is the archive), **genuinely obsolete** (the code/condition it references no longer exists — verify by grep, not by date), or **ruled out** (a deliberate decision not to do it, with a technical reason in the removing commit — never "it's old"). Full guards on the third: [`.claude/rules/06-backlog.md`](.claude/rules/06-backlog.md) § Ruling an item out.
 
 ## Conventions
 
