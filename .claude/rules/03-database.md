@@ -161,10 +161,10 @@ const cache = new TTLCache<ValueType>({
 
 | Cache              | Location                     | TTL   | Type                   |
 | ------------------ | ---------------------------- | ----- | ---------------------- |
-| Channel Activation | `GatewayClient.ts`           | 30s   | TTLCache + pub/sub     |
-| Admin Settings     | `GatewayClient.ts`           | 30s   | TTLCache (in-memory)   |
+| Channel Activation | `gatewayServiceCalls.ts`     | 30s   | TTLCache + pub/sub     |
+| Admin Settings     | `gatewayServiceCalls.ts`     | 60s   | TTLCache (in-memory)   |
 | Personality        | `PersonalityService.ts`      | 5 min | TTLCache + pub/sub     |
-| Personality IDs    | `PersonalityIdCache.ts`      | 5 min | Custom (in-memory)     |
+| Personality (bot)  | `HttpPersonalityLoader.ts`   | 5 min | TTLCache (+ negative)  |
 | Denylist           | `DenylistCache.ts`           | -     | In-memory + pub/sub    |
 | User               | `UserService.ts`             | 5 min | TTLCache (in-memory)   |
 | Autocomplete       | `autocompleteCache.ts`       | 60s   | TTLCache (in-memory)   |
