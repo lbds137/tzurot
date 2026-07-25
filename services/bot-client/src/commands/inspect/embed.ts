@@ -25,6 +25,7 @@ export function getEmbedColor(payload: DiagnosticPayload): number {
  * Natural completion (stop / end_turn / STOP / stop_sequence) → ✅
  * Length truncation → ⚠️
  * Content filter blocked → ⛔
+ * Upstream provider failed mid-generation → ❌
  * Unknown sentinel → ❓
  * Anything else → no decoration
  */
@@ -39,6 +40,8 @@ export function formatFinishReason(reason: string): string {
       return `${reason} ⚠️`;
     case FINISH_REASONS.CONTENT_FILTER:
       return `${reason} ⛔`;
+    case FINISH_REASONS.ERROR:
+      return `${reason} ❌`;
     case FINISH_REASONS.UNKNOWN:
       return `${reason} ❔`;
     default:
