@@ -1,6 +1,6 @@
 {
   "name": "@tzurot/clients",
-  "version": "3.0.0-beta.175",
+  "version": "3.0.0-beta.176",
   "private": true,
   "type": "module",
   "description": "Typed HTTP clients + route manifest for the Tzurot gateway API",

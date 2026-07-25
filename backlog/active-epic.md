@@ -18,8 +18,6 @@ _Focus: a non-commercial solo-operator bot should not retain per-user data (conv
 
 **Prod-backfill sequencing** (reviewer #1764 finding) — ✅ DONE. The plan: since 1a–1d rode the SAME release (beta.175), run the prod backfill ONCE _after_ that release deploys them all (forward-stamp already live → no coverage gap). Executed 2026-07-23 post-beta.175 deploy: **270 prod users backfilled** (29 <30d · 198 30–180d · 43 already >180d — the zombie cohort correctly gets historical, not fresh, timestamps). Idempotent, so a re-run is safe if ever needed.
 
-**Ride-along Quick Win** (sibling class): `dmErrorClassifier` gains the `bot_level` class for `20026` (filed in `now.md`) — the classifier side of the same "20026 isn't the user's fault" ruling.
-
 ---
 
 ## ⏸ Parked next-up: Platform-Portable UX Layer (Discord Design System) — resume after retention
