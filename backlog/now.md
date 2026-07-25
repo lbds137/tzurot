@@ -24,6 +24,8 @@ _Recently resolved items move to the GitHub release notes at ship time — this 
 
 **🏗️ `[LIFT]` Platform-Portable UX Layer — PARKED next-up (the beta-exit gate)** — Phases 1 ✅ 2 ✅ done; Phase 3 Waves 0–3 RELEASED (beta.173/174); **Waves 4–6 remain** (factory core → destructive preset → /deny redesign → picker hygiene → factory sweep + router). Resumes the moment retention ships. State: `active-epic.md` § Parked + the two UX artifacts + `cold/epic-log.md`.
 
+**🏗️ `[LIFT]` Backlog substrate — is markdown the wrong data structure? (owner directive 2026-07-25)** — owner frustration after three reorganizations that didn't take: _"really wishing we had a mini Jira without the Atlassian bullshit."_ Design boulder, grounding captured → [`docs/proposals/backlog/backlog-substrate.md`](../docs/proposals/backlog/backlog-substrate.md). Thesis under test: every rule we've built (admission bar, ladder, three exits, HOT/COLD, caps, aging nudge) is a schema + query planner written as prose and executed by hand, so a fourth reorganization also fails. Evidence: 342 rows, **118 (35%) carry a trigger that by our own rule never fires**, and the agent got the query method wrong **three separate times in one day** on a corpus it had read that morning. Candidates: GitHub Issues · structured-markdown + query tooling · stay-put-plus-guards. The one real objection — session-start agent context loading — leads the council brief rather than being buried. **NEXT: ground candidates, council the open calls, one batched owner pass. Migrate nothing before that.**
+
 ### ⚡ Quick Wins (max 5)
 
 _Small tasks that can be done between major features. Good for momentum._
