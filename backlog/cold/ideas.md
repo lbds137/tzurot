@@ -583,3 +583,20 @@ Three failure classes share one cause: **the agent ends a turn without auditing 
 - **Known gap left open by the promise-hook rework**: a same-turn backlog write still clears every promise in the turn, so filing item A licenses promising item B. Fixing that by matching write-to-promise would reintroduce the semantic inference the rework removed; the receipt is the honest fix.
 
 **Promote when**: the next session that opens fresh (this is deliberately not end-of-session work), or the next observed instance of an untracked commitment surviving the reworked promise hook. **Related**: the probe harnesses are still "run manually after editing the hook" rather than CI-wired — see the follow-ups row on that; a receipt hook makes wiring them up more valuable, since it would run against every turn.
+
+## Deliberate character co-ownership — invite / accept / revoke (owner directive 2026-07-25)
+
+Owner wants shared ownership to be a real concept: _"we honestly need to allow for multiple character owners."_ Scoped OUT of retention PR-D by the same owner call — PR-D ships only the machinery both need (role-aware readers + the orphan role); the user-facing feature lands on top, so a data-minimization epic isn't gated on a feature design.
+
+**Most of the model already exists and is dormant.** `PersonalityOwner` is a `(personalityId, userId)` junction carrying `role String @default("owner")`. Its only writer is `ai-worker/src/jobs/ShapesImportHelpers.ts:47`, which inserts `userId === ownerId` — a self-duplicate of `personality.ownerId`, so **no genuine co-owner row exists anywhere in the system**. Every reader tests row *existence* and ignores `role`. That dormancy is why the table can be given real semantics without a migration to a new model, and also why nothing today exercises the paths a real co-owner would take.
+
+**What the feature has to decide** (none of it settled): who may invite; whether the invitee accepts or is added unilaterally; what a co-owner may change (definition? avatar? aliases? delete?); whether co-owners can invite further co-owners; revocation, and what happens to the ex-co-owner's conversations; and whether a co-owned character appears in the co-owner's data export as their content (it plausibly should — unlike the retention-orphan case, where it must not).
+
+**Two things it must land with:**
+
+1. **The five `PersonalityOwner` readers become role-aware together**, or the grant means different things in different places: `routes/user/personality/helpers.ts:69` (`canUserEditPersonality`) and `:115` (`canUserViewPersonality`), `personality/list.ts:97`, `personality/get.ts:44`, and `ai-worker/src/jobs/AccountExportAssembler.ts:236` (the export sweep — the one that decides whether a grant puts another person's authored character into your export).
+2. **The DTO must stop lying.** `computePersonalityPermissions` derives `canEdit` from `personality.ownerId` alone and never consults the junction, while the route guard does. Inert only because no real co-owner rows exist — which is exactly what this feature creates. `EntityPermissions` is `{ canEdit, canDelete }` with no `canView`; extending it is part of the work.
+
+**Related, and it trips on this feature's first real write**: `cold/follow-ups.md`'s reach-widening row — `partitionOwnedByReach` doesn't consult `PersonalityOwner`, so a character shared purely by grant (no memories/history/facts from the co-owner) would be **deleted** by a retention purge rather than re-homed, silently revoking an active co-owner. Provably unreachable today for the dormancy reason above; this feature is what makes it reachable, so the widening ships here if PR-D hasn't already taken it.
+
+**Promote when**: retention Phase 2 completes (PR-D ships the role-aware readers this builds on), or sooner if the owner wants it ahead of retention. Authoritative permission-surface grounding lives in [`inactivity-retention-purge-phase2.md`](../../docs/proposals/backlog/inactivity-retention-purge-phase2.md) D11.
