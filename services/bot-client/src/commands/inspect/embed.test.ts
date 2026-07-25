@@ -112,6 +112,10 @@ describe('formatFinishReason', () => {
     expect(formatFinishReason('length')).toBe('length ⚠️');
   });
 
+  it('decorates an upstream provider failure with ❌', () => {
+    expect(formatFinishReason('error')).toBe('error ❌');
+  });
+
   it('decorates content_filter with ⛔', () => {
     expect(formatFinishReason('content_filter')).toBe('content_filter ⛔');
   });

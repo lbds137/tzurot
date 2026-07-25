@@ -39,7 +39,7 @@ export async function handleKick(context: DeferredCommandContext): Promise<void>
     await guild.leave();
 
     await context.editReply({
-      content: `✅ Successfully left server: **${serverName}** (\`${serverId}\`)`,
+      content: `✅ Successfully left server: **${escapeMarkdown(serverName)}** (\`${escapeMarkdown(serverId)}\`)`,
     });
 
     logger.info(
@@ -51,7 +51,7 @@ export async function handleKick(context: DeferredCommandContext): Promise<void>
     await context.editReply({
       content: renderSpec(
         CATALOG.error.operationFailed(
-          `leave server \`${serverId}\` — it may no longer exist or the bot may lack permissions`
+          `leave server \`${escapeMarkdown(serverId)}\` — it may no longer exist or the bot may lack permissions`
         )
       ),
     });

@@ -283,12 +283,10 @@ export function extractRecentHistoryWindow(
   // Get the last N turns (each turn = 2 messages: user + assistant)
   const messagesToInclude = turnsToInclude * 2;
 
-  // Take the last N messages (they're already in chronological order)
+  // Take the last N messages (they're already in chronological order).
+  // Always ≥1 element: rawHistory is non-empty and messagesToInclude ≥ 2 (both
+  // guarded above), so no empty-result check is needed here.
   const recentMessages = rawHistory.slice(-messagesToInclude);
-
-  if (recentMessages.length === 0) {
-    return undefined;
-  }
 
   // Format as content only (no role labels) - role labels are noise for semantic search
   // The content itself is what matters for finding relevant memories
