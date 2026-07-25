@@ -595,8 +595,33 @@ Owner wants shared ownership to be a real concept: _"we honestly need to allow f
 **Two things it must land with:**
 
 1. **The five `PersonalityOwner` readers become role-aware together**, or the grant means different things in different places: `routes/user/personality/helpers.ts:69` (`canUserEditPersonality`) and `:115` (`canUserViewPersonality`), `personality/list.ts:97`, `personality/get.ts:44`, and `ai-worker/src/jobs/AccountExportAssembler.ts:236` (the export sweep — the one that decides whether a grant puts another person's authored character into your export).
+
+   **And a sixth site that is not a `PersonalityOwner` reader at all — which is exactly why it is the easiest to miss.** `PersonalityLoader.buildAccessFilter` (`packages/identity/src/personality/PersonalityLoader.ts:97`) is the runtime gate on every message-path personality load, and it is `{ OR: [{ isPublic: true }, { ownerId: ownerUuid }] }` — it never consults the junction. So a co-ownership grant built only against the route guards would appear in browse, pass every permission check, show `canEdit: true`… and then the character would silently not respond to the co-owner in a channel or DM. **The junction currently confers no ability to talk to a character.** Any co-ownership feature has to add an arm here, and this is the site that decides whether the feature works at all rather than merely how it displays.
 2. **The DTO must stop lying.** `computePersonalityPermissions` derives `canEdit` from `personality.ownerId` alone and never consults the junction, while the route guard does. Inert only because no real co-owner rows exist — which is exactly what this feature creates. `EntityPermissions` is `{ canEdit, canDelete }` with no `canView`; extending it is part of the work.
 
 **Related, and it trips on this feature's first real write**: `cold/follow-ups.md`'s reach-widening row — `partitionOwnedByReach` doesn't consult `PersonalityOwner`, so a character shared purely by grant (no memories/history/facts from the co-owner) would be **deleted** by a retention purge rather than re-homed, silently revoking an active co-owner. Provably unreachable today for the dormancy reason above; this feature is what makes it reachable, so the widening ships here if PR-D hasn't already taken it.
 
-**Promote when**: retention Phase 2 completes (PR-D ships the role-aware readers this builds on), or sooner if the owner wants it ahead of retention. Authoritative permission-surface grounding lives in [`inactivity-retention-purge-phase2.md`](../../docs/proposals/backlog/inactivity-retention-purge-phase2.md) D11.
+**Promote when**: retention Phase 2 completes (PR-D ships the role-aware readers this builds on), or sooner if the owner wants it ahead of retention. Authoritative permission-surface grounding lives in [`inactivity-retention-purge-phase2.md`](../../docs/proposals/backlog/inactivity-retention-purge-phase2.md) D11. **Prerequisite**: the visibility tiers below — co-ownership is the *grant* mechanism, tiers are the *visibility* model, and "shared with specific people" is where they meet.
+
+## Character visibility tiers — private / shared-with-specific-people / unlisted / public (owner directive 2026-07-25)
+
+Today visibility is **binary**: `personalities.isPublic`. Public means anyone can talk to it and it appears in browse; private means only the creator and the bot owner. The runtime gate is a single predicate — `PersonalityLoader.buildAccessFilter` returns `{ OR: [{ isPublic: true }, { ownerId: ownerUuid }] }` — so there is no third state anywhere in the system.
+
+Owner wants the social-media ladder instead: _"fully private where you're the only person who sees it. Then private plus any specific people you invite. And then unlisted, where if you know the link you can access it, but it's not publicly searchable."_ Mapped onto this codebase:
+
+| Tier | Can talk to it | Appears in public browse / random-pick |
+| --- | --- | --- |
+| **private** | owner (+ bot owner) | no |
+| **shared** | owner + explicitly granted users | no |
+| **unlisted** | anyone who knows the exact name/slug/alias | no |
+| **public** | anyone | yes |
+
+**Why it's more than a column rename.** `isPublic` is doing two different jobs today — *who may talk to it* and *who may see it in a list* — and the tiers split those apart. `unlisted` is precisely "talkable but not listable," which no current code can express: `buildAccessFilter` decides talkability, while `list.ts:91` (`where: { isPublic: true }`) and `randomPick.ts:81` decide listability, and both read the same flag. Expect a boolean→enum migration plus an audit of every `isPublic` consumer, splitting each into the talk question or the list question.
+
+**Adjacent decisions this unlocks or touches:**
+
+- **Co-ownership** (section above) is the natural grant mechanism for the `shared` tier — build the tiers first, or design them together, but don't ship `shared` without deciding which one owns the grant list.
+- **Retention orphans**: the whole D11 accessibility question dissolved *because* only two tiers exist (a private character can't have live cross-user reach). Adding `shared` re-opens it — a shared character CAN have reach-holders who lose access when the owner is purged. **Whoever builds tiers must re-read D11's retraction**, because its reasoning is explicitly conditioned on the current binary model.
+- The once-public-now-private over-retention row in `cold/follow-ups.md` gets more shapes to consider.
+
+**Promote when**: the owner wants it (it is a user-facing feature with no forcing trigger), or when co-ownership is scheduled — whichever comes first. Not a retention prerequisite; retention Phase 2 is correct as-is under the binary model.

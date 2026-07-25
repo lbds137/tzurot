@@ -76,7 +76,26 @@ The cohort is selected at preview time but purged later; **the per-user deletion
 
 Owned personalities with **no** cross-user reach cascade-delete normally (nobody else uses them — minimize). The operator manages orphaned characters via existing superuser admin powers (the sentinel is a holder, not an admin). _Owner refinement of GLM's reassign-to-superuser: a distinct orphan bucket, not the operator's own account._ **Build-time grounding required:** verify how ownership-based UI/permission checks (autocomplete, "is this mine?", listing) treat a sentinel-owned character — orphans must stay usable so other users' history keeps working. Sentinel seeded via a bootstrap (mirror `TtsConfigBootstrap`).
 
-> **⚠️ PR-D BLOCKING — orphan accessibility (surfaced in PR-B review).** The build-time grounding found a real gap: re-home repoints `owner_id` (+ provenance) but grants the surviving reach-holders **no access**. A **private** re-homed character becomes unreachable to the very users it was preserved for — `canUserViewPersonality` gates on `isPublic || ownerId === userId || PersonalityOwner`, all false for them once the owner is the sentinel, and `channel/activate.ts` blocks reactivation on that check. The clean fix (scoped view-only access for reach-holders) needs a **new permission primitive**: no view-without-edit / shared-without-public mechanism exists today (force-`isPublic` over-shares to everyone in browse; a `PersonalityOwner` grant over-grants edit + surfaces the orphan in the reach-holder's "your characters"). **Owner-decided (PR-B review): defer the mechanism to PR-D rather than bake a policy into PR-B.** PR-B's re-home is **inert until PR-D wires the purge**, so no live bug ships; **PR-D MUST resolve orphan accessibility before activating the purge** (naturally coupled to the Phase-3 orphan-management design). Backstopped in `cold/follow-ups.md`.
+> **~~⚠️ PR-D BLOCKING — orphan accessibility~~ — RETRACTED, NOT A BLOCKER.** The claim was: re-home repoints `owner_id`, so a **private** re-homed character becomes unreachable to the very reach-holders it was preserved for. It reasoned from `canUserViewPersonality` and `channel/activate.ts` — **neither of which is the runtime gate on talking to a character.**
+>
+> The runtime gate is `PersonalityLoader.buildAccessFilter` (`packages/identity/src/personality/PersonalityLoader.ts:97`), applied to every personality load on the message path (`PersonalityTriggerProcessor` passes the speaker's `userId` into `loadPersonalityStrict` for reply, activation, and mention resolution alike):
+>
+> ```ts
+> return { OR: [{ isPublic: true }, { ownerId: ownerUuid }] };
+> ```
+>
+> Public **or** owner. Nothing else — note in particular that it does not consult `PersonalityOwner`. So a non-owner cannot load a private character to talk to it, which means **a private character cannot accumulate cross-user reach going forward, and re-homing never removes access a reach-holder still had**:
+>
+> | Character was | After re-home to the sentinel | Reach-holder's access |
+> | --- | --- | --- |
+> | **Public** | `isPublic: true` is untouched by the owner change | Unchanged — still works |
+> | **Private** | `ownerId` becomes the sentinel | Already gone *before* the purge; private excluded them |
+>
+> Bot-owner access is unaffected either way (`resolveUserContext` returns no access uuid for the bot owner → no filter). _Owner call 2026-07-25, code-verified: "if the character was private, then only me as the bot owner and the character creator would have had history with it anyway... so this problem doesn't really exist in the current state of things."_ **PR-D is unblocked.**
+>
+> **What survives is the opposite defect, and it is small.** `findCrossUserReachIds` queries history rows and never checks `isPublic`, so a character that was public, accumulated another user's history, then went private still counts as having reach — and a purge therefore **preserves** it. The result is a private character under the sentinel that only the bot owner can reach: not lost access, but **over-retention** in a data-minimization epic. Fix shape is a predicate tweak (ignore reach on a currently-private character, or on rows predating the flip), not a permission primitive. Decide with PR-D; it does not gate it.
+>
+> **Residual not exhaustively verified**: every message entry point was spot-checked to pass a `userId` into the loader (a load with no `userId` skips the filter entirely — that is the documented internal-operations bypass). The three trigger resolvers do; an entry point that did not would be a live private-character leak independent of retention, and is worth a dedicated sweep if one is ever suspected.
 >
 > **Pre-design grounding (code-verified) — the primitive is narrower than "new permission model".** Four findings change the shape of the fix:
 >
