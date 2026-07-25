@@ -19,7 +19,7 @@ const logger = createLogger('admin-cleanup');
 
 export async function handleCleanup(context: DeferredCommandContext): Promise<void> {
   const options = adminCleanupOptions(context.interaction);
-  const daysToKeep = options.timeframe() ?? CLEANUP_DEFAULTS.DAYS_TO_KEEP_HISTORY;
+  const daysToKeep = options.days() ?? CLEANUP_DEFAULTS.DAYS_TO_KEEP_HISTORY;
 
   try {
     const { ownerClient } = clientsFor(context.interaction);

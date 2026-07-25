@@ -175,8 +175,8 @@
                 "max_value": 365,
                 "min_value": 1,
                 "type": 4,
-                "name": "timeframe",
-                "description": "Time window in days — keep history newer than this (default: 30)",
+                "name": "days",
+                "description": "Keep history newer than this many days (default: 30)",
                 "required": false
               }
             ]
@@ -2565,7 +2565,7 @@
                     "autocomplete": true,
                     "type": 3,
                     "name": "voice",
-                    "description": "Which voice",
+                    "description": "Which cloned voice",
                     "required": true
                   }
                 ]
