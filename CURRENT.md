@@ -10,21 +10,11 @@ _(empty — beta.176 just shipped; develop is SHA-aligned with main.)_
 
 ## 🔎 The prod cohort is EMPTY, and the reason reshapes PR-D
 
-First `retention:preview --env prod` (2026-07-25, immediately post-deploy — it was gated on this release, which is why the release went ahead of PR-D). It reported no eligible users. The preview has a known denominator gap, so a one-off read-only probe decomposed the predicate rather than trusting the zero:
+First prod preview (post-deploy; it was gated on this release, which is why the release went ahead of PR-D): **0 eligible**. Probed rather than trusted — 272 users, 0 stamped on either arm, **51 inactive ≥180d**.
 
-|                               |  count |
-| ----------------------------- | -----: |
-| users total                   |    272 |
-| `dm_undeliverable_since` set  |  **0** |
-| `discord_account_gone_at` set |      0 |
-| inactive ≥180d                | **51** |
-| both arms (= eligible)        |  **0** |
+**The 26 were never stamped.** Owner challenged my first explanation ("beta.175's blast-success clear wiped them") and was right: beta.175/.176 were **minor** — 1 recipient each — so that path could clear at most one stamp. The delivery log shows the 26 × `50278` came from **beta.174 (major)**, and Phase 1c's stamp column shipped in **beta.175**, one release later. Nothing was written; nothing was cleared. _(Also superseded: I blamed a bot-level `20026` quarantine — the failures were per-user `50278`, and the quarantine was Rotzot/dev, never prod.)_
 
-**The epic's triggering event has evaporated, correctly.** The "26 undeliverable users" from beta.174's blast were unreachable because the BOT was rate-quarantined (`20026`), not because those users were gone. Once the quarantine lifted and beta.175's release DM delivered, D10's blast-success clear wiped every stamp — exactly its design intent.
-
-**What this means for PR-D**: the purge would ship with an empty cohort. Not a reason to skip it (51 users are past the inactivity threshold and become eligible the moment a real DM to them fails), but the "26 users waiting" framing is dead and should not drive urgency or scope.
-
-**And a near-miss worth keeping**: had those stamps persisted, any of the 26 who are also among the 51 inactive would be purge-eligible right now — erased for a failure that was the bot's, not theirs. The overlap is unmeasurable now precisely because the clear worked. D10 was load-bearing, not a nicety.
+**The signal only refreshes on a major-release blast** — owner's prediction, confirmed. Sizing for PR-D: 116 users have a permanent DM failure on record, 89 are active, so **~27** become stamped-and-inactive after the next major cut. That, not 26-waiting-now, is the target. Full detail + the design question it raises: `cold/follow-ups.md`.
 
 ## 🔬 Smoke checklist — v3.0.0-beta.176 (post-deploy)
 
