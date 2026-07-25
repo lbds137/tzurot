@@ -32,40 +32,44 @@ Line count is not a classifier. A one-line regex-flag change is semantic; a 20-l
 
 Compare the reviewer's severity label against the edit shape from rule 1:
 
-| Reviewer says                                                                                                    | Agent classifies | Result                                                                                                               |
-| ---------------------------------------------------------------------------------------------------------------- | ---------------- | -------------------------------------------------------------------------------------------------------------------- |
-| "nit / minor / not blocking"                                                                                     | trivial          | **Continue** (aligned)                                                                                               |
-| "nit / minor / not blocking"                                                                                     | semantic         | **ASK** (disagreement)                                                                                               |
-| "medium / blocking / must fix"                                                                                   | trivial          | **ASK** (disagreement)                                                                                               |
-| "medium / blocking / must fix"                                                                                   | semantic         | **ASK** (aligned on severity)                                                                                        |
-| Self-dismisses ("actually fine")                                                                                 | Agent agrees     | **DISMISS** (note in summary)                                                                                        |
-| Self-dismisses                                                                                                   | Agent disagrees  | **ASK** (with dissenting analysis)                                                                                   |
-| Scopes a finding by origin ("pre-existing" / "not a regression" / "not introduced here")                         | Any              | **MERITS JUDGMENT** (origin ≠ verdict; see below)                                                                    |
-| Contradicts own round-(N-1) call on same item                                                                    | Any              | **DISMISS** (cite prior round's rationale)                                                                           |
-| Defers to future work on the same code ("next time you touch this", "next X pass/sweep", "worth a follow-up PR") | Any              | **DO IT NOW** (colocated and small by construction — filing costs more than fixing; see below)                       |
-| Defers action on a named OBSERVABLE ("monitor over time" / "if the retry count grows" / "when p95 exceeds X")    | Any              | **BACKLOG CANDIDATE** (an observable must be named; pure-aesthetic deferrals → Dismissed; track per `06-backlog.md`) |
+| Reviewer says                                                                                                 | Agent classifies | Result                                                                                                               |
+| ------------------------------------------------------------------------------------------------------------- | ---------------- | -------------------------------------------------------------------------------------------------------------------- |
+| "nit / minor / not blocking"                                                                                  | trivial          | **Continue** (aligned)                                                                                               |
+| "nit / minor / not blocking"                                                                                  | semantic         | **ASK** (disagreement)                                                                                               |
+| "medium / blocking / must fix"                                                                                | trivial          | **ASK** (disagreement)                                                                                               |
+| "medium / blocking / must fix"                                                                                | semantic         | **ASK** (aligned on severity)                                                                                        |
+| Self-dismisses ("actually fine")                                                                              | Agent agrees     | **DISMISS** (note in summary)                                                                                        |
+| Self-dismisses                                                                                                | Agent disagrees  | **ASK** (with dissenting analysis)                                                                                   |
+| Scopes a finding by origin ("pre-existing" / "not a regression" / "not introduced here")                      | Any              | **MERITS JUDGMENT** (origin ≠ verdict; see below)                                                                    |
+| Contradicts own round-(N-1) call on same item                                                                 | Any              | **DISMISS** (cite prior round's rationale)                                                                           |
+| Defers to future work in THIS file/diff ("next time you touch this")                                          | Any              | **DO IT NOW** (colocated and small by construction — filing costs more than fixing; see below)                       |
+| Defers to a named cross-file batch ("next X pass/sweep", "worth a follow-up PR")                              | Any              | **FILE THE BATCH** up the granularity ladder — track the pass, not a row awaiting it (see below)                     |
+| Defers action on a named OBSERVABLE ("monitor over time" / "if the retry count grows" / "when p95 exceeds X") | Any              | **BACKLOG CANDIDATE** (an observable must be named; pure-aesthetic deferrals → Dismissed; track per `06-backlog.md`) |
 
 **Any disagreement between reviewer and agent defaults to ASK.** Neither side has special authority, and uncertainty is the honest state when signals conflict.
 
 **Origin-language is not a disposition.** "Pre-existing," "not a regression," "not introduced by this PR," and "consistent with existing code" are claims about where a behavior came from, not whether it is correct — a reviewer using them is scoping blame, not issuing a verdict, and such phrasing must not be pattern-matched to the self-dismissal rows above. A finding scoped by origin routes to a merits judgment landing on exactly one of: (a) **fix now** (ride-along or follow-up PR), (b) **backlog entry** with a promote-when trigger, or (c) **correct-as-is** with the technical argument stated in the round summary (e.g. "client-side abort can't interrupt the executor-thread inference, so cancellation buys nothing" — a real reason, where "it was already like that" is not). "Pre-existing" may never be the operative reason in any disposition (`00-critical.md` § Always Leave Code Better Than You Found It). Second-hand adoption counts as the same failure: laundering a dismissal through the reviewer's framing ("reviewer says it's not a regression") is identical to saying it yourself. Structural backstop: `pr-merge-review-check.sh` scans the injected review for origin vocabulary and demands per-finding merits dispositions before the merge retry.
 
-**Do-it-now vs. Dismissed vs. Backlog candidate** — a deferred finding lands in exactly one of three places, decided by **what would have to happen for it to be picked up again**:
+**Where a deferred finding goes** — decided by **what would have to happen for it to be picked up again**:
 
-| The reviewer's deferral rests on...                                                                               | Disposition           |
-| ----------------------------------------------------------------------------------------------------------------- | --------------------- |
-| Someone doing future work in the same code ("next time you touch this", "next tooling pass", "a follow-up sweep") | **Do it now**         |
-| An observable outside our control (a user report, a metric threshold, a provider change, a feature arriving)      | **Backlog candidate** |
-| Nothing — taste, or a self-dismissal ("actually fine", "could be cleaner someday")                                | **Dismissed**         |
+| The reviewer's deferral rests on...                                                                          | Disposition           |
+| ------------------------------------------------------------------------------------------------------------ | --------------------- |
+| Future work in **this file or diff** ("next time you touch this")                                            | **Do it now**         |
+| A **named batch across files** ("next tooling-DRY pass", "next `.claude/rules` PR", "a follow-up sweep")     | **File the batch**    |
+| An observable outside our control (a user report, a metric threshold, a provider change, a feature arriving) | **Backlog candidate** |
+| Nothing — taste, or a self-dismissal ("actually fine", "could be cleaner someday")                           | **Dismissed**         |
 
-**Row 1 is the one that matters, and it defaults the wrong way without this rule.** "Next time someone touches this file" _sounds_ like a named condition, so it reads as a backlog candidate — but the condition is "somebody remembers," and remembering means grepping a several-hundred-row table before unrelated work, which nobody does. Filing it is how it never happens. The finding is also, by construction, **small and colocated** — the reviewer named this PR's own code — so the file is already open and the fix is usually smaller than the row describing it. **Fix it in this PR.** If it genuinely doesn't fit (needs a migration, crosses a service boundary, would double the diff), it isn't a follow-up row either — it's a scoped item for `cold/ideas.md` or a phase of a theme, per `06-backlog.md`'s granularity ladder.
+**Do it now** is the disposition that defaults wrong without this rule. "Next time you touch this file" _sounds_ like a named condition, so it reads as a backlog candidate — but the condition is "somebody remembers," and remembering means grepping a several-hundred-row table before unrelated work, which nobody does. Filing it is how it never happens. The finding is also, by construction, **small and colocated** — the reviewer named this PR's own code — so the file is already open and the fix is usually smaller than the row describing it. Fix it here.
 
 Do-it-now sends the finding back through **rule 1**, not around it: a trivial-shape fix auto-applies under the test gate and reports under Auto-applied; a semantic-shape one still ASKs and reports under Asks. This disposition changes the destination, never the safety rails.
 
-Row 2 is the honest backlog case: the trigger is an event we will observe rather than a moment we must remember. File it in the granularity-appropriate backlog file (a one-line follow-up with its promote-when → `backlog/cold/follow-ups.md`; a larger parked idea → `cold/ideas.md`), capturing both the concern and the criterion. (A trigger is a field on the item, not its own bucket — the old "route to Deferred" rule is gone.)
+**File the batch** is the one to reach for when the reviewer named a _pass_ rather than a _place_. "Next tooling-DRY pass" describes work across files this PR never opens — so "colocated and small" is false, and do-it-now would be wrong. But a row waiting to be noticed during that pass is equally wrong: nobody rediscovers it. **Track the pass itself** — a theme phase or a `cold/ideas.md` section that owns the whole batch — and let this finding be one of its members. Same disposition for a finding that's simply too big for this PR (needs a migration, crosses a service boundary, would double the diff). Per `06-backlog.md`'s granularity ladder, those were never follow-up rows.
 
-Row 3 closes the matter; note it in the summary and move on. A reviewer self-dismissal ("non-issue," "current is correct") that the agent agrees with has no trigger, and neither does a vague preference with no named event.
+**Backlog candidate** is the honest deferral: the trigger is an event we will observe rather than a moment we must remember. File it in the granularity-appropriate backlog file (a one-line follow-up with its promote-when → `backlog/cold/follow-ups.md`; a larger parked idea → `cold/ideas.md`), capturing both the concern and the criterion. (A trigger is a field on the item, not its own bucket — the old "route to Deferred" rule is gone.)
 
-**Why the bar is here**: `cold/follow-ups.md` grew 3× in five weeks under the old two-way split, and a full read found ~0 rows removable — the pile was honest, just unreachable. A third of it carried "next time someone touches this"-shaped triggers that can never fire on their own. Admitting those rows is strictly worse than either fixing them or declining them, because it converts a five-minute edit into permanent context weight.
+**Dismissed** closes the matter; note it in the summary and move on. A reviewer self-dismissal ("non-issue," "current is correct") that the agent agrees with has no trigger, and neither does a vague preference with no named event.
+
+**Why the bar is here**: `cold/follow-ups.md` grew 3× in five weeks under the old two-way split, and a full read found ~0 rows removable — the pile was honest, just unreachable. A third of it carried triggers that can never fire on their own: "next time someone touches this" (nobody greps to find it) and "next tooling pass" (the pass was never scheduled, because only its symptoms got filed). Admitting either shape as a row is strictly worse than fixing it, scheduling the batch, or declining it.
 
 **Reviewer self-contradiction across rounds**: when round-N reviewer reverses its round-(N-1) stance on the same item (e.g., round 3 says "drop the `?? ''` as unreachable," round 4 says "add `?? ''` back for defensive typing"), the reviewer is not authoritative on its own prior disagreement. Dismiss and cite the earlier round's reasoning in the summary. Don't ping-pong. This is distinct from genuine new information surfacing — a round-N reviewer observation that _builds on_ round-(N-1) (adds context, corrects an error) is normal; a direct reversal on the same fact-pattern is noise.
 
@@ -140,9 +144,11 @@ After processing all review items in a round, present one consolidated message t
 
 ### Backlog candidates
   [future] Reviewer suggested follow-up for sort-stability invariant.
+  [batch]  Duplicated retry preamble across ~6 tooling commands
+           → new phase on cold/themes/<slug>.md, this finding is member 1
 ```
 
-The four sections (Auto-applied / Asks / Dismissed / Backlog candidates) MUST appear even when empty, so the round structure is consistent and round count is visibly mechanical.
+The four sections (Auto-applied / Asks / Dismissed / Backlog candidates) MUST appear even when empty, so the round structure is consistent and round count is visibly mechanical. The two dispositions added by rule 2 report inside these four, not beside them: a **do-it-now** item lands under Auto-applied or Asks depending on its shape, and a **file-the-batch** item lands under Backlog candidates with the destination named — a `[batch]` line states which theme phase or `cold/ideas.md` section now owns the pass, so "filed the batch" is checkable rather than asserted.
 
 **Never present a raw unified diff.** Categorization IS the presentation — it lets the user bulk-confirm the auto-applied group and focus attention on the semantic asks without having to visually separate them.
 
@@ -225,7 +231,7 @@ Before each round's consolidated message:
 
 - [ ] Every review item classified against trivial / non-trivial / unknown (rule 1)
 - [ ] Every auto-apply candidate checked against reviewer label for signal conflict (rule 2)
-- [ ] Every "no action now" item routed by what would reopen it — Do it now (future work in the same code) / Backlog candidate (a named observable) / Dismissed (nothing) per rule 2's deferral rows; a Do-it-now item re-enters rule 1 and lands under Auto-applied or Asks
+- [ ] Every "no action now" item routed by what would reopen it — Do it now (this file/diff) / File the batch (a named cross-file pass) / Backlog candidate (a named observable) / Dismissed (nothing) per rule 2's deferral rows; a Do-it-now item re-enters rule 1 and lands under Auto-applied or Asks
 - [ ] Every origin-scoped finding ("pre-existing" / "not a regression") given a merits disposition — never Dismissed on origin alone (rule 2's origin-language row)
 - [ ] Every auto-applied fixup commit has a green package-level test run (rule 3)
 - [ ] Round-N message contains all four sections, even empty ones (rule 4)
