@@ -45,7 +45,7 @@ fi
 # run the codegen, stage the regenerated files. Keeps the committed
 # _generated/ artifacts in lock-step with the manifest so reviewers see
 # both halves of every change in the same diff.
-STAGED_MANIFEST=$(git diff --cached --name-only | grep -E '^packages/common-types/src/routes/' || true)
+STAGED_MANIFEST=$(git diff --cached --name-only | grep -E '^packages/clients/src/routes/' || true)
 
 if [ -n "$STAGED_MANIFEST" ]; then
     echo "Route manifest changed - regenerating client classes..."
@@ -60,8 +60,10 @@ if [ -n "$STAGED_MANIFEST" ]; then
     # diagnostics surface in the commit-time terminal output. Silencing
     # stdout would hide error context behind a bare `exit 1`.
     pnpm ops codegen:routes || exit 1
-    git add packages/common-types/src/clients/_generated/
-    echo "✓ Route client classes regenerated and staged"
+    # codegen writes BOTH halves: the typed clients and the gateway's mount
+    # table. Staging only one would commit half a regeneration.
+    git add packages/clients/src/clients/_generated/ services/api-gateway/src/routes/_generated/
+    echo "✓ Route client classes + mounts regenerated and staged"
 fi
 
 # Check for temporal markers in code comments (dates / PR refs / round refs)
