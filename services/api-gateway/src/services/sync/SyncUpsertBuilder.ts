@@ -167,7 +167,11 @@ export async function resolveVectorSyncColumns(
   const canonical = registryEntry.columns;
   const fetchCols = async (client: PrismaClient): Promise<Set<string>> => {
     const rows = await client.$queryRawUnsafe<{ column_name: string }[]>(
-      `SELECT column_name FROM information_schema.columns WHERE table_name = '${tableName}'`
+      // table_schema='public' mirrors the sibling introspection in
+      // syncValidation.ts. Redundant while we run one schema, but without it a
+      // same-named table in another schema would silently widen this column set.
+      `SELECT column_name FROM information_schema.columns
+       WHERE table_schema = 'public' AND table_name = '${tableName}'`
     );
     return new Set(rows.map(r => r.column_name));
   };
