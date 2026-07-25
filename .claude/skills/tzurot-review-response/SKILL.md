@@ -59,6 +59,8 @@ Compare the reviewer's severity label against the edit shape from rule 1:
 
 **Row 1 is the one that matters, and it defaults the wrong way without this rule.** "Next time someone touches this file" _sounds_ like a named condition, so it reads as a backlog candidate — but the condition is "somebody remembers," and remembering means grepping a several-hundred-row table before unrelated work, which nobody does. Filing it is how it never happens. The finding is also, by construction, **small and colocated** — the reviewer named this PR's own code — so the file is already open and the fix is usually smaller than the row describing it. **Fix it in this PR.** If it genuinely doesn't fit (needs a migration, crosses a service boundary, would double the diff), it isn't a follow-up row either — it's a scoped item for `cold/ideas.md` or a phase of a theme, per `06-backlog.md`'s granularity ladder.
 
+Do-it-now sends the finding back through **rule 1**, not around it: a trivial-shape fix auto-applies under the test gate and reports under Auto-applied; a semantic-shape one still ASKs and reports under Asks. This disposition changes the destination, never the safety rails.
+
 Row 2 is the honest backlog case: the trigger is an event we will observe rather than a moment we must remember. File it in the granularity-appropriate backlog file (a one-line follow-up with its promote-when → `backlog/cold/follow-ups.md`; a larger parked idea → `cold/ideas.md`), capturing both the concern and the criterion. (A trigger is a field on the item, not its own bucket — the old "route to Deferred" rule is gone.)
 
 Row 3 closes the matter; note it in the summary and move on. A reviewer self-dismissal ("non-issue," "current is correct") that the agent agrees with has no trigger, and neither does a vague preference with no named event.
@@ -223,7 +225,7 @@ Before each round's consolidated message:
 
 - [ ] Every review item classified against trivial / non-trivial / unknown (rule 1)
 - [ ] Every auto-apply candidate checked against reviewer label for signal conflict (rule 2)
-- [ ] Every "no action now" item further classified as Dismissed (no future trigger) vs. Backlog candidate (has future trigger) per rule 2's deferred-action row
+- [ ] Every "no action now" item routed by what would reopen it — Do it now (future work in the same code) / Backlog candidate (a named observable) / Dismissed (nothing) per rule 2's deferral rows; a Do-it-now item re-enters rule 1 and lands under Auto-applied or Asks
 - [ ] Every origin-scoped finding ("pre-existing" / "not a regression") given a merits disposition — never Dismissed on origin alone (rule 2's origin-language row)
 - [ ] Every auto-applied fixup commit has a green package-level test run (rule 3)
 - [ ] Round-N message contains all four sections, even empty ones (rule 4)
