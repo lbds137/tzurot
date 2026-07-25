@@ -475,7 +475,7 @@ model PersonalityAlias {
   alias         String      @db.VarChar(100)
   personalityId String      @map("personality_id") @db.Uuid
   /// Null = global tier (bot-owner-blessed; resolves for everyone, including
-  /// the v2-migrated rows grandfathered at the 2026-07 tier split). Non-null
+  /// v2-migrated rows that predate the personal tier). Non-null
   /// = user-scoped tier: resolves ONLY for that user, checked before global
   /// rows in the resolver's alias step. Never flips after creation.
   userId        String?     @map("user_id") @db.Uuid
@@ -756,6 +756,10 @@ model Memory {
   // NOTE: The IVFFlat vector index (idx_memories_embedding) is managed outside Prisma
   // because Unsupported types don't support vector-specific operators (VectorCosineOps)
   // See: docs/database/PRISMA_DRIFT_ISSUES.md
+  // NOTE: idx_memories_null_embedding is a PARTIAL index on created_at
+  // (WHERE embedding IS NULL AND visibility = 'normal') managed via raw migration,
+  // backing the NullVectorReembedder hourly sweep. Not declarable here — Prisma
+  // can't express WHERE clauses — so it has no inline signal beyond this note.
   @@map("memories")
 }
 

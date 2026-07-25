@@ -124,8 +124,11 @@ export const GATEWAY_TIMEOUTS = {
    *  Owner decision: raise now; the async-job refactor is filed with a
    *  promote-when trigger (sync past ~2 min) rather than improvised. */
   LONG_SYNC: 300_000,
-  /** Client timeout for a route whose handler makes a SINGLE synchronous
-   *  external-provider call (key validation, voice-provider list, shapes fetch).
+  /** Client timeout for a route whose handler makes synchronous external-provider
+   *  calls — sequential or parallel; what matters is the worst-case internal
+   *  budget, not the call count (`listVoices` fans out to two providers in
+   *  parallel, so its ceiling is the slowest single call, not their sum).
+   *  Used by key validation, voice-provider list, shapes fetch.
    *  Must exceed the handler's internal call budget (the VALIDATION_TIMEOUTS.* —
    *  ≤30s today) plus auth/provisioning/DB/network overhead, so the client
    *  outwaits the gateway instead of aborting while it's still succeeding. Pair
