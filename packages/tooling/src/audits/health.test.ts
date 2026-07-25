@@ -156,6 +156,31 @@ describe('runHealth', () => {
     expect(process.exitCode).toBeUndefined();
   });
 
+  it('prints the measured-ref annotation directly under the header', () => {
+    vi.mocked(execFileSync).mockImplementation((cmd, args) => {
+      const argv = args as string[];
+      if (cmd === 'git') {
+        return argv[0] === 'rev-parse' ? 'deadbee\n' : 'origin/develop\n';
+      }
+      return summaryLine(argv[1], 'ok');
+    });
+
+    runHealth({ noFail: true });
+
+    // The composed call site is the one seam the unit tests can't see:
+    // measured-ref.test.ts proves the resolution, formatHealthReport's own
+    // tests prove the rendering, but neither proves the two are wired.
+    const headerBlock = vi
+      .mocked(console.log)
+      .mock.calls.map(call => String(call[0]))
+      .find(text => text.startsWith('## Audit health:'));
+    expect(headerBlock).toBeDefined();
+    // Adjacency is load-bearing, not cosmetic: the Discord step slices from
+    // the header and truncates the TAIL, so a line that drifts down the
+    // report can be cut from the posted message.
+    expect(headerBlock?.split('\n')[1]).toBe('_Measured: origin/develop @ deadbee_');
+  });
+
   it('treats a non-zero exit WITH a fail summary as a finding, not a broken tool', () => {
     vi.mocked(execFileSync).mockImplementation((_cmd, args) => {
       const tool = (args as string[])[1];
