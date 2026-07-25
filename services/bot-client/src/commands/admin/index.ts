@@ -338,12 +338,16 @@ export default defineCommand({
         .setName('cleanup')
         .setDescription('Clean up old conversation history')
         .addIntegerOption(option =>
-          // Unlike the enum-window `timeframe`s (usage, incognito, memory
-          // delete), cleanup's is a RAW DAY COUNT — arbitrary N-days is real
-          // admin utility a fixed choice set would destroy (§4.2/D10 call).
+          // A RAW DAY COUNT, not one of the enum windows `timeframe` names
+          // elsewhere (usage, incognito, memory delete) — arbitrary N-days is
+          // real admin utility a fixed choice set would destroy (§4.2/D10
+          // call). It carries its own name for that reason: a shared option
+          // name whose type differs per subcommand is what makes copying one
+          // handler's `options.x()` into another silently return the wrong
+          // shape.
           option
-            .setName('timeframe')
-            .setDescription('Time window in days — keep history newer than this (default: 30)')
+            .setName('days')
+            .setDescription('Keep history newer than this many days (default: 30)')
             .setRequired(false)
             .setMinValue(1)
             .setMaxValue(365)
