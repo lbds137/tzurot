@@ -74,7 +74,7 @@ fi
 # Python (.py) is included: the comment-prefix match below is chosen per-language
 # (`#` / triple-quote for Python, `//` / `*` / `/*` otherwise) because a combined
 # regex would false-positive on TS private fields like `#count = new Date('2026…')`.
-STAGED_CODE_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(ts|tsx|js|jsx|py)$' || true)
+STAGED_CODE_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(ts|tsx|js|jsx|py|prisma)$' || true)
 
 if [ -n "$STAGED_CODE_FILES" ]; then
     # Match ADDED lines that look like comments (start with // or * after whitespace
