@@ -16,8 +16,6 @@
  * disabled.isEnabled;  // false
  * disabled.toSeconds(); // null
  * disabled.toHuman();   // "Disabled"
- *
- * @see docs/planning/DURATION_UTILITY.md
  */
 
 import parseDuration from 'parse-duration';

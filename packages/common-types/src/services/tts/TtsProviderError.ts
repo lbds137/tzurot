@@ -12,8 +12,7 @@
  *     trying the next provider on a 400 (text too long, content filtered)
  *     only to fail again with the same input.
  *
- * Eligibility table (see `docs/proposals/backlog/tts-engine-upgrade-phase-1-plan.md`
- * section 2):
+ * Eligibility table:
  *
  *   | Category          | isFallbackEligible | Reason                                            |
  *   | ----------------- | ------------------ | ------------------------------------------------- |

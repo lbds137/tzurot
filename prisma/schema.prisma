@@ -533,8 +533,9 @@ model UserPersonalityConfig {
 }
 
 /// Per-persona history configuration (epoch tracking for memory commands)
-/// This enables each persona to have independent conversation history cutoffs
-/// See ADR-003 in docs/planning/SLASH_COMMAND_ARCHITECTURE.md
+/// This enables each persona to have independent conversation history cutoffs:
+/// clearing history for one persona must not affect another's, so the cutoff
+/// is stored per (user, personality, persona) rather than per conversation.
 model UserPersonaHistoryConfig {
   id            String   @id @db.Uuid
   userId        String   @map("user_id") @db.Uuid
@@ -755,7 +756,7 @@ model Memory {
   @@index([chunkGroupId])
   // NOTE: The IVFFlat vector index (idx_memories_embedding) is managed outside Prisma
   // because Unsupported types don't support vector-specific operators (VectorCosineOps)
-  // See: docs/database/PRISMA_DRIFT_ISSUES.md
+  // See: docs/reference/database/PRISMA_DRIFT_ISSUES.md
   // NOTE: idx_memories_null_embedding is a PARTIAL index on created_at
   // (WHERE embedding IS NULL AND visibility = 'normal') managed via raw migration,
   // backing the NullVectorReembedder hourly sweep. Not declarable here — Prisma
@@ -840,7 +841,7 @@ model MemoryFact {
   @@index([supersededById])
   // NOTE: The IVFFlat vector index (idx_memory_facts_embedding) is managed outside
   // Prisma (Unsupported types can't declare VectorCosineOps) — slice-4 fact
-  // similarity retrieval. See docs/database/PRISMA_DRIFT_ISSUES.md + drift-ignore.json.
+  // similarity retrieval. See docs/reference/database/PRISMA_DRIFT_ISSUES.md + drift-ignore.json.
   @@map("memory_facts")
 }
 
