@@ -39,13 +39,15 @@ File a "not now" item by **size**, not by whether it has a trigger:
 
 Before filing anything, check what would have to happen for it to be picked up:
 
-| The trigger is...                                                                           | Then...                                                                                                               |
-| ------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| An **observable** — a user report, a metric threshold, a provider change, a feature landing | **File it.** We'll see the event when it happens.                                                                     |
-| **Future work in the same code** — "next time we touch this", "next tooling pass"           | **Do it now**, in the work that surfaced it. It's colocated and small by construction.                                |
-| Too big to do now (needs a migration, crosses services, doubles the diff)                   | It was never a follow-up row — file it up the ladder (`cold/ideas.md` or a theme phase) where scope is what it holds. |
+| The trigger is...                                                                                                     | Then...                                                                                                                                            |
+| --------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| An **observable** — a user report, a metric threshold, a provider change, a feature landing                           | **File it.** We'll see the event when it happens.                                                                                                  |
+| **This same file or diff** — "next time we touch this"                                                                | **Do it now**, in the work that surfaced it. It's colocated and small by construction.                                                             |
+| **A named batch across files** — "next tooling-DRY pass", "next `.claude/rules` PR" — or simply too big for this diff | **File the batch, not the row.** A theme phase or a `cold/ideas.md` section owns the pass; this item is one of its members (per the ladder above). |
 
-Nobody greps a several-hundred-row table before unrelated work, so "next time someone touches this" resolves to _never_ — filing it converts a five-minute edit into permanent context weight. This does not weaken "out-of-scope items must be tracked" below: it changes the destination for one class of item, from a row nobody will read to a diff that ships today.
+Two shapes of trigger look like conditions but aren't. "Next time someone touches this" resolves to _never_, because nobody greps a several-hundred-row table before unrelated work — so filing it converts a five-minute edit into permanent context weight. "Next tooling-DRY pass" fails differently: the pass is real work, but filing its symptoms as rows means **the pass itself never gets scheduled**, and each row sits waiting to be rediscovered by the sweep it was supposed to prompt. Track the pass; let the rows be its members.
+
+This does not weaken "out-of-scope items must be tracked" below — it changes the destination for two classes of item: one becomes a diff that ships today, the other becomes a scoped batch someone can actually pick up.
 
 ## Staleness — aging escalates, it never deletes
 
@@ -63,7 +65,7 @@ There is no "prune items older than N days" rule. Staleness is a signal to act, 
 
 - **A technical reason is required, stated in the removing commit.** "It's old," "nobody got to it," "pre-existing," and "the trigger never fired" are NOT reasons — they describe the item's history, not its merit. The bar is the same one `/tzurot-review-response` applies to origin-language: say why the work isn't worth doing, or don't remove it.
 - **Rule out on merit, not on cost of doing it.** "This would take a while" is a reason to schedule it, not to drop it.
-- **Anything with user-visible impact, product taste, or a security/data dimension is the owner's call**, not the agent's. Agents rule out technical nits on technical grounds; everything else gets surfaced.
+- **Anything with user-visible impact, product taste, or a security/data dimension is the owner's call**, not the agent's. Agents rule out technical nits on technical grounds; everything else gets surfaced. **This boundary fails closed: if you aren't sure it's a nit, it isn't one** — surface it or leave it filed. Every other decision point in this corpus defaults to the safe side (the review-response whitelist to semantic, out-of-scope to tracking); this one deletes work when it guesses wrong, so it gets the same default.
 - **Removal is one commit's worth of evidence.** A batch removal names each item and its reason — a single "cleaned up stale rows" commit is exactly the rug this exit must not become.
 
 ## Session Workflow
