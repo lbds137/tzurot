@@ -12,8 +12,6 @@
  *
  * Receives DeferredCommandContext (no deferReply method!)
  * because the parent command uses deferralMode: 'ephemeral'.
- *
- * @see docs/planning/EXTENDED_CONTEXT_IMPROVEMENTS.md
  */
 
 import type {
