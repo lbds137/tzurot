@@ -6,7 +6,14 @@
 
 ## Unreleased on Develop
 
-_(empty — beta.176 just shipped; develop is SHA-aligned with main.)_
+- **#1793** — swept the dead `getPrismaClient` example out of every doc (5 review rounds; the symbol was renamed and six descriptions of it rotted, incl. a `codecov.yml` comment and a WHY.md that named the wrong banned symbol).
+- Two backlog relocation passes: 18 epic-scoped rows moved into `platform-portable-ux-layer.md` and `memory-system-overhaul.md`. Pool 360 → 342.
+
+## ⏭️ NEXT SESSION STARTS HERE — backlog substrate boulder
+
+Owner directive 2026-07-25, post-compaction pickup. Full grounding (measurements, the three method failures, why relocation doesn't generalize, candidates, the one real objection, open calls a–f) is in **[`docs/proposals/backlog/backlog-substrate.md`](docs/proposals/backlog/backlog-substrate.md)** — read it first; it was written specifically to survive this compaction.
+
+Procedure: load `/tzurot-design-boulder` + `/tzurot-council-mcp` (verify model IDs via `list_models`, they drift) → ground the candidates against real constraints → council the open calls → one batched owner pass → land ACCEPTED with absorption wiring. **Migrate nothing before the council pass.**
 
 ## 🔎 The prod cohort is EMPTY, and the reason reshapes PR-D
 
