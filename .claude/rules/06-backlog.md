@@ -47,6 +47,8 @@ Before filing anything, check what would have to happen for it to be picked up:
 
 **Which one, for a batch**: if the whole pass is one PR's worth of sweeping, it's a `cold/ideas.md` section. If it needs its own phased rollout (per-package, per-service, or gated on something landing first), it's a theme. The ladder's axis is unchanged — this is the same size question, asked about the pass rather than the item.
 
+**Grep `cold/` for the batch before creating it** — by the pass's name AND by the module it sweeps. The same pass gets surfaced repeatedly from whichever file someone was reading at the time, so filing a fresh section per sighting rebuilds the fragmentation this bar exists to prevent, one rung up the ladder. If an entry already owns the pass, add the item as a member of it.
+
 Two shapes of trigger look like conditions but aren't. "Next time someone touches this" resolves to _never_, because nobody greps a several-hundred-row table before unrelated work — so filing it converts a five-minute edit into permanent context weight. "Next tooling-DRY pass" fails differently: the pass is real work, but filing its symptoms as rows means **the pass itself never gets scheduled**, and each row sits waiting to be rediscovered by the sweep it was supposed to prompt. Track the pass; let the rows be its members.
 
 This does not weaken "out-of-scope items must be tracked" below — it changes the destination for two classes of item: one becomes a diff that ships today, the other becomes a scoped batch someone can actually pick up.
