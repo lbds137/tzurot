@@ -38,7 +38,28 @@ jobs:
     # visibly rather than inherit GitHub's 360-minute default.
     timeout-minutes: 30
     steps:
+      # Measure `develop`, NOT the trigger ref. A scheduled workflow can only
+      # be fired from the default branch, but its checkout ref is independent
+      # of that — and the ratchet margins answer "will the next PR breach a
+      # ceiling?", which is a question about the branch PRs land on. Measuring
+      # main reports the last RELEASED state, so every margin lags by a full
+      # release: a main-measured `lines current: 96/97` read as one line from
+      # the ceiling while develop had 24 lines of room. The report header names
+      # the resolved ref, so a future change here — or a failure to check out
+      # what was intended — self-reports either way.
+      #
+      # Shallow (the default) on purpose: no tool in HEALTH_TOOLS diffs against
+      # another ref, and the header's ref resolution degrades to a bare SHA
+      # rather than lying if remote-tracking refs are ever absent. Add
+      # fetch-depth: 0 when a roster tool actually needs history, not before.
+      #
+      # A manual run keeps the ref selected in the UI, because the only reason
+      # to dispatch this by hand is to preview one branch's margins before
+      # merging it — pinning `develop` here would silently hand back develop's
+      # numbers instead, with nothing but the header to reveal the swap.
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && github.ref || 'develop' }}
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v5

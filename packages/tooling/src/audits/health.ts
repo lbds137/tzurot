@@ -28,6 +28,7 @@ import chalk from 'chalk';
 import { parseSummary, type AuditSummary } from './summary.js';
 import { collectHealthExtras, formatHealthExtras, type SecurityCount } from './health-extras.js';
 import { collectOpenAdvisories, formatAdvisoriesReport } from './advisories.js';
+import { describeMeasuredRef, formatMeasuredRef } from './measured-ref.js';
 
 /**
  * The static tool roster. Add a tool when it gains `--summary` support AND
@@ -165,9 +166,16 @@ const STATUS_ICON = { ok: '✅', warn: '⚠️', fail: '❌' } as const;
  * Render the consolidated report. Markdown-flavored plain text — readable in
  * a terminal AND postable to Discord verbatim by the weekly workflow.
  */
-export function formatHealthReport(report: HealthReport): string {
+export function formatHealthReport(report: HealthReport, measuredRef?: string): string {
   const lines: string[] = [];
   lines.push(`## Audit health: ${STATUS_ICON[report.overall]} ${report.overall.toUpperCase()}`);
+  // Directly under the header, so it survives both the Discord step's
+  // `sed`-from-the-header slice and its `head -c` tail truncation. Every
+  // number below is measured against THIS tree; the scheduled run's trigger
+  // ref (always the default branch) says nothing about which tree that is.
+  if (measuredRef !== undefined) {
+    lines.push(measuredRef);
+  }
   lines.push('');
   for (const { tool, summary, brokenReason } of report.results) {
     if (summary === null) {
@@ -191,15 +199,16 @@ export function runHealth(options: { noFail?: boolean; rootDir?: string } = {}):
     results.push(runTool(tool));
   }
 
+  const rootDir = options.rootDir ?? process.cwd();
+
   const report = aggregateHealth(results);
   console.log('');
-  console.log(formatHealthReport(report));
+  console.log(formatHealthReport(report, formatMeasuredRef(describeMeasuredRef(rootDir))));
 
   // Report-only context sections (security surface, ratchet margins, docs
   // orphans) — printed after the tool bullets, NEVER part of the verdict or
   // the exit code. Every collector degrades in place rather than throwing.
   console.log('');
-  const rootDir = options.rootDir ?? process.cwd();
 
   // Fetch the full advisory list ONCE and derive the alerts-count bullet from
   // it, rather than paying a second live call to the same endpoint.
