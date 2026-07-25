@@ -63,7 +63,7 @@ Compare the reviewer's severity label against the edit shape from rule 1:
 
 Do-it-now sends the finding back through **rule 1**, not around it: a trivial-shape fix auto-applies under the test gate and reports under Auto-applied; a semantic-shape one still ASKs and reports under Asks. This disposition changes the destination, never the safety rails.
 
-**File the batch** is the one to reach for when the reviewer named a _pass_ rather than a _place_. "Next tooling-DRY pass" describes work across files this PR never opens — so "colocated and small" is false, and do-it-now would be wrong. But a row waiting to be noticed during that pass is equally wrong: nobody rediscovers it. **Track the pass itself** — a theme phase or a `cold/ideas.md` section that owns the whole batch — and let this finding be one of its members. Same disposition for a finding that's simply too big for this PR (needs a migration, crosses a service boundary, would double the diff). Per `06-backlog.md`'s granularity ladder, those were never follow-up rows.
+**File the batch** is the one to reach for when the reviewer named a _pass_ rather than a _place_. "Next tooling-DRY pass" describes work across files this PR never opens — so "colocated and small" is false, and do-it-now would be wrong. But a row waiting to be noticed during that pass is equally wrong: nobody rediscovers it. **Track the pass itself** — a theme phase or a `cold/ideas.md` section that owns the whole batch — and let this finding be one of its members. Which of the two: **one PR's worth of sweeping → `cold/ideas.md`; needs its own phased rollout → a theme.** Same disposition for a finding that's simply too big for this PR (needs a migration, crosses a service boundary, would double the diff). Per `06-backlog.md`'s granularity ladder, those were never follow-up rows.
 
 **Backlog candidate** is the honest deferral: the trigger is an event we will observe rather than a moment we must remember. File it in the granularity-appropriate backlog file (a one-line follow-up with its promote-when → `backlog/cold/follow-ups.md`; a larger parked idea → `cold/ideas.md`), capturing both the concern and the criterion. (A trigger is a field on the item, not its own bucket — the old "route to Deferred" rule is gone.)
 
@@ -124,6 +124,8 @@ After processing all review items in a round, present one consolidated message t
   [trivial:rename]     parseInput → parseUserInput  (src/handler.ts:22)
   [trivial:import]     remove unused 'Buffer'       (src/utils.ts:3)
   [trivial:comment]    fix typo in JSDoc            (src/types.ts:47)
+  [do-it-now:trivial]  drop the dead `retries` param (src/queue.ts:88)
+                       reviewer deferred to "next queue touch" — that's here
 
 ### Asks (K items)
 
@@ -148,7 +150,12 @@ After processing all review items in a round, present one consolidated message t
            → new phase on cold/themes/<slug>.md, this finding is member 1
 ```
 
-The four sections (Auto-applied / Asks / Dismissed / Backlog candidates) MUST appear even when empty, so the round structure is consistent and round count is visibly mechanical. The two dispositions added by rule 2 report inside these four, not beside them: a **do-it-now** item lands under Auto-applied or Asks depending on its shape, and a **file-the-batch** item lands under Backlog candidates with the destination named — a `[batch]` line states which theme phase or `cold/ideas.md` section now owns the pass, so "filed the batch" is checkable rather than asserted.
+The four sections (Auto-applied / Asks / Dismissed / Backlog candidates) MUST appear even when empty, so the round structure is consistent and round count is visibly mechanical. The two dispositions added by rule 2 report inside these four, not beside them, and both are **tagged so the routing is checkable rather than asserted**:
+
+- A **do-it-now** item lands under Auto-applied or Asks depending on its shape, tagged `[do-it-now:trivial]` / `[do-it-now:semantic]` with the reviewer's deferral quoted — that pairing is the whole justification for fixing it here instead of filing it, so it belongs in the report.
+- A **file-the-batch** item lands under Backlog candidates tagged `[batch]`, naming which theme phase or `cold/ideas.md` section now owns the pass.
+
+Without the tags both dispositions are invisible in the summary: a do-it-now fix reads as an ordinary trivial edit, and a filed batch reads as an ordinary deferral.
 
 **Never present a raw unified diff.** Categorization IS the presentation — it lets the user bulk-confirm the auto-applied group and focus attention on the semantic asks without having to visually separate them.
 

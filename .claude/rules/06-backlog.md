@@ -45,6 +45,8 @@ Before filing anything, check what would have to happen for it to be picked up:
 | **This same file or diff** — "next time we touch this"                                                                | **Do it now**, in the work that surfaced it. It's colocated and small by construction.                                                             |
 | **A named batch across files** — "next tooling-DRY pass", "next `.claude/rules` PR" — or simply too big for this diff | **File the batch, not the row.** A theme phase or a `cold/ideas.md` section owns the pass; this item is one of its members (per the ladder above). |
 
+**Which one, for a batch**: if the whole pass is one PR's worth of sweeping, it's a `cold/ideas.md` section. If it needs its own phased rollout (per-package, per-service, or gated on something landing first), it's a theme. The ladder's axis is unchanged — this is the same size question, asked about the pass rather than the item.
+
 Two shapes of trigger look like conditions but aren't. "Next time someone touches this" resolves to _never_, because nobody greps a several-hundred-row table before unrelated work — so filing it converts a five-minute edit into permanent context weight. "Next tooling-DRY pass" fails differently: the pass is real work, but filing its symptoms as rows means **the pass itself never gets scheduled**, and each row sits waiting to be rediscovered by the sweep it was supposed to prompt. Track the pass; let the rows be its members.
 
 This does not weaken "out-of-scope items must be tracked" below — it changes the destination for two classes of item: one becomes a diff that ships today, the other becomes a scoped batch someone can actually pick up.
