@@ -35,14 +35,36 @@ File a "not now" item by **size**, not by whether it has a trigger:
 
 **"Promote when…" / a trigger is an optional FIELD on any item, never a filing rule.** The old Deferred (trigger-gated) vs Icebox (no trigger) distinction collapsed because nearly every parked item acquires a trigger — the real, decidable axis is granularity. Don't reintroduce a trigger-based bucket.
 
+### The admission bar — a trigger that needs someone to _remember_ is not a trigger
+
+Before filing anything, check what would have to happen for it to be picked up:
+
+| The trigger is...                                                                           | Then...                                                                                                               |
+| ------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| An **observable** — a user report, a metric threshold, a provider change, a feature landing | **File it.** We'll see the event when it happens.                                                                     |
+| **Future work in the same code** — "next time we touch this", "next tooling pass"           | **Do it now**, in the work that surfaced it. It's colocated and small by construction.                                |
+| Too big to do now (needs a migration, crosses services, doubles the diff)                   | It was never a follow-up row — file it up the ladder (`cold/ideas.md` or a theme phase) where scope is what it holds. |
+
+Nobody greps a several-hundred-row table before unrelated work, so "next time someone touches this" resolves to _never_ — filing it converts a five-minute edit into permanent context weight. This does not weaken "out-of-scope items must be tracked" below: it changes the destination for one class of item, from a row nobody will read to a diff that ships today.
+
 ## Staleness — aging escalates, it never deletes
 
 Items are **never** deleted by calendar. An untouched follow-up that's aged RISES in priority and gets surfaced for a conscious decision (do it now / confirm the trigger is still pending) — it is **not** swept under the rug. An item leaves the backlog only when it is:
 
-- **done** (shipped — remove it; git is the archive), or
-- **genuinely obsolete** — the code path, file, or condition it references no longer exists. Verify by grep before removing, not by date.
+- **done** (shipped — remove it; git is the archive),
+- **genuinely obsolete** — the code path, file, or condition it references no longer exists. Verify by grep before removing, not by date, or
+- **ruled out** — a deliberate decision that we are not going to do this. Rationale goes in the removing commit, never a tombstone entry (`00-critical.md` § Always Leave Code Better Than You Found It).
 
 There is no "prune items older than N days" rule. Staleness is a signal to act, not a signal to discard. (`pnpm ops backlog` surfaces the oldest follow-ups as an escalation nudge — that's a prompt to decide, never an auto-delete.)
+
+### Ruling an item out
+
+`10-working-posture.md` names four honest states for anything not-done — shipped, obsolete, **ruled out**, deferred — but only the first two were removal exits, so a real-but-not-worth-doing item had nowhere to go and stayed forever. This is that exit, and it is deliberately narrow:
+
+- **A technical reason is required, stated in the removing commit.** "It's old," "nobody got to it," "pre-existing," and "the trigger never fired" are NOT reasons — they describe the item's history, not its merit. The bar is the same one `/tzurot-review-response` applies to origin-language: say why the work isn't worth doing, or don't remove it.
+- **Rule out on merit, not on cost of doing it.** "This would take a while" is a reason to schedule it, not to drop it.
+- **Anything with user-visible impact, product taste, or a security/data dimension is the owner's call**, not the agent's. Agents rule out technical nits on technical grounds; everything else gets surfaced.
+- **Removal is one commit's worth of evidence.** A batch removal names each item and its reason — a single "cleaned up stale rows" commit is exactly the rug this exit must not become.
 
 ## Session Workflow
 
@@ -151,7 +173,8 @@ _Focus: One-sentence goal._
 | Put >3 items in Current Focus      | Max 3. Focus beats breadth.                                       |
 | Let Untriaged pile up              | Route items per the ladder before session-end; empty is the goal. |
 | Reintroduce a trigger-based bucket | Trigger is a field; file by granularity.                          |
-| Delete an item because it's old    | Aging escalates priority — act on it, don't discard.              |
+| Delete an item because it's old    | Aging escalates priority — act on it, or rule it out on merit.    |
+| File a "next time we touch this"   | Touch it now — it's colocated and small (admission bar above).    |
 | Have multiple "Active Epics"       | One epic. The rest live in `cold/queue.md`.                       |
 | Add items without context          | Include why, what, and acceptance.                                |
 | Load `cold/` at session start      | It's grep-on-demand; only the HOT files load every session.       |
