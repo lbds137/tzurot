@@ -131,6 +131,7 @@ A session is ALSO not done until every item that shipped during the session is r
 - For each PR, grep `backlog/` (recursive — includes `cold/`) for the item title/topic — if a matching entry exists, **remove it**
 - For any backlog entry annotated "PROMOTED to Current Focus" or similar, re-verify the underlying fix actually shipped; if yes, remove
 - Also remove any entry whose "Start" hints point to code that no longer needs fixing (grep the file to confirm). This is the "genuinely obsolete" removal path — it's distinct from time-based pruning, which we do NOT do.
+- **Did every rule-out decided this session actually get committed?** The third exit is the only one with no PR gate behind it — a rule-out lives or dies on someone making the removing commit, and a decision that stayed in chat prose removed nothing. Check the same way as additions: name each item ruled out this session and confirm its commit exists.
 
 **Strike through sub-items at absorption, not at PR close.** Umbrella entries (multi-item audits, grouped follow-ups) don't track sub-item resolution automatically: when a PR resolves ONE sub-item of an umbrella entry, strike it through in the same working session as the resolving PR — waiting for "later" is how umbrella entries silently rot into half-done.
 
