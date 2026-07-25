@@ -62,6 +62,8 @@ Root-level reference files: `DOCUMENTATION_PHILOSOPHY.md`, `STATIC_ANALYSIS.md`,
 **Features, templates, and testing:**
 
 - [`CHANNEL_ACTIVATION.md`](reference/features/CHANNEL_ACTIVATION.md) - Channel activation feature
+- [`release-notifications.md`](reference/features/release-notifications.md) - Discord release-notification posting (what parses the Conventional Changelog release notes)
+- [`shapes-import.md`](reference/features/shapes-import.md) - Importing characters from shapes.inc
 - [`MIGRATION_TEMPLATE.md`](reference/templates/MIGRATION_TEMPLATE.md) - Template for multi-phase migration plans
 - [`BYOK_MANUAL_TESTING.md`](reference/testing/BYOK_MANUAL_TESTING.md) - BYOK manual testing guide
 - [`MEMORY_EVAL.md`](reference/testing/MEMORY_EVAL.md) - Memory-retrieval eval harness (the memory design's phase gates)
