@@ -27,7 +27,7 @@ Implementation plan council-passed 2026-07-07 (GLM 5.2 · Kimi K2.7-code · Qwen
 
 _The table below logs through PR-4 (#1703); the remaining slices shipped 2026-07-18/19/20 and are summarized in `active-epic.md`'s Phase 2 row + CURRENT.md session logs (git history): #1707/#1709/#1710 (browse retrofit 17/17), #1711–#1718 (modal wave, zero hand-rolled sites), #1719 (detail cards), #1720 (D14 + router migration), #1724/#1725 (`/inspect` + D16 context menu), #1726/#1730 (Components-V2 pilot, owner-eval PASSED). Close-out verified 2026-07-20._
 
-_Plan approved 2026-07-17 (`~/.claude/plans/radiant-tickling-candle.md`; 3-agent grounding + trio council; owner calls: bot-owner-only globals · warn-don't-block reverse shadow · names-first resolution + shadowed badge). Pilot = `/character alias` redesign + scoping tiers._
+_Plan approved 2026-07-17 (3-agent grounding + trio council; owner calls: bot-owner-only globals · warn-don't-block reverse shadow · names-first resolution + shadowed badge). Pilot = `/character alias` redesign + scoping tiers._
 
 | Slice | What | Status |
 | --- | --- | --- |
@@ -46,7 +46,7 @@ _PR-7 scope additions (from #1698 review observations): settings' third hand-rol
 
 ### Phase 3 — vocabulary + enforcement (IN FLIGHT)
 
-_Plan approved 2026-07-20 (`~/.claude/plans/radiant-tickling-candle.md`; 6-agent census grounding + trio council GLM 5.2 · Kimi K2.7-code · Qwen 3.7 Max; owner calls resolved: tree moves = avatar/voice groups + `/chat` `/random` extraction · onboarding = `/help getting-started` · release = major-ping beta, beta-exit at epic completion). Council resequencing: guards-first (enforcement lands as soon as its precondition state exists), factory core before /deny, AST rule after the vocabulary surface settles._
+_Plan approved 2026-07-20 (6-agent census grounding + trio council GLM 5.2 · Kimi K2.7-code · Qwen 3.7 Max; owner calls resolved: tree moves = avatar/voice groups + `/chat` `/random` extraction · onboarding = `/help getting-started` · release = major-ping beta, beta-exit at epic completion). Council resequencing: guards-first (enforcement lands as soon as its precondition state exists), factory core before /deny, AST rule after the vocabulary surface settles._
 
 | Slice | What | Status |
 | --- | --- | --- |
