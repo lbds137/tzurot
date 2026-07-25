@@ -38,11 +38,12 @@ Then file by **size/granularity** — NOT by whether it has a trigger. ("Promote
 
 1. **Active production bug?** → `now.md` › 🚨 Production Issues (fix before features)
 2. **Working on it this week?** → `now.md` › 🎯 Current Focus (max 3)
-3. **Small (<~2hr), independent, one sentence, with an _observable_ trigger?** → `now.md` › ⚡ Quick Wins (max 5) if you'll do it soon; else `cold/follow-ups.md` (table row)
-4. **Part of the active epic?** → update `active-epic.md` (slice detail → `cold/epic-log.md`)
-5. **A single feature that needs scoping (a paragraph)?** → `cold/ideas.md` (`##` section)
-6. **A multi-phase initiative (its own epic)?** → new `cold/themes/<slug>.md` + a bullet in `cold/queue.md`
-7. **Just arrived mid-session, no time to triage?** → `now.md` › 📥 Untriaged (max 10); route it later
+3. **Small (<~2hr), independent, and you'll actually do it soon?** → `now.md` › ⚡ Quick Wins (max 5) — no trigger needed, it's simply next in line
+4. **Small, one sentence, waiting on an _observable_ trigger?** → `cold/follow-ups.md` (table row)
+5. **Part of the active epic?** → update `active-epic.md` (slice detail → `cold/epic-log.md`)
+6. **A single feature that needs scoping (a paragraph)?** → `cold/ideas.md` (`##` section)
+7. **A multi-phase initiative (its own epic)?** → new `cold/themes/<slug>.md` + a bullet in `cold/queue.md`
+8. **Just arrived mid-session, no time to triage?** → `now.md` › 📥 Untriaged (max 10); route it later
 
 **The granularity ladder:** one-sentence follow-up → `follow-ups.md`; paragraph idea → `ideas.md`; multi-phase epic → `themes/`.
 
