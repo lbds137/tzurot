@@ -12,7 +12,7 @@
 
 **Is:** (1) `pnpm ops retention:preview` — a read-only report of the purge-eligible cohort, mutating nothing; (2) the **unreachable** purge branch (`dmUndeliverableSince` set + inactive ≥180d, or a gone-account per D13) behind **manual approval** — the operator drives every deletion; (3) a daily owner-channel **nag** so the accruing cohort is visible without the operator remembering to check; (4) the correctness prerequisites the branch depends on (D10, D11, D12).
 
-**Is not:** the **reachable** branch (notify + `AccountExportJob` offer + grace) → Phase 3. **Autonomous** execution (job purges without operator approval, guarded only by the hard-halt breaker) → Phase 4. The privacy-policy `/privacy` entry lands with the autonomous flip (Phase 4) unless the owner wants the retention claim public the moment purging begins.
+**Is not:** the **reachable** branch (notify + `AccountExportJob` offer + grace) → Phase 3. **Autonomous** execution (job purges without operator approval, guarded only by the hard-halt breaker) → Phase 4. **The privacy-policy entry is a PR-D gate, not a Phase-4 one** (corrected 2026-07-25 during the beta.176 release doc-sweep). The published policy's retention table currently reads _"Account basics, usage records — Until you delete your account"_, which the **first manual purge** falsifies — the operator's approval is not the user's deletion. Autonomy is not what makes the claim untrue; deleting an account the user did not ask to delete is. So `docs/legal/PRIVACY_POLICY.md` must state the inactivity window **before or with the first real `retention:purge` run**, not with Phase 4. The text is accurate as long as nothing purges, which is why it did not gate PR-A/B/C.
 
 ---
 

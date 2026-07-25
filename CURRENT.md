@@ -9,6 +9,25 @@
 - **#1778 — conversation-history sync unification** (Phase 1.5): `conversation_history` became a normal db-sync table (`updated_at` LWW + generalized AFTER-DELETE trigger); retired the bespoke soft-delete tombstone system, `tombstoneUtils.ts`, `cleanupOldTombstones`, and `/admin cleanup tombstones`. Round-trip component test proves soft- and hard-delete propagate without resurrection — closes a latent account-purge gap. Net −782 lines. ✅ Dev migration applied.
 - **#1779 / #1780 / #1781 — retention Phase 2 PR-A/B/C** (detail in the epic section below). ✅ Dev migrations applied.
 - **#1782 / #1783 — always-loaded context trim, rounds 1 and 2** (see the trim section below).
+- **#1784–#1791 — tooling, CI and process**: backlog aging nudge unstarved, weekly audit measures develop, promise-ledger hook reworked, backlog admission bar + ruled-out exit, both `commands:audit` warnings cleared, CI-monitor run-list check.
+
+## 🔬 Smoke checklist — v3.0.0-beta.176 (post-deploy)
+
+_Risk-scoped to what this release actually touches. Everything not listed here is covered by CI + review — don't spend a round on it._
+
+| #   | Item                                                      | Why it's here                                                                                                                                                                                                                                                                                                         | Status     |
+| --- | --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| 1   | **Send a normal message to any character in a channel**   | The migration makes `conversation_history.updated_at` NOT NULL. A write path that misses the column fails the insert — this is the migration's live-path risk and the cheapest possible check.                                                                                                                        | ⬜ not run |
+| 2   | **`/admin db-sync`** (dev first, then prod)               | `conversation_history` is now a normal sync table with an AFTER-DELETE trigger; this is the first sync under the new tombstone regime, and 5,695 bespoke tombstones were migrated into `sync_tombstones`. Doubles as another data point on the open silent-db-sync-death issue — the transport probes are still live. | ⬜ not run |
+| 3   | **`/settings data delete`** (dev, on a throwaway account) | PR-B reshaped this into `AccountEraserService`. Semantics are preserved by design, but the code path is newly-shaped and rarely exercised — better to find a regression here than to have the purge inherit it.                                                                                                       | ⬜ not run |
+| 4   | **`/admin cleanup days:7`**                               | The option was renamed from `timeframe`. Confirms the picker shows `days` and the handler reads it.                                                                                                                                                                                                                   | ⬜ not run |
+
+**Agent-run, no owner needed** (recorded here so the result lands somewhere durable):
+
+| #   | Item                                                                                                                                                    | Status                                                                                         |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| 5   | `pnpm ops retention:preview --env dev`                                                                                                                  | ✅ ran 2026-07-25 pre-release — plumbing works end to end; no eligible users on dev (expected) |
+| 6   | `pnpm ops retention:preview --env prod` — the first look at the real 26-user cohort; **gated on this release**, since PR-C's endpoint isn't on prod yet | ⬜ blocked until deploy                                                                        |
 
 ## 🎯 Active epic — Automated Inactivity Retention & Purge
 
@@ -21,9 +40,11 @@ Design ACCEPTED 2026-07-23 (council trio + 6 owner calls) → [`inactivity-reten
 | PR-A schema (#1779) — `discord_account_gone_at`, `retention_exempt`, `original_owner_discord_id`, `retention_purge_log`                                                    | ✅ merged                                       |
 | PR-B mode-aware erasure (#1780) — `AccountEraserService` unifies DB+off-DB (D1); `retention` mode re-homes cross-user characters to the Orphaned-Characters sentinel (D11) | ✅ merged                                       |
 | PR-C preview (#1781) — `RetentionPurgeService` owns the single D3/D4 predicate; read-only `GET /internal/retention/preview` + `pnpm ops retention:preview`                 | ✅ merged                                       |
-| **PR-D purge + nag**                                                                                                                                                       | ⏭️ **NEXT — carries a hard blocker**            |
+| **PR-D purge + nag**                                                                                                                                                       | ⏭️ **NEXT — unblocked 2026-07-25**              |
 
-**🚧 PR-D blocker — orphan accessibility (owner-decided, deferred here from PR-B).** After a purge re-homes a **private** character to the sentinel, nobody can see it: `canUserViewPersonality` = `isPublic \|\| ownerId === userId \|\| PersonalityOwner`, all false, and `channel/activate.ts` blocks reactivation. Needs a view-without-edit permission primitive — force-`isPublic` and over-granting via `PersonalityOwner` were both rejected. **Design this before building PR-D.**
+**✅ PR-D blocker RETRACTED (2026-07-25, code-verified).** The "re-homed private characters are unreachable" claim reasoned from `canUserViewPersonality`, which is a route guard — **not** the runtime gate on talking to a character. That gate is `PersonalityLoader.buildAccessFilter` = `{ OR: [{ isPublic: true }, { ownerId }] }`, applied to every message-path load. So a non-owner can never load a private character to talk to it: a private character can't gain cross-user reach going forward, and re-homing never removes access anyone still had (public keeps `isPublic` through the owner change; private had already excluded them). Owner raised it, code confirms it. Residual is the inverse and much smaller: a once-public-now-private character with historical reach is **preserved** and reachable by nobody but the bot owner — over-retention, a predicate tweak decided with PR-D, not gating it. Detail in design D11.
+
+**Also corrected in the same pass**: the privacy-policy entry is a **PR-D gate, not Phase 4**. The published retention table says "Account basics, usage records — Until you delete your account"; the first _manual_ purge falsifies that. Autonomy isn't what makes it untrue — deleting an account the user didn't ask to delete is.
 
 **Owner calls locked**: orphan-bucket sentinel + `original_owner_discord_id` · `retention_exempt` column · 10013 immediate-purge-with-guard · single `retention_purge_log` (audit+DLQ) · mode-aware `eraseAccount` · TOCTOU re-check.
 
