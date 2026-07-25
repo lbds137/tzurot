@@ -139,17 +139,18 @@ Both gates pair with the session-end workflow in the `/tzurot-docs` skill.
 
 ## Triage Rules — where does a new item go?
 
-File by size/granularity (see the ladder above); trigger is a field, not a bucket.
+Clear the **admission bar** above first — an item whose trigger is this same file/diff is done now, and a named cross-file batch is filed as the batch. Only what survives that gets a destination below, by size/granularity (see the ladder); trigger is a field, not a bucket.
 
-| If the item is...                        | Goes to...                                                          |
-| ---------------------------------------- | ------------------------------------------------------------------- |
-| Active production bug                    | `now.md` › 🚨 Production Issues                                     |
-| Needed this week                         | `now.md` › 🎯 Current Focus (max 3)                                 |
-| Small (<~2hr), independent, one sentence | `now.md` › ⚡ Quick Wins (max 5) if soon; else `cold/follow-ups.md` |
-| Part of the active epic                  | `active-epic.md` (slice detail → `cold/epic-log.md`)                |
-| A single feature needing scoping         | `cold/ideas.md` (`##` section)                                      |
-| A multi-phase initiative                 | `cold/themes/<slug>.md` + bullet in `cold/queue.md`                 |
-| Arrived mid-session, no time to triage   | `now.md` › 📥 Untriaged (max 10), route later                       |
+| If the item is...                                                | Goes to...                                                          |
+| ---------------------------------------------------------------- | ------------------------------------------------------------------- |
+| Fixable in the work that surfaced it                             | **Nowhere — do it now** (admission bar above)                       |
+| Active production bug                                            | `now.md` › 🚨 Production Issues                                     |
+| Needed this week                                                 | `now.md` › 🎯 Current Focus (max 3)                                 |
+| Small (<~2hr), independent, one sentence, **observable trigger** | `now.md` › ⚡ Quick Wins (max 5) if soon; else `cold/follow-ups.md` |
+| Part of the active epic                                          | `active-epic.md` (slice detail → `cold/epic-log.md`)                |
+| A single feature needing scoping                                 | `cold/ideas.md` (`##` section)                                      |
+| A multi-phase initiative                                         | `cold/themes/<slug>.md` + bullet in `cold/queue.md`                 |
+| Arrived mid-session, no time to triage                           | `now.md` › 📥 Untriaged (max 10), route later                       |
 
 ### Promoting a theme to Active Epic
 
