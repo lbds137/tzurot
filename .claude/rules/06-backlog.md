@@ -55,10 +55,10 @@ This does not weaken "out-of-scope items must be tracked" below — it changes t
 
 ## Staleness — aging escalates, it never deletes
 
-Items are **never** deleted by calendar. An untouched follow-up that's aged RISES in priority and gets surfaced for a conscious decision (do it now / confirm the trigger is still pending) — it is **not** swept under the rug. An item leaves the backlog only when it is:
+Items are **never** deleted by calendar. An untouched follow-up that's aged RISES in priority and gets surfaced for a conscious decision (do it now / confirm the trigger is still pending) — it is **not** swept under the rug. An item leaves the backlog on exactly **three** exits, and no others:
 
-- **done** (shipped — remove it; git is the archive),
-- **genuinely obsolete** — the code path, file, or condition it references no longer exists. Verify by grep before removing, not by date, or
+- **done** (shipped — remove it; git is the archive);
+- **genuinely obsolete** — the code path, file, or condition it references no longer exists. Verify by grep before removing, not by date; or
 - **ruled out** — a deliberate decision that we are not going to do this. Rationale goes in the removing commit, never a tombstone entry (`00-critical.md` § Always Leave Code Better Than You Found It).
 
 There is no "prune items older than N days" rule. Staleness is a signal to act, not a signal to discard. (`pnpm ops backlog` surfaces the oldest follow-ups as an escalation nudge — that's a prompt to decide, never an auto-delete.)
