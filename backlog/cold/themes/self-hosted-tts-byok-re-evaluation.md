@@ -130,9 +130,10 @@ Probed two complementary post-processing approaches; both ruled out. Documenting
 ```ts
 // pnpm ops run --env prod npx tsx scripts/src/db/fetch-voice-ref.ts <slug> <out>
 import { writeFileSync } from 'node:fs';
-import { getPrismaClient } from '@tzurot/common-types';
+import { createPrismaClient } from '@tzurot/common-types/services/prisma';
+import { DB_POOL_DEFAULTS } from '@tzurot/common-types/services/poolConfig';
 const [, , slug, out] = process.argv;
-const prisma = getPrismaClient();
+const { prisma, dispose } = createPrismaClient({ max: DB_POOL_DEFAULTS.TRANSIENT_MAX });
 const p = await prisma.personality.findFirst({
   where: { slug },
   select: { voiceReferenceData: true, displayName: true },
@@ -140,7 +141,7 @@ const p = await prisma.personality.findFirst({
 if (!p?.voiceReferenceData) throw new Error(`no ref for ${slug}`);
 writeFileSync(out, p.voiceReferenceData);
 console.log(`wrote ${p.voiceReferenceData.length} bytes (${p.displayName})`);
-await prisma.$disconnect();
+await dispose();
 ```
 
 If we end up needing this 2+ more times, promote to `pnpm ops voice-refs:export <slug> <out>` rather than recreating the scratch.

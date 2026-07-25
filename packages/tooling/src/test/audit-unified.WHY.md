@@ -41,7 +41,7 @@ The baseline is in `.github/baselines/test-coverage-baseline.json` and tracks kn
 
 `--strict` flips the default to "every file must have a test," used for occasional cleanup passes that close pre-baseline gaps.
 
-The Prisma auto-detection is heuristic: `hasPrismaUsage()` greps for `getPrismaClient()` and similar import patterns. False positives are possible but rare; false negatives (Prisma access that the heuristic misses) are mitigated by the contract-category check covering the same files from a different angle.
+The Prisma auto-detection is heuristic: `hasPrismaUsage()` greps for `createPrismaClient()`, `new PrismaClient()`, `@prisma/client` imports, and `prisma.<model>.<op>` call shapes (`PRISMA_PATTERNS` in `audit-utils.ts`). False positives are possible but rare; false negatives (Prisma access that the heuristic misses) are mitigated by the contract-category check covering the same files from a different angle.
 
 ## Decay check
 
