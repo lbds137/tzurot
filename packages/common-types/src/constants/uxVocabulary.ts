@@ -82,7 +82,10 @@ export const SELECTOR_DESCRIPTION = {
   preset: 'Which preset',
   globalPreset: 'Which global preset',
   persona: 'Which persona',
-  voice: 'Which voice',
+  // "Which voice" reads as contentless under `/voice voices delete` (the noun
+  // is already the command and the group); "cloned" is what actually
+  // distinguishes these from a TTS config's provider voice.
+  voice: 'Which cloned voice',
   ttsConfig: 'Which TTS config',
 } as const;
 
