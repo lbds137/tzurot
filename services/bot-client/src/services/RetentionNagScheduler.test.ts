@@ -27,6 +27,9 @@ function makePreview(overrides: {
   eligibleCount?: number;
   breakerWarning?: boolean;
   userCount?: number;
+  reachableToNotify?: number;
+  inGrace?: number;
+  graceExpired?: number;
 }): RetentionPreviewResponse {
   const eligibleCount = overrides.eligibleCount ?? 1;
   const listedUsers = overrides.userCount ?? eligibleCount;
@@ -44,6 +47,9 @@ function makePreview(overrides: {
       charactersToDelete: listedUsers,
       charactersToReHome: 0,
       breakerWarning: overrides.breakerWarning ?? false,
+      reachableToNotify: overrides.reachableToNotify ?? 0,
+      inGrace: overrides.inGrace ?? 0,
+      graceExpired: overrides.graceExpired ?? 0,
     },
   } satisfies RetentionPreviewResponse;
 }
@@ -141,6 +147,29 @@ describe('buildRetentionNagEmbed', () => {
 
     expect(calm.description).not.toContain('breaker warning');
     expect(warned.description).toContain('breaker warning');
+  });
+
+  it('shows the reachable-branch pipeline line only when that pipeline has anyone in it', () => {
+    const quiet = buildRetentionNagEmbed(makePreview({})).toJSON();
+    const active = buildRetentionNagEmbed(
+      makePreview({ reachableToNotify: 51, inGrace: 4, graceExpired: 1 })
+    ).toJSON();
+
+    expect(quiet.description).not.toContain('Reachable branch');
+    expect(active.description).toContain('**51** awaiting a warning DM');
+    expect(active.description).toContain('**4** in grace');
+    expect(active.description).toContain('**1** grace-expired');
+  });
+
+  it('still shows the pipeline line in the graceExpired-only steady state', () => {
+    // Grace-expired users have LEFT the other two counts (window passed,
+    // already warned), so everyone-warned-and-expired is a real steady state —
+    // a guard that checks only the two upstream counts silently drops the
+    // aggregate line exactly when the operator needs it.
+    const expiredOnly = buildRetentionNagEmbed(makePreview({ graceExpired: 2 })).toJSON();
+
+    expect(expiredOnly.description).toContain('Reachable branch');
+    expect(expiredOnly.description).toContain('**2** grace-expired');
   });
 
   it('caps the listed users and reports the overflow', () => {

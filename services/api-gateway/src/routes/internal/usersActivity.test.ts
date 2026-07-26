@@ -63,6 +63,9 @@ describe('POST /internal/users/activity', () => {
     // Nothing else clears the gone-flag, so a live user who was mis-stamped
     // with Discord 10013 relies on exactly this write to become un-purgeable.
     expect(sql).toContain('discord_account_gone_at = NULL');
+    // Grace aborts on use: activity mid-grace must exit the reachable-branch
+    // purge pipeline, or a warned user who came back gets purged anyway.
+    expect(sql).toContain('retention_notified_at = NULL');
     expect(sql).toContain('discord_id');
     expect(sql).not.toContain('updated_at');
     expect(discordId).toBe(VALID_DISCORD_ID);

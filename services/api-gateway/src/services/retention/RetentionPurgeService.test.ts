@@ -21,11 +21,15 @@ describe('RetentionPurgeService.buildPreview', () => {
     userbase: number;
     owned?: { id: string }[];
     reach?: { personalityId: string }[];
+    reachableToNotify?: number;
+    inGrace?: number;
   }) {
     const queryRaw = vi
       .fn()
-      // call 1 = the cohort; call 2+ = per-user reach
+      // call 1 = the cohort; calls 2-3 = notify/in-grace counts; call 4+ = per-user reach
       .mockResolvedValueOnce(opts.cohort)
+      .mockResolvedValueOnce([{ n: BigInt(opts.reachableToNotify ?? 0) }])
+      .mockResolvedValueOnce([{ n: BigInt(opts.inGrace ?? 0) }])
       .mockResolvedValue(opts.reach ?? []);
     return {
       $queryRaw: queryRaw,
@@ -40,6 +44,7 @@ describe('RetentionPurgeService.buildPreview', () => {
       discordId: '900000000000000001',
       inactiveSince: new Date('2025-01-01T00:00:00Z'),
       accountGone: false,
+      unreachable: true,
     },
   ];
 
@@ -89,6 +94,7 @@ describe('RetentionPurgeService.buildPreview', () => {
       discordId: `90000000000000000${i}`,
       inactiveSince: new Date('2025-01-01T00:00:00Z'),
       accountGone: false,
+      unreachable: true,
     }));
     const prisma = makePreviewPrisma({ cohort, userbase: 20 });
 
@@ -106,6 +112,29 @@ describe('RetentionPurgeService.buildPreview', () => {
     expect(users).toEqual([]);
     expect(totals.percentOfUserbase).toBe(0);
     expect(totals.breakerWarning).toBe(false);
+  });
+
+  it('surfaces the reachable-branch pipeline counts (Phase 3)', async () => {
+    // graceExpired is a labeled SUBSET of the cohort, not an addition to it —
+    // the count must come from the reasons, not a fourth query.
+    const cohort = [
+      { ...ONE_USER[0] },
+      {
+        userId: 'u2',
+        discordId: '900000000000000002',
+        inactiveSince: new Date('2025-02-01T00:00:00Z'),
+        accountGone: false,
+        unreachable: false,
+      },
+    ];
+    const prisma = makePreviewPrisma({ cohort, userbase: 100, reachableToNotify: 51, inGrace: 4 });
+
+    const { totals } = await new RetentionPurgeService({ prisma }).buildPreview();
+
+    expect(totals.eligibleCount).toBe(2);
+    expect(totals.reachableToNotify).toBe(51);
+    expect(totals.inGrace).toBe(4);
+    expect(totals.graceExpired).toBe(1);
   });
 });
 

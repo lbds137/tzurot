@@ -28,7 +28,22 @@ export interface RetentionPreviewOptions {
 const REASON_LABEL: Record<RetentionPreviewResponse['users'][number]['reason'], string> = {
   unreachable: 'DMs closed / left every shared server',
   account_gone: 'Discord account deleted',
+  grace_expired: 'warned, grace window expired',
 };
+
+/** The reachable branch's pipeline states — printed on both cohort branches. */
+function renderReachableBranch(totals: RetentionPreviewResponse['totals']): void {
+  // All THREE counts gate the line: grace-expired users left the other two
+  // counts (window passed, already warned), so a graceExpired-only steady
+  // state is real and must still render.
+  if (totals.reachableToNotify === 0 && totals.inGrace === 0 && totals.graceExpired === 0) {
+    return;
+  }
+  console.log(
+    `  reachable branch: ${String(totals.reachableToNotify)} awaiting a warning DM, ` +
+      `${String(totals.inGrace)} in grace, ${String(totals.graceExpired)} grace-expired`
+  );
+}
 
 /** Print the cohort report. Exported for testing without the transport. */
 export function renderPreview(preview: RetentionPreviewResponse): void {
@@ -39,9 +54,10 @@ export function renderPreview(preview: RetentionPreviewResponse): void {
     // indistinguishable from a query that silently returned nothing, which
     // undercuts the one job a read-only report has.
     console.log(
-      chalk.green('\nNo users are purge-eligible — nobody is both unreachable and inactive.')
+      chalk.green('\nNo users are purge-eligible — no inactive user is unreachable or past grace.')
     );
     console.log(chalk.dim(`  eligible: 0 of ${String(totals.userbaseCount)} users`));
+    renderReachableBranch(totals);
     return;
   }
 
@@ -67,6 +83,7 @@ export function renderPreview(preview: RetentionPreviewResponse): void {
     `  characters: ${totals.charactersToDelete} would be deleted, ` +
       `${totals.charactersToReHome} would be re-homed to the Orphaned Characters bucket`
   );
+  renderReachableBranch(totals);
 
   if (totals.breakerWarning) {
     console.log(

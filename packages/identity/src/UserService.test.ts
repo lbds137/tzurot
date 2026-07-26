@@ -213,6 +213,9 @@ describe('UserService', () => {
       expect(template.join('')).toContain('last_active_at');
       expect(template.join('')).toContain('dm_undeliverable_since = NULL');
       expect(template.join('')).toContain('discord_account_gone_at = NULL');
+      // Grace aborts on use: the same seam clears the reachable-branch grace
+      // clock, or a warned user who came back would still be purge-eligible.
+      expect(template.join('')).toContain('retention_notified_at = NULL');
       expect(template.join('')).not.toContain('updated_at');
       expect(userId).toBe('active-user-id');
     });

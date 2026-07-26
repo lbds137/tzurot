@@ -1,10 +1,15 @@
 import { describe, it, expect, vi } from 'vitest';
 import type { Prisma } from '@tzurot/common-types/services/prisma';
 import {
+  GRACE_PERIOD_DAYS,
   RETENTION_WINDOW_DAYS,
   countEligibleUsers,
+  countInGrace,
+  countNotifyCohort,
+  filterStillNotifyEligible,
   isStillEligibleForPurge,
   selectEligibleUsers,
+  selectNotifyCohort,
 } from './eligibility.js';
 
 /**
@@ -57,16 +62,18 @@ describe('the eligibility predicate', () => {
     await selectEligibleUsers(db);
 
     const sql = flattenSql(queryRaw.mock.calls[0]);
-    // Unreachable OR gone — either signal qualifies.
+    // Unreachable OR gone OR grace-expired — any of the three qualifies.
     expect(sql).toContain('u.dm_undeliverable_since IS NOT NULL');
     expect(sql).toContain('u.discord_account_gone_at IS NOT NULL');
+    expect(sql).toContain('u.retention_notified_at <');
     // Inactivity, with the NULL → created_at fallback (never "active now").
     expect(sql).toContain('COALESCE(u.last_active_at, u.created_at)');
     // The two exemptions that must never be purge-able.
     expect(sql).toContain('u.is_superuser = false');
     expect(sql).toContain('u.retention_exempt = false');
-    // The window is bound, not inlined — and it's the single named constant.
+    // The windows are bound, not inlined — and they're the single named constants.
     expect(flattenValues(queryRaw.mock.calls[0])).toContain(RETENTION_WINDOW_DAYS);
+    expect(flattenValues(queryRaw.mock.calls[0])).toContain(GRACE_PERIOD_DAYS);
 
     // NEGATIVE: the predicate must not silently widen to reachable users. A
     // purge that ignores reachability would erase people who could be notified.
@@ -74,41 +81,145 @@ describe('the eligibility predicate', () => {
     expect(sql).not.toContain('notify_enabled');
   });
 
-  it('makes a gone account clear the 180-day bar too — it is NOT a fast-track', async () => {
+  it('makes every signal clear the 180-day bar too — none is a fast-track', async () => {
     // Owner call: D13 sketched purging a Discord-10013 account without waiting
-    // out the inactivity window. That stays unbuilt, so the inactivity
-    // condition must apply to BOTH signals — i.e. the OR covers only the two
-    // unreachability flags and is ANDed with the window, never ORed around it.
+    // out the inactivity window. That stays unbuilt, and the Phase-3 grace arm
+    // inherits the same rule: the OR covers only the three qualifying signals
+    // and is ANDed with the inactivity window, never ORed around it.
     const { db, queryRaw } = makeDb();
 
     await selectEligibleUsers(db);
 
     const sql = flattenSql(queryRaw.mock.calls[0]).replace(/\s+/g, ' ');
+    // Fragment-bound values flatten to `?` placeholders, hence the literal \?.
     expect(sql).toMatch(
-      /\(u\.dm_undeliverable_since IS NOT NULL OR u\.discord_account_gone_at IS NOT NULL\) AND COALESCE/
+      /\(u\.dm_undeliverable_since IS NOT NULL OR u\.discord_account_gone_at IS NOT NULL OR u\.retention_notified_at < now\(\) - make_interval\(days => \?\)\) AND COALESCE/
     );
-    expect(sql).not.toMatch(/OR u\.discord_account_gone_at IS NOT NULL\s*\)?\s*$/);
+    expect(sql).not.toMatch(/OR u\.retention_notified_at[^)]*$/);
   });
 
-  it('labels a gone account as account_gone even when both signals are stamped', async () => {
+  it('labels by signal strength: account_gone > unreachable > grace_expired', async () => {
     const { db } = makeDb([
       {
         userId: 'u1',
         discordId: '900000000000000001',
         inactiveSince: new Date('2025-01-01'),
         accountGone: true,
+        unreachable: true,
       },
       {
         userId: 'u2',
         discordId: '900000000000000002',
         inactiveSince: new Date('2025-02-01'),
         accountGone: false,
+        unreachable: true,
+      },
+      {
+        userId: 'u3',
+        discordId: '900000000000000003',
+        inactiveSince: new Date('2025-03-01'),
+        accountGone: false,
+        unreachable: false,
       },
     ]);
 
     const cohort = await selectEligibleUsers(db);
 
-    expect(cohort.map(row => row.reason)).toEqual(['account_gone', 'unreachable']);
+    expect(cohort.map(row => row.reason)).toEqual(['account_gone', 'unreachable', 'grace_expired']);
+  });
+});
+
+describe('the notify predicate (Phase 3)', () => {
+  it('selects only reachable, un-warned, inactive, non-exempt users', async () => {
+    const { db, queryRaw } = makeDb();
+
+    await selectNotifyCohort(db, null);
+
+    const sql = flattenSql(queryRaw.mock.calls[0]);
+    // Reachable: BOTH unreachable stamps must be null...
+    expect(sql).toContain('u.dm_undeliverable_since IS NULL');
+    expect(sql).toContain('u.discord_account_gone_at IS NULL');
+    // ...one notice per inactivity spell (also the cross-run idempotency guard)...
+    expect(sql).toContain('u.retention_notified_at IS NULL');
+    // ...the same inactivity window and exemptions as the purge predicate.
+    expect(sql).toContain('COALESCE(u.last_active_at, u.created_at)');
+    expect(sql).toContain('u.is_superuser = false');
+    expect(sql).toContain('u.retention_exempt = false');
+    expect(flattenValues(queryRaw.mock.calls[0])).toContain(RETENTION_WINDOW_DAYS);
+  });
+
+  it('narrows by the outbound-DM allowlist at the SQL level when one is set', async () => {
+    const { db, queryRaw } = makeDb();
+
+    await selectNotifyCohort(db, new Set(['111111111111111111']));
+
+    const sql = flattenSql(queryRaw.mock.calls[0]);
+    expect(sql).toContain('u.discord_id = ANY(');
+    expect(flattenValues(queryRaw.mock.calls[0])).toContainEqual(['111111111111111111']);
+  });
+
+  it('adds no allowlist clause when unrestricted (prod)', async () => {
+    const { db, queryRaw } = makeDb();
+
+    await selectNotifyCohort(db, null);
+
+    expect(flattenSql(queryRaw.mock.calls[0])).not.toContain('ANY(');
+  });
+});
+
+describe('filterStillNotifyEligible (the send-time re-check)', () => {
+  it('returns the still-eligible subset', async () => {
+    const { db, queryRaw } = makeDb([{ userId: 'keep-1' }, { userId: 'keep-2' }]);
+
+    const eligible = await filterStillNotifyEligible(db, ['keep-1', 'gone-active', 'keep-2']);
+
+    expect(eligible).toEqual(new Set(['keep-1', 'keep-2']));
+    const sql = flattenSql(queryRaw.mock.calls[0]);
+    // Scoped to the batch AND evaluating the full notify predicate — dropping
+    // any arm would DM a deletion warning to a user who just came back.
+    expect(sql).toContain('u.id = ANY(');
+    expect(sql).toContain('u.retention_notified_at IS NULL');
+  });
+
+  it('short-circuits on an empty batch without touching the db', async () => {
+    const { db, queryRaw } = makeDb();
+
+    expect(await filterStillNotifyEligible(db, [])).toEqual(new Set());
+    expect(queryRaw).not.toHaveBeenCalled();
+  });
+});
+
+describe('the reporting counts', () => {
+  it('countNotifyCohort returns a number', async () => {
+    const { db } = makeDb([{ n: 51n }]);
+
+    expect(await countNotifyCohort(db)).toBe(51);
+  });
+
+  it('countInGrace bounds by the grace window and keeps the exemption guards', async () => {
+    const { db, queryRaw } = makeDb([{ n: 3n }]);
+
+    const count = await countInGrace(db);
+
+    expect(count).toBe(3);
+    const sql = flattenSql(queryRaw.mock.calls[0]);
+    expect(sql).toContain('u.retention_notified_at >=');
+    expect(sql).toContain('u.is_superuser = false');
+    expect(sql).toContain('u.retention_exempt = false');
+    expect(flattenValues(queryRaw.mock.calls[0])).toContain(GRACE_PERIOD_DAYS);
+  });
+
+  it('countInGrace excludes users an unreachable stamp already made purge-eligible', async () => {
+    // Disjointness: a mid-grace user whose LATER release DM bounced is in the
+    // purge cohort via the unreachable arm — counting them as "in grace" too
+    // would report the same user as both purgeable-now and still-waiting.
+    const { db, queryRaw } = makeDb([{ n: 0n }]);
+
+    await countInGrace(db);
+
+    const sql = flattenSql(queryRaw.mock.calls[0]);
+    expect(sql).toContain('u.dm_undeliverable_since IS NULL');
+    expect(sql).toContain('u.discord_account_gone_at IS NULL');
   });
 });
 

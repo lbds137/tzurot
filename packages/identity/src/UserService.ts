@@ -189,19 +189,23 @@ export class UserService {
       // `updated_at` untouched. A raw UPDATE on a mid-flight-deleted row matches
       // 0 rows without throwing, matching the TOCTOU cache guard below.
       //
-      // The same stamp also CLEARS both unreachability flags: activity is proof
-      // of reach, so an active user is never left flagged unreachable. All three
-      // are retention signals maintained together on this one activity seam —
-      // the release-blast path sets the flags, any provisioning clears them (a
-      // later failure re-stamps fresh, since the clear resets the first-failure
-      // guard). discord_account_gone_at needs this MORE than its sibling, not
-      // less: a Discord 10013 is meant to mean "this account no longer exists",
-      // so a live user who is here provisioning is the direct disproof, and
-      // without the clear a single mis-stamp would flag them permanently.
+      // The same stamp also CLEARS both unreachability flags AND the retention
+      // grace clock: activity is proof of reach, so an active user is never
+      // left flagged unreachable, and using the bot mid-grace aborts the
+      // reachable-branch purge pipeline entirely (one notice per inactivity
+      // spell — a fresh spell starts a fresh notice). All four are retention
+      // signals maintained together on this one activity seam — the DM-failure
+      // paths set the flags, any provisioning clears them (a later failure
+      // re-stamps fresh, since the clear resets the first-failure guard).
+      // discord_account_gone_at needs this MORE than its sibling, not less: a
+      // Discord 10013 is meant to mean "this account no longer exists", so a
+      // live user who is here provisioning is the direct disproof, and without
+      // the clear a single mis-stamp would flag them permanently.
       try {
         await this.prisma.$executeRaw`
           UPDATE users
-          SET last_active_at = NOW(), dm_undeliverable_since = NULL, discord_account_gone_at = NULL
+          SET last_active_at = NOW(), dm_undeliverable_since = NULL,
+              discord_account_gone_at = NULL, retention_notified_at = NULL
           WHERE id = ${user.id}::uuid
         `;
       } catch (stampError) {
