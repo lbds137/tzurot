@@ -244,10 +244,37 @@ Batched owner pass taken 2026-07-26. Four calls, all recorded:
 
 Held item (c) — the generated briefing — is settled by evidence rather than decision: every candidate requires it, so it's adopted at substrate time without a separate call.
 
+## § Trial record (2026-07-26) — full shadow import: **PASS, no kill criterion fired**
+
+Executed same-day as the owner pass. Backlog.md **v1.48.0** via npx; isolated scratch repo at `~/Projects/backlog-md-trial` (own git history, disposable — commit `377662a`); import script + digest demo in the session scratchpad. Markdown remained authoritative throughout; nothing dual-written.
+
+### Against the four pre-set kill criteria
+
+| Criterion | Result |
+| --- | --- |
+| Import needs >~1 day of hand-massaging | **CLEARED** — ~30 min including parser iteration. 340/340 rows imported, zero pipe anomalies (the swallowed-row class is structurally unrepresentable: one file per record). Three historical row shapes (Surfaced-led / title-led / short-item-long-why) all handled by one parser. |
+| Area fields can't be derived mechanically for most rows | **CLEARED, with the migration's real cost named** — 186/340 (55%) labeled from a conservative first-pass vocabulary; the remaining 154 need one agent labeling pass (bounded: one session of reading ~1KB rows). 319/340 triggers found (matches the board's own 320 count). |
+| The acceptance query returns no better than today's grep | **CLEARED** — the literal failing query (`memory`): grep 43,576 bytes / ~11k tokens of undifferentiated prose → `task list --search memory --plain` 6,194 bytes / ~1.5k tokens of scannable one-line titles (**7×**), composable with `-l`, `-s`, `--limit`, `--sort`. Full 340-task list renders in 1.6 s. |
+| Can't produce a ≤300-line session-start briefing | **CLEARED, better than specced** — **58 lines / ~2.9 KB (~725 tokens)** vs today's 44 KB hot surface: per-area counts, 20-oldest (the nudge's starvation dissolves — any slice is queryable on demand), 10-newest. Caveat: the council's "`--json` gives filtering" premise was wrong for v1.48.0 (`task list` has no `--json`) — moot, and better: the task files ARE the structured store; the digest generator parses frontmatter directly, offline, no CLI dependency. |
+
+### Bonus findings
+
+- **The directory collision closes**: `init --backlog-dir <path>` exists — the one wound left open by the research pass is a config flag.
+- **The Q3 evidence the owner asked for**: `backlog doc create` + pasting the full system-model theme file verbatim → lives as `doc-1`, body untouched (no flattening), and the **shared search index spans tasks + documents + decisions in one query** with sane relevance ranking (`search "intent linkage"` → doc-1 top at 0.627). **Boundary recommendation: follow-ups → tasks, themes/ideas → docs — one store, one index, no split-brain, no flattening.** (Owner deferred this call to post-trial; not yet ratified.)
+- `backlog browser` (web kanban) exists but is untested here (headless) — for the owner to poke at: `cd ~/Projects/backlog-md-trial && npx backlog.md browser`.
+- Honest caveats: 16 rows got dates via an any-date fallback (may have grabbed a referenced date, not the surfaced date); mechanical titles are serviceable but truncation-shaped — the labeling pass should polish them; low-score noise hits appear in search output (ranked last, ignorable).
+
+### What migration now consists of (if/when it executes)
+
+1. Re-run the import script (it IS the migration tool) with `--backlog-dir` decided.
+2. One agent labeling pass: area for the 154 unlabeled + size/priority fields + title polish.
+3. The `06-backlog.md` rewrite (trigger-gating retirement rides here, per owner call #2).
+4. Wire the digest generator into the session-start surface; retire `now.md`'s hand-maintained role.
+5. Themes/ideas → `docs/` surface (pending owner ratification of the boundary).
+
 ## Next steps
 
 1. ~~Ground candidates~~ ✅ · 2. ~~Council~~ ✅ (two passes) · 3. ~~Owner pass~~ ✅ **CLOSED 2026-07-26** (§ above).
 4. ~~Retention PR-D~~ ✅ shipped (beta.177 — Phase 2 complete).
-5. **Full shadow trial** ← here. Then: retention Phase 3 → system-model Phase 0 → migration (if the trial passes) → drain campaign.
-
-**Migrate nothing before the trial.**
+5. ~~Full shadow trial~~ ✅ **PASS 2026-07-26** (§ above). **The boulder is done.**
+6. Per the ratified sequence: retention Phase 3 → system-model Phase 0 → **migration** (steps above) → drain campaign. Pending from the owner: ratify the follow-ups→tasks / themes→docs boundary.
