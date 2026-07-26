@@ -66,12 +66,13 @@ const defaultSleep = (ms: number): Promise<void> => new Promise(resolve => setTi
 /** Send one warning DM; returns the report outcome. */
 async function sendOne(
   client: Client,
-  recipient: RetentionNotifyRecipient
+  recipient: RetentionNotifyRecipient,
+  sentAt: Date
 ): Promise<Omit<NotifyOutcomeReport, 'userId'>> {
   try {
     const user = await client.users.fetch(recipient.discordUserId);
     await user.send({
-      content: buildRetentionNotice(new Date()) + RETENTION_NOTICE_FOOTER,
+      content: buildRetentionNotice(sentAt) + RETENTION_NOTICE_FOOTER,
       allowedMentions: { parse: [] },
     });
     return { status: 'sent' };
@@ -110,9 +111,12 @@ export function createRetentionNotifyProcessor(deps: RetentionNotifyWorkerDeps) 
 
     let sent = 0;
     let bounced = 0;
+    // One anchor per batch: with 1/sec pacing a batch straddling midnight
+    // would otherwise show different deletion DATES within the same run.
+    const sentAt = new Date();
     for (let i = 0; i < toSend.length; i++) {
       const recipient = toSend[i];
-      const outcome = await sendOne(deps.client, recipient);
+      const outcome = await sendOne(deps.client, recipient, sentAt);
       // Report EACH outcome immediately: a mid-batch crash then leaves at most
       // one sent-but-unstamped user for the pre-send filter to re-drop.
       await report([{ userId: recipient.userId, ...outcome }]);

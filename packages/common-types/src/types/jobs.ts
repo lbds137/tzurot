@@ -33,6 +33,7 @@ import {
   type ConfigSourceId,
 } from './schemas/index.js';
 import { JobType, JobStatus } from '../constants/queue.js';
+import { DiscordSnowflakeSchema } from '../schemas/api/internal.js';
 import type { SttProvider } from './sttProvider.js';
 
 /**
@@ -513,7 +514,7 @@ const releaseBroadcastRecipientSchema = z.object({
   /** Internal users.id UUID (delivery reporting joins on this). */
   userId: z.string().uuid(),
   /** Discord snowflake the DM is sent to. */
-  discordUserId: z.string(),
+  discordUserId: DiscordSnowflakeSchema,
   /**
    * The user's most recent prior release DM still standing (ledger rows with
    * a sentMessageId and no messageDeletedAt). The worker deletes it before
@@ -554,7 +555,7 @@ const retentionNotifyRecipientSchema = z.object({
   /** Internal users.id UUID — the grace stamp and re-check key on. */
   userId: z.string().uuid(),
   /** Discord snowflake the warning DM is sent to. */
-  discordUserId: z.string(),
+  discordUserId: DiscordSnowflakeSchema,
 });
 
 /**

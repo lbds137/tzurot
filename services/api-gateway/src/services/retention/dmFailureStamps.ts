@@ -23,22 +23,25 @@
 
 import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 
+/** Returns the number of rows actually stamped (0 = guarded no-op or unknown code). */
 export async function stampDmPermanentFailure(
   prisma: PrismaClient,
   userId: string,
   errorCode: string | undefined
-): Promise<void> {
+): Promise<number> {
   if (errorCode === '50278' || errorCode === '50007') {
-    await prisma.$executeRaw`
+    return prisma.$executeRaw`
       UPDATE users SET dm_undeliverable_since = NOW()
       WHERE id = ${userId}::uuid AND dm_undeliverable_since IS NULL
     `;
-  } else if (errorCode === '10013') {
-    await prisma.$executeRaw`
+  }
+  if (errorCode === '10013') {
+    return prisma.$executeRaw`
       UPDATE users SET discord_account_gone_at = NOW()
       WHERE id = ${userId}::uuid AND discord_account_gone_at IS NULL
     `;
   }
   // Any other code (or none) stamps nothing: transient failures retry, and
   // unknown permanent codes must not guess at a user-state column.
+  return 0;
 }

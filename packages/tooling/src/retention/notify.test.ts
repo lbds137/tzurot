@@ -89,17 +89,40 @@ describe('retentionNotify', () => {
     expect(retentionNotifyMock).toHaveBeenCalledTimes(1);
   });
 
-  it('a breaker refusal on the real run exits non-zero', async () => {
+  it('a refused preview stops BEFORE the confirmation — never confirm a refused action', async () => {
+    // The service runs the hard-ceiling breaker before its dry-run branch, so
+    // the PREVIEW call itself comes back refused for an over-ceiling cohort.
+    retentionNotifyMock.mockResolvedValue({
+      ok: true,
+      data: runResult({ status: 'refused_breaker', breakerDetail: 'too big' }),
+    });
+
+    await retentionNotify({ env: 'prod' });
+
+    expect(confirmMock).not.toHaveBeenCalled();
+    expect(retentionNotifyMock).toHaveBeenCalledTimes(1);
+    expect(process.exitCode).toBe(1);
+  });
+
+  it('--breaker-override proceeds past a refused preview to confirm + the real run', async () => {
     retentionNotifyMock
-      .mockResolvedValueOnce({ ok: true, data: runResult() })
       .mockResolvedValueOnce({
         ok: true,
         data: runResult({ status: 'refused_breaker', breakerDetail: 'too big' }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        data: runResult({ status: 'enqueued', batchesEnqueued: 1 }),
       });
 
-    await retentionNotify({ env: 'dev' });
+    await retentionNotify({ env: 'prod', breakerOverride: true });
 
-    expect(process.exitCode).toBe(1);
+    expect(confirmMock).toHaveBeenCalledTimes(1);
+    expect(retentionNotifyMock).toHaveBeenNthCalledWith(2, {
+      breakerOverride: true,
+      runContext: 'ops retention:notify (prod)',
+    });
+    expect(process.exitCode).toBeUndefined();
   });
 
   it('a gateway failure exits non-zero instead of reading as an empty cohort', async () => {

@@ -116,6 +116,16 @@ export async function retentionNotify(options: RetentionNotifyOptions): Promise<
   if (previewResult.data.status === 'empty') {
     return;
   }
+  // The preview call runs the same server-side breaker (it precedes the
+  // dry-run branch), so an over-ceiling cohort is refused HERE — asking the
+  // operator to confirm an action the server just refused would be noise.
+  if (previewResult.data.status === 'refused_breaker' && !breakerOverride) {
+    console.log(
+      chalk.yellow('\nRe-run with --breaker-override once you have confirmed the cohort is real.')
+    );
+    process.exitCode = 1;
+    return;
+  }
 
   if (env === 'prod' && !force) {
     const confirmed = await confirmProductionOperation(

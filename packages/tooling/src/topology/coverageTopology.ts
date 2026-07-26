@@ -100,6 +100,9 @@ const MECHANISM_TIER: Record<CoverageSurfaceMechanism, TestTier> = {
  * not compile until it is classified here, so a future payload-bearing job can't
  * be silently omitted from the topology.
  */
+// Repeated consumer/producer service name (sonarjs no-duplicate-string).
+const BOT_CLIENT = 'bot-client';
+
 const JOB_SCHEMA_BY_TYPE: Record<JobType, { schemaRef: string; consumer: string } | null> = {
   [JobType.AudioTranscription]: {
     schemaRef: 'audioTranscriptionJobDataSchema',
@@ -124,7 +127,13 @@ const JOB_SCHEMA_BY_TYPE: Record<JobType, { schemaRef: string; consumer: string 
   // worker consumes them — the payload schema IS the producer↔consumer contract.
   [JobType.ReleaseBroadcastDm]: {
     schemaRef: 'releaseBroadcastDmJobDataSchema',
-    consumer: 'bot-client',
+    consumer: BOT_CLIENT,
+  },
+  // Same cross-service shape as the broadcast: api-gateway produces retention
+  // warning-DM batches, bot-client's notify worker consumes them.
+  [JobType.RetentionNotifyDm]: {
+    schemaRef: 'retentionNotifyDmJobDataSchema',
+    consumer: BOT_CLIENT,
   },
 };
 
@@ -156,6 +165,8 @@ const BULLMQ_PRODUCER_TEST =
   'services/api-gateway/src/utils/BullMQJobChainContract.producer.test.ts';
 const BROADCAST_PRODUCER_TEST =
   'services/api-gateway/src/services/ReleaseBroadcastContract.producer.test.ts';
+const RETENTION_NOTIFY_PRODUCER_TEST =
+  'services/api-gateway/src/services/retention/RetentionNotifyContract.producer.test.ts';
 const BULLMQ_CONTRACT_DIR = 'tests/e2e/contracts';
 const VOICE_ENGINE_CONSUMER_TEST =
   'services/ai-worker/src/services/voice/VoiceEngineContract.consumer.contract.test.ts';
@@ -224,6 +235,12 @@ const REAL_IMPORTS = {
     symbol: 'enqueueBroadcast',
     from: '/releaseBroadcast.',
   },
+  /** Same shape as the broadcast: its own producer seam, its own fixture test. */
+  retentionNotifyProducer: {
+    file: RETENTION_NOTIFY_PRODUCER_TEST,
+    symbol: 'RetentionNotifyService',
+    from: '/RetentionNotifyService.',
+  },
   /**
    * The voice-engine JSON contract is cross-LANGUAGE: the PRODUCER is the Python
    * service, enforced by the `voice-engine-tests` CI job (a pytest asserts each real
@@ -247,6 +264,8 @@ interface MechanismPresence {
   bullmqProducerImportsReal: boolean;
   /** The broadcast producer test imports the real `enqueueBroadcast` (its own producer seam). */
   broadcastProducerImportsReal: boolean;
+  /** The retention-notify producer test imports the real `RetentionNotifyService`. */
+  retentionNotifyProducerImportsReal: boolean;
   /** The voice-engine consumer test imports the real response Zod schemas (TS half; Python half is CI-enforced). */
   voiceEngineImportsReal: boolean;
   /** Job schema names referenced by a `.safeParse(`/`.parse(` call in a BullMQ contract test. */
@@ -280,6 +299,7 @@ function buildMechanismPresence(projectRoot: string): MechanismPresence {
       imports(REAL_IMPORTS.envelopeProducer) && imports(REAL_IMPORTS.envelopeConsumer),
     bullmqProducerImportsReal: imports(REAL_IMPORTS.bullmqProducer),
     broadcastProducerImportsReal: imports(REAL_IMPORTS.broadcastProducer),
+    retentionNotifyProducerImportsReal: imports(REAL_IMPORTS.retentionNotifyProducer),
     voiceEngineImportsReal: imports(REAL_IMPORTS.voiceEngineConsumer),
     bullmqSchemas,
   };
@@ -303,7 +323,9 @@ const MECHANISM_PRESENT: Record<
     presence.bullmqSchemas.has(seed.schemaRef) &&
     (seed.schemaRef === 'releaseBroadcastDmJobDataSchema'
       ? presence.broadcastProducerImportsReal
-      : presence.bullmqProducerImportsReal),
+      : seed.schemaRef === 'retentionNotifyDmJobDataSchema'
+        ? presence.retentionNotifyProducerImportsReal
+        : presence.bullmqProducerImportsReal),
   'voice-engine-contract': (_seed, presence) => presence.voiceEngineImportsReal,
 };
 
@@ -371,7 +393,7 @@ export function generateCoverageTopology(projectRoot: string = defaultRootDir())
       {
         id: 'bot-client:ai-worker:context-assembly',
         kind: 'context-envelope',
-        producer: 'bot-client',
+        producer: BOT_CLIENT,
         consumer: 'ai-worker',
         schemaRef: 'rawAssemblyInputsSchema',
         mechanism: 'golden-fixture',
