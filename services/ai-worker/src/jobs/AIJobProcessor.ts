@@ -307,7 +307,14 @@ export class AIJobProcessor {
     let lockAcquired = false;
 
     if (triggerMessageId !== undefined) {
-      const isNew = await redisService.markMessageProcessing(triggerMessageId, personalityId);
+      // The job ID is stable across stall re-runs, so the lock can tell a
+      // re-run of this same job (proceed) from a different job for the same
+      // (message, personality) pair (skip as duplicate).
+      const isNew = await redisService.markMessageProcessing(
+        triggerMessageId,
+        personalityId,
+        job.id ?? job.data.requestId
+      );
       if (!isNew) {
         // (message, personality) already being processed - return early without publishing
         logger.warn(

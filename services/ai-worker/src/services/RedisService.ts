@@ -218,6 +218,25 @@ export class RedisService {
    * releaseMessageLock() to allow BullMQ retries. Otherwise the retry will
    * be blocked as a duplicate.
    *
+   * The lock VALUE is the acquiring job's ID, which makes the lock
+   * ownership-aware: a process killed between acquire and release (deploy
+   * kill, OOM) leaves the lock orphaned with no code path to release it, so
+   * the stall-recovery re-run of the SAME job must recognize its own lock
+   * and proceed — otherwise the re-run skips as a "duplicate" and the reply
+   * is silently swallowed. Only a lock held by a DIFFERENT job ID is a true
+   * duplicate (Discord event dupes, double-submits of the same message).
+   *
+   * Trade-off, decided deliberately: on a FALSE stall (BullMQ declares a
+   * live, still-processing job stalled after minutes of failed lock
+   * renewals), the re-run also passes this check, so the original and the
+   * re-run can each bill the provider and each deliver a reply. The
+   * alternative — skipping every same-key re-run — silently swallowed the
+   * reply of every REAL stall (dead process), which recurs on any deploy
+   * with in-flight work. Real stalls are frequent; false stalls require
+   * sustained renewal failure inside a live worker. Tracked alongside the
+   * preprocessing spend-idempotency rows in the backlog; a fencing token
+   * is the complete fix if that trigger ever fires.
+   *
    * TTL Rationale (1 hour):
    * - Long enough to cover: queue backlog, retries, and processing time
    * - Short enough to not block legitimate re-triggers (e.g., bot restart)
@@ -227,25 +246,41 @@ export class RedisService {
    *
    * @param messageId Discord message ID that triggered the request
    * @param personalityId Personality being targeted by this specific job
-   * @returns true if lock acquired (should process), false if duplicate
+   * @param jobId BullMQ job ID of the acquiring job (stable across re-runs)
+   * @returns true if lock acquired or re-acquired (should process), false if duplicate
    */
-  async markMessageProcessing(messageId: string, personalityId: string): Promise<boolean> {
+  async markMessageProcessing(
+    messageId: string,
+    personalityId: string,
+    jobId: string
+  ): Promise<boolean> {
     try {
       const key = `${REDIS_KEY_PREFIXES.PROCESSED_MESSAGE}${messageId}:${personalityId}`;
       // 1 hour TTL - see docstring for rationale
-      const result = await this.redis.set(key, '1', 'EX', 3600, 'NX');
+      const result = await this.redis.set(key, jobId, 'EX', 3600, 'NX');
 
-      // Result is 'OK' if key was set (new), null if key already exists (duplicate)
-      const isNew = result === 'OK';
-
-      if (!isNew) {
-        logger.info(
-          { messageId, personalityId },
-          'Duplicate (message, personality) detected - skipping processing'
-        );
+      // Result is 'OK' if key was set (new), null if key already exists
+      if (result === 'OK') {
+        return true;
       }
 
-      return isNew;
+      const holder = await this.redis.get(key);
+      if (holder === jobId) {
+        // Our own lock from a previous run that died without releasing —
+        // re-acquire and refresh the TTL so the re-run gets a full window.
+        await this.redis.set(key, jobId, 'EX', 3600);
+        logger.info(
+          { messageId, personalityId, jobId },
+          'Re-acquired own idempotency lock - job re-run after process death'
+        );
+        return true;
+      }
+
+      logger.info(
+        { messageId, personalityId, jobId, holder },
+        'Duplicate (message, personality) detected - skipping processing'
+      );
+      return false;
     } catch (error) {
       logger.error(
         { err: error, messageId, personalityId },
