@@ -16,6 +16,7 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { loadContractFixture } from '@tzurot/test-utils';
 import { JobType } from '@tzurot/common-types/constants/queue';
 import { retentionNotifyDmJobDataSchema } from '@tzurot/common-types/types/jobs';
+import { DiscordSnowflakeSchema } from '@tzurot/common-types/schemas/api/internal';
 
 interface CapturedBatch {
   name: string;
@@ -46,7 +47,8 @@ describe('Contract: retention-notify DM batch (real producer fixture → consume
     expect(data.recipients.length).toBeGreaterThan(0);
     for (const recipient of data.recipients) {
       expect(recipient.userId).toMatch(/^[0-9a-f-]{36}$/);
-      expect(recipient.discordUserId).toMatch(/^\d{17,19}$/);
+      // The canonical schema, not a re-typed regex — it cannot drift.
+      expect(DiscordSnowflakeSchema.safeParse(recipient.discordUserId).success).toBe(true);
     }
   });
 });
