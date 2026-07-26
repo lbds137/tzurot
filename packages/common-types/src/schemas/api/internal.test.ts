@@ -25,8 +25,11 @@ import {
   RetentionReconcileOffDbResponseSchema,
   RetentionNotifyRequestSchema,
   RetentionNotifyResponseSchema,
+  RetentionNotifyCohortUserSchema,
   RetentionNotifyFilterRequestSchema,
+  RetentionNotifyFilterResponseSchema,
   RetentionNotifyReportRequestSchema,
+  RetentionNotifyReportResponseSchema,
 } from './internal.js';
 
 describe('DiscordSnowflakeSchema', () => {
@@ -888,5 +891,34 @@ describe('RetentionNotifyReportRequestSchema', () => {
         outcomes: [{ userId: 'a3bb189e-8bf9-3888-9912-ace4e6543002', status: 'skipped' }],
       }).success
     ).toBe(false);
+  });
+});
+
+describe('RetentionNotifyCohortUserSchema', () => {
+  it('accepts a cohort row and rejects a bare date (ISO datetime required)', () => {
+    const row = { discordId: '900000000000000001', inactiveSince: '2025-01-01T00:00:00.000Z' };
+    expect(RetentionNotifyCohortUserSchema.safeParse(row).success).toBe(true);
+    expect(
+      RetentionNotifyCohortUserSchema.safeParse({ ...row, inactiveSince: '2025-01-01' }).success
+    ).toBe(false);
+  });
+});
+
+describe('RetentionNotifyFilterResponseSchema', () => {
+  it('accepts an empty still-eligible set (everyone became active)', () => {
+    expect(
+      RetentionNotifyFilterResponseSchema.safeParse({ stillEligibleUserIds: [] }).success
+    ).toBe(true);
+  });
+
+  it('requires the field — a missing set must not read as empty', () => {
+    expect(RetentionNotifyFilterResponseSchema.safeParse({}).success).toBe(false);
+  });
+});
+
+describe('RetentionNotifyReportResponseSchema', () => {
+  it('accepts a processed count and rejects a negative one', () => {
+    expect(RetentionNotifyReportResponseSchema.safeParse({ processed: 1 }).success).toBe(true);
+    expect(RetentionNotifyReportResponseSchema.safeParse({ processed: -1 }).success).toBe(false);
   });
 });

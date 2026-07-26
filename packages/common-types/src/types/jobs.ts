@@ -574,7 +574,6 @@ export const retentionNotifyDmJobDataSchema = baseJobDataSchema.extend({
   recipients: z.array(retentionNotifyRecipientSchema).min(1).max(50),
 });
 
-export type RetentionNotifyDmJobData = z.infer<typeof retentionNotifyDmJobDataSchema>;
 export type RetentionNotifyRecipient = z.infer<typeof retentionNotifyRecipientSchema>;
 
 /**

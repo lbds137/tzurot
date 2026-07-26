@@ -62,7 +62,7 @@ export class RetentionNotifyService {
    * the action being guarded (both the mass-warning and the quarantine risk).
    */
   async enqueueNotifyRun(
-    queue: Queue,
+    queue: Queue | null,
     options: NotifyRunOptions
   ): Promise<RetentionNotifyResponse> {
     const { dryRun = false, breakerOverride = false, runContext } = options;
@@ -106,6 +106,12 @@ export class RetentionNotifyService {
 
     if (dryRun) {
       return { ...base, status: 'dry_run', batchesEnqueued: 0 };
+    }
+
+    if (queue === null) {
+      // Only a REAL run needs the queue; dry runs and the empty/refused
+      // branches never reach here. Loud beats a silent no-op enqueue.
+      throw new Error('Retention notify queue is not configured');
     }
 
     // Unique per invocation — deliberately NOT deterministic across runs. The
