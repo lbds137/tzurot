@@ -308,6 +308,22 @@ export const internalFixtures: Record<string, ConformanceEntry> = {
     // users: [] with zeroed totals — zero seed needed.
   },
 
+  retentionPurge: {
+    // Targets a Discord id no user row has, so the route takes its idempotent
+    // branch and returns 200 { status: 'skipped', reason: 'already_gone' } —
+    // which is the shape conformance is checking. Deliberately NOT seeding a
+    // purgeable user: this harness replays every route against a shared
+    // database, and a fixture that erases an account would be reaching outside
+    // its own state. The real erasure is proven in
+    // RetentionPurgeService.component.test.ts against an isolated PGLite DB.
+    body: { discordId: '829999999999999999', runContext: 'conformance' },
+  },
+
+  retentionReconcileOffDb: {
+    // An empty audit ledger is the steady state: the sweep finds nothing owed
+    // and returns { settled: 0, stillFailing: 0 } — zero seed needed.
+  },
+
   getModels: {
     // No DB seed: the catalog comes from the harness's fake modelCache.
     query: { search: 'claude', limit: '10' },

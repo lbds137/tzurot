@@ -23,10 +23,8 @@ import { RetentionPurgeService } from '../../services/retention/RetentionPurgeSe
 import type { RouteDeps } from '../routeDeps.js';
 
 /** GET /api/internal/retention/preview — read-only purge-eligible cohort. */
-export const handleRetentionPreview = (deps: RouteDeps): RequestHandler => {
-  const { prisma } = deps;
-  return asyncHandler(async (_req: Request, res: Response) => {
-    const preview = await new RetentionPurgeService(prisma).buildPreview();
+export const handleRetentionPreview = (deps: RouteDeps): RequestHandler =>
+  asyncHandler(async (_req: Request, res: Response) => {
+    const preview = await new RetentionPurgeService(deps).buildPreview();
     sendContractSuccess(res, RetentionPreviewResponseSchema, preview, StatusCodes.OK);
   });
-};

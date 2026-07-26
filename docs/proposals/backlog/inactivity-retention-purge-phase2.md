@@ -146,6 +146,20 @@ A **warning annotation** on the preview/nag report, not a hard halt: flag when t
 
 The split isolates the enabling refactor (B) from the new capability (D) and keeps every destructive step behind a green preview (C).
 
+### PR-D build notes (2026-07-25)
+
+**Split into D1 + D2.** D1 is the purge capability (gateway + tooling + schema + the privacy-policy gate); D2 is the daily nag plus the preview-reporting polish it depends on. One PR would have been ~1200 lines spanning four packages and a published legal document — the split keeps the destructive diff reviewable. Both land before Phase 2 closes.
+
+**Three owner calls, all conservative:**
+
+1. **No fast-track for `discord_account_gone_at`.** D13 sketched purging a Discord-10013 account without waiting out the 180-day window, guarded by "a freak transient self-corrects via the activity clear" — but that clear **did not exist**: the flag had one writer and zero clearers. PR-D1 ships the clear (all three activity-stamp sites now null both flags) and keeps the predicate as PR-C shipped it: gone is an *alternative unreachable signal*, not a shortcut past inactivity. The fast-track is re-decidable once the flag has run with a clearer and 10013's false-positive rate is measurable.
+2. **The release-cadence coupling is accepted.** Unreachability only refreshes on a major-release blast, so the Phase-2 cohort is near-empty between majors (measured: 0 stamped, ~27 after the next major). That bounds Phase 2 rather than breaking it — Phase 2 *is* the unreachable branch, and the 51 inactive-but-reachable users are Phase 3's cohort. Documented in the privacy policy's inactivity section.
+3. **The private-with-historical-reach over-retention is accepted.** Deleting such a character would also delete the *other* users' memories and history scoped to it, for people who never asked for a deletion. Retaining a dead character beats that.
+
+**D15 ordering — refined, not followed.** D15 preferred running off-DB cleanup *before* the DB delete. That is not implementable: the off-DB work is a function of the transaction's outcome (which characters survived re-homing and must KEEP their avatars, versus which died and must lose them), so it cannot precede it. The durable retry handle D15 actually wanted is the audit row's `pending` status plus a new `off_db_pending` column holding the deleted characters' slugs — which is what makes DB-first ordering safe. `retention_purge_log`'s two status columns also became Prisma enums with the writer, and the audit row is written **inside** the erasure transaction so a purge can never go unlogged.
+
+**D8 needs no new test.** The sync round-trip proof shipped with Phase 1.5 (`DatabaseSyncService.component.test.ts`, plus its `conversation_history sync` describe). PR-D1 adds only the purge-side assertion that a cascaded account leaves `conversation_history` tombstones behind.
+
 ---
 
 ## Council record (trio, 2026-07-23 — GLM 5.2 · Kimi K2.7-code · Qwen 3.7 Max)

@@ -149,13 +149,16 @@ async function recordPermanentFailure(
 
 /**
  * D10 (blast-success clear): a successful delivery proves the user is reachable
- * again — clear any stale dm_undeliverable_since (e.g. they went undeliverable,
+ * again — clear any stale unreachability flag (e.g. they went undeliverable,
  * rejoined a server so THIS blast reached them, but never otherwise interacted,
- * so the getOrCreateUser activity-clear never fired). Batched over the sent set
- * in one UPDATE; raw SQL keeps the write off updated_at (the sync LWW resolver);
- * the IS NOT NULL guard makes it a targeted clear, not a per-row no-op each
- * blast. Best-effort — the delivery rows are already committed, so a throw here
- * must not 500 the batch (same swallow rationale as recordPermanentFailure).
+ * so the getOrCreateUser activity-clear never fired). Clears
+ * discord_account_gone_at for the same reason and more strongly: a DM that
+ * landed is proof the account exists, which is exactly what a 10013 stamp
+ * claimed it did not. Batched over the sent set in one UPDATE; raw SQL keeps the
+ * write off updated_at (the sync LWW resolver); the IS NOT NULL guard makes it a
+ * targeted clear, not a per-row no-op each blast. Best-effort — the delivery
+ * rows are already committed, so a throw here must not 500 the batch (same
+ * swallow rationale as recordPermanentFailure).
  */
 async function clearUndeliverableForSent(
   prisma: PrismaClient,
@@ -166,8 +169,8 @@ async function clearUndeliverableForSent(
   }
   try {
     await prisma.$executeRaw`
-      UPDATE users SET dm_undeliverable_since = NULL
-      WHERE dm_undeliverable_since IS NOT NULL
+      UPDATE users SET dm_undeliverable_since = NULL, discord_account_gone_at = NULL
+      WHERE (dm_undeliverable_since IS NOT NULL OR discord_account_gone_at IS NOT NULL)
         AND id IN (
           SELECT user_id FROM release_delivery_log WHERE id = ANY(${sentDeliveryLogIds}::uuid[])
         )

@@ -49,6 +49,9 @@ import {
   PersistUserMessageResponseSchema,
   RecentUsersResponseSchema,
   RetentionPreviewResponseSchema,
+  RetentionPurgeRequestSchema,
+  RetentionPurgeResponseSchema,
+  RetentionReconcileOffDbResponseSchema,
   RoutingContextRequestSchema,
   RoutingContextResponseSchema,
   SecretRotationStatusResponseSchema,
@@ -375,6 +378,42 @@ export const internalRoutes = {
     output: RetentionPreviewResponseSchema,
     serviceOnly: true,
     meta: { safeRead: true },
+  },
+
+  /**
+   * POST /api/internal/retention/purge
+   * Erase ONE purge-eligible account (Retention Phase 2, D2). Per-user by
+   * design: a whole-cohort call would exceed the platform request timeout
+   * mid-run and leave a partial, unrecorded purge. Idempotent — an
+   * already-purged or newly-active target returns 200 with a `skipped` status,
+   * so the CLI's loop is safe to re-run after any interruption. Eligibility is
+   * re-checked INSIDE the erasure transaction, so a user who became active
+   * since the preview is never erased.
+   */
+  retentionPurge: {
+    audience: 'internal',
+    method: 'post',
+    path: '/retention/purge',
+    id: 'retentionPurge',
+    input: RetentionPurgeRequestSchema,
+    output: RetentionPurgeResponseSchema,
+    serviceOnly: true,
+  },
+
+  /**
+   * POST /api/internal/retention/reconcile-off-db
+   * Replay the off-DB cleanup (avatar unlink) owed by any purge-audit row whose
+   * reconciliation did not complete (D15). The audit ledger doubles as the
+   * retry queue, so this needs no input. Idempotent: a settled ledger is a
+   * zero-row no-op, which is why the purge CLI can call it after every run.
+   */
+  retentionReconcileOffDb: {
+    audience: 'internal',
+    method: 'post',
+    path: '/retention/reconcile-off-db',
+    id: 'retentionReconcileOffDb',
+    output: RetentionReconcileOffDbResponseSchema,
+    serviceOnly: true,
   },
 
   /**

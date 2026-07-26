@@ -203,12 +203,16 @@ describe('UserService', () => {
       // last-write-wins resolver; bumping it hourly would clobber dev edits).
       // findUnique returns an existing user, so no creation query fires —
       // $executeRaw is the stamp alone, keyed by the provisioned user id.
-      // The same write clears dm_undeliverable_since: activity proves reach, so
-      // an active user is never left flagged unreachable.
+      // The same write clears BOTH unreachability flags: activity proves reach,
+      // so an active user is never left flagged unreachable. The gone-flag
+      // clear is the load-bearing one — nothing else in the codebase clears
+      // discord_account_gone_at, so without it a single mis-stamped Discord
+      // 10013 would mark a live user purge-eligible permanently.
       expect(mockPrisma.$executeRaw).toHaveBeenCalledTimes(1);
       const [template, userId] = mockPrisma.$executeRaw.mock.calls[0] as [string[], string];
       expect(template.join('')).toContain('last_active_at');
-      expect(template.join('')).toContain('dm_undeliverable_since');
+      expect(template.join('')).toContain('dm_undeliverable_since = NULL');
+      expect(template.join('')).toContain('discord_account_gone_at = NULL');
       expect(template.join('')).not.toContain('updated_at');
       expect(userId).toBe('active-user-id');
     });

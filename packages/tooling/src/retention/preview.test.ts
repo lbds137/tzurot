@@ -9,7 +9,7 @@ vi.mock('../utils/env-runner.js', () => ({
   validateEnvironment: vi.fn(),
   showEnvironmentBanner: vi.fn(),
 }));
-vi.mock('../utils/gateway-client.js', () => ({ getServiceClientForEnv: getClientMock }));
+vi.mock('../utils/gateway-client.js', () => ({ resolveServiceClientOrExit: getClientMock }));
 
 import { retentionPreview, renderPreview } from './preview.js';
 
@@ -66,20 +66,16 @@ describe('retentionPreview', () => {
     expect(process.exitCode).toBeUndefined();
   });
 
-  it('exits non-zero with the actionable message when credentials can not be resolved', async () => {
-    // Railway CLI not logged in / missing variable. Without the catch this
-    // surfaces as an unhandled rejection instead of the friendly exit path.
-    getClientMock.mockImplementation(() => {
-      throw new Error('Check that the Railway CLI is logged in');
-    });
-    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+  it('stops cleanly when credentials can not be resolved', async () => {
+    // Railway CLI not logged in / missing variable. The shared resolver owns
+    // reporting and the exit code (see gateway-client.test.ts); the command's
+    // job is to stop rather than proceed without a client — and to RESOLVE, not
+    // reject, so this surfaces as a friendly exit and not a crash.
+    getClientMock.mockReturnValue(null);
 
     await expect(retentionPreview({ env: 'prod' })).resolves.toBeUndefined();
 
-    expect(process.exitCode).toBe(1);
-    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('Railway CLI is logged in'));
     expect(retentionPreviewMock).not.toHaveBeenCalled();
-    errorSpy.mockRestore();
   });
 
   it('exits non-zero on a gateway failure instead of reporting an empty cohort', async () => {

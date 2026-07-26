@@ -14,6 +14,12 @@ CREATE TYPE "notify_level" AS ENUM ('major', 'minor', 'patch');
 CREATE TYPE "delivery_status" AS ENUM ('pending', 'sent', 'failed_transient', 'failed_permanent', 'failed_bot_level');
 
 -- CreateEnum
+CREATE TYPE "db_outcome" AS ENUM ('success', 'failed');
+
+-- CreateEnum
+CREATE TYPE "off_db_reconciled" AS ENUM ('pending', 'done', 'failed');
+
+-- CreateEnum
 CREATE TYPE "feedback_status" AS ENUM ('new', 'read', 'archived');
 
 -- CreateTable
@@ -52,8 +58,9 @@ CREATE TABLE "retention_purge_log" (
     "purged_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "run_context" TEXT,
     "deletion_counts" JSONB NOT NULL,
-    "db_outcome" VARCHAR(16) NOT NULL,
-    "off_db_reconciled" VARCHAR(16) NOT NULL DEFAULT 'pending',
+    "db_outcome" "db_outcome" NOT NULL,
+    "off_db_reconciled" "off_db_reconciled" NOT NULL DEFAULT 'pending',
+    "off_db_pending" JSONB,
 
     CONSTRAINT "retention_purge_log_pkey" PRIMARY KEY ("id")
 );

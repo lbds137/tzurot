@@ -331,3 +331,53 @@ export const RetentionPreviewResponseSchema = z.object({
 });
 
 export type RetentionPreviewResponse = z.infer<typeof RetentionPreviewResponseSchema>;
+
+// ============================================================================
+// POST /internal/retention/purge — erase ONE eligible account (Phase 2, D2)
+// ============================================================================
+
+/**
+ * The purge acts on ONE user per call. A per-batch endpoint would exceed the
+ * platform's ~60s request timeout partway through a cohort and leave a partial,
+ * unrecorded purge; the CLI loops instead, and re-running it resumes.
+ */
+export const RetentionPurgeRequestSchema = z.object({
+  discordId: DiscordSnowflakeSchema,
+  /** Operator/run label recorded in the audit ledger. */
+  runContext: z.string().max(200).optional(),
+  /**
+   * Proceed even though the cohort exceeds the hard-ceiling share of the
+   * userbase. Deliberately separate from the CLI's `--force` (which only skips
+   * the interactive prompt) so no single flag can wipe a quarter of the
+   * userbase off one bad tracking signal.
+   */
+  breakerOverride: z.boolean().optional(),
+});
+
+export const RetentionPurgeResponseSchema = z.object({
+  discordId: DiscordSnowflakeSchema,
+  /** `skipped` covers every normal no-op; only a thrown error is a failure. */
+  status: z.enum(['purged', 'skipped']),
+  /** Present when status is `skipped`. */
+  reason: z.enum(['already_gone', 'no_longer_eligible', 'breaker_tripped']).optional(),
+  /** Operator-facing explanation for a tripped breaker. */
+  detail: z.string().optional(),
+  charactersDeleted: z.number().int().nonnegative().optional(),
+  charactersReHomed: z.number().int().nonnegative().optional(),
+});
+
+export type RetentionPurgeResponse = z.infer<typeof RetentionPurgeResponseSchema>;
+
+// ============================================================================
+// POST /internal/retention/reconcile-off-db — retry owed off-DB cleanup (D15)
+// ============================================================================
+
+/**
+ * Replays the off-DB cleanup (avatar unlink) for every audit-ledger row whose
+ * reconciliation is still owed. Idempotent — an already-settled ledger is a
+ * zero-row no-op — so it is safe to run at the end of every purge run.
+ */
+export const RetentionReconcileOffDbResponseSchema = z.object({
+  settled: z.number().int().nonnegative(),
+  stillFailing: z.number().int().nonnegative(),
+});

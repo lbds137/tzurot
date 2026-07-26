@@ -2,7 +2,7 @@
 
 **Status: In effect.**
 
-_Last updated: 2026-07-16_
+_Last updated: 2026-07-25_
 
 Tzurot is a Discord bot that lets you talk with AI characters. It is operated by an individual developer ("the operator", "we"). This policy explains what data the bot stores, why, where it goes, and what control you have over it. It is written to describe what the software actually does — nothing more.
 
@@ -35,7 +35,38 @@ Tzurot is a Discord bot that lets you talk with AI characters. It is operated by
 | Personas, characters, uploads | Until you delete them                                                                                                      |
 | Feedback you submit           | Deleted once it is both 90 days old and reviewed by the operator — or when you delete your account                         |
 | Release-DM delivery records   | Deleted once 90 days old and settled (the record of your latest notification is kept until it's replaced or you delete it) |
-| Account basics, usage records | Until you delete your account (see "Your controls")                                                                        |
+| Account basics, usage records | Until you delete your account (see "Your controls"), or until the inactivity rule below applies                            |
+
+### Inactive, unreachable accounts
+
+We are not a commercial service that keeps your data forever on the chance you
+come back. If **both** of the following are true, your account and everything
+associated with it may be erased:
+
+- **You have not used the bot for at least 180 days**, and
+- **we can no longer reach you** — you have closed DMs and share no server with
+  the bot, so a notification cannot be delivered; or your Discord account no
+  longer exists.
+
+Either condition alone is not enough. Any activity — a message, a command, or a
+notification that successfully reaches you — resets both.
+
+Erasure is complete — everything `/settings data delete` removes, this removes.
+It differs from that self-serve deletion in exactly one way, and the difference
+protects other people rather than you: a character you created that **other
+users have talked to** is not deleted here, because deleting it would erase
+their conversations and memories too. Such a character is transferred to a
+holding account instead, and keeps a record of who created it so it can be
+returned if you come back.
+
+**This exception applies only to the inactivity rule.** If you delete your own
+account with `/settings data delete`, the characters you created are deleted
+outright — shared or not. The command warns you how many other people have
+memories with each one before you confirm.
+
+We keep a record that an erasure happened (your Discord ID, the date, and how
+many rows were removed) so we can answer questions about it. That record
+contains no message content, memories, or character definitions.
 
 ## Where your data goes (third parties)
 

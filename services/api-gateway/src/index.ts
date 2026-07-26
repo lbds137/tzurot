@@ -87,6 +87,7 @@ import {
 
 // Bootstrap
 import { seedSystemSettingsIfUnset } from './bootstrap/systemSettingsSeed.js';
+import { ensureOrphanSentinel } from './services/OrphanSentinelBootstrap.js';
 import {
   validateByokConfiguration,
   ensureAvatarDirectory,
@@ -239,6 +240,13 @@ async function initializeServices(prisma: PrismaClient): Promise<ServicesContext
   });
   await systemSettings.prime();
   logger.info('SystemSettingsService seeded, primed, and subscribed to invalidation');
+
+  // Orphaned-Characters sentinel (retention D11): the holder a purge re-homes a
+  // departed user's still-used characters to. The purge creates it lazily too,
+  // but seeding at boot means the operator can inspect the bucket BEFORE the
+  // first purge instead of discovering it mid-deletion. Idempotent and
+  // deterministic-id, so every env converges on the same row under db-sync.
+  await ensureOrphanSentinel(prisma);
 
   const modelCache = new OpenRouterModelCache(cacheRedis);
 

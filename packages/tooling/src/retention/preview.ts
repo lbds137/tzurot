@@ -18,7 +18,7 @@ import {
   validateEnvironment,
   showEnvironmentBanner,
 } from '../utils/env-runner.js';
-import { getServiceClientForEnv } from '../utils/gateway-client.js';
+import { resolveServiceClientOrExit } from '../utils/gateway-client.js';
 
 export interface RetentionPreviewOptions {
   env: Environment;
@@ -35,9 +35,13 @@ export function renderPreview(preview: RetentionPreviewResponse): void {
   const { users, totals } = preview;
 
   if (users.length === 0) {
+    // Print the denominator even here: an "all clear" that shows no numbers is
+    // indistinguishable from a query that silently returned nothing, which
+    // undercuts the one job a read-only report has.
     console.log(
       chalk.green('\nNo users are purge-eligible — nobody is both unreachable and inactive.')
     );
+    console.log(chalk.dim(`  eligible: 0 of ${String(totals.userbaseCount)} users`));
     return;
   }
 
@@ -84,15 +88,8 @@ export async function retentionPreview(options: RetentionPreviewOptions): Promis
   showEnvironmentBanner(env);
 
   // No prod-confirm: the command is read-only by construction (D5).
-  // Credential resolution can throw (Railway CLI not logged in, missing
-  // variable) — surface it the same way as a failed call rather than as an
-  // unhandled rejection.
-  let client;
-  try {
-    client = getServiceClientForEnv(env);
-  } catch (error) {
-    console.error(chalk.red(`\n${error instanceof Error ? error.message : 'Unknown error'}`));
-    process.exitCode = 1;
+  const client = resolveServiceClientOrExit(env);
+  if (client === null) {
     return;
   }
 
