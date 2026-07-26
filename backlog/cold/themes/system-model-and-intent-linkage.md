@@ -36,16 +36,31 @@ Researched 2026-07-20 (findings summarised here rather than linked — the full 
 - **Key separability**: LID's *workflow* (staged gates) and its *artifact + binding idea* come apart. The gap above needs the second, not the first.
 - Note for later: a `@spec ID` in a comment is an invariant reference, not archaeology, so it does not conflict with `02-code-standards.md` § Temporal Markers.
 
-### Phase 0 — Generate the map from what we already have (cheap, do first)
+### Phase 0 — ELICIT the map (rewritten 2026-07-25 after council)
 
-- [ ] Synthesise a system-model document from existing mechanical sources: the xray export index, the route manifest, `prisma/schema.prisma`, and the command manifest. No new dependency, no ceremony.
-- [ ] Mark inferred vs. verified sections explicitly, so the document is honest about its own confidence.
-- [ ] Owner read-through — the acceptance test is whether it closes the "I don't know what we have" gap, not whether it is complete.
+> **The first version of this phase was wrong and is recorded here so it isn't re-proposed.** It said: "synthesise the document from the xray export index, route manifest, schema, and command manifest." All three council models rejected it. Mechanical sources yield a **structural graph, not the narrative why** — _"a generated map of 1,260 files will just be a massive, unreadable hairball. It will not replace the missing architecture document; it will just give the agent a larger context window to get lost in"_ (Qwen); _"a prerequisite, not the solution"_ (GLM). Completeness is not the goal — the generated index already provides completeness. **The goal is that the owner can say what the system is without opening the repo.**
+
+**The artifact**: `docs/reference/architecture/system-model.md`, **hard budget ~150 lines**, five sections:
+
+1. **Services as characters** — 4 services × ~3 lines: what it is _for_ in user-visible terms, and what breaks if it dies.
+2. **Flows, not routes** — the top 5–10 end-to-end flows as short numbered paths. 122 routes collapse into a handful of flows; a route only means something inside one.
+3. **Invariants and why** — ≤15 bullets of load-bearing decisions, **including the archaeology** (why the 4th service exists, why all Discord calls route through the ack-first path). This is the layer no generator can produce.
+4. **Known lies / drift** — ≤10 bullets. Explicitly listing where the map disagrees with the territory is what keeps it trusted.
+5. **Concept → location index** — ≤30 lines bridging user-visible concepts to files, citing the mechanical layer beneath rather than restating it.
+
+**Who writes it — elicited, not generated, and not owner-authored alone** (they can't; that is the problem):
+
+- [ ] Agent drafts a **skeleton** using the mechanical sources as **evidence, not content**: cluster the 122 routes into candidate flows by shared models; use git co-change heat (372 PRs/month is a rich signal) to decide what earns page space; use `knip:dead` to prune.
+- [ ] **Structured 45–60 min interview** with the owner-as-dogfooder — "walk me through what happens when a user does X" — filling in the why and correcting the flows against real usage.
+- [ ] **The owner edits the draft until it matches their experience.** This is the load-bearing step: the editing *is* the restoration. A document handed to them changes nothing in their head.
+
+**Acceptance test — the blank-page redraw**: a week later, the owner sketches the 4 services and top flows from memory. Gaps mean either the page lies (fix the page) or the system genuinely doesn't fit in one head (that's a finding — file simplification items). If it doesn't change what the owner can say from memory, it failed regardless of accuracy.
 
 ### Phase 1 — Keep it from rotting
 
-- [ ] Decide the staleness mechanism, applying the house preference for generated/guard-checked over hand-prose (same constraint the sibling theme records: _"I've been avoiding it because it's gonna get stale real quick"_).
-- [ ] Candidate: regenerate the mechanical sections in CI and diff them, so drift fails a gate rather than accumulating silently.
+- [ ] **15-minute re-touch at every epic close**: "what did this epic change on the map?" Slots into existing cadence rather than adding a ritual.
+- [ ] The agent may **file drift notes** ("this PR adds a 123rd route in a new service — update the page?") but **never auto-appends**. Append-only docs rot; the line budget forces eviction-to-appendix instead of growth.
+- [ ] Diagnosis worth keeping: the 2025-10-02 doc didn't die because nothing regenerated it — **it died because nothing owned its truth.** A generation guard would not have saved it.
 
 ### Phase 2 — Intent binding (gated on Phase 0/1 proving useful)
 
