@@ -47,6 +47,16 @@ export const FACT_EXTRACTION_QUEUE_NAME = 'fact-extraction';
 export const RELEASE_BROADCAST_QUEUE_NAME = 'release-broadcast';
 
 /**
+ * Queue for retention warning-DM delivery jobs (Phase 3's reachable branch).
+ * Produced by api-gateway (cohort resolution + grace bookkeeping live there);
+ * consumed by bot-client (the only service holding the Discord client).
+ * Deliberately NOT a job type on the release-broadcast queue: that queue's
+ * at-least-once delivery bound depends on it staying single-purpose,
+ * concurrency-1, FIFO (see docs/reference/features/release-notifications.md).
+ */
+export const RETENTION_NOTIFY_QUEUE_NAME = 'retention-notify';
+
+/**
  * Job ID prefixes for different job types
  */
 export const JOB_PREFIXES = {
@@ -241,4 +251,6 @@ export enum JobType {
   FactExtraction = 'fact-extraction',
   /** Release-notes / broadcast DM delivery batch (consumed by bot-client) */
   ReleaseBroadcastDm = 'release-broadcast-dm',
+  /** Retention warning-DM delivery batch (Phase 3; consumed by bot-client) */
+  RetentionNotifyDm = 'retention-notify-dm',
 }

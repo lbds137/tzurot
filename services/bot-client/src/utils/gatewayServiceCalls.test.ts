@@ -21,6 +21,8 @@ const mockServiceClient = {
   aiConfirmDelivery: vi.fn(),
   releaseBroadcastPending: vi.fn(),
   releaseBroadcastDeliveries: vi.fn(),
+  retentionNotifyFilter: vi.fn(),
+  retentionNotifyReport: vi.fn(),
 };
 
 vi.mock('./gatewayClients.js', () => ({
@@ -42,6 +44,8 @@ import {
   confirmDelivery,
   filterPendingDeliveries,
   reportDeliveries,
+  filterNotifyEligible,
+  reportNotifyOutcomes,
   transcribe,
   healthCheck,
   invalidateChannelSettingsCache,
@@ -184,6 +188,56 @@ describe('fire-and-forget helpers', () => {
     expect(mockServiceClient.stampUserActivity).toHaveBeenCalledWith({
       discordId: '123456789012345678',
     });
+  });
+
+  it('filterNotifyEligible THROWS on gateway failure (pre-send: BullMQ must retry)', async () => {
+    mockServiceClient.retentionNotifyFilter.mockResolvedValue(err(503));
+    await expect(filterNotifyEligible(['u-1'])).rejects.toThrow('Notify-eligibility filter failed');
+  });
+
+  it('filterNotifyEligible forwards { userIds } and returns the eligible subset', async () => {
+    mockServiceClient.retentionNotifyFilter.mockResolvedValue(
+      ok({ stillEligibleUserIds: ['u-1'] })
+    );
+    await expect(filterNotifyEligible(['u-1', 'u-2'])).resolves.toEqual(['u-1']);
+    expect(mockServiceClient.retentionNotifyFilter).toHaveBeenCalledWith({
+      userIds: ['u-1', 'u-2'],
+    });
+  });
+
+  it('reportNotifyOutcomes retries a transient failure, then succeeds', async () => {
+    vi.useFakeTimers();
+    try {
+      mockServiceClient.retentionNotifyReport
+        .mockResolvedValueOnce({ ok: false, kind: 'network', error: 'x', status: 0 })
+        .mockResolvedValueOnce(ok({ processed: 1 }));
+
+      const promise = reportNotifyOutcomes([{ userId: 'u-1', status: 'sent' }]);
+      await vi.runAllTimersAsync();
+      await expect(promise).resolves.toBe(true);
+
+      expect(mockServiceClient.retentionNotifyReport).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('reportNotifyOutcomes NEVER throws after retries exhaust (post-send contract)', async () => {
+    vi.useFakeTimers();
+    try {
+      mockServiceClient.retentionNotifyReport.mockResolvedValue({
+        ok: false,
+        kind: 'network',
+        error: 'x',
+        status: 0,
+      });
+
+      const promise = reportNotifyOutcomes([{ userId: 'u-1', status: 'sent' }]);
+      await vi.runAllTimersAsync();
+      await expect(promise).resolves.toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('filterPendingDeliveries THROWS on gateway failure (pre-send: BullMQ must retry)', async () => {

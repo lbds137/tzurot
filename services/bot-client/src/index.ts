@@ -37,6 +37,7 @@ import { ResultsListener } from './services/ResultsListener.js';
 import { JobTracker } from './services/JobTracker.js';
 import { JobFailureListener } from './services/JobFailureListener.js';
 import { setupReleaseDmWorker } from './services/releaseDm/setupReleaseDmWorker.js';
+import { setupRetentionNotifyWorker } from './services/retentionNotice/setupRetentionNotifyWorker.js';
 import { ResponseOrderingService } from './services/ResponseOrderingService.js';
 import { DiscordResponseSender } from './services/DiscordResponseSender.js';
 import { MessageContextBuilder } from './services/MessageContextBuilder.js';
@@ -171,6 +172,7 @@ interface Services {
    * in shutdown so no DM send straddles the process teardown.
    */
   releaseDmWorker: Worker;
+  retentionNotifyWorker: Worker;
 }
 
 /**
@@ -195,6 +197,28 @@ function buildCacheRedis(): Redis {
  * This is where all dependencies are instantiated and wired together.
  * Full dependency injection - no service creates its own dependencies.
  */
+/** Denylist cache + its pub/sub invalidation — built together, used together. */
+function createDenylistServices(cacheRedis: Redis): {
+  denylistCache: DenylistCache;
+  denylistCacheInvalidationService: DenylistCacheInvalidationService;
+} {
+  return {
+    denylistCache: new DenylistCache(),
+    denylistCacheInvalidationService: new DenylistCacheInvalidationService(cacheRedis),
+  };
+}
+
+/**
+ * The two gateway-fed DM workers (release broadcast + retention notice) —
+ * constructed eagerly, together, so shutdown ownership is explicit.
+ */
+function createDmWorkers(): { releaseDmWorker: Worker; retentionNotifyWorker: Worker } {
+  return {
+    releaseDmWorker: setupReleaseDmWorker({ client }),
+    retentionNotifyWorker: setupRetentionNotifyWorker({ client }),
+  };
+}
+
 function createServices(): Services {
   // Composition Root. bot-client never touches Prisma — all DB-backed work
   // goes through the gateway's internal endpoints (HTTP), so there is no
@@ -230,9 +254,7 @@ function createServices(): Services {
     cacheRedis
   );
 
-  // Denylist cache and invalidation service
-  const denylistCache = new DenylistCache();
-  const denylistCacheInvalidationService = new DenylistCacheInvalidationService(cacheRedis);
+  const { denylistCache, denylistCacheInvalidationService } = createDenylistServices(cacheRedis);
 
   // Maintenance-window gate (destructive-migration windows; `pnpm ops maintenance`).
   const maintenanceFlag = new MaintenanceFlag(cacheRedis);
@@ -274,9 +296,7 @@ function createServices(): Services {
     connection: createBullMQRedisConfig(parseRedisUrl(envConfig.REDIS_URL!)),
   });
 
-  // Release-broadcast DM worker: consumes gateway-produced batches and sends
-  // the DMs. Constructed here (not lazily) so shutdown ownership is explicit.
-  const releaseDmWorker = setupReleaseDmWorker({ client });
+  const { releaseDmWorker, retentionNotifyWorker } = createDmWorkers();
 
   // Multi-tag stack: coordinator + Redis persistence + recovery service.
   // Persistence is shared with DMSessionProcessor (backfill sentinel).
@@ -353,6 +373,7 @@ function createServices(): Services {
     multiTagRecovery,
     multiTagStateQueue,
     releaseDmWorker,
+    retentionNotifyWorker,
     dmCacheWarmer,
   };
 }
@@ -616,6 +637,7 @@ async function disposeBotClient(): Promise<void> {
   // block the buffered-result delivery below, so it's caught and logged.
   try {
     await services.releaseDmWorker.close();
+    await services.retentionNotifyWorker.close();
     await services.resultsListener.stop();
     await services.jobFailureListener.stop();
     await services.multiTagCoordinator.beginShutdown();

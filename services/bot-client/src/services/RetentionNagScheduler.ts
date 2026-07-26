@@ -104,6 +104,7 @@ export function buildRetentionNagEmbed(preview: RetentionPreviewResponse): Embed
     .setFooter({
       text:
         `Review: pnpm ops retention:preview --env ${env} · ` +
+        `Notify: pnpm ops retention:notify --env ${env} · ` +
         `Purge: pnpm ops retention:purge --env ${env}`,
     })
     .setTimestamp();
@@ -118,7 +119,11 @@ export async function runRetentionNagCheck(client: Client, redis: Redis): Promis
       return;
     }
     const preview = result.data;
-    if (preview.totals.eligibleCount === 0) {
+    // Nag when EITHER branch needs the operator: a purge-eligible cohort, or
+    // reachable-inactive users awaiting a warning DM (the notify CLI exists
+    // now, so that state is actionable). Mid-grace users need nobody's
+    // attention — the clock is doing the work.
+    if (preview.totals.eligibleCount === 0 && preview.totals.reachableToNotify === 0) {
       return;
     }
 

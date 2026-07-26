@@ -374,6 +374,60 @@ export async function reportDeliveries(
   return undefined;
 }
 
+/**
+ * Retention notify: the worker's send-time still-eligible re-check. THROWS on
+ * gateway failure — this runs BEFORE any DM is sent (same before-spend
+ * contract as filterPendingDeliveries), so failing the job lets BullMQ's
+ * retry re-run the batch instead of silently skipping it.
+ */
+export async function filterNotifyEligible(userIds: string[]): Promise<string[]> {
+  const result = await getServiceClient().retentionNotifyFilter({ userIds });
+  if (!result.ok) {
+    logger.error({ status: result.status }, 'Failed to filter notify-eligible users');
+    throw new Error(`Notify-eligibility filter failed: ${result.status} ${result.error}`);
+  }
+  return result.data.stillEligibleUserIds;
+}
+
+/** One reported notify outcome (mirrors the internal-route contract). */
+export interface NotifyOutcomeReport {
+  userId: string;
+  status: 'sent' | 'failed_permanent' | 'failed_bot_level' | 'failed_transient';
+  errorCode?: string;
+}
+
+/**
+ * Report retention-notice outcomes. AFTER-spend contract (mirrors
+ * reportDeliveries): retries transient gateway failures, then returns false
+ * and never throws — the DM has already happened, and the stamps'
+ * IS NULL guards make the pre-send filter absorb an eventual re-run.
+ */
+export async function reportNotifyOutcomes(outcomes: NotifyOutcomeReport[]): Promise<boolean> {
+  if (outcomes.length === 0) {
+    return true;
+  }
+  for (let attempt = 1; attempt <= REPORT_MAX_ATTEMPTS; attempt++) {
+    const result = await getServiceClient().retentionNotifyReport({ outcomes });
+    if (result.ok) {
+      return true;
+    }
+    if (!isRetryableGatewayFailure(result) || attempt === REPORT_MAX_ATTEMPTS) {
+      logger.error(
+        { status: result.status, attempt },
+        'Failed to report notify outcomes — un-stamped users ride the next run'
+      );
+      return false;
+    }
+    const delayMs = REPORT_RETRY_BASE_DELAY_MS * 2 ** (attempt - 1);
+    logger.warn(
+      { status: result.status, attempt, nextDelayMs: delayMs },
+      'Transient failure reporting notify outcomes; retrying'
+    );
+    await new Promise(resolve => setTimeout(resolve, delayMs));
+  }
+  return false;
+}
+
 // ---------------------------------------------------------------------------
 // Raw-fetch helpers (the two sanctioned exceptions to typed-client usage).
 //
