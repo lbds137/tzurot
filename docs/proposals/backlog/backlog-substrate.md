@@ -233,11 +233,21 @@ Same trio re-briefed with C1/C2 corrections + the Backlog.md candidate + the sys
 
 **Correction to the brief I gave them**: I wrote that PR-D "closes the epic to zero." **False** — PR-D closes **Phase 2 of 4**; Phases 3 (reachable branch) and 4 (policy + autonomous) remain. K3's A-vs-F argument rested partly on that. Its surviving prong — one PR, perishable completion window, _"if A were three weeks instead of one PR, this flips"_ — still holds, and the better reason is that `active-epic.md` already names PR-D as the gate on promoting the drain theme.
 
+## § Owner pass close-out (2026-07-26)
+
+Batched owner pass taken 2026-07-26. Four calls, all recorded:
+
+1. **Trial: full shadow import — APPROVED.** One script converts all ~340 follow-up rows into Backlog.md (v1.48.0) task files in an isolated scratch repo outside this checkout (sidesteps the `backlog/` directory collision for the trial; the collision is moot at full migration because our tree would be retired). Markdown stays authoritative throughout; nothing dual-writes; the artifact is disposable. **Pre-set trial kill criteria**: import needs more than ~a day of hand-massaging · area fields can't be derived mechanically for most rows · the owner's acceptance query ("the 20 items you could close this week") returns no better than today's grep · `--json` output can't produce a ≤300-line session-start briefing. If it passes, the import script **is** the migration tool.
+2. **Trigger-gating: RETIRED as a gate; survives as an annotation.** Selection becomes priority/area/size queries plus a periodic review. The `06-backlog.md` rewrite rides the migration PR — rules get rewritten once, not twice.
+3. **Migration boundary: DEFERRED to post-trial.** The trial must specifically evaluate whether Backlog.md's drafts/docs surfaces can hold document-shaped material (themes, ideas) — that answer decides follow-ups-only vs. everything.
+4. **System-model Phase 0 precedes migration** (council-unanimous, adopted). Sequence if the trial passes: retention Phase 3 → system-model Phase 0 (elicited map + owner interview) → migration → drain campaign.
+
+Held item (c) — the generated briefing — is settled by evidence rather than decision: every candidate requires it, so it's adopted at substrate time without a separate call.
+
 ## Next steps
 
-1. ~~Ground candidates~~ ✅ · 2. ~~Council~~ ✅ (two passes) · 3. ~~Owner pass~~ ✅ partial.
-4. **Retention PR-D** (owner call — closes Phase 2, gates the drain theme).
-5. **Then: fix the backlog structurally** — owner directive, _"it's a very foundational thing… the current posture is just not working."_
-6. Still open: the three held unanimous items · whether/at-what-dose to trial Backlog.md · where system-model sits.
+1. ~~Ground candidates~~ ✅ · 2. ~~Council~~ ✅ (two passes) · 3. ~~Owner pass~~ ✅ **CLOSED 2026-07-26** (§ above).
+4. ~~Retention PR-D~~ ✅ shipped (beta.177 — Phase 2 complete).
+5. **Full shadow trial** ← here. Then: retention Phase 3 → system-model Phase 0 → migration (if the trial passes) → drain campaign.
 
 **Migrate nothing before the trial.**
