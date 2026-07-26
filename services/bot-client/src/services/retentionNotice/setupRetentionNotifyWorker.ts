@@ -117,8 +117,13 @@ export function createRetentionNotifyProcessor(deps: RetentionNotifyWorkerDeps) 
     for (let i = 0; i < toSend.length; i++) {
       const recipient = toSend[i];
       const outcome = await sendOne(deps.client, recipient, sentAt);
-      // Report EACH outcome immediately: a mid-batch crash then leaves at most
-      // one sent-but-unstamped user for the pre-send filter to re-drop.
+      // Report EACH outcome immediately. Nothing after the send can THROW
+      // (sendOne catches, report retries-then-swallows), so the only mid-batch
+      // interruption is process death: a stall re-run then re-sends at most
+      // ONE sent-but-unstamped recipient (at-least-once, the accepted model).
+      // Everyone reported with a TERMINAL outcome (sent / permanent bounce) is
+      // dropped by the pre-send filter; bot-level and transient failures are
+      // un-stamped by design and correctly ride the re-run — no DM reached them.
       await report([{ userId: recipient.userId, ...outcome }]);
       if (outcome.status === 'sent') {
         sent += 1;
