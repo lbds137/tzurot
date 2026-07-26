@@ -62,11 +62,13 @@ describe('ConversationRetentionService', () => {
       const count = await service.clearHistory('channel-123', 'personality-456');
 
       expect(count).toBe(2);
-      // Batched query: pagination params + an id-only select (the tombstone
-      // fields are gone; the AFTER DELETE trigger records the deletion for db-sync).
+      // Batched query: pagination params + id AND discordMessageId. The latter
+      // is what the memory-deletion propagation matches on, and the hard delete
+      // destroys these rows — so if the select ever drops it, a purge silently
+      // stops retiring the memories derived from the turns it erased.
       expect(mockPrismaClient.conversationHistory.findMany).toHaveBeenCalledWith({
         where: { channelId: 'channel-123', personalityId: 'personality-456' },
-        select: { id: true },
+        select: { id: true, discordMessageId: true },
         take: 1000, // SYNC_LIMITS.RETENTION_BATCH_SIZE
         orderBy: { id: 'asc' },
       });
@@ -131,7 +133,7 @@ describe('ConversationRetentionService', () => {
           personalityId: 'personality-456',
           personaId: 'persona-789',
         },
-        select: { id: true },
+        select: { id: true, discordMessageId: true },
         take: 1000,
         orderBy: { id: 'asc' },
       });

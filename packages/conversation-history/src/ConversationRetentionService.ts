@@ -14,6 +14,7 @@
 import { CLEANUP_DEFAULTS, SYNC_LIMITS } from '@tzurot/common-types/constants/timing';
 import { type PrismaClient, type Prisma } from '@tzurot/common-types/services/prisma';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { propagateDeletionToMemories } from './memoryDeletionPropagation.js';
 
 const logger = createLogger('ConversationRetentionService');
 
@@ -29,32 +30,54 @@ const logger = createLogger('ConversationRetentionService');
  * whole sweep duration. Cross-batch atomicity is not needed: a partial sweep just
  * leaves rows for the next run. No cursor needed — each committed batch removes
  * its rows from the `where` result set, so a plain re-fetch naturally advances.
+ *
+ * `onBatchDeleted` fires once per committed batch with that batch's Discord
+ * message ids. It is per-batch rather than a single accumulated list at the end
+ * because the retention sweep can delete tens of thousands of rows — holding
+ * every id in memory to hand back at the end would turn a bounded sweep into an
+ * unbounded allocation. Callers that don't need the ids simply omit it and
+ * nothing is collected.
  */
 async function deleteMessagesInBatches(
   prisma: PrismaClient,
-  where: Prisma.ConversationHistoryWhereInput
+  where: Prisma.ConversationHistoryWhereInput,
+  onBatchDeleted?: (discordMessageIds: string[]) => Promise<void>
 ): Promise<number> {
   let totalDeleted = 0;
 
   while (true) {
-    const fetched = await prisma.$transaction(async tx => {
+    const { fetched, discordMessageIds } = await prisma.$transaction(async tx => {
       const batch = await tx.conversationHistory.findMany({
         where,
-        select: { id: true },
+        // discordMessageId only when a caller asked for it — the retention
+        // sweep pays nothing for a column it will never read.
+        select: { id: true, ...(onBatchDeleted !== undefined && { discordMessageId: true }) },
         take: SYNC_LIMITS.RETENTION_BATCH_SIZE,
         orderBy: { id: 'asc' },
       });
 
       if (batch.length === 0) {
-        return 0;
+        return { fetched: 0, discordMessageIds: [] };
       }
 
       const deleteResult = await tx.conversationHistory.deleteMany({
         where: { id: { in: batch.map(msg => msg.id) } },
       });
       totalDeleted += deleteResult.count;
-      return batch.length;
+      return {
+        fetched: batch.length,
+        discordMessageIds: batch.flatMap(msg => msg.discordMessageId ?? []),
+      };
     });
+
+    // AFTER the batch commits, never inside its transaction: the propagation
+    // writes to a different table, and holding the conversation rows' locks
+    // across it is exactly the cross-table lock-hold this batching exists to
+    // avoid. A crash in between leaves memories un-propagated, which the user
+    // can still clear via /memory — strictly better than a wedged sweep.
+    if (onBatchDeleted !== undefined && discordMessageIds.length > 0) {
+      await onBatchDeleted(discordMessageIds);
+    }
 
     // A short batch means the where-set is drained.
     if (fetched < SYNC_LIMITS.RETENTION_BATCH_SIZE) {
@@ -79,6 +102,14 @@ export class ConversationRetentionService {
    * can't hold row locks across the whole sweep. Each hard delete is recorded for
    * db-sync by the AFTER DELETE trigger.
    *
+   * This is a USER-REQUESTED deletion, so it propagates to the memories derived
+   * from the deleted turns (R8: deletion means deletion). Without that, a purge
+   * removed the conversation but left its memories retrievable, and RAG pulled
+   * them straight back into the next prompt — the character still "remembered" a
+   * conversation the user had just erased. The propagation must happen HERE
+   * rather than after the fact, because the hard delete destroys the only rows
+   * that map a memory back to its source message.
+   *
    * @param channelId Channel ID
    * @param personalityId Personality ID
    * @param personaId Optional persona ID - if provided, only deletes messages for that persona
@@ -95,7 +126,9 @@ export class ConversationRetentionService {
         ...(personaId !== undefined && personaId.length > 0 && { personaId }),
       };
 
-      const count = await deleteMessagesInBatches(this.prisma, where);
+      const count = await deleteMessagesInBatches(this.prisma, where, discordMessageIds =>
+        propagateDeletionToMemories(this.prisma, discordMessageIds)
+      );
 
       logger.info(
         {
