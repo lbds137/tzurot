@@ -829,6 +829,14 @@ describe('AIJobProcessor', () => {
 
         expect(result.success).toBe(true);
         expect(mockProcessJob).toHaveBeenCalled();
+        // The job ID must cross the seam: the lock is ownership-aware, and a
+        // stall re-run can only recognize its own orphaned lock if the
+        // acquiring job's ID was stored as the lock value.
+        expect(redisService.markMessageProcessing).toHaveBeenCalledWith(
+          'discord-msg-123',
+          'personality-123',
+          'llm-job-123'
+        );
         // Lock should NOT be released on success
         expect(redisService.releaseMessageLock).not.toHaveBeenCalled();
       });
