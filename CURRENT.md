@@ -6,27 +6,21 @@
 
 ## Unreleased on Develop
 
-- **#1793** dead-`getPrismaClient` doc sweep · **#1794** council roster → Kimi K3 (+ empty-body-≠-404 rule) · 18 epic-scoped follow-up rows relocated into their theme files (pool 360 → 341).
+- **#1793** dead-`getPrismaClient` doc sweep · **#1794** council roster → Kimi K3 · **#1795** retention **PR-D1 — the purge capability** (6 review rounds; dev migration applied) · 18 epic-scoped follow-up rows relocated into their theme files (pool 360 → 341).
 
-## ⏭️ NEXT SESSION STARTS HERE — retention PR-D, then fix the backlog structurally
+## ⏭️ NEXT SESSION STARTS HERE
 
-**Owner call 2026-07-25**: do PR-D, then _"I definitely want us to structurally fix our backlog problem because it's not gonna get any better unless we do something about it. and it's a very foundational thing."_
+**1. Dev end-to-end purge smoke** — open-checklist item 10. Everything in #1795 is proven against PGLite only; **no real purge has ever executed**, and nothing has exercised the real cascade + Redis + filesystem together. Do this before PR-D2.
 
-**1. Retention PR-D (purge + nag)** — plan-mode candidate (destructive data operation + user-visible nag DMs). ⚠️ **It closes Phase 2 of 4, NOT the epic** — Phases 3 (reachable branch) and 4 (policy + autonomous) remain; a prior session mis-stated this and fed the error to a council. `active-epic.md` names PR-D as the gate on promoting [`cold/themes/follow-up-pool-drain.md`](backlog/cold/themes/follow-up-pool-drain.md) as the next epic. Nag-focused; size against **~27** (post-next-major), not 26-waiting.
+**2. Retention PR-D2** — the daily owner-channel nag (mirror `SecretRotationNagScheduler`: daily + startup, Redis weekly cooldown, silent at 0 eligible, embed carries the breaker warning + the exact CLI command). Reads the preview endpoint that already exists; fully independent of D1.
 
-**2. Then the backlog substrate** → **[`docs/proposals/backlog/backlog-substrate.md`](docs/proposals/backlog/backlog-substrate.md)**. Read it before anything else; two council passes, corrections, and the owner's design constraint all live there. The load-bearing parts:
+**3. Then the backlog substrate** → **[`docs/proposals/backlog/backlog-substrate.md`](docs/proposals/backlog/backlog-substrate.md)**. Owner call 2026-07-25: _"I definitely want us to structurally fix our backlog problem because it's not gonna get any better unless we do something about it. and it's a very foundational thing."_ Read it before anything else — two council passes, corrections, and the owner's design constraint all live there:
 
 - **The whim constraint (outranks everything):** the owner's priority-jumping is partly the POINT — an outlet from a stressful life. Every council model treated it as a defect to correct; all such mechanisms are disqualified. **Target inverts: don't make jumping harder, make the haystack cheap to jump around in.** Acceptance test is the owner's own: not "a nicer store for 341 items" but **"here are the 20 items you could close this week."**
 - Two numbers I previously published are **WITHDRAWN**: "118 stranded rows" (real: ~24) and "filing outpaces drain 2:1" (real: drain capacity is 2–4× filing — the pool grows only because nothing links PR throughput to drain).
-- Leading candidate **Backlog.md** cleared every pre-set kill criterion; not yet trialled.
+- Leading candidate **Backlog.md** cleared every pre-set kill criterion; not yet trialled. **Migrate nothing before a bounded trial.**
 - Unanimous: **the system-model gap outranks the substrate** → [`cold/themes/system-model-and-intent-linkage.md`](backlog/cold/themes/system-model-and-intent-linkage.md) (its Phase 0 was rewritten after council rejected the generate-from-mechanical-sources plan).
 - Still open: the three held unanimous items · whether/at-what-dose to trial Backlog.md · sequencing slot for system-model.
-
-**Migrate nothing before a bounded trial.**
-
-## 🔎 The prod cohort is EMPTY — sizing input for PR-D
-
-First prod preview: **0 eligible** (272 users, 0 stamped either arm, 51 inactive ≥180d). **The 26 were never stamped** — they came from beta.174 (major, `50278`), and Phase 1c's stamp column shipped in beta.175, one release later. Nothing was written, nothing cleared. The signal only refreshes on a **major**-release blast (owner's prediction, confirmed). **PR-D sizing: ~27** stamped-and-inactive after the next major cut — not 26-waiting-now. Full detail + the design question: `cold/follow-ups.md`.
 
 ## 🔬 Smoke checklist — v3.0.0-beta.176 (post-deploy)
 
@@ -45,22 +39,21 @@ _Risk-scoped to what this release actually touches. Everything not listed here i
 
 Design ACCEPTED 2026-07-23 (council trio + 6 owner calls) → [`inactivity-retention-purge-phase2.md`](docs/proposals/backlog/inactivity-retention-purge-phase2.md).
 
-| Slice                                                                                                                                                                      | State                                           |
-| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
-| Phase 1 (1a–1d) tracking substrate                                                                                                                                         | ✅ released beta.175; prod backfilled 270 users |
-| Phase 1.5 CH sync unification (#1778)                                                                                                                                      | ✅ merged                                       |
-| PR-A schema (#1779) — `discord_account_gone_at`, `retention_exempt`, `original_owner_discord_id`, `retention_purge_log`                                                    | ✅ merged                                       |
-| PR-B mode-aware erasure (#1780) — `AccountEraserService` unifies DB+off-DB (D1); `retention` mode re-homes cross-user characters to the Orphaned-Characters sentinel (D11) | ✅ merged                                       |
-| PR-C preview (#1781) — `RetentionPurgeService` owns the single D3/D4 predicate; read-only `GET /internal/retention/preview` + `pnpm ops retention:preview`                 | ✅ merged                                       |
-| **PR-D purge + nag**                                                                                                                                                       | ⏭️ **NEXT — unblocked 2026-07-25**              |
+| Slice                                                                                                                                                                                                                        | State                                           |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
+| Phase 1 (1a–1d) tracking substrate                                                                                                                                                                                           | ✅ released beta.175; prod backfilled 270 users |
+| Phase 1.5 CH sync unification (#1778)                                                                                                                                                                                        | ✅ merged                                       |
+| PR-A schema (#1779) — `discord_account_gone_at`, `retention_exempt`, `original_owner_discord_id`, `retention_purge_log`                                                                                                      | ✅ merged                                       |
+| PR-B mode-aware erasure (#1780) — `AccountEraserService` unifies DB+off-DB (D1); `retention` mode re-homes cross-user characters to the Orphaned-Characters sentinel (D11)                                                   | ✅ merged                                       |
+| PR-C preview (#1781) — `RetentionPurgeService` owns the single D3/D4 predicate; read-only `GET /internal/retention/preview` + `pnpm ops retention:preview`                                                                   | ✅ merged                                       |
+| **PR-D1 purge capability** (#1795) — per-user `POST /internal/retention/purge` + `retention:purge`/`reconcile-off-db` CLI, in-tx TOCTOU re-check, audit ledger, 25% server-side ceiling, gone-flag self-heal, privacy policy | ✅ merged 2026-07-26; dev migrated              |
+| **PR-D2 daily nag**                                                                                                                                                                                                          | ⏭️ **NEXT** (D1 smoke first)                    |
 
-**✅ PR-D blocker RETRACTED (2026-07-25, code-verified).** The "re-homed private characters are unreachable" claim reasoned from `canUserViewPersonality`, which is a route guard — **not** the runtime gate on talking to a character. That gate is `PersonalityLoader.buildAccessFilter` = `{ OR: [{ isPublic: true }, { ownerId }] }`, applied to every message-path load. So a non-owner can never load a private character to talk to it: a private character can't gain cross-user reach going forward, and re-homing never removes access anyone still had (public keeps `isPublic` through the owner change; private had already excluded them). Owner raised it, code confirms it. Residual is the inverse and much smaller: a once-public-now-private character with historical reach is **preserved** and reachable by nobody but the bot owner — over-retention, a predicate tweak decided with PR-D, not gating it. Detail in design D11.
+**Owner calls locked (D1)**: no 10013 fast-track (gone is an alternative unreachable signal, still ANDed with the 180d window — D13's safety argument assumed an activity-clear that didn't exist; it ships now) · the release-cadence coupling is accepted as Phase 2's scope boundary (the 51 inactive-but-reachable are Phase 3's cohort) · public-then-private characters with historical reach stay retained, because deleting them deletes other users' memories. Earlier locks: orphan sentinel + `original_owner_discord_id` · `retention_exempt` · single `retention_purge_log` · mode-aware `eraseAccount`.
 
-**Also corrected in the same pass**: the privacy-policy entry is a **PR-D gate, not Phase 4**. The published retention table says "Account basics, usage records — Until you delete your account"; the first _manual_ purge falsifies that. Autonomy isn't what makes it untrue — deleting an account the user didn't ask to delete is.
+**D15 refined, not followed**: off-DB-before-DB is not implementable (the off-DB work is a function of the transaction's outcome), so DB-first stands and the ledger's `pending` + `off_db_pending` is the retry handle. Recorded in the design doc.
 
-**Owner calls locked**: orphan-bucket sentinel + `original_owner_discord_id` · `retention_exempt` column · 10013 immediate-purge-with-guard · single `retention_purge_log` (audit+DLQ) · mode-aware `eraseAccount` · TOCTOU re-check.
-
-**Open follow-ups**: `sendCustomSuccess`→`sendContractSuccess` internal-routes sweep · two fake-optional columns · `retention_purge_log` enum-typing (→ PR-D writer) · empty-preview denominator gap (#1782 era).
+**Open follow-ups**: `sendCustomSuccess`→`sendContractSuccess` internal-routes sweep (deliberately not ridden on the destructive PR) · two fake-optional columns · the purge-concurrency assumption (two members, both gated on Phase 4) · unbounded off-DB reconcile sweep.
 
 **Review lessons worth keeping** (PR-B, 3 rounds): the reviewer caught a **sync-LWW hazard** — I reflexively used raw SQL to skip `@updatedAt` on the re-home, inverting the rule's intent (that pattern is for _non-semantic_ stamps; ownership change is semantic and must win the sync). Fixed to a Prisma write + regression test.
 
@@ -76,15 +69,16 @@ Phases 1–2 are ✅ COMPLETE (released beta.170–172); their per-PR narratives
 
 Nothing here is CI-verifiable — each item needs a human in Discord.
 
-| #   | Item                                                                                                                           | Status                 |
-| --- | ------------------------------------------------------------------------------------------------------------------------------ | ---------------------- |
-| 3   | `/voice voices purge` again → expect clean "Deleted N" (was 190 spurious 404s)                                                 | ⬜ post-#1752 re-check |
-| 4   | Re-upload the MP3 that was rejected as `audio/mpeg3`                                                                           | ⬜ post-#1752 re-check |
-| 5   | A **new** character speaks on Mistral (clone-refusal was blocked by a false `truncated` flag)                                  | ⬜ post-#1752 re-check |
-| 6   | `/memory fresh` enable → 🌱 footer on a chat turn → status → disable                                                           | ⬜ post-#1753          |
-| 7   | `/incognito status` with the character filter                                                                                  | ⬜ post-#1753          |
-| 8   | Wave-3 remainder: history purge · `/preset override` + `set-default` · avatar/voice groups · `/random` · `/chime-in` · `/help` | ⬜ partial             |
-| 9   | One voice message + one long voice reply                                                                                       | ⬜ open since beta.164 |
+| #   | Item                                                                                                                                                                                                                                                           | Status                            |
+| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------- |
+| 3   | `/voice voices purge` again → expect clean "Deleted N" (was 190 spurious 404s)                                                                                                                                                                                 | ⬜ post-#1752 re-check            |
+| 4   | Re-upload the MP3 that was rejected as `audio/mpeg3`                                                                                                                                                                                                           | ⬜ post-#1752 re-check            |
+| 5   | A **new** character speaks on Mistral (clone-refusal was blocked by a false `truncated` flag)                                                                                                                                                                  | ⬜ post-#1752 re-check            |
+| 6   | `/memory fresh` enable → 🌱 footer on a chat turn → status → disable                                                                                                                                                                                           | ⬜ post-#1753                     |
+| 7   | `/incognito status` with the character filter                                                                                                                                                                                                                  | ⬜ post-#1753                     |
+| 8   | Wave-3 remainder: history purge · `/preset override` + `set-default` · avatar/voice groups · `/random` · `/chime-in` · `/help`                                                                                                                                 | ⬜ partial                        |
+| 9   | One voice message + one long voice reply                                                                                                                                                                                                                       | ⬜ open since beta.164            |
+| 10  | **Dev end-to-end purge** (#1795): stamp a throwaway dev user unreachable+inactive → `retention:preview --env dev` shows exactly 1 → `retention:purge --env dev` → user gone, `retention_purge_log` row reads `success`/`done`, re-homed character still usable | ⬜ **no real purge has ever run** |
 
 Executed in the Wave-3 round: `/voice voices purge` + `/character voice set` (each surfaced a real bug → #1752), `/chat` in an activated thread (works).
 
