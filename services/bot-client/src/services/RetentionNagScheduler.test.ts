@@ -30,6 +30,7 @@ function makePreview(overrides: {
   reachableToNotify?: number;
   inGrace?: number;
   graceExpired?: number;
+  bystander?: number;
 }): RetentionPreviewResponse {
   const eligibleCount = overrides.eligibleCount ?? 1;
   const listedUsers = overrides.userCount ?? eligibleCount;
@@ -50,6 +51,7 @@ function makePreview(overrides: {
       reachableToNotify: overrides.reachableToNotify ?? 0,
       inGrace: overrides.inGrace ?? 0,
       graceExpired: overrides.graceExpired ?? 0,
+      bystander: overrides.bystander ?? 0,
     },
   } satisfies RetentionPreviewResponse;
 }
@@ -154,6 +156,25 @@ describe('buildRetentionNagEmbed', () => {
     // (mocked config says production).
     expect(embed.footer?.text).toContain('pnpm ops retention:preview --env prod');
     expect(embed.footer?.text).toContain('pnpm ops retention:purge --env prod');
+  });
+
+  it('renders the bystander reason label (silent-purge rows need a legible tag)', () => {
+    const preview = makePreview({ eligibleCount: 1 });
+    preview.users[0] = { ...preview.users[0], reason: 'bystander' };
+
+    const embed = buildRetentionNagEmbed(preview).toJSON();
+
+    expect(embed.description).toContain('never used directly');
+  });
+
+  it('appends the bystander tally to the summary only when the count is non-zero', () => {
+    const silent = buildRetentionNagEmbed(makePreview({})).toJSON();
+    const split = buildRetentionNagEmbed(
+      makePreview({ eligibleCount: 33, bystander: 32 })
+    ).toJSON();
+
+    expect(silent.description).not.toContain('no notice owed');
+    expect(split.description).toContain('(32 never used the bot directly — no notice owed)');
   });
 
   it('includes the breaker warning line only when the totals flag it', () => {

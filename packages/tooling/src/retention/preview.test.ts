@@ -23,6 +23,7 @@ const EMPTY_TOTALS = {
   reachableToNotify: 0,
   inGrace: 0,
   graceExpired: 0,
+  bystander: 0,
 };
 
 const COHORT = {
@@ -50,6 +51,7 @@ const COHORT = {
     reachableToNotify: 0,
     inGrace: 0,
     graceExpired: 0,
+    bystander: 0,
   },
 };
 
@@ -145,6 +147,20 @@ describe('renderPreview', () => {
     expect(output).toContain('Discord account deleted');
     expect(output).toContain('2 would be re-homed');
     expect(output).toContain('Read-only');
+    logSpy.mockRestore();
+  });
+
+  it('appends the bystander note to the totals line only when the count is non-zero', () => {
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+    renderPreview(COHORT);
+    expect(logSpy.mock.calls.flat().join('\n')).not.toContain('no notice owed');
+
+    logSpy.mockClear();
+    renderPreview({ ...COHORT, totals: { ...COHORT.totals, bystander: 3 } });
+    expect(logSpy.mock.calls.flat().join('\n')).toContain(
+      '3 never used the bot directly (no notice owed)'
+    );
     logSpy.mockRestore();
   });
 

@@ -74,6 +74,8 @@ export interface RetentionPreview {
     inGrace: number;
     /** Warned, window expired, still silent — the grace_expired purge subset. */
     graceExpired: number;
+    /** Never deliberately used the bot — the silent-purge subset of the cohort. */
+    bystander: number;
   };
 }
 
@@ -157,9 +159,11 @@ export class RetentionPurgeService {
         breakerWarning: userbaseCount > 0 && users.length / userbaseCount > BREAKER_WARN_FRACTION,
         reachableToNotify,
         inGrace,
-        // Grace-expired users are IN the purge cohort (the third predicate
-        // arm), so this is a labeled subset, not an addition to eligibleCount.
+        // Grace-expired and bystander users are IN the purge cohort (the
+        // third and fourth predicate arms) — labeled subsets, not additions
+        // to eligibleCount.
         graceExpired: users.filter(u => u.reason === 'grace_expired').length,
+        bystander: users.filter(u => u.reason === 'bystander').length,
       },
     };
   }
