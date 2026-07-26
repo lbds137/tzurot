@@ -29,6 +29,7 @@ const REASON_LABEL: Record<RetentionPreviewResponse['users'][number]['reason'], 
   unreachable: 'DMs closed / left every shared server',
   account_gone: 'Discord account deleted',
   grace_expired: 'warned, grace window expired',
+  bystander: 'never used the bot directly (no notice sent)',
 };
 
 /** The reachable branch's pipeline states — printed on both cohort branches. */
@@ -77,7 +78,10 @@ export function renderPreview(preview: RetentionPreviewResponse): void {
   console.log(chalk.bold('\nTotals:'));
   console.log(
     `  eligible: ${totals.eligibleCount} of ${totals.userbaseCount} users ` +
-      `(${totals.percentOfUserbase}% of the userbase)`
+      `(${totals.percentOfUserbase}% of the userbase)` +
+      (totals.bystander > 0
+        ? ` — ${String(totals.bystander)} never used the bot directly (no notice owed)`
+        : '')
   );
   console.log(
     `  characters: ${totals.charactersToDelete} would be deleted, ` +

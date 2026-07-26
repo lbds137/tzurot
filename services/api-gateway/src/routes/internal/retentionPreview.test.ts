@@ -34,6 +34,7 @@ const PREVIEW = {
     reachableToNotify: 0,
     inGrace: 0,
     graceExpired: 0,
+    bystander: 0,
   },
 };
 
@@ -73,6 +74,7 @@ describe('GET /internal/retention/preview', () => {
         reachableToNotify: 0,
         inGrace: 0,
         graceExpired: 0,
+        bystander: 0,
       },
     });
     const { req, res } = createMockReqRes();

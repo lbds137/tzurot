@@ -178,6 +178,9 @@ model RetentionPurgeLog {
 
 /// Tracks API usage per user for monitoring, billing, and abuse prevention.
 /// Even with BYOK, we track usage to prevent infrastructure abuse.
+/// Row EXISTENCE is deliberate-use evidence for retention (eligibility.ts
+/// DELIBERATE_USE): TTL-pruning this table independently would demote users
+/// to bystander — check that fragment's precedence argument before adding one.
 model UsageLog {
   id          String   @id @db.Uuid
   userId      String   @map("user_id") @db.Uuid

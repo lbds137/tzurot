@@ -61,10 +61,18 @@ describe('the eligibility predicate', () => {
     await selectEligibleUsers(db);
 
     const sql = flattenSql(queryRaw.mock.calls[0]);
-    // Unreachable OR gone OR grace-expired — any of the three qualifies.
+    // Unreachable OR gone OR grace-expired OR bystander — any of the four.
     expect(sql).toContain('u.dm_undeliverable_since IS NOT NULL');
     expect(sql).toContain('u.discord_account_gone_at IS NOT NULL');
     expect(sql).toContain('u.retention_notified_at <');
+    // The bystander arm is the NEGATION of deliberate use, gated on
+    // never-notified (a served notice makes the grace floor unconditional).
+    expect(sql).toContain('OR (NOT (');
+    expect(sql).toContain('AND u.retention_notified_at IS NULL)');
+    expect(sql).toContain('u.notify_opted_in_at IS NOT NULL');
+    expect(sql).toContain('FROM usage_logs');
+    // The co-ownership grant arm (inert today; see the fragment comment).
+    expect(sql).toContain('FROM personality_owners');
     // Inactivity, with the NULL → created_at fallback (never "active now").
     expect(sql).toContain('COALESCE(u.last_active_at, u.created_at)');
     // The two exemptions that must never be purge-able.
@@ -91,8 +99,10 @@ describe('the eligibility predicate', () => {
 
     const sql = flattenSql(queryRaw.mock.calls[0]).replace(/\s+/g, ' ');
     // Fragment-bound values flatten to `?` placeholders, hence the literal \?.
+    // The qualifying-signal OR-group (now four arms, ending in the negated
+    // deliberate-use fragment) must be ANDed with the inactivity window.
     expect(sql).toMatch(
-      /\(u\.dm_undeliverable_since IS NOT NULL OR u\.discord_account_gone_at IS NOT NULL OR u\.retention_notified_at < now\(\) - make_interval\(days => \?\)\) AND COALESCE/
+      /\(u\.dm_undeliverable_since IS NOT NULL OR u\.discord_account_gone_at IS NOT NULL OR u\.retention_notified_at < now\(\) - make_interval\(days => \?\) OR \(NOT \(.*\) AND u\.retention_notified_at IS NULL\) ?\) AND COALESCE/
     );
     expect(sql).not.toMatch(/OR u\.retention_notified_at[^)]*$/);
   });
@@ -105,6 +115,7 @@ describe('the eligibility predicate', () => {
         inactiveSince: new Date('2025-01-01'),
         accountGone: true,
         unreachable: true,
+        wasNotified: false,
       },
       {
         userId: 'u2',
@@ -112,6 +123,7 @@ describe('the eligibility predicate', () => {
         inactiveSince: new Date('2025-02-01'),
         accountGone: false,
         unreachable: true,
+        wasNotified: true,
       },
       {
         userId: 'u3',
@@ -119,12 +131,26 @@ describe('the eligibility predicate', () => {
         inactiveSince: new Date('2025-03-01'),
         accountGone: false,
         unreachable: false,
+        wasNotified: true,
+      },
+      {
+        userId: 'u4',
+        discordId: '900000000000000004',
+        inactiveSince: new Date('2025-04-01'),
+        accountGone: false,
+        unreachable: false,
+        wasNotified: false,
       },
     ]);
 
     const cohort = await selectEligibleUsers(db);
 
-    expect(cohort.map(row => row.reason)).toEqual(['account_gone', 'unreachable', 'grace_expired']);
+    expect(cohort.map(row => row.reason)).toEqual([
+      'account_gone',
+      'unreachable',
+      'grace_expired',
+      'bystander',
+    ]);
   });
 });
 
@@ -140,6 +166,11 @@ describe('the notify predicate (Phase 3)', () => {
     expect(sql).toContain('u.discord_account_gone_at IS NULL');
     // ...one notice per inactivity spell (also the cross-run idempotency guard)...
     expect(sql).toContain('u.retention_notified_at IS NULL');
+    // ...only DELIBERATE users get the notice (bystanders purge silently)...
+    expect(sql).toContain('u.notify_opted_in_at IS NOT NULL');
+    expect(sql).toContain('FROM usage_logs');
+    expect(sql).toContain('FROM personality_owners');
+    expect(sql).not.toContain('AND NOT (');
     // ...the same inactivity window and exemptions as the purge predicate.
     expect(sql).toContain('COALESCE(u.last_active_at, u.created_at)');
     expect(sql).toContain('u.is_superuser = false');
