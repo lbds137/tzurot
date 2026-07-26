@@ -160,6 +160,16 @@ The split isolates the enabling refactor (B) from the new capability (D) and kee
 
 **D8 needs no new test.** The sync round-trip proof shipped with Phase 1.5 (`DatabaseSyncService.component.test.ts`, plus its `conversation_history sync` describe). PR-D1 adds only the purge-side assertion that a cascaded account leaves `conversation_history` tombstones behind.
 
+### Phase-3 build notes (2026-07-26)
+
+**The notify branch is the cohort-discovery mechanism, not a courtesy.** Runtime evidence (beta.177): release blasts are opt-in-gated (`notifyOptedInAt` — `sent=1`), so nothing ever DMs the inactive cohort and nothing stamps the unreachable flags; Phase 2's purge cohort is structurally 0 without Phase 3's warning DMs bouncing off the genuinely-unreachable subset. This retro-corrects the epic's "the 26 become the first real preview batch" expectation.
+
+**The parent design's "verify `AccountExportJob` delivery (25MB DM cap, link expiry)" gate resolved by grounding: there is no delivery step.** Exports are link-only — `POST /user/account/export` mints the token synchronously and the user downloads via `GET /exports/:token` (24h expiry, 24h cooldown); no DM/attachment code exists anywhere. Consequence: the warning DM invites the user to run `/settings data export` themselves; it never mints a link (dead within 24h vs a 30-day grace) and never attaches a file (a brand-new untested failure mode). The purge-vs-export race closes itself: requesting an export IS activity (the Phase-1d stamp), which exits the user from the cohort entirely.
+
+**Three owner calls (2026-07-26):** 30-day grace window (`GRACE_PERIOD_DAYS`, published in the privacy policy — a policy number, not a tuning knob) · single notice per inactivity spell (reminder DM deferred; trigger = first grace cycle completes) · reclamation flow + orphan admin commands deferred (trigger = first purge actually re-homes a character). Both deferrals filed in `cold/follow-ups.md`.
+
+**Split: PR-E1 + PR-E2.** E1 (read-only substrate): `users.retention_notified_at` + the grace-expired third arm on the purge predicate + the sibling notify predicates in `eligibility.ts` + preview/nag/CLI reachable-branch counts + activity-clears (grace aborts on use; deliberately NOT cleared by blast-send success — reach is not use). Inert until E2 writes the stamp. E2 (the notify capability): separate `retention-notify` BullMQ queue + bot-client worker mirroring the release-DM worker (1/sec pacing, per-recipient reporting, `classifyDmError` reuse — 20026 is a non-signal everywhere) + report routes stamping via a shared DM-failure helper extracted from `releaseBroadcast` + `retention:notify` CLI (manual-approval; breaker fractions reused) + notice copy with its own extended-context exclusion marker + the privacy-policy two-path rewrite (the current "Either condition alone is not enough" sentence is replaced; ships in the same release as the capability, ≥30 days before any grace-expired purge can exist).
+
 ---
 
 ## Council record (trio, 2026-07-23 — GLM 5.2 · Kimi K2.7-code · Qwen 3.7 Max)
