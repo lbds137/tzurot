@@ -23,6 +23,7 @@ import { asyncHandler } from '../../utils/asyncHandler.js';
 import { getRequiredParam } from '../../utils/requestParams.js';
 import { sendContractSuccess } from '../../utils/responseHelpers.js';
 import { sendZodError } from '../../utils/zodHelpers.js';
+import { stampDmPermanentFailure } from '../../services/retention/dmFailureStamps.js';
 import type { RouteDeps } from '../routeDeps.js';
 
 const logger = createLogger('internal-release-broadcast');
@@ -126,17 +127,10 @@ async function recordPermanentFailure(
     if (row === null) {
       return null;
     }
-    if (errorCode === '50278' || errorCode === '50007') {
-      await prisma.$executeRaw`
-        UPDATE users SET dm_undeliverable_since = NOW()
-        WHERE id = ${row.userId}::uuid AND dm_undeliverable_since IS NULL
-      `;
-    } else if (errorCode === '10013') {
-      await prisma.$executeRaw`
-        UPDATE users SET discord_account_gone_at = NOW()
-        WHERE id = ${row.userId}::uuid AND discord_account_gone_at IS NULL
-      `;
-    }
+    // The code→column mapping lives in the shared kernel — the retention
+    // notify report route stamps through the same one (drift here would
+    // desync the two delivery pipelines' unreachability semantics).
+    await stampDmPermanentFailure(prisma, row.userId, errorCode);
     return (await maybeAutoDisable(prisma, deliveryLogId, row.userId)) ? row.userId : null;
   } catch (err) {
     logger.warn(

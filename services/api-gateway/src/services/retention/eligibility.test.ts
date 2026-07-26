@@ -1,8 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import type { Prisma } from '@tzurot/common-types/services/prisma';
+import { RETENTION_POLICY } from '@tzurot/common-types/constants/retention';
 import {
-  GRACE_PERIOD_DAYS,
-  RETENTION_WINDOW_DAYS,
   countEligibleUsers,
   countInGrace,
   countNotifyCohort,
@@ -72,8 +71,8 @@ describe('the eligibility predicate', () => {
     expect(sql).toContain('u.is_superuser = false');
     expect(sql).toContain('u.retention_exempt = false');
     // The windows are bound, not inlined — and they're the single named constants.
-    expect(flattenValues(queryRaw.mock.calls[0])).toContain(RETENTION_WINDOW_DAYS);
-    expect(flattenValues(queryRaw.mock.calls[0])).toContain(GRACE_PERIOD_DAYS);
+    expect(flattenValues(queryRaw.mock.calls[0])).toContain(RETENTION_POLICY.WINDOW_DAYS);
+    expect(flattenValues(queryRaw.mock.calls[0])).toContain(RETENTION_POLICY.GRACE_PERIOD_DAYS);
 
     // NEGATIVE: the predicate must not silently widen to reachable users. A
     // purge that ignores reachability would erase people who could be notified.
@@ -145,7 +144,7 @@ describe('the notify predicate (Phase 3)', () => {
     expect(sql).toContain('COALESCE(u.last_active_at, u.created_at)');
     expect(sql).toContain('u.is_superuser = false');
     expect(sql).toContain('u.retention_exempt = false');
-    expect(flattenValues(queryRaw.mock.calls[0])).toContain(RETENTION_WINDOW_DAYS);
+    expect(flattenValues(queryRaw.mock.calls[0])).toContain(RETENTION_POLICY.WINDOW_DAYS);
   });
 
   it('narrows by the outbound-DM allowlist at the SQL level when one is set', async () => {
@@ -206,7 +205,7 @@ describe('the reporting counts', () => {
     expect(sql).toContain('u.retention_notified_at >=');
     expect(sql).toContain('u.is_superuser = false');
     expect(sql).toContain('u.retention_exempt = false');
-    expect(flattenValues(queryRaw.mock.calls[0])).toContain(GRACE_PERIOD_DAYS);
+    expect(flattenValues(queryRaw.mock.calls[0])).toContain(RETENTION_POLICY.GRACE_PERIOD_DAYS);
   });
 
   it('countInGrace excludes users an unreachable stamp already made purge-eligible', async () => {

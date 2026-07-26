@@ -52,6 +52,12 @@ import {
   RetentionPurgeRequestSchema,
   RetentionPurgeResponseSchema,
   RetentionReconcileOffDbResponseSchema,
+  RetentionNotifyRequestSchema,
+  RetentionNotifyResponseSchema,
+  RetentionNotifyFilterRequestSchema,
+  RetentionNotifyFilterResponseSchema,
+  RetentionNotifyReportRequestSchema,
+  RetentionNotifyReportResponseSchema,
   RoutingContextRequestSchema,
   RoutingContextResponseSchema,
   SecretRotationStatusResponseSchema,
@@ -413,6 +419,52 @@ export const internalRoutes = {
     path: '/retention/reconcile-off-db',
     id: 'retentionReconcileOffDb',
     output: RetentionReconcileOffDbResponseSchema,
+    serviceOnly: true,
+  },
+
+  /**
+   * POST /api/internal/retention/notify
+   * Resolve the reachable-but-inactive cohort and enqueue warning-DM batches
+   * (Phase 3). Operator-driven via the retention:notify CLI only — autonomy
+   * is Phase 4. Cross-run idempotent via the predicate itself.
+   */
+  retentionNotify: {
+    audience: 'internal',
+    method: 'post',
+    path: '/retention/notify',
+    id: 'retentionNotify',
+    input: RetentionNotifyRequestSchema,
+    output: RetentionNotifyResponseSchema,
+    serviceOnly: true,
+  },
+
+  /**
+   * POST /api/internal/retention/notify/filter
+   * The worker's send-time still-eligible re-check: a user active since
+   * cohort resolution must not be DMed a deletion warning.
+   */
+  retentionNotifyFilter: {
+    audience: 'internal',
+    method: 'post',
+    path: '/retention/notify/filter',
+    id: 'retentionNotifyFilter',
+    input: RetentionNotifyFilterRequestSchema,
+    output: RetentionNotifyFilterResponseSchema,
+    serviceOnly: true,
+  },
+
+  /**
+   * POST /api/internal/retention/notify/report
+   * Per-recipient delivery outcomes: sent stamps the grace clock; a permanent
+   * bounce stamps the unreachable column (the re-route to the purge branch).
+   */
+  retentionNotifyReport: {
+    audience: 'internal',
+    method: 'post',
+    path: '/retention/notify/report',
+    id: 'retentionNotifyReport',
+    input: RetentionNotifyReportRequestSchema,
+    output: RetentionNotifyReportResponseSchema,
     serviceOnly: true,
   },
 

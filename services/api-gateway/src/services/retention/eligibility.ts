@@ -22,23 +22,12 @@
  */
 
 import { Prisma } from '@tzurot/common-types/services/prisma';
+import { RETENTION_POLICY } from '@tzurot/common-types/constants/retention';
 
-/**
- * The single retention window (epic decision: ONE 180-day window, not the
- * rejected flat-90d). Inactivity is measured from last_active_at, falling back
- * to created_at when the tracking clock never stamped (NULL = "no known
- * activity", never "active now").
- */
-export const RETENTION_WINDOW_DAYS = 180;
-
-/**
- * The reachable branch's grace window (Phase 3, owner call): days between the
- * warning DM landing and purge eligibility. The privacy policy states this
- * number once the notify pipeline ships (its rewrite rides the same release
- * that first writes retention_notified_at) — changing it is a policy change,
- * not a tuning knob.
- */
-export const GRACE_PERIOD_DAYS = 30;
+// The policy windows live in common-types (bot-client's notice copy states
+// the same numbers); this module remains the single home of the SQL that
+// consumes them. Local names keep the fragments readable.
+const { WINDOW_DAYS: RETENTION_WINDOW_DAYS, GRACE_PERIOD_DAYS } = RETENTION_POLICY;
 
 /**
  * Why a user is purge-eligible: the two unreachable signals (D13), or a
@@ -172,6 +161,10 @@ export interface NotifyCohortRow {
 
 /**
  * The reachable-but-inactive cohort awaiting a warning DM, oldest first.
+ *
+ * Unbounded by design, like selectEligibleUsers: the cohort IS the answer,
+ * and truncating it would under-report the number the notify breaker
+ * polices. The enqueue path slices it into bounded batches downstream.
  *
  * `allowlist` is OUTBOUND_DM_ALLOWLIST narrowing at the SQL level (the
  * release-blast precedent): out-of-scope users never enter a run, so a dev

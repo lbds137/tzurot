@@ -112,6 +112,21 @@ describe('RetentionNagScheduler runRetentionNagCheck', () => {
     expect(mockPostOwnerChannelEmbed).not.toHaveBeenCalled();
   });
 
+  it('posts when reachable users await a warning even with zero purge-eligible', async () => {
+    // The notify CLI is the operator's action for this state — a gate on
+    // eligibleCount alone would hide the reachable branch until someone
+    // separately became unreachable.
+    const redis = makeRedis(null);
+    mockRetentionPreview.mockResolvedValue({
+      ok: true,
+      data: makePreview({ eligibleCount: 0, userCount: 0, reachableToNotify: 51 }),
+    });
+
+    await runRetentionNagCheck(client, redis);
+
+    expect(mockPostOwnerChannelEmbed).toHaveBeenCalledTimes(1);
+  });
+
   it('swallows a failed preview fetch (next daily tick retries)', async () => {
     mockRetentionPreview.mockResolvedValue({ ok: false, error: 'gateway down' });
     const redis = makeRedis(null);

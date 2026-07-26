@@ -26,6 +26,7 @@ import {
   factExtractionJobDataSchema,
   type FactExtractionJobData,
   releaseBroadcastDmJobDataSchema,
+  retentionNotifyDmJobDataSchema,
 } from './jobs.js';
 import {
   shapesImportJobDataSchema,
@@ -1141,6 +1142,45 @@ describe('BullMQ Job Contract Tests', () => {
     });
   });
 
+  describe('Retention Notify DM Job Contract', () => {
+    const validPayload = {
+      requestId: 'req-1',
+      jobType: JobType.RetentionNotifyDm,
+      responseDestination: { type: 'api' },
+      runId: 'notify-2026-07-26-prod',
+      recipients: [
+        {
+          userId: '323e4567-e89b-42d3-a456-426614174000',
+          discordUserId: '123456789012345678',
+        },
+      ],
+    };
+
+    it('should validate a well-formed batch', () => {
+      expect(retentionNotifyDmJobDataSchema.safeParse(validPayload).success).toBe(true);
+    });
+
+    it('should reject an empty recipients array', () => {
+      expect(
+        retentionNotifyDmJobDataSchema.safeParse({ ...validPayload, recipients: [] }).success
+      ).toBe(false);
+    });
+
+    it('should cap a batch at 50 recipients (the enqueue batch size)', () => {
+      const oversized = Array.from({ length: 51 }, (_, i) => ({
+        userId: `323e4567-e89b-42d3-a456-4266141740${String(i).padStart(2, '0')}`,
+        discordUserId: '123456789012345678',
+      }));
+      expect(
+        retentionNotifyDmJobDataSchema.safeParse({ ...validPayload, recipients: oversized }).success
+      ).toBe(false);
+    });
+
+    it('should participate in the discriminated union', () => {
+      expect(anyJobDataSchema.safeParse(validPayload).success).toBe(true);
+    });
+  });
+
   describe('Release Broadcast DM Job Contract', () => {
     const validPayload = {
       requestId: 'req-1',
@@ -1215,6 +1255,7 @@ describe('BullMQ Job Contract Tests', () => {
       [JobType.AccountExport]: accountExportJobDataSchema,
       [JobType.FactExtraction]: factExtractionJobDataSchema,
       [JobType.ReleaseBroadcastDm]: releaseBroadcastDmJobDataSchema,
+      [JobType.RetentionNotifyDm]: retentionNotifyDmJobDataSchema,
     };
 
     it('should have a Zod data schema for every JobType enum value', () => {

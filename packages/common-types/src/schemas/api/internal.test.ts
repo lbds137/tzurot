@@ -23,6 +23,10 @@ import {
   RetentionPurgeRequestSchema,
   RetentionPurgeResponseSchema,
   RetentionReconcileOffDbResponseSchema,
+  RetentionNotifyRequestSchema,
+  RetentionNotifyResponseSchema,
+  RetentionNotifyFilterRequestSchema,
+  RetentionNotifyReportRequestSchema,
 } from './internal.js';
 
 describe('DiscordSnowflakeSchema', () => {
@@ -821,6 +825,68 @@ describe('RetentionReconcileOffDbResponseSchema', () => {
   it('rejects negative counters', () => {
     expect(
       RetentionReconcileOffDbResponseSchema.safeParse({ settled: 0, stillFailing: -1 }).success
+    ).toBe(false);
+  });
+});
+
+describe('RetentionNotifyRequestSchema', () => {
+  it('accepts a bare run — every field is optional', () => {
+    expect(RetentionNotifyRequestSchema.safeParse({}).success).toBe(true);
+  });
+
+  it('accepts the full operator payload', () => {
+    expect(
+      RetentionNotifyRequestSchema.safeParse({
+        dryRun: true,
+        breakerOverride: true,
+        runContext: 'first prod notify run',
+      }).success
+    ).toBe(true);
+  });
+});
+
+describe('RetentionNotifyResponseSchema', () => {
+  const response = {
+    status: 'enqueued',
+    cohortSize: 51,
+    userbaseCount: 273,
+    percentOfUserbase: 18.7,
+    breakerWarning: true,
+    batchesEnqueued: 2,
+    recipients: [{ discordId: '900000000000000001', inactiveSince: '2025-01-01T00:00:00.000Z' }],
+  };
+
+  it('accepts the first-real-run shape (warn-breaker true, still enqueued)', () => {
+    expect(RetentionNotifyResponseSchema.safeParse(response).success).toBe(true);
+  });
+
+  it('rejects an unknown status — the CLI branches on this enum', () => {
+    expect(
+      RetentionNotifyResponseSchema.safeParse({ ...response, status: 'partial' }).success
+    ).toBe(false);
+  });
+});
+
+describe('RetentionNotifyFilterRequestSchema', () => {
+  it('rejects an empty batch — the worker must not ask a vacuous question', () => {
+    expect(RetentionNotifyFilterRequestSchema.safeParse({ userIds: [] }).success).toBe(false);
+  });
+});
+
+describe('RetentionNotifyReportRequestSchema', () => {
+  it('accepts a single sent outcome (the per-recipient immediate report)', () => {
+    expect(
+      RetentionNotifyReportRequestSchema.safeParse({
+        outcomes: [{ userId: 'a3bb189e-8bf9-3888-9912-ace4e6543002', status: 'sent' }],
+      }).success
+    ).toBe(true);
+  });
+
+  it('rejects an outcome status outside the delivery vocabulary', () => {
+    expect(
+      RetentionNotifyReportRequestSchema.safeParse({
+        outcomes: [{ userId: 'a3bb189e-8bf9-3888-9912-ace4e6543002', status: 'skipped' }],
+      }).success
     ).toBe(false);
   });
 });

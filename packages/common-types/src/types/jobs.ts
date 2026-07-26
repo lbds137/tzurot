@@ -549,6 +549,34 @@ export const releaseBroadcastDmJobDataSchema = baseJobDataSchema.extend({
 export type ReleaseBroadcastDmJobData = z.infer<typeof releaseBroadcastDmJobDataSchema>;
 export type ReleaseBroadcastRecipient = z.infer<typeof releaseBroadcastRecipientSchema>;
 
+/** One warning-DM recipient inside a retention-notify batch. */
+const retentionNotifyRecipientSchema = z.object({
+  /** Internal users.id UUID — the grace stamp and re-check key on. */
+  userId: z.string().uuid(),
+  /** Discord snowflake the warning DM is sent to. */
+  discordUserId: z.string(),
+});
+
+/**
+ * Job data for one retention warning-DM batch (Phase 3's reachable branch).
+ *
+ * The worker re-filters recipients against the notify predicate before
+ * sending (a user active since cohort resolution must not receive a deletion
+ * warning), composes the notice body itself (Discord copy belongs to
+ * bot-client), and reports each outcome to the gateway — `sent` stamps the
+ * grace clock, a permanent bounce stamps the unreachable flag that re-routes
+ * the user to the existing purge branch.
+ */
+export const retentionNotifyDmJobDataSchema = baseJobDataSchema.extend({
+  jobType: z.literal(JobType.RetentionNotifyDm),
+  /** Operator run label (audit/log context; also the deterministic-jobId seed). */
+  runId: z.string().min(1),
+  recipients: z.array(retentionNotifyRecipientSchema).min(1).max(50),
+});
+
+export type RetentionNotifyDmJobData = z.infer<typeof retentionNotifyDmJobDataSchema>;
+export type RetentionNotifyRecipient = z.infer<typeof retentionNotifyRecipientSchema>;
+
 /**
  * Union schema for all job data types
  * Used for generic job validation
@@ -559,4 +587,5 @@ export const anyJobDataSchema = z.discriminatedUnion('jobType', [
   llmGenerationJobDataSchema,
   factExtractionJobDataSchema,
   releaseBroadcastDmJobDataSchema,
+  retentionNotifyDmJobDataSchema,
 ]);
