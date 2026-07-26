@@ -306,8 +306,12 @@ export const RetentionPreviewUserSchema = z.object({
   discordId: DiscordSnowflakeSchema,
   /** Inactivity anchor as ISO — last_active_at, or created_at when never stamped. */
   inactiveSince: z.string().datetime(),
-  /** `account_gone` (Discord 10013) is the stronger signal and wins when both are set. */
-  reason: z.enum(['unreachable', 'account_gone']),
+  /**
+   * Label precedence mirrors signal strength: `account_gone` (Discord 10013)
+   * beats `unreachable`, which beats `grace_expired` (the Phase-3 reachable
+   * branch: warned, then silent through the whole grace window).
+   */
+  reason: z.enum(['unreachable', 'account_gone', 'grace_expired']),
   ownedCharacters: z.object({
     /** Nobody else has data on them — deleted with the account. */
     toDelete: z.number().int().nonnegative(),
@@ -327,6 +331,12 @@ export const RetentionPreviewResponseSchema = z.object({
     charactersToReHome: z.number().int().nonnegative(),
     /** Cohort exceeds the breaker's warning share — review before purging. */
     breakerWarning: z.boolean(),
+    /** Reachable + inactive ≥180d, not yet warned — the notify cohort (Phase 3). */
+    reachableToNotify: z.number().int().nonnegative(),
+    /** Warned, grace window still running (any activity aborts the clock). */
+    inGrace: z.number().int().nonnegative(),
+    /** Warned, window expired, still silent — the grace_expired purge subset. */
+    graceExpired: z.number().int().nonnegative(),
   }),
 });
 

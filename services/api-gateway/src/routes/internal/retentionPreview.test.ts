@@ -31,6 +31,9 @@ const PREVIEW = {
     charactersToDelete: 1,
     charactersToReHome: 2,
     breakerWarning: false,
+    reachableToNotify: 0,
+    inGrace: 0,
+    graceExpired: 0,
   },
 };
 
@@ -67,6 +70,9 @@ describe('GET /internal/retention/preview', () => {
         charactersToDelete: 0,
         charactersToReHome: 0,
         breakerWarning: false,
+        reachableToNotify: 0,
+        inGrace: 0,
+        graceExpired: 0,
       },
     });
     const { req, res } = createMockReqRes();

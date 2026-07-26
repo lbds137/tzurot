@@ -59,12 +59,18 @@ export function buildRetentionNagEmbed(preview: RetentionPreviewResponse): Embed
   const { users, totals } = preview;
   const env = cliEnv();
 
+  const reasonLabel = {
+    account_gone: 'account deleted',
+    unreachable: 'unreachable',
+    grace_expired: 'grace expired',
+  } as const;
+
   const lines = users
     .slice(0, MAX_LISTED_USERS)
     .map(
       user =>
         `\`${user.discordId}\` — inactive since ${user.inactiveSince.slice(0, 10)} ` +
-        `(${user.reason === 'account_gone' ? 'account deleted' : 'unreachable'})`
+        `(${reasonLabel[user.reason]})`
     );
   if (users.length > MAX_LISTED_USERS) {
     lines.push(`…and ${String(users.length - MAX_LISTED_USERS)} more (see the preview CLI)`);
@@ -72,9 +78,20 @@ export function buildRetentionNagEmbed(preview: RetentionPreviewResponse): Embed
 
   const summary =
     `**${String(totals.eligibleCount)}** of ${String(totals.userbaseCount)} users ` +
-    `(${String(totals.percentOfUserbase)}%) are unreachable and inactive. ` +
+    `(${String(totals.percentOfUserbase)}%) are purge-eligible. ` +
     `Characters: ${String(totals.charactersToDelete)} would be deleted, ` +
     `${String(totals.charactersToReHome)} re-homed to the Orphaned Characters bucket.`;
+
+  // The reachable branch's pipeline states (Phase 3). Grace-expired users are
+  // already IN the cohort above; the other two are upstream of it. All THREE
+  // counts gate the line — grace-expired users have left the other two counts
+  // (window passed, already warned), so a graceExpired-only state is real.
+  const reachable =
+    totals.reachableToNotify > 0 || totals.inGrace > 0 || totals.graceExpired > 0
+      ? `\n\nReachable branch: **${String(totals.reachableToNotify)}** awaiting a warning DM · ` +
+        `**${String(totals.inGrace)}** in grace · ` +
+        `**${String(totals.graceExpired)}** grace-expired (counted in the cohort above).`
+      : '';
 
   const breaker = totals.breakerWarning
     ? '\n\n⚠️ **Cohort exceeds the breaker warning share of the userbase.** ' +
@@ -83,7 +100,7 @@ export function buildRetentionNagEmbed(preview: RetentionPreviewResponse): Embed
 
   return new EmbedBuilder()
     .setTitle('🗑️ Accounts eligible for retention purge')
-    .setDescription(`${summary}${breaker}\n\n${lines.join('\n')}`)
+    .setDescription(`${summary}${reachable}${breaker}\n\n${lines.join('\n')}`)
     .setFooter({
       text:
         `Review: pnpm ops retention:preview --env ${env} · ` +

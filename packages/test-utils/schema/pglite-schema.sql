@@ -44,6 +44,7 @@ CREATE TABLE "users" (
     "last_active_at" TIMESTAMP(3),
     "dm_undeliverable_since" TIMESTAMP(3),
     "discord_account_gone_at" TIMESTAMP(3),
+    "retention_notified_at" TIMESTAMP(3),
     "retention_exempt" BOOLEAN NOT NULL DEFAULT false,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,

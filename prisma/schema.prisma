@@ -92,6 +92,16 @@ model User {
   /// and the audit ledger, not because they differ in timing. Reads guard with
   /// != null.
   discordAccountGoneAt  DateTime?                  @map("discord_account_gone_at")
+  /// State machine (the reachable branch's grace clock): NULL until a retention
+  /// warning DM is confirmed SENT to this reachable-but-inactive user; set to
+  /// the send-confirmation time, never advancing while non-null (one notice per
+  /// inactivity spell). Cleared back to NULL by any activity — the same stamp
+  /// sites that maintain lastActiveAt — so using the bot mid-grace aborts the
+  /// pipeline entirely; deliberately NOT cleared by a release DM landing (reach
+  /// is not use). While non-null and older than the grace window, the user is
+  /// purge-eligible with reason grace_expired (retention/eligibility.ts is the
+  /// single source). Reads guard with != null.
+  retentionNotifiedAt   DateTime?                  @map("retention_notified_at")
   /// Operator-set exemption: when true, the retention purge job never selects
   /// this user (test/burner/VIP/pending-dispute accounts). Distinct from
   /// isSuperuser (which grants admin powers — the wrong lever for an exemption).
