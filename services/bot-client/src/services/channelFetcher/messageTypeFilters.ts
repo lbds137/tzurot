@@ -7,6 +7,7 @@
 
 import type { Message } from 'discord.js';
 import { isReleaseNotesDm } from '../releaseDm/releaseDmContext.js';
+import { isRetentionNoticeDm } from '../retentionNotice/noticeContent.js';
 
 /**
  * Check if a message is a thinking block output
@@ -67,6 +68,7 @@ export function isContextExcludedBotMessage(msg: Message, botUserId: string): bo
   return (
     isBotTranscriptReply(msg, botUserId) ||
     isThinkingBlockMessage(msg) ||
-    isReleaseNotesDm(msg, botUserId)
+    isReleaseNotesDm(msg, botUserId) ||
+    isRetentionNoticeDm(msg, botUserId)
   );
 }

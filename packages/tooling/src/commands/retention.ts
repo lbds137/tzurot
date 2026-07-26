@@ -74,6 +74,34 @@ export function registerRetentionCommands(cli: CAC): void {
 
   cli
     .command(
+      'retention:notify',
+      'DM the deletion warning to reachable-but-inactive users (starts grace clocks)'
+    )
+    .option(ENV_OPTION, ENV_OPTION_DESC, ENV_OPTION_DEFAULT)
+    .option('--dry-run', 'Resolve and print the notify cohort without enqueuing anything')
+    .option('--force', FORCE_OPTION_DESC)
+    // Same two-flag discipline as the purge: --force asserts the operator is
+    // present; only --breaker-override vouches for an implausibly large cohort.
+    .option('--breaker-override', 'Proceed even though the cohort exceeds the safety ceiling')
+    .action(
+      async (options: {
+        env?: Environment;
+        dryRun?: boolean;
+        force?: boolean;
+        breakerOverride?: boolean;
+      }) => {
+        const { retentionNotify } = await import('../retention/notify.js');
+        await retentionNotify({
+          env: options.env ?? 'dev',
+          dryRun: options.dryRun,
+          force: options.force,
+          breakerOverride: options.breakerOverride,
+        });
+      }
+    );
+
+  cli
+    .command(
       'retention:reconcile-off-db',
       'Retry avatar cleanup a completed purge still owes (idempotent)'
     )

@@ -54,6 +54,7 @@ const USER_PERSONA_CRUD = '../user/persona/crud.js';
 const USER_PERSONA_OVERRIDE = '../user/persona/override.js';
 const ADMIN_BROADCAST = '../admin/broadcast.js';
 const INTERNAL_RELEASE_BROADCAST = '../internal/releaseBroadcast.js';
+const INTERNAL_RETENTION_NOTIFY = '../internal/retentionNotify.js';
 const USER_NOTIFICATIONS = '../user/notifications.js';
 const USER_STT_OVERRIDE = '../user/stt-override.js';
 const USER_TIMEZONE = '../user/timezone.js';
@@ -142,6 +143,9 @@ const PATH_MAP: Readonly<Record<string, string>> = {
   retentionPreview: '../internal/retentionPreview.js',
   retentionPurge: '../internal/retentionPurge.js',
   retentionReconcileOffDb: '../internal/retentionReconcileOffDb.js',
+  retentionNotify: INTERNAL_RETENTION_NOTIFY,
+  retentionNotifyFilter: INTERNAL_RETENTION_NOTIFY,
+  retentionNotifyReport: INTERNAL_RETENTION_NOTIFY,
   getModels: '../internal/models.js',
   setDmSession: '../internal/dmSessionSet.js',
   lookupPersonalityFromMessage: '../user/conversationLookup.js',

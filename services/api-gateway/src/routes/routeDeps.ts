@@ -113,6 +113,8 @@ export interface RouteDeps {
   readonly aiQueue?: Queue;
   /** BullMQ queue for release-broadcast DM batches (consumed by bot-client). */
   readonly releaseBroadcastQueue?: Queue;
+  /** BullMQ queue for retention warning-DM batches (consumed by bot-client). */
+  readonly retentionNotifyQueue?: Queue;
   /** BullMQ queue events for sync-completion waiting. */
   readonly queueEvents?: QueueEvents;
 }

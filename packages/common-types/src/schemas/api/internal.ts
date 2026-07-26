@@ -391,3 +391,97 @@ export const RetentionReconcileOffDbResponseSchema = z.object({
   settled: z.number().int().nonnegative(),
   stillFailing: z.number().int().nonnegative(),
 });
+
+// ============================================================================
+// POST /internal/retention/notify — enqueue warning-DM batches (Phase 3)
+// ============================================================================
+
+/**
+ * Operator-driven (manual-approval doctrine, like the purge): resolves the
+ * reachable-but-inactive cohort, enqueues warning-DM batches to the
+ * retention-notify queue. Cross-run idempotency is the predicate itself
+ * (retention_notified_at IS NULL) — re-running resumes where a run stopped.
+ */
+export const RetentionNotifyRequestSchema = z.object({
+  /** Resolve and report the cohort without enqueuing anything. */
+  dryRun: z.boolean().optional(),
+  /**
+   * Proceed past the hard-ceiling breaker share. Deliberately separate from
+   * the CLI's `--force` (which only skips the interactive prompt) — same
+   * two-flag discipline as the purge.
+   */
+  breakerOverride: z.boolean().optional(),
+  /** Operator/run label (log context + the deterministic-jobId seed). */
+  runContext: z.string().max(200).optional(),
+});
+
+export const RetentionNotifyCohortUserSchema = z.object({
+  discordId: DiscordSnowflakeSchema,
+  /** Inactivity anchor as ISO — last_active_at, or created_at when never stamped. */
+  inactiveSince: z.string().datetime(),
+});
+
+export const RetentionNotifyResponseSchema = z.object({
+  /** `refused_breaker` enqueues nothing; `empty` is the healthy steady state. */
+  status: z.enum(['enqueued', 'dry_run', 'empty', 'refused_breaker']),
+  cohortSize: z.number().int().nonnegative(),
+  userbaseCount: z.number().int().nonnegative(),
+  percentOfUserbase: z.number().nonnegative(),
+  /** Cohort exceeds the warn share — expected ~15-18% on the first real run (zombie cohort). */
+  breakerWarning: z.boolean(),
+  batchesEnqueued: z.number().int().nonnegative(),
+  /** Present when status is `refused_breaker`. */
+  breakerDetail: z.string().optional(),
+  /** The resolved cohort (who would be / was DMed) — the dry-run's whole point. */
+  recipients: z.array(RetentionNotifyCohortUserSchema),
+});
+
+export type RetentionNotifyResponse = z.infer<typeof RetentionNotifyResponseSchema>;
+
+// ============================================================================
+// POST /internal/retention/notify/filter — send-time still-eligible re-check
+// ============================================================================
+
+/**
+ * The notify analogue of the purge's TOCTOU re-check: of these users, which
+ * are STILL notify-eligible? A user active since cohort resolution must not
+ * be DMed a deletion warning. The worker calls this before every batch send
+ * (throw-before-spend: a filter failure aborts the batch, never skips it).
+ */
+export const RetentionNotifyFilterRequestSchema = z.object({
+  userIds: z.array(z.string().uuid()).min(1).max(50),
+});
+
+export const RetentionNotifyFilterResponseSchema = z.object({
+  stillEligibleUserIds: z.array(z.string().uuid()),
+});
+
+// ============================================================================
+// POST /internal/retention/notify/report — per-recipient delivery outcomes
+// ============================================================================
+
+/**
+ * The worker reports each outcome immediately after the send attempt (a
+ * mid-batch crash strands at most one row). `sent` stamps the grace clock;
+ * 50278/50007 stamp dm_undeliverable_since and 10013 stamps
+ * discord_account_gone_at (the re-route to the unreachable purge branch);
+ * bot-level (20026) and transient outcomes stamp NOTHING — a quarantined bot
+ * says nothing about the recipient.
+ */
+export const RetentionNotifyReportRequestSchema = z.object({
+  outcomes: z
+    .array(
+      z.object({
+        userId: z.string().uuid(),
+        status: z.enum(['sent', 'failed_permanent', 'failed_bot_level', 'failed_transient']),
+        /** Discord error code for failures (e.g. '50278', '10013'). */
+        errorCode: z.string().optional(),
+      })
+    )
+    .min(1)
+    .max(50),
+});
+
+export const RetentionNotifyReportResponseSchema = z.object({
+  processed: z.number().int().nonnegative(),
+});

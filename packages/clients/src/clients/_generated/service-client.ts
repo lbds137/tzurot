@@ -295,6 +295,42 @@ export class ServiceClient {
     });
   }
 
+  async retentionNotify(input: z.input<typeof ROUTE_MANIFEST.retentionNotify.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.retentionNotify.output>>> {
+    const fullPath = '/api/internal/retention/notify';
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'POST',
+      path: fullPath,
+      body: input,
+      outputSchema: ROUTE_MANIFEST.retentionNotify.output,
+    });
+  }
+
+  async retentionNotifyFilter(input: z.input<typeof ROUTE_MANIFEST.retentionNotifyFilter.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.retentionNotifyFilter.output>>> {
+    const fullPath = '/api/internal/retention/notify/filter';
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'POST',
+      path: fullPath,
+      body: input,
+      outputSchema: ROUTE_MANIFEST.retentionNotifyFilter.output,
+    });
+  }
+
+  async retentionNotifyReport(input: z.input<typeof ROUTE_MANIFEST.retentionNotifyReport.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.retentionNotifyReport.output>>> {
+    const fullPath = '/api/internal/retention/notify/report';
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'POST',
+      path: fullPath,
+      body: input,
+      outputSchema: ROUTE_MANIFEST.retentionNotifyReport.output,
+    });
+  }
+
   /**
    * @safeRead Server-side has no observable mutation — safe to cache client-side.
    */

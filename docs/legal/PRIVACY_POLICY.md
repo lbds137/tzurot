@@ -37,19 +37,29 @@ Tzurot is a Discord bot that lets you talk with AI characters. It is operated by
 | Release-DM delivery records   | Deleted once 90 days old and settled (the record of your latest notification is kept until it's replaced or you delete it) |
 | Account basics, usage records | Until you delete your account (see "Your controls"), or until the inactivity rule below applies                            |
 
-### Inactive, unreachable accounts
+### Inactive accounts
 
 We are not a commercial service that keeps your data forever on the chance you
-come back. If **both** of the following are true, your account and everything
-associated with it may be erased:
+come back. If **you have not used the bot for at least 180 days**, your account
+enters the retention process, and which path it takes depends on whether we can
+still reach you:
 
-- **You have not used the bot for at least 180 days**, and
-- **we can no longer reach you** — you have closed DMs and share no server with
+- **If we can reach you**, we first send you a DM naming a concrete deletion
+  date **at least 30 days away**. Using the bot once — any command or chat
+  message — resets your inactivity clock entirely and cancels the deletion.
+  The notice also points you at `/settings data export` (take a full copy of
+  your data) and `/settings data delete` (delete immediately instead of
+  waiting). Only if the 30 days pass with no activity may your account and
+  everything associated with it be erased.
+- **If we cannot reach you** — you have closed DMs and share no server with
   the bot, so a notification cannot be delivered; or your Discord account no
-  longer exists.
+  longer exists — your account may be erased without the notice, because there
+  is no way to deliver one.
 
-Either condition alone is not enough. Any activity — a message, a command, or a
-notification that successfully reaches you — resets both.
+Inactivity alone never erases anything silently while you are reachable: the
+notice and its grace period always come first. Any activity resets your
+inactivity clock; a notification that successfully reaches you resets the
+unreachability state.
 
 Erasure is complete — everything `/settings data delete` removes, this removes.
 It differs from that self-serve deletion in exactly one way, and the difference
