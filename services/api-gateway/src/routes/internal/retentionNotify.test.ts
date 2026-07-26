@@ -62,7 +62,7 @@ describe('handleRetentionNotify', () => {
     expect(payload.status).toBe('empty');
   });
 
-  it('fails loudly when the queue is not configured — never a silent no-op', async () => {
+  it('fails loudly when a REAL run has no queue — never a silent no-op', async () => {
     const { req, res } = createMockReqRes({});
 
     await handleRetentionNotify({ ...deps, retentionNotifyQueue: undefined } as RouteDeps)(
@@ -73,6 +73,19 @@ describe('handleRetentionNotify', () => {
 
     expect(res.status).toHaveBeenCalledWith(500);
     expect(enqueueMock).not.toHaveBeenCalled();
+  });
+
+  it('lets a dry run proceed without a queue (it never enqueues)', async () => {
+    enqueueMock.mockResolvedValue(EMPTY_RUN);
+    const { req, res } = createMockReqRes({ dryRun: true });
+
+    await handleRetentionNotify({ ...deps, retentionNotifyQueue: undefined } as RouteDeps)(
+      req,
+      res,
+      vi.fn()
+    );
+
+    expect(enqueueMock).toHaveBeenCalledWith(null, { dryRun: true });
   });
 
   it('rejects a malformed body', async () => {

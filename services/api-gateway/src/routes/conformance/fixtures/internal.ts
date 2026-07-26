@@ -319,6 +319,27 @@ export const internalFixtures: Record<string, ConformanceEntry> = {
     body: { discordId: '829999999999999999', runContext: 'conformance' },
   },
 
+  retentionNotify: {
+    // Dry run against the empty steady state (the conformance actor is recent
+    // and reachable, so the notify cohort is empty): resolves, enqueues
+    // nothing, needs no queue and no seed.
+    body: { dryRun: true },
+  },
+
+  retentionNotifyFilter: {
+    // No user row carries this id, so the still-eligible subset is empty —
+    // the shape conformance checks, with zero seed and zero writes.
+    body: { userIds: ['829e4567-e89b-42d3-a456-426614174999'] },
+  },
+
+  retentionNotifyReport: {
+    // A transient outcome stamps NOTHING by design (the queue retries it), so
+    // this exercises the route's happy path without writing shared state.
+    body: {
+      outcomes: [{ userId: '829e4567-e89b-42d3-a456-426614174999', status: 'failed_transient' }],
+    },
+  },
+
   retentionReconcileOffDb: {
     // An empty audit ledger is the steady state: the sweep finds nothing owed
     // and returns { settled: 0, stillFailing: 0 } — zero seed needed.

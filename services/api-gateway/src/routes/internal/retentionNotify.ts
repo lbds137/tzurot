@@ -38,13 +38,15 @@ export const handleRetentionNotify = (deps: RouteDeps): RequestHandler =>
       sendZodError(res, parsed.error);
       return;
     }
-    if (deps.retentionNotifyQueue === undefined) {
+    // Dry runs never enqueue, so they must not fail on a missing queue —
+    // the conformance harness and any read-only caller take this path.
+    if (parsed.data.dryRun !== true && deps.retentionNotifyQueue === undefined) {
       sendError(res, ErrorResponses.internalError('Retention notify queue is not configured'));
       return;
     }
 
     const result = await new RetentionNotifyService(deps.prisma).enqueueNotifyRun(
-      deps.retentionNotifyQueue,
+      deps.retentionNotifyQueue ?? null,
       parsed.data
     );
     sendContractSuccess(res, RetentionNotifyResponseSchema, result, StatusCodes.OK);
