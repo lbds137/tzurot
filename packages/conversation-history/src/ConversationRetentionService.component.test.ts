@@ -197,6 +197,71 @@ describe('ConversationRetentionService', () => {
       const count = await service.clearHistory(testChannelId, testPersonalityId);
       expect(count).toBe(0);
     });
+
+    /**
+     * R8, deletion means deletion: purging the conversation must also retire the
+     * memories derived from those turns. Without this, `/history purge` erases
+     * the transcript but leaves its memories retrievable, and RAG pulls them
+     * straight back into the next prompt — the character still "remembers" a
+     * conversation the user just deleted.
+     */
+    it('soft-deletes memories derived from the purged turns, sparing locked ones', async () => {
+      const discordId = '900000000000000501';
+      await prisma.conversationHistory.create({
+        data: {
+          id: '00000000-0000-0000-0002-000000000001',
+          channelId: testChannelId,
+          personalityId: testPersonalityId,
+          personaId: testPersonaId,
+          role: 'user',
+          content: 'Something the user later purged',
+          discordMessageId: [discordId],
+        },
+      });
+      await prisma.memory.createMany({
+        data: [
+          {
+            id: '00000000-0000-0000-0003-000000000001',
+            personaId: testPersonaId,
+            personalityId: testPersonalityId,
+            content: 'derived from the purged turn',
+            senders: ['tester'],
+            messageIds: [discordId],
+          },
+          {
+            id: '00000000-0000-0000-0003-000000000002',
+            personaId: testPersonaId,
+            personalityId: testPersonalityId,
+            content: 'derived from the purged turn but PINNED',
+            senders: ['tester'],
+            messageIds: [discordId],
+            isLocked: true,
+          },
+          {
+            id: '00000000-0000-0000-0003-000000000003',
+            personaId: testPersonaId,
+            personalityId: testPersonalityId,
+            content: 'unrelated to the purged turn',
+            senders: ['tester'],
+            messageIds: ['900000000000000999'],
+          },
+        ],
+      });
+
+      await service.clearHistory(testChannelId, testPersonalityId);
+
+      const byId = new Map(
+        (await prisma.memory.findMany({ select: { id: true, visibility: true } })).map(m => [
+          m.id,
+          m.visibility,
+        ])
+      );
+      expect(byId.get('00000000-0000-0000-0003-000000000001')).toBe('deleted');
+      // A pin is explicit curation that outranks source deletion.
+      expect(byId.get('00000000-0000-0000-0003-000000000002')).toBe('normal');
+      // Propagation is keyed on the deleted turns, not "every memory nearby".
+      expect(byId.get('00000000-0000-0000-0003-000000000003')).toBe('normal');
+    });
   });
 
   describe('cleanupOldHistory', () => {
@@ -217,6 +282,51 @@ describe('ConversationRetentionService', () => {
       // Verify recent messages still exist
       const remainingMessages = await prisma.conversationHistory.count();
       expect(remainingMessages).toBe(2);
+    });
+
+    /**
+     * The counterpart to the clearHistory propagation test, and the reason the
+     * propagation is wired per-caller rather than into the batch deleter: LTM is
+     * MEANT to outlive the 30-day conversation window. Propagating here would
+     * quietly delete every memory whose source turn simply got old — the exact
+     * opposite of what long-term memory is for. The trigger is a user asking for
+     * deletion, never the clock.
+     */
+    it('does NOT retire memories when conversation rows merely age out', async () => {
+      const oldDate = new Date();
+      oldDate.setDate(oldDate.getDate() - 100);
+      const discordId = '900000000000000601';
+      await prisma.conversationHistory.create({
+        data: {
+          id: '00000000-0000-0000-0004-000000000001',
+          channelId: testChannelId,
+          personalityId: testPersonalityId,
+          personaId: testPersonaId,
+          role: 'user',
+          content: 'An old turn that ages out on schedule',
+          discordMessageId: [discordId],
+          createdAt: oldDate,
+        },
+      });
+      await prisma.memory.create({
+        data: {
+          id: '00000000-0000-0000-0005-000000000001',
+          personaId: testPersonaId,
+          personalityId: testPersonalityId,
+          content: 'long-term memory of an aged-out turn',
+          senders: ['tester'],
+          messageIds: [discordId],
+        },
+      });
+
+      const count = await service.cleanupOldHistory(30);
+
+      expect(count).toBe(1);
+      const memory = await prisma.memory.findUnique({
+        where: { id: '00000000-0000-0000-0005-000000000001' },
+        select: { visibility: true },
+      });
+      expect(memory?.visibility).toBe('normal');
     });
 
     it('should not delete messages within retention period', async () => {

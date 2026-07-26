@@ -20,6 +20,7 @@ import {
 import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { countTextTokens } from '@tzurot/common-types/utils/tokenCounter';
+import { propagateDeletionToMemories } from './memoryDeletionPropagation.js';
 
 const logger = createLogger('ConversationSyncService');
 
@@ -202,46 +203,6 @@ export class ConversationSyncService {
   }
 
   /**
-   * Propagate source-message deletion to linked long-term memories
-   * (memory-architecture Phase 0, R8: deletion means deletion). Memories carry
-   * the triggering Discord message id in `messageIds`; when that turn is
-   * deleted, the memory is soft-deleted (visibility='deleted' — the same state
-   * the RAG retrieval filter excludes). Locked memories are deliberately
-   * PRESERVED: a user pin is explicit curation that outranks source deletion —
-   * the skip is logged so the tension stays observable. Non-fatal by design:
-   * a propagation failure must never break the sync path.
-   */
-  private async propagateDeletionToMemories(discordMessageIds: string[]): Promise<void> {
-    const ids = discordMessageIds.filter(id => id.length > 0);
-    if (ids.length === 0) {
-      return;
-    }
-    try {
-      const result = await this.prisma.memory.updateMany({
-        where: { messageIds: { hasSome: ids }, visibility: 'normal', isLocked: false },
-        data: { visibility: 'deleted' },
-      });
-      if (result.count > 0) {
-        logger.info(
-          { memoriesDeleted: result.count, sourceMessages: ids.length },
-          'Propagated message deletion to linked memories'
-        );
-      }
-      const lockedRetained = await this.prisma.memory.count({
-        where: { messageIds: { hasSome: ids }, visibility: 'normal', isLocked: true },
-      });
-      if (lockedRetained > 0) {
-        logger.warn(
-          { lockedRetained, sourceMessages: ids.length },
-          'Locked memories retained despite source-message deletion (pin outranks propagation)'
-        );
-      }
-    } catch (error) {
-      logger.error({ err: error }, 'Memory deletion propagation failed (non-fatal)');
-    }
-  }
-
-  /**
    * Bulk soft delete messages
    * Used during opportunistic sync when Discord messages are detected as deleted
    *
@@ -279,7 +240,10 @@ export class ConversationSyncService {
       // first 1000 turns' memories. Current callers (opportunistic sync windows)
       // are far below the bound; revisit with an unbounded id-only fetch if a
       // bulk path ever exceeds it.
-      await this.propagateDeletionToMemories(messages.flatMap(m => m.discordMessageId));
+      await propagateDeletionToMemories(
+        this.prisma,
+        messages.flatMap(m => m.discordMessageId)
+      );
       return messageIds.length;
     } catch (error) {
       logger.error({ err: error, count: messageIds.length }, `Failed to bulk soft delete messages`);
