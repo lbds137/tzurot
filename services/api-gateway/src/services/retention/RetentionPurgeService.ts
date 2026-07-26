@@ -1,44 +1,48 @@
 /**
- * RetentionPurgeService — cohort selection + preview (Retention Phase 2, D2/D3/D4).
+ * RetentionPurgeService — cohort preview + the per-user purge (Phase 2, D2–D5).
  *
- * Owns THE eligibility predicate. D3 requires exactly one, consumed by the
- * preview (this PR), the daily nag, and the purge itself (both PR-D) — so the
- * count the operator reviews can never drift from the set the purge acts on.
+ * The eligibility predicate itself lives in `eligibility.ts` so preview, nag,
+ * and purge provably share one definition (D3) — the count an operator reviews
+ * can never drift from the set the purge acts on.
  *
- * This service is READ-ONLY. It selects and reports; it deletes nothing. The
- * per-user purge (which re-evaluates this same predicate inside its transaction
- * to close the preview→purge TOCTOU window) lands in PR-D.
+ * The purge is PER-USER by design (D2): one account per HTTP call, each within
+ * its own 60s erasure transaction. A per-batch endpoint would blow Railway's
+ * ~60s request timeout partway through and leave a partial, unrecorded purge.
+ * The CLI loops; resuming is simply re-running it, since each purge removes its
+ * own user from the cohort.
  */
 
 import { type PrismaClient } from '@tzurot/common-types/services/prisma';
+import { createLogger } from '@tzurot/common-types/utils/logger';
+import { AccountEraserService, type AccountEraserDeps } from '../AccountEraserService.js';
+import type { AccountDeletionSummary } from '../AccountDeletionService.js';
 import { findCrossUserReachIds } from './crossUserReach.js';
+import {
+  countEligibleUsers,
+  selectEligibleUsers,
+  type PurgeCohortRow,
+  type PurgeReason,
+} from './eligibility.js';
+import { findPendingOffDbRows, recordPurgeFailure, settleOffDb } from './purgeAudit.js';
+
+const logger = createLogger('RetentionPurgeService');
 
 /**
- * The single retention window (epic decision: ONE 180-day window, not the
- * rejected flat-90d). Inactivity is measured from last_active_at, falling back
- * to created_at when the tracking clock never stamped (NULL = "no known
- * activity", never "active now").
- */
-export const RETENTION_WINDOW_DAYS = 180;
-
-/**
- * Cohort share of the userbase that annotates the report with a warning (the
- * Phase-2 circuit breaker is a WARNING, not a halt — the operator sees the
- * batch and decides). The hard ceiling that even --force can't bypass is a
- * purge-time gate and lands with the purge (PR-D).
+ * Cohort share of the userbase that ANNOTATES the report with a warning (the
+ * Phase-2 breaker is a warning, not a halt — the operator sees the batch and
+ * decides).
  */
 export const BREAKER_WARN_FRACTION = 0.15;
 
-/** Why a user is purge-eligible — the two unreachable signals (D13). */
-export type PurgeReason = 'unreachable' | 'account_gone';
-
-export interface PurgeCohortRow {
-  userId: string;
-  discordId: string;
-  /** Effective inactivity anchor: last_active_at ?? created_at. */
-  inactiveSince: Date;
-  reason: PurgeReason;
-}
+/**
+ * Cohort share at which the purge REFUSES to run without an explicit
+ * `breakerOverride`. This is the guard against a tracking-signal glitch
+ * mass-flagging the userbase: `--force` skips the interactive prompt but
+ * deliberately cannot skip this, so a scripted run can never wipe a quarter of
+ * the userbase on one bad flag. Enforced server-side (not only in the CLI) so
+ * the ceiling holds for any caller.
+ */
+export const BREAKER_HARD_FRACTION = 0.25;
 
 export interface RetentionPreviewUser {
   discordId: string;
@@ -65,59 +69,45 @@ export interface RetentionPreview {
   };
 }
 
-interface CohortSqlRow {
-  userId: string;
+/**
+ * Why a purge call did nothing. Every one of these is a NORMAL outcome the CLI
+ * reports and moves past — only an unexpected throw is a failure.
+ */
+export type PurgeSkipReason =
+  /** No user row with that Discord id — already purged, or never existed. */
+  | 'already_gone'
+  /** The predicate no longer holds: they became active since the preview (D4). */
+  | 'no_longer_eligible'
+  /** The cohort exceeds the hard ceiling and no override was given. */
+  | 'breaker_tripped';
+
+export type PurgeOutcome =
+  | { status: 'purged'; discordId: string; charactersDeleted: number; charactersReHomed: number }
+  | { status: 'skipped'; discordId: string; reason: PurgeSkipReason; detail?: string };
+
+export interface PurgeUserOptions {
   discordId: string;
-  inactiveSince: Date;
-  accountGone: boolean;
+  /** Operator/run label recorded in the audit ledger. */
+  runContext: string | null;
+  /** Bypass the hard ceiling. Requires a deliberate, separate operator flag. */
+  breakerOverride?: boolean;
 }
 
 export class RetentionPurgeService {
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(private readonly deps: AccountEraserDeps) {}
 
-  /**
-   * THE eligibility predicate (D4). Unreachable-or-gone AND inactive past the
-   * window AND not the bot owner AND not exempted. `retention_exempt` also
-   * self-excludes the Orphaned-Characters sentinel, so re-homed characters are
-   * never purged out from under the users they were preserved for.
-   *
-   * Unbounded by design: the cohort IS the answer, and truncating it would
-   * under-report the very number the breaker exists to police. The breaker's
-   * percentage annotation is what flags an implausibly large result.
-   */
+  private get prisma(): PrismaClient {
+    return this.deps.prisma;
+  }
+
+  /** THE eligibility predicate (D3/D4) — see `eligibility.ts`. */
   async selectPurgeCohort(): Promise<PurgeCohortRow[]> {
-    const rows = await this.prisma.$queryRaw<CohortSqlRow[]>`
-      SELECT u.id AS "userId",
-             u.discord_id AS "discordId",
-             COALESCE(u.last_active_at, u.created_at) AS "inactiveSince",
-             (u.discord_account_gone_at IS NOT NULL) AS "accountGone"
-      FROM users u
-      WHERE (u.dm_undeliverable_since IS NOT NULL OR u.discord_account_gone_at IS NOT NULL)
-        AND COALESCE(u.last_active_at, u.created_at)
-              < now() - make_interval(days => ${RETENTION_WINDOW_DAYS})
-        AND u.is_superuser = false
-        AND u.retention_exempt = false
-      ORDER BY COALESCE(u.last_active_at, u.created_at) ASC
-    `;
-    return rows.map(row => ({
-      userId: row.userId,
-      discordId: row.discordId,
-      inactiveSince: row.inactiveSince,
-      // A gone account is the stronger signal, so it wins the label when both
-      // are stamped (it also drives the faster purge policy in PR-D).
-      reason: row.accountGone ? 'account_gone' : 'unreachable',
-    }));
+    return selectEligibleUsers(this.prisma);
   }
 
   /**
    * The operator-facing report: who is eligible and what would happen to their
    * characters, with the breaker annotation.
-   *
-   * Walks the cohort per-user for the character split. That is N+1-shaped by
-   * construction, which is fine HERE and only here: the cohort is bounded in
-   * practice (tens of users — a cohort large enough for this to matter is
-   * itself the anomaly the breaker warning exists to surface), and the command
-   * is an interactive, operator-run read.
    */
   async buildPreview(): Promise<RetentionPreview> {
     // Denominator is ALL users, deliberately — including the handful that can
@@ -130,15 +120,16 @@ export class RetentionPurgeService {
       this.prisma.user.count(),
     ]);
 
-    const users: RetentionPreviewUser[] = [];
-    for (const row of cohort) {
-      users.push({
+    // Concurrent, not sequential: the daily nag calls this on a schedule, so a
+    // per-user round-trip chain would put the whole cohort's latency on a timer.
+    const users: RetentionPreviewUser[] = await Promise.all(
+      cohort.map(async row => ({
         discordId: row.discordId,
         inactiveSince: row.inactiveSince.toISOString(),
         reason: row.reason,
         ownedCharacters: await this.splitOwnedCharacters(row.userId),
-      });
-    }
+      }))
+    );
 
     const charactersToDelete = users.reduce((sum, u) => sum + u.ownedCharacters.toDelete, 0);
     const charactersToReHome = users.reduce((sum, u) => sum + u.ownedCharacters.toReHome, 0);
@@ -156,6 +147,148 @@ export class RetentionPurgeService {
         breakerWarning: userbaseCount > 0 && users.length / userbaseCount > BREAKER_WARN_FRACTION,
       },
     };
+  }
+
+  /**
+   * Purge ONE account (D2). Idempotent: a user who is already gone, or who no
+   * longer satisfies the predicate, is reported as skipped rather than as an
+   * error — the CLI loop must be safe to re-run after any interruption.
+   *
+   * The TOCTOU re-check (D4) is NOT here: it runs inside the erasure
+   * transaction, because any check out here would reopen the window it closes.
+   */
+  async purgeUser(options: PurgeUserOptions): Promise<PurgeOutcome> {
+    const { discordId, runContext, breakerOverride = false } = options;
+
+    // Existence first, THEN the ceiling. The order matters for the reported
+    // reason, not for safety: a target that no longer exists has nothing to
+    // erase, so answering `breaker_tripped` would be actively misleading about
+    // why nothing happened. The ceiling still gates every actual deletion —
+    // this lookup is a read, so "no erasure without passing the breaker" holds
+    // either way. It also skips two COUNT(*)s on a no-op call.
+    const user = await this.prisma.user.findUnique({
+      where: { discordId },
+      select: { id: true },
+    });
+    if (user === null) {
+      return { status: 'skipped', discordId, reason: 'already_gone' };
+    }
+
+    if (!breakerOverride) {
+      const tripped = await this.checkHardCeiling();
+      if (tripped !== null) {
+        return { status: 'skipped', discordId, reason: 'breaker_tripped', detail: tripped };
+      }
+    }
+
+    const summary = await this.eraseAndAudit(user.id, discordId, runContext);
+    if (summary === null) {
+      // The in-transaction re-check found them active again and rolled back.
+      return { status: 'skipped', discordId, reason: 'no_longer_eligible' };
+    }
+
+    logger.warn(
+      { discordId, runContext, charactersDeleted: summary.characters },
+      'RETENTION PURGE COMPLETED'
+    );
+    return {
+      status: 'purged',
+      discordId,
+      charactersDeleted: summary.characters,
+      charactersReHomed: summary.charactersReHomed,
+    };
+  }
+
+  /**
+   * Run the erasure, and record a `failed` ledger row if it throws.
+   *
+   * The success row is written INSIDE the erasure transaction (D14), which is
+   * exactly why the failure row cannot be: that transaction rolled back, taking
+   * any row written in it along. Without this, an erasure that dies for an
+   * unexpected reason — a transaction timeout on a large account, a lost
+   * connection — leaves the ledger claiming no attempt was ever made.
+   *
+   * A rolled-back purge deleted nothing, so this is forensics rather than
+   * correctness; it is here because the one operation where "what did we try to
+   * do, and when" matters most is the one that erases accounts.
+   *
+   * NOT recorded: the TOCTOU abort, which the eraser reports as `null` rather
+   * than a throw. That one is a routine, expected outcome of a resumable loop —
+   * logging it would fill the ledger with non-events.
+   */
+  private async eraseAndAudit(
+    userId: string,
+    discordId: string,
+    runContext: string | null
+  ): Promise<AccountDeletionSummary | null> {
+    try {
+      return await new AccountEraserService(this.deps).erase({
+        userId,
+        discordUserId: discordId,
+        mode: 'retention',
+        runContext,
+      });
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : 'Unknown error';
+      try {
+        await recordPurgeFailure(this.prisma, discordId, runContext, reason);
+      } catch (auditError) {
+        // Never let the ledger write mask the real failure — the caller needs
+        // the original error, and a swallowed audit write is the lesser loss.
+        logger.error({ err: auditError, discordId }, 'Failed to record purge failure');
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Retry the off-DB cleanup for every ledger row that still owes it (D15).
+   * Returns how many rows were settled and how many are still failing.
+   */
+  async reconcileOffDb(): Promise<{ settled: number; stillFailing: number }> {
+    const pending = await findPendingOffDbRows(this.prisma);
+    const eraser = new AccountEraserService(this.deps);
+    let settled = 0;
+    let stillFailing = 0;
+    for (const row of pending) {
+      // characterIds is empty by design: cache invalidation is not replayed.
+      // Those caches expire on their own (~1h), so by the time a sweep runs the
+      // broadcast would be a no-op — only the avatar unlink is worth retrying.
+      const ok = await eraser.cleanupOffDb(row.targetDiscordId, {
+        characterSlugs: row.characterSlugs,
+        characterIds: [],
+      });
+      await settleOffDb(this.prisma, row.id, ok ? 'done' : 'failed');
+      if (ok) {
+        settled += 1;
+      } else {
+        stillFailing += 1;
+        logger.warn({ logId: row.id }, 'Off-DB reconciliation retry still failing');
+      }
+    }
+    return { settled, stillFailing };
+  }
+
+  /**
+   * The hard-ceiling gate. Returns a human-readable reason when the current
+   * cohort is too large a share of the userbase to purge unattended, or null
+   * when the run may proceed.
+   */
+  private async checkHardCeiling(): Promise<string | null> {
+    const [eligibleCount, userbaseCount] = await Promise.all([
+      countEligibleUsers(this.prisma),
+      this.prisma.user.count(),
+    ]);
+    if (userbaseCount === 0 || eligibleCount / userbaseCount <= BREAKER_HARD_FRACTION) {
+      return null;
+    }
+    const percent = Math.round((eligibleCount / userbaseCount) * 1000) / 10;
+    return (
+      `Circuit breaker: ${String(eligibleCount)} of ${String(userbaseCount)} users ` +
+      `(${String(percent)}%) are purge-eligible, above the ` +
+      `${String(BREAKER_HARD_FRACTION * 100)}% ceiling. Confirm this is real churn ` +
+      'and not a tracking-signal glitch, then re-run with --breaker-override.'
+    );
   }
 
   /** Owned characters split by the same reach signal the purge acts on (D11). */

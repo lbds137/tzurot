@@ -272,6 +272,29 @@ export class ServiceClient {
     });
   }
 
+  async retentionPurge(input: z.input<typeof ROUTE_MANIFEST.retentionPurge.input>): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.retentionPurge.output>>> {
+    const fullPath = '/api/internal/retention/purge';
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'POST',
+      path: fullPath,
+      body: input,
+      outputSchema: ROUTE_MANIFEST.retentionPurge.output,
+    });
+  }
+
+  async retentionReconcileOffDb(): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.retentionReconcileOffDb.output>>> {
+    const fullPath = '/api/internal/retention/reconcile-off-db';
+    return callGateway({
+      baseUrl: this.baseUrl,
+      serviceSecret: this.serviceSecret,
+      method: 'POST',
+      path: fullPath,
+      outputSchema: ROUTE_MANIFEST.retentionReconcileOffDb.output,
+    });
+  }
+
   /**
    * @safeRead Server-side has no observable mutation — safe to cache client-side.
    */

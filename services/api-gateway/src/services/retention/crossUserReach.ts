@@ -25,6 +25,14 @@ import { type Prisma } from '@tzurot/common-types/services/prisma';
  * personality-scoped tables (council). The INNER JOINs drop world/orphan rows
  * with a null `persona_id` — reach is about another USER, not un-owned content.
  *
+ * The fourth arm covers an EXPLICIT grant rather than accumulated activity: a
+ * `personality_owners` row naming someone other than the owner. Inert today
+ * (the sole writer inserts `userId === ownerId`, a self-duplicate of
+ * `personality.ownerId`), but the moment real co-ownership grants exist, a
+ * co-owner who simply hadn't chatted yet would otherwise have their character
+ * DELETED by the purge rather than re-homed — silently revoking live access.
+ * The activity arms cannot see that; only the grant can.
+ *
  * Accepts a transaction client OR a plain `PrismaClient` (the latter is
  * assignable to `Prisma.TransactionClient`), so the eraser can call it inside
  * its deletion transaction and the preview can call it on the base client.
@@ -51,6 +59,9 @@ export async function findCrossUserReachIds(
       SELECT f.personality_id FROM memory_facts f
         JOIN personas p ON f.persona_id = p.id
         WHERE f.personality_id = ANY(${ownedIds}::uuid[]) AND p.owner_id != ${userId}::uuid
+      UNION ALL
+      SELECT po.personality_id FROM personality_owners po
+        WHERE po.personality_id = ANY(${ownedIds}::uuid[]) AND po.user_id != ${userId}::uuid
     ) reach
   `;
   return rows.map(row => row.personalityId);

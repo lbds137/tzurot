@@ -42,4 +42,44 @@ export function registerRetentionCommands(cli: CAC): void {
       const { retentionPreview } = await import('../retention/preview.js');
       await retentionPreview({ env: options.env ?? 'dev' });
     });
+
+  cli
+    .command('retention:purge', 'ERASE the purge-eligible cohort, one account per call')
+    .option(ENV_OPTION, ENV_OPTION_DESC, ENV_OPTION_DEFAULT)
+    .option('--dry-run', 'Report the cohort without erasing anything (same as retention:preview)')
+    .option('--force', FORCE_OPTION_DESC)
+    .option('--exclude <ids>', 'Comma-separated Discord IDs to skip for this run only')
+    // Deliberately NOT covered by --force: --force asserts the operator is
+    // present, which says nothing about whether an implausibly large cohort is
+    // real churn or a tracking-signal glitch.
+    .option('--breaker-override', 'Proceed even though the cohort exceeds the safety ceiling')
+    .action(
+      async (options: {
+        env?: Environment;
+        dryRun?: boolean;
+        force?: boolean;
+        exclude?: string;
+        breakerOverride?: boolean;
+      }) => {
+        const { retentionPurge } = await import('../retention/purge.js');
+        await retentionPurge({
+          env: options.env ?? 'dev',
+          dryRun: options.dryRun,
+          force: options.force,
+          exclude: options.exclude,
+          breakerOverride: options.breakerOverride,
+        });
+      }
+    );
+
+  cli
+    .command(
+      'retention:reconcile-off-db',
+      'Retry avatar cleanup a completed purge still owes (idempotent)'
+    )
+    .option(ENV_OPTION, ENV_OPTION_DESC, ENV_OPTION_DEFAULT)
+    .action(async (options: { env?: Environment }) => {
+      const { retentionReconcileOffDb } = await import('../retention/reconcile-off-db.js');
+      await retentionReconcileOffDb({ env: options.env ?? 'dev' });
+    });
 }

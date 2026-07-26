@@ -98,3 +98,22 @@ export function getServiceClientForEnv(env: Environment): ServiceClient {
     serviceSecret: requireVar(vars, ['INTERNAL_SERVICE_SECRET'], env),
   });
 }
+
+/**
+ * Resolve the service client for a CLI command, reporting failure the way a
+ * command should: a red one-liner and a nonzero exit code, not an unhandled
+ * rejection. Returns null when the caller should stop.
+ *
+ * Credential resolution genuinely fails in normal operation (Railway CLI not
+ * logged in, a missing variable), so every gateway-backed command needs this
+ * same guard — extracted so they cannot drift into handling it differently.
+ */
+export function resolveServiceClientOrExit(env: Environment): ServiceClient | null {
+  try {
+    return getServiceClientForEnv(env);
+  } catch (error) {
+    console.error(chalk.red(`\n${error instanceof Error ? error.message : 'Unknown error'}`));
+    process.exitCode = 1;
+    return null;
+  }
+}

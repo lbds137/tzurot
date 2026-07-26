@@ -44,7 +44,7 @@ describe('POST /internal/users/activity', () => {
     );
   });
 
-  it('stamps last_active_at + clears dm_undeliverable_since by discord_id, off updated_at', async () => {
+  it('stamps last_active_at + clears both unreachability flags by discord_id, off updated_at', async () => {
     mockPrisma.$executeRaw.mockResolvedValue(1); // one row updated
 
     const response = await request(app)
@@ -59,7 +59,10 @@ describe('POST /internal/users/activity', () => {
     const [template, discordId] = mockPrisma.$executeRaw.mock.calls[0] as [string[], string];
     const sql = template.join('');
     expect(sql).toContain('last_active_at');
-    expect(sql).toContain('dm_undeliverable_since');
+    expect(sql).toContain('dm_undeliverable_since = NULL');
+    // Nothing else clears the gone-flag, so a live user who was mis-stamped
+    // with Discord 10013 relies on exactly this write to become un-purgeable.
+    expect(sql).toContain('discord_account_gone_at = NULL');
     expect(sql).toContain('discord_id');
     expect(sql).not.toContain('updated_at');
     expect(discordId).toBe(VALID_DISCORD_ID);

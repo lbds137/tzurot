@@ -48,6 +48,8 @@ import { handleRoutingContextCreate } from '../internal/routingContextCreate.js'
 import { handleRecentUsers } from '../internal/usersRecent.js';
 import { handleSecretRotationStatus } from '../internal/secretRotationStatus.js';
 import { handleRetentionPreview } from '../internal/retentionPreview.js';
+import { handleRetentionPurge } from '../internal/retentionPurge.js';
+import { handleRetentionReconcileOffDb } from '../internal/retentionReconcileOffDb.js';
 import { handleGetModels } from '../internal/models.js';
 import { handleGetDenylistCache, handleAddDenylistEntry, handleListDenylistEntries, handleRemoveDenylistEntry } from '../admin/denylist.js';
 import { handleUpdateDiagnosticResponseIds, handleGetRecentDiagnostics, handleGetDiagnosticByMessage, handleGetDiagnosticByResponse, handleGetDiagnosticByRequestId } from '../admin/diagnostic.js';
@@ -127,6 +129,8 @@ export function mountInternalRoutes(app: Express, deps: RouteDeps): void {
   app.get('/api/internal/users/recent', handleRecentUsers(deps));
   app.get('/api/internal/secret-rotations', handleSecretRotationStatus(deps));
   app.get('/api/internal/retention/preview', handleRetentionPreview(deps));
+  app.post('/api/internal/retention/purge', handleRetentionPurge(deps));
+  app.post('/api/internal/retention/reconcile-off-db', handleRetentionReconcileOffDb(deps));
   app.get('/api/internal/models', handleGetModels(deps));
   app.get('/api/internal/denylist/cache', handleGetDenylistCache(deps));
   app.get('/api/internal/admin-settings', handleGetAdminSettings(deps));

@@ -26,7 +26,7 @@ describe('findCrossUserReachIds', () => {
     expect(queryRaw).not.toHaveBeenCalled();
   });
 
-  it('spans all three personality-scoped tables and excludes the owner themself', async () => {
+  it('spans all four reach sources and excludes the owner themself', async () => {
     const { db, queryRaw } = makeDb([]);
 
     await findCrossUserReachIds(db, 'user-1', ['x1']);
@@ -37,8 +37,18 @@ describe('findCrossUserReachIds', () => {
     expect(sql).toContain('FROM memories m');
     expect(sql).toContain('FROM conversation_history ch');
     expect(sql).toContain('FROM memory_facts f');
+    // The fourth arm is an explicit GRANT rather than accumulated activity. It
+    // is inert today (the only writer inserts userId === ownerId), which is
+    // exactly why it needs pinning: nothing in production would surface a
+    // regression here until real co-ownership ships, at which point losing this
+    // arm means a co-owner's character gets DELETED instead of re-homed.
+    expect(sql).toContain('FROM personality_owners po');
     // Reach is about ANOTHER user — the owner's own rows must not count.
     expect(sql).toContain('p.owner_id != ');
+    // The grant arm needs its own inequality: it joins no persona, so the
+    // `p.owner_id !=` above does not constrain it. A `=` here would invert the
+    // arm into "re-home only the owner's self-grant", i.e. re-home nothing.
+    expect(sql).toContain('po.user_id != ');
     // INNER JOINs drop null-persona (world) rows: un-owned content isn't reach.
     expect(sql).toContain('JOIN personas p');
     // The departed user's id and the owned ids cross the seam as bound values.
