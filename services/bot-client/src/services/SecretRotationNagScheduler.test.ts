@@ -16,7 +16,7 @@ vi.mock('../utils/ownerChannel.js', () => ({
   postOwnerChannelEmbed: (...args: unknown[]) => mockPostOwnerChannelEmbed(...args),
 }));
 
-import { runCheck } from './SecretRotationNagScheduler.js';
+import { runSecretRotationNagCheck } from './SecretRotationNagScheduler.js';
 
 const OVERDUE_ENTRY = {
   name: 'byok-encryption-key',
@@ -34,7 +34,7 @@ function makeRedis(cooldownValue: string | null): Redis {
 
 const client = {} as Client;
 
-describe('SecretRotationNagScheduler runCheck', () => {
+describe('SecretRotationNagScheduler runSecretRotationNagCheck', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockPostOwnerChannelEmbed.mockResolvedValue(undefined);
@@ -51,7 +51,7 @@ describe('SecretRotationNagScheduler runCheck', () => {
     });
     const redis = makeRedis(null);
 
-    await runCheck(client, redis);
+    await runSecretRotationNagCheck(client, redis);
 
     expect(mockPostOwnerChannelEmbed).toHaveBeenCalledTimes(1);
     // Seam assertion: the cooldown key is what makes the nag at-most-weekly
@@ -70,7 +70,7 @@ describe('SecretRotationNagScheduler runCheck', () => {
     });
     const redis = makeRedis('2026-07-15T00:00:00.000Z');
 
-    await runCheck(client, redis);
+    await runSecretRotationNagCheck(client, redis);
 
     expect(mockPostOwnerChannelEmbed).not.toHaveBeenCalled();
     expect(redis.setex).not.toHaveBeenCalled();
@@ -86,7 +86,7 @@ describe('SecretRotationNagScheduler runCheck', () => {
     });
     const redis = makeRedis(null);
 
-    await runCheck(client, redis);
+    await runSecretRotationNagCheck(client, redis);
 
     expect(redis.get).not.toHaveBeenCalled();
     expect(mockPostOwnerChannelEmbed).not.toHaveBeenCalled();
@@ -96,7 +96,7 @@ describe('SecretRotationNagScheduler runCheck', () => {
     mockSecretRotationStatus.mockResolvedValue({ ok: false, error: 'gateway down' });
     const redis = makeRedis(null);
 
-    await expect(runCheck(client, redis)).resolves.toBeUndefined();
+    await expect(runSecretRotationNagCheck(client, redis)).resolves.toBeUndefined();
     expect(mockPostOwnerChannelEmbed).not.toHaveBeenCalled();
   });
 
@@ -104,6 +104,6 @@ describe('SecretRotationNagScheduler runCheck', () => {
     mockSecretRotationStatus.mockRejectedValue(new Error('network'));
     const redis = makeRedis(null);
 
-    await expect(runCheck(client, redis)).resolves.toBeUndefined();
+    await expect(runSecretRotationNagCheck(client, redis)).resolves.toBeUndefined();
   });
 });
