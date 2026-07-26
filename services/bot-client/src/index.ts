@@ -73,6 +73,10 @@ import {
   stopSecretRotationNagScheduler,
 } from './services/SecretRotationNagScheduler.js';
 import {
+  startRetentionNagScheduler,
+  stopRetentionNagScheduler,
+} from './services/RetentionNagScheduler.js';
+import {
   validateDiscordToken,
   validateRedisUrl,
   validateInternalServiceSecret,
@@ -553,6 +557,10 @@ client.once(Events.ClientReady, () => {
   // cooldown; see SecretRotationNagScheduler for the restart-cadence design).
   startSecretRotationNagScheduler(client, services.cacheRedis);
 
+  // Daily retention purge-eligibility check → owner-channel nag (same
+  // restart-friendly cadence; nothing purges automatically in Phase 2).
+  startRetentionNagScheduler(client, services.cacheRedis);
+
   // Restore saved bot presence from Redis
   void restoreBotPresence(client).catch(err => logger.warn({ err }, 'Failed to restore presence'));
 
@@ -625,6 +633,7 @@ async function disposeBotClient(): Promise<void> {
     stopNotificationCacheCleanup();
     stopVerificationCleanupScheduler();
     stopSecretRotationNagScheduler();
+    stopRetentionNagScheduler();
     // ioredis Redis#disconnect is synchronous (returns void) — kept outside
     // the awaited Promise.all because there's no Promise to await.
     services.cacheRedis.disconnect();

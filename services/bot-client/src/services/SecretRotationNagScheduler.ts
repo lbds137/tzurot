@@ -17,6 +17,7 @@ import { EmbedBuilder, type Client } from 'discord.js';
 import type { Redis } from 'ioredis';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { getServiceClient } from '../utils/gatewayClients.js';
+import { createIntervalScheduler } from '../utils/intervalScheduler.js';
 import { postOwnerChannelEmbed } from '../utils/ownerChannel.js';
 
 const logger = createLogger('secret-rotation-nag');
@@ -27,37 +28,25 @@ const STARTUP_DELAY_MS = 60_000;
 const NAG_COOLDOWN_SECONDS = 7 * 24 * 60 * 60;
 const COOLDOWN_KEY = 'secret-rotation-nag:cooldown';
 
-let checkInterval: ReturnType<typeof setInterval> | null = null;
+const scheduler = createIntervalScheduler<[Client, Redis]>({
+  intervalMs: CHECK_INTERVAL_MS,
+  startupDelayMs: STARTUP_DELAY_MS,
+  logger,
+  run: (client, redis) => runSecretRotationNagCheck(client, redis),
+});
 
 /** Start the daily overdue check (call once from the composition root). */
 export function startSecretRotationNagScheduler(client: Client, redis: Redis): void {
-  if (checkInterval !== null) {
-    logger.warn('Scheduler already running');
-    return;
-  }
-
-  checkInterval = setInterval(() => {
-    void runCheck(client, redis);
-  }, CHECK_INTERVAL_MS);
-
-  setTimeout(() => {
-    void runCheck(client, redis);
-  }, STARTUP_DELAY_MS);
-
-  logger.info({ intervalHours: CHECK_INTERVAL_MS / (60 * 60 * 1000) }, 'Started rotation nag');
+  scheduler.start(client, redis);
 }
 
 /** Stop the scheduler (graceful shutdown). */
 export function stopSecretRotationNagScheduler(): void {
-  if (checkInterval !== null) {
-    clearInterval(checkInterval);
-    checkInterval = null;
-    logger.info('Stopped rotation nag');
-  }
+  scheduler.stop();
 }
 
 /** Exported for tests — one full check cycle. */
-export async function runCheck(client: Client, redis: Redis): Promise<void> {
+export async function runSecretRotationNagCheck(client: Client, redis: Redis): Promise<void> {
   try {
     const result = await getServiceClient().secretRotationStatus();
     if (!result.ok) {

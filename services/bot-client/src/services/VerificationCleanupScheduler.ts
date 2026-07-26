@@ -7,6 +7,7 @@
  */
 
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { createIntervalScheduler } from '../utils/intervalScheduler.js';
 import { getVerificationCleanupService } from './VerificationCleanupService.js';
 
 const logger = createLogger('verification-cleanup-scheduler');
@@ -14,32 +15,22 @@ const logger = createLogger('verification-cleanup-scheduler');
 /** Run cleanup every 6 hours */
 const CLEANUP_INTERVAL_MS = 6 * 60 * 60 * 1000;
 
-let cleanupInterval: ReturnType<typeof setInterval> | null = null;
+/** Delay the startup run until the Discord client is fully ready. */
+const STARTUP_DELAY_MS = 30_000;
+
+const scheduler = createIntervalScheduler({
+  intervalMs: CLEANUP_INTERVAL_MS,
+  startupDelayMs: STARTUP_DELAY_MS,
+  logger,
+  run: () => runCleanup(),
+});
 
 /**
  * Start the scheduled cleanup
  * Called after Discord client and cleanup service are initialized
  */
 export function startVerificationCleanupScheduler(): void {
-  if (cleanupInterval !== null) {
-    logger.warn('Scheduler already running');
-    return;
-  }
-
-  // Run cleanup every 6 hours
-  cleanupInterval = setInterval(() => {
-    void runCleanup();
-  }, CLEANUP_INTERVAL_MS);
-
-  // Run once immediately on startup (after a short delay to ensure everything is ready)
-  setTimeout(() => {
-    void runCleanup();
-  }, 30000); // 30 second delay
-
-  logger.info(
-    { intervalHours: CLEANUP_INTERVAL_MS / (60 * 60 * 1000) },
-    'Started scheduled cleanup'
-  );
+  scheduler.start();
 }
 
 /**
@@ -47,11 +38,7 @@ export function startVerificationCleanupScheduler(): void {
  * Called during graceful shutdown
  */
 export function stopVerificationCleanupScheduler(): void {
-  if (cleanupInterval !== null) {
-    clearInterval(cleanupInterval);
-    cleanupInterval = null;
-    logger.info('Stopped scheduled cleanup');
-  }
+  scheduler.stop();
 }
 
 /**
