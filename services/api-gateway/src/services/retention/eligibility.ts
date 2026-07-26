@@ -30,10 +30,12 @@ import { RETENTION_POLICY } from '@tzurot/common-types/constants/retention';
 const { WINDOW_DAYS: RETENTION_WINDOW_DAYS, GRACE_PERIOD_DAYS } = RETENTION_POLICY;
 
 /**
- * Why a user is purge-eligible: the two unreachable signals (D13), or a
- * warning-notice grace window that expired with no activity (Phase 3).
+ * Why a user is purge-eligible: the two unreachable signals (D13), a
+ * warning-notice grace window that expired with no activity (Phase 3), or a
+ * bystander-shaped account that never deliberately used the bot (owner call:
+ * such rows purge WITHOUT notice — see DELIBERATE_USE).
  */
-export type PurgeReason = 'unreachable' | 'account_gone' | 'grace_expired';
+export type PurgeReason = 'unreachable' | 'account_gone' | 'grace_expired' | 'bystander';
 
 export interface PurgeCohortRow {
   userId: string;
@@ -49,7 +51,41 @@ interface CohortSqlRow {
   inactiveSince: Date;
   accountGone: boolean;
   unreachable: boolean;
+  wasNotified: boolean;
 }
+
+/**
+ * Evidence the account DELIBERATELY used the bot, as opposed to a bystander
+ * row auto-provisioned because someone spoke in a channel the bot could see.
+ * The distinction decides notice-vs-silent handling (owner call, prod-measured:
+ * 32 of the first notify cohort's 53 were bystander-shaped):
+ *
+ *   - DELIBERATE + inactive → warning DM + 30-day grace (the notice protects
+ *     content someone chose to create with us).
+ *   - BYSTANDER + inactive → purge without notice. Their rows are collected
+ *     context ABOUT them, there is nothing to export, and a deletion notice
+ *     from a bot they never talked to is spam-report surface, not information
+ *     (the beta.174 cold-DM class).
+ *
+ * Any arm's evidence appearing later (they run a command, generate, add a key)
+ * also bumps last_active_at, so a bystander who becomes a user exits the
+ * window entirely before this fragment ever reclassifies them.
+ *
+ * The personality_owners arm covers an EXPLICIT co-ownership grant, mirroring
+ * findCrossUserReachIds' fourth arm: inert today (the sole writer inserts
+ * userId === ownerId, a self-duplicate of the owner_id arm above), but the
+ * moment real grants exist, a co-owner who never chatted must not be
+ * classified bystander and silently erased — holding a granted character is
+ * direct use the activity arms cannot see.
+ */
+const DELIBERATE_USE = Prisma.sql`(
+      u.notify_opted_in_at IS NOT NULL
+      OR EXISTS (SELECT 1 FROM usage_logs ul WHERE ul.user_id = u.id)
+      OR EXISTS (SELECT 1 FROM personalities p WHERE p.owner_id = u.id)
+      OR EXISTS (SELECT 1 FROM personality_owners po WHERE po.user_id = u.id)
+      OR EXISTS (SELECT 1 FROM user_api_keys k WHERE k.user_id = u.id)
+      OR (SELECT count(*) FROM personas pe WHERE pe.owner_id = u.id) > 1
+)`;
 
 /**
  * The eligibility conditions, over an aliased `users u`.
@@ -61,11 +97,21 @@ interface CohortSqlRow {
  * exist when it was written, and 10013's false-positive rate has never been
  * measured. The clear ships alongside this (see the activity-stamp sites);
  * the fast-track stays unbuilt until the flag has run with a clearer.
+ *
+ * The bystander arm is gated on never-notified: a served notice makes the
+ * 30-day grace floor UNCONDITIONAL. Without the gate, deliberate-use evidence
+ * vanishing through a non-user path (a future usage_logs TTL prune, admin
+ * cleanup, moderation removal) would purge a mid-grace user early via the
+ * bystander arm — mislabeled grace_expired. The gate costs nothing for real
+ * bystanders (never deliberate → never notified, since NOTIFY_CONDITIONS
+ * requires deliberate use) and turns the cross-module activity-clear
+ * assumption into a SQL guarantee.
  */
 const ELIGIBILITY_CONDITIONS = Prisma.sql`
       (u.dm_undeliverable_since IS NOT NULL
        OR u.discord_account_gone_at IS NOT NULL
-       OR u.retention_notified_at < now() - make_interval(days => ${GRACE_PERIOD_DAYS}))
+       OR u.retention_notified_at < now() - make_interval(days => ${GRACE_PERIOD_DAYS})
+       OR (NOT ${DELIBERATE_USE} AND u.retention_notified_at IS NULL))
   AND COALESCE(u.last_active_at, u.created_at)
         < now() - make_interval(days => ${RETENTION_WINDOW_DAYS})
   AND u.is_superuser = false
@@ -84,6 +130,7 @@ const NOTIFY_CONDITIONS = Prisma.sql`
       u.dm_undeliverable_since IS NULL
   AND u.discord_account_gone_at IS NULL
   AND u.retention_notified_at IS NULL
+  AND ${DELIBERATE_USE}
   AND COALESCE(u.last_active_at, u.created_at)
         < now() - make_interval(days => ${RETENTION_WINDOW_DAYS})
   AND u.is_superuser = false
@@ -97,10 +144,25 @@ function toCohortRow(row: CohortSqlRow): PurgeCohortRow {
     discordId: row.discordId,
     inactiveSince: row.inactiveSince,
     // Label precedence mirrors signal strength: a gone account beats
-    // unreachable, and either unreachable stamp beats grace_expired (a user
-    // whose notice bounced later carries both a grace clock and the stamp the
-    // bounce wrote — the stamp is the operative reason).
-    reason: row.accountGone ? 'account_gone' : row.unreachable ? 'unreachable' : 'grace_expired',
+    // unreachable, either unreachable stamp beats the two reachable reasons (a
+    // user whose notice bounced carries both a grace clock and the stamp the
+    // bounce wrote — the stamp is the operative reason), and a served notice
+    // beats bystander (grace_expired implies the account was deliberate when
+    // warned). That last implication depends on the activity-clear in
+    // UserService.getOrCreateUser: any evidence-losing action (deleting a key,
+    // character, or persona) is itself authenticated activity, which resets
+    // last_active_at AND clears retention_notified_at — so a stale
+    // notified-but-no-longer-deliberate row cannot exist. That argument assumes
+    // evidence leaves only via the user's own authenticated actions; no code
+    // path removes another user's deliberate-use evidence involuntarily (purge
+    // re-homing only touches the purged owner's rows).
+    reason: row.accountGone
+      ? 'account_gone'
+      : row.unreachable
+        ? 'unreachable'
+        : row.wasNotified
+          ? 'grace_expired'
+          : 'bystander',
   };
 }
 
@@ -117,7 +179,8 @@ export async function selectEligibleUsers(db: Prisma.TransactionClient): Promise
            u.discord_id AS "discordId",
            COALESCE(u.last_active_at, u.created_at) AS "inactiveSince",
            (u.discord_account_gone_at IS NOT NULL) AS "accountGone",
-           (u.dm_undeliverable_since IS NOT NULL) AS "unreachable"
+           (u.dm_undeliverable_since IS NOT NULL) AS "unreachable",
+           (u.retention_notified_at IS NOT NULL) AS "wasNotified"
     FROM users u
     WHERE ${ELIGIBILITY_CONDITIONS}
     ORDER BY COALESCE(u.last_active_at, u.created_at) ASC

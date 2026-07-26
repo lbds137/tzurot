@@ -63,6 +63,7 @@ export function buildRetentionNagEmbed(preview: RetentionPreviewResponse): Embed
     account_gone: 'account deleted',
     unreachable: 'unreachable',
     grace_expired: 'grace expired',
+    bystander: 'never used directly',
   } as const;
 
   const lines = users
@@ -76,9 +77,13 @@ export function buildRetentionNagEmbed(preview: RetentionPreviewResponse): Embed
     lines.push(`…and ${String(users.length - MAX_LISTED_USERS)} more (see the preview CLI)`);
   }
 
+  const bystanderNote =
+    totals.bystander > 0
+      ? ` (${String(totals.bystander)} never used the bot directly — no notice owed)`
+      : '';
   const summary =
     `**${String(totals.eligibleCount)}** of ${String(totals.userbaseCount)} users ` +
-    `(${String(totals.percentOfUserbase)}%) are purge-eligible. ` +
+    `(${String(totals.percentOfUserbase)}%) are purge-eligible${bystanderNote}. ` +
     `Characters: ${String(totals.charactersToDelete)} would be deleted, ` +
     `${String(totals.charactersToReHome)} re-homed to the Orphaned Characters bucket.`;
 

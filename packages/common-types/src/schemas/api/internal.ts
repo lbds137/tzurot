@@ -308,10 +308,11 @@ export const RetentionPreviewUserSchema = z.object({
   inactiveSince: z.string().datetime(),
   /**
    * Label precedence mirrors signal strength: `account_gone` (Discord 10013)
-   * beats `unreachable`, which beats `grace_expired` (the Phase-3 reachable
-   * branch: warned, then silent through the whole grace window).
+   * beats `unreachable`, which beats the reachable reasons — `grace_expired`
+   * (warned, then silent through the whole grace window) and `bystander`
+   * (never deliberately used the bot; purged without notice by owner call).
    */
-  reason: z.enum(['unreachable', 'account_gone', 'grace_expired']),
+  reason: z.enum(['unreachable', 'account_gone', 'grace_expired', 'bystander']),
   ownedCharacters: z.object({
     /** Nobody else has data on them — deleted with the account. */
     toDelete: z.number().int().nonnegative(),
@@ -337,6 +338,8 @@ export const RetentionPreviewResponseSchema = z.object({
     inGrace: z.number().int().nonnegative(),
     /** Warned, window expired, still silent — the grace_expired purge subset. */
     graceExpired: z.number().int().nonnegative(),
+    /** Never deliberately used the bot — the silent-purge subset of the cohort. */
+    bystander: z.number().int().nonnegative(),
   }),
 });
 

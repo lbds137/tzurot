@@ -34,6 +34,9 @@ const NEVER_STAMPED_YOUNG = 'c0407000-0000-4000-8000-000000000007';
 const GRACE_EXPIRED_USER = 'c0407000-0000-4000-8000-000000000008';
 const IN_GRACE_USER = 'c0407000-0000-4000-8000-000000000009';
 const MID_GRACE_BUT_BOUNCED = 'c0407000-0000-4000-8000-00000000000a';
+const BYSTANDER = 'c0407000-0000-4000-8000-00000000000b';
+const CO_OWNER = 'c0407000-0000-4000-8000-00000000000c';
+const NOTIFIED_EVIDENCE_LOST = 'c0407000-0000-4000-8000-00000000000d';
 
 const PERSONALITY_SHARED = 'c0407000-0000-4000-8000-0000000000a1';
 const PERSONALITY_SOLO = 'c0407000-0000-4000-8000-0000000000a2';
@@ -77,6 +80,9 @@ describe('RetentionPurgeService (component, PGLite)', () => {
       [GRACE_EXPIRED_USER, 'graceexpired'],
       [IN_GRACE_USER, 'ingrace'],
       [MID_GRACE_BUT_BOUNCED, 'gracebounced'],
+      [BYSTANDER, 'bystanderrow'],
+      [CO_OWNER, 'coownergrant'],
+      [NOTIFIED_EVIDENCE_LOST, 'gracefloor'],
     ] as const) {
       await seed(id, name);
     }
@@ -104,9 +110,29 @@ describe('RetentionPurgeService (component, PGLite)', () => {
       UPDATE users SET dm_undeliverable_since = ${OLD}, last_active_at = ${RECENT}
       WHERE id = ${ACTIVE_RECENTLY}::uuid
     `;
-    // Inactive but REACHABLE → excluded (Phase 2 is the unreachable branch only).
+    // Inactive but REACHABLE and DELIBERATE (opted-in stamp) → the notify
+    // cohort, never the silent-purge arm.
     await prisma.$executeRaw`
-      UPDATE users SET last_active_at = ${OLD} WHERE id = ${REACHABLE}::uuid
+      UPDATE users SET last_active_at = ${OLD}, notify_opted_in_at = ${OLD}
+      WHERE id = ${REACHABLE}::uuid
+    `;
+    // Inactive, reachable, and BYSTANDER-shaped (no usage, no stamp, no
+    // characters, only the auto-persona) → purges WITHOUT notice. This fixture
+    // also represents the command-only-history class: slash commands leave no
+    // durable per-user trace, so a browse-only user is indistinguishable from
+    // a pure bystander in the data — the owner ruled both purge silently, and
+    // the policy text describes the evidence bar, not command history.
+    await prisma.$executeRaw`
+      UPDATE users SET last_active_at = ${OLD} WHERE id = ${BYSTANDER}::uuid
+    `;
+    // Inactive, reachable, and holding a co-ownership GRANT on someone else's
+    // character as the ONLY deliberate-use evidence (the grant row is inserted
+    // below, after its personality exists). Inert in prod today (the sole
+    // writer self-duplicates ownerId), but a real grantee must classify
+    // deliberate — silent erasure would revoke live access to the granted
+    // character. Mirrors findCrossUserReachIds' fourth arm.
+    await prisma.$executeRaw`
+      UPDATE users SET last_active_at = ${OLD} WHERE id = ${CO_OWNER}::uuid
     `;
     // Unreachable + inactive, but exempted two different ways → excluded.
     await prisma.$executeRaw`
@@ -126,13 +152,15 @@ describe('RetentionPurgeService (component, PGLite)', () => {
     // Phase 3 (reachable branch): warned 31 days ago, silent since → the
     // grace-expired arm makes them purge-eligible with NO unreachable flag.
     await prisma.$executeRaw`
-      UPDATE users SET retention_notified_at = ${GRACE_EXPIRED_STAMP}, last_active_at = ${OLD}
+      UPDATE users SET retention_notified_at = ${GRACE_EXPIRED_STAMP}, last_active_at = ${OLD},
+                       notify_opted_in_at = ${OLD}
       WHERE id = ${GRACE_EXPIRED_USER}::uuid
     `;
     // Warned 5 days ago → mid-grace: excluded from the purge cohort AND from
     // the notify cohort (one notice per spell), counted in inGrace.
     await prisma.$executeRaw`
-      UPDATE users SET retention_notified_at = ${IN_GRACE_STAMP}, last_active_at = ${OLD}
+      UPDATE users SET retention_notified_at = ${IN_GRACE_STAMP}, last_active_at = ${OLD},
+                       notify_opted_in_at = ${OLD}
       WHERE id = ${IN_GRACE_USER}::uuid
     `;
     // Mid-grace AND a later DM bounced: the unreachable arm makes them
@@ -140,8 +168,18 @@ describe('RetentionPurgeService (component, PGLite)', () => {
     // never also in inGrace. The disjointness case from review round 1.
     await prisma.$executeRaw`
       UPDATE users SET retention_notified_at = ${IN_GRACE_STAMP}, dm_undeliverable_since = ${OLD},
-                       last_active_at = ${OLD}
+                       last_active_at = ${OLD}, notify_opted_in_at = ${OLD}
       WHERE id = ${MID_GRACE_BUT_BOUNCED}::uuid
+    `;
+    // Mid-grace with ZERO deliberate-use evidence (no opt-in stamp seeded).
+    // Unreachable via any app path today — the activity clear wipes the grace
+    // stamp on any evidence-losing action — but a non-user path (TTL prune,
+    // moderation removal) could produce it. The bystander arm's never-notified
+    // gate keeps the 30-day floor unconditional: excluded from the cohort
+    // until grace actually expires, still counted in inGrace.
+    await prisma.$executeRaw`
+      UPDATE users SET retention_notified_at = ${IN_GRACE_STAMP}, last_active_at = ${OLD}
+      WHERE id = ${NOTIFIED_EVIDENCE_LOST}::uuid
     `;
 
     // Characters owned by the unreachable user: SHARED has another user's
@@ -160,6 +198,12 @@ describe('RetentionPurgeService (component, PGLite)', () => {
         senders: ['otheractive'],
       },
     });
+    // CO_OWNER's grant (see the fixture comment above): a personality_owners
+    // row naming a user other than the personality's owner.
+    await prisma.$executeRaw`
+      INSERT INTO personality_owners (personality_id, user_id, role, created_at, updated_at)
+      VALUES (${PERSONALITY_SHARED}::uuid, ${CO_OWNER}::uuid, 'co-owner', NOW(), NOW())
+    `;
   });
 
   afterAll(async () => {
@@ -171,16 +215,26 @@ describe('RetentionPurgeService (component, PGLite)', () => {
     const cohort = await service.selectPurgeCohort();
 
     expect(cohort.map(row => row.userId).sort()).toEqual(
-      [ELIGIBLE_UNREACHABLE, ELIGIBLE_GONE, GRACE_EXPIRED_USER, MID_GRACE_BUT_BOUNCED].sort()
+      [
+        ELIGIBLE_UNREACHABLE,
+        ELIGIBLE_GONE,
+        GRACE_EXPIRED_USER,
+        MID_GRACE_BUT_BOUNCED,
+        BYSTANDER,
+      ].sort()
     );
     // Every exclusion is load-bearing — name them so a regression is legible.
     const ids = cohort.map(row => row.userId);
     expect(ids).not.toContain(ACTIVE_RECENTLY); // active again
-    expect(ids).not.toContain(REACHABLE); // still reachable, never warned
+    expect(ids).not.toContain(REACHABLE); // reachable + DELIBERATE, never warned
     expect(ids).not.toContain(IN_GRACE_USER); // warned, grace window still running
     expect(ids).not.toContain(SUPERUSER); // bot owner
     expect(ids).not.toContain(EXEMPT); // retention_exempt (also the orphan sentinel)
     expect(ids).not.toContain(NEVER_STAMPED_YOUNG); // NULL last_active_at → created_at fallback
+    expect(ids).not.toContain(CO_OWNER); // a co-ownership grant is deliberate use, never bystander
+    // The grace floor is unconditional: a served notice blocks the bystander
+    // arm even when every deliberate-use signal is gone.
+    expect(ids).not.toContain(NOTIFIED_EVIDENCE_LOST);
   });
 
   it('labels each eligible user with the signal that made them eligible', async () => {
@@ -192,6 +246,8 @@ describe('RetentionPurgeService (component, PGLite)', () => {
     expect(byId.get(GRACE_EXPIRED_USER)).toBe('grace_expired');
     // Precedence in real SQL: the unreachable stamp outranks the grace clock.
     expect(byId.get(MID_GRACE_BUT_BOUNCED)).toBe('unreachable');
+    // A never-used row qualifies by that fact alone — no notice, no stamps.
+    expect(byId.get(BYSTANDER)).toBe('bystander');
   });
 
   it('reports the character split and userbase share in the preview', async () => {
@@ -203,26 +259,31 @@ describe('RetentionPurgeService (component, PGLite)', () => {
     expect(preview.totals.charactersToDelete).toBe(1);
     expect(preview.totals.charactersToReHome).toBe(1);
 
-    expect(preview.totals.eligibleCount).toBe(4);
-    expect(preview.totals.userbaseCount).toBe(11);
-    // 4/11 ≈ 36.4% — over the 15% warn line, so the breaker annotation fires.
-    expect(preview.totals.percentOfUserbase).toBe(36.4);
+    expect(preview.totals.eligibleCount).toBe(5);
+    expect(preview.totals.userbaseCount).toBe(14);
+    // 5/14 ≈ 35.7% — over the 15% warn line, so the breaker annotation fires.
+    expect(preview.totals.percentOfUserbase).toBe(35.7);
     expect(preview.totals.breakerWarning).toBe(true);
-    // Reachable-branch pipeline: REACHABLE awaits a warning, IN_GRACE_USER is
-    // mid-grace, and grace_expired is the labeled subset of the cohort above.
+    // Reachable-branch pipeline: REACHABLE and CO_OWNER await a warning;
+    // IN_GRACE_USER and NOTIFIED_EVIDENCE_LOST are mid-grace (the latter
+    // exactly once — the grace floor keeps it out of the cohort); and
+    // grace_expired is the labeled subset of the cohort above.
     // MID_GRACE_BUT_BOUNCED is in the cohort (unreachable) and must NOT also
     // count as in-grace — the counts partition, never double-report.
-    expect(preview.totals.reachableToNotify).toBe(1);
-    expect(preview.totals.inGrace).toBe(1);
+    expect(preview.totals.reachableToNotify).toBe(2);
+    expect(preview.totals.inGrace).toBe(2);
     expect(preview.totals.graceExpired).toBe(1);
+    expect(preview.totals.bystander).toBe(1);
   });
 
   it('selects the notify cohort disjoint from the purge cohort (real SQL)', async () => {
     const cohort = await selectNotifyCohort(prisma, null);
 
-    // Only REACHABLE: inactive ≥180d, no unreachable stamps, never warned.
-    // Everyone warned, flagged, exempt, young, or recently active is out.
-    expect(cohort.map(row => row.userId)).toEqual([REACHABLE]);
+    // REACHABLE (opt-in stamp) and CO_OWNER (grant arm): inactive ≥180d, no
+    // unreachable stamps, never warned, and DELIBERATE. Everyone warned,
+    // flagged, exempt, young, recently active, or bystander-shaped is out —
+    // bystanders purge without notice.
+    expect(cohort.map(row => row.userId).sort()).toEqual([REACHABLE, CO_OWNER].sort());
   });
 
   it('narrows the notify cohort by the outbound-DM allowlist in SQL', async () => {
@@ -237,11 +298,13 @@ describe('RetentionPurgeService (component, PGLite)', () => {
   it('filterStillNotifyEligible drops users who no longer qualify (real SQL)', async () => {
     const eligible = await filterStillNotifyEligible(prisma, [
       REACHABLE,
+      CO_OWNER, // deliberate via the grant arm — stays notify-eligible
       IN_GRACE_USER, // already warned
       ACTIVE_RECENTLY, // unreachable-stamped
+      BYSTANDER, // never deliberately used the bot — silent-purge arm, no DM
     ]);
 
-    expect(eligible).toEqual(new Set([REACHABLE]));
+    expect(eligible).toEqual(new Set([REACHABLE, CO_OWNER]));
   });
 });
 

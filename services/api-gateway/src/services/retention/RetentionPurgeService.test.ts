@@ -45,6 +45,7 @@ describe('RetentionPurgeService.buildPreview', () => {
       inactiveSince: new Date('2025-01-01T00:00:00Z'),
       accountGone: false,
       unreachable: true,
+      wasNotified: false,
     },
   ];
 
@@ -95,6 +96,7 @@ describe('RetentionPurgeService.buildPreview', () => {
       inactiveSince: new Date('2025-01-01T00:00:00Z'),
       accountGone: false,
       unreachable: true,
+      wasNotified: false,
     }));
     const prisma = makePreviewPrisma({ cohort, userbase: 20 });
 
@@ -125,6 +127,7 @@ describe('RetentionPurgeService.buildPreview', () => {
         inactiveSince: new Date('2025-02-01T00:00:00Z'),
         accountGone: false,
         unreachable: false,
+        wasNotified: true,
       },
     ];
     const prisma = makePreviewPrisma({ cohort, userbase: 100, reachableToNotify: 51, inGrace: 4 });
@@ -135,6 +138,7 @@ describe('RetentionPurgeService.buildPreview', () => {
     expect(totals.reachableToNotify).toBe(51);
     expect(totals.inGrace).toBe(4);
     expect(totals.graceExpired).toBe(1);
+    expect(totals.bystander).toBe(0);
   });
 });
 

@@ -51,8 +51,11 @@ describe('RetentionNotifyService (component, PGLite)', () => {
         personaContent: 'x',
       });
     }
+    // Deliberate-use stamp: only accounts that actually used the bot get the
+    // warning DM (bystander-shaped rows purge without notice instead).
     await prisma.$executeRaw`
-      UPDATE users SET last_active_at = ${OLD} WHERE id = ${NOTIFY_TARGET}::uuid
+      UPDATE users SET last_active_at = ${OLD}, notify_opted_in_at = ${OLD}
+      WHERE id = ${NOTIFY_TARGET}::uuid
     `;
   });
 

@@ -2,7 +2,7 @@
 
 **Status: In effect.**
 
-_Last updated: 2026-07-25_
+_Last updated: 2026-07-26_
 
 Tzurot is a Discord bot that lets you talk with AI characters. It is operated by an individual developer ("the operator", "we"). This policy explains what data the bot stores, why, where it goes, and what control you have over it. It is written to describe what the software actually does — nothing more.
 
@@ -56,10 +56,18 @@ still reach you:
   longer exists — your account may be erased without the notice, because there
   is no way to deliver one.
 
-Inactivity alone never erases anything silently while you are reachable: the
-notice and its grace period always come first. Any activity resets your
-inactivity clock; a notification that successfully reaches you resets the
-unreachability state.
+Inactivity alone never erases an account you actually used while you are
+reachable: the notice and its grace period always come first. Any activity
+resets your inactivity clock; a notification that successfully reaches you
+resets the unreachability state.
+
+One narrow exception to the notice: accounts with no sign of direct use. If
+your row shows no trace of actually using the bot — no conversations with its
+characters, no characters or personas you created, no keys or notification
+settings you configured — it holds nothing you made, and it is removed without notice once
+inactive. Such rows usually exist only because you spoke in a channel the bot
+could see. There is nothing to export, and a deletion notice from a bot you
+never really used would be noise, not information.
 
 Erasure is complete — everything `/settings data delete` removes, this removes.
 It differs from that self-serve deletion in exactly one way, and the difference

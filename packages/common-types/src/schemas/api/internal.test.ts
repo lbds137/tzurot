@@ -705,6 +705,7 @@ describe('RetentionPreviewResponseSchema', () => {
       reachableToNotify: 0,
       inGrace: 0,
       graceExpired: 0,
+      bystander: 0,
     },
   };
 
