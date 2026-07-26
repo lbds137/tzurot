@@ -23,6 +23,15 @@
  *    attribution (the user's own conversational identity) counts; memories with a
  *    NULL persona_id are skipped (those users are covered by usage_logs anyway).
  *
+ * Grace-clock caveat: this tool advances last_active_at WITHOUT clearing
+ * retention_notified_at, unlike the live activity-stamp sites (which clear it
+ * because activity aborts the reachable-branch grace window). Safe for its
+ * one-time Phase-1 purpose — no grace clocks existed then — but a re-run
+ * against a database with live grace clocks could leave a user looking
+ * "mid-grace" whose backfilled activity actually disqualifies them from the
+ * inactivity window. If re-running ever becomes a real need, clear
+ * retention_notified_at on the same rows.
+ *
  * Guardrails, mirroring repair-fact-timestamps:
  *  - FORWARD-ONLY into a fresh column, but idempotent: a row is only touched when
  *    the computed activity is newer than the stored value (or the stored value is

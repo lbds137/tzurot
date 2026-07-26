@@ -40,15 +40,17 @@ export const handleStampUserActivity = (deps: RouteDeps): RequestHandler => {
     }
     const { discordId } = parseResult.data;
 
-    // Raw UPDATE (not the Prisma client): last_active_at and both
-    // unreachability flags are retention signals that must NOT bump updated_at
-    // (the dev<->prod sync LWW resolver) — see UserService.getOrCreateUser for
-    // the full rationale, including why activity clears the flags. `$executeRaw`
+    // Raw UPDATE (not the Prisma client): last_active_at, both unreachability
+    // flags, and the retention grace clock are retention signals that must NOT
+    // bump updated_at (the dev<->prod sync LWW resolver) — see
+    // UserService.getOrCreateUser for the full rationale, including why
+    // activity clears all three flags (grace aborts on use). `$executeRaw`
     // returns the affected-row count, which is 0 when the user isn't provisioned
     // yet (a legitimate no-op, not an error).
     const affected = await prisma.$executeRaw`
       UPDATE users
-      SET last_active_at = NOW(), dm_undeliverable_since = NULL, discord_account_gone_at = NULL
+      SET last_active_at = NOW(), dm_undeliverable_since = NULL,
+          discord_account_gone_at = NULL, retention_notified_at = NULL
       WHERE discord_id = ${discordId}
     `;
 

@@ -19,6 +19,8 @@ import type { AccountDeletionSummary } from '../AccountDeletionService.js';
 import { findCrossUserReachIds } from './crossUserReach.js';
 import {
   countEligibleUsers,
+  countInGrace,
+  countNotifyCohort,
   selectEligibleUsers,
   type PurgeCohortRow,
   type PurgeReason,
@@ -66,6 +68,12 @@ export interface RetentionPreview {
     charactersToReHome: number;
     /** Cohort exceeds BREAKER_WARN_FRACTION of the userbase — review closely. */
     breakerWarning: boolean;
+    /** Reachable + inactive ≥180d, not yet warned — the notify cohort (Phase 3). */
+    reachableToNotify: number;
+    /** Warned, grace window still running (any activity aborts the clock). */
+    inGrace: number;
+    /** Warned, window expired, still silent — the grace_expired purge subset. */
+    graceExpired: number;
   };
 }
 
@@ -115,9 +123,11 @@ export class RetentionPurgeService {
     // breaker asks "how much of the userbase would this run erase?", and a
     // purgeable-population denominator would make the percentage drift every
     // time an exemption is added rather than when real churn changes.
-    const [cohort, userbaseCount] = await Promise.all([
+    const [cohort, userbaseCount, reachableToNotify, inGrace] = await Promise.all([
       this.selectPurgeCohort(),
       this.prisma.user.count(),
+      countNotifyCohort(this.prisma),
+      countInGrace(this.prisma),
     ]);
 
     // Concurrent, not sequential: the daily nag calls this on a schedule, so a
@@ -145,6 +155,11 @@ export class RetentionPurgeService {
         charactersToDelete,
         charactersToReHome,
         breakerWarning: userbaseCount > 0 && users.length / userbaseCount > BREAKER_WARN_FRACTION,
+        reachableToNotify,
+        inGrace,
+        // Grace-expired users are IN the purge cohort (the third predicate
+        // arm), so this is a labeled subset, not an addition to eligibleCount.
+        graceExpired: users.filter(u => u.reason === 'grace_expired').length,
       },
     };
   }

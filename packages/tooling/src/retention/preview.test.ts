@@ -20,6 +20,9 @@ const EMPTY_TOTALS = {
   charactersToDelete: 0,
   charactersToReHome: 0,
   breakerWarning: false,
+  reachableToNotify: 0,
+  inGrace: 0,
+  graceExpired: 0,
 };
 
 const COHORT = {
@@ -44,6 +47,9 @@ const COHORT = {
     charactersToDelete: 1,
     charactersToReHome: 2,
     breakerWarning: false,
+    reachableToNotify: 0,
+    inGrace: 0,
+    graceExpired: 0,
   },
 };
 
@@ -103,7 +109,28 @@ describe('renderPreview', () => {
 
     renderPreview({ users: [], totals: EMPTY_TOTALS });
 
-    expect(logSpy.mock.calls.flat().join('\n')).toContain('No users are purge-eligible');
+    const output = logSpy.mock.calls.flat().join('\n');
+    expect(output).toContain('No users are purge-eligible');
+    // All pipeline counts zero → no reachable-branch line to render.
+    expect(output).not.toContain('reachable branch');
+    logSpy.mockRestore();
+  });
+
+  it('prints the reachable-branch line whenever ANY pipeline count is non-zero', () => {
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+    // graceExpired-only is a real steady state: those users have left the
+    // other two counts (window passed, already warned) — a guard on only the
+    // two upstream counts would drop the line exactly when it matters.
+    renderPreview({
+      ...COHORT,
+      totals: { ...COHORT.totals, graceExpired: 2 },
+    });
+
+    const output = logSpy.mock.calls.flat().join('\n');
+    expect(output).toContain(
+      'reachable branch: 0 awaiting a warning DM, 0 in grace, 2 grace-expired'
+    );
     logSpy.mockRestore();
   });
 

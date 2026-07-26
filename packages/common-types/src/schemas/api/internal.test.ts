@@ -695,6 +695,9 @@ describe('RetentionPreviewResponseSchema', () => {
       charactersToDelete: 0,
       charactersToReHome: 0,
       breakerWarning: false,
+      reachableToNotify: 0,
+      inGrace: 0,
+      graceExpired: 0,
     },
   };
 

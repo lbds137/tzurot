@@ -32,6 +32,9 @@ function cohort(...discordIds: string[]) {
       charactersToDelete: discordIds.length,
       charactersToReHome: 0,
       breakerWarning: false,
+      reachableToNotify: 0,
+      inGrace: 0,
+      graceExpired: 0,
     },
   };
 }
