@@ -187,11 +187,57 @@ Three things are now decided by evidence rather than preference: **generate the 
 
 The genuinely-owner calls that remain are in the next section.
 
+---
+
+## THE DESIGN CONSTRAINT THAT OUTRANKS EVERYTHING ABOVE (owner, 2026-07-25)
+
+Every council model — across two passes, six model-runs — treated the priority churn as a **defect to be corrected**, and proposed mechanisms to make the owner justify pivots. The owner then supplied the fact none of them had:
+
+> "part of this side project is me having an outlet for a life that is generally pretty stressful. It's really nice to be able to focus on something else, something that I have personal control over. And, unfortunately, at times, my whims do kind of go back and forth."
+
+**The jumping is partly the point.** It is what makes this an outlet rather than a second job. A design that suppresses it removes the thing that makes the project worth having, and would be rejected in use even if adopted on paper — which is a plausible read of why three prior reorganizations didn't take.
+
+### The target inverts
+
+**Do not make jumping harder. Make the haystack cheap to jump around in.**
+
+Jumping is expensive today because landing somewhere new yields nothing findable: `grep -i memory` returns 43 KB of undifferentiated prose with no field to narrow on. With real fields, landing on any area and asking _"what's here, what's small, what's ready"_ is one query, and the whim costs nothing.
+
+This is the **strongest argument for the substrate work in this document**, and it is _pro_-whim rather than corrective. It also supplies the acceptance test the owner actually stated:
+
+> "there's probably low hanging stuff that can be fixed and addressed, but it's hard when the haystack gets so big with, you know, hundreds of items."
+
+**Success is not "a nicer place to store 341 items." Success is answering "here are the 20 items you could close this week."** Any candidate that does not deliver that query has not solved the stated problem.
+
+### What this does to the council's mechanisms
+
+- **GLM's and Qwen's intercept/"constitution hook"** — already demolished by K3 on independent grounds; this constraint independently disqualifies them. They tax the owner's genuine strength (evidence-driven adaptation) identically to the whim, and their enforcement lives in a tool the constrained party configures.
+- **K3's "force the park, don't block it"** — SURVIVES, but must be reframed. Writing a re-entry condition when parking is **not** a guilt tax on leaving; it is a **resumption aid** for the version of the owner who wants to jump back in three weeks. Under the whim-robust framing it is pro-whim: cheap return is what makes leaving safe. Frame it that way or it will be experienced as nagging and deleted.
+- **K3's "agent as mirror, not gatekeeper"** — SURVIVES unchanged. A neutral read-only line with no required response cannot be resented, gamed, or debated.
+
+## § Council record — second pass (2026-07-25)
+
+Same trio re-briefed with C1/C2 corrections + the Backlog.md candidate + the system-model problem. `kimi-k2.7-code` returned an **empty body** (superseded model; operationalized in the council skill — an empty body is a split, not a consensus); `kimi-k3` ran as the tiebreaker.
+
+**Both errors the council caught in my own thinking** (independently, 2/2):
+
+1. **Drain-per-PR at 1:1 will be gamed.** A typo fix or dependency bump maps to no backlog item, so the rule either blocks trivial PRs or is satisfied by closing whatever is cheapest. Fix: **drain one item OR log a one-sentence skip reason** to a churn file. Adopt the escaped version, never the bare one.
+2. **A mechanically-generated system map is not a system model.** It yields a structural graph, not the narrative "why" — _"a generated map of 1,260 files will just be a massive, unreadable hairball… it will just give the agent a larger context window to get lost in"_ (Qwen). This invalidated the Phase 0 originally filed in [`system-model-and-intent-linkage.md`](../../../backlog/cold/themes/system-model-and-intent-linkage.md); that theme has been rewritten to K3's spec.
+
+**Unanimous**: the system-model gap **outranks** the backlog substrate — a backlog is a set of intentions, and intentions built on a stale model of the code are likely wrong. Migrating first codifies the misunderstanding into a better store.
+
+**Backlog.md flips both prior objectors to adopt.** Residual risks all three name: 341 items ≈ 170k tokens, so the digest layer remains ours to build (`--json` gives filtering, not summarization); labels-as-`area` degrades at scale; the generated-briefing integration is a custom script regardless.
+
+**Sequencing (K3 tiebreak, rule: marginal harm per day of delay, with a perishability override):**
+`retention PR-D → observability → drain-per-PR → system-model → substrate → UX`. All three agree drain-per-PR is early, system-model precedes substrate, substrate is late, UX is last.
+
+**Correction to the brief I gave them**: I wrote that PR-D "closes the epic to zero." **False** — PR-D closes **Phase 2 of 4**; Phases 3 (reachable branch) and 4 (policy + autonomous) remain. K3's A-vs-F argument rested partly on that. Its surviving prong — one PR, perishable completion window, _"if A were three weeks instead of one PR, this flips"_ — still holds, and the better reason is that `active-epic.md` already names PR-D as the gate on promoting the drain theme.
+
 ## Next steps
 
-1. ~~Ground candidates against real constraints~~ ✅
-2. ~~Council the open calls~~ ✅ — record above.
-3. **Batched owner pass** ← here.
-4. Landing = ACCEPTED status + absorption wiring per `/tzurot-design-boulder`.
+1. ~~Ground candidates~~ ✅ · 2. ~~Council~~ ✅ (two passes) · 3. ~~Owner pass~~ ✅ partial.
+4. **Retention PR-D** (owner call — closes Phase 2, gates the drain theme).
+5. **Then: fix the backlog structurally** — owner directive, _"it's a very foundational thing… the current posture is just not working."_
+6. Still open: the three held unanimous items · whether/at-what-dose to trial Backlog.md · where system-model sits.
 
-**Migrate nothing before (3).**
+**Migrate nothing before the trial.**

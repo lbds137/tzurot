@@ -6,22 +6,27 @@
 
 ## Unreleased on Develop
 
-- **#1793** — swept the dead `getPrismaClient` example out of every doc (5 review rounds; the symbol was renamed and six descriptions of it rotted, incl. a `codecov.yml` comment and a WHY.md that named the wrong banned symbol).
-- Two backlog relocation passes: 18 epic-scoped rows moved into `platform-portable-ux-layer.md` and `memory-system-overhaul.md`. Pool 360 → 342.
+- **#1793** dead-`getPrismaClient` doc sweep · **#1794** council roster → Kimi K3 (+ empty-body-≠-404 rule) · 18 epic-scoped follow-up rows relocated into their theme files (pool 360 → 341).
 
-## ⏭️ NEXT SESSION STARTS HERE — backlog substrate boulder
+## ⏭️ NEXT SESSION STARTS HERE — retention PR-D, then fix the backlog structurally
 
-Owner directive 2026-07-25, post-compaction pickup. Full grounding (measurements, the three method failures, why relocation doesn't generalize, candidates, the one real objection, open calls a–f) is in **[`docs/proposals/backlog/backlog-substrate.md`](docs/proposals/backlog/backlog-substrate.md)** — read it first; it was written specifically to survive this compaction.
+**Owner call 2026-07-25**: do PR-D, then _"I definitely want us to structurally fix our backlog problem because it's not gonna get any better unless we do something about it. and it's a very foundational thing."_
 
-Procedure: load `/tzurot-design-boulder` + `/tzurot-council-mcp` (verify model IDs via `list_models`, they drift) → ground the candidates against real constraints → council the open calls → one batched owner pass → land ACCEPTED with absorption wiring. **Migrate nothing before the council pass.**
+**1. Retention PR-D (purge + nag)** — plan-mode candidate (destructive data operation + user-visible nag DMs). ⚠️ **It closes Phase 2 of 4, NOT the epic** — Phases 3 (reachable branch) and 4 (policy + autonomous) remain; a prior session mis-stated this and fed the error to a council. `active-epic.md` names PR-D as the gate on promoting [`cold/themes/follow-up-pool-drain.md`](backlog/cold/themes/follow-up-pool-drain.md) as the next epic. Nag-focused; size against **~27** (post-next-major), not 26-waiting.
 
-## 🔎 The prod cohort is EMPTY, and the reason reshapes PR-D
+**2. Then the backlog substrate** → **[`docs/proposals/backlog/backlog-substrate.md`](docs/proposals/backlog/backlog-substrate.md)**. Read it before anything else; two council passes, corrections, and the owner's design constraint all live there. The load-bearing parts:
 
-First prod preview (post-deploy; it was gated on this release, which is why the release went ahead of PR-D): **0 eligible**. Probed rather than trusted — 272 users, 0 stamped on either arm, **51 inactive ≥180d**.
+- **The whim constraint (outranks everything):** the owner's priority-jumping is partly the POINT — an outlet from a stressful life. Every council model treated it as a defect to correct; all such mechanisms are disqualified. **Target inverts: don't make jumping harder, make the haystack cheap to jump around in.** Acceptance test is the owner's own: not "a nicer store for 341 items" but **"here are the 20 items you could close this week."**
+- Two numbers I previously published are **WITHDRAWN**: "118 stranded rows" (real: ~24) and "filing outpaces drain 2:1" (real: drain capacity is 2–4× filing — the pool grows only because nothing links PR throughput to drain).
+- Leading candidate **Backlog.md** cleared every pre-set kill criterion; not yet trialled.
+- Unanimous: **the system-model gap outranks the substrate** → [`cold/themes/system-model-and-intent-linkage.md`](backlog/cold/themes/system-model-and-intent-linkage.md) (its Phase 0 was rewritten after council rejected the generate-from-mechanical-sources plan).
+- Still open: the three held unanimous items · whether/at-what-dose to trial Backlog.md · sequencing slot for system-model.
 
-**The 26 were never stamped.** Owner challenged my first explanation ("beta.175's blast-success clear wiped them") and was right: beta.175/.176 were **minor** — 1 recipient each — so that path could clear at most one stamp. The delivery log shows the 26 × `50278` came from **beta.174 (major)**, and Phase 1c's stamp column shipped in **beta.175**, one release later. Nothing was written; nothing was cleared. _(Also superseded: I blamed a bot-level `20026` quarantine — the failures were per-user `50278`, and the quarantine was Rotzot/dev, never prod.)_
+**Migrate nothing before a bounded trial.**
 
-**The signal only refreshes on a major-release blast** — owner's prediction, confirmed. Sizing for PR-D: 116 users have a permanent DM failure on record, 89 are active, so **~27** become stamped-and-inactive after the next major cut. That, not 26-waiting-now, is the target. Full detail + the design question it raises: `cold/follow-ups.md`.
+## 🔎 The prod cohort is EMPTY — sizing input for PR-D
+
+First prod preview: **0 eligible** (272 users, 0 stamped either arm, 51 inactive ≥180d). **The 26 were never stamped** — they came from beta.174 (major, `50278`), and Phase 1c's stamp column shipped in beta.175, one release later. Nothing was written, nothing cleared. The signal only refreshes on a **major**-release blast (owner's prediction, confirmed). **PR-D sizing: ~27** stamped-and-inactive after the next major cut — not 26-waiting-now. Full detail + the design question: `cold/follow-ups.md`.
 
 ## 🔬 Smoke checklist — v3.0.0-beta.176 (post-deploy)
 
@@ -81,13 +86,12 @@ Nothing here is CI-verifiable — each item needs a human in Discord.
 | 8   | Wave-3 remainder: history purge · `/preset override` + `set-default` · avatar/voice groups · `/random` · `/chime-in` · `/help` | ⬜ partial             |
 | 9   | One voice message + one long voice reply                                                                                       | ⬜ open since beta.164 |
 
-Executed so far in the Wave-3 round: `/voice voices purge` (surfaced a real bug → #1752), `/character voice set` (surfaced a second → #1752), `/chat` in an activated thread (works).
+Executed in the Wave-3 round: `/voice voices purge` + `/character voice set` (each surfaced a real bug → #1752), `/chat` in an activated thread (works).
 
 ## 🔭 Watches
 
 - **Dev-bot Discord quarantine — TERMINAL, not pending.** Rotzot's appeal was **DENIED 2026-07-22** (canned reply; did not engage with the zero-messages-sent / already-fixed facts). The app is permanently unable to join new guilds or DM users it hasn't messaged before. Root cause was boot-time createDM prewarm sweeps (~117 opens × 10+ deploys/day from a 1-server bot — spam-prep shape even with no sends); structurally fixed by `OUTBOUND_DM_ALLOWLIST` (#1650). **Prod Tzurot is a separate app and was never quarantined.** Casualty is dev outbound-DM testing only.
-  **Owner leaning: delete & recreate Rotzot as a fresh dev app.** When executed: new app + token → set dev `DISCORD_TOKEN`/`DISCORD_CLIENT_ID` → re-register commands → re-invite to the dev guild → set `PUBLIC_SITE_URL`/`SITE_BRAND=rotzot` → re-run the broadcast smoke with a fresh label.
-- The recurring dev-blast `0 sent, 1 transient-failed` **is** this quarantine surfacing as `discord-20026` — runtime-confirmed. Classifier Quick Win open (copy should read "bot quarantined (permanent)").
+  **Owner leaning: delete & recreate Rotzot as a fresh dev app.** When executed: new app + token → set dev `DISCORD_TOKEN`/`DISCORD_CLIENT_ID` → re-register commands → re-invite to the dev guild → set `PUBLIC_SITE_URL`/`SITE_BRAND=rotzot` → re-run the broadcast smoke with a fresh label. The recurring dev-blast `0 sent, 1 transient-failed` **is** this quarantine surfacing as `discord-20026` (runtime-confirmed); classifier Quick Win open (copy should read "bot quarantined (permanent)").
 - First prod extraction log post-beta.165 (`valid_from` should stamp source time, not run time) · first deploy-orphan/safety-flush event (#1642 runtime proof) · owner's felt-repetition re-measure (gates 1b slice B + correction detection) · db-sync probes · prod lock-storm · retention-failure.
 
 _Older session logs live in git history._
