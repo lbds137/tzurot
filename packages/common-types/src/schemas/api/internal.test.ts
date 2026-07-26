@@ -20,6 +20,9 @@ import {
   SecretRotationStatusResponseSchema,
   RetentionPreviewUserSchema,
   RetentionPreviewResponseSchema,
+  RetentionPurgeRequestSchema,
+  RetentionPurgeResponseSchema,
+  RetentionReconcileOffDbResponseSchema,
 } from './internal.js';
 
 describe('DiscordSnowflakeSchema', () => {
@@ -710,5 +713,111 @@ describe('RetentionPreviewResponseSchema', () => {
   it('requires the breaker flag (a missing warning must not read as false)', () => {
     const { breakerWarning: _dropped, ...totals } = response.totals;
     expect(RetentionPreviewResponseSchema.safeParse({ ...response, totals }).success).toBe(false);
+  });
+});
+
+describe('RetentionPurgeRequestSchema', () => {
+  const request = { discordId: '900000000000000001' };
+
+  it('accepts a bare target — run context and override are optional', () => {
+    expect(RetentionPurgeRequestSchema.safeParse(request).success).toBe(true);
+  });
+
+  it('accepts the full operator payload', () => {
+    expect(
+      RetentionPurgeRequestSchema.safeParse({
+        ...request,
+        runContext: 'ops retention:purge (prod)',
+        breakerOverride: true,
+      }).success
+    ).toBe(true);
+  });
+
+  it('REQUIRES a target — an empty body must never mean "purge anything"', () => {
+    expect(RetentionPurgeRequestSchema.safeParse({}).success).toBe(false);
+  });
+
+  it('rejects a malformed Discord id', () => {
+    expect(RetentionPurgeRequestSchema.safeParse({ discordId: 'not-a-snowflake' }).success).toBe(
+      false
+    );
+  });
+
+  it('rejects a non-boolean breaker override rather than coercing it', () => {
+    // A truthy string like 'false' coercing to true would silently disable the
+    // one ceiling --force is not allowed to bypass.
+    expect(
+      RetentionPurgeRequestSchema.safeParse({ ...request, breakerOverride: 'true' }).success
+    ).toBe(false);
+  });
+
+  it('bounds the run-context label', () => {
+    expect(
+      RetentionPurgeRequestSchema.safeParse({ ...request, runContext: 'x'.repeat(201) }).success
+    ).toBe(false);
+  });
+});
+
+describe('RetentionPurgeResponseSchema', () => {
+  it('accepts a completed purge with its character split', () => {
+    expect(
+      RetentionPurgeResponseSchema.safeParse({
+        discordId: '900000000000000001',
+        status: 'purged',
+        charactersDeleted: 2,
+        charactersReHomed: 1,
+      }).success
+    ).toBe(true);
+  });
+
+  it('accepts each skip reason', () => {
+    for (const reason of ['already_gone', 'no_longer_eligible', 'breaker_tripped']) {
+      expect(
+        RetentionPurgeResponseSchema.safeParse({
+          discordId: '900000000000000001',
+          status: 'skipped',
+          reason,
+        }).success
+      ).toBe(true);
+    }
+  });
+
+  it('rejects an unknown status or reason', () => {
+    const base = { discordId: '900000000000000001' };
+    expect(RetentionPurgeResponseSchema.safeParse({ ...base, status: 'failed' }).success).toBe(
+      false
+    );
+    expect(
+      RetentionPurgeResponseSchema.safeParse({ ...base, status: 'skipped', reason: 'whatever' })
+        .success
+    ).toBe(false);
+  });
+
+  it('rejects a negative character count', () => {
+    expect(
+      RetentionPurgeResponseSchema.safeParse({
+        discordId: '900000000000000001',
+        status: 'purged',
+        charactersDeleted: -1,
+      }).success
+    ).toBe(false);
+  });
+});
+
+describe('RetentionReconcileOffDbResponseSchema', () => {
+  it('accepts a zero-work sweep (the common case)', () => {
+    expect(
+      RetentionReconcileOffDbResponseSchema.safeParse({ settled: 0, stillFailing: 0 }).success
+    ).toBe(true);
+  });
+
+  it('requires both counters — a missing one must not read as zero work done', () => {
+    expect(RetentionReconcileOffDbResponseSchema.safeParse({ settled: 1 }).success).toBe(false);
+  });
+
+  it('rejects negative counters', () => {
+    expect(
+      RetentionReconcileOffDbResponseSchema.safeParse({ settled: 0, stillFailing: -1 }).success
+    ).toBe(false);
   });
 });

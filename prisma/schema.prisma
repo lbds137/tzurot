@@ -78,12 +78,19 @@ model User {
   /// State machine (sibling of dmUndeliverableSince, a stronger signal): NULL
   /// until a release DM permanently fails with Discord 10013 (Unknown User =
   /// the account is DELETED, not merely unreachable). Set to the first-failure
-  /// time; never advances while non-null. A deleted account cannot clear it via
-  /// activity, so it persists — the retention purge branch (Phase 2) treats a
-  /// persisted gone-account as immediate-purge-eligible (skips the 180-day
-  /// inactivity wait). Kept DISTINCT from dmUndeliverableSince because 10013
-  /// warrants a different, faster purge policy than 50278/50007. Reads guard
-  /// with != null.
+  /// time; never advances while non-null, and CLEARED by any proven activity —
+  /// a live user provisioning, or a DM that lands, disproves the stamp. That
+  /// clear is what keeps one mis-stamped 10013 from marking a real account
+  /// purge-eligible permanently; a genuinely deleted account never becomes
+  /// active, so the flag survives for the cohort it is meant to catch.
+  /// It is an ALTERNATIVE unreachability signal, NOT a fast-track: the purge
+  /// predicate ANDs it with the same 180-day inactivity window as its sibling
+  /// (retention/eligibility.ts is the single source). An immediate-purge policy
+  /// for 10013 was considered and deliberately declined — the code's false-
+  /// positive rate has never been measured. Kept DISTINCT from
+  /// dmUndeliverableSince so the two causes stay distinguishable in the preview
+  /// and the audit ledger, not because they differ in timing. Reads guard with
+  /// != null.
   discordAccountGoneAt  DateTime?                  @map("discord_account_gone_at")
   /// Operator-set exemption: when true, the retention purge job never selects
   /// this user (test/burner/VIP/pending-dispute accounts). Distinct from
@@ -126,8 +133,10 @@ model User {
 /// D14). One row per purged account. Deliberately NO relation to users — the
 /// purge deletes the user row, so target_discord_id is a plain string record.
 /// Doubles as the off-DB retry queue: a row whose off_db_reconciled is not
-/// 'done' is picked up by the reconciliation sweep (its backing index ships
-/// with that query in the purge PR, per index-ships-with-its-query).
+/// `done` is picked up by the reconciliation sweep. That sweep is deliberately
+/// UNINDEXED — the ledger gains one row per purged account, so it seq-scans in
+/// microseconds and an index would take write-path maintenance now for a read
+/// benefit that never arrives. Revisit if the ledger ever reaches ~100k rows.
 model RetentionPurgeLog {
   /// DB-generated (gen_random_uuid) rather than the app-generated deterministic
   /// UUIDs most models use — this is a pure non-relational audit ledger, nothing
@@ -139,13 +148,20 @@ model RetentionPurgeLog {
   /// Operator/run label identifying who or what triggered the purge run.
   runContext      String?  @map("run_context")
   /// Per-table deletion counts (the AccountDeletionSummary shape).
-  deletionCounts  Json     @map("deletion_counts")
-  /// 'success' once the erasure transaction committed; 'failed' otherwise.
-  dbOutcome       String   @map("db_outcome") @db.VarChar(16)
+  deletionCounts  Json            @map("deletion_counts")
+  /// Whether the erasure transaction committed.
+  dbOutcome       DbOutcome       @map("db_outcome")
   /// Off-DB cleanup (avatar unlink / Redis eviction / cache broadcast)
-  /// reconciliation state: 'pending' | 'done' | 'failed'. A non-'done' row is
-  /// the retry queue for the off-DB reconciliation sweep.
-  offDbReconciled String   @default("pending") @map("off_db_reconciled") @db.VarChar(16)
+  /// reconciliation state. A row that is not `done` is the retry queue for the
+  /// off-DB reconciliation sweep.
+  offDbReconciled OffDbReconciled @default(pending) @map("off_db_reconciled")
+  /// What the off-DB reconciliation sweep still needs to retry — the deleted
+  /// characters' avatar slugs. NULL means no outstanding off-DB work: either
+  /// the cleanup succeeded (offDbReconciled = done) or the DB transaction never
+  /// committed, so nothing off-DB was ever owed. Populated at insert and
+  /// cleared when the row reaches `done`, so the ledger stops holding deleted
+  /// characters' names once it no longer needs them.
+  offDbPending    Json?           @map("off_db_pending")
 
   @@map("retention_purge_log")
 }
@@ -1070,6 +1086,26 @@ enum DeliveryStatus {
   failed_bot_level
 
   @@map("delivery_status")
+}
+
+/// Whether a retention purge's erasure transaction committed (RetentionPurgeLog).
+enum DbOutcome {
+  success
+  failed
+
+  @@map("db_outcome")
+}
+
+/// Off-DB cleanup state for a retention purge (RetentionPurgeLog). `pending` is
+/// the insert-time state, set inside the erasure transaction before the off-DB
+/// steps run; `failed` records a sweep attempt that did not clear it. Both are
+/// picked up by the reconciliation sweep — only `done` is terminal.
+enum OffDbReconciled {
+  pending
+  done
+  failed
+
+  @@map("off_db_reconciled")
 }
 
 /// Feedback triage state (owner-driven).

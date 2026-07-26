@@ -14,7 +14,11 @@ import { PrismaClient } from '@tzurot/common-types/services/prisma';
 import { createTestPGlite, loadPGliteSchema, seedUserWithPersona } from '@tzurot/test-utils';
 import { generateUserUuid } from '@tzurot/common-types/utils/deterministicUuid';
 import { ORPHAN_SENTINEL_DISCORD_ID } from '@tzurot/common-types/constants/persona';
-import { AccountDeletionService, SuperuserDeletionError } from './AccountDeletionService.js';
+import {
+  AccountDeletionService,
+  RetentionIneligibleError,
+  SuperuserDeletionError,
+} from './AccountDeletionService.js';
 
 const USER_A = 'de1e0000-0000-4000-8000-0000000000a1';
 const PERSONA_A = 'de1e0000-0000-4000-8000-0000000000a2';
@@ -528,6 +532,16 @@ describe('AccountDeletionService retention mode (component, PGLite)', () => {
              (${PERSONALITY_ZR}::uuid, 'Solo', 'solo-zr', 'solo char', 'Quiet', ${USER_D}::uuid, NOW())
     `;
 
+    // D must actually BE purge-eligible: retention mode re-checks the predicate
+    // inside the transaction (D4), so an unstamped user is refused. Raw SQL for
+    // the same reason production uses it — these columns stay off updated_at.
+    await prisma.$executeRaw`
+      UPDATE users
+      SET dm_undeliverable_since = '2020-01-01T00:00:00Z',
+          last_active_at = '2020-01-01T00:00:00Z'
+      WHERE id = ${USER_D}::uuid
+    `;
+
     await prisma.memory.createMany({
       data: [
         // E's memory on the shared char — must SURVIVE the purge (other user's data).
@@ -597,5 +611,33 @@ describe('AccountDeletionService retention mode (component, PGLite)', () => {
     expect(sentinel).not.toBeNull();
     expect(sentinel?.retentionExempt).toBe(true);
     expect(sentinel?.isSuperuser).toBe(false);
+
+    // The audit row committed WITH the deletion (D14). It survives the cascade
+    // because retention_purge_log has no FK to users — which is the whole point:
+    // the ledger has to outlive the row it describes.
+    const audit = await prisma.retentionPurgeLog.findMany();
+    expect(audit).toHaveLength(1);
+    expect(audit[0]?.targetDiscordId).toBe(DISCORD_D);
+    expect(audit[0]?.dbOutcome).toBe('success');
+    // Only the DELETED character's slug is queued for the off-DB avatar unlink —
+    // the re-homed survivor keeps its avatar, so listing it here would delete a
+    // live character's image.
+    expect(audit[0]?.offDbPending).toEqual({ characterSlugs: ['solo-zr'] });
+    expect(summary.auditLogId).toBe(audit[0]?.id);
+  });
+
+  it('REFUSES a user who is no longer eligible, leaving them fully intact', async () => {
+    // The TOCTOU close (D4): between the preview that selected a cohort and the
+    // purge that acts on it, a user can come back. E is reachable and active, so
+    // the in-transaction re-check must roll the whole erasure back.
+    await expect(service.deleteAccount(USER_E, DISCORD_E, 'retention')).rejects.toThrow(
+      RetentionIneligibleError
+    );
+
+    expect(await prisma.user.findUnique({ where: { id: USER_E } })).not.toBeNull();
+    expect(await prisma.persona.count({ where: { ownerId: USER_E } })).toBe(1);
+    expect(await prisma.memory.count({ where: { content: 'e-with-xr' } })).toBe(1);
+    // No ledger row either — an aborted purge is not a purge.
+    expect(await prisma.retentionPurgeLog.count()).toBe(1);
   });
 });

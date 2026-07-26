@@ -1,6 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { PrismaClient } from '@tzurot/common-types/services/prisma';
-import { AccountDeletionService, SuperuserDeletionError } from './AccountDeletionService.js';
+import {
+  AccountDeletionService,
+  RetentionIneligibleError,
+  SuperuserDeletionError,
+} from './AccountDeletionService.js';
 
 vi.mock('@tzurot/common-types/utils/logger', async () => {
   const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
@@ -31,8 +35,22 @@ function makeTx(overrides: Record<string, unknown> = {}): Record<string, unknown
     memoryFact: { count: vi.fn().mockResolvedValue(1) },
     pendingMemory: { deleteMany: vi.fn().mockResolvedValue({ count: 2 }) },
     llmDiagnosticLog: { deleteMany: vi.fn().mockResolvedValue({ count: 1 }) },
+    retentionPurgeLog: { create: vi.fn().mockResolvedValue({ id: 'audit-1' }) },
     ...overrides,
   };
+}
+
+/**
+ * A tx `$queryRaw` for retention mode, where TWO different raw queries run in a
+ * fixed order: the eligibility re-check, then the cross-user-reach lookup.
+ * Sequencing them explicitly keeps a passing test from depending on one mock
+ * value happening to satisfy both.
+ */
+function retentionQueryRaw(opts: { eligible: boolean; reach: { personalityId: string }[] }) {
+  return vi
+    .fn()
+    .mockResolvedValueOnce(opts.eligible ? [{ eligible: true }] : [])
+    .mockResolvedValue(opts.reach);
 }
 
 function makePrisma(tx: Record<string, unknown>): PrismaClient {
@@ -171,8 +189,8 @@ describe('AccountDeletionService.deleteAccount (retention mode)', () => {
         ]),
         updateMany: personalityUpdateMany,
       },
-      // partitionOwnedByReach: only x1 has cross-user reach.
-      $queryRaw: vi.fn().mockResolvedValue([{ personalityId: 'x1' }]),
+      // Still eligible; only x1 has cross-user reach.
+      $queryRaw: retentionQueryRaw({ eligible: true, reach: [{ personalityId: 'x1' }] }),
       $executeRaw: vi.fn().mockResolvedValue(0),
     });
     const prisma = makePrisma(tx);
@@ -213,7 +231,7 @@ describe('AccountDeletionService.deleteAccount (retention mode)', () => {
         findMany: vi.fn().mockResolvedValue([{ id: 'z1', name: 'Solo', slug: 'solo' }]),
         updateMany: personalityUpdateMany,
       },
-      $queryRaw: vi.fn().mockResolvedValue([]), // no cross-user reach
+      $queryRaw: retentionQueryRaw({ eligible: true, reach: [] }), // no cross-user reach
       $executeRaw: vi.fn().mockResolvedValue(0),
     });
     const prisma = makePrisma(tx);
@@ -228,5 +246,75 @@ describe('AccountDeletionService.deleteAccount (retention mode)', () => {
     // No re-home fired — nothing had cross-user reach.
     expect(personalityUpdateMany).not.toHaveBeenCalled();
     expect(summary.characterIds).toEqual(['z1']);
+    expect(summary.charactersReHomed).toBe(0);
+  });
+
+  it('ABORTS without deleting when the in-transaction re-check fails (D4 TOCTOU)', async () => {
+    // The user became active between cohort selection and this purge — the
+    // predicate no longer holds, so the transaction must roll back rather than
+    // erase a live account.
+    const tx = makeTx({
+      $queryRaw: retentionQueryRaw({ eligible: false, reach: [] }),
+      $executeRaw: vi.fn().mockResolvedValue(0),
+    });
+    const prisma = makePrisma(tx);
+    (prisma.$queryRaw as ReturnType<typeof vi.fn>).mockResolvedValue([{ created: false }]);
+
+    await expect(
+      new AccountDeletionService(prisma).deleteAccount('user-1', 'discord-1', 'retention')
+    ).rejects.toThrow(RetentionIneligibleError);
+
+    const userDelete = (tx.user as { delete: ReturnType<typeof vi.fn> }).delete;
+    const auditCreate = (tx.retentionPurgeLog as { create: ReturnType<typeof vi.fn> }).create;
+    expect(userDelete).not.toHaveBeenCalled();
+    expect(auditCreate).not.toHaveBeenCalled();
+  });
+
+  it('writes the audit row INSIDE the transaction so a purge can never go unlogged', async () => {
+    const tx = makeTx({
+      personality: {
+        findMany: vi.fn().mockResolvedValue([{ id: 'z1', name: 'Solo', slug: 'solo' }]),
+        updateMany: vi.fn().mockResolvedValue({ count: 0 }),
+      },
+      $queryRaw: retentionQueryRaw({ eligible: true, reach: [] }),
+      $executeRaw: vi.fn().mockResolvedValue(0),
+    });
+    const prisma = makePrisma(tx);
+    (prisma.$queryRaw as ReturnType<typeof vi.fn>).mockResolvedValue([{ created: false }]);
+
+    const summary = await new AccountDeletionService(prisma).deleteAccount(
+      'user-1',
+      'discord-1',
+      'retention',
+      'ops retention:purge (dev)'
+    );
+
+    const auditCreate = (tx.retentionPurgeLog as { create: ReturnType<typeof vi.fn> }).create;
+    // The write goes through the TRANSACTION client, not the base client —
+    // that is what makes it atomic with the deletion it records.
+    expect(auditCreate).toHaveBeenCalledTimes(1);
+    expect(auditCreate.mock.calls[0][0].data).toMatchObject({
+      targetDiscordId: 'discord-1',
+      runContext: 'ops retention:purge (dev)',
+      dbOutcome: 'success',
+      offDbReconciled: 'pending',
+      // The slugs the off-DB retry sweep needs for the avatar unlink.
+      offDbPending: { characterSlugs: ['solo'] },
+    });
+    expect(summary.auditLogId).toBe('audit-1');
+  });
+
+  it('writes NO audit row for a self-serve deletion', async () => {
+    // The retention ledger records purges the operator initiated. A user
+    // deleting their own account is not one, and logging it would put their
+    // Discord id in a table their deletion was supposed to empty.
+    const tx = makeTx();
+    const prisma = makePrisma(tx);
+
+    await new AccountDeletionService(prisma).deleteAccount('user-1', 'discord-1', 'self-serve');
+
+    expect(
+      (tx.retentionPurgeLog as { create: ReturnType<typeof vi.fn> }).create
+    ).not.toHaveBeenCalled();
   });
 });

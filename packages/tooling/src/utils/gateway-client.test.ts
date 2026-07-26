@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const execFileSyncMock = vi.hoisted(() => vi.fn());
 vi.mock('child_process', () => ({ execFileSync: execFileSyncMock }));
 
-import { getServiceClientForEnv } from './gateway-client.js';
+import { getServiceClientForEnv, resolveServiceClientOrExit } from './gateway-client.js';
 
 const RAILWAY_VARS = {
   PUBLIC_GATEWAY_URL: 'https://api-gateway-development.up.railway.app',
@@ -78,5 +78,35 @@ describe('getServiceClientForEnv', () => {
       process.env.PUBLIC_GATEWAY_URL = prevUrl;
       process.env.GATEWAY_URL = prevGateway;
     }
+  });
+});
+
+describe('resolveServiceClientOrExit', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    process.exitCode = undefined;
+    execFileSyncMock.mockReturnValue(JSON.stringify(RAILWAY_VARS));
+  });
+
+  it('returns the client and leaves the exit code alone on success', () => {
+    expect(resolveServiceClientOrExit('dev')).not.toBeNull();
+    expect(process.exitCode).toBeUndefined();
+  });
+
+  it('reports the actionable message and exits nonzero instead of throwing', () => {
+    // Credential resolution fails routinely (Railway CLI not logged in, a
+    // missing variable). Every gateway-backed command routes through here, so
+    // an uncaught throw would surface as an unhandled rejection in all of them.
+    execFileSyncMock.mockImplementation(() => {
+      throw new Error('Check that the Railway CLI is logged in');
+    });
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    expect(resolveServiceClientOrExit('prod')).toBeNull();
+
+    expect(process.exitCode).toBe(1);
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('Railway CLI is logged in'));
+    errorSpy.mockRestore();
+    process.exitCode = undefined;
   });
 });

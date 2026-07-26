@@ -24,11 +24,13 @@ import {
   ACCOUNT_DELETE_CONFIRMATION_PHRASE,
   type OwnedCharacterImpactSchema,
 } from '@tzurot/common-types/schemas/api/account';
-import { type PrismaClient } from '@tzurot/common-types/services/prisma';
+import { type Prisma, type PrismaClient } from '@tzurot/common-types/services/prisma';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { z } from 'zod';
 import { ensureOrphanSentinel } from './OrphanSentinelBootstrap.js';
-import { findCrossUserReachIds } from './retention/crossUserReach.js';
+import { isStillEligibleForPurge } from './retention/eligibility.js';
+import { recordPurgeSuccess } from './retention/purgeAudit.js';
+import { reHomeCrossUserCharacters } from './retention/reHome.js';
 
 const logger = createLogger('AccountDeletionService');
 
@@ -71,9 +73,16 @@ export interface AccountDeletionSummary {
   pendingMemories: number;
   diagnosticLogs: number;
   characterNames: string[];
+  /** Characters re-homed to the orphan sentinel instead of deleted (retention
+   *  mode only; always 0 for self-serve, which deletes owned characters). */
+  charactersReHomed: number;
   /** Post-transaction cleanup inputs for the route — never serialized out. */
   characterSlugs: string[];
   characterIds: string[];
+  /** The `retention_purge_log` row this erasure wrote, so the caller can settle
+   *  its off-DB reconciliation status. Null for self-serve, which is not audited
+   *  through the retention ledger (the user asked for it; there is no cohort). */
+  auditLogId: string | null;
 }
 
 /** Thrown when a deletion reaches the service for a superuser account —
@@ -82,6 +91,19 @@ export class SuperuserDeletionError extends Error {
   constructor() {
     super('Superuser accounts cannot be deleted (they own the global characters)');
     this.name = 'SuperuserDeletionError';
+  }
+}
+
+/**
+ * Thrown INSIDE the erasure transaction when a retention target no longer
+ * satisfies the eligibility predicate (D4's TOCTOU close) — they became active
+ * between the preview that selected them and this purge. Throwing is what rolls
+ * the transaction back; the caller translates it into a skip, not an error.
+ */
+export class RetentionIneligibleError extends Error {
+  constructor() {
+    super('User is no longer purge-eligible (activity since the cohort was selected)');
+    this.name = 'RetentionIneligibleError';
   }
 }
 
@@ -114,6 +136,54 @@ function buildTagVocabulary(
     }
   }
   return [...names].map(name => `user:${name}`);
+}
+
+/**
+ * Delete the rows the FK graph can't reach: the three no-FK tables that would
+ * otherwise silently orphan. Runs BEFORE the cascade, inside the same
+ * transaction, so a mid-flight failure leaves the account fully intact.
+ */
+async function sweepLooseRefs(
+  tx: Prisma.TransactionClient,
+  args: {
+    username: string;
+    personas: { name: string; preferredName: string | null }[];
+    scope: ReturnType<typeof blastRadiusFilter>;
+    discordUserId: string;
+  }
+): Promise<{ factsSweptByTag: number; pendingMemories: number; diagnosticLogs: number }> {
+  const { username, personas, scope, discordUserId } = args;
+
+  // Facts ABOUT the user under any scope (other personas, other owners'
+  // characters, NULL-persona world facts). Case-insensitive because the
+  // tags are model-produced free text. Accepted tradeoff: an unrelated
+  // user literally sharing a swept name loses those facts too.
+  const tagList = buildTagVocabulary(username, personas);
+  const factsSweptByTag = await tx.$executeRaw`
+    DELETE FROM memory_facts f
+    WHERE EXISTS (
+      SELECT 1 FROM unnest(f.entity_tags) AS t(tag)
+      WHERE lower(t.tag) = ANY(${tagList}::text[])
+    )
+  `;
+
+  // NULL-persona memories: nothing writes them today (pools are a future phase
+  // that must define its own erasure semantics before shipping); no sweep here.
+
+  // pending_memories has loose refs with no user FK — both arms, so no
+  // orphaned rows survive against the user's personas OR dead characters.
+  const pendingMemories = await tx.pendingMemory.deleteMany({ where: scope });
+
+  // Diagnostic logs key on the loose Discord-ID string, not the user FK.
+  const diagnosticLogs = await tx.llmDiagnosticLog.deleteMany({
+    where: { userId: discordUserId },
+  });
+
+  return {
+    factsSweptByTag,
+    pendingMemories: pendingMemories.count,
+    diagnosticLogs: diagnosticLogs.count,
+  };
 }
 
 export class AccountDeletionService {
@@ -188,7 +258,8 @@ export class AccountDeletionService {
   async deleteAccount(
     userId: string,
     discordUserId: string,
-    mode: AccountDeletionMode
+    mode: AccountDeletionMode,
+    runContext: string | null = null
   ): Promise<AccountDeletionSummary> {
     // Retention re-homes cross-user characters to the sentinel instead of
     // cascading them; ensure that holder row exists BEFORE the deletion tx (its
@@ -207,6 +278,15 @@ export class AccountDeletionService {
           throw new SuperuserDeletionError();
         }
 
+        // TOCTOU close (D4): the cohort was selected earlier, so re-evaluate
+        // eligibility HERE, inside the transaction — a user who became active
+        // in between has cleared their unreachable flag or bumped
+        // last_active_at, and erasing them would delete a live account. The
+        // throw is what rolls this transaction back.
+        if (mode === 'retention' && !(await isStillEligibleForPurge(tx, userId))) {
+          throw new RetentionIneligibleError();
+        }
+
         // Intentionally unbounded (exception to the bounded-findMany rule):
         // the cascade scope, tag vocabulary, and pending-memories arms all
         // require the COMPLETE owned set — a partial page would orphan rows.
@@ -219,37 +299,21 @@ export class AccountDeletionService {
           select: { id: true, name: true, slug: true },
         });
         const personaIds = personas.map(persona => persona.id);
-        const ownedIds = ownedCharacters.map(character => character.id);
 
         // Retention: characters other users actively use are re-homed to the
         // sentinel (surviving the cascade) rather than deleted. Only the rest
         // ('deletedCharacters') die with the account, and only THEIR
         // personality-scoped rows enter the sweep scope — a re-homed survivor's
         // other-user data is never touched (D11).
-        let deletedCharacters = ownedCharacters;
-        if (mode === 'retention' && sentinelId !== null && ownedIds.length > 0) {
-          const reHomeIds = await findCrossUserReachIds(tx, userId, ownedIds);
-          if (reHomeIds.length > 0) {
-            // Prisma client write (NOT raw SQL) so `@updatedAt` bumps: personalities
-            // is a sync-tracked table and re-home is a SEMANTIC ownership change that
-            // MUST win the dev<->prod last-write-wins sync (03-database § Sync-Tracked
-            // Tables). Raw SQL skips the bump → a later sync could revert the re-home.
-            // (The stamp columns use raw SQL for the OPPOSITE reason — to avoid
-            // falsely winning LWW on a non-semantic write.)
-            await tx.personality.updateMany({
-              where: { id: { in: reHomeIds } },
-              data: { ownerId: sentinelId, originalOwnerDiscordId: discordUserId },
-            });
-            // KNOWN LIMITATION (tracked in design D11): re-home repoints ownership
-            // but grants the reach-holders no access. A PRIVATE re-homed character
-            // becomes unreachable to them — canUserViewPersonality gates on
-            // isPublic || owner || PersonalityOwner, all false for them post-purge.
-            // The scoped-view fix needs a new permission primitive and must land
-            // before the purge is activated. Inert today (nothing calls retention).
-            const reHomeSet = new Set(reHomeIds);
-            deletedCharacters = ownedCharacters.filter(character => !reHomeSet.has(character.id));
-          }
-        }
+        const { deletedCharacters, charactersReHomed } =
+          mode === 'retention' && sentinelId !== null
+            ? await reHomeCrossUserCharacters(tx, {
+                userId,
+                discordUserId,
+                sentinelId,
+                ownedCharacters,
+              })
+            : { deletedCharacters: ownedCharacters, charactersReHomed: 0 };
         const deletedIds = deletedCharacters.map(character => character.id);
         const scope = blastRadiusFilter(personaIds, deletedIds);
 
@@ -259,47 +323,47 @@ export class AccountDeletionService {
           tx.memoryFact.count({ where: scope }),
         ]);
 
-        // Facts ABOUT the user under any scope (other personas, other owners'
-        // characters, NULL-persona world facts). Case-insensitive because the
-        // tags are model-produced free text. Accepted tradeoff: an unrelated
-        // user literally sharing a swept name loses those facts too.
-        const tagList = buildTagVocabulary(user.username, personas);
-        const factsSweptByTag = await tx.$executeRaw`
-          DELETE FROM memory_facts f
-          WHERE EXISTS (
-            SELECT 1 FROM unnest(f.entity_tags) AS t(tag)
-            WHERE lower(t.tag) = ANY(${tagList}::text[])
-          )
-        `;
-
-        // NULL-persona memories: nothing writes them today (pools are a
-        // future phase that must define its own erasure semantics before
-        // shipping); no sweep needed here.
-
-        // pending_memories has loose refs with no user FK — both arms, so no
-        // orphaned rows survive against the user's personas OR dead characters.
-        const pendingMemories = await tx.pendingMemory.deleteMany({ where: scope });
-
-        // Diagnostic logs key on the loose Discord-ID string, not the user FK.
-        const diagnosticLogs = await tx.llmDiagnosticLog.deleteMany({
-          where: { userId: discordUserId },
+        const swept = await sweepLooseRefs(tx, {
+          username: user.username,
+          personas,
+          scope,
+          discordUserId,
         });
 
         // Everything else is one cascade.
         await tx.user.delete({ where: { id: userId } });
 
-        return {
+        const characterSlugs = deletedCharacters.map(character => character.slug);
+        const counts = {
           personas: personaIds.length,
           characters: deletedIds.length,
           conversationMessages,
           memories,
           facts,
-          factsSweptByTag,
-          pendingMemories: pendingMemories.count,
-          diagnosticLogs: diagnosticLogs.count,
+          ...swept,
+          charactersReHomed,
+        };
+
+        // Audit row inside the transaction (D14): written after the cascade so
+        // it records real counts, and INSIDE so a process death between commit
+        // and log-write cannot produce a purged account with no ledger entry.
+        // `retention_purge_log` has no FK to users, so it survives the cascade.
+        const auditLogId =
+          mode === 'retention'
+            ? await recordPurgeSuccess(tx, {
+                targetDiscordId: discordUserId,
+                runContext,
+                deletionCounts: counts,
+                offDbPending: { characterSlugs },
+              })
+            : null;
+
+        return {
+          ...counts,
           characterNames: deletedCharacters.map(character => character.name),
-          characterSlugs: deletedCharacters.map(character => character.slug),
+          characterSlugs,
           characterIds: deletedIds,
+          auditLogId,
         };
       },
       { timeout: DELETION_TX_TIMEOUT_MS }

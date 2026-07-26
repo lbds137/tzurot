@@ -59,9 +59,11 @@ function makeSummary(overrides: Partial<AccountDeletionSummary> = {}): AccountDe
     factsSweptByTag: 0,
     pendingMemories: 0,
     diagnosticLogs: 0,
+    charactersReHomed: 0,
     characterNames: ['XBot', 'YBot'],
     characterSlugs: ['xbot', 'ybot'],
     characterIds: ['x1', 'x2'],
+    auditLogId: null,
     ...overrides,
   };
 }
@@ -96,7 +98,7 @@ describe('AccountEraserService.erase', () => {
     });
 
     // The mode + ids cross the seam into the DB half.
-    expect(mockDeleteAccount).toHaveBeenCalledWith('u1', 'd1', 'retention');
+    expect(mockDeleteAccount).toHaveBeenCalledWith('u1', 'd1', 'retention', null);
     // Provisioning-cache eviction (this process) + cross-process broadcast, both keyed on discordId.
     expect(mockProvisioningInvalidate).toHaveBeenCalledWith('d1');
     expect(mockUserCacheInvalidate).toHaveBeenCalledWith('d1');
@@ -118,7 +120,7 @@ describe('AccountEraserService.erase', () => {
       mode: 'self-serve',
     });
 
-    expect(mockDeleteAccount).toHaveBeenCalledWith('u1', 'd1', 'self-serve');
+    expect(mockDeleteAccount).toHaveBeenCalledWith('u1', 'd1', 'self-serve', null);
   });
 
   it('still succeeds when the cross-process broadcast throws (best-effort swallow)', async () => {

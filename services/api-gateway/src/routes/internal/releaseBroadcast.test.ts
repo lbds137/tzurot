@@ -266,7 +266,7 @@ describe('POST /internal/release-broadcast/:releaseId/deliveries', () => {
     expect(executeRawSqlIncludes('dm_undeliverable_since = NOW()')).toBe(false);
   });
 
-  it('clears dm_undeliverable_since for the sent set (blast-success clear)', async () => {
+  it('clears both unreachability flags for the sent set (blast-success clear)', async () => {
     mockPrisma.releaseDeliveryLog.updateMany.mockResolvedValue({ count: 1 });
     mockPrisma.releaseDeliveryLog.count.mockResolvedValue(1); // pending remains → no completion flip
     const handler = handleReleaseBroadcastDeliveries(makeDeps());
@@ -281,6 +281,10 @@ describe('POST /internal/release-broadcast/:releaseId/deliveries', () => {
     // over the sent set — otherwise the purge branch would route them to
     // unreachable-purge-without-notice.
     expect(executeRawSqlIncludes('dm_undeliverable_since = NULL')).toBe(true);
+    // A delivered DM is direct proof the account exists — which is exactly what
+    // a 10013 stamp claimed it did not. Clearing it here is the only path back
+    // for a user who was mis-stamped and never re-provisions.
+    expect(executeRawSqlIncludes('discord_account_gone_at = NULL')).toBe(true);
   });
 
   it('swallows a failed blast-success clear without failing the batch', async () => {
