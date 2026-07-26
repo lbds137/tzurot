@@ -23,6 +23,7 @@ import {
   llmGenerationJobDataSchema,
   factExtractionJobDataSchema,
   releaseBroadcastDmJobDataSchema,
+  retentionNotifyDmJobDataSchema,
 } from '@tzurot/common-types/types/jobs';
 import {
   shapesImportJobDataSchema,
@@ -47,6 +48,7 @@ const SCHEMA_MAP: Record<JobType, ZodSchema> = {
   [JobType.AccountExport]: accountExportJobDataSchema,
   [JobType.FactExtraction]: factExtractionJobDataSchema,
   [JobType.ReleaseBroadcastDm]: releaseBroadcastDmJobDataSchema,
+  [JobType.RetentionNotifyDm]: retentionNotifyDmJobDataSchema,
 };
 
 /**
