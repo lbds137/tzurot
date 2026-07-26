@@ -6,7 +6,7 @@
 
 ## Unreleased on Develop
 
-- **#1793** dead-`getPrismaClient` doc sweep · **#1794** council roster → Kimi K3 · **#1795** retention **PR-D1 — the purge capability** (6 review rounds; dev migration applied) · 18 epic-scoped follow-up rows relocated into their theme files (pool 360 → 341).
+- **#1793** dead-`getPrismaClient` doc sweep · **#1794** council roster → Kimi K3 · **#1795** retention **PR-D1 — the purge capability** (6 review rounds; dev migration applied) · **#1796** `/history purge` now retires the memories derived from the purged turns (prod bug; mutation gate caught a 52%→97% test gap in the extracted module) · 18 epic-scoped follow-up rows relocated into their theme files (pool 360 → 341).
 
 ## ⏭️ NEXT SESSION STARTS HERE
 
