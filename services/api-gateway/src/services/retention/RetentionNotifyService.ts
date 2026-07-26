@@ -164,17 +164,18 @@ export class RetentionNotifyService {
    * the idempotent guards — a 500 here must retry, not strand.
    */
   async reportOutcomes(outcomes: NotifyOutcome[]): Promise<number> {
+    // `processed` counts rows a stamp actually WROTE — a guarded no-op (the
+    // re-report of an already-stamped user, an unknown error code) adds 0, so
+    // the number means the same thing in every branch.
     let processed = 0;
     for (const outcome of outcomes) {
       if (outcome.status === 'sent') {
-        await this.prisma.$executeRaw`
+        processed += await this.prisma.$executeRaw`
           UPDATE users SET retention_notified_at = NOW()
           WHERE id = ${outcome.userId}::uuid AND retention_notified_at IS NULL
         `;
-        processed += 1;
       } else if (outcome.status === 'failed_permanent') {
-        await stampDmPermanentFailure(this.prisma, outcome.userId, outcome.errorCode);
-        processed += 1;
+        processed += await stampDmPermanentFailure(this.prisma, outcome.userId, outcome.errorCode);
       } else {
         // failed_bot_level / failed_transient: recorded in logs only — a
         // quarantined bot or a network blip says nothing about the user, and

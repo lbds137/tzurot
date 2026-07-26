@@ -483,5 +483,6 @@ export const RetentionNotifyReportRequestSchema = z.object({
 });
 
 export const RetentionNotifyReportResponseSchema = z.object({
+  /** Rows a stamp actually wrote — guarded no-ops (re-reports) contribute 0. */
   processed: z.number().int().nonnegative(),
 });

@@ -1,0 +1,24 @@
+{
+  "name": "retention-notify-dm",
+  "data": {
+    "requestId": "2026-01-01T00:00:00.000Z-contract-fixture:0",
+    "jobType": "retention-notify-dm",
+    "responseDestination": {
+      "type": "api"
+    },
+    "runId": "2026-01-01T00:00:00.000Z-contract-fixture",
+    "recipients": [
+      {
+        "userId": "2f8c02d8-34a7-54e7-abaa-29c94ef8e464",
+        "discordUserId": "111111111111111111"
+      },
+      {
+        "userId": "82df0bc4-ee89-5f2c-9112-f74bf1cb1c07",
+        "discordUserId": "222222222222222222"
+      }
+    ]
+  },
+  "opts": {
+    "jobId": "retention-notify:2026-01-01T00:00:00.000Z-contract-fixture:0"
+  }
+}

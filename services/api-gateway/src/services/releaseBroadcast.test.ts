@@ -73,10 +73,10 @@ describe('resolveEligibleRecipients', () => {
   });
 
   it('narrows the WHERE clause to the allowlist when set (dev outbound gate)', async () => {
-    allowlistMock.value = new Set(['111']);
+    allowlistMock.value = new Set(['111111111111111111']);
     const prisma = makePrisma();
     prisma.user.findMany.mockResolvedValueOnce([
-      { id: USER_A, discordId: '111', username: 'owner' },
+      { id: USER_A, discordId: '111111111111111111', username: 'owner' },
     ]);
 
     await resolveEligibleRecipients(prisma as unknown as PrismaClient, 'major');
@@ -87,7 +87,7 @@ describe('resolveEligibleRecipients', () => {
           notifyEnabled: true,
           notifyOptedInAt: { not: null },
           notifyLevel: { in: ['major', 'minor', 'patch'] },
-          discordId: { in: ['111'] },
+          discordId: { in: ['111111111111111111'] },
         },
       })
     );
@@ -96,7 +96,7 @@ describe('resolveEligibleRecipients', () => {
   it('queries opted-in users at the level thresholds, gated on deliberate use', async () => {
     const prisma = makePrisma();
     prisma.user.findMany.mockResolvedValueOnce([
-      { id: USER_A, discordId: '111', username: 'alice' },
+      { id: USER_A, discordId: '111111111111111111', username: 'alice' },
     ]);
 
     const recipients = await resolveEligibleRecipients(prisma as unknown as PrismaClient, 'minor');
@@ -114,19 +114,21 @@ describe('resolveEligibleRecipients', () => {
         take: 500,
       })
     );
-    expect(recipients).toEqual([{ userId: USER_A, discordUserId: '111', username: 'alice' }]);
+    expect(recipients).toEqual([
+      { userId: USER_A, discordUserId: '111111111111111111', username: 'alice' },
+    ]);
   });
 
   it('paginates with a cursor until a short page arrives', async () => {
     const prisma = makePrisma();
     const fullPage = Array.from({ length: 500 }, (_unused, i) => ({
       id: `id-${String(i).padStart(3, '0')}`,
-      discordId: `d${i}`,
+      discordId: `9${String(i).padStart(17, '0')}`,
       username: `u${i}`,
     }));
     prisma.user.findMany
       .mockResolvedValueOnce(fullPage)
-      .mockResolvedValueOnce([{ id: 'id-tail', discordId: 'dt', username: 'ut' }]);
+      .mockResolvedValueOnce([{ id: 'id-tail', discordId: '911111111111111111', username: 'ut' }]);
 
     const recipients = await resolveEligibleRecipients(prisma as unknown as PrismaClient, 'major');
 
@@ -161,8 +163,8 @@ describe('enqueueBroadcast', () => {
   it('creates the announcement + pending logs and enqueues deterministic batches', async () => {
     const prisma = makePrisma();
     prisma.user.findMany.mockResolvedValueOnce([
-      { id: USER_A, discordId: '111', username: 'alice' },
-      { id: USER_B, discordId: '222', username: 'bob' },
+      { id: USER_A, discordId: '111111111111111111', username: 'alice' },
+      { id: USER_B, discordId: '222222222222222222', username: 'bob' },
     ]);
     const queue = makeQueue();
 
@@ -200,8 +202,8 @@ describe('enqueueBroadcast', () => {
   it("attaches each recipient's standing prior DM as previousDm", async () => {
     const prisma = makePrisma();
     prisma.user.findMany.mockResolvedValueOnce([
-      { id: USER_A, discordId: '111', username: 'alice' },
-      { id: USER_B, discordId: '222', username: 'bob' },
+      { id: USER_A, discordId: '111111111111111111', username: 'alice' },
+      { id: USER_B, discordId: '222222222222222222', username: 'bob' },
     ]);
     // Only alice has a standing prior release DM.
     prisma.releaseDeliveryLog.findMany.mockResolvedValueOnce([
@@ -247,7 +249,7 @@ describe('enqueueBroadcast', () => {
     prisma.user.findMany.mockResolvedValueOnce(
       Array.from({ length: BROADCAST_BATCH_SIZE + 1 }, (_unused, i) => ({
         id: `${String(i).padStart(8, '0')}-e89b-42d3-a456-426614174000`,
-        discordId: `d${i}`,
+        discordId: `9${String(i).padStart(17, '0')}`,
         username: `u${i}`,
       }))
     );
@@ -269,7 +271,7 @@ describe('enqueueBroadcast', () => {
   it('resolves a create-time unique violation (concurrent same-version race) to already-announced', async () => {
     const prisma = makePrisma();
     prisma.user.findMany.mockResolvedValueOnce([
-      { id: USER_A, discordId: '111', username: 'alice' },
+      { id: USER_A, discordId: '111111111111111111', username: 'alice' },
     ]);
     prisma.releaseAnnouncement.create.mockRejectedValueOnce({ code: 'P2002' });
     const queue = makeQueue();

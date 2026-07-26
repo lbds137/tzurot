@@ -33,7 +33,7 @@ describe('generateCoverageTopology', () => {
     expect(routeSurfaces.every(s => s.consumer === 'api-gateway')).toBe(true);
   });
 
-  it('enumerates the four payload-bearing BullMQ jobs (bullmq-contract)', () => {
+  it('enumerates the five payload-bearing BullMQ jobs (bullmq-contract)', () => {
     const jobSurfaces = topology.surfaces.filter(s => s.kind === 'bullmq-job');
     // Build expected ids from the enum so a JobType value rename is caught.
     const expected = [
@@ -41,6 +41,7 @@ describe('generateCoverageTopology', () => {
       `api-gateway:ai-worker:${JobType.ImageDescription}`,
       `api-gateway:ai-worker:${JobType.LLMGeneration}`,
       `api-gateway:bot-client:${JobType.ReleaseBroadcastDm}`,
+      `api-gateway:bot-client:${JobType.RetentionNotifyDm}`,
     ].sort();
     expect(jobSurfaces.map(s => s.id).sort()).toEqual(expected);
     expect(jobSurfaces.every(s => s.mechanism === 'bullmq-contract')).toBe(true);
@@ -109,7 +110,8 @@ describe('generateCoverageTopology', () => {
         'audioTranscriptionJobDataSchema.safeParse(x);\n' +
           'imageDescriptionJobDataSchema.safeParse(x);\n' +
           'llmGenerationJobDataSchema.parse(x);\n' +
-          'releaseBroadcastDmJobDataSchema.safeParse(x);\n'
+          'releaseBroadcastDmJobDataSchema.safeParse(x);\n' +
+          'retentionNotifyDmJobDataSchema.safeParse(x);\n'
       );
       mkdirSync(dirname(producerPath), { recursive: true });
       // The broadcast surface keys off ITS OWN producer test — keep it REAL in
@@ -122,6 +124,17 @@ describe('generateCoverageTopology', () => {
       writeFileSync(
         broadcastProducerPath,
         "import { enqueueBroadcast } from './releaseBroadcast.js';\nenqueueBroadcast();\n"
+      );
+      // Likewise the retention-notify surface keys off ITS OWN producer test.
+      const retentionProducerPath = join(
+        tmpRoot,
+        'services/api-gateway/src/services/retention/RetentionNotifyContract.producer.test.ts'
+      );
+      mkdirSync(dirname(retentionProducerPath), { recursive: true });
+      writeFileSync(
+        retentionProducerPath,
+        "import { RetentionNotifyService } from './RetentionNotifyService.js';\n" +
+          'new RetentionNotifyService();\n'
       );
 
       // Circular: the producer hand-rolls a payload, importing the SCHEMA but never

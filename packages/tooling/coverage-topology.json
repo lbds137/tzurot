@@ -58,6 +58,20 @@
       ]
     },
     {
+      "id": "api-gateway:bot-client:retention-notify-dm",
+      "kind": "bullmq-job",
+      "producer": "api-gateway",
+      "consumer": "bot-client",
+      "schemaRef": "retentionNotifyDmJobDataSchema",
+      "mechanism": "bullmq-contract",
+      "requiredTiers": [
+        "contract"
+      ],
+      "actualTiers": [
+        "contract"
+      ]
+    },
+    {
       "id": "bot-client:ai-worker:context-assembly",
       "kind": "context-envelope",
       "producer": "bot-client",
