@@ -340,25 +340,60 @@ describe('RedisService', () => {
     it('should return true when (message, personality) is new (key was set)', async () => {
       mockRedis.set.mockResolvedValue('OK');
 
-      const result = await redisService.markMessageProcessing('discord-msg-123', 'pers-uuid-A');
+      const result = await redisService.markMessageProcessing(
+        'discord-msg-123',
+        'pers-uuid-A',
+        'llm-job-1'
+      );
 
       expect(result).toBe(true);
       expect(mockRedis.set).toHaveBeenCalledWith(
         `${REDIS_KEY_PREFIXES.PROCESSED_MESSAGE}discord-msg-123:pers-uuid-A`,
-        '1',
+        'llm-job-1',
         'EX',
         3600,
         'NX'
       );
     });
 
-    it('should return false when the (message, personality) pair already exists', async () => {
+    it('should return false when a DIFFERENT job holds the lock (true duplicate)', async () => {
       // When key already exists, SET NX returns null
       mockRedis.set.mockResolvedValue(null);
+      mockRedis.get.mockResolvedValue('llm-job-other');
 
-      const result = await redisService.markMessageProcessing('discord-msg-123', 'pers-uuid-A');
+      const result = await redisService.markMessageProcessing(
+        'discord-msg-123',
+        'pers-uuid-A',
+        'llm-job-1'
+      );
 
       expect(result).toBe(false);
+      // Must NOT overwrite the other job's lock
+      expect(mockRedis.set).toHaveBeenCalledTimes(1);
+    });
+
+    it('should re-acquire when the lock holds our OWN job ID (re-run after process death)', async () => {
+      // A worker killed between acquire and release leaves the lock orphaned;
+      // the stall-recovery re-run of the same job must proceed, not skip —
+      // otherwise the reply is silently swallowed.
+      mockRedis.set.mockResolvedValueOnce(null).mockResolvedValueOnce('OK');
+      mockRedis.get.mockResolvedValue('llm-job-1');
+
+      const result = await redisService.markMessageProcessing(
+        'discord-msg-123',
+        'pers-uuid-A',
+        'llm-job-1'
+      );
+
+      expect(result).toBe(true);
+      // TTL refreshed so the re-run gets a full window
+      expect(mockRedis.set).toHaveBeenNthCalledWith(
+        2,
+        `${REDIS_KEY_PREFIXES.PROCESSED_MESSAGE}discord-msg-123:pers-uuid-A`,
+        'llm-job-1',
+        'EX',
+        3600
+      );
     });
 
     it('should allow same message with DIFFERENT personality (multi-tag fan-out)', async () => {
@@ -367,15 +402,15 @@ describe('RedisService', () => {
       // all acquire their own lock.
       mockRedis.set.mockResolvedValue('OK');
 
-      const aRes = await redisService.markMessageProcessing('msg-1', 'pers-A');
-      const bRes = await redisService.markMessageProcessing('msg-1', 'pers-B');
+      const aRes = await redisService.markMessageProcessing('msg-1', 'pers-A', 'llm-job-a');
+      const bRes = await redisService.markMessageProcessing('msg-1', 'pers-B', 'llm-job-b');
 
       expect(aRes).toBe(true);
       expect(bRes).toBe(true);
       expect(mockRedis.set).toHaveBeenNthCalledWith(
         1,
         `${REDIS_KEY_PREFIXES.PROCESSED_MESSAGE}msg-1:pers-A`,
-        '1',
+        'llm-job-a',
         'EX',
         3600,
         'NX'
@@ -383,7 +418,7 @@ describe('RedisService', () => {
       expect(mockRedis.set).toHaveBeenNthCalledWith(
         2,
         `${REDIS_KEY_PREFIXES.PROCESSED_MESSAGE}msg-1:pers-B`,
-        '1',
+        'llm-job-b',
         'EX',
         3600,
         'NX'
@@ -393,21 +428,38 @@ describe('RedisService', () => {
     it('should return true on Redis error (fail open)', async () => {
       mockRedis.set.mockRejectedValue(new Error('Connection lost'));
 
-      const result = await redisService.markMessageProcessing('discord-msg-123', 'pers-uuid-A');
+      const result = await redisService.markMessageProcessing(
+        'discord-msg-123',
+        'pers-uuid-A',
+        'llm-job-1'
+      );
 
       // Should not throw, should return true to allow processing
+      expect(result).toBe(true);
+    });
+
+    it('should fail open when the ownership GET errors after a lost SET NX', async () => {
+      mockRedis.set.mockResolvedValue(null);
+      mockRedis.get.mockRejectedValue(new Error('Connection lost'));
+
+      const result = await redisService.markMessageProcessing(
+        'discord-msg-123',
+        'pers-uuid-A',
+        'llm-job-1'
+      );
+
       expect(result).toBe(true);
     });
 
     it('should use 1 hour TTL for idempotency key', async () => {
       mockRedis.set.mockResolvedValue('OK');
 
-      await redisService.markMessageProcessing('discord-msg-123', 'pers-uuid-A');
+      await redisService.markMessageProcessing('discord-msg-123', 'pers-uuid-A', 'llm-job-1');
 
       // Verify TTL is 3600 seconds (1 hour)
       expect(mockRedis.set).toHaveBeenCalledWith(
         expect.any(String),
-        '1',
+        'llm-job-1',
         'EX',
         3600, // 1 hour TTL
         'NX'
