@@ -79,9 +79,10 @@ gh pr view 123 --json number,title,body,state,comments
 
 ### Create PR
 
-> **Owner policy**: every non-dependabot PR carries the owner as assignee — add
-> `--assignee lbds137` at create time (the `pr-monitor-reminder.sh` hook
-> backfills it on the next push if forgotten).
+> **Owner policy**: every human-authored PR carries its creator as assignee
+> (bot PRs stay unassigned) — add `--assignee @me` at create time (the
+> `pr-monitor-reminder.sh` hook backfills the PR author on the next push if
+> forgotten).
 
 ```bash
 # Basic PR creation (opens editor for title/body)
@@ -91,10 +92,10 @@ gh pr create
 gh pr create --title "feat: add new feature" --body "Description here"
 
 # Specify base branch (IMPORTANT for Tzurot - always use develop!)
-gh pr create --base develop --title "feat: add new feature" --assignee lbds137
+gh pr create --base develop --title "feat: add new feature" --assignee @me
 
 # Using HEREDOC for multiline body (recommended for Claude Code)
-gh pr create --base develop --title "feat: your feature" --assignee lbds137 --body "$(cat <<'EOF'
+gh pr create --base develop --title "feat: your feature" --assignee @me --body "$(cat <<'EOF'
 ## Summary
 - Change 1
 - Change 2
@@ -358,7 +359,7 @@ gh issue close 123
 ### Creating a PR to develop
 
 ```bash
-gh pr create --base develop --title "feat: description" --assignee lbds137 --body "$(cat <<'EOF'
+gh pr create --base develop --title "feat: description" --assignee @me --body "$(cat <<'EOF'
 ## Summary
 - Brief description of changes
 
@@ -522,7 +523,7 @@ gh auth refresh -s repo
 | Task                 | Command                                                       |
 | -------------------- | ------------------------------------------------------------- |
 | View PR              | `gh pr view 123`                                              |
-| Create PR to develop | `gh pr create --base develop --assignee lbds137`              |
+| Create PR to develop | `gh pr create --base develop --assignee @me`                  |
 | Edit PR body ⚠️      | `gh api -X PATCH repos/{owner}/{repo}/pulls/123 -f body="…"`  |
 | Edit PR title ⚠️     | `gh api -X PATCH repos/{owner}/{repo}/pulls/123 -f title="…"` |
 | Comment on PR        | `gh pr comment 123 --body "text"`                             |

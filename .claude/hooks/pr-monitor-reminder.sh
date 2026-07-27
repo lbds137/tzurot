@@ -87,10 +87,11 @@ echo "$KEY" >>"$SEEN_FILE"
 # other accounts on a shared host to read one user's PR/SHA history.
 chmod 600 "$SEEN_FILE" 2>/dev/null || true
 
-# Owner policy: every non-dependabot PR carries the owner as assignee. The
-# skill's canonical `gh pr create --assignee lbds137` is the primary path;
-# this is the deterministic backfill when it was forgotten. REST endpoint
-# rather than `gh pr edit` (the latter is unreliable in this repo — see
+# Owner policy: every human-authored PR carries its CREATOR as assignee; bot
+# PRs (dependabot etc.) stay unassigned. The skill's canonical
+# `gh pr create --assignee @me` is the primary path; this is the
+# deterministic backfill when the flag was forgotten. REST endpoint rather
+# than `gh pr edit` (the latter is unreliable in this repo — see
 # 05-tooling.md "Use instead of broken gh pr edit"). Fail-open: an offline
 # `gh` must never block the reminder below.
 PR_META=$(gh pr view "$PR_NUM" --json author,assignees \
@@ -98,13 +99,16 @@ PR_META=$(gh pr view "$PR_NUM" --json author,assignees \
 if [ -n "$PR_META" ]; then
     AUTHOR=${PR_META% *}
     ASSIGNEE_COUNT=${PR_META##* }
+    # One pattern covers bots AND input hygiene: real GitHub logins are
+    # [A-Za-z0-9-] only, so "app/dependabot", "foo[bot]", or anything mangled
+    # falls through to skip rather than reach the API call.
     case "$AUTHOR" in
-    *dependabot*) : ;; # dependabot PRs stay unassigned by policy
+    '' | *dependabot* | *[!A-Za-z0-9-]*) : ;;
     *)
         if [ "$ASSIGNEE_COUNT" = "0" ]; then
             if gh api "repos/{owner}/{repo}/issues/${PR_NUM}/assignees" \
-                -f "assignees[]=lbds137" >/dev/null 2>&1; then
-                echo "pr-monitor-reminder: auto-assigned lbds137 to PR #$PR_NUM" >&2
+                -f "assignees[]=${AUTHOR}" >/dev/null 2>&1; then
+                echo "pr-monitor-reminder: auto-assigned ${AUTHOR} to PR #$PR_NUM" >&2
             else
                 # Fail-open by design, but say so — a silent permission error
                 # would otherwise read as "the backfill never runs".
