@@ -303,7 +303,15 @@ export const SecretRotationStatusResponseSchema = z.object({
  * Read-only reporting: the preview mutates nothing.
  */
 export const RetentionPreviewUserSchema = z.object({
-  discordId: DiscordSnowflakeSchema,
+  /**
+   * Deliberately NOT snowflake-validated: the preview is a display-only
+   * report, and a malformed stored id (a legacy row holds the literal
+   * 'unknown') is a finding the report must SURFACE — snowflake validation
+   * here crashed the CLI and silenced the daily nag on exactly that anomaly
+   * the moment the bystander arm made the cohort non-empty. The notify
+   * pipeline's recipient schemas stay strict; such rows never qualify there.
+   */
+  discordId: z.string().min(1).max(32),
   /** Inactivity anchor as ISO — last_active_at, or created_at when never stamped. */
   inactiveSince: z.string().datetime(),
   /**
@@ -355,7 +363,13 @@ export type RetentionPreviewResponse = z.infer<typeof RetentionPreviewResponseSc
  * unrecorded purge; the CLI loops instead, and re-running it resumes.
  */
 export const RetentionPurgeRequestSchema = z.object({
-  discordId: DiscordSnowflakeSchema,
+  /**
+   * Same relaxation as the preview user schema: the id is a lookup key, not
+   * a trust boundary (parameterized SQL + the in-tx eligibility re-check own
+   * safety), and the operator must be able to purge a malformed-id row the
+   * preview surfaced — that junk is precisely what the bystander arm sweeps.
+   */
+  discordId: z.string().min(1).max(32),
   /** Operator/run label recorded in the audit ledger. */
   runContext: z.string().max(200).optional(),
   /**
@@ -368,7 +382,9 @@ export const RetentionPurgeRequestSchema = z.object({
 });
 
 export const RetentionPurgeResponseSchema = z.object({
-  discordId: DiscordSnowflakeSchema,
+  // Echoes the request's id — same relaxation, or purging a malformed-id row
+  // would succeed server-side and then fail the client's response parse.
+  discordId: z.string().min(1).max(32),
   /** `skipped` covers every normal no-op; only a thrown error is a failure. */
   status: z.enum(['purged', 'skipped']),
   /** Present when status is `skipped`. */
