@@ -14,49 +14,20 @@
  */
 
 export {
-  type AllInvalidationEvent,
-  BaseCacheInvalidationService,
-  createEventValidator,
-  createStandardEventValidator,
-  type EventFieldSpec,
-  type EventTypeSpec,
-  type EventValidator,
-  type StandardInvalidationEvent,
-  type UserInvalidationEvent,
-} from './BaseCacheInvalidationService.js';
-export {
   CacheInvalidationService,
   isValidInvalidationEvent,
   type PersonalityCacheTarget,
 } from './CacheInvalidationService.js';
-export {
-  ApiKeyCacheInvalidationService,
-  type ApiKeyInvalidationEvent,
-} from './ApiKeyCacheInvalidationService.js';
+export { ApiKeyCacheInvalidationService } from './ApiKeyCacheInvalidationService.js';
 export { LlmConfigCacheInvalidationService } from './LlmConfigCacheInvalidationService.js';
-export {
-  PersonaCacheInvalidationService,
-  type PersonaInvalidationEvent,
-} from './PersonaCacheInvalidationService.js';
+export { PersonaCacheInvalidationService } from './PersonaCacheInvalidationService.js';
 export { UserCacheInvalidationService } from './UserCacheInvalidationService.js';
-export {
-  ChannelActivationCacheInvalidationService,
-  type ChannelActivationInvalidationEvent,
-} from './ChannelActivationCacheInvalidationService.js';
-export {
-  ConfigCascadeCacheInvalidationService,
-  type ConfigCascadeInvalidationEvent,
-} from './ConfigCascadeCacheInvalidationService.js';
+export { ChannelActivationCacheInvalidationService } from './ChannelActivationCacheInvalidationService.js';
+export { ConfigCascadeCacheInvalidationService } from './ConfigCascadeCacheInvalidationService.js';
 export {
   DenylistCacheInvalidationService,
-  type DenylistEntryRef,
   type DenylistInvalidationEvent,
-  isValidDenylistInvalidationEvent,
 } from './DenylistCacheInvalidationService.js';
 export { TtsConfigCacheInvalidationService } from './TtsConfigCacheInvalidationService.js';
 export { SttResolverCacheInvalidationService } from './SttResolverCacheInvalidationService.js';
-export {
-  SystemSettingsCacheInvalidationService,
-  type SystemSettingsInvalidationEvent,
-  isValidSystemSettingsInvalidationEvent,
-} from './SystemSettingsCacheInvalidationService.js';
+export { SystemSettingsCacheInvalidationService } from './SystemSettingsCacheInvalidationService.js';

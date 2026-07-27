@@ -12,13 +12,8 @@
  * client — see `createPrismaClient` in `@tzurot/common-types`).
  */
 
-export {
-  buildShellPlaceholderPersonaName,
-  getOrCreateUserService,
-  type ProvisionedUser,
-  UserService,
-} from './UserService.js';
-export { resolveRoutingContext, type RoutingContextDeps } from './RoutingContextResolver.js';
+export { getOrCreateUserService, UserService } from './UserService.js';
+export { resolveRoutingContext } from './RoutingContextResolver.js';
 export { type PersonaPromptData, PersonaResolver } from './resolvers/index.js';
 export { PersonalityService } from './personality/index.js';
 // Canonical public avatar-URL derivation (PUBLIC_GATEWAY_URL + cache-busting

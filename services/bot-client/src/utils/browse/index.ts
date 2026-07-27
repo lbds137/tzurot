@@ -39,41 +39,23 @@ export {
   buildSimplePaginationButtons,
   createBrowseSortToggle,
   type BrowseSortToggle,
-  type BrowseSortDisplay,
 } from './buttonBuilder.js';
 
 // Select menu builder
-export {
-  buildBrowseSelectMenu,
-  type BrowseSelectOption,
-  type BuildBrowseSelectMenuOptions,
-} from './selectMenuBuilder.js';
+export { buildBrowseSelectMenu } from './selectMenuBuilder.js';
 
 // In-place filter toggle (≤3-value filters; spec §3.1)
-export {
-  buildFilterToggleButton,
-  nextFilter,
-  type FilterToggleConfig,
-  type FilterToggleDisplay,
-} from './filterRowBuilder.js';
+export { buildFilterToggleButton, type FilterToggleDisplay } from './filterRowBuilder.js';
 
 // Footer helpers
 export {
-  FOOTER_DELIMITER,
   joinFooter,
   pluralize,
   formatFilterLabeled,
-  formatFilterParens,
   formatSortNatural,
   formatSortVerbatim,
   formatPageIndicator,
-  type NounSpec,
 } from './footer.js';
 
 // Shared list-embed builder (§2.4 row grammar, §2.1 titles, D19 empty states)
-export {
-  buildBrowseListEmbed,
-  type BrowseRowSpec,
-  type BrowseListEmbedOptions,
-  type BrowseListEmbedResult,
-} from './listEmbedBuilder.js';
+export { buildBrowseListEmbed } from './listEmbedBuilder.js';
