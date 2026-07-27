@@ -75,6 +75,17 @@ describe('RetentionNotifyService.enqueueNotifyRun', () => {
     expect(opts0.jobId).not.toContain(':');
   });
 
+  it('sanitizes colons out of an operator-supplied runContext', async () => {
+    const cohort = [cohortRow(0)];
+    const service = new RetentionNotifyService(makePrisma({ cohort, userbase: 1000 }));
+
+    await service.enqueueNotifyRun(queue, { now: NOW, runContext: 'retry: batch 2' });
+
+    const [, , , opts] = mockAddValidatedJob.mock.calls[0];
+    expect(opts.jobId).toBe('retention-notify-2026-07-26T12-00-00.000Z-retry- batch 2-0');
+    expect(opts.jobId).not.toContain(':');
+  });
+
   it('warn-annotates without refusing between the warn and hard fractions', async () => {
     // 51 of 273 ≈ 18.7% — the expected first-real-run shape (zombie cohort).
     const cohort = Array.from({ length: 51 }, (_, i) => cohortRow(i));
