@@ -7,6 +7,7 @@
 ## Unreleased on Develop
 
 - **#1805 bystander split** (merged 2026-07-26) — notify narrows to deliberate users (~21 of 53); bystander-shaped rows (~32) purge silently at the same 180-day bar; the bystander arm is never-notified-gated so the 30-day grace floor is unconditional in SQL. **Release needed before the first prod notify run** — the cohort SQL executes in prod api-gateway.
+- **Backlog drain ×12 rows** (owner-picked, 2026-07-26): docs commit (ops-reference release commands) · **#1806** eight zero-behavior rows (test pins, stale glm-5.2 claims, effort-enum single-sourcing incl. the reviewer-found third copy, proxy-ID Set, release-skill tag-fetch) · **#1807** three behavior fixes (empty-values guard both dashboards — character path was a latent TypeError; typed truncation-gate dispatch; GuildCategory log-spam skip).
 
 ## 🔬 Smoke checklist — v3.0.0-beta.178 (post-deploy)
 
