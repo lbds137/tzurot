@@ -33,7 +33,8 @@ describe('Contract: retention-notify DM batch (real producer fixture → consume
 
   it('is enqueued under the RetentionNotifyDm job type with a runId-scoped jobId', () => {
     expect(batch.name).toBe(JobType.RetentionNotifyDm);
-    expect(batch.opts?.jobId).toMatch(/^retention-notify:.+:0$/);
+    expect(batch.opts?.jobId).toMatch(/^retention-notify-.+-0$/);
+    expect(batch.opts?.jobId).not.toContain(':');
   });
 
   it("validates against the notify worker's entry schema (its safeParse gate)", () => {

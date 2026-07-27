@@ -196,7 +196,8 @@ describe('enqueueBroadcast', () => {
     ];
     expect(jobName).toBe(JobType.ReleaseBroadcastDm);
     expect(payload.recipients).toHaveLength(2);
-    expect(opts.jobId).toBe(`release-broadcast:${releaseId}:0`);
+    expect(opts.jobId).toBe(`release-broadcast-${releaseId}-0`);
+    expect(opts.jobId).not.toContain(':');
   });
 
   it("attaches each recipient's standing prior DM as previousDm", async () => {

@@ -87,7 +87,8 @@ describe('RetentionNotifyService (component, PGLite)', () => {
       { jobId: string },
     ];
     expect(payload.recipients).toHaveLength(1);
-    expect(opts.jobId).toMatch(/^retention-notify:/);
+    expect(opts.jobId).toMatch(/^retention-notify-/);
+    expect(opts.jobId).not.toContain(':');
   });
 
   it('stamps the grace clock exactly once on sent (one notice per spell)', async () => {

@@ -236,7 +236,9 @@ export async function enqueueBroadcast(
             : {}),
         })),
       },
-      { jobId: `release-broadcast:${releaseId}:${batches}` }
+      // Dash-delimited: BullMQ bans ':' in custom ids (this exact 2-colon shape
+      // rode a legacy compat window that BullMQ has announced removing).
+      { jobId: `release-broadcast-${releaseId}-${batches}` }
     );
     batches += 1;
   }
