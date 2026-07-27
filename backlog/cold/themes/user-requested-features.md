@@ -59,6 +59,7 @@ User request 2026-07-03, expanding the earlier emoji-actions idea. Inspiration i
 - [ ] **♻️ regenerate** a response that bugged out (re-run generation, replace the webhook message)
 - [ ] **❌ delete** a response
 - [ ] **🔔 ping** the user a proxied/character message relates to (PluralKit parity)
+- [ ] **🚩 Report Issue** (owner idea 2026-07-27, from the GLM `<action>`-tag leak report) — panel action (and/or `/inspect` button) that posts to the owner's audit-log channel: message link, character, reporter, optional modal note. **Load-bearing detail: reporting PINS the evidence** — snapshot or TTL-extend that message's diagnostic log at report time, so a user report beats the 24h inspect window without changing global retention (the tag-leak report arrived >24h late and the log was gone). Rate-limit per reporter.
 - [ ] Other action mappings (❤️ positive feedback, 👎 regenerate-variant, etc.)
 - [ ] Hook into reaction events (reactionAdd handler) + action dispatch by emoji → action mapping
 - [ ] **Consistency invariant (applies to edit/delete/regenerate alike): conversation history AND memories must be updated to match the surviving message content** — an edited/regenerated reply must not leave the old text in history/LTM, and a deleted one must not persist as if it happened
