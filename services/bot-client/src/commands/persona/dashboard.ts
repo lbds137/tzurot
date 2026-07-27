@@ -192,9 +192,17 @@ export async function handleSelectMenu(interaction: StringSelectMenuInteraction)
   }
   const entityId = parsed.personaId;
 
-  // The select value is `edit-{sectionId}`. Anything else is a no-op.
+  // Discord's contract says a select-menu interaction always carries at
+  // least one value, but nothing structurally prevents an empty array —
+  // log it so the drop is observable instead of silent.
   const value = interaction.values[0];
-  if (!value?.startsWith('edit-')) {
+  if (value === undefined) {
+    logger.warn({ customId: interaction.customId }, 'Select menu arrived with no values');
+    return;
+  }
+
+  // The select value is `edit-{sectionId}`. Anything else is a no-op.
+  if (!value.startsWith('edit-')) {
     return;
   }
   const sectionId = value.slice('edit-'.length);
@@ -430,14 +438,44 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
       await handleCancelDeleteButton(interaction, entityId);
       break;
     default:
-      await dispatchTruncationGateAction(interaction, parsed.action, entityId, parsed.sectionId);
+      if (isTruncationGateAction(parsed.action)) {
+        await dispatchTruncationGateAction(interaction, parsed.action, entityId, parsed.sectionId);
+      } else {
+        // Unknown action with a valid customId shape — DASHBOARD_ACTIONS
+        // gates the routing, so reaching here means the Set and the handlers
+        // drifted. Logs the violation so it's diagnosable; Discord still
+        // shows "Interaction Failed", since acking unknown actions safely
+        // needs more context than this layer has.
+        logger.warn(
+          { customId: interaction.customId, action: parsed.action, entityId },
+          'Unknown dashboard action; dropping'
+        );
+      }
   }
 }
 
 /**
- * Dispatch truncation-gate button actions (`edit_truncated`, `open_editor`,
- * `view_full`, `cancel_edit`). Extracted from `handleButton` to keep its
- * cyclomatic complexity under the project's max-20 ceiling.
+ * Truncation-gate button actions. The literal-type union keeps the
+ * dispatcher exhaustive: adding a member here without a switch case fails
+ * compilation at the never-check, instead of surfacing as a runtime
+ * "Interaction Failed". DASHBOARD_ACTIONS spreads this tuple, so the
+ * routing gate can't drift from the dispatcher either.
+ */
+const TRUNCATION_GATE_ACTIONS = [
+  'edit_truncated',
+  'open_editor',
+  'view_full',
+  'cancel_edit',
+] as const;
+type TruncationGateAction = (typeof TRUNCATION_GATE_ACTIONS)[number];
+
+function isTruncationGateAction(action: string): action is TruncationGateAction {
+  return (TRUNCATION_GATE_ACTIONS as readonly string[]).includes(action);
+}
+
+/**
+ * Dispatch truncation-gate button actions. Extracted from `handleButton` to
+ * keep its cyclomatic complexity under the project's max-20 ceiling.
  *
  * `cancel_edit` is the only branch that doesn't need `sectionId`; the
  * other three log + drop if a malformed customId arrives without it,
@@ -445,7 +483,7 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
  */
 async function dispatchTruncationGateAction(
   interaction: ButtonInteraction,
-  action: string,
+  action: TruncationGateAction,
   entityId: string,
   sectionId: string | undefined
 ): Promise<void> {
@@ -470,17 +508,15 @@ async function dispatchTruncationGateAction(
     case 'view_full':
       await handleViewFullButton(interaction, entityId, sectionId);
       break;
-    default:
-      // Unknown action with a valid customId shape — should not happen
-      // in practice (the DASHBOARD_ACTIONS Set gates the routing). Logs
-      // the violation so a future drift between the Set and this switch
-      // is diagnosable. Discord still shows "Interaction Failed" to the
-      // user, since acking unknown actions safely needs more context
-      // than this layer has.
+    default: {
+      // Exhaustiveness check: a new TRUNCATION_GATE_ACTIONS member fails to
+      // compile here until the switch gains its case.
+      const unhandled: never = action;
       logger.warn(
-        { customId: interaction.customId, action, entityId, sectionId },
+        { customId: interaction.customId, action: unhandled, entityId, sectionId },
         'Unknown truncation-gate action; dropping'
       );
+    }
   }
 }
 
@@ -495,10 +531,7 @@ const DASHBOARD_ACTIONS = new Set([
   'cancel-delete',
   'back',
   // Truncation gate (mirrors character dashboard).
-  'edit_truncated',
-  'open_editor',
-  'view_full',
-  'cancel_edit',
+  ...TRUNCATION_GATE_ACTIONS,
 ]);
 
 /**

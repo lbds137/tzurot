@@ -478,6 +478,18 @@ describe('handleSelectMenu', () => {
     expect(mockShowModal).toHaveBeenCalled();
   });
 
+  it('drops an empty-values interaction without opening anything (contract violation guard)', async () => {
+    // Discord's contract says values is non-empty; an empty array must be a
+    // logged no-op, never a throw or a silent modal-less hang.
+    const interaction = createMockSelectInteraction(`persona::menu::${TEST_PERSONA_ID}`, 'unused');
+    (interaction as unknown as { values: string[] }).values = [];
+
+    await handleSelectMenu(interaction);
+
+    expect(mockShowModal).not.toHaveBeenCalled();
+    expect(mockReply).not.toHaveBeenCalled();
+  });
+
   it('should show error for unknown section', async () => {
     await handleSelectMenu(
       createMockSelectInteraction(`persona::menu::${TEST_PERSONA_ID}`, 'edit-nonexistent')
@@ -831,15 +843,15 @@ describe('handleButton', () => {
     expect(mockDeferUpdate).not.toHaveBeenCalled();
   });
 
-  it('should log + drop unknown truncation-gate actions without acking', async () => {
-    // Pins the `default:` contract on the dispatch helper. An unknown
-    // persona action with the dashboard-prefix shape is parsed through
-    // PersonaCustomIds.parse → falls through the main switch into
-    // dispatchTruncationGateAction → no case matches → `default` logs
-    // the violation so a future drift between DASHBOARD_ACTIONS and the
-    // switch cases is diagnosable. The interaction is left unacked
-    // (Discord surfaces "Interaction Failed"); the handler doesn't
-    // throw, double-reply, or otherwise propagate.
+  it('should log + drop unknown dashboard actions without acking', async () => {
+    // Pins the unknown-action contract. An unknown persona action with the
+    // dashboard-prefix shape falls through the main switch, fails the
+    // isTruncationGateAction narrowing guard, and is logged at the caller —
+    // so a drift between DASHBOARD_ACTIONS and the handlers is diagnosable.
+    // (Truncation-gate members themselves are compile-time exhaustive via
+    // the never-check in the dispatcher.) The interaction is left unacked
+    // (Discord surfaces "Interaction Failed"); the handler doesn't throw,
+    // double-reply, or otherwise propagate.
     mockLogger.warn.mockClear();
     await handleButton(
       createMockButtonInteraction(`persona::fake_action::${TEST_PERSONA_ID}::identity`)
@@ -851,7 +863,7 @@ describe('handleButton', () => {
     // test name would be a lie (and was, until this assertion existed).
     expect(mockLogger.warn).toHaveBeenCalledWith(
       expect.objectContaining({ action: 'fake_action' }),
-      expect.stringContaining('Unknown truncation-gate action')
+      expect.stringContaining('Unknown dashboard action')
     );
   });
 
