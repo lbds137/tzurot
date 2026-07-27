@@ -109,8 +109,26 @@ describe('POST /internal/retention/purge', () => {
     expect(RetentionPurgeResponseSchema.safeParse(payload).success).toBe(true);
   });
 
-  it('rejects a malformed Discord id without touching the service', async () => {
-    const { req, res } = createMockReqRes({ discordId: 'not-a-snowflake' });
+  it('accepts a malformed stored id — the id is a lookup key, not a trust boundary', async () => {
+    // A legacy prod row holds the literal 'unknown'; the preview surfaces it
+    // and the operator must be able to purge it. Safety lives in the
+    // parameterized SQL + the in-tx eligibility re-check; a nonexistent id
+    // just skips as already_gone.
+    purgeUserMock.mockResolvedValue({
+      status: 'skipped',
+      discordId: 'unknown',
+      reason: 'already_gone',
+    });
+    const { req, res } = createMockReqRes({ discordId: 'unknown' });
+
+    await handleRetentionPurge({} as RouteDeps)(req, res, vi.fn());
+
+    expect(purgeUserMock).toHaveBeenCalledWith(expect.objectContaining({ discordId: 'unknown' }));
+    expect(res.status).toHaveBeenCalledWith(200);
+  });
+
+  it('still rejects an empty-string id without touching the service', async () => {
+    const { req, res } = createMockReqRes({ discordId: '' });
 
     await handleRetentionPurge({} as RouteDeps)(req, res, vi.fn());
 
