@@ -7,6 +7,7 @@
 ## Unreleased on Develop
 
 - **#1809 malformed-id fail-open** (merged 2026-07-26) — the beta.179 deploy probe found a legacy `discord_id='unknown'` row crashing the preview CLI and silently breaking the prod daily nag (same schema). Report/lookup surfaces relaxed; DM pipeline stays strict. **beta.180 fast-follow needed to restore the nag** (tracked in `now.md` 🚨).
+- **#1810 provisioning choke-point guard** (merged 2026-07-27, owner root-cause directive) — `getOrCreateUser` shape-validates before any DB access; snowflake range unified at 17-20 with `DiscordSnowflakeSchema` deriving from `DISCORD_SNOWFLAKE.PATTERN`; **carries migration `20260727121318` widening the `personas_name_not_snowflake` CHECK** (dev applied; prod via `release:premigrate` before the beta.180 merge — pre-verified zero matching rows).
 
 ## 🔬 Smoke checklist — v3.0.0-beta.179 (post-deploy)
 
