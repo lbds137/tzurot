@@ -69,7 +69,10 @@ describe('RetentionNotifyService.enqueueNotifyRun', () => {
       userId: cohort[0].userId,
       discordUserId: cohort[0].discordId,
     });
-    expect(opts0.jobId).toBe('retention-notify:2026-07-26T12:00:00.000Z-first-run:0');
+    // Colon-free by contract: BullMQ rejects colon-bearing custom ids, and the
+    // mocked queue can't catch that — pin the sanitized shape explicitly.
+    expect(opts0.jobId).toBe('retention-notify-2026-07-26T12-00-00.000Z-first-run-0');
+    expect(opts0.jobId).not.toContain(':');
   });
 
   it('warn-annotates without refusing between the warn and hard fractions', async () => {

@@ -383,7 +383,10 @@ async function healAnnouncement(
           ...(previousDms.has(row.userId) ? { previousDm: previousDms.get(row.userId) } : {}),
         })),
       },
-      { jobId: `release-broadcast:${releaseId}:resweep:${epochMinute}:${batches}` }
+      // Dash-delimited: the previous 4-colon shape would have THROWN at the
+      // first real missed-release resweep (BullMQ rejects ids with a colon
+      // count other than exactly two) — the safety net was latently broken.
+      { jobId: `release-broadcast-${releaseId}-resweep-${epochMinute}-${batches}` }
     );
     batches += 1;
   }

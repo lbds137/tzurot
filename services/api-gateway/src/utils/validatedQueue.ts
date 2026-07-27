@@ -77,12 +77,29 @@ const SCHEMA_MAP: Record<JobType, ZodSchema> = {
  * );
  * ```
  */
+/**
+ * BullMQ rejects custom jobIds containing ':' unless the id has EXACTLY two
+ * of them (a legacy repeatable-job compat window it has announced removing).
+ * An ISO-timestamp runId smuggles two colons of its own past that window, so
+ * we ban the character outright at the choke point — every enqueue site uses
+ * dash-delimited ids.
+ */
+export function assertJobIdShape(jobId: string | undefined): void {
+  if (jobId?.includes(':') === true) {
+    throw new Error(
+      `Custom jobId '${jobId}' contains ':' — BullMQ rejects most colon-bearing ids ` +
+        `and bans the character entirely in its next major. Use '-' as the delimiter.`
+    );
+  }
+}
+
 export async function addValidatedJob<T>(
   queue: Queue,
   jobType: JobType,
   jobData: T,
   opts?: JobsOptions
 ): Promise<Job> {
+  assertJobIdShape(opts?.jobId);
   const schema = SCHEMA_MAP[jobType];
 
   if (schema === undefined) {
@@ -140,6 +157,7 @@ export async function addValidatedJobs(
 ): Promise<Job[]> {
   // Validate ALL jobs first (fail fast)
   for (const { jobType, jobData, opts } of jobs) {
+    assertJobIdShape(opts?.jobId);
     const schema = SCHEMA_MAP[jobType];
 
     if (schema === undefined) {

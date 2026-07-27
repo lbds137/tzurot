@@ -32,7 +32,8 @@ describe('Contract: release-broadcast DM batch (real producer fixture → consum
 
   it('is enqueued under the ReleaseBroadcastDm job type with a deterministic jobId', () => {
     expect(batch.name).toBe(JobType.ReleaseBroadcastDm);
-    expect(batch.opts?.jobId).toMatch(/^release-broadcast:[0-9a-f-]{36}:0$/);
+    expect(batch.opts?.jobId).toMatch(/^release-broadcast-[0-9a-f-]{36}-0$/);
+    expect(batch.opts?.jobId).not.toContain(':');
   });
 
   it("validates against the DM worker's entry schema (its safeParse gate)", () => {

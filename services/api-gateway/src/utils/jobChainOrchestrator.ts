@@ -29,6 +29,7 @@ import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/perso
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { LlmConfigResolver, VisionConfigResolver } from '@tzurot/config-resolver';
 import { flowProducer } from '../queue.js';
+import { assertJobIdShape } from './validatedQueue.js';
 import { stampResolvedConfig } from './stampResolvedConfig.js';
 import type { FlowJob } from 'bullmq';
 
@@ -437,6 +438,14 @@ export async function createJobChain(params: {
       'LLM generation job validation failed'
     );
     throw new Error(`LLM generation job validation failed: ${validation.error.message}`);
+  }
+
+  // flowProducer.add bypasses addValidatedJob, so the jobId colon guard must
+  // run here too — BullMQ rejects colon-bearing custom ids, and a colon can
+  // arrive via any future requestId/runId shape (an ISO timestamp did once).
+  assertJobIdShape(llmJobId);
+  for (const child of children) {
+    assertJobIdShape(child.opts?.jobId);
   }
 
   // Create flow with LLM as parent, preprocessing as children
