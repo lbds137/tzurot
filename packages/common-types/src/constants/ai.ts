@@ -349,9 +349,11 @@ const ZAI_MODEL_CATALOG: Readonly<
   'glm-5': { docsUrl: 'https://docs.z.ai/guides/llm/glm-5', contextLength: 200_000 },
   'glm-5.1': { docsUrl: 'https://docs.z.ai/guides/llm/glm-5.1', contextLength: 200_000 },
   // glm-5.2 is z.ai's flagship; OpenRouter also lists it (as `z-ai/glm-5.2`),
-  // but this catalog remains the z.ai-direct source for context length AND
-  // release date (so `/models` can rank it by recency). The docs URL follows
-  // z.ai's established per-model pattern.
+  // so the merge takes OpenRouter's `created`, leaving `released` here inert
+  // for recency-sorting — kept as the documented z.ai date should the
+  // OpenRouter listing ever disappear. This catalog remains the z.ai-direct
+  // source for context length. The docs URL follows z.ai's established
+  // per-model pattern.
   'glm-5.2': {
     docsUrl: 'https://docs.z.ai/guides/llm/glm-5.2',
     contextLength: 1_000_000,

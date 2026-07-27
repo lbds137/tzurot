@@ -1,6 +1,11 @@
 import { KNOWN_PROXY_APP_IDS } from '@tzurot/common-types/constants/proxyBots';
 import { type ReferenceAuthorRole } from '@tzurot/common-types/types/schemas/message';
 
+// Module-local Set: the constants module exports the documented array (the
+// no-singleton-export lint bans exported `new Set(...)` instances), so the
+// membership-test shape is built here, next to its one consumer.
+const KNOWN_PROXY_APP_ID_SET: ReadonlySet<string> = new Set(KNOWN_PROXY_APP_IDS);
+
 /** The authorship signals a Discord message carries, narrowed for classification. */
 export interface AuthorRoleSignals {
   /** `message.webhookId` — present (non-null) when the message was sent via a webhook. */
@@ -31,7 +36,7 @@ export interface AuthorRoleSignals {
  */
 export function classifyReferenceAuthorRole(
   signals: AuthorRoleSignals,
-  knownProxyAppIds: readonly string[] = KNOWN_PROXY_APP_IDS
+  knownProxyAppIds: ReadonlySet<string> = KNOWN_PROXY_APP_ID_SET
 ): ReferenceAuthorRole {
   const isMachineAuthored = signals.webhookId !== null || signals.authorIsBot;
   if (!isMachineAuthored) {
@@ -40,7 +45,7 @@ export function classifyReferenceAuthorRole(
   if (signals.clientUserId !== undefined && signals.applicationId === signals.clientUserId) {
     return 'assistant';
   }
-  if (signals.applicationId !== null && knownProxyAppIds.includes(signals.applicationId)) {
+  if (signals.applicationId !== null && knownProxyAppIds.has(signals.applicationId)) {
     return 'user';
   }
   return 'bot';

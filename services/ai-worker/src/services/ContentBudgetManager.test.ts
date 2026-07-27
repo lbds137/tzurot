@@ -497,6 +497,17 @@ describe('ContentBudgetManager', () => {
       expect(kept.map(m => m.metadata?.id)).toEqual(['old']);
     });
 
+    it('filters an EXACT-tie createdAt (=== oldestSelectedTs) unless the ID rescue keeps it', () => {
+      // Strict `<` at the boundary: a tie temporally corresponds to shipped
+      // content, so the time baseline does NOT keep it — only the id rescue
+      // can (unshipped ids, same channel). An id-less tie is filtered.
+      const kept = allocateAndCaptureFiltered(
+        [mem('tie-rescued', CUTOFF, ['m-unshipped']), mem('tie-legacy', CUTOFF, undefined)],
+        preselectedWith({ oldestSelectedTs: CUTOFF, shippedMessageIds: new Set(['s1']) })
+      );
+      expect(kept.map(m => m.metadata?.id)).toEqual(['tie-rescued']);
+    });
+
     it('drops a memory whose source message SHIPPED (ID-authoritative dedup)', () => {
       const kept = allocateAndCaptureFiltered(
         [mem('shipped', CUTOFF + 50, ['s1'])],

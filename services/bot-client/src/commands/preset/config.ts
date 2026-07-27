@@ -7,7 +7,10 @@
 
 import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
 import { type LlmConfigUpdateInput } from '@tzurot/common-types/schemas/api/llm-config';
-import { type AdvancedParams } from '@tzurot/common-types/schemas/llmAdvancedParams';
+import {
+  type AdvancedParams,
+  REASONING_EFFORT_LEVELS,
+} from '@tzurot/common-types/schemas/llmAdvancedParams';
 import type { DashboardConfig, FieldDefinition } from '../../utils/dashboard/types.js';
 import type { ActionButtonOptions } from '../../utils/dashboard/index.js';
 import type { PresetData, FlattenedPresetData } from './types.js';
@@ -102,14 +105,9 @@ function parseNumericParams(flat: Partial<FlattenedPresetData>): {
   return { values, hasAny };
 }
 
-const VALID_EFFORTS: readonly NonNullable<ReasoningConfig['effort']>[] = [
-  'xhigh',
-  'high',
-  'medium',
-  'low',
-  'minimal',
-  'none',
-];
+// The canonical list lives beside ReasoningConfigSchema — imported so the
+// schema enum and this validation can never drift.
+const VALID_EFFORTS: readonly NonNullable<ReasoningConfig['effort']>[] = REASONING_EFFORT_LEVELS;
 
 /** Parse reasoning params from flat data */
 function parseReasoningParams(flat: Partial<FlattenedPresetData>): ReasoningConfig | null {

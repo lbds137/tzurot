@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { LLMInvoker } from './LLMInvoker.js';
+import { LLMInvoker, defaultRateLimitResetMs } from './LLMInvoker.js';
 import { RetryError } from '../utils/retry.js';
 import { classifyQuotaFailure } from './quotaFallback.js';
 import { type BaseMessage, HumanMessage, SystemMessage } from '@langchain/core/messages';
@@ -1750,5 +1750,35 @@ describe('LLMInvoker', () => {
       expect(mockIsRateLimited).not.toHaveBeenCalled();
       expect(mockInvoke).toHaveBeenCalledTimes(1);
     });
+  });
+});
+
+describe('defaultRateLimitResetMs', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(1_000_000);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('returns now + the default cooldown for RATE_LIMIT', () => {
+    // 15 minutes — DEFAULT_RATE_LIMIT_COOLDOWN_MS (module-private constant).
+    expect(defaultRateLimitResetMs(ApiErrorCategory.RATE_LIMIT)).toBe(1_000_000 + 15 * 60 * 1000);
+  });
+
+  it('returns now + the default cooldown for QUOTA_EXCEEDED (defensive branch)', () => {
+    // Under current classifyHttpStatus a 429 always lands in RATE_LIMIT, so
+    // this branch is reachable only via detectSpecialCases or future routing —
+    // pinned here so the defensive path can't silently regress.
+    expect(defaultRateLimitResetMs(ApiErrorCategory.QUOTA_EXCEEDED)).toBe(
+      1_000_000 + 15 * 60 * 1000
+    );
+  });
+
+  it('returns null for categories that do not qualify for default caching', () => {
+    expect(defaultRateLimitResetMs(ApiErrorCategory.AUTHENTICATION)).toBeNull();
+    expect(defaultRateLimitResetMs(ApiErrorCategory.CREDIT_EXHAUSTION)).toBeNull();
   });
 });

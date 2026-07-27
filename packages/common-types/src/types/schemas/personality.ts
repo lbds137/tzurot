@@ -12,6 +12,7 @@ import {
   guildMemberInfoSchema,
 } from './discord.js';
 import { rawAssemblyInputsSchema } from './rawEnvelope.js';
+import { REASONING_EFFORT_LEVELS } from '../../schemas/llmAdvancedParams.js';
 import { crossChannelHistoryGroupSchema, referencedMessageSchema } from './message.js';
 
 /**
@@ -155,7 +156,7 @@ export const loadedPersonalitySchema = z.object({
   // Reasoning configuration (for thinking models: o1/o3, Claude, DeepSeek R1)
   reasoning: z
     .object({
-      effort: z.enum(['xhigh', 'high', 'medium', 'low', 'minimal', 'none']).optional(),
+      effort: z.enum(REASONING_EFFORT_LEVELS).optional(),
       maxTokens: z.number().optional(),
       exclude: z.boolean().optional(),
       enabled: z.boolean().optional(),

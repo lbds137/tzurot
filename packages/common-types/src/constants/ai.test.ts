@@ -259,9 +259,10 @@ describe('getZaiCodingPlanContextLength', () => {
     expect(getZaiCodingPlanContextLength('glm-4.5-air')).toBe(128_000);
   });
 
-  it('should return 1M for glm-5.2 (z.ai-only flagship, not on OpenRouter)', () => {
-    // This is the load-bearing case: glm-5.2 never appears in the OpenRouter
-    // model cache, so the catalog is the ONLY context-length source for it.
+  it('should return 1M for glm-5.2 (z.ai flagship; catalog is authoritative on z.ai-direct)', () => {
+    // Load-bearing case: OpenRouter also lists glm-5.2, but z.ai-direct routing
+    // never consults the OpenRouter cache — this catalog is its context-length
+    // source, and z.ai's documented limit is what the model actually serves.
     expect(getZaiCodingPlanContextLength('glm-5.2')).toBe(1_000_000);
   });
 

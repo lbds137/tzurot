@@ -3,7 +3,7 @@ import { classifyReferenceAuthorRole, type AuthorRoleSignals } from './authorRol
 
 const OUR_BOT_ID = 'bot-app-123';
 const PROXY_ID = 'pluralkit-app-999';
-const PROXY_IDS: readonly string[] = [PROXY_ID];
+const PROXY_IDS: ReadonlySet<string> = new Set([PROXY_ID]);
 
 function signals(partial: Partial<AuthorRoleSignals> = {}): AuthorRoleSignals {
   return {
