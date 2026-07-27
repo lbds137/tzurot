@@ -1,8 +1,8 @@
 # System Model
 
-> **STATUS: interview applied (2026-07-27) — awaiting the owner edit pass, then the
-> blank-page redraw (~Aug 3).** Rewrite anything that doesn't sound like you; the editing
-> is the point. Hard budget: ~150 lines. This page is the narrative map — completeness
+> **STATUS: interview applied (2026-07-27) — awaiting the owner accuracy review, then
+> the blank-page redraw (~Aug 3).** The review is read-once-and-flag-anything-wrong-or-
+> missing. Hard budget: ~150 lines. This page is the narrative map — completeness
 > lives in the generated indexes (`pnpm ops xray`, route manifests), not here.
 
 ## 1. The four services, as characters
@@ -52,19 +52,23 @@
    every 6 turns per channel+character → `/memory` + facts surfaces
    browse/edit/lock/forget; incognito gates writes, fresh gates retrieval. What
    surfaced is invisible in-conversation by design — `/inspect` is the window.
-5. **Config resolution.** Five tiers — hardcoded → admin default → user default →
-   user-per-personality → channel — resolved per message. Model/preset selection is
-   deliberately its OWN control plane (slash commands, not the settings dashboard):
-   Discord autocomplete exists only on slash-command options, so a model picker
-   cannot live inside a dashboard.
+5. **Config resolution.** Per-field, lowest → highest: hardcoded baseline (always
+   present) → admin default → personality default → channel → user default →
+   user-per-personality; every resolved field remembers which tier provided it, and
+   user tiers deliberately outrank channel. A guild tier is designed and queued
+   (`preset-cascade-standardization` theme: personality → guild → channel).
+   Model/preset selection is deliberately its OWN control plane (slash commands, not
+   the settings dashboard): Discord autocomplete exists only on slash-command
+   options, so a model picker cannot live inside a dashboard.
 6. **Data rights.** Self-serve export (token link, 24h) and token-gated self-delete;
    the retention lifecycle (activity stamps → preview → warning DMs → 30-day grace →
    operator purge → audit ledger) for inactive accounts. Everything destructive is
    operator-driven with previews and circuit breakers.
 7. **Release comms.** GitHub release webhook → broadcast queue → bot-client DM worker →
    per-recipient delivery ledger; an hourly reconcile sweep catches missed releases.
-8. **Shapes.inc migration.** BYOK auth → async import of a character + its memories →
-   export back out.
+8. **Shapes.inc migration.** BYOK auth, then two one-way doors: IMPORT ingests a
+   shapes character + its memories into the platform; EXPORT just hands users their
+   shapes data to download — a portability courtesy, nothing is ingested.
 
 ## 3. Invariants, and why they hold (the layer no generator can produce)
 
@@ -126,7 +130,6 @@
 - `ContextAssembler`'s `userName ?? userId` fallback would crash first-provision for a
   nameless envelope (tracked in `cold/follow-ups.md`; unreachable while bot-client
   always sends `userName`).
-- The system-model theme file said "122 routes"; reality is ~190 handlers.
 - Voice config depth (per-character voice overrides, ElevenLabs) is underused and
   therefore latent-bug-prone — one voice command sat broken for a while because
   nobody used it. The used voice paths, by contrast, run flawlessly.

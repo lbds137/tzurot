@@ -13,7 +13,7 @@ This is a **review-quality** problem, not a tidiness one. In agent-assisted deve
 | | |
 | --- | ---: |
 | production TypeScript files | 1,260 |
-| api-gateway routes | 122 |
+| api-gateway route handlers | ~190 (recounted 2026-07-27; the 2026-07-25 "122" undercounted) |
 | ai-worker service files | 212 |
 | Prisma models | 34 |
 | slash-command groups | 21 |
