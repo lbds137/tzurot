@@ -116,6 +116,46 @@ describe('validatedQueue', () => {
   });
 
   describe('addValidatedJob', () => {
+    describe('jobId shape guard', () => {
+      it('rejects a colon-bearing custom jobId before touching the queue', async () => {
+        // BullMQ only tolerates exactly-two-colon ids (a compat window it has
+        // announced removing); an ISO-timestamp runId smuggled extra colons in
+        // and threw at runtime while mocked-queue tests stayed green. The
+        // choke-point guard makes the class fail loudly at enqueue-build time.
+        await expect(
+          addValidatedJob(mockQueue, JobType.LLMGeneration, validLLMJobData, {
+            jobId: 'retention-notify:2026-07-27T22:05:00.000Z:0',
+          })
+        ).rejects.toThrow(/contains ':'/);
+        expect(mockQueue.add).not.toHaveBeenCalled();
+      });
+
+      it('accepts dash-delimited jobIds', async () => {
+        await addValidatedJob(mockQueue, JobType.LLMGeneration, validLLMJobData, {
+          jobId: 'retention-notify-2026-07-27T22-05-00.000Z-0',
+        });
+        expect(mockQueue.add).toHaveBeenCalledTimes(1);
+      });
+
+      it('batch path rejects a colon id before adding ANY job', async () => {
+        await expect(
+          addValidatedJobs(mockQueue, [
+            {
+              jobType: JobType.LLMGeneration,
+              jobData: validLLMJobData,
+              opts: { jobId: 'good-id-0' },
+            },
+            {
+              jobType: JobType.LLMGeneration,
+              jobData: validLLMJobData,
+              opts: { jobId: 'bad:id:1' },
+            },
+          ])
+        ).rejects.toThrow(/contains ':'/);
+        expect(mockQueue.add).not.toHaveBeenCalled();
+      });
+    });
+
     describe('LLM Generation Jobs', () => {
       it('should add valid LLM job to queue', async () => {
         const job = await addValidatedJob(mockQueue, JobType.LLMGeneration, validLLMJobData, {

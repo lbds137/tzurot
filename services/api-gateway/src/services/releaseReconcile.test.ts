@@ -317,7 +317,10 @@ describe('sweepIncompleteBroadcasts', () => {
     ]);
     // Unique resweep jobIds: the original batch ids may still occupy BullMQ's
     // dedup history, which would silently eat a same-id retry.
-    expect(opts.jobId).toMatch(new RegExp(`^release-broadcast:${RELEASE_ID}:resweep:\\d+:0$`));
+    expect(opts.jobId).toMatch(new RegExp(`^release-broadcast-${RELEASE_ID}-resweep-\\d+-0$`));
+    // The old 4-colon shape THREW inside BullMQ at the first real resweep —
+    // the mocked seam hid it. Colon-free is the contract.
+    expect(opts.jobId).not.toContain(':');
   });
 
   it('reports the terminalize UPDATE count, not the candidate count (live-worker race)', async () => {

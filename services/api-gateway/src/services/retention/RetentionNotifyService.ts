@@ -118,7 +118,10 @@ export class RetentionNotifyService {
     // blast's stable jobIds dedup a re-announce of the same release; here the
     // predicate is the cross-run dedup, and a reused jobId would silently
     // swallow a later run's batch behind a completed earlier one.
-    const runId = `${now().toISOString()}${runContext !== undefined ? `-${runContext}` : ''}`;
+    // Colon-free: the runId lands inside a BullMQ custom jobId, and BullMQ
+    // rejects colon-bearing ids (an ISO timestamp carries two of its own).
+    const stamp = now().toISOString().replaceAll(':', '-');
+    const runId = `${stamp}${runContext !== undefined ? `-${runContext}` : ''}`;
 
     let batches = 0;
     for (let start = 0; start < cohort.length; start += NOTIFY_BATCH_SIZE) {
@@ -127,13 +130,13 @@ export class RetentionNotifyService {
         queue,
         JobType.RetentionNotifyDm,
         {
-          requestId: `${runId}:${String(batches)}`,
+          requestId: `${runId}-${String(batches)}`,
           jobType: JobType.RetentionNotifyDm,
           responseDestination: { type: 'api' },
           runId,
           recipients: slice.map(row => ({ userId: row.userId, discordUserId: row.discordId })),
         },
-        { jobId: `retention-notify:${runId}:${String(batches)}` }
+        { jobId: `retention-notify-${runId}-${String(batches)}` }
       );
       batches += 1;
     }
