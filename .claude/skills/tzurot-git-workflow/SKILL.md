@@ -1,7 +1,7 @@
 ---
 name: tzurot-git-workflow
 description: 'Git workflow procedures. Invoke with /tzurot-git-workflow for commit, PR, and release procedures.'
-lastUpdated: '2026-07-26'
+lastUpdated: '2026-07-27'
 ---
 
 # Git Workflow Procedures
@@ -74,9 +74,10 @@ git checkout develop && git pull origin develop
 git checkout feat/your-feature
 git rebase develop
 
-# 2. Push and create PR
+# 2. Push and create PR (--assignee is owner policy: every non-dependabot PR
+#    carries the owner as assignee; pr-monitor-reminder.sh backfills if missed)
 git push -u origin feat/your-feature
-gh pr create --base develop --title "feat: description"
+gh pr create --base develop --title "feat: description" --assignee lbds137
 ```
 
 ### Arm CI monitor (required)
@@ -293,7 +294,7 @@ override, `pnpm install`, verify the lockfile resolves the patched version.
 high/critical.) The same list also appears in `pnpm ops health`.
 
 ```bash
-gh pr create --base main --head develop --title "Release v3.0.0-beta.XX: Description"
+gh pr create --base main --head develop --title "Release v3.0.0-beta.XX: Description" --assignee lbds137
 ```
 
 ### 4. Pre-Merge Migration (if release includes one)
