@@ -14,10 +14,6 @@
 import { z } from 'zod';
 import { STT_PROVIDERS, STT_RESOLUTION_SOURCES } from '../../types/sttProvider.js';
 
-// Re-export the canonical type so existing import sites
-// (`@tzurot/common-types` namespace) keep working without churn.
-export type { SttResolutionSource } from '../../types/sttProvider.js';
-
 const SttProviderSchema = z.enum(STT_PROVIDERS);
 
 /** Zod runtime schema mirroring the SttResolutionSource type tuple. */

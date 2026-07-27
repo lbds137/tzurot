@@ -31,8 +31,6 @@ import {
 import { buildClientClass } from './client-builder.js';
 import { buildMountsFile } from './mounts-builder.js';
 import { handlerPathFor, handlerExportNameFor } from './handler-paths.js';
-// Re-exported so callers can build mounts.ts via the same codegen entry.
-export { buildMountsFile, type HandlerPathResolver } from './mounts-builder.js';
 
 export interface CodegenRunOptions {
   /**

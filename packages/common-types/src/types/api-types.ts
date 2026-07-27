@@ -13,14 +13,8 @@ import type { AudioTranscriptionResult } from './jobs.js';
 export type {
   AttachmentMetadata,
   GenerateRequest,
-  DiscordEnvironment,
   LoadedPersonality,
-  MentionedPersona,
-  ReferencedChannel,
   RequestContext,
-  ReferencedMessage,
-  StoredReferencedMessage,
-  MessageMetadata,
   LLMGenerationResult,
 } from './schemas/index.js';
 

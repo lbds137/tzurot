@@ -3,11 +3,7 @@
  */
 
 import { vi } from 'vitest';
-import {
-  createProvisionedMockReqRes,
-  getHandler,
-  type RouteHandler,
-} from '../../../test/shared-route-test-utils.js';
+import { createProvisionedMockReqRes } from '../../../test/shared-route-test-utils.js';
 
 // Valid UUIDs for testing (required by route validation)
 export const MOCK_USER_ID = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
@@ -33,9 +29,6 @@ export function createMockReqRes(
     provisionedDefaultPersonaId: MOCK_PERSONA_ID,
   });
 }
-
-// Re-export shared utilities used by test files
-export { getHandler, type RouteHandler };
 
 export const mockUser = {
   id: MOCK_USER_ID,

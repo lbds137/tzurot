@@ -11,9 +11,6 @@
  * mock objects. This ensures your mocks match the actual API contracts.
  */
 
-// Shared factory utilities
-export { type DeepPartial, deepMerge } from './factoryUtils.js';
-
 // Persona endpoint mocks
 export {
   mockClearOverrideResponse,
@@ -25,13 +22,6 @@ export {
   mockSetDefaultPersonaResponse,
   mockSetOverrideResponse,
 } from './persona.js';
-
-// Personality endpoint mocks
-export {
-  mockCreatePersonalityResponse,
-  mockGetPersonalityResponse,
-  mockListPersonalitiesResponse,
-} from './personality.js';
 
 // Model Override endpoint mocks
 export {
@@ -59,13 +49,7 @@ export {
 } from './notifications.js';
 
 // LLM Config endpoint mocks
-export {
-  mockCreateLlmConfigResponse,
-  mockDeleteLlmConfigResponse,
-  mockListLlmConfigsResponse,
-  mockLlmConfigDetail,
-  mockLlmConfigSummary,
-} from './llm-config.js';
+export { mockListLlmConfigsResponse, mockLlmConfigSummary } from './llm-config.js';
 
 // TTS Override endpoint mocks
 export { mockClearTtsDefaultConfigResponse } from './tts-override.js';

@@ -5,9 +5,6 @@
  * The main MessageContextBuilder class is in the parent directory.
  */
 
-// Extended Context Persona Resolution
-export { resolveExtendedContextPersonaIds } from '@tzurot/common-types/utils/extendedContextPersonaResolver';
-
 // Guild Member Resolution
 export { extractGuildMemberInfo, resolveEffectiveMember } from './GuildMemberResolver.js';
 

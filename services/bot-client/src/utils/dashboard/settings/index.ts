@@ -10,11 +10,8 @@ export {
   type SettingsData,
   type SettingsDashboardSession,
   type SettingsDashboardConfig,
-  type SettingSource,
   type SettingUpdateHandler,
   type SettingUpdateResult,
-  type SettingValue,
-  parseSettingsCustomId,
   isSettingsInteraction,
 } from './types.js';
 
@@ -47,8 +44,6 @@ export {
   type ResolveDefaultsResponse,
 } from './settingsDataBuilder.js';
 
-// Dashboard Builder
-// Modal Factory
 // Dashboard Handler
 export {
   createSettingsDashboard,
@@ -61,8 +56,4 @@ export { handleSettingsModal } from './settingsModalSubmit.js';
 // for entity-ID-based settings dashboards (character/overrides, character/settings,
 // channel/settings). Collapses the ~19-line router pattern previously duplicated
 // across each consumer.
-export {
-  createSettingsCommandHandlers,
-  type SettingsCommandHandlerOptions,
-  type SettingsCommandHandlers,
-} from './createSettingsCommandHandlers.js';
+export { createSettingsCommandHandlers } from './createSettingsCommandHandlers.js';

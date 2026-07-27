@@ -10,7 +10,6 @@ import type { ApiErrorSubcode } from '@tzurot/common-types/constants/error';
 import type { HealthStatus } from '@tzurot/common-types/constants/service';
 
 // Re-export shared API types from common-types
-export type { GenerateResponse } from '@tzurot/common-types/types/api-types';
 export type { GenerateRequest } from '@tzurot/common-types/types/schemas/generation';
 
 /**
