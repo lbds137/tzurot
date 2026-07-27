@@ -50,11 +50,11 @@ Researched 2026-07-20 (findings summarised here rather than linked — the full 
 
 **Who writes it — elicited, not generated, and not owner-authored alone** (they can't; that is the problem):
 
-- [ ] Agent drafts a **skeleton** using the mechanical sources as **evidence, not content**: cluster the 122 routes into candidate flows by shared models; use git co-change heat (372 PRs/month is a rich signal) to decide what earns page space; use `knip:dead` to prune.
-- [ ] **Structured 45–60 min interview** with the owner-as-dogfooder — "walk me through what happens when a user does X" — filling in the why and correcting the flows against real usage.
-- [ ] **The owner edits the draft until it matches their experience.** This is the load-bearing step: the editing *is* the restoration. A document handed to them changes nothing in their head.
+- [x] Agent drafts a **skeleton** using the mechanical sources as **evidence, not content** (done 2026-07-27: route clustering + 8-week co-change heat).
+- [x] **Structured 45–60 min interview** with the owner-as-dogfooder (done 2026-07-27: all OWNER markers filled; two draft guesses corrected; capture notes in `docs/local/`).
+- [x] **Owner pass** — redefined by owner call 2026-07-27 from "edit until it sounds like you" to an ACCURACY REVIEW ("I just want it to be accurate"); done same day: tier-order fix, shapes import/export asymmetry, known-lies tracking + drift-audit Quick Win.
 
-**Acceptance test — the blank-page redraw**: a week later, the owner sketches the 4 services and top flows from memory. Gaps mean either the page lies (fix the page) or the system genuinely doesn't fit in one head (that's a finding — file simplification items). If it doesn't change what the owner can say from memory, it failed regardless of accuracy.
+**Acceptance test — REPLACED by owner call 2026-07-27.** The scheduled blank-page redraw is dropped ("I don't really need it as long as we keep this document up to date… the bigger lift is having a mechanism to ensure everything is kept up to date"). Informal replacement: at the next design conversation, the agent asks the owner to sketch the touched flow from memory and notes gaps. The owner also volunteered the complexity verdict the redraw was designed to measure: the system "may already be past what can fit inside one single person's head" — the map is the prosthetic, and simplification-as-a-goal is a candidate for the strategy conversation, not auto-filed.
 
 ### Phase 1 — Keep it from rotting
 
