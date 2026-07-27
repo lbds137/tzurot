@@ -87,6 +87,34 @@ echo "$KEY" >>"$SEEN_FILE"
 # other accounts on a shared host to read one user's PR/SHA history.
 chmod 600 "$SEEN_FILE" 2>/dev/null || true
 
+# Owner policy: every non-dependabot PR carries the owner as assignee. The
+# skill's canonical `gh pr create --assignee lbds137` is the primary path;
+# this is the deterministic backfill when it was forgotten. REST endpoint
+# rather than `gh pr edit` (the latter is unreliable in this repo — see
+# 05-tooling.md "Use instead of broken gh pr edit"). Fail-open: an offline
+# `gh` must never block the reminder below.
+PR_META=$(gh pr view "$PR_NUM" --json author,assignees \
+    --jq '"\(.author.login) \(.assignees | length)"' 2>/dev/null || echo "")
+if [ -n "$PR_META" ]; then
+    AUTHOR=${PR_META% *}
+    ASSIGNEE_COUNT=${PR_META##* }
+    case "$AUTHOR" in
+    *dependabot*) : ;; # dependabot PRs stay unassigned by policy
+    *)
+        if [ "$ASSIGNEE_COUNT" = "0" ]; then
+            if gh api "repos/{owner}/{repo}/issues/${PR_NUM}/assignees" \
+                -f "assignees[]=lbds137" >/dev/null 2>&1; then
+                echo "pr-monitor-reminder: auto-assigned lbds137 to PR #$PR_NUM" >&2
+            else
+                # Fail-open by design, but say so — a silent permission error
+                # would otherwise read as "the backfill never runs".
+                echo "pr-monitor-reminder: assignee backfill failed for PR #$PR_NUM (proceeding)" >&2
+            fi
+        fi
+        ;;
+    esac
+fi
+
 cat <<EOF
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 PR MONITOR REMINDER — push detected on PR #$PR_NUM
