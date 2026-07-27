@@ -1,0 +1,20 @@
+---
+id: TASK-289
+title: 'the release-broadcast eligibility scan (resolveEligibleRecipients: notifyEnabled +…'
+status: To Do
+assignee: []
+created_date: '2026-07-16 00:00'
+labels:
+  - 'origin:review'
+dependencies: []
+ordinal: 289000
+---
+
+## Description
+
+<!-- SECTION:DESCRIPTION:BEGIN -->
+
+Surfaced 2026-07-16 (#1679 r2 observation) — the release-broadcast eligibility scan (`resolveEligibleRecipients`: `notifyEnabled` + `notifyOptedInAt` + `notifyLevel`) has no backing index on `users` — full-table scan, once per release. Correct-as-is at current scale (~hundreds of rows; an index would tax every user-row write for a query that runs a few times a month). **Fix shape**: partial index (e.g. on `notify_level` WHERE `notify_enabled AND notify_opted_in_at IS NOT NULL`), landing WITH the query per 03-database. Same disposition for the retention job's daily `release_delivery_log` sweep (#1683 r1 obs: filters `createdAt`+`status`, only `[releaseId,userId]`/`[userId]` indexes exist — full-table scan, fine at ~hundreds of rows/release). **Promote when**: users table >~50k rows, delivery-log >~100k rows, or broadcast-enqueue latency becomes visible in logs.
+
+**Why:** Index-ships-with-its-query cuts both ways: no scale evidence yet, write-path tax is real, trigger is measurable. Same scale trigger for the resweep wedge heuristic itself (#1683 r5): a genuinely slow >30min blast (thousands of recipients) would be re-enqueued hourly until drained — harmless (pre-filter) but wasteful; revisit the threshold or add an in-flight check alongside the index work.
+<!-- SECTION:DESCRIPTION:END -->
