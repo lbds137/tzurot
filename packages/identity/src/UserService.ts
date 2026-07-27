@@ -12,7 +12,7 @@
  *   placeholder persona in the same maintenance pass
  */
 
-import { UNKNOWN_USER_DISCORD_ID } from '@tzurot/common-types/constants/message';
+import { isValidDiscordId } from '@tzurot/common-types/constants/discord';
 import { DEFAULT_PERSONA_DESCRIPTION } from '@tzurot/common-types/constants/persona';
 import { type PrismaClient, type Prisma } from '@tzurot/common-types/services/prisma';
 import {
@@ -117,8 +117,9 @@ export class UserService {
    * Get or create a user by Discord ID.
    *
    * Returns a {@link ProvisionedUser} (both `userId` and non-null
-   * `defaultPersonaId`) for use in foreign keys. Returns `null` only if the
-   * caller identifies the subject as a bot.
+   * `defaultPersonaId`) for use in foreign keys. Returns `null` when the
+   * caller identifies the subject as a bot, or when `discordId` is not a
+   * well-formed snowflake (the shape guard below).
    *
    * @param discordId Discord user ID
    * @param username Discord username (e.g., "alt_hime")
@@ -135,7 +136,19 @@ export class UserService {
   ): Promise<ProvisionedUser | null> {
     // Skip user creation for bots - they shouldn't have user records or personas
     if (isBot === true) {
-      logger.debug({ discordId, username }, 'Skipping user creation for bot');
+      logger.debug({ discordId }, 'Skipping user creation for bot');
+      return null;
+    }
+
+    // A malformed id must never become a user row. Forwarded-message
+    // snapshots stamp UNKNOWN_USER_DISCORD_ID as their author, and one such
+    // placeholder was once provisioned as a real prod row through a caller
+    // that didn't filter it. Shape-validating at THIS choke point — every
+    // app-side user write funnels through here or the batch path below —
+    // closes the class regardless of caller discipline. (The orphan sentinel
+    // is created by its own bootstrap, not through here.)
+    if (!isValidDiscordId(discordId)) {
+      logger.warn({ discordId }, 'Refusing to provision a non-snowflake discordId');
       return null;
     }
 
@@ -512,9 +525,9 @@ export class UserService {
     `;
 
     if (shouldBeSuperuser) {
-      logger.info({ userId, discordId, username }, 'Bot owner auto-promoted to superuser');
+      logger.info({ userId, discordId }, 'Bot owner auto-promoted to superuser');
     }
-    logger.info({ userId, discordId, username, personaId }, 'Created user with default persona');
+    logger.info({ userId, discordId, personaId }, 'Created user with default persona');
 
     return {
       id: userId,
@@ -574,7 +587,8 @@ export class UserService {
    *
    * Filters out:
    * - Bots (isBot: true)
-   * - Unknown users (discordId === UNKNOWN_USER_DISCORD_ID) from forwarded messages
+   * - Any non-snowflake discordId — including the forwarded-message
+   *   UNKNOWN_USER_DISCORD_ID placeholder ('unknown')
    *
    * @param users - Array of user info from extended context
    * @returns Map of discordId to userId (UUID), excluding filtered users
@@ -589,8 +603,10 @@ export class UserService {
   ): Promise<Map<string, string>> {
     const result = new Map<string, string>();
 
-    // Filter out bots and unknown users
-    const validUsers = users.filter(u => !u.isBot && u.discordId !== UNKNOWN_USER_DISCORD_ID);
+    // Filter out bots and any malformed id — shape validation subsumes the
+    // UNKNOWN_USER_DISCORD_ID placeholder ('unknown' is not a snowflake) and
+    // also catches future placeholder variants at this second entry point.
+    const validUsers = users.filter(u => !u.isBot && isValidDiscordId(u.discordId));
 
     if (validUsers.length === 0) {
       return result;

@@ -41,7 +41,7 @@ export interface ResolvedUserMention {
 
 /** The services the user-mention resolution needs on either side. */
 export interface UserMentionDeps {
-  /** getOrCreateUser(discordId, username, displayName, bio, isBot) — null for bots. */
+  /** getOrCreateUser(discordId, username, displayName, bio, isBot) — null for bots or malformed ids. */
   getOrCreateUser(
     discordId: string,
     username: string,

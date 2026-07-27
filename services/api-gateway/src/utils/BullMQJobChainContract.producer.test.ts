@@ -119,7 +119,8 @@ describe('BullMQ job-chain contract — producer fixture generation', () => {
 
   it('audio-and-image: a chain with one audio + one image attachment', async () => {
     const context: JobContext = {
-      userId: 'fixture-user',
+      userId: '900000000000000700',
+      userName: 'Fixture User',
       channelId: 'fixture-channel',
       attachments: [
         {
@@ -174,7 +175,8 @@ describe('BullMQ job-chain contract — producer fixture generation', () => {
     // legacy fixtures above remain deliberately: the consumer half asserts
     // they are schema-tolerated but REJECTED by ContextStep's envelope gate.
     const context: JobContext = {
-      userId: 'fixture-user',
+      userId: '900000000000000700',
+      userName: 'Fixture User',
       channelId: 'fixture-channel',
       kind: 'envelope',
       rawAssemblyInputs: {
@@ -211,7 +213,8 @@ describe('BullMQ job-chain contract — producer fixture generation', () => {
     // drops context.referencedMessages, so preprocessing children MUST derive
     // from rawAssemblyInputs.rawReferencedMessages, keyed by referenceNumber.
     const context: JobContext = {
-      userId: 'fixture-user',
+      userId: '900000000000000700',
+      userName: 'Fixture User',
       channelId: 'fixture-channel',
       kind: 'envelope',
       rawAssemblyInputs: {
@@ -300,7 +303,8 @@ describe('BullMQ job-chain contract — producer fixture generation', () => {
 
   it('envelope-direct-attachments: thin envelope with the trigger message OWN image+audio (the most common attachment path)', async () => {
     const context: JobContext = {
-      userId: 'fixture-user',
+      userId: '900000000000000700',
+      userName: 'Fixture User',
       channelId: 'fixture-channel',
       kind: 'envelope',
       attachments: [
@@ -356,7 +360,11 @@ describe('BullMQ job-chain contract — producer fixture generation', () => {
     // The dominant path: no attachments → createJobChain emits an LLM-only flow
     // with no children and `dependencies: undefined`. A regression here would slip
     // past the audio-and-image fixture entirely.
-    const context: JobContext = { userId: 'fixture-user', channelId: 'fixture-channel' };
+    const context: JobContext = {
+      userId: '900000000000000700',
+      userName: 'Fixture User',
+      channelId: 'fixture-channel',
+    };
 
     await createJobChain({
       requestId: 'fixture-req-text',

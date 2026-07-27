@@ -165,6 +165,40 @@ describe('UserService', () => {
   });
 
   describe('getOrCreateUser', () => {
+    it('refuses to provision a non-snowflake discordId — no read, no write', async () => {
+      // The choke-point guard: a forwarded-message snapshot stamps 'unknown'
+      // as its author, and one such placeholder was once provisioned as a
+      // real prod row through a caller that didn't filter it. Every shape
+      // failure returns null BEFORE any DB access, so no caller's missing
+      // filter can repeat the class.
+      expect(await userService.getOrCreateUser('unknown', 'Unknown User')).toBeNull();
+      expect(await userService.getOrCreateUser('', 'empty')).toBeNull();
+      expect(await userService.getOrCreateUser('user-123', 'testfixture')).toBeNull();
+      // Length boundaries: 16 is one short of a snowflake, 21 exceeds the
+      // u64 ceiling — the risk surface for a guard on a length-ranged regex.
+      expect(await userService.getOrCreateUser('1234567890123456', 'sixteen')).toBeNull();
+      expect(await userService.getOrCreateUser('123456789012345678901', 'twentyone')).toBeNull();
+
+      expect(mockPrisma.user.findUnique).not.toHaveBeenCalled();
+      // Creation runs through the $executeRaw CTE — none may fire.
+      expect(mockPrisma.$executeRaw).not.toHaveBeenCalled();
+    });
+
+    it('accepts the full 17-20 digit snowflake range (the canonical DISCORD_SNOWFLAKE bound)', async () => {
+      // 20 digits is the u64 ceiling — the conformance harness actor uses a
+      // 20-digit fixture, and a narrower write-path guard than the HTTP
+      // boundary's would silently refuse ids the schema accepted.
+      for (const id of ['12345678901234567', '12345678901234567890']) {
+        mockPrisma.user.findUnique.mockResolvedValueOnce({
+          id: `uuid-${id.length}`,
+          isSuperuser: false,
+          username: 'testuser',
+          defaultPersonaId: 'persona-id',
+        });
+        expect(await userService.getOrCreateUser(id, 'testuser')).not.toBeNull();
+      }
+    });
+
     it('should return cached user ID if available', async () => {
       // First call to populate cache. defaultPersonaId is always
       // non-null at the type level, so runMaintenanceTasks has no backfill
@@ -176,12 +210,12 @@ describe('UserService', () => {
         defaultPersonaId: 'cached-persona-id',
       });
 
-      const result1 = await userService.getOrCreateUser('123456', 'testuser');
+      const result1 = await userService.getOrCreateUser('900000000000123456', 'testuser');
       expect(result1?.userId).toBe('cached-user-id');
       expect(result1?.defaultPersonaId).toBe('cached-persona-id');
 
       // Second call should use cache
-      const result2 = await userService.getOrCreateUser('123456', 'testuser');
+      const result2 = await userService.getOrCreateUser('900000000000123456', 'testuser');
       expect(result2?.userId).toBe('cached-user-id');
 
       // findUnique should only be called once
@@ -196,7 +230,7 @@ describe('UserService', () => {
         defaultPersonaId: 'persona-id',
       });
 
-      await userService.getOrCreateUser('123456', 'testuser');
+      await userService.getOrCreateUser('900000000000123456', 'testuser');
 
       // The stamp crosses the seam as a RAW UPDATE of the retention columns ONLY
       // — it must NOT touch updated_at (that column is the dev<->prod sync's
@@ -228,8 +262,8 @@ describe('UserService', () => {
         defaultPersonaId: 'cached-persona-id',
       });
 
-      await userService.getOrCreateUser('123456', 'testuser'); // miss → stamps
-      await userService.getOrCreateUser('123456', 'testuser'); // hit → must not
+      await userService.getOrCreateUser('900000000000123456', 'testuser'); // miss → stamps
+      await userService.getOrCreateUser('900000000000123456', 'testuser'); // hit → must not
 
       // The 1h cache throttles the stamp: the cache-hit returns before reaching
       // the stamp, so exactly one raw stamp for two calls (existing user → no
@@ -248,7 +282,7 @@ describe('UserService', () => {
 
       // The stamp is non-critical — a write failure is caught + logged, and the
       // caller still gets its provisioned user rather than a thrown request.
-      const result = await userService.getOrCreateUser('123456', 'testuser');
+      const result = await userService.getOrCreateUser('900000000000123456', 'testuser');
       expect(result?.userId).toBe('user-id');
     });
 
@@ -267,13 +301,13 @@ describe('UserService', () => {
           defaultPersonaId: 'persona-after',
         });
 
-      const first = await userService.getOrCreateUser('123456', 'testuser');
+      const first = await userService.getOrCreateUser('900000000000123456', 'testuser');
       expect(first?.userId).toBe('user-before');
 
       // Simulates account deletion: the row is gone, cache must not serve it.
-      userService.invalidateUser('123456');
+      userService.invalidateUser('900000000000123456');
 
-      const second = await userService.getOrCreateUser('123456', 'testuser');
+      const second = await userService.getOrCreateUser('900000000000123456', 'testuser');
       expect(second?.userId).toBe('user-after');
       expect(mockPrisma.user.findUnique).toHaveBeenCalledTimes(2);
     });
@@ -285,7 +319,7 @@ describe('UserService', () => {
       // now-dead userId is never served from cache.
       mockPrisma.user.findUnique
         .mockImplementationOnce(async () => {
-          userService.invalidateUser('123456'); // delete evicts during our read
+          userService.invalidateUser('900000000000123456'); // delete evicts during our read
           return {
             id: 'user-doomed',
             isSuperuser: false,
@@ -300,12 +334,12 @@ describe('UserService', () => {
           defaultPersonaId: 'persona-recreated',
         });
 
-      const first = await userService.getOrCreateUser('123456', 'testuser');
+      const first = await userService.getOrCreateUser('900000000000123456', 'testuser');
       expect(first?.userId).toBe('user-doomed'); // caller still gets its result
 
       // The write was skipped, so the next call re-reads instead of serving the
       // doomed id from cache.
-      const second = await userService.getOrCreateUser('123456', 'testuser');
+      const second = await userService.getOrCreateUser('900000000000123456', 'testuser');
       expect(second?.userId).toBe('user-recreated');
       expect(mockPrisma.user.findUnique).toHaveBeenCalledTimes(2);
     });
@@ -325,13 +359,13 @@ describe('UserService', () => {
           defaultPersonaId: 'persona-a2',
         });
 
-      const first = await userService.getOrCreateUser('123456', 'testuser');
+      const first = await userService.getOrCreateUser('900000000000123456', 'testuser');
       expect(first?.userId).toBe('user-a');
 
       // Without clearCache the second call would hit the cache (findUnique once).
       userService.clearCache();
 
-      const afterClear = await userService.getOrCreateUser('123456', 'testuser');
+      const afterClear = await userService.getOrCreateUser('900000000000123456', 'testuser');
       expect(afterClear?.userId).toBe('user-a2');
       expect(mockPrisma.user.findUnique).toHaveBeenCalledTimes(2);
     });
@@ -344,7 +378,7 @@ describe('UserService', () => {
         defaultPersonaId: 'existing-persona-id',
       });
 
-      const result = await userService.getOrCreateUser('123456', 'testuser');
+      const result = await userService.getOrCreateUser('900000000000123456', 'testuser');
 
       expect(result?.userId).toBe('existing-user-id');
       expect(result?.defaultPersonaId).toBe('existing-persona-id');
@@ -364,7 +398,7 @@ describe('UserService', () => {
       mockPrisma.user.findUnique.mockResolvedValueOnce({
         id: 'existing-user-id',
         isSuperuser: false,
-        username: '123456', // Placeholder = discordId
+        username: '900000000000123456', // Placeholder = discordId
         defaultPersonaId: 'existing-persona-id',
       });
       mockPrisma.user.update.mockResolvedValueOnce({
@@ -373,7 +407,7 @@ describe('UserService', () => {
       });
       mockPrisma.persona.updateMany.mockResolvedValueOnce({ count: 1 });
 
-      const result = await userService.getOrCreateUser('123456', 'realusername');
+      const result = await userService.getOrCreateUser('900000000000123456', 'realusername');
 
       expect(result?.userId).toBe('existing-user-id');
       expect(mockPrisma.user.update).toHaveBeenCalledWith({
@@ -386,7 +420,10 @@ describe('UserService', () => {
       // Using `buildShellPlaceholderPersonaName` instead of the literal
       // `'User 123456'` prevents silent drift if the prefix ever changes.
       expect(mockPrisma.persona.updateMany).toHaveBeenCalledWith({
-        where: { ownerId: 'existing-user-id', name: buildShellPlaceholderPersonaName('123456') },
+        where: {
+          ownerId: 'existing-user-id',
+          name: buildShellPlaceholderPersonaName('900000000000123456'),
+        },
         data: { name: 'realusername', preferredName: 'realusername' },
       });
     });
@@ -399,16 +436,19 @@ describe('UserService', () => {
       mockPrisma.user.findUnique.mockResolvedValueOnce({
         id: 'existing-user-id',
         isSuperuser: false,
-        username: '123456', // Placeholder = discordId
+        username: '900000000000123456', // Placeholder = discordId
         defaultPersonaId: 'existing-persona-id',
       });
       mockPrisma.user.update.mockResolvedValueOnce({ id: 'existing-user-id' });
       mockPrisma.persona.updateMany.mockResolvedValueOnce({ count: 1 });
 
-      await userService.getOrCreateUser('123456', 'lbds137', 'LB');
+      await userService.getOrCreateUser('900000000000123456', 'lbds137', 'LB');
 
       expect(mockPrisma.persona.updateMany).toHaveBeenCalledWith({
-        where: { ownerId: 'existing-user-id', name: buildShellPlaceholderPersonaName('123456') },
+        where: {
+          ownerId: 'existing-user-id',
+          name: buildShellPlaceholderPersonaName('900000000000123456'),
+        },
         data: { name: 'lbds137', preferredName: 'LB' },
       });
     });
@@ -421,7 +461,7 @@ describe('UserService', () => {
         defaultPersonaId: 'existing-persona-id',
       });
 
-      const result = await userService.getOrCreateUser('123456', 'newusername');
+      const result = await userService.getOrCreateUser('900000000000123456', 'newusername');
 
       expect(result?.userId).toBe('existing-user-id');
       // Should not update since username is not a placeholder
@@ -431,24 +471,24 @@ describe('UserService', () => {
     it('should create new user with isSuperuser=false for regular users', async () => {
       mockPrisma.user.findUnique.mockResolvedValueOnce(null);
 
-      await userService.getOrCreateUser('123456', 'testuser');
+      await userService.getOrCreateUser('900000000000123456', 'testuser');
 
       const call = decodeCreateUserCall(mockPrisma.$executeRaw.mock.calls[0]);
       // Cross-check that the decoded positional values landed on the right
       // slots — if the CTE template ever reorders columns or adds a new one,
       // these sentinels fail loud rather than silently pass with wrong data.
-      expect(call?.discordId).toBe('123456');
+      expect(call?.discordId).toBe('900000000000123456');
       expect(call?.username).toBe('testuser');
       expect(call?.isSuperuser).toBe(false);
     });
 
     it('should create new user with isSuperuser=true when discordId matches BOT_OWNER_ID', async () => {
-      process.env.BOT_OWNER_ID = '999888777';
+      process.env.BOT_OWNER_ID = '900000000999888777';
       resetConfig();
 
       mockPrisma.user.findUnique.mockResolvedValueOnce(null);
 
-      await userService.getOrCreateUser('999888777', 'botowner');
+      await userService.getOrCreateUser('900000000999888777', 'botowner');
 
       const call = decodeCreateUserCall(mockPrisma.$executeRaw.mock.calls[0]);
       expect(call?.isSuperuser).toBe(true);
@@ -457,12 +497,12 @@ describe('UserService', () => {
     });
 
     it('should NOT promote user when discordId does not match BOT_OWNER_ID', async () => {
-      process.env.BOT_OWNER_ID = '999888777';
+      process.env.BOT_OWNER_ID = '900000000999888777';
       resetConfig();
 
       mockPrisma.user.findUnique.mockResolvedValueOnce(null);
 
-      await userService.getOrCreateUser('111222333', 'regularuser');
+      await userService.getOrCreateUser('900000000111222333', 'regularuser');
 
       const call = decodeCreateUserCall(mockPrisma.$executeRaw.mock.calls[0]);
       expect(call?.isSuperuser).toBe(false);
@@ -472,7 +512,7 @@ describe('UserService', () => {
 
     it('should promote EXISTING user to superuser when BOT_OWNER_ID matches', async () => {
       // Set BOT_OWNER_ID environment variable
-      process.env.BOT_OWNER_ID = '999888777';
+      process.env.BOT_OWNER_ID = '900000000999888777';
       resetConfig(); // Force config to reload
 
       // User exists but is NOT superuser
@@ -486,7 +526,7 @@ describe('UserService', () => {
       // Mock update call
       mockPrisma.user.update = vi.fn().mockResolvedValue({ id: 'existing-user-id' });
 
-      const result = await userService.getOrCreateUser('999888777', 'botowner');
+      const result = await userService.getOrCreateUser('900000000999888777', 'botowner');
 
       expect(result?.userId).toBe('existing-user-id');
       expect(mockPrisma.user.update).toHaveBeenCalledWith({
@@ -500,7 +540,7 @@ describe('UserService', () => {
 
     it('should NOT update existing user who is already superuser', async () => {
       // Set BOT_OWNER_ID environment variable
-      process.env.BOT_OWNER_ID = '999888777';
+      process.env.BOT_OWNER_ID = '900000000999888777';
       resetConfig(); // Force config to reload
 
       // User exists and IS already superuser
@@ -514,7 +554,7 @@ describe('UserService', () => {
       // Mock update call
       mockPrisma.user.update = vi.fn();
 
-      const result = await userService.getOrCreateUser('999888777', 'botowner');
+      const result = await userService.getOrCreateUser('900000000999888777', 'botowner');
 
       expect(result?.userId).toBe('existing-user-id');
       // Should NOT call update since already superuser
@@ -528,7 +568,9 @@ describe('UserService', () => {
       mockPrisma.user.findUnique.mockResolvedValueOnce(null);
       mockPrisma.$executeRaw.mockRejectedValueOnce(new Error('CTE failed'));
 
-      await expect(userService.getOrCreateUser('123456', 'testuser')).rejects.toThrow('CTE failed');
+      await expect(userService.getOrCreateUser('900000000000123456', 'testuser')).rejects.toThrow(
+        'CTE failed'
+      );
     });
 
     it('should handle race condition with P2002 error', async () => {
@@ -547,7 +589,7 @@ describe('UserService', () => {
         defaultPersonaId: 'persona-uuid',
       });
 
-      const result = await userService.getOrCreateUser('123456', 'testuser');
+      const result = await userService.getOrCreateUser('900000000000123456', 'testuser');
 
       expect(result?.userId).toBe('existing-user-uuid');
       expect(mockPrisma.user.findUnique).toHaveBeenCalledTimes(2);
@@ -561,7 +603,7 @@ describe('UserService', () => {
       });
       mockPrisma.user.findUnique.mockResolvedValueOnce(null);
 
-      await expect(userService.getOrCreateUser('123456', 'testuser')).rejects.toThrow(
+      await expect(userService.getOrCreateUser('900000000000123456', 'testuser')).rejects.toThrow(
         'User not found after P2002 error'
       );
     });
@@ -577,7 +619,9 @@ describe('UserService', () => {
         meta: { target: ['owner_id', 'name'] },
       });
 
-      await expect(userService.getOrCreateUser('123456', 'testuser')).rejects.toMatchObject({
+      await expect(
+        userService.getOrCreateUser('900000000000123456', 'testuser')
+      ).rejects.toMatchObject({
         code: 'P2002',
       });
     });
@@ -590,10 +634,10 @@ describe('UserService', () => {
         defaultPersonaId: 'persona-uuid',
       });
 
-      await userService.getOrCreateUser('123456', 'testuser');
+      await userService.getOrCreateUser('900000000000123456', 'testuser');
 
       expect(mockPrisma.user.findUnique).toHaveBeenCalledWith({
-        where: { discordId: '123456' },
+        where: { discordId: '900000000000123456' },
         select: { id: true, isSuperuser: true, username: true, defaultPersonaId: true },
       });
     });
@@ -608,7 +652,9 @@ describe('UserService', () => {
         meta: { target: ['legacy_discord_id'] },
       });
 
-      await expect(userService.getOrCreateUser('123456', 'testuser')).rejects.toMatchObject({
+      await expect(
+        userService.getOrCreateUser('900000000000123456', 'testuser')
+      ).rejects.toMatchObject({
         code: 'P2002',
       });
     });
@@ -626,7 +672,7 @@ describe('UserService', () => {
         defaultPersonaId: 'persona-uuid',
       });
 
-      const result = await userService.getOrCreateUser('123456', 'testuser');
+      const result = await userService.getOrCreateUser('900000000000123456', 'testuser');
 
       expect(result?.userId).toBe('existing-user-uuid');
     });
@@ -644,7 +690,7 @@ describe('UserService', () => {
         defaultPersonaId: 'persona-uuid',
       });
 
-      const result = await userService.getOrCreateUser('123456', 'testuser');
+      const result = await userService.getOrCreateUser('900000000000123456', 'testuser');
 
       expect(result?.userId).toBe('existing-user-uuid');
     });
@@ -653,7 +699,9 @@ describe('UserService', () => {
       mockPrisma.user.findUnique.mockResolvedValueOnce(null);
       mockPrisma.$executeRaw.mockRejectedValueOnce({ code: 'P2002', meta: {} });
 
-      await expect(userService.getOrCreateUser('123456', 'testuser')).rejects.toMatchObject({
+      await expect(
+        userService.getOrCreateUser('900000000000123456', 'testuser')
+      ).rejects.toMatchObject({
         code: 'P2002',
       });
     });
@@ -662,7 +710,9 @@ describe('UserService', () => {
       mockPrisma.user.findUnique.mockResolvedValueOnce(null);
       mockPrisma.$executeRaw.mockRejectedValueOnce({ code: 'P1001' });
 
-      await expect(userService.getOrCreateUser('123456', 'testuser')).rejects.toMatchObject({
+      await expect(
+        userService.getOrCreateUser('900000000000123456', 'testuser')
+      ).rejects.toMatchObject({
         code: 'P1001',
       });
     });
@@ -670,7 +720,7 @@ describe('UserService', () => {
     it('should throw and log error on database error', async () => {
       mockPrisma.user.findUnique.mockRejectedValue(new Error('Database error'));
 
-      await expect(userService.getOrCreateUser('123456', 'testuser')).rejects.toThrow(
+      await expect(userService.getOrCreateUser('900000000000123456', 'testuser')).rejects.toThrow(
         'Database error'
       );
     });
@@ -678,7 +728,7 @@ describe('UserService', () => {
     it('should use display name for persona preferredName', async () => {
       mockPrisma.user.findUnique.mockResolvedValueOnce(null);
 
-      await userService.getOrCreateUser('123456', 'testuser', 'Test User Display');
+      await userService.getOrCreateUser('900000000000123456', 'testuser', 'Test User Display');
 
       const call = decodeCreateUserCall(mockPrisma.$executeRaw.mock.calls[0]);
       expect(call?.personaPreferredName).toBe('Test User Display');
@@ -687,7 +737,7 @@ describe('UserService', () => {
     it('should use bio for persona content', async () => {
       mockPrisma.user.findUnique.mockResolvedValueOnce(null);
 
-      await userService.getOrCreateUser('123456', 'testuser', undefined, 'My bio text');
+      await userService.getOrCreateUser('900000000000123456', 'testuser', undefined, 'My bio text');
 
       const call = decodeCreateUserCall(mockPrisma.$executeRaw.mock.calls[0]);
       expect(call?.personaContent).toBe('My bio text');
@@ -701,7 +751,7 @@ describe('UserService', () => {
         defaultPersonaId: 'existing-persona-id',
       });
 
-      const result = await userService.getOrCreateUser('123456', 'testuser');
+      const result = await userService.getOrCreateUser('900000000000123456', 'testuser');
 
       expect(result?.userId).toBe('existing-user-id');
       // Must not run the create-user CTE when the user already exists (the
@@ -727,7 +777,7 @@ describe('UserService', () => {
       mockPrisma.user.findUnique.mockResolvedValueOnce(null);
 
       const result = await userService.getOrCreateUser(
-        '123456',
+        '900000000000123456',
         'testuser',
         undefined,
         undefined,
@@ -744,7 +794,7 @@ describe('UserService', () => {
     it('should create user normally when isBot is undefined', async () => {
       mockPrisma.user.findUnique.mockResolvedValueOnce(null);
 
-      const result = await userService.getOrCreateUser('123456', 'testuser');
+      const result = await userService.getOrCreateUser('900000000000123456', 'testuser');
 
       expect(result?.userId).toBe('test-user-uuid');
       expect(mockPrisma.user.findUnique).toHaveBeenCalled();
@@ -803,17 +853,17 @@ describe('UserService', () => {
       });
 
       const users = [
-        { discordId: 'user1', username: 'alice', isBot: false },
+        { discordId: '900000000000000801', username: 'alice', isBot: false },
         { discordId: 'bot1', username: 'testbot', isBot: true },
-        { discordId: 'user2', username: 'bob', isBot: false },
+        { discordId: '900000000000000802', username: 'bob', isBot: false },
       ];
 
       const result = await userService.getOrCreateUsersInBatch(users);
 
       // Only 2 users (not the bot)
       expect(result.size).toBe(2);
-      expect(result.has('user1')).toBe(true);
-      expect(result.has('user2')).toBe(true);
+      expect(result.has('900000000000000801')).toBe(true);
+      expect(result.has('900000000000000802')).toBe(true);
       expect(result.has('bot1')).toBe(false);
     });
 
@@ -826,17 +876,17 @@ describe('UserService', () => {
       });
 
       const users = [
-        { discordId: 'user1', username: 'alice', isBot: false },
+        { discordId: '900000000000000801', username: 'alice', isBot: false },
         { discordId: 'unknown', username: 'Unknown User', isBot: false }, // UNKNOWN_USER_DISCORD_ID
-        { discordId: 'user2', username: 'bob', isBot: false },
+        { discordId: '900000000000000802', username: 'bob', isBot: false },
       ];
 
       const result = await userService.getOrCreateUsersInBatch(users);
 
       // Only 2 users (not the unknown placeholder)
       expect(result.size).toBe(2);
-      expect(result.has('user1')).toBe(true);
-      expect(result.has('user2')).toBe(true);
+      expect(result.has('900000000000000801')).toBe(true);
+      expect(result.has('900000000000000802')).toBe(true);
       expect(result.has('unknown')).toBe(false);
     });
 
@@ -870,14 +920,14 @@ describe('UserService', () => {
         });
 
       const users = [
-        { discordId: 'discord-alice', username: 'alice', isBot: false },
-        { discordId: 'discord-bob', username: 'bob', isBot: false },
+        { discordId: '900000000000000811', username: 'alice', isBot: false },
+        { discordId: '900000000000000812', username: 'bob', isBot: false },
       ];
 
       const result = await userService.getOrCreateUsersInBatch(users);
 
-      expect(result.get('discord-alice')).toBe('uuid-for-alice');
-      expect(result.get('discord-bob')).toBe('uuid-for-bob');
+      expect(result.get('900000000000000811')).toBe('uuid-for-alice');
+      expect(result.get('900000000000000812')).toBe('uuid-for-bob');
     });
 
     it('should handle partial failures gracefully', async () => {
@@ -898,25 +948,30 @@ describe('UserService', () => {
         });
 
       const users = [
-        { discordId: 'alice-id', username: 'alice', isBot: false },
-        { discordId: 'bob-id', username: 'bob', isBot: false },
-        { discordId: 'charlie-id', username: 'charlie', isBot: false },
+        { discordId: '900000000000000821', username: 'alice', isBot: false },
+        { discordId: '900000000000000822', username: 'bob', isBot: false },
+        { discordId: '900000000000000823', username: 'charlie', isBot: false },
       ];
 
       const result = await userService.getOrCreateUsersInBatch(users);
 
       // Should have 2 successful users, bob failed silently
       expect(result.size).toBe(2);
-      expect(result.has('alice-id')).toBe(true);
-      expect(result.has('bob-id')).toBe(false);
-      expect(result.has('charlie-id')).toBe(true);
+      expect(result.has('900000000000000821')).toBe(true);
+      expect(result.has('900000000000000822')).toBe(false);
+      expect(result.has('900000000000000823')).toBe(true);
     });
 
     it('should pass displayName to getOrCreateUser', async () => {
       mockPrisma.user.findUnique.mockResolvedValueOnce(null);
 
       const users = [
-        { discordId: 'user1', username: 'alice', displayName: 'Alice Display', isBot: false },
+        {
+          discordId: '900000000000000801',
+          username: 'alice',
+          displayName: 'Alice Display',
+          isBot: false,
+        },
       ];
 
       await userService.getOrCreateUsersInBatch(users);

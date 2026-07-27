@@ -202,16 +202,23 @@ export const DISCORD_MENTIONS = {
 /**
  * Discord Snowflake ID validation
  *
- * Discord IDs (snowflakes) are 64-bit integers represented as strings.
- * They are 17-19 digits long (growing over time as timestamps increase).
+ * Discord IDs (snowflakes) are unsigned 64-bit integers represented as
+ * strings: 17-19 digits today (growing over time as timestamps increase),
+ * and never more than 20 digits (the string length of u64::MAX). The regex
+ * bounds LENGTH only — a 20-digit string above u64::MAX still matches; a
+ * value-level check isn't worth the string-compare it would take. THE
+ * canonical range — the API-schema validator (`DiscordSnowflakeSchema`)
+ * derives from this pattern, the `personas_name_not_snowflake` DB CHECK
+ * mirrors it, and the user-provisioning write guard enforces it, so a
+ * second, narrower copy would silently refuse ids the HTTP boundary accepts.
  * Examples: "123456789012345678", "1234567890123456789"
  */
 export const DISCORD_SNOWFLAKE = {
   /**
    * Regex pattern for validating Discord snowflake IDs
-   * Matches 17-19 digit numeric strings
+   * Matches 17-20 digit numeric strings
    */
-  PATTERN: /^\d{17,19}$/,
+  PATTERN: /^\d{17,20}$/,
 
   /**
    * Minimum length of a Discord snowflake ID
@@ -219,9 +226,9 @@ export const DISCORD_SNOWFLAKE = {
   MIN_LENGTH: 17,
 
   /**
-   * Maximum length of a Discord snowflake ID
+   * Maximum length of a Discord snowflake ID (the string length of u64::MAX)
    */
-  MAX_LENGTH: 19,
+  MAX_LENGTH: 20,
 } as const;
 
 /**

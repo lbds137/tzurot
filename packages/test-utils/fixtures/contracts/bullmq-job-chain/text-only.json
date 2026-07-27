@@ -22,7 +22,8 @@
     },
     "message": "just a plain text message",
     "context": {
-      "userId": "fixture-user",
+      "userId": "900000000000000700",
+      "userName": "Fixture User",
       "channelId": "fixture-channel"
     },
     "responseDestination": {
