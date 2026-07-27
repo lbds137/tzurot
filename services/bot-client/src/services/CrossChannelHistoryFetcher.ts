@@ -46,6 +46,12 @@ export function buildKnownChannelEnvironments(client: Client): Record<string, Di
 
   const map: Record<string, DiscordEnvironment> = {};
   for (const channel of client.channels.cache.values()) {
+    // Categories are containers, never message-carrying — no cross-channel
+    // row can reference one, so an entry would be dead weight. (They also
+    // tripped the unmapped-type warn once per category per cache walk.)
+    if (channel.type === ChannelType.GuildCategory) {
+      continue;
+    }
     if ('guild' in channel && channel.guild !== null && channel.guild !== undefined) {
       map[channel.id] = buildGuildEnvironment(channel);
     }

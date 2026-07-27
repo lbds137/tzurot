@@ -51,6 +51,19 @@ describe('buildKnownChannelEnvironments', () => {
       ['222', guildTextChannel('222', 'random')],
       // DM channel: no guild — skipped
       ['333', { id: '333', type: ChannelType.DM, isThread: () => false }],
+      // Category: guild-bearing but a container, never message-carrying —
+      // skipped (previously spammed the unmapped-type warn per cache walk).
+      [
+        '444',
+        {
+          id: '444',
+          name: 'Text Channels',
+          type: ChannelType.GuildCategory,
+          guild: { id: 'guild-1', name: 'Test Guild' },
+          isThread: () => false,
+          parent: null,
+        },
+      ],
     ]);
 
     const map = buildKnownChannelEnvironments(makeClient(channels));
