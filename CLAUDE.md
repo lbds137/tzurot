@@ -55,7 +55,7 @@ All rules load automatically from `.claude/rules/`:
 **REBASE-ONLY. NO SQUASH. NO MERGE COMMITS.**
 
 ```bash
-gh pr create --base develop --title "feat: description"
+gh pr create --base develop --title "feat: description" --assignee lbds137
 gh pr merge <number> --rebase --delete-branch  # Feature PRs only, when truly ready (00-critical § Merge Approval)
 gh pr merge <number> --rebase                  # Release PRs (develop → main) — NEVER delete develop
 ```
