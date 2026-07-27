@@ -18,13 +18,14 @@ describe('Discord ID Validation', () => {
   describe('DISCORD_SNOWFLAKE constants', () => {
     it('should have correct length bounds', () => {
       expect(DISCORD_SNOWFLAKE.MIN_LENGTH).toBe(17);
-      expect(DISCORD_SNOWFLAKE.MAX_LENGTH).toBe(19);
+      expect(DISCORD_SNOWFLAKE.MAX_LENGTH).toBe(20);
     });
 
-    it('should have a regex pattern that matches 17-19 digit strings', () => {
+    it('should have a regex pattern that matches 17-20 digit strings', () => {
       expect(DISCORD_SNOWFLAKE.PATTERN.test('12345678901234567')).toBe(true); // 17 digits
       expect(DISCORD_SNOWFLAKE.PATTERN.test('123456789012345678')).toBe(true); // 18 digits
       expect(DISCORD_SNOWFLAKE.PATTERN.test('1234567890123456789')).toBe(true); // 19 digits
+      expect(DISCORD_SNOWFLAKE.PATTERN.test('12345678901234567890')).toBe(true); // 20 (u64 ceiling)
     });
   });
 
@@ -45,8 +46,12 @@ describe('Discord ID Validation', () => {
       expect(isValidDiscordId('1234567890123456')).toBe(false);
     });
 
-    it('should return false for too long IDs (20 digits)', () => {
-      expect(isValidDiscordId('12345678901234567890')).toBe(false);
+    it('should return true for 20-digit IDs (the u64 ceiling)', () => {
+      expect(isValidDiscordId('12345678901234567890')).toBe(true);
+    });
+
+    it('should return false for too long IDs (21 digits)', () => {
+      expect(isValidDiscordId('123456789012345678901')).toBe(false);
     });
 
     it('should return false for non-numeric strings', () => {
@@ -76,7 +81,7 @@ describe('Discord ID Validation', () => {
         'channel-abc', // invalid
         '234567890123456789', // valid
         '123', // too short
-        '12345678901234567890', // too long
+        '123456789012345678901', // too long (21 — past the u64 ceiling)
       ];
       const result = filterValidDiscordIds(input);
       expect(result).toEqual(['123456789012345678', '234567890123456789']);

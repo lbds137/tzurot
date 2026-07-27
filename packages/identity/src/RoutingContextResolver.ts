@@ -63,10 +63,11 @@ async function lookupContextEpoch(
 /**
  * Resolve the routing context for a message author + target personality.
  *
- * Returns `null` when the author is a bot — `getOrCreateUser` refuses to
- * provision bots, and the caller returns 400. Otherwise provisioning is
- * idempotent (upsert keyed on `discordId`), so retries and concurrent
- * first-messages are safe.
+ * Returns `null` when `getOrCreateUser` refuses to provision — the author is
+ * a bot, or the id is not a well-formed snowflake (unreachable in practice:
+ * the request schema validates the shape at the HTTP boundary) — and the
+ * caller returns 400. Otherwise provisioning is idempotent (upsert keyed on
+ * `discordId`), so retries and concurrent first-messages are safe.
  */
 export async function resolveRoutingContext(
   deps: RoutingContextDeps,
@@ -83,7 +84,7 @@ export async function resolveRoutingContext(
     isBot ?? false
   );
   if (provisioned === null) {
-    return null; // bot author — caller returns 400
+    return null; // provisioning refused (bot, or malformed id) — caller returns 400
   }
   const userId = provisioned.userId;
 

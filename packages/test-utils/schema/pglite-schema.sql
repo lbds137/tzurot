@@ -1076,8 +1076,8 @@ ALTER TABLE "personalities" ADD CONSTRAINT "valid_birth_month" CHECK ("birth_mon
 ALTER TABLE "personalities" ADD CONSTRAINT "valid_birth_day" CHECK ("birth_day" IS NULL OR ("birth_day" >= 1 AND "birth_day" <= 31));
 ALTER TABLE "personalities" ADD CONSTRAINT "valid_birth_year" CHECK ("birth_year" IS NULL OR ("birth_year" >= 1 AND "birth_year" <= 9999));
 ALTER TABLE "personas" ADD CONSTRAINT "personas_name_non_empty" CHECK (LENGTH(TRIM("name")) > 0);
-ALTER TABLE "personas" ADD CONSTRAINT "personas_name_not_snowflake" CHECK ("name" !~ '^\d{17,19}$');
 ALTER TABLE "users" ADD CONSTRAINT "valid_default_stt_provider_id" CHECK ("default_stt_provider_id" IS NULL OR "default_stt_provider_id" IN ('mistral', 'elevenlabs', 'voice-engine'));
+ALTER TABLE "personas" ADD CONSTRAINT "personas_name_not_snowflake" CHECK ("name" !~ '^\d{17,20}$');
 
 -- Partial-UNIQUE indexes harvested from prisma/migrations/**/migration.sql
 -- (Prisma's schema-diff can't represent partial indexes, so they're merged

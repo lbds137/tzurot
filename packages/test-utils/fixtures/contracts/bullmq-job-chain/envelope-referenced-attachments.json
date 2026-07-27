@@ -22,7 +22,8 @@
     },
     "message": "what are these?",
     "context": {
-      "userId": "fixture-user",
+      "userId": "900000000000000700",
+      "userName": "Fixture User",
       "channelId": "fixture-channel",
       "kind": "envelope",
       "rawAssemblyInputs": {
@@ -80,13 +81,13 @@
         "jobId": "image-fixture-req-envelope-refs-ref1-image",
         "type": "image-description",
         "status": "queued",
-        "resultKey": "job-result:fixture-user:image-fixture-req-envelope-refs-ref1-image"
+        "resultKey": "job-result:900000000000000700:image-fixture-req-envelope-refs-ref1-image"
       },
       {
         "jobId": "audio-fixture-req-envelope-refs-ref2-audio-0",
         "type": "audio-transcription",
         "status": "queued",
-        "resultKey": "job-result:fixture-user:audio-fixture-req-envelope-refs-ref2-audio-0"
+        "resultKey": "job-result:900000000000000700:audio-fixture-req-envelope-refs-ref2-audio-0"
       }
     ]
   },
@@ -126,7 +127,7 @@
           "visionModel": "resolved/vision-model"
         },
         "context": {
-          "userId": "fixture-user",
+          "userId": "900000000000000700",
           "channelId": "fixture-channel"
         },
         "responseDestination": {
@@ -153,7 +154,7 @@
           "size": 1024
         },
         "context": {
-          "userId": "fixture-user",
+          "userId": "900000000000000700",
           "channelId": "fixture-channel"
         },
         "responseDestination": {

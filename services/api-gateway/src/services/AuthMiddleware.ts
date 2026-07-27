@@ -299,14 +299,17 @@ export function requireProvisionedUser(prisma: PrismaClient) {
     try {
       const provisioned = await userService.getOrCreateUser(discordId, username, displayName);
       if (provisioned === null) {
-        // getOrCreateUser returns null for bot accounts; HTTP routes
-        // shouldn't receive bot traffic in practice. Reject explicitly
-        // rather than falling through — defense-in-depth bot-block.
+        // getOrCreateUser returns null for bot accounts and malformed ids;
+        // authenticated routes carry real snowflakes and shouldn't see
+        // either in practice. Reject explicitly rather than falling
+        // through — defense-in-depth.
         logger.warn(
           { discordId, path: req.path },
-          'getOrCreateUser returned null (bot user?) — rejecting request'
+          'getOrCreateUser refused to provision (bot user or malformed id) — rejecting request'
         );
-        const errorResponse = ErrorResponses.unauthorized('Bot users cannot access user routes');
+        const errorResponse = ErrorResponses.unauthorized(
+          'Cannot provision this identity for user routes'
+        );
         res.status(getStatusCode(errorResponse.error)).json(errorResponse);
         return;
       }

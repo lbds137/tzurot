@@ -31,7 +31,7 @@ vi.mock('@tzurot/common-types/constants/discord', async () => {
   );
   return {
     ...actual,
-    filterValidDiscordIds: (ids: string[]) => ids.filter(id => /^\d{17,19}$/.test(id)),
+    filterValidDiscordIds: (ids: string[]) => ids.filter(id => /^\d{17,20}$/.test(id)),
   };
 });
 
