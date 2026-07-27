@@ -110,6 +110,8 @@ Don't file Zod schema tests under "contract."
 
 8. **Interface changes must sweep UNTYPED fixtures — and new fixtures should be typed** - When a shared type's shape changes, grep by a distinctive FIELD name in addition to the type name: untyped mock payloads (`vi.fn().mockResolvedValue({...})`) never reference the type, so both a type-name grep AND the compiler miss them — and a fail-soft catch downstream can hide the breakage entirely (a PGLite suite's usage-log writes silently no-oped this way). Prevent the class at authoring time by typing fixture payloads: `mockResolvedValue({...} satisfies ExtractionModelResult)` makes the compiler break the test when the interface moves.
 
+   **The sweep must cover every test TIER, not just the ones a local `pnpm test` runs.** `tests/e2e/` (integration + contract, CI's component-integration-tests job) pins producer shapes too, and shape pins there have gone red in CI twice after locally-green sweeps. Before pushing any cross-service string-shape change (job ids, fixture fields, wire formats): (a) grep the OLD shape's distinctive tokens repo-wide _including `tests/`_, and (b) run the touched contract files — `npx vitest run --config vitest.integration.config.ts tests/e2e/contracts/` finishes in ~2s (the full-`test:integration` OOM ban covers the heavy integration suites, NOT this fixture+schema subset).
+
 **All packages are enforced by `structure.test.ts`** — services, common-types, embeddings, AND tooling. Adding a new `.ts` file without a colocated `.test.ts` will fail the test suite unless the file matches an exclusion pattern (types, constants, thin CLI wrappers, etc.).
 
 ### Fake Timers (ALWAYS Use)
