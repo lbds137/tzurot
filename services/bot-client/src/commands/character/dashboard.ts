@@ -215,7 +215,14 @@ export async function handleSelectMenu(interaction: StringSelectMenuInteraction)
     return;
   }
 
+  // Discord's contract says a select-menu interaction always carries at
+  // least one value, but nothing structurally prevents an empty array — and
+  // an undefined here would throw on the startsWith below.
   const value = interaction.values[0];
+  if (value === undefined) {
+    logger.warn({ customId: interaction.customId }, 'Select menu arrived with no values');
+    return;
+  }
   const entityId = parsed.entityId;
 
   // isAdmin is needed for the admin-section security check below. The

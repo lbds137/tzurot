@@ -459,6 +459,24 @@ describe('Character Dashboard', () => {
       expect(mockInteraction.reply).not.toHaveBeenCalled();
     });
 
+    it('drops an empty-values interaction instead of throwing on startsWith', async () => {
+      // Discord's contract says values is non-empty, but nothing structurally
+      // prevents an empty array — and this handler previously dereferenced
+      // values[0] without a guard, so the violation was a TypeError.
+      vi.mocked(dashboardUtils.parseDashboardCustomId).mockReturnValue({
+        entityType: 'character',
+        action: 'menu',
+        entityId: 'test-char',
+      });
+      const mockInteraction = createMockSelectInteraction('character::menu::test-char', 'unused');
+      (mockInteraction as unknown as { values: string[] }).values = [];
+
+      await handleSelectMenu(mockInteraction);
+
+      expect(mockInteraction.showModal).not.toHaveBeenCalled();
+      expect(mockInteraction.reply).not.toHaveBeenCalled();
+    });
+
     it('catches 10062 on showModal and surfaces a retry followUp', async () => {
       // Mirrors handleOpenEditorButton's 10062 catch — same residual risk
       // (Redis/gateway slow + can't deferReply before showModal). Without
