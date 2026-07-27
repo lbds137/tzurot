@@ -9,7 +9,6 @@ import {
   createMockUpdatedAt,
   createProvisionedMockReqRes,
   getHandler,
-  type RouteHandler,
 } from '../../../test/shared-route-test-utils.js';
 
 /**
@@ -39,7 +38,7 @@ export function createMockReqRes(
 }
 
 // Re-export shared utilities used by test files
-export { getHandler, type RouteHandler };
+export { getHandler };
 
 // Mock isBotOwner - must be before vi.mock to be hoisted
 export const mockIsBotOwner = createMockIsBotOwner();

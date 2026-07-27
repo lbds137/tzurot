@@ -31,13 +31,7 @@ const logger = createLogger('api-key-validation');
 // Re-export public types so callers (wallet routes, tests) don't need to
 // reach into the per-provider directory. Per-provider functions stay
 // internal — only the dispatcher is part of this module's surface.
-export type { ApiKeyValidationResult, ValidationErrorCode } from './apiKeyValidation/types.js';
-// Per-provider validators are also exported for tests that exercise a single
-// provider in isolation. Application code should use `validateApiKey` instead.
-export { validateOpenRouterKey } from './apiKeyValidation/openrouter.js';
-export { validateElevenLabsKey } from './apiKeyValidation/elevenlabs.js';
-export { validateMistralKey } from './apiKeyValidation/mistral.js';
-export { validateZaiCodingKey } from './apiKeyValidation/zaiCoding.js';
+export type { ApiKeyValidationResult } from './apiKeyValidation/types.js';
 
 /**
  * Validate an API key for any supported provider.

@@ -21,18 +21,6 @@
 import { resolve } from 'node:path';
 import { Project } from 'ts-morph';
 
-export { parsePrismaSchema, type PrismaField } from './schema-audit-parser.js';
-export { classifyReads, type ReadModeClassification } from './schema-audit-reads.js';
-export { analyzeWrites, type WriteSiteClassification } from './schema-audit-writes.js';
-export { generateFindings, type AuditFinding } from './schema-audit-findings.js';
-export {
-  loadAuditConfig,
-  validateSuppressions,
-  applySuppressions,
-  type SuppressionEntry,
-  type SchemaAuditConfig,
-} from './schema-audit-suppression.js';
-
 import { parsePrismaSchema, type PrismaField } from './schema-audit-parser.js';
 import { classifyReads } from './schema-audit-reads.js';
 import { analyzeWrites } from './schema-audit-writes.js';

@@ -46,29 +46,16 @@ export { buildSectionModal, extractModalValues } from './ModalFactory.js';
 export { initSessionManager, getSessionManager, shutdownSessionManager } from './SessionManager.js';
 
 // Messages
-export {
-  DASHBOARD_MESSAGES,
-  formatSessionExpiredMessage,
-  formatSuccessBanner,
-} from './messages.js';
+export { DASHBOARD_MESSAGES, formatSuccessBanner } from './messages.js';
 
 // Close Handler
 export { handleDashboardClose } from './closeHandler.js';
 
 // Terminal Screen Renderer
-export {
-  renderTerminalScreen,
-  type BrowseCapableEntityType,
-  type TerminalScreenOptions,
-  type TerminalScreenSession,
-} from './terminalScreen.js';
+export { renderTerminalScreen } from './terminalScreen.js';
 
 // Post-Action Screen (hybrid success=rebuild / error=terminal dispatcher)
-export {
-  renderPostActionScreen,
-  type PostActionOutcome,
-  type PostActionScreenOptions,
-} from './postActionScreen.js';
+export { renderPostActionScreen } from './postActionScreen.js';
 
 // Shared Back-to-Browse button handler (used by renderTerminalScreen's back
 // button + renderPostActionScreen's error fallback). PR 2 wires per-command
@@ -79,20 +66,10 @@ export { handleSharedBackButton } from './sharedBackButtonHandler.js';
 // `registerBrowseRebuilder` at module-load time; helpers above look up by
 // entity type. `clearBrowseRegistry` is intentionally NOT re-exported here:
 // it's a test-only helper and tests import from the source module directly.
-export {
-  registerBrowseRebuilder,
-  getBrowseRebuilder,
-  type BrowseRebuilder,
-  type BrowseRebuildResult,
-} from './browseRebuilderRegistry.js';
+export { registerBrowseRebuilder } from './browseRebuilderRegistry.js';
 
 // Session Helpers
-export {
-  fetchOrCreateSession,
-  requireDeferredSession,
-  getSessionOrExpired,
-  getSessionDataOrFollowUp,
-} from './sessionHelpers.js';
+export { requireDeferredSession, getSessionDataOrFollowUp } from './sessionHelpers.js';
 
 // Modal Helpers
 export { extractAndMergeSectionValues } from './modalHelpers.js';
@@ -101,4 +78,3 @@ export { extractAndMergeSectionValues } from './modalHelpers.js';
 export { checkOwnership } from './permissionChecks.js';
 
 // Interaction error reply (ack-state-adaptive ephemeral error responder)
-export { replyError } from './replyError.js';

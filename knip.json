@@ -4,8 +4,7 @@
   "ignoreExportsUsedInFile": true,
   "workspaces": {
     ".": {
-      "vitest": false,
-      "ignoreDependencies": ["@typescript-eslint/eslint-plugin", "@typescript-eslint/parser"]
+      "vitest": false
     },
     "services/bot-client": {
       "entry": ["src/**/*.test.ts", "src/commands/*.ts", "src/commands/*/index.ts"]
@@ -25,7 +24,7 @@
       "entry": ["src/**/*.test.ts"],
       "ignore": ["src/generated/**"],
       "includeEntryExports": true,
-      "ignoreDependencies": ["openai", "pg", "@prisma/client", "prisma"],
+      "ignoreDependencies": ["openai", "@prisma/client", "prisma"],
       "ignoreMembers": ["ECONNRESET", "ETIMEDOUT", "ENOTFOUND", "ECONNREFUSED"]
     },
     "packages/clients": {
@@ -75,7 +74,7 @@
     "audit.config.ts",
     "**/test-fixtures/audit-canaries/**"
   ],
-  "ignoreBinaries": ["dot", "ffmpeg", "ffprobe", "gh", "ops", "railway", "ruff"],
+  "ignoreBinaries": ["dot", "ffmpeg", "ffprobe", "ops", "railway", "ruff"],
   "ignoreDependencies": [
     "@secretlint/secretlint-rule-preset-recommend",
     "eslint-formatter-pretty",

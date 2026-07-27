@@ -8,7 +8,6 @@ import {
   createMockCreatedAt,
   createProvisionedMockReqRes,
   getHandler,
-  type RouteHandler,
 } from '../../../test/shared-route-test-utils.js';
 
 // Mock isBotOwner - must be before vi.mock to be hoisted
@@ -39,7 +38,7 @@ export function createMockReqRes(
 }
 
 // Re-export shared utilities used by test files
-export { getHandler, createMockCreatedAt, type RouteHandler };
+export { getHandler, createMockCreatedAt };
 
 // Mock Prisma client with tables needed for channel settings tests + UserService dependencies
 export function createMockPrisma(): {

@@ -14,10 +14,7 @@ import type {
   SlashCommandSubcommandsOnlyBuilder,
   SlashCommandOptionsOnlyBuilder,
 } from 'discord.js';
-import {
-  type GenerateResponse,
-  type TranscribeResponse,
-} from '@tzurot/common-types/types/api-types';
+import { type TranscribeResponse } from '@tzurot/common-types/types/api-types';
 import { type CrossChannelHistoryGroupEntry } from '@tzurot/common-types/types/schemas/message';
 import {
   type LoadedPersonality,
@@ -27,7 +24,7 @@ import type { DeferralMode, SafeCommandContext } from './utils/commandContext/in
 import type { ContextMenuCommandDefinition } from './utils/defineCommand.js';
 
 // Re-export shared API types
-export type { GenerateResponse, LoadedPersonality, TranscribeResponse };
+export type { LoadedPersonality, TranscribeResponse };
 
 /**
  * Message context for AI generation
