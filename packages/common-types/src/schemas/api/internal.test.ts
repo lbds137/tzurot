@@ -679,10 +679,20 @@ describe('RetentionPreviewUserSchema', () => {
     );
   });
 
-  it('rejects a non-snowflake discordId and negative character counts', () => {
-    expect(RetentionPreviewUserSchema.safeParse({ ...user, discordId: 'nope' }).success).toBe(
-      false
+  it('ACCEPTS a malformed stored discordId — the report must display the anomaly', () => {
+    // A legacy prod row holds the literal 'unknown'; snowflake validation
+    // here crashed the preview CLI and silenced the daily nag the moment the
+    // bystander arm made the cohort non-empty. Display surfaces fail open.
+    expect(RetentionPreviewUserSchema.safeParse({ ...user, discordId: 'unknown' }).success).toBe(
+      true
     );
+  });
+
+  it('still rejects empty/oversized ids and negative character counts', () => {
+    expect(RetentionPreviewUserSchema.safeParse({ ...user, discordId: '' }).success).toBe(false);
+    expect(
+      RetentionPreviewUserSchema.safeParse({ ...user, discordId: 'x'.repeat(33) }).success
+    ).toBe(false);
     expect(
       RetentionPreviewUserSchema.safeParse({
         ...user,
@@ -748,8 +758,13 @@ describe('RetentionPurgeRequestSchema', () => {
     expect(RetentionPurgeRequestSchema.safeParse({}).success).toBe(false);
   });
 
-  it('rejects a malformed Discord id', () => {
-    expect(RetentionPurgeRequestSchema.safeParse({ discordId: 'not-a-snowflake' }).success).toBe(
+  it('ACCEPTS a malformed stored id — the operator must be able to purge the junk the preview surfaced', () => {
+    // The id is a lookup key, not a trust boundary (parameterized SQL + the
+    // in-tx eligibility re-check own safety); a nonexistent id skips as
+    // already_gone. Empty and oversized ids stay rejected.
+    expect(RetentionPurgeRequestSchema.safeParse({ discordId: 'unknown' }).success).toBe(true);
+    expect(RetentionPurgeRequestSchema.safeParse({ discordId: '' }).success).toBe(false);
+    expect(RetentionPurgeRequestSchema.safeParse({ discordId: 'x'.repeat(33) }).success).toBe(
       false
     );
   });
