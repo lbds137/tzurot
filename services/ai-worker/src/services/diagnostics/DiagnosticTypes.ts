@@ -5,6 +5,7 @@
  * Extracted from DiagnosticCollector to reduce file size.
  */
 
+import type { ReasoningEffortLevel } from '@tzurot/common-types/schemas/llmAdvancedParams';
 import type { ProcessedAttachment } from '../MultimodalProcessor.js';
 import type { MemoryDocument } from '../ConversationalRAGTypes.js';
 
@@ -70,7 +71,7 @@ export interface TokenBudgetData {
  * Reasoning configuration for diagnostic recording
  */
 export interface ReasoningConfig {
-  effort?: 'xhigh' | 'high' | 'medium' | 'low' | 'minimal' | 'none';
+  effort?: ReasoningEffortLevel;
   maxTokens?: number;
   exclude?: boolean;
   enabled?: boolean;

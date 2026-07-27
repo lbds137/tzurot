@@ -63,6 +63,23 @@ export const SamplingParamsSchema = z.object({
 // ============================================
 
 /**
+ * The canonical reasoning-effort levels. `ReasoningConfigSchema.effort`
+ * derives from this tuple, and UI surfaces that validate user-typed effort
+ * values (e.g. preset config parsing) import it — one list, no drift.
+ */
+export const REASONING_EFFORT_LEVELS = [
+  'xhigh',
+  'high',
+  'medium',
+  'low',
+  'minimal',
+  'none',
+] as const;
+
+/** The effort-level union, for consumers that need the type without the tuple. */
+export type ReasoningEffortLevel = (typeof REASONING_EFFORT_LEVELS)[number];
+
+/**
  * Reasoning token configuration for "thinking" models.
  * OpenRouter normalizes this across different providers.
  */
@@ -76,7 +93,7 @@ export const ReasoningConfigSchema = z.object({
    * - minimal: ~10% of max_tokens
    * - none: 0% (reasoning disabled)
    */
-  effort: z.enum(['xhigh', 'high', 'medium', 'low', 'minimal', 'none']).optional(),
+  effort: z.enum(REASONING_EFFORT_LEVELS).optional(),
 
   /**
    * Direct token budget for reasoning (Anthropic, Gemini, Alibaba Qwen).
