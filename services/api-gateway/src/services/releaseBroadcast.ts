@@ -221,6 +221,8 @@ export async function enqueueBroadcast(
       queue,
       JobType.ReleaseBroadcastDm,
       {
+        // Colons are fine HERE: requestId is payload data (logging correlation),
+        // never a BullMQ custom id — only the jobId below must be colon-free.
         requestId: `${releaseId}:${batches}`,
         jobType: JobType.ReleaseBroadcastDm,
         responseDestination: { type: 'api' },
