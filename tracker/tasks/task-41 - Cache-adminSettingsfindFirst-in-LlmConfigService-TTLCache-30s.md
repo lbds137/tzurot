@@ -1,0 +1,21 @@
+---
+id: TASK-41
+title: 'Cache adminSettings.findFirst in LlmConfigService (TTLCache ~30s)'
+status: To Do
+assignee: []
+created_date: '2026-06-29 00:00'
+labels:
+  - 'area:bot-client'
+  - 'origin:review'
+dependencies: []
+ordinal: 41000
+---
+
+## Description
+
+<!-- SECTION:DESCRIPTION:BEGIN -->
+
+Cache `adminSettings.findFirst` in `LlmConfigService` (TTLCache ~30s)
+
+**Why:** S4a's `getDefaultPointerSets` adds a singleton `adminSettings.findFirst` to every `list()` call (admin: 2 queries; user: 3). The `AdminSettings` row only changes when an admin reassigns a default — the 30s `TTLCache` pattern in `bot-client/src/utils/gatewayServiceCalls.ts` (`channelSettingsCache`; its sibling `adminSettingsCache` runs 60s) is the established fix. **Fix shape**: wrap the pointer read in a TTLCache (~30s), invalidating on `setAsDefault`/`setAsFreeDefault`/delete-guard writes. **Why not now**: list isn't a hot path + an indexed singleton read is cheap; caching adds invalidation wiring. **Promote when**: list latency matters, or opportunistically when next touching `LlmConfigService.list` (e.g. Phase B). Surfaced 2026-06-29 (PR #1394 / S4a review).
+<!-- SECTION:DESCRIPTION:END -->
