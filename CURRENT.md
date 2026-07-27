@@ -6,7 +6,12 @@
 
 ## Unreleased on Develop
 
-_(empty — beta.180 shipped everything)_
+_(2026-07-27, post-beta.180 — all housekeeping-class, no user-visible behavior)_
+
+- **#1812 + #1815** dependabot groups (9 prod + 15 dev bumps; knip 6.27→6.29, prisma 7.9, eslint 10.8…)
+- **#1816** dead barrel-re-export prune (−1,235 lines; 936 dead names + 2 dead barrel files — surfaced by knip 6.28's re-export semantics; verified green under both knip versions)
+- **#1814 + #1817** process rules: epic-close system-map re-touch step (06-backlog) · owner-assignee-on-every-PR (skill + hook backfill + reference-doc sweep)
+- System-model map: interview findings + accuracy-review fixes (docs commits `9366d9d93`/`0cdecdfd2`)
 
 ## 🔬 Smoke checklist — v3.0.0-beta.180 (post-deploy)
 
