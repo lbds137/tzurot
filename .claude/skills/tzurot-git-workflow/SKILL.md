@@ -74,10 +74,11 @@ git checkout develop && git pull origin develop
 git checkout feat/your-feature
 git rebase develop
 
-# 2. Push and create PR (--assignee is owner policy: every non-dependabot PR
-#    carries the owner as assignee; pr-monitor-reminder.sh backfills if missed)
+# 2. Push and create PR (--assignee @me is owner policy: every human-authored
+#    PR carries its creator as assignee, bots stay unassigned;
+#    pr-monitor-reminder.sh backfills the PR author if missed)
 git push -u origin feat/your-feature
-gh pr create --base develop --title "feat: description" --assignee lbds137
+gh pr create --base develop --title "feat: description" --assignee @me
 ```
 
 ### Arm CI monitor (required)
@@ -294,7 +295,7 @@ override, `pnpm install`, verify the lockfile resolves the patched version.
 high/critical.) The same list also appears in `pnpm ops health`.
 
 ```bash
-gh pr create --base main --head develop --title "Release v3.0.0-beta.XX: Description" --assignee lbds137
+gh pr create --base main --head develop --title "Release v3.0.0-beta.XX: Description" --assignee @me
 ```
 
 ### 4. Pre-Merge Migration (if release includes one)
