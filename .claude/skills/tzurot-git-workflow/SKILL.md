@@ -1,7 +1,7 @@
 ---
 name: tzurot-git-workflow
 description: 'Git workflow procedures. Invoke with /tzurot-git-workflow for commit, PR, and release procedures.'
-lastUpdated: '2026-07-24'
+lastUpdated: '2026-07-26'
 ---
 
 # Git Workflow Procedures
@@ -231,6 +231,11 @@ mechanizes 06-backlog's session-end removal gate at the moment it's nearly free
 enough that the owner's memory has to catch it ("didn't we already do X?").
 
 ```bash
+# 0. Sync tags FIRST — the local tag store only updates on fetch, and a stale
+#    store silently spans two releases (the beta.156 cut was nearly mis-framed
+#    as beta.155 this way; the notes-verification step caught it)
+git fetch --tags origin
+
 # 1. Find the previous release tag
 git tag --list "v3.0.0-beta.*" --sort=-version:refname | head -1
 

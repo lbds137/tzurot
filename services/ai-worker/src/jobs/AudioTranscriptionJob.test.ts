@@ -285,6 +285,33 @@ describe('AudioTranscriptionJob', () => {
       expect(result.failureReason).toBe('unavailable');
     });
 
+    it('tags failureReason="other" for an unclassified root cause', async () => {
+      // The catch-all branch: every other enum value has an explicit test, so
+      // this assertion makes classifyFailureReason's coverage exhaustive.
+      const jobData: AudioTranscriptionJobData = {
+        requestId: 'test-req-other',
+        jobType: JobType.AudioTranscription,
+        attachment: {
+          url: 'https://example.com/audio.ogg',
+          name: 'audio.ogg',
+          contentType: CONTENT_TYPES.AUDIO_OGG,
+          size: 2048,
+        },
+        context: { userId: 'user-123', channelId: 'channel-456' },
+        responseDestination: { type: 'discord', channelId: 'channel-456' },
+      };
+      const job = { id: 'audio-other', data: jobData } as Job<AudioTranscriptionJobData>;
+
+      mockWithRetry.mockRejectedValue(
+        new RetryError('Audio transcription failed', 1, new Error('boom'))
+      );
+
+      const result = await processAudioTranscriptionJob(job, { provider: 'voice-engine' });
+
+      expect(result.success).toBe(false);
+      expect(result.failureReason).toBe('other');
+    });
+
     it('should use withRetry wrapper for transcription', async () => {
       const jobData: AudioTranscriptionJobData = {
         requestId: 'test-req-audio-1',

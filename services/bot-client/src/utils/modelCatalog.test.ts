@@ -47,7 +47,7 @@ beforeEach(() => {
 });
 
 describe('fetchModelCatalog', () => {
-  it('merges z.ai-only models (e.g. glm-5.2) absent from OpenRouter', async () => {
+  it('merges zai-catalog models the OpenRouter response omits (glm-5.2 mocked absent)', async () => {
     fetchModelsMock.mockResolvedValue([
       model({ id: 'anthropic/claude-sonnet-4', name: 'Claude Sonnet 4' }),
     ]);

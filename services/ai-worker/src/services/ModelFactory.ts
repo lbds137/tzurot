@@ -14,6 +14,7 @@ import { AIProvider, AI_DEFAULTS, AI_ENDPOINTS } from '@tzurot/common-types/cons
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { getSystemSetting } from '@tzurot/common-types/services/SystemSettingsService';
 import { isReasoningModel } from '../utils/reasoningModelUtils.js';
+import type { ReasoningEffortLevel } from '@tzurot/common-types/schemas/llmAdvancedParams';
 import {
   createOpenRouterFetch,
   type OpenRouterExtraParams,
@@ -252,8 +253,8 @@ function buildOpenRouterExtraParams(modelConfig: ModelConfig): OpenRouterExtraPa
   return params;
 }
 
-/** Type for reasoning effort levels */
-type ReasoningEffort = 'xhigh' | 'high' | 'medium' | 'low' | 'minimal' | 'none';
+/** Type for reasoning effort levels — the canonical union from common-types. */
+type ReasoningEffort = ReasoningEffortLevel;
 
 /**
  * Calculate effective maxTokens for a model based on reasoning configuration.

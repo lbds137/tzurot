@@ -79,8 +79,10 @@ const DEFAULT_RATE_LIMIT_COOLDOWN_MS = 15 * 60 * 1000;
  * have header signal to distinguish duration. QUOTA_EXCEEDED routing is
  * defensive: under current `classifyHttpStatus`, a 429 always lands in
  * RATE_LIMIT, but `detectSpecialCases` or future routing could escalate.
+ *
+ * @internal Exported for testing only — not part of the stable API.
  */
-function defaultRateLimitResetMs(category: ApiErrorCategory): number | null {
+export function defaultRateLimitResetMs(category: ApiErrorCategory): number | null {
   return category === ApiErrorCategory.RATE_LIMIT || category === ApiErrorCategory.QUOTA_EXCEEDED
     ? Date.now() + DEFAULT_RATE_LIMIT_COOLDOWN_MS
     : null;

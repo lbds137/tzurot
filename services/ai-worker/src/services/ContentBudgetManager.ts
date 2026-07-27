@@ -196,6 +196,11 @@ export class ContentBudgetManager {
       // would be the exact coverage-loss class this filter exists to close.
       const createdAtRaw = memory.metadata?.createdAt;
       const createdAtMs = createdAtRaw !== undefined ? new Date(createdAtRaw).getTime() : NaN;
+      // Strict `<` is deliberate at the exact-tie boundary: a memory stamped
+      // bitwise-equal to the oldest SHIPPED entry's time temporally
+      // corresponds to shipped content, so the time baseline does not keep it
+      // (conservative dedup side) — only the id rescue below can. Do not
+      // relax to `<=`.
       if (Number.isFinite(createdAtMs) && createdAtMs < oldestSelectedTs) {
         return true;
       }
