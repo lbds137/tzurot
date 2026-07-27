@@ -367,6 +367,8 @@ async function healAnnouncement(
       queue,
       JobType.ReleaseBroadcastDm,
       {
+        // Colons are fine HERE: requestId is payload data (logging correlation),
+        // never a BullMQ custom id — only the jobId below must be colon-free.
         requestId: `${releaseId}:resweep:${epochMinute}:${batches}`,
         jobType: JobType.ReleaseBroadcastDm,
         responseDestination: { type: 'api' },

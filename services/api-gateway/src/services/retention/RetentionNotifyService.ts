@@ -121,7 +121,10 @@ export class RetentionNotifyService {
     // Colon-free: the runId lands inside a BullMQ custom jobId, and BullMQ
     // rejects colon-bearing ids (an ISO timestamp carries two of its own).
     const stamp = now().toISOString().replaceAll(':', '-');
-    const runId = `${stamp}${runContext !== undefined ? `-${runContext}` : ''}`;
+    // runContext is an operator-supplied label; sanitize it the same way so a
+    // colon in a context string can't hard-refuse the whole run at the guard.
+    const context = runContext?.replaceAll(':', '-');
+    const runId = `${stamp}${context !== undefined ? `-${context}` : ''}`;
 
     let batches = 0;
     for (let start = 0; start < cohort.length; start += NOTIFY_BATCH_SIZE) {
