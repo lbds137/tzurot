@@ -157,6 +157,7 @@ Clear the **admission bar** above first — an item whose trigger is this same f
 
 When the Active Epic completes:
 
+0. **Re-touch the system map (~15 min)**: walk [`docs/reference/architecture/system-model.md`](../../docs/reference/architecture/system-model.md) asking "what did this epic change?" and apply the edits — or record "no map impact" in the epic close-out. The previous architecture doc died because nothing owned its truth at a named moment; this is that moment. (Mid-epic, the agent files a drift note when a PR changes something the map describes — it never auto-appends; the ~150-line budget forces eviction, not growth.)
 1. Remove the finished epic from `active-epic.md` (git preserves it; fold any still-relevant follow-on into `cold/`). Its detailed log in `cold/epic-log.md` can be deleted or kept as historical reference.
 2. Pick the next theme from `cold/queue.md` (by dependency + value — each substantial pick deserves a council pass before plan-mode).
 3. Move that theme's `cold/themes/<slug>.md` content into `active-epic.md` (slim roadmap in the hot file; push dense per-PR detail to `cold/epic-log.md`). Remove its bullet from `cold/queue.md`.
