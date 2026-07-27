@@ -181,7 +181,9 @@ export class ContextAssembler {
       raw.rawAuthorDisplayName ?? jobContext.userName
     );
     if (user === null) {
-      throw new Error('[ContextAssembler] getOrCreateUser returned null (bot author?)');
+      throw new Error(
+        '[ContextAssembler] getOrCreateUser refused to provision (bot author or malformed id)'
+      );
     }
     // Step 2: persona + timezone + context epoch. An incognito summon has no
     // persona arm, so the OUTPUT persona is null and the epoch is skipped — a

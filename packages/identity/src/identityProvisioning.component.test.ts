@@ -118,7 +118,7 @@ describe('Identity provisioning integration (c88ae5b7 regression guard)', () => 
     // has never interacted via Discord but hits an HTTP endpoint first,
     // triggering provisioning from the HTTP side.
     it('resolves the same persona that getOrCreateUser just created', async () => {
-      const discordId = 'http-first-111';
+      const discordId = '900000000000000911';
       const username = 'httpuser';
 
       const provisioned = await userService.getOrCreateUser(discordId, username, 'HTTP User');
@@ -145,7 +145,7 @@ describe('Identity provisioning integration (c88ae5b7 regression guard)', () => 
     // before ever hitting an HTTP endpoint. Provisioning happens from the
     // bot-client side.
     it('resolves consistently after Discord-side provisioning', async () => {
-      const discordId = 'discord-first-222';
+      const discordId = '900000000000000922';
       const username = 'discorduser';
 
       // Discord-side provisioning goes through the same UserService path;
@@ -164,7 +164,7 @@ describe('Identity provisioning integration (c88ae5b7 regression guard)', () => 
     // user, provisioned once by either side and subsequently looked up by
     // both, always resolves to the same persona.
     it('returns the same persona ID across multiple resolve calls', async () => {
-      const discordId = 'consist-user-333';
+      const discordId = '900000000000000933';
       const provisioned = await userService.getOrCreateUser(discordId, 'consistuser', 'Consist');
       expect(provisioned).not.toBeNull();
 
@@ -181,7 +181,7 @@ describe('Identity provisioning integration (c88ae5b7 regression guard)', () => 
     // provisioning identity — calling it again after a user exists must
     // return the same userId and defaultPersonaId, not re-provision.
     it('returns stable user and persona IDs on repeated getOrCreateUser calls', async () => {
-      const discordId = 'idem-user-444';
+      const discordId = '900000000000000944';
 
       const first = await userService.getOrCreateUser(discordId, 'idempuser', 'First Name');
       const second = await userService.getOrCreateUser(discordId, 'idempuser', 'Second Name');

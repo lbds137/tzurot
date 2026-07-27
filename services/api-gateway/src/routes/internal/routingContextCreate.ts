@@ -55,11 +55,12 @@ export const handleRoutingContextCreate = (deps: RouteDeps): RequestHandler => {
     );
 
     if (result === null) {
-      // Bot author. bot-client filters bots before dispatch, so this is a
-      // defensive guard rather than an expected path.
+      // Provisioning refused (bot author, or a malformed id past the schema).
+      // bot-client filters bots before dispatch and the request schema
+      // validates id shape, so this is a defensive guard, not an expected path.
       sendError(
         res,
-        ErrorResponses.validationError('Cannot resolve routing context for a bot author')
+        ErrorResponses.validationError('Cannot resolve routing context: provisioning refused')
       );
       return;
     }

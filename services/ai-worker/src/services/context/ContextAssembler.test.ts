@@ -305,7 +305,7 @@ describe('ContextAssembler.assembleCore', () => {
     const assembler = new ContextAssembler(deps);
 
     await expect(assembler.assembleCore(makeJobContext(), PERSONALITY, undefined)).rejects.toThrow(
-      'getOrCreateUser returned null'
+      'getOrCreateUser refused to provision'
     );
   });
 

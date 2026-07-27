@@ -11,7 +11,7 @@
  * The constraints:
  *
  *   personas_name_non_empty:      CHECK (LENGTH(TRIM("name")) > 0)
- *   personas_name_not_snowflake:  CHECK ("name" !~ '^\d{17,19}$')
+ *   personas_name_not_snowflake:  CHECK ("name" !~ '^\d{17,20}$')
  *
  * Ideally we'd exercise these behaviorally against PGLite, but Prisma's
  * schema generator doesn't emit CHECK constraints to `pglite-schema.sql`
@@ -45,6 +45,21 @@ const MIGRATION_SQL_PATH = join(
   'migration.sql'
 );
 
+// The snowflake CHECK was widened in a later migration (applied migrations
+// are immutable, so the redefinition lives in its own file) — the LIVE
+// constraint shape is pinned against this one.
+const WIDEN_MIGRATION_SQL_PATH = join(
+  __dirname,
+  '..',
+  '..',
+  '..',
+  '..',
+  'prisma',
+  'migrations',
+  '20260727121318_widen_persona_snowflake_check',
+  'migration.sql'
+);
+
 describe('DB-level schema invariants (structural guard)', () => {
   const migrationSql = readFileSync(MIGRATION_SQL_PATH, 'utf8');
 
@@ -69,17 +84,23 @@ describe('DB-level schema invariants (structural guard)', () => {
   });
 
   describe('personas_name_not_snowflake', () => {
-    it('defines the CHECK constraint', () => {
+    const widenMigrationSql = readFileSync(WIDEN_MIGRATION_SQL_PATH, 'utf8');
+
+    it('defines the CHECK constraint (original migration, historical shape)', () => {
       expect(migrationSql).toContain('personas_name_not_snowflake');
     });
 
-    it('uses the 17-19 digit snowflake-length regex', () => {
+    it('is redefined with the canonical 17-20 digit snowflake-length regex', () => {
       // The anchor-boundaries and digit-range are load-bearing. A regex
-      // drift that loosens `^\d{17,19}$` to `\d{17,19}` (unanchored) would
+      // drift that loosens `^\d{17,20}$` to `\d{17,20}` (unanchored) would
       // let names like "hello 1234567890123456789" slip past, even though
       // the bug's shape is "name consists entirely of a Discord snowflake."
-      // This assertion pins the anchored + bounded form.
-      expect(migrationSql).toMatch(/\^\\d\{17,19\}\$/);
+      // The range must match DISCORD_SNOWFLAKE.PATTERN — a narrower DB copy
+      // silently stops firing for exactly the ids the app newly accepts.
+      // This assertion pins the anchored + bounded form in the LIVE
+      // (widening) migration; the original keeps its immutable 17-19 shape.
+      expect(widenMigrationSql).toContain('personas_name_not_snowflake');
+      expect(widenMigrationSql).toMatch(/\^\\d\{17,20\}\$/);
     });
   });
 

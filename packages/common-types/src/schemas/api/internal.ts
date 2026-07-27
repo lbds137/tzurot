@@ -9,6 +9,7 @@ import { z } from 'zod';
 import { loadedPersonalitySchema } from '../../types/schemas/personality.js';
 import { messageMetadataSchema } from '../../types/schemas/message.js';
 import { SYNC_LIMITS } from '../../constants/timing.js';
+import { DISCORD_SNOWFLAKE } from '../../constants/discord.js';
 
 // ============================================================================
 // GET /internal/users/recent
@@ -22,10 +23,14 @@ import { SYNC_LIMITS } from '../../constants/timing.js';
  * Validating the format here catches DB corruption or test-data drift early
  * rather than letting bad IDs propagate to `client.users.fetch()` calls.
  *
+ * Derives from DISCORD_SNOWFLAKE.PATTERN — the single canonical range. Two
+ * disagreeing copies once meant the HTTP boundary accepted an id the
+ * user-provisioning write guard refused.
+ *
  * Exported for reuse by future schemas that need to validate Discord IDs
  * against the same canonical format.
  */
-export const DiscordSnowflakeSchema = z.string().regex(/^\d{17,20}$/);
+export const DiscordSnowflakeSchema = z.string().regex(DISCORD_SNOWFLAKE.PATTERN);
 
 export const RecentUsersResponseSchema = z.object({
   discordIds: z.array(DiscordSnowflakeSchema),

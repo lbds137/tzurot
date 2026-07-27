@@ -22,7 +22,8 @@
     },
     "message": "hello from the thin envelope",
     "context": {
-      "userId": "fixture-user",
+      "userId": "900000000000000700",
+      "userName": "Fixture User",
       "channelId": "fixture-channel",
       "kind": "envelope",
       "rawAssemblyInputs": {
