@@ -6,7 +6,7 @@
 
 ## Unreleased on Develop
 
-_(nothing yet — reset at the beta.183 cut)_
+- **#1840 quota cache-identity provenance** (TASK-248 closed) — all six `deriveCacheKeyId` sites + the `selectQuotaFallbackTarget` funnel now read doom-caches under the TARGET's billing identity (`system` for guest/forced-swap routes); forced-swap credit-exhaustion check un-skipped (coherent under the right bucket). Fail-fast only — every pre-fix instance was fail-safe. Review follow-up filed: TASK-345 (audit-line cacheKeyId vocabulary).
 
 ## 🔬 Smoke checklist — v3.0.0-beta.183 (post-deploy)
 
