@@ -11,7 +11,7 @@
     },
     "services/api-gateway": {
       "entry": ["src/**/*.test.ts"],
-      "ignoreDependencies": ["openai", "pino"]
+      "ignoreDependencies": ["pino"]
     },
     "services/ai-worker": {
       "entry": ["src/**/*.test.ts"],
@@ -24,7 +24,7 @@
       "entry": ["src/**/*.test.ts"],
       "ignore": ["src/generated/**"],
       "includeEntryExports": true,
-      "ignoreDependencies": ["openai", "@prisma/client", "prisma"],
+      "ignoreDependencies": ["@prisma/client", "prisma"],
       "ignoreMembers": ["ECONNRESET", "ETIMEDOUT", "ENOTFOUND", "ECONNREFUSED"]
     },
     "packages/clients": {
