@@ -9,7 +9,7 @@ const { retentionNotifyMock, getClientMock, confirmMock } = vi.hoisted(() => ({
 vi.mock('../utils/env-runner.js', () => ({
   validateEnvironment: vi.fn(),
   showEnvironmentBanner: vi.fn(),
-  confirmProductionOperation: confirmMock,
+  requireProductionConfirmation: confirmMock,
 }));
 vi.mock('../utils/gateway-client.js', () => ({ resolveServiceClientOrExit: getClientMock }));
 
@@ -36,7 +36,7 @@ describe('retentionNotify', () => {
     vi.clearAllMocks();
     process.exitCode = undefined;
     getClientMock.mockReturnValue({ retentionNotify: retentionNotifyMock });
-    confirmMock.mockResolvedValue(true);
+    confirmMock.mockResolvedValue(undefined);
   });
 
   it('dry-run resolves the cohort and never enqueues', async () => {
@@ -69,10 +69,12 @@ describe('retentionNotify', () => {
   });
 
   it('a declined confirmation enqueues nothing', async () => {
+    // The real gate exits the process on decline (it never returns declined);
+    // the mock simulates that non-return by rejecting with a sentinel.
     retentionNotifyMock.mockResolvedValue({ ok: true, data: runResult() });
-    confirmMock.mockResolvedValue(false);
+    confirmMock.mockRejectedValue(new Error('exit: declined'));
 
-    await retentionNotify({ env: 'prod' });
+    await expect(retentionNotify({ env: 'prod' })).rejects.toThrow('exit: declined');
 
     expect(retentionNotifyMock).toHaveBeenCalledTimes(1);
   });

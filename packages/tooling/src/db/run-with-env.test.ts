@@ -23,13 +23,13 @@ vi.mock('node:child_process', () => ({
 const mockValidateEnvironment = vi.fn();
 const mockShowEnvironmentBanner = vi.fn();
 const mockRunWithRailway = vi.fn();
-const mockConfirmProductionOperation = vi.fn();
+const mockRequireProductionConfirmation = vi.fn();
 
 vi.mock('../utils/env-runner.js', () => ({
   validateEnvironment: mockValidateEnvironment,
   showEnvironmentBanner: mockShowEnvironmentBanner,
   runWithRailway: mockRunWithRailway,
-  confirmProductionOperation: mockConfirmProductionOperation,
+  requireProductionConfirmation: mockRequireProductionConfirmation,
 }));
 
 // Mock chalk
@@ -106,7 +106,11 @@ describe('runWithEnv', () => {
   });
 
   it('should require confirmation for prod without force', async () => {
-    mockConfirmProductionOperation.mockResolvedValue(false);
+    // The real gate exits the process on decline; mirror that through this
+    // file's process.exit spy so the existing exit-sentinel assertions hold.
+    mockRequireProductionConfirmation.mockImplementation(() => {
+      process.exit(0);
+    });
 
     const { runWithEnv } = await import('./run-with-env.js');
 
@@ -114,13 +118,13 @@ describe('runWithEnv', () => {
       'process.exit(0)'
     );
 
-    expect(mockConfirmProductionOperation).toHaveBeenCalledWith('run: some command');
+    expect(mockRequireProductionConfirmation).toHaveBeenCalledWith('run: some command');
     // Should exit before calling runWithRailway
     expect(mockRunWithRailway).not.toHaveBeenCalled();
   });
 
   it('should proceed for prod when confirmed', async () => {
-    mockConfirmProductionOperation.mockResolvedValue(true);
+    mockRequireProductionConfirmation.mockResolvedValue(undefined);
     mockRunWithRailway.mockResolvedValue({ stdout: '', stderr: '', exitCode: 0 });
 
     const { runWithEnv } = await import('./run-with-env.js');
@@ -129,7 +133,7 @@ describe('runWithEnv', () => {
       'process.exit(0)'
     );
 
-    expect(mockConfirmProductionOperation).toHaveBeenCalled();
+    expect(mockRequireProductionConfirmation).toHaveBeenCalled();
     expect(mockRunWithRailway).toHaveBeenCalledWith('prod', 'npx', ['prisma', 'studio']);
   });
 
@@ -142,7 +146,7 @@ describe('runWithEnv', () => {
       runWithEnv(['npx', 'prisma', 'studio'], { env: 'prod', force: true })
     ).rejects.toThrow('process.exit(0)');
 
-    expect(mockConfirmProductionOperation).not.toHaveBeenCalled();
+    expect(mockRequireProductionConfirmation).not.toHaveBeenCalled();
     expect(mockRunWithRailway).toHaveBeenCalledWith('prod', 'npx', ['prisma', 'studio']);
   });
 

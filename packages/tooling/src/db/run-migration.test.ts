@@ -20,7 +20,7 @@ const envRunnerMock = {
   validateEnvironment: vi.fn(),
   showEnvironmentBanner: vi.fn(),
   runPrismaCommand: vi.fn(),
-  confirmProductionOperation: vi.fn(),
+  requireProductionConfirmation: vi.fn(),
 };
 
 // Mock env-runner
@@ -110,36 +110,38 @@ describe('runMigration', () => {
       expect(envRunnerMock.runPrismaCommand).toHaveBeenCalledWith('dev', 'migrate', ['deploy']);
     });
 
-    it('should require confirmation for prod without --force', async () => {
-      envRunnerMock.confirmProductionOperation.mockResolvedValue(false);
+    it('should require confirmation for prod without --force, halting on decline', async () => {
+      // The real gate exits the process on decline (it never returns
+      // declined); the mock simulates that non-return with a sentinel.
+      envRunnerMock.requireProductionConfirmation.mockRejectedValue(new Error('exit: declined'));
 
       const { runMigration } = await import('./run-migration.js');
-      await runMigration({ env: 'prod' });
+      await expect(runMigration({ env: 'prod' })).rejects.toThrow('exit: declined');
 
-      expect(envRunnerMock.confirmProductionOperation).toHaveBeenCalledWith('run migrations');
-      expect(processExitSpy).toHaveBeenCalledWith(0);
+      expect(envRunnerMock.requireProductionConfirmation).toHaveBeenCalledWith('run migrations');
+      expect(envRunnerMock.runPrismaCommand).not.toHaveBeenCalled();
     });
 
     it('should skip confirmation for prod with --force', async () => {
       const { runMigration } = await import('./run-migration.js');
       await runMigration({ env: 'prod', force: true });
 
-      expect(envRunnerMock.confirmProductionOperation).not.toHaveBeenCalled();
+      expect(envRunnerMock.requireProductionConfirmation).not.toHaveBeenCalled();
       expect(envRunnerMock.runPrismaCommand).toHaveBeenCalledWith('prod', 'migrate', ['deploy']);
     });
 
     it('should proceed with confirmation for prod when user confirms', async () => {
-      envRunnerMock.confirmProductionOperation.mockResolvedValue(true);
+      envRunnerMock.requireProductionConfirmation.mockResolvedValue(undefined);
 
       const { runMigration } = await import('./run-migration.js');
       await runMigration({ env: 'prod' });
 
-      expect(envRunnerMock.confirmProductionOperation).toHaveBeenCalled();
+      expect(envRunnerMock.requireProductionConfirmation).toHaveBeenCalled();
       expect(envRunnerMock.runPrismaCommand).toHaveBeenCalledWith('prod', 'migrate', ['deploy']);
     });
 
     it('should show production warnings', async () => {
-      envRunnerMock.confirmProductionOperation.mockResolvedValue(true);
+      envRunnerMock.requireProductionConfirmation.mockResolvedValue(undefined);
 
       const { runMigration } = await import('./run-migration.js');
       await runMigration({ env: 'prod' });
@@ -154,7 +156,7 @@ describe('runMigration', () => {
       const { runMigration } = await import('./run-migration.js');
       await runMigration({ env: 'prod', dryRun: true });
 
-      expect(envRunnerMock.confirmProductionOperation).not.toHaveBeenCalled();
+      expect(envRunnerMock.requireProductionConfirmation).not.toHaveBeenCalled();
       expect(envRunnerMock.runPrismaCommand).toHaveBeenCalledWith('prod', 'migrate', ['status']);
     });
   });
@@ -182,7 +184,7 @@ describe('deployMigration', () => {
     const { deployMigration } = await import('./run-migration.js');
     await deployMigration({ env: 'prod' });
 
-    expect(envRunnerMock.confirmProductionOperation).not.toHaveBeenCalled();
+    expect(envRunnerMock.requireProductionConfirmation).not.toHaveBeenCalled();
     expect(envRunnerMock.runPrismaCommand).toHaveBeenCalled();
   });
 

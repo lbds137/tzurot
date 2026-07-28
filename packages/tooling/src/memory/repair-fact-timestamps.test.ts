@@ -3,13 +3,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const { queryMock, executeMock, confirmMock } = vi.hoisted(() => ({
   queryMock: vi.fn(),
   executeMock: vi.fn(),
-  confirmMock: vi.fn().mockResolvedValue(true),
+  confirmMock: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock('../utils/env-runner.js', () => ({
   validateEnvironment: vi.fn(),
   showEnvironmentBanner: vi.fn(),
-  confirmProductionOperation: confirmMock,
+  requireProductionConfirmation: confirmMock,
 }));
 
 vi.mock('./prisma-env.js', () => ({
@@ -27,7 +27,7 @@ import {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  confirmMock.mockResolvedValue(true);
+  confirmMock.mockResolvedValue(undefined);
 });
 
 describe('analyzeRepairScope', () => {
@@ -100,10 +100,12 @@ describe('repairFactTimestamps', () => {
     expect(executeMock).not.toHaveBeenCalled();
   });
 
-  it('asks for production confirmation and honors a decline', async () => {
-    confirmMock.mockResolvedValue(false);
+  it('asks for production confirmation and halts on a decline', async () => {
+    // The real gate exits the process on decline (it never returns declined);
+    // the mock simulates that non-return by rejecting with a sentinel.
+    confirmMock.mockRejectedValue(new Error('exit: declined'));
 
-    await repairFactTimestamps({ env: 'prod' });
+    await expect(repairFactTimestamps({ env: 'prod' })).rejects.toThrow('exit: declined');
 
     expect(confirmMock).toHaveBeenCalledOnce();
     expect(queryMock).not.toHaveBeenCalled();

@@ -18,7 +18,7 @@ import {
   type Environment,
   validateEnvironment,
   showEnvironmentBanner,
-  confirmProductionOperation,
+  requireProductionConfirmation,
 } from '../utils/env-runner.js';
 import { getPrismaForEnv } from './prisma-env.js';
 import { parseDateRange, printDryRunPreview } from './backfill-cli-helpers.js';
@@ -323,11 +323,7 @@ export async function backfillLongTermMemories(options: BackfillOptions): Promis
   }
 
   if (env === 'prod' && !dryRun && !force) {
-    const confirmed = await confirmProductionOperation('backfill memories');
-    if (!confirmed) {
-      console.log(chalk.yellow('\nOperation cancelled.'));
-      return;
-    }
+    await requireProductionConfirmation('backfill memories');
   }
 
   const { prisma, disconnect } = await getPrismaForEnv(env);

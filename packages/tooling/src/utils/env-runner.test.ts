@@ -236,4 +236,69 @@ describe('env-runner', () => {
       expect(cleaned.DATABASE_URL).toBe('postgresql://railway/db');
     });
   });
+
+  describe('requireProductionConfirmation', () => {
+    let exitSpy: ReturnType<typeof vi.spyOn>;
+    let logSpy: ReturnType<typeof vi.spyOn>;
+
+    // The prompt dynamically imports node:readline; the doMock intercepts it
+    // per-answer so each test controls what the operator "typed".
+    function mockAnswer(answer: string): void {
+      vi.doMock('node:readline', () => ({
+        default: {
+          createInterface: () => ({
+            question: (_q: string, cb: (a: string) => void) => cb(answer),
+            close: vi.fn(),
+          }),
+        },
+        createInterface: () => ({
+          question: (_q: string, cb: (a: string) => void) => cb(answer),
+          close: vi.fn(),
+        }),
+      }));
+    }
+
+    beforeEach(() => {
+      vi.resetModules();
+      logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      // Throwing sentinel: the real exit never returns, and the code after
+      // the gate must be unreachable on decline.
+      exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => {
+        throw new Error('process.exit called');
+      });
+    });
+
+    afterEach(() => {
+      exitSpy.mockRestore();
+      logSpy.mockRestore();
+      vi.doUnmock('node:readline');
+    });
+
+    it('returns when the operator types "yes"', async () => {
+      mockAnswer('yes');
+      const { requireProductionConfirmation } = await import('./env-runner.js');
+
+      await expect(requireProductionConfirmation('erase everything')).resolves.toBeUndefined();
+      expect(exitSpy).not.toHaveBeenCalled();
+    });
+
+    it('accepts "YES" case-insensitively', async () => {
+      mockAnswer('YES');
+      const { requireProductionConfirmation } = await import('./env-runner.js');
+
+      await expect(requireProductionConfirmation('erase everything')).resolves.toBeUndefined();
+      expect(exitSpy).not.toHaveBeenCalled();
+    });
+
+    it('prints the cancellation and EXITS (code 0) on any other answer', async () => {
+      mockAnswer('no');
+      const { requireProductionConfirmation } = await import('./env-runner.js');
+
+      await expect(requireProductionConfirmation('erase everything')).rejects.toThrow(
+        'process.exit called'
+      );
+      expect(exitSpy).toHaveBeenCalledWith(0);
+      expect(logSpy.mock.calls.flat().join(' ')).toContain('Operation cancelled');
+    });
+  });
 });

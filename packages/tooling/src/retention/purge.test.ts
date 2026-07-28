@@ -11,7 +11,7 @@ const { previewMock, purgeMock, reconcileMock, getClientMock, confirmMock } = vi
 vi.mock('../utils/env-runner.js', () => ({
   validateEnvironment: vi.fn(),
   showEnvironmentBanner: vi.fn(),
-  confirmProductionOperation: confirmMock,
+  requireProductionConfirmation: confirmMock,
 }));
 vi.mock('../utils/gateway-client.js', () => ({ resolveServiceClientOrExit: getClientMock }));
 
@@ -68,7 +68,7 @@ describe('retentionPurge', () => {
       retentionReconcileOffDb: reconcileMock,
     });
     reconcileMock.mockResolvedValue({ ok: true, data: { settled: 0, stillFailing: 0 } });
-    confirmMock.mockResolvedValue(true);
+    confirmMock.mockResolvedValue(undefined);
   });
 
   afterEach(() => {
@@ -102,10 +102,12 @@ describe('retentionPurge', () => {
   });
 
   it('requires production confirmation, and purges nothing when declined', async () => {
+    // The real gate exits the process on decline (it never returns declined);
+    // the mock simulates that non-return by rejecting with a sentinel.
     previewMock.mockResolvedValue({ ok: true, data: cohort('900000000000000001') });
-    confirmMock.mockResolvedValue(false);
+    confirmMock.mockRejectedValue(new Error('exit: declined'));
 
-    await retentionPurge({ env: 'prod' });
+    await expect(retentionPurge({ env: 'prod' })).rejects.toThrow('exit: declined');
 
     expect(confirmMock).toHaveBeenCalled();
     expect(purgeMock).not.toHaveBeenCalled();

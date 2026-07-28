@@ -26,7 +26,7 @@ import {
   type Environment,
   validateEnvironment,
   showEnvironmentBanner,
-  confirmProductionOperation,
+  requireProductionConfirmation,
 } from '../utils/env-runner.js';
 import { getPrismaForEnv } from './prisma-env.js';
 import { getRailwayRedisUrl, createInspectorQueue } from '../inspect/bullmqConnection.js';
@@ -206,11 +206,7 @@ export async function backfillFacts(options: BackfillFactsOptions): Promise<void
   validateEnvironment(env);
   showEnvironmentBanner(env);
   if (env === 'prod' && !dryRun && !force) {
-    const confirmed = await confirmProductionOperation('enqueue fact-extraction backfill jobs');
-    if (!confirmed) {
-      console.log(chalk.yellow('\nOperation cancelled.'));
-      return;
-    }
+    await requireProductionConfirmation('enqueue fact-extraction backfill jobs');
   }
 
   const { prisma, disconnect } = await getPrismaForEnv(env);

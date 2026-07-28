@@ -26,7 +26,7 @@ import {
   type Environment,
   validateEnvironment,
   showEnvironmentBanner,
-  confirmProductionOperation,
+  requireProductionConfirmation,
 } from '../utils/env-runner.js';
 import { getPrismaForEnv } from './prisma-env.js';
 
@@ -90,11 +90,7 @@ export async function repairFactTimestamps(options: RepairFactTimestampsOptions)
   validateEnvironment(env);
   showEnvironmentBanner(env);
   if (env === 'prod' && !dryRun && !force) {
-    const confirmed = await confirmProductionOperation('rewrite memory_facts.valid_from in place');
-    if (!confirmed) {
-      console.log(chalk.yellow('\nOperation cancelled.'));
-      return;
-    }
+    await requireProductionConfirmation('rewrite memory_facts.valid_from in place');
   }
 
   const { prisma, disconnect } = await getPrismaForEnv(env);

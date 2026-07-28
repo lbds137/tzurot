@@ -6,7 +6,32 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+
+// Module mocks for the cleanupDuplicateMemories orchestrator tests; inert for
+// the helper tests below (those take their prisma as an argument).
+const { requireConfirmMock, orchestratorPrisma, disconnectMock } = vi.hoisted(() => ({
+  requireConfirmMock: vi.fn(),
+  orchestratorPrisma: {
+    $queryRaw: vi.fn(),
+    memory: { deleteMany: vi.fn() },
+  },
+  disconnectMock: vi.fn().mockResolvedValue(undefined),
+}));
+vi.mock('../utils/env-runner.js', () => ({
+  validateEnvironment: vi.fn(),
+  showEnvironmentBanner: vi.fn(),
+  requireProductionConfirmation: requireConfirmMock,
+}));
+vi.mock('./prisma-env.js', () => ({
+  getPrismaForEnv: vi
+    .fn()
+    .mockImplementation(() =>
+      Promise.resolve({ prisma: orchestratorPrisma, disconnect: disconnectMock })
+    ),
+}));
+
 import {
+  cleanupDuplicateMemories,
   findDuplicates,
   deleteDuplicates,
   displaySummary,
@@ -494,6 +519,55 @@ describe('cleanup-duplicates', () => {
       expect(output).toContain('prod');
       expect(output).toContain('100');
       expect(output).toContain('25');
+    });
+  });
+
+  describe('cleanupDuplicateMemories (orchestrator)', () => {
+    let logSpy: ReturnType<typeof vi.spyOn>;
+
+    beforeEach(() => {
+      vi.clearAllMocks();
+      logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      // One duplicate group so the flow reaches the prod confirmation.
+      orchestratorPrisma.$queryRaw.mockResolvedValue([
+        {
+          persona_id: 'p1',
+          personality_id: 'c1',
+          user_msg_prefix: '{user}: hello',
+          count: 2n,
+          first_created: new Date('2026-01-01T00:00:00Z'),
+          last_created: new Date('2026-01-01T00:00:30Z'),
+          all_ids: ['keep-id', 'delete-id'],
+        },
+      ]);
+      requireConfirmMock.mockResolvedValue(undefined);
+    });
+
+    afterEach(() => {
+      logSpy.mockRestore();
+    });
+
+    it('asks for prod confirmation naming the count, and deletes when confirmed', async () => {
+      orchestratorPrisma.memory.deleteMany.mockResolvedValue({ count: 1 });
+
+      await cleanupDuplicateMemories({ env: 'prod', force: true });
+      expect(requireConfirmMock).not.toHaveBeenCalled(); // --force skips
+
+      await cleanupDuplicateMemories({ env: 'prod' });
+      expect(requireConfirmMock).toHaveBeenCalledWith('delete 1 duplicate memories');
+      expect(orchestratorPrisma.memory.deleteMany).toHaveBeenCalled();
+    });
+
+    it('deletes nothing when the prod confirmation is declined', async () => {
+      // The real gate exits the process on decline (it never returns
+      // declined); the mock simulates that non-return with a sentinel. In the
+      // real decline the exit also skips the graceful disconnect — deliberate,
+      // identical to Ctrl-C at the same prompt (see the call-site comment).
+      requireConfirmMock.mockRejectedValue(new Error('exit: declined'));
+
+      await expect(cleanupDuplicateMemories({ env: 'prod' })).rejects.toThrow('exit: declined');
+
+      expect(orchestratorPrisma.memory.deleteMany).not.toHaveBeenCalled();
     });
   });
 });
