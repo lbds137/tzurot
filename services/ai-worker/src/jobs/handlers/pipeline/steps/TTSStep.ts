@@ -48,7 +48,7 @@ const logger = createLogger('TTSStep');
  * pathological full-120s cold start + very-long synthesis can still exceed it
  * (accepted edge case); the cleaner fix — start the synthesis timeout at
  * warmup-completion so the cold start doesn't eat the synthesis budget — is
- * tracked in `backlog/cold/follow-ups.md`.
+ * tracked as TASK-191.
  *
  * The race is around the entire dispatcher + normalize call so a stuck
  * normalizer (e.g., ffmpeg hang) can't deadlock the pipeline. Text is

@@ -407,6 +407,9 @@ importers:
       ts-morph:
         specifier: ^28.0.0
         version: 28.0.0
+      yaml:
+        specifier: ^2.9.0
+        version: 2.9.0
     devDependencies:
       '@types/estree':
         specifier: ^1.0.9

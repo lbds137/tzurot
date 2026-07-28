@@ -305,6 +305,7 @@ describe('findContentRefs (against real repo)', () => {
       // the test will surface a useful "what's actually referenced"
       // signal rather than failing on a spurious dangling.
       'backlog',
+      'backlog:digest',
       'cache:clear',
       'cache:inspect',
       'context',

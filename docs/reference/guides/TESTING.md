@@ -367,7 +367,7 @@ beforeAll(async () => {
 > static fixtures). The first real-Postgres integration test will be picked up by
 > the repo-wide glob and hit `ECONNREFUSED` in CI; add a Postgres service to the
 > `component-integration-tests` job (or a dedicated integration job) at the same time. Tracked
-> in [`backlog/cold/follow-ups.md`](../../../backlog/cold/follow-ups.md).
+> in [`backlog/cold/themes/pglite-fidelity-real-postgres-integration-tier.md`](../../../backlog/cold/themes/pglite-fidelity-real-postgres-integration-tier.md) (Phase 2).
 
 **Use when:**
 
