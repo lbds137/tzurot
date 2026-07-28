@@ -1,7 +1,7 @@
 # Reasoning Model Formats Reference
 
-> **Last Updated**: 2026-04-04
-> **Version**: v3.0.0-beta.91
+> **Last Updated**: 2026-07-28
+> **Version**: v3.0.0-beta.182
 
 This document explains how different AI models expose their reasoning/thinking process and how Tzurot extracts and displays this content.
 
@@ -59,22 +59,29 @@ Some providers return reasoning in a dedicated field separate from the main cont
 
 **Models and their response format:**
 
-| Model                    | Response Field                      | Notes                                          |
-| ------------------------ | ----------------------------------- | ---------------------------------------------- |
-| DeepSeek R1              | `message.reasoning` (string)        | May also emit `<think>` tags in content        |
-| Kimi K2/K2.5             | `message.reasoning` (string)        | Sometimes emits orphan `</think>` closing tags |
-| Qwen QwQ                 | `message.reasoning` (string)        | Also emits `<think>` tags in content           |
-| GLM-4.x                  | `message.reasoning` (string)        | Also emits `<think>` tags in content           |
-| Claude Extended Thinking | `message.reasoning_details` (array) | `reasoning.text` with signatures               |
-| Gemini 3                 | `message.reasoning_details` (array) | `reasoning.text` items                         |
-| OpenAI o-series          | `message.reasoning_details` (array) | Often `reasoning.encrypted` (unreadable)       |
-| xAI Grok                 | `message.reasoning_details` (array) | `reasoning.encrypted` format                   |
+| Model                    | Response Field                      | Notes                                                                                                                                 |
+| ------------------------ | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| DeepSeek R1              | `message.reasoning` (string)        | May also emit `<think>` tags in content                                                                                               |
+| Kimi K2/K2.5             | `message.reasoning` (string)        | Sometimes emits orphan `</think>` closing tags; K2.6 emits reasoning as PLAIN TEXT in content (unhandled — run it with reasoning off) |
+| Qwen QwQ                 | `message.reasoning` (string)        | Also emits `<think>` tags in content                                                                                                  |
+| GLM-4.x                  | `message.reasoning` (string)        | Also emits `<think>` tags in content; each revision ships new tag vocabulary                                                          |
+| z.ai direct API          | `message.reasoning_content`         | z.ai's own snake_case convention — read directly, no raw-response bridge (see below)                                                  |
+| Claude Extended Thinking | `message.reasoning_details` (array) | `reasoning.text` with signatures                                                                                                      |
+| Gemini 3                 | `message.reasoning_details` (array) | `reasoning.text` items                                                                                                                |
+| OpenAI o-series          | `message.reasoning_details` (array) | Often `reasoning.encrypted` (unreadable)                                                                                              |
+| xAI Grok                 | `message.reasoning_details` (array) | `reasoning.encrypted` format                                                                                                          |
 
-**Challenge:** LangChain's Chat Completions converter only extracts `function_call`, `tool_calls`, and `audio` from the response message. The `reasoning` and `reasoning_details` fields are silently dropped. Tzurot solves this with a custom fetch wrapper that intercepts the response and injects reasoning into `message.content` as `<reasoning>` tags before LangChain parses it.
+**Challenge:** OpenRouter normalizes reasoning to `message.reasoning` (OpenAI's GPT-OSS canonical guidance), but LangChain's `@langchain/openai` chat-completions converter looks for `message.reasoning_content` (DeepSeek's legacy field name) and silently drops `message.reasoning`. Tracked in langchain-ai/langchain#32981 and #34706.
+
+**Solution (post-parse extraction — no HTTP-body mutation):** `ModelFactory` sets `__includeRawResponse: true` on `ChatOpenAI` for OpenRouter models, which surfaces the complete raw API response at `additional_kwargs.__raw_response`. Immediately after `model.invoke()`, `LLMInvoker` calls `extractAndPopulateOpenRouterReasoning()`, which reads the raw message and populates the fields LangChain would have populated natively — `additional_kwargs.reasoning` and `response_metadata.reasoning_details` — then deletes `__raw_response` (raw payloads run 200–500KB and must not flow into BullMQ job results). An earlier design mutated the response body in a custom fetch wrapper before LangChain parsed it; that transport-layer approach is gone.
+
+**z.ai is deliberately NOT bridged:** z.ai uses its own `reasoning_content` protocol, which `ResponsePostProcessor.extractApiReasoning()` reads directly, so `__includeRawResponse` is intentionally not set on the z.ai client.
 
 **Relevant code:**
 
-- `services/ai-worker/src/services/ModelFactory.ts` - `interceptReasoningResponse()`
+- `services/ai-worker/src/services/modelFactory/extractOpenRouterReasoning.ts` - `extractAndPopulateOpenRouterReasoning()`
+- `services/ai-worker/src/services/LLMInvoker.ts` - the post-invoke call site
+- `services/ai-worker/src/services/ModelFactory.ts` - `__includeRawResponse` (OpenRouter yes, z.ai no)
 
 ### 2. Inline Tags
 
@@ -91,17 +98,19 @@ First, I should consider...
 The answer is 42.
 ```
 
-**Supported tag patterns** (case-insensitive):
-| Tag | Models |
-|-----|--------|
-| `<think>` | DeepSeek R1, Qwen QwQ, GLM-4.x, Kimi K2 |
-| `<thinking>` | Claude (when prompted), distilled models |
-| `<ant_thinking>` | Legacy Anthropic format |
-| `<reasoning>` | Various fine-tunes, injected API-level reasoning |
-| `<thought>` | Legacy fine-tunes (Llama, Mistral) |
-| `<reflection>` | Reflection AI |
-| `<scratchpad>` | Research models |
+**Supported tag patterns** (case-insensitive; source of truth: `KNOWN_THINKING_TAGS` in `thinkingExtraction.ts`):
+
+| Tag                    | Models                                                      |
+| ---------------------- | ----------------------------------------------------------- |
+| `<think>`              | DeepSeek R1, Qwen QwQ, GLM-4.x, Kimi K2                     |
+| `<thinking>`           | Claude (when prompted), distilled models                    |
+| `<ant_thinking>`       | Legacy Anthropic format                                     |
+| `<reasoning>`          | Some fine-tuned models                                      |
+| `<thought>`            | Legacy fine-tunes (Llama, Mistral)                          |
+| `<reflection>`         | Reflection AI                                               |
+| `<scratchpad>`         | Legacy research models                                      |
 | `<character_analysis>` | GLM 4.5 Air (internal chain-of-thought / response planning) |
+| `<understanding>`      | GLM 4.5 Air (observed at `reasoning.effort: medium`)        |
 
 **Relevant code:**
 
@@ -127,9 +136,11 @@ To receive reasoning content from a model, configure your preset with:
 
 **Effort levels:** `none`, `minimal`, `low`, `medium`, `high`, `xhigh`
 
-**Constraint:** `effort` and `max_tokens` are mutually exclusive — use one or the other. When both are set, `effort` takes precedence.
+**Constraint:** `effort` and `max_tokens` are mutually exclusive — use one or the other. When both are set, `effort` takes precedence (`buildReasoningParams` in `ModelFactory.ts` logs a warning and drops `max_tokens`).
 
 The `reasoning.effort` parameter controls how much "thinking" the model does. Higher effort = more reasoning tokens = better quality but slower/more expensive.
+
+Models with `supportsReasoning: false` in the catalog have reasoning params skipped entirely (with a warning) rather than sent and rejected.
 
 ### Displaying Thinking
 
@@ -154,24 +165,27 @@ When enabled, thinking content appears as a collapsible Discord message before t
 
 ## Pipeline Flow
 
-1. **Request** - `ModelFactory` builds the `reasoning` param via `modelKwargs`, which LangChain passes through to the OpenRouter API as a top-level body key.
+1. **Request** - `ModelFactory` builds the `reasoning` param via `buildReasoningParams()` into `modelKwargs`, which LangChain passes through to the API as a top-level body key. OpenRouter-only extras (`transforms`, `route`, `verbosity`) are injected by the custom fetch wrapper (`OpenRouterFetch.ts`) on the request side.
 
-2. **Response Interception** - Custom fetch wrapper intercepts the API response:
-   - Checks `message.reasoning` (string) and `message.reasoning_details` (array)
-   - Injects extracted reasoning into `message.content` as `<reasoning>` tags
-   - Returns modified response to LangChain (which would otherwise drop these fields)
+2. **Raw-Response Capture** - For OpenRouter models, `__includeRawResponse: true` surfaces the complete raw API response at `additional_kwargs.__raw_response` after LangChain parses it. (The custom fetch no longer mutates response bodies for reasoning — its only response-side job is 400-recovery, below.)
 
-3. **Content Extraction** - `ResponsePostProcessor` processes the content:
-   - `extractApiReasoning()` checks `additional_kwargs.reasoning` (fallback path)
-   - `extractThinkingBlocks()` extracts all inline tag patterns including `<reasoning>`
+3. **Post-Parse Extraction** - `LLMInvoker` calls `extractAndPopulateOpenRouterReasoning(response)` right after `model.invoke()`. In one in-place pass it:
+   - populates `additional_kwargs.reasoning` (string) and `response_metadata.reasoning_details` (array) from the raw message
+   - captures diagnostics into `response_metadata.openrouter` — actual upstream provider (Parasail, Chutes, …), `apiMessageKeys`, `apiReasoningLength`, and any provider error object attached to the choice
+   - promotes reasoning to visible content when `content` is empty (some free-tier GLM variants put the whole response in `reasoning`)
+   - deletes `__raw_response` (memory hygiene)
+
+4. **Content Extraction** - `ResponsePostProcessor` processes the content:
+   - `extractApiReasoning()` — field precedence: `additional_kwargs.reasoning` (OpenRouter/DeepSeek) → `additional_kwargs.reasoning_content` (z.ai) → `response_metadata.reasoning_details`
+   - `extractThinkingBlocks()` extracts all inline tag patterns
    - `mergeThinkingContent()` combines API-level and inline thinking
    - Returns `{ cleanedContent, thinkingContent }`
 
-4. **Result Building** - `ConversationalRAGService` includes in RAG response:
+5. **Result Building** - `ConversationalRAGService` includes in RAG response:
    - `thinkingContent` - The extracted reasoning
    - `showThinking` - From the user's resolved LLM config
 
-5. **Discord Display** - `DiscordResponseSender` checks:
+6. **Discord Display** - `DiscordResponseSender` checks:
    - If `showThinking === true` AND `thinkingContent` exists
    - Sends thinking as spoiler message before main response
 
@@ -181,23 +195,27 @@ When enabled, thinking content appears as a collapsible Discord message before t
 
 ### Models that return reasoning in content AND via API field
 
-Some models (DeepSeek R1, QwQ, GLM-4.x) emit `<think>` tags in `message.content` even when `message.reasoning` is also populated. The pipeline handles this correctly:
+Some models (DeepSeek R1, QwQ, GLM-4.x) emit `<think>` tags in `message.content` even when `message.reasoning` is also populated. The pipeline handles this correctly: API-level reasoning is extracted from the raw response, inline tags are extracted from content, and `mergeThinkingContent()` deduplicates and combines both sources.
 
-- API-level reasoning is injected as `<reasoning>` tags by the custom fetch
-- Inline `<think>` tags are also extracted
-- `mergeThinkingContent()` deduplicates and combines both sources
+### Reasoning-as-response (empty visible content)
 
-### All-thinking responses (no visible content)
+When a model spends everything on `reasoning` and returns empty `content` (observed on free-tier GLM variants), `extractAndPopulateOpenRouterReasoning` **promotes the reasoning to visible content** instead of surfacing an empty reply. The kwargs/metadata population is skipped in that case so the actual response doesn't also appear in the audit trail as "thinking".
 
-When a model spends its entire token budget on reasoning with nothing left for the actual response, `ResponsePostProcessor` logs a warning but returns empty visible content. The caller handles this as an empty response.
+### HTTP 400 with usable content
+
+Some free-tier providers (notably GLM variants) return HTTP 400 with valid `choices[0].message.content` — or the response hiding in `reasoning`/`reasoning_details`. LangChain would throw on the status code and lose the content; the custom fetch (`OpenRouterFetch.ts` `tryRecoverErrorContent`) synthesizes a 200, relocating reasoning-as-response into `content` when needed.
 
 ### Orphan closing tags
 
-Kimi K2/K2.5 sometimes emits `</think>` without an opening tag. Handled by `ORPHAN_CLOSING_TAG_PATTERN` in `thinkingExtraction.ts`.
+Kimi K2/K2.5 sometimes emits `</think>` without an opening tag. Handled by `ORPHAN_CLOSING_TAG_PATTERN` in `thinkingExtraction.ts`. (Kimi K2.6 instead emits reasoning as untagged plain text at the top of `content` — no handler exists for that; run K2.6 with reasoning off.)
 
 ### Chimera model artifacts
 
 Merged/fine-tuned models may emit stutter fragments before orphan closing tags. Handled by `CHIMERA_ARTIFACT_PATTERN`.
+
+### GLM fake user-message echo
+
+GLM-4.5-Air has been observed improvising a reasoning channel by wrapping chain-of-thought in tags that mimic Tzurot's own prompt-assembly format (`<from_id>`/`<user>`/`<message>`), followed by the real response. A model-specific extractor runs as a first pass in `extractThinkingBlocks()`, anchored to absolute start-of-string so mid-response occurrences of the format are never stripped.
 
 ---
 
@@ -220,9 +238,13 @@ Use `/inspect <message_id>` to see extraction details:
   },
   "llmResponse": {
     "reasoningDebug": {
-      "hasReasoningInKwargs": false,
+      "hasReasoningInKwargs": true,
+      "reasoningKwargsLength": 1874,
       "hasReasoningDetails": false,
-      "additionalKwargsKeys": ["function_call", "tool_calls"]
+      "hasReasoningTagsInContent": false,
+      "upstreamProvider": "Parasail",
+      "apiMessageKeys": ["role", "content", "reasoning"],
+      "apiReasoningLength": 1874
     }
   }
 }
@@ -230,30 +252,33 @@ Use `/inspect <message_id>` to see extraction details:
 
 **Key diagnostic fields:**
 
-- `thinkingExtracted` - Whether thinking was found and extracted
-- `thinkingContent` - The actual thinking text (may be long)
+- `thinkingExtracted` / `thinkingContent` - Whether thinking was found, and the text
 - `showThinking` - Whether display is enabled
-- `reasoningDebug` - Shows what LangChain preserved (note: API reasoning is injected into content by custom fetch, so these may be empty even when reasoning was captured)
+- `hasReasoningInKwargs` / `reasoningKwargsLength` - Whether `additional_kwargs.reasoning` was populated by the post-parse extractor
+- `upstreamProvider` - The ACTUAL upstream provider from `__raw_response.provider` (LangChain hardcodes `model_provider: "openai"`, which is useless for incident segmentation)
+- `apiMessageKeys` - Keys on the raw API message; distinguishes "model returned structured reasoning" (`reasoning` present) from "model embedded planning into content" (just `role`/`content`)
+- `apiReasoningLength` - Raw `message.reasoning` length; non-zero here but nothing visible downstream means the extraction broke
 
 ---
 
 ## Adding Support for New Models
 
 1. **API-Level Reasoning** - If a new model returns reasoning in a non-standard field:
-   - Update `interceptReasoningResponse()` in `ModelFactory.ts`
-   - Check for the new field name and inject with `<reasoning>` tags
+   - OpenRouter-routed: extend `populateReasoningFields()` in `extractOpenRouterReasoning.ts`
+   - Direct-API providers (like z.ai): add the field to `ResponsePostProcessor.extractApiReasoning()`'s precedence chain
 
 2. **Inline Tags** - If a model uses a new tag format:
-   - Add the pattern to `THINKING_PATTERNS` in `thinkingExtraction.ts`
-   - Add to `UNCLOSED_TAG_PATTERN` if needed
+   - Add the tag name to `KNOWN_THINKING_TAGS` in `thinkingExtraction.ts` (patterns, unclosed-tag, and orphan-closing handling all derive from that one list)
 
 ---
 
 ## References
 
 - [OpenRouter Reasoning Tokens Guide](https://openrouter.ai/docs/guides/best-practices/reasoning-tokens)
+- `services/ai-worker/src/services/modelFactory/extractOpenRouterReasoning.ts`
+- `services/ai-worker/src/services/modelFactory/OpenRouterFetch.ts`
+- `services/ai-worker/src/services/LLMInvoker.ts`
 - `services/ai-worker/src/services/ModelFactory.ts`
 - `services/ai-worker/src/services/ResponsePostProcessor.ts`
 - `services/ai-worker/src/utils/thinkingExtraction.ts`
-- `services/ai-worker/src/utils/reasoningModelUtils.ts`
 - `services/bot-client/src/services/DiscordResponseSender.ts`
