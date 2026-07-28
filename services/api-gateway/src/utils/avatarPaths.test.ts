@@ -10,6 +10,7 @@ import {
   ensureAvatarDir,
   AVATAR_ROOT,
 } from './avatarPaths.js';
+import { avatarUrlPath, AVATAR_URL_PREFIX } from '@tzurot/common-types/utils/avatarUrl';
 
 // Mock fs/promises
 vi.mock('fs/promises', () => ({
@@ -134,6 +135,28 @@ describe('avatarPaths', () => {
       const result2 = await ensureAvatarDir('123bot');
       expect(result2).toBe('/data/avatars/1');
       expect(mockMkdir).toHaveBeenCalledWith('/data/avatars/1', { recursive: true });
+    });
+  });
+
+  describe('producer/parser round-trip (avatarUrlPath contract)', () => {
+    // The common-types helper is the sole producer of the URL shapes this
+    // parser accepts; a hyphenated slug is the case the greedy
+    // VERSIONED_FILENAME_PATTERN exists for, so pin the contract end to end
+    // rather than each side in isolation.
+    function filenameOf(urlPath: string): string {
+      return urlPath.slice(`${AVATAR_URL_PREFIX}/`.length);
+    }
+
+    it('round-trips a hyphenated slug through the path-versioned shape', () => {
+      const filename = filenameOf(avatarUrlPath('my-personality', 1705827727111));
+      expect(extractSlugFromFilename(filename)).toBe('my-personality');
+      expect(extractTimestampFromFilename(filename)).toBe(1705827727111);
+    });
+
+    it('round-trips a hyphenated slug through the legacy shape', () => {
+      const filename = filenameOf(avatarUrlPath('my-personality'));
+      expect(extractSlugFromFilename(filename)).toBe('my-personality');
+      expect(extractTimestampFromFilename(filename)).toBeNull();
     });
   });
 
