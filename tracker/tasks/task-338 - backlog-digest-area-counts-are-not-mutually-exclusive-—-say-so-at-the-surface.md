@@ -1,10 +1,10 @@
 ---
 id: TASK-338
 title: 'backlog:digest area counts are not mutually exclusive — say so at the surface'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-07-28 02:35'
-updated_date: '2026-07-28 10:53'
+updated_date: '2026-07-28 11:07'
 labels:
   - 'area:backlog'
   - 'size:S'
