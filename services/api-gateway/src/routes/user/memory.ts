@@ -2,48 +2,22 @@
  * User Memory Routes
  * LTM (Long-Term Memory) management endpoints
  *
- * GET /user/memory/stats - Get memory statistics for a personality
- * GET /user/memory/list - Paginated list of memories for browsing
- * POST /user/memory/search - Semantic search of memories
- * POST /user/memory/delete/preview - Preview batch delete; issues PreviewToken
- * POST /user/memory/delete - Execute batch delete using PreviewToken
- * POST /user/memory/purge/token - Validate confirmation phrase; issues PurgeToken
- * POST /user/memory/purge - Execute purge using PurgeToken
- * GET /user/memory/:id - Get a single memory
- * PATCH /user/memory/:id - Update memory content
- * DELETE /user/memory/:id - Delete a single memory
- * PUT /user/memory/:id/lock - Set memory lock state explicitly (idempotent on retry)
- *
- * Memory-mode sub-routes (incognito at /user/memory/incognito, fresh at
- * /user/memory/fresh): status/enable/disable each, plus incognito's forget.
+ * This module owns only the stats handler; its siblings (memoryList,
+ * memorySearch, memorySingle, memoryBatch, memoryIncognito, memoryFresh)
+ * own the rest of the /user/memory/* surface. The generated mounts.ts
+ * registers every handler export directly — there is no local router
+ * factory.
  */
 
-import { Router, type RequestHandler, type Response } from 'express';
+import { type RequestHandler, type Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { RouteDeps } from '../routeDeps.js';
-import { requireUserAuth, requireProvisionedUser } from '../../services/AuthMiddleware.js';
 import { MemoryModeSessionManager } from '../../services/MemoryModeSessionManager.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
 import type { ProvisionedRequest } from '../../types.js';
-import { handleSearch } from './memorySearch.js';
-import { handleList } from './memoryList.js';
-import {
-  handleGetMemory,
-  handleUpdateMemory,
-  handleSetMemoryLock,
-  handleDeleteMemory,
-} from './memorySingle.js';
-import {
-  handleBatchDelete,
-  handleBatchDeletePreview,
-  handleIssuePurgeToken,
-  handlePurge,
-} from './memoryBatch.js';
-import { createIncognitoRoutes } from './memoryIncognito.js';
-import { createFreshRoutes } from './memoryFresh.js';
 import { resolveProvisionedUserId } from '../../utils/resolveProvisionedUserId.js';
 import { getDefaultPersonaId, getPersonalityById } from './memoryHelpers.js';
 
@@ -142,44 +116,3 @@ export const handleGetStats = (deps: RouteDeps): RequestHandler => {
     );
   });
 };
-
-/**
- * Mount all /user/memory/* routes onto a fresh router. Each handler is the
- * (deps: RouteDeps) => RequestHandler shape that codegen emits — once the
- * generated mounts.ts is wired up, the codegen will register these routes
- * identically and this factory becomes the legacy path to delete.
- *
- * Registration order matters: literal paths (`/stats`, `/list`, `/search`,
- * `/delete*`, `/purge*`) must come before `/:id` so they don't get
- * shadowed by the parameterised route.
- */
-export function createMemoryRoutes(deps: RouteDeps): Router {
-  const router = Router();
-  const { prisma, redis } = deps;
-
-  // Memory-mode routes (require Redis)
-  if (redis !== undefined) {
-    router.use('/incognito', createIncognitoRoutes(prisma, redis));
-    router.use('/fresh', createFreshRoutes(prisma, redis));
-  }
-
-  const requireProvisioned = requireProvisionedUser(prisma);
-  router.get('/stats', requireUserAuth(), requireProvisioned, handleGetStats(deps));
-  router.get('/list', requireUserAuth(), requireProvisioned, handleList(deps));
-  router.post('/search', requireUserAuth(), requireProvisioned, handleSearch(deps));
-  router.post(
-    '/delete/preview',
-    requireUserAuth(),
-    requireProvisioned,
-    handleBatchDeletePreview(deps)
-  );
-  router.post('/delete', requireUserAuth(), requireProvisioned, handleBatchDelete(deps));
-  router.post('/purge/token', requireUserAuth(), requireProvisioned, handleIssuePurgeToken(deps));
-  router.post('/purge', requireUserAuth(), requireProvisioned, handlePurge(deps));
-  router.get('/:id', requireUserAuth(), requireProvisioned, handleGetMemory(deps));
-  router.patch('/:id', requireUserAuth(), requireProvisioned, handleUpdateMemory(deps));
-  router.delete('/:id', requireUserAuth(), requireProvisioned, handleDeleteMemory(deps));
-  router.put('/:id/lock', requireUserAuth(), requireProvisioned, handleSetMemoryLock(deps));
-
-  return router;
-}

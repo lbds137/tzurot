@@ -62,12 +62,11 @@ const mockRedis = {
 };
 
 import {
-  createIncognitoRoutes,
   handleGetIncognitoStatus,
   handleEnableIncognito,
   handleDisableIncognito,
+  handleIncognitoForget,
 } from './memoryIncognito.js';
-import { getRouteHandler, findRoute } from '../../test/expressRouterUtils.js';
 import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 import type { Redis } from 'ioredis';
 
@@ -96,13 +95,12 @@ function createMockReqRes(body: Record<string, unknown> = {}, query: Record<stri
   return { req, res };
 }
 
-// Helper to get handler from router
-function getHandler(
-  router: ReturnType<typeof createIncognitoRoutes>,
-  method: 'get' | 'post' | 'delete',
-  path: string
-) {
-  return getRouteHandler(router, method, path);
+// Standard handler deps (prisma + redis) — the shape mounts.ts wires in prod.
+function modeDeps() {
+  return {
+    prisma: mockPrisma as unknown as PrismaClient,
+    redis: mockRedis as unknown as Redis,
+  };
 }
 
 describe('/user/memory/incognito routes', () => {
@@ -127,66 +125,17 @@ describe('/user/memory/incognito routes', () => {
     mockRedis.get.mockResolvedValue(null);
   });
 
-  describe('route factory', () => {
-    it('should create a router', () => {
-      const router = createIncognitoRoutes(
-        mockPrisma as unknown as PrismaClient,
-        mockRedis as unknown as Redis
-      );
-
-      expect(router).toBeDefined();
-      expect(typeof router).toBe('function');
-    });
-
-    it('should have GET / route registered', () => {
-      const router = createIncognitoRoutes(
-        mockPrisma as unknown as PrismaClient,
-        mockRedis as unknown as Redis
-      );
-
-      expect(findRoute(router, 'get', '/')).toBeDefined();
-    });
-
-    it('should have POST / route registered', () => {
-      const router = createIncognitoRoutes(
-        mockPrisma as unknown as PrismaClient,
-        mockRedis as unknown as Redis
-      );
-
-      expect(findRoute(router, 'post', '/')).toBeDefined();
-    });
-
-    it('should have DELETE / route registered', () => {
-      const router = createIncognitoRoutes(
-        mockPrisma as unknown as PrismaClient,
-        mockRedis as unknown as Redis
-      );
-
-      expect(findRoute(router, 'delete', '/')).toBeDefined();
-    });
-
-    it('should have POST /forget route registered', () => {
-      const router = createIncognitoRoutes(
-        mockPrisma as unknown as PrismaClient,
-        mockRedis as unknown as Redis
-      );
-
-      expect(findRoute(router, 'post', '/forget')).toBeDefined();
-    });
-  });
-
+  // Route wiring (paths, middleware, registration) is owned by the generated
+  // mounts.ts — `pnpm ops codegen:routes --check` pins it against the
+  // manifest, so these tests exercise the handlers directly.
   describe('GET /user/memory/incognito (status)', () => {
     it('should return inactive status when no sessions', async () => {
       mockRedis.scan.mockResolvedValue(['0', []]);
 
-      const router = createIncognitoRoutes(
-        mockPrisma as unknown as PrismaClient,
-        mockRedis as unknown as Redis
-      );
-      const handler = getHandler(router, 'get', '/');
+      const handler = handleGetIncognitoStatus(modeDeps());
       const { req, res } = createMockReqRes();
 
-      await handler(req, res);
+      await handler(req, res, vi.fn());
 
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.json).toHaveBeenCalledWith(
@@ -211,14 +160,10 @@ describe('/user/memory/incognito routes', () => {
       ]);
       mockRedis.mget.mockResolvedValue([JSON.stringify(session)]);
 
-      const router = createIncognitoRoutes(
-        mockPrisma as unknown as PrismaClient,
-        mockRedis as unknown as Redis
-      );
-      const handler = getHandler(router, 'get', '/');
+      const handler = handleGetIncognitoStatus(modeDeps());
       const { req, res } = createMockReqRes();
 
-      await handler(req, res);
+      await handler(req, res, vi.fn());
 
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.json).toHaveBeenCalledWith(
@@ -236,14 +181,10 @@ describe('/user/memory/incognito routes', () => {
 
   describe('POST /user/memory/incognito (enable)', () => {
     it('should reject missing personalityId', async () => {
-      const router = createIncognitoRoutes(
-        mockPrisma as unknown as PrismaClient,
-        mockRedis as unknown as Redis
-      );
-      const handler = getHandler(router, 'post', '/');
+      const handler = handleEnableIncognito(modeDeps());
       const { req, res } = createMockReqRes({ duration: '1h' });
 
-      await handler(req, res);
+      await handler(req, res, vi.fn());
 
       expect(res.status).toHaveBeenCalledWith(400);
       expect(res.json).toHaveBeenCalledWith(
@@ -254,14 +195,10 @@ describe('/user/memory/incognito routes', () => {
     });
 
     it('should reject missing duration', async () => {
-      const router = createIncognitoRoutes(
-        mockPrisma as unknown as PrismaClient,
-        mockRedis as unknown as Redis
-      );
-      const handler = getHandler(router, 'post', '/');
+      const handler = handleEnableIncognito(modeDeps());
       const { req, res } = createMockReqRes({ personalityId: TEST_PERSONALITY_ID });
 
-      await handler(req, res);
+      await handler(req, res, vi.fn());
 
       expect(res.status).toHaveBeenCalledWith(400);
       expect(res.json).toHaveBeenCalledWith(
@@ -272,17 +209,13 @@ describe('/user/memory/incognito routes', () => {
     });
 
     it('should reject invalid duration', async () => {
-      const router = createIncognitoRoutes(
-        mockPrisma as unknown as PrismaClient,
-        mockRedis as unknown as Redis
-      );
-      const handler = getHandler(router, 'post', '/');
+      const handler = handleEnableIncognito(modeDeps());
       const { req, res } = createMockReqRes({
         personalityId: TEST_PERSONALITY_ID,
         duration: 'invalid',
       });
 
-      await handler(req, res);
+      await handler(req, res, vi.fn());
 
       expect(res.status).toHaveBeenCalledWith(400);
       expect(res.json).toHaveBeenCalledWith(
@@ -295,17 +228,13 @@ describe('/user/memory/incognito routes', () => {
     it('should return 404 when personality not found', async () => {
       mockPrisma.personality.findUnique.mockResolvedValue(null);
 
-      const router = createIncognitoRoutes(
-        mockPrisma as unknown as PrismaClient,
-        mockRedis as unknown as Redis
-      );
-      const handler = getHandler(router, 'post', '/');
+      const handler = handleEnableIncognito(modeDeps());
       const { req, res } = createMockReqRes({
         personalityId: TEST_NONEXISTENT_ID, // Valid UUID format, but not in DB
         duration: '1h',
       });
 
-      await handler(req, res);
+      await handler(req, res, vi.fn());
 
       expect(res.status).toHaveBeenCalledWith(404);
       expect(res.json).toHaveBeenCalledWith(
@@ -318,17 +247,13 @@ describe('/user/memory/incognito routes', () => {
     it('should enable incognito mode with TTL', async () => {
       mockRedis.get.mockResolvedValue(null); // No existing session
 
-      const router = createIncognitoRoutes(
-        mockPrisma as unknown as PrismaClient,
-        mockRedis as unknown as Redis
-      );
-      const handler = getHandler(router, 'post', '/');
+      const handler = handleEnableIncognito(modeDeps());
       const { req, res } = createMockReqRes({
         personalityId: TEST_PERSONALITY_ID,
         duration: '1h',
       });
 
-      await handler(req, res);
+      await handler(req, res, vi.fn());
 
       expect(mockRedis.setex).toHaveBeenCalledWith(
         expect.stringContaining(TEST_PERSONALITY_ID),
@@ -349,17 +274,13 @@ describe('/user/memory/incognito routes', () => {
     it('should enable incognito for "all" without TTL', async () => {
       mockRedis.get.mockResolvedValue(null);
 
-      const router = createIncognitoRoutes(
-        mockPrisma as unknown as PrismaClient,
-        mockRedis as unknown as Redis
-      );
-      const handler = getHandler(router, 'post', '/');
+      const handler = handleEnableIncognito(modeDeps());
       const { req, res } = createMockReqRes({
         personalityId: 'all',
         duration: 'forever',
       });
 
-      await handler(req, res);
+      await handler(req, res, vi.fn());
 
       // 'forever' uses SET not SETEX
       expect(mockRedis.set).toHaveBeenCalledWith(
@@ -380,17 +301,13 @@ describe('/user/memory/incognito routes', () => {
       };
       mockRedis.get.mockResolvedValue(JSON.stringify(existingSession));
 
-      const router = createIncognitoRoutes(
-        mockPrisma as unknown as PrismaClient,
-        mockRedis as unknown as Redis
-      );
-      const handler = getHandler(router, 'post', '/');
+      const handler = handleEnableIncognito(modeDeps());
       const { req, res } = createMockReqRes({
         personalityId: TEST_PERSONALITY_ID,
         duration: '4h', // Different duration
       });
 
-      await handler(req, res);
+      await handler(req, res, vi.fn());
 
       // Should NOT create new session
       expect(mockRedis.setex).not.toHaveBeenCalled();
@@ -407,17 +324,13 @@ describe('/user/memory/incognito routes', () => {
     it('should return wasAlreadyActive: false when creating new session', async () => {
       mockRedis.get.mockResolvedValue(null);
 
-      const router = createIncognitoRoutes(
-        mockPrisma as unknown as PrismaClient,
-        mockRedis as unknown as Redis
-      );
-      const handler = getHandler(router, 'post', '/');
+      const handler = handleEnableIncognito(modeDeps());
       const { req, res } = createMockReqRes({
         personalityId: TEST_PERSONALITY_ID,
         duration: '1h',
       });
 
-      await handler(req, res);
+      await handler(req, res, vi.fn());
 
       expect(res.status).toHaveBeenCalledWith(201);
       expect(res.json).toHaveBeenCalledWith(
@@ -430,14 +343,10 @@ describe('/user/memory/incognito routes', () => {
 
   describe('DELETE /user/memory/incognito (disable)', () => {
     it('should reject missing personalityId', async () => {
-      const router = createIncognitoRoutes(
-        mockPrisma as unknown as PrismaClient,
-        mockRedis as unknown as Redis
-      );
-      const handler = getHandler(router, 'delete', '/');
+      const handler = handleDisableIncognito(modeDeps());
       const { req, res } = createMockReqRes({});
 
-      await handler(req, res);
+      await handler(req, res, vi.fn());
 
       expect(res.status).toHaveBeenCalledWith(400);
       expect(res.json).toHaveBeenCalledWith(
@@ -450,16 +359,12 @@ describe('/user/memory/incognito routes', () => {
     it('should disable incognito mode', async () => {
       mockRedis.del.mockResolvedValue(1);
 
-      const router = createIncognitoRoutes(
-        mockPrisma as unknown as PrismaClient,
-        mockRedis as unknown as Redis
-      );
-      const handler = getHandler(router, 'delete', '/');
+      const handler = handleDisableIncognito(modeDeps());
       const { req, res } = createMockReqRes({
         personalityId: TEST_PERSONALITY_ID,
       });
 
-      await handler(req, res);
+      await handler(req, res, vi.fn());
 
       expect(mockRedis.del).toHaveBeenCalledWith(expect.stringContaining(TEST_PERSONALITY_ID));
       expect(res.status).toHaveBeenCalledWith(200);
@@ -473,16 +378,12 @@ describe('/user/memory/incognito routes', () => {
     it('should return disabled=false when session did not exist', async () => {
       mockRedis.del.mockResolvedValue(0);
 
-      const router = createIncognitoRoutes(
-        mockPrisma as unknown as PrismaClient,
-        mockRedis as unknown as Redis
-      );
-      const handler = getHandler(router, 'delete', '/');
+      const handler = handleDisableIncognito(modeDeps());
       const { req, res } = createMockReqRes({
         personalityId: TEST_PERSONALITY_ID,
       });
 
-      await handler(req, res);
+      await handler(req, res, vi.fn());
 
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.json).toHaveBeenCalledWith(
@@ -495,14 +396,10 @@ describe('/user/memory/incognito routes', () => {
 
   describe('POST /user/memory/incognito/forget', () => {
     it('should reject missing personalityId', async () => {
-      const router = createIncognitoRoutes(
-        mockPrisma as unknown as PrismaClient,
-        mockRedis as unknown as Redis
-      );
-      const handler = getHandler(router, 'post', '/forget');
+      const handler = handleIncognitoForget(modeDeps());
       const { req, res } = createMockReqRes({ timeframe: '15m' });
 
-      await handler(req, res);
+      await handler(req, res, vi.fn());
 
       expect(res.status).toHaveBeenCalledWith(400);
       expect(res.json).toHaveBeenCalledWith(
@@ -513,14 +410,10 @@ describe('/user/memory/incognito routes', () => {
     });
 
     it('should reject missing timeframe', async () => {
-      const router = createIncognitoRoutes(
-        mockPrisma as unknown as PrismaClient,
-        mockRedis as unknown as Redis
-      );
-      const handler = getHandler(router, 'post', '/forget');
+      const handler = handleIncognitoForget(modeDeps());
       const { req, res } = createMockReqRes({ personalityId: TEST_PERSONALITY_ID });
 
-      await handler(req, res);
+      await handler(req, res, vi.fn());
 
       expect(res.status).toHaveBeenCalledWith(400);
       expect(res.json).toHaveBeenCalledWith(
@@ -531,17 +424,13 @@ describe('/user/memory/incognito routes', () => {
     });
 
     it('should reject invalid timeframe', async () => {
-      const router = createIncognitoRoutes(
-        mockPrisma as unknown as PrismaClient,
-        mockRedis as unknown as Redis
-      );
-      const handler = getHandler(router, 'post', '/forget');
+      const handler = handleIncognitoForget(modeDeps());
       const { req, res } = createMockReqRes({
         personalityId: TEST_PERSONALITY_ID,
         timeframe: 'invalid',
       });
 
-      await handler(req, res);
+      await handler(req, res, vi.fn());
 
       expect(res.status).toHaveBeenCalledWith(400);
       expect(res.json).toHaveBeenCalledWith(
@@ -560,17 +449,13 @@ describe('/user/memory/incognito routes', () => {
       mockPrisma.memory.findMany.mockResolvedValue([]);
       mockPrisma.memory.deleteMany.mockResolvedValue({ count: 0 });
 
-      const router = createIncognitoRoutes(
-        mockPrisma as unknown as PrismaClient,
-        mockRedis as unknown as Redis
-      );
-      const handler = getHandler(router, 'post', '/forget');
+      const handler = handleIncognitoForget(modeDeps());
       const { req, res } = createMockReqRes({
         personalityId: TEST_PERSONALITY_ID,
         timeframe: '15m',
       });
 
-      await handler(req, res);
+      await handler(req, res, vi.fn());
 
       // Without the visibility filter, already-soft-deleted rows are re-counted
       // and the reported "forgot N memories" total is inflated.
@@ -593,17 +478,13 @@ describe('/user/memory/incognito routes', () => {
         defaultPersonaId: null, // No persona
       });
 
-      const router = createIncognitoRoutes(
-        mockPrisma as unknown as PrismaClient,
-        mockRedis as unknown as Redis
-      );
-      const handler = getHandler(router, 'post', '/forget');
+      const handler = handleIncognitoForget(modeDeps());
       const { req, res } = createMockReqRes({
         personalityId: TEST_PERSONALITY_ID,
         timeframe: '15m',
       });
 
-      await handler(req, res);
+      await handler(req, res, vi.fn());
 
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.json).toHaveBeenCalledWith(
@@ -619,17 +500,13 @@ describe('/user/memory/incognito routes', () => {
       ]);
       mockPrisma.memory.deleteMany.mockResolvedValue({ count: 5 });
 
-      const router = createIncognitoRoutes(
-        mockPrisma as unknown as PrismaClient,
-        mockRedis as unknown as Redis
-      );
-      const handler = getHandler(router, 'post', '/forget');
+      const handler = handleIncognitoForget(modeDeps());
       const { req, res } = createMockReqRes({
         personalityId: TEST_PERSONALITY_ID,
         timeframe: '15m',
       });
 
-      await handler(req, res);
+      await handler(req, res, vi.fn());
 
       expect(mockPrisma.memory.deleteMany).toHaveBeenCalledWith({
         where: expect.objectContaining({
@@ -650,17 +527,13 @@ describe('/user/memory/incognito routes', () => {
       mockPrisma.memory.findMany.mockResolvedValue([]);
       mockPrisma.memory.deleteMany.mockResolvedValue({ count: 0 });
 
-      const router = createIncognitoRoutes(
-        mockPrisma as unknown as PrismaClient,
-        mockRedis as unknown as Redis
-      );
-      const handler = getHandler(router, 'post', '/forget');
+      const handler = handleIncognitoForget(modeDeps());
       const { req, res } = createMockReqRes({
         personalityId: TEST_PERSONALITY_ID,
         timeframe: '15m',
       });
 
-      await handler(req, res);
+      await handler(req, res, vi.fn());
 
       // Verify isLocked: false is in the where clause
       expect(mockPrisma.memory.deleteMany).toHaveBeenCalledWith({
@@ -677,17 +550,13 @@ describe('/user/memory/incognito routes', () => {
       ]);
       mockPrisma.memory.deleteMany.mockResolvedValue({ count: 10 });
 
-      const router = createIncognitoRoutes(
-        mockPrisma as unknown as PrismaClient,
-        mockRedis as unknown as Redis
-      );
-      const handler = getHandler(router, 'post', '/forget');
+      const handler = handleIncognitoForget(modeDeps());
       const { req, res } = createMockReqRes({
         personalityId: 'all',
         timeframe: '1h',
       });
 
-      await handler(req, res);
+      await handler(req, res, vi.fn());
 
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.json).toHaveBeenCalledWith(
@@ -700,10 +569,10 @@ describe('/user/memory/incognito routes', () => {
   });
 
   describe('redis-missing 503 guards (handler factories)', () => {
-    // The factory handlers each guard `deps.redis === undefined` and short-
-    // circuit with 503 before constructing the IncognitoSessionManager.
-    // These exercise the guard branch that route-factory tests don't reach
-    // (createIncognitoRoutes always passes a redis instance).
+    // The handlers each guard `deps.redis === undefined` and short-circuit
+    // with 503 before constructing the IncognitoSessionManager. These
+    // exercise the guard branch the modeDeps()-based tests don't reach
+    // (modeDeps() always includes a redis instance).
 
     it('handleGetIncognitoStatus returns 503 when redis is undefined', async () => {
       const handler = handleGetIncognitoStatus({ prisma: mockPrisma as unknown as PrismaClient });
