@@ -9,6 +9,7 @@
 - **#1840 quota cache-identity provenance** (TASK-248 closed) — all six `deriveCacheKeyId` sites + the `selectQuotaFallbackTarget` funnel now read doom-caches under the TARGET's billing identity (`system` for guest/forced-swap routes); forced-swap credit-exhaustion check un-skipped (coherent under the right bucket). Fail-fast only — every pre-fix instance was fail-safe. Review follow-up filed: TASK-345 (audit-line cacheKeyId vocabulary).
 - **#1841 fossil `openai` dep removed** (TASK-342 closed) — zero imports in common-types/api-gateway; knip ignores dropped; `openai@7` remains only as langsmith's peer-resolved transitive (verified independent of our manifests).
 - **#1842 dead memory route factories retired** (TASK-316 closed) — `createMemoryRoutes`/`createFreshRoutes`/`createIncognitoRoutes` had zero prod consumers (mounts.ts is the sole path); 52 test sites migrated to direct handler construction; −325 lines. Follow-up batch: TASK-346 (audit the ~17 other factory-consuming suites).
+- **#1843 shared `avatarUrlPath`** (TASK-299 closed) — common-types helper owns both avatar-URL shapes; both producers compose it; producer↔parser round-trip contract test added. Filed: TASK-347 (no-trailing-slash env validation for gateway base URLs).
 
 ## 🔬 Smoke checklist — v3.0.0-beta.183 (post-deploy)
 

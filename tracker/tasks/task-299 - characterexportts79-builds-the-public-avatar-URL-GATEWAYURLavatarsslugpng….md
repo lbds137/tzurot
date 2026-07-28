@@ -1,10 +1,10 @@
 ---
 id: TASK-299
 title: character/export.ts hand-builds the public avatar URL
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-07-19 00:00'
-updated_date: '2026-07-28 10:52'
+updated_date: '2026-07-28 23:08'
 labels:
   - 'area:bot-client'
   - 'area:common-types'
