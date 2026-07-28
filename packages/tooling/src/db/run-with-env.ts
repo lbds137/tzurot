@@ -16,7 +16,7 @@ import {
   validateEnvironment,
   showEnvironmentBanner,
   runWithRailway,
-  confirmProductionOperation,
+  requireProductionConfirmation,
 } from '../utils/env-runner.js';
 
 interface RunWithEnvOptions {
@@ -46,11 +46,7 @@ export async function runWithEnv(
 
   // Production safety check
   if (env === 'prod' && !force) {
-    const confirmed = await confirmProductionOperation(`run: ${commandParts.join(' ')}`);
-    if (!confirmed) {
-      console.log(chalk.yellow('Operation cancelled.'));
-      process.exit(0);
-    }
+    await requireProductionConfirmation(`run: ${commandParts.join(' ')}`);
   }
 
   const [command, ...args] = commandParts;

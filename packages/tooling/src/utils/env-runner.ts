@@ -293,10 +293,8 @@ export function showEnvironmentBanner(env: Environment): void {
   console.log(color('─'.repeat(40)));
 }
 
-/**
- * Confirm production operation (returns true if confirmed)
- */
-export async function confirmProductionOperation(operation: string): Promise<boolean> {
+/** Prompt for the production confirmation phrase (internal — see below). */
+async function promptProductionConfirmation(operation: string): Promise<boolean> {
   const readline = await import('node:readline');
   const rl = readline.createInterface({
     input: process.stdin,
@@ -313,4 +311,22 @@ export async function confirmProductionOperation(operation: string): Promise<boo
       resolve(answer.toLowerCase() === 'yes');
     });
   });
+}
+
+/**
+ * The production gate: prompts, and on decline prints the cancellation and
+ * EXITS the process (code 0 — declining is a deliberate no-op, morally
+ * Ctrl-C at the prompt). Returns only when the operator confirmed.
+ *
+ * Deliberately not a boolean API: the predecessor returned `confirmed` and
+ * one caller shipped without checking it, making the prod gate decorative.
+ * A gate a caller can hold wrong isn't a gate — this shape makes the
+ * discarded-result bug unrepresentable.
+ */
+export async function requireProductionConfirmation(operation: string): Promise<void> {
+  const confirmed = await promptProductionConfirmation(operation);
+  if (!confirmed) {
+    console.log(chalk.yellow('\nOperation cancelled.'));
+    process.exit(0);
+  }
 }

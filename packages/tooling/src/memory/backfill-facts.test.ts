@@ -11,7 +11,7 @@ const { queueAddMock, queueCloseMock, queryMock } = vi.hoisted(() => ({
 vi.mock('../utils/env-runner.js', () => ({
   validateEnvironment: vi.fn(),
   showEnvironmentBanner: vi.fn(),
-  confirmProductionOperation: vi.fn().mockResolvedValue(undefined),
+  requireProductionConfirmation: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock('./prisma-env.js', () => ({
@@ -32,7 +32,7 @@ vi.mock('../inspect/bullmqConnection.js', () => ({
 
 import { buildWindows, buildJobData, backfillFacts } from './backfill-facts.js';
 import { createInspectorQueue } from '../inspect/bullmqConnection.js';
-import { confirmProductionOperation } from '../utils/env-runner.js';
+import { requireProductionConfirmation } from '../utils/env-runner.js';
 
 const P1 = '4f9b0f66-0000-4000-8000-0000000000a1';
 const P2 = '4f9b0f66-0000-4000-8000-0000000000a2';
@@ -174,9 +174,11 @@ describe('backfillFacts (the queue.add seam)', () => {
   });
 
   it('a declined prod confirmation ABORTS the run (the gate is real, not decorative)', async () => {
-    vi.mocked(confirmProductionOperation).mockResolvedValueOnce(false);
+    // The real gate exits the process on decline (it never returns declined);
+    // the mock simulates that non-return by rejecting with a sentinel.
+    vi.mocked(requireProductionConfirmation).mockRejectedValueOnce(new Error('exit: declined'));
 
-    await backfillFacts({ env: 'prod' });
+    await expect(backfillFacts({ env: 'prod' })).rejects.toThrow('exit: declined');
 
     expect(createInspectorQueue).not.toHaveBeenCalled();
     expect(queueAddMock).not.toHaveBeenCalled();

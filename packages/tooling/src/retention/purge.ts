@@ -6,7 +6,7 @@
  * run hits them:
  *
  *   1. `--dry-run` short-circuits to the read-only preview.
- *   2. On prod, `confirmProductionOperation` is the manual-approval gate that
+ *   2. On prod, `requireProductionConfirmation` is the manual-approval gate that
  *      D5 requires — `--force` skips the PROMPT only.
  *   3. The gateway refuses each call when the cohort exceeds the hard-ceiling
  *      share of the userbase; `--breaker-override` is the deliberate,
@@ -28,7 +28,7 @@ import {
   type Environment,
   validateEnvironment,
   showEnvironmentBanner,
-  confirmProductionOperation,
+  requireProductionConfirmation,
 } from '../utils/env-runner.js';
 import { resolveServiceClientOrExit } from '../utils/gateway-client.js';
 import { renderPreview } from './preview.js';
@@ -97,7 +97,8 @@ export function renderTally(tally: PurgeRunTally): void {
 }
 
 /**
- * Ask for approval on prod. Returns whether the run may proceed.
+ * Ask for approval on prod. Returns only when the run may proceed — a
+ * decline exits inside the gate.
  *
  * Note the asymmetry with the breaker: this gate is about the OPERATOR being
  * present, which `--force` legitimately asserts in a scripted context. The
@@ -108,17 +109,13 @@ async function approveOnProd(
   env: Environment,
   force: boolean,
   eligibleCount: number
-): Promise<boolean> {
+): Promise<void> {
   if (env !== 'prod' || force) {
-    return true;
+    return;
   }
-  const confirmed = await confirmProductionOperation(
+  await requireProductionConfirmation(
     `permanently erase ${String(eligibleCount)} inactive, unreachable accounts`
   );
-  if (!confirmed) {
-    console.log(chalk.yellow('\nOperation cancelled.'));
-  }
-  return confirmed;
 }
 
 /** The gateway calls this loop needs — narrowed so tests can supply a stub. */
@@ -237,9 +234,7 @@ export async function retentionPurge(options: RetentionPurgeOptions): Promise<vo
   if (preview.users.length === 0) {
     return;
   }
-  if (!(await approveOnProd(env, force, preview.totals.eligibleCount))) {
-    return;
-  }
+  await approveOnProd(env, force, preview.totals.eligibleCount);
 
   const tally = await purgeCohort(client, preview.users, {
     excludes: parseExcludes(options.exclude),
