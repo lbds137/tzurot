@@ -1,31 +1,24 @@
 # Current
 
-> **Version**: v3.0.0-beta.182 (released 2026-07-28) — drain-campaign fixes: **#1826** memory-deletion cascade to derived facts (R8; backfill premigrated to prod) + #1827 scheduler overlap guard + #1828 shapes errorMessage sanitization + #1829 prod-gate hardening; plus the backlog substrate migration (#1822–#1825, internal). Notes: GitHub release v3.0.0-beta.182.
+> **Version**: v3.0.0-beta.183 (released 2026-07-28) — drain-campaign hardening: #1832 vision seam · #1833 401/403 split · #1834 UUID gate · #1835 snowflake-username provisioning fix · #1836 bare /ai/\* retirement · #1837 apikey-test false-Valid fix · #1838 authorRole window fix · #1831 deps. No migrations. Notes: GitHub release v3.0.0-beta.183.
 
 ---
 
 ## Unreleased on Develop
 
-_Drain-campaign rounds 2–3 (2026-07-28, post-beta.182):_
+_(nothing yet — reset at the beta.183 cut)_
 
-- **#1831** deps: production-deps group bump (openai 6→7 is a NO-OP: fossil dep, zero imports — removal filed as TASK-342)
-- **#1832** ai-worker: vision provider required at the invoke seam (TASK-36; type-level promotion of the pre-committed hard error)
-- **#1833** api-gateway: UNAUTHORIZED (401) / FORBIDDEN (403) split, all 38 sites classified (TASK-108; revives shapes' dead 401 branches)
-- **#1834** api-gateway: resolve-cascade route UUID gate — malformed ids 400 instead of 500 (TASK-220)
-- **#1835** identity: snowflake-shaped usernames divert to shell placeholder persona — fixes 23514 provisioning crash (TASK-332; + snowflake-regex consolidation rider)
-- Direct docs: REASONING_MODEL_FORMATS.md rewritten against current extraction code (TASK-23)
-- **#1836** api-gateway: bare /ai/\* dual-mount retired; 3 system-model §4 known-lies closed (TASK-333/334; TASK-343 filed)
-- **#1837** bot-client: apikey test showed "✅ Valid" for rejected keys (200+valid:false never read); errorCode now distinguishes transient (TASK-105; TASK-344 filed)
-- **#1838** bot-client: authorRole omitted in the pre-ready/reconnect window — no more durable own-persona-as-'bot' rows (TASK-170)
+## 🔬 Smoke checklist — v3.0.0-beta.183 (post-deploy)
 
-## 🔬 Smoke checklist — v3.0.0-beta.182 (post-deploy)
+_Risk-scoped: one needs-smoke path (transcribe moved URLs); everything else in the release self-verifies on first real use via existing logging._
 
-_Risk-scoped: this release's one runtime-unverified user-visible path is the fact cascade, and it self-verifies via logging — observability-instead-of-smoke is the primary path._
+| #   | Item                                                                                                                                                     | Why it's here                                                                                                                                | Status                |
+| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | --------------------- |
+| 1   | One voice message in prod → transcript comes back                                                                                                        | #1836 moved the transcribe long-poll to `/api/internal/ai/transcribe`; one send proves the migrated URL end to end (also covers old item 9). | ⬜ pending            |
+| 2   | Observability (agent-runnable): first organic memory deletion in prod → logs show `Propagated memory deletion to derived facts` with sane `factsRetired` | Carried from beta.182 — the cascade's only runtime-unverified path; self-verifies via its own log line.                                      | ⬜ pending (carried)  |
+| 3   | OPTIONAL dev smoke: `/memory delete` a memory with a derived fact on dev → the fact drops out of `/memory facts`                                         | Carried from beta.182; hands-on cascade check if wanted before trusting item 2.                                                              | ⬜ optional (carried) |
 
-| #   | Item                                                                                                                                                                                          | Why it's here                                                                                                                                 | Status      |
-| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
-| 1   | Observability check (agent-runnable): after the first organic memory deletion in prod, the ai-worker/gateway logs show `Propagated memory deletion to derived facts` with sane `factsRetired` | The cascade's only runtime-unverified path; fail-soft with its own log line, so the first real use proves it — no manual round needed.        | ⬜ pending  |
-| 2   | OPTIONAL dev smoke: `/memory delete` a memory with a derived fact on dev → the fact drops out of `/memory facts`                                                                              | Hands-on end-to-end check of the cascade if you want it before trusting item 1; dev fact data may be thin, so this is optional, not blocking. | ⬜ optional |
+_Observability-instead-of-smoke (no action): apikey-test rendering (#1837) needs a key that rotted after storage — first real use self-verifies; 401/403 split (#1833) and authorRole omission (#1838) surface only in logs/history on real failures._
 
 ## ⏭️ NEXT SESSION STARTS HERE
 
