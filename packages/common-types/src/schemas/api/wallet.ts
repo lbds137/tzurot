@@ -60,11 +60,29 @@ export type RemoveWalletKeyResponse = z.infer<typeof RemoveWalletKeyResponseSche
 // Tests a stored API key's validity
 // ============================================================================
 
+/**
+ * Classification vocabulary shared with the gateway's per-provider key
+ * validators (`apiKeyValidation/types.ts` aliases this type). The split that
+ * matters to consumers: TIMEOUT and UNKNOWN mean the provider couldn't be
+ * reached or answered abnormally (5xx) — the key was never actually judged —
+ * while the other codes are verdicts about the key itself.
+ */
+export const WalletKeyValidationErrorCodeSchema = z.enum([
+  'INVALID_KEY',
+  'MISSING_PERMISSIONS',
+  'QUOTA_EXCEEDED',
+  'TIMEOUT',
+  'UNKNOWN',
+]);
+
+export type WalletKeyValidationErrorCode = z.infer<typeof WalletKeyValidationErrorCodeSchema>;
+
 export const TestWalletKeyResponseSchema = z.object({
   valid: z.boolean(),
   provider: AIProviderSchema,
   credits: z.number().optional(), // Available credits if valid and provider supports it
   error: z.string().optional(), // Error message if invalid
+  errorCode: WalletKeyValidationErrorCodeSchema.optional(), // Classification when invalid
   timestamp: z.string(), // ISO date string
 });
 
