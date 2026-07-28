@@ -49,6 +49,28 @@ export function createIntervalScheduler<Args extends unknown[]>(
   const { intervalMs, startupDelayMs, logger, run } = options;
   let interval: ReturnType<typeof setInterval> | null = null;
   let startupTimeout: ReturnType<typeof setTimeout> | null = null;
+  let inFlight = false;
+
+  // A run cycle outlasting intervalMs must not overlap the next tick — the
+  // consumers are idempotent but not reentrant (a slow DB call under one
+  // cycle would stack a second identical cycle on top). Skip-and-log keeps
+  // the cadence honest: the next tick after the long run completes picks up.
+  // The flag deliberately survives stop(): it guards the RUN, not the
+  // scheduler generation — a stop-then-restart while a run is still executing
+  // must keep skipping until that run resolves, or the restart reintroduces
+  // exactly the overlap this guard exists to prevent.
+  const guardedRun = async (...args: Args): Promise<void> => {
+    if (inFlight) {
+      logger.warn('Previous run still in flight — skipping this tick');
+      return;
+    }
+    inFlight = true;
+    try {
+      await run(...args);
+    } finally {
+      inFlight = false;
+    }
+  };
 
   return {
     start(...args: Args): void {
@@ -58,12 +80,12 @@ export function createIntervalScheduler<Args extends unknown[]>(
       }
 
       interval = setInterval(() => {
-        void run(...args);
+        void guardedRun(...args);
       }, intervalMs);
 
       startupTimeout = setTimeout(() => {
         startupTimeout = null;
-        void run(...args);
+        void guardedRun(...args);
       }, startupDelayMs);
 
       logger.info({ intervalHours: intervalMs / (60 * 60 * 1000) }, 'Scheduler started');
