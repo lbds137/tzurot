@@ -697,6 +697,63 @@ describe('D12 availability-class entry + two-hop floor descent', () => {
     expect(result.quotaFallback?.toModel).toBe('divergent/free-floor:free');
   });
 
+  it("a guest failure's viability checks run under the system bucket, not user:<id>", async () => {
+    // A guest attempt carries the SYSTEM key as a plain string — identity
+    // must follow route provenance, or the reactive path reads a bucket the
+    // invocation path never writes (the doom marks land under `system`).
+    const primary = vi.fn().mockRejectedValue(quotaError(ApiErrorCategory.QUOTA_EXCEEDED));
+    const retry = vi.fn().mockResolvedValue(okResult);
+    const deps = buildDeps({ free: { model: 'freebie/model:free' } });
+
+    await runWithQuotaFallback({
+      primary,
+      retry,
+      opts: buildOpts({ isGuestMode: true, apiKey: 'sk-system-key' }),
+      userId: '123',
+      requestId: 'req-1',
+      deps,
+    });
+
+    expect(deps.caches.rateLimit.isRateLimited).toHaveBeenCalledWith({
+      cacheKeyId: 'system',
+      model: 'freebie/model:free',
+    });
+    expect(deps.caches.rateLimit.isRateLimited).not.toHaveBeenCalledWith(
+      expect.objectContaining({ cacheKeyId: 'user:123' })
+    );
+  });
+
+  it('hop 2 after a forced entity swap checks the floor under the SYSTEM bucket (the credentials hop-1 actually swapped to)', async () => {
+    // BYOK credit exhaustion → hop-1 forced onto the system key. The floor
+    // hop reuses those credentials, so its doom-cache read must use the
+    // post-swap identity — the pre-retarget user bucket no longer describes
+    // the route (its 429s are written under `system`).
+    const primary = vi.fn().mockRejectedValue(quotaError(ApiErrorCategory.CREDIT_EXHAUSTION));
+    const retry = vi
+      .fn()
+      .mockRejectedValueOnce(quotaError(ApiErrorCategory.SERVER_ERROR))
+      .mockResolvedValueOnce(okResult);
+    const deps = buildDeps({ free: { model: 'freebie/model:free' } });
+
+    const result = await runWithQuotaFallback({
+      primary,
+      retry,
+      opts: buildOpts(), // BYOK: isGuestMode false, user's own key
+      userId: '123',
+      requestId: 'req-1',
+      deps,
+    });
+
+    expect(result.quotaFallback?.toModel).toBe('divergent/free-floor:free');
+    expect(deps.caches.rateLimit.isRateLimited).toHaveBeenCalledWith({
+      cacheKeyId: 'system',
+      model: 'divergent/free-floor:free',
+    });
+    expect(deps.caches.rateLimit.isRateLimited).not.toHaveBeenCalledWith(
+      expect.objectContaining({ cacheKeyId: 'user:123', model: 'divergent/free-floor:free' })
+    );
+  });
+
   it('hop 2 is skipped when the floor equals the hop-1 target (dedup) — original propagates', async () => {
     const original = quotaError(ApiErrorCategory.SERVER_ERROR);
     const primary = vi.fn().mockRejectedValue(original);

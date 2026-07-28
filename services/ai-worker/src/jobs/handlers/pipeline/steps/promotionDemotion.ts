@@ -66,7 +66,10 @@ export async function tryPromotionDemotion<T extends DemotableAuth>(
 
   const fallbackViability = await checkModelViability({
     model: llmAuth.fallback.model,
-    cacheKeyId: deriveCacheKeyId(llmAuth.fallback.apiKey, userId),
+    // The fallback's own isGuestMode is the identity's provenance signal.
+    // Guarded false above (guest fallbacks bail early), but deriving from the
+    // credential's own field keeps the identity correct if the guard moves.
+    cacheKeyId: deriveCacheKeyId(llmAuth.fallback.apiKey, userId, llmAuth.fallback.isGuestMode),
     caches,
   });
   if (!fallbackViability.viable) {
