@@ -147,8 +147,10 @@ describe('handleTestKey', () => {
     });
   });
 
-  it('should handle validation failure', async () => {
-    stub.testWalletKey.mockResolvedValue(makeErr(401, 'Invalid API key'));
+  it('should handle a gateway-level HTTP failure', async () => {
+    // Transport/server error from the gateway itself (NOT the normal failed
+    // validation, which arrives as 200 + valid:false — see the tests below).
+    stub.testWalletKey.mockResolvedValue(makeErr(500, 'Internal error'));
 
     const context = createMockContext('openrouter');
     await handleTestKey(context);
@@ -163,6 +165,95 @@ describe('handleTestKey', () => {
       ],
     });
   });
+
+  it('should render the invalid embed for 200 + valid:false (the real wire shape)', async () => {
+    // The gateway reports failed validation as HTTP 200 with valid:false —
+    // result.ok is true. Pre-fix, this rendered "✅ API Key Valid" for a key
+    // the provider had just rejected.
+    stub.testWalletKey.mockResolvedValue(
+      makeOk(
+        mockTestWalletKeyResponse({
+          valid: false,
+          provider: AIProvider.OpenRouter,
+          error: 'Invalid API key',
+          errorCode: 'INVALID_KEY',
+        })
+      )
+    );
+
+    const context = createMockContext('openrouter');
+    await handleTestKey(context);
+
+    expect(mockEditReply).toHaveBeenCalledWith({
+      embeds: [
+        expect.objectContaining({
+          data: expect.objectContaining({
+            title: '❌ API Key Invalid',
+            fields: expect.arrayContaining([
+              expect.objectContaining({ name: 'Error', value: 'Invalid API key' }),
+            ]),
+          }),
+        }),
+      ],
+    });
+  });
+
+  it('should render the invalid embed when valid:false carries no errorCode', async () => {
+    stub.testWalletKey.mockResolvedValue(
+      makeOk(
+        mockTestWalletKeyResponse({
+          valid: false,
+          provider: AIProvider.OpenRouter,
+          error: 'Quota exhausted',
+        })
+      )
+    );
+
+    const context = createMockContext('openrouter');
+    await handleTestKey(context);
+
+    expect(mockEditReply).toHaveBeenCalledWith({
+      embeds: [
+        expect.objectContaining({
+          data: expect.objectContaining({ title: '❌ API Key Invalid' }),
+        }),
+      ],
+    });
+  });
+
+  it.each(['TIMEOUT', 'UNKNOWN'] as const)(
+    "should render couldn't-verify (not Invalid) for transient %s",
+    async errorCode => {
+      // TIMEOUT/UNKNOWN mean the provider was unreachable or errored (5xx) —
+      // the key was never judged, so "Invalid" would be wrong and alarming.
+      stub.testWalletKey.mockResolvedValue(
+        makeOk(
+          mockTestWalletKeyResponse({
+            valid: false,
+            provider: AIProvider.OpenRouter,
+            error: 'HTTP 503',
+            errorCode,
+          })
+        )
+      );
+
+      const context = createMockContext('openrouter');
+      await handleTestKey(context);
+
+      expect(mockEditReply).toHaveBeenCalledWith({
+        content: expect.stringContaining("Couldn't verify"),
+      });
+      expect(mockEditReply).not.toHaveBeenCalledWith(
+        expect.objectContaining({
+          embeds: expect.arrayContaining([
+            expect.objectContaining({
+              data: expect.objectContaining({ title: '❌ API Key Invalid' }),
+            }),
+          ]),
+        })
+      );
+    }
+  );
 
   it('should map a 429 rate-limit to a retry message, not "API Key Invalid"', async () => {
     stub.testWalletKey.mockResolvedValue(makeErr(429, 'Too many API key operations'));
