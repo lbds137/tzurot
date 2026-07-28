@@ -288,6 +288,7 @@ export const handleCorrectFact = (deps: RouteDeps): RequestHandler => {
           superseded_at = NULL,
           superseded_by_id = NULL,
           forgotten = false,
+          visibility = 'normal',
           tier = 'corrected',
           is_locked = false,
           statement = EXCLUDED.statement,

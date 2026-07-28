@@ -67,6 +67,10 @@ vi.mock('../../services/MemoryActionTokenService.js', () => ({
   }),
 }));
 
+vi.mock('@tzurot/conversation-history', () => ({
+  propagateDeletionToFacts: vi.fn(),
+}));
+
 import {
   handleBatchDelete,
   handleBatchDeletePreview,
@@ -75,12 +79,14 @@ import {
 } from './memoryBatch.js';
 import { getDefaultPersonaId, getPersonalityById, parseTimeframeFilter } from './memoryHelpers.js';
 import { resolveProvisionedUserId } from '../../utils/resolveProvisionedUserId.js';
+import { propagateDeletionToFacts } from '@tzurot/conversation-history';
 import { stubRouteResolvers } from '../../test/shared-route-test-utils.js';
 
 const mockResolveProvisionedUserId = vi.mocked(resolveProvisionedUserId);
 const mockGetDefaultPersonaId = vi.mocked(getDefaultPersonaId);
 const mockGetPersonalityById = vi.mocked(getPersonalityById);
 const mockParseTimeframeFilter = vi.mocked(parseTimeframeFilter);
+const mockPropagateDeletionToFacts = vi.mocked(propagateDeletionToFacts);
 
 const TEST_USER_ID = '00000000-0000-0000-0000-000000000001';
 const TEST_PERSONA_ID = '00000000-0000-0000-0000-000000000002';
@@ -359,6 +365,8 @@ describe('memoryBatch handlers', () => {
           personalityId: TEST_PERSONALITY_ID,
         })
       );
+      // R8 fact layer rides the batch delete when memories were actually retired.
+      expect(mockPropagateDeletionToFacts).toHaveBeenCalledTimes(1);
     });
 
     it('applies timeframe filter from the token-bound payload', async () => {
@@ -546,6 +554,8 @@ describe('memoryBatch handlers', () => {
           personalityId: TEST_PERSONALITY_ID,
         })
       );
+      // R8 fact layer rides the purge when memories were actually retired.
+      expect(mockPropagateDeletionToFacts).toHaveBeenCalledTimes(1);
     });
 
     it('includes locked-preserved message when locked memories remain', async () => {

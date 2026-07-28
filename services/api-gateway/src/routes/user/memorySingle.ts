@@ -13,6 +13,7 @@ import { StatusCodes } from 'http-status-codes';
 import { MemoryUpdateSchema, SetMemoryLockSchema } from '@tzurot/common-types/schemas/api/memory';
 import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { propagateDeletionToFacts } from '@tzurot/conversation-history';
 import type { RouteDeps } from '../routeDeps.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
@@ -357,6 +358,9 @@ export const handleDeleteMemory = (deps: RouteDeps): RequestHandler => {
         updatedAt: new Date(),
       },
     });
+
+    // R8 fact layer: retire facts whose sources just died (fail-soft inside).
+    await propagateDeletionToFacts(prisma);
 
     logger.info({ discordUserId, memoryId }, 'Memory deleted');
     sendCustomSuccess(res, { success: true }, StatusCodes.OK);

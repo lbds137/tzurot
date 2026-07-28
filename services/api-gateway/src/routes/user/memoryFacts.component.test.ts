@@ -309,4 +309,26 @@ describe('memoryFacts handlers (component, PGLite)', () => {
     expect(x?.tier).toBe('corrected');
     expect(res.status).toHaveBeenCalledWith(200);
   });
+
+  it('collision with a CASCADE-DELETED fact revives it VISIBLY as the correction', async () => {
+    // A row the memory-deletion cascade retired (visibility='deleted') must
+    // come back visible when the user's correction claims it — without the
+    // visibility reset the claimed row would be tier-corrected yet invisible
+    // to retrieval and the facts list, silently eating the correction.
+    const xStatement = 'The user rides a motorcycle';
+    const xId = await seedFact({ statement: xStatement });
+    await prisma.memoryFact.update({
+      where: { id: xId },
+      data: { visibility: 'deleted' },
+    });
+    const bId = await seedFact({ statement: 'The user owns some kind of vehicle' });
+
+    const { req, res } = reqRes({ id: bId }, { statement: xStatement });
+    await handleCorrectFact(deps())(req, res, () => undefined);
+
+    const x = await prisma.memoryFact.findUnique({ where: { id: xId } });
+    expect(x?.visibility).toBe('normal');
+    expect(x?.tier).toBe('corrected');
+    expect(res.status).toHaveBeenCalledWith(200);
+  });
 });

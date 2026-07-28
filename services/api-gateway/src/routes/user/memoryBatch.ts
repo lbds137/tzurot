@@ -31,6 +31,7 @@ import {
 } from '@tzurot/common-types/schemas/api/memory';
 import { type Prisma, type PrismaClient } from '@tzurot/common-types/services/prisma';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { propagateDeletionToFacts } from '@tzurot/conversation-history';
 import type { RouteDeps } from '../routeDeps.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
@@ -397,6 +398,11 @@ export const handlePurge = (deps: RouteDeps): RequestHandler => {
       },
       data: { visibility: 'deleted', updatedAt: new Date() },
     });
+
+    if (result.count > 0) {
+      // R8 fact layer: retire facts whose sources just died (fail-soft inside).
+      await propagateDeletionToFacts(prisma);
+    }
 
     logger.warn(
       {
