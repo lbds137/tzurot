@@ -519,7 +519,7 @@ async function transcribeOnce(
 ): Promise<TranscribeResult> {
   // raw-fetch-allowed: synchronous STT job-wait (up to 240s) exceeds the typed
   // client's 60s timeoutMs cap — long-poll job pattern, not RPC.
-  const response = await fetch(`${getConfig().GATEWAY_URL}/ai/transcribe?wait=true`, {
+  const response = await fetch(`${getConfig().GATEWAY_URL}/api/internal/ai/transcribe?wait=true`, {
     method: 'POST',
     headers: {
       'Content-Type': CONTENT_TYPES.JSON,

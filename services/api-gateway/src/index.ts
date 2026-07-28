@@ -47,7 +47,6 @@ import { ConversationRetentionService } from '@tzurot/conversation-history';
 import { applyFastPoolDeadConnRetry } from './utils/dbTimeout.js';
 
 // Routes
-import { createAIRouter } from './routes/ai/index.js';
 import {
   mountInternalRoutes,
   mountAdminRoutes,
@@ -383,24 +382,12 @@ function registerRoutes(
   app.use('/voice-references', createVoiceReferenceRouter(prisma));
   logger.info('Voice references route registered (service-auth protected)');
 
-  app.use(
-    '/ai',
-    createAIRouter({
-      prisma,
-      aiQueue,
-      queueEvents,
-      cascadeResolver,
-      llmConfigResolver,
-      visionConfigResolver,
-    })
-  );
-  logger.info('AI routes registered');
-
   // ---- Codegen-mounted /api/{internal,admin,user} routes ------------------
   //
   // The sole bot-client → api-gateway surface. The legacy /admin /user
-  // /internal /wallet aggregator mounts were removed once every bot-client
-  // callsite migrated to the generated typed clients (which target /api/*).
+  // /internal /wallet /ai aggregator mounts were removed once every
+  // bot-client callsite migrated to the generated typed clients (which
+  // target /api/*).
   //
   // Wallet rate-limiter is path-scoped here so /api/user/wallet/* keeps the
   // Redis rate limiting the legacy /wallet/* mount applied at the router level.

@@ -78,12 +78,12 @@ export const TIMEOUTS = {
    * denylist cache bootstrap. Distinct from GATEWAY_RPC because the
    * payload size and parse time are meaningfully larger. */
   GATEWAY_BULK_FETCH: 10_000,
-  /** Timeout for bot-client → api-gateway `/ai/generate` job submission (60 s).
-   * Long outlier because api-gateway currently downloads all extended-context
-   * attachments synchronously inside the handler before responding; response
-   * time scales with attachment payload size. Observed prod cases of
-   * 12-attachment requests (~several MB total) taking >10 s. Structural
-   * fix (move downloads to ai-worker lazy-load) tracked in backlog. */
+  /** Timeout for bot-client → api-gateway AI generate job submission (60 s).
+   * Historical headroom: the handler used to download extended-context
+   * attachments synchronously (prod cases of 12-attachment requests took
+   * >10 s). That work now lives in ai-worker's DownloadAttachmentsStep, so
+   * submit is enqueue-only; lowering this toward the RPC floor is tracked
+   * in the backlog. */
   AI_GENERATE_SUBMIT: 60_000,
 } as const;
 

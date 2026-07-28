@@ -1,9 +1,9 @@
 /**
  * Internal route manifest — service-to-service endpoints.
  *
- * Mounted at `/api/internal/*` after the route-prefix cutover (currently the
- * legacy URLs at `/ai/*`, `/internal/*`, and a few `/user/*` and `/admin/*`
- * paths still serve traffic; the manifest declares the post-cutover URLs).
+ * Mounted at `/api/internal/*`. The route-prefix cutover is complete: the
+ * legacy aggregator mounts (`/ai/*`, `/internal/*`, and the old `/user/*`
+ * and `/admin/*` paths) are gone; these are the only live URLs.
  *
  * No human actor — these routes are called by bot-client (or another tzurot
  * service) using only `X-Service-Auth`. The generated `ServiceClient` methods
@@ -80,8 +80,7 @@ import type { RouteDef } from './types.js';
 export const internalRoutes = {
   /**
    * POST /api/internal/ai/generate
-   * Submits an async AI generation job. Currently mounted at `/ai/generate`;
-   * the cutover relocates it under `/api/internal/`.
+   * Submits an async AI generation job.
    */
   aiGenerate: {
     audience: 'internal',
@@ -91,9 +90,9 @@ export const internalRoutes = {
     input: generateRequestSchema,
     output: AiGenerateResponseSchema,
     serviceOnly: true,
-    // api-gateway downloads extended-context attachments synchronously inside
-    // the handler before responding, so submit time scales with payload size
-    // and can exceed 10s on large attachment payloads. 60s accommodates that.
+    // Historical headroom from when the handler downloaded extended-context
+    // attachments synchronously; that work moved to ai-worker, so submit is
+    // enqueue-only now. See AI_GENERATE_SUBMIT's doc for the lowering note.
     timeoutMs: TIMEOUTS.AI_GENERATE_SUBMIT,
   },
 

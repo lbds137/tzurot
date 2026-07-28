@@ -1,8 +1,8 @@
 /**
  * Admin route manifest — bot-owner-only endpoints.
  *
- * Mounted at `/api/admin/*` after the route-prefix cutover (currently the
- * legacy URLs at `/admin/*` still serve). The generated `OwnerClient`
+ * Mounted at `/api/admin/*`. The route-prefix cutover is complete: the
+ * legacy `/admin/*` aggregator mount is gone. The generated `OwnerClient`
  * requires `actor: ActorDiscordId` on every method.
  *
  * Audience invariant: every entry below has `audience: 'admin'`. Subject
@@ -118,14 +118,7 @@ export const adminRoutes = {
     timeoutMs: GATEWAY_TIMEOUTS.LONG_SYNC,
   },
 
-  /**
-   * POST /api/admin/cleanup — Purge old conversation-history rows.
-   *
-   * Slow route — duration is data-dependent: the retention sweep loops
-   * unbounded over aged rows, so large purges scale past tens of seconds.
-   * Same data-scaled class as db-sync — shares LONG_SYNC and the same
-   * filed async-job escape hatch.
-   */
+  /** POST /api/admin/broadcast — Resolve recipients and enqueue a release-notes DM blast. */
   broadcast: {
     audience: 'admin',
     method: 'post',
@@ -137,6 +130,14 @@ export const adminRoutes = {
     // creation + enqueue are quick; the DM sending happens async in the worker.
   },
 
+  /**
+   * POST /api/admin/cleanup — Purge old conversation-history rows.
+   *
+   * Slow route — duration is data-dependent: the retention sweep loops
+   * unbounded over aged rows, so large purges scale past tens of seconds.
+   * Same data-scaled class as db-sync — shares LONG_SYNC and the same
+   * filed async-job escape hatch.
+   */
   cleanup: {
     audience: 'admin',
     method: 'post',

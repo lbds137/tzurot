@@ -1,5 +1,5 @@
 /**
- * GET /ai/job/:jobId
+ * GET /api/internal/ai/job/:jobId
  * Get the status of a specific job
  */
 

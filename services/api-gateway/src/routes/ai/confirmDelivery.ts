@@ -1,5 +1,5 @@
 /**
- * POST /ai/job/:jobId/confirm-delivery
+ * POST /api/internal/ai/job/:jobId/confirm-delivery
  * Confirm that a job result has been successfully delivered to Discord
  */
 
