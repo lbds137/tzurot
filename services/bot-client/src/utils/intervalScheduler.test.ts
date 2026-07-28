@@ -116,4 +116,80 @@ describe('createIntervalScheduler', () => {
 
     expect(run).toHaveBeenCalledTimes(1);
   });
+
+  describe('in-flight overlap guard', () => {
+    it('skips a tick — with a warn — while the previous run is still in flight', async () => {
+      // A run cycle outlasting intervalMs: a promise that never resolves.
+      const run = vi.fn().mockImplementation(() => new Promise<void>(() => {}));
+      const { scheduler, logger } = make(run);
+
+      scheduler.start();
+      await vi.advanceTimersByTimeAsync(STARTUP_DELAY_MS);
+      expect(run).toHaveBeenCalledTimes(1); // startup run, still unresolved
+
+      await vi.advanceTimersByTimeAsync(INTERVAL_MS * 2);
+      // Two ticks fired while the startup run was in flight — both skipped.
+      expect(run).toHaveBeenCalledTimes(1);
+      expect(logger.warn).toHaveBeenCalledWith('Previous run still in flight — skipping this tick');
+    });
+
+    it('resumes running on the next tick after the long run completes', async () => {
+      let finishRun!: () => void;
+      const run = vi.fn().mockImplementation(
+        () =>
+          new Promise<void>(resolve => {
+            finishRun = resolve;
+          })
+      );
+      const { scheduler } = make(run);
+
+      scheduler.start();
+      await vi.advanceTimersByTimeAsync(STARTUP_DELAY_MS + INTERVAL_MS);
+      expect(run).toHaveBeenCalledTimes(1); // interval tick skipped, run 1 in flight
+
+      finishRun();
+      await vi.advanceTimersByTimeAsync(INTERVAL_MS);
+      // Flag cleared on completion — the cadence resumes, nothing stacked.
+      expect(run).toHaveBeenCalledTimes(2);
+    });
+
+    it('does not skip when runs complete within the interval (the normal case)', async () => {
+      const { scheduler, run, logger } = make();
+
+      scheduler.start();
+      await vi.advanceTimersByTimeAsync(STARTUP_DELAY_MS + INTERVAL_MS * 2);
+
+      expect(run).toHaveBeenCalledTimes(3);
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
+
+    it('keeps guarding across stop-then-restart while a run is still executing', async () => {
+      // The flag deliberately survives stop(): the guard protects the RUN,
+      // not the scheduler generation. Resetting it on stop() would let a
+      // restart overlap the still-executing old run — the exact bug guarded.
+      let finishRun!: () => void;
+      const run = vi.fn().mockImplementation(
+        () =>
+          new Promise<void>(resolve => {
+            finishRun = resolve;
+          })
+      );
+      const { scheduler } = make(run);
+
+      scheduler.start();
+      await vi.advanceTimersByTimeAsync(STARTUP_DELAY_MS);
+      expect(run).toHaveBeenCalledTimes(1); // in flight, unresolved
+
+      scheduler.stop();
+      scheduler.start();
+      await vi.advanceTimersByTimeAsync(STARTUP_DELAY_MS + INTERVAL_MS);
+      // Old run still executing — the new generation's ticks keep skipping.
+      expect(run).toHaveBeenCalledTimes(1);
+
+      finishRun();
+      await vi.advanceTimersByTimeAsync(INTERVAL_MS);
+      // Old run resolved — the restarted scheduler's next tick runs normally.
+      expect(run).toHaveBeenCalledTimes(2);
+    });
+  });
 });
