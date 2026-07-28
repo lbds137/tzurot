@@ -13,6 +13,7 @@
  * never returns another user's log to a non-owner caller.
  */
 
+import { DISCORD_SNOWFLAKE } from '@tzurot/common-types/constants/discord';
 import { type DiagnosticLog as ApiDiagnosticLog } from '@tzurot/common-types/schemas/api/diagnostic';
 import { type DiagnosticPayload } from '@tzurot/common-types/types/diagnostic';
 import { normalizeDateTime } from '@tzurot/common-types/utils/dateFormatting';
@@ -35,7 +36,7 @@ const MESSAGE_LINK_REGEX = /discord\.com\/channels\/(?:@me|\d+)\/(\d+)\/(\d+)/;
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** Discord snowflake ID regex (numeric, 17-20 digits) */
-const SNOWFLAKE_REGEX = /^\d{17,20}$/;
+const SNOWFLAKE_REGEX = DISCORD_SNOWFLAKE.PATTERN;
 
 /**
  * Adapt the Zod-validated diagnostic-log shape from the typed UserClient

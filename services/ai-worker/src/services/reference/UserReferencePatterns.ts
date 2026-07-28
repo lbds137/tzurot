@@ -88,7 +88,10 @@ export const USER_REFERENCE_PATTERNS = {
   SHAPES_MARKDOWN: /@\[([^\]]+)\]\(user:([a-f0-9-]{36})\)/gi,
 
   // <@discord_id> - Discord mention format
-  // Captures: [1] = discord_id (snowflake, 17-20 digits)
+  // Captures: [1] = discord_id (snowflake). The embedded digit-run must match
+  // DISCORD_SNOWFLAKE.SOURCE — a drift-guard test pins the two together
+  // (a literal keeps @tzurot/no-singleton-export happy; composing via
+  // new RegExp would export constructor-built shared state).
   DISCORD_MENTION: /<@!?(\d{17,20})>/g,
 
   // @username - Simple username mention (word boundary to avoid false positives)

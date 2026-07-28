@@ -190,6 +190,80 @@ describe('UserService', () => {
       expect(persona?.preferredName).toBe(testUsername);
     });
 
+    it('diverts a snowflake-shaped username to the shell placeholder persona name', async () => {
+      // The nameless-envelope fallback passes the Discord ID as the username.
+      // The personas_name_not_snowflake CHECK (live in this PGLite schema)
+      // rejects a bare snowflake as a persona name — without the divert this
+      // create crashes with 23514 instead of degrading to a shell user.
+      const provisioned = await service.getOrCreateUser(testDiscordId, testDiscordId);
+
+      expect(provisioned).not.toBeNull();
+
+      const user = await prisma.user.findUnique({
+        where: { discordId: testDiscordId },
+      });
+      // users.username keeps the raw snowflake — it IS the shell marker the
+      // maintenance upgrade path keys on (username === discordId).
+      expect(user?.username).toBe(testDiscordId);
+
+      const persona = await prisma.persona.findUnique({
+        where: { id: user?.defaultPersonaId ?? '' },
+      });
+      expect(persona?.name).toBe(`User ${testDiscordId}`);
+      // Display falls back to the placeholder, never bare digits.
+      expect(persona?.preferredName).toBe(`User ${testDiscordId}`);
+    });
+
+    it('diverts a genuinely all-digit username that is NOT the discordId', async () => {
+      // Sibling case to the envelope fallback: a real Discord username that
+      // happens to be snowflake-shaped. The divert fires on shape alone.
+      // Deliberately permanent: the upgrade branch keys on
+      // username === discordId, so this persona keeps the placeholder —
+      // there is no better name to promote to.
+      const allDigitUsername = '222222222222222222';
+      const provisioned = await service.getOrCreateUser(testDiscordId, allDigitUsername);
+
+      expect(provisioned).not.toBeNull();
+
+      const user = await prisma.user.findUnique({
+        where: { discordId: testDiscordId },
+      });
+      expect(user?.username).toBe(allDigitUsername);
+
+      const persona = await prisma.persona.findUnique({
+        where: { id: user?.defaultPersonaId ?? '' },
+      });
+      // Placeholder is built from the USERNAME (the value that would have
+      // violated the CHECK), not the discordId.
+      expect(persona?.name).toBe(`User ${allDigitUsername}`);
+    });
+
+    it('upgrades a fallback-created shell user when the real username arrives', async () => {
+      const first = await service.getOrCreateUser(testDiscordId, testDiscordId);
+      expect(first).not.toBeNull();
+
+      // Fresh service instance: the 1h cache short-circuits repeat calls, and
+      // the maintenance upgrade only runs on the cache-miss path.
+      const freshService = new UserService(prisma);
+      const second = await freshService.getOrCreateUser(
+        testDiscordId,
+        testUsername,
+        testDisplayName
+      );
+      expect(second?.userId).toBe(first?.userId);
+
+      const user = await prisma.user.findUnique({
+        where: { discordId: testDiscordId },
+      });
+      expect(user?.username).toBe(testUsername);
+
+      const persona = await prisma.persona.findUnique({
+        where: { id: user?.defaultPersonaId ?? '' },
+      });
+      expect(persona?.name).toBe(testUsername);
+      expect(persona?.preferredName).toBe(testDisplayName);
+    });
+
     it('should cache user ID after first lookup', async () => {
       // Create user
       await service.getOrCreateUser(testDiscordId, testUsername);
