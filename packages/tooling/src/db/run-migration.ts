@@ -19,7 +19,7 @@ import {
   validateEnvironment,
   showEnvironmentBanner,
   runPrismaCommand,
-  confirmProductionOperation,
+  requireProductionConfirmation,
 } from '../utils/env-runner.js';
 
 interface RunMigrationOptions {
@@ -130,11 +130,7 @@ export async function runMigration(options: RunMigrationOptions = {}): Promise<v
       // AUDIT: Log when --force bypasses confirmation for prod operations
       console.warn(chalk.yellow('⚠️  Using --force flag - confirmation bypassed for PRODUCTION'));
     } else {
-      const confirmed = await confirmProductionOperation('run migrations');
-      if (!confirmed) {
-        console.log(chalk.yellow('\n⛔ Operation cancelled'));
-        process.exit(0);
-      }
+      await requireProductionConfirmation('run migrations');
     }
   }
 

@@ -20,7 +20,7 @@ import {
   type Environment,
   validateEnvironment,
   showEnvironmentBanner,
-  confirmProductionOperation,
+  requireProductionConfirmation,
 } from '../utils/env-runner.js';
 import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import { getPrismaForEnv } from './prisma-env.js';
@@ -272,16 +272,15 @@ export async function cleanupDuplicateMemories(options: CleanupOptions): Promise
       return;
     }
 
-    // Handle confirmation based on environment
+    // Handle confirmation based on environment. Unlike the other prod gates,
+    // this one deliberately runs AFTER the connection is open: the prompt
+    // names the analyzed duplicate count, which the operator is vouching for.
+    // A decline exits inside the gate, skipping the graceful disconnect —
+    // acceptable for a dying CLI process (identical to Ctrl-C at this same
+    // prompt, which never ran the finally either).
     if (env === 'prod' && !force) {
       console.log('');
-      const confirmed = await confirmProductionOperation(
-        `delete ${allIdsToDelete.length} duplicate memories`
-      );
-      if (!confirmed) {
-        console.log(chalk.yellow('\nOperation cancelled.'));
-        return;
-      }
+      await requireProductionConfirmation(`delete ${allIdsToDelete.length} duplicate memories`);
     } else if (env !== 'prod') {
       const confirmed = await promptNonProdConfirmation(allIdsToDelete.length);
       if (!confirmed) {

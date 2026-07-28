@@ -7,7 +7,7 @@
  * safeguards, in the order a run hits them:
  *
  *   1. `--dry-run` resolves and prints the cohort without enqueuing.
- *   2. On prod, `confirmProductionOperation` is the manual-approval gate —
+ *   2. On prod, `requireProductionConfirmation` is the manual-approval gate —
  *      `--force` skips the PROMPT only.
  *   3. The gateway refuses the run when the cohort exceeds the hard-ceiling
  *      share of the userbase; `--breaker-override` is the deliberate,
@@ -29,7 +29,7 @@ import {
   type Environment,
   validateEnvironment,
   showEnvironmentBanner,
-  confirmProductionOperation,
+  requireProductionConfirmation,
 } from '../utils/env-runner.js';
 import { resolveServiceClientOrExit } from '../utils/gateway-client.js';
 
@@ -128,14 +128,10 @@ export async function retentionNotify(options: RetentionNotifyOptions): Promise<
   }
 
   if (env === 'prod' && !force) {
-    const confirmed = await confirmProductionOperation(
+    await requireProductionConfirmation(
       `DM a deletion warning to ${String(previewResult.data.cohortSize)} inactive users ` +
         '(starts their 30-day grace clocks)'
     );
-    if (!confirmed) {
-      console.log(chalk.yellow('\nOperation cancelled.'));
-      return;
-    }
   }
 
   const runResult = await client.retentionNotify({

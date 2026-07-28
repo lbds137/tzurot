@@ -45,7 +45,7 @@ import {
   type Environment,
   validateEnvironment,
   showEnvironmentBanner,
-  confirmProductionOperation,
+  requireProductionConfirmation,
 } from '../utils/env-runner.js';
 import { getPrismaForEnv } from '../memory/prisma-env.js';
 
@@ -132,13 +132,7 @@ export async function backfillLastActive(options: BackfillLastActiveOptions): Pr
   validateEnvironment(env);
   showEnvironmentBanner(env);
   if (env === 'prod' && !dryRun && !force) {
-    const confirmed = await confirmProductionOperation(
-      'backfill users.last_active_at from history'
-    );
-    if (!confirmed) {
-      console.log(chalk.yellow('\nOperation cancelled.'));
-      return;
-    }
+    await requireProductionConfirmation('backfill users.last_active_at from history');
   }
 
   const { prisma, disconnect } = await getPrismaForEnv(env);
