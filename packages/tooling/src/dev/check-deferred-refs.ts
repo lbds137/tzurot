@@ -1,48 +1,47 @@
 /**
  * Follow-ups Tripwire
  *
- * A large share of `backlog/cold/follow-ups.md` entries are gated on
- * "opportunistic when next touching <file>" — a trigger that only fires if
- * whoever is editing the file REMEMBERS the entry exists. In practice that
- * means it never fires: entries with concrete, cheap fix shapes sit for months
- * while the referenced files get edited around them.
+ * Many tracker tasks are annotated "opportunistic when next touching <file>" —
+ * an annotation that only pays off if whoever is editing the file REMEMBERS
+ * the task exists. In practice nobody queries a several-hundred-task store
+ * before unrelated work, so tasks with concrete, cheap fix shapes sit for
+ * months while the referenced files get edited around them.
  *
- * This tool makes those triggers structural: given a set of files (typically
- * the staged set at commit time), it greps `follow-ups.md` for entries whose
- * text references any of them and prints the matches INFORMATIONALLY. It never
- * fails — this is a reminder surface, not a gate, so a developer who decides
- * "not this PR" loses nothing. Wired into .husky/pre-commit.
+ * This tool makes those references structural: given a set of files (typically
+ * the staged set at commit time), it scans the tracker store (`tracker/tasks/`)
+ * for tasks whose text references any of them and prints the matches
+ * INFORMATIONALLY. It never fails — this is a reminder surface, not a gate, so
+ * a developer who decides "not this PR" loses nothing. Wired into
+ * .husky/pre-commit (staged set) and .husky/pre-push (branch changed-set).
  *
- * Entries with no file path in their text (the genuinely event-gated ones)
+ * Tasks with no file path in their text (the genuinely event-gated ones)
  * are invisible to this tool by design.
  *
- * (Reads `cold/follow-ups.md` — the table the old `deferred.md` became in the
- * HOT/COLD backlog restructure. Same table shape, so the parser is unchanged.
- * The exported symbols keep the `Deferred` name for test stability.)
+ * (The exported symbols keep the `Deferred` name from the tool's
+ * `deferred.md`-table era for test stability.)
  */
 
 import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import chalk from 'chalk';
+import { loadTrackerTasks, openTasks, type TrackerTask } from './trackerTasks.js';
 
-const FOLLOWUPS_PATH = 'backlog/cold/follow-ups.md';
-
-/** Max characters of the entry title shown per match */
+/** Max characters of the task title shown per match */
 const TITLE_PREVIEW_LENGTH = 90;
 
 /** @internal Exported for testing */
 export interface DeferredRef {
   /** True when pathToken is a bare filename matched against basenames. */
   isBasename?: boolean;
-  /** Normalized path token from the entry text, e.g. 'services/x/src/y.ts' or 'services/x/' */
+  /** Normalized path token from the task text, e.g. 'services/x/src/y.ts' or 'services/x/' */
   pathToken: string;
   /** True when the token is a directory/glob prefix rather than an exact file */
   isPrefix: boolean;
-  /** First-cell entry title (truncated) */
+  /** Task title (truncated) */
   title: string;
-  /** 1-based line number of the entry row in follow-ups.md */
-  line: number;
+  /** Task id, e.g. 'TASK-210' */
+  taskId: string;
+  /** Task file path relative to the repo root */
+  taskFile: string;
 }
 
 /** @internal Exported for testing */
@@ -52,15 +51,15 @@ export interface DeferredMatch {
 }
 
 /**
- * Path-like tokens inside entry prose: `services/...`, `packages/...`, or
- * `prisma/...` (schema + migration entries reference it), optionally wrapped
+ * Path-like tokens inside task prose: `services/...`, `packages/...`, or
+ * `prisma/...` (schema + migration tasks reference it), optionally wrapped
  * in backticks, possibly carrying `:123`-style line refs or globs. Captured
  * liberally, then normalized.
  */
 const PATH_TOKEN_PATTERN = /(?:services|packages|prisma)\/[\w.\-/*]+/g;
 
 /**
- * Bare backticked filenames (`GenerationStep.ts`) — how most rows reference
+ * Bare backticked filenames (`GenerationStep.ts`) — how most tasks reference
  * code. Extension required so bare identifiers/prose can't false-match;
  * backticks required so only deliberate code references count.
  */
@@ -69,7 +68,7 @@ const BASENAME_TOKEN_PATTERN = /`([A-Za-z][\w.-]*\.(?:ts|tsx|js|py|prisma|sql|ya
 /**
  * Basenames too generic to identify a file — dozens of modules share these
  * names, so a basename match would false-positive on nearly every push and
- * train readers to ignore the output. Rows referencing such files must use
+ * train readers to ignore the output. Tasks referencing such files must use
  * the full path form to be matchable.
  */
 const GENERIC_BASENAMES = new Set([
@@ -139,55 +138,45 @@ export function normalizePathToken(raw: string): { pathToken: string; isPrefix: 
 }
 
 /**
- * Parse follow-ups.md table rows into path-keyed references.
+ * Extract path-keyed references from a set of tracker tasks. Title and body
+ * are scanned together — path mentions appear in both.
+ * @internal Exported for testing
  */
-/** @internal Exported for testing */
-export function extractDeferredRefs(markdown: string): DeferredRef[] {
+export function extractDeferredRefs(tasks: TrackerTask[]): DeferredRef[] {
   const refs: DeferredRef[] = [];
-  const lines = markdown.split('\n');
 
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    // Table rows only; skip the header and the separator row. The separator
-    // test requires the full `| --- |` cell shape so a future entry whose
-    // title happens to start with a dash isn't misclassified.
-    if (!line.startsWith('|') || /^\|\s*[-:]+\s*\|/.test(line) || /^\|\s*Item\s*\|/i.test(line)) {
-      continue;
-    }
-
-    const title = line.split('|')[1]?.replace(/`/g, '').trim().slice(0, TITLE_PREVIEW_LENGTH);
-    if (title === undefined || title.length === 0) {
-      continue;
-    }
+  for (const task of tasks) {
+    const text = `${task.title}\n${task.body}`;
+    const title = task.title.slice(0, TITLE_PREVIEW_LENGTH);
 
     const seen = new Set<string>();
-    for (const raw of line.match(PATH_TOKEN_PATTERN) ?? []) {
+    for (const raw of text.match(PATH_TOKEN_PATTERN) ?? []) {
       const normalized = normalizePathToken(raw);
       if (normalized === null || seen.has(normalized.pathToken)) {
         continue;
       }
       seen.add(normalized.pathToken);
-      refs.push({ ...normalized, title, line: i + 1 });
+      refs.push({ ...normalized, title, taskId: task.id, taskFile: task.file });
     }
-    collectBasenameRefs(line, seen, title, i + 1, refs);
+    collectBasenameRefs(text, seen, task, title, refs);
   }
 
   return refs;
 }
 
 /**
- * Collect bare-basename refs from a row, skipping generic names and any
- * basename already covered by a full-path ref on the same row (the path form
+ * Collect bare-basename refs from a task, skipping generic names and any
+ * basename already covered by a full-path ref on the same task (the path form
  * is stricter and should win).
  */
 function collectBasenameRefs(
-  line: string,
+  text: string,
   seen: Set<string>,
+  task: TrackerTask,
   title: string,
-  lineNumber: number,
   refs: DeferredRef[]
 ): void {
-  for (const match of line.matchAll(BASENAME_TOKEN_PATTERN)) {
+  for (const match of text.matchAll(BASENAME_TOKEN_PATTERN)) {
     const basename = match[1];
     if (GENERIC_BASENAMES.has(basename) || seen.has(basename)) {
       continue;
@@ -196,7 +185,14 @@ function collectBasenameRefs(
       continue;
     }
     seen.add(basename);
-    refs.push({ pathToken: basename, isPrefix: false, isBasename: true, title, line: lineNumber });
+    refs.push({
+      pathToken: basename,
+      isPrefix: false,
+      isBasename: true,
+      title,
+      taskId: task.id,
+      taskFile: task.file,
+    });
   }
 }
 
@@ -245,29 +241,26 @@ interface CheckOptions {
  */
 export async function checkDeferredRefs(options: CheckOptions = {}): Promise<void> {
   try {
-    const rootDir = process.cwd();
-    const followUpsFile = join(rootDir, FOLLOWUPS_PATH);
-    if (!existsSync(followUpsFile)) {
-      return;
-    }
-
     const files = options.staged === true ? getStagedFiles() : (options.files ?? []);
     if (files.length === 0) {
       return;
     }
 
-    const refs = extractDeferredRefs(readFileSync(followUpsFile, 'utf-8'));
+    // Unparseable task files are the lint's problem, not this reminder's —
+    // skip them silently here.
+    const { tasks } = loadTrackerTasks(process.cwd());
+    const refs = extractDeferredRefs(openTasks(tasks));
     const matches = matchFiles(files, refs);
     if (matches.length === 0) {
       return;
     }
 
     console.log('');
-    console.log(chalk.yellow.bold('📌 Backlog follow-ups reference files in this change:'));
+    console.log(chalk.yellow.bold('📌 Backlog tasks reference files in this change:'));
     for (const match of matches) {
       console.log(chalk.white(`   ${match.file}`));
       for (const ref of match.refs) {
-        console.log(chalk.dim(`     • ${ref.title} (${FOLLOWUPS_PATH}:${ref.line})`));
+        console.log(chalk.dim(`     • ${ref.taskId}  ${ref.title} (${ref.taskFile})`));
       }
     }
     console.log(chalk.dim('   Reminder only — fold one in if it fits, or carry on. Never blocks.'));

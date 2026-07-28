@@ -89,7 +89,7 @@ export function registerDevCommands(cli: CAC): void {
   cli
     .command(
       'dev:deferred-refs [...files]',
-      'Surface backlog follow-ups (cold/follow-ups.md) referencing the given (or staged) files — informational, never fails'
+      'Surface tracker tasks (tracker/tasks/) referencing the given (or staged) files — informational, never fails'
     )
     .option('--staged', 'Use the git staged file list')
     .example('ops dev:deferred-refs --staged')
@@ -109,12 +109,23 @@ function registerBacklogCommand(cli: CAC): void {
   cli
     .command(
       'backlog',
-      'Lint the HOT/COLD backlog layout: now.md caps, queue.md theme links, oldest follow-ups'
+      'Lint the backlog surfaces: now.md caps, queue.md theme links, tracker store integrity'
     )
     .example('ops backlog')
     .action(async () => {
       const { runBacklogLint } = await import('../dev/backlogLint.js');
       await runBacklogLint();
+    });
+
+  cli
+    .command(
+      'backlog:digest',
+      'Generate the session-start briefing from the tracker store (areas, oldest 20, newest 10)'
+    )
+    .example('ops backlog:digest')
+    .action(async () => {
+      const { runBacklogDigest } = await import('../dev/backlogDigest.js');
+      await runBacklogDigest();
     });
 }
 

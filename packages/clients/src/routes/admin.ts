@@ -113,8 +113,8 @@ export const adminRoutes = {
     // db-sync scans every table + flushes writes, so its duration scales
     // with data: a fact-carrying sync outgrew BULK_OPERATION (succeeded
     // server-side after the client aborted). LONG_SYNC covers the realistic
-    // horizon; past ~2 min observed, the filed async-job refactor takes over
-    // (backlog/cold/follow-ups.md) — do not raise this again.
+    // horizon; past ~2 min observed, the async-job refactor (TASK-251) takes
+    // over — do not raise this again.
     timeoutMs: GATEWAY_TIMEOUTS.LONG_SYNC,
   },
 

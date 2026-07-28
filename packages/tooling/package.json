@@ -32,9 +32,10 @@
     "@tzurot/embeddings": "workspace:*",
     "bullmq": "^5.81.2",
     "cac": "^7.0.0",
-    "ioredis": "^5.11.1",
     "chalk": "^6.0.0",
-    "ts-morph": "^28.0.0"
+    "ioredis": "^5.11.1",
+    "ts-morph": "^28.0.0",
+    "yaml": "^2.9.0"
   },
   "devDependencies": {
     "@types/estree": "^1.0.9",

@@ -81,6 +81,6 @@ refinements, all evidence-gated.
 
 ### Notes
 
-Rows stay in `cold/follow-ups.md` as the authoritative text; this file is the
-scope index. When a phase is picked up, remove its rows from the table per
+The items live in `tracker/tasks/` as the authoritative text; this file is the
+scope index. When a phase is picked up, mark its tasks Done per
 `06-backlog`'s session-end removal gate rather than duplicating them here.

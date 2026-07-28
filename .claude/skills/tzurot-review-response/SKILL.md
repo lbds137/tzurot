@@ -1,7 +1,7 @@
 ---
 name: tzurot-review-response
 description: 'PR review-response iteration: classify each finding by EDIT SHAPE (trivial → auto-apply as a test-gated fixup commit; semantic → ASK), check reviewer-vs-agent signal conflict, batch-present the four sections, cap at 3 automated rounds. Invoke with /tzurot-review-response the moment a claude-review or human reviewer posts findings on a PR — before applying anything.'
-lastUpdated: '2026-07-25'
+lastUpdated: '2026-07-27'
 ---
 
 # Review-Response Iteration
@@ -67,13 +67,13 @@ Do-it-now sends the finding back through **rule 1**, not around it: a trivial-sh
 
 **File the batch** is the one to reach for when the reviewer named a _pass_ rather than a _place_. "Next tooling-DRY pass" describes work across files this PR never opens — so "colocated and small" is false, and do-it-now would be wrong. But a row waiting to be noticed during that pass is equally wrong: nobody rediscovers it. **Track the pass itself** — a theme phase or a `cold/ideas.md` section that owns the whole batch — and let this finding be one of its members. Which of the two: **one PR's worth of sweeping → `cold/ideas.md`; needs its own phased rollout → a theme.** Same disposition for a finding that's simply too big for this PR (needs a migration, crosses a service boundary, would double the diff). Per `06-backlog.md`'s granularity ladder, those were never follow-up rows.
 
-**Grep for the batch before creating it.** Different PRs surface the same pass repeatedly ("next tooling-DRY pass" appears from whichever file the reviewer happened to be reading), so a rule that files a fresh section each time reproduces the fragmentation it was written to fix, one rung higher. Search `backlog/cold/` for the pass by name AND by the module it sweeps; if a theme phase or `cold/ideas.md` section already owns it, **add this finding as a member** and say which entry you joined. Only create a new one when the grep is genuinely empty.
+**Grep for the batch before creating it.** Different PRs surface the same pass repeatedly ("next tooling-DRY pass" appears from whichever file the reviewer happened to be reading), so a rule that files a fresh section each time reproduces the fragmentation it was written to fix, one rung higher. Search `backlog/cold/` (grep) and the tracker (`pnpm tracker task list --search <term> --plain`) for the pass by name AND by the module it sweeps; if a theme phase or `cold/ideas.md` section already owns it, **add this finding as a member** and say which entry you joined. Only create a new one when the search is genuinely empty.
 
-**Backlog candidate** is the honest deferral: the trigger is an event we will observe rather than a moment we must remember. File it in the granularity-appropriate backlog file (a one-line follow-up with its promote-when → `backlog/cold/follow-ups.md`; a larger parked idea → `cold/ideas.md`), capturing both the concern and the criterion. (A trigger is a field on the item, not its own bucket — the old "route to Deferred" rule is gone.)
+**Backlog candidate** is the honest deferral. File it at the granularity-appropriate destination (a one-line follow-up → a tracker task via `pnpm tracker task create`, with any promote-when as an annotation in the description; a larger parked idea → `cold/ideas.md`), capturing both the concern and the criterion. (A trigger is optional metadata on the item, never a filing gate — per `06-backlog.md` § The admission bar.)
 
 **Dismissed** closes the matter; note it in the summary and move on. A reviewer self-dismissal ("non-issue," "current is correct") that the agent agrees with has no trigger, and neither does a vague preference with no named event.
 
-**Why the bar is here**: `cold/follow-ups.md` grew 3× in five weeks under the old two-way split, and a full read found ~0 rows removable — the pile was honest, just unreachable. A third of it carried triggers that can never fire on their own: "next time someone touches this" (nobody greps to find it) and "next tooling pass" (the pass was never scheduled, because only its symptoms got filed). Admitting either shape as a row is strictly worse than fixing it, scheduling the batch, or declining it.
+**Why the bar is here**: the old follow-ups table grew 3× in five weeks, and a full read found ~0 rows removable — the pile was honest, just unreachable. A third of it carried triggers that can never fire on their own: "next time someone touches this" (nobody greps to find it) and "next tooling pass" (the pass was never scheduled, because only its symptoms got filed). Admitting either shape as an item is strictly worse than fixing it, scheduling the batch, or declining it — which is why the store moved to queryable tasks and triggers stopped being the selection mechanism.
 
 **Reviewer self-contradiction across rounds**: when round-N reviewer reverses its round-(N-1) stance on the same item (e.g., round 3 says "drop the `?? ''` as unreachable," round 4 says "add `?? ''` back for defensive typing"), the reviewer is not authoritative on its own prior disagreement. Dismiss and cite the earlier round's reasoning in the summary. Don't ping-pong. This is distinct from genuine new information surfacing — a round-N reviewer observation that _builds on_ round-(N-1) (adds context, corrects an error) is normal; a direct reversal on the same fact-pattern is noise.
 
@@ -253,4 +253,4 @@ Before each round's consolidated message:
 - **`00-critical.md`** § "Merge Approval" governs the merge gate (standing authorization for feature/fix PRs once truly ready; the release PR always needs explicit approval). This procedure governs iteration _before_ that gate; nothing here loosens it.
 - **`00-critical.md`** "NEVER modify tests to make them pass" remains in force. The test-suite gate in rule 3 fails closed — a trivial-shape edit that breaks tests is escalated, not covered up by modifying tests.
 - **`05-tooling.md`** PR-monitoring step 4 delegates to this skill.
-- **`06-backlog.md`** out-of-scope tracking still applies — items explicitly flagged as follow-ups are added to the appropriate `backlog/**/*.md` file per rule 4's "Backlog candidates" section.
+- **`06-backlog.md`** out-of-scope tracking still applies — items explicitly flagged as follow-ups are filed as tracker tasks (or the appropriate `backlog/**/*.md` file) per rule 4's "Backlog candidates" section.

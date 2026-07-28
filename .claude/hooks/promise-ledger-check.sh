@@ -71,21 +71,36 @@ for i in range(len(records) - 1, -1, -1):
 # defeating the same-turn check). The final message is scanned regardless.
 turn = records[turn_start:] if turn_start is not None else []
 
-BACKLOG_RE = re.compile(r"(^|/)(backlog/|CURRENT\.md|BACKLOG\.md)")
+BACKLOG_RE = re.compile(r"(^|/)(backlog/|tracker/|CURRENT\.md|BACKLOG\.md)")
 
-# (a) same-turn backlog writes. LIMITATION: only direct Edit/Write/MultiEdit in
-# THIS transcript count — a backlog file written by a delegated subagent (Agent
-# tool) lands in a different transcript and won't be seen here. There is no
-# longer any way for the closing message to assert the write happened: naming
-# the file used to satisfy an escape hatch, and that hatch is deliberately gone
-# (see below). So a subagent-delegated filing WILL block once, and the only
-# recovery is the ordinary one — say where it was filed and stop again, which
-# `stop_hook_active` lets through. That is the accepted one-acked-turn cost,
-# not a defect.
+# The sanctioned filing path for small items is the Backlog.md CLI
+# (`pnpm tracker task create ...`), which reaches the transcript as a Bash
+# tool_use — no file_path to match. Credit the command string instead. Matched
+# loosely (any `tracker task create|edit` / `backlog task create|edit`
+# substring) because the command arrives inside arbitrary shell composition;
+# this is a crediting check, not a gate on the command's shape.
+TRACKER_CLI_RE = re.compile(r"\b(?:tracker|backlog(?:\.md)?)\s+task\s+(?:create|edit)\b")
+
+# (a) same-turn backlog writes. LIMITATION: only direct Edit/Write/MultiEdit/
+# Bash in THIS transcript count — a backlog file written by a delegated
+# subagent (Agent tool) lands in a different transcript and won't be seen
+# here. There is no longer any way for the closing message to assert the write
+# happened: naming the file used to satisfy an escape hatch, and that hatch is
+# deliberately gone (see below). So a subagent-delegated filing WILL block
+# once, and the only recovery is the ordinary one — say where it was filed and
+# stop again, which `stop_hook_active` lets through. That is the accepted
+# one-acked-turn cost, not a defect.
+def is_backlog_write(block):
+    if block.get("type") != "tool_use":
+        return False
+    if block.get("name") in ("Edit", "Write", "MultiEdit"):
+        return bool(BACKLOG_RE.search(str(block.get("input", {}).get("file_path", ""))))
+    if block.get("name") == "Bash":
+        return bool(TRACKER_CLI_RE.search(str(block.get("input", {}).get("command", ""))))
+    return False
+
 wrote_backlog = any(
-    block.get("type") == "tool_use"
-    and block.get("name") in ("Edit", "Write", "MultiEdit")
-    and BACKLOG_RE.search(str(block.get("input", {}).get("file_path", "")))
+    is_backlog_write(block)
     for entry in turn
     if entry.get("type") == "assistant"
     for block in (entry.get("message", {}).get("content", []) or [])
@@ -266,8 +281,8 @@ cat >&2 << 'MSG'
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 PROMISE LEDGER — deferred-work promise without a same-turn backlog write
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Your closing message defers work but no backlog/**/*.md or CURRENT.md
-write happened this turn. It matched one of:
+Your closing message defers work but no backlog write happened this
+turn (tracker task, backlog/**/*.md, or CURRENT.md). It matched one of:
   - a prose promise      — "I'll add that later" / "as a follow-up"
   - an enumerated queue  — "**Still queued**: a, b, c" / "## Remaining"
 The second form is the one that reads as innocuous: a list under a
@@ -277,7 +292,7 @@ Per 06-backlog.md § promise ledger, a promise that lives only in chat
 dies at the next compaction.
 
 Do ONE of:
-  - File it now (cold/follow-ups.md row, or now.md), then stop; or
+  - File it now (pnpm tracker task create, or now.md), then stop; or
   - If it's already tracked or is a process action that needs no
     backlog entry, say where/why in one line and stop again (this
     gate fires only once per turn — the next stop proceeds).

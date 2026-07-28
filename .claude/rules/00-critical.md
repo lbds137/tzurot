@@ -183,15 +183,15 @@ Routine `git add <files>` + `git commit` + `git push` + `gh pr create` to featur
 
 The PR cycle's primary value on this project is **automated review** — `claude-bot` scrutinises diffs for bugs, codecov flags coverage gaps, lint catches style/complexity issues. When a change can't benefit from any of those, the PR adds friction without catching anything. For that class of change, direct commits to `develop` are permitted.
 
-| Allowed on `develop` directly                                                                             | Still requires a PR                                                          |
-| --------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| `BACKLOG.md` + `backlog/**/*.md` (post-merge tracker updates, triage moves, status changes)               | Any code change (`*.ts`, `*.tsx`, `*.py`, `*.js`, etc.)                      |
-| `CURRENT.md` (session-status / handoff notes)                                                             | Schema or migration files (`prisma/`, `*.sql`)                               |
-| New or edited files under `docs/` (typo fixes, runbook tweaks, reference updates, freshly-written guides) | `.claude/rules/*.md` (load-bearing constraints — review-gated)               |
-| Release-notes / changelog edits                                                                           | `.claude/skills/*/SKILL.md` (load-bearing procedures — review-gated)         |
-|                                                                                                           | `.claude/hooks/*` (automation hooks that run on every contributor's session) |
-|                                                                                                           | Anything that touches `.env`, secrets, or CI config (`.github/`)             |
-|                                                                                                           | Single doc changes >300 lines (worth review on a diff UI)                    |
+| Allowed on `develop` directly                                                                                 | Still requires a PR                                                          |
+| ------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `BACKLOG.md` + `backlog/**/*.md` + `tracker/**/*.md` (post-merge updates, task filing/triage, status changes) | Any code change (`*.ts`, `*.tsx`, `*.py`, `*.js`, etc.)                      |
+| `CURRENT.md` (session-status / handoff notes)                                                                 | Schema or migration files (`prisma/`, `*.sql`)                               |
+| New or edited files under `docs/` (typo fixes, runbook tweaks, reference updates, freshly-written guides)     | `.claude/rules/*.md` (load-bearing constraints — review-gated)               |
+| Release-notes / changelog edits                                                                               | `.claude/skills/*/SKILL.md` (load-bearing procedures — review-gated)         |
+|                                                                                                               | `.claude/hooks/*` (automation hooks that run on every contributor's session) |
+|                                                                                                               | Anything that touches `.env`, secrets, or CI config (`.github/`)             |
+|                                                                                                               | Single doc changes >300 lines (worth review on a diff UI)                    |
 
 **Apply the test, not just the file extension**: when in doubt about a doc change, ask "would `claude-bot`, codecov, or lint produce useful output on this diff?" If yes (e.g., a rule that affects every contributor's behavior, a runbook that prescribes a specific command sequence reviewer might want to second-guess), use a PR. If no (a status update, a typo fix, a stale-link replacement), direct commit is fine.
 

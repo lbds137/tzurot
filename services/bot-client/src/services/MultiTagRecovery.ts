@@ -689,7 +689,7 @@ export class MultiTagRecovery {
    * future refactor changes deliverError to access additional
    * LoadedPersonality fields, this sentinel must be extended accordingly.
    * A typed `Partial<LoadedPersonality>` + a discriminated-union sentinel
-   * shape would be cleaner; tracked in backlog/cold/follow-ups.md.
+   * shape would be cleaner; tracked as TASK-98.
    */
   private buildSentinelPersonality(slotSnap: SlotSnapshot): LoadedPersonality {
     return {

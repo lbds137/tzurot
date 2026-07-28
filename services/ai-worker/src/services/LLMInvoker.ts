@@ -174,7 +174,7 @@ export class LLMInvoker {
       // legacy test fixtures and any production caller that forgets to thread
       // the value through. Surface it as a debug log so the silent opt-out is
       // at least visible in local dev when wiring up a new caller. (Promoting
-      // the field to required in the type is tracked in `backlog/cold/follow-ups.md`.)
+      // the field to required in the type is tracked as TASK-80.)
       logger.debug(
         { modelName },
         'Empty cacheKeyId — rate-limit + credit-exhaustion caches skipped'

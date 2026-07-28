@@ -405,7 +405,7 @@ export class LlmConfigService {
    * consults `globalDefaultVisionConfigId` (VisionConfigResolver) and
    * `freeDefaultLlmConfigId` (LlmConfigResolver). The chat-global and vision-free
    * pointers are settable for slot symmetry but have no resolution tier reading
-   * them yet — wiring those is tracked in `backlog/cold/follow-ups.md`. (This
+   * them yet — wiring those is tracked as TASK-188. (This
    * matches the pre-cutover flags: the LLM cascade never had a paid-chat-global
    * tier, and the vision-free read was already deferred.)
    *
