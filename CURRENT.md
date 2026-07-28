@@ -7,6 +7,7 @@
 ## Unreleased on Develop
 
 - **#1823 — the backlog substrate FLIP** (2026-07-27): `tracker/` is now authoritative for small items; `cold/follow-ups.md` retired. New: `pnpm ops backlog:digest` (session-start briefing), tracker parse-integrity gating in `pnpm ops backlog`, `dev:deferred-refs` retargeted to tasks, promise-ledger hook credits `pnpm tracker task create|edit`, 06-backlog.md rewritten (trigger-gating retired as a filing rule). Zero user-visible runtime change (tooling + docs + comment-only service edits).
+- **#1824 — digest area-count overlap note** (2026-07-28, TASK-338): the By-area header now says multi-area tasks count once per area; 06-backlog.md codifies the size:S/M/L + priority conventions from the step-3 labeling pass. Tooling-only.
 
 ## 🔬 Smoke checklist — v3.0.0-beta.180 (post-deploy)
 
