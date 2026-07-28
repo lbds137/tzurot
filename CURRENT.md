@@ -6,7 +6,14 @@
 
 ## Unreleased on Develop
 
-_(empty — reset at the beta.182 cut)_
+_Drain-campaign round 2 (2026-07-28, post-beta.182):_
+
+- **#1831** deps: production-deps group bump (openai 6→7 is a NO-OP: fossil dep, zero imports — removal filed as TASK-342)
+- **#1832** ai-worker: vision provider required at the invoke seam (TASK-36; type-level promotion of the pre-committed hard error)
+- **#1833** api-gateway: UNAUTHORIZED (401) / FORBIDDEN (403) split, all 38 sites classified (TASK-108; revives shapes' dead 401 branches)
+- **#1834** api-gateway: resolve-cascade route UUID gate — malformed ids 400 instead of 500 (TASK-220)
+- **#1835** identity: snowflake-shaped usernames divert to shell placeholder persona — fixes 23514 provisioning crash (TASK-332; + snowflake-regex consolidation rider)
+- Direct docs: REASONING_MODEL_FORMATS.md rewritten against current extraction code (TASK-23)
 
 ## 🔬 Smoke checklist — v3.0.0-beta.182 (post-deploy)
 
