@@ -171,7 +171,7 @@ $(echo "$FILE_VIOLATIONS" | sed 's/^/     /')
 fi
 
 # Surface deferred-backlog entries that reference staged files (informational).
-# Many backlog/deferred.md entries are gated on "opportunistic when next
+# Many tracker tasks are gated on "opportunistic when next
 # touching <file>" — a trigger that only fires if the committer remembers the
 # entry exists. This makes the trigger structural: matches print as a reminder,
 # never block. `|| true` guards against tool failure breaking commits.

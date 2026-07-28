@@ -28,6 +28,14 @@ mktx() { # $1=out $2=text $3=edited_file(optional)
   printf '{"type":"assistant","message":{"content":[{"type":"text","text":%s}]}}\n' "$(printf '%s' "$2" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))')" >> "$1"
 }
 
+# Same, but the write is a Bash tool_use (the tracker CLI filing path).
+mktx_bash() { # $1=out $2=text $3=bash_command
+  : > "$1"
+  echo '{"type":"user","isMeta":null,"message":{"content":"go"}}' >> "$1"
+  printf '{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Bash","input":{"command":%s}}]}}\n' "$(printf '%s' "$3" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))')" >> "$1"
+  printf '{"type":"assistant","message":{"content":[{"type":"text","text":%s}]}}\n' "$(printf '%s' "$2" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))')" >> "$1"
+}
+
 fail=0
 check() { # $1=expected_exit $2=label $3=transcript $4=stop_active
   echo "{\"stop_hook_active\":${4:-false},\"transcript_path\":\"$3\"}" | "$HOOK" >/dev/null 2>&1
@@ -38,8 +46,17 @@ check() { # $1=expected_exit $2=label $3=transcript $4=stop_active
 mktx "$TMP/a.jsonl" "Filed the export nit. I'll add the sync gate later once the schema settles."
 check 2 "promise + unrelated 'Filed' word, no write" "$TMP/a.jsonl"
 
-mktx "$TMP/b.jsonl" "I'll add the sync gate later once the schema settles." "$CLAUDE_PROJECT_DIR/backlog/cold/follow-ups.md"
+mktx "$TMP/b.jsonl" "I'll add the sync gate later once the schema settles." "$CLAUDE_PROJECT_DIR/backlog/now.md"
 check 0 "promise + same-turn backlog write" "$TMP/b.jsonl"
+
+mktx "$TMP/b2.jsonl" "I'll add the sync gate later once the schema settles." "$CLAUDE_PROJECT_DIR/tracker/tasks/task-400 - sync-gate.md"
+check 0 "promise + same-turn tracker task-file edit" "$TMP/b2.jsonl"
+
+mktx_bash "$TMP/b3.jsonl" "I'll add the sync gate later once the schema settles." "pnpm tracker task create 'Sync gate for schema settle' -d 'Why: ...' --labels area:db"
+check 0 "promise + same-turn tracker CLI create (Bash)" "$TMP/b3.jsonl"
+
+mktx_bash "$TMP/b4.jsonl" "I'll add the sync gate later once the schema settles." "pnpm tracker task list --search sync --plain"
+check 2 "promise + tracker CLI QUERY does not clear (list is not filing)" "$TMP/b4.jsonl"
 
 mktx "$TMP/c.jsonl" "All merged. I'll merge #1732 once CI passes."
 check 0 "process-action promise (merge once CI)" "$TMP/c.jsonl"

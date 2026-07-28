@@ -1,6 +1,6 @@
 ### Theme: Follow-Up Pool Drain
 
-_Focus: get `cold/follow-ups.md` from ~357 rows to a size where the aging nudge is actionable — by shipping the work, not by deleting it._
+_Focus: get the small-item pool (now the `tracker/` task store; ~335 open tasks) to a size where the aging surface is actionable — by shipping the work, not by deleting it._
 
 Surfaced 2026-07-25. The admission bar + ruled-out exit (#1787) stop the inflow;
 this theme is the outflow. Both halves are needed — the measurement below shows
@@ -75,11 +75,10 @@ merit** — this is where `06-backlog.md`'s ruled-out exit stops being theoretic
 
 ### Phase 3 — Make batch entries reachable
 
-`dev:deferred-refs` already greps a backlog file for entries naming your changed
-paths and prints them at pre-push, but `FOLLOWUPS_PATH` is the only file it reads
-(`packages/tooling/src/dev/check-deferred-refs.ts:29`). Pointing it at
-`cold/ideas.md` and `cold/themes/` would make a filed batch surface when someone
-touches a file it names.
+`dev:deferred-refs` scans the tracker store for tasks naming your changed paths
+and prints them at commit/push (`packages/tooling/src/dev/check-deferred-refs.ts`)
+— but only tasks. Pointing it also at `cold/ideas.md` and `cold/themes/` would
+make a filed batch surface when someone touches a file it names.
 
 - [ ] Detail + tradeoffs in `cold/ideas.md` § "`BACKLOG.md` ↔ `06-backlog.md`
       content parity has no guard" (option 3) — same domain, tracked there
@@ -94,12 +93,13 @@ a path-naming row is meaningfully more reachable than a symbol-naming one.
 ### Success criterion
 
 Not zero. The pool is honest — the 2026-07-24 full read found ~0 rows removable
-on the shipped/obsolete exits. Target is a pool small enough that
-`pnpm ops backlog`'s five-row aging nudge rotates through real candidates instead
-of showing the same 2026-01-26 rows every run.
+on the shipped/obsolete exits. Target is a pool small enough that the digest's
+oldest-20 surface (`pnpm ops backlog:digest`) rotates through real candidates
+instead of showing the same 2026-01-26 tasks every run.
 
 ### Notes
 
-Rows stay in `cold/follow-ups.md` as the authoritative text; this file is the
-scope index. Remove rows from the table as each phase ships, per `06-backlog.md`'s
-session-end removal gate.
+Tasks live in `tracker/tasks/` as the authoritative text (the table this theme
+originally measured was imported 1:1 in #1822); this file is the scope index.
+Mark tasks Done as each phase ships, per `06-backlog.md`'s session-end removal
+gate.

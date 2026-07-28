@@ -139,7 +139,7 @@ describe('central route manifest', () => {
     //     (atomicity beats a job that could leave a half-deleted account),
     //     and the client must OUTWAIT it — a shorter abort false-fails while
     //     the deletion commits, unrecoverable with a single-use token;
-    //     trigger: logged deletion p95 >10s (backlog/cold/follow-ups.md).
+    //     trigger: logged deletion p95 >10s (tracked as TASK-281).
     // Adding a route WITHOUT that pairing is the async-job trigger firing —
     // build the job instead.
     const LONG_SYNC_EXEMPT = new Set(['dbSync', 'cleanup', 'deleteAccount']);

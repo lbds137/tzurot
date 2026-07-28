@@ -41,7 +41,7 @@ The alias command (#1695) works but shipped action-multiplexed (`action: list|ad
 2. **Onboarding command — RESOLVED**: `/help getting-started` subcommand (owner picked GLM's minority council position — /help is the universal first try, no top-level slot spent, extensible sections). Discord constraint: subcommands kill the bare invocation, so /help itself restructures to `/help commands [command]` + `/help getting-started` — a breaking shape change riding the batch. Still coherent with (not duplicating) the parked onboarding-DM + docs-pipeline themes.
 3. **Command-tree semantics — RESOLVED**: grouping + invoke-verb extraction (council unanimous on moves-ride-the-batch): `avatar`/`avatar-clear` and `voice`/`voice-clear` become `set|clear` groups; `/character chat` → top-level `/chat`, `/character random` → top-level `/random` (/character 17→13 entries; 16→18 commands). Placement rule documented in SLASH_COMMAND_UX.md: invoke = top-level, configure/manage = under the entity; budget alarms at 80/100 commands, 20/25 subcommands. Bigger re-home (voice→/voice, template moves) declined — splits character setup for headroom we don't need.
 
-### Phase 1 follow-ups still open (rows in `cold/follow-ups.md`)
+### Phase 1 follow-ups still open (tracker tasks)
 
 System-voice straggler wording (STT/top-catch/truncation) · partial-failure errored-slot delivery · `maxRetries:0` metrics watch · `deletePersona`/`getCachedPersonalities` wrapper widening.
 

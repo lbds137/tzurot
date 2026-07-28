@@ -141,8 +141,8 @@ and prints one consolidated report. The roster is the static `HEALTH_TOOLS`
 const in [`packages/tooling/src/audits/health.ts`](../../packages/tooling/src/audits/health.ts) —
 criteria: summary-capable AND meaningful on a bare argument-less run (tools
 whose bare run is perma-red, like `lint:complexity-report` and
-`db:check-safety`, are excluded with tuning follow-ups in
-`backlog/cold/follow-ups.md`). A tool emitting a `fail` summary is a finding;
+`db:check-safety`, are excluded with tuning follow-ups tracked as TASK-199
+and TASK-200). A tool emitting a `fail` summary is a finding;
 a tool emitting no parseable line is BROKEN and fails the aggregate loudly —
 silent tool rot is the failure mode the system exists to catch.
 
@@ -167,7 +167,7 @@ From the council pass that produced this system. The core insight: on a solo pro
 | Activity-based invalidation (file-hash only)           | Collapses the "assure me nothing bitrotted in 3 idle months" case. Adopted as an overlay: time cadence default, file-hash early-trigger.                                       |
 | Smart orchestrator (run only "due" audits)             | With ~5s total runtime, conditional execution is premature optimization. The dumb run-everything aggregator is debuggable half-asleep.                                         |
 
-**Month-3 evaluation questions** (filed in `backlog/cold/follow-ups.md`, due ~2026-10): (1) are the weekly Discord summaries being read — if not, delete the system rather than add pressure; (2) which tools surfaced real findings vs. always-green noise (prune the roster); (3) actual configHash-mismatch frequency (threshold sanity); (4) did any canary catch a real breakage; (5) did the deferred auto-fix-branch idea become relevant.
+**Month-3 evaluation questions** (tracked as TASK-201, due ~2026-10): (1) are the weekly Discord summaries being read — if not, delete the system rather than add pressure; (2) which tools surfaced real findings vs. always-green noise (prune the roster); (3) actual configHash-mismatch frequency (threshold sanity); (4) did any canary catch a real breakage; (5) did the deferred auto-fix-branch idea become relevant.
 
 ## What's NOT yet shipped
 

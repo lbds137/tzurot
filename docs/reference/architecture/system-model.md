@@ -128,7 +128,7 @@
 - `ResponseOrderingService` is single-replica by design (flagged in-code) — a known
   horizontal-scaling blocker.
 - `ContextAssembler`'s `userName ?? userId` fallback would crash first-provision for a
-  nameless envelope (tracked in `cold/follow-ups.md`; unreachable while bot-client
+  nameless envelope (tracked as TASK-332; unreachable while bot-client
   always sends `userName`).
 - Voice config depth (per-character voice overrides, ElevenLabs) is underused and
   therefore latent-bug-prone — one voice command sat broken for a while because

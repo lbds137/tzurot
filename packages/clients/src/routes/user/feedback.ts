@@ -16,7 +16,7 @@ export const userFeedbackRoutes = {
    * Submit feedback. NO atMostOnce: a SEQUENTIAL retry after a network blip
    * is absorbed by the server-side dedupe gate rather than double-storing.
    * (Concurrent duplicates can race the check-then-insert — accepted gap,
-   * bounded by the daily cap; tracked in cold/follow-ups.md.)
+   * bounded by the daily cap; tracked as TASK-285.)
    */
   submitFeedback: {
     audience: 'user',

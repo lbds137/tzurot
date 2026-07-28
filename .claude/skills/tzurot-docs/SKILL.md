@@ -1,7 +1,7 @@
 ---
 name: tzurot-docs
 description: 'Session workflow procedures. Invoke with /tzurot-docs for session start/end, CURRENT.md and backlog management.'
-lastUpdated: '2026-07-20'
+lastUpdated: '2026-07-27'
 ---
 
 # Documentation & Session Workflow
@@ -30,13 +30,14 @@ The backlog is HOT/COLD split — load only the HOT surface at start (see `BACKL
 
 ## Work Tracking Files
 
-| File                     | Purpose                                           | Update When                    |
-| ------------------------ | ------------------------------------------------- | ------------------------------ |
-| `CURRENT.md`             | Active session — what's happening NOW             | Start/end session, task done   |
-| `BACKLOG.md`             | Load manifest + filing decision-tree              | When the structure changes     |
-| `backlog/now.md`         | HOT: prod issues / focus / quick-wins / untriaged | New ideas, triage, completion  |
-| `backlog/active-epic.md` | HOT: current epic roadmap + phase                 | Phase progress                 |
-| `backlog/cold/*`         | COLD: themes / ideas / follow-ups / epic-log      | Grep-on-demand; route + update |
+| File                     | Purpose                                           | Update When                             |
+| ------------------------ | ------------------------------------------------- | --------------------------------------- |
+| `CURRENT.md`             | Active session — what's happening NOW             | Start/end session, task done            |
+| `BACKLOG.md`             | Load manifest + filing decision-tree              | When the structure changes              |
+| `backlog/now.md`         | HOT: prod issues / focus / quick-wins / untriaged | New ideas, triage, completion           |
+| `backlog/active-epic.md` | HOT: current epic roadmap + phase                 | Phase progress                          |
+| `backlog/cold/*`         | COLD: themes / ideas / epic-log                   | Grep-on-demand; route + update          |
+| `tracker/tasks/*`        | Small-item pool (Backlog.md store)                | Query via `pnpm tracker`; file + finish |
 
 **Tags**: 🏗️ `[LIFT]` refactor/debt | ✨ `[FEAT]` feature | 🐛 `[FIX]` bug | 🧹 `[CHORE]` maintenance
 
@@ -70,7 +71,7 @@ _Error logs, decisions, API snippets._
 
 ## Backlog Structure
 
-HOT (loaded every session) / COLD (grep-on-demand). See `.claude/rules/06-backlog.md` for the canonical topology + the **granularity-ladder** filing rule (multi-phase epic → `cold/themes/`; paragraph idea → `cold/ideas.md`; one-sentence follow-up → `cold/follow-ups.md`) and the **staleness principle** (aging escalates priority; items are never deleted by calendar — only when done or genuinely obsolete). `BACKLOG.md` at root is the load manifest.
+HOT (loaded every session) / tracker store (queried) / COLD (grep-on-demand). See `.claude/rules/06-backlog.md` for the canonical topology + the **granularity-ladder** filing rule (multi-phase epic → `cold/themes/`; paragraph idea → `cold/ideas.md`; one-sentence follow-up → tracker task via `pnpm tracker task create`) and the **staleness principle** (aging escalates priority; items are never deleted by calendar — only when done or genuinely obsolete). `BACKLOG.md` at root is the load manifest.
 
 ## Workflow Operations
 
@@ -112,9 +113,10 @@ For doc placement, naming, and lifecycle rules, see `.claude/rules/07-documentat
 A recurring owner ritual (session warm-up and pre-release); run it as a
 procedure, don't wait to be walked through it:
 
-1. **Hunt**: sweep `backlog/now.md` (Quick Wins, Untriaged) + `backlog/cold/follow-ups.md`
-   (oldest first — `pnpm ops backlog` surfaces them) for small-to-medium items
-   that are build-ready (no pending decision, no design dependency).
+1. **Hunt**: sweep `backlog/now.md` (Quick Wins, Untriaged) + the tracker pool
+   (oldest first — `pnpm ops backlog:digest` surfaces them; drill in with
+   `pnpm tracker task list --search/-l`) for small-to-medium items that are
+   build-ready (no pending decision, no design dependency).
 2. **Batch**: group compatible items into FEW consolidated PRs (per-item PR
    ceremony is the anti-pattern; one themed PR with separate logical commits).
 3. **Consolidate/prune while there**: items superseded by shipped work get

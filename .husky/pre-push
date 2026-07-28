@@ -44,7 +44,7 @@ else
     fi
 fi
 
-# 2b. Surface deferred backlog rows referencing files in this push (branch-level
+# 2b. Surface tracker tasks referencing files in this push (branch-level
 # window — the pre-commit --staged pass only sees one commit's files, so a
 # trigger touched earlier on the branch would otherwise slip by unseen).
 # Informational only; never blocks the push.
