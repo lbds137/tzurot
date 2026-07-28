@@ -1,10 +1,10 @@
 ---
 id: TASK-248
 title: Forced-system-key rate-limit pre-check reads the wrong cache identity
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-07-10 00:00'
-updated_date: '2026-07-28 20:35'
+updated_date: '2026-07-28 22:00'
 labels:
   - 'area:ai-worker'
   - 'size:M'
