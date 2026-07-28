@@ -139,7 +139,7 @@ export const handleGetAdminSettings = (deps: RouteDeps): RequestHandler => {
   const { prisma } = deps;
   return asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     if (!isAuthorizedForRead(req.userId)) {
-      sendError(res, ErrorResponses.unauthorized('Only bot owners can view settings'));
+      sendError(res, ErrorResponses.forbidden('Only bot owners can view settings'));
       return;
     }
 

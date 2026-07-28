@@ -124,7 +124,7 @@ describe('Voice Models Route', () => {
 
     const response = await request(app).get('/models');
 
-    expect(response.status).toBe(StatusCodes.FORBIDDEN);
+    expect(response.status).toBe(StatusCodes.UNAUTHORIZED);
   });
 
   it('should return error on ElevenLabs server error', async () => {

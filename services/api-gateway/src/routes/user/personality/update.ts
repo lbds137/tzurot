@@ -185,7 +185,7 @@ async function checkSlugUpdatePermission(options: {
       { discordUserId, currentSlug, attemptedSlug: newSlug },
       'Non-admin attempted slug update'
     );
-    sendError(res, ErrorResponses.unauthorized('Only bot admins can update personality slugs'));
+    sendError(res, ErrorResponses.forbidden('Only bot admins can update personality slugs'));
     return false;
   }
 

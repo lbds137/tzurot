@@ -366,7 +366,7 @@ function createUpdateHandler(
       discordUserId
     );
     if (!editPermissions.canEdit) {
-      return sendError(res, ErrorResponses.unauthorized('You can only edit your own configs'));
+      return sendError(res, ErrorResponses.forbidden('You can only edit your own configs'));
     }
     const isOwnedByRequester = config.ownerId === userId;
 
@@ -466,7 +466,7 @@ function createDeleteHandler(service: LlmConfigService) {
       discordUserId
     );
     if (!permissions.canDelete) {
-      return sendError(res, ErrorResponses.unauthorized('You can only delete your own configs'));
+      return sendError(res, ErrorResponses.forbidden('You can only delete your own configs'));
     }
     const isAdminBypass = config.ownerId !== userId;
 

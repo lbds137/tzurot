@@ -19,6 +19,7 @@ vi.mock('./errorResponses.js', () => ({
     notFound: (resource: string) => ({ error: 'NOT_FOUND', message: `${resource} not found` }),
     validationError: (msg: string) => ({ error: 'VALIDATION_ERROR', message: msg }),
     unauthorized: (msg: string) => ({ error: 'UNAUTHORIZED', message: msg }),
+    forbidden: (msg: string) => ({ error: 'FORBIDDEN', message: msg }),
     nameCollision: (msg: string) => ({
       error: 'VALIDATION_ERROR',
       message: msg,
@@ -262,7 +263,7 @@ describe('findAdminUserOrSendError', () => {
     expect(mockSendError).toHaveBeenCalledWith(
       mockRes,
       expect.objectContaining({
-        error: 'UNAUTHORIZED',
+        error: 'FORBIDDEN',
         message: 'Admin user not found in database',
       })
     );

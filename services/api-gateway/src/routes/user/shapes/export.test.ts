@@ -128,11 +128,11 @@ describe('Shapes Export Routes', () => {
       expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ error: 'VALIDATION_ERROR' }));
     });
 
-    it('should return 403 when no credentials found', async () => {
+    it('should return 401 when no credentials found', async () => {
       mockPrisma.userCredential.findFirst.mockResolvedValue(null);
       const { res } = await callExportHandler({ slug: 'test-shape' });
 
-      expect(res.status).toHaveBeenCalledWith(403);
+      expect(res.status).toHaveBeenCalledWith(401);
     });
 
     it('should return 409 when export already in progress', async () => {

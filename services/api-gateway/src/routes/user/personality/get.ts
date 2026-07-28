@@ -72,10 +72,7 @@ function createHandler(prisma: PrismaClient) {
 
     const hasAccess = await checkUserAccess(prisma, userId, personality, discordUserId);
     if (!hasAccess) {
-      return sendError(
-        res,
-        ErrorResponses.unauthorized('You do not have access to this personality')
-      );
+      return sendError(res, ErrorResponses.forbidden('You do not have access to this personality'));
     }
 
     const canEdit = await canUserEditPersonality(prisma, userId, personality.id, discordUserId);

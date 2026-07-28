@@ -98,11 +98,11 @@ describe('Shapes List Routes', () => {
       return { req, res };
     }
 
-    it('should return 403 when credential not found', async () => {
+    it('should return 401 when credential not found', async () => {
       mockPrisma.userCredential.findFirst.mockResolvedValue(null);
       const { res } = await callListHandler();
 
-      expect(res.status).toHaveBeenCalledWith(403);
+      expect(res.status).toHaveBeenCalledWith(401);
     });
 
     it('should decrypt cookie and fetch from shapes.inc', async () => {

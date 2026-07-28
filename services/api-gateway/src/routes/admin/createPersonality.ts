@@ -117,7 +117,7 @@ export const handleCreateGlobalPersonality = (deps: RouteDeps): RequestHandler =
 
     if (adminUser === null) {
       logger.warn({ discordUserId }, 'Admin user not found in database');
-      return sendError(res, ErrorResponses.unauthorized('Admin user not found in database'));
+      return sendError(res, ErrorResponses.forbidden('Admin user not found in database'));
     }
 
     // Check if personality already exists
