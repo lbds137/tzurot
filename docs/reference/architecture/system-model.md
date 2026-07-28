@@ -120,16 +120,8 @@
 
 ## 4. Known lies and drift (listing them is what keeps the map trusted)
 
-- The `/ai/*` bare routes are a legacy dual-mount of the internal AI four; one mount is
-  supposed to die.
-- `packages/clients/src/routes/internal.ts` carries stale "the cutover relocates this"
-  comments for routes whose cutover already happened; `admin.ts` has the `cleanup`
-  docblock sitting above the `broadcast` route.
 - `ResponseOrderingService` is single-replica by design (flagged in-code) — a known
   horizontal-scaling blocker.
-- `ContextAssembler`'s `userName ?? userId` fallback would crash first-provision for a
-  nameless envelope (tracked as TASK-332; unreachable while bot-client
-  always sends `userName`).
 - Voice config depth (per-character voice overrides, ElevenLabs) is underused and
   therefore latent-bug-prone — one voice command sat broken for a while because
   nobody used it. The used voice paths, by contrast, run flawlessly.

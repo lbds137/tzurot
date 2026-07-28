@@ -53,7 +53,7 @@ Based on Gemini consultation, we implemented:
 
 ### ✅ No Schema Needed (Internal/Public)
 
-- `/ai/generate`, `/ai/transcribe`, `/ai/jobStatus` - Service-to-service only
+- `/api/internal/ai/generate`, `/api/internal/ai/transcribe`, `/api/internal/ai/job/:jobId` - Service-to-service only
 - `/health`, `/metrics`, `/avatars/*` - Public endpoints
 - `/admin/invalidateCache` - Internal cache operations
 

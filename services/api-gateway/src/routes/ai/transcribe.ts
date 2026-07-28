@@ -1,5 +1,5 @@
 /**
- * POST /ai/transcribe
+ * POST /api/internal/ai/transcribe
  * Transcribe audio attachments via ElevenLabs STT (BYOK) or voice-engine
  */
 

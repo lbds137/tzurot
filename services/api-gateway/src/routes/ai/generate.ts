@@ -1,5 +1,5 @@
 /**
- * POST /ai/generate
+ * POST /api/internal/ai/generate
  * Create an AI generation job and return 202 Accepted immediately
  */
 

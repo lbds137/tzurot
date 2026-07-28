@@ -1,11 +1,12 @@
 /**
- * Zod schemas for AI-route response shapes (`/ai/generate`, `/ai/transcribe`,
- * `/ai/job/:jobId`, `/ai/job/:jobId/confirm-delivery`).
+ * Zod schemas for AI-route response shapes (`/api/internal/ai/generate`,
+ * `/api/internal/ai/transcribe`, `/api/internal/ai/job/:jobId`,
+ * `/api/internal/ai/job/:jobId/confirm-delivery`).
  *
- * These routes are called service-to-service from bot-client (`GatewayClient`
- * direct-fetch path today; `ServiceClient` after the route-manifest cutover).
- * The bot-client side currently consumes raw `fetch().json()` outputs without
- * Zod validation; these schemas establish the contract going forward.
+ * These routes are called service-to-service from bot-client. Generate and
+ * the job routes go through the generated `ServiceClient`, which validates
+ * responses against these schemas; transcribe's `?wait=true` long-poll is an
+ * allow-listed raw fetch that casts to the TS types instead.
  *
  * The `result` field on generate / transcribe responses is the heavy payload
  * (full LLM completion or transcription artifacts). We accept it as
@@ -28,7 +29,7 @@ import { JobStatus } from '../../constants/queue.js';
 
 /**
  * Shared field shape for the AI-job acknowledgment envelope — the queued /
- * completed shape returned by `/ai/generate`, `/ai/transcribe`, and the shared
+ * completed shape returned by the generate / transcribe routes and the shared
  * ack. Defined once and spread into each named schema below: knip's
  * duplicate-exports check rejects a pure alias (`X = Y`), but each `z.object(...)`
  * call below is a distinct schema VALUE, so this stays DRY without aliasing —

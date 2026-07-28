@@ -7,8 +7,8 @@
  * fetch) never hit the network again for these attachments.
  *
  * Replaces api-gateway's AttachmentStorageService.downloadAndStore — moving
- * this work off the synchronous HTTP request handler so `/ai/generate`
- * returns in milliseconds regardless of attachment size.
+ * this work off the synchronous HTTP request handler so the AI generate
+ * route returns in milliseconds regardless of attachment size.
  *
  * Responsibilities (in order):
  * 1. Queue-age gate — fail fast with ExpiredJobError if job has sat long

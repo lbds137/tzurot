@@ -362,7 +362,7 @@ describe('generate', () => {
 });
 
 describe('raw-fetch helpers (allow-listed)', () => {
-  it('transcribe posts to /ai/transcribe?wait=true and returns the transcript', async () => {
+  it('transcribe posts to /api/internal/ai/transcribe?wait=true and returns the transcript', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
       ok: true,
       json: async () => ({
@@ -376,7 +376,7 @@ describe('raw-fetch helpers (allow-listed)', () => {
 
     expect(result.content).toBe('hello world');
     const url = fetchSpy.mock.calls[0][0] as string;
-    expect(url).toContain('/ai/transcribe?wait=true');
+    expect(url).toContain('/api/internal/ai/transcribe?wait=true');
   });
 
   it('transcribe reconstructs a TimeoutError from failureReason=timeout', async () => {
