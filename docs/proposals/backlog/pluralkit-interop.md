@@ -1,7 +1,7 @@
 # PluralKit Interop — Design
 
 > **Status**: ACCEPTED 2026-07-05 — trio council pass (lookup-paradox rebuild + phase reorder folded, §7); owner sign-off 2026-07-05
-> **Theme**: [`user-requested-features.md`](../../backlog/cold/themes/user-requested-features.md) (owner request 2026-07-05: system import/sync + stable identity + proxied-message pairing) · Sibling artifact: [`message-actions.md`](message-actions.md) (shared grounding wave)
+> **Theme**: `user-requested-features.md` (`doc-26`) (owner request 2026-07-05: system import/sync + stable identity + proxied-message pairing) · Sibling artifact: [`message-actions.md`](message-actions.md) (shared grounding wave)
 > **Grounding** (2026-07-05): PK API verification (message-lookup endpoint, member model, privacy, rate limits) · our proxy-handling trace (`isProxyMessage` = producer-less scaffolding reaching PromptBuilder; `BotMessageFilter` drops all proxied messages; extended context includes them name-only; participants/memories exclude them) · v2 legacy PK handling doc (delete/repost dance) · `ShapesPersonaMapping` precedent.
 
 ## 1. Today's reality (verified)

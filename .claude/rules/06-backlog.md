@@ -4,8 +4,8 @@
 
 Three surfaces, by granularity:
 
-- **`tracker/`** — the small-item pool. One [Backlog.md](https://backlog.md) task file per follow-up (`tracker/tasks/`), CLI-owned, **queried on demand — never loaded wholesale**.
-- **`backlog/`** — the curated working state (HOT, below) plus the big-item files (COLD): themes, ideas, the epic log.
+- **`tracker/`** — the [Backlog.md](https://backlog.md) store, CLI-owned, **queried on demand — never loaded wholesale**: one task file per small item (`tracker/tasks/`), one doc per theme or paragraph idea (`tracker/docs/`, shared search index with tasks).
+- **`backlog/`** — the curated working state (HOT, below) plus two COLD index files: the theme queue, the epic log.
 - **`CURRENT.md`** — session status and smoke-checklist state (owned by `/tzurot-docs`).
 
 ### HOT — read at session start
@@ -20,12 +20,12 @@ Three surfaces, by granularity:
 
 ### COLD — grep-on-demand, NEVER auto-loaded
 
-| File                            | Contents                                                           |
-| ------------------------------- | ------------------------------------------------------------------ |
-| `backlog/cold/queue.md`         | Ordered index of future themes → links into `cold/themes/`         |
-| `backlog/cold/themes/<slug>.md` | One file per multi-phase epic (the big queue)                      |
-| `backlog/cold/ideas.md`         | Ungated speculative features + larger fixes (prose, `##` sections) |
-| `backlog/cold/epic-log.md`      | Detailed per-PR slice log for the Active Epic                      |
+| File                       | Contents                                                                 |
+| -------------------------- | ------------------------------------------------------------------------ |
+| `backlog/cold/queue.md`    | Ordered index of future themes → references tracker theme docs (`doc-N`) |
+| `backlog/cold/epic-log.md` | Detailed per-PR slice log for the Active Epic                            |
+
+(Theme and idea CONTENT lives in `tracker/docs/` — see the tracker store below; `queue.md` carries only the ordering.)
 
 ## The tracker store (small items)
 
@@ -37,6 +37,9 @@ pnpm tracker task list --search <term> --plain                              # qu
 pnpm tracker task list -l area:<x> --plain                                  # query by area
 pnpm tracker task edit <id> -s Done                                         # finish at ship
 pnpm tracker task archive <id>                                              # obsolete / ruled out
+pnpm tracker doc search <query>                                             # search theme/idea docs (shared index)
+pnpm tracker doc view <doc-id>                                              # read one doc
+pnpm tracker doc create 'Idea: Title'                                       # file a paragraph idea (fill body after create)
 pnpm ops backlog:digest                                                     # the briefing
 ```
 
@@ -50,23 +53,23 @@ pnpm ops backlog:digest                                                     # th
 
 File a "not now" item by **size**:
 
-| Item shape                                  | Home                                                  |
-| ------------------------------------------- | ----------------------------------------------------- |
-| Multi-phase initiative (its own epic)       | `cold/themes/<slug>.md` + a bullet in `cold/queue.md` |
-| Single feature, needs scoping (a paragraph) | `cold/ideas.md` (`##` section)                        |
-| One sentence, ~<2hr, usually a review-nit   | `tracker/` task (`pnpm tracker task create`)          |
+| Item shape                                  | Home                                                                      |
+| ------------------------------------------- | ------------------------------------------------------------------------- |
+| Multi-phase initiative (its own epic)       | theme doc (`pnpm tracker doc create 'Theme: …'`) + `cold/queue.md` bullet |
+| Single feature, needs scoping (a paragraph) | idea doc (`pnpm tracker doc create 'Idea: …'`)                            |
+| One sentence, ~<2hr, usually a review-nit   | `tracker/` task (`pnpm tracker task create`)                              |
 
 ### The admission bar
 
 **Trigger-gating is RETIRED as a filing rule** (owner call, substrate migration): filing a task requires no trigger, and selection is driven by queries — area/size/priority plus the digest's aging surface — not by anyone remembering a condition. A `Promote when:` annotation is welcome metadata for the reader who finds the task; it is never the mechanism that surfaces it. Two admission checks survive, because they change the _destination_, not the bar:
 
-| The work is...                                                                                                        | Then...                                                                                                                                             |
-| --------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **This same file or diff** — "next time we touch this"                                                                | **Do it now**, in the work that surfaced it. It's colocated and small by construction; filing it converts a five-minute edit into pool weight.      |
-| **A named batch across files** — "next tooling-DRY pass", "next `.claude/rules` PR" — or simply too big for this diff | **File the batch, not the item.** A theme phase or a `cold/ideas.md` section owns the pass; this item is one of its members (per the ladder above). |
-| Anything else small                                                                                                   | **File it as a task.** No trigger needed.                                                                                                           |
+| The work is...                                                                                                        | Then...                                                                                                                                        |
+| --------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| **This same file or diff** — "next time we touch this"                                                                | **Do it now**, in the work that surfaced it. It's colocated and small by construction; filing it converts a five-minute edit into pool weight. |
+| **A named batch across files** — "next tooling-DRY pass", "next `.claude/rules` PR" — or simply too big for this diff | **File the batch, not the item.** A theme-doc phase or an idea doc owns the pass; this item is one of its members (per the ladder above).      |
+| Anything else small                                                                                                   | **File it as a task.** No trigger needed.                                                                                                      |
 
-**Which one, for a batch**: if the whole pass is one PR's worth of sweeping, it's a `cold/ideas.md` section. If it needs its own phased rollout, it's a theme. **Search before creating the batch** — `pnpm tracker task list --search <term> --plain` AND grep `cold/` by the pass's name and the module it sweeps; if an entry already owns the pass, add the item as a member instead of fragmenting.
+**Which one, for a batch**: if the whole pass is one PR's worth of sweeping, it's an idea doc. If it needs its own phased rollout, it's a theme doc. **Search before creating the batch** — `pnpm tracker task list --search <term> --plain` AND `pnpm tracker doc search <term>` by the pass's name and the module it sweeps; if an entry already owns the pass, add the item as a member instead of fragmenting.
 
 ## Staleness — aging escalates, it never deletes
 
@@ -124,7 +127,7 @@ When uncertain between (a) and (b), **err toward tracking**.
 
 Plan files produced in plan mode must include a "Backlog Additions Required" section enumerating every type-(b) out-of-scope item with:
 
-1. **Destination** (`now.md` Production Issues / Quick Wins / Untriaged · tracker task · `cold/ideas.md` · `cold/themes/`)
+1. **Destination** (`now.md` Production Issues / Quick Wins / Untriaged · tracker task · tracker idea doc · tracker theme doc)
 2. **Problem**: one paragraph describing what's wrong
 3. **Action**: concrete, specific steps to fix
 4. **Why out of scope**: one sentence on why it isn't being fixed now
@@ -142,7 +145,7 @@ A session is NOT done until every promised backlog addition is actually written 
 A session is ALSO not done until every item that shipped during the session is closed out. Additions without removals is what lets the backlog rot. Specifically:
 
 - List the PRs merged during the session
-- For each PR, search the tracker (`--search` by title/topic) AND grep `backlog/` (recursive) — if a matching entry exists, mark it Done / **remove it**
+- For each PR, search the tracker (`--search` by title/topic), `pnpm tracker doc search`, AND grep `backlog/` (recursive) — if a matching entry exists, mark it Done / **remove it**
 - For any entry annotated "PROMOTED to Current Focus" or similar, re-verify the underlying fix actually shipped; if yes, remove
 - Also remove any entry whose fix-shape hints point to code that no longer needs fixing (grep the file to confirm). This is the "genuinely obsolete" removal path — it's distinct from time-based pruning, which we do NOT do.
 - **Did every rule-out decided this session actually get committed?** The third exit is the only one with no PR gate behind it — a rule-out lives or dies on someone making the removing commit, and a decision that stayed in chat prose removed nothing. Check the same way as additions: name each item ruled out this session and confirm its commit exists.
@@ -163,8 +166,8 @@ Clear the **admission bar** above first — same-file/diff work is done now, and
 | Small (<~2hr), independent — and you'll actually do it soon | `now.md` › ⚡ Quick Wins (max 5) — it's simply next in line |
 | Small, one sentence — everything else                       | `tracker/` task (`pnpm tracker task create`)                |
 | Part of the active epic                                     | `active-epic.md` (slice detail → `cold/epic-log.md`)        |
-| A single feature needing scoping                            | `cold/ideas.md` (`##` section)                              |
-| A multi-phase initiative                                    | `cold/themes/<slug>.md` + bullet in `cold/queue.md`         |
+| A single feature needing scoping                            | idea doc (`pnpm tracker doc create 'Idea: …'`)              |
+| A multi-phase initiative                                    | theme doc (`'Theme: …'`) + bullet in `cold/queue.md`        |
 | Arrived mid-session, no time to triage                      | `now.md` › 📥 Untriaged (max 10), route later               |
 
 ### Promoting a theme to Active Epic
@@ -174,11 +177,11 @@ When the Active Epic completes:
 0. **Re-touch the system map (~15 min)**: walk [`docs/reference/architecture/system-model.md`](../../docs/reference/architecture/system-model.md) asking "what did this epic change?" and apply the edits — or record "no map impact" in the epic close-out. The previous architecture doc died because nothing owned its truth at a named moment; this is that moment. (Mid-epic, the agent files a drift note when a PR changes something the map describes — it never auto-appends; the ~150-line budget forces eviction, not growth.)
 1. Remove the finished epic from `active-epic.md` (git preserves it; fold any still-relevant follow-on into `cold/` or tracker tasks). Its detailed log in `cold/epic-log.md` can be deleted or kept as historical reference.
 2. Pick the next theme from `cold/queue.md` (by dependency + value — each substantial pick deserves a council pass before plan-mode).
-3. Move that theme's `cold/themes/<slug>.md` content into `active-epic.md` (slim roadmap in the hot file; push dense per-PR detail to `cold/epic-log.md`). Remove its bullet from `cold/queue.md`.
+3. Move that theme doc's content (`pnpm tracker doc view <id>`) into `active-epic.md` (slim roadmap in the hot file; push dense per-PR detail to `cold/epic-log.md`). Remove its `cold/queue.md` bullet; the doc itself can be trimmed to a pointer or left as historical reference.
 
 ## Theme/Epic Structure
 
-A theme file (`cold/themes/<slug>.md`) or the active epic should carry a `_Focus: one-sentence goal._` line and phase structure:
+A theme doc (`tracker/docs/`, `Theme:`-titled) or the active epic should carry a `_Focus: one-sentence goal._` line and phase structure:
 
 ```markdown
 ### Theme: Name

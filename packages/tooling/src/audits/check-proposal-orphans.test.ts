@@ -118,6 +118,19 @@ describe('findProposalOrphans', () => {
     });
   });
 
+  it('accepts inbound link from tracker/docs/ (theme and idea docs)', async () => {
+    // Themes/ideas live in the tracker doc store; a proposal whose only
+    // inbound link is its owning theme doc is tracked, not orphaned.
+    await withTempRepo(root => {
+      scaffold(root, {
+        'docs/proposals/backlog/foo-proposal.md': '# Foo',
+        'tracker/docs/doc-1 - Theme-Foo.md': 'Design artifact: foo-proposal.',
+      });
+      const result = findProposalOrphans(root);
+      expect(result.orphans).toEqual([]);
+    });
+  });
+
   it('accepts inbound link from any non-proposal docs subdir', async () => {
     // docs/research/, docs/incidents/, docs/README.md, etc. all count.
     // The real failure mode is "no human-visible reference anywhere."

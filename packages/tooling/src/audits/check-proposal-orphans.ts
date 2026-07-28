@@ -3,8 +3,8 @@
  *
  * Asserts every `docs/proposals/backlog/*.md` has at least one inbound link
  * from any non-proposal markdown under `backlog/**\/*.md`, `docs/**\/*.md`
- * (excluding `docs/proposals/`), or `CURRENT.md`. Search shape is defined
- * by `SEARCH_ROOTS` and `EXCLUDED_PREFIXES` below.
+ * (excluding `docs/proposals/`), `tracker/docs/**\/*.md`, or `CURRENT.md`.
+ * Search shape is defined by `SEARCH_ROOTS` and `EXCLUDED_PREFIXES` below.
  *
  * Layer 1 sibling of the canary/golden-fixture pattern (see
  * `docs/reference/audit-enforcement.md`). Same shape: a
@@ -69,8 +69,10 @@ const PROPOSALS_GLOB = 'docs/proposals/backlog';
 // docs/research/, docs/incidents/, or docs/README.md all count as "this
 // proposal is tracked somewhere a human will see it." `CURRENT.md` and
 // `BACKLOG.md` are both root-level work-tracking files per CLAUDE.md;
-// either can legitimately host a proposal link.
-const SEARCH_ROOTS = ['backlog', 'docs', 'CURRENT.md', 'BACKLOG.md'];
+// either can legitimately host a proposal link. `tracker/docs` holds the
+// theme/idea docs (the themes/ideas→docs migration) — most proposals are
+// linked from their owning theme, so the doc store is a first-class root.
+const SEARCH_ROOTS = ['backlog', 'docs', 'tracker/docs', 'CURRENT.md', 'BACKLOG.md'];
 const EXCLUDED_PREFIXES = ['docs/proposals/'];
 
 /**
@@ -272,7 +274,7 @@ export async function checkProposalOrphans(
   if (totalFindings === 0) {
     console.log(`✅ All ${totalProposals} proposals have at least one inbound link.`);
     console.log(
-      `   Searched: backlog/**/*.md, docs/**/*.md (excluding docs/proposals/), CURRENT.md, BACKLOG.md\n`
+      `   Searched: backlog/**/*.md, docs/**/*.md (excluding docs/proposals/), tracker/docs/**/*.md, CURRENT.md, BACKLOG.md\n`
     );
     return;
   }
@@ -299,11 +301,11 @@ kebab-case slug — e.g., \`memory.md\` → \`memory-and-context-redesign.md\`.
     }
     console.log(`
 A proposal is "orphan" when nothing under \`backlog/**/*.md\`,
-\`docs/**/*.md\` (excluding \`docs/proposals/\`), \`CURRENT.md\`, or
-\`BACKLOG.md\` mentions its basename.
+\`docs/**/*.md\` (excluding \`docs/proposals/\`), \`tracker/docs/**/*.md\`,
+\`CURRENT.md\`, or \`BACKLOG.md\` mentions its basename.
 
 Fix one of:
-  - Link the proposal from the appropriate backlog/*.md file (most common)
+  - Link the proposal from its owning theme/idea doc or a backlog file (most common)
   - Move it to docs/reference/architecture/ if it's now reference material
   - Delete it if the work shipped or the idea was abandoned
     (git history preserves the proposal text)

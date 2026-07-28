@@ -2,7 +2,7 @@
 
 > **Status**: ACCEPTED 2026-07-04 (boulder #1 part 2) — full-trio council pass (GLM 5.2 · Kimi K2.7-code · Qwen 3.7 Max, §11); all 21 §10 decisions adopted as recommended (owner sign-off 2026-07-04)
 > **Companion**: [`platform-portable-ux-design.md`](platform-portable-ux-design.md) (part 1 — the *machinery*: catalog, builders, enforcement). **This doc is the WHAT; part 1 is the HOW.** Part 1's phases implement this spec's decisions.
-> **Theme**: [`backlog/cold/themes/platform-portable-ux-layer.md`](../../../backlog/cold/themes/platform-portable-ux-layer.md)
+> **Theme**: `doc-14`
 > **Grounding**: 3-agent sweep 2026-07-04 — full command tree (exact user-visible strings), output-side visual audit, `/inspect` + owner-command deep-dive.
 
 ## 1. Principles
@@ -296,4 +296,4 @@ The five ranked rough spots + fixes (all flow through part-1 machinery):
 
 **Rejected, with evidence**: Qwen's `default_member_permissions('0')` correction ("admins must manually enable") — contradicted by the Discord docs fetched this session: *"Setting it to '0' will prohibit anyone in a guild from using the command unless a specific overwrite is configured or the user has admin permissions."* `'0'` stays. Qwen's "Text Display not confirmed in modals" — it's in the current modal component list (same fetch); the per-component implementation-time verification caveat already covers drift. Qwen's `browse`→`list` rename — in-repo evidence beats the claimed convention: `browse` is this bot's universal verb (10/14 groups; `list` is the single outlier) and these are interactive filter/select views. Kimi's precise-permission-bits refinement (Moderate Members for `/deny`) — misreads the gate: these are bot-owner commands, not guild-moderator features; `'0'` is the closest visibility approximation to the runtime gate, which stays authoritative. Kimi's copy-to-clipboard buttons — no such Discord primitive. Qwen's DM delivery for long reasoning — context switch mid-diagnosis, plus DM delivery has its own failure modes; chunk-cap + attachment tail instead.
 
-**Filed, not folded**: onboarding/first-run flow (real gap, both Kimi + Qwen — but it's a feature design of its own, not a consistency rule; → `cold/ideas.md`, with empty-state CTAs (§2.4) covering the near-term need).
+**Filed, not folded**: onboarding/first-run flow (real gap, both Kimi + Qwen — but it's a feature design of its own, not a consistency rule; → filed (now tracker `doc-6` — First-Use Onboarding DM), with empty-state CTAs (§2.4) covering the near-term need).
