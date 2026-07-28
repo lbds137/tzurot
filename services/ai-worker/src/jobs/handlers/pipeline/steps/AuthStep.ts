@@ -146,7 +146,10 @@ export class AuthStep implements IPipelineStep {
         ? null
         : await checkModelViability({
             model: llmAuth.effectivePersonality.model,
-            cacheKeyId: deriveCacheKeyId(llmAuth.resolvedApiKey, userId),
+            // Guest routes (incl. the z.ai piggyback) resolve a SYSTEM key —
+            // identity follows provenance, or a guest's check would read the
+            // user's own BYOK doom marks and veto an already-admitted route.
+            cacheKeyId: deriveCacheKeyId(llmAuth.resolvedApiKey, userId, llmAuth.isGuestMode),
             caches: this.quotaFallbackCaches,
           });
     if (viability === null || viability.viable) {
@@ -228,7 +231,7 @@ export class AuthStep implements IPipelineStep {
     }
 
     const { personality, apiKey, isGuestMode, userId, jobId, knownCategory } = options;
-    const cacheKeyId = deriveCacheKeyId(apiKey, userId);
+    const cacheKeyId = deriveCacheKeyId(apiKey, userId, isGuestMode);
     let category = knownCategory;
     if (category === undefined) {
       const viability = await checkModelViability({

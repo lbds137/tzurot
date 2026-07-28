@@ -125,7 +125,11 @@ export async function runWithQuotaFallback(options: {
       throw originalError;
     }
 
-    const cacheKeyId = deriveCacheKeyId(opts.apiKey, userId);
+    // A guest attempt runs on a SYSTEM key handed over as a plain string, so
+    // identity must follow the route's provenance (isGuestMode), not the
+    // key's presence — flagless derivation filed guest failures under
+    // `user:<id>` while the invocation path writes doom marks under `system`.
+    const cacheKeyId = deriveCacheKeyId(opts.apiKey, userId, opts.isGuestMode);
     const target = await selectQuotaFallbackTarget({
       category,
       isGuestMode: opts.isGuestMode,
@@ -187,9 +191,13 @@ export async function runWithQuotaFallback(options: {
       },
       info,
       originalError,
-      // Hop-2 (floor descent) context — see executeRetarget's doc.
+      // Hop-2 (floor descent) context — see executeRetarget's doc. The hop
+      // reuses hop-1's resolved credentials, so its viability check (and its
+      // audit line) must run under THAT route's identity: a forced entity
+      // swap or degraded downgrade moved the retry onto the system key, and
+      // the pre-retarget `user:<id>` bucket no longer describes it.
       caches: deps.caches,
-      cacheKeyId,
+      cacheKeyId: deriveCacheKeyId(credentials.apiKey, userId, credentials.isGuestMode),
     });
   }
 }

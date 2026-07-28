@@ -19,27 +19,43 @@ import {
   type QuotaFallbackCaches,
 } from './quotaFallback.js';
 
+/**
+ * Doom-cache mock, BUCKET-AWARE by design: Redis marks live under a
+ * (cacheKeyId[, model]) scope, and a mock that answers the same regardless of
+ * bucket cannot see a wrong-identity read — the exact class this module's
+ * viability checks exist to get right. `exhausted: true` / a bare model
+ * string mark every bucket; pass `{ cacheKeyId }` scoping to pin identity.
+ */
 function buildCaches(overrides?: {
-  exhausted?: boolean;
-  rateLimitedModels?: string[];
+  exhausted?: boolean | string[];
+  rateLimitedModels?: (string | { cacheKeyId: string; model: string })[];
 }): QuotaFallbackCaches {
+  const exhausted = overrides?.exhausted ?? false;
   const rateLimitedModels = overrides?.rateLimitedModels ?? [];
   return {
     creditExhaustion: {
       isCreditExhausted: vi
         .fn()
-        .mockResolvedValue(
-          overrides?.exhausted === true
-            ? { exhausted: true, exhaustedAtMs: 0, ttlSeconds: 60 }
-            : { exhausted: false }
+        .mockImplementation(({ cacheKeyId }: { cacheKeyId: string }) =>
+          Promise.resolve(
+            exhausted === true || (Array.isArray(exhausted) && exhausted.includes(cacheKeyId))
+              ? { exhausted: true, exhaustedAtMs: 0, ttlSeconds: 60 }
+              : { exhausted: false }
+          )
         ),
     },
     rateLimit: {
       isRateLimited: vi
         .fn()
-        .mockImplementation(({ model }: { model: string }) =>
+        .mockImplementation(({ cacheKeyId, model }: { cacheKeyId: string; model: string }) =>
           Promise.resolve(
-            rateLimitedModels.includes(model) ? { rateLimited: true } : { rateLimited: false }
+            rateLimitedModels.some(entry =>
+              typeof entry === 'string'
+                ? entry === model
+                : entry.model === model && entry.cacheKeyId === cacheKeyId
+            )
+              ? { rateLimited: true }
+              : { rateLimited: false }
           )
         ),
     },
@@ -120,17 +136,89 @@ describe('selectQuotaFallbackTarget — the tier matrix', () => {
     expect(target?.forceSystemKey).toBe(true);
   });
 
-  it('CREDIT_EXHAUSTION + BYOK skips the exhaustion check on the target (different billing entity)', async () => {
-    // The user's account IS marked exhausted — but the forced-system-key
-    // retry bills a different account, so the mark must not veto the target.
+  it("CREDIT_EXHAUSTION + BYOK: the caller's own exhaustion mark never vetoes the forced swap", async () => {
+    // The user's account IS marked exhausted (that's what triggered the swap)
+    // — but the forced-system-key retry bills a different account, so the
+    // viability check must run under the TARGET's bucket, not the caller's.
+    const caches = buildCaches({ exhausted: ['user:123'] });
     const target = await selectQuotaFallbackTarget({
       ...base,
       category: ApiErrorCategory.CREDIT_EXHAUSTION,
       isGuestMode: false,
       configResolver: buildResolver({ free: { model: 'freebie/model:free' } }) as never,
-      caches: buildCaches({ exhausted: true }),
+      caches,
     });
     expect(target?.forceSystemKey).toBe(true);
+    // Seam pin: the exhaustion check DID run, under the system bucket.
+    expect(caches.creditExhaustion.isCreditExhausted).toHaveBeenCalledWith({
+      cacheKeyId: 'system',
+    });
+  });
+
+  it('CREDIT_EXHAUSTION + BYOK: a SYSTEM-bucket exhaustion mark vetoes the forced swap (target is doomed too)', async () => {
+    const target = await selectQuotaFallbackTarget({
+      ...base,
+      category: ApiErrorCategory.CREDIT_EXHAUSTION,
+      isGuestMode: false,
+      configResolver: buildResolver({ free: { model: 'freebie/model:free' } }) as never,
+      caches: buildCaches({ exhausted: ['system'] }),
+    });
+    expect(target).toBeNull();
+  });
+
+  it("the forced swap's rate-limit pre-check reads the TARGET's bucket, where the forced retry's 429s are written", async () => {
+    // A `system`-bucket mark on the free default means the forced retry is
+    // known-doomed — the fail-fast this pre-check exists for.
+    const vetoed = await selectQuotaFallbackTarget({
+      ...base,
+      category: ApiErrorCategory.CREDIT_EXHAUSTION,
+      isGuestMode: false,
+      configResolver: buildResolver({ free: { model: 'freebie/model:free' } }) as never,
+      caches: buildCaches({
+        rateLimitedModels: [{ cacheKeyId: 'system', model: 'freebie/model:free' }],
+      }),
+    });
+    expect(vetoed).toBeNull();
+
+    // The caller's own bucket carrying the same mark is irrelevant to a
+    // system-key target (the old wrong read) — the swap proceeds.
+    const proceeds = await selectQuotaFallbackTarget({
+      ...base,
+      category: ApiErrorCategory.CREDIT_EXHAUSTION,
+      isGuestMode: false,
+      configResolver: buildResolver({ free: { model: 'freebie/model:free' } }) as never,
+      caches: buildCaches({
+        rateLimitedModels: [{ cacheKeyId: 'user:123', model: 'freebie/model:free' }],
+      }),
+    });
+    expect(proceeds?.forceSystemKey).toBe(true);
+  });
+
+  it("a guest target's viability is judged under the system bucket even when the caller passes a user bucket", async () => {
+    // The BYOK degraded-downgrade funnels (runner + retarget route) call with
+    // isGuestMode: true while still holding the user's cacheKeyId — the free
+    // target runs on the system key regardless, so identity derives internally.
+    const vetoed = await selectQuotaFallbackTarget({
+      ...base,
+      category: ApiErrorCategory.QUOTA_EXCEEDED,
+      isGuestMode: true,
+      configResolver: buildResolver({ free: { model: 'freebie/model:free' } }) as never,
+      caches: buildCaches({
+        rateLimitedModels: [{ cacheKeyId: 'system', model: 'freebie/model:free' }],
+      }),
+    });
+    expect(vetoed).toBeNull();
+
+    const proceeds = await selectQuotaFallbackTarget({
+      ...base,
+      category: ApiErrorCategory.QUOTA_EXCEEDED,
+      isGuestMode: true,
+      configResolver: buildResolver({ free: { model: 'freebie/model:free' } }) as never,
+      caches: buildCaches({
+        rateLimitedModels: [{ cacheKeyId: 'user:123', model: 'freebie/model:free' }],
+      }),
+    });
+    expect(proceeds?.config.model).toBe('freebie/model:free');
   });
 
   it('QUOTA_EXCEEDED + BYOK → global (paid) default on the own key', async () => {

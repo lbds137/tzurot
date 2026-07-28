@@ -337,11 +337,19 @@ export function deriveCacheKeyId(
   if (hasByokKey) {
     result = userId.length > 0 ? `user:${userId}` : '';
   } else {
-    result = 'system';
+    result = SYSTEM_CACHE_KEY_ID;
   }
   assertValidCacheKeyId(result);
   return result;
 }
+
+/**
+ * The shared-pool scope identifier for system-key routes (guest mode and the
+ * forced entity swap). Exported so viability checks that KNOW their target
+ * runs on the system key can name the bucket directly instead of round-
+ * tripping a key string through `deriveCacheKeyId`.
+ */
+export const SYSTEM_CACHE_KEY_ID = 'system';
 
 /**
  * Runtime belt for the documented `cacheKeyId` format invariant. Logs `warn`
