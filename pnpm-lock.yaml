@@ -77,6 +77,9 @@ importers:
       '@vitest/eslint-plugin':
         specifier: ^1.6.24
         version: 1.6.24(@typescript-eslint/eslint-plugin@8.65.0(@typescript-eslint/parser@8.65.0(eslint@10.8.0(jiti@2.7.0))(typescript@6.0.3))(eslint@10.8.0(jiti@2.7.0))(typescript@6.0.3))(eslint@10.8.0(jiti@2.7.0))(typescript@6.0.3)(vitest@4.1.10)
+      backlog.md:
+        specifier: 1.48.0
+        version: 1.48.0
       dependency-cruiser:
         specifier: ^18.1.0
         version: 18.1.0
@@ -3564,6 +3567,40 @@ packages:
   babel-walk@3.0.0-canary-5:
     resolution: {integrity: sha512-GAwkz0AihzY5bkwIY5QDR+LvsRQgB/B+1foMPvi0FZPMl5fjD7ICiznUiBdLYMH1QYe6vqu4gWYytZOccLouFw==}
     engines: {node: '>= 10.0.0'}
+
+  backlog.md-darwin-arm64@1.48.0:
+    resolution: {integrity: sha512-g/CfNQfjKpm24O6Mc9nZ30zJJR3ZQFTLISz7OIVwdg0Sf0UfmCE00+jzYZnUVmWWAfV2MTZNm6Dqh1xw/Urd+w==}
+    cpu: [arm64]
+    os: [darwin]
+
+  backlog.md-darwin-x64@1.48.0:
+    resolution: {integrity: sha512-/lRs0XgP0bGiuJXmSiZInpnUWJOc/yQAaP8q2KBlQaWdhKYtht2noY62dLixFpwmooryNdx0k18DBiVM5FZuCw==}
+    cpu: [x64]
+    os: [darwin]
+
+  backlog.md-linux-arm64@1.48.0:
+    resolution: {integrity: sha512-Pw4bdZlkxzwe/NM/wy3W0Gy76TU0kiRmpfq1ryBjttmnUOJI5H92JxORXGt8ME+ExdAMygvyN24Qj7TsmmYs9A==}
+    cpu: [arm64]
+    os: [linux]
+
+  backlog.md-linux-x64@1.48.0:
+    resolution: {integrity: sha512-dJ9YuiJdErOVkKFUryXILw/mAkCEeOcS6m0Vi9AaT0gMJ9smf0kSyTKFt3QClpR9VJjPY0XG1UhChlWrT8A4WQ==}
+    cpu: [x64]
+    os: [linux]
+
+  backlog.md-windows-arm64@1.48.0:
+    resolution: {integrity: sha512-Q025PS2Qs4F9bZcY6u9ihNIU3eEQ/SKyXyop6FgBeC+OiCuEFEaVma6tqKYg+DuLSr3PrINOhpcxdcfaubf3zw==}
+    cpu: [arm64]
+    os: [win32]
+
+  backlog.md-windows-x64@1.48.0:
+    resolution: {integrity: sha512-5THHykPK135+jpMCpf1dcFyDxQ6jB/zkcXUUhLZWkLLqm9kjdfFJhsP7Y2wycdTAXPjqoyk9eZGwgsY+QmiM0g==}
+    cpu: [x64]
+    os: [win32]
+
+  backlog.md@1.48.0:
+    resolution: {integrity: sha512-9IMWw9ojgsLvYHbZtsZ/m2XeoX3LBmdfdx1mUS/ymsU8NPDlE8DtsS+a8LOT5RiAoerYJwZvpoVUnm2LRxW8nw==}
+    hasBin: true
 
   badgen@3.3.2:
     resolution: {integrity: sha512-fbQwK9norfdzbdsoPwbLIAmgBXDGEme3jeIyqPAH7o6vp9lmuLHS7uXULvOiQ6XnMLkYNG4gDjILf74hgtTAug==}
@@ -10051,6 +10088,33 @@ snapshots:
   babel-walk@3.0.0-canary-5:
     dependencies:
       '@babel/types': 7.29.7
+
+  backlog.md-darwin-arm64@1.48.0:
+    optional: true
+
+  backlog.md-darwin-x64@1.48.0:
+    optional: true
+
+  backlog.md-linux-arm64@1.48.0:
+    optional: true
+
+  backlog.md-linux-x64@1.48.0:
+    optional: true
+
+  backlog.md-windows-arm64@1.48.0:
+    optional: true
+
+  backlog.md-windows-x64@1.48.0:
+    optional: true
+
+  backlog.md@1.48.0:
+    optionalDependencies:
+      backlog.md-darwin-arm64: 1.48.0
+      backlog.md-darwin-x64: 1.48.0
+      backlog.md-linux-arm64: 1.48.0
+      backlog.md-linux-x64: 1.48.0
+      backlog.md-windows-arm64: 1.48.0
+      backlog.md-windows-x64: 1.48.0
 
   badgen@3.3.2: {}
 
