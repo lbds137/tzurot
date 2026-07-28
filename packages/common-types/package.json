@@ -60,13 +60,13 @@
     "typecheck:spec": "tsc --noEmit --project tsconfig.spec.json"
   },
   "dependencies": {
-    "@prisma/adapter-pg": "^7.9.0",
-    "@prisma/client": "^7.9.0",
-    "discord-api-types": "^0.38.51",
+    "@prisma/adapter-pg": "^7.9.1",
+    "@prisma/client": "^7.9.1",
+    "discord-api-types": "^0.38.52",
     "discord.js": "^14.27.0",
     "ioredis": "^5.11.1",
     "lru-cache": "^11.5.2",
-    "openai": "^6.49.0",
+    "openai": "^7.0.0",
     "parse-duration": "^2.1.8",
     "pg": "^8.22.0",
     "pino": "^10.3.1",
