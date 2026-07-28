@@ -6,7 +6,7 @@
 
 ## Unreleased on Develop
 
-_Drain-campaign round 2 (2026-07-28, post-beta.182):_
+_Drain-campaign rounds 2–3 (2026-07-28, post-beta.182):_
 
 - **#1831** deps: production-deps group bump (openai 6→7 is a NO-OP: fossil dep, zero imports — removal filed as TASK-342)
 - **#1832** ai-worker: vision provider required at the invoke seam (TASK-36; type-level promotion of the pre-committed hard error)
@@ -14,6 +14,9 @@ _Drain-campaign round 2 (2026-07-28, post-beta.182):_
 - **#1834** api-gateway: resolve-cascade route UUID gate — malformed ids 400 instead of 500 (TASK-220)
 - **#1835** identity: snowflake-shaped usernames divert to shell placeholder persona — fixes 23514 provisioning crash (TASK-332; + snowflake-regex consolidation rider)
 - Direct docs: REASONING_MODEL_FORMATS.md rewritten against current extraction code (TASK-23)
+- **#1836** api-gateway: bare /ai/\* dual-mount retired; 3 system-model §4 known-lies closed (TASK-333/334; TASK-343 filed)
+- **#1837** bot-client: apikey test showed "✅ Valid" for rejected keys (200+valid:false never read); errorCode now distinguishes transient (TASK-105; TASK-344 filed)
+- **#1838** bot-client: authorRole omitted in the pre-ready/reconnect window — no more durable own-persona-as-'bot' rows (TASK-170)
 
 ## 🔬 Smoke checklist — v3.0.0-beta.182 (post-deploy)
 
