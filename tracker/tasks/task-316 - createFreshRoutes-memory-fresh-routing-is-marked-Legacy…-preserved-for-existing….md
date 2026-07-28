@@ -1,10 +1,10 @@
 ---
 id: TASK-316
 title: Confirm which memory-fresh routing path prod mounts; delete the dead one
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-07-22 00:00'
-updated_date: '2026-07-28 10:52'
+updated_date: '2026-07-28 22:39'
 labels:
   - 'origin:review'
   - 'area:api-gateway'
