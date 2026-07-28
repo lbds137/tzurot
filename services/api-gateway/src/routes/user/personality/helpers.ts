@@ -191,7 +191,7 @@ export async function resolvePersonalityForEdit<T extends { id: string; ownerId:
   if (!canEdit) {
     sendError(
       res,
-      ErrorResponses.unauthorized(`You do not have permission to ${action} this personality`)
+      ErrorResponses.forbidden(`You do not have permission to ${action} this personality`)
     );
     return null;
   }

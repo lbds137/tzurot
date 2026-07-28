@@ -86,30 +86,32 @@ describe('mounts.ts — audience-prefix routing', () => {
   });
 
   describe('admin routes — require user + owner auth', () => {
-    it('rejects unauthenticated GET /api/admin/llm-config with 403', async () => {
+    it('rejects unauthenticated GET /api/admin/llm-config with 401', async () => {
       const res = await request(app).get('/api/admin/llm-config');
-      // 403 (not 401) — middleware is composed and rejects unauthenticated.
-      expect(res.status).toBe(403);
+      // 401 — no credentials at all is an authentication failure (the user-auth
+      // middleware runs before the owner gate; an authenticated non-owner gets 403).
+      expect(res.status).toBe(401);
     });
 
-    it('rejects unauthenticated POST /api/admin/db-sync with 403', async () => {
+    it('rejects unauthenticated POST /api/admin/db-sync with 401', async () => {
       const res = await request(app).post('/api/admin/db-sync').send({});
-      // 403 (not 401) — middleware is composed and rejects unauthenticated.
-      expect(res.status).toBe(403);
+      // 401 — no credentials at all is an authentication failure (the user-auth
+      // middleware runs before the owner gate; an authenticated non-owner gets 403).
+      expect(res.status).toBe(401);
     });
   });
 
   describe('user routes — require user auth', () => {
-    it('rejects unauthenticated GET /api/user/timezone with 403', async () => {
+    it('rejects unauthenticated GET /api/user/timezone with 401', async () => {
       const res = await request(app).get('/api/user/timezone');
-      // 403 (not 401) — middleware is composed and rejects unauthenticated.
-      expect(res.status).toBe(403);
+      // 401 — missing user identity is an authentication failure.
+      expect(res.status).toBe(401);
     });
 
-    it('rejects unauthenticated GET /api/user/personality with 403', async () => {
+    it('rejects unauthenticated GET /api/user/personality with 401', async () => {
       const res = await request(app).get('/api/user/personality');
-      // 403 (not 401) — middleware is composed and rejects unauthenticated.
-      expect(res.status).toBe(403);
+      // 401 — missing user identity is an authentication failure.
+      expect(res.status).toBe(401);
     });
   });
 

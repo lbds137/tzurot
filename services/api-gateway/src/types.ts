@@ -17,7 +17,10 @@ export type { GenerateRequest } from '@tzurot/common-types/types/schemas/generat
  */
 export enum ErrorCode {
   VALIDATION_ERROR = 'VALIDATION_ERROR',
+  /** Authentication missing or invalid (RFC 7235: HTTP 401) */
   UNAUTHORIZED = 'UNAUTHORIZED',
+  /** Authenticated but not allowed — ownership/permission gates (HTTP 403) */
+  FORBIDDEN = 'FORBIDDEN',
   PAYMENT_REQUIRED = 'PAYMENT_REQUIRED',
   NOT_FOUND = 'NOT_FOUND',
   CONFLICT = 'CONFLICT',

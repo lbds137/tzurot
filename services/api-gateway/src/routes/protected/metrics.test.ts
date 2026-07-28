@@ -128,13 +128,12 @@ describe('Metrics Route', () => {
       return protectedApp;
     }
 
-    // Production maps `ErrorCode.UNAUTHORIZED` → HTTP 403 (FORBIDDEN), not
-    // 401 (UNAUTHORIZED). Whether that's semantically right is a separate
-    // backlog question — these tests reflect actual behavior, not aspiration.
+    // Missing/invalid service credentials are an authentication failure:
+    // `ErrorCode.UNAUTHORIZED` → HTTP 401 per RFC 7235.
     it('should reject requests without the X-Service-Auth header', async () => {
       const response = await request(buildProtectedApp()).get('/metrics');
 
-      expect(response.status).toBe(StatusCodes.FORBIDDEN);
+      expect(response.status).toBe(StatusCodes.UNAUTHORIZED);
     });
 
     it('should reject requests with the wrong X-Service-Auth secret', async () => {
@@ -142,7 +141,7 @@ describe('Metrics Route', () => {
         .get('/metrics')
         .set('X-Service-Auth', 'wrong-secret');
 
-      expect(response.status).toBe(StatusCodes.FORBIDDEN);
+      expect(response.status).toBe(StatusCodes.UNAUTHORIZED);
     });
 
     it('should allow requests with the correct X-Service-Auth secret', async () => {

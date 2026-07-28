@@ -224,13 +224,13 @@ describe('admin/tts-config routes', () => {
   });
 
   describe('POST / (create)', () => {
-    it('returns 401 when admin user is not in DB', async () => {
+    it('returns 403 FORBIDDEN when admin user is not in DB', async () => {
       vi.mocked(mockPrisma.user.findUnique).mockResolvedValue(null);
       const handler = extractHandler(buildRouter(), 'POST', '/');
       const { res, json } = makeMockRes();
 
       await handler(makeMockReq({ body: { name: 'Sys', provider: 'self-hosted' } }), res);
-      expect(json).toHaveBeenCalledWith(expect.objectContaining({ error: 'UNAUTHORIZED' }));
+      expect(json).toHaveBeenCalledWith(expect.objectContaining({ error: 'FORBIDDEN' }));
     });
 
     it('returns 400 NAME_COLLISION on duplicate global name', async () => {

@@ -261,7 +261,7 @@ describe('authMiddleware', () => {
       expect(mockRes.status).toHaveBeenCalledWith(403);
       expect(mockRes.json).toHaveBeenCalledWith(
         expect.objectContaining({
-          error: 'UNAUTHORIZED',
+          error: 'FORBIDDEN',
           message: 'This endpoint is only available to the bot owner',
         })
       );
@@ -433,12 +433,12 @@ describe('authMiddleware', () => {
       expect(mockRes.json).not.toHaveBeenCalled();
     });
 
-    it('should return 403 when user ID is missing', () => {
+    it('should return 401 when user ID is missing', () => {
       const middleware = requireUserAuth();
       middleware(mockReq as Request, mockRes as Response, mockNext);
 
       expect(mockNext).not.toHaveBeenCalled();
-      expect(mockRes.status).toHaveBeenCalledWith(403);
+      expect(mockRes.status).toHaveBeenCalledWith(401);
       expect(mockRes.json).toHaveBeenCalledWith(
         expect.objectContaining({
           error: 'UNAUTHORIZED',
@@ -447,14 +447,14 @@ describe('authMiddleware', () => {
       );
     });
 
-    it('should return 403 when user ID is empty string', () => {
+    it('should return 401 when user ID is empty string', () => {
       mockReq.headers = { 'x-user-id': '' };
 
       const middleware = requireUserAuth();
       middleware(mockReq as Request, mockRes as Response, mockNext);
 
       expect(mockNext).not.toHaveBeenCalled();
-      expect(mockRes.status).toHaveBeenCalledWith(403);
+      expect(mockRes.status).toHaveBeenCalledWith(401);
     });
 
     it('should reject a declared bot user before any handler runs', () => {
@@ -465,10 +465,11 @@ describe('authMiddleware', () => {
 
       expect(mockNext).not.toHaveBeenCalled();
       expect((mockReq as Request & { userId?: string }).userId).toBeUndefined();
+      // Wrong principal type, not missing credentials — 403 FORBIDDEN
       expect(mockRes.status).toHaveBeenCalledWith(403);
       expect(mockRes.json).toHaveBeenCalledWith(
         expect.objectContaining({
-          error: 'UNAUTHORIZED',
+          error: 'FORBIDDEN',
           message: 'Bot users cannot access user routes',
         })
       );
@@ -658,7 +659,7 @@ describe('authMiddleware', () => {
       expect(mockRes.status).toHaveBeenCalledWith(403);
     });
 
-    it('should reject with 403 when req.userId is missing (defense in depth)', async () => {
+    it('should reject with 401 when req.userId is missing (defense in depth)', async () => {
       // In practice requireUserAuth runs first and 401s on missing userId —
       // this test just guards against a future refactor removing that chain.
       mockReq.userId = undefined;
@@ -668,7 +669,7 @@ describe('authMiddleware', () => {
 
       expect(mockGetOrCreateUser).not.toHaveBeenCalled();
       expect(mockNext).not.toHaveBeenCalled();
-      expect(mockRes.status).toHaveBeenCalledWith(403);
+      expect(mockRes.status).toHaveBeenCalledWith(401);
     });
   });
 
@@ -809,7 +810,7 @@ describe('authMiddleware', () => {
       expect(mockRes.json).not.toHaveBeenCalled();
     });
 
-    it('should return 403 when service secret is invalid', () => {
+    it('should return 401 when service secret is invalid', () => {
       vi.mocked(getConfig).mockReturnValue({
         INTERNAL_SERVICE_SECRET: 'valid-service-secret',
       } as any);
@@ -820,7 +821,7 @@ describe('authMiddleware', () => {
       middleware(mockReq as Request, mockRes as Response, mockNext);
 
       expect(mockNext).not.toHaveBeenCalled();
-      expect(mockRes.status).toHaveBeenCalledWith(403);
+      expect(mockRes.status).toHaveBeenCalledWith(401);
       expect(mockRes.json).toHaveBeenCalledWith(
         expect.objectContaining({
           error: 'UNAUTHORIZED',
@@ -829,7 +830,7 @@ describe('authMiddleware', () => {
       );
     });
 
-    it('should return 403 when service secret is missing', () => {
+    it('should return 401 when service secret is missing', () => {
       vi.mocked(getConfig).mockReturnValue({
         INTERNAL_SERVICE_SECRET: 'valid-service-secret',
       } as any);
@@ -838,7 +839,7 @@ describe('authMiddleware', () => {
       middleware(mockReq as Request, mockRes as Response, mockNext);
 
       expect(mockNext).not.toHaveBeenCalled();
-      expect(mockRes.status).toHaveBeenCalledWith(403);
+      expect(mockRes.status).toHaveBeenCalledWith(401);
     });
 
     it('should use custom message when provided', () => {
@@ -858,7 +859,7 @@ describe('authMiddleware', () => {
       );
     });
 
-    it('should return 403 when INTERNAL_SERVICE_SECRET is not configured', () => {
+    it('should return 401 when INTERNAL_SERVICE_SECRET is not configured', () => {
       vi.mocked(getConfig).mockReturnValue({
         INTERNAL_SERVICE_SECRET: undefined,
       } as any);
@@ -869,7 +870,7 @@ describe('authMiddleware', () => {
       middleware(mockReq as Request, mockRes as Response, mockNext);
 
       expect(mockNext).not.toHaveBeenCalled();
-      expect(mockRes.status).toHaveBeenCalledWith(403);
+      expect(mockRes.status).toHaveBeenCalledWith(401);
     });
 
     it('should include timestamp in error response', () => {

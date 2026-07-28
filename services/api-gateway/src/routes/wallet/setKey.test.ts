@@ -224,7 +224,7 @@ describe('POST /wallet/set', () => {
       expect(mockValidateApiKey).toHaveBeenCalledWith('sk-valid-key', AIProvider.OpenRouter);
     });
 
-    it('should return 403 for invalid API key', async () => {
+    it('should return 401 for invalid API key', async () => {
       mockValidateApiKey.mockResolvedValue({
         valid: false,
         errorCode: 'INVALID_KEY',
@@ -238,7 +238,9 @@ describe('POST /wallet/set', () => {
 
       await callHandler(mockPrisma, req, res);
 
-      expect(res.status).toHaveBeenCalledWith(403);
+      // The upstream provider rejected the credential — an authentication
+      // failure (401). bot-client renders 401 and 403 identically here.
+      expect(res.status).toHaveBeenCalledWith(401);
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
           error: 'UNAUTHORIZED',

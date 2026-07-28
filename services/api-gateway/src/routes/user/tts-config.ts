@@ -228,7 +228,7 @@ function createUpdateHandler(service: TtsConfigService) {
     }
 
     if (config.ownerId !== userId) {
-      return sendError(res, ErrorResponses.unauthorized('You can only edit your own TTS configs'));
+      return sendError(res, ErrorResponses.forbidden('You can only edit your own TTS configs'));
     }
 
     // Empty-body guard runs BEFORE the promotion helper so that a PUT with
@@ -340,10 +340,7 @@ function createDeleteHandler(service: TtsConfigService) {
       discordUserId
     );
     if (!permissions.canDelete) {
-      return sendError(
-        res,
-        ErrorResponses.unauthorized('You can only delete your own TTS configs')
-      );
+      return sendError(res, ErrorResponses.forbidden('You can only delete your own TTS configs'));
     }
 
     // User-route deletes own configs only — warning unlikely in practice

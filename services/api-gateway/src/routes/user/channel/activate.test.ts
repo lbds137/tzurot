@@ -228,7 +228,7 @@ describe('POST /user/channel/activate', () => {
     expect(res.status).toHaveBeenCalledWith(403);
     expect(res.json).toHaveBeenCalledWith(
       expect.objectContaining({
-        error: 'UNAUTHORIZED',
+        error: 'FORBIDDEN',
       })
     );
   });
