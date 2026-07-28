@@ -4,6 +4,7 @@ import {
   handleShapesJobError,
   type ShapesJobErrorContext,
 } from './shapesJobHelpers.js';
+import { GENERIC_SHAPES_JOB_ERROR_MESSAGE } from './shapesCredentials.js';
 import {
   ShapesAuthError,
   ShapesFetchBusyError,
@@ -67,7 +68,10 @@ describe('handleShapesJobError', () => {
     expect(ctx.markFailed).not.toHaveBeenCalled();
   });
 
-  it('marks failed and returns failure result on final retry attempt', async () => {
+  it('marks failed with the SANITIZED copy on final retry attempt (raw infra detail stays in logs)', async () => {
+    // markFailed writes the user-visible errorMessage column the status
+    // routes return verbatim — an untyped error's raw message must not
+    // cross this seam.
     const ctx = createCtx({
       error: new Error('Network timeout'),
       job: createMockJob({ attemptsMade: 2, attempts: 3 }),
@@ -75,8 +79,8 @@ describe('handleShapesJobError', () => {
 
     const result = await handleShapesJobError(ctx);
 
-    expect(ctx.markFailed).toHaveBeenCalledWith('Network timeout');
-    expect(result).toEqual({ success: false, error: 'Network timeout' });
+    expect(ctx.markFailed).toHaveBeenCalledWith(GENERIC_SHAPES_JOB_ERROR_MESSAGE);
+    expect(result).toEqual({ success: false, error: GENERIC_SHAPES_JOB_ERROR_MESSAGE });
   });
 
   it('marks failed immediately for non-retryable errors (ShapesAuthError)', async () => {
@@ -109,8 +113,9 @@ describe('handleShapesJobError', () => {
 
     const result = await handleShapesJobError(ctx);
 
-    expect(ctx.markFailed).toHaveBeenCalledWith('fail');
-    expect(result).toEqual({ success: false, error: 'fail' });
+    // Untyped error → the sanitized copy crosses the markFailed seam.
+    expect(ctx.markFailed).toHaveBeenCalledWith(GENERIC_SHAPES_JOB_ERROR_MESSAGE);
+    expect(result).toEqual({ success: false, error: GENERIC_SHAPES_JOB_ERROR_MESSAGE });
   });
 
   it('handles non-Error values', async () => {

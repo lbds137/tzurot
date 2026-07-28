@@ -26,6 +26,7 @@ import {
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { normalizeSlugForUser, sanitizeExternalSlug } from '@tzurot/common-types/utils/slugUtils';
 import { ShapesDataFetcher } from '../services/shapes/ShapesDataFetcher.js';
+import { ShapesJobValidationError } from '../services/shapes/shapesErrors.js';
 import type { ShapesFetchGate } from '../services/shapes/shapesFetchGate.js';
 import { getDecryptedCookie, persistUpdatedCookie } from './shapesCredentials.js';
 import { claimShapesFetchSlot, handleShapesJobError } from './shapesJobHelpers.js';
@@ -110,7 +111,11 @@ export async function processShapesImportJob(
         await downloadAndStoreAvatar(prisma, personalityId, fetchResult.config.avatar);
         avatarDownloaded = true;
       } catch (error) {
-        avatarError = error instanceof Error ? error.message : String(error);
+        // downloadAndStoreAvatar swallows its own errors, so this is
+        // defense-in-depth for a future contract break. importMetadata is
+        // returned verbatim by the import status route — same sanitization
+        // boundary as errorMessage: authored copy only, raw error to logs.
+        avatarError = 'Avatar download failed — the import continued without it.';
         logger.warn(
           { err: error, personalityId },
           'Avatar download failed — continuing without avatar'
@@ -198,11 +203,11 @@ async function resolveImportUser(
   });
 
   if (user === null) {
-    throw new Error('Cannot import: user not found.');
+    throw new ShapesJobValidationError('Cannot import: user not found.');
   }
 
   if (user.defaultPersonaId === null) {
-    throw new Error(
+    throw new ShapesJobValidationError(
       'Cannot import memories: user has no default persona. Use /persona create first.'
     );
   }

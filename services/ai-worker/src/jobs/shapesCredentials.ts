@@ -13,7 +13,9 @@ import {
   ShapesAuthError,
   ShapesBotProtectionError,
   ShapesFetchError,
+  ShapesJobValidationError,
   ShapesNotFoundError,
+  isKnownShapesError,
 } from '../services/shapes/shapesErrors.js';
 
 const logger = createLogger('shapesCredentials');
@@ -78,20 +80,35 @@ interface ShapesErrorClassification {
 }
 
 /**
+ * The user-visible copy for failures outside the typed shapes-error set.
+ * Exported so tests pin the exact string the status routes will serve.
+ */
+export const GENERIC_SHAPES_JOB_ERROR_MESSAGE =
+  'The job failed unexpectedly. You can retry; if it keeps failing, contact the bot owner.';
+
+/**
  * Classify a shapes.inc error as retryable or non-retryable.
  *
  * Known non-retryable: ShapesAuthError, ShapesNotFoundError, ShapesFetchError,
  * ShapesBotProtectionError (a bot wall does not clear on retry — hammering it
- * only makes the fingerprint worse).
+ * only makes the fingerprint worse), and ShapesJobValidationError (a failed
+ * precondition re-reads the same rows on every attempt).
  * Everything else (timeouts, network failures) defaults to retryable.
+ *
+ * `errorMessage` is what markFailed stores in the user-visible errorMessage
+ * column — the import/export status routes return it verbatim. Typed shapes
+ * errors carry authored user-facing copy and pass through; anything else is
+ * raw infra detail and gets the generic copy (the full error object is
+ * already in logs via handleShapesJobError before markFailed runs).
  */
 export function classifyShapesError(error: unknown): ShapesErrorClassification {
-  const errorMessage = error instanceof Error ? error.message : String(error);
+  const errorMessage = isKnownShapesError(error) ? error.message : GENERIC_SHAPES_JOB_ERROR_MESSAGE;
   const isNonRetryable =
     error instanceof ShapesAuthError ||
     error instanceof ShapesNotFoundError ||
     error instanceof ShapesFetchError ||
-    error instanceof ShapesBotProtectionError;
+    error instanceof ShapesBotProtectionError ||
+    error instanceof ShapesJobValidationError;
 
   return { isRetryable: !isNonRetryable, errorMessage };
 }
