@@ -7,8 +7,9 @@
  * as part of the session-start load).
  *
  * Three surfaces, in priority order:
- *  - **By area** — per-`area:*`-label counts, so any slice of the haystack is
- *    one query away (`pnpm tracker task list -l area:<x> --plain`).
+ *  - **By area** — per-`area:*`-label counts (a multi-area task counts in each
+ *    of its areas, so the column can sum past the open total), so any slice of
+ *    the haystack is one query away (`pnpm tracker task list -l area:<x> --plain`).
  *  - **Oldest 20** — the aging escalation. Aging escalates, never deletes
  *    (`.claude/rules/06-backlog.md` § Staleness); this surface exists so the
  *    oldest items get a conscious decision instead of sinking. The old
@@ -92,7 +93,10 @@ export async function runBacklogDigest(options: DigestOptions = {}): Promise<voi
   );
   lines.push('');
 
-  lines.push('## By area (jump anywhere: pnpm tracker task list -l area:<x> --plain)');
+  // Multi-area tasks count once per area, so these can sum past the open total.
+  lines.push(
+    '## By area — multi-area tasks count once per area (jump: pnpm tracker task list -l area:<x> --plain)'
+  );
   const { areas, unlabeled } = countByArea(open);
   for (const [area, count] of areas) {
     lines.push(`- ${area}: ${count}`);
