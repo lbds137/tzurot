@@ -165,13 +165,13 @@ The first five run in the CI `lint` job; all guards hard-fail on findings (inclu
 ### Backlog lint + digest
 
 ```bash
-pnpm ops backlog                     # Gate: now.md caps + dangling cold/themes/ links + tracker task-file integrity
+pnpm ops backlog                     # Gate: now.md caps + queue.md doc references + tracker task-file integrity
 pnpm backlog:lint                    # Same check (root-level shortcut)
 pnpm ops backlog:digest              # Session-start briefing from tracker/: per-area counts, oldest 20, newest 10
 pnpm tracker task list --search <t> --plain   # Query the small-item pool (Backlog.md CLI)
 ```
 
-The lint verifies the caps (Current Focus ≤ 3, Quick Wins ≤ 5, Untriaged ≤ 10), flags dangling `cold/themes/` links, and fails on any `tracker/tasks/` file whose frontmatter won't parse (a broken task silently vanishes from every query surface). **Wired into `pnpm quality` AND the CI lint job** (they are separate lists — CI does not run `quality`; `guard:gate-parity` keeps the two in sync). Like the binary guards above, it's a layout sync-check, not an audit-class tool — no WHY.md / canary / `--summary`. The digest is informational (never gates) — the aging-escalation surface lives there, read at session start per `06-backlog.md`.
+The lint verifies the caps (Current Focus ≤ 3, Quick Wins ≤ 5, Untriaged ≤ 10), flags `cold/queue.md` doc references (`doc-N`) that don't resolve in `tracker/docs/`, and fails on any `tracker/tasks/` file whose frontmatter won't parse (a broken task silently vanishes from every query surface). **Wired into `pnpm quality` AND the CI lint job** (they are separate lists — CI does not run `quality`; `guard:gate-parity` keeps the two in sync). Like the binary guards above, it's a layout sync-check, not an audit-class tool — no WHY.md / canary / `--summary`. The digest is informational (never gates) — the aging-escalation surface lives there, read at session start per `06-backlog.md`.
 
 ### Audit-tool infrastructure (Layers 1-3)
 

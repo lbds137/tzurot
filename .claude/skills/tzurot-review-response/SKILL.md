@@ -1,7 +1,7 @@
 ---
 name: tzurot-review-response
 description: 'PR review-response iteration: classify each finding by EDIT SHAPE (trivial → auto-apply as a test-gated fixup commit; semantic → ASK), check reviewer-vs-agent signal conflict, batch-present the four sections, cap at 3 automated rounds. Invoke with /tzurot-review-response the moment a claude-review or human reviewer posts findings on a PR — before applying anything.'
-lastUpdated: '2026-07-27'
+lastUpdated: '2026-07-28'
 ---
 
 # Review-Response Iteration
@@ -65,11 +65,11 @@ Do-it-now sends the finding back through **rule 1**, not around it: a trivial-sh
 
 **A rejected do-it-now does not evaporate — re-route it.** When the user rejects the fix (or a trivial-shape one fails its test gate and escalates to an Ask that's then rejected), the finding has been neither fixed nor tracked, and do-it-now filed nothing by design. That is the only path in this table that can end in _neither_, which is exactly the silent-loss this rule exists to prevent. On rejection, **default to backlog candidate** and report it under Backlog candidates in the same round summary. Re-route to **file the batch** only when the rejection itself reveals the finding belongs to an already-named cross-file pass — the ordinary case cannot, because do-it-now's own classifying condition is _this file or diff_, and file-the-batch is for a pass rather than a place. The user rejecting _this fix, now_ is not a decision to forget the finding — only an explicit "don't track this either" is, and that reads as **Dismissed**.
 
-**File the batch** is the one to reach for when the reviewer named a _pass_ rather than a _place_. "Next tooling-DRY pass" describes work across files this PR never opens — so "colocated and small" is false, and do-it-now would be wrong. But a row waiting to be noticed during that pass is equally wrong: nobody rediscovers it. **Track the pass itself** — a theme phase or a `cold/ideas.md` section that owns the whole batch — and let this finding be one of its members. Which of the two: **one PR's worth of sweeping → `cold/ideas.md`; needs its own phased rollout → a theme.** Same disposition for a finding that's simply too big for this PR (needs a migration, crosses a service boundary, would double the diff). Per `06-backlog.md`'s granularity ladder, those were never follow-up rows.
+**File the batch** is the one to reach for when the reviewer named a _pass_ rather than a _place_. "Next tooling-DRY pass" describes work across files this PR never opens — so "colocated and small" is false, and do-it-now would be wrong. But a row waiting to be noticed during that pass is equally wrong: nobody rediscovers it. **Track the pass itself** — a theme-doc phase or a tracker idea doc that owns the whole batch — and let this finding be one of its members. Which of the two: **one PR's worth of sweeping → an idea doc (`pnpm tracker doc create 'Idea: …'`); needs its own phased rollout → a theme doc + `cold/queue.md` bullet.** Same disposition for a finding that's simply too big for this PR (needs a migration, crosses a service boundary, would double the diff). Per `06-backlog.md`'s granularity ladder, those were never follow-up rows.
 
-**Grep for the batch before creating it.** Different PRs surface the same pass repeatedly ("next tooling-DRY pass" appears from whichever file the reviewer happened to be reading), so a rule that files a fresh section each time reproduces the fragmentation it was written to fix, one rung higher. Search `backlog/cold/` (grep) and the tracker (`pnpm tracker task list --search <term> --plain`) for the pass by name AND by the module it sweeps; if a theme phase or `cold/ideas.md` section already owns it, **add this finding as a member** and say which entry you joined. Only create a new one when the search is genuinely empty.
+**Grep for the batch before creating it.** Different PRs surface the same pass repeatedly ("next tooling-DRY pass" appears from whichever file the reviewer happened to be reading), so a rule that files a fresh section each time reproduces the fragmentation it was written to fix, one rung higher. Search the doc store (`pnpm tracker doc search <term>`) and the tracker (`pnpm tracker task list --search <term> --plain`) for the pass by name AND by the module it sweeps; if a theme-doc phase or idea doc already owns it, **add this finding as a member** and say which entry you joined. Only create a new one when the search is genuinely empty.
 
-**Backlog candidate** is the honest deferral. File it at the granularity-appropriate destination (a one-line follow-up → a tracker task via `pnpm tracker task create`, with any promote-when as an annotation in the description; a larger parked idea → `cold/ideas.md`), capturing both the concern and the criterion. (A trigger is optional metadata on the item, never a filing gate — per `06-backlog.md` § The admission bar.)
+**Backlog candidate** is the honest deferral. File it at the granularity-appropriate destination (a one-line follow-up → a tracker task via `pnpm tracker task create`, with any promote-when as an annotation in the description; a larger parked idea → a tracker idea doc via `pnpm tracker doc create`), capturing both the concern and the criterion. (A trigger is optional metadata on the item, never a filing gate — per `06-backlog.md` § The admission bar.)
 
 **Dismissed** closes the matter; note it in the summary and move on. A reviewer self-dismissal ("non-issue," "current is correct") that the agent agrees with has no trigger, and neither does a vague preference with no named event.
 
@@ -151,13 +151,13 @@ After processing all review items in a round, present one consolidated message t
 ### Backlog candidates
   [future] Reviewer suggested follow-up for sort-stability invariant.
   [batch]  Duplicated retry preamble across ~6 tooling commands
-           → new phase on cold/themes/<slug>.md, this finding is member 1
+           → new phase on the owning theme doc (doc-N), this finding is member 1
 ```
 
 The four sections (Auto-applied / Asks / Dismissed / Backlog candidates) MUST appear even when empty, so the round structure is consistent and round count is visibly mechanical. The two dispositions added by rule 2 report inside these four, not beside them, and both are **tagged so the routing is checkable rather than asserted**:
 
 - A **do-it-now** item lands under Auto-applied or Asks depending on its shape, tagged `[do-it-now:trivial]` / `[do-it-now:semantic]` with the reviewer's deferral quoted — that pairing is the whole justification for fixing it here instead of filing it, so it belongs in the report.
-- A **file-the-batch** item lands under Backlog candidates tagged `[batch]`, naming which theme phase or `cold/ideas.md` section now owns the pass.
+- A **file-the-batch** item lands under Backlog candidates tagged `[batch]`, naming which theme-doc phase or idea doc now owns the pass.
 
 Without the tags both dispositions are invisible in the summary: a do-it-now fix reads as an ordinary trivial edit, and a filed batch reads as an ordinary deferral.
 

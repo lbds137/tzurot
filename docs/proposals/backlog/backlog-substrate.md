@@ -222,7 +222,7 @@ Same trio re-briefed with C1/C2 corrections + the Backlog.md candidate + the sys
 **Both errors the council caught in my own thinking** (independently, 2/2):
 
 1. **Drain-per-PR at 1:1 will be gamed.** A typo fix or dependency bump maps to no backlog item, so the rule either blocks trivial PRs or is satisfied by closing whatever is cheapest. Fix: **drain one item OR log a one-sentence skip reason** to a churn file. Adopt the escaped version, never the bare one.
-2. **A mechanically-generated system map is not a system model.** It yields a structural graph, not the narrative "why" — _"a generated map of 1,260 files will just be a massive, unreadable hairball… it will just give the agent a larger context window to get lost in"_ (Qwen). This invalidated the Phase 0 originally filed in [`system-model-and-intent-linkage.md`](../../../backlog/cold/themes/system-model-and-intent-linkage.md); that theme has been rewritten to K3's spec.
+2. **A mechanically-generated system map is not a system model.** It yields a structural graph, not the narrative "why" — _"a generated map of 1,260 files will just be a massive, unreadable hairball… it will just give the agent a larger context window to get lost in"_ (Qwen). This invalidated the Phase 0 originally filed in `system-model-and-intent-linkage.md` (`doc-22`); that theme has been rewritten to K3's spec.
 
 **Unanimous**: the system-model gap **outranks** the backlog substrate — a backlog is a set of intentions, and intentions built on a stale model of the code are likely wrong. Migrating first codifies the misunderstanding into a better store.
 

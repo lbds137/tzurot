@@ -83,7 +83,7 @@ Root-level reference files: `DOCUMENTATION_PHILOSOPHY.md`, `STATIC_ANALYSIS.md`,
 - `proposals/backlog/GIT_HOOK_IMPROVEMENTS.md` - Git hook enhancements (Phase 2 complete)
 - `proposals/backlog/MEMORY_MANAGEMENT_COMMANDS.md` - Memory management (Phase 1-2 complete)
 - `proposals/backlog/multi-personality-support.md` - Multi-personality channels
-- [`../backlog/cold/themes/memory-system-overhaul.md`](../backlog/cold/themes/memory-system-overhaul.md) - Future memory architecture (OpenMemory distillation lives there)
+- `doc-8` - Future memory architecture (OpenMemory distillation lives there)
 - `proposals/backlog/chatterbox-tts-evaluation.md` - TTS model evaluation
 
 ### [incidents/](incidents/)
@@ -117,13 +117,13 @@ Root-level reference files: `DOCUMENTATION_PHILOSOPHY.md`, `STATIC_ANALYSIS.md`,
 
 **Understanding the System:**
 
-1. [Memory System Overhaul theme](../backlog/cold/themes/memory-system-overhaul.md)
+1. Memory System Overhaul theme (`doc-8`)
 2. [Database Schema](reference/architecture/POSTGRES_SCHEMA.md)
 3. [Group Conversations](reference/architecture/group-conversation-design.md)
 
 **Planning Work:**
 
-1. [OpenMemory Migration (distilled into the memory theme)](../backlog/cold/themes/memory-system-overhaul.md)
+1. OpenMemory Migration (distilled into the memory theme) (`doc-8`)
 2. [Multi-Personality Support](proposals/backlog/multi-personality-support.md)
 
 ---

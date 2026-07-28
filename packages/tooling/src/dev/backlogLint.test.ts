@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
-import { extractThemeLinks, parseSectionCaps, runBacklogLint } from './backlogLint.js';
+import { extractQueueDocRefs, parseSectionCaps, runBacklogLint } from './backlogLint.js';
 
 vi.mock('node:fs', () => ({
   existsSync: vi.fn(),
@@ -41,14 +41,15 @@ describe('parseSectionCaps', () => {
   });
 });
 
-describe('extractThemeLinks', () => {
-  it('pulls every themes/<slug>.md target out of queue markdown', () => {
+describe('extractQueueDocRefs', () => {
+  it('pulls every backticked doc-N reference out of queue markdown', () => {
     const md = [
-      '- [Foo](themes/foo-bar.md) — summary',
-      '- [Baz](themes/baz.md) — summary',
+      '- **Foo** (`doc-1`) — summary',
+      '- **Baz** (`doc-27`) — summary',
       '- **PR-2n** → see [../active-epic.md](../active-epic.md)',
+      'prose mentioning doc-99 without backticks is not a reference',
     ].join('\n');
-    expect(extractThemeLinks(md)).toEqual(['foo-bar.md', 'baz.md']);
+    expect(extractQueueDocRefs(md)).toEqual(['doc-1', 'doc-27']);
   });
 });
 
@@ -80,12 +81,12 @@ describe('runBacklogLint', () => {
 
   function mockFs(
     files: Record<string, string>,
-    themeFiles: string[],
+    docFiles: string[],
     trackerFiles: Record<string, string> = { 'task-1 - valid.md': VALID_TASK }
   ): void {
     vi.mocked(existsSync).mockImplementation(p => {
       const path = String(p);
-      if (path.endsWith('backlog/cold/themes') || path.endsWith('tracker/tasks')) {
+      if (path.endsWith('tracker/docs') || path.endsWith('tracker/tasks')) {
         return true;
       }
       return Object.keys(files).some(suffix => path.endsWith(suffix));
@@ -101,18 +102,18 @@ describe('runBacklogLint', () => {
     });
     vi.mocked(readdirSync).mockImplementation(p => {
       const path = String(p);
-      const listing = path.endsWith('tracker/tasks') ? Object.keys(trackerFiles) : themeFiles;
+      const listing = path.endsWith('tracker/tasks') ? Object.keys(trackerFiles) : docFiles;
       return listing as unknown as ReturnType<typeof readdirSync>;
     });
   }
 
-  it('passes clean when caps respected, theme links resolve, and tasks parse', async () => {
+  it('passes clean when caps respected, doc refs resolve, and tasks parse', async () => {
     mockFs(
       {
         'backlog/now.md': '### 🎯 Current Focus (max 3)\n1. a\n2. b\n',
-        'backlog/cold/queue.md': '- [Foo](themes/foo.md)\n',
+        'backlog/cold/queue.md': '- **Foo** (`doc-1`)\n',
       },
-      ['foo.md']
+      ['doc-1 - Foo.md']
     );
 
     await runBacklogLint({ rootDir: '/repo' });
@@ -131,20 +132,20 @@ describe('runBacklogLint', () => {
     expect(process.exitCode).toBe(1);
   });
 
-  it('flags a dangling theme link and sets a non-zero exit code', async () => {
+  it('flags a dangling doc reference and sets a non-zero exit code', async () => {
+    // doc-1 must not resolve via the doc-14 filename prefix — the id match is
+    // space-delimited exact, not startsWith.
     mockFs(
       {
         'backlog/now.md': '### 🎯 Current Focus (max 3)\n1. a\n',
-        'backlog/cold/queue.md': '- [Gone](themes/missing.md)\n',
+        'backlog/cold/queue.md': '- **Gone** (`doc-1`)\n',
       },
-      ['foo.md']
+      ['doc-14 - Other.md']
     );
 
     await runBacklogLint({ rootDir: '/repo' });
 
-    expect(logSpy.mock.calls.flat().join('\n')).toContain(
-      'dangling theme link → themes/missing.md'
-    );
+    expect(logSpy.mock.calls.flat().join('\n')).toContain('dangling doc reference → doc-1');
     expect(process.exitCode).toBe(1);
   });
 

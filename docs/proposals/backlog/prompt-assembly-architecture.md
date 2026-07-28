@@ -1,7 +1,7 @@
 # Prompt-Assembly Architecture — Stability Tiers, Real Messages, Provider Caching
 
 > **Status**: ACCEPTED 2026-07-05 (boulder #2) — trio council pass + first-party provider-fact verification (§9); all §8 calls decided (owner sign-off 2026-07-05: eviction-to-75% with guardrails; all recommendations adopted)
-> **Theme**: [`backlog/cold/themes/provider-prompt-caching.md`](../../../backlog/cold/themes/provider-prompt-caching.md) (absorbs its phases) · absorbs the layered-system-prompting follow-up + the inline-`reply_to` idea
+> **Theme**: `doc-17` (absorbs its phases) · absorbs the layered-system-prompting follow-up + the inline-`reply_to` idea
 > **Downstream consumers**: boulder #3 (memory) and #4 (agentic) conform to this message-assembly design. LangGraph adoption-compatibility verified by recon 2026-07-05.
 > **Grounding**: 3 agents 2026-07-05 — pipeline map (system-prompt anatomy + volatility), provider seam (LangChain/cache/rewrite/tool readiness), LangGraph compatibility envelope.
 

@@ -4,7 +4,9 @@
  * Structural checks on the backlog surfaces (see `.claude/rules/06-backlog.md`):
  *  - `now.md` section caps: Current Focus ≤ 3, Quick Wins ≤ 5, Untriaged ≤ 10
  *    (caps are parsed from the `(max N)` in each section heading).
- *  - `cold/queue.md` theme links all resolve to a real `cold/themes/<slug>.md`.
+ *  - `cold/queue.md` doc references (`doc-N`) all resolve to a real file in
+ *    `tracker/docs/` (theme content lives there since the themes/ideas→docs
+ *    migration; queue.md carries only the ordering).
  *  - `tracker/tasks/` integrity: every task file parses with an id, title, and
  *    created_date. A task that fails these silently vanishes from the digest,
  *    search, and the aging surface — the same content-destroying failure the
@@ -72,17 +74,17 @@ export function parseSectionCaps(nowMd: string): SectionCap[] {
 }
 
 /**
- * Extract `themes/<slug>.md` link targets from `queue.md`.
+ * Extract backticked `doc-N` references from `queue.md`.
  * @internal Exported for testing
  */
-export function extractThemeLinks(queueMd: string): string[] {
-  const links: string[] = [];
-  const pattern = /\]\(themes\/([\w.-]+\.md)\)/g;
+export function extractQueueDocRefs(queueMd: string): string[] {
+  const refs: string[] = [];
+  const pattern = /`(doc-\d+)`/g;
   let match: RegExpExecArray | null;
   while ((match = pattern.exec(queueMd)) !== null) {
-    links.push(match[1]);
+    refs.push(match[1]);
   }
-  return links;
+  return refs;
 }
 
 interface LintOptions {
@@ -101,17 +103,20 @@ function checkNowCaps(rootDir: string): string[] {
     .map(cap => `now.md: "${cap.section}" has ${cap.count} items (cap ${cap.cap})`);
 }
 
-/** queue.md theme links that don't resolve to a real cold/themes/<slug>.md. */
-function checkQueueLinks(rootDir: string): string[] {
+/** queue.md doc references that don't resolve to a file in tracker/docs/. */
+function checkQueueDocRefs(rootDir: string): string[] {
   const queuePath = join(rootDir, 'backlog/cold/queue.md');
   if (!existsSync(queuePath)) {
     return [];
   }
-  const themesDir = join(rootDir, 'backlog/cold/themes');
-  const existing = existsSync(themesDir) ? new Set(readdirSync(themesDir)) : new Set<string>();
-  return extractThemeLinks(readFileSync(queuePath, 'utf-8'))
-    .filter(link => !existing.has(link))
-    .map(link => `queue.md: dangling theme link → themes/${link} (file missing)`);
+  const docsDir = join(rootDir, 'tracker/docs');
+  const files = existsSync(docsDir) ? readdirSync(docsDir) : [];
+  // Filenames are `doc-N - Title.md`; match on the space-delimited id prefix
+  // so `doc-1` never matches `doc-14 - ...`.
+  const existingIds = new Set(files.map(f => f.split(' ')[0]));
+  return extractQueueDocRefs(readFileSync(queuePath, 'utf-8'))
+    .filter(ref => !existingIds.has(ref))
+    .map(ref => `queue.md: dangling doc reference → ${ref} (no tracker/docs/ file)`);
 }
 
 function reportProblems(problems: string[]): void {
@@ -129,14 +134,14 @@ function reportProblems(problems: string[]): void {
 
 /**
  * CLI entry point. Sets a non-zero exit code on any structural problem (cap
- * exceeded, dangling theme link, unreadable tracker task).
+ * exceeded, dangling doc reference, unreadable tracker task).
  */
 export async function runBacklogLint(options: LintOptions = {}): Promise<void> {
   const rootDir = options.rootDir ?? process.cwd();
 
   const problems = [
     ...checkNowCaps(rootDir),
-    ...checkQueueLinks(rootDir),
+    ...checkQueueDocRefs(rootDir),
     ...loadTrackerTasks(rootDir).problems,
   ];
   reportProblems(problems);

@@ -1,7 +1,7 @@
 # LLM Profiles (Quota Fallback) + User-Channel Tier — Design
 
 > **Status**: ACCEPTED 2026-07-05 — trio council unanimous on all five calls, riders folded (§6); owner sign-off 2026-07-05
-> **Theme**: [`model-configuration-overhaul.md`](../../backlog/cold/themes/model-configuration-overhaul.md) (both items) · Semantics anchor: [`config-cascade-semantics.md`](config-cascade-semantics.md) D4 (profiles layer, never replace — settled)
+> **Theme**: `model-configuration-overhaul.md` (`doc-9`) (both items) · Semantics anchor: [`config-cascade-semantics.md`](config-cascade-semantics.md) D4 (profiles layer, never replace — settled)
 > **Owner directives on record**: tier-aware fallback (paid/BYOK users fall back to the PAID global default; only free/guest users land on the free default — `follow-ups` log-verified gap) · vision NOT bundled into profiles (decided 2026-06-26; the `kind` axis stays parallel)
 > **Grounding** (2026-07-05): quota/402 runtime sweep (classification, caches, what-the-user-sees, the no-text-fallback fact) + preset UX surface map + piggyback-proposal interaction + user-channel raw material (no `(userId, channelId)` table exists; `UserPersonalityConfig` is the exact precedent; the cascade cache key already carries both dimensions).
 

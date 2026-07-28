@@ -2,7 +2,7 @@
 
 ## What it does
 
-Walks `docs/proposals/backlog/**/*.md` and asserts every proposal has at least one inbound link from `backlog/**/*.md`, `docs/**/*.md` (excluding `docs/proposals/`), `CURRENT.md`, or `BACKLOG.md`. Hard-fails CI on any proposal that's not mentioned anywhere outside its own directory. Also hard-fails on single-segment proposal slugs (basenames without `-` or `_`), which would defeat the orphan-check's word-boundary regex.
+Walks `docs/proposals/backlog/**/*.md` and asserts every proposal has at least one inbound link from `backlog/**/*.md`, `docs/**/*.md` (excluding `docs/proposals/`), `tracker/docs/**/*.md`, `CURRENT.md`, or `BACKLOG.md`. Hard-fails CI on any proposal that's not mentioned anywhere outside its own directory. Also hard-fails on single-segment proposal slugs (basenames without `-` or `_`), which would defeat the orphan-check's word-boundary regex.
 
 ## Why it was built
 
