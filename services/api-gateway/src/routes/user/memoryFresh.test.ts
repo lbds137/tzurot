@@ -47,8 +47,7 @@ const mockRedis = {
   mget: vi.fn().mockResolvedValue([]),
 };
 
-import { createFreshRoutes } from './memoryFresh.js';
-import { getRouteHandler, findRoute } from '../../test/expressRouterUtils.js';
+import { handleGetFreshStatus, handleEnableFresh, handleDisableFresh } from './memoryFresh.js';
 import { REDIS_KEY_PREFIXES } from '@tzurot/common-types/constants/queue';
 import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 import type { Redis } from 'ioredis';
@@ -71,8 +70,12 @@ function createMockReqRes(body: Record<string, unknown> = {}, query: Record<stri
   return { req, res };
 }
 
-function buildRouter() {
-  return createFreshRoutes(mockPrisma as unknown as PrismaClient, mockRedis as unknown as Redis);
+// Standard handler deps (prisma + redis) — the shape mounts.ts wires in prod.
+function modeDeps() {
+  return {
+    prisma: mockPrisma as unknown as PrismaClient,
+    redis: mockRedis as unknown as Redis,
+  };
 }
 
 describe('/user/memory/fresh routes', () => {
@@ -90,24 +93,18 @@ describe('/user/memory/fresh routes', () => {
     mockRedis.get.mockResolvedValue(null);
   });
 
-  describe('route factory', () => {
-    it('registers GET, POST, and DELETE at the root', () => {
-      const router = buildRouter();
-      expect(findRoute(router, 'get', '/')).toBeDefined();
-      expect(findRoute(router, 'post', '/')).toBeDefined();
-      expect(findRoute(router, 'delete', '/')).toBeDefined();
-    });
-  });
-
+  // Route wiring (paths, middleware, registration) is owned by the generated
+  // mounts.ts — `pnpm ops codegen:routes --check` pins it against the
+  // manifest, so these tests exercise the handlers directly.
   describe('POST / (enable)', () => {
     it('stores the session under the fresh: prefix and says memories are kept', async () => {
-      const handler = getRouteHandler(buildRouter(), 'post', '/');
+      const handler = handleEnableFresh(modeDeps());
       const { req, res } = createMockReqRes({
         personalityId: TEST_PERSONALITY_ID,
         duration: '1h',
       });
 
-      await handler(req, res);
+      await handler(req, res, vi.fn());
 
       expect(mockRedis.setex).toHaveBeenCalledWith(
         `${REDIS_KEY_PREFIXES.FRESH}${TEST_DISCORD_USER_ID}:${TEST_PERSONALITY_ID}`,
@@ -124,10 +121,10 @@ describe('/user/memory/fresh routes', () => {
     });
 
     it('supports the global "all" scope', async () => {
-      const handler = getRouteHandler(buildRouter(), 'post', '/');
+      const handler = handleEnableFresh(modeDeps());
       const { req, res } = createMockReqRes({ personalityId: 'all', duration: 'forever' });
 
-      await handler(req, res);
+      await handler(req, res, vi.fn());
 
       expect(mockRedis.set).toHaveBeenCalledWith(
         `${REDIS_KEY_PREFIXES.FRESH}${TEST_DISCORD_USER_ID}:all`,
@@ -143,10 +140,10 @@ describe('/user/memory/fresh routes', () => {
 
   describe('DELETE / (disable)', () => {
     it('deletes the fresh session and says memories will be used again', async () => {
-      const handler = getRouteHandler(buildRouter(), 'delete', '/');
+      const handler = handleDisableFresh(modeDeps());
       const { req, res } = createMockReqRes({ personalityId: TEST_PERSONALITY_ID });
 
-      await handler(req, res);
+      await handler(req, res, vi.fn());
 
       expect(mockRedis.del).toHaveBeenCalledWith(
         `${REDIS_KEY_PREFIXES.FRESH}${TEST_DISCORD_USER_ID}:${TEST_PERSONALITY_ID}`
@@ -162,10 +159,10 @@ describe('/user/memory/fresh routes', () => {
 
   describe('GET / (status)', () => {
     it('scans the fresh: keyspace, not incognito', async () => {
-      const handler = getRouteHandler(buildRouter(), 'get', '/');
+      const handler = handleGetFreshStatus(modeDeps());
       const { req, res } = createMockReqRes();
 
-      await handler(req, res);
+      await handler(req, res, vi.fn());
 
       expect(mockRedis.scan).toHaveBeenCalledWith(
         '0',

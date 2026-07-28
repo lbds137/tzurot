@@ -10,16 +10,15 @@
  *
  * Status/enable/disable are the shared memory-mode handlers (see
  * memoryModeHandlers.ts — fresh mode uses the same machinery); `forget` is
- * write-side-specific and lives here.
+ * write-side-specific and lives here. The generated mounts.ts registers the
+ * handler exports directly — there is no local router factory.
  */
 
-import { Router, type Response, type RequestHandler } from 'express';
+import { type Response, type RequestHandler } from 'express';
 import { StatusCodes } from 'http-status-codes';
-import type { Redis } from 'ioredis';
 import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import { IncognitoForgetRequestSchema } from '@tzurot/common-types/types/memory-modes';
 import { createLogger } from '@tzurot/common-types/utils/logger';
-import { requireUserAuth, requireProvisionedUser } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
@@ -163,35 +162,3 @@ export const handleDisableIncognito = incognitoHandlers.handleDisable;
 /** POST /api/user/memory/incognito/forget */
 export const handleIncognitoForget = (deps: MemoryModeDeps): RequestHandler =>
   asyncHandler((req: ProvisionedRequest, res: Response) => handleForget(deps.prisma, req, res));
-
-/**
- * Legacy aggregator-style factory — preserved for the existing top-level
- * user-router wiring. The generated mounts.ts uses the named handler exports
- * above directly.
- */
-export function createIncognitoRoutes(prisma: PrismaClient, redis: Redis): Router {
-  const router = Router();
-  const deps: MemoryModeDeps = { prisma, redis };
-
-  router.get(
-    '/',
-    requireUserAuth(),
-    requireProvisionedUser(prisma),
-    handleGetIncognitoStatus(deps)
-  );
-  router.post('/', requireUserAuth(), requireProvisionedUser(prisma), handleEnableIncognito(deps));
-  router.delete(
-    '/',
-    requireUserAuth(),
-    requireProvisionedUser(prisma),
-    handleDisableIncognito(deps)
-  );
-  router.post(
-    '/forget',
-    requireUserAuth(),
-    requireProvisionedUser(prisma),
-    handleIncognitoForget(deps)
-  );
-
-  return router;
-}
