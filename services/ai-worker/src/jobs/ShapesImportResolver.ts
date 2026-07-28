@@ -13,6 +13,7 @@ import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import { type ShapesIncPersonalityConfig } from '@tzurot/common-types/types/shapes-import';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { isBotOwner } from '@tzurot/common-types/utils/ownerMiddleware';
+import { ShapesJobValidationError } from '../services/shapes/shapesErrors.js';
 import { createFullPersonality } from './ShapesImportHelpers.js';
 
 const logger = createLogger('ShapesImportResolver');
@@ -56,7 +57,9 @@ async function resolveForFullImport(
     existing.ownerId !== opts.internalUserId &&
     !isBotOwner(opts.discordUserId)
   ) {
-    throw new Error(`Cannot import: personality "${opts.sourceSlug}" is owned by another user.`);
+    throw new ShapesJobValidationError(
+      `Cannot import: personality "${opts.sourceSlug}" is owned by another user.`
+    );
   }
 
   // Continuity: when no row carries the computed slug, this user may still have
@@ -127,7 +130,7 @@ async function resolveForMemoryOnly(
     }
   }
 
-  throw new Error(
+  throw new ShapesJobValidationError(
     `No personality found for memory_only import. Tried: slug "${opts.sourceSlug}"` +
       (opts.rawSourceSlug !== opts.sourceSlug ? `, raw slug "${opts.rawSourceSlug}"` : '') +
       (opts.shapesId !== '' ? `, shapesId "${opts.shapesId}"` : '') +

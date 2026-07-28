@@ -341,12 +341,16 @@ describe('processShapesImportJob', () => {
   });
 
   it('should fail memory_only import when resolver cannot find personality', async () => {
+    const { ShapesJobValidationError } = await import('../services/shapes/shapesErrors.js');
     mockResolvePersonality.mockRejectedValueOnce(
-      new Error('No personality found for memory_only import. Tried: slug "test-shape".')
+      new ShapesJobValidationError(
+        'No personality found for memory_only import. Tried: slug "test-shape".'
+      )
     );
 
-    // Generic Error is retryable — final attempt to trigger failure marking
-    const job = createMockJob({ importType: 'memory_only' }, { attemptsMade: 4, attempts: 5 });
+    // Validation errors are non-retryable — fails immediately on attempt 1,
+    // and the authored copy passes through to the user-visible error.
+    const job = createMockJob({ importType: 'memory_only' }, { attemptsMade: 0, attempts: 5 });
     const result = await processShapesImportJob(job, {
       prisma: mockPrisma as never,
       memoryAdapter: mockMemoryAdapter as never,
@@ -357,9 +361,12 @@ describe('processShapesImportJob', () => {
   });
 
   it('should mark import as failed on final attempt for retryable error', async () => {
+    const { GENERIC_SHAPES_JOB_ERROR_MESSAGE } = await import('./shapesCredentials.js');
     mockFetchShapeData.mockRejectedValue(new Error('Network error'));
 
-    // Generic errors are now retryable — set to final attempt so it marks failed
+    // Generic errors are retryable — set to final attempt so it marks failed.
+    // The raw infra message is sanitized to the generic copy on the way to
+    // the user-visible error field; the full error goes to logs.
     const job = createMockJob({}, { attemptsMade: 4, attempts: 5 });
     const result = await processShapesImportJob(job, {
       prisma: mockPrisma as never,
@@ -367,7 +374,7 @@ describe('processShapesImportJob', () => {
     });
 
     expect(result.success).toBe(false);
-    expect(result.error).toBe('Network error');
+    expect(result.error).toBe(GENERIC_SHAPES_JOB_ERROR_MESSAGE);
     expect(mockPrisma.importJob.update).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ status: 'failed' }),
@@ -571,12 +578,16 @@ describe('processShapesImportJob', () => {
   });
 
   it('should fail when resolver rejects (e.g. personality owned by another user)', async () => {
+    const { ShapesJobValidationError } = await import('../services/shapes/shapesErrors.js');
     mockResolvePersonality.mockRejectedValueOnce(
-      new Error('Cannot import: personality "test-shape" is owned by another user.')
+      new ShapesJobValidationError(
+        'Cannot import: personality "test-shape" is owned by another user.'
+      )
     );
 
-    // Generic Error is retryable — final attempt to trigger failure marking
-    const job = createMockJob({ importType: 'full' }, { attemptsMade: 4, attempts: 5 });
+    // Validation errors are non-retryable — fails immediately, authored copy
+    // passes through.
+    const job = createMockJob({ importType: 'full' }, { attemptsMade: 0, attempts: 5 });
     const result = await processShapesImportJob(job, {
       prisma: mockPrisma as never,
       memoryAdapter: mockMemoryAdapter as never,

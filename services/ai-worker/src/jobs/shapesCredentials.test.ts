@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
+  GENERIC_SHAPES_JOB_ERROR_MESSAGE,
   classifyShapesError,
   getDecryptedCookie,
   persistUpdatedCookie,
@@ -9,7 +10,10 @@ import {
   ShapesBotProtectionError,
   ShapesFetchBusyError,
   ShapesFetchError,
+  ShapesJobValidationError,
   ShapesNotFoundError,
+  ShapesRateLimitError,
+  ShapesServerError,
 } from '../services/shapes/shapesErrors.js';
 
 const mockDecryptApiKey = vi.fn();
@@ -157,16 +161,44 @@ describe('classifyShapesError', () => {
     expect(result.errorMessage).toContain('Too many simultaneous shapes.inc fetches');
   });
 
-  it('should classify generic Error as retryable', () => {
-    const error = new Error('Network timeout');
+  it('should classify ShapesJobValidationError as non-retryable, keeping its authored message', () => {
+    // A failed precondition re-reads the same rows on every attempt —
+    // retrying burns BullMQ attempts for nothing; the copy tells the user
+    // what to fix.
+    const error = new ShapesJobValidationError('Cannot import: user not found.');
     const result = classifyShapesError(error);
-    expect(result.isRetryable).toBe(true);
-    expect(result.errorMessage).toBe('Network timeout');
+    expect(result.isRetryable).toBe(false);
+    expect(result.errorMessage).toBe('Cannot import: user not found.');
   });
 
-  it('should classify non-Error values as retryable', () => {
+  it('should classify ShapesRateLimitError as retryable, keeping its authored message', () => {
+    const result = classifyShapesError(new ShapesRateLimitError());
+    expect(result.isRetryable).toBe(true);
+    expect(result.errorMessage).toBe('Rate limited by shapes.inc');
+  });
+
+  it('should classify ShapesServerError as retryable, keeping its authored message', () => {
+    const result = classifyShapesError(
+      new ShapesServerError(502, 'Shapes.inc server error: HTTP 502')
+    );
+    expect(result.isRetryable).toBe(true);
+    expect(result.errorMessage).toBe('Shapes.inc server error: HTTP 502');
+  });
+
+  it('replaces a generic Error message with the user-safe copy (raw infra detail never stored)', () => {
+    // The status routes return errorMessage verbatim — a raw driver/network
+    // string (which can carry hostnames and connection detail) must not
+    // reach the user-visible column. Full error still goes to logs.
+    const error = new Error('connect ETIMEDOUT db.internal.railway:5432');
+    const result = classifyShapesError(error);
+    expect(result.isRetryable).toBe(true);
+    expect(result.errorMessage).toBe(GENERIC_SHAPES_JOB_ERROR_MESSAGE);
+    expect(result.errorMessage).not.toContain('railway');
+  });
+
+  it('replaces non-Error values with the user-safe copy', () => {
     const result = classifyShapesError('string error');
     expect(result.isRetryable).toBe(true);
-    expect(result.errorMessage).toBe('string error');
+    expect(result.errorMessage).toBe(GENERIC_SHAPES_JOB_ERROR_MESSAGE);
   });
 });
