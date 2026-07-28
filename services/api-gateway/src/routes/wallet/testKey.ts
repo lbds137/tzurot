@@ -88,6 +88,9 @@ export const handleTestWalletKey = (deps: WalletTestDeps): RequestHandler => {
           valid: false,
           provider,
           error: validation.error,
+          // Classification crosses the wire so bot-client can distinguish
+          // "your key was rejected" from "the provider couldn't be reached"
+          errorCode: validation.errorCode,
           timestamp: new Date().toISOString(),
         },
         StatusCodes.OK // Still 200, but valid=false indicates the key is invalid

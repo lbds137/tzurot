@@ -7,13 +7,14 @@
  * for callers that don't care about the per-provider files.
  */
 
-/** Error codes returned from validation. */
-export type ValidationErrorCode =
-  | 'INVALID_KEY'
-  | 'MISSING_PERMISSIONS'
-  | 'QUOTA_EXCEEDED'
-  | 'TIMEOUT'
-  | 'UNKNOWN';
+import type { WalletKeyValidationErrorCode } from '@tzurot/common-types/schemas/api/wallet';
+
+/**
+ * Error codes returned from validation. Aliases the wire-schema enum so the
+ * vocabulary the validators emit and the one the /wallet/test response
+ * declares cannot drift apart.
+ */
+export type ValidationErrorCode = WalletKeyValidationErrorCode;
 
 /** Result of API key validation. */
 export interface ApiKeyValidationResult {

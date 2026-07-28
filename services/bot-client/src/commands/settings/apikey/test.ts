@@ -15,8 +15,32 @@ import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
 import { clientsFor } from '../../../utils/gatewayClients.js';
 import { getProviderDisplayName } from '../../../utils/providers.js';
+import { CATALOG } from '../../../ux/catalog/catalog.js';
+import { renderSpec } from '../../../ux/render/render.js';
 
 const logger = createLogger('settings-apikey-test');
+
+/** The ❌ embed for a key the provider actually rejected (invalid / permissions / quota). */
+function buildKeyInvalidEmbed(provider: AIProvider, error: string): EmbedBuilder {
+  return new EmbedBuilder()
+    .setColor(DISCORD_COLORS.ERROR)
+    .setTitle('❌ API Key Invalid')
+    .setDescription(`Your **${getProviderDisplayName(provider)}** API key failed validation.`)
+    .addFields({
+      name: 'Error',
+      value: error,
+      inline: false,
+    })
+    .addFields({
+      name: '💡 What to do',
+      value:
+        '• Check if your key is still valid\n' +
+        '• Ensure you have credits/quota remaining\n' +
+        '• Use `/settings apikey set` to update your key',
+      inline: false,
+    })
+    .setTimestamp();
+}
 
 /**
  * Handle /settings apikey test <provider> subcommand
@@ -51,31 +75,34 @@ export async function handleTestKey(context: DeferredCommandContext): Promise<vo
         return;
       }
 
-      // Handle validation errors - need to try parsing the error response for details
-      const embed = new EmbedBuilder()
-        .setColor(DISCORD_COLORS.ERROR)
-        .setTitle('❌ API Key Invalid')
-        .setDescription(`Your **${getProviderDisplayName(provider)}** API key failed validation.`)
-        .addFields({
-          name: 'Error',
-          value: result.error,
-          inline: false,
-        })
-        .addFields({
-          name: '💡 What to do',
-          value:
-            '• Check if your key is still valid\n' +
-            '• Ensure you have credits/quota remaining\n' +
-            '• Use `/settings apikey set` to update your key',
-          inline: false,
-        })
-        .setTimestamp();
-
-      await context.editReply({ embeds: [embed] });
+      // Transport/HTTP-level failure (the gateway itself errored)
+      await context.editReply({ embeds: [buildKeyInvalidEmbed(provider, result.error)] });
       return;
     }
 
     const data = result.data;
+
+    // The gateway reports a failed validation as 200 + valid:false — an
+    // ok result does NOT mean the key passed.
+    if (!data.valid) {
+      // TIMEOUT/UNKNOWN mean the provider couldn't be reached (timeout, 5xx):
+      // the key was never judged, so "Invalid" would be wrong and alarming.
+      if (data.errorCode === 'TIMEOUT' || data.errorCode === 'UNKNOWN') {
+        await context.editReply({
+          content: renderSpec(
+            CATALOG.error.transient(
+              `Couldn't verify your **${getProviderDisplayName(provider)}** key — the provider didn't respond normally (${data.error ?? 'no details'}). Your key wasn't judged invalid.`
+            )
+          ),
+        });
+        return;
+      }
+
+      await context.editReply({
+        embeds: [buildKeyInvalidEmbed(provider, data.error ?? 'Validation failed')],
+      });
+      return;
+    }
 
     // Success - key is valid
     const embed = new EmbedBuilder()

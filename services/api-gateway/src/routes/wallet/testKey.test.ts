@@ -227,6 +227,7 @@ describe('POST /wallet/test', () => {
       mockValidateApiKey.mockResolvedValue({
         valid: false,
         error: 'Invalid API key',
+        errorCode: 'INVALID_KEY',
       });
 
       const { req, res } = createMockReqRes({ provider: AIProvider.OpenRouter });
@@ -239,6 +240,27 @@ describe('POST /wallet/test', () => {
           valid: false,
           provider: AIProvider.OpenRouter,
           error: 'Invalid API key',
+          errorCode: 'INVALID_KEY',
+        })
+      );
+    });
+
+    it('should forward a transient classification so consumers can distinguish it', async () => {
+      mockValidateApiKey.mockResolvedValue({
+        valid: false,
+        error: 'HTTP 503',
+        errorCode: 'UNKNOWN',
+      });
+
+      const { req, res } = createMockReqRes({ provider: AIProvider.OpenRouter });
+
+      await callHandler(mockPrisma, req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          valid: false,
+          errorCode: 'UNKNOWN',
         })
       );
     });

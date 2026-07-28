@@ -13,6 +13,7 @@ import {
   SetWalletKeyResponseSchema,
   SetWalletKeySchema,
   TestWalletKeySchema,
+  WalletKeyValidationErrorCodeSchema,
 } from './wallet.js';
 
 /** Helper to create valid wallet key data */
@@ -135,6 +136,21 @@ describe('Wallet API Contract Tests', () => {
     });
   });
 
+  describe('WalletKeyValidationErrorCodeSchema', () => {
+    it.each(['INVALID_KEY', 'MISSING_PERMISSIONS', 'QUOTA_EXCEEDED', 'TIMEOUT', 'UNKNOWN'])(
+      'should accept the validator vocabulary member %s',
+      code => {
+        expect(WalletKeyValidationErrorCodeSchema.safeParse(code).success).toBe(true);
+      }
+    );
+
+    it('should reject values outside the vocabulary', () => {
+      expect(WalletKeyValidationErrorCodeSchema.safeParse('RATE_LIMITED').success).toBe(false);
+      expect(WalletKeyValidationErrorCodeSchema.safeParse('').success).toBe(false);
+      expect(WalletKeyValidationErrorCodeSchema.safeParse(undefined).success).toBe(false);
+    });
+  });
+
   describe('TestWalletKeyResponseSchema', () => {
     it('should accept valid test response for valid key', () => {
       const data = {
@@ -156,6 +172,35 @@ describe('Wallet API Contract Tests', () => {
       };
       const result = TestWalletKeyResponseSchema.safeParse(data);
       expect(result.success).toBe(true);
+    });
+
+    it('should carry errorCode through parsing (strip-mode survival)', () => {
+      // The generated client parses responses through this schema in strip
+      // mode — an undeclared field would be silently deleted, and bot-client's
+      // transient-vs-invalid branch reads errorCode. Pin its survival here.
+      const data = {
+        valid: false,
+        provider: 'openrouter',
+        error: 'HTTP 503',
+        errorCode: 'UNKNOWN',
+        timestamp: '2025-01-20T15:30:00.000Z',
+      };
+      const result = TestWalletKeyResponseSchema.safeParse(data);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.errorCode).toBe('UNKNOWN');
+      }
+    });
+
+    it('should reject an errorCode outside the validator vocabulary', () => {
+      const data = {
+        valid: false,
+        provider: 'openrouter',
+        errorCode: 'SOMETHING_ELSE',
+        timestamp: '2025-01-20T15:30:00.000Z',
+      };
+      const result = TestWalletKeyResponseSchema.safeParse(data);
+      expect(result.success).toBe(false);
     });
 
     it('should accept response without optional credits and error', () => {
