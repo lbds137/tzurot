@@ -443,7 +443,7 @@ export function isAuthorizedForWrite(userId: string | undefined): boolean {
  * ```ts
  * app.use(requireServiceAuth()); // Apply globally
  * // or
- * router.post('/ai/generate', requireServiceAuth(), async (req, res) => {
+ * router.post('/api/internal/ai/generate', requireServiceAuth(), async (req, res) => {
  *   // Only requests with valid service secret can reach here
  * });
  * ```
