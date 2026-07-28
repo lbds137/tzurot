@@ -23,6 +23,11 @@ _generated/
 # widths drift naturally and have zero review value, so exclude them.
 backlog/
 
+# The Backlog.md tracker store: the CLI owns these files' shape (frontmatter +
+# section markers, rewritten on every task edit) — prettier fighting it adds
+# noise to unrelated diffs and risks a shape the two tools don't agree on.
+tracker/
+
 # Auto-generated command manifest. Its drift guard compares the committed file
 # byte-for-byte against `JSON.stringify(…, 2)` output; prettier collapses arrays
 # onto single lines, which would permanently break that comparison. Exclude so
