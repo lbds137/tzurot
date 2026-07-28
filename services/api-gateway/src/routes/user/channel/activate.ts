@@ -121,7 +121,7 @@ export const handleActivateChannel = (deps: RouteDeps): RequestHandler => {
     });
 
     if (!canView) {
-      sendError(res, ErrorResponses.unauthorized('You do not have access to this personality'));
+      sendError(res, ErrorResponses.forbidden('You do not have access to this personality'));
       return;
     }
 

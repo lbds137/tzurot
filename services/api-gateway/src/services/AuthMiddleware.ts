@@ -63,7 +63,7 @@ export function isValidOwner(ownerId: string | undefined): boolean {
  * });
  * ```
  *
- * @param customMessage - Optional custom unauthorized message
+ * @param customMessage - Optional custom forbidden message
  * @returns Express middleware function
  */
 export function requireOwnerAuth(customMessage?: string) {
@@ -79,10 +79,12 @@ export function requireOwnerAuth(customMessage?: string) {
           method: req.method,
           ip: req.ip,
         },
-        '[Auth] Unauthorized access attempt'
+        '[Auth] Forbidden: non-owner access attempt'
       );
 
-      const errorResponse = ErrorResponses.unauthorized(customMessage);
+      // Owner gate, not authentication: the caller's identity is known but
+      // isn't the bot owner — 403 FORBIDDEN, never 401.
+      const errorResponse = ErrorResponses.forbidden(customMessage);
       const statusCode = getStatusCode(errorResponse.error);
 
       res.status(statusCode).json(errorResponse);
@@ -164,7 +166,7 @@ export function requireUserAuth(customMessage?: string) {
         },
         'Bot user rejected at auth boundary'
       );
-      const errorResponse = ErrorResponses.unauthorized('Bot users cannot access user routes');
+      const errorResponse = ErrorResponses.forbidden('Bot users cannot access user routes');
       res.status(getStatusCode(errorResponse.error)).json(errorResponse);
       return;
     }
@@ -307,7 +309,7 @@ export function requireProvisionedUser(prisma: PrismaClient) {
           { discordId, path: req.path },
           'getOrCreateUser refused to provision (bot user or malformed id) — rejecting request'
         );
-        const errorResponse = ErrorResponses.unauthorized(
+        const errorResponse = ErrorResponses.forbidden(
           'Cannot provision this identity for user routes'
         );
         res.status(getStatusCode(errorResponse.error)).json(errorResponse);
@@ -391,7 +393,7 @@ export function isValidServiceSecret(providedSecret: string | undefined): boolea
  * ```ts
  * // For READ operations - allow service-only, check owner for user requests
  * if (!isAuthorizedForRead(req.userId)) {
- *   sendError(res, ErrorResponses.unauthorized('Only bot owners can view this'));
+ *   sendError(res, ErrorResponses.forbidden('Only bot owners can view this'));
  *   return;
  * }
  * ```
@@ -418,7 +420,7 @@ export function isAuthorizedForRead(userId: string | undefined): boolean {
  * ```ts
  * // For WRITE operations - always require bot owner
  * if (!isAuthorizedForWrite(req.userId)) {
- *   sendError(res, ErrorResponses.unauthorized('Only bot owners can modify this'));
+ *   sendError(res, ErrorResponses.forbidden('Only bot owners can modify this'));
  *   return;
  * }
  * ```

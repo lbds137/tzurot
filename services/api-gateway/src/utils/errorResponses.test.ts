@@ -70,8 +70,12 @@ describe('errorResponses', () => {
       expect(getStatusCode(ErrorCode.VALIDATION_ERROR)).toBe(400);
     });
 
-    it('should return 403 for UNAUTHORIZED', () => {
-      expect(getStatusCode(ErrorCode.UNAUTHORIZED)).toBe(403);
+    it('should return 401 for UNAUTHORIZED', () => {
+      expect(getStatusCode(ErrorCode.UNAUTHORIZED)).toBe(401);
+    });
+
+    it('should return 403 for FORBIDDEN', () => {
+      expect(getStatusCode(ErrorCode.FORBIDDEN)).toBe(403);
     });
 
     it('should return 404 for NOT_FOUND', () => {
@@ -239,7 +243,7 @@ describe('errorResponses', () => {
 
         expect(response).toEqual({
           error: 'UNAUTHORIZED',
-          message: 'This endpoint is only available to the bot owner',
+          message: 'Authentication required',
           timestamp: '2025-11-02T12:00:00.000Z',
         });
       });
@@ -248,6 +252,25 @@ describe('errorResponses', () => {
         const response = ErrorResponses.unauthorized('Access denied');
 
         expect(response.message).toBe('Access denied');
+      });
+    });
+
+    describe('forbidden', () => {
+      it('should create forbidden error with the owner-gate default message', () => {
+        const response = ErrorResponses.forbidden();
+
+        expect(response).toEqual({
+          error: 'FORBIDDEN',
+          message: 'This endpoint is only available to the bot owner',
+          timestamp: '2025-11-02T12:00:00.000Z',
+        });
+      });
+
+      it('should create forbidden error with custom message', () => {
+        const response = ErrorResponses.forbidden('You can only edit your own configs');
+
+        expect(response.error).toBe('FORBIDDEN');
+        expect(response.message).toBe('You can only edit your own configs');
       });
     });
 

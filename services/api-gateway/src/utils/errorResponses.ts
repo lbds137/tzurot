@@ -17,7 +17,8 @@ export { ErrorCode };
  */
 const ERROR_STATUS_CODES: Record<ErrorCode, number> = {
   [ErrorCode.VALIDATION_ERROR]: 400,
-  [ErrorCode.UNAUTHORIZED]: 403,
+  [ErrorCode.UNAUTHORIZED]: 401,
+  [ErrorCode.FORBIDDEN]: 403,
   [ErrorCode.PAYMENT_REQUIRED]: 402,
   [ErrorCode.NOT_FOUND]: 404,
   [ErrorCode.CONFLICT]: 409,
@@ -98,13 +99,13 @@ export const ErrorResponses = {
     code: API_ERROR_SUBCODE.NAME_COLLISION,
   }),
 
-  unauthorized: (
-    message = 'This endpoint is only available to the bot owner',
-    requestId?: string
-  ) => createErrorResponse(ErrorCode.UNAUTHORIZED, message, requestId),
-
-  forbidden: (message: string, requestId?: string) =>
+  /** Authentication missing or invalid (401) — NOT for permission denials; use `forbidden` */
+  unauthorized: (message = 'Authentication required', requestId?: string) =>
     createErrorResponse(ErrorCode.UNAUTHORIZED, message, requestId),
+
+  /** Authenticated but not allowed (403) — ownership, owner-only, and access gates */
+  forbidden: (message = 'This endpoint is only available to the bot owner', requestId?: string) =>
+    createErrorResponse(ErrorCode.FORBIDDEN, message, requestId),
 
   paymentRequired: (message = 'Insufficient credits or quota', requestId?: string) =>
     createErrorResponse(ErrorCode.PAYMENT_REQUIRED, message, requestId),

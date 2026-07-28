@@ -485,6 +485,7 @@ describe('Admin LLM Config Routes', () => {
       });
 
       expect(response.status).toBe(403);
+      expect(response.body.error).toBe('FORBIDDEN');
       expect(response.body.message).toMatch(/admin user not found/i);
     });
 

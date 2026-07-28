@@ -198,7 +198,7 @@ export async function findAdminUserOrSendError(
 
   if (adminUser === null) {
     logger.warn({ discordUserId }, 'Admin user not found in database');
-    sendError(res, ErrorResponses.unauthorized('Admin user not found in database'));
+    sendError(res, ErrorResponses.forbidden('Admin user not found in database'));
     return null;
   }
   return adminUser;

@@ -63,9 +63,7 @@ vi.mock('../../services/AuthMiddleware.js', async importOriginal => {
         if (mockIsBotOwner(req.userId)) {
           next();
         } else {
-          res
-            .status(403)
-            .json({ error: 'UNAUTHORIZED', message: 'Only bot owners can modify this' });
+          res.status(403).json({ error: 'FORBIDDEN', message: 'Only bot owners can modify this' });
         }
       },
   };
@@ -211,7 +209,7 @@ describe('Admin Settings Routes (Singleton)', () => {
       const response = await request(app).get('/admin/settings');
 
       expect(response.status).toBe(403);
-      expect(response.body.error).toBe('UNAUTHORIZED');
+      expect(response.body.error).toBe('FORBIDDEN');
     });
   });
 
@@ -387,7 +385,7 @@ describe('Admin Settings Routes (Singleton)', () => {
       const response = await request(app).delete('/admin/settings/config-defaults');
 
       expect(response.status).toBe(403);
-      expect(response.body.error).toBe('UNAUTHORIZED');
+      expect(response.body.error).toBe('FORBIDDEN');
     });
 
     it('should ensure singleton exists before clearing', async () => {

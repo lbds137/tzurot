@@ -326,7 +326,7 @@ describe('user/tts-config routes', () => {
       expect(json).toHaveBeenCalledWith(expect.objectContaining({ error: 'NOT_FOUND' }));
     });
 
-    it('returns 401 when user is not the owner', async () => {
+    it('returns 403 FORBIDDEN when user is not the owner', async () => {
       vi.mocked(mockService.getById).mockResolvedValue({
         ...sampleRawConfig,
         ownerId: 'someone-else',
@@ -338,7 +338,7 @@ describe('user/tts-config routes', () => {
         makeMockReq({ params: { id: 'cfg-uuid-1' }, body: { description: 'new' } }),
         res
       );
-      expect(json).toHaveBeenCalledWith(expect.objectContaining({ error: 'UNAUTHORIZED' }));
+      expect(json).toHaveBeenCalledWith(expect.objectContaining({ error: 'FORBIDDEN' }));
     });
 
     // Bot-owner short-circuit is exercised at the helper level in
@@ -455,7 +455,7 @@ describe('user/tts-config routes', () => {
       expect(json).toHaveBeenCalledWith(expect.objectContaining({ error: 'NOT_FOUND' }));
     });
 
-    it('returns 401 when user lacks delete permission', async () => {
+    it('returns 403 FORBIDDEN when user lacks delete permission', async () => {
       vi.mocked(mockService.getById).mockResolvedValue({
         ...sampleRawConfig,
         ownerId: 'someone-else',
@@ -464,7 +464,7 @@ describe('user/tts-config routes', () => {
       const { res, json } = makeMockRes();
 
       await handler(makeMockReq({ params: { id: 'cfg-uuid-1' } }), res);
-      expect(json).toHaveBeenCalledWith(expect.objectContaining({ error: 'UNAUTHORIZED' }));
+      expect(json).toHaveBeenCalledWith(expect.objectContaining({ error: 'FORBIDDEN' }));
       expect(mockService.delete).not.toHaveBeenCalled();
     });
 

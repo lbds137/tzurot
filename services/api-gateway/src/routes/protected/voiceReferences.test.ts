@@ -214,7 +214,7 @@ describe('Voice Reference Routes', () => {
 
   describe('with requireServiceAuth mounted upstream', () => {
     // Verifies the middleware-plus-router composition produces correct
-    // access control: unauthorized requests → 403, matching secret → 200.
+    // access control: unauthenticated requests → 401, matching secret → 200.
     // Documents that /voice-references requires service auth; production
     // wiring is the umbrella `app.use(requireServiceAuth())` in index.ts.
 
@@ -225,13 +225,13 @@ describe('Voice Reference Routes', () => {
       return protectedApp;
     }
 
-    // Production maps `ErrorCode.UNAUTHORIZED` → HTTP 403 (FORBIDDEN), not
-    // 401 (UNAUTHORIZED). Matches the metrics-route test's expectation
-    // for the same reason — these tests reflect actual behavior.
+    // Missing/invalid service credentials are an authentication failure:
+    // `ErrorCode.UNAUTHORIZED` → HTTP 401 per RFC 7235. Matches the
+    // metrics-route test's expectation for the same reason.
     it('should reject requests without the X-Service-Auth header', async () => {
       const response = await request(buildProtectedApp()).get('/voice-references/testbot');
 
-      expect(response.status).toBe(StatusCodes.FORBIDDEN);
+      expect(response.status).toBe(StatusCodes.UNAUTHORIZED);
     });
 
     it('should reject requests with the wrong X-Service-Auth secret', async () => {
@@ -239,7 +239,7 @@ describe('Voice Reference Routes', () => {
         .get('/voice-references/testbot')
         .set('X-Service-Auth', 'wrong-secret');
 
-      expect(response.status).toBe(StatusCodes.FORBIDDEN);
+      expect(response.status).toBe(StatusCodes.UNAUTHORIZED);
     });
 
     it('should allow requests with the correct X-Service-Auth secret', async () => {
