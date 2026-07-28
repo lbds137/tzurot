@@ -33,11 +33,18 @@ export interface AuthorRoleSignals {
  * - **bot** — any other webhook/bot: a non-persona automation. The catch-all for
  *   "not clearly our persona, not clearly an unproxied human", which is also where
  *   proxied messages land until their `applicationId` is added to KNOWN_PROXY_APP_IDS.
+ * - **undefined** — signals insufficient to classify: the message carries an
+ *   `applicationId` but `clientUserId` is unset (`client.user` is null before
+ *   ClientReady and during gateway reconnects), so our own persona's webhook is
+ *   indistinguishable from a foreign bot. The stamp persists into stored
+ *   conversation history, so a wrong 'bot' here would be DURABLE — omit it and
+ *   let ai-worker's name-match fallback (prompt/referenceRole.ts) decide at
+ *   render time instead.
  */
 export function classifyReferenceAuthorRole(
   signals: AuthorRoleSignals,
   knownProxyAppIds: ReadonlySet<string> = KNOWN_PROXY_APP_ID_SET
-): ReferenceAuthorRole {
+): ReferenceAuthorRole | undefined {
   const isMachineAuthored = signals.webhookId !== null || signals.authorIsBot;
   if (!isMachineAuthored) {
     return 'user';
@@ -47,6 +54,9 @@ export function classifyReferenceAuthorRole(
   }
   if (signals.applicationId !== null && knownProxyAppIds.has(signals.applicationId)) {
     return 'user';
+  }
+  if (signals.applicationId !== null && signals.clientUserId === undefined) {
+    return undefined;
   }
   return 'bot';
 }
