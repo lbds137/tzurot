@@ -117,6 +117,7 @@ describe('runBacklogDigest', () => {
 
     const out = logSpy.mock.calls.flat().join('\n');
     expect(out).toContain('3 open tasks (1 in progress)');
+    expect(out).toContain('multi-area tasks count once per area');
     expect(out).toContain('- db: 2');
     expect(out).toContain('- (no area label yet): 1');
     // Oldest surface leads with the oldest filing date

@@ -42,6 +42,7 @@ pnpm ops backlog:digest                                                     # th
 
 - **A task description carries why, what, and acceptance** — same bar as any backlog entry. `Promote when: <event>` is an optional annotation (see the admission bar).
 - **Labels**: `area:<package-or-domain>` (db, redis, voice, bot-client, …). Label at filing; the digest's per-area counts are the jump-around index.
+- **Size + priority** (set at filing; every existing task carries them): `size:S` (<~1hr, one file) / `size:M` (a PR) / `size:L` (multi-PR or needs design) labels, plus the CLI priority field — `high` (prod-correctness / data-rights adjacent) · `medium` (real improvement, no urgency) · `low` (gated, speculative, or watch items). The drain query: `pnpm tracker task list -l size:S --priority high --plain`.
 - **Finishing**: `-s Done` at ship (digest and queries exclude Done); archive during periodic sweeps. For **obsolete** or **ruled-out** exits, archive with the reason in the removing commit — same evidence bar as before.
 - **Integrity is gated**: `pnpm ops backlog` (in `pnpm quality` + CI) fails on any task file whose frontmatter won't parse — a broken task silently vanishes from every query, which is the failure mode that killed the old table. Prefer CLI edits over hand edits for anything touching frontmatter.
 
