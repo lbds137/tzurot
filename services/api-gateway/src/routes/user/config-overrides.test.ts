@@ -507,6 +507,25 @@ describe('/user/config-overrides routes', () => {
         undefined
       );
     });
+
+    it('should reject non-UUID personalityId with 400, matching the sibling mutators', async () => {
+      // Without the shared UUID gate, a malformed id reached the resolver and
+      // surfaced as a Prisma uuid-cast error (500-shaped) instead of a 400.
+      const router = createConfigOverrideRoutes(mockDeps);
+      const handler = getHandler(router, 'get', '/resolve/:personalityId');
+      const { req, res } = createMockReqRes({}, { personalityId: 'not-a-uuid' });
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          error: 'VALIDATION_ERROR',
+          message: 'Invalid personalityId format',
+        })
+      );
+      expect(mockResolveOverrides).not.toHaveBeenCalled();
+    });
   });
 
   describe('PATCH /:personalityId', () => {

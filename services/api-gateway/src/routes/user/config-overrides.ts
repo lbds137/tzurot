@@ -35,7 +35,6 @@ import {
 import { resolveProvisionedUserId } from '../../utils/resolveProvisionedUserId.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
-import { getRequiredParam } from '../../utils/requestParams.js';
 import type { AuthenticatedRequest, ProvisionedRequest } from '../../types.js';
 import { type RouteDeps } from '../routeDeps.js';
 import { pruneEmptyPersonalityConfig } from './pruneEmptyPersonalityConfig.js';
@@ -188,7 +187,10 @@ export const handleClearUserDefaults = (deps: RouteDeps): RequestHandler => {
 export const handleResolveCascade = (deps: RouteDeps): RequestHandler => {
   const cascadeResolver = deps.cascadeResolver;
   return asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-    const personalityId = getRequiredParam(req.params.personalityId, 'personalityId');
+    const personalityId = getValidatedPersonalityId(req, res);
+    if (personalityId === null) {
+      return;
+    }
     const queryResult = resolveQuerySchema.safeParse(req.query);
     if (!queryResult.success) {
       sendError(res, ErrorResponses.validationError('Invalid channelId format'));
