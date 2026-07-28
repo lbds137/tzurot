@@ -11,6 +11,7 @@ import type { Redis } from 'ioredis';
 import { StatusCodes } from 'http-status-codes';
 import { type Prisma, type PrismaClient } from '@tzurot/common-types/services/prisma';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { propagateDeletionToFacts } from '@tzurot/conversation-history';
 import type { RouteDeps } from '../routeDeps.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
@@ -139,6 +140,11 @@ export async function executeBatchDelete(params: ExecuteBatchDeleteParams): Prom
     where,
     data: { visibility: 'deleted', updatedAt: new Date() },
   });
+
+  if (result.count > 0) {
+    // R8 fact layer: retire facts whose sources just died (fail-soft inside).
+    await propagateDeletionToFacts(prisma);
+  }
 
   logger.warn(
     {

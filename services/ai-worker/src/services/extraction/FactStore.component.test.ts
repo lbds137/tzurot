@@ -375,4 +375,54 @@ describe('FactStore.findSimilarActiveFacts (component, PGLite)', () => {
     expect(revived?.supersededAt).toBeNull();
     expect(revived?.validFrom).toEqual(revivalTime);
   });
+
+  it('revives a cascade-deleted fact on fresh evidence — carrying only the NEW sources', async () => {
+    // Re-telling a fact in a new conversation is freely-given new evidence; the
+    // memory-deletion cascade must not make it unlearnable. Source replacement
+    // is load-bearing: the revived row cites only the new memory, so the
+    // cascade's self-heal sweep won't re-kill it over the deleted original.
+    const anchorId = await seedFact({ statement: 'cascade anchor', embedText: 'cascade anchor' });
+    const factId = await extractionSupersede('The user plays the harp', anchorId);
+    await prisma.$executeRaw`UPDATE memory_facts SET visibility = 'deleted' WHERE id = ${factId}::uuid`;
+
+    const newSourceMemory = '30000000-0000-0000-0000-000000000001';
+    const vec = await embeddings.getEmbedding('The user plays the harp');
+    const revivedId = await factStore.writeFactWithSupersessions(
+      {
+        personalityId: PERSONALITY,
+        personaId: PERSONA,
+        statement: 'The user plays the harp',
+        entityTags: ['user'],
+        salience: 0.5,
+        isFiction: false,
+        sourceMemoryIds: [newSourceMemory],
+        extractionJobId: 'job-revival',
+        validFrom: new Date('2026-06-20T00:00:00.000Z'),
+      },
+      [],
+      Array.from(vec ?? [])
+    );
+
+    expect(revivedId).toBe(factId); // content-hash id collides → revival path
+    const revived = await prisma.memoryFact.findUnique({ where: { id: factId } });
+    expect(revived?.visibility).toBe('normal');
+    expect(revived?.sourceMemoryIds).toEqual([newSourceMemory]);
+  });
+
+  it('a FORGOTTEN fact stays dead even when its row is also cascade-deleted', async () => {
+    // The visibility disjunct WIDENED the revival WHERE; this pins that the
+    // forgotten=false conjunct still holds against it — user removal is
+    // terminal no matter which dead-state the row is in.
+    const anchorId = await seedFact({ statement: 'forget anchor', embedText: 'forget anchor' });
+    const factId = await extractionSupersede('The user hates cilantro', anchorId);
+    await prisma.$executeRaw`
+      UPDATE memory_facts SET forgotten = true, visibility = 'deleted' WHERE id = ${factId}::uuid
+    `;
+
+    await extractionSupersede('The user hates cilantro', anchorId);
+
+    const row = await prisma.memoryFact.findUnique({ where: { id: factId } });
+    expect(row?.visibility).toBe('deleted'); // not revived
+    expect(row?.forgotten).toBe(true);
+  });
 });
