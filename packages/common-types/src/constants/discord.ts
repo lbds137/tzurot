@@ -215,8 +215,15 @@ export const DISCORD_MENTIONS = {
  */
 export const DISCORD_SNOWFLAKE = {
   /**
+   * Unanchored 17-20 digit source fragment for composing larger patterns
+   * (mention tokens, message links). Use PATTERN for whole-string validation.
+   */
+  SOURCE: String.raw`\d{17,20}`,
+
+  /**
    * Regex pattern for validating Discord snowflake IDs
-   * Matches 17-20 digit numeric strings
+   * Matches 17-20 digit numeric strings (the anchored form of SOURCE —
+   * keep the two in sync)
    */
   PATTERN: /^\d{17,20}$/,
 
