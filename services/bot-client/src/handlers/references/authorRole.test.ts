@@ -86,11 +86,41 @@ describe('classifyReferenceAuthorRole', () => {
     );
   });
 
-  it('does not crash or misclassify when clientUserId is undefined', () => {
-    // Degraded path (client.user not ready): a webhook can't be confirmed as ours.
+  it('omits the stamp when clientUserId is undefined and an applicationId is present', () => {
+    // Degraded path (client.user not ready — startup / gateway reconnect): our own
+    // persona's webhook is indistinguishable from a foreign bot. The stamp persists
+    // into stored history, so a hard-coded 'bot' would durably attribute the
+    // persona's own line to a third-party bot — omit and let the worker's
+    // name-match fallback decide at render time.
     expect(
       classifyReferenceAuthorRole(
         signals({ webhookId: 'wh-1', applicationId: OUR_BOT_ID, clientUserId: undefined })
+      )
+    ).toBeUndefined();
+
+    // Same for a foreign applicationId: without clientUserId there is no way to
+    // tell the two cases apart, so neither may be stamped.
+    expect(
+      classifyReferenceAuthorRole(
+        signals({ webhookId: 'wh-2', applicationId: 'some-other-bot', clientUserId: undefined })
+      )
+    ).toBeUndefined();
+  });
+
+  it('still classifies decidable cases when clientUserId is undefined', () => {
+    // A known proxy is identified by its applicationId alone → 'user' regardless.
+    expect(
+      classifyReferenceAuthorRole(
+        signals({ webhookId: 'wh-pk', applicationId: PROXY_ID, clientUserId: undefined }),
+        PROXY_IDS
+      )
+    ).toBe('user');
+
+    // No applicationId at all: the assistant check could never match even with a
+    // known clientUserId, so 'bot' is decidable without it.
+    expect(
+      classifyReferenceAuthorRole(
+        signals({ webhookId: 'wh-x', applicationId: null, clientUserId: undefined })
       )
     ).toBe('bot');
   });
