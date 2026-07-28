@@ -1,9 +1,10 @@
 ---
 id: TASK-342
 title: Remove fossil openai dependency from common-types + api-gateway
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-07-28 16:50'
+updated_date: '2026-07-28 22:20'
 labels:
   - 'size:S'
 dependencies: []
