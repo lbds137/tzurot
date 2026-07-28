@@ -109,7 +109,7 @@ function registerBacklogCommand(cli: CAC): void {
   cli
     .command(
       'backlog',
-      'Lint the backlog surfaces: now.md caps, queue.md theme links, tracker store integrity'
+      'Lint the backlog surfaces: now.md caps, queue.md doc refs, tracker store integrity'
     )
     .example('ops backlog')
     .action(async () => {

@@ -1,12 +1,12 @@
 # Backlog
 
-> **Last Updated**: 2026-07-27 (substrate flip: the small-item pool moved from `backlog/cold/follow-ups.md` to the `tracker/` store)
+> **Last Updated**: 2026-07-28 (substrate migration complete: small items are `tracker/tasks/`, themes/ideas are `tracker/docs/`)
 
 This is the **load manifest** for the backlog. Three surfaces:
 
 - **HOT** (`backlog/` curated files + the generated digest) — read at session start.
-- **`tracker/`** (Backlog.md task store) — the small-item pool; **query on demand, never load wholesale**.
-- **COLD** (`backlog/cold/`) — themes/ideas/epic-log; grep-on-demand.
+- **`tracker/`** (Backlog.md store) — tasks (small items) + docs (themes/ideas); **query on demand, never load wholesale**.
+- **COLD** (`backlog/cold/`) — the theme queue + epic log; grep-on-demand.
 
 Keeping the pool and the cold files out of the session-start load is the whole point — session-start context is _now_, not the full archive of future work.
 
@@ -42,18 +42,18 @@ Full conventions (labels, finishing, integrity gating): [`.claude/rules/06-backl
 
 ## Grep-on-demand (COLD — never auto-loaded)
 
-| File                                                   | What                                                       |
-| ------------------------------------------------------ | ---------------------------------------------------------- |
-| [`backlog/cold/queue.md`](backlog/cold/queue.md)       | Ordered index of future themes → links into `cold/themes/` |
-| `backlog/cold/themes/<slug>.md`                        | One file per multi-phase epic (the big queue)              |
-| [`backlog/cold/ideas.md`](backlog/cold/ideas.md)       | Ungated speculative features + larger fixes (prose)        |
-| [`backlog/cold/epic-log.md`](backlog/cold/epic-log.md) | Detailed per-PR log for the Active Epic                    |
+| File                                                   | What                                                               |
+| ------------------------------------------------------ | ------------------------------------------------------------------ |
+| [`backlog/cold/queue.md`](backlog/cold/queue.md)       | Ordered index of future themes → references tracker docs (`doc-N`) |
+| [`backlog/cold/epic-log.md`](backlog/cold/epic-log.md) | Detailed per-PR log for the Active Epic                            |
+
+Theme and idea content lives in the tracker doc store (`tracker/docs/` — `Theme:`/`Idea:`-titled docs, shared search index with tasks): `pnpm tracker doc search <query>` · `pnpm tracker doc view <id>` · `pnpm tracker doc create 'Idea: Title'`.
 
 ---
 
 ## Where does a new item go? (filing decision-tree)
 
-**First, the admission bar.** If the work belongs to **this same file or diff** ("next time we touch this"), **do it now** in the work that surfaced it — it's colocated and small by construction. If it's a **named batch across files** ("next tooling-DRY pass"), file the _batch_ as a theme phase or `cold/ideas.md` section and make this item one of its members — search the tracker and grep `cold/` first so you join an existing entry instead of fragmenting. Everything else small gets filed as a task, **no trigger required** — trigger-gating is retired as a filing rule; `Promote when:` is optional annotation. Full rule: [`.claude/rules/06-backlog.md`](.claude/rules/06-backlog.md) § The admission bar.
+**First, the admission bar.** If the work belongs to **this same file or diff** ("next time we touch this"), **do it now** in the work that surfaced it — it's colocated and small by construction. If it's a **named batch across files** ("next tooling-DRY pass"), file the _batch_ as a theme-doc phase or an idea doc and make this item one of its members — search the tracker (`task list --search` + `doc search`) first so you join an existing entry instead of fragmenting. Everything else small gets filed as a task, **no trigger required** — trigger-gating is retired as a filing rule; `Promote when:` is optional annotation. Full rule: [`.claude/rules/06-backlog.md`](.claude/rules/06-backlog.md) § The admission bar.
 
 Then file by **size/granularity**:
 
@@ -62,11 +62,11 @@ Then file by **size/granularity**:
 3. **Small (<~2hr), independent, and you'll actually do it soon?** → `now.md` › ⚡ Quick Wins (max 5) — it's simply next in line
 4. **Small, one sentence — everything else?** → `tracker/` task (`pnpm tracker task create`)
 5. **Part of the active epic?** → update `active-epic.md` (slice detail → `cold/epic-log.md`)
-6. **A single feature that needs scoping (a paragraph)?** → `cold/ideas.md` (`##` section)
-7. **A multi-phase initiative (its own epic)?** → new `cold/themes/<slug>.md` + a bullet in `cold/queue.md`
+6. **A single feature that needs scoping (a paragraph)?** → tracker idea doc (`pnpm tracker doc create 'Idea: …'`)
+7. **A multi-phase initiative (its own epic)?** → tracker theme doc (`'Theme: …'`) + a bullet in `cold/queue.md`
 8. **Just arrived mid-session, no time to triage?** → `now.md` › 📥 Untriaged (max 10); route it later
 
-**The granularity ladder:** one-sentence item → tracker task; paragraph idea → `ideas.md`; multi-phase epic → `themes/`.
+**The granularity ladder:** one-sentence item → tracker task; paragraph idea → idea doc; multi-phase epic → theme doc + queue bullet.
 
 ## Staleness — aging escalates, it never deletes
 
@@ -77,4 +77,4 @@ Items are **never** deleted by calendar. The digest's oldest-20 surface exists s
 - **Tags** (backlog markdown files): 🏗️ `[LIFT]` refactor/debt · ✨ `[FEAT]` feature · 🐛 `[FIX]` bug · 🧹 `[CHORE]` maintenance. Tracker tasks use `area:*` labels instead.
 - **Direct doc-commits to `develop`**: `backlog/**/*.md` and `tracker/**/*.md` are in the doc-commit-allowed list (per `.claude/rules/00-critical.md`) — routine triage needs no PR.
 - **Triage rules, caps, and the staleness principle**: `.claude/rules/06-backlog.md`.
-- **Lint**: `pnpm ops backlog` gates the caps, `cold/themes/` link integrity, and tracker task-file parse integrity (in `pnpm quality` + CI).
+- **Lint**: `pnpm ops backlog` gates the caps, `cold/queue.md` doc-reference integrity, and tracker task-file parse integrity (in `pnpm quality` + CI).

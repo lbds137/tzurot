@@ -138,7 +138,7 @@ Carried invariants: params never leak across hops (the target's full set applies
 ## What this deliberately does NOT do
 
 - **No cascade changes**: tier order, sentinel semantics, the System-A/B split, and the guild tier are ACCEPTED elsewhere and untouched.
-- **No BYOK-billing consolidation**: the cost-attribution boulder (`cold/ideas.md`) remains adjacent; its knobs will join the registry when built.
+- **No BYOK-billing consolidation**: the cost-attribution boulder (tracker `doc-43` — BYOK-first extraction billing) remains adjacent; its knobs will join the registry when built.
 - **No per-guild admin settings**: AdminSettings stays the one-bot singleton.
 - **No secrets in the DB**, ever.
 - **No custom-id unification** (G8): page state avoids custom-ids precisely so this doesn't entangle.

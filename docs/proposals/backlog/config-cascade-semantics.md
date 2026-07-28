@@ -1,7 +1,7 @@
 # Config Cascade Semantics — Design
 
 > **Status**: ACCEPTED 2026-07-05 (config-cascade boulder) — trio council pass unanimous on all calls, riders folded (§8); owner sign-off 2026-07-05
-> **Supersedes/extends**: [`config-cascade-design.md`](config-cascade-design.md) (Phase 1–2 shipped, incl. a channel tier the doc predates; its Phases 3–5 fold into §5 here) · anchors the [`preset-cascade-standardization`](../../../backlog/cold/themes/preset-cascade-standardization.md) theme
+> **Supersedes/extends**: [`config-cascade-design.md`](config-cascade-design.md) (Phase 1–2 shipped, incl. a channel tier the doc predates; its Phases 3–5 fold into §5 here) · anchors the `preset-cascade-standardization` (`doc-15`) theme
 > **Owner directives**: server/community as a config tier (2026-07-05 — per-server settings don't exist at all today); off-vs-inherit; resolver priority; profiles-vs-presets.
 > **Grounding** (2026-07-05): 2-agent sweep — cascade-as-implemented (resolver order, sentinel pipeline, setting-family table, pain points incl. the 2026-02 post-mortem lineage) + preset-entity landscape (two-cascade reality, profiles proposal, guild raw material, invalidation pattern).
 

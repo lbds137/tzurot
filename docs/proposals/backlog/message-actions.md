@@ -1,7 +1,7 @@
 # Message-Action Affordances — Design
 
 > **Status**: ACCEPTED 2026-07-05 — trio council pass (riders folded, §7); owner decisions locked (§6)
-> **Theme**: [`user-requested-features.md`](../../backlog/cold/themes/user-requested-features.md) (user request 2026-07-03, PluralKit research mandated) · Sibling artifact: [`pluralkit-interop.md`](pluralkit-interop.md) (shared grounding wave)
+> **Theme**: `user-requested-features.md` (`doc-26`) (user request 2026-07-03, PluralKit research mandated) · Sibling artifact: [`pluralkit-interop.md`](pluralkit-interop.md) (shared grounding wave)
 > **Grounding** (2026-07-05): PluralKit source study (edit/reactions/reproxy mechanics, storage, authz) · Tupperbox/shapes.inc prior art · Discord platform verification (webhook edit PATCH unlimited-time; **buttons on application-owned webhook messages CONFIRMED**) · our infra map (webhook token retained, message ids persisted 3 ways, button routing wired, reaction infra absent, delete/edit reconciliation heal-on-read).
 
 ## 1. Surface decision: context-menu + ephemeral panel — not reactions

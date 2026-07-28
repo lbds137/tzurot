@@ -1,7 +1,7 @@
 ---
 name: tzurot-docs
 description: 'Session workflow procedures. Invoke with /tzurot-docs for session start/end, CURRENT.md and backlog management.'
-lastUpdated: '2026-07-27'
+lastUpdated: '2026-07-28'
 ---
 
 # Documentation & Session Workflow
@@ -36,8 +36,9 @@ The backlog is HOT/COLD split — load only the HOT surface at start (see `BACKL
 | `BACKLOG.md`             | Load manifest + filing decision-tree              | When the structure changes              |
 | `backlog/now.md`         | HOT: prod issues / focus / quick-wins / untriaged | New ideas, triage, completion           |
 | `backlog/active-epic.md` | HOT: current epic roadmap + phase                 | Phase progress                          |
-| `backlog/cold/*`         | COLD: themes / ideas / epic-log                   | Grep-on-demand; route + update          |
+| `backlog/cold/*`         | COLD: theme queue + epic log                      | Grep-on-demand; route + update          |
 | `tracker/tasks/*`        | Small-item pool (Backlog.md store)                | Query via `pnpm tracker`; file + finish |
+| `tracker/docs/*`         | Theme/idea docs (shared search index)             | `pnpm tracker doc search/view/create`   |
 
 **Tags**: 🏗️ `[LIFT]` refactor/debt | ✨ `[FEAT]` feature | 🐛 `[FIX]` bug | 🧹 `[CHORE]` maintenance
 
@@ -71,7 +72,7 @@ _Error logs, decisions, API snippets._
 
 ## Backlog Structure
 
-HOT (loaded every session) / tracker store (queried) / COLD (grep-on-demand). See `.claude/rules/06-backlog.md` for the canonical topology + the **granularity-ladder** filing rule (multi-phase epic → `cold/themes/`; paragraph idea → `cold/ideas.md`; one-sentence follow-up → tracker task via `pnpm tracker task create`) and the **staleness principle** (aging escalates priority; items are never deleted by calendar — only when done or genuinely obsolete). `BACKLOG.md` at root is the load manifest.
+HOT (loaded every session) / tracker store (queried) / COLD (grep-on-demand). See `.claude/rules/06-backlog.md` for the canonical topology + the **granularity-ladder** filing rule (multi-phase epic → tracker theme doc + `cold/queue.md` bullet; paragraph idea → tracker idea doc via `pnpm tracker doc create`; one-sentence follow-up → tracker task via `pnpm tracker task create`) and the **staleness principle** (aging escalates priority; items are never deleted by calendar — only when done or genuinely obsolete). `BACKLOG.md` at root is the load manifest.
 
 ## Workflow Operations
 

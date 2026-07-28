@@ -28,7 +28,7 @@
  * TYPES legitimately, and depcruise cannot see symbol granularity. The
  * import-symbol rule is the feasible 80/20; the types-from-common-types
  * refactor that would enable a module boundary is a trigger-gated backlog
- * idea (`backlog/cold/ideas.md`).
+ * idea (tracker `doc-45` — Commands import Discord TYPES from common-types).
  */
 
 import type { Rule } from 'eslint';
