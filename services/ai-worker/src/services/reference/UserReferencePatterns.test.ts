@@ -4,6 +4,7 @@ import {
   RESOLVABLE_PERSONALITY_FIELDS,
   setPersonalityField,
 } from './UserReferencePatterns.js';
+import { DISCORD_SNOWFLAKE } from '@tzurot/common-types/constants/discord';
 import type { LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 
 describe('UserReferencePatterns', () => {
@@ -56,6 +57,13 @@ describe('UserReferencePatterns', () => {
         const matches = [...text.matchAll(USER_REFERENCE_PATTERNS.DISCORD_MENTION)];
 
         expect(matches).toHaveLength(0);
+      });
+
+      it('embeds the canonical snowflake digit-run (drift guard)', () => {
+        // The pattern stays a literal (the no-singleton-export lint rule
+        // forbids constructor-built regexes in exported objects), so this
+        // pins its embedded fragment to the canonical source instead.
+        expect(USER_REFERENCE_PATTERNS.DISCORD_MENTION.source).toContain(DISCORD_SNOWFLAKE.SOURCE);
       });
     });
 

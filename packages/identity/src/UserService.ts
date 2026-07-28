@@ -490,17 +490,30 @@ export class UserService {
     const userId = generateUserUuid(discordId);
     const personaId = generatePersonaUuid(username, userId);
     const shouldBeSuperuser = isBotOwner(discordId);
-    const personaDisplayName = displayName ?? username;
+    // A snowflake-shaped username (a nameless job envelope falling back to the
+    // Discord ID, or a genuinely all-digit Discord username) would violate the
+    // personas_name_not_snowflake CHECK and crash the create. Divert to the
+    // shell placeholder instead — users.username keeps the raw value, so when
+    // it equals the discordId the runMaintenanceTasks upgrade path later
+    // renames the placeholder to the real username, exactly like any other
+    // shell-created user.
+    const personaName = isValidDiscordId(username)
+      ? buildShellPlaceholderPersonaName(username)
+      : username;
+    // Falls back to personaName (not the raw username) so a diverted
+    // snowflake-shaped username displays as the placeholder, never bare digits.
+    const personaDisplayName = displayName ?? personaName;
     const personaContent = bio ?? '';
 
-    // Circular-FK bootstrap via single-statement CTE. See the matching
-    // comment in createShellUserWithRaceProtection for the reasoning.
+    // Circular-FK bootstrap via single-statement CTE: users.default_persona_id
+    // and personas.owner_id reference each other, so neither row can be
+    // inserted first through separate statements without deferring constraints.
     await this.prisma.$executeRaw`
       WITH new_persona AS (
         INSERT INTO personas (id, name, preferred_name, description, content, owner_id, updated_at)
         VALUES (
           ${personaId}::uuid,
-          ${username},
+          ${personaName},
           ${personaDisplayName},
           ${DEFAULT_PERSONA_DESCRIPTION},
           ${personaContent},
