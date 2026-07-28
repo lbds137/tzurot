@@ -37,6 +37,8 @@ export function createAvatarRouter(prisma: PrismaClient): Router {
   // Supports two URL formats for cache-busting:
   // 1. Legacy: /avatars/{slug}.png
   // 2. Path-versioned: /avatars/{slug}-{timestamp}.png (Discord CDN cache-busting)
+  // Both shapes are produced by common-types `utils/avatarUrl.ts` (avatarUrlPath) —
+  // change the format there and here together.
   //
   // Versioned files are stored WITH timestamps in the filename for direct URL-to-file mapping.
   // When a new version is fetched from DB, old versions are cleaned up asynchronously.

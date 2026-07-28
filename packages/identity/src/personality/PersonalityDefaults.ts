@@ -5,6 +5,7 @@
 
 import { AI_DEFAULTS } from '@tzurot/common-types/constants/ai';
 import { PLACEHOLDERS } from '@tzurot/common-types/constants/message';
+import { avatarUrlPath } from '@tzurot/common-types/utils/avatarUrl';
 import {
   mapLlmConfigFromDb,
   type MappedLlmConfig,
@@ -188,8 +189,7 @@ export function deriveAvatarUrl(
   }
 
   // Path-based versioning: timestamp in filename forces Discord CDN to fetch fresh image
-  const timestamp = updatedAt.getTime();
-  return `${publicUrl}/avatars/${encodeURIComponent(slug)}-${timestamp}.png`;
+  return `${publicUrl}${avatarUrlPath(slug, updatedAt.getTime())}`;
 }
 
 /**

@@ -7,6 +7,7 @@
 import { AttachmentBuilder } from 'discord.js';
 import { type EnvConfig, getConfig } from '@tzurot/common-types/config/config';
 import { characterExportOptions } from '@tzurot/common-types/generated/commandOptions';
+import { avatarUrlPath } from '@tzurot/common-types/utils/avatarUrl';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { isBotOwner } from '@tzurot/common-types/utils/ownerMiddleware';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
@@ -76,7 +77,7 @@ function buildExportData(character: ExportCharacterData): Record<string, unknown
  */
 async function fetchAvatarData(slug: string): Promise<Buffer | null> {
   const config = getConfig();
-  const avatarUrl = `${config.GATEWAY_URL}/avatars/${encodeURIComponent(slug)}.png`;
+  const avatarUrl = `${config.GATEWAY_URL}${avatarUrlPath(slug)}`;
 
   try {
     const response = await fetch(avatarUrl);
