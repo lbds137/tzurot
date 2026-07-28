@@ -1,10 +1,10 @@
 ---
 id: TASK-334
 title: Route-manifest comment drift in packages/clients internal.ts
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-07-27 00:00'
-updated_date: '2026-07-28 10:53'
+updated_date: '2026-07-28 20:15'
 labels:
   - 'area:clients'
   - 'size:S'
