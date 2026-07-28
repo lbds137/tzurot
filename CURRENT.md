@@ -8,6 +8,8 @@
 
 - **#1823 — the backlog substrate FLIP** (2026-07-27): `tracker/` is now authoritative for small items; `cold/follow-ups.md` retired. New: `pnpm ops backlog:digest` (session-start briefing), tracker parse-integrity gating in `pnpm ops backlog`, `dev:deferred-refs` retargeted to tasks, promise-ledger hook credits `pnpm tracker task create|edit`, 06-backlog.md rewritten (trigger-gating retired as a filing rule). Zero user-visible runtime change (tooling + docs + comment-only service edits).
 - **#1824 — digest area-count overlap note** (2026-07-28, TASK-338): the By-area header now says multi-area tasks count once per area; 06-backlog.md codifies the size:S/M/L + priority conventions from the step-3 labeling pass. Tooling-only.
+- **#1825 — themes/ideas → tracker doc store** (2026-07-28, substrate step 4): 53 `tracker/docs/` docs; queue.md is a doc-ID index; lint + proposal-orphans guard retargeted. Docs/tooling-only.
+- **#1826 — memory-deletion cascade to derived facts (R8, TASK-328)** (2026-07-28): `propagateDeletionToFacts` at all four soft-delete sites + revival on fresh evidence + data-only backfill migration (**applied to dev**; prod via `release:premigrate` — additive-safe data UPDATE). Owner calls: any-source, locked+corrected carve-outs, forgotten stays terminal. Join-cost escalation filed as TASK-340. User-visible: deleted memories no longer leave their extracted facts retrievable.
 
 ## 🔬 Smoke checklist — v3.0.0-beta.180 (post-deploy)
 
