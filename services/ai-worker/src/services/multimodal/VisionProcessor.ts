@@ -187,12 +187,16 @@ interface InvokeVisionModelOptions {
    */
   visionParams?: VisionTierParams;
   /**
-   * Explicit provider for the vision call. When provided, overrides the
-   * `config.AI_PROVIDER` env-default lookup inside `createChatModel`. Required
-   * for cross-provider personalities (e.g., main=z.ai-coding, vision=OpenRouter)
-   * where the env-default would route to the wrong provider's API.
+   * Provider for the vision call — deliberately non-optional. Every vision
+   * call across every upstream path (DependencyStep, ConversationalRAGService,
+   * ConversationInputProcessor, ImageDescriptionJob) reaches invokeVisionModel,
+   * and an absent provider would make `createChatModel` fall back to the
+   * env-default `AI_PROVIDER`, silently misrouting cross-provider
+   * personalities (e.g., main=z.ai-coding, vision=OpenRouter → 401 Missing
+   * Authentication). Callers derive it from the resolved vision model:
+   * `options.provider ?? detectVisionProvider(usedModel)`.
    */
-  provider?: AIProvider;
+  provider: AIProvider;
   /**
    * The image to send to the provider — a `data:` URL of worker-fetched bytes,
    * or (on download-fallback) the original remote URL. Kept SEPARATE from
@@ -216,26 +220,6 @@ async function invokeVisionModel(
 ): Promise<string> {
   const { systemPrompt, userApiKey, provider, loggingContext, personalityName, visionParams } =
     options;
-
-  // Single-chokepoint silent-fallback signal: every vision call across every
-  // upstream path (DependencyStep, ConversationalRAGService, ConversationInput-
-  // Processor, ImageDescriptionJob) eventually reaches here. A warn here
-  // captures any caller that didn't thread `visionProvider` through, which
-  // means `createChatModel` will fall back to the env-default `AI_PROVIDER`.
-  // For cross-provider personalities (main=z.ai, vision=OpenRouter) that
-  // silently misroutes the request and reproduces the exact 401 the upstream
-  // resolver fix exists to prevent. Will be promoted to a hard error once
-  // a few weeks of clean Railway logs confirm no upstream caller fires this.
-  if (provider === undefined) {
-    logger.warn(
-      {
-        personalityName,
-        modelName,
-        apiKeySource: loggingContext.apiKeySource,
-      },
-      'invokeVisionModel called without explicit provider — misrouting risk for cross-provider personalities'
-    );
-  }
 
   // Explicitly-set vision-config params win; the low factual-captioning
   // temperature stays the default for anything unset (descriptions feed
