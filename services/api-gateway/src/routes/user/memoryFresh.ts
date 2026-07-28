@@ -10,14 +10,12 @@
  * DELETE /user/memory/fresh - Disable fresh mode
  *
  * All three are the shared memory-mode handlers (see memoryModeHandlers.ts);
- * the ai-worker checks the `fresh:` Redis keys at retrieval time.
+ * the ai-worker checks the `fresh:` Redis keys at retrieval time. The
+ * generated mounts.ts registers the handler exports directly — there is no
+ * local router factory.
  */
 
-import { Router } from 'express';
-import type { Redis } from 'ioredis';
-import { type PrismaClient } from '@tzurot/common-types/services/prisma';
-import { requireUserAuth, requireProvisionedUser } from '../../services/AuthMiddleware.js';
-import { createMemoryModeHandlers, type MemoryModeDeps } from './memoryModeHandlers.js';
+import { createMemoryModeHandlers } from './memoryModeHandlers.js';
 
 const freshHandlers = createMemoryModeHandlers('fresh', {
   alreadyActive: name =>
@@ -39,19 +37,3 @@ export const handleEnableFresh = freshHandlers.handleEnable;
 
 /** DELETE /api/user/memory/fresh */
 export const handleDisableFresh = freshHandlers.handleDisable;
-
-/**
- * Legacy aggregator-style factory — preserved for the existing top-level
- * user-router wiring. The generated mounts.ts uses the named handler exports
- * above directly.
- */
-export function createFreshRoutes(prisma: PrismaClient, redis: Redis): Router {
-  const router = Router();
-  const deps: MemoryModeDeps = { prisma, redis };
-
-  router.get('/', requireUserAuth(), requireProvisionedUser(prisma), handleGetFreshStatus(deps));
-  router.post('/', requireUserAuth(), requireProvisionedUser(prisma), handleEnableFresh(deps));
-  router.delete('/', requireUserAuth(), requireProvisionedUser(prisma), handleDisableFresh(deps));
-
-  return router;
-}

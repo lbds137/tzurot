@@ -3,9 +3,8 @@
  * CRUD operations for individual memories
  *
  * Handlers follow the (deps: RouteDeps) => RequestHandler shape so codegen
- * can wire them up from the route manifest. The legacy
- * `createMemoryRoutes(deps)` factory in memory.ts mounts them today; the
- * generated mounts.ts will mount them once the cutover lands.
+ * can wire them up from the route manifest; the generated mounts.ts is the
+ * sole mounting path.
  */
 
 import type { RequestHandler, Response } from 'express';

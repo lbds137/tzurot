@@ -3,9 +3,8 @@
  *
  * Tests LTM (Long-Term Memory) management endpoints:
  * - GET /stats - Get memory statistics for a personality
- * - GET /focus - Get focus mode status
- * - POST /focus - Enable/disable focus mode
  * - POST /search - Semantic search of memories
+ * - GET /list - Paginated list of memories for browsing
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -83,8 +82,9 @@ const mockPrisma = {
   $queryRaw: vi.fn(),
 };
 
-import { createMemoryRoutes } from './memory.js';
-import { getRouteHandler, findRoute } from '../../test/expressRouterUtils.js';
+import { handleGetStats } from './memory.js';
+import { handleSearch } from './memorySearch.js';
+import { handleList } from './memoryList.js';
 import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 import { stubRouteResolvers } from '../../test/shared-route-test-utils.js';
 
@@ -110,15 +110,6 @@ function createMockReqRes(body: Record<string, unknown> = {}, query: Record<stri
   } as unknown as Response;
 
   return { req, res };
-}
-
-// Helper to get handler from router
-function getHandler(
-  router: ReturnType<typeof createMemoryRoutes>,
-  method: 'get' | 'post' | 'delete',
-  path: string
-) {
-  return getRouteHandler(router, method, path);
 }
 
 describe('/user/memory routes', () => {
@@ -149,37 +140,18 @@ describe('/user/memory routes', () => {
     mockPrisma.memory.findMany.mockResolvedValue([]);
   });
 
-  describe('route factory', () => {
-    it('should create a router', () => {
-      const router = createMemoryRoutes({
-        ...stubRouteResolvers(),
-        prisma: mockPrisma as unknown as PrismaClient,
-      });
-
-      expect(router).toBeDefined();
-      expect(typeof router).toBe('function');
-    });
-
-    it('should have GET /stats route registered', () => {
-      const router = createMemoryRoutes({
-        ...stubRouteResolvers(),
-        prisma: mockPrisma as unknown as PrismaClient,
-      });
-
-      expect(findRoute(router, 'get', '/stats')).toBeDefined();
-    });
-  });
-
+  // Route wiring (paths, middleware, registration order) is owned by the
+  // generated mounts.ts — `pnpm ops codegen:routes --check` pins it against
+  // the manifest, so these tests exercise the handlers directly.
   describe('GET /user/memory/stats', () => {
     it('should reject missing personalityId', async () => {
-      const router = createMemoryRoutes({
+      const handler = handleGetStats({
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
       });
-      const handler = getHandler(router, 'get', '/stats');
       const { req, res } = createMockReqRes({}, {});
 
-      await handler(req, res);
+      await handler(req, res, vi.fn());
 
       expect(res.status).toHaveBeenCalledWith(400);
       expect(res.json).toHaveBeenCalledWith(
@@ -193,14 +165,13 @@ describe('/user/memory routes', () => {
     it('should return 404 when personality not found', async () => {
       mockPrisma.personality.findUnique.mockResolvedValue(null);
 
-      const router = createMemoryRoutes({
+      const handler = handleGetStats({
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
       });
-      const handler = getHandler(router, 'get', '/stats');
       const { req, res } = createMockReqRes({}, { personalityId: TEST_PERSONALITY_ID });
 
-      await handler(req, res);
+      await handler(req, res, vi.fn());
 
       expect(res.status).toHaveBeenCalledWith(404);
     });
@@ -211,14 +182,13 @@ describe('/user/memory routes', () => {
         .mockResolvedValueOnce({ id: TEST_USER_ID }) // First call - check user
         .mockResolvedValueOnce({ defaultPersonaId: null }); // Second call - get default persona
 
-      const router = createMemoryRoutes({
+      const handler = handleGetStats({
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
       });
-      const handler = getHandler(router, 'get', '/stats');
       const { req, res } = createMockReqRes({}, { personalityId: TEST_PERSONALITY_ID });
 
-      await handler(req, res);
+      await handler(req, res, vi.fn());
 
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.json).toHaveBeenCalledWith(
@@ -245,14 +215,13 @@ describe('/user/memory routes', () => {
         .mockResolvedValueOnce({ createdAt: oldestDate }) // oldest
         .mockResolvedValueOnce({ createdAt: newestDate }); // newest
 
-      const router = createMemoryRoutes({
+      const handler = handleGetStats({
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
       });
-      const handler = getHandler(router, 'get', '/stats');
       const { req, res } = createMockReqRes({}, { personalityId: TEST_PERSONALITY_ID });
 
-      await handler(req, res);
+      await handler(req, res, vi.fn());
 
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.json).toHaveBeenCalledWith(
@@ -285,15 +254,14 @@ describe('/user/memory routes', () => {
           ),
       };
 
-      const router = createMemoryRoutes({
+      const handler = handleGetStats({
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
         redis: mockRedis as unknown as import('ioredis').Redis,
       });
-      const handler = getHandler(router, 'get', '/stats');
       const { req, res } = createMockReqRes({}, { personalityId: TEST_PERSONALITY_ID });
 
-      await handler(req, res);
+      await handler(req, res, vi.fn());
 
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -313,26 +281,16 @@ describe('/user/memory routes', () => {
       mockPrisma.$queryRaw.mockResolvedValue([]);
     });
 
-    it('should have POST /search route registered', () => {
-      const router = createMemoryRoutes({
-        ...stubRouteResolvers(),
-        prisma: mockPrisma as unknown as PrismaClient,
-      });
-
-      expect(findRoute(router, 'post', '/search')).toBeDefined();
-    });
-
     it('should return 503 when embedding service is not available', async () => {
       mockIsEmbeddingServiceAvailable.mockReturnValue(false);
 
-      const router = createMemoryRoutes({
+      const handler = handleSearch({
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
       });
-      const handler = getHandler(router, 'post', '/search');
       const { req, res } = createMockReqRes({ query: 'test search' }, {});
 
-      await handler(req, res);
+      await handler(req, res, vi.fn());
 
       expect(res.status).toHaveBeenCalledWith(503);
       expect(res.json).toHaveBeenCalledWith(
@@ -343,14 +301,13 @@ describe('/user/memory routes', () => {
     });
 
     it('should reject missing query', async () => {
-      const router = createMemoryRoutes({
+      const handler = handleSearch({
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
       });
-      const handler = getHandler(router, 'post', '/search');
       const { req, res } = createMockReqRes({}, {});
 
-      await handler(req, res);
+      await handler(req, res, vi.fn());
 
       expect(res.status).toHaveBeenCalledWith(400);
       expect(res.json).toHaveBeenCalledWith(
@@ -362,14 +319,13 @@ describe('/user/memory routes', () => {
     });
 
     it('should reject empty query', async () => {
-      const router = createMemoryRoutes({
+      const handler = handleSearch({
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
       });
-      const handler = getHandler(router, 'post', '/search');
       const { req, res } = createMockReqRes({ query: '' }, {});
 
-      await handler(req, res);
+      await handler(req, res, vi.fn());
 
       expect(res.status).toHaveBeenCalledWith(400);
       expect(res.json).toHaveBeenCalledWith(
@@ -380,15 +336,14 @@ describe('/user/memory routes', () => {
     });
 
     it('should return 400 for query exceeding max length', async () => {
-      const router = createMemoryRoutes({
+      const handler = handleSearch({
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
       });
-      const handler = getHandler(router, 'post', '/search');
       const longQuery = 'a'.repeat(501); // Exceeds 500 char limit
       const { req, res } = createMockReqRes({ query: longQuery }, {});
 
-      await handler(req, res);
+      await handler(req, res, vi.fn());
 
       expect(res.status).toHaveBeenCalledWith(400);
       expect(res.json).toHaveBeenCalledWith(
@@ -406,14 +361,13 @@ describe('/user/memory routes', () => {
         defaultPersonaId: null,
       });
 
-      const router = createMemoryRoutes({
+      const handler = handleSearch({
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
       });
-      const handler = getHandler(router, 'post', '/search');
       const { req, res } = createMockReqRes({ query: 'test search' }, {});
 
-      await handler(req, res);
+      await handler(req, res, vi.fn());
 
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.json).toHaveBeenCalledWith(
@@ -440,14 +394,13 @@ describe('/user/memory routes', () => {
       ];
       mockPrisma.$queryRaw.mockResolvedValue(mockResults);
 
-      const router = createMemoryRoutes({
+      const handler = handleSearch({
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
       });
-      const handler = getHandler(router, 'post', '/search');
       const { req, res } = createMockReqRes({ query: 'test search' }, {});
 
-      await handler(req, res);
+      await handler(req, res, vi.fn());
 
       expect(mockGenerateEmbedding).toHaveBeenCalledWith('test search');
       expect(mockPrisma.$queryRaw).toHaveBeenCalled();
@@ -486,14 +439,13 @@ describe('/user/memory routes', () => {
         .mockResolvedValueOnce([]) // semantic search - no results
         .mockResolvedValueOnce(textResults); // text search - has results
 
-      const router = createMemoryRoutes({
+      const handler = handleSearch({
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
       });
-      const handler = getHandler(router, 'post', '/search');
       const { req, res } = createMockReqRes({ query: 'Draco' }, {});
 
-      await handler(req, res);
+      await handler(req, res, vi.fn());
 
       expect(mockPrisma.$queryRaw).toHaveBeenCalledTimes(2);
       expect(res.status).toHaveBeenCalledWith(200);
@@ -518,14 +470,13 @@ describe('/user/memory routes', () => {
         .mockResolvedValueOnce([]) // semantic search
         .mockResolvedValueOnce([]); // text search
 
-      const router = createMemoryRoutes({
+      const handler = handleSearch({
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
       });
-      const handler = getHandler(router, 'post', '/search');
       const { req, res } = createMockReqRes({ query: 'nonexistent' }, {});
 
-      await handler(req, res);
+      await handler(req, res, vi.fn());
 
       expect(mockPrisma.$queryRaw).toHaveBeenCalledTimes(2);
       expect(res.status).toHaveBeenCalledWith(200);
@@ -539,14 +490,13 @@ describe('/user/memory routes', () => {
     });
 
     it('should reject limit exceeding max 50', async () => {
-      const router = createMemoryRoutes({
+      const handler = handleSearch({
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
       });
-      const handler = getHandler(router, 'post', '/search');
       const { req, res } = createMockReqRes({ query: 'test search', limit: 100 }, {});
 
-      await handler(req, res);
+      await handler(req, res, vi.fn());
 
       // MemorySearchSchema validates limit with .max(50), so 100 is rejected
       expect(res.status).toHaveBeenCalledWith(400);
@@ -561,14 +511,13 @@ describe('/user/memory routes', () => {
     it('should handle embedding generation error', async () => {
       mockGenerateEmbedding.mockRejectedValue(new Error('OpenAI API error'));
 
-      const router = createMemoryRoutes({
+      const handler = handleSearch({
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
       });
-      const handler = getHandler(router, 'post', '/search');
       const { req, res } = createMockReqRes({ query: 'test search' }, {});
 
-      await handler(req, res);
+      await handler(req, res, vi.fn());
 
       expect(res.status).toHaveBeenCalledWith(500);
       expect(res.json).toHaveBeenCalledWith(
@@ -592,15 +541,14 @@ describe('/user/memory routes', () => {
       }));
       mockPrisma.$queryRaw.mockResolvedValue(mockResults);
 
-      const router = createMemoryRoutes({
+      const handler = handleSearch({
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
       });
-      const handler = getHandler(router, 'post', '/search');
       // Request with limit=5, but API returns 6 to check for hasMore
       const { req, res } = createMockReqRes({ query: 'test search', limit: 5 }, {});
 
-      await handler(req, res);
+      await handler(req, res, vi.fn());
 
       expect(res.status).toHaveBeenCalledWith(200);
       // The response should only include 5 results (not 6)
@@ -623,14 +571,13 @@ describe('/user/memory routes', () => {
       ];
       mockPrisma.$queryRaw.mockResolvedValue(textResults);
 
-      const router = createMemoryRoutes({
+      const handler = handleSearch({
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
       });
-      const handler = getHandler(router, 'post', '/search');
       const { req, res } = createMockReqRes({ query: 'test search', preferTextSearch: true }, {});
 
-      await handler(req, res);
+      await handler(req, res, vi.fn());
 
       // Should NOT call generateEmbedding when preferTextSearch is true
       expect(mockGenerateEmbedding).not.toHaveBeenCalled();
@@ -647,14 +594,13 @@ describe('/user/memory routes', () => {
     it('should return 503 when embedding service returns null', async () => {
       mockGenerateEmbedding.mockResolvedValue(null);
 
-      const router = createMemoryRoutes({
+      const handler = handleSearch({
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
       });
-      const handler = getHandler(router, 'post', '/search');
       const { req, res } = createMockReqRes({ query: 'test search' }, {});
 
-      await handler(req, res);
+      await handler(req, res, vi.fn());
 
       expect(res.status).toHaveBeenCalledWith(503);
       expect(res.json).toHaveBeenCalledWith(
@@ -666,26 +612,16 @@ describe('/user/memory routes', () => {
   });
 
   describe('GET /user/memory/list', () => {
-    it('should have GET /list route registered', () => {
-      const router = createMemoryRoutes({
-        ...stubRouteResolvers(),
-        prisma: mockPrisma as unknown as PrismaClient,
-      });
-
-      expect(findRoute(router, 'get', '/list')).toBeDefined();
-    });
-
     it('should return empty list when user has no persona', async () => {
       mockPrisma.user.findUnique.mockResolvedValueOnce({ defaultPersonaId: null });
 
-      const router = createMemoryRoutes({
+      const handler = handleList({
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
       });
-      const handler = getHandler(router, 'get', '/list');
       const { req, res } = createMockReqRes({}, {});
 
-      await handler(req, res);
+      await handler(req, res, vi.fn());
 
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.json).toHaveBeenCalledWith(
@@ -722,14 +658,13 @@ describe('/user/memory routes', () => {
       mockPrisma.memory.count.mockResolvedValue(2);
       mockPrisma.memory.findMany.mockResolvedValue(mockMemories);
 
-      const router = createMemoryRoutes({
+      const handler = handleList({
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
       });
-      const handler = getHandler(router, 'get', '/list');
       const { req, res } = createMockReqRes({}, { limit: '10', offset: '0' });
 
-      await handler(req, res);
+      await handler(req, res, vi.fn());
 
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.json).toHaveBeenCalledWith(
@@ -758,14 +693,13 @@ describe('/user/memory routes', () => {
       mockPrisma.memory.count.mockResolvedValue(0);
       mockPrisma.memory.findMany.mockResolvedValue([]);
 
-      const router = createMemoryRoutes({
+      const handler = handleList({
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
       });
-      const handler = getHandler(router, 'get', '/list');
       const { req, res } = createMockReqRes({}, { personalityId: TEST_PERSONALITY_ID });
 
-      await handler(req, res);
+      await handler(req, res, vi.fn());
 
       expect(mockPrisma.memory.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -780,14 +714,13 @@ describe('/user/memory routes', () => {
       mockPrisma.memory.count.mockResolvedValue(0);
       mockPrisma.memory.findMany.mockResolvedValue([]);
 
-      const router = createMemoryRoutes({
+      const handler = handleList({
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
       });
-      const handler = getHandler(router, 'get', '/list');
       const { req, res } = createMockReqRes({}, { limit: '100' });
 
-      await handler(req, res);
+      await handler(req, res, vi.fn());
 
       expect(mockPrisma.memory.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -800,14 +733,13 @@ describe('/user/memory routes', () => {
       mockPrisma.memory.count.mockResolvedValue(0);
       mockPrisma.memory.findMany.mockResolvedValue([]);
 
-      const router = createMemoryRoutes({
+      const handler = handleList({
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
       });
-      const handler = getHandler(router, 'get', '/list');
       const { req, res } = createMockReqRes({}, {});
 
-      await handler(req, res);
+      await handler(req, res, vi.fn());
 
       expect(mockPrisma.memory.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -820,14 +752,13 @@ describe('/user/memory routes', () => {
       mockPrisma.memory.count.mockResolvedValue(25);
       mockPrisma.memory.findMany.mockResolvedValue([]);
 
-      const router = createMemoryRoutes({
+      const handler = handleList({
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
       });
-      const handler = getHandler(router, 'get', '/list');
       const { req, res } = createMockReqRes({}, { limit: '10', offset: '10' });
 
-      await handler(req, res);
+      await handler(req, res, vi.fn());
 
       expect(mockPrisma.memory.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -853,14 +784,13 @@ describe('/user/memory routes', () => {
       mockPrisma.memory.count.mockResolvedValue(25);
       mockPrisma.memory.findMany.mockResolvedValue(mockMemories);
 
-      const router = createMemoryRoutes({
+      const handler = handleList({
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
       });
-      const handler = getHandler(router, 'get', '/list');
       const { req, res } = createMockReqRes({}, { limit: '10', offset: '0' });
 
-      await handler(req, res);
+      await handler(req, res, vi.fn());
 
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -873,14 +803,13 @@ describe('/user/memory routes', () => {
       mockPrisma.memory.count.mockResolvedValue(0);
       mockPrisma.memory.findMany.mockResolvedValue([]);
 
-      const router = createMemoryRoutes({
+      const handler = handleList({
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
       });
-      const handler = getHandler(router, 'get', '/list');
       const { req, res } = createMockReqRes({}, { sort: 'updatedAt', order: 'asc' });
 
-      await handler(req, res);
+      await handler(req, res, vi.fn());
 
       expect(mockPrisma.memory.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -893,14 +822,13 @@ describe('/user/memory routes', () => {
       mockPrisma.memory.count.mockResolvedValue(0);
       mockPrisma.memory.findMany.mockResolvedValue([]);
 
-      const router = createMemoryRoutes({
+      const handler = handleList({
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
       });
-      const handler = getHandler(router, 'get', '/list');
       const { req, res } = createMockReqRes({}, {});
 
-      await handler(req, res);
+      await handler(req, res, vi.fn());
 
       expect(mockPrisma.memory.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
