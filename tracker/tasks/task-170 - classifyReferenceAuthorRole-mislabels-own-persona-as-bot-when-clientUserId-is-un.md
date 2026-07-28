@@ -3,10 +3,10 @@ id: TASK-170
 title: >-
   classifyReferenceAuthorRole mislabels own persona when clientUserId is
   undefined
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-06-24 00:00'
-updated_date: '2026-07-28 10:49'
+updated_date: '2026-07-28 20:31'
 labels:
   - 'area:bot-client'
   - 'area:conversation-history'
