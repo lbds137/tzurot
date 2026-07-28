@@ -37,7 +37,7 @@ import type { LlmConfigResolver } from '@tzurot/config-resolver';
 import { ApiError, parseApiError } from '../utils/apiErrorParser.js';
 import { RetryError } from '../utils/retry.js';
 import type { CreditExhaustionCache } from './CreditExhaustionCache.js';
-import type { RateLimitCache } from './RateLimitCache.js';
+import { SYSTEM_CACHE_KEY_ID, type RateLimitCache } from './RateLimitCache.js';
 
 const logger = createLogger('QuotaFallback');
 
@@ -179,12 +179,16 @@ export function isCausePrecedenceFailure(error: unknown): boolean {
  * The `isViable` seam (design D2): is `model` currently attemptable for this
  * account scope? Consults the same doom-caches the failure path writes.
  * Returns the blocking category on a non-viable model so proactive callers
- * can label the retarget correctly. Error semantics are CALLER-specific:
- * this function itself propagates a throwing cache (no internal catch). The
- * proactive/hop-1 paths degrade a throw to viable at their own seams (the
- * caches are an optimisation there); the floor hop (`attemptFloorHop`)
- * deliberately degrades a throw to NOT-attempted instead — fail-closed is the
- * safer call for a last-resort hop whose skip just propagates the original.
+ * can label the retarget correctly. Error semantics: the fail-open lives
+ * INSIDE `RateLimitCache.isRateLimited` / `CreditExhaustionCache.
+ * isCreditExhausted` — each catches its own Redis failure and degrades to
+ * not-blocked — so in practice this function does not throw. The caller-side
+ * degrade layers are defense-in-depth only: the proactive/hop-1 paths degrade
+ * a hypothetical throw to viable, while the floor hop (`attemptFloorHop`)
+ * degrades to NOT-attempted (fail-closed suits a last-resort hop whose skip
+ * just propagates the original). The runner's unwrapped `await
+ * selectQuotaFallbackTarget` would propagate such a throw — acceptable only
+ * because the caches fail open internally.
  */
 export async function checkModelViability(options: {
   model: string;
@@ -271,6 +275,12 @@ export async function selectQuotaFallbackTarget(options: {
   category: QuotaFallbackCategory;
   isGuestMode: boolean;
   failingModel: string;
+  /**
+   * The CALLER's cache identity (the failing route's account scope). Used for
+   * the target viability check only when the target stays on the caller's own
+   * billing entity; guest-semantics targets are checked under the system
+   * bucket regardless (derived internally — callers can't get it wrong).
+   */
   cacheKeyId: string;
   configResolver: LlmConfigResolver;
   caches: QuotaFallbackCaches;
@@ -297,20 +307,23 @@ export async function selectQuotaFallbackTarget(options: {
     return null;
   }
 
-  // Target viability: skip the credit-exhaustion check when the billing
-  // entity changes — the exhaustion mark belongs to the user's account, but
-  // the forced-system-key retry bills a different one (the cache bucket is
-  // per-user either way, so the mark would otherwise always veto this path).
-  if (forceSystemKey) {
-    const rateLimited = await caches.rateLimit.isRateLimited({ cacheKeyId, model: config.model });
-    if (rateLimited.rateLimited) {
-      return null;
-    }
-  } else {
-    const viability = await checkModelViability({ model: config.model, cacheKeyId, caches });
-    if (!viability.viable) {
-      return null;
-    }
+  // Target viability runs under the TARGET's billing identity, never the
+  // caller's. A guest-semantics target (isGuestMode, or the forced entity
+  // swap) executes on the system key, whose doom marks are written under
+  // `system` — reading the caller's `user:<id>` bucket would both miss the
+  // target's own marks (a forced retry's 429 lands under `system`) and
+  // re-attach the caller's (the exhaustion mark that triggered the swap
+  // would always veto it). With the identity right, the full viability
+  // check is coherent on every path: a `system` exhaustion mark genuinely
+  // describes the account the retarget would bill.
+  const targetCacheKeyId = forceSystemKey || isGuestMode ? SYSTEM_CACHE_KEY_ID : cacheKeyId;
+  const viability = await checkModelViability({
+    model: config.model,
+    cacheKeyId: targetCacheKeyId,
+    caches,
+  });
+  if (!viability.viable) {
+    return null;
   }
 
   return { config, forceSystemKey };

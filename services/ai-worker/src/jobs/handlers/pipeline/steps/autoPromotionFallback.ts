@@ -181,7 +181,14 @@ export async function runWithAutoPromotionFallback(
       // route's key is the one that actually served the rescued request.
       logQuotaFallbackAudit(info, {
         jobId: opts.jobId,
-        cacheKeyId: deriveCacheKeyId(fallback.apiKey, opts.conversationContext.userId),
+        // Identity follows the fallback credential's own provenance field.
+        // Guest fallbacks bail at entry, so this is `user:<id>` today — but
+        // deriving from the field keeps the audit right if that gate moves.
+        cacheKeyId: deriveCacheKeyId(
+          fallback.apiKey,
+          opts.conversationContext.userId,
+          fallback.isGuestMode
+        ),
       });
       return {
         ...fallbackResult,

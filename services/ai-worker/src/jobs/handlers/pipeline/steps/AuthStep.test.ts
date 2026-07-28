@@ -269,27 +269,42 @@ describe('AuthStep', () => {
         isGuestMode: true,
       };
 
-      function buildCaches(overrides?: { exhausted?: boolean; rateLimitedModels?: string[] }): {
+      // Bucket-aware doom-cache mock: marks are (cacheKeyId[, model])-scoped in
+      // Redis, and a mock that ignores the bucket cannot catch a wrong-identity
+      // read. `exhausted: true` / a bare model string mark every bucket.
+      function buildCaches(overrides?: {
+        exhausted?: boolean | string[];
+        rateLimitedModels?: (string | { cacheKeyId: string; model: string })[];
+      }): {
         creditExhaustion: { isCreditExhausted: ReturnType<typeof vi.fn> };
         rateLimit: { isRateLimited: ReturnType<typeof vi.fn> };
       } {
+        const exhausted = overrides?.exhausted ?? false;
         const rateLimitedModels = overrides?.rateLimitedModels ?? [];
         return {
           creditExhaustion: {
             isCreditExhausted: vi
               .fn()
-              .mockResolvedValue(
-                overrides?.exhausted === true
-                  ? { exhausted: true, exhaustedAtMs: 0, ttlSeconds: 60 }
-                  : { exhausted: false }
+              .mockImplementation(({ cacheKeyId }: { cacheKeyId: string }) =>
+                Promise.resolve(
+                  exhausted === true || (Array.isArray(exhausted) && exhausted.includes(cacheKeyId))
+                    ? { exhausted: true, exhaustedAtMs: 0, ttlSeconds: 60 }
+                    : { exhausted: false }
+                )
               ),
           },
           rateLimit: {
             isRateLimited: vi
               .fn()
-              .mockImplementation(({ model }: { model: string }) =>
+              .mockImplementation(({ cacheKeyId, model }: { cacheKeyId: string; model: string }) =>
                 Promise.resolve(
-                  rateLimitedModels.includes(model) ? { rateLimited: true } : { rateLimited: false }
+                  rateLimitedModels.some(entry =>
+                    typeof entry === 'string'
+                      ? entry === model
+                      : entry.model === model && entry.cacheKeyId === cacheKeyId
+                  )
+                    ? { rateLimited: true }
+                    : { rateLimited: false }
                 )
               ),
           },
@@ -342,7 +357,9 @@ describe('AuthStep', () => {
           getFreeDefaultConfig: vi.fn().mockResolvedValue({ model: 'free/model' }),
           getGlobalDefaultConfig: vi.fn().mockResolvedValue(null),
         } as unknown as LlmConfigResolver;
-        const caches = buildCaches({ exhausted: true });
+        // Only the USER's account is exhausted — the system bucket is healthy,
+        // so the forced-swap target must survive its own viability check.
+        const caches = buildCaches({ exhausted: ['user:user-456'] });
 
         step = new AuthStep(mockApiKeyResolver, resolverWithFree, undefined, undefined, {
           quotaFallbackCaches: caches as never,
@@ -367,6 +384,34 @@ describe('AuthStep', () => {
 
         expect(result.config?.effectivePersonality.model).toBe(TEST_PERSONALITY.model);
         expect(result.auth?.quotaFallback).toBeUndefined();
+      });
+
+      it("a guest route's viability check reads the system bucket — the user's own doom marks are irrelevant", async () => {
+        // A guest resolves the SYSTEM key as a plain string; identity must
+        // follow that provenance. The user's `user:<id>` bucket carrying a
+        // mark for the guest's model (their BYOK history) must not veto or
+        // retarget a route that bills the shared pool.
+        vi.mocked(mockApiKeyResolver.resolveApiKey).mockResolvedValue(SYSTEM_RESULT);
+        vi.mocked(mockConfigResolver.getFreeDefaultConfig).mockResolvedValue(null);
+        const caches = buildCaches({
+          rateLimitedModels: [{ cacheKeyId: 'user:user-456', model: FREE_ROUTER_MODEL }],
+        });
+
+        step = new AuthStep(mockApiKeyResolver, mockConfigResolver, undefined, undefined, {
+          quotaFallbackCaches: caches as never,
+        });
+        const result = await step.process(buildContext());
+
+        // Guest override lands on the free router; the stale user-bucket mark
+        // must not have retargeted it away.
+        expect(result.config?.effectivePersonality.model).toBe(FREE_ROUTER_MODEL);
+        expect(result.auth?.quotaFallback).toBeUndefined();
+        expect(caches.rateLimit.isRateLimited).toHaveBeenCalledWith(
+          expect.objectContaining({ cacheKeyId: 'system' })
+        );
+        expect(caches.rateLimit.isRateLimited).not.toHaveBeenCalledWith(
+          expect.objectContaining({ cacheKeyId: 'user:user-456' })
+        );
       });
 
       it('z.ai-promoted personality: retarget resets provider, swaps to the user OpenRouter key, and clears the stale auto-promotion route', async () => {
