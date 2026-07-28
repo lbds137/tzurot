@@ -6,7 +6,7 @@
 
 ## Unreleased on Develop
 
-_(empty — beta.181 shipped everything)_
+- **#1823 — the backlog substrate FLIP** (2026-07-27): `tracker/` is now authoritative for small items; `cold/follow-ups.md` retired. New: `pnpm ops backlog:digest` (session-start briefing), tracker parse-integrity gating in `pnpm ops backlog`, `dev:deferred-refs` retargeted to tasks, promise-ledger hook credits `pnpm tracker task create|edit`, 06-backlog.md rewritten (trigger-gating retired as a filing rule). Zero user-visible runtime change (tooling + docs + comment-only service edits).
 
 ## 🔬 Smoke checklist — v3.0.0-beta.180 (post-deploy)
 
@@ -21,7 +21,7 @@ _Risk-scoped to what this release actually touches._
 
 ## ⏭️ NEXT SESSION STARTS HERE
 
-**NEXT BUILD UNIT: the substrate flip PR** — the atomic cutover to the `tracker/` store merged in #1822 (boundary ratified 2026-07-27: follow-ups→tasks, themes/ideas→docs; `cold/follow-ups.md` is STILL AUTHORITATIVE until this lands). Contents, per the now.md Current Focus entry: 06-backlog.md rewrite (trigger-gating retirement rides here) · BACKLOG.md manifest · retire follow-ups.md (re-sync interim row changes first) · digest generator → `pnpm ops` (port from this session's scratchpad `gen-digest.mjs`; the import tool was `import-followups.mjs`) · retarget backlog-lint + deferred-refs hooks to tracker/. After the flip: labeling pass (148 unlabeled + titles), themes/ideas→docs, then the drain campaign.
+**NEXT BUILD UNIT: the labeling pass (substrate step 3)** — one agent session over `tracker/tasks/`: area labels for the ~148 unlabeled tasks, title polish (import titles are truncation-shaped), size/priority fields. Direct-commit territory (`tracker/**/*.md` is doc-commit-allowed per 00-critical). Also fold in: TASK-338 (digest area-counts clarity note) and the db-sync-async task dedup (TASK-130/216/251 overlap, spotted during #1823's pointer verification). **The flip (step 2) MERGED as #1823** — tracker/ is authoritative, follow-ups.md is gone, `pnpm ops backlog:digest` is the session-start briefing. After labeling: step 4 themes/ideas→tracker docs, then the drain campaign.
 
 **2026-07-27 was retention Phase 3's runtime completion, all owner-delegated**: 45 users purged (33 bystanders incl. the `'unknown'` fossil + 12 notify-bounces), beta.181 released (#1818 BullMQ jobId fix — caught by the dev re-route smoke BEFORE prod tripped it), first prod notify run (21 → 9 in grace, expiry ~2026-08-26; 2 warned users reactivated within the hour). Final books: 227 users, 0 purge-eligible, 7 in grace. **Everything retention is now calendar**: grace expiries ~Aug 26 (daily nag surfaces them); Phase 4 parked. **system-model Phase 0 COMPLETE** (map interview + accuracy review applied; scheduled redraw dropped by owner call — informal sketch-check at next design conversation; freshness = epic-close re-touch rule via #1814). Idle-time ride-alongs whenever: drift audit (Quick Win), GLM generic-unwrapper (now.md Untriaged — ride-along, never a dedicated cut).
 
