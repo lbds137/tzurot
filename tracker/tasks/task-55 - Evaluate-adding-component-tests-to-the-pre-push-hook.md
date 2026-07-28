@@ -1,13 +1,16 @@
 ---
 id: TASK-55
-title: 'Evaluate adding component tests to the pre-push hook'
+title: Evaluate adding component tests to the pre-push hook
 status: To Do
 assignee: []
 created_date: '2026-06-25 00:00'
+updated_date: '2026-07-28 10:47'
 labels:
-  - 'area:redis'
-  - 'origin:review'
+  - 'area:testing'
+  - 'area:process'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 55000
 ---
 

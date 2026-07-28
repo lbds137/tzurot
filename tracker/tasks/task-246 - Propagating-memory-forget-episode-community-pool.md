@@ -1,11 +1,16 @@
 ---
 id: TASK-246
-title: 'Propagating /memory forget (episode + community-pool)'
+title: Propagating /memory forget (episode + community-pool)
 status: To Do
 assignee: []
 created_date: '2026-07-09 00:00'
-labels: []
+updated_date: '2026-07-28 10:51'
+labels:
+  - 'area:ai-worker'
+  - 'area:bot-client'
+  - 'size:M'
 dependencies: []
+priority: medium
 ordinal: 246000
 ---
 

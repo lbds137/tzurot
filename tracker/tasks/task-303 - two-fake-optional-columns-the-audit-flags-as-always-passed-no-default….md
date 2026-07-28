@@ -1,12 +1,15 @@
 ---
 id: TASK-303
-title: 'two fake-optional columns the audit flags as always-passed-no-default:…'
+title: Two fake-optional columns flagged always-passed-no-default
 status: To Do
 assignee: []
 created_date: '2026-07-23 00:00'
+updated_date: '2026-07-28 10:52'
 labels:
   - 'area:db'
+  - 'size:S'
 dependencies: []
+priority: medium
 ordinal: 303000
 ---
 

@@ -1,13 +1,16 @@
 ---
 id: TASK-154
-title: 'Extract the ContextStep pass-through test stub to test-utils'
+title: Extract the ContextStep pass-through test stub to test-utils
 status: To Do
 assignee: []
 created_date: '2026-06-19 00:00'
+updated_date: '2026-07-28 10:49'
 labels:
   - 'area:ai-worker'
   - 'area:testing'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 154000
 ---
 

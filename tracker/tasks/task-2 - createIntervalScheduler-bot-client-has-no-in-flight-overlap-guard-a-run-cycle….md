@@ -1,13 +1,16 @@
 ---
 id: TASK-2
-title: 'createIntervalScheduler (bot-client) has no in-flight overlap guard: a run cycle…'
+title: 'createIntervalScheduler: add in-flight overlap guard'
 status: To Do
 assignee: []
 created_date: '2026-07-26 00:00'
+updated_date: '2026-07-28 10:46'
 labels:
   - 'area:bot-client'
   - 'origin:review'
+  - 'size:S'
 dependencies: []
+priority: medium
 ordinal: 2000
 ---
 

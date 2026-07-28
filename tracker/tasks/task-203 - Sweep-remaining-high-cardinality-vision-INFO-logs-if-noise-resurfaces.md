@@ -1,11 +1,15 @@
 ---
 id: TASK-203
-title: 'Sweep remaining high-cardinality vision INFO logs if noise resurfaces'
+title: Sweep remaining high-cardinality vision INFO logs if noise resurfaces
 status: To Do
 assignee: []
 created_date: '2026-07-04 00:00'
-labels: []
+updated_date: '2026-07-28 10:50'
+labels:
+  - 'area:ai-worker'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 203000
 ---
 

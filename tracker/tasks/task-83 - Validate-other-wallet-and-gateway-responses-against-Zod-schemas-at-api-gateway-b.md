@@ -1,13 +1,18 @@
 ---
 id: TASK-83
-title: 'Validate other /wallet/* and gateway responses against Zod schemas at api-gateway boundary'
+title: >-
+  Validate other /wallet/* and gateway responses against Zod schemas at
+  api-gateway boundary
 status: To Do
 assignee: []
 created_date: '2026-04-26 00:00'
+updated_date: '2026-07-28 10:47'
 labels:
   - 'area:api-gateway'
   - 'area:common-types'
+  - 'size:M'
 dependencies: []
+priority: medium
 ordinal: 83000
 ---
 

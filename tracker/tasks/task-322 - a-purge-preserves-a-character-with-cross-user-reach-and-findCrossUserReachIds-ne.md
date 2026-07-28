@@ -1,11 +1,15 @@
 ---
 id: TASK-322
-title: 'a purge preserves a character with cross-user reach, and findCrossUserReachIds never…'
+title: Purge over-retains ex-public private characters (owner-accepted disposition)
 status: To Do
 assignee: []
 created_date: '2026-07-25 00:00'
-labels: []
+updated_date: '2026-07-28 10:52'
+labels:
+  - 'area:api-gateway'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 322000
 ---
 

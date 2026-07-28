@@ -1,12 +1,15 @@
 ---
 id: TASK-221
-title: "Episode type value rename 'memory'→'episode' + zod vocabulary"
+title: Episode type value rename 'memory'→'episode' + zod vocabulary
 status: To Do
 assignee: []
 created_date: '2026-07-06 00:00'
+updated_date: '2026-07-28 10:50'
 labels:
   - 'area:db'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 221000
 ---
 

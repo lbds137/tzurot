@@ -1,12 +1,15 @@
 ---
 id: TASK-21
-title: 'confirmProductionOperation (tooling env-runner) returns a boolean that callers can…'
+title: confirmProductionOperation returns an ignorable boolean
 status: To Do
 assignee: []
 created_date: '2026-07-10 00:00'
+updated_date: '2026-07-28 10:46'
 labels:
   - 'area:tooling'
+  - 'size:S'
 dependencies: []
+priority: medium
 ordinal: 21000
 ---
 

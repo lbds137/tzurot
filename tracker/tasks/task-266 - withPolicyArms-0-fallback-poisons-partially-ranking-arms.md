@@ -1,11 +1,15 @@
 ---
 id: TASK-266
-title: "withPolicyArm's ?? 0 fallback poisons partially-ranking arms"
+title: withPolicyArm's ?? 0 fallback poisons partially-ranking arms
 status: To Do
 assignee: []
 created_date: '2026-07-14 00:00'
-labels: []
+updated_date: '2026-07-28 10:51'
+labels:
+  - 'area:ai-worker'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 266000
 ---
 

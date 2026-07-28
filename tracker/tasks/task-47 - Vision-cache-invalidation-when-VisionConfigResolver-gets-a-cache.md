@@ -1,13 +1,16 @@
 ---
 id: TASK-47
-title: 'Vision cache invalidation when VisionConfigResolver gets a cache'
+title: Vision cache invalidation when VisionConfigResolver gets a cache
 status: To Do
 assignee: []
 created_date: '2026-06-28 00:00'
+updated_date: '2026-07-28 10:47'
 labels:
   - 'area:ai-worker'
   - 'origin:review'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 47000
 ---
 

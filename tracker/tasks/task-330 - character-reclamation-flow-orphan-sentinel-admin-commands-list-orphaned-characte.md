@@ -1,11 +1,16 @@
 ---
 id: TASK-330
-title: 'character reclamation flow + orphan-sentinel admin commands (list orphaned characters,…'
+title: Character reclamation flow + orphan-sentinel admin commands
 status: To Do
 assignee: []
 created_date: '2026-07-26 00:00'
-labels: []
+updated_date: '2026-07-28 10:53'
+labels:
+  - 'area:bot-client'
+  - 'area:api-gateway'
+  - 'size:L'
 dependencies: []
+priority: low
 ordinal: 330000
 ---
 

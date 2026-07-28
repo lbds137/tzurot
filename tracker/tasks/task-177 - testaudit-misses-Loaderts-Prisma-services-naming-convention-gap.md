@@ -4,11 +4,14 @@ title: 'test:audit misses *Loader.ts Prisma services (naming-convention gap)'
 status: To Do
 assignee: []
 created_date: '2026-06-25 00:00'
+updated_date: '2026-07-28 10:49'
 labels:
   - 'area:tooling'
   - 'area:identity'
   - 'area:db'
+  - 'size:S'
 dependencies: []
+priority: medium
 ordinal: 177000
 ---
 

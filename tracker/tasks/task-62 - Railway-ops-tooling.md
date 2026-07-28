@@ -1,12 +1,15 @@
 ---
 id: TASK-62
-title: 'Railway ops tooling'
+title: 'Railway ops tooling: sanctioned token + GraphQL ops the CLI lacks'
 status: To Do
 assignee: []
 created_date: '2026-06-17 00:00'
+updated_date: '2026-07-28 10:47'
 labels:
   - 'area:tooling'
+  - 'size:M'
 dependencies: []
+priority: low
 ordinal: 62000
 ---
 

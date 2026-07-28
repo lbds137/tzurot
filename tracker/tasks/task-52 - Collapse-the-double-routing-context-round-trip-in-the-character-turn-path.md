@@ -1,13 +1,16 @@
 ---
 id: TASK-52
-title: 'Collapse the double routing-context round-trip in the character-turn path'
+title: Collapse the double routing-context round-trip in the character-turn path
 status: To Do
 assignee: []
 created_date: '2026-06-21 00:00'
+updated_date: '2026-07-28 10:47'
 labels:
   - 'area:db'
   - 'origin:review'
+  - 'size:M'
 dependencies: []
+priority: medium
 ordinal: 52000
 ---
 

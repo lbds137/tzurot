@@ -1,13 +1,18 @@
 ---
 id: TASK-38
-title: 'Type the applyFastPoolDeadConnRetry $extends result instead of as unknown as PrismaClient'
+title: >-
+  Type the applyFastPoolDeadConnRetry $extends result instead of as unknown as
+  PrismaClient
 status: To Do
 assignee: []
 created_date: '2026-07-01 00:00'
+updated_date: '2026-07-28 10:46'
 labels:
   - 'area:db'
   - 'origin:review'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 38000
 ---
 

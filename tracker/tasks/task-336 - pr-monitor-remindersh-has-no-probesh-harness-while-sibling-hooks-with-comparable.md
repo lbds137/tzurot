@@ -1,12 +1,16 @@
 ---
 id: TASK-336
-title: 'pr-monitor-reminder.sh has no .probe.sh harness while sibling hooks with comparable…'
+title: pr-monitor-reminder.sh lacks a probe harness
 status: To Do
 assignee: []
 created_date: '2026-07-27 00:00'
+updated_date: '2026-07-28 10:53'
 labels:
   - 'origin:review'
+  - 'area:process'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 336000
 ---
 

@@ -1,11 +1,15 @@
 ---
 id: TASK-286
-title: 'Notification-eligibility refinements beyond the deliberate-use gate: (a) activity recency…'
+title: Notification-eligibility refinements beyond the deliberate-use gate
 status: To Do
 assignee: []
 created_date: '2026-07-17 00:00'
-labels: []
+updated_date: '2026-07-28 10:52'
+labels:
+  - 'area:api-gateway'
+  - 'size:M'
 dependencies: []
+priority: low
 ordinal: 286000
 ---
 

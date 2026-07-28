@@ -1,12 +1,16 @@
 ---
 id: TASK-167
-title: 'deleteVoice/clearVoices chain sequential external calls'
+title: deleteVoice/clearVoices chain sequential external calls
 status: To Do
 assignee: []
 created_date: '2026-06-24 00:00'
+updated_date: '2026-07-28 10:49'
 labels:
   - 'area:jobs'
+  - 'area:voice'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 167000
 ---
 

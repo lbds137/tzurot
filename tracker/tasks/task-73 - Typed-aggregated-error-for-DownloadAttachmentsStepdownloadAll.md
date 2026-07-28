@@ -1,11 +1,15 @@
 ---
 id: TASK-73
-title: 'Typed aggregated error for DownloadAttachmentsStep.downloadAll'
+title: Typed aggregated error for DownloadAttachmentsStep.downloadAll
 status: To Do
 assignee: []
 created_date: '2026-04-24 00:00'
-labels: []
+updated_date: '2026-07-28 10:47'
+labels:
+  - 'area:ai-worker'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 73000
 ---
 

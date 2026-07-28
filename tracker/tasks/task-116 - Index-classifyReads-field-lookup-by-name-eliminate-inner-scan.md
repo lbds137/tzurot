@@ -1,13 +1,16 @@
 ---
 id: TASK-116
-title: 'Index classifyReads field lookup by name (eliminate inner-scan)'
+title: Index classifyReads field lookup by name (eliminate inner-scan)
 status: To Do
 assignee: []
 created_date: '2026-05-21 00:00'
+updated_date: '2026-07-28 10:48'
 labels:
   - 'area:tooling'
   - 'area:db'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 116000
 ---
 

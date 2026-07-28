@@ -4,9 +4,13 @@ title: 'Broadcast dry-run should count, not sweep'
 status: To Do
 assignee: []
 created_date: '2026-07-14 00:00'
+updated_date: '2026-07-28 10:51'
 labels:
   - 'origin:review'
+  - 'area:api-gateway'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 271000
 ---
 

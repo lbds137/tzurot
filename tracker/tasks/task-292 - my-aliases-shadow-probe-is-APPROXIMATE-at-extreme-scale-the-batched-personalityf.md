@@ -1,12 +1,16 @@
 ---
 id: TASK-292
-title: 'my-aliases shadow probe is APPROXIMATE at extreme scale: the batched personality.findMany…'
+title: my-aliases shadow probe is approximate at extreme scale
 status: To Do
 assignee: []
 created_date: '2026-07-18 00:00'
+updated_date: '2026-07-28 10:52'
 labels:
   - 'origin:review'
+  - 'area:api-gateway'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 292000
 ---
 

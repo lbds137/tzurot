@@ -1,12 +1,16 @@
 ---
 id: TASK-307
-title: 'the bug-remediation skill-eval trigger was broadened to fire at the FIRST fix of a…'
+title: Watch the bug-remediation first-fix trigger for over-firing
 status: To Do
 assignee: []
 created_date: '2026-07-20 00:00'
+updated_date: '2026-07-28 10:52'
 labels:
   - 'origin:review'
+  - 'area:process'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 307000
 ---
 

@@ -1,11 +1,15 @@
 ---
 id: TASK-64
-title: 'Single-flight dedup for HttpPersonalityLoader concurrent misses'
+title: Single-flight dedup for HttpPersonalityLoader concurrent misses
 status: To Do
 assignee: []
 created_date: '2026-06-04 00:00'
-labels: []
+updated_date: '2026-07-28 10:47'
+labels:
+  - 'area:bot-client'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 64000
 ---
 

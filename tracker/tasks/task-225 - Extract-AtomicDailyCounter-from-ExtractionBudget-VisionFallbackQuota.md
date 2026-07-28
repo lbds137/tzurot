@@ -1,13 +1,16 @@
 ---
 id: TASK-225
-title: 'Extract AtomicDailyCounter from ExtractionBudget + VisionFallbackQuota'
+title: Extract AtomicDailyCounter from ExtractionBudget + VisionFallbackQuota
 status: To Do
 assignee: []
 created_date: '2026-07-07 00:00'
+updated_date: '2026-07-28 10:50'
 labels:
   - 'area:redis'
   - 'origin:review'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 225000
 ---
 

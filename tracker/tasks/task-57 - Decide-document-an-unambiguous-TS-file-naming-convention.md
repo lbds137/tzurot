@@ -1,12 +1,16 @@
 ---
 id: TASK-57
-title: 'Decide + document an unambiguous TS file-naming convention'
+title: Decide + document an unambiguous TS file-naming convention
 status: To Do
 assignee: []
 created_date: '2026-06-18 00:00'
+updated_date: '2026-07-28 10:47'
 labels:
   - 'area:common-types'
+  - 'area:process'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 57000
 ---
 

@@ -1,12 +1,16 @@
 ---
 id: TASK-253
-title: 'Goldens miner: Hamilton apportionment + malformed-JSON friendly error + replacements…'
+title: 'Goldens miner: Hamilton apportionment + malformed-JSON friendly error'
 status: To Do
 assignee: []
 created_date: '2026-07-12 00:00'
+updated_date: '2026-07-28 10:51'
 labels:
   - 'origin:review'
+  - 'area:tooling'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 253000
 ---
 

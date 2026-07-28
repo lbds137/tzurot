@@ -1,13 +1,18 @@
 ---
 id: TASK-172
-title: 'VoiceTranscriptCache swallows all Redis errors as cache misses (no operational signal)'
+title: >-
+  VoiceTranscriptCache swallows all Redis errors as cache misses (no operational
+  signal)
 status: To Do
 assignee: []
 created_date: '2026-06-24 00:00'
+updated_date: '2026-07-28 10:49'
 labels:
   - 'area:common-types'
   - 'area:redis'
+  - 'size:S'
 dependencies: []
+priority: medium
 ordinal: 172000
 ---
 

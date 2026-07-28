@@ -4,9 +4,12 @@ title: 'backlog:digest area counts are not mutually exclusive — say so at the 
 status: To Do
 assignee: []
 created_date: '2026-07-28 02:35'
+updated_date: '2026-07-28 10:53'
 labels:
   - 'area:backlog'
+  - 'size:S'
 dependencies: []
+priority: medium
 ordinal: 338000
 ---
 

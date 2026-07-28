@@ -1,12 +1,15 @@
 ---
 id: TASK-313
-title: 'user-facing bot-client copy hardcodes the "Tzurot" brand at ~15 sites (voice purge/browse…'
+title: Hardcoded Tzurot brand in ~15 bot-client copy sites
 status: To Do
 assignee: []
 created_date: '2026-07-22 00:00'
+updated_date: '2026-07-28 10:52'
 labels:
   - 'area:bot-client'
+  - 'size:S'
 dependencies: []
+priority: medium
 ordinal: 313000
 ---
 

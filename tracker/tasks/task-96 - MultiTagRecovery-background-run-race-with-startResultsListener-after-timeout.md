@@ -1,11 +1,15 @@
 ---
 id: TASK-96
-title: 'MultiTagRecovery background-run race with startResultsListener after timeout'
+title: MultiTagRecovery background-run race with startResultsListener after timeout
 status: To Do
 assignee: []
 created_date: '2026-05-16 00:00'
-labels: []
+updated_date: '2026-07-28 10:48'
+labels:
+  - 'area:bot-client'
+  - 'size:M'
 dependencies: []
+priority: low
 ordinal: 96000
 ---
 

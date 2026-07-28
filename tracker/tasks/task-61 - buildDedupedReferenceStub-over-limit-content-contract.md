@@ -1,13 +1,16 @@
 ---
 id: TASK-61
-title: 'buildDedupedReferenceStub over-limit content contract'
+title: buildDedupedReferenceStub over-limit content contract
 status: To Do
 assignee: []
 created_date: '2026-06-17 00:00'
+updated_date: '2026-07-28 10:47'
 labels:
   - 'area:bot-client'
   - 'area:ai-worker'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 61000
 ---
 

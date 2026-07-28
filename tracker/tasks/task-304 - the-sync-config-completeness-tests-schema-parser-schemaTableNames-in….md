@@ -1,13 +1,16 @@
 ---
 id: TASK-304
-title: "the sync-config completeness test's schema parser (schemaTableNames in…"
+title: 'Sync-config completeness test: harden the schemaTableNames parser'
 status: To Do
 assignee: []
 created_date: '2026-07-20 00:00'
+updated_date: '2026-07-28 10:52'
 labels:
   - 'area:db'
   - 'origin:review'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 304000
 ---
 

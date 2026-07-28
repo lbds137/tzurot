@@ -1,12 +1,16 @@
 ---
 id: TASK-316
-title: 'createFreshRoutes (memory fresh routing) is marked "Legacy… preserved for existing…'
+title: Confirm which memory-fresh routing path prod mounts; delete the dead one
 status: To Do
 assignee: []
 created_date: '2026-07-22 00:00'
+updated_date: '2026-07-28 10:52'
 labels:
   - 'origin:review'
+  - 'area:api-gateway'
+  - 'size:S'
 dependencies: []
+priority: medium
 ordinal: 316000
 ---
 

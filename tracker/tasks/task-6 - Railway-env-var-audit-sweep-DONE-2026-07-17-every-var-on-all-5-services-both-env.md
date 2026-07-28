@@ -1,14 +1,17 @@
 ---
 id: TASK-6
-title: 'Railway env-var audit: sweep DONE 2026-07-17 (every var on all 5 services × both envs…'
+title: Railway env-var audit follow-ups (sweep done 2026-07-17)
 status: To Do
 assignee: []
 created_date: '2026-07-16 00:00'
+updated_date: '2026-07-28 10:46'
 labels:
   - 'area:voice'
   - 'area:tooling'
   - 'area:docs'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 6000
 ---
 

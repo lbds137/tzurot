@@ -1,12 +1,15 @@
 ---
 id: TASK-211
-title: 'Capture-race window: a memory captured mid-flight after a delete-sync sweep escapes…'
+title: 'Capture-race: a mid-flight memory can escape a delete-sync sweep'
 status: To Do
 assignee: []
 created_date: '2026-07-05 00:00'
+updated_date: '2026-07-28 10:50'
 labels:
   - 'area:conversation-history'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 211000
 ---
 

@@ -1,11 +1,15 @@
 ---
 id: TASK-320
-title: 'a retention-orphaned character shows its creator as "Unknown" in /character browse (the…'
+title: Retention-orphaned characters show creator Unknown in browse
 status: To Do
 assignee: []
 created_date: '2026-07-24 00:00'
-labels: []
+updated_date: '2026-07-28 10:52'
+labels:
+  - 'area:bot-client'
+  - 'size:S'
 dependencies: []
+priority: medium
 ordinal: 320000
 ---
 

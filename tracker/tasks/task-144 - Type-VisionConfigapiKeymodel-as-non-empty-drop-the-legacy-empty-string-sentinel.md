@@ -1,11 +1,17 @@
 ---
 id: TASK-144
-title: 'Type VisionConfig.apiKey/model as non-empty (drop the legacy empty-string sentinel)'
+title: >-
+  Type VisionConfig.apiKey/model as non-empty (drop the legacy empty-string
+  sentinel)
 status: To Do
 assignee: []
 created_date: '2026-06-14 00:00'
-labels: []
+updated_date: '2026-07-28 10:49'
+labels:
+  - 'area:ai-worker'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 144000
 ---
 

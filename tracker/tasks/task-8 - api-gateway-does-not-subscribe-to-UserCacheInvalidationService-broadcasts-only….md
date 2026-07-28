@@ -1,14 +1,17 @@
 ---
 id: TASK-8
-title: 'api-gateway does not subscribe to UserCacheInvalidationService broadcasts — only…'
+title: api-gateway missing UserCacheInvalidationService subscription
 status: To Do
 assignee: []
 created_date: '2026-07-16 00:00'
+updated_date: '2026-07-28 10:46'
 labels:
   - 'area:api-gateway'
   - 'area:ai-worker'
   - 'origin:review'
+  - 'size:M'
 dependencies: []
+priority: medium
 ordinal: 8000
 ---
 

@@ -1,13 +1,16 @@
 ---
 id: TASK-187
-title: 'Decide the kind-echo on the PUT /default set response (UserDefaultConfig)'
+title: Decide the kind-echo on the PUT /default set response (UserDefaultConfig)
 status: To Do
 assignee: []
 created_date: '2026-06-29 00:00'
+updated_date: '2026-07-28 10:50'
 labels:
   - 'area:bot-client'
   - 'area:common-types'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 187000
 ---
 

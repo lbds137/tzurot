@@ -1,12 +1,17 @@
 ---
 id: TASK-218
-title: 'Doom-cache bucket scoping: guests bucket per-user, and a forced-system-key retry writes…'
+title: 'Doom-cache bucket scoping: per-user guests + forced-system-key retry writes'
 status: To Do
 assignee: []
 created_date: '2026-07-06 00:00'
+updated_date: '2026-07-28 10:50'
 labels:
   - 'origin:review'
+  - 'area:ai-worker'
+  - 'area:redis'
+  - 'size:S'
 dependencies: []
+priority: medium
 ordinal: 218000
 ---
 

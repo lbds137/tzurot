@@ -1,11 +1,18 @@
 ---
 id: TASK-14
-title: 'langchainConverter.convertConversationHistory attributes EVERY stored assistant row to…'
+title: >-
+  langchainConverter attributes every stored assistant row to the current
+  personality
 status: To Do
 assignee: []
 created_date: '2026-07-12 00:00'
-labels: []
+updated_date: '2026-07-28 10:46'
+labels:
+  - 'area:ai-worker'
+  - 'area:conversation-history'
+  - 'size:M'
 dependencies: []
+priority: medium
 ordinal: 14000
 ---
 

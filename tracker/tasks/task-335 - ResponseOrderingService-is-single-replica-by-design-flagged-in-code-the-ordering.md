@@ -1,14 +1,17 @@
 ---
 id: TASK-335
-title: 'ResponseOrderingService is single-replica by design (flagged in-code) — the ordering…'
+title: ResponseOrderingService is single-replica by design
 status: To Do
 assignee: []
 created_date: '2026-07-27 00:00'
+updated_date: '2026-07-28 10:53'
 labels:
   - 'area:bot-client'
   - 'area:jobs'
   - 'area:redis'
+  - 'size:L'
 dependencies: []
+priority: low
 ordinal: 335000
 ---
 

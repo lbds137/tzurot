@@ -1,11 +1,16 @@
 ---
 id: TASK-217
-title: 'Retire the memoryScoreThreshold knob (and audit memoryLimit)'
+title: Retire the memoryScoreThreshold knob (and audit memoryLimit)
 status: To Do
 assignee: []
 created_date: '2026-07-06 00:00'
-labels: []
+updated_date: '2026-07-28 10:50'
+labels:
+  - 'area:ai-worker'
+  - 'area:db'
+  - 'size:M'
 dependencies: []
+priority: low
 ordinal: 217000
 ---
 

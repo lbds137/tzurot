@@ -1,13 +1,16 @@
 ---
 id: TASK-45
-title: 'STT transcript'
+title: Voxtral STT transcript repetition + lost space at segment boundary
 status: To Do
 assignee: []
 created_date: '2026-06-28 00:00'
+updated_date: '2026-07-28 10:47'
 labels:
   - 'area:ai-worker'
   - 'area:voice'
+  - 'size:M'
 dependencies: []
+priority: low
 ordinal: 45000
 ---
 

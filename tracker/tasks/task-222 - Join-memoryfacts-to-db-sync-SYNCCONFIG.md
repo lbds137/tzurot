@@ -1,12 +1,16 @@
 ---
 id: TASK-222
-title: 'Join memory_facts to db-sync SYNC_CONFIG'
+title: Join memory_facts to db-sync SYNC_CONFIG
 status: To Do
 assignee: []
 created_date: '2026-07-06 00:00'
+updated_date: '2026-07-28 10:50'
 labels:
   - 'area:embeddings'
+  - 'area:db'
+  - 'size:S'
 dependencies: []
+priority: medium
 ordinal: 222000
 ---
 

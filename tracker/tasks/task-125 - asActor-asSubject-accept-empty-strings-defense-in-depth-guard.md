@@ -1,12 +1,15 @@
 ---
 id: TASK-125
-title: 'asActor / asSubject accept empty strings (defense-in-depth guard)'
+title: asActor / asSubject accept empty strings (defense-in-depth guard)
 status: To Do
 assignee: []
 created_date: '2026-05-24 00:00'
+updated_date: '2026-07-28 10:48'
 labels:
   - 'area:common-types'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 125000
 ---
 

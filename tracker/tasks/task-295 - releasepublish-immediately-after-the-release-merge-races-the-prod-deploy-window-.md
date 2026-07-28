@@ -1,12 +1,15 @@
 ---
 id: TASK-295
-title: 'release:publish immediately after the release merge races the prod deploy window: all…'
+title: 'release:publish right after the release merge races the prod deploy window'
 status: To Do
 assignee: []
 created_date: '2026-07-18 00:00'
+updated_date: '2026-07-28 10:52'
 labels:
   - 'area:tooling'
+  - 'size:S'
 dependencies: []
+priority: medium
 ordinal: 295000
 ---
 

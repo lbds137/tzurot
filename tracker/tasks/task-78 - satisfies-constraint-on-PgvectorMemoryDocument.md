@@ -1,12 +1,15 @@
 ---
 id: TASK-78
-title: 'satisfies constraint on PgvectorMemoryDocument'
+title: satisfies constraint on PgvectorMemoryDocument
 status: To Do
 assignee: []
 created_date: '2026-04-30 00:00'
+updated_date: '2026-07-28 10:47'
 labels:
   - 'area:db'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 78000
 ---
 

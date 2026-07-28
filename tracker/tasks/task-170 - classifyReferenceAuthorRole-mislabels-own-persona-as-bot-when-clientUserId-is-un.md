@@ -1,13 +1,18 @@
 ---
 id: TASK-170
-title: "classifyReferenceAuthorRole mislabels own persona as 'bot' when clientUserId is undefined…"
+title: >-
+  classifyReferenceAuthorRole mislabels own persona when clientUserId is
+  undefined
 status: To Do
 assignee: []
 created_date: '2026-06-24 00:00'
+updated_date: '2026-07-28 10:49'
 labels:
   - 'area:bot-client'
   - 'area:conversation-history'
+  - 'size:S'
 dependencies: []
+priority: medium
 ordinal: 170000
 ---
 

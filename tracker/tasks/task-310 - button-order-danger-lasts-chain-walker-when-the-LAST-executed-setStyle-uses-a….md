@@ -1,12 +1,16 @@
 ---
 id: TASK-310
-title: "button-order-danger-last's chain walker: when the LAST-executed .setStyle(...) uses a…"
+title: button-order-danger-last walker gap on variable setStyle args
 status: To Do
 assignee: []
 created_date: '2026-07-20 00:00'
+updated_date: '2026-07-28 10:52'
 labels:
   - 'origin:review'
+  - 'area:tooling'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 310000
 ---
 

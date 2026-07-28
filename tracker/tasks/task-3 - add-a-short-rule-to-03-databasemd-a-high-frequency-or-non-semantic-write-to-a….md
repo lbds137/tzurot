@@ -1,9 +1,12 @@
 ---
 id: TASK-3
-title: 'add a short rule to 03-database.md: a high-frequency or non-semantic write to a…'
-status: To Do
+title: >-
+  add a short rule to 03-database.md: a high-frequency or non-semantic write to
+  a…
+status: Done
 assignee: []
 created_date: '2026-07-22 00:00'
+updated_date: '2026-07-28 10:53'
 labels:
   - 'area:db'
   - 'area:process'

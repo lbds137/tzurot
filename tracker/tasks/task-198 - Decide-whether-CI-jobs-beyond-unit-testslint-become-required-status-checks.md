@@ -1,14 +1,17 @@
 ---
 id: TASK-198
-title: 'Decide whether CI jobs beyond unit-tests+lint become required status checks'
+title: Decide whether CI jobs beyond unit-tests+lint become required status checks
 status: To Do
 assignee: []
 created_date: '2026-07-03 00:00'
+updated_date: '2026-07-28 10:50'
 labels:
   - 'area:voice'
   - 'area:ci'
   - 'origin:review'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 198000
 ---
 

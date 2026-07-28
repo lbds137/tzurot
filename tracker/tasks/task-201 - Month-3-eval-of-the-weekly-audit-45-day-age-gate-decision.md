@@ -1,11 +1,15 @@
 ---
 id: TASK-201
-title: 'Month-3 eval of the weekly audit + 45-day age-gate decision'
+title: Month-3 eval of the weekly audit + 45-day age-gate decision
 status: To Do
 assignee: []
 created_date: '2026-07-03 00:00'
-labels: []
+updated_date: '2026-07-28 10:50'
+labels:
+  - 'area:process'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 201000
 ---
 

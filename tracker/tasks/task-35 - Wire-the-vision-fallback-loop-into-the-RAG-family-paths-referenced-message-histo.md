@@ -1,12 +1,16 @@
 ---
 id: TASK-35
-title: 'Wire the vision fallback loop into the RAG-family paths (referenced-message, history…'
+title: Wire the vision fallback loop into RAG-family paths
 status: To Do
 assignee: []
 created_date: '2026-07-01 00:00'
+updated_date: '2026-07-28 10:46'
 labels:
   - 'area:conversation-history'
+  - 'area:ai-worker'
+  - 'size:M'
 dependencies: []
+priority: medium
 ordinal: 35000
 ---
 

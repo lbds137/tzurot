@@ -1,12 +1,17 @@
 ---
 id: TASK-119
-title: 'Drop qs pnpm override when express/supertest ship versions that bump qs upstream'
+title: >-
+  Drop qs pnpm override when express/supertest ship versions that bump qs
+  upstream
 status: To Do
 assignee: []
 created_date: '2026-05-23 00:00'
+updated_date: '2026-07-28 10:48'
 labels:
   - 'area:ci'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 119000
 ---
 

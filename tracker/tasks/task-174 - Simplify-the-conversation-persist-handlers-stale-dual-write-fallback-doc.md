@@ -1,13 +1,16 @@
 ---
 id: TASK-174
-title: "Simplify the conversation persist handlers' stale dual-write fallback + doc"
+title: Simplify the conversation persist handlers' stale dual-write fallback + doc
 status: To Do
 assignee: []
 created_date: '2026-06-25 00:00'
+updated_date: '2026-07-28 10:49'
 labels:
   - 'area:bot-client'
   - 'area:db'
+  - 'size:M'
 dependencies: []
+priority: low
 ordinal: 174000
 ---
 

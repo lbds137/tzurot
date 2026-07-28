@@ -1,11 +1,16 @@
 ---
 id: TASK-227
-title: 'NullVectorReembedder per-row attempt cap (Phase-5 memory consolidation scope)'
+title: NullVectorReembedder per-row attempt cap (Phase-5 memory consolidation scope)
 status: To Do
 assignee: []
 created_date: '2026-07-07 00:00'
-labels: []
+updated_date: '2026-07-28 10:50'
+labels:
+  - 'area:ai-worker'
+  - 'area:embeddings'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 227000
 ---
 

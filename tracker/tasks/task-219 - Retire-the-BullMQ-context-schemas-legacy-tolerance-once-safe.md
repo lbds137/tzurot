@@ -1,16 +1,19 @@
 ---
 id: TASK-219
-title: "Retire the BullMQ context schema's legacy tolerance once safe"
+title: Retire the BullMQ context schema's legacy tolerance once safe
 status: To Do
 assignee: []
 created_date: '2026-07-06 00:00'
+updated_date: '2026-07-28 10:50'
 labels:
   - 'area:bot-client'
   - 'area:common-types'
   - 'area:testing'
   - 'area:jobs'
   - 'area:redis'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 219000
 ---
 

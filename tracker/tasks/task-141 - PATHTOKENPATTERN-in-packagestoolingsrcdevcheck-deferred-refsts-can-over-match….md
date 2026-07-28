@@ -1,12 +1,15 @@
 ---
 id: TASK-141
-title: 'PATH_TOKEN_PATTERN in packages/tooling/src/dev/check-deferred-refs.ts can over-match…'
+title: check-deferred-refs PATH_TOKEN_PATTERN can over-match
 status: To Do
 assignee: []
 created_date: '2026-06-03 00:00'
+updated_date: '2026-07-28 10:49'
 labels:
   - 'area:tooling'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 141000
 ---
 

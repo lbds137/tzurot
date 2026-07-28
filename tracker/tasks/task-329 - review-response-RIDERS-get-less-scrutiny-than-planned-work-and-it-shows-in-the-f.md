@@ -1,13 +1,15 @@
 ---
 id: TASK-329
-title: 'review-response RIDERS get less scrutiny than planned work, and it shows in the finding…'
+title: Review-response riders get less scrutiny than planned work
 status: To Do
 assignee: []
 created_date: '2026-07-26 00:00'
+updated_date: '2026-07-28 10:53'
 labels:
-  - 'area:db'
-  - 'origin:review'
+  - 'area:process'
+  - 'size:S'
 dependencies: []
+priority: medium
 ordinal: 329000
 ---
 

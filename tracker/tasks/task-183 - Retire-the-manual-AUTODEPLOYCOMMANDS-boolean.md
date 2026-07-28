@@ -1,11 +1,15 @@
 ---
 id: TASK-183
-title: 'Retire the manual AUTO_DEPLOY_COMMANDS boolean'
+title: Retire the manual AUTO_DEPLOY_COMMANDS boolean
 status: To Do
 assignee: []
 created_date: '2026-06-28 00:00'
-labels: []
+updated_date: '2026-07-28 10:49'
+labels:
+  - 'area:tooling'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 183000
 ---
 

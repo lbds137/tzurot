@@ -1,12 +1,15 @@
 ---
 id: TASK-85
-title: 'Harden ttsConfigSingletons.ts module-level state (was: extract shared…'
+title: Harden ttsConfigSingletons module-level state
 status: To Do
 assignee: []
 created_date: '2026-05-04 00:00'
+updated_date: '2026-07-28 10:47'
 labels:
   - 'area:voice'
+  - 'size:M'
 dependencies: []
+priority: low
 ordinal: 85000
 ---
 

@@ -4,8 +4,12 @@ title: 'Tune lint:complexity-report bare-run mode for the ops:health roster'
 status: To Do
 assignee: []
 created_date: '2026-07-03 00:00'
-labels: []
+updated_date: '2026-07-28 10:50'
+labels:
+  - 'area:tooling'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 199000
 ---
 

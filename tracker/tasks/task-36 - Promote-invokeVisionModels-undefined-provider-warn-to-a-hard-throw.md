@@ -1,11 +1,15 @@
 ---
 id: TASK-36
-title: "Promote invokeVisionModel's undefined-provider warn to a hard throw"
+title: Promote invokeVisionModel's undefined-provider warn to a hard throw
 status: To Do
 assignee: []
 created_date: '2026-07-01 00:00'
-labels: []
+updated_date: '2026-07-28 10:46'
+labels:
+  - 'area:ai-worker'
+  - 'size:S'
 dependencies: []
+priority: medium
 ordinal: 36000
 ---
 

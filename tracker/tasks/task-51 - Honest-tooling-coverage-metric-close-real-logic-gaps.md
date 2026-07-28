@@ -1,13 +1,16 @@
 ---
 id: TASK-51
-title: 'Honest tooling coverage metric + close real-logic gaps'
+title: Honest tooling coverage metric + close real-logic gaps
 status: To Do
 assignee: []
 created_date: '2026-06-22 00:00'
+updated_date: '2026-07-28 10:47'
 labels:
   - 'area:tooling'
   - 'area:db'
+  - 'size:M'
 dependencies: []
+priority: medium
 ordinal: 51000
 ---
 

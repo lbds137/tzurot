@@ -1,11 +1,17 @@
 ---
 id: TASK-190
-title: '/preset browse transfers the full config set on every pagination/filter interaction'
+title: >-
+  /preset browse transfers the full config set on every pagination/filter
+  interaction
 status: To Do
 assignee: []
 created_date: '2026-06-29 00:00'
-labels: []
+updated_date: '2026-07-28 10:50'
+labels:
+  - 'area:bot-client'
+  - 'size:M'
 dependencies: []
+priority: low
 ordinal: 190000
 ---
 

@@ -1,11 +1,15 @@
 ---
 id: TASK-209
-title: 'Tighten the reuse-scout skill-eval trigger if it proves noisy'
+title: Tighten the reuse-scout skill-eval trigger if it proves noisy
 status: To Do
 assignee: []
 created_date: '2026-07-05 00:00'
-labels: []
+updated_date: '2026-07-28 10:50'
+labels:
+  - 'area:process'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 209000
 ---
 

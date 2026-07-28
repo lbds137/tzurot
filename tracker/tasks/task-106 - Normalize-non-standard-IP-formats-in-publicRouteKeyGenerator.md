@@ -1,13 +1,16 @@
 ---
 id: TASK-106
-title: 'Normalize non-standard IP formats in publicRouteKeyGenerator'
+title: Normalize non-standard IP formats in publicRouteKeyGenerator
 status: To Do
 assignee: []
 created_date: '2026-05-17 00:00'
+updated_date: '2026-07-28 10:48'
 labels:
   - 'area:api-gateway'
   - 'area:redis'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 106000
 ---
 

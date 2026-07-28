@@ -1,12 +1,19 @@
 ---
 id: TASK-44
-title: 'LinkExtractor.test.ts createMockMessage duplicates the shared Discord mock factory'
+title: >-
+  LinkExtractor.test.ts createMockMessage duplicates the shared Discord mock
+  factory
 status: To Do
 assignee: []
 created_date: '2026-06-29 00:00'
+updated_date: '2026-07-28 10:47'
 labels:
   - 'origin:review'
+  - 'area:bot-client'
+  - 'area:testing'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 44000
 ---
 

@@ -1,13 +1,16 @@
 ---
 id: TASK-63
-title: 'Make the vision system-fallback daily cap a runtime admin-settings knob'
+title: Make the vision system-fallback daily cap a runtime admin-settings knob
 status: To Do
 assignee: []
 created_date: '2026-06-14 00:00'
+updated_date: '2026-07-28 10:47'
 labels:
   - 'area:bot-client'
   - 'area:ai-worker'
+  - 'size:M'
 dependencies: []
+priority: low
 ordinal: 63000
 ---
 

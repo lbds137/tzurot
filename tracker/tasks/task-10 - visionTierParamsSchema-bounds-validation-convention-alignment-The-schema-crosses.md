@@ -1,12 +1,15 @@
 ---
 id: TASK-10
-title: 'visionTierParamsSchema bounds validation (convention alignment) — The schema crosses a…'
+title: visionTierParamsSchema bounds validation (convention alignment)
 status: To Do
 assignee: []
 created_date: '2026-07-12 00:00'
+updated_date: '2026-07-28 10:46'
 labels:
   - 'area:jobs'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 10000
 ---
 

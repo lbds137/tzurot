@@ -1,13 +1,16 @@
 ---
 id: TASK-328
-title: '"deletion means deletion" (R8) is implemented for Memory but not for MemoryFact.…'
+title: Deletion-means-deletion (R8) for MemoryFact
 status: To Do
 assignee: []
 created_date: '2026-07-26 00:00'
+updated_date: '2026-07-28 10:53'
 labels:
   - 'area:ai-worker'
   - 'origin:review'
+  - 'size:M'
 dependencies: []
+priority: high
 ordinal: 328000
 ---
 

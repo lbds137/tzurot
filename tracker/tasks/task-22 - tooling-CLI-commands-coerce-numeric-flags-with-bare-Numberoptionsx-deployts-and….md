@@ -1,12 +1,15 @@
 ---
 id: TASK-22
-title: 'tooling CLI commands coerce numeric flags with bare Number(options.x) (deploy.ts and…'
+title: 'Tooling CLI numeric flags: bare Number(options.x) coercion'
 status: To Do
 assignee: []
 created_date: '2026-07-10 00:00'
+updated_date: '2026-07-28 10:46'
 labels:
   - 'area:tooling'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 22000
 ---
 

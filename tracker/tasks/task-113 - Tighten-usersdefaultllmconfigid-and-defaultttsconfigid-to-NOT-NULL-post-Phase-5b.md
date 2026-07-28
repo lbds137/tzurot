@@ -1,12 +1,17 @@
 ---
 id: TASK-113
-title: 'Tighten users.default_llm_config_id and default_tts_config_id to NOT NULL post-Phase-5b'
+title: >-
+  Tighten users.default_llm_config_id and default_tts_config_id to NOT NULL
+  post-Phase-5b
 status: To Do
 assignee: []
 created_date: '2026-05-21 00:00'
+updated_date: '2026-07-28 10:48'
 labels:
   - 'area:db'
+  - 'size:M'
 dependencies: []
+priority: low
 ordinal: 113000
 ---
 

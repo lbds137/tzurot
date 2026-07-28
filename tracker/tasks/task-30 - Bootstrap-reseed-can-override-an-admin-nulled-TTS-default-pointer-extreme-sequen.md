@@ -1,13 +1,18 @@
 ---
 id: TASK-30
-title: 'Bootstrap reseed can override an admin-nulled TTS default pointer (extreme sequence)'
+title: >-
+  Bootstrap reseed can override an admin-nulled TTS default pointer (extreme
+  sequence)
 status: To Do
 assignee: []
 created_date: '2026-07-02 00:00'
+updated_date: '2026-07-28 10:46'
 labels:
   - 'area:voice'
   - 'origin:review'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 30000
 ---
 

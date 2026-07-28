@@ -1,12 +1,16 @@
 ---
 id: TASK-226
-title: "calculateHistoryBudget doesn't reserve the response safety margin"
+title: calculateHistoryBudget doesn't reserve the response safety margin
 status: To Do
 assignee: []
 created_date: '2026-07-07 00:00'
+updated_date: '2026-07-28 10:50'
 labels:
   - 'origin:review'
+  - 'area:ai-worker'
+  - 'size:S'
 dependencies: []
+priority: medium
 ordinal: 226000
 ---
 

@@ -1,12 +1,15 @@
 ---
 id: TASK-102
-title: 'MessageContextBuilder.cachedBotSuffix promote pre-login note to hard invariant'
+title: MessageContextBuilder.cachedBotSuffix promote pre-login note to hard invariant
 status: To Do
 assignee: []
 created_date: '2026-05-16 00:00'
+updated_date: '2026-07-28 10:48'
 labels:
   - 'area:bot-client'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 102000
 ---
 

@@ -4,8 +4,12 @@ title: 'extractRunnerDistCopies anchors to the LAST FROM stage, not AS runner by
 status: To Do
 assignee: []
 created_date: '2026-06-03 00:00'
-labels: []
+updated_date: '2026-07-28 10:49'
+labels:
+  - 'area:tooling'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 140000
 ---
 

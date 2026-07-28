@@ -1,11 +1,16 @@
 ---
 id: TASK-156
-title: 'VoiceTranscriptionService.hasVoiceAttachment keeps a parallel forwarded-snapshot…'
+title: hasVoiceAttachment keeps a parallel forwarded-snapshot walk
 status: To Do
 assignee: []
 created_date: '2026-06-23 00:00'
-labels: []
+updated_date: '2026-07-28 10:49'
+labels:
+  - 'area:bot-client'
+  - 'area:voice'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 156000
 ---
 

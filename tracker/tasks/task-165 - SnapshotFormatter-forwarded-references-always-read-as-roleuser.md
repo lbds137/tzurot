@@ -1,11 +1,15 @@
 ---
 id: TASK-165
-title: 'SnapshotFormatter forwarded references always read as role="user"'
+title: SnapshotFormatter forwarded references always read as role="user"
 status: To Do
 assignee: []
 created_date: '2026-06-24 00:00'
-labels: []
+updated_date: '2026-07-28 10:49'
+labels:
+  - 'area:bot-client'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 165000
 ---
 

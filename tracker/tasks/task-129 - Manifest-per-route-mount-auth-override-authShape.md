@@ -1,12 +1,15 @@
 ---
 id: TASK-129
-title: 'Manifest per-route mount-auth override (authShape)'
+title: Manifest per-route mount-auth override (authShape)
 status: To Do
 assignee: []
 created_date: '2026-05-29 00:00'
+updated_date: '2026-07-28 10:48'
 labels:
   - 'area:tooling'
+  - 'size:M'
 dependencies: []
+priority: low
 ordinal: 129000
 ---
 

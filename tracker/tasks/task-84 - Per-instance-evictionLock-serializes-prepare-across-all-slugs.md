@@ -1,11 +1,15 @@
 ---
 id: TASK-84
-title: 'Per-instance evictionLock serializes prepare() across all slugs'
+title: Per-instance evictionLock serializes prepare() across all slugs
 status: To Do
 assignee: []
 created_date: '2026-05-04 00:00'
-labels: []
+updated_date: '2026-07-28 10:47'
+labels:
+  - 'area:voice'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 84000
 ---
 

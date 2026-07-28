@@ -1,14 +1,17 @@
 ---
 id: TASK-241
-title: 'z.ai key half of the fair-share + owner-first headroom'
+title: z.ai key half of the fair-share + owner-first headroom
 status: To Do
 assignee: []
 created_date: '2026-07-08 00:00'
+updated_date: '2026-07-28 10:51'
 labels:
   - 'area:docs'
   - 'area:jobs'
   - 'area:backlog'
+  - 'size:M'
 dependencies: []
+priority: low
 ordinal: 241000
 ---
 

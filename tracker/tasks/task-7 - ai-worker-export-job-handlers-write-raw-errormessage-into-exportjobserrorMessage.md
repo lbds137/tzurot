@@ -1,13 +1,16 @@
 ---
 id: TASK-7
-title: 'ai-worker export job handlers write raw error.message into export_jobs.errorMessage, and…'
+title: Sanitize export-job errorMessage (no raw error.message passthrough)
 status: To Do
 assignee: []
 created_date: '2026-07-16 00:00'
+updated_date: '2026-07-28 10:46'
 labels:
   - 'area:ai-worker'
   - 'origin:review'
+  - 'size:S'
 dependencies: []
+priority: medium
 ordinal: 7000
 ---
 

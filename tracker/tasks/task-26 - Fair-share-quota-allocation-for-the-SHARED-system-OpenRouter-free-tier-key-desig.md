@@ -1,13 +1,16 @@
 ---
 id: TASK-26
-title: 'Fair-share quota allocation for the SHARED system OpenRouter free-tier key (design in…'
+title: Fair-share quota allocation for the shared OpenRouter free-tier key
 status: To Do
 assignee: []
 created_date: '2026-07-03 00:00'
+updated_date: '2026-07-28 10:46'
 labels:
   - 'area:docs'
   - 'area:backlog'
+  - 'size:L'
 dependencies: []
+priority: low
 ordinal: 26000
 ---
 

@@ -1,11 +1,17 @@
 ---
 id: TASK-207
-title: 'Preset model field: autocomplete from OpenRouterModelCache instead of freeform text'
+title: >-
+  Preset model field: autocomplete from OpenRouterModelCache instead of freeform
+  text
 status: To Do
 assignee: []
 created_date: '2026-07-05 00:00'
-labels: []
+updated_date: '2026-07-28 10:50'
+labels:
+  - 'area:bot-client'
+  - 'size:S'
 dependencies: []
+priority: medium
 ordinal: 207000
 ---
 

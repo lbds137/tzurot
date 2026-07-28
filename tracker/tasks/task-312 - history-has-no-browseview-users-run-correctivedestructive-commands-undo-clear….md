@@ -1,11 +1,15 @@
 ---
 id: TASK-312
-title: '/history has no browse/view: users run corrective/destructive commands (undo, clear,…'
+title: /history has no browse/view (destructive commands run blind)
 status: To Do
 assignee: []
 created_date: '2026-07-21 00:00'
-labels: []
+updated_date: '2026-07-28 10:52'
+labels:
+  - 'area:bot-client'
+  - 'size:M'
 dependencies: []
+priority: medium
 ordinal: 312000
 ---
 

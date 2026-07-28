@@ -1,11 +1,15 @@
 ---
 id: TASK-239
-title: 'Usage-history weighting for the free-tier quota (v2)'
+title: Usage-history weighting for the free-tier quota (v2)
 status: To Do
 assignee: []
 created_date: '2026-07-08 00:00'
-labels: []
+updated_date: '2026-07-28 10:51'
+labels:
+  - 'area:ai-worker'
+  - 'size:M'
 dependencies: []
+priority: low
 ordinal: 239000
 ---
 

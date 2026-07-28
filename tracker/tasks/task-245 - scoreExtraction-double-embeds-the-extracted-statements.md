@@ -1,14 +1,17 @@
 ---
 id: TASK-245
-title: 'scoreExtraction double-embeds the extracted statements'
+title: scoreExtraction double-embeds the extracted statements
 status: To Do
 assignee: []
 created_date: '2026-07-09 00:00'
+updated_date: '2026-07-28 10:51'
 labels:
   - 'area:ai-worker'
   - 'area:embeddings'
   - 'origin:review'
+  - 'size:S'
 dependencies: []
+priority: medium
 ordinal: 245000
 ---
 

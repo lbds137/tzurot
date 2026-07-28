@@ -1,15 +1,18 @@
 ---
 id: TASK-120
-title: 'Extract buildQueryString from generated client files (route-codegen)'
+title: Extract buildQueryString from generated client files (route-codegen)
 status: To Do
 assignee: []
 created_date: '2026-05-24 00:00'
+updated_date: '2026-07-28 10:48'
 labels:
   - 'area:ai-worker'
   - 'area:common-types'
   - 'area:tooling'
   - 'area:ci'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 120000
 ---
 

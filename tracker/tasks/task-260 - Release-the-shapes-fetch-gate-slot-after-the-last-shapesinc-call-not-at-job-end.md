@@ -1,13 +1,19 @@
 ---
 id: TASK-260
-title: 'Release the shapes fetch-gate slot after the last shapes.inc call, not at job end'
+title: >-
+  Release the shapes fetch-gate slot after the last shapes.inc call, not at job
+  end
 status: To Do
 assignee: []
 created_date: '2026-07-13 00:00'
+updated_date: '2026-07-28 10:51'
 labels:
   - 'area:db'
   - 'origin:review'
+  - 'area:ai-worker'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 260000
 ---
 

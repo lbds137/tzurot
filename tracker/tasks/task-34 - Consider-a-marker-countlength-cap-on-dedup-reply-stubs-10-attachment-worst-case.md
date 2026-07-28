@@ -1,12 +1,18 @@
 ---
 id: TASK-34
-title: 'Consider a marker-count/length cap on dedup reply-stubs (10-attachment worst case)'
+title: >-
+  Consider a marker-count/length cap on dedup reply-stubs (10-attachment worst
+  case)
 status: To Do
 assignee: []
 created_date: '2026-07-01 00:00'
+updated_date: '2026-07-28 10:46'
 labels:
   - 'origin:review'
+  - 'area:ai-worker'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 34000
 ---
 

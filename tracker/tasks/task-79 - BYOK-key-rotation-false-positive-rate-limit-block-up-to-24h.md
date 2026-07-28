@@ -1,13 +1,16 @@
 ---
 id: TASK-79
-title: 'BYOK key rotation false-positive rate-limit block (up to 24h)'
+title: BYOK key rotation false-positive rate-limit block (up to 24h)
 status: To Do
 assignee: []
 created_date: '2026-04-29 00:00'
+updated_date: '2026-07-28 10:47'
 labels:
   - 'area:tooling'
   - 'area:redis'
+  - 'size:M'
 dependencies: []
+priority: medium
 ordinal: 79000
 ---
 

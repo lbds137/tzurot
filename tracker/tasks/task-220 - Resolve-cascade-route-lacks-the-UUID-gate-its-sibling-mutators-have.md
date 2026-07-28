@@ -1,13 +1,16 @@
 ---
 id: TASK-220
-title: 'Resolve-cascade route lacks the UUID gate its sibling mutators have'
+title: Resolve-cascade route lacks the UUID gate its sibling mutators have
 status: To Do
 assignee: []
 created_date: '2026-07-06 00:00'
+updated_date: '2026-07-28 10:50'
 labels:
   - 'area:db'
   - 'origin:review'
+  - 'size:S'
 dependencies: []
+priority: medium
 ordinal: 220000
 ---
 

@@ -4,8 +4,12 @@ title: 'Vision error-pattern recall: watch for unanchored provider phrasings'
 status: To Do
 assignee: []
 created_date: '2026-07-02 00:00'
-labels: []
+updated_date: '2026-07-28 10:46'
+labels:
+  - 'area:ai-worker'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 31000
 ---
 

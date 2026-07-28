@@ -1,13 +1,16 @@
 ---
 id: TASK-135
-title: 'Structural-test coverage gap as the test-infra packages (@tzurot/test-factories,…'
+title: Structural-test coverage gap for the test-infra packages
 status: To Do
 assignee: []
 created_date: '2026-06-03 00:00'
+updated_date: '2026-07-28 10:48'
 labels:
   - 'area:common-types'
   - 'area:testing'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 135000
 ---
 

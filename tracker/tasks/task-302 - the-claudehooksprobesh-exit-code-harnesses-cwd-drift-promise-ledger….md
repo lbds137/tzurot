@@ -1,14 +1,17 @@
 ---
 id: TASK-302
-title: 'the .claude/hooks/*.probe.sh exit-code harnesses (cwd-drift, promise-ledger,…'
+title: Probe-harness parity for the remaining .claude hooks
 status: To Do
 assignee: []
 created_date: '2026-07-20 00:00'
+updated_date: '2026-07-28 10:52'
 labels:
   - 'area:tooling'
   - 'area:process'
   - 'origin:review'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 302000
 ---
 

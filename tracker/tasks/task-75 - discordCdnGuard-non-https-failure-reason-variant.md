@@ -1,11 +1,15 @@
 ---
 id: TASK-75
-title: 'discordCdnGuard non-https failure-reason variant'
+title: discordCdnGuard non-https failure-reason variant
 status: To Do
 assignee: []
 created_date: '2026-04-26 00:00'
-labels: []
+updated_date: '2026-07-28 10:47'
+labels:
+  - 'area:common-types'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 75000
 ---
 

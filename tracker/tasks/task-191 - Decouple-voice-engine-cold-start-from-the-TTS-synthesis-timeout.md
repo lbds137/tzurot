@@ -1,12 +1,15 @@
 ---
 id: TASK-191
-title: 'Decouple voice-engine cold-start from the TTS synthesis timeout'
+title: Decouple voice-engine cold-start from the TTS synthesis timeout
 status: To Do
 assignee: []
 created_date: '2026-06-29 00:00'
+updated_date: '2026-07-28 10:50'
 labels:
   - 'area:voice'
+  - 'size:M'
 dependencies: []
+priority: medium
 ordinal: 191000
 ---
 

@@ -4,9 +4,13 @@ title: 'guard:prompt-tags STRING_LITERALS regex mis-bounds nested template liter
 status: To Do
 assignee: []
 created_date: '2026-07-07 00:00'
+updated_date: '2026-07-28 10:50'
 labels:
   - 'origin:review'
+  - 'area:tooling'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 228000
 ---
 

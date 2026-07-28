@@ -1,13 +1,16 @@
 ---
 id: TASK-323
-title: 'lines:check measures LINES, which is a poor proxy for context cost, and…'
+title: 'lines:check measures lines, a poor proxy for context cost'
 status: To Do
 assignee: []
 created_date: '2026-07-24 00:00'
+updated_date: '2026-07-28 10:52'
 labels:
   - 'area:tooling'
   - 'area:ci'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 323000
 ---
 

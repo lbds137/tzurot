@@ -1,12 +1,16 @@
 ---
 id: TASK-155
-title: 'Harden downloadImageToDataUrl for SVG + animated images'
+title: Harden downloadImageToDataUrl for SVG + animated images
 status: To Do
 assignee: []
 created_date: '2026-06-20 00:00'
+updated_date: '2026-07-28 10:49'
 labels:
   - 'origin:review'
+  - 'area:ai-worker'
+  - 'size:M'
 dependencies: []
+priority: low
 ordinal: 155000
 ---
 

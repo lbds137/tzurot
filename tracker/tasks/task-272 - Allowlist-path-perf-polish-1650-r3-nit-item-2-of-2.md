@@ -4,9 +4,13 @@ title: 'Allowlist-path perf polish (#1650 r3 nit, item 2 of 2)'
 status: To Do
 assignee: []
 created_date: '2026-07-14 00:00'
+updated_date: '2026-07-28 10:51'
 labels:
   - 'origin:review'
+  - 'area:bot-client'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 272000
 ---
 

@@ -1,12 +1,15 @@
 ---
 id: TASK-151
-title: 'tryResolveUserKey has no "no-user-key" cache sentinel'
+title: tryResolveUserKey has no "no-user-key" cache sentinel
 status: To Do
 assignee: []
 created_date: '2026-06-17 00:00'
+updated_date: '2026-07-28 10:49'
 labels:
   - 'area:ai-worker'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 151000
 ---
 

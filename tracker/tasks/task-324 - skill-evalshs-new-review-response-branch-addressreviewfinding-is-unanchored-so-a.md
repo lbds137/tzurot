@@ -1,12 +1,16 @@
 ---
 id: TASK-324
-title: "skill-eval.sh's new review-response branch address.*(review|finding) is unanchored, so a…"
+title: skill-eval review-response branch regex is unanchored
 status: To Do
 assignee: []
 created_date: '2026-07-24 00:00'
+updated_date: '2026-07-28 10:52'
 labels:
   - 'origin:review'
+  - 'area:process'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 324000
 ---
 

@@ -1,13 +1,16 @@
 ---
 id: TASK-76
-title: 'personalityOwnerResolver lookup cache (TTL ~5min)'
+title: personalityOwnerResolver lookup cache (TTL ~5min)
 status: To Do
 assignee: []
 created_date: '2026-04-25 00:00'
+updated_date: '2026-07-28 10:47'
 labels:
   - 'area:ai-worker'
   - 'area:db'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 76000
 ---
 

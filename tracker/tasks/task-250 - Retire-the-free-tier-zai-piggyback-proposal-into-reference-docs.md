@@ -1,13 +1,16 @@
 ---
 id: TASK-250
-title: 'Retire the free-tier-zai-piggyback proposal into reference docs'
+title: Retire the free-tier-zai-piggyback proposal into reference docs
 status: To Do
 assignee: []
 created_date: '2026-07-11 00:00'
+updated_date: '2026-07-28 10:51'
 labels:
   - 'area:docs'
   - 'origin:review'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 250000
 ---
 

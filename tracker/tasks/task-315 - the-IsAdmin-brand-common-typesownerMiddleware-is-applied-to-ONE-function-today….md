@@ -1,13 +1,16 @@
 ---
 id: TASK-315
-title: 'the IsAdmin brand (common-types/ownerMiddleware) is applied to ONE function today:…'
+title: IsAdmin brand covers one function; extend or retire
 status: To Do
 assignee: []
 created_date: '2026-07-22 00:00'
+updated_date: '2026-07-28 10:52'
 labels:
   - 'area:common-types'
   - 'origin:review'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 315000
 ---
 

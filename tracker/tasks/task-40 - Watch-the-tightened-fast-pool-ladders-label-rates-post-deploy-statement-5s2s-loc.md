@@ -1,12 +1,16 @@
 ---
 id: TASK-40
-title: "Watch the tightened fast-pool ladder's label rates post-deploy (statement 5s→2s, lock…"
+title: Watch tightened fast-pool ladder label rates post-deploy
 status: To Do
 assignee: []
 created_date: '2026-07-01 00:00'
+updated_date: '2026-07-28 10:46'
 labels:
   - 'origin:review'
+  - 'area:db'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 40000
 ---
 

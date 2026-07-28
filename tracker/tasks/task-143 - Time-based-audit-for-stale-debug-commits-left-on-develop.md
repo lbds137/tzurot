@@ -1,12 +1,15 @@
 ---
 id: TASK-143
-title: 'Time-based audit for stale debug commits left on develop'
+title: Time-based audit for stale debug commits left on develop
 status: To Do
 assignee: []
 created_date: '2026-06-08 00:00'
+updated_date: '2026-07-28 10:49'
 labels:
   - 'area:tooling'
+  - 'size:S'
 dependencies: []
+priority: medium
 ordinal: 143000
 ---
 

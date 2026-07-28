@@ -4,8 +4,13 @@ title: 'Memory retrieval Found: 20 / Included: 0 mystery (Focus Mode off)'
 status: To Do
 assignee: []
 created_date: '2026-05-03 00:00'
-labels: []
+updated_date: '2026-07-28 10:48'
+labels:
+  - 'area:ai-worker'
+  - 'area:embeddings'
+  - 'size:M'
 dependencies: []
+priority: medium
 ordinal: 92000
 ---
 

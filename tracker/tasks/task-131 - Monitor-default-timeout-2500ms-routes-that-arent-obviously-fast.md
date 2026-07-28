@@ -1,13 +1,16 @@
 ---
 id: TASK-131
-title: "Monitor default-timeout (2500ms) routes that aren't obviously fast"
+title: Monitor default-timeout (2500ms) routes that aren't obviously fast
 status: To Do
 assignee: []
 created_date: '2026-05-30 00:00'
+updated_date: '2026-07-28 10:48'
 labels:
   - 'area:embeddings'
   - 'area:db'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 131000
 ---
 

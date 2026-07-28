@@ -1,12 +1,16 @@
 ---
 id: TASK-308
-title: 'utils/overrideBrowse.ts is unpaginated: it pre-slices to the 25-option select cap and…'
+title: overrideBrowse.ts is unpaginated (pre-slices to the 25-option cap)
 status: To Do
 assignee: []
 created_date: '2026-07-20 00:00'
+updated_date: '2026-07-28 10:52'
 labels:
   - 'area:voice'
+  - 'area:bot-client'
+  - 'size:M'
 dependencies: []
+priority: low
 ordinal: 308000
 ---
 

@@ -1,12 +1,15 @@
 ---
 id: TASK-333
-title: 'the bare /ai/* routes are a legacy dual-mount of the internal AI four; one mount is…'
+title: Retire the legacy bare /ai/* dual-mount
 status: To Do
 assignee: []
 created_date: '2026-07-27 00:00'
+updated_date: '2026-07-28 10:53'
 labels:
   - 'area:api-gateway'
+  - 'size:S'
 dependencies: []
+priority: medium
 ordinal: 333000
 ---
 

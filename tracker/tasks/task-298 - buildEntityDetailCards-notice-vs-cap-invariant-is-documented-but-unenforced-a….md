@@ -1,12 +1,16 @@
 ---
 id: TASK-298
-title: "buildEntityDetailCard's notice-vs-cap invariant is documented but unenforced: a…"
+title: buildEntityDetailCard notice-vs-cap invariant is unenforced
 status: To Do
 assignee: []
 created_date: '2026-07-19 00:00'
+updated_date: '2026-07-28 10:52'
 labels:
   - 'origin:review'
+  - 'area:bot-client'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 298000
 ---
 

@@ -1,12 +1,16 @@
 ---
 id: TASK-90
-title: 'Split LlmConfigService + TtsConfigService into Query/Mutation/Cache services…'
+title: Split LlmConfigService + TtsConfigService into query/mutation/cache services
 status: To Do
 assignee: []
 created_date: '2026-05-03 00:00'
+updated_date: '2026-07-28 10:48'
 labels:
   - 'area:voice'
+  - 'area:api-gateway'
+  - 'size:L'
 dependencies: []
+priority: low
 ordinal: 90000
 ---
 

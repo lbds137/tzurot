@@ -1,12 +1,16 @@
 ---
 id: TASK-293
-title: "reverse-shadow warning omits the caller's OWN personal aliases: renaming your character…"
+title: reverse-shadow warning skips the caller-owned personal aliases
 status: To Do
 assignee: []
 created_date: '2026-07-18 00:00'
+updated_date: '2026-07-28 10:52'
 labels:
   - 'origin:review'
+  - 'area:api-gateway'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 293000
 ---
 

@@ -4,10 +4,13 @@ title: 'Maintenance-mode runbook: Redis-down-during-window fail-open gap'
 status: To Do
 assignee: []
 created_date: '2026-07-06 00:00'
+updated_date: '2026-07-28 10:50'
 labels:
   - 'area:db'
   - 'area:redis'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 214000
 ---
 

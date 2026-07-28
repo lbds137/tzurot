@@ -4,11 +4,14 @@ title: 'Harvester dedup keys on bare constraint/index name, not (table, name)'
 status: To Do
 assignee: []
 created_date: '2026-07-02 00:00'
+updated_date: '2026-07-28 10:50'
 labels:
   - 'area:db'
   - 'area:testing'
   - 'origin:review'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 196000
 ---
 

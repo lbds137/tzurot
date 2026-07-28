@@ -1,12 +1,16 @@
 ---
 id: TASK-232
-title: 'Read/write-phase split helper if a third command needs it'
+title: Read/write-phase split helper if a third command needs it
 status: To Do
 assignee: []
 created_date: '2026-07-08 00:00'
+updated_date: '2026-07-28 10:50'
 labels:
   - 'origin:review'
+  - 'area:bot-client'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 232000
 ---
 

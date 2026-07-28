@@ -1,13 +1,16 @@
 ---
 id: TASK-301
-title: 'PersonalitySummarySchema (list/browse responses) carries hasAvatar but not avatarUrl;…'
+title: 'PersonalitySummarySchema: carry avatarUrl, not just hasAvatar'
 status: To Do
 assignee: []
 created_date: '2026-07-19 00:00'
+updated_date: '2026-07-28 10:52'
 labels:
   - 'area:bot-client'
   - 'origin:review'
+  - 'size:S'
 dependencies: []
+priority: medium
 ordinal: 301000
 ---
 

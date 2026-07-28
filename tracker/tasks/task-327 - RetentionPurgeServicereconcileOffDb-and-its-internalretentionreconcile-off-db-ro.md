@@ -1,13 +1,16 @@
 ---
 id: TASK-327
-title: 'RetentionPurgeService.reconcileOffDb and its /internal/retention/reconcile-off-db route…'
+title: Bound the reconcile-off-db sweep
 status: To Do
 assignee: []
 created_date: '2026-07-25 00:00'
+updated_date: '2026-07-28 10:52'
 labels:
   - 'area:jobs'
   - 'origin:review'
+  - 'size:S'
 dependencies: []
+priority: medium
 ordinal: 327000
 ---
 
