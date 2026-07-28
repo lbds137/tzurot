@@ -13,13 +13,19 @@ import type { RouteDeps } from '../routeDeps.js';
 vi.mock('./memoryHelpers.js', () => ({
   parseTimeframeFilter: vi.fn(),
 }));
+vi.mock('@tzurot/conversation-history', () => ({
+  propagateDeletionToFacts: vi.fn(),
+}));
 
 import { stubRouteResolvers } from '../../test/shared-route-test-utils.js';
+import { propagateDeletionToFacts } from '@tzurot/conversation-history';
 import {
   requireRedis,
   resolvePersonaIdForBatch,
   executeBatchDelete,
 } from './memoryBatchHelpers.js';
+
+const mockPropagateDeletionToFacts = vi.mocked(propagateDeletionToFacts);
 
 function createMockRes() {
   return {
@@ -208,10 +214,11 @@ describe('executeBatchDelete', () => {
       timeframe: undefined,
     });
 
-    // count==0 path: zero-exit response, no updateMany call
+    // count==0 path: zero-exit response, no updateMany call, no fact cascade
     expect(res.json).toHaveBeenCalledWith(
       expect.objectContaining({ deletedCount: 0, skippedLocked: 0 })
     );
     expect(prisma.memory.updateMany).not.toHaveBeenCalled();
+    expect(mockPropagateDeletionToFacts).not.toHaveBeenCalled();
   });
 });

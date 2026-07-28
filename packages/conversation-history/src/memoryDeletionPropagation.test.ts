@@ -18,15 +18,29 @@ vi.mock('@tzurot/common-types/utils/logger', async importOriginal => {
   };
 });
 
-import { propagateDeletionToMemories } from './memoryDeletionPropagation.js';
+import {
+  propagateDeletionToFacts,
+  propagateDeletionToMemories,
+} from './memoryDeletionPropagation.js';
 
-function makePrisma(overrides: { updateCount?: number; lockedCount?: number } = {}) {
+function makePrisma(
+  overrides: {
+    updateCount?: number;
+    lockedCount?: number;
+    factsRetired?: number;
+    curationRetained?: number;
+  } = {}
+) {
   const updateMany = vi.fn().mockResolvedValue({ count: overrides.updateCount ?? 1 });
   const count = vi.fn().mockResolvedValue(overrides.lockedCount ?? 0);
+  const $executeRaw = vi.fn().mockResolvedValue(overrides.factsRetired ?? 0);
+  const $queryRaw = vi.fn().mockResolvedValue([{ count: overrides.curationRetained ?? 0 }]);
   return {
-    prisma: { memory: { updateMany, count } } as unknown as PrismaClient,
+    prisma: { memory: { updateMany, count }, $executeRaw, $queryRaw } as unknown as PrismaClient,
     updateMany,
     count,
+    $executeRaw,
+    $queryRaw,
   };
 }
 
@@ -129,6 +143,62 @@ describe('propagateDeletionToMemories', () => {
     (prisma.memory.updateMany as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('db down'));
 
     await expect(propagateDeletionToMemories(prisma, ['m1'])).resolves.toBeUndefined();
+
+    expect(mockError).toHaveBeenCalledTimes(1);
+    expect(mockError.mock.calls[0][0]).toMatchObject({ err: expect.any(Error) });
+  });
+
+  describe('the fact-layer cascade', () => {
+    it('runs the fact cascade when memories were retired', async () => {
+      const { prisma, $executeRaw } = makePrisma({ updateCount: 2 });
+
+      await propagateDeletionToMemories(prisma, ['m1']);
+
+      expect($executeRaw).toHaveBeenCalledTimes(1);
+    });
+
+    it('skips the fact cascade when the deletion touched no memories', async () => {
+      // Most turns produce no memory; a fact sweep per no-op deletion would be
+      // pure overhead on the message-delete sync path.
+      const { prisma, $executeRaw } = makePrisma({ updateCount: 0 });
+
+      await propagateDeletionToMemories(prisma, ['m1']);
+
+      expect($executeRaw).not.toHaveBeenCalled();
+    });
+  });
+});
+
+describe('propagateDeletionToFacts', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('reports retired and curation-retained counts when the cascade fired', async () => {
+    const { prisma } = makePrisma({ factsRetired: 3, curationRetained: 2 });
+
+    await propagateDeletionToFacts(prisma);
+
+    expect(mockInfo).toHaveBeenCalledTimes(1);
+    expect(mockInfo.mock.calls[0][0]).toMatchObject({ factsRetired: 3, curationRetained: 2 });
+  });
+
+  it('stays quiet — and skips the retained count — when nothing was retired', async () => {
+    // Curation-retained rows persist across invocations; counting and logging
+    // them on every no-op sweep would repeat the same warning forever.
+    const { prisma, $queryRaw } = makePrisma({ factsRetired: 0 });
+
+    await propagateDeletionToFacts(prisma);
+
+    expect(mockInfo).not.toHaveBeenCalled();
+    expect($queryRaw).not.toHaveBeenCalled();
+  });
+
+  it('swallows a failure — but LOGS it, so the miss is not silent', async () => {
+    const { prisma, $executeRaw } = makePrisma();
+    $executeRaw.mockRejectedValue(new Error('db down'));
+
+    await expect(propagateDeletionToFacts(prisma)).resolves.toBeUndefined();
 
     expect(mockError).toHaveBeenCalledTimes(1);
     expect(mockError.mock.calls[0][0]).toMatchObject({ err: expect.any(Error) });

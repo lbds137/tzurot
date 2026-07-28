@@ -46,6 +46,10 @@ vi.mock('../../services/EmbeddingService.js', () => ({
   formatAsVector: (embedding: number[]) => `[${embedding.join(',')}]`,
 }));
 
+vi.mock('@tzurot/conversation-history', () => ({
+  propagateDeletionToFacts: vi.fn(),
+}));
+
 import {
   handleGetMemory,
   handleUpdateMemory,
@@ -55,6 +59,7 @@ import {
 import { getDefaultPersonaId } from './memoryHelpers.js';
 import { resolveProvisionedUserId } from '../../utils/resolveProvisionedUserId.js';
 import { isEmbeddingServiceAvailable, generateEmbedding } from '../../services/EmbeddingService.js';
+import { propagateDeletionToFacts } from '@tzurot/conversation-history';
 import { stubRouteResolvers } from '../../test/shared-route-test-utils.js';
 
 // Test constants
@@ -80,6 +85,7 @@ const mockGenerateEmbedding = vi.mocked(generateEmbedding);
 
 const mockResolveProvisionedUserId = vi.mocked(resolveProvisionedUserId);
 const mockGetDefaultPersonaId = vi.mocked(getDefaultPersonaId);
+const mockPropagateDeletionToFacts = vi.mocked(propagateDeletionToFacts);
 
 /** Shared deps for the new (deps) => RequestHandler signature. */
 function deps(): RouteDeps {
@@ -638,6 +644,7 @@ describe('memorySingle handlers', () => {
 
       expect(res.status).toHaveBeenCalledWith(404);
       expect(mockPrisma.memory.update).not.toHaveBeenCalled();
+      expect(mockPropagateDeletionToFacts).not.toHaveBeenCalled();
     });
 
     it('should soft delete memory by setting visibility', async () => {
@@ -651,6 +658,8 @@ describe('memorySingle handlers', () => {
           visibility: 'deleted',
         }),
       });
+      // R8 fact layer rides every memory deletion.
+      expect(mockPropagateDeletionToFacts).toHaveBeenCalledWith(mockPrisma);
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({

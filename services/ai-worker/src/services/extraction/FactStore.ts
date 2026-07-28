@@ -198,6 +198,11 @@ export class FactStore {
    * previously-SUPERSEDED statement collides with its dead row — the conflict
    * branch REACTIVATES it (clears the supersession marks), otherwise a
    * Seattle→Denver→Seattle sequence would end with no active fact at all.
+   * The same branch revives a row the memory-deletion cascade retired
+   * (visibility='deleted'): re-telling the fact in a new conversation is
+   * fresh, freely-given evidence, and the source replacement below means the
+   * revived row cites only the NEW memory — the cascade's self-heal sweep
+   * won't re-kill it over the deleted original.
    * Revival also refreshes valid_from to the NEW evidence time — the
    * re-assertion is newer evidence, and a revived fact must not sort by its
    * original (possibly ancient) source time. FORGOTTEN facts stay dead (user
@@ -235,12 +240,13 @@ export class FactStore {
           ON CONFLICT (id) DO UPDATE SET
             superseded_at = NULL,
             superseded_by_id = NULL,
+            visibility = 'normal',
             salience = EXCLUDED.salience,
             valid_from = EXCLUDED.valid_from,
             source_memory_ids = EXCLUDED.source_memory_ids,
             extraction_job_id = EXCLUDED.extraction_job_id,
             updated_at = EXCLUDED.updated_at
-          WHERE memory_facts.superseded_at IS NOT NULL
+          WHERE (memory_facts.superseded_at IS NOT NULL OR memory_facts.visibility = 'deleted')
             AND memory_facts.forgotten = false
             AND memory_facts.is_locked = false
             AND memory_facts.tier != 'corrected'
