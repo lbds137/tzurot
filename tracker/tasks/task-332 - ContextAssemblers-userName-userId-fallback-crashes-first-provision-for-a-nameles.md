@@ -1,12 +1,18 @@
 ---
 id: TASK-332
-title: "ContextAssembler's userName ?? userId fallback crashes first-provision for a nameless…"
+title: >-
+  ContextAssembler userName fallback crashes first-provision (snowflake persona
+  name)
 status: To Do
 assignee: []
 created_date: '2026-07-27 00:00'
+updated_date: '2026-07-28 10:53'
 labels:
-  - 'area:bot-client'
+  - 'area:ai-worker'
+  - 'area:identity'
+  - 'size:S'
 dependencies: []
+priority: medium
 ordinal: 332000
 ---
 

@@ -29,10 +29,14 @@ The small-item pool: one task file per follow-up under `tracker/tasks/`, managed
 ```bash
 pnpm tracker task list --search <term> --plain    # by text
 pnpm tracker task list -l area:<x> --plain        # by area label
+pnpm tracker task list -l size:S --plain          # by size (S / M / L)
+pnpm tracker task list --priority high --plain    # by priority (high / medium / low)
 pnpm tracker task view <id> --plain               # one task, full detail
 pnpm tracker task create 'Title' -d $'Why: ...' -l area:<x>   # file a new item
 pnpm tracker task edit <id> -s Done               # finish at ship
 ```
+
+Every task carries `area:*` + `size:*` labels and a priority (labeled in the step-3 pass): `size:S` <~1hr one-file · `size:M` a PR · `size:L` multi-PR/needs-design; priority `high` prod-correctness/data-rights · `medium` real improvement · `low` gated/speculative/watch. The drain query is `pnpm tracker task list -l size:S --priority high --plain`.
 
 Full conventions (labels, finishing, integrity gating): [`.claude/rules/06-backlog.md`](.claude/rules/06-backlog.md) § The tracker store.
 

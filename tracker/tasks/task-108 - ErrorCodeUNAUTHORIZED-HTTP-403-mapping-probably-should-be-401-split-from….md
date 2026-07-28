@@ -1,12 +1,15 @@
 ---
 id: TASK-108
-title: 'ErrorCode.UNAUTHORIZED → HTTP 403 mapping (probably should be 401) + split from…'
+title: ErrorCode.UNAUTHORIZED maps to HTTP 403 (should likely be 401)
 status: To Do
 assignee: []
 created_date: '2026-05-18 00:00'
+updated_date: '2026-07-28 10:48'
 labels:
   - 'area:api-gateway'
+  - 'size:S'
 dependencies: []
+priority: medium
 ordinal: 108000
 ---
 

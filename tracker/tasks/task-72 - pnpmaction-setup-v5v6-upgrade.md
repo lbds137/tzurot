@@ -1,11 +1,15 @@
 ---
 id: TASK-72
-title: 'pnpm/action-setup v5→v6 upgrade'
+title: pnpm/action-setup v5→v6 upgrade
 status: To Do
 assignee: []
 created_date: '2026-04-17 00:00'
-labels: []
+updated_date: '2026-07-28 10:47'
+labels:
+  - 'area:ci'
+  - 'size:S'
 dependencies: []
+priority: medium
 ordinal: 72000
 ---
 

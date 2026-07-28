@@ -1,12 +1,16 @@
 ---
 id: TASK-287
-title: 'eslint-on-edit.sh runs a synchronous pnpm exec eslint (binary resolution + flat-config…'
+title: eslint-on-edit.sh runs a synchronous pnpm exec eslint
 status: To Do
 assignee: []
 created_date: '2026-07-17 00:00'
+updated_date: '2026-07-28 10:52'
 labels:
   - 'origin:review'
+  - 'area:process'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 287000
 ---
 

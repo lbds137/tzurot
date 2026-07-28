@@ -1,13 +1,16 @@
 ---
 id: TASK-249
-title: 'Weekly-audit Dependabot ALERTS call may still 403 under GITHUB_TOKEN'
+title: Weekly-audit Dependabot ALERTS call may still 403 under GITHUB_TOKEN
 status: To Do
 assignee: []
 created_date: '2026-07-11 00:00'
+updated_date: '2026-07-28 10:51'
 labels:
   - 'area:ci'
   - 'origin:review'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 249000
 ---
 

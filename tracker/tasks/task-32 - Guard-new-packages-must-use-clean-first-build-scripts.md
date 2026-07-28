@@ -4,8 +4,13 @@ title: 'Guard: new packages must use clean-first build scripts'
 status: To Do
 assignee: []
 created_date: '2026-07-02 00:00'
-labels: []
+updated_date: '2026-07-28 10:46'
+labels:
+  - 'area:tooling'
+  - 'area:ci'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 32000
 ---
 

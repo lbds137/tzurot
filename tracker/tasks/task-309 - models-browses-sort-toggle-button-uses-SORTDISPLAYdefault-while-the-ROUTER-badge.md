@@ -1,12 +1,16 @@
 ---
 id: TASK-309
-title: "/models browse's sort-toggle button uses 🔀 (SORT_DISPLAY.default) while the ROUTER badge…"
+title: /models browse sort-toggle emoji collides with the ROUTER badge
 status: To Do
 assignee: []
 created_date: '2026-07-20 00:00'
+updated_date: '2026-07-28 10:52'
 labels:
   - 'origin:review'
+  - 'area:bot-client'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 309000
 ---
 

@@ -1,12 +1,17 @@
 ---
 id: TASK-181
-title: 'Evaluate batched asr_model.transcribe([...windows]) vs the sequential per-window loop'
+title: >-
+  Evaluate batched asr_model.transcribe([...windows]) vs the sequential
+  per-window loop
 status: To Do
 assignee: []
 created_date: '2026-06-27 00:00'
+updated_date: '2026-07-28 10:49'
 labels:
   - 'area:voice'
+  - 'size:M'
 dependencies: []
+priority: low
 ordinal: 181000
 ---
 

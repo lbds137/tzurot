@@ -1,12 +1,15 @@
 ---
 id: TASK-86
-title: 'Dashboard action naming convention drift (kebab vs snake)'
+title: Dashboard action naming convention drift (kebab vs snake)
 status: To Do
 assignee: []
 created_date: '2026-05-06 00:00'
+updated_date: '2026-07-28 10:47'
 labels:
-  - 'area:db'
+  - 'area:bot-client'
+  - 'size:M'
 dependencies: []
+priority: low
 ordinal: 86000
 ---
 

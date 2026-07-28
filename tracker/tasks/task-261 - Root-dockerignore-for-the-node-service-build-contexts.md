@@ -1,14 +1,16 @@
 ---
 id: TASK-261
-title: 'Root .dockerignore for the node-service build contexts'
+title: Root .dockerignore for the node-service build contexts
 status: To Do
 assignee: []
 created_date: '2026-07-13 00:00'
+updated_date: '2026-07-28 10:51'
 labels:
-  - 'area:embeddings'
-  - 'area:db'
-  - 'origin:review'
+  - 'area:ci'
+  - 'area:tooling'
+  - 'size:S'
 dependencies: []
+priority: medium
 ordinal: 261000
 ---
 

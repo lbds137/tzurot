@@ -1,14 +1,17 @@
 ---
 id: TASK-318
-title: 'the seededTimestamp(i) test helper is now defined identically in…'
+title: Extract the duplicated seededTimestamp test helper
 status: To Do
 assignee: []
 created_date: '2026-07-23 00:00'
+updated_date: '2026-07-28 10:52'
 labels:
   - 'area:conversation-history'
   - 'area:testing'
   - 'origin:review'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 318000
 ---
 

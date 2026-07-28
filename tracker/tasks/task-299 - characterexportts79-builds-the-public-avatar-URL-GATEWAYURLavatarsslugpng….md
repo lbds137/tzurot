@@ -1,14 +1,17 @@
 ---
 id: TASK-299
-title: 'character/export.ts:79 builds the public avatar URL (${GATEWAY_URL}/avatars/${slug}.png)…'
+title: character/export.ts hand-builds the public avatar URL
 status: To Do
 assignee: []
 created_date: '2026-07-19 00:00'
+updated_date: '2026-07-28 10:52'
 labels:
   - 'area:bot-client'
   - 'area:common-types'
   - 'origin:review'
+  - 'size:S'
 dependencies: []
+priority: medium
 ordinal: 299000
 ---
 

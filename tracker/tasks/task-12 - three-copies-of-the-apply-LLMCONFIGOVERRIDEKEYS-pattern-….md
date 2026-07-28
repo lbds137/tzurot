@@ -1,15 +1,18 @@
 ---
 id: TASK-12
-title: 'three copies of the apply-LLM_CONFIG_OVERRIDE_KEYS pattern —…'
+title: Consolidate the three apply-LLM_CONFIG_OVERRIDE_KEYS copies
 status: To Do
 assignee: []
 created_date: '2026-07-12 00:00'
+updated_date: '2026-07-28 10:46'
 labels:
   - 'area:api-gateway'
   - 'area:ai-worker'
   - 'area:common-types'
   - 'area:config-resolver'
+  - 'size:M'
 dependencies: []
+priority: medium
 ordinal: 12000
 ---
 

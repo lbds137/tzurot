@@ -1,12 +1,15 @@
 ---
 id: TASK-23
-title: 'docs/reference/REASONING_MODEL_FORMATS.md is stale on extraction mechanics: describes the…'
+title: REASONING_MODEL_FORMATS.md is stale on extraction mechanics
 status: To Do
 assignee: []
 created_date: '2026-07-05 00:00'
+updated_date: '2026-07-28 10:46'
 labels:
   - 'area:docs'
+  - 'size:S'
 dependencies: []
+priority: medium
 ordinal: 23000
 ---
 

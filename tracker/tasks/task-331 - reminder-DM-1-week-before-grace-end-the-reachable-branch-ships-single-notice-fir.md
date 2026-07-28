@@ -1,12 +1,17 @@
 ---
 id: TASK-331
-title: 'reminder DM ~1 week before grace-end (the reachable branch ships single-notice-first: one…'
+title: Reminder DM about one week before grace-end
 status: To Do
 assignee: []
 created_date: '2026-07-26 00:00'
+updated_date: '2026-07-28 10:53'
 labels:
   - 'area:jobs'
+  - 'area:api-gateway'
+  - 'area:bot-client'
+  - 'size:M'
 dependencies: []
+priority: low
 ordinal: 331000
 ---
 

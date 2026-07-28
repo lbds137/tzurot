@@ -1,12 +1,17 @@
 ---
 id: TASK-289
-title: 'the release-broadcast eligibility scan (resolveEligibleRecipients: notifyEnabled +…'
+title: Partial index for the broadcast eligibility scan (scale-gated)
 status: To Do
 assignee: []
 created_date: '2026-07-16 00:00'
+updated_date: '2026-07-28 10:52'
 labels:
   - 'origin:review'
+  - 'area:api-gateway'
+  - 'area:db'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 289000
 ---
 

@@ -1,13 +1,18 @@
 ---
 id: TASK-87
-title: 'Extract conditional-warning response/log helper for admin config-delete handlers'
+title: >-
+  Extract conditional-warning response/log helper for admin config-delete
+  handlers
 status: To Do
 assignee: []
 created_date: '2026-05-04 00:00'
+updated_date: '2026-07-28 10:47'
 labels:
   - 'area:voice'
   - 'area:db'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 87000
 ---
 

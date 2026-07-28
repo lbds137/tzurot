@@ -4,9 +4,13 @@ title: 'Deployment skill: railway redeploy acts on the LINKED environment'
 status: To Do
 assignee: []
 created_date: '2026-07-13 00:00'
+updated_date: '2026-07-28 10:51'
 labels:
-  - 'area:voice'
+  - 'area:docs'
+  - 'area:process'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 264000
 ---
 

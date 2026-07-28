@@ -1,12 +1,15 @@
 ---
 id: TASK-242
-title: 'FreeTierRequestQuota.tryConsume pipelining (perf)'
+title: FreeTierRequestQuota.tryConsume pipelining (perf)
 status: To Do
 assignee: []
 created_date: '2026-07-08 00:00'
+updated_date: '2026-07-28 10:51'
 labels:
   - 'area:redis'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 242000
 ---
 

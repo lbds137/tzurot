@@ -1,12 +1,16 @@
 ---
 id: TASK-300
-title: 'mutation-tests matrix split parked: fan out one CI leg per tracked package…'
+title: Mutation-tests CI matrix split (one leg per tracked package)
 status: To Do
 assignee: []
 created_date: '2026-07-19 00:00'
+updated_date: '2026-07-28 10:52'
 labels:
-  - 'area:common-types'
+  - 'area:ci'
+  - 'area:tooling'
+  - 'size:M'
 dependencies: []
+priority: low
 ordinal: 300000
 ---
 

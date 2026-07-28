@@ -1,11 +1,16 @@
 ---
 id: TASK-59
-title: 'Enforce round-trip-contract registration for new fetch-edit-PUT dashboards'
+title: Enforce round-trip-contract registration for new fetch-edit-PUT dashboards
 status: To Do
 assignee: []
 created_date: '2026-06-18 00:00'
-labels: []
+updated_date: '2026-07-28 10:47'
+labels:
+  - 'area:bot-client'
+  - 'area:testing'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 59000
 ---
 

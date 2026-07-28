@@ -1,12 +1,15 @@
 ---
 id: TASK-150
-title: 'bot-client ↔ gateway double LLM-cascade resolve per request'
+title: bot-client ↔ gateway double LLM-cascade resolve per request
 status: To Do
 assignee: []
 created_date: '2026-06-17 00:00'
+updated_date: '2026-07-28 10:49'
 labels:
   - 'area:bot-client'
+  - 'size:M'
 dependencies: []
+priority: medium
 ordinal: 150000
 ---
 

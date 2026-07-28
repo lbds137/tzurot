@@ -1,13 +1,15 @@
 ---
 id: TASK-41
-title: 'Cache adminSettings.findFirst in LlmConfigService (TTLCache ~30s)'
+title: Cache adminSettings.findFirst in LlmConfigService (TTLCache ~30s)
 status: To Do
 assignee: []
 created_date: '2026-06-29 00:00'
+updated_date: '2026-07-28 10:46'
 labels:
-  - 'area:bot-client'
-  - 'origin:review'
+  - 'area:api-gateway'
+  - 'size:S'
 dependencies: []
+priority: medium
 ordinal: 41000
 ---
 

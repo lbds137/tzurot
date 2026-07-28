@@ -4,10 +4,13 @@ title: 'Keep the prod voice-engine warm so the STT budget is inference, not cold
 status: To Do
 assignee: []
 created_date: '2026-06-27 00:00'
+updated_date: '2026-07-28 10:49'
 labels:
   - 'area:voice'
   - 'area:jobs'
+  - 'size:M'
 dependencies: []
+priority: low
 ordinal: 180000
 ---
 

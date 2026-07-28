@@ -1,11 +1,15 @@
 ---
 id: TASK-74
-title: 'Reconsider hard-fail vs soft-error for attachment download failures'
+title: Reconsider hard-fail vs soft-error for attachment download failures
 status: To Do
 assignee: []
 created_date: '2026-04-24 00:00'
-labels: []
+updated_date: '2026-07-28 10:47'
+labels:
+  - 'area:ai-worker'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 74000
 ---
 

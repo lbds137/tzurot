@@ -1,11 +1,16 @@
 ---
 id: TASK-145
-title: 'Re-add an admin model-cache-refresh endpoint'
+title: Re-add an admin model-cache-refresh endpoint
 status: To Do
 assignee: []
 created_date: '2026-06-15 00:00'
-labels: []
+updated_date: '2026-07-28 10:49'
+labels:
+  - 'area:api-gateway'
+  - 'area:bot-client'
+  - 'size:M'
 dependencies: []
+priority: medium
 ordinal: 145000
 ---
 

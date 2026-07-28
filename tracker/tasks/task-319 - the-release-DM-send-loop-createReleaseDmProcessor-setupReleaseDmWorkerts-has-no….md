@@ -1,12 +1,17 @@
 ---
 id: TASK-319
-title: 'the release-DM send loop (createReleaseDmProcessor, setupReleaseDmWorker.ts) has no…'
+title: Short-circuit release-DM batches on bot_level (20026) failures
 status: To Do
 assignee: []
 created_date: '2026-07-23 00:00'
+updated_date: '2026-07-28 10:52'
 labels:
   - 'origin:review'
+  - 'area:bot-client'
+  - 'area:jobs'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 319000
 ---
 

@@ -1,13 +1,16 @@
 ---
 id: TASK-94
-title: 'Resolve personalityTone UI/API cap mismatch (UI 255 / API 1000)'
+title: Resolve personalityTone UI/API cap mismatch (UI 255 / API 1000)
 status: To Do
 assignee: []
 created_date: '2026-05-06 00:00'
+updated_date: '2026-07-28 10:48'
 labels:
   - 'area:bot-client'
   - 'area:db'
+  - 'size:S'
 dependencies: []
+priority: medium
 ordinal: 94000
 ---
 

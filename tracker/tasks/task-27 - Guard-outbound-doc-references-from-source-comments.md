@@ -4,9 +4,12 @@ title: 'Guard: outbound doc references from source comments'
 status: To Do
 assignee: []
 created_date: '2026-07-03 00:00'
+updated_date: '2026-07-28 10:46'
 labels:
   - 'area:tooling'
+  - 'size:M'
 dependencies: []
+priority: low
 ordinal: 27000
 ---
 

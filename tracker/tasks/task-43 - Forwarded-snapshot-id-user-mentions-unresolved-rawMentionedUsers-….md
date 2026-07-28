@@ -1,12 +1,16 @@
 ---
 id: TASK-43
-title: 'Forwarded snapshot <@id> user-mentions unresolved (rawMentionedUsers ←…'
+title: Resolve user-mentions in forwarded snapshots (rawMentionedUsers)
 status: To Do
 assignee: []
 created_date: '2026-06-29 00:00'
+updated_date: '2026-07-28 10:47'
 labels:
   - 'origin:review'
+  - 'area:bot-client'
+  - 'size:M'
 dependencies: []
+priority: low
 ordinal: 43000
 ---
 

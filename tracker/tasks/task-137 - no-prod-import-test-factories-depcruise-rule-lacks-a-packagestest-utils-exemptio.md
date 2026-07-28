@@ -1,12 +1,17 @@
 ---
 id: TASK-137
-title: 'no-prod-import-test-factories depcruise rule lacks a packages/test-utils/ exemption'
+title: >-
+  no-prod-import-test-factories depcruise rule lacks a packages/test-utils/
+  exemption
 status: To Do
 assignee: []
 created_date: '2026-06-03 00:00'
+updated_date: '2026-07-28 10:48'
 labels:
   - 'area:testing'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 137000
 ---
 

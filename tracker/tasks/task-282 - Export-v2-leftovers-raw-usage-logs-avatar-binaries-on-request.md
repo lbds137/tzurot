@@ -4,8 +4,12 @@ title: 'Export v2 leftovers: raw usage logs + avatar binaries on request'
 status: To Do
 assignee: []
 created_date: '2026-07-15 00:00'
-labels: []
+updated_date: '2026-07-28 10:52'
+labels:
+  - 'area:ai-worker'
+  - 'size:M'
 dependencies: []
+priority: low
 ordinal: 282000
 ---
 

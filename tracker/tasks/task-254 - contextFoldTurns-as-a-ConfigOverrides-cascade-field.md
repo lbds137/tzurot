@@ -1,11 +1,16 @@
 ---
 id: TASK-254
-title: 'contextFoldTurns as a ConfigOverrides cascade field'
+title: contextFoldTurns as a ConfigOverrides cascade field
 status: To Do
 assignee: []
 created_date: '2026-07-12 00:00'
-labels: []
+updated_date: '2026-07-28 10:51'
+labels:
+  - 'area:config-resolver'
+  - 'area:common-types'
+  - 'size:M'
 dependencies: []
+priority: low
 ordinal: 254000
 ---
 

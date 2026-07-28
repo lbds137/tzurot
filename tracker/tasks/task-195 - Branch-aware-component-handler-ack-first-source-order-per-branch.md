@@ -1,11 +1,15 @@
 ---
 id: TASK-195
-title: 'Branch-aware component-handler-ack-first (source-order → per-branch)'
+title: Branch-aware component-handler-ack-first (source-order → per-branch)
 status: To Do
 assignee: []
 created_date: '2026-06-30 00:00'
-labels: []
+updated_date: '2026-07-28 10:50'
+labels:
+  - 'area:tooling'
+  - 'size:M'
 dependencies: []
+priority: low
 ordinal: 195000
 ---
 

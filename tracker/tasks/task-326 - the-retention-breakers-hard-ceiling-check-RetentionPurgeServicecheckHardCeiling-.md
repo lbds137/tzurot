@@ -1,13 +1,17 @@
 ---
 id: TASK-326
-title: "the retention breaker's hard-ceiling check (RetentionPurgeService.checkHardCeiling) and…"
+title: Serialize purge runs before a second caller exists (advisory lock)
 status: To Do
 assignee: []
 created_date: '2026-07-25 00:00'
+updated_date: '2026-07-28 10:52'
 labels:
   - 'area:db'
   - 'origin:review'
+  - 'area:api-gateway'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 326000
 ---
 

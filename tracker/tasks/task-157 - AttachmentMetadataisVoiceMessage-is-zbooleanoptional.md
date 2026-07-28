@@ -1,12 +1,15 @@
 ---
 id: TASK-157
-title: 'AttachmentMetadata.isVoiceMessage is z.boolean().optional()'
+title: AttachmentMetadata.isVoiceMessage is z.boolean().optional()
 status: To Do
 assignee: []
 created_date: '2026-06-23 00:00'
+updated_date: '2026-07-28 10:49'
 labels:
   - 'area:common-types'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 157000
 ---
 

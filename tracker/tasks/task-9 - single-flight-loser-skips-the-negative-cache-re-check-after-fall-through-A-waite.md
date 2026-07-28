@@ -1,11 +1,15 @@
 ---
 id: TASK-9
-title: 'single-flight loser skips the negative-cache re-check after fall-through — A waiter that…'
+title: 'Vision single-flight loser: re-check negative cache after fall-through'
 status: To Do
 assignee: []
 created_date: '2026-07-12 00:00'
-labels: []
+updated_date: '2026-07-28 10:46'
+labels:
+  - 'area:ai-worker'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 9000
 ---
 

@@ -1,12 +1,16 @@
 ---
 id: TASK-39
-title: 'Self-label the read-path fast-pool failure symmetrically with the write path'
+title: Self-label the read-path fast-pool failure symmetrically with the write path
 status: To Do
 assignee: []
 created_date: '2026-07-01 00:00'
+updated_date: '2026-07-28 10:46'
 labels:
   - 'origin:review'
+  - 'area:db'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 39000
 ---
 

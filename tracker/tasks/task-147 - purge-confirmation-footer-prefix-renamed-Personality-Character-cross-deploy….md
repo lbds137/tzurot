@@ -1,12 +1,17 @@
 ---
 id: TASK-147
-title: 'purge confirmation footer prefix renamed Personality: →Character:  (cross-deploy…'
+title: >-
+  Purge-confirmation footer rename Personality to Character (cross-deploy
+  window)
 status: To Do
 assignee: []
 created_date: '2026-06-16 00:00'
+updated_date: '2026-07-28 10:49'
 labels:
   - 'area:bot-client'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 147000
 ---
 

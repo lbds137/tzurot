@@ -1,12 +1,17 @@
 ---
 id: TASK-288
-title: 'failed_transient release DMs have no retry path: the incomplete-broadcast resweep only…'
+title: failed_transient release DMs have no retry path (resweep gap)
 status: To Do
 assignee: []
 created_date: '2026-07-16 00:00'
+updated_date: '2026-07-28 10:52'
 labels:
   - 'origin:review'
+  - 'area:api-gateway'
+  - 'area:jobs'
+  - 'size:M'
 dependencies: []
+priority: medium
 ordinal: 288000
 ---
 

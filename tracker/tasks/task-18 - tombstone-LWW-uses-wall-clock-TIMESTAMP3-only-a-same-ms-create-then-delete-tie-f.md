@@ -1,12 +1,15 @@
 ---
 id: TASK-18
-title: 'tombstone LWW uses wall-clock TIMESTAMP(3) only; a same-ms create-then-delete tie fails…'
+title: Tombstone LWW same-ms create-then-delete tie
 status: To Do
 assignee: []
 created_date: '2026-07-11 00:00'
+updated_date: '2026-07-28 10:46'
 labels:
   - 'area:db'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 18000
 ---
 

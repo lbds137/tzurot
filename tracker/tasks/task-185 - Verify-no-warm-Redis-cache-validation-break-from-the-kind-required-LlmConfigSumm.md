@@ -1,12 +1,17 @@
 ---
 id: TASK-185
-title: 'Verify no warm Redis-cache validation break from the kind-required LlmConfigSummary bump'
+title: >-
+  Verify no warm Redis-cache validation break from the kind-required
+  LlmConfigSummary bump
 status: To Do
 assignee: []
 created_date: '2026-06-29 00:00'
+updated_date: '2026-07-28 10:50'
 labels:
   - 'area:redis'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 185000
 ---
 

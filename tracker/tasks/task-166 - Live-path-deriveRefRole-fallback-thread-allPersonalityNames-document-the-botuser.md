@@ -1,12 +1,17 @@
 ---
 id: TASK-166
-title: 'Live-path deriveRefRole fallback: thread allPersonalityNames + document the bot→user…'
+title: >-
+  Live-path deriveRefRole: thread allPersonalityNames + document the bot-to-user
+  fallback
 status: To Do
 assignee: []
 created_date: '2026-06-24 00:00'
+updated_date: '2026-07-28 10:49'
 labels:
   - 'area:bot-client'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 166000
 ---
 

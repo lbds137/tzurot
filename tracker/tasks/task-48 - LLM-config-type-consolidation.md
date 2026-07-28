@@ -1,13 +1,16 @@
 ---
 id: TASK-48
-title: 'LLM config type consolidation'
+title: LLM config type consolidation
 status: To Do
 assignee: []
 created_date: '2026-06-27 00:00'
+updated_date: '2026-07-28 10:47'
 labels:
   - 'area:voice'
   - 'area:common-types'
+  - 'size:M'
 dependencies: []
+priority: low
 ordinal: 48000
 ---
 

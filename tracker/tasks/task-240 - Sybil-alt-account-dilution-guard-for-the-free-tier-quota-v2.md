@@ -1,11 +1,15 @@
 ---
 id: TASK-240
-title: 'Sybil / alt-account dilution guard for the free-tier quota (v2)'
+title: Sybil / alt-account dilution guard for the free-tier quota (v2)
 status: To Do
 assignee: []
 created_date: '2026-07-08 00:00'
-labels: []
+updated_date: '2026-07-28 10:51'
+labels:
+  - 'area:ai-worker'
+  - 'size:M'
 dependencies: []
+priority: low
 ordinal: 240000
 ---
 

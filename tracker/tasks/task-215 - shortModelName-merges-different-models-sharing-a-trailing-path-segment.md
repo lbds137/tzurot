@@ -1,12 +1,16 @@
 ---
 id: TASK-215
-title: 'shortModelName merges different models sharing a trailing path segment'
+title: shortModelName merges different models sharing a trailing path segment
 status: To Do
 assignee: []
 created_date: '2026-07-06 00:00'
+updated_date: '2026-07-28 10:50'
 labels:
   - 'origin:review'
+  - 'area:api-gateway'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 215000
 ---
 

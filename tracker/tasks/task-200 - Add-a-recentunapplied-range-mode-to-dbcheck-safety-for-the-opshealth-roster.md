@@ -4,8 +4,13 @@ title: 'Add a recent/unapplied-range mode to db:check-safety for the ops:health 
 status: To Do
 assignee: []
 created_date: '2026-07-03 00:00'
-labels: []
+updated_date: '2026-07-28 10:50'
+labels:
+  - 'area:tooling'
+  - 'area:db'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 200000
 ---
 

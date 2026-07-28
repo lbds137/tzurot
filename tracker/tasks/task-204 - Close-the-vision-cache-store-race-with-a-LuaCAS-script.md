@@ -1,12 +1,15 @@
 ---
 id: TASK-204
-title: 'Close the vision-cache store race with a Lua/CAS script'
+title: Close the vision-cache store race with a Lua/CAS script
 status: To Do
 assignee: []
 created_date: '2026-07-04 00:00'
+updated_date: '2026-07-28 10:50'
 labels:
   - 'area:redis'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 204000
 ---
 

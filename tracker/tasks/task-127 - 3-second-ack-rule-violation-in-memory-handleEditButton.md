@@ -1,13 +1,16 @@
 ---
 id: TASK-127
-title: '3-second ack-rule violation in memory handleEditButton'
+title: 3-second ack-rule violation in memory handleEditButton
 status: To Do
 assignee: []
 created_date: '2026-05-28 00:00'
+updated_date: '2026-07-28 10:48'
 labels:
   - 'area:bot-client'
   - 'area:db'
+  - 'size:S'
 dependencies: []
+priority: high
 ordinal: 127000
 ---
 

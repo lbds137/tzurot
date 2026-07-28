@@ -1,12 +1,18 @@
 ---
 id: TASK-197
-title: 'Extractor loses providerError detail when an error-finish choice has no message stub'
+title: >-
+  Extractor loses providerError detail when an error-finish choice has no
+  message stub
 status: To Do
 assignee: []
 created_date: '2026-07-02 00:00'
+updated_date: '2026-07-28 10:50'
 labels:
   - 'origin:review'
+  - 'area:ai-worker'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 197000
 ---
 

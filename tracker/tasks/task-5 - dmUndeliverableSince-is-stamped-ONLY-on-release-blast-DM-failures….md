@@ -1,11 +1,16 @@
 ---
 id: TASK-5
-title: 'dmUndeliverableSince is stamped ONLY on release-blast DM failures…'
+title: 'Stamp dmUndeliverableSince on persona-DM failures, not just blasts'
 status: To Do
 assignee: []
 created_date: '2026-07-22 00:00'
-labels: []
+updated_date: '2026-07-28 10:46'
+labels:
+  - 'area:bot-client'
+  - 'area:api-gateway'
+  - 'size:M'
 dependencies: []
+priority: low
 ordinal: 5000
 ---
 

@@ -1,12 +1,16 @@
 ---
 id: TASK-37
-title: 'Backport a negative cache to LlmConfigResolver.getFreeDefaultConfig() for parity with the…'
+title: Negative cache for LlmConfigResolver.getFreeDefaultConfig (parity)
 status: To Do
 assignee: []
 created_date: '2026-07-01 00:00'
+updated_date: '2026-07-28 10:46'
 labels:
   - 'origin:review'
+  - 'area:config-resolver'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 37000
 ---
 

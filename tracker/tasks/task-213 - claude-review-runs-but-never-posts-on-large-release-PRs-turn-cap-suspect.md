@@ -1,12 +1,16 @@
 ---
 id: TASK-213
-title: 'claude-review runs-but-never-posts on large release PRs (turn-cap suspect)'
+title: claude-review runs-but-never-posts on large release PRs (turn-cap suspect)
 status: To Do
 assignee: []
 created_date: '2026-07-06 00:00'
+updated_date: '2026-07-28 10:50'
 labels:
   - 'origin:review'
+  - 'area:ci'
+  - 'size:S'
 dependencies: []
+priority: medium
 ordinal: 213000
 ---
 

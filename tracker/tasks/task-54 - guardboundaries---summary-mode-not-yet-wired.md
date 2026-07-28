@@ -4,9 +4,12 @@ title: 'guard:boundaries --summary mode not yet wired'
 status: To Do
 assignee: []
 created_date: '2026-06-17 00:00'
+updated_date: '2026-07-28 10:47'
 labels:
   - 'area:tooling'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 54000
 ---
 

@@ -4,12 +4,15 @@ title: 'ops queue tooling hardcodes ai-requests, ignoring the QUEUE_NAME env sea
 status: To Do
 assignee: []
 created_date: '2026-07-06 00:00'
+updated_date: '2026-07-28 10:50'
 labels:
   - 'area:ai-worker'
   - 'area:tooling'
   - 'area:db'
   - 'area:jobs'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 212000
 ---
 

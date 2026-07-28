@@ -1,11 +1,15 @@
 ---
 id: TASK-182
-title: 'Add a runtime narrowing guard before the as ConfigKind cast if kind is ever read outside…'
+title: Runtime narrowing guard for the as-ConfigKind cast outside autocomplete
 status: To Do
 assignee: []
 created_date: '2026-06-28 00:00'
-labels: []
+updated_date: '2026-07-28 10:49'
+labels:
+  - 'area:bot-client'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 182000
 ---
 

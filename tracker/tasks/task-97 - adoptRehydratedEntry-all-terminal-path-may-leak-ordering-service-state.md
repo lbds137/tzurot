@@ -1,12 +1,16 @@
 ---
 id: TASK-97
-title: 'adoptRehydratedEntry all-terminal path may leak ordering-service state'
+title: adoptRehydratedEntry all-terminal path may leak ordering-service state
 status: To Do
 assignee: []
 created_date: '2026-05-16 00:00'
+updated_date: '2026-07-28 10:48'
 labels:
   - 'area:jobs'
+  - 'area:bot-client'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 97000
 ---
 

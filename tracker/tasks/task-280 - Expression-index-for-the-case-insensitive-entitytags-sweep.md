@@ -1,11 +1,15 @@
 ---
 id: TASK-280
-title: 'Expression index for the case-insensitive entity_tags sweep'
+title: Expression index for the case-insensitive entity_tags sweep
 status: To Do
 assignee: []
 created_date: '2026-07-15 00:00'
-labels: []
+updated_date: '2026-07-28 10:52'
+labels:
+  - 'area:db'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 280000
 ---
 

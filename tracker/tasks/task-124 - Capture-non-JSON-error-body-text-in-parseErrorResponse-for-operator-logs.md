@@ -1,12 +1,15 @@
 ---
 id: TASK-124
-title: 'Capture non-JSON error body text in parseErrorResponse for operator logs'
+title: Capture non-JSON error body text in parseErrorResponse for operator logs
 status: To Do
 assignee: []
 created_date: '2026-05-24 00:00'
+updated_date: '2026-07-28 10:48'
 labels:
   - 'area:common-types'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 124000
 ---
 

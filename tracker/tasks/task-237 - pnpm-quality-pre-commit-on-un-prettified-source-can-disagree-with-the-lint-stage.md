@@ -1,11 +1,16 @@
 ---
 id: TASK-237
-title: 'pnpm quality (pre-commit, on un-prettified source) can disagree with the lint-staged hook…'
+title: pnpm quality at pre-commit can disagree with the lint-staged hook
 status: To Do
 assignee: []
 created_date: '2026-07-08 00:00'
-labels: []
+updated_date: '2026-07-28 10:51'
+labels:
+  - 'area:process'
+  - 'area:tooling'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 237000
 ---
 

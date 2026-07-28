@@ -1,13 +1,16 @@
 ---
 id: TASK-4
-title: 'extract the shared env-scoped-op preamble (validateEnvironment → banner → prod-confirm…'
+title: Extract shared env-scoped-op preamble across ops commands
 status: To Do
 assignee: []
 created_date: '2026-07-22 00:00'
+updated_date: '2026-07-28 10:46'
 labels:
   - 'area:tooling'
   - 'area:db'
+  - 'size:M'
 dependencies: []
+priority: low
 ordinal: 4000
 ---
 

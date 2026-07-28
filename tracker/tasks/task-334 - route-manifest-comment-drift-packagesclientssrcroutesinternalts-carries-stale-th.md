@@ -1,12 +1,15 @@
 ---
 id: TASK-334
-title: 'route-manifest comment drift: packages/clients/src/routes/internal.ts carries stale "the…'
+title: Route-manifest comment drift in packages/clients internal.ts
 status: To Do
 assignee: []
 created_date: '2026-07-27 00:00'
+updated_date: '2026-07-28 10:53'
 labels:
   - 'area:clients'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 334000
 ---
 

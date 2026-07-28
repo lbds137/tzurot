@@ -1,11 +1,17 @@
 ---
 id: TASK-208
-title: 'Shapes import: verify multi-user shared-memory splitting is handled by the pipeline'
+title: >-
+  Shapes import: verify multi-user shared-memory splitting is handled by the
+  pipeline
 status: To Do
 assignee: []
 created_date: '2026-07-05 00:00'
-labels: []
+updated_date: '2026-07-28 10:50'
+labels:
+  - 'area:ai-worker'
+  - 'size:S'
 dependencies: []
+priority: medium
 ordinal: 208000
 ---
 

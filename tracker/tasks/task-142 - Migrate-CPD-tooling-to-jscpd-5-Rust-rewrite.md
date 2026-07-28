@@ -1,14 +1,17 @@
 ---
 id: TASK-142
-title: 'Migrate CPD tooling to jscpd 5 (Rust rewrite)'
+title: Migrate CPD tooling to jscpd 5 (Rust rewrite)
 status: To Do
 assignee: []
 created_date: '2026-06-08 00:00'
+updated_date: '2026-07-28 10:49'
 labels:
   - 'area:tooling'
   - 'area:db'
   - 'area:ci'
+  - 'size:M'
 dependencies: []
+priority: medium
 ordinal: 142000
 ---
 

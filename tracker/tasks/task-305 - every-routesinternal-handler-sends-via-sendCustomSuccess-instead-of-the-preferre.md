@@ -1,12 +1,16 @@
 ---
 id: TASK-305
-title: 'every routes/internal/* handler sends via sendCustomSuccess instead of the preferred…'
+title: Sweep routes/internal to sendContractSuccess
 status: To Do
 assignee: []
 created_date: '2026-07-23 00:00'
+updated_date: '2026-07-28 10:52'
 labels:
   - 'origin:review'
+  - 'area:api-gateway'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 305000
 ---
 

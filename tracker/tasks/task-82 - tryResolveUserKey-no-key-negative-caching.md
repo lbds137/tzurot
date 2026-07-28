@@ -1,12 +1,15 @@
 ---
 id: TASK-82
-title: 'tryResolveUserKey no-key negative caching'
+title: tryResolveUserKey no-key negative caching
 status: To Do
 assignee: []
 created_date: '2026-04-27 00:00'
+updated_date: '2026-07-28 10:47'
 labels:
   - 'area:ai-worker'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 82000
 ---
 

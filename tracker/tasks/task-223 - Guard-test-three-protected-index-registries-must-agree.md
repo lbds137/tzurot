@@ -4,10 +4,13 @@ title: 'Guard test: three protected-index registries must agree'
 status: To Do
 assignee: []
 created_date: '2026-07-06 00:00'
+updated_date: '2026-07-28 10:50'
 labels:
   - 'area:tooling'
   - 'area:db'
+  - 'size:S'
 dependencies: []
+priority: medium
 ordinal: 223000
 ---
 

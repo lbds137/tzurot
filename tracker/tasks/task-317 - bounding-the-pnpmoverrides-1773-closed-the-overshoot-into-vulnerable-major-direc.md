@@ -1,13 +1,16 @@
 ---
 id: TASK-317
-title: 'bounding the pnpm.overrides (#1773) closed the overshoot-into-vulnerable-major direction…'
+title: pnpm.overrides bounding follow-up (undershoot direction)
 status: To Do
 assignee: []
 created_date: '2026-07-23 00:00'
+updated_date: '2026-07-28 10:52'
 labels:
   - 'area:tooling'
   - 'origin:review'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 317000
 ---
 

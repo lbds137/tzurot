@@ -1,14 +1,17 @@
 ---
 id: TASK-110
-title: 'Channel-topic awareness + layered user-controllable system prompting'
+title: Channel-topic awareness + layered user-controllable system prompting
 status: To Do
 assignee: []
 created_date: '2026-05-18 00:00'
+updated_date: '2026-07-28 10:48'
 labels:
   - 'area:ai-worker'
   - 'area:docs'
   - 'area:backlog'
+  - 'size:L'
 dependencies: []
+priority: low
 ordinal: 110000
 ---
 

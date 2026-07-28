@@ -1,11 +1,15 @@
 ---
 id: TASK-159
-title: 'Reframe the Meta-Awareness / System Prompt Primacy character-directive names'
+title: Reframe the Meta-Awareness / System Prompt Primacy character-directive names
 status: To Do
 assignee: []
 created_date: '2026-06-23 00:00'
-labels: []
+updated_date: '2026-07-28 10:49'
+labels:
+  - 'area:ai-worker'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 159000
 ---
 

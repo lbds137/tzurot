@@ -1,12 +1,15 @@
 ---
 id: TASK-19
-title: 'generate-schema.ts harvester comment-stripping is a blind whole-file regex; fine for…'
+title: generate-schema.ts comment-stripping is a blind whole-file regex
 status: To Do
 assignee: []
 created_date: '2026-07-10 00:00'
+updated_date: '2026-07-28 10:46'
 labels:
   - 'area:testing'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 19000
 ---
 

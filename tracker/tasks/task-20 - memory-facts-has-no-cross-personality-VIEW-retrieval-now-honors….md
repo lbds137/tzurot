@@ -1,11 +1,16 @@
 ---
 id: TASK-20
-title: '/memory facts has no cross-personality VIEW: retrieval now honors…'
+title: '/memory facts: cross-personality view with per-character attribution'
 status: To Do
 assignee: []
 created_date: '2026-07-10 00:00'
-labels: []
+updated_date: '2026-07-28 10:46'
+labels:
+  - 'area:bot-client'
+  - 'area:api-gateway'
+  - 'size:M'
 dependencies: []
+priority: medium
 ordinal: 20000
 ---
 

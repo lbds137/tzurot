@@ -1,12 +1,15 @@
 ---
 id: TASK-278
-title: 'Attribute vision descriptions in the prompt'
+title: Attribute vision descriptions in the prompt
 status: To Do
 assignee: []
 created_date: '2026-07-15 00:00'
+updated_date: '2026-07-28 10:51'
 labels:
   - 'area:ai-worker'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 278000
 ---
 

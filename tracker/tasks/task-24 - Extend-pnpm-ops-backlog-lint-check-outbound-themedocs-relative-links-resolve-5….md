@@ -1,12 +1,15 @@
 ---
 id: TASK-24
-title: 'Extend pnpm ops backlog lint: check outbound theme→docs relative links resolve (5…'
+title: 'backlog lint: verify outbound theme-to-docs relative links resolve'
 status: To Do
 assignee: []
 created_date: '2026-07-03 00:00'
+updated_date: '2026-07-28 10:46'
 labels:
   - 'area:tooling'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 24000
 ---
 

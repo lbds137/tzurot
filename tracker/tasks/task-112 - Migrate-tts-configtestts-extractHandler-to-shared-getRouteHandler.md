@@ -1,14 +1,17 @@
 ---
 id: TASK-112
-title: 'Migrate tts-config.test.ts extractHandler to shared getRouteHandler'
+title: Migrate tts-config.test.ts extractHandler to shared getRouteHandler
 status: To Do
 assignee: []
 created_date: '2026-05-21 00:00'
+updated_date: '2026-07-28 10:48'
 labels:
   - 'area:api-gateway'
   - 'area:voice'
   - 'area:db'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 112000
 ---
 

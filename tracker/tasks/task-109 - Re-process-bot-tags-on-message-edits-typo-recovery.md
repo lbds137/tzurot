@@ -1,12 +1,15 @@
 ---
 id: TASK-109
-title: 'Re-process bot tags on message edits (typo recovery)'
+title: Re-process bot tags on message edits (typo recovery)
 status: To Do
 assignee: []
 created_date: '2026-05-17 00:00'
+updated_date: '2026-07-28 10:48'
 labels:
   - 'area:bot-client'
+  - 'size:M'
 dependencies: []
+priority: medium
 ordinal: 109000
 ---
 

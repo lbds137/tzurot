@@ -1,12 +1,16 @@
 ---
 id: TASK-236
-title: 'Submit-failure errored slots dropped in a PARTIAL-success multi-tag batch'
+title: Submit-failure errored slots dropped in a PARTIAL-success multi-tag batch
 status: To Do
 assignee: []
 created_date: '2026-07-08 00:00'
+updated_date: '2026-07-28 10:51'
 labels:
   - 'origin:review'
+  - 'area:bot-client'
+  - 'size:S'
 dependencies: []
+priority: medium
 ordinal: 236000
 ---
 

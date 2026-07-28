@@ -4,8 +4,12 @@ title: 'take: 100 silently truncates the all-kinds list for power users'
 status: To Do
 assignee: []
 created_date: '2026-06-29 00:00'
-labels: []
+updated_date: '2026-07-28 10:49'
+labels:
+  - 'area:api-gateway'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 184000
 ---
 

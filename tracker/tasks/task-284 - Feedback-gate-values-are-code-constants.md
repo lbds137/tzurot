@@ -1,14 +1,17 @@
 ---
 id: TASK-284
-title: 'Feedback gate values are code constants'
+title: Feedback gate values are code constants
 status: To Do
 assignee: []
 created_date: '2026-07-15 00:00'
+updated_date: '2026-07-28 10:52'
 labels:
   - 'area:common-types'
   - 'area:docs'
   - 'area:backlog'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 284000
 ---
 

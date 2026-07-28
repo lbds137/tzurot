@@ -1,12 +1,16 @@
 ---
 id: TASK-28
-title: 'LlmConfigService.ts sits at the max-lines ceiling'
+title: LlmConfigService.ts sits at the max-lines ceiling
 status: To Do
 assignee: []
 created_date: '2026-07-04 00:00'
+updated_date: '2026-07-28 10:46'
 labels:
   - 'origin:review'
+  - 'area:api-gateway'
+  - 'size:M'
 dependencies: []
+priority: medium
 ordinal: 28000
 ---
 

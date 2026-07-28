@@ -1,12 +1,16 @@
 ---
 id: TASK-306
-title: 'all acknowledged trade-offs of the fail-open design, none a false-block: (a) the…'
+title: Three acknowledged fail-open gaps in cwd-drift + promise-ledger hooks
 status: To Do
 assignee: []
 created_date: '2026-07-20 00:00'
+updated_date: '2026-07-28 10:52'
 labels:
   - 'origin:review'
+  - 'area:process'
+  - 'size:M'
 dependencies: []
+priority: low
 ordinal: 306000
 ---
 

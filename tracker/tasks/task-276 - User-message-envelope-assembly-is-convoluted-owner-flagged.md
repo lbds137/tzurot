@@ -1,12 +1,16 @@
 ---
 id: TASK-276
-title: 'User-message envelope assembly is convoluted (owner-flagged)'
+title: User-message envelope assembly is convoluted (owner-flagged)
 status: To Do
 assignee: []
 created_date: '2026-07-15 00:00'
+updated_date: '2026-07-28 10:51'
 labels:
   - 'origin:review'
+  - 'area:bot-client'
+  - 'size:M'
 dependencies: []
+priority: medium
 ordinal: 276000
 ---
 

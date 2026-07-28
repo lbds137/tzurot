@@ -1,12 +1,16 @@
 ---
 id: TASK-255
-title: 'Share arm-name constants if a third fold-eval glue script appears'
+title: Share arm-name constants if a third fold-eval glue script appears
 status: To Do
 assignee: []
 created_date: '2026-07-12 00:00'
+updated_date: '2026-07-28 10:51'
 labels:
   - 'origin:review'
+  - 'area:tooling'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 255000
 ---
 

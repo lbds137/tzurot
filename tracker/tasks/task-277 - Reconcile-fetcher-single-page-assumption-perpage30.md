@@ -1,12 +1,16 @@
 ---
 id: TASK-277
-title: 'Reconcile fetcher single-page assumption (per_page=30)'
+title: Reconcile fetcher single-page assumption (per_page=30)
 status: To Do
 assignee: []
 created_date: '2026-07-15 00:00'
+updated_date: '2026-07-28 10:51'
 labels:
   - 'origin:review'
+  - 'area:api-gateway'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 277000
 ---
 

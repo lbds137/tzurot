@@ -1,12 +1,15 @@
 ---
 id: TASK-230
-title: 'Voice reference export (round-trip symmetry with voice-at-import)'
+title: Voice reference export (round-trip symmetry with voice-at-import)
 status: To Do
 assignee: []
 created_date: '2026-07-07 00:00'
+updated_date: '2026-07-28 10:50'
 labels:
   - 'area:bot-client'
+  - 'size:M'
 dependencies: []
+priority: low
 ordinal: 230000
 ---
 

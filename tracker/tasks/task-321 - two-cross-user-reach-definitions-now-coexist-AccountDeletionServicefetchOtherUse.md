@@ -1,13 +1,17 @@
 ---
 id: TASK-321
-title: 'two cross-user-reach definitions now coexist: AccountDeletionService.fetchOtherUserReach…'
+title: Two cross-user-reach definitions coexist (deletion vs retention)
 status: To Do
 assignee: []
 created_date: '2026-07-24 00:00'
+updated_date: '2026-07-28 10:52'
 labels:
   - 'area:conversation-history'
   - 'origin:review'
+  - 'area:api-gateway'
+  - 'size:S'
 dependencies: []
+priority: medium
 ordinal: 321000
 ---
 

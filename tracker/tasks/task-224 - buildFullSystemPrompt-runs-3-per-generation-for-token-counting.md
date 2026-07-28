@@ -1,12 +1,15 @@
 ---
 id: TASK-224
-title: 'buildFullSystemPrompt runs 3× per generation for token counting'
+title: buildFullSystemPrompt runs 3× per generation for token counting
 status: To Do
 assignee: []
 created_date: '2026-07-07 00:00'
+updated_date: '2026-07-28 10:50'
 labels:
   - 'area:ai-worker'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 224000
 ---
 

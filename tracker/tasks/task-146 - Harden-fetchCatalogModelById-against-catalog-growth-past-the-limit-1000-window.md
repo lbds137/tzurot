@@ -1,12 +1,17 @@
 ---
 id: TASK-146
-title: 'Harden fetchCatalogModelById against catalog growth past the limit: 1000 window'
+title: >-
+  Harden fetchCatalogModelById against catalog growth past the limit: 1000
+  window
 status: To Do
 assignee: []
 created_date: '2026-06-15 00:00'
+updated_date: '2026-07-28 10:49'
 labels:
   - 'area:bot-client'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 146000
 ---
 

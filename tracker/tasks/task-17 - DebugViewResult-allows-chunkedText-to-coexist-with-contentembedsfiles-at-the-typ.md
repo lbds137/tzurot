@@ -1,11 +1,15 @@
 ---
 id: TASK-17
-title: 'DebugViewResult allows chunkedText to coexist with content/embeds/files at the type level…'
+title: 'DebugViewResult: make chunkedText vs content exclusivity compiler-enforced'
 status: To Do
 assignee: []
 created_date: '2026-07-11 00:00'
-labels: []
+updated_date: '2026-07-28 10:46'
+labels:
+  - 'area:bot-client'
+  - 'size:M'
 dependencies: []
+priority: low
 ordinal: 17000
 ---
 

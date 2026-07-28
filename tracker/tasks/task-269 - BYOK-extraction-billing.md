@@ -1,11 +1,15 @@
 ---
 id: TASK-269
-title: 'BYOK extraction billing'
+title: BYOK extraction billing
 status: To Do
 assignee: []
 created_date: '2026-07-14 00:00'
-labels: []
+updated_date: '2026-07-28 10:51'
+labels:
+  - 'area:ai-worker'
+  - 'size:M'
 dependencies: []
+priority: low
 ordinal: 269000
 ---
 

@@ -1,12 +1,15 @@
 ---
 id: TASK-235
-title: 'System-voice straggler wording → ux/catalog'
+title: System-voice straggler wording → ux/catalog
 status: To Do
 assignee: []
 created_date: '2026-07-08 00:00'
+updated_date: '2026-07-28 10:51'
 labels:
   - 'area:voice'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 235000
 ---
 

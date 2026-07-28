@@ -1,13 +1,16 @@
 ---
 id: TASK-314
-title: "the website service's Railway watch patterns must cover every Dockerfile-COPY'd content…"
+title: Website Railway watch patterns must cover Dockerfile-COPY content dirs
 status: To Do
 assignee: []
 created_date: '2026-07-22 00:00'
+updated_date: '2026-07-28 10:52'
 labels:
   - 'area:website'
   - 'area:docs'
+  - 'size:S'
 dependencies: []
+priority: medium
 ordinal: 314000
 ---
 

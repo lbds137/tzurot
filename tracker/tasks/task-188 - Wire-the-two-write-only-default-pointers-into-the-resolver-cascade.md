@@ -1,11 +1,16 @@
 ---
 id: TASK-188
-title: 'Wire the two write-only default pointers into the resolver cascade'
+title: Wire the two write-only default pointers into the resolver cascade
 status: To Do
 assignee: []
 created_date: '2026-06-29 00:00'
-labels: []
+updated_date: '2026-07-28 10:50'
+labels:
+  - 'area:config-resolver'
+  - 'area:api-gateway'
+  - 'size:M'
 dependencies: []
+priority: medium
 ordinal: 188000
 ---
 

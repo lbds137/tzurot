@@ -1,13 +1,18 @@
 ---
 id: TASK-168
-title: "Fetch-detecting guard so an external-call route can't omit externalCallBudgetMs"
+title: >-
+  Fetch-detecting guard so an external-call route can't omit
+  externalCallBudgetMs
 status: To Do
 assignee: []
 created_date: '2026-06-24 00:00'
+updated_date: '2026-07-28 10:49'
 labels:
   - 'area:api-gateway'
   - 'area:tooling'
+  - 'size:M'
 dependencies: []
+priority: low
 ordinal: 168000
 ---
 

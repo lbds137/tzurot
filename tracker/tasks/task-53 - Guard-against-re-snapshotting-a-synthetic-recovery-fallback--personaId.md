@@ -1,12 +1,16 @@
 ---
 id: TASK-53
-title: 'Guard against re-snapshotting a synthetic recovery-fallback-* personaId'
+title: Guard against re-snapshotting a synthetic recovery-fallback-* personaId
 status: To Do
 assignee: []
 created_date: '2026-06-21 00:00'
+updated_date: '2026-07-28 10:47'
 labels:
   - 'origin:review'
+  - 'area:bot-client'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 53000
 ---
 

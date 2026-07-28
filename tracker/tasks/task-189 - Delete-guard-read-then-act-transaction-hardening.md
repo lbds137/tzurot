@@ -1,12 +1,15 @@
 ---
 id: TASK-189
-title: 'Delete-guard read-then-act transaction hardening'
+title: Delete-guard read-then-act transaction hardening
 status: To Do
 assignee: []
 created_date: '2026-06-29 00:00'
+updated_date: '2026-07-28 10:50'
 labels:
   - 'area:db'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 189000
 ---
 

@@ -1,12 +1,18 @@
 ---
 id: TASK-186
-title: 'Revisit AdminSettings default-pointer storage: FK columns → normalized junction table'
+title: >-
+  Revisit AdminSettings default-pointer storage: FK columns → normalized
+  junction table
 status: To Do
 assignee: []
 created_date: '2026-06-29 00:00'
+updated_date: '2026-07-28 10:50'
 labels:
   - 'area:embeddings'
+  - 'area:db'
+  - 'size:M'
 dependencies: []
+priority: low
 ordinal: 186000
 ---
 

@@ -1,12 +1,16 @@
 ---
 id: TASK-33
-title: "Align result.error's compose base with errorInfo.technicalMessage (RetryError wrapper…"
+title: Align result.error compose base with errorInfo.technicalMessage
 status: To Do
 assignee: []
 created_date: '2026-07-02 00:00'
+updated_date: '2026-07-28 10:46'
 labels:
   - 'origin:review'
+  - 'area:ai-worker'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 33000
 ---
 

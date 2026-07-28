@@ -1,11 +1,17 @@
 ---
 id: TASK-173
-title: 'Lenient loadPersonality collapses GatewayClientError (non-404 4xx) to null for routing'
+title: >-
+  Lenient loadPersonality collapses GatewayClientError (non-404 4xx) to null for
+  routing
 status: To Do
 assignee: []
 created_date: '2026-06-25 00:00'
-labels: []
+updated_date: '2026-07-28 10:49'
+labels:
+  - 'area:bot-client'
+  - 'size:S'
 dependencies: []
+priority: medium
 ordinal: 173000
 ---
 

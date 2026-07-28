@@ -1,13 +1,16 @@
 ---
 id: TASK-101
-title: 'Reply-resolution tier-2 latency monitoring post-deploy'
+title: Reply-resolution tier-2 latency monitoring post-deploy
 status: To Do
 assignee: []
 created_date: '2026-05-16 00:00'
+updated_date: '2026-07-28 10:48'
 labels:
   - 'area:api-gateway'
   - 'area:redis'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 101000
 ---
 

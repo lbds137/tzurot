@@ -1,13 +1,17 @@
 ---
 id: TASK-268
-title: 'Preprocessing jobs (STT/vision/shapes wrappers) lack a spend-idempotency guard on…'
+title: Preprocessing jobs lack a spend-idempotency guard on retry
 status: To Do
 assignee: []
 created_date: '2026-07-14 00:00'
+updated_date: '2026-07-28 10:51'
 labels:
   - 'area:voice'
   - 'area:redis'
+  - 'area:jobs'
+  - 'size:M'
 dependencies: []
+priority: medium
 ordinal: 268000
 ---
 

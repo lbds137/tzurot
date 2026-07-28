@@ -1,11 +1,17 @@
 ---
 id: TASK-153
-title: 'ConversationPersistence flatten to module functions (post-CONTEXT_MODE cleanup)'
+title: >-
+  ConversationPersistence flatten to module functions (post-CONTEXT_MODE
+  cleanup)
 status: To Do
 assignee: []
 created_date: '2026-06-19 00:00'
-labels: []
+updated_date: '2026-07-28 10:49'
+labels:
+  - 'area:bot-client'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 153000
 ---
 

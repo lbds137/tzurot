@@ -1,13 +1,17 @@
 ---
 id: TASK-285
-title: 'Feedback dedupe check-then-insert can race under concurrency'
+title: Feedback dedupe check-then-insert can race under concurrency
 status: To Do
 assignee: []
 created_date: '2026-07-15 00:00'
+updated_date: '2026-07-28 10:52'
 labels:
   - 'area:redis'
   - 'origin:review'
+  - 'area:api-gateway'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 285000
 ---
 

@@ -1,11 +1,15 @@
 ---
 id: TASK-16
-title: 'rebalanceFences residual heuristic gap (acknowledged trade-off, not a bug): within one…'
+title: 'rebalanceFences residual: parity heuristic vs a real fence parser'
 status: To Do
 assignee: []
 created_date: '2026-07-12 00:00'
-labels: []
+updated_date: '2026-07-28 10:46'
+labels:
+  - 'area:common-types'
+  - 'size:L'
 dependencies: []
+priority: low
 ordinal: 16000
 ---
 

@@ -1,11 +1,16 @@
 ---
 id: TASK-210
-title: 'Bulk delete→memory propagation shares the MAX_MESSAGE_BATCH bound'
+title: Bulk delete→memory propagation shares the MAX_MESSAGE_BATCH bound
 status: To Do
 assignee: []
 created_date: '2026-07-05 00:00'
-labels: []
+updated_date: '2026-07-28 10:50'
+labels:
+  - 'area:api-gateway'
+  - 'area:conversation-history'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 210000
 ---
 

@@ -1,11 +1,15 @@
 ---
 id: TASK-281
-title: 'Async account-deletion promotion trigger'
+title: Async account-deletion promotion trigger
 status: To Do
 assignee: []
 created_date: '2026-07-15 00:00'
-labels: []
+updated_date: '2026-07-28 10:52'
+labels:
+  - 'area:api-gateway'
+  - 'size:M'
 dependencies: []
+priority: low
 ordinal: 281000
 ---
 

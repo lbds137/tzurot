@@ -1,12 +1,15 @@
 ---
 id: TASK-257
-title: 'Retire the admin-runtime-settings artifact into reference docs'
+title: Retire the admin-runtime-settings artifact into reference docs
 status: To Do
 assignee: []
 created_date: '2026-07-13 00:00'
+updated_date: '2026-07-28 10:51'
 labels:
   - 'area:docs'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 257000
 ---
 

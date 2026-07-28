@@ -1,11 +1,15 @@
 ---
 id: TASK-134
-title: 'Forensic audit trail for non-owner diagnostic-log 404 lookups'
+title: Forensic audit trail for non-owner diagnostic-log 404 lookups
 status: To Do
 assignee: []
 created_date: '2026-05-23 00:00'
-labels: []
+updated_date: '2026-07-28 10:48'
+labels:
+  - 'area:api-gateway'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 134000
 ---
 

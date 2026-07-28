@@ -1,12 +1,15 @@
 ---
 id: TASK-192
-title: 'Zero-staleness invalidation for the owner global-config autocomplete cache'
+title: Zero-staleness invalidation for the owner global-config autocomplete cache
 status: To Do
 assignee: []
 created_date: '2026-06-29 00:00'
+updated_date: '2026-07-28 10:50'
 labels:
   - 'area:bot-client'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 192000
 ---
 

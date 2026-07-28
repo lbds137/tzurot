@@ -1,13 +1,15 @@
 ---
 id: TASK-311
-title: "/help's execute routes 'getting-started' explicitly and falls through to the commands…"
+title: '/help subcommand routing: explicit switch when a third section lands'
 status: To Do
 assignee: []
 created_date: '2026-07-21 00:00'
+updated_date: '2026-07-28 10:52'
 labels:
-  - 'area:db'
-  - 'origin:review'
+  - 'area:bot-client'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 311000
 ---
 

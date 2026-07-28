@@ -1,12 +1,16 @@
 ---
 id: TASK-91
-title: 'Mistral slot quota empirical verification'
+title: Mistral slot quota empirical verification
 status: To Do
 assignee: []
 created_date: '2026-05-02 00:00'
+updated_date: '2026-07-28 10:48'
 labels:
   - 'area:docs'
+  - 'area:voice'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 91000
 ---
 

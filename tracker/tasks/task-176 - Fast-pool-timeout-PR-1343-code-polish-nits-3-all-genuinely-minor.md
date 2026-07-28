@@ -4,9 +4,12 @@ title: 'Fast-pool timeout PR #1343 code-polish nits (3, all genuinely minor)'
 status: To Do
 assignee: []
 created_date: '2026-06-25 00:00'
+updated_date: '2026-07-28 10:49'
 labels:
   - 'area:db'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 176000
 ---
 

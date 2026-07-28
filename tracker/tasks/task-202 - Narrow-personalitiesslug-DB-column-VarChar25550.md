@@ -1,14 +1,17 @@
 ---
 id: TASK-202
-title: 'Narrow personalities.slug DB column VarChar(255)→(50)'
+title: Narrow personalities.slug DB column VarChar(255)→(50)
 status: To Do
 assignee: []
 created_date: '2026-07-24 00:00'
+updated_date: '2026-07-28 10:50'
 labels:
   - 'area:tooling'
   - 'area:db'
   - 'area:docs'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 202000
 ---
 

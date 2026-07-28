@@ -1,11 +1,15 @@
 ---
 id: TASK-259
-title: 'Shapes.inc resume-from-page for mid-job cookie expiry'
+title: Shapes.inc resume-from-page for mid-job cookie expiry
 status: To Do
 assignee: []
 created_date: '2026-04-22 00:00'
-labels: []
+updated_date: '2026-07-28 10:51'
+labels:
+  - 'area:ai-worker'
+  - 'size:M'
 dependencies: []
+priority: low
 ordinal: 259000
 ---
 

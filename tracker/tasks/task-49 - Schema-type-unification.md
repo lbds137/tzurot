@@ -1,14 +1,17 @@
 ---
 id: TASK-49
-title: 'Schema-type unification'
+title: Schema-type unification
 status: To Do
 assignee: []
 created_date: '2026-06-26 00:00'
+updated_date: '2026-07-28 10:47'
 labels:
   - 'area:common-types'
   - 'area:tooling'
   - 'area:jobs'
+  - 'size:L'
 dependencies: []
+priority: low
 ordinal: 49000
 ---
 

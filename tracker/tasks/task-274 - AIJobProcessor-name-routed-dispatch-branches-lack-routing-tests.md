@@ -1,12 +1,17 @@
 ---
 id: TASK-274
-title: 'AIJobProcessor name-routed dispatch branches lack routing tests'
+title: AIJobProcessor name-routed dispatch branches lack routing tests
 status: To Do
 assignee: []
 created_date: '2026-07-15 00:00'
+updated_date: '2026-07-28 10:51'
 labels:
   - 'origin:review'
+  - 'area:ai-worker'
+  - 'area:testing'
+  - 'size:S'
 dependencies: []
+priority: medium
 ordinal: 274000
 ---
 

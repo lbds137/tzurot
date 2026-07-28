@@ -1,12 +1,15 @@
 ---
 id: TASK-89
-title: 'Smart per-user cache invalidation for LLM + TTS configs (cross-cutting)'
+title: Smart per-user cache invalidation for LLM + TTS configs (cross-cutting)
 status: To Do
 assignee: []
 created_date: '2026-05-03 00:00'
+updated_date: '2026-07-28 10:48'
 labels:
   - 'area:voice'
+  - 'size:M'
 dependencies: []
+priority: low
 ordinal: 89000
 ---
 

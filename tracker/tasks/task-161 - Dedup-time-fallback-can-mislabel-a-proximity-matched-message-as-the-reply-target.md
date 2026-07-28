@@ -1,11 +1,17 @@
 ---
 id: TASK-161
-title: 'Dedup time-fallback can mislabel a proximity-matched message as the reply-target'
+title: >-
+  Dedup time-fallback can mislabel a proximity-matched message as the
+  reply-target
 status: To Do
 assignee: []
 created_date: '2026-06-23 00:00'
-labels: []
+updated_date: '2026-07-28 10:49'
+labels:
+  - 'area:ai-worker'
+  - 'size:S'
 dependencies: []
+priority: low
 ordinal: 161000
 ---
 
