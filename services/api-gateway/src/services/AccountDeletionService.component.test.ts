@@ -301,6 +301,7 @@ describe('AccountDeletionService (component, PGLite)', () => {
         userId: USER_A,
         sourceSlug: 'account',
         sourceService: 'account',
+        downloadToken: 'a'.repeat(64),
         expiresAt: new Date(Date.now() + 3600_000),
       },
     });

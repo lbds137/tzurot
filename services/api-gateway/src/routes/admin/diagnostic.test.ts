@@ -513,7 +513,7 @@ describe('Admin Diagnostic Routes', () => {
         requestId: 'req-with-special/chars',
         triggerMessageId: null,
         personalityId: null,
-        userId: null,
+        userId: '123456789012345678',
         guildId: null,
         channelId: null,
         model: 'test',

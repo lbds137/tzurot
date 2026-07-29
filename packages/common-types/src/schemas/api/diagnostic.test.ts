@@ -35,11 +35,15 @@ describe('DiagnosticLogSchema', () => {
       ...validLogShape(),
       triggerMessageId: null,
       personalityId: null,
-      userId: null,
       guildId: null,
       channelId: null,
     };
     expect(DiagnosticLogSchema.safeParse(log).success).toBe(true);
+  });
+
+  it('rejects null userId (column is NOT NULL; every writer supplies it)', () => {
+    const log = { ...validLogShape(), userId: null };
+    expect(DiagnosticLogSchema.safeParse(log).success).toBe(false);
   });
 
   it('accepts createdAt as either string OR Date', () => {
@@ -113,7 +117,7 @@ describe('RecentDiagnosticLogSchema', () => {
       id: 'log-uuid',
       requestId: 'req-uuid',
       personalityId: null,
-      userId: null,
+      userId: '123456789012345678',
       guildId: null,
       channelId: null,
       model: 'claude-3-5-sonnet',
@@ -123,6 +127,23 @@ describe('RecentDiagnosticLogSchema', () => {
       personalityName: null,
     };
     expect(RecentDiagnosticLogSchema.safeParse(summary).success).toBe(true);
+  });
+
+  it('rejects null userId (column is NOT NULL; every writer supplies it)', () => {
+    const summary = {
+      id: 'log-uuid',
+      requestId: 'req-uuid',
+      personalityId: null,
+      userId: null,
+      guildId: null,
+      channelId: null,
+      model: 'claude-3-5-sonnet',
+      provider: 'anthropic',
+      durationMs: 1500,
+      createdAt: new Date(),
+      personalityName: null,
+    };
+    expect(RecentDiagnosticLogSchema.safeParse(summary).success).toBe(false);
   });
 });
 

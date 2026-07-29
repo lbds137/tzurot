@@ -207,24 +207,5 @@ describe('Account Export Routes', () => {
         expect.objectContaining({ job: expect.objectContaining({ downloadUrl: null }) })
       );
     });
-
-    it('yields a null downloadUrl for a completed job that predates the token column', async () => {
-      // Legacy row: completed before the download_token migration → null token.
-      // The status route must NOT build a URL (there is no valid handle).
-      mockPrisma.exportJob.findFirst.mockResolvedValueOnce({
-        id: 'legacy-job',
-        status: 'completed',
-        fileName: 'legacy-export.zip',
-        fileSizeBytes: 42,
-        createdAt: new Date(),
-        completedAt: new Date(),
-        expiresAt: new Date(),
-        downloadToken: null,
-      });
-      const { res } = await callStatus();
-      expect(res.json).toHaveBeenCalledWith(
-        expect.objectContaining({ job: expect.objectContaining({ downloadUrl: null }) })
-      );
-    });
   });
 });

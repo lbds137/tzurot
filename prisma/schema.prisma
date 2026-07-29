@@ -919,9 +919,12 @@ model LlmDiagnosticLog {
   /// Populated after response is sent to Discord via PATCH endpoint
   responseMessageIds String[] @default([]) @map("response_message_ids")
 
-  /// Top-level indexed fields for filtering/queries
+  /// Top-level indexed fields for filtering/queries. userId is required —
+  /// every writer routes through storeDiagnosticLog, whose DiagnosticMeta
+  /// carries a required Discord user ID; the others stay nullable (guildId
+  /// is null for DMs, personality/channel lookups can fail post-hoc).
   personalityId String? @map("personality_id") @db.Uuid
-  userId        String? @map("user_id") @db.VarChar(20)
+  userId        String  @map("user_id") @db.VarChar(20)
   guildId       String? @map("guild_id") @db.VarChar(20)
   channelId     String? @map("channel_id") @db.VarChar(20)
   model         String  @db.VarChar(255)
@@ -1048,10 +1051,11 @@ model ExportJob {
   /// Size of the stored payload (fileContent or fileData) in bytes
   fileSizeBytes  Int?      @map("file_size_bytes")
   /// Unguessable random token carried in the PUBLIC download URL (the job `id`
-  /// is deterministic and must never be the download handle). Deferred-set:
-  /// null only on legacy rows predating this column; every new/reset job mints
-  /// one. Unique so the unauthenticated download route can look up by it.
-  downloadToken  String?   @unique @map("download_token") @db.VarChar(64)
+  /// is deterministic and must never be the download handle). Required: every
+  /// create/reset mints one, and the 24h row expiry retired the legacy
+  /// pre-column rows. Unique so the unauthenticated download route can look
+  /// up by it.
+  downloadToken  String    @unique @map("download_token") @db.VarChar(64)
   createdAt      DateTime  @default(now()) @map("created_at")
   startedAt      DateTime? @map("started_at")
   completedAt    DateTime? @map("completed_at")
