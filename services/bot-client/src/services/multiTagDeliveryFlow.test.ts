@@ -12,7 +12,11 @@ import type { TypingChannel } from '@tzurot/common-types/types/discord-types';
 import type { LLMGenerationResult } from '@tzurot/common-types/types/schemas/generation';
 import type { LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import { MULTI_TAG } from '@tzurot/common-types/constants/message';
-import { deliverGroup, type DeliveryFlowDeps } from './multiTagDeliveryFlow.js';
+import {
+  deliverGroup,
+  deliverErroredOutcomes,
+  type DeliveryFlowDeps,
+} from './multiTagDeliveryFlow.js';
 import type { RuntimeEntry, RuntimeSlot } from './multiTagCoordinatorHelpers.js';
 import { confirmDelivery, setDmSessionPersonality } from '../utils/gatewayServiceCalls.js';
 
@@ -456,5 +460,47 @@ describe('deliverGroup', () => {
     // Confirmation cleanup still ran despite the failed notice
     expect(vi.mocked(confirmDelivery)).toHaveBeenCalled();
     expect(persistence.deleteEntry).toHaveBeenCalled();
+  });
+});
+
+describe('deliverErroredOutcomes', () => {
+  it('contains a rejecting delivery — the sibling character still speaks', async () => {
+    // The allSettled containment is the guarantee the coordinator's
+    // fire-and-forget call relies on; pin it here rather than only in a
+    // comment. deliverErrorNoPersist swallows internally today, but the
+    // containment must hold even if it is ever refactored to throw.
+    const deliverErrorNoPersist = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('webhook send failed'))
+      .mockResolvedValue(undefined);
+    const deps = {
+      slotDelivery: { deliverErrorNoPersist } as unknown as DeliveryFlowDeps['slotDelivery'],
+    };
+    const message = {
+      id: 'msg-source',
+      guildId: 'guild-1',
+      client: { user: { id: 'bot-1' } },
+    } as unknown as Message;
+    const channel = { id: 'channel-1' } as unknown as TypingChannel;
+    const spec = (name: string): LLMGenerationResult =>
+      ({ requestId: `req-${name}`, success: false, error: 'boom' }) as LLMGenerationResult;
+
+    await expect(
+      deliverErroredOutcomes(
+        { message, channel },
+        [
+          { personality: buildPersonality('Alice'), isAutoResponse: false, spec: spec('Alice') },
+          { personality: buildPersonality('Bob'), isAutoResponse: false, spec: spec('Bob') },
+        ],
+        deps
+      )
+    ).resolves.toBeUndefined();
+
+    // Both were attempted — Alice's rejection did not drop Bob's delivery.
+    expect(deliverErrorNoPersist).toHaveBeenCalledTimes(2);
+    const deliveredIds = deliverErrorNoPersist.mock.calls.map(
+      c => (c[2] as { personality: { id: string } }).personality.id
+    );
+    expect(deliveredIds).toEqual(['id-alice', 'id-bob']);
   });
 });
