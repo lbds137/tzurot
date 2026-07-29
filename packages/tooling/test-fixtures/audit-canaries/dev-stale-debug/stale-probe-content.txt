@@ -1,0 +1,9 @@
+# DO NOT FIX / DO NOT REMOVE — deliberate audit-canary fixture.
+#
+# The dev:stale-debug canary test commits this file into a throwaway git repo
+# under a backdated `debug(canary): add stale probe scaffolding` commit and
+# asserts the tool flags it as stale surviving scaffolding. The content below
+# stands in for diagnostic lines that were added and never removed.
+probe('request-start')
+probe('response-headers')
+probe('settled')

@@ -100,9 +100,26 @@ export function registerDevCommands(cli: CAC): void {
     });
 
   registerSchemaAuditCommand(cli);
+  registerStaleDebugCommand(cli);
   registerComplexityReportCommand(cli);
   registerCommandsAuditCommand(cli);
   registerBacklogCommand(cli);
+}
+
+function registerStaleDebugCommand(cli: CAC): void {
+  cli
+    .command('dev:stale-debug', 'Audit for debug-typed commits whose scaffolding survives at HEAD')
+    .option('--summary', 'Emit a JSONL summary line for the audit aggregator')
+    .option('--max-age-days <n>', 'Age at which surviving scaffolding fails (default 14)')
+    .example('ops dev:stale-debug')
+    .example('ops dev:stale-debug --summary')
+    .action(async (options: { summary?: boolean; maxAgeDays?: string }) => {
+      const { runStaleDebugAudit } = await import('../dev/stale-debug-audit.js');
+      runStaleDebugAudit({
+        summary: options.summary,
+        maxAgeDays: options.maxAgeDays !== undefined ? Number(options.maxAgeDays) : undefined,
+      });
+    });
 }
 
 function registerBacklogCommand(cli: CAC): void {

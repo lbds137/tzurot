@@ -284,3 +284,60 @@ describe('audit-canary: mutation:check', () => {
     }
   });
 });
+
+describe('audit-canary: dev:stale-debug', () => {
+  it('flags a backdated debug commit whose scaffolding survives at HEAD', async () => {
+    // This canary exercises the REAL git plumbing (log/numstat/blame) against
+    // a throwaway repo, because the tool's subject is git history — a static
+    // fixture directory cannot carry one. The committed content comes from
+    // test-fixtures/audit-canaries/dev-stale-debug/ (DO NOT FIX / DO NOT
+    // REMOVE — the probe lines below are deliberately "forgotten").
+    const { mkdtemp, writeFile, rm, readFile } = await import('node:fs/promises');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const { execFileSync } = await import('node:child_process');
+
+    const tmp = await mkdtemp(join(tmpdir(), 'stale-debug-canary-'));
+    const git = (args: string[], env?: Record<string, string>): void => {
+      execFileSync('git', args, {
+        cwd: tmp,
+        stdio: 'pipe',
+        env: { ...process.env, ...env },
+      });
+    };
+
+    try {
+      git(['init', '--initial-branch=main']);
+      git(['config', 'user.email', 'canary@test.invalid']);
+      git(['config', 'user.name', 'Canary']);
+
+      await writeFile(join(tmp, 'app.ts'), 'export const app = 1;\n');
+      git(['add', '.']);
+      git(['commit', '-m', 'feat: base']);
+
+      // The stale scaffolding: committed 30 days ago (backdated), never removed.
+      const probeContent = await readFile(
+        resolve(FIXTURES_ROOT, 'dev-stale-debug/stale-probe-content.txt'),
+        'utf-8'
+      );
+      await writeFile(join(tmp, 'probe.ts'), probeContent);
+      git(['add', '.']);
+      const backdate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+      git(['commit', '-m', 'debug(canary): add stale probe scaffolding'], {
+        GIT_AUTHOR_DATE: backdate,
+        GIT_COMMITTER_DATE: backdate,
+      });
+
+      const { findStaleDebugCommits } = await import('../dev/stale-debug-audit.js');
+      const result = findStaleDebugCommits({ repoRoot: tmp });
+
+      expect(result.status).toBe('fail');
+      expect(result.liveCommits).toHaveLength(1);
+      expect(result.liveCommits[0].stale).toBe(true);
+      expect(result.liveCommits[0].subject).toContain('stale probe scaffolding');
+      expect(result.liveCommits[0].survivingFiles[0].file).toBe('probe.ts');
+    } finally {
+      await rm(tmp, { recursive: true, force: true });
+    }
+  });
+});
