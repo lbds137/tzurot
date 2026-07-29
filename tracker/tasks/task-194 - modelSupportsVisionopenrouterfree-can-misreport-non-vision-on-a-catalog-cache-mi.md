@@ -3,10 +3,10 @@ id: TASK-194
 title: >-
   modelSupportsVision('openrouter/free') can misreport non-vision on a catalog
   cache-miss
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-06-30 00:00'
-updated_date: '2026-07-28 10:50'
+updated_date: '2026-07-29 13:46'
 labels:
   - 'area:redis'
   - 'size:S'
