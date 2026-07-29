@@ -13,6 +13,7 @@
 - #1853 /history purge fixed for long slugs (TASK-290; slug rides the embed footer, customId carries only channelId; real-builder regression pins incl. old-shape-throws)
 - #1854 channel dashboard Reset-to-defaults (TASK-126 owner-approved; opt-in factory resetButton + Tier-A confirm per design system; TASK-352/353 filed)
 - #1855 openrouter/free always vision-capable (TASK-194; authoritative pre-catalog override — review traced a reachable guest-ladder gate the fix also closes, benign fallback pre-fix)
+- #1856 reconcile-off-db sweep bounded to 50-row batches (TASK-327; `remaining` in response, CLI batch loop w/ cap-vs-failure exit messages, purge surfaces undrained rest)
 
 ## 🔬 Smoke checklist — v3.0.0-beta.183 (post-deploy)
 

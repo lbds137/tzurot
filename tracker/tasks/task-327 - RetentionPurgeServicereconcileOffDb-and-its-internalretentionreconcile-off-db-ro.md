@@ -1,10 +1,10 @@
 ---
 id: TASK-327
 title: Bound the reconcile-off-db sweep
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-07-25 00:00'
-updated_date: '2026-07-28 10:52'
+updated_date: '2026-07-29 14:29'
 labels:
   - 'area:jobs'
   - 'origin:review'
