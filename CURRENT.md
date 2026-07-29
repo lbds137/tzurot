@@ -12,6 +12,7 @@
 - **#1843 shared `avatarUrlPath`** (TASK-299 closed) — common-types helper owns both avatar-URL shapes; both producers compose it; producer↔parser round-trip contract test added. Filed: TASK-347 (no-trailing-slash env validation for gateway base URLs).
 - **#1844 orphan-sentinel browse creator** (TASK-320 closed) — `fetchUsernames` short-circuits the sentinel's reserved discordId to "Orphaned Characters" (was "Unknown" via the doomed `users.fetch`); sole creator-name resolver, sweep-verified; sentinel's own retention exposure already covered by bootstrap `retention_exempt`.
 - **#1845 brand-neutral bot-client copy** (TASK-313 closed) — 11 user-facing "Tzurot" sites → "cloned voices"/"the bot" (static descriptions can't env-brand without forking the manifest); webhook base name now runtime-branded from `client.user.username`. Untouched by design: `tzurot-` voice prefix (IDOR guard), operator log, comments. Filed: TASK-348 (gateway 503 JSON brand string, review catch).
+- **#1846 protected-index registry guard** (TASK-223 closed) — name-set agreement pinned across drift-ignore.json / check-migration-safety / inspect-database + DROP-suppression and recreateSQL invariants; fixed the live drift it caught (safety checker was missing `memories_chunk_group_id_idx`) with its own canary case. Filed: TASK-349 (derive checker patterns from the JSON — review catch). Also closed without building: TASK-261 (root `.dockerignore` shipped in b4e06b35e, 2026-07-16).
 
 ## 🔬 Smoke checklist — v3.0.0-beta.183 (post-deploy)
 
