@@ -1,10 +1,10 @@
 ---
 id: TASK-320
 title: Retention-orphaned characters show creator Unknown in browse
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-07-24 00:00'
-updated_date: '2026-07-28 10:52'
+updated_date: '2026-07-29 00:30'
 labels:
   - 'area:bot-client'
   - 'size:S'
