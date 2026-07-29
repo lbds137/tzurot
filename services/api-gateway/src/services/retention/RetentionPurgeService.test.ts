@@ -1,6 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { PrismaClient } from '@tzurot/common-types/services/prisma';
-import { RetentionPurgeService, BREAKER_HARD_FRACTION } from './RetentionPurgeService.js';
+import {
+  RetentionPurgeService,
+  BREAKER_HARD_FRACTION,
+  RECONCILE_BATCH_SIZE,
+} from './RetentionPurgeService.js';
 
 const mockErase = vi.hoisted(() => vi.fn());
 const mockCleanupOffDb = vi.hoisted(() => vi.fn());
@@ -334,5 +338,74 @@ describe('RetentionPurgeService.purgeUser', () => {
     });
 
     expect(mockCreateLog).not.toHaveBeenCalled();
+  });
+});
+
+describe('RetentionPurgeService.reconcileOffDb', () => {
+  function makeReconcilePrisma(opts: { totalPending: number; rows: unknown[] }) {
+    const count = vi.fn().mockResolvedValue(opts.totalPending);
+    const findMany = vi.fn().mockResolvedValue(opts.rows);
+    const update = vi.fn().mockResolvedValue({});
+    return {
+      prisma: { retentionPurgeLog: { count, findMany, update } } as unknown as PrismaClient,
+      count,
+      findMany,
+      update,
+    };
+  }
+
+  const row = (n: number) => ({
+    id: `audit-${String(n)}`,
+    targetDiscordId: `90000000000000000${String(n)}`,
+    offDbPending: { characterSlugs: [`slug-${String(n)}`] },
+  });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('sweeps ONE bounded batch and reports the unattempted rows as remaining', async () => {
+    // A long-unreconciled backlog must not run the whole queue in one ~60s
+    // HTTP request — the per-user purge's own lesson (D2).
+    const { prisma, findMany } = makeReconcilePrisma({
+      totalPending: 120,
+      rows: Array.from({ length: RECONCILE_BATCH_SIZE }, (_, i) => row(i)),
+    });
+    mockCleanupOffDb.mockResolvedValue(true);
+
+    const result = await new RetentionPurgeService({ prisma }).reconcileOffDb();
+
+    // The bound crosses the seam into the query.
+    expect(findMany.mock.calls[0][0].take).toBe(RECONCILE_BATCH_SIZE);
+    expect(result).toEqual({
+      settled: RECONCILE_BATCH_SIZE,
+      stillFailing: 0,
+      remaining: 120 - RECONCILE_BATCH_SIZE,
+    });
+  });
+
+  it('counts an in-batch failure as stillFailing, not remaining', async () => {
+    // Attempted-but-failed rows stay queued for a future run, but calling
+    // them "remaining" would make the CLI loop re-attempt them immediately.
+    const { prisma, update } = makeReconcilePrisma({
+      totalPending: 2,
+      rows: [row(1), row(2)],
+    });
+    mockCleanupOffDb.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
+
+    const result = await new RetentionPurgeService({ prisma }).reconcileOffDb();
+
+    expect(result).toEqual({ settled: 1, stillFailing: 1, remaining: 0 });
+    // Both attempts settled their ledger outcome.
+    expect(update).toHaveBeenCalledTimes(2);
+  });
+
+  it('is a zero-work no-op on an empty queue', async () => {
+    const { prisma } = makeReconcilePrisma({ totalPending: 0, rows: [] });
+
+    const result = await new RetentionPurgeService({ prisma }).reconcileOffDb();
+
+    expect(result).toEqual({ settled: 0, stillFailing: 0, remaining: 0 });
+    expect(mockCleanupOffDb).not.toHaveBeenCalled();
   });
 });

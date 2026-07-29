@@ -36,14 +36,31 @@ export async function retentionReconcileOffDb(options: RetentionReconcileOptions
     return;
   }
 
-  const result = await client.retentionReconcileOffDb();
-  if (!result.ok) {
-    console.error(chalk.red(`\nOff-DB reconciliation failed (${result.kind}): ${result.error}`));
-    process.exitCode = 1;
-    return;
+  // The endpoint sweeps ONE bounded batch per call; loop while it reports
+  // unattempted rows. Stop on any in-batch failure — the head of the queue
+  // stays pending on failure, so looping past a failing batch would burn
+  // iterations re-attempting the same rows (the operator investigates via
+  // gateway logs first). The iteration cap is a plain runaway backstop.
+  const MAX_BATCHES = 20;
+  let settled = 0;
+  let stillFailing = 0;
+  let remaining = 0;
+  for (let batch = 0; batch < MAX_BATCHES; batch++) {
+    const result = await client.retentionReconcileOffDb();
+    if (!result.ok) {
+      console.error(chalk.red(`\nOff-DB reconciliation failed (${result.kind}): ${result.error}`));
+      process.exitCode = 1;
+      return;
+    }
+    settled += result.data.settled;
+    stillFailing += result.data.stillFailing;
+    remaining = result.data.remaining;
+    if (remaining === 0 || result.data.stillFailing > 0) {
+      break;
+    }
+    console.log(chalk.dim(`  …batch settled ${String(result.data.settled)}, continuing`));
   }
 
-  const { settled, stillFailing } = result.data;
   if (settled + stillFailing === 0) {
     console.log(chalk.green('\nNothing owed — every purge has completed its off-DB cleanup.'));
     return;
@@ -55,6 +72,13 @@ export async function retentionReconcileOffDb(options: RetentionReconcileOptions
       chalk.red(
         `  still failing: ${String(stillFailing)} — check the gateway logs for the ` +
           'underlying avatar-unlink error; the ledger keeps them queued for the next run.'
+      )
+    );
+  }
+  if (remaining > 0) {
+    console.log(
+      chalk.yellow(
+        `  not attempted: ${String(remaining)} — re-run after resolving the failures above.`
       )
     );
   }

@@ -123,25 +123,42 @@ export async function settleOffDb(
   });
 }
 
+/** The shared retry-queue filter — every pending-off-DB read uses this shape. */
+const PENDING_OFF_DB_WHERE = {
+  dbOutcome: 'success',
+  offDbReconciled: { not: 'done' },
+} as const;
+
 /**
  * Rows whose off-DB cleanup is still owed — the retry queue.
  *
  * Filtered to committed purges: a `failed` DB outcome never owed off-DB work,
- * so including it would make the sweep retry nothing forever. Unindexed and
- * unbounded on purpose — the ledger gains one row per purged account, so this
- * is a seq scan over a table measured in tens.
+ * so including it would make the sweep retry nothing forever. Unindexed on
+ * purpose (the ledger gains one row per purged account — a seq scan over a
+ * table measured in tens), but BOUNDED: a long-unreconciled backlog must not
+ * run the whole queue inside one HTTP request against the platform's ~60s
+ * timeout — the same lesson the purge itself learned per-user.
  */
-export async function findPendingOffDbRows(prisma: PrismaClient): Promise<PendingOffDbRow[]> {
+export async function findPendingOffDbRows(
+  prisma: PrismaClient,
+  take: number
+): Promise<PendingOffDbRow[]> {
   const rows = await prisma.retentionPurgeLog.findMany({
-    where: { dbOutcome: 'success', offDbReconciled: { not: 'done' } },
+    where: PENDING_OFF_DB_WHERE,
     select: { id: true, targetDiscordId: true, offDbPending: true },
     orderBy: { purgedAt: 'asc' },
+    take,
   });
   return rows.map(row => ({
     id: row.id,
     targetDiscordId: row.targetDiscordId,
     characterSlugs: extractSlugs(row.offDbPending),
   }));
+}
+
+/** Size of the retry queue — lets a bounded sweep report what it didn't reach. */
+export async function countPendingOffDbRows(prisma: PrismaClient): Promise<number> {
+  return prisma.retentionPurgeLog.count({ where: PENDING_OFF_DB_WHERE });
 }
 
 /**
