@@ -24,7 +24,7 @@ const logger = createLogger('maintenanceResponses');
 
 /** User-facing maintenance notice (bot-client adds the emoji; the gateway's JSON stays plain). */
 export const MAINTENANCE_USER_MESSAGE =
-  '🔧 Tzurot is down for a quick maintenance window — back in a few minutes!';
+  '🔧 The bot is down for a quick maintenance window — back in a few minutes!';
 
 /** Reaction used to acknowledge guild mentions during the window. */
 export const MAINTENANCE_REACTION = '🔧';

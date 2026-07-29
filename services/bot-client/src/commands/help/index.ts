@@ -407,7 +407,7 @@ async function showAllCommands(
 // [command]`, making room for `/help getting-started` (and future sections).
 const commandData = new SlashCommandBuilder()
   .setName('help')
-  .setDescription('Learn what Tzurot is and browse every command')
+  .setDescription('Learn what the bot is and browse every command')
   .addSubcommand(subcommand =>
     subcommand
       .setName('commands')
@@ -423,7 +423,7 @@ const commandData = new SlashCommandBuilder()
   .addSubcommand(subcommand =>
     subcommand
       .setName('getting-started')
-      .setDescription('What Tzurot is and the first commands to try')
+      .setDescription('What the bot is and the first commands to try')
   );
 
 /** Discord caps an autocomplete choice's display name at 100 characters. */

@@ -6,7 +6,7 @@
  * - /shapes auth - Authenticate with shapes.inc session cookie
  * - /shapes logout - Remove stored credentials
  * - /shapes browse - Browse owned shapes with sort and detail view
- * - /shapes import <slug> - Import character into Tzurot
+ * - /shapes import <slug> - Import a shapes.inc character
  * - /shapes export <slug> - Export character data as JSON
  * - /shapes status - View credential status and import history
  */
@@ -73,7 +73,7 @@ export default defineCommand({
     .addSubcommand(subcommand =>
       subcommand
         .setName('import')
-        .setDescription('Import a shapes.inc character into Tzurot')
+        .setDescription('Import a shapes.inc character')
         .addStringOption(option =>
           option
             .setName('slug')

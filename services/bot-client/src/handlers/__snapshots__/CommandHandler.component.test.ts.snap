@@ -1250,7 +1250,7 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
     "type": 1,
   },
   {
-    "description": "What Tzurot is and the first commands to try",
+    "description": "What the bot is and the first commands to try",
     "description_localizations": undefined,
     "name": "getting-started",
     "name_localizations": undefined,
@@ -2885,7 +2885,7 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
     "type": 1,
   },
   {
-    "description": "Import a shapes.inc character into Tzurot",
+    "description": "Import a shapes.inc character",
     "description_localizations": undefined,
     "name": "import",
     "name_localizations": undefined,
@@ -3196,7 +3196,7 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
         "type": 1,
       },
       {
-        "description": "Permanently delete ALL Tzurot cloned voices",
+        "description": "Permanently delete ALL cloned voices",
         "description_localizations": undefined,
         "name": "purge",
         "name_localizations": undefined,

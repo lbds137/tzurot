@@ -200,7 +200,7 @@ describe('handleBrowseVoices', () => {
       embeds: [
         expect.objectContaining({
           data: expect.objectContaining({
-            description: expect.stringContaining('No Tzurot-cloned voices'),
+            description: expect.stringContaining('No cloned voices'),
           }),
         }),
       ],

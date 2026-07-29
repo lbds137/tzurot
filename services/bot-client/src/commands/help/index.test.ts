@@ -69,7 +69,7 @@ describe('Help Command', () => {
   describe('command definition', () => {
     it('should have correct name and description', () => {
       expect(data.name).toBe('help');
-      expect(data.description).toBe('Learn what Tzurot is and browse every command');
+      expect(data.description).toBe('Learn what the bot is and browse every command');
     });
 
     it('splits into commands + getting-started subcommands', () => {
