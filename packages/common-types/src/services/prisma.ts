@@ -188,6 +188,3 @@ export async function verifyPoolTimeouts(
 // Re-export PrismaClient class and Prisma namespace for use by other services
 // The PrismaClient is exported as both a value (class) and type
 export { PrismaClient, Prisma } from '../generated/prisma/client.js';
-
-// Explicitly re-export Null types from runtime library to fix TypeScript type inference
-// issues with pnpm workspaces (TS2742 errors about non-portable type references)

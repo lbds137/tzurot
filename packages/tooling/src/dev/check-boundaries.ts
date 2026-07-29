@@ -29,23 +29,41 @@ interface Violation {
 
 // Define boundary rules
 /**
- * Prisma CLIENT symbols that still live in `@tzurot/common-types` and must not be
- * imported by bot-client (they reach the database). The former Prisma-backed
+ * Runtime exports of the Prisma-backed `@tzurot/common-types` modules that
+ * bot-client must not import — they reach the database, or read through a
+ * Prisma-backed registry bot-client can never wire. The former Prisma-backed
  * SERVICES (PersonaResolver, PersonalityService, ConversationHistoryService, the
  * cache invalidators) were extracted to dedicated packages — each carries its own
- * `bot-client → package` depcruise ban — and getPrismaClient/disconnectPrisma were
- * deleted. Exported so the drift test in check-boundaries.test.ts asserts every
- * entry is a real common-types export; a stale entry (a symbol that's since been
- * renamed/deleted/moved) then fails CI instead of silently no-op-matching.
+ * `bot-client → package` depcruise ban; this list covers what still lives IN
+ * common-types. Exported for the drift guard in check-boundaries.test.ts, which
+ * asserts set equality in BOTH directions: a stale entry (symbol since renamed/
+ * deleted/moved) fails, and a NEW runtime export of any Prisma-importing
+ * common-types module missing from this list also fails — adding a Prisma-backed
+ * export forces the ban decision here instead of silently widening the surface.
  */
 export const BOT_CLIENT_BANNED_COMMON_TYPES_PRISMA_SYMBOLS = [
+  // services/prisma — the client factory, the client itself, and a probe that
+  // queries through a client handed to it.
   'createPrismaClient',
   'PrismaClient',
   'Prisma',
+  'verifyPoolTimeouts',
+  // services/SystemSettingsService — DB-backed settings read path. The ambient
+  // accessors are banned too: bot-client can never register an instance (that
+  // takes a PrismaClient), so getSystemSetting there would silently serve
+  // fallback constants forever — settings reach bot-client via the gateway API.
+  'SystemSettingsService',
+  'registerSystemSettings',
+  'getSystemSetting',
+  'resetSystemSettingsRegistration',
 ] as const;
 
+// The specifier arm spans ANY @tzurot/common-types subpath: the package's
+// wildcard exports (`./services/*`) make every Prisma-backed module importable
+// at its own subpath, so anchoring to services/prisma alone would let
+// `from '@tzurot/common-types/services/SystemSettingsService'` sail through.
 const BOT_CLIENT_PRISMA_SYMBOL_PATTERN = new RegExp(
-  `\\b(${BOT_CLIENT_BANNED_COMMON_TYPES_PRISMA_SYMBOLS.join('|')})\\b[\\s\\S]*?from\\s+['"]@tzurot/common-types(?:/services/prisma)?['"]`
+  `\\b(${BOT_CLIENT_BANNED_COMMON_TYPES_PRISMA_SYMBOLS.join('|')})\\b[\\s\\S]*?from\\s+['"]@tzurot/common-types(?:/[^'"]+)?['"]`
 );
 
 const BOUNDARY_RULES: {
