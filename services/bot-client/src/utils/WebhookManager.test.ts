@@ -61,7 +61,7 @@ function createMockTextChannel(
   mockChannel.id = id;
   mockChannel.type = ChannelType.GuildText;
   mockChannel.client = {
-    user: { id: clientUserId },
+    user: { id: clientUserId, username: 'TestBot' },
   };
   mockChannel.fetchWebhooks = vi.fn().mockResolvedValue({
     find: vi.fn((fn: (wh: Webhook) => boolean) => existingWebhooks.find(fn)),
@@ -327,7 +327,7 @@ describe('WebhookManager', () => {
 
         expect(channel.fetchWebhooks).toHaveBeenCalled();
         expect(channel.createWebhook).toHaveBeenCalledWith({
-          name: 'Tzurot Personalities',
+          name: 'TestBot Personalities',
           reason: 'Multi-personality bot system',
         });
         expect(webhook.id).toBe('new-webhook');

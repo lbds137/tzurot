@@ -108,11 +108,11 @@ function buildVoiceBrowsePage(
     }),
     empty: {
       noItems:
-        'No Tzurot-cloned voices found. Voices are auto-cloned when you talk ' +
+        'No cloned voices found. Voices are auto-cloned when you talk ' +
         `to a character with voice enabled — your audio provider account(s) have **${totalVoices}** voices total.`,
     },
     footerSegments: [
-      `${pluralize(tzurotCount, { singular: 'Tzurot voice', plural: 'Tzurot voices' })} / ${totalVoices} total across audio providers`,
+      `${pluralize(tzurotCount, { singular: 'cloned voice', plural: 'cloned voices' })} / ${totalVoices} total across audio providers`,
     ],
     // Browse stays BLURPLE even with provider warnings (§2.3 — color encodes
     // surface kind, not state); the ⚠️ warnings field is the signal.
@@ -132,7 +132,7 @@ function buildVoiceBrowsePage(
       name: '💡 Management',
       value: [
         '`/voice voices delete <voice>` - Remove a single voice',
-        '`/voice voices purge` - Permanently delete all Tzurot voices',
+        '`/voice voices purge` - Permanently delete all cloned voices',
       ].join('\n'),
       inline: false,
     });

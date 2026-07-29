@@ -31,6 +31,6 @@ export function buildVoiceVoicesSubcommandGroup(
         )
     )
     .addSubcommand(subcommand =>
-      subcommand.setName('purge').setDescription('Permanently delete ALL Tzurot cloned voices')
+      subcommand.setName('purge').setDescription('Permanently delete ALL cloned voices')
     );
 }

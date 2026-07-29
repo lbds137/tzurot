@@ -46,7 +46,7 @@ export const VOICE_PURGE_OPERATION = 'voice-purge';
  * Entity name shared by the warning config and the modal-submit validation so
  * the dynamic confirmation phrase can't drift between the two.
  */
-const VOICE_PURGE_ENTITY_NAME = 'all your Tzurot voices';
+const VOICE_PURGE_ENTITY_NAME = 'all your cloned voices';
 
 /**
  * Handle /voice voices purge
@@ -69,7 +69,7 @@ export async function handlePurgeVoices(context: DeferredCommandContext): Promis
     }
 
     if (result.data.voices.length === 0) {
-      await context.editReply({ content: 'No Tzurot voices to purge.' });
+      await context.editReply({ content: 'No cloned voices to purge.' });
       return;
     }
 

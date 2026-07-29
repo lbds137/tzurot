@@ -998,7 +998,7 @@
     {
       "name": "help",
       "category": "Help",
-      "description": "Learn what Tzurot is and browse every command",
+      "description": "Learn what the bot is and browse every command",
       "handlers": {
         "execute": true,
         "autocomplete": true,
@@ -1026,12 +1026,12 @@
           {
             "type": 1,
             "name": "getting-started",
-            "description": "What Tzurot is and the first commands to try",
+            "description": "What the bot is and the first commands to try",
             "options": []
           }
         ],
         "name": "help",
-        "description": "Learn what Tzurot is and browse every command",
+        "description": "Learn what the bot is and browse every command",
         "type": 1
       }
     },
@@ -2337,7 +2337,7 @@
           {
             "type": 1,
             "name": "import",
-            "description": "Import a shapes.inc character into Tzurot",
+            "description": "Import a shapes.inc character",
             "options": [
               {
                 "autocomplete": true,
@@ -2573,7 +2573,7 @@
               {
                 "type": 1,
                 "name": "purge",
-                "description": "Permanently delete ALL Tzurot cloned voices",
+                "description": "Permanently delete ALL cloned voices",
                 "options": []
               }
             ]
