@@ -1,10 +1,10 @@
 ---
 id: TASK-290
 title: hard-delete customId overflow for 30-50-char slugs
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-07-17 00:00'
-updated_date: '2026-07-28 10:52'
+updated_date: '2026-07-29 12:05'
 labels:
   - 'origin:review'
   - 'area:bot-client'
