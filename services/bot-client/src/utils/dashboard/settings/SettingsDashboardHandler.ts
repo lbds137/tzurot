@@ -290,6 +290,11 @@ async function handleResetPrompt(
   config: SettingsDashboardConfig,
   session: SettingsDashboardSession
 ): Promise<void> {
+  // Refresh the session TTL like every other view transition — otherwise a
+  // near-expiry session could die between the prompt and the confirm click.
+  session.lastActivityAt = new Date();
+  await storeSession(session, config.entityType);
+
   const { embed, components } = buildConfirmAction({
     title: '♻️ Reset to defaults?',
     description:
