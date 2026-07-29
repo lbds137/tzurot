@@ -45,6 +45,7 @@ export async function retentionReconcileOffDb(options: RetentionReconcileOptions
   let settled = 0;
   let stillFailing = 0;
   let remaining = 0;
+  let sawFailure = false;
   for (let batch = 0; batch < MAX_BATCHES; batch++) {
     const result = await client.retentionReconcileOffDb();
     if (!result.ok) {
@@ -55,7 +56,10 @@ export async function retentionReconcileOffDb(options: RetentionReconcileOptions
     settled += result.data.settled;
     stillFailing += result.data.stillFailing;
     remaining = result.data.remaining;
-    if (remaining === 0 || result.data.stillFailing > 0) {
+    if (result.data.stillFailing > 0) {
+      sawFailure = true;
+    }
+    if (remaining === 0 || sawFailure) {
       break;
     }
     console.log(chalk.dim(`  …batch settled ${String(result.data.settled)}, continuing`));
@@ -76,9 +80,15 @@ export async function retentionReconcileOffDb(options: RetentionReconcileOptions
     );
   }
   if (remaining > 0) {
+    // Two distinct reasons rows went unattempted: the loop stopped on an
+    // in-batch failure, or a very large backlog exhausted the per-run cap
+    // with zero failures — the advice differs.
     console.log(
       chalk.yellow(
-        `  not attempted: ${String(remaining)} — re-run after resolving the failures above.`
+        sawFailure
+          ? `  not attempted: ${String(remaining)} — re-run after resolving the failures above.`
+          : `  not attempted: ${String(remaining)} — hit the per-run batch cap; re-run to ` +
+              'continue draining the backlog.'
       )
     );
   }
