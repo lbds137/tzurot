@@ -49,6 +49,7 @@ export const HEALTH_TOOLS = [
   'guard:audit-tool-docs',
   'guard:claude-content-refs',
   'commands:audit',
+  'dev:stale-debug',
 ] as const;
 
 export interface ToolHealth {

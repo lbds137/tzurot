@@ -14,7 +14,7 @@ Diagnostic tools that are user-invoked for inspection (`inspect:queue`, `inspect
 
 `memory:analyze` is a borderline case: it has a measurement (duplicate memories) but is one-shot remediation, not a periodic audit. It's intentionally **not** registered in `AUDIT_TOOL_REGISTRY` even though it has a `WHY.md`.
 
-## The registered audit tools (15)
+## The registered audit tools (16)
 
 Single source of truth: [`packages/tooling/src/audits/audit-tool-registry.ts`](../../packages/tooling/src/audits/audit-tool-registry.ts).
 
@@ -35,6 +35,7 @@ Single source of truth: [`packages/tooling/src/audits/audit-tool-registry.ts`](.
 | `xray`                         | `packages/tooling/src/xray/`                               | Monorepo structural report + lint-suppression audit                                                                                                    |
 | `guard:claude-content-refs`    | `packages/tooling/src/audits/check-claude-content-refs.ts` | `.claude/` content references resolve (no dangling `pnpm ops` command refs)                                                                            |
 | `commands:audit`               | `packages/tooling/src/dev/commandsAudit.ts`                | Slash-command manifest integrity (categories, descriptions, handler completeness)                                                                      |
+| `dev:stale-debug`              | `packages/tooling/src/dev/stale-debug-audit.ts`            | `debug`-typed commits whose scaffolding still survives at HEAD past the age cap                                                                        |
 
 Each command's WHY.md is at the path `<implementation>.WHY.md` (or `WHY.md` if the implementation is a directory). The four-section template is: **What** / **Why** / **Threshold rationale** / **Decay check**.
 

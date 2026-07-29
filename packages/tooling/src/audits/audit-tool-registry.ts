@@ -123,6 +123,11 @@ export const AUDIT_TOOL_REGISTRY: readonly AuditToolEntry[] = [
     whyPath: 'packages/tooling/src/dev/commandsAudit.WHY.md',
     description: 'Slash-command surface inventory + consistency (category/desc/handlers)',
   },
+  {
+    command: 'dev:stale-debug',
+    whyPath: 'packages/tooling/src/dev/stale-debug-audit.WHY.md',
+    description: 'debug-typed commits whose scaffolding still survives at HEAD past the age cap',
+  },
   // NOTE: `memory:analyze` is intentionally NOT in the registry. It's a
   // one-shot remediation tool for the retry-loop-bug cleanup, not a
   // periodic audit. Its WHY.md still exists as operator documentation
