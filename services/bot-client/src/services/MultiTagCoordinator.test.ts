@@ -21,6 +21,7 @@ import {
 } from './MultiTagCoordinator.js';
 import type { ResolvedSlot } from './SlotResolver.js';
 import { SlotDeliveryService } from './SlotDeliveryService.js';
+import { ResponseOrderingService } from './ResponseOrderingService.js';
 import type { DiscordResponseSender } from './DiscordResponseSender.js';
 import type { ConversationPersistence } from './ConversationPersistence.js';
 import { confirmDelivery, setDmSessionPersonality } from '../utils/gatewayServiceCalls.js';
@@ -1043,5 +1044,115 @@ describe('MultiTagCoordinator — all-errored in-character delivery (real chain)
     expect(saveAssistantMessage).not.toHaveBeenCalled();
     // No single bot-voice system notice.
     expect(vi.mocked(msg.reply)).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * Wiring/seam test (per 02-code-standards rule 7): runs the all-terminal
+ * recovery adoption through a REAL ResponseOrderingService — the unit tests
+ * above mock that seam, so none of them can prove the adoption's
+ * `registerJob(groupId)` is actually cleaned up by the flush's
+ * `handleResult(groupId)`. A leaked pending entry would silently delay every
+ * later message in the channel until the stale sweep (the exact failure this
+ * pins against).
+ */
+describe('MultiTagCoordinator — all-terminal adoption drains the REAL ordering queue', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.clearAllMocks();
+    vi.mocked(confirmDelivery).mockResolvedValue(undefined);
+    vi.mocked(setDmSessionPersonality).mockResolvedValue(undefined);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('flush removes the group registration; later channel traffic is not blocked', async () => {
+    // enableCleanup: false — no stale-sweep interval; if adoption leaks
+    // state, nothing in this test cleans it up behind our back.
+    const realOrdering = new ResponseOrderingService(false);
+    const slotDelivery = {
+      deliverSuccess: vi.fn().mockResolvedValue({ chunkMessageIds: ['x'] }),
+      deliverError: vi.fn().mockResolvedValue(undefined),
+      deliverErrorNoPersist: vi.fn().mockResolvedValue(undefined),
+    };
+    const coordinator = new MultiTagCoordinator({
+      chatManager: { submitChatJob: vi.fn() } as unknown as MultiTagCoordinatorDeps['chatManager'],
+      jobTracker: {
+        trackJob: vi.fn(),
+        completeJob: vi.fn(),
+      } as unknown as MultiTagCoordinatorDeps['jobTracker'],
+      orderingService: realOrdering,
+      slotDelivery: slotDelivery as unknown as MultiTagCoordinatorDeps['slotDelivery'],
+      persistence: {
+        deleteEntry: vi.fn().mockResolvedValue(undefined),
+      } as unknown as MultiTagCoordinatorDeps['persistence'],
+      queue: {
+        getJob: vi.fn().mockResolvedValue(null),
+      } as unknown as MultiTagCoordinatorDeps['queue'],
+    });
+
+    const a = buildPersonality('Alice');
+    const entry: RuntimeEntry = {
+      groupId: 'terminal-group',
+      sourceMessageId: 'msg-y',
+      message: buildMessage(),
+      channel: buildChannel(),
+      guildId: 'guild-1',
+      clientId: 'bot-1',
+      userId: 'user-1',
+      userMessageTime: new Date('2026-05-15T10:00:00Z'),
+      userMessageContent: 'hi',
+      slots: [
+        {
+          slotIndex: 0,
+          personality: a,
+          personaId: 'persona-a',
+          source: 'mention',
+          isAutoResponse: false,
+          jobId: 'old-Alice',
+          status: 'completed',
+          result: { requestId: 'r1', success: true, content: 'pre-shutdown reply' },
+        },
+      ],
+      createdAt: Date.now(),
+      // Throwaway handle; the coordinator clears it. 0ms leaves no real timer pending.
+      timeoutHandle: setTimeout(() => undefined, 0),
+      truncated: false,
+    };
+
+    await coordinator.adoptRehydratedEntry(entry);
+
+    // The group delivered through the real ordering buffer…
+    expect(slotDelivery.deliverSuccess).toHaveBeenCalledOnce();
+    // …the coordinator tore down its in-memory ownership…
+    expect(coordinator.ownsJob('old-Alice')).toBe(false);
+    // …and the ordering service holds NOTHING for the channel: no pending
+    // group registration, no buffered result, no channel queue at all.
+    expect(realOrdering.getStats()).toEqual({
+      channelCount: 0,
+      totalPending: 0,
+      totalBuffered: 0,
+    });
+
+    // Behavioral proof of the same invariant: a later single-job result in
+    // the same channel delivers immediately instead of buffering behind a
+    // ghost registration.
+    const laterDeliver = vi.fn().mockResolvedValue(undefined);
+    realOrdering.registerJob('channel-1', 'later-job', new Date('2026-05-15T10:05:00Z'));
+    await realOrdering.handleResult(
+      'channel-1',
+      'later-job',
+      { requestId: 'r2', success: true, content: 'later reply' },
+      new Date('2026-05-15T10:05:00Z'),
+      laterDeliver
+    );
+    expect(laterDeliver).toHaveBeenCalledOnce();
+    expect(realOrdering.getStats()).toEqual({
+      channelCount: 0,
+      totalPending: 0,
+      totalBuffered: 0,
+    });
   });
 });
