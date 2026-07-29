@@ -276,7 +276,7 @@ function createListExportJobsHandler(prisma: PrismaClient, baseUrl: string) {
     const jobsWithUrls = jobs.map(({ downloadToken, ...job }) => ({
       ...job,
       downloadUrl:
-        job.status === 'completed' && downloadToken !== null
+        job.status === 'completed'
           ? `${baseUrl}/exports/${encodeURIComponent(downloadToken)}`
           : null,
     }));

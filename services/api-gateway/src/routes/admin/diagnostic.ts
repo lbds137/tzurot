@@ -68,7 +68,7 @@ interface DiagnosticLogResponse {
   requestId: string;
   triggerMessageId: string | null;
   personalityId: string | null;
-  userId: string | null;
+  userId: string;
   guildId: string | null;
   channelId: string | null;
   model: string;
@@ -86,7 +86,7 @@ function formatLogResponse(log: {
   requestId: string;
   triggerMessageId: string | null;
   personalityId: string | null;
-  userId: string | null;
+  userId: string;
   guildId: string | null;
   channelId: string | null;
   model: string;
@@ -117,7 +117,7 @@ interface RecentLogRow {
   id: string;
   request_id: string;
   personality_id: string | null;
-  user_id: string | null;
+  user_id: string;
   guild_id: string | null;
   channel_id: string | null;
   model: string;
@@ -132,7 +132,7 @@ interface RecentLogResponse {
   id: string;
   requestId: string;
   personalityId: string | null;
-  userId: string | null;
+  userId: string;
   guildId: string | null;
   channelId: string | null;
   model: string;

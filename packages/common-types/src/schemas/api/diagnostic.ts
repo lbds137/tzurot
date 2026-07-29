@@ -24,15 +24,17 @@ import { z } from 'zod';
  * GET /diagnostic/by-message/:messageId (one entry in the logs array), and
  * GET /diagnostic/by-response/:messageId (the `log` field).
  *
- * Many fields are nullable because diagnostic logs can be written without
- * full context (e.g., when a personality/user/guild lookup fails post-hoc).
+ * Several fields are nullable because diagnostic logs can be written without
+ * full context (e.g., when a personality/guild lookup fails post-hoc).
+ * userId is NOT one of them — the column is NOT NULL and every writer
+ * supplies the requesting user's Discord ID.
  */
 export const DiagnosticLogSchema = z.object({
   id: z.string(),
   requestId: z.string(),
   triggerMessageId: z.string().nullable(),
   personalityId: z.string().nullable(),
-  userId: z.string().nullable(),
+  userId: z.string(),
   guildId: z.string().nullable(),
   channelId: z.string().nullable(),
   model: z.string(),
@@ -80,7 +82,7 @@ export const RecentDiagnosticLogSchema = z.object({
   id: z.string(),
   requestId: z.string(),
   personalityId: z.string().nullable(),
-  userId: z.string().nullable(),
+  userId: z.string(),
   guildId: z.string().nullable(),
   channelId: z.string().nullable(),
   model: z.string(),
