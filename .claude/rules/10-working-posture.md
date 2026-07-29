@@ -54,6 +54,9 @@ After any scripted or multi-site edit, grep for a distinctive token of the NEW
 text before trusting a green test run — a passing suite cannot prove an edit
 applied when the edit's own assertions have a trivially-true branch. Assert
 every scripted replacement's target; prefer the Edit tool below ~5 replaces.
+After a bulk rename/move, also grep for the OLD token in its variant forms —
+bare basename, each prefix depth, backticked mention — before declaring the
+sweep complete; the canonical-form grep alone has under-swept three times.
 
 ## Filters are for known output shapes
 

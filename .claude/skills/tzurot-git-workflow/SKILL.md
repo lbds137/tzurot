@@ -1,7 +1,7 @@
 ---
 name: tzurot-git-workflow
 description: 'Git workflow procedures. Invoke with /tzurot-git-workflow for commit, PR, and release procedures.'
-lastUpdated: '2026-07-27'
+lastUpdated: '2026-07-29'
 ---
 
 # Git Workflow Procedures
@@ -405,6 +405,13 @@ What it does (release-flow steps 7–8):
 **Release-channel convention** (what the command enforces): the newest release holds
 `latest` (`prerelease=false`); every older beta is `prerelease=true`. **Do NOT** mark
 the newest tag `--prerelease` — that's mutually exclusive with `latest`.
+
+**Known-benign race — publish right after the merge.** Publishing while Railway is
+still swapping prod containers can 502 the release webhooks at Railway's edge
+(GitHub delivers once, never retries). This is expected and self-healing: the
+hourly reconcile sweep picks the release up and sends the DM blast with ≤1h lag.
+Don't re-publish, don't debug the webhook delivery, and don't wait for the deploy
+to settle before publishing — the lag is the designed absorption path.
 
 Verify: `gh release list --limit 5 --json tagName,isPrerelease,isLatest --jq '.[] | {tagName, isPrerelease, isLatest}'`
 — the newest must read `prerelease=false / latest=true`, every older beta `prerelease=true / latest=false`.

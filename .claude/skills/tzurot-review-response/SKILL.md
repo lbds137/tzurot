@@ -1,7 +1,7 @@
 ---
 name: tzurot-review-response
 description: 'PR review-response iteration: classify each finding by EDIT SHAPE (trivial → auto-apply as a test-gated fixup commit; semantic → ASK), check reviewer-vs-agent signal conflict, batch-present the four sections, cap at 3 automated rounds. Invoke with /tzurot-review-response the moment a claude-review or human reviewer posts findings on a PR — before applying anything.'
-lastUpdated: '2026-07-28'
+lastUpdated: '2026-07-29'
 ---
 
 # Review-Response Iteration
@@ -85,6 +85,14 @@ For items that passed rules 1 and 2 (trivial-shape + no conflict):
 2. Run the package-level test for the modified file (e.g., `pnpm --filter bot-client test`).
 3. Tests pass → keep the fixup commit.
 4. Tests fail → **escalate to ASK immediately**, with the test failure output attached. A trivial-shape edit that breaks tests is the signal that the whitelist mis-classified it; escalation preserves the safety net.
+
+**Rider checklist — when the fix ADDS code rather than changing it.** Review-response riders systematically get less scrutiny than planned work: "one clause" / "~10 lines" is exactly the size that skips the checks a planned change gets (observed as 3 of 4 findings in one PR's review rounds — an added-but-never-called function, an arm added untested, a doc comment staled from a file the fix didn't touch). Before committing any rider that adds code (or moves it between files), answer the three questions a planned change answers:
+
+- (a) Does the addition need its own test? (New function/branch → yes by default; "it's small" is not an exemption.)
+- (b) Does it stale a comment or doc elsewhere — including `schema.prisma` doc comments and files the fix doesn't touch?
+- (c) Does moving code between files change what a coverage or mutation gate measures? (Extraction can drop a module below a per-file gate that the old file's average was hiding.)
+
+Rule 3's test gate catches breakage; this checklist is the authoring-time complement that catches absence.
 
 Fixup commits autosquash naturally on the next `git rebase -i --autosquash`. This is the correct escape valve for a rebase-only workflow — `git revert` is not available on rewritten-history branches, but fixup-drop during interactive rebase is cheap and native.
 
