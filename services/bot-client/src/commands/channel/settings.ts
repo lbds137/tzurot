@@ -36,6 +36,7 @@ import {
   type SettingsData,
   type SettingUpdateHandler,
   type SettingUpdateResult,
+  type SettingsResetHandler,
   type ResolveDefaultsResponse,
   createSettingsDashboard,
   createSettingsCommandHandlers,
@@ -73,10 +74,11 @@ const CHANNEL_SETTINGS_CONFIG: SettingsDashboardConfig = {
     ...DISPLAY_SETTINGS,
     ...VOICE_CASCADE_SETTINGS,
   ],
-  // One-click "clear every channel-tier override" — the DELETE endpoint has
-  // existed since the manifest gained clearChannelConfigOverrides; this is
-  // its UX surface. Reversible (overrides are re-settable), so no typed
-  // confirmation; the Danger styling carries the weight.
+  // "Clear every channel-tier override" — the DELETE endpoint has existed
+  // since the manifest gained clearChannelConfigOverrides; this is its UX
+  // surface. The shared handler puts a Tier-A Cancel/Confirm step in front
+  // (design-system §3.5: bulk-destructive dashboard clicks confirm; the
+  // typed-phrase Tier B stays reserved for irreversible purge-class acts).
   resetButton: { label: 'Reset to defaults' },
 };
 
@@ -164,8 +166,7 @@ function createUpdateHandler(channelId: string): SettingUpdateHandler {
  * clears EVERY channel-tier override via the DELETE endpoint, then refetches
  * the resolved cascade so the overview re-renders with inherited values.
  */
-function createResetHandler(channelId: string) {
-  // ButtonInteraction only — reset has no modal path (SettingsResetHandler).
+function createResetHandler(channelId: string): SettingsResetHandler {
   return async (interaction: ButtonInteraction): Promise<SettingUpdateResult> => {
     const userId = interaction.user.id;
     logger.debug({ channelId, userId }, 'Resetting channel overrides');
@@ -189,7 +190,9 @@ function createResetHandler(channelId: string) {
       return { success: true, newData };
     } catch (error) {
       logger.error({ err: error, channelId }, 'Error resetting channel overrides');
-      return { success: false, error: 'Failed to reset settings' };
+      // Composed into `Failed to reset: <error>` upstream — keep this a
+      // bare cause so the message doesn't read "Failed to reset: Failed…".
+      return { success: false, error: 'unexpected error, please try again' };
     }
   };
 }

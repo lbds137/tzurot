@@ -26,9 +26,11 @@ import {
   type SettingUpdateHandler,
   type SettingsResetHandler,
   DashboardView,
+  buildSettingsCustomId,
   parseSettingsCustomId,
   clampPage,
 } from './types.js';
+import { buildConfirmAction } from '../../confirmation/confirmAction.js';
 import {
   buildOverviewMessage,
   buildSettingMessage,
@@ -38,6 +40,9 @@ import { buildSettingEditModal } from './SettingsModalFactory.js';
 import { handleSetButton } from './settingsUpdate.js';
 import { storeSession, getSession, deleteSession } from './SettingsSessionStorage.js';
 import { ackUpdate } from '../../../ux/render/reply.js';
+
+/** Shown when a customId names an action this deploy no longer routes. */
+const STALE_DASHBOARD_NOTICE = 'This dashboard is out of date. Please run the command again.';
 
 const logger = createLogger('SettingsDashboardHandler');
 
@@ -243,15 +248,28 @@ export async function handleSettingsButton(
     case 'retry':
       await handleRetryButton(interaction, config, session, parsed.extra);
       break;
+    // The reset flow is two clicks (design-system §3.5 Tier A: one-click
+    // bulk-destructive dashboard actions get a Cancel/Confirm step; the
+    // typed-phrase Tier B stays reserved for irreversible purge-class acts).
+    // Any reset-family customId with no handler wired (stale message from a
+    // dashboard that dropped the affordance) gets the stale-dashboard notice.
     case 'reset':
-      // Configured via config.resetButton + an injected handler. A 'reset'
-      // customId with no handler wired (stale message from a dashboard that
-      // dropped the affordance) falls through to the stale-dashboard notice.
       if (resetHandler === undefined) {
-        await notify('This dashboard is out of date. Please run the command again.');
+        await notify(STALE_DASHBOARD_NOTICE);
+        break;
+      }
+      await handleResetPrompt(interaction, config, session);
+      break;
+    case 'reset-confirm':
+      if (resetHandler === undefined) {
+        await notify(STALE_DASHBOARD_NOTICE);
         break;
       }
       await handleResetButton(interaction, config, session, resetHandler);
+      break;
+    case 'reset-cancel':
+      // Same render as Back: return to the overview untouched.
+      await handleBackButton(interaction, config, session);
       break;
     default:
       // The router already deferUpdate'd (non-edit actions defer above), so a
@@ -259,15 +277,38 @@ export async function handleSettingsButton(
       // action is realistically a stale customId on an old dashboard message that
       // outlived a deploy renaming/removing the action — give the user feedback.
       logger.warn({ action: parsed.action }, 'Unknown button action');
-      await notify('This dashboard is out of date. Please run the command again.');
+      await notify(STALE_DASHBOARD_NOTICE);
   }
 }
 
 /**
- * Handle the reset-to-defaults button (config.resetButton): clear the
- * entity's overrides via the injected handler, then re-render the overview
- * from the fresh data it returns. Mirrors handleSetButton's result contract —
- * failure notifies ephemerally and leaves the dashboard untouched.
+ * First click of the reset flow — render the Tier-A Cancel/Confirm surface
+ * in place of the dashboard. Nothing is cleared until 'reset-confirm'.
+ */
+async function handleResetPrompt(
+  interaction: ButtonInteraction,
+  config: SettingsDashboardConfig,
+  session: SettingsDashboardSession
+): Promise<void> {
+  const { embed, components } = buildConfirmAction({
+    title: '♻️ Reset to defaults?',
+    description:
+      `Every ${config.level}-level override for **${session.entityName}** will be cleared ` +
+      `and values will inherit from the cascade again. The specific override values ` +
+      `cannot be recovered.`,
+    confirmCustomId: buildSettingsCustomId(config.entityType, 'reset-confirm', session.entityId),
+    cancelCustomId: buildSettingsCustomId(config.entityType, 'reset-cancel', session.entityId),
+    confirmLabel: config.resetButton?.label ?? 'Reset to defaults',
+    confirmEmoji: '♻️',
+  });
+  await interaction.editReply({ embeds: [embed], components });
+}
+
+/**
+ * Second click ('reset-confirm'): clear the entity's overrides via the
+ * injected handler, then re-render the overview from the fresh data it
+ * returns. Mirrors handleSetButton's result contract — failure notifies
+ * ephemerally and leaves the confirm surface untouched.
  */
 async function handleResetButton(
   interaction: ButtonInteraction,

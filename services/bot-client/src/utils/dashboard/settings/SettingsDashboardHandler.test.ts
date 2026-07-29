@@ -549,10 +549,35 @@ describe('SettingsDashboardHandler', () => {
       },
     });
 
-    it('routes reset to the injected handler and re-renders from its fresh data', async () => {
+    it('first click renders the Tier-A confirm surface WITHOUT clearing anything', async () => {
+      mockSessionManager.get.mockReturnValue(validSession());
+      const resetHandler = vi.fn();
+      const interaction = createButtonInteraction('test-settings::reset::entity-1');
+
+      await handleSettingsButton(interaction as never, createTestConfig(), vi.fn(), resetHandler);
+
+      // Nothing cleared on the first click — the confirm gate is the point.
+      expect(resetHandler).not.toHaveBeenCalled();
+      const call = interaction.editReply.mock.calls[0][0] as {
+        embeds: Array<{ toJSON: () => { title?: string } }>;
+        components: Array<{
+          toJSON: () => { components: Array<{ custom_id: string; style: number }> };
+        }>;
+      };
+      expect(call.embeds[0].toJSON().title).toContain('Reset to defaults?');
+      const buttons = call.components[0].toJSON().components;
+      // Cancel → Confirm(Danger), routed via the settings customId scheme.
+      expect(buttons.map(b => b.custom_id)).toEqual([
+        'test-settings::reset-cancel::entity-1',
+        'test-settings::reset-confirm::entity-1',
+      ]);
+      expect(buttons[1].style).toBe(4); // ButtonStyle.Danger
+    });
+
+    it('reset-confirm routes to the injected handler and re-renders from its fresh data', async () => {
       mockSessionManager.get.mockReturnValue(validSession());
       const resetHandler = vi.fn().mockResolvedValue({ success: true, newData: createTestData() });
-      const interaction = createButtonInteraction('test-settings::reset::entity-1');
+      const interaction = createButtonInteraction('test-settings::reset-confirm::entity-1');
 
       await handleSettingsButton(interaction as never, createTestConfig(), vi.fn(), resetHandler);
 
@@ -564,10 +589,23 @@ describe('SettingsDashboardHandler', () => {
       expect(interaction.followUp).not.toHaveBeenCalled();
     });
 
-    it('notifies ephemerally on reset failure without re-rendering', async () => {
+    it('reset-cancel returns to the overview without touching the handler', async () => {
+      mockSessionManager.get.mockReturnValue(validSession());
+      const resetHandler = vi.fn();
+      const interaction = createButtonInteraction('test-settings::reset-cancel::entity-1');
+
+      await handleSettingsButton(interaction as never, createTestConfig(), vi.fn(), resetHandler);
+
+      expect(resetHandler).not.toHaveBeenCalled();
+      expect(interaction.editReply).toHaveBeenCalledWith(
+        expect.objectContaining({ embeds: expect.any(Array), components: expect.any(Array) })
+      );
+    });
+
+    it('notifies ephemerally on reset-confirm failure without re-rendering', async () => {
       mockSessionManager.get.mockReturnValue(validSession());
       const resetHandler = vi.fn().mockResolvedValue({ success: false, error: 'API down' });
-      const interaction = createButtonInteraction('test-settings::reset::entity-1');
+      const interaction = createButtonInteraction('test-settings::reset-confirm::entity-1');
 
       await handleSettingsButton(interaction as never, createTestConfig(), vi.fn(), resetHandler);
 
@@ -577,18 +615,20 @@ describe('SettingsDashboardHandler', () => {
       expect(interaction.editReply).not.toHaveBeenCalled();
     });
 
-    it('shows the out-of-date notice for a reset customId with no handler wired', async () => {
+    it('shows the out-of-date notice for reset-family customIds with no handler wired', async () => {
       // A stale message from a dashboard that dropped the affordance must not
       // dead-end silently — the router already deferred, so silence would
       // leave the interaction hanging.
-      mockSessionManager.get.mockReturnValue(validSession());
-      const interaction = createButtonInteraction('test-settings::reset::entity-1');
+      for (const action of ['reset', 'reset-confirm']) {
+        mockSessionManager.get.mockReturnValue(validSession());
+        const interaction = createButtonInteraction(`test-settings::${action}::entity-1`);
 
-      await handleSettingsButton(interaction as never, createTestConfig(), vi.fn());
+        await handleSettingsButton(interaction as never, createTestConfig(), vi.fn());
 
-      expect(interaction.followUp).toHaveBeenCalledWith(
-        expect.objectContaining({ content: expect.stringContaining('out of date') })
-      );
+        expect(interaction.followUp).toHaveBeenCalledWith(
+          expect.objectContaining({ content: expect.stringContaining('out of date') })
+        );
+      }
     });
   });
 
