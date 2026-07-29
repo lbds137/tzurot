@@ -29,17 +29,21 @@ export const customFieldsSchema = z.record(z.string(), z.unknown()).nullable();
  * `createChatModel`'s per-model param filtering sanitizes downstream.
  */
 export const visionTierParamsSchema = z.object({
-  temperature: z.number().optional(),
-  maxTokens: z.number().optional(),
-  topP: z.number().optional(),
-  topK: z.number().optional(),
-  minP: z.number().optional(),
-  topA: z.number().optional(),
-  frequencyPenalty: z.number().optional(),
-  presencePenalty: z.number().optional(),
-  repetitionPenalty: z.number().optional(),
+  // Bounds mirror the snake_case siblings in schemas/llmAdvancedParams.ts
+  // (SamplingParamsSchema / max_tokens): this schema crosses the BullMQ
+  // job-payload boundary, so it range-validates like every other boundary
+  // schema instead of trusting the DB-side write validation alone.
+  temperature: z.number().min(0).max(2).optional(),
+  maxTokens: z.number().int().positive().optional(),
+  topP: z.number().min(0).max(1).optional(),
+  topK: z.number().int().min(0).optional(),
+  minP: z.number().min(0).max(1).optional(),
+  topA: z.number().min(0).max(1).optional(),
+  frequencyPenalty: z.number().min(-2).max(2).optional(),
+  presencePenalty: z.number().min(-2).max(2).optional(),
+  repetitionPenalty: z.number().min(0).max(2).optional(),
   /** Determinism knob — applies to captioning (reproducible descriptions) as much as text. */
-  seed: z.number().optional(),
+  seed: z.number().int().optional(),
 });
 
 export type VisionTierParams = z.infer<typeof visionTierParamsSchema>;
