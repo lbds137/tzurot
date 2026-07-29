@@ -70,6 +70,7 @@ vi.mock('../../utils/dashboard/SessionManager.js', () => ({
 interface UserClientStub {
   getChannelConfigOverrides: ReturnType<typeof vi.fn>;
   updateChannelConfigOverrides: ReturnType<typeof vi.fn>;
+  clearChannelConfigOverrides: ReturnType<typeof vi.fn>;
   resolveCascade: ReturnType<typeof vi.fn>;
   resolveUserDefaults: ReturnType<typeof vi.fn>;
 }
@@ -78,6 +79,7 @@ function createStub(): UserClientStub {
   return {
     getChannelConfigOverrides: vi.fn(),
     updateChannelConfigOverrides: vi.fn(),
+    clearChannelConfigOverrides: vi.fn(),
     resolveCascade: vi.fn(),
     resolveUserDefaults: vi.fn(),
   };
@@ -199,6 +201,11 @@ describe('Channel Settings Dashboard', () => {
       await handleChannelSettings(context);
 
       expect(mockGetChannelSettings).toHaveBeenCalledWith('channel-123');
+      // The channel-scoping contract is the load-bearing argument: the cascade
+      // must resolve for the ACTIVATED personality scoped to THIS channel.
+      expect(stub.resolveCascade).toHaveBeenCalledWith('personality-123', {
+        channelId: 'channel-123',
+      });
       expect(context.editReply).toHaveBeenCalledWith(
         expect.objectContaining({
           embeds: expect.any(Array),
@@ -407,6 +414,101 @@ describe('Channel Settings Dashboard', () => {
   });
 
   describe('handleChannelSettingsButton', () => {
+    const createButtonInteraction = (customId: string) => ({
+      customId,
+      user: { id: '123456789' },
+      reply: vi.fn(),
+      update: vi.fn(),
+      showModal: vi.fn(),
+      deferUpdate: vi.fn().mockResolvedValue(undefined),
+      editReply: vi.fn().mockResolvedValue(undefined),
+      followUp: vi.fn().mockResolvedValue(undefined),
+    });
+
+    const settingViewSession = () => ({
+      data: {
+        userId: '123456789',
+        entityId: 'channel-123',
+        entityName: '<#channel-123>',
+        data: {
+          maxMessages: { localValue: null, effectiveValue: 50, source: 'admin' },
+          maxAge: { localValue: null, effectiveValue: 7200, source: 'admin' },
+          maxImages: { localValue: null, effectiveValue: 5, source: 'admin' },
+        },
+        view: 'setting',
+        activeSetting: 'maxMessages',
+      },
+    });
+
+    it('binds the channelId end-to-end: a set click updates THAT channel and re-renders', async () => {
+      // The happy path through the real factory chain — the channelId from the
+      // customId must be the one crossing the seam into the gateway client.
+      const interaction = createButtonInteraction(
+        'channel-settings::set::channel-123::maxMessages:auto'
+      );
+      mockSessionManager.get.mockReturnValue(settingViewSession());
+      mockGetChannelSettings.mockResolvedValue(mockChannelSettings);
+      stub.updateChannelConfigOverrides.mockResolvedValue(makeOk({ configOverrides: {} }));
+
+      await handleChannelSettingsButton(interaction as unknown as ButtonInteraction);
+
+      expect(stub.updateChannelConfigOverrides).toHaveBeenCalledWith(
+        'channel-123',
+        expect.any(Object)
+      );
+      expect(mockInvalidateChannelSettingsCache).toHaveBeenCalledWith('channel-123');
+      // Fresh data refetched and the dashboard re-rendered.
+      expect(interaction.editReply).toHaveBeenCalledWith(
+        expect.objectContaining({ embeds: expect.any(Array), components: expect.any(Array) })
+      );
+      expect(interaction.followUp).not.toHaveBeenCalled();
+    });
+
+    it('surfaces the generic message when the update THROWS (catch branch)', async () => {
+      const interaction = createButtonInteraction(
+        'channel-settings::set::channel-123::maxMessages:auto'
+      );
+      mockSessionManager.get.mockReturnValue(settingViewSession());
+      stub.updateChannelConfigOverrides.mockRejectedValue(new Error('network down'));
+
+      await handleChannelSettingsButton(interaction as unknown as ButtonInteraction);
+
+      expect(interaction.followUp).toHaveBeenCalledWith(
+        expect.objectContaining({
+          content: expect.stringContaining('Failed to update setting'),
+        })
+      );
+    });
+
+    it('reset button clears the channel overrides and re-renders from fresh data', async () => {
+      const interaction = createButtonInteraction('channel-settings::reset::channel-123');
+      mockSessionManager.get.mockReturnValue(settingViewSession());
+      mockGetChannelSettings.mockResolvedValue(mockChannelSettings);
+      stub.clearChannelConfigOverrides.mockResolvedValue(makeOk({ cleared: true }));
+
+      await handleChannelSettingsButton(interaction as unknown as ButtonInteraction);
+
+      expect(stub.clearChannelConfigOverrides).toHaveBeenCalledWith('channel-123');
+      expect(mockInvalidateChannelSettingsCache).toHaveBeenCalledWith('channel-123');
+      expect(interaction.editReply).toHaveBeenCalledWith(
+        expect.objectContaining({ embeds: expect.any(Array), components: expect.any(Array) })
+      );
+      expect(interaction.followUp).not.toHaveBeenCalled();
+    });
+
+    it('reset failure notifies ephemerally without touching the dashboard', async () => {
+      const interaction = createButtonInteraction('channel-settings::reset::channel-123');
+      mockSessionManager.get.mockReturnValue(settingViewSession());
+      stub.clearChannelConfigOverrides.mockResolvedValue(makeErr(500, 'Server error'));
+
+      await handleChannelSettingsButton(interaction as unknown as ButtonInteraction);
+
+      expect(interaction.followUp).toHaveBeenCalledWith(
+        expect.objectContaining({ content: expect.stringContaining('Server error') })
+      );
+      expect(interaction.editReply).not.toHaveBeenCalled();
+    });
+
     it('should handle API failure gracefully', async () => {
       const interaction = {
         customId: 'channel-settings::set::channel-123::maxMessages:auto',

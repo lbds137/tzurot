@@ -31,6 +31,7 @@ import type {
 import {
   type SettingsDashboardConfig,
   type SettingUpdateHandler,
+  type SettingsResetHandler,
   isSettingsInteraction,
   parseSettingsCustomId,
 } from './types.js';
@@ -55,6 +56,13 @@ export interface SettingsCommandHandlerOptions {
    * Called once per interaction with the entity ID extracted from the custom ID.
    */
   createUpdateHandler: (entityId: string) => SettingUpdateHandler;
+  /**
+   * Build a per-interaction reset handler bound to a specific entity ID.
+   * Required when the dashboard's config declares `resetButton`; omitted for
+   * dashboards without the affordance (a stale 'reset' customId then gets the
+   * out-of-date notice).
+   */
+  createResetHandler?: (entityId: string) => SettingsResetHandler;
 }
 
 /**
@@ -75,7 +83,7 @@ export interface SettingsCommandHandlers {
 export function createSettingsCommandHandlers(
   options: SettingsCommandHandlerOptions
 ): SettingsCommandHandlers {
-  const { entityType, settingsConfig, createUpdateHandler } = options;
+  const { entityType, settingsConfig, createUpdateHandler, createResetHandler } = options;
 
   /**
    * Extract the entity ID from an interaction's custom ID. Returns null if the
@@ -103,7 +111,12 @@ export function createSettingsCommandHandlers(
       if (entityId === null) {
         return;
       }
-      await handleSettingsButton(interaction, settingsConfig, createUpdateHandler(entityId));
+      await handleSettingsButton(
+        interaction,
+        settingsConfig,
+        createUpdateHandler(entityId),
+        createResetHandler?.(entityId)
+      );
     },
 
     handleModal: async interaction => {

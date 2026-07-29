@@ -215,6 +215,14 @@ export interface SettingsDashboardConfig {
   overviewDescription?: string;
   /** Optional note appended to the overview embed description */
   descriptionNote?: string;
+  /**
+   * Opt-in reset-to-defaults affordance. When present, the overview renders a
+   * Danger button routed to the shared 'reset' action; the dashboard's
+   * injected reset handler clears the entity's overrides and returns fresh
+   * data for the re-render. Absent → no button, and a stale 'reset' customId
+   * falls through to the unknown-action notice.
+   */
+  resetButton?: { label: string };
 }
 
 /**
@@ -234,6 +242,16 @@ export type SettingUpdateHandler = (
   session: SettingsDashboardSession,
   settingId: string,
   newValue: unknown
+) => Promise<SettingUpdateResult>;
+
+/**
+ * Handler for the reset-to-defaults action (config.resetButton). Clears the
+ * entity's overrides at the API and returns the FRESH dashboard data for the
+ * overview re-render — same result contract as SettingUpdateHandler.
+ */
+export type SettingsResetHandler = (
+  interaction: ButtonInteraction,
+  session: SettingsDashboardSession
 ) => Promise<SettingUpdateResult>;
 
 /**
