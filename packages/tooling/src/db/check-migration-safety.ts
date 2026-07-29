@@ -20,8 +20,15 @@ interface ProtectedIndex {
   description: string;
 }
 
-// Indexes that must be recreated if dropped
-const PROTECTED_INDEXES: ProtectedIndex[] = [
+/**
+ * Indexes that must be recreated if dropped. The name set must agree with
+ * prisma/drift-ignore.json `protectedIndexes` and inspect-database.ts —
+ * protectedIndexRegistries.test.ts enforces the agreement. Exported for that
+ * guard test only.
+ *
+ * @internal
+ */
+export const PROTECTED_INDEXES: ProtectedIndex[] = [
   {
     name: 'idx_memories_embedding',
     dropPattern: /DROP\s+INDEX.*idx_memories_embedding/i,
@@ -33,6 +40,12 @@ const PROTECTED_INDEXES: ProtectedIndex[] = [
     dropPattern: /DROP\s+INDEX.*idx_memory_facts_embedding/i,
     createPattern: /CREATE\s+INDEX.*idx_memory_facts_embedding/i,
     description: 'IVFFlat vector index for fact similarity retrieval (384 dims)',
+  },
+  {
+    name: 'memories_chunk_group_id_idx',
+    dropPattern: /DROP\s+INDEX.*memories_chunk_group_id_idx/i,
+    createPattern: /CREATE\s+INDEX.*memories_chunk_group_id_idx/i,
+    description: 'Partial index for chunk retrieval (WHERE chunk_group_id IS NOT NULL)',
   },
 ];
 
