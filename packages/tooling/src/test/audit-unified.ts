@@ -73,7 +73,10 @@ function findServiceFiles(projectRoot: string): string[] {
   ];
 
   for (const dir of serviceDirs) {
-    const files = findFiles(dir, /Service\.ts$/);
+    // Loader.ts included: delegation splits (Service orchestrates, Loader holds
+    // the actual this.prisma.* calls — e.g. identity's PersonalityLoader) would
+    // otherwise let the Prisma-touching class escape the component-test ratchet.
+    const files = findFiles(dir, /(?:Service|Loader)\.ts$/);
     for (const file of files) {
       // Skip test files (`.component.test.ts` ends with `.test.ts`, so one check covers both)
       if (file.endsWith('.test.ts')) continue;
