@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   getRailwayRedisUrl,
+  getRailwayQueueName,
   buildInspectorRedisConfig,
   DEFAULT_QUEUE_NAME,
   type ExecFn,
@@ -93,5 +94,43 @@ describe('buildInspectorRedisConfig', () => {
 describe('DEFAULT_QUEUE_NAME', () => {
   it("matches ai-worker's main queue", () => {
     expect(DEFAULT_QUEUE_NAME).toBe('ai-requests');
+  });
+});
+
+describe('getRailwayQueueName', () => {
+  afterEach(() => {
+    delete process.env.QUEUE_NAME;
+  });
+
+  it('local: returns QUEUE_NAME env var, defaulting to the literal', async () => {
+    process.env.QUEUE_NAME = 'custom-queue';
+    expect(await getRailwayQueueName('local')).toBe('custom-queue');
+
+    delete process.env.QUEUE_NAME;
+    expect(await getRailwayQueueName('local')).toBe(DEFAULT_QUEUE_NAME);
+  });
+
+  it("remote: reads QUEUE_NAME from the ai-worker service's Railway vars", async () => {
+    const exec: ExecFn = vi.fn().mockReturnValue(JSON.stringify({ QUEUE_NAME: 'ai-requests-v2' }));
+
+    expect(await getRailwayQueueName('prod', exec)).toBe('ai-requests-v2');
+    expect(exec).toHaveBeenCalledWith('railway', [
+      'variables',
+      '--json',
+      '--service',
+      'ai-worker',
+      '--environment',
+      'production',
+    ]);
+  });
+
+  it('remote: falls back to the literal when the var is unset or the CLI fails', async () => {
+    const unset: ExecFn = vi.fn().mockReturnValue(JSON.stringify({ OTHER_VAR: 'x' }));
+    expect(await getRailwayQueueName('dev', unset)).toBe(DEFAULT_QUEUE_NAME);
+
+    const failing: ExecFn = vi.fn().mockImplementation(() => {
+      throw new Error('not logged in');
+    });
+    expect(await getRailwayQueueName('dev', failing)).toBe(DEFAULT_QUEUE_NAME);
   });
 });

@@ -15,7 +15,7 @@ export function registerInspectCommands(cli: CAC): void {
   cli
     .command('inspect:queue', 'Inspect BullMQ queue state')
     .option(ENV_OPTION, ENV_OPTION_DESC, ENV_OPTION_DEFAULT)
-    .option('--queue <name>', 'Queue name', { default: 'ai-requests' })
+    .option('--queue <name>', "Queue name (default: the env's QUEUE_NAME, else ai-requests)")
     .option('--failed-limit <n>', 'Number of failed jobs to show', { default: 5 })
     .option('--verbose', 'Show detailed job data')
     .example('pnpm ops inspect:queue')
@@ -51,7 +51,7 @@ export function registerInspectCommands(cli: CAC): void {
   cli
     .command('inspect:dlq', 'View failed jobs in BullMQ dead letter queue')
     .option(ENV_OPTION, ENV_OPTION_DESC, ENV_OPTION_DEFAULT)
-    .option('--queue <name>', 'Queue name', { default: 'ai-requests' })
+    .option('--queue <name>', "Queue name (default: the env's QUEUE_NAME, else ai-requests)")
     .option('--limit <n>', 'Number of failed jobs to show', { default: 10 })
     .option('--json', 'Output as JSON for scripting')
     .example('pnpm ops inspect:dlq')
