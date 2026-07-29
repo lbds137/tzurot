@@ -37,9 +37,16 @@ function getDatabaseHost(): string {
   }
 }
 
-// Known drift patterns - indexes that Prisma can't represent in schema.prisma
-// These are EXPECTED to exist but will show as "drift" if Prisma detects them
-const PROTECTED_INDEXES = [
+/**
+ * Known drift patterns - indexes that Prisma can't represent in schema.prisma.
+ * These are EXPECTED to exist but will show as "drift" if Prisma detects them.
+ * The name set must agree with prisma/drift-ignore.json `protectedIndexes` and
+ * check-migration-safety.ts — protectedIndexRegistries.test.ts enforces the
+ * agreement. Exported for that guard test only.
+ *
+ * @internal
+ */
+export const PROTECTED_INDEXES = [
   {
     name: 'idx_memories_embedding',
     table: 'memories',
