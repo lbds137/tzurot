@@ -9,7 +9,7 @@
  */
 
 import type { Redis } from 'ioredis';
-import { AI_DEFAULTS } from '@tzurot/common-types/constants/ai';
+import { AI_DEFAULTS, FREE_ROUTER_MODEL } from '@tzurot/common-types/constants/ai';
 import { REDIS_KEY_PREFIXES } from '@tzurot/common-types/constants/queue';
 import { type OpenRouterModel } from '@tzurot/common-types/types/ai';
 import { createLogger } from '@tzurot/common-types/utils/logger';
@@ -155,6 +155,15 @@ async function getCapabilities(modelId: string, redis: Redis): Promise<CachedCap
  * @returns true if the model supports image input
  */
 export async function modelSupportsVision(modelId: string, redis: Redis): Promise<boolean> {
+  // The free-model router is vision-capable BY DESIGN — selectVisionModel
+  // assigns it directly as the guest/free vision fallback, so a capability
+  // query must never misreport it. Authoritative override, not a fallback:
+  // no VISION_MODEL_PATTERNS substring matches 'openrouter/free', and the
+  // router's own catalog row (if any) wouldn't describe the vision-capable
+  // models it routes to.
+  if (normalizeModelId(modelId) === FREE_ROUTER_MODEL) {
+    return true;
+  }
   const capabilities = await getCapabilities(modelId, redis);
   return capabilities.supportsVision;
 }
