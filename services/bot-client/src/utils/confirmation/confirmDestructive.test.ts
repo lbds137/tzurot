@@ -415,7 +415,7 @@ describe('handleDestructiveModalSubmit', () => {
 describe('dynamicDeletePhrase', () => {
   it('builds DELETE {NAME} uppercased', () => {
     expect(dynamicDeletePhrase('lilith')).toBe('DELETE LILITH');
-    expect(dynamicDeletePhrase('all your Tzurot voices')).toBe('DELETE ALL YOUR TZUROT VOICES');
+    expect(dynamicDeletePhrase('all your cloned voices')).toBe('DELETE ALL YOUR CLONED VOICES');
   });
 
   it('falls back to the fixed phrase when the dynamic form is too long to type', () => {

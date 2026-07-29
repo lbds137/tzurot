@@ -135,8 +135,11 @@ export class WebhookManager {
     // Create new webhook if none exists
     if (webhook === undefined) {
       logger.info({ channelId: cacheKey }, 'Creating new webhook');
+      // Brand from the bot's own identity (dev = Rotzot, prod = Tzurot) —
+      // webhook lookup above matches by owner id, not name, so existing
+      // webhooks keep working regardless of the name they were created with.
       webhook = await targetChannel.createWebhook({
-        name: 'Tzurot Personalities',
+        name: `${targetChannel.client.user?.username ?? 'Bot'} Personalities`,
         reason: 'Multi-personality bot system',
       });
     }

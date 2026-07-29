@@ -150,7 +150,7 @@ describe('handlePurgeVoices', () => {
 
     const callArg = mockBuildDestructiveWarning.mock.calls[0]?.[0] as
       { entityName?: string } | undefined;
-    expect(callArg?.entityName).toBe('all your Tzurot voices');
+    expect(callArg?.entityName).toBe('all your cloned voices');
     // Specifically, no digits — defends against regression where the count returns
     expect(callArg?.entityName).not.toMatch(/\d/);
   });
@@ -161,7 +161,7 @@ describe('handlePurgeVoices', () => {
     await handlePurgeVoices(createMockContext());
 
     expect(mockEditReply).toHaveBeenCalledWith({
-      content: 'No Tzurot voices to purge.',
+      content: 'No cloned voices to purge.',
     });
     expect(mockBuildDestructiveWarning).not.toHaveBeenCalled();
   });
