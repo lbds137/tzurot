@@ -175,10 +175,10 @@ describe('callGateway', () => {
   });
 
   it('returns kind:schema (not network) when a 2xx body is not valid JSON', async () => {
-    // A 2xx response with a non-JSON body (204 No Content, a CDN HTML error
-    // page) makes response.json() throw. It's a contract violation, not a
-    // transport failure — must surface as 'schema' so a retry loop branching
-    // on 'network' doesn't retry it forever.
+    // A 2xx response with a non-JSON body (a CDN HTML error page) makes
+    // response.json() throw. It's a contract violation, not a transport
+    // failure — must surface as 'schema' so a retry loop branching on
+    // 'network' doesn't retry it forever.
     fetchSpy.mockResolvedValueOnce(new Response('<html>not json</html>', { status: 200 }));
     const result = await callGateway(baseOpts);
     expect(result.ok).toBe(false);
@@ -186,6 +186,28 @@ describe('callGateway', () => {
       expect(result.kind).toBe('schema');
       expect(result.status).toBe(0);
       expect(result.error).toMatch(/not valid JSON/i);
+    }
+  });
+
+  it('treats a 204 No Content as success (data: null) when no outputSchema is declared', async () => {
+    // The mutation succeeded and the route promises no body — an empty body
+    // is the contract, not a violation. Response.json() would throw on it.
+    fetchSpy.mockResolvedValueOnce(new Response(null, { status: 204 }));
+    const result = await callGateway({ ...baseOpts, method: 'DELETE' });
+    expect(result).toEqual({ ok: true, data: null });
+  });
+
+  it('keeps a 204 as kind:schema when the route declares an outputSchema', async () => {
+    // A route that PROMISES a body and returns none broke its contract —
+    // the schema-less success path above must not mask that.
+    fetchSpy.mockResolvedValueOnce(new Response(null, { status: 204 }));
+    const result = await callGateway({
+      ...baseOpts,
+      outputSchema: z.object({ id: z.string() }),
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.kind).toBe('schema');
     }
   });
 
