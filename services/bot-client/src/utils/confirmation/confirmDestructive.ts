@@ -12,7 +12,8 @@
  *   parent message's `interactionMetadata` (the original slash invoker);
  *   other users' clicks are rejected with an ephemeral notice. The id is NOT
  *   carried in the customId — a snowflake would eat the 100-char budget that
- *   entityId needs (hard-delete carries `slug|channelId`).
+ *   entityId needs. State too long for that budget (e.g. a personality slug)
+ *   rides `footerText` and is read back from the parent message.
  * - The modal's customId is DERIVED from the confirm button's own customId —
  *   a re-built config can never route the modal to a different command than
  *   the button it came from (the voice-clear drift class).

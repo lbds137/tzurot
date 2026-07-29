@@ -240,12 +240,15 @@ export const PresetCustomIds = {
  * Format: {source}::destructive::{action}::{operation}::{entityId?}
  * The source segment routes the customId to the source command's handlers.
  * Invoker ownership is NOT carried here — a Discord snowflake (~19 chars)
- * would eat the 100-char customId budget that entityId needs (hard-delete
- * carries `slug|channelId`); the Tier-B flow asserts ownership from the
- * parent message's `interactionMetadata` instead.
+ * would eat the 100-char customId budget that entityId needs; the Tier-B
+ * flow asserts ownership from the parent message's `interactionMetadata`
+ * instead.
  *
- * entityId is a single `::`-free segment; flows needing composite state pack
- * it with a `|` sub-delimiter (e.g. hard-delete's `{slug}|{channelId}`).
+ * entityId is a single `::`-free segment. Keep it SHORT (a snowflake, a
+ * fixed token): unbounded values (e.g. a personality slug, up to 50 chars)
+ * blow the 100-char cap and make setCustomId throw — such state rides the
+ * warning embed's `footerText` and is read back from the parent message
+ * (see history-purge's `parsePurgeSlugFromFooter`).
  */
 export interface DestructiveParseResult {
   /** The source command (e.g., 'history', 'character') */

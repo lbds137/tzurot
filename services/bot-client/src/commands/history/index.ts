@@ -181,14 +181,14 @@ async function autocomplete(interaction: AutocompleteInteraction): Promise<void>
  */
 async function handlePurgeConfirm(
   interaction: ButtonInteraction,
-  entityId: string | undefined
+  channelId: string | undefined
 ): Promise<void> {
   // The slug lives in the warning embed's footer, not the customId (too long
-  // for the 100-char budget); entityId carries only the channelId.
+  // for the 100-char budget); the customId's entityId carries only the channelId.
   const personalitySlug = parsePurgeSlugFromFooter(interaction.message.embeds[0]?.footer?.text);
 
-  if (entityId === undefined || personalitySlug === null) {
-    logger.warn({ entityId }, 'Purge confirm missing channelId or slug footer');
+  if (channelId === undefined || personalitySlug === null) {
+    logger.warn({ channelId }, 'Purge confirm missing channelId or slug footer');
     await interaction.update({
       content: 'Error: Invalid entity ID format.',
       embeds: [],
