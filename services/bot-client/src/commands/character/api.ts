@@ -31,6 +31,10 @@ import {
 import { CATALOG } from '../../ux/catalog/catalog.js';
 import { renderSpec } from '../../ux/render/render.js';
 import type { EnvConfig } from '@tzurot/common-types/config/config';
+import {
+  ORPHAN_SENTINEL_DISCORD_ID,
+  ORPHAN_SENTINEL_USERNAME,
+} from '@tzurot/common-types/constants/persona';
 import { GatewayApiError, type UserClient } from '@tzurot/clients';
 import type { CharacterData } from './characterTypes.js';
 
@@ -234,6 +238,12 @@ export async function fetchUsernames(
 
   await Promise.all(
     userIds.map(async id => {
+      // The orphan sentinel's reserved discordId is not a snowflake — Discord
+      // can never resolve it, so surface its display name directly.
+      if (id === ORPHAN_SENTINEL_DISCORD_ID) {
+        names.set(id, ORPHAN_SENTINEL_USERNAME);
+        return;
+      }
       try {
         const user = await client.users.fetch(id);
         names.set(id, user.displayName ?? user.username);
