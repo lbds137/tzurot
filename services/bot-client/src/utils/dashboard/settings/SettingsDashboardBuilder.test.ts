@@ -481,6 +481,28 @@ describe('SettingsDashboardBuilder', () => {
       expect(message.embeds).toHaveLength(1);
       expect(message.components).toHaveLength(1); // select menu only (no Close — D18)
     });
+
+    it('renders the reset row only when config.resetButton is present', () => {
+      const session = createTestSession();
+      const plain = buildOverviewMessage(createTestConfig(), session);
+      // Opt-in: dashboards without the affordance keep the select-menu-only shape.
+      expect(plain.components).toHaveLength(1);
+
+      const withReset = buildOverviewMessage(
+        { ...createTestConfig(), resetButton: { label: 'Reset to defaults' } },
+        session
+      );
+
+      expect(withReset.components).toHaveLength(2);
+      const resetRow = withReset.components[1].toJSON() as {
+        components: Array<{ custom_id: string; label: string; style: number }>;
+      };
+      expect(resetRow.components).toHaveLength(1);
+      expect(resetRow.components[0].custom_id).toBe(`test-settings::reset::${session.entityId}`);
+      expect(resetRow.components[0].label).toBe('Reset to defaults');
+      // ButtonStyle.Danger = 4 — destructive styling carries the weight.
+      expect(resetRow.components[0].style).toBe(4);
+    });
   });
 
   describe('buildSettingMessage', () => {

@@ -9,6 +9,25 @@
  * sending null for a field clears that override.
  */
 
+import { MessageFlags, type ButtonInteraction } from 'discord.js';
+import { createLogger } from '@tzurot/common-types/utils/logger';
+import {
+  type SettingsDashboardConfig,
+  type SettingsDashboardSession,
+  type SettingUpdateHandler,
+  DashboardView,
+  SettingType,
+  isPlainSetting,
+} from './types.js';
+import {
+  buildOverviewMessage,
+  buildSettingMessage,
+  getSettingById,
+} from './SettingsDashboardBuilder.js';
+import { storeSession } from './SettingsSessionStorage.js';
+
+const logger = createLogger('settings-update');
+
 /** Config override field names that map to SettingsData keys */
 const SETTING_FIELDS = [
   'maxMessages',
@@ -54,4 +73,116 @@ export function mapSettingToApiUpdate(
   }
 
   return null;
+}
+
+/**
+ * Handle the set button — directly set a value (tri-state/boolean/enum
+ * buttons). Lives here with the update mapping (rather than in
+ * SettingsDashboardHandler) so the router file stays under the `max-lines`
+ * cap; the router dispatches to it for the 'set' action.
+ */
+export async function handleSetButton(
+  interaction: ButtonInteraction,
+  config: SettingsDashboardConfig,
+  session: SettingsDashboardSession,
+  extra: string | undefined,
+  updateHandler: SettingUpdateHandler
+): Promise<void> {
+  if (extra === undefined) {
+    // Reached via the already-deferred `set` action; a bare return would leave the
+    // interaction unresolved. No current builder produces a `set` customId without
+    // the setting:value extra, but a stale message or future builder change could.
+    logger.warn('Set button missing extra data');
+    await interaction.followUp({
+      content: 'Invalid button data. Please run the command again.',
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+
+  // Parse setting:value format (single split — values may contain colons)
+  const colonIdx = extra.indexOf(':');
+  const settingId = extra.slice(0, colonIdx);
+  const rawValue = extra.slice(colonIdx + 1);
+  const setting = getSettingById(config, settingId);
+
+  if (setting === undefined) {
+    // followUp/editReply throughout — the router deferUpdate'd before dispatch.
+    await interaction.followUp({
+      content: 'Unknown setting.',
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+
+  // Parse the value
+  let newValue: unknown;
+  switch (rawValue) {
+    case 'auto':
+      newValue = null; // Auto means inherit
+      break;
+    case 'true':
+      newValue = true;
+      break;
+    case 'false':
+      newValue = false;
+      break;
+    default:
+      newValue = rawValue;
+  }
+
+  // Non-cascading settings have no inherit tier — a null here can only come
+  // from a forged/stale `:auto` customId (no plain-mode builder renders an
+  // Auto button). Reject with a friendly message rather than letting the
+  // update handler surface a raw validation error.
+  if (
+    newValue === null &&
+    (isPlainSetting(config, setting) || setting.type === SettingType.BOOLEAN)
+  ) {
+    await interaction.followUp({
+      content: 'This setting has no Auto — set an explicit value.',
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+
+  // Call the update handler
+  const result = await updateHandler(interaction, session, settingId, newValue);
+
+  if (!result.success) {
+    await interaction.followUp({
+      content: `Failed to update: ${result.error}`,
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+
+  // Update session with new data (a successful update clears any pending
+  // rejected-input state — the retry affordance is per-failure, not sticky)
+  if (result.newData !== undefined) {
+    session.data = result.newData;
+  }
+  session.lastRejectedInput = undefined;
+  session.lastActivityAt = new Date();
+  await storeSession(session, config.entityType);
+
+  // Rebuild the current view
+  if (session.view === DashboardView.SETTING && session.activeSetting !== undefined) {
+    const activeSetting = getSettingById(config, session.activeSetting);
+    if (activeSetting !== undefined) {
+      const message = buildSettingMessage(config, session, activeSetting);
+      await interaction.editReply({
+        embeds: message.embeds,
+        components: message.components,
+      });
+      return;
+    }
+  }
+
+  // Default: return to overview
+  const message = buildOverviewMessage(config, session);
+  await interaction.editReply({
+    embeds: message.embeds,
+    components: message.components,
+  });
 }

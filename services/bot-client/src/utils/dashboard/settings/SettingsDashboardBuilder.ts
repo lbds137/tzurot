@@ -8,6 +8,8 @@
 import {
   EmbedBuilder,
   ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
   StringSelectMenuBuilder,
   StringSelectMenuOptionBuilder,
   type MessageActionRowComponentBuilder,
@@ -326,6 +328,19 @@ export function buildOverviewMessage(
   const components: ActionRowBuilder<MessageActionRowComponentBuilder>[] = [selectMenu];
   if (config.pages !== undefined && config.pages.length > 0) {
     components.push(buildPaginationRow(config, session));
+  }
+  if (config.resetButton !== undefined) {
+    // Danger styling per the standard button order (destructive last); the
+    // action is reversible (overrides are re-settable), so no Tier-B typed
+    // confirmation — the style + label carry the weight of the click.
+    const resetRow = new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(
+      new ButtonBuilder()
+        .setCustomId(buildSettingsCustomId(config.entityType, 'reset', session.entityId))
+        .setLabel(config.resetButton.label)
+        .setEmoji('♻️')
+        .setStyle(ButtonStyle.Danger)
+    );
+    components.push(resetRow);
   }
 
   return {
