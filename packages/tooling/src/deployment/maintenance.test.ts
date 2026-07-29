@@ -49,6 +49,7 @@ function makeHarness(): Harness {
   const queues = new Map<string, MockQueue>();
   const deps: MaintenanceDeps = {
     getRedisUrl: vi.fn().mockResolvedValue('redis://localhost:6379'),
+    getQueueName: vi.fn().mockResolvedValue('ai-requests'),
     createRedis: vi.fn().mockReturnValue(redis as unknown as Redis),
     createQueue: vi.fn().mockImplementation((_url: string, name: string) => {
       const queue = makeQueue();
@@ -100,6 +101,21 @@ describe('runMaintenance', () => {
     await runMaintenance('status', { env: 'prod' }, h.deps);
 
     expect([...h.queues.keys()].sort()).toEqual(['ai-requests', SCHEDULED_QUEUE_NAME].sort());
+  });
+
+  it('acts on the RESOLVED queue name, not the hardcoded literal', async () => {
+    // The QUEUE_NAME env seam: if an environment overrides the queue name,
+    // maintenance must pause/drain THAT queue — the wrong-queue miss here is
+    // silent and high-stakes (a destructive migration over a live queue).
+    const h = makeHarness();
+    (h.deps.getQueueName as ReturnType<typeof vi.fn>).mockResolvedValue('ai-requests-renamed');
+
+    await runMaintenance('status', { env: 'prod' }, h.deps);
+
+    expect(h.deps.getQueueName).toHaveBeenCalledWith('prod');
+    expect([...h.queues.keys()].sort()).toEqual(
+      ['ai-requests-renamed', SCHEDULED_QUEUE_NAME].sort()
+    );
   });
 
   describe('on', () => {

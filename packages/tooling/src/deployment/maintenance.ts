@@ -32,9 +32,9 @@ import chalk from 'chalk';
 
 import {
   getRailwayRedisUrl,
+  getRailwayQueueName,
   createInspectorQueue,
   createInspectorRedis,
-  DEFAULT_QUEUE_NAME,
 } from '../inspect/bullmqConnection.js';
 import type { Environment } from '../utils/env-runner.js';
 
@@ -51,6 +51,12 @@ export interface MaintenanceOptions {
 /** Injectable seams so tests mock the network without child-process gymnastics. */
 export interface MaintenanceDeps {
   getRedisUrl: (env: Environment) => Promise<string | null>;
+  /**
+   * Resolves the env's actual AI-requests queue name (the `QUEUE_NAME` seam) —
+   * a hardcoded literal here would pause/drain the wrong queue if the env var
+   * ever diverged from the default.
+   */
+  getQueueName: (env: Environment) => Promise<string>;
   createRedis: (redisUrl: string) => Redis;
   createQueue: (redisUrl: string, queueName: string) => Queue;
   sleep: (ms: number) => Promise<void>;
@@ -70,6 +76,7 @@ const FLAG_CONVERGENCE_MS = 5_000;
 
 export const defaultMaintenanceDeps: MaintenanceDeps = {
   getRedisUrl: getRailwayRedisUrl,
+  getQueueName: getRailwayQueueName,
   createRedis: createInspectorRedis,
   createQueue: createInspectorQueue,
   sleep: ms => new Promise(resolve => setTimeout(resolve, ms)),
@@ -154,9 +161,10 @@ export async function runMaintenance(
     return 1;
   }
 
+  const aiQueueName = await deps.getQueueName(options.env);
   const redis = deps.createRedis(redisUrl);
   const queues: NamedQueue[] = [
-    { name: DEFAULT_QUEUE_NAME, queue: deps.createQueue(redisUrl, DEFAULT_QUEUE_NAME) },
+    { name: aiQueueName, queue: deps.createQueue(redisUrl, aiQueueName) },
     { name: SCHEDULED_QUEUE_NAME, queue: deps.createQueue(redisUrl, SCHEDULED_QUEUE_NAME) },
   ];
   const flag = new MaintenanceFlag(redis);

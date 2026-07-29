@@ -10,7 +10,7 @@ import chalk from 'chalk';
 
 import type { Environment } from '../utils/env-runner.js';
 import {
-  DEFAULT_QUEUE_NAME,
+  getRailwayQueueName,
   getRailwayRedisUrl,
   createInspectorQueue,
 } from './bullmqConnection.js';
@@ -95,7 +95,10 @@ function displayFailedJobs(jobs: FailedJobDetails[]): void {
  * View failed jobs in the dead letter queue
  */
 export async function viewDlq(options: DlqViewOptions = {}): Promise<void> {
-  const { env = 'dev', queue: queueName = DEFAULT_QUEUE_NAME, limit = 10, json = false } = options;
+  const { env = 'dev', limit = 10, json = false } = options;
+  // No explicit --queue: resolve the env's actual QUEUE_NAME seam rather than
+  // assuming the literal default (same rationale as ops maintenance).
+  const queueName = options.queue ?? (await getRailwayQueueName(env));
 
   if (!json) {
     console.log(chalk.cyan(`Viewing failed jobs in "${queueName}" on ${env}...`));

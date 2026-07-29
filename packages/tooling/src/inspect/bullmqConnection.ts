@@ -88,6 +88,47 @@ export async function getRailwayRedisUrl(
 }
 
 /**
+ * Railway service that owns the `QUEUE_NAME` env seam (the queue's consumer —
+ * its queue is the one `ops maintenance` must pause/drain).
+ */
+const QUEUE_NAME_SERVICE = 'ai-worker';
+
+/**
+ * Resolve the AI-requests queue name for the environment. The services read
+ * `QUEUE_NAME` (env-configurable, defaults to `ai-requests`); a tooling-side
+ * hardcode of the literal would silently pause/drain the WRONG queue during a
+ * destructive-migration window if the env var ever diverged. Mirrors
+ * `getRailwayRedisUrl`: local reads the env var, dev/prod ask the Railway CLI.
+ * Falls back to the literal default (the services' own default) when the var
+ * is unset or the CLI lookup fails — matching what the services resolve.
+ */
+export async function getRailwayQueueName(env: Environment, execFn?: ExecFn): Promise<string> {
+  if (env === 'local') {
+    return process.env.QUEUE_NAME ?? DEFAULT_QUEUE_NAME;
+  }
+
+  const exec = execFn ?? (await defaultExec());
+  const railwayEnv = env === 'prod' ? 'production' : 'development';
+
+  try {
+    const result = exec('railway', [
+      'variables',
+      '--json',
+      '--service',
+      QUEUE_NAME_SERVICE,
+      '--environment',
+      railwayEnv,
+    ]);
+    const vars = JSON.parse(result) as Record<string, string>;
+    return vars.QUEUE_NAME ?? DEFAULT_QUEUE_NAME;
+  } catch {
+    // CLI hiccup / not logged in — the services' default is the right guess,
+    // and the caller prints which queue it acts on either way.
+    return DEFAULT_QUEUE_NAME;
+  }
+}
+
+/**
  * Shared URL parsing + connection config for the inspector clients.
  *
  * `family: 4` unconditionally: this tooling runs off-platform against either
