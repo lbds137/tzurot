@@ -6,7 +6,8 @@
 
 ## Unreleased on Develop
 
-_(empty — reset at beta.185)_
+- #1858 docs: review-rider checklist (TASK-329) · variant-token sweep rule (TASK-339) · publish-race note (TASK-295)
+- #1859 refactor: fake-optional columns → NOT NULL (TASK-303) — **carries migration `20260729160733`** (two `SET NOT NULL`s; applied to dev 2026-07-29; **prod needs `release:premigrate` at the next cut** — additive-safe, no maintenance window)
 
 ## 🔬 Smoke checklist — v3.0.0-beta.185 (post-deploy)
 
