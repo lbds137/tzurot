@@ -19,9 +19,11 @@ import {
 import {
   buildSlotContext,
   buildSyntheticErrorResult,
+  partitionSlotSubmissions,
   toSnapshot,
   type RuntimeEntry,
   type RuntimeSlot,
+  type SlotOutcome,
 } from './multiTagCoordinatorHelpers.js';
 
 function buildPersonality(name: string): LoadedPersonality {
@@ -225,5 +227,60 @@ describe('buildSyntheticErrorResult', () => {
 
     expect(result.personalityErrorMessage).toBeUndefined();
     expect(result.errorInfo?.userMessage).toBe(USER_ERROR_MESSAGES[ApiErrorCategory.UNKNOWN]);
+  });
+});
+
+describe('partitionSlotSubmissions', () => {
+  function submitted(name: string): SlotOutcome {
+    return {
+      kind: 'submitted',
+      jobId: `job-${name}`,
+      personality: buildPersonality(name),
+      personaId: `persona-${name}`,
+      source: 'mention',
+      isAutoResponse: false,
+    };
+  }
+
+  it('assigns DENSE indices: denied slots are skipped, survivors get 0..k-1', () => {
+    const { runtimeSlots, erroredOutcomes } = partitionSlotSubmissions([
+      submitted('Alice'),
+      { kind: 'denied', personality: buildPersonality('Denny') },
+      submitted('Bob'),
+    ]);
+
+    expect(runtimeSlots.map(s => [s.slotIndex, s.jobId])).toEqual([
+      [0, 'job-Alice'],
+      [1, 'job-Bob'],
+    ]);
+    expect(runtimeSlots.every(s => s.status === 'pending')).toBe(true);
+    expect(erroredOutcomes).toEqual([]);
+  });
+
+  it('collects errored outcomes without consuming a dense index', () => {
+    const errored: SlotOutcome = {
+      kind: 'errored',
+      personality: buildPersonality('Boom'),
+      isAutoResponse: true,
+      spec: { requestId: 'r1', success: false } as Extract<
+        SlotOutcome,
+        { kind: 'errored' }
+      >['spec'],
+    };
+    const { runtimeSlots, erroredOutcomes } = partitionSlotSubmissions([
+      errored,
+      submitted('Alice'),
+    ]);
+
+    expect(runtimeSlots.map(s => [s.slotIndex, s.jobId])).toEqual([[0, 'job-Alice']]);
+    expect(erroredOutcomes).toEqual([errored]);
+  });
+
+  it('returns both empty for an all-denied batch', () => {
+    const { runtimeSlots, erroredOutcomes } = partitionSlotSubmissions([
+      { kind: 'denied', personality: buildPersonality('Denny') },
+    ]);
+    expect(runtimeSlots).toEqual([]);
+    expect(erroredOutcomes).toEqual([]);
   });
 });
