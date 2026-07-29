@@ -480,8 +480,26 @@ describe('Channel Settings Dashboard', () => {
       );
     });
 
-    it('reset button clears the channel overrides and re-renders from fresh data', async () => {
+    it('reset first click shows the Tier-A confirm without clearing anything', async () => {
       const interaction = createButtonInteraction('channel-settings::reset::channel-123');
+      mockSessionManager.get.mockReturnValue(settingViewSession());
+
+      await handleChannelSettingsButton(interaction as unknown as ButtonInteraction);
+
+      // Confirm gate: nothing cleared yet, and the surface routes to
+      // reset-confirm / reset-cancel.
+      expect(stub.clearChannelConfigOverrides).not.toHaveBeenCalled();
+      const call = interaction.editReply.mock.calls[0][0] as {
+        components: Array<{ toJSON: () => { components: Array<{ custom_id: string }> } }>;
+      };
+      expect(call.components[0].toJSON().components.map(b => b.custom_id)).toEqual([
+        'channel-settings::reset-cancel::channel-123',
+        'channel-settings::reset-confirm::channel-123',
+      ]);
+    });
+
+    it('reset-confirm clears the channel overrides and re-renders from fresh data', async () => {
+      const interaction = createButtonInteraction('channel-settings::reset-confirm::channel-123');
       mockSessionManager.get.mockReturnValue(settingViewSession());
       mockGetChannelSettings.mockResolvedValue(mockChannelSettings);
       stub.clearChannelConfigOverrides.mockResolvedValue(makeOk({ cleared: true }));
@@ -496,8 +514,8 @@ describe('Channel Settings Dashboard', () => {
       expect(interaction.followUp).not.toHaveBeenCalled();
     });
 
-    it('reset failure notifies ephemerally without touching the dashboard', async () => {
-      const interaction = createButtonInteraction('channel-settings::reset::channel-123');
+    it('reset-confirm failure notifies ephemerally without touching the dashboard', async () => {
+      const interaction = createButtonInteraction('channel-settings::reset-confirm::channel-123');
       mockSessionManager.get.mockReturnValue(settingViewSession());
       stub.clearChannelConfigOverrides.mockResolvedValue(makeErr(500, 'Server error'));
 

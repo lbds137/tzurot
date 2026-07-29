@@ -12,6 +12,7 @@ export {
   type SettingsDashboardConfig,
   type SettingUpdateHandler,
   type SettingUpdateResult,
+  type SettingsResetHandler,
   isSettingsInteraction,
 } from './types.js';
 
