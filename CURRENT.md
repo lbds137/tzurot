@@ -10,6 +10,7 @@
 - #1850 test:audit glob widened to \*Loader.ts (TASK-177; PersonalityLoader component test 18×, baseline v12, knownGaps stays empty)
 - #1851 AIJobProcessor name-routed dispatch seam tests (TASK-274; 4 routing pins incl. deps-across-seam + memory-adapter guard)
 - #1852 partial multi-tag batch delivers errored personas (TASK-236; deliverErroredOutcomes shared, partitionSlotSubmissions extracted; TASK-351 filed for debug-log + shutdown-window nits)
+- #1853 /history purge fixed for long slugs (TASK-290; slug rides the embed footer, customId carries only channelId; real-builder regression pins incl. old-shape-throws)
 
 ## 🔬 Smoke checklist — v3.0.0-beta.183 (post-deploy)
 
