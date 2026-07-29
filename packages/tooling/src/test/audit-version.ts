@@ -19,5 +19,8 @@
  *   v3 — serviceDirs: added `packages/identity` + `packages/conversation-history`
  *        (Prisma-service packages extracted into standalone packages, previously
  *        outside the scan scope) so their component-test coverage is ratcheted.
+ *   v4 — file glob widened to `*(Service|Loader).ts`: delegation splits put the
+ *        actual Prisma calls in a Loader (identity's PersonalityLoader) that the
+ *        Service-only glob never scanned.
  */
-export const TEST_AUDIT_IMPL_VERSION = 3;
+export const TEST_AUDIT_IMPL_VERSION = 4;
