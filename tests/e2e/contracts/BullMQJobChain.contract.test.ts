@@ -38,7 +38,9 @@ describe('Contract: BullMQ job chain (real producer fixture → consumer schemas
   let imageChild: { name: string; data: unknown } | undefined;
 
   beforeAll(() => {
-    chain = loadContractFixture<CapturedChain>('bullmq-job-chain/audio-and-image.json');
+    // The attachment-bearing envelope fixture anchors the parent + child-shape
+    // assertions (the retired legacy audio-and-image fixture used to).
+    chain = loadContractFixture<CapturedChain>('bullmq-job-chain/envelope-direct-attachments.json');
     audioChild = (chain.children ?? []).find(c => c.name === JobType.AudioTranscription);
     imageChild = (chain.children ?? []).find(c => c.name === JobType.ImageDescription);
   });
@@ -93,22 +95,22 @@ describe('Contract: BullMQ job chain (real producer fixture → consumer schemas
     });
   });
 
-  describe('text-only chain (no attachments — the dominant path)', () => {
+  describe('no-attachment chain (the dominant path)', () => {
     it('validates as an LLM-only flow with no children and no dependencies', () => {
-      const textChain = loadContractFixture<CapturedChain>('bullmq-job-chain/text-only.json');
-      expect(textChain.name).toBe(JobType.LLMGeneration);
-      expect(textChain.children).toBeUndefined();
-      const data = llmGenerationJobDataSchema.parse(textChain.data);
+      const minChain = loadContractFixture<CapturedChain>('bullmq-job-chain/envelope-minimal.json');
+      expect(minChain.name).toBe(JobType.LLMGeneration);
+      expect(minChain.children).toBeUndefined();
+      const data = llmGenerationJobDataSchema.parse(minChain.data);
       // No preprocessing children → the LLM job waits on nothing.
       expect(data.dependencies).toBeUndefined();
     });
   });
 
-  // The envelope fixtures are the shapes bot-client ACTUALLY ships
-  // post-cutover. Schema breadth only here — the load-bearing consumer is
-  // the PIPELINE tier (BullMQJobChainPipeline.consumer.contract.test.ts),
-  // which runs these same fixtures through the real worker steps (schema
-  // acceptance alone greenlit the legacy shapes ContextStep rejects).
+  // Every fixture is envelope-shaped — the only payload shape since the
+  // schema retired its legacy tolerance. Schema breadth only here — the
+  // load-bearing consumer is the PIPELINE tier
+  // (BullMQJobChainPipeline.consumer.contract.test.ts), which runs these same
+  // fixtures through the real worker steps.
   describe('envelope chains (the thin shape bot-client ships)', () => {
     it('envelope-minimal validates and stays pipeline-eligible (kind + rawAssemblyInputs)', () => {
       const envChain = loadContractFixture<CapturedChain>('bullmq-job-chain/envelope-minimal.json');

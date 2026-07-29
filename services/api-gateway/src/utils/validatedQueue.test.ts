@@ -39,6 +39,8 @@ const validLLMJobData = {
   },
   message: 'Hello, world!',
   context: {
+    kind: 'envelope' as const,
+    rawAssemblyInputs: { rawMessageContent: 'hello' },
     userId: 'user-123',
     channelId: 'channel-123',
   },

@@ -58,6 +58,8 @@ describe('POST /generate', () => {
         },
         message: 'Hello!',
         context: {
+          kind: 'envelope' as const,
+          rawAssemblyInputs: { rawMessageContent: 'hello' },
           userId: 'user-123',
           channelId: 'channel-123',
         },
@@ -79,5 +81,38 @@ describe('POST /generate', () => {
 
     expect(response.status).toBe(400);
     expect(response.body.error).toBeDefined();
+  });
+
+  it("rejects a context without kind:'envelope' with a clean 400 (legacy tolerance retired)", async () => {
+    // The HTTP schema keeps kind optional for construction-site ergonomics;
+    // the route's narrowing guard is what turns an absent discriminant into
+    // a 400 instead of an opaque enqueue failure at the job schema.
+    const response = await request(app)
+      .post('/generate')
+      .send({
+        personality: {
+          id: 'personality-123',
+          name: 'TestBot',
+          displayName: 'Test Bot',
+          slug: 'test-bot',
+          ownerId: 'owner-uuid-test',
+          systemPrompt: 'You are a helpful assistant',
+          model: 'anthropic/claude-sonnet-4.5',
+          provider: 'openrouter',
+          temperature: 0.7,
+          maxTokens: 4096,
+          contextWindowTokens: 200000,
+          characterInfo: 'A helpful assistant',
+          personalityTraits: 'Friendly and knowledgeable',
+        },
+        message: 'Hello!',
+        context: {
+          userId: 'user-123',
+          channelId: 'channel-123',
+        },
+      });
+
+    expect(response.status).toBe(400);
+    expect(response.body.message).toMatch(/envelope/);
   });
 });
