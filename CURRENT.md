@@ -7,6 +7,7 @@
 ## Unreleased on Develop
 
 - #1849 Prisma ban-list missing-entry gap closed (TASK-50; +verifyPoolTimeouts, +SystemSettingsService×4, any-subpath regex, bidirectional drift test; TASK-54 archived obsolete)
+- #1850 test:audit glob widened to \*Loader.ts (TASK-177; PersonalityLoader component test 18×, baseline v12, knownGaps stays empty)
 
 ## 🔬 Smoke checklist — v3.0.0-beta.183 (post-deploy)
 
