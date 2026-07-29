@@ -26,7 +26,7 @@ import type {
 import { handleClear } from './clear.js';
 import { handleUndo } from './undo.js';
 import { handleStats } from './stats.js';
-import { handlePurgeHistory, parsePurgeEntityId } from './purge.js';
+import { handlePurgeHistory, parsePurgeSlugFromFooter } from './purge.js';
 import { handlePersonalityAutocomplete, handlePersonaAutocomplete } from './autocomplete.js';
 import { DestructiveCustomIds } from '../../utils/customIds.js';
 import {
@@ -127,17 +127,20 @@ async function handleModal(interaction: ModalSubmitInteraction): Promise<void> {
     }
 
     if (parsed.operation === HISTORY_PURGE_OPERATION && parsed.action === 'modal_submit') {
-      const entityInfo = parsed.entityId !== undefined ? parsePurgeEntityId(parsed.entityId) : null;
+      // channelId rides the customId; the slug rides the warning embed's
+      // footer (too long for the customId budget — see handlePurgeHistory).
+      const channelId = parsed.entityId;
+      const personalitySlug = parsePurgeSlugFromFooter(
+        interaction.message?.embeds[0]?.footer?.text
+      );
 
-      if (entityInfo === null) {
+      if (channelId === undefined || personalitySlug === null) {
         await interaction.reply({
           content: 'Error: Invalid entity ID format.',
           ephemeral: true,
         });
         return;
       }
-
-      const { personalitySlug, channelId } = entityInfo;
       const { userClient } = clientsFor(interaction);
       const executeOperation = buildPurgeOperation(
         userClient,
@@ -180,10 +183,12 @@ async function handlePurgeConfirm(
   interaction: ButtonInteraction,
   entityId: string | undefined
 ): Promise<void> {
-  const entityInfo = entityId !== undefined ? parsePurgeEntityId(entityId) : null;
+  // The slug lives in the warning embed's footer, not the customId (too long
+  // for the 100-char budget); entityId carries only the channelId.
+  const personalitySlug = parsePurgeSlugFromFooter(interaction.message.embeds[0]?.footer?.text);
 
-  if (entityInfo === null) {
-    logger.warn({ entityId }, 'Failed to parse entityId');
+  if (entityId === undefined || personalitySlug === null) {
+    logger.warn({ entityId }, 'Purge confirm missing channelId or slug footer');
     await interaction.update({
       content: 'Error: Invalid entity ID format.',
       embeds: [],
@@ -194,10 +199,7 @@ async function handlePurgeConfirm(
 
   // Display-only: the modal's routing customId is derived from THIS button's
   // customId inside the factory, so no source/operation is re-stated here.
-  await handleDestructiveConfirmButton(
-    interaction,
-    hardDeleteModalDisplay(entityInfo.personalitySlug)
-  );
+  await handleDestructiveConfirmButton(interaction, hardDeleteModalDisplay(personalitySlug));
 }
 
 /**
