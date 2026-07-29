@@ -125,11 +125,14 @@ function classifyThrownError(error: unknown): {
 
 /**
  * Read and (optionally) schema-validate a 2xx response body. A body that isn't
- * valid JSON (204 No Content, a CDN HTML error page, …) and a Zod validation
- * failure are BOTH contract violations, so both surface as `kind: 'schema'`
- * with `status: 0` — never as `'network'`, which a retry loop would wrongly
- * treat as transient and retry forever. Extracted so `callGateway` stays under
- * the cognitive-complexity budget.
+ * valid JSON (a CDN HTML error page, …) and a Zod validation failure are BOTH
+ * contract violations, so both surface as `kind: 'schema'` with `status: 0` —
+ * never as `'network'`, which a retry loop would wrongly treat as transient
+ * and retry forever. A 204 No Content from a route that declares NO output
+ * schema is a successful empty body (the mutation happened; there is nothing
+ * to parse); a 204 from a route that PROMISES a body via `outputSchema` is
+ * still a contract violation and falls through to the JSON-parse failure.
+ * Extracted so `callGateway` stays under the cognitive-complexity budget.
  */
 async function readValidatedBody(args: {
   response: Response;
@@ -139,6 +142,10 @@ async function readValidatedBody(args: {
   method: string;
 }): Promise<{ ok: true; data: unknown } | { ok: false; result: GatewayResult<never> }> {
   const { response, outputSchema, onWarn, path, method } = args;
+
+  if (response.status === 204 && outputSchema === undefined) {
+    return { ok: true, data: null };
+  }
 
   let json: unknown;
   try {
