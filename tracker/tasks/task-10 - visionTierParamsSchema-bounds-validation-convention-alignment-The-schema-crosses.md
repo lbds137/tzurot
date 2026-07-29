@@ -1,10 +1,10 @@
 ---
 id: TASK-10
 title: visionTierParamsSchema bounds validation (convention alignment)
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-07-12 00:00'
-updated_date: '2026-07-28 10:46'
+updated_date: '2026-07-29 23:36'
 labels:
   - 'area:jobs'
   - 'size:S'

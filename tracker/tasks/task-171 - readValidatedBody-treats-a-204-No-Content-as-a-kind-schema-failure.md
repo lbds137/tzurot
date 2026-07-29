@@ -1,10 +1,10 @@
 ---
 id: TASK-171
 title: 'readValidatedBody treats a 204 No Content as a kind: ''schema'' failure'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-06-24 00:00'
-updated_date: '2026-07-28 10:49'
+updated_date: '2026-07-29 23:36'
 labels:
   - 'area:clients'
   - 'size:S'

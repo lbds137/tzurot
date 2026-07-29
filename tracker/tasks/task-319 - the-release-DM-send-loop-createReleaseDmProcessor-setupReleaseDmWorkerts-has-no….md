@@ -1,10 +1,10 @@
 ---
 id: TASK-319
 title: Short-circuit release-DM batches on bot_level (20026) failures
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-07-23 00:00'
-updated_date: '2026-07-28 10:52'
+updated_date: '2026-07-29 23:36'
 labels:
   - 'origin:review'
   - 'area:bot-client'

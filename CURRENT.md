@@ -10,6 +10,7 @@
 - #1859 refactor: fake-optional columns → NOT NULL (TASK-303) — **carries migration `20260729160733`** (two `SET NOT NULL`s; applied to dev 2026-07-29; **prod needs `release:premigrate` at the next cut** — additive-safe, no maintenance window)
 - #1860 debug: stale scaffolding removed — transport probe, db-sync milestone logs, 275-day DM-detection remnant
 - #1861 feat(tooling): `dev:stale-debug` blame-based audit (TASK-143) — weekly `ops health` roster; weekly-audit checkout now `fetch-depth: 0`; round-4 optional hardening filed as TASK-354
+- #1862 fix: jobs/queue drain batch (doc-7 Phase 1, batch 1 of ~13) — six tasks closed (10/97/171/212/219/319); TASK-219 retires the legacy job-context tolerance (`kind: 'envelope'` required — additive code change, no migration)
 
 ## 🔬 Smoke checklist — v3.0.0-beta.185 (post-deploy)
 

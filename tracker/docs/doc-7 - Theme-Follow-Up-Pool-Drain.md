@@ -63,9 +63,17 @@ rows literally requested; ~2–10 rows each. Start with the largest clusters
 (browse/UI, jobs/queue, preset/config) to establish the rows-per-batch rate
 before committing to the projection.
 
-- [ ] Confirm the domain assignment per row before each batch (the table above is
+- [x] Confirm the domain assignment per row before each batch (the table above is
       a regex clustering, not a hand-read — treat it as a starting list)
 - [ ] One PR per domain; remove its rows in the same PR per the removals gate
+
+**Batch log** (rows-per-batch rate data):
+
+- **jobs/queue** — #1862 (2026-07-29): 6 tasks shipped (10/97/171/212/219/319) of 19
+  open `area:jobs`; the rest are own-PR-sized (M/L) or honestly gated — the regex
+  table's "10 rows" overcounted by including gated members. Hand-read confirmed
+  essential before each batch. Note: browse/UI cluster should WAIT for the UX
+  epic's Waves 4–6 (factory sweep rewrites that surface).
 
 ### Phase 2 — The ~55 scattered singletons
 
