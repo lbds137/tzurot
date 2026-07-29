@@ -142,7 +142,7 @@ describe('createReleaseDmProcessor', () => {
     expect(result).toEqual({ sent: 1, failed: 1, skipped: 0 });
   });
 
-  it('classifies a 20026 as failed_bot_level (bot quarantined, recipient reachable)', async () => {
+  it('classifies a 20026 as failed_bot_level and short-circuits the rest of the batch', async () => {
     const quarantined = new DiscordAPIError(
       { code: 20026, message: 'This application cannot send DMs' },
       20026,
@@ -165,7 +165,13 @@ describe('createReleaseDmProcessor', () => {
     expect(deps.report).toHaveBeenNthCalledWith(1, RELEASE_ID, [
       { deliveryLogId: LOG_A, status: 'failed_bot_level', errorCode: '20026' },
     ]);
-    expect(result).toEqual({ sent: 1, failed: 1, skipped: 0 });
+    // 20026 is BOT-wide: recipient B would fail identically, so it is never
+    // attempted and never slept for — and never reported, so its ledger row
+    // stays `pending` for the resweep to retry if the quarantine lifts.
+    expect(deps.fetch).toHaveBeenCalledTimes(1);
+    expect(deps.sleep).not.toHaveBeenCalled();
+    expect(deps.report).toHaveBeenCalledTimes(1);
+    expect(result).toEqual({ sent: 0, failed: 1, skipped: 0 });
   });
 
   it('classifies a network error as failed_transient', async () => {

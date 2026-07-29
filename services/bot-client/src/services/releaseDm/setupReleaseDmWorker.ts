@@ -171,6 +171,24 @@ export function createReleaseDmProcessor(deps: ReleaseDmWorkerDeps) {
       if (reportOutcome?.completed === true && reportOutcome.summary !== undefined) {
         completionSummary = reportOutcome.summary;
       }
+      // A bot_level failure (Discord 20026) means the BOT is quarantined —
+      // every remaining send in this batch (and blast) would fail identically,
+      // each burning the 1s pacing sleep. Short-circuit instead. The
+      // un-attempted recipients are deliberately NOT reported: their ledger
+      // rows stay `pending`, so the incomplete-broadcast resweep retries them
+      // if the quarantine ever lifts — marking them failed would terminalize
+      // sends that never happened.
+      if (entry.status === 'failed_bot_level') {
+        logger.warn(
+          {
+            releaseId: data.releaseId,
+            attempted: results.length,
+            remainingUnattempted: toSend.length - results.length,
+          },
+          'Bot-level DM failure (quarantine) — short-circuiting the batch'
+        );
+        break;
+      }
       if (i < toSend.length - 1) {
         await sleep(DM_SEND_DELAY_MS);
       }
