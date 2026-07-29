@@ -108,6 +108,23 @@ describe('checkMigrationSafety', () => {
     expect(output).toContain('idx_memories_embedding');
   });
 
+  it('should detect dropped memories_chunk_group_id_idx without recreate', async () => {
+    vol.fromJSON({
+      '/migrations/20240106_bad_partial/migration.sql': `
+        DROP INDEX "memories_chunk_group_id_idx";
+        -- oops, forgot the partial recreate
+      `,
+    });
+
+    const { checkMigrationSafety } = await import('./check-migration-safety.js');
+    await checkMigrationSafety({ migrationsPath: '/migrations' });
+
+    expect(processExitSpy).toHaveBeenCalledWith(1);
+    const output = consoleLogSpy.mock.calls.flat().join(' ');
+    expect(output).toContain('DANGEROUS MIGRATIONS DETECTED');
+    expect(output).toContain('memories_chunk_group_id_idx');
+  });
+
   it('should pass when index is dropped and recreated in same file', async () => {
     vol.fromJSON({
       '/migrations/20240103_safe_migration/migration.sql': `
