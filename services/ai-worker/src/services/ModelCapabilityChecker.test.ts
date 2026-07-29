@@ -68,6 +68,29 @@ describe('ModelCapabilityChecker', () => {
   });
 
   describe('modelSupportsVision', () => {
+    describe('the free-model router (authoritative override)', () => {
+      it('reports vision-capable even on a full catalog cache-miss', async () => {
+        // Regression: selectVisionModel assigns 'openrouter/free' directly as
+        // the free vision fallback, but no VISION_MODEL_PATTERNS substring
+        // matches it — pre-fix, Redis-down + pattern-fallback misreported
+        // the designed-in vision fallback as non-vision.
+        vi.mocked(mockRedis.get).mockResolvedValue(null);
+
+        expect(await modelSupportsVision('openrouter/free', mockRedis)).toBe(true);
+      });
+
+      it('does not consult the catalog at all — the override is by design, not data', async () => {
+        // A router catalog row (if one ever appears) describes the router,
+        // not the vision-capable models it routes to; the answer must not
+        // depend on it.
+        vi.mocked(mockRedis.get).mockResolvedValue(null);
+
+        await modelSupportsVision('openrouter/free', mockRedis);
+
+        expect(mockRedis.get).not.toHaveBeenCalled();
+      });
+    });
+
     describe('with Redis cache available', () => {
       it('should return true for models with image input modality', async () => {
         const models = [
