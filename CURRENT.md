@@ -1,31 +1,24 @@
 # Current
 
-> **Version**: v3.0.0-beta.184 (released 2026-07-28) — drain-campaign hardening II: #1840 quota cache identity · #1841 fossil openai dep · #1842 dead route factories · #1843 shared avatarUrlPath · #1844 orphan-sentinel browse name · #1845 brand-neutral copy · #1846 protected-index registry guard · #1847 delete-preview reach union. No migrations. Release review: clean LGTM. Notes: GitHub release v3.0.0-beta.184.
+> **Version**: v3.0.0-beta.185 (released 2026-07-29) — drain-campaign hardening III + channel-settings reset: #1849 Prisma ban-list drift guard · #1850 test:audit \*Loader.ts · #1851 job-dispatch seam tests · #1852 partial multi-tag errored delivery · #1853 long-slug /history purge · #1854 Reset-to-defaults (Tier-A) · #1855 openrouter/free vision · #1856 bounded reconcile sweep. No migrations. Release review: clean LGTM. Notes: GitHub release v3.0.0-beta.185.
 
 ---
 
 ## Unreleased on Develop
 
-- #1849 Prisma ban-list missing-entry gap closed (TASK-50; +verifyPoolTimeouts, +SystemSettingsService×4, any-subpath regex, bidirectional drift test; TASK-54 archived obsolete)
-- #1850 test:audit glob widened to \*Loader.ts (TASK-177; PersonalityLoader component test 18×, baseline v12, knownGaps stays empty)
-- #1851 AIJobProcessor name-routed dispatch seam tests (TASK-274; 4 routing pins incl. deps-across-seam + memory-adapter guard)
-- #1852 partial multi-tag batch delivers errored personas (TASK-236; deliverErroredOutcomes shared, partitionSlotSubmissions extracted; TASK-351 filed for debug-log + shutdown-window nits)
-- #1853 /history purge fixed for long slugs (TASK-290; slug rides the embed footer, customId carries only channelId; real-builder regression pins incl. old-shape-throws)
-- #1854 channel dashboard Reset-to-defaults (TASK-126 owner-approved; opt-in factory resetButton + Tier-A confirm per design system; TASK-352/353 filed)
-- #1855 openrouter/free always vision-capable (TASK-194; authoritative pre-catalog override — review traced a reachable guest-ladder gate the fix also closes, benign fallback pre-fix)
-- #1856 reconcile-off-db sweep bounded to 50-row batches (TASK-327; `remaining` in response, CLI batch loop w/ cap-vs-failure exit messages, purge surfaces undrained rest)
+_(empty — reset at beta.185)_
 
-## 🔬 Smoke checklist — v3.0.0-beta.183 (post-deploy)
+## 🔬 Smoke checklist — v3.0.0-beta.185 (post-deploy)
 
-_Risk-scoped: one needs-smoke path (transcribe moved URLs); everything else in the release self-verifies on first real use via existing logging._
+_Risk-scoped: one needs-smoke path (the release's only new user-visible flow); carried items from beta.183 retained._
 
-| #   | Item                                                                                                                                                     | Why it's here                                                                                                                                | Status                      |
-| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------- |
-| 1   | One voice message in prod → transcript comes back                                                                                                        | #1836 moved the transcribe long-poll to `/api/internal/ai/transcribe`; one send proves the migrated URL end to end (also covers old item 9). | ✅ PASS (owner, 2026-07-28) |
-| 2   | Observability (agent-runnable): first organic memory deletion in prod → logs show `Propagated memory deletion to derived facts` with sane `factsRetired` | Carried from beta.182 — the cascade's only runtime-unverified path; self-verifies via its own log line.                                      | ⬜ pending (carried)        |
-| 3   | OPTIONAL dev smoke: `/memory delete` a memory with a derived fact on dev → the fact drops out of `/memory facts`                                         | Carried from beta.182; hands-on cascade check if wanted before trusting item 2.                                                              | ⬜ optional (carried)       |
+| #   | Item                                                                                                                                                     | Why it's here                                                                                                                            | Status                |
+| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | --------------------- |
+| 1   | `/channel settings` → Reset to defaults → confirm → values revert to inherited (any mod-permission channel, dev or prod)                                 | #1854's flow is unit/factory-tested but never runtime-clicked; one click-through proves button → confirm → clear → re-render end to end. | ⬜ pending            |
+| 2   | Observability (agent-runnable): first organic memory deletion in prod → logs show `Propagated memory deletion to derived facts` with sane `factsRetired` | Carried from beta.182 — the cascade's only runtime-unverified path; self-verifies via its own log line.                                  | ⬜ pending (carried)  |
+| 3   | OPTIONAL dev smoke: `/memory delete` a memory with a derived fact on dev → the fact drops out of `/memory facts`                                         | Carried from beta.182; hands-on cascade check if wanted before trusting item 2.                                                          | ⬜ optional (carried) |
 
-_Observability-instead-of-smoke (no action): apikey-test rendering (#1837) needs a key that rotted after storage — first real use self-verifies; 401/403 split (#1833) and authorRole omission (#1838) surface only in logs/history on real failures._
+_Observability-instead-of-smoke (no action): partial multi-tag errored delivery (#1852) self-verifies via its own warn/info lines on the first real gateway write-timeout; long-slug purge (#1853) has real-builder regression pins, optional 30s hands-on with a 30+-char slug._
 
 ## ⏭️ NEXT SESSION STARTS HERE
 
