@@ -1,19 +1,12 @@
 # Current
 
-> **Version**: v3.0.0-beta.183 (released 2026-07-28) — drain-campaign hardening: #1832 vision seam · #1833 401/403 split · #1834 UUID gate · #1835 snowflake-username provisioning fix · #1836 bare /ai/\* retirement · #1837 apikey-test false-Valid fix · #1838 authorRole window fix · #1831 deps. No migrations. Notes: GitHub release v3.0.0-beta.183.
+> **Version**: v3.0.0-beta.184 (released 2026-07-28) — drain-campaign hardening II: #1840 quota cache identity · #1841 fossil openai dep · #1842 dead route factories · #1843 shared avatarUrlPath · #1844 orphan-sentinel browse name · #1845 brand-neutral copy · #1846 protected-index registry guard · #1847 delete-preview reach union. No migrations. Release review: clean LGTM. Notes: GitHub release v3.0.0-beta.184.
 
 ---
 
 ## Unreleased on Develop
 
-- **#1840 quota cache-identity provenance** (TASK-248 closed) — all six `deriveCacheKeyId` sites + the `selectQuotaFallbackTarget` funnel now read doom-caches under the TARGET's billing identity (`system` for guest/forced-swap routes); forced-swap credit-exhaustion check un-skipped (coherent under the right bucket). Fail-fast only — every pre-fix instance was fail-safe. Review follow-up filed: TASK-345 (audit-line cacheKeyId vocabulary).
-- **#1841 fossil `openai` dep removed** (TASK-342 closed) — zero imports in common-types/api-gateway; knip ignores dropped; `openai@7` remains only as langsmith's peer-resolved transitive (verified independent of our manifests).
-- **#1842 dead memory route factories retired** (TASK-316 closed) — `createMemoryRoutes`/`createFreshRoutes`/`createIncognitoRoutes` had zero prod consumers (mounts.ts is the sole path); 52 test sites migrated to direct handler construction; −325 lines. Follow-up batch: TASK-346 (audit the ~17 other factory-consuming suites).
-- **#1843 shared `avatarUrlPath`** (TASK-299 closed) — common-types helper owns both avatar-URL shapes; both producers compose it; producer↔parser round-trip contract test added. Filed: TASK-347 (no-trailing-slash env validation for gateway base URLs).
-- **#1844 orphan-sentinel browse creator** (TASK-320 closed) — `fetchUsernames` short-circuits the sentinel's reserved discordId to "Orphaned Characters" (was "Unknown" via the doomed `users.fetch`); sole creator-name resolver, sweep-verified; sentinel's own retention exposure already covered by bootstrap `retention_exempt`.
-- **#1845 brand-neutral bot-client copy** (TASK-313 closed) — 11 user-facing "Tzurot" sites → "cloned voices"/"the bot" (static descriptions can't env-brand without forking the manifest); webhook base name now runtime-branded from `client.user.username`. Untouched by design: `tzurot-` voice prefix (IDOR guard), operator log, comments. Filed: TASK-348 (gateway 503 JSON brand string, review catch).
-- **#1846 protected-index registry guard** (TASK-223 closed) — name-set agreement pinned across drift-ignore.json / check-migration-safety / inspect-database + DROP-suppression and recreateSQL invariants; fixed the live drift it caught (safety checker was missing `memories_chunk_group_id_idx`) with its own canary case. Filed: TASK-349 (derive checker patterns from the JSON — review catch). Also closed without building: TASK-261 (root `.dockerignore` shipped in b4e06b35e, 2026-07-16).
-- **#1847 delete-preview reach union** (TASK-321 closed) — `countCrossUserReach` is now the ONE reach query (4-arm union); `findCrossUserReachIds` derives from its keyset; wire field → `otherUsersWithData`; history-only PGLite fixture pins the pre-fix under-count. Filed: TASK-350 (co-ownership grant-arm warning semantics). TASK-41 RULED OUT same evening (owner-invited council pass, unanimous — rationale in 66e391601).
+_(empty — reset at beta.184)_
 
 ## 🔬 Smoke checklist — v3.0.0-beta.183 (post-deploy)
 
