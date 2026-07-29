@@ -11,11 +11,10 @@
  * seam where a thin-payload referenced attachment once went undescribed
  * under green per-service coverage.
  *
- * The legacy fixtures are asserted the OTHER way: schema-tolerated (old queued
- * jobs mid-deploy must still parse) but REJECTED by ContextStep's envelope
- * gate. That three-tier narrowing (HTTP-wide → schema-with-default →
- * envelope-only runtime) was previously an untested blind spot — the old
- * fixtures greenlit shapes the pipeline refuses and bot-client never sends.
+ * Every fixture is envelope-shaped: the schema retired its legacy tolerance
+ * (kind is now a required literal — rejection pinned in common-types
+ * jobs.test.ts), so a non-envelope payload can no longer reach the pipeline
+ * at all.
  */
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
@@ -64,7 +63,7 @@ const loadFlow = (name: string): FixtureFlow =>
 
 /** Parse fixture data through the REAL entry schema (what ValidationStep runs). */
 const parseJobData = (flow: FixtureFlow): LLMGenerationJobData =>
-  llmGenerationJobDataSchema.parse(flow.data) as LLMGenerationJobData;
+  llmGenerationJobDataSchema.parse(flow.data);
 
 const asJob = (data: LLMGenerationJobData): Job<LLMGenerationJobData> =>
   ({ id: 'contract-job', data }) as Job<LLMGenerationJobData>;
@@ -200,17 +199,4 @@ describe('BullMQ job-chain contract — consumer pipeline over PGLite', () => {
     expect(ctx.preprocessing?.transcriptions).toEqual(['a transcript']);
     expect(ctx.preparedContext).toBeDefined();
   });
-
-  it.each(['text-only', 'audio-and-image'])(
-    'legacy fixture %s: schema-tolerated but REJECTED by the envelope gate (the three-tier narrowing, pinned)',
-    async name => {
-      const data = parseJobData(loadFlow(name));
-
-      // Tier 2: the BullMQ schema tolerates legacy (old queued jobs mid-deploy).
-      expect(data).toBeDefined();
-
-      // Tier 3: the runtime pipeline refuses it — loudly, not silently.
-      await expect(runFrontPipeline(data)).rejects.toThrow(/envelope/i);
-    }
-  );
 });

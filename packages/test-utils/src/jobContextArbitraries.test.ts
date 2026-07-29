@@ -4,7 +4,6 @@ import {
   attachmentArb,
   describableReferenceNumbers,
   envelopeContextArb,
-  legacyContextArb,
 } from './jobContextArbitraries.js';
 
 // Deterministic gate: pinned seed (FC_SEED overrides for exploration).
@@ -19,15 +18,6 @@ describe('jobContextArbitraries', () => {
         expect(context.kind).toBe('envelope');
         expect(context.rawAssemblyInputs).toBeDefined();
         expect(context.rawAssemblyInputs?.rawMessageContent.length).toBeGreaterThan(0);
-      })
-    );
-  });
-
-  it('legacyContextArb never generates an envelope shape', () => {
-    fc.assert(
-      fc.property(legacyContextArb(), context => {
-        expect(context.kind === undefined || context.kind === 'legacy').toBe(true);
-        expect(context.rawAssemblyInputs).toBeUndefined();
       })
     );
   });

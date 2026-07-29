@@ -80,6 +80,7 @@ function createValidJobData(): LLMGenerationJobData {
     personality: TEST_PERSONALITY,
     message: 'Hello, how are you?',
     context: {
+      kind: 'envelope',
       userId: 'user-456',
       userName: 'TestUser',
       channelId: 'channel-789',
@@ -292,7 +293,12 @@ describe('GenerationStep', () => {
 
         await ownerStep.process({
           job: createMockJob({
-            context: { userId: 'owner-discord-id', userName: 'Owner', channelId: 'channel-789' },
+            context: {
+              kind: 'envelope',
+              userId: 'owner-discord-id',
+              userName: 'Owner',
+              channelId: 'channel-789',
+            },
           }),
           startTime: Date.now(),
           config: baseConfig,

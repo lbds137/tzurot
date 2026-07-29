@@ -11,7 +11,8 @@ import { createLogger } from '@tzurot/common-types/utils/logger';
 import { getDeduplicationCache } from '../../utils/deduplicationCache.js';
 import { createJobChain } from '../../utils/jobChainOrchestrator.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
-import { sendSuccess, sendCustomSuccess } from '../../utils/responseHelpers.js';
+import { sendSuccess, sendCustomSuccess, sendError } from '../../utils/responseHelpers.js';
+import { ErrorResponses } from '../../utils/errorResponses.js';
 import { sendZodError } from '../../utils/zodHelpers.js';
 
 const logger = createLogger('AIRouter');
@@ -56,6 +57,23 @@ export const handleAiGenerate = (deps: RouteDeps): RequestHandler =>
 
     const requestId = randomUUID();
 
+    // The job schemas require kind:'envelope' (the legacy tolerance is
+    // retired), while the HTTP schema keeps it optional for construction-site
+    // ergonomics. Narrow here so a producer that forgot the discriminant gets
+    // a clean 400 instead of an opaque enqueue failure.
+    const { kind } = request.context;
+    if (kind !== 'envelope') {
+      logger.warn({ requestId }, "Rejected generate request without context.kind 'envelope'");
+      return sendError(
+        res,
+        ErrorResponses.validationError(
+          "context.kind must be 'envelope' (legacy payloads are no longer supported)",
+          requestId
+        )
+      );
+    }
+    const jobContext = { ...request.context, kind };
+
     if (request.context.referencedMessages && request.context.referencedMessages.length > 0) {
       logger.info(
         { requestId, referencedMessagesCount: request.context.referencedMessages.length },
@@ -71,7 +89,7 @@ export const handleAiGenerate = (deps: RouteDeps): RequestHandler =>
         requestId,
         personality: request.personality,
         message: request.message,
-        context: request.context,
+        context: jobContext,
         responseDestination: { type: 'api' as const },
         userApiKey: request.userApiKey,
         llmConfigResolver: deps.llmConfigResolver,

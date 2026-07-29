@@ -150,6 +150,8 @@ function createValidJobData(overrides?: Partial<LLMGenerationJobData>): LLMGener
     personality: TEST_PERSONALITY,
     message: 'Hello, how are you?',
     context: {
+      kind: 'envelope',
+      rawAssemblyInputs: { rawMessageContent: 'hello' },
       userId: 'user-456',
       userName: 'TestUser',
       channelId: 'channel-789',
@@ -665,6 +667,8 @@ describe('LLMGenerationHandler', () => {
       it('should pass correct parameters to RAG service', async () => {
         const jobData = createValidJobData({
           context: {
+            kind: 'envelope',
+            rawAssemblyInputs: { rawMessageContent: 'hello' },
             userId: 'user-456',
             userName: 'TestUser',
             channelId: 'channel-789',

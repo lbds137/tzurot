@@ -11,6 +11,7 @@ import type { PreparedContext, PreprocessingResults } from '../types.js';
 
 function createMinimalJobContext(): LLMGenerationJobData['context'] {
   return {
+    kind: 'envelope',
     userId: 'user-123',
     userName: 'TestUser',
     channelId: 'channel-456',

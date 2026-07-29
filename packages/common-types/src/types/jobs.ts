@@ -55,18 +55,15 @@ export interface JobDependency {
  */
 export interface JobContext {
   /**
-   * Context-payload variant discriminant. `'envelope'` means the producer
-   * (bot-client) omitted the re-derivable legacy fields (referencedMessages,
-   * mentionedPersonas, referencedChannels) and the worker MUST assemble them
-   * from `rawAssemblyInputs`. `'legacy'` (the default for
-   * absent — i.e. in-flight jobs from an older bot) means the legacy fields are
-   * authoritative. See jobContextBaseSchema.
-   *
-   * Optional here but `.default('legacy')` on the schema — intentional:
-   * ValidationStep discards its parsed copy, so the default never materializes
-   * on raw `job.data`; consumers read `kind ?? 'legacy'`.
+   * Context-payload variant discriminant. `'envelope'` — the only variant —
+   * means the producer (bot-client) omits the re-derivable fields
+   * (referencedMessages, mentionedPersonas, referencedChannels) and the worker
+   * assembles them from `rawAssemblyInputs`. The retired `'legacy'` tolerance
+   * (fat fields inline, for jobs queued by a pre-cutover bot) is gone: queued
+   * jobs age out within days (removeOnComplete/removeOnFail caps), so nothing
+   * pre-cutover can still exist in Redis. See jobContextBaseSchema.
    */
-  kind?: 'legacy' | 'envelope';
+  kind: 'envelope';
   userId: string;
   userInternalId?: string;
   userName?: string;
@@ -361,15 +358,17 @@ const jobDependencySchema = z.object({
  */
 const jobContextBaseSchema = z.object({
   /**
-   * Context-payload variant. `.default('legacy')` makes an absent discriminant
-   * (in-flight jobs from an older bot) parse as legacy — which is why this is a
-   * plain enum field, NOT a z.discriminatedUnion (a union would reject the
-   * absent discriminant and fail every old-bot job the moment the new worker
-   * deploys). The envelope-requires-rawAssemblyInputs invariant is enforced by
-   * the LLM context schema's superRefine, not here, so the audio/image schemas
-   * can still `.pick()` from this base.
+   * Context-payload variant — `'envelope'` is the only shape. Required with no
+   * default: a payload missing the discriminant fails loud at BOTH the gateway
+   * enqueue and the worker's ValidationStep, instead of limping to ContextStep's
+   * runtime gate. (The old `.default('legacy')` tolerance existed for jobs
+   * queued by a pre-cutover bot; queue retention caps age those out within
+   * days, so the tolerance only delayed the rejection by one pipeline step.)
+   * The envelope-requires-rawAssemblyInputs invariant is enforced by the LLM
+   * context schema's superRefine, not here, so the audio/image schemas can
+   * still `.pick()` from this base.
    */
-  kind: z.enum(['legacy', 'envelope']).default('legacy'),
+  kind: z.literal('envelope'),
   userId: z.string(),
   userInternalId: z.string().optional(),
   userName: z.string().optional(),
@@ -400,16 +399,16 @@ const jobContextBaseSchema = z.object({
 });
 
 /**
- * LLM-generation context schema: the base plus the envelope invariant. A
- * `kind: 'envelope'` payload MUST carry `rawAssemblyInputs` (the worker has no
- * legacy fields to fall back to), enforced here so a malformed thin payload
- * fails loud at both the gateway enqueue and the worker's ValidationStep.
+ * LLM-generation context schema: the base plus the envelope invariant. The
+ * payload MUST carry `rawAssemblyInputs` (worker-side assembly is the only
+ * path), enforced here so a malformed thin payload fails loud at both the
+ * gateway enqueue and the worker's ValidationStep.
  *
  * superRefine (→ ZodEffects) is applied ONLY here, not on the base, so the
  * audio/image schemas can still `.pick()` from jobContextBaseSchema.
  */
 const llmGenerationContextSchema = jobContextBaseSchema.superRefine((data, ctx) => {
-  if (data.kind === 'envelope' && data.rawAssemblyInputs === undefined) {
+  if (data.rawAssemblyInputs === undefined) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       path: ['rawAssemblyInputs'],

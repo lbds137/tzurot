@@ -69,6 +69,8 @@ describe('jobChainOrchestrator (FlowProducer)', () => {
   describe('empty attachments edge case', () => {
     it('should create flow with LLM job only (no children) when attachments array is empty', async () => {
       const context: JobContext = {
+        kind: 'envelope',
+        rawAssemblyInputs: { rawMessageContent: 'hello' },
         userId: 'user-123',
         channelId: 'channel-123',
         attachments: [], // Empty array
@@ -104,6 +106,8 @@ describe('jobChainOrchestrator (FlowProducer)', () => {
 
     it('should create flow with LLM job only when attachments is undefined', async () => {
       const context: JobContext = {
+        kind: 'envelope',
+        rawAssemblyInputs: { rawMessageContent: 'hello' },
         userId: 'user-123',
         channelId: 'channel-123',
         // attachments not provided
@@ -129,6 +133,8 @@ describe('jobChainOrchestrator (FlowProducer)', () => {
   describe('with attachments', () => {
     it('should create flow with preprocessing children and LLM parent', async () => {
       const context: JobContext = {
+        kind: 'envelope',
+        rawAssemblyInputs: { rawMessageContent: 'hello' },
         userId: 'user-123',
         channelId: 'channel-123',
         attachments: [
@@ -175,6 +181,8 @@ describe('jobChainOrchestrator (FlowProducer)', () => {
 
     it('should handle multiple audio attachments', async () => {
       const context: JobContext = {
+        kind: 'envelope',
+        rawAssemblyInputs: { rawMessageContent: 'hello' },
         userId: 'user-123',
         channelId: 'channel-123',
         attachments: [
@@ -211,6 +219,8 @@ describe('jobChainOrchestrator (FlowProducer)', () => {
 
     it('should handle only image attachments (no audio)', async () => {
       const context: JobContext = {
+        kind: 'envelope',
+        rawAssemblyInputs: { rawMessageContent: 'hello' },
         userId: 'user-123',
         channelId: 'channel-123',
         attachments: [
@@ -243,6 +253,8 @@ describe('jobChainOrchestrator (FlowProducer)', () => {
   describe('FlowProducer guarantees', () => {
     it('should create flow that ensures children complete before parent', async () => {
       const context: JobContext = {
+        kind: 'envelope',
+        rawAssemblyInputs: { rawMessageContent: 'hello' },
         userId: 'user-123',
         channelId: 'channel-123',
         attachments: [
@@ -291,6 +303,8 @@ describe('jobChainOrchestrator (FlowProducer)', () => {
             personality: inmockPersonality as any,
             message: 'Test message',
             context: {
+              kind: 'envelope' as const,
+              rawAssemblyInputs: { rawMessageContent: 'hello' },
               userId: 'user-123',
               userName: 'User',
               channelId: 'channel-123',
@@ -315,6 +329,8 @@ describe('jobChainOrchestrator (FlowProducer)', () => {
             personality: inmockPersonality as any,
             message: 'Test message',
             context: {
+              kind: 'envelope' as const,
+              rawAssemblyInputs: { rawMessageContent: 'hello' },
               userId: 'user-123',
               channelId: 'channel-123',
             },
@@ -338,6 +354,8 @@ describe('jobChainOrchestrator (FlowProducer)', () => {
             personality: inmockPersonality as any,
             message: 'Test message',
             context: {
+              kind: 'envelope' as const,
+              rawAssemblyInputs: { rawMessageContent: 'hello' },
               userId: 'user-123',
               channelId: 'channel-123',
             },
@@ -361,6 +379,8 @@ describe('jobChainOrchestrator (FlowProducer)', () => {
             personality: inmockPersonality as any,
             message: 'Test message',
             context: {
+              kind: 'envelope' as const,
+              rawAssemblyInputs: { rawMessageContent: 'hello' },
               userId: 'user-123',
               channelId: 'channel-123',
             },
@@ -378,6 +398,8 @@ describe('jobChainOrchestrator (FlowProducer)', () => {
           personality: mockPersonality,
           message: 'Test message',
           context: {
+            kind: 'envelope' as const,
+            rawAssemblyInputs: { rawMessageContent: 'hello' },
             userId: 'user-123',
             userName: 'User',
             channelId: 'channel-123',
@@ -400,6 +422,8 @@ describe('jobChainOrchestrator (FlowProducer)', () => {
           personality: mockPersonality,
           message: 'Test',
           context: {
+            kind: 'envelope' as const,
+            rawAssemblyInputs: { rawMessageContent: 'hello' },
             userId: 'user-123',
             channelId: 'channel-123',
             attachments: [], // Empty - no image job should be created
@@ -421,6 +445,8 @@ describe('jobChainOrchestrator (FlowProducer)', () => {
           personality: mockPersonality,
           message: 'Test',
           context: {
+            kind: 'envelope' as const,
+            rawAssemblyInputs: { rawMessageContent: 'hello' },
             userId: 'user-123',
             channelId: 'channel-123',
             attachments: [
@@ -457,6 +483,8 @@ describe('jobChainOrchestrator (FlowProducer)', () => {
           personality: mockPersonality,
           message: 'Test',
           context: {
+            kind: 'envelope' as const,
+            rawAssemblyInputs: { rawMessageContent: 'hello' },
             userId: 'user-123',
             channelId: 'channel-123',
             attachments: [], // Empty - no audio job should be created
@@ -478,6 +506,8 @@ describe('jobChainOrchestrator (FlowProducer)', () => {
           personality: mockPersonality,
           message: 'Test',
           context: {
+            kind: 'envelope' as const,
+            rawAssemblyInputs: { rawMessageContent: 'hello' },
             userId: 'user-123',
             channelId: 'channel-123',
             attachments: [
@@ -532,6 +562,8 @@ describe('jobChainOrchestrator (FlowProducer)', () => {
 
     it('should create image preprocessing job for referenced message images', async () => {
       const context: JobContext = {
+        kind: 'envelope',
+        rawAssemblyInputs: { rawMessageContent: 'hello' },
         userId: 'user-123',
         channelId: 'channel-123',
         referencedMessages: [
@@ -662,6 +694,8 @@ describe('jobChainOrchestrator (FlowProducer)', () => {
 
     it('should create audio preprocessing job for referenced message voice messages', async () => {
       const context: JobContext = {
+        kind: 'envelope',
+        rawAssemblyInputs: { rawMessageContent: 'hello' },
         userId: 'user-123',
         channelId: 'channel-123',
         referencedMessages: [
@@ -701,6 +735,8 @@ describe('jobChainOrchestrator (FlowProducer)', () => {
 
     it('should create multiple preprocessing jobs for referenced message with mixed attachments', async () => {
       const context: JobContext = {
+        kind: 'envelope',
+        rawAssemblyInputs: { rawMessageContent: 'hello' },
         userId: 'user-123',
         channelId: 'channel-123',
         referencedMessages: [
@@ -751,6 +787,8 @@ describe('jobChainOrchestrator (FlowProducer)', () => {
 
     it('should handle multiple referenced messages with attachments', async () => {
       const context: JobContext = {
+        kind: 'envelope',
+        rawAssemblyInputs: { rawMessageContent: 'hello' },
         userId: 'user-123',
         channelId: 'channel-123',
         referencedMessages: [
@@ -803,6 +841,8 @@ describe('jobChainOrchestrator (FlowProducer)', () => {
 
     it('should not create child jobs for referenced messages without attachments', async () => {
       const context: JobContext = {
+        kind: 'envelope',
+        rawAssemblyInputs: { rawMessageContent: 'hello' },
         userId: 'user-123',
         channelId: 'channel-123',
         referencedMessages: [
@@ -835,6 +875,8 @@ describe('jobChainOrchestrator (FlowProducer)', () => {
 
     it('should combine direct attachments with referenced message attachments', async () => {
       const context: JobContext = {
+        kind: 'envelope',
+        rawAssemblyInputs: { rawMessageContent: 'hello' },
         userId: 'user-123',
         channelId: 'channel-123',
         // Direct attachments from user's message
@@ -895,6 +937,8 @@ describe('jobChainOrchestrator (FlowProducer)', () => {
 
   describe('config resolution stamping', () => {
     const imageAttachmentContext = (): JobContext => ({
+      kind: 'envelope',
+      rawAssemblyInputs: { rawMessageContent: 'hello' },
       userId: 'user-123',
       channelId: 'channel-123',
       attachments: [
@@ -1183,6 +1227,8 @@ describe('jobChainOrchestrator (FlowProducer)', () => {
 
     it('stamps the resolved text + vision models onto referenced-message image jobs', async () => {
       const context: JobContext = {
+        kind: 'envelope',
+        rawAssemblyInputs: { rawMessageContent: 'hello' },
         userId: 'user-123',
         channelId: 'channel-123',
         referencedMessages: [

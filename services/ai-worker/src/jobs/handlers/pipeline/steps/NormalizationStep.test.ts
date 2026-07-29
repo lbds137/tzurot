@@ -54,6 +54,7 @@ function createValidJobData(): LLMGenerationJobData {
     personality: TEST_PERSONALITY,
     message: 'Hello, how are you?',
     context: {
+      kind: 'envelope',
       userId: 'user-456',
       userName: 'TestUser',
       channelId: 'channel-789',
@@ -112,6 +113,7 @@ describe('NormalizationStep', () => {
       const date = new Date('2024-01-15T10:30:00.000Z');
       const job = createMockJob({
         context: {
+          kind: 'envelope',
           userId: 'user-456',
           referencedMessages: [refMessage({ timestamp: date as unknown as string })],
         },
@@ -128,6 +130,7 @@ describe('NormalizationStep', () => {
       const isoString = '2024-01-15T10:30:00.000Z';
       const job = createMockJob({
         context: {
+          kind: 'envelope',
           userId: 'user-456',
           referencedMessages: [refMessage({ timestamp: isoString })],
         },
@@ -144,7 +147,7 @@ describe('NormalizationStep', () => {
   describe('empty data handling', () => {
     it('handles an empty referencedMessages array', () => {
       const job = createMockJob({
-        context: { userId: 'user-456', referencedMessages: [] },
+        context: { kind: 'envelope', userId: 'user-456', referencedMessages: [] },
       });
       const context: GenerationContext = { job, startTime: Date.now() };
 
@@ -153,7 +156,7 @@ describe('NormalizationStep', () => {
 
     it('handles undefined referencedMessages', () => {
       const job = createMockJob({
-        context: { userId: 'user-456', referencedMessages: undefined },
+        context: { kind: 'envelope', userId: 'user-456', referencedMessages: undefined },
       });
       const context: GenerationContext = { job, startTime: Date.now() };
 

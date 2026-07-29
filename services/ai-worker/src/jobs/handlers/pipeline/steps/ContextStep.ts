@@ -262,12 +262,11 @@ export class ContextStep implements IPipelineStep {
   }
 
   /**
-   * Every job is a `kind: 'envelope'` thin payload — the producer dropped the
-   * legacy fields, so worker-side assembly is the only path. A non-envelope job
-   * is a contract violation (a producer predating the cutover); fail loud
-   * rather than silently mis-assemble. `kind` is read with `?? 'legacy'`
-   * because ValidationStep discards its parsed copy, so the schema default
-   * never materializes on the raw job.data.
+   * Every job is a `kind: 'envelope'` thin payload — worker-side assembly is
+   * the only path. The schema now requires the discriminant, but this guard
+   * reads RAW job.data (tests and direct dispatch can bypass ValidationStep),
+   * so a missing or non-envelope kind still fails loud here rather than
+   * silently mis-assembling.
    *
    * Returns the (now narrowed, non-undefined) assembler so the caller threads it
    * into {@link sourceHistory} explicitly — making the "assembler is wired" proof
@@ -276,7 +275,9 @@ export class ContextStep implements IPipelineStep {
   private assertEnvelopeJob(
     jobContext: GenerationContext['job']['data']['context']
   ): ContextAssembler {
-    if ((jobContext.kind ?? 'legacy') !== 'envelope') {
+    // The cast deliberately defeats the narrowed literal type: the TYPE says
+    // kind can only be 'envelope', but this reads unvalidated raw job.data.
+    if ((jobContext.kind as string | undefined) !== 'envelope') {
       throw new Error(
         "[ContextStep] every job must carry context.kind 'envelope'; legacy job " +
           'shapes are no longer supported (producer must ship the raw envelope)'
@@ -323,7 +324,7 @@ export class ContextStep implements IPipelineStep {
     logger.info(
       {
         jobId: job.id,
-        kind: jobContext.kind ?? 'legacy',
+        kind: jobContext.kind,
         historyLength: assembled.history.length,
         referencedCount: assembled.referencedMessages?.length ?? 0,
         mentionedCount: assembled.mentionedPersonas?.length ?? 0,
