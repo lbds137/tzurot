@@ -12,9 +12,6 @@ import {
   ChannelType,
 } from 'discord.js';
 import { type DiscordEnvironment } from '@tzurot/common-types/types/schemas/discord';
-import { createLogger } from '@tzurot/common-types/utils/logger';
-
-const logger = createLogger('DiscordContext');
 
 /**
  * Extract topic from a channel if available
@@ -90,14 +87,8 @@ function handleRegularChannel(channel: GuildBasedChannel, context: DiscordEnviro
 export function extractDiscordEnvironment(message: Message): DiscordEnvironment {
   const channel = message.channel;
 
-  logger.debug(
-    { channelType: channel.type, hasGuild: message.guild !== null, channelId: channel.id },
-    'Extracting Discord environment'
-  );
-
   // DM Channel
   if (channel.type === ChannelType.DM) {
-    logger.info('Detected as DM');
     return {
       type: 'dm',
       channel: { id: channel.id, name: 'Direct Message', type: 'dm' },
@@ -106,7 +97,6 @@ export function extractDiscordEnvironment(message: Message): DiscordEnvironment 
 
   // Guild-based channels require a guild
   if (message.guild === null) {
-    logger.warn({ channelType: channel.type, channelId: channel.id }, 'No guild found (fallback)');
     return {
       type: 'dm',
       channel: { id: channel.id, name: 'Unknown', type: 'unknown' },
@@ -114,10 +104,6 @@ export function extractDiscordEnvironment(message: Message): DiscordEnvironment 
   }
 
   const guildChannel = channel as GuildBasedChannel;
-  logger.info(
-    { guildName: message.guild.name, channelName: getChannelName(guildChannel) },
-    'Guild channel'
-  );
 
   const context: DiscordEnvironment = {
     type: 'guild',
