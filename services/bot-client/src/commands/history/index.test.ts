@@ -30,7 +30,7 @@ const mockHandleClear = vi.fn();
 const mockHandleUndo = vi.fn();
 const mockHandleStats = vi.fn();
 const mockHandlePurgeHistory = vi.fn();
-const mockParsePurgeEntityId = vi.fn();
+const mockParsePurgeSlugFromFooter = vi.fn();
 vi.mock('./clear.js', () => ({
   handleClear: (...args: unknown[]) => mockHandleClear(...args),
 }));
@@ -42,7 +42,7 @@ vi.mock('./stats.js', () => ({
 }));
 vi.mock('./purge.js', () => ({
   handlePurgeHistory: (...args: unknown[]) => mockHandlePurgeHistory(...args),
-  parsePurgeEntityId: (...args: unknown[]) => mockParsePurgeEntityId(...args),
+  parsePurgeSlugFromFooter: (...args: unknown[]) => mockParsePurgeSlugFromFooter(...args),
 }));
 
 // Mock autocomplete handlers
@@ -199,38 +199,46 @@ describe('execute', () => {
   });
 });
 
+/** Parent warning message carrying the slug footer (the customId-overflow escape hatch). */
+function purgeParentMessage(footerText: string | undefined = 'slug:lilith'): {
+  embeds: Array<{ footer: { text: string } | null }>;
+} {
+  return { embeds: [{ footer: footerText === undefined ? null : { text: footerText } }] };
+}
+
 describe('handleModal', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
   it('should handle modal submit for history purge', async () => {
-    mockParsePurgeEntityId.mockReturnValue({
-      personalitySlug: 'lilith',
-      channelId: 'channel-123',
-    });
+    mockParsePurgeSlugFromFooter.mockReturnValue('lilith');
     clientsForMock.mockReturnValue({
       userClient: { hardDeleteHistory: vi.fn() },
     });
 
     const mockInteraction = {
-      customId: 'history::destructive::modal_submit::history-purge::lilith_channel-123',
+      customId: 'history::destructive::modal_submit::history-purge::channel-123',
       user: { id: '123456789' },
+      message: purgeParentMessage(),
       reply: vi.fn(),
     };
 
     await handleModal(mockInteraction as never);
 
+    // The slug is read from the parent message's footer, not the customId.
+    expect(mockParsePurgeSlugFromFooter).toHaveBeenCalledWith('slug:lilith');
     expect(mockHandleDestructiveModalSubmit).toHaveBeenCalled();
   });
 
-  it('should reply with error for invalid entityId in modal', async () => {
-    mockParsePurgeEntityId.mockReturnValue(null);
+  it('should reply with error when the slug footer is missing in modal', async () => {
+    mockParsePurgeSlugFromFooter.mockReturnValue(null);
 
     const mockReply = vi.fn();
     const mockInteraction = {
-      customId: 'history::destructive::modal_submit::history-purge::invalid',
+      customId: 'history::destructive::modal_submit::history-purge::channel-123',
       user: { id: '123456789' },
+      message: { embeds: [] },
       reply: mockReply,
     };
 
@@ -250,17 +258,15 @@ describe('handleModal', () => {
     async function setupAndExtractCallback(
       hardDeleteHistoryStub: ReturnType<typeof vi.fn>
     ): Promise<() => Promise<unknown>> {
-      mockParsePurgeEntityId.mockReturnValue({
-        personalitySlug: 'lilith',
-        channelId: 'channel-123',
-      });
+      mockParsePurgeSlugFromFooter.mockReturnValue('lilith');
       clientsForMock.mockReturnValue({
         userClient: { hardDeleteHistory: hardDeleteHistoryStub },
       });
 
       await handleModal({
-        customId: 'history::destructive::modal_submit::history-purge::lilith_channel-123',
+        customId: 'history::destructive::modal_submit::history-purge::channel-123',
         user: { id: '123456789' },
+        message: purgeParentMessage(),
         reply: vi.fn(),
       } as never);
 
@@ -378,18 +384,17 @@ describe('handleButton', () => {
   });
 
   it('should handle confirm button and show modal', async () => {
-    mockParsePurgeEntityId.mockReturnValue({
-      personalitySlug: 'lilith',
-      channelId: 'channel-123',
-    });
+    mockParsePurgeSlugFromFooter.mockReturnValue('lilith');
 
     const mockInteraction = {
-      customId: 'history::destructive::confirm_button::history-purge::lilith_channel-123',
+      customId: 'history::destructive::confirm_button::history-purge::channel-123',
+      message: purgeParentMessage(),
     };
 
     await handleButton(mockInteraction as never);
 
-    // Display-only: routing derives from the button's customId in the factory.
+    // The slug rides the footer; display derives from it.
+    expect(mockParsePurgeSlugFromFooter).toHaveBeenCalledWith('slug:lilith');
     expect(mockHardDeleteModalDisplay).toHaveBeenCalledWith('lilith');
     expect(mockHandleDestructiveConfirmButton).toHaveBeenCalledWith(
       mockInteraction,
@@ -397,12 +402,13 @@ describe('handleButton', () => {
     );
   });
 
-  it('should update with error for invalid entityId on confirm', async () => {
-    mockParsePurgeEntityId.mockReturnValue(null);
+  it('should update with error when the slug footer is missing on confirm', async () => {
+    mockParsePurgeSlugFromFooter.mockReturnValue(null);
 
     const mockUpdate = vi.fn();
     const mockInteraction = {
-      customId: 'history::destructive::confirm_button::history-purge::invalid',
+      customId: 'history::destructive::confirm_button::history-purge::channel-123',
+      message: { embeds: [] },
       update: mockUpdate,
     };
 

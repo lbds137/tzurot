@@ -62,9 +62,13 @@ export async function handlePurgeHistory(context: DeferredCommandContext): Promi
       // from before a deploy simply stops routing, never mis-executes.
       source: 'history',
       operation: 'history-purge',
-      // Include channelId in entityId so button handler knows which channel
-      // Use | delimiter since :: is used by customId parsing
-      entityId: `${personalitySlug}|${channelId}`,
+      // Only the channelId (a ≤20-char snowflake) rides the customId — the
+      // slug can reach SLUG_MAX_LENGTH (50), which blows Discord's 100-char
+      // customId budget and made setCustomId THROW for long-slugged
+      // characters. The slug rides the embed footer instead (the shapes
+      // pattern) and is read back from the parent message in the handlers.
+      entityId: channelId,
+      footerText: `slug:${personalitySlug}`,
     });
 
     // Build and send the warning
@@ -87,19 +91,16 @@ export async function handlePurgeHistory(context: DeferredCommandContext): Promi
 }
 
 /**
- * Parse the entityId back to personalitySlug and channelId
- * Uses | as delimiter to avoid conflict with :: in customId parsing
+ * Read the personality slug back out of the warning embed's footer
+ * (`slug:{slug}`), where handlePurgeHistory stashed it — the slug is too long
+ * for the customId budget. Null on a missing or malformed footer: the flow
+ * FAILS CLOSED, consistent with the minutes-lived customId contract.
  */
-export function parsePurgeEntityId(entityId: string): {
-  personalitySlug: string;
-  channelId: string;
-} | null {
-  const parts = entityId.split('|');
-  if (parts.length !== 2) {
+export function parsePurgeSlugFromFooter(footerText: string | undefined): string | null {
+  const prefix = 'slug:';
+  if (footerText?.startsWith(prefix) !== true) {
     return null;
   }
-  return {
-    personalitySlug: parts[0],
-    channelId: parts[1],
-  };
+  const slug = footerText.slice(prefix.length);
+  return slug.length > 0 ? slug : null;
 }

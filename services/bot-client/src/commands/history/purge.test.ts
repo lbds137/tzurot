@@ -7,7 +7,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
-import { handlePurgeHistory, parsePurgeEntityId } from './purge.js';
+import { handlePurgeHistory, parsePurgeSlugFromFooter } from './purge.js';
 
 // Mock common-types
 vi.mock('@tzurot/common-types/utils/logger', async () => {
@@ -30,7 +30,8 @@ const mockBuildDestructiveWarning = vi.fn();
 const mockCreateHardDeleteConfig = vi.fn(() => ({
   source: 'history',
   operation: 'history-purge',
-  entityId: 'lilith|channel-123',
+  entityId: 'channel-123',
+  footerText: 'slug:lilith',
 }));
 vi.mock('../../utils/confirmation/confirmDestructive.js', () => ({
   buildDestructiveWarning: (...args: unknown[]) =>
@@ -99,7 +100,8 @@ describe('handlePurgeHistory', () => {
       additionalWarning: expect.stringContaining('PERMANENT'),
       source: 'history',
       operation: 'history-purge',
-      entityId: 'lilith|channel-123',
+      entityId: 'channel-123',
+      footerText: 'slug:lilith',
     });
     // The warning must state the TRUE scope (persona-scoped) — the old copy
     // claimed "All messages in this channel" while deleting only the caller's.
@@ -117,13 +119,19 @@ describe('handlePurgeHistory', () => {
     });
   });
 
-  it('should include channelId in entityId', async () => {
-    const context = createMockContext('test-personality', 'channel-456');
+  it('carries ONLY the channelId in entityId; the slug rides the footer', async () => {
+    // The slug can reach SLUG_MAX_LENGTH (50) — in the customId it blew
+    // Discord's 100-char budget and made setCustomId throw. Keeping the
+    // customId payload to the snowflake makes the overflow structurally
+    // impossible; the slug travels via the embed footer instead.
+    const longSlug = 'a'.repeat(50);
+    const context = createMockContext(longSlug, 'channel-456');
     await handlePurgeHistory(context);
 
     expect(mockCreateHardDeleteConfig).toHaveBeenCalledWith(
       expect.objectContaining({
-        entityId: 'test-personality|channel-456',
+        entityId: 'channel-456',
+        footerText: `slug:${longSlug}`,
       })
     );
   });
@@ -152,55 +160,30 @@ describe('handlePurgeHistory', () => {
   });
 });
 
-describe('parsePurgeEntityId', () => {
-  it('should parse valid entityId', () => {
-    const result = parsePurgeEntityId('lilith|channel-123');
-
-    expect(result).toEqual({
-      personalitySlug: 'lilith',
-      channelId: 'channel-123',
-    });
+describe('parsePurgeSlugFromFooter', () => {
+  it('parses the slug out of a well-formed footer', () => {
+    expect(parsePurgeSlugFromFooter('slug:lilith')).toBe('lilith');
   });
 
-  it('should handle entityId with complex personality slug', () => {
-    const result = parsePurgeEntityId('my-custom-personality|123456789012345678');
-
-    expect(result).toEqual({
-      personalitySlug: 'my-custom-personality',
-      channelId: '123456789012345678',
-    });
+  it('handles complex slugs, including ones containing colons after the prefix', () => {
+    expect(parsePurgeSlugFromFooter('slug:my-custom-personality')).toBe('my-custom-personality');
+    expect(parsePurgeSlugFromFooter('slug:a:b')).toBe('a:b');
   });
 
-  it('should return null for invalid entityId (no separator)', () => {
-    const result = parsePurgeEntityId('lilith-channel-123');
-
-    expect(result).toBeNull();
+  it('round-trips a maximum-length slug intact', () => {
+    const longSlug = 'a'.repeat(50);
+    expect(parsePurgeSlugFromFooter(`slug:${longSlug}`)).toBe(longSlug);
   });
 
-  it('should return null for invalid entityId (too many separators)', () => {
-    const result = parsePurgeEntityId('lilith|channel|123');
-
-    expect(result).toBeNull();
+  it('returns null for a missing footer (fail closed)', () => {
+    expect(parsePurgeSlugFromFooter(undefined)).toBeNull();
   });
 
-  it('should return null for empty entityId', () => {
-    const result = parsePurgeEntityId('');
-
-    expect(result).toBeNull();
+  it('returns null for a footer without the slug prefix', () => {
+    expect(parsePurgeSlugFromFooter('lilith')).toBeNull();
   });
 
-  it('should return null for entityId with only separator', () => {
-    const result = parsePurgeEntityId('|');
-
-    expect(result).toEqual({
-      personalitySlug: '',
-      channelId: '',
-    });
-  });
-
-  it('should handle single-part entityId', () => {
-    const result = parsePurgeEntityId('lilith');
-
-    expect(result).toBeNull();
+  it('returns null for an empty slug after the prefix', () => {
+    expect(parsePurgeSlugFromFooter('slug:')).toBeNull();
   });
 });

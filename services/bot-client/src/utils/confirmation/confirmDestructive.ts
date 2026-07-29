@@ -437,6 +437,13 @@ interface HardDeleteConfigOptions {
   /** Entity identifier. */
   entityId?: string;
   /**
+   * Optional embed footer — the customId-overflow escape hatch. State too
+   * long for the 100-char customId budget (e.g. a personality slug, which
+   * can reach SLUG_MAX_LENGTH) rides here and is read back from
+   * `interaction.message` in the button/modal handlers.
+   */
+  footerText?: string;
+  /**
    * Override the confirmation phrase. Wire-contract phrases (gateway-validated
    * handshakes) MUST pass their exact server-side phrase here. When omitted,
    * the phrase is the dynamic `DELETE {ENTITY NAME}` form (spec §3.5), falling
@@ -476,12 +483,14 @@ export function hardDeleteModalDisplay(
 export function createHardDeleteConfig(
   options: HardDeleteConfigOptions
 ): DestructiveConfirmationConfig {
-  const { entityType, entityName, additionalWarning, source, operation, entityId } = options;
+  const { entityType, entityName, additionalWarning, source, operation, entityId, footerText } =
+    options;
   const display = hardDeleteModalDisplay(entityName, options.confirmationPhrase);
   return {
     source,
     operation,
     entityId,
+    footerText,
     warningTitle: `Delete ${entityType}`,
     warningDescription:
       `Are you sure you want to **permanently delete** ${entityType} for **${entityName}**?\n\n` +
