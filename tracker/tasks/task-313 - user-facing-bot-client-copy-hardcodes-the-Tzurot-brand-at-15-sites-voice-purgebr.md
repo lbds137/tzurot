@@ -1,10 +1,10 @@
 ---
 id: TASK-313
 title: Hardcoded Tzurot brand in ~15 bot-client copy sites
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-07-22 00:00'
-updated_date: '2026-07-28 10:52'
+updated_date: '2026-07-29 00:59'
 labels:
   - 'area:bot-client'
   - 'size:S'

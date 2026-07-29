@@ -11,6 +11,7 @@
 - **#1842 dead memory route factories retired** (TASK-316 closed) — `createMemoryRoutes`/`createFreshRoutes`/`createIncognitoRoutes` had zero prod consumers (mounts.ts is the sole path); 52 test sites migrated to direct handler construction; −325 lines. Follow-up batch: TASK-346 (audit the ~17 other factory-consuming suites).
 - **#1843 shared `avatarUrlPath`** (TASK-299 closed) — common-types helper owns both avatar-URL shapes; both producers compose it; producer↔parser round-trip contract test added. Filed: TASK-347 (no-trailing-slash env validation for gateway base URLs).
 - **#1844 orphan-sentinel browse creator** (TASK-320 closed) — `fetchUsernames` short-circuits the sentinel's reserved discordId to "Orphaned Characters" (was "Unknown" via the doomed `users.fetch`); sole creator-name resolver, sweep-verified; sentinel's own retention exposure already covered by bootstrap `retention_exempt`.
+- **#1845 brand-neutral bot-client copy** (TASK-313 closed) — 11 user-facing "Tzurot" sites → "cloned voices"/"the bot" (static descriptions can't env-brand without forking the manifest); webhook base name now runtime-branded from `client.user.username`. Untouched by design: `tzurot-` voice prefix (IDOR guard), operator log, comments. Filed: TASK-348 (gateway 503 JSON brand string, review catch).
 
 ## 🔬 Smoke checklist — v3.0.0-beta.183 (post-deploy)
 
