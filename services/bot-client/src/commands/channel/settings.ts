@@ -165,9 +165,8 @@ function createUpdateHandler(channelId: string): SettingUpdateHandler {
  * the resolved cascade so the overview re-renders with inherited values.
  */
 function createResetHandler(channelId: string) {
-  return async (
-    interaction: ButtonInteraction | ModalSubmitInteraction
-  ): Promise<SettingUpdateResult> => {
+  // ButtonInteraction only — reset has no modal path (SettingsResetHandler).
+  return async (interaction: ButtonInteraction): Promise<SettingUpdateResult> => {
     const userId = interaction.user.id;
     logger.debug({ channelId, userId }, 'Resetting channel overrides');
 
