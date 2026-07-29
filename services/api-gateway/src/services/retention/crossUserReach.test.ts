@@ -1,20 +1,58 @@
 import { describe, it, expect, vi } from 'vitest';
 import type { Prisma } from '@tzurot/common-types/services/prisma';
-import { findCrossUserReachIds } from './crossUserReach.js';
+import { countCrossUserReach, findCrossUserReachIds } from './crossUserReach.js';
 
 /** Join the template-strings array (call[0]) to assert on the SQL skeleton. */
 function joinSql(call: unknown[]): string {
   return (call[0] as TemplateStringsArray).join(' ');
 }
 
-function makeDb(rows: { personalityId: string }[]) {
+function makeDb(rows: { personalityId: string; otherUsers: number }[]) {
   const queryRaw = vi.fn().mockResolvedValue(rows);
   return { db: { $queryRaw: queryRaw } as unknown as Prisma.TransactionClient, queryRaw };
 }
 
+describe('countCrossUserReach', () => {
+  it('maps each reached id to its distinct other-user count', async () => {
+    const { db } = makeDb([
+      { personalityId: 'x1', otherUsers: 2 },
+      { personalityId: 'x2', otherUsers: 1 },
+    ]);
+
+    const counts = await countCrossUserReach(db, 'user-1', ['x1', 'x2', 'z1']);
+
+    expect(counts.get('x1')).toBe(2);
+    expect(counts.get('x2')).toBe(1);
+    expect(counts.has('z1')).toBe(false);
+  });
+
+  it('short-circuits without querying when the user owns nothing', async () => {
+    const { db, queryRaw } = makeDb([]);
+
+    expect((await countCrossUserReach(db, 'user-1', [])).size).toBe(0);
+    expect(queryRaw).not.toHaveBeenCalled();
+  });
+
+  it('counts DISTINCT users across the unioned arms', async () => {
+    const { db, queryRaw } = makeDb([]);
+
+    await countCrossUserReach(db, 'user-1', ['x1']);
+
+    const sql = joinSql(queryRaw.mock.calls[0]);
+    // One user reachable via several arms (memory AND history AND a grant)
+    // must count once — the union yields (personality, user) pairs and the
+    // count collapses them.
+    expect(sql).toContain('COUNT(DISTINCT reach.other_user_id)');
+    expect(sql).toContain('GROUP BY reach.personality_id');
+  });
+});
+
 describe('findCrossUserReachIds', () => {
-  it('returns the ids other users have data on', async () => {
-    const { db } = makeDb([{ personalityId: 'x1' }, { personalityId: 'x2' }]);
+  it('returns the ids other users have data on (the keyset of the count)', async () => {
+    const { db } = makeDb([
+      { personalityId: 'x1', otherUsers: 1 },
+      { personalityId: 'x2', otherUsers: 3 },
+    ]);
 
     expect(await findCrossUserReachIds(db, 'user-1', ['x1', 'x2', 'z1'])).toEqual(['x1', 'x2']);
   });

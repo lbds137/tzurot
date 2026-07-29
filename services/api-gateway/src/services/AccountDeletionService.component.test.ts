@@ -27,6 +27,7 @@ const USER_B = 'de1e0000-0000-4000-8000-0000000000b1';
 const PERSONA_B = 'de1e0000-0000-4000-8000-0000000000b2';
 const PERSONALITY_X = 'de1e0000-0000-4000-8000-0000000000c1'; // owned by A, co-owned by B
 const PERSONALITY_Y = 'de1e0000-0000-4000-8000-0000000000c2'; // owned by B
+const PERSONALITY_Z = 'de1e0000-0000-4000-8000-0000000000c3'; // owned by A, history-only reach
 const DISCORD_A = '900000000000000071';
 const DISCORD_B = '900000000000000072';
 
@@ -72,11 +73,14 @@ describe('AccountDeletionService (component, PGLite)', () => {
       personaContent: 'Persona B content',
     });
 
-    // X owned by A (co-owned by B); Y owned by B.
+    // X owned by A (co-owned by B); Y owned by B; Z owned by A, reached by B
+    // ONLY through conversation history — the case the memories-only reach
+    // count silently missed.
     await prisma.$executeRaw`
       INSERT INTO personalities (id, name, slug, character_info, personality_traits, owner_id, updated_at)
       VALUES (${PERSONALITY_X}::uuid, 'XBot', 'xbot', 'X character', 'Curious', ${USER_A}::uuid, NOW()),
-             (${PERSONALITY_Y}::uuid, 'YBot', 'ybot', 'Y character', 'Reserved', ${USER_B}::uuid, NOW())
+             (${PERSONALITY_Y}::uuid, 'YBot', 'ybot', 'Y character', 'Reserved', ${USER_B}::uuid, NOW()),
+             (${PERSONALITY_Z}::uuid, 'ZBot', 'zbot', 'Z character', 'Quiet', ${USER_A}::uuid, NOW())
     `;
     await prisma.personalityOwner.createMany({
       data: [
@@ -115,6 +119,17 @@ describe('AccountDeletionService (component, PGLite)', () => {
           channelId: 'chan-3',
           role: 'user',
           content: 'b-with-x',
+        },
+        // B's ONLY trace on Z — no memory, no fact, no grant. Pins that the
+        // preview's reach count sees history (pre-union it reported 0 here
+        // while the retention purge would have re-homed Z as shared).
+        {
+          id: nextId(),
+          personaId: PERSONA_B,
+          personalityId: PERSONALITY_Z,
+          channelId: 'chan-4',
+          role: 'user',
+          content: 'b-with-z',
         },
       ],
     });
@@ -357,15 +372,19 @@ describe('AccountDeletionService (component, PGLite)', () => {
 
     expect(preview.confirmationPhrase).toBe('DELETE MY ACCOUNT');
     expect(preview.counts.personas).toBe(2);
-    expect(preview.counts.characters).toBe(1);
-    // A×X + A×Y (persona arm) + B×X (owned-character arm)
-    expect(preview.counts.conversationMessages).toBe(3);
+    expect(preview.counts.characters).toBe(2);
+    // A×X + A×Y (persona arm) + B×X + B×Z (owned-character arm)
+    expect(preview.counts.conversationMessages).toBe(4);
     // PA locked + PA soft-deleted + PB×X (owned-character arm)
     expect(preview.counts.memories).toBe(3);
     expect(preview.hasActiveExport).toBe(true);
-    // B's persona holds memories with X → reach of exactly one other user.
     expect(preview.ownedCharacters).toEqual([
-      expect.objectContaining({ name: 'XBot', otherUsersWithMemories: 1 }),
+      // B reaches X three ways (memory, history, co-ownership grant) and must
+      // still count as ONE distinct user.
+      expect.objectContaining({ name: 'XBot', otherUsersWithData: 1 }),
+      // B's only trace on Z is conversation history — the memories-only count
+      // reported 0 here, disagreeing with the retention purge's re-home call.
+      expect.objectContaining({ name: 'ZBot', otherUsersWithData: 1 }),
     ]);
   });
 
@@ -374,10 +393,11 @@ describe('AccountDeletionService (component, PGLite)', () => {
 
     // --- Summary numbers match the seed ---
     expect(summary.personas).toBe(2);
-    expect(summary.characters).toBe(1);
-    expect(summary.characterNames).toEqual(['XBot']);
-    expect(summary.characterSlugs).toEqual(['xbot']);
-    expect(summary.conversationMessages).toBe(3);
+    expect(summary.characters).toBe(2);
+    // deleteAccount's owned-character fetch has no orderBy — sort to compare.
+    expect([...summary.characterNames].sort()).toEqual(['XBot', 'ZBot']);
+    expect([...summary.characterSlugs].sort()).toEqual(['xbot', 'zbot']);
+    expect(summary.conversationMessages).toBe(4);
     expect(summary.memories).toBe(3);
     // Persona/character-scoped facts: 2 PA + 0 others in scope
     expect(summary.facts).toBe(2);
@@ -391,6 +411,7 @@ describe('AccountDeletionService (component, PGLite)', () => {
     expect(await prisma.user.findUnique({ where: { id: USER_A } })).toBeNull();
     expect(await prisma.persona.count({ where: { ownerId: USER_A } })).toBe(0);
     expect(await prisma.personality.findUnique({ where: { id: PERSONALITY_X } })).toBeNull();
+    expect(await prisma.personality.findUnique({ where: { id: PERSONALITY_Z } })).toBeNull();
     expect(await prisma.personalityAlias.count({ where: { personalityId: PERSONALITY_X } })).toBe(
       0
     );
@@ -400,7 +421,10 @@ describe('AccountDeletionService (component, PGLite)', () => {
     expect(
       await prisma.conversationHistory.count({
         where: {
-          OR: [{ personaId: { in: [PERSONA_A, PERSONA_A2] } }, { personalityId: PERSONALITY_X }],
+          OR: [
+            { personaId: { in: [PERSONA_A, PERSONA_A2] } },
+            { personalityId: { in: [PERSONALITY_X, PERSONALITY_Z] } },
+          ],
         },
       })
     ).toBe(0);

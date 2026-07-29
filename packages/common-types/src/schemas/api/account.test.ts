@@ -126,7 +126,7 @@ describe('AccountDeletePreviewResponseSchema', () => {
   it('accepts a preview and pins the exact confirmation phrase', () => {
     const parsed = AccountDeletePreviewResponseSchema.safeParse({
       confirmationPhrase: ACCOUNT_DELETE_CONFIRMATION_PHRASE,
-      ownedCharacters: [{ id: 'x1', name: 'XBot', otherUsersWithMemories: 2 }],
+      ownedCharacters: [{ id: 'x1', name: 'XBot', otherUsersWithData: 2 }],
       counts: { personas: 1, characters: 1, conversationMessages: 2, memories: 3, facts: 4 },
       hasActiveExport: false,
     });
@@ -173,11 +173,11 @@ describe('DeleteAccountResponseSchema', () => {
 describe('OwnedCharacterImpactSchema', () => {
   it('requires an integer cross-user reach', () => {
     expect(
-      OwnedCharacterImpactSchema.safeParse({ id: 'x1', name: 'XBot', otherUsersWithMemories: 2 })
+      OwnedCharacterImpactSchema.safeParse({ id: 'x1', name: 'XBot', otherUsersWithData: 2 })
         .success
     ).toBe(true);
     expect(
-      OwnedCharacterImpactSchema.safeParse({ id: 'x1', name: 'XBot', otherUsersWithMemories: 1.5 })
+      OwnedCharacterImpactSchema.safeParse({ id: 'x1', name: 'XBot', otherUsersWithData: 1.5 })
         .success
     ).toBe(false);
   });
