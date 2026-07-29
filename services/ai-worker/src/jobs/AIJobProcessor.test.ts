@@ -35,6 +35,9 @@ vi.mock('../redis.js', () => ({
     markMessageProcessing: vi.fn().mockResolvedValue(true),
     releaseMessageLock: vi.fn().mockResolvedValue(undefined),
   },
+  // Sentinel object: the name-routed dispatch tests assert this exact
+  // reference crosses the seam into the shapes processors' deps.
+  shapesFetchGate: { name: 'mock-shapes-fetch-gate' },
 }));
 
 vi.mock('./AudioTranscriptionJob.js', () => ({
@@ -43,6 +46,18 @@ vi.mock('./AudioTranscriptionJob.js', () => ({
 
 vi.mock('./ImageDescriptionJob.js', () => ({
   processImageDescriptionJob: vi.fn(),
+}));
+
+vi.mock('./ShapesImportJob.js', () => ({
+  processShapesImportJob: vi.fn(),
+}));
+
+vi.mock('./ShapesExportJob.js', () => ({
+  processShapesExportJob: vi.fn(),
+}));
+
+vi.mock('./AccountExportJob.js', () => ({
+  processAccountExportJob: vi.fn(),
 }));
 
 vi.mock('./CleanupJobResults.js', () => ({
@@ -69,9 +84,12 @@ vi.mock('./handlers/LLMGenerationHandler.js', () => ({
 }));
 
 // Import mocked modules
-import { redisService } from '../redis.js';
+import { redisService, shapesFetchGate } from '../redis.js';
 import { processAudioTranscriptionJob } from './AudioTranscriptionJob.js';
 import { processImageDescriptionJob } from './ImageDescriptionJob.js';
+import { processShapesImportJob } from './ShapesImportJob.js';
+import { processShapesExportJob } from './ShapesExportJob.js';
+import { processAccountExportJob } from './AccountExportJob.js';
 import { cleanupOldJobResults } from './CleanupJobResults.js';
 
 // Create mock factories
@@ -202,6 +220,69 @@ describe('AIJobProcessor', () => {
   describe('healthCheck', () => {
     it('should return true', () => {
       expect(processor.healthCheck()).toBe(true);
+    });
+  });
+
+  describe('processJob - name-routed jobs (shapes import/export, account export)', () => {
+    // These jobs route on job.name BEFORE job.data.jobType is read — a
+    // mis-route here fails silent-weird (the wrong processor rejects a
+    // payload it never expected), so each name is pinned to its processor
+    // and the deps that cross the seam are asserted (rule 7).
+    function createNamedJob(name: JobType): Job<AnyJobData> {
+      return { id: `job-${name}`, name, data: {} } as unknown as Job<AnyJobData>;
+    }
+
+    it('routes shapes-import to processShapesImportJob with the memory adapter and fetch gate', async () => {
+      const memoryManager = { name: 'mock-memory-adapter' };
+      const withMemory = new AIJobProcessor({
+        prisma: mockPrisma,
+        ragService: mockRAGService,
+        memoryManager: memoryManager as never,
+      });
+      const job = createNamedJob(JobType.ShapesImport);
+      const importResult = { success: true, personalityName: 'Imported' };
+      vi.mocked(processShapesImportJob).mockResolvedValue(importResult as never);
+
+      const result = await withMemory.processJob(job);
+
+      expect(processShapesImportJob).toHaveBeenCalledWith(job, {
+        prisma: mockPrisma,
+        memoryAdapter: memoryManager,
+        fetchGate: shapesFetchGate,
+      });
+      expect(result).toBe(importResult);
+    });
+
+    it('rejects shapes-import without touching the processor when no memory adapter is wired', async () => {
+      const job = createNamedJob(JobType.ShapesImport);
+
+      await expect(processor.processJob(job)).rejects.toThrow('Memory manager not available');
+      expect(processShapesImportJob).not.toHaveBeenCalled();
+    });
+
+    it('routes shapes-export to processShapesExportJob with the prisma client and fetch gate', async () => {
+      const job = createNamedJob(JobType.ShapesExport);
+      const exportResult = { success: true, fileName: 'export.zip' };
+      vi.mocked(processShapesExportJob).mockResolvedValue(exportResult as never);
+
+      const result = await processor.processJob(job);
+
+      expect(processShapesExportJob).toHaveBeenCalledWith(job, {
+        prisma: mockPrisma,
+        fetchGate: shapesFetchGate,
+      });
+      expect(result).toBe(exportResult);
+    });
+
+    it('routes account-export to processAccountExportJob with the prisma client', async () => {
+      const job = createNamedJob(JobType.AccountExport);
+      const accountResult = { success: true, exportJobId: 'export-1' };
+      vi.mocked(processAccountExportJob).mockResolvedValue(accountResult as never);
+
+      const result = await processor.processJob(job);
+
+      expect(processAccountExportJob).toHaveBeenCalledWith(job, mockPrisma);
+      expect(result).toBe(accountResult);
     });
   });
 
