@@ -102,7 +102,7 @@ describe('findPendingOffDbRows', () => {
   it('queries only committed purges whose off-DB work is unsettled', async () => {
     const { prisma, findMany } = makePrisma();
 
-    await findPendingOffDbRows(prisma);
+    await findPendingOffDbRows(prisma, 50);
 
     // db_outcome filter matters: a 'failed' row is terminal by construction, so
     // including it would make the sweep retry a row that can never settle.
@@ -110,6 +110,9 @@ describe('findPendingOffDbRows', () => {
       dbOutcome: 'success',
       offDbReconciled: { not: 'done' },
     });
+    // The bound must reach the query — an unbounded sweep is the ~60s-timeout
+    // failure mode the per-user purge already learned to avoid.
+    expect(findMany.mock.calls[0][0].take).toBe(50);
   });
 
   it('extracts the slugs from the stored JSON', async () => {
@@ -117,7 +120,7 @@ describe('findPendingOffDbRows', () => {
       { id: 'a1', targetDiscordId: '900000000000000001', offDbPending: { characterSlugs: ['x'] } },
     ]);
 
-    const rows = await findPendingOffDbRows(prisma);
+    const rows = await findPendingOffDbRows(prisma, 50);
 
     expect(rows).toEqual([
       { id: 'a1', targetDiscordId: '900000000000000001', characterSlugs: ['x'] },
@@ -138,7 +141,7 @@ describe('findPendingOffDbRows', () => {
       },
     ]);
 
-    const rows = await findPendingOffDbRows(prisma);
+    const rows = await findPendingOffDbRows(prisma, 50);
 
     expect(rows.map(row => row.characterSlugs)).toEqual([[], [], [], ['good']]);
   });

@@ -342,7 +342,7 @@ export const internalFixtures: Record<string, ConformanceEntry> = {
 
   retentionReconcileOffDb: {
     // An empty audit ledger is the steady state: the sweep finds nothing owed
-    // and returns { settled: 0, stillFailing: 0 } — zero seed needed.
+    // and returns { settled: 0, stillFailing: 0, remaining: 0 } — zero seed needed.
   },
 
   getModels: {

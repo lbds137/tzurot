@@ -407,13 +407,18 @@ export type RetentionPurgeResponse = z.infer<typeof RetentionPurgeResponseSchema
 // ============================================================================
 
 /**
- * Replays the off-DB cleanup (avatar unlink) for every audit-ledger row whose
- * reconciliation is still owed. Idempotent — an already-settled ledger is a
- * zero-row no-op — so it is safe to run at the end of every purge run.
+ * Replays the off-DB cleanup (avatar unlink) for audit-ledger rows whose
+ * reconciliation is still owed, ONE BOUNDED BATCH per call — a backlog must
+ * not run the whole queue inside one ~60s HTTP request. Idempotent — an
+ * already-settled ledger is a zero-row no-op — so it is safe to run at the
+ * end of every purge run. `remaining` counts rows the call did NOT attempt
+ * (rows that failed in-batch stay queued but are not "remaining"); the CLI
+ * loops while it is nonzero.
  */
 export const RetentionReconcileOffDbResponseSchema = z.object({
   settled: z.number().int().nonnegative(),
   stillFailing: z.number().int().nonnegative(),
+  remaining: z.number().int().nonnegative(),
 });
 
 // ============================================================================

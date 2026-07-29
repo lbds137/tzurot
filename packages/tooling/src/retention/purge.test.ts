@@ -67,7 +67,10 @@ describe('retentionPurge', () => {
       retentionPurge: purgeMock,
       retentionReconcileOffDb: reconcileMock,
     });
-    reconcileMock.mockResolvedValue({ ok: true, data: { settled: 0, stillFailing: 0 } });
+    reconcileMock.mockResolvedValue({
+      ok: true,
+      data: { settled: 0, stillFailing: 0, remaining: 0 },
+    });
     confirmMock.mockResolvedValue(undefined);
   });
 

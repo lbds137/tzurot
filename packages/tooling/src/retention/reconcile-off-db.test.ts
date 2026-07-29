@@ -34,7 +34,10 @@ describe('retentionReconcileOffDb', () => {
   });
 
   it('reports an empty queue as an explicit all-clear', async () => {
-    reconcileMock.mockResolvedValue({ ok: true, data: { settled: 0, stillFailing: 0 } });
+    reconcileMock.mockResolvedValue({
+      ok: true,
+      data: { settled: 0, stillFailing: 0, remaining: 0 },
+    });
 
     await retentionReconcileOffDb({ env: 'dev' });
 
@@ -43,7 +46,10 @@ describe('retentionReconcileOffDb', () => {
   });
 
   it('reports what it settled', async () => {
-    reconcileMock.mockResolvedValue({ ok: true, data: { settled: 3, stillFailing: 0 } });
+    reconcileMock.mockResolvedValue({
+      ok: true,
+      data: { settled: 3, stillFailing: 0, remaining: 0 },
+    });
 
     await retentionReconcileOffDb({ env: 'dev' });
 
@@ -51,7 +57,10 @@ describe('retentionReconcileOffDb', () => {
   });
 
   it('surfaces rows that are still failing rather than reporting success', async () => {
-    reconcileMock.mockResolvedValue({ ok: true, data: { settled: 1, stillFailing: 2 } });
+    reconcileMock.mockResolvedValue({
+      ok: true,
+      data: { settled: 1, stillFailing: 2, remaining: 0 },
+    });
 
     await retentionReconcileOffDb({ env: 'prod' });
 
@@ -64,6 +73,37 @@ describe('retentionReconcileOffDb', () => {
     await retentionReconcileOffDb({ env: 'prod' });
 
     expect(process.exitCode).toBe(1);
+  });
+
+  it('loops batches while the endpoint reports unattempted rows, summing totals', async () => {
+    // The endpoint sweeps one bounded batch per call; the CLI walks the queue.
+    reconcileMock
+      .mockResolvedValueOnce({ ok: true, data: { settled: 50, stillFailing: 0, remaining: 70 } })
+      .mockResolvedValueOnce({ ok: true, data: { settled: 50, stillFailing: 0, remaining: 20 } })
+      .mockResolvedValueOnce({ ok: true, data: { settled: 20, stillFailing: 0, remaining: 0 } });
+
+    await retentionReconcileOffDb({ env: 'dev' });
+
+    expect(reconcileMock).toHaveBeenCalledTimes(3);
+    expect(logged.join('\n')).toContain('120');
+    expect(process.exitCode).toBeUndefined();
+  });
+
+  it('stops looping on an in-batch failure and reports the unattempted rest', async () => {
+    // Failed rows stay at the head of the queue — looping past a failing
+    // batch would burn iterations re-attempting the same rows.
+    reconcileMock.mockResolvedValue({
+      ok: true,
+      data: { settled: 10, stillFailing: 2, remaining: 40 },
+    });
+
+    await retentionReconcileOffDb({ env: 'prod' });
+
+    expect(reconcileMock).toHaveBeenCalledTimes(1);
+    const output = logged.join('\n');
+    expect(output).toContain('still failing');
+    expect(output).toContain('not attempted');
+    expect(output).toContain('40');
   });
 
   it('stops before any gateway call when credentials cannot be resolved', async () => {
