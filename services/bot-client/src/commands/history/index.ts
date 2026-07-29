@@ -188,7 +188,12 @@ async function handlePurgeConfirm(
   const personalitySlug = parsePurgeSlugFromFooter(interaction.message.embeds[0]?.footer?.text);
 
   if (channelId === undefined || personalitySlug === null) {
-    logger.warn({ channelId }, 'Purge confirm missing channelId or slug footer');
+    // customId included: when this fires, identity is partial by definition,
+    // so the raw customId is the debugging signal (channelId may be undefined).
+    logger.warn(
+      { channelId, customId: interaction.customId },
+      'Purge confirm missing channelId or slug footer'
+    );
     await interaction.update({
       content: 'Error: Invalid entity ID format.',
       embeds: [],
