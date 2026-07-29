@@ -1,10 +1,10 @@
 ---
 id: TASK-177
 title: 'test:audit misses *Loader.ts Prisma services (naming-convention gap)'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-06-25 00:00'
-updated_date: '2026-07-28 10:49'
+updated_date: '2026-07-29 10:57'
 labels:
   - 'area:tooling'
   - 'area:identity'
