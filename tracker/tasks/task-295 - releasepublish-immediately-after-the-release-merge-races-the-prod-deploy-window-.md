@@ -1,10 +1,10 @@
 ---
 id: TASK-295
 title: 'release:publish right after the release merge races the prod deploy window'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-07-18 00:00'
-updated_date: '2026-07-28 10:52'
+updated_date: '2026-07-29 16:09'
 labels:
   - 'area:tooling'
   - 'size:S'

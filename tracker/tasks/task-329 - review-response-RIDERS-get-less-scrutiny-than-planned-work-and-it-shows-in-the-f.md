@@ -1,10 +1,10 @@
 ---
 id: TASK-329
 title: Review-response riders get less scrutiny than planned work
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-07-26 00:00'
-updated_date: '2026-07-28 10:53'
+updated_date: '2026-07-29 16:09'
 labels:
   - 'area:process'
   - 'size:S'
