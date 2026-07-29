@@ -1,10 +1,10 @@
 ---
 id: TASK-126
 title: Wire clearChannelConfigOverrides + close settings.test.ts coverage gaps
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-05-28 00:00'
-updated_date: '2026-07-28 10:48'
+updated_date: '2026-07-29 13:32'
 labels:
   - 'area:bot-client'
   - 'size:S'
