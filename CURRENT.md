@@ -12,6 +12,7 @@
 - #1852 partial multi-tag batch delivers errored personas (TASK-236; deliverErroredOutcomes shared, partitionSlotSubmissions extracted; TASK-351 filed for debug-log + shutdown-window nits)
 - #1853 /history purge fixed for long slugs (TASK-290; slug rides the embed footer, customId carries only channelId; real-builder regression pins incl. old-shape-throws)
 - #1854 channel dashboard Reset-to-defaults (TASK-126 owner-approved; opt-in factory resetButton + Tier-A confirm per design system; TASK-352/353 filed)
+- #1855 openrouter/free always vision-capable (TASK-194; authoritative pre-catalog override — review traced a reachable guest-ladder gate the fix also closes, benign fallback pre-fix)
 
 ## 🔬 Smoke checklist — v3.0.0-beta.183 (post-deploy)
 
