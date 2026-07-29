@@ -31,7 +31,7 @@ vi.mock('../../../utils/gatewayClients.js', () => ({
 
 const PREVIEW = {
   confirmationPhrase: 'DELETE MY ACCOUNT',
-  ownedCharacters: [{ id: 'x1', name: 'XBot', otherUsersWithMemories: 2 }],
+  ownedCharacters: [{ id: 'x1', name: 'XBot', otherUsersWithData: 2 }],
   counts: { personas: 2, characters: 1, conversationMessages: 10, memories: 5, facts: 3 },
   hasActiveExport: false,
 };
@@ -64,7 +64,7 @@ describe('handleDataDelete', () => {
     const description = call.embeds[0].data.description as string;
     expect(description).toContain('**2** persona(s)');
     expect(description).toContain('deleted for EVERYONE');
-    expect(description).toContain('**2** other user(s) have memories');
+    expect(description).toContain('**2** other user(s) have data');
     expect(description).toContain('export downloads stop');
     expect(description).toContain('DELETE MY ACCOUNT');
     const customIds = call.components[0].components.map(
