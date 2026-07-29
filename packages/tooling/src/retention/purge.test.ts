@@ -204,6 +204,24 @@ describe('retentionPurge', () => {
     expect(reconcileMock).toHaveBeenCalledTimes(1);
   });
 
+  it('surfaces off-DB rows the bounded reconcile did not attempt', async () => {
+    // The endpoint sweeps one batch; a bigger backlog must be reported, not
+    // silently under-drained (it self-heals next run, but say so).
+    previewMock.mockResolvedValue({ ok: true, data: cohort('900000000000000001') });
+    purgeMock.mockResolvedValue(PURGED('900000000000000001'));
+    reconcileMock.mockResolvedValue({
+      ok: true,
+      data: { settled: 50, stillFailing: 0, remaining: 30 },
+    });
+    const logSpy = vi.mocked(console.log);
+
+    await retentionPurge({ env: 'dev' });
+
+    const output = logSpy.mock.calls.map(c => c.join(' ')).join('\n');
+    expect(output).toContain('not attempted: 30');
+    expect(output).toContain('reconcile-off-db');
+  });
+
   it('does nothing (and does not prompt) when the cohort is empty', async () => {
     previewMock.mockResolvedValue({
       ok: true,
