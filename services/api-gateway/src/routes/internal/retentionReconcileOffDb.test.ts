@@ -26,19 +26,19 @@ function createMockReqRes() {
 
 describe('POST /internal/retention/reconcile-off-db', () => {
   it('returns the sweep tally in the manifest-declared shape', async () => {
-    reconcileMock.mockResolvedValue({ settled: 3, stillFailing: 1 });
+    reconcileMock.mockResolvedValue({ settled: 3, stillFailing: 1, remaining: 0 });
     const { req, res } = createMockReqRes();
 
     await handleRetentionReconcileOffDb({} as RouteDeps)(req, res, vi.fn());
 
     expect(res.status).toHaveBeenCalledWith(200);
     const payload = (res.json as ReturnType<typeof vi.fn>).mock.calls[0][0];
-    expect(payload).toEqual({ settled: 3, stillFailing: 1 });
+    expect(payload).toEqual({ settled: 3, stillFailing: 1, remaining: 0 });
     expect(RetentionReconcileOffDbResponseSchema.safeParse(payload).success).toBe(true);
   });
 
   it('is a 200 no-op on an empty ledger — the purge CLI calls it every run', async () => {
-    reconcileMock.mockResolvedValue({ settled: 0, stillFailing: 0 });
+    reconcileMock.mockResolvedValue({ settled: 0, stillFailing: 0, remaining: 0 });
     const { req, res } = createMockReqRes();
 
     await handleRetentionReconcileOffDb({} as RouteDeps)(req, res, vi.fn());
@@ -47,6 +47,7 @@ describe('POST /internal/retention/reconcile-off-db', () => {
     expect((res.json as ReturnType<typeof vi.fn>).mock.calls[0][0]).toEqual({
       settled: 0,
       stillFailing: 0,
+      remaining: 0,
     });
   });
 });

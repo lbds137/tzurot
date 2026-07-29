@@ -833,7 +833,8 @@ describe('RetentionPurgeResponseSchema', () => {
 describe('RetentionReconcileOffDbResponseSchema', () => {
   it('accepts a zero-work sweep (the common case)', () => {
     expect(
-      RetentionReconcileOffDbResponseSchema.safeParse({ settled: 0, stillFailing: 0 }).success
+      RetentionReconcileOffDbResponseSchema.safeParse({ settled: 0, stillFailing: 0, remaining: 0 })
+        .success
     ).toBe(true);
   });
 
@@ -843,7 +844,11 @@ describe('RetentionReconcileOffDbResponseSchema', () => {
 
   it('rejects negative counters', () => {
     expect(
-      RetentionReconcileOffDbResponseSchema.safeParse({ settled: 0, stillFailing: -1 }).success
+      RetentionReconcileOffDbResponseSchema.safeParse({
+        settled: 0,
+        stillFailing: -1,
+        remaining: 0,
+      }).success
     ).toBe(false);
   });
 });

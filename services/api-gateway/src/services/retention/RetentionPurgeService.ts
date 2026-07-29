@@ -25,7 +25,12 @@ import {
   type PurgeCohortRow,
   type PurgeReason,
 } from './eligibility.js';
-import { findPendingOffDbRows, recordPurgeFailure, settleOffDb } from './purgeAudit.js';
+import {
+  countPendingOffDbRows,
+  findPendingOffDbRows,
+  recordPurgeFailure,
+  settleOffDb,
+} from './purgeAudit.js';
 
 const logger = createLogger('RetentionPurgeService');
 
@@ -35,6 +40,14 @@ const logger = createLogger('RetentionPurgeService');
  * decides).
  */
 export const BREAKER_WARN_FRACTION = 0.15;
+
+/**
+ * Max ledger rows one reconcile-off-db call attempts. Each row is one avatar
+ * unlink; 50 keeps the worst-case call comfortably inside the platform's
+ * ~60s request timeout while clearing any realistic backlog in one batch
+ * (the queue is normally empty; the CLI loops on `remaining`).
+ */
+export const RECONCILE_BATCH_SIZE = 50;
 
 /**
  * Cohort share at which the purge REFUSES to run without an explicit
@@ -261,11 +274,15 @@ export class RetentionPurgeService {
   }
 
   /**
-   * Retry the off-DB cleanup for every ledger row that still owes it (D15).
-   * Returns how many rows were settled and how many are still failing.
+   * Retry the off-DB cleanup for ledger rows that still owe it (D15), bounded
+   * to one batch per call so a long-unreconciled backlog can't run the whole
+   * queue inside one HTTP request (the per-user purge's own lesson).
+   * `remaining` counts the rows this call did NOT attempt — the CLI loops on
+   * it; rows that failed IN this batch stay queued but are not "remaining".
    */
-  async reconcileOffDb(): Promise<{ settled: number; stillFailing: number }> {
-    const pending = await findPendingOffDbRows(this.prisma);
+  async reconcileOffDb(): Promise<{ settled: number; stillFailing: number; remaining: number }> {
+    const totalPending = await countPendingOffDbRows(this.prisma);
+    const pending = await findPendingOffDbRows(this.prisma, RECONCILE_BATCH_SIZE);
     const eraser = new AccountEraserService(this.deps);
     let settled = 0;
     let stillFailing = 0;
@@ -285,7 +302,7 @@ export class RetentionPurgeService {
         logger.warn({ logId: row.id }, 'Off-DB reconciliation retry still failing');
       }
     }
-    return { settled, stillFailing };
+    return { settled, stillFailing, remaining: Math.max(0, totalPending - pending.length) };
   }
 
   /**
