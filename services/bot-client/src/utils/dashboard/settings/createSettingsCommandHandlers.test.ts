@@ -135,7 +135,44 @@ describe('createSettingsCommandHandlers', () => {
       await handlers.handleButton(interaction);
 
       expect(mockCreateUpdateHandler).toHaveBeenCalledWith('personality-uuid-123');
-      expect(handleSettingsButton).toHaveBeenCalledWith(interaction, testConfig, mockUpdateHandler);
+      // Fourth arg is the reset handler — undefined when the dashboard
+      // doesn't wire createResetHandler (the opt-in default).
+      expect(handleSettingsButton).toHaveBeenCalledWith(
+        interaction,
+        testConfig,
+        mockUpdateHandler,
+        undefined
+      );
+    });
+
+    it('binds and forwards the reset handler when createResetHandler is wired', async () => {
+      vi.mocked(isSettingsInteraction).mockReturnValue(true);
+      vi.mocked(parseSettingsCustomId).mockReturnValue({
+        entityType: TEST_ENTITY_TYPE,
+        action: 'reset',
+        entityId: 'personality-uuid-123',
+      });
+      const boundResetHandler = vi.fn();
+      const mockCreateResetHandler = vi.fn().mockReturnValue(boundResetHandler);
+
+      const handlers = createSettingsCommandHandlers({
+        entityType: TEST_ENTITY_TYPE,
+        settingsConfig: testConfig,
+        createUpdateHandler: mockCreateUpdateHandler,
+        createResetHandler: mockCreateResetHandler,
+      });
+      const interaction = makeButtonInteraction('character-test::reset::personality-uuid-123');
+
+      await handlers.handleButton(interaction);
+
+      // The entityId binding must reach the reset factory too.
+      expect(mockCreateResetHandler).toHaveBeenCalledWith('personality-uuid-123');
+      expect(handleSettingsButton).toHaveBeenCalledWith(
+        interaction,
+        testConfig,
+        mockUpdateHandler,
+        boundResetHandler
+      );
     });
 
     it('returns early without forwarding when isSettingsInteraction returns false', async () => {

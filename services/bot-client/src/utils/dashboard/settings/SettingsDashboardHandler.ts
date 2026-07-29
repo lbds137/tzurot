@@ -1,4 +1,3 @@
-/* eslint-disable sonarjs/no-duplicate-string -- Dashboard action prefixes and setting key strings repeated across handler branches */
 /**
  * Settings Dashboard Handler
  *
@@ -25,11 +24,10 @@ import {
   type SettingsData,
   type SettingValue,
   type SettingUpdateHandler,
+  type SettingsResetHandler,
   DashboardView,
   parseSettingsCustomId,
-  SettingType,
   clampPage,
-  isPlainSetting,
 } from './types.js';
 import {
   buildOverviewMessage,
@@ -37,6 +35,7 @@ import {
   getSettingById,
 } from './SettingsDashboardBuilder.js';
 import { buildSettingEditModal } from './SettingsModalFactory.js';
+import { handleSetButton } from './settingsUpdate.js';
 import { storeSession, getSession, deleteSession } from './SettingsSessionStorage.js';
 import { ackUpdate } from '../../../ux/render/reply.js';
 
@@ -183,7 +182,8 @@ export async function handleSettingsSelectMenu(
 export async function handleSettingsButton(
   interaction: ButtonInteraction,
   config: SettingsDashboardConfig,
-  updateHandler: SettingUpdateHandler
+  updateHandler: SettingUpdateHandler,
+  resetHandler?: SettingsResetHandler
 ): Promise<void> {
   const parsed = parseSettingsCustomId(interaction.customId);
   if (parsed === null) {
@@ -243,6 +243,16 @@ export async function handleSettingsButton(
     case 'retry':
       await handleRetryButton(interaction, config, session, parsed.extra);
       break;
+    case 'reset':
+      // Configured via config.resetButton + an injected handler. A 'reset'
+      // customId with no handler wired (stale message from a dashboard that
+      // dropped the affordance) falls through to the stale-dashboard notice.
+      if (resetHandler === undefined) {
+        await notify('This dashboard is out of date. Please run the command again.');
+        break;
+      }
+      await handleResetButton(interaction, config, session, resetHandler);
+      break;
     default:
       // The router already deferUpdate'd (non-edit actions defer above), so a
       // bare return leaves the interaction silently unresolved. An unrecognized
@@ -251,6 +261,45 @@ export async function handleSettingsButton(
       logger.warn({ action: parsed.action }, 'Unknown button action');
       await notify('This dashboard is out of date. Please run the command again.');
   }
+}
+
+/**
+ * Handle the reset-to-defaults button (config.resetButton): clear the
+ * entity's overrides via the injected handler, then re-render the overview
+ * from the fresh data it returns. Mirrors handleSetButton's result contract —
+ * failure notifies ephemerally and leaves the dashboard untouched.
+ */
+async function handleResetButton(
+  interaction: ButtonInteraction,
+  config: SettingsDashboardConfig,
+  session: SettingsDashboardSession,
+  resetHandler: SettingsResetHandler
+): Promise<void> {
+  const result = await resetHandler(interaction, session);
+
+  if (!result.success) {
+    // followUp: the router deferUpdate'd before dispatching here.
+    await interaction.followUp({
+      content: `Failed to reset: ${result.error}`,
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+
+  if (result.newData !== undefined) {
+    session.data = result.newData;
+  }
+  session.view = DashboardView.OVERVIEW;
+  session.activeSetting = undefined;
+  session.lastRejectedInput = undefined;
+  session.lastActivityAt = new Date();
+  await storeSession(session, config.entityType);
+
+  const message = buildOverviewMessage(config, session);
+  await interaction.editReply({
+    embeds: message.embeds,
+    components: message.components,
+  });
 }
 
 /**
@@ -321,115 +370,6 @@ async function handleCloseButton(
     content: 'Settings dashboard closed.',
     embeds: [],
     components: [],
-  });
-}
-
-/**
- * Handle set button - directly set a value (for tri-state)
- */
-async function handleSetButton(
-  interaction: ButtonInteraction,
-  config: SettingsDashboardConfig,
-  session: SettingsDashboardSession,
-  extra: string | undefined,
-  updateHandler: SettingUpdateHandler
-): Promise<void> {
-  if (extra === undefined) {
-    // Reached via the already-deferred `set` action; a bare return would leave the
-    // interaction unresolved. No current builder produces a `set` customId without
-    // the setting:value extra, but a stale message or future builder change could.
-    logger.warn('Set button missing extra data');
-    await interaction.followUp({
-      content: 'Invalid button data. Please run the command again.',
-      flags: MessageFlags.Ephemeral,
-    });
-    return;
-  }
-
-  // Parse setting:value format (single split — values may contain colons)
-  const colonIdx = extra.indexOf(':');
-  const settingId = extra.slice(0, colonIdx);
-  const rawValue = extra.slice(colonIdx + 1);
-  const setting = getSettingById(config, settingId);
-
-  if (setting === undefined) {
-    // followUp/editReply throughout — the router deferUpdate'd before dispatch.
-    await interaction.followUp({
-      content: 'Unknown setting.',
-      flags: MessageFlags.Ephemeral,
-    });
-    return;
-  }
-
-  // Parse the value
-  let newValue: unknown;
-  switch (rawValue) {
-    case 'auto':
-      newValue = null; // Auto means inherit
-      break;
-    case 'true':
-      newValue = true;
-      break;
-    case 'false':
-      newValue = false;
-      break;
-    default:
-      newValue = rawValue;
-  }
-
-  // Non-cascading settings have no inherit tier — a null here can only come
-  // from a forged/stale `:auto` customId (no plain-mode builder renders an
-  // Auto button). Reject with a friendly message rather than letting the
-  // update handler surface a raw validation error.
-  if (
-    newValue === null &&
-    (isPlainSetting(config, setting) || setting.type === SettingType.BOOLEAN)
-  ) {
-    await interaction.followUp({
-      content: 'This setting has no Auto — set an explicit value.',
-      flags: MessageFlags.Ephemeral,
-    });
-    return;
-  }
-
-  // Call the update handler
-  const result = await updateHandler(interaction, session, settingId, newValue);
-
-  if (!result.success) {
-    await interaction.followUp({
-      content: `Failed to update: ${result.error}`,
-      flags: MessageFlags.Ephemeral,
-    });
-    return;
-  }
-
-  // Update session with new data (a successful update clears any pending
-  // rejected-input state — the retry affordance is per-failure, not sticky)
-  if (result.newData !== undefined) {
-    session.data = result.newData;
-  }
-  session.lastRejectedInput = undefined;
-  session.lastActivityAt = new Date();
-  await storeSession(session, config.entityType);
-
-  // Rebuild the current view
-  if (session.view === DashboardView.SETTING && session.activeSetting !== undefined) {
-    const activeSetting = getSettingById(config, session.activeSetting);
-    if (activeSetting !== undefined) {
-      const message = buildSettingMessage(config, session, activeSetting);
-      await interaction.editReply({
-        embeds: message.embeds,
-        components: message.components,
-      });
-      return;
-    }
-  }
-
-  // Default: return to overview
-  const message = buildOverviewMessage(config, session);
-  await interaction.editReply({
-    embeds: message.embeds,
-    components: message.components,
   });
 }
 

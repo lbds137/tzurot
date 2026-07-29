@@ -524,6 +524,74 @@ describe('SettingsDashboardHandler', () => {
     });
   });
 
+  describe('handleSettingsButton — reset action', () => {
+    const createButtonInteraction = (customId: string, userId = 'user-123') => ({
+      customId,
+      user: { id: userId },
+      reply: vi.fn(),
+      update: vi.fn(),
+      deferUpdate: vi.fn().mockResolvedValue(undefined),
+      editReply: vi.fn().mockResolvedValue({ id: 'message-123' }),
+      followUp: vi.fn().mockResolvedValue(undefined),
+    });
+
+    const validSession = () => ({
+      data: {
+        userId: 'user-123',
+        entityId: 'entity-1',
+        entityName: '#test',
+        data: createTestData(),
+        view: 'overview',
+        level: 'channel',
+        messageId: 'message-123',
+        channelId: 'chan-1',
+        lastActivityAt: new Date(),
+      },
+    });
+
+    it('routes reset to the injected handler and re-renders from its fresh data', async () => {
+      mockSessionManager.get.mockReturnValue(validSession());
+      const resetHandler = vi.fn().mockResolvedValue({ success: true, newData: createTestData() });
+      const interaction = createButtonInteraction('test-settings::reset::entity-1');
+
+      await handleSettingsButton(interaction as never, createTestConfig(), vi.fn(), resetHandler);
+
+      expect(resetHandler).toHaveBeenCalledTimes(1);
+      // Fresh overview re-rendered after the reset.
+      expect(interaction.editReply).toHaveBeenCalledWith(
+        expect.objectContaining({ embeds: expect.any(Array), components: expect.any(Array) })
+      );
+      expect(interaction.followUp).not.toHaveBeenCalled();
+    });
+
+    it('notifies ephemerally on reset failure without re-rendering', async () => {
+      mockSessionManager.get.mockReturnValue(validSession());
+      const resetHandler = vi.fn().mockResolvedValue({ success: false, error: 'API down' });
+      const interaction = createButtonInteraction('test-settings::reset::entity-1');
+
+      await handleSettingsButton(interaction as never, createTestConfig(), vi.fn(), resetHandler);
+
+      expect(interaction.followUp).toHaveBeenCalledWith(
+        expect.objectContaining({ content: expect.stringContaining('API down') })
+      );
+      expect(interaction.editReply).not.toHaveBeenCalled();
+    });
+
+    it('shows the out-of-date notice for a reset customId with no handler wired', async () => {
+      // A stale message from a dashboard that dropped the affordance must not
+      // dead-end silently — the router already deferred, so silence would
+      // leave the interaction hanging.
+      mockSessionManager.get.mockReturnValue(validSession());
+      const interaction = createButtonInteraction('test-settings::reset::entity-1');
+
+      await handleSettingsButton(interaction as never, createTestConfig(), vi.fn());
+
+      expect(interaction.followUp).toHaveBeenCalledWith(
+        expect.objectContaining({ content: expect.stringContaining('out of date') })
+      );
+    });
+  });
+
   describe('handleSettingsSelectMenu', () => {
     const createSelectInteraction = (
       customId: string,
