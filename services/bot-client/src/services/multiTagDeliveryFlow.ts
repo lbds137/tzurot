@@ -263,6 +263,48 @@ export interface ErroredSlotOutcome {
 }
 
 /**
+ * Deliver each errored character's OWN error line via its webhook
+ * (in-character), in parallel. Shared by the all-failed notice below and by
+ * the coordinator's PARTIAL-batch path (some slots submitted, others threw
+ * at submit time) — without the latter, an errored persona in a mixed batch
+ * was collected but never delivered, silently dropping its error line.
+ *
+ * **Bypasses the ordering buffer intentionally**, in both callers: these are
+ * UI feedback messages for submit-time failures known immediately, not async
+ * AI responses — routing them through `ResponseOrderingService` would also
+ * mean persisting them into the recovery snapshot for a rare edge.
+ */
+export async function deliverErroredOutcomes(
+  source: { message: Message; channel: TypingChannel },
+  erroredOutcomes: ErroredSlotOutcome[],
+  deps: Pick<DeliveryFlowDeps, 'slotDelivery'>
+): Promise<void> {
+  const { message, channel } = source;
+  // Each errored character speaks in its own voice; `allSettled` (not `all`)
+  // keeps the error-containment local — one failing send can't drop a
+  // sibling's delivery even if `deliverErrorNoPersist` is ever refactored to
+  // throw (today it swallows internally, but the guarantee shouldn't rely on
+  // that).
+  await Promise.allSettled(
+    erroredOutcomes.map(async outcome => {
+      const context: EphemeralErrorContext = {
+        message,
+        channel,
+        guildId: message.guildId,
+        clientId: message.client.user?.id,
+        personality: outcome.personality,
+        isAutoResponse: outcome.isAutoResponse,
+      };
+      await deps.slotDelivery.deliverErrorNoPersist(
+        buildErrorContent(outcome.spec),
+        outcome.spec,
+        context
+      );
+    })
+  );
+}
+
+/**
  * Nothing was submitted — every slot was denied or errored. Two shapes:
  *
  * - **Any errored**: each errored character delivers its OWN error line via
@@ -272,47 +314,20 @@ export interface ErroredSlotOutcome {
  *   error replies just adds register-noise. Bounded by MAX_TAGS upstream.
  * - **All denied**: a single system notice (no character has anything to say
  *   in-voice, and a per-persona "I'm unavailable" from each would confuse).
- *
- * **Bypasses the ordering buffer intentionally.** These are UI feedback
- * messages, not AI responses, and all-failed fan-outs are rare. Routing them
- * through `ResponseOrderingService` (a real jobId + register/handleResult
- * round-trip) isn't worth the ordering guarantee given the user only sees
- * this when their input produced no AI responses at all.
  */
 export async function deliverAllFailedNotice(
   source: { message: Message; channel: TypingChannel },
   erroredOutcomes: ErroredSlotOutcome[],
   deps: Pick<DeliveryFlowDeps, 'slotDelivery'>
 ): Promise<void> {
-  const { message, channel } = source;
+  const { message } = source;
   logger.info(
     { sourceMessageId: message.id, erroredCount: erroredOutcomes.length },
     'All multi-tag slots failed (denied or errored) — nothing to coordinate'
   );
 
   if (erroredOutcomes.length > 0) {
-    // Each errored character speaks in its own voice; `allSettled` (not `all`)
-    // keeps the error-containment local — one failing send can't drop a
-    // sibling's delivery even if `deliverErrorNoPersist` is ever refactored to
-    // throw (today it swallows internally, but the guarantee shouldn't rely on
-    // that).
-    await Promise.allSettled(
-      erroredOutcomes.map(async outcome => {
-        const context: EphemeralErrorContext = {
-          message,
-          channel,
-          guildId: message.guildId,
-          clientId: message.client.user?.id,
-          personality: outcome.personality,
-          isAutoResponse: outcome.isAutoResponse,
-        };
-        await deps.slotDelivery.deliverErrorNoPersist(
-          buildErrorContent(outcome.spec),
-          outcome.spec,
-          context
-        );
-      })
-    );
+    await deliverErroredOutcomes(source, erroredOutcomes, deps);
     return;
   }
 

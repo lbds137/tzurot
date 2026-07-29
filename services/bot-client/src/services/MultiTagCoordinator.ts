@@ -35,14 +35,13 @@ import { ApiErrorCategory, ApiErrorType } from '@tzurot/common-types/constants/e
 import { MULTI_TAG } from '@tzurot/common-types/constants/message';
 import { type TypingChannel } from '@tzurot/common-types/types/discord-types';
 import { type LLMGenerationResult } from '@tzurot/common-types/types/schemas/generation';
-import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { PersonalityChatManager } from './character/PersonalityChatManager.js';
 import type { JobTracker } from './JobTracker.js';
 import type { ResponseOrderingService } from './ResponseOrderingService.js';
 import type { SlotDeliveryService } from './SlotDeliveryService.js';
 import type { MultiTagPersistence, SyntheticTimeoutContext } from './MultiTagPersistence.js';
-import { type ResolvedSlot, type SlotSource } from './SlotResolver.js';
+import { type ResolvedSlot } from './SlotResolver.js';
 import { recoverRealResultsAtDeadline } from './multiTagRecoveryHelpers.js';
 
 const logger = createLogger('MultiTagCoordinator');
@@ -54,11 +53,17 @@ const logger = createLogger('MultiTagCoordinator');
 export type { RuntimeEntry, RuntimeSlot } from './multiTagCoordinatorHelpers.js';
 import {
   buildSyntheticErrorResult,
+  partitionSlotSubmissions,
   toSnapshot,
   type RuntimeEntry,
   type RuntimeSlot,
+  type SlotOutcome,
 } from './multiTagCoordinatorHelpers.js';
-import { deliverGroup, deliverAllFailedNotice } from './multiTagDeliveryFlow.js';
+import {
+  deliverGroup,
+  deliverAllFailedNotice,
+  deliverErroredOutcomes,
+} from './multiTagDeliveryFlow.js';
 
 /** Input shape for startFanOut — what PersonalityTriggerProcessor builds. */
 export interface StartFanOutInput {
@@ -158,37 +163,7 @@ export class MultiTagCoordinator {
       input.slots.map(async resolved => this.submitSlot(input, resolved))
     );
 
-    // Dense slot indices: denied slots are skipped, surviving slots get
-    // 0..k-1. The ResolvedSlot input may have had non-contiguous "logical"
-    // positions (e.g., reply at 0, denied activation at 1, mention at 2 →
-    // dense becomes [0:reply, 1:mention]). Recovery uses the snapshot's
-    // dense `slotIndex` directly when rehydrating and never re-resolves
-    // from input — so the indices are stable across the entry's lifetime
-    // and the dense numbering is the canonical view.
-    const runtimeSlots: RuntimeSlot[] = [];
-    let nextIndex = 0;
-    // Collect errored outcomes (personality + classified spec) so the
-    // all-errored branch can deliver each character's own error voice.
-    // Denied outcomes need no accumulation — they render as a single system
-    // notice only when the WHOLE batch is denied.
-    const erroredOutcomes: Extract<SlotOutcome, { kind: 'errored' }>[] = [];
-    for (const submission of slotSubmissions) {
-      if (submission.kind !== 'submitted') {
-        if (submission.kind === 'errored') {
-          erroredOutcomes.push(submission);
-        }
-        continue;
-      }
-      runtimeSlots.push({
-        slotIndex: nextIndex++,
-        personality: submission.personality,
-        personaId: submission.personaId,
-        source: submission.source,
-        isAutoResponse: submission.isAutoResponse,
-        jobId: submission.jobId,
-        status: 'pending',
-      });
-    }
+    const { runtimeSlots, erroredOutcomes } = partitionSlotSubmissions(slotSubmissions);
 
     if (runtimeSlots.length === 0) {
       await deliverAllFailedNotice(
@@ -197,6 +172,20 @@ export class MultiTagCoordinator {
         this.deps
       );
       return;
+    }
+
+    if (erroredOutcomes.length > 0) {
+      // PARTIAL batch: some slots submitted, at least one submit threw. The
+      // errored characters still owe the user their in-character error line —
+      // without this, their outcomes were collected above and silently
+      // dropped. Fire-and-forget (deliverErroredOutcomes contains its own
+      // failures via allSettled): awaiting webhook sends here would widen the
+      // ownership race window the entries.set reorder below exists to close.
+      void deliverErroredOutcomes(
+        { message: input.message, channel: input.channel },
+        erroredOutcomes,
+        this.deps
+      );
     }
 
     const timeoutHandle = setTimeout(() => {
@@ -690,41 +679,3 @@ export class MultiTagCoordinator {
     await this.deps.persistence.clearSyntheticTimeout(jobId);
   }
 }
-
-/**
- * The outcome of one slot submission — a discriminated union carrying the
- * personality (and, for `errored`, the classified error) so downstream
- * handling can respond per-character instead of collapsing every failure to
- * an anonymous string.
- *
- * - `'submitted'` — a live job to coordinate.
- * - `'denied'` — a genuine refusal: the character can't respond (denylisted,
- *   NSFW-gated, or restricted here). The input was understood; the character
- *   simply isn't available. Rendered as a single system notice when the whole
- *   batch is denied.
- * - `'errored'` — an infrastructure failure: the submission threw (e.g. a
- *   gateway write-timeout while persisting the trigger message). Transient.
- *   Carries a synthetic `success:false` result so the character can deliver
- *   the error IN ITS OWN VOICE (its `errorMessage`, else a canned line).
- *
- * NOTE: the `'errored'`/`'submitted'` discriminants here are DISJOINT from
- * `RuntimeSlot.status`'s `'errored'`/`'completed'` — those are post-submission
- * job-lifecycle states (a submitted slot whose result came back failed). These
- * describe whether the submission itself succeeded; they only share spelling.
- */
-type SlotOutcome =
-  | {
-      kind: 'submitted';
-      jobId: string;
-      personality: LoadedPersonality;
-      personaId: string;
-      source: SlotSource;
-      isAutoResponse: boolean;
-    }
-  | { kind: 'denied'; personality: LoadedPersonality }
-  | {
-      kind: 'errored';
-      personality: LoadedPersonality;
-      isAutoResponse: boolean;
-      spec: LLMGenerationResult;
-    };
