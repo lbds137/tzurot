@@ -250,6 +250,29 @@ describe('handleModal', () => {
     });
   });
 
+  it('should fail closed when the channelId is missing even with a valid footer', async () => {
+    // The other half of the OR: never proceed on a partial identity — a
+    // customId with no entityId segment must not purge, however valid the
+    // slug footer is.
+    mockParsePurgeSlugFromFooter.mockReturnValue('lilith');
+
+    const mockReply = vi.fn();
+    const mockInteraction = {
+      customId: 'history::destructive::modal_submit::history-purge',
+      user: { id: '123456789' },
+      message: purgeParentMessage(),
+      reply: mockReply,
+    };
+
+    await handleModal(mockInteraction as never);
+
+    expect(mockHandleDestructiveModalSubmit).not.toHaveBeenCalled();
+    expect(mockReply).toHaveBeenCalledWith({
+      content: 'Error: Invalid entity ID format.',
+      ephemeral: true,
+    });
+  });
+
   // Coverage for the closure built by `buildPurgeOperation`. The closure
   // is passed as the 3rd arg to `handleDestructiveModalSubmit` and stored for
   // the confirm-button click — exercising it here mirrors what production
@@ -414,6 +437,27 @@ describe('handleButton', () => {
 
     await handleButton(mockInteraction as never);
 
+    expect(mockUpdate).toHaveBeenCalledWith({
+      content: 'Error: Invalid entity ID format.',
+      embeds: [],
+      components: [],
+    });
+  });
+
+  it('should fail closed on confirm when the channelId is missing even with a valid footer', async () => {
+    // The other half of the OR — partial identity never proceeds.
+    mockParsePurgeSlugFromFooter.mockReturnValue('lilith');
+
+    const mockUpdate = vi.fn();
+    const mockInteraction = {
+      customId: 'history::destructive::confirm_button::history-purge',
+      message: purgeParentMessage(),
+      update: mockUpdate,
+    };
+
+    await handleButton(mockInteraction as never);
+
+    expect(mockHandleDestructiveConfirmButton).not.toHaveBeenCalled();
     expect(mockUpdate).toHaveBeenCalledWith({
       content: 'Error: Invalid entity ID format.',
       embeds: [],
