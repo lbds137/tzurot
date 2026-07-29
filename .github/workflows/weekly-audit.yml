@@ -48,10 +48,12 @@ jobs:
       # the resolved ref, so a future change here — or a failure to check out
       # what was intended — self-reports either way.
       #
-      # Shallow (the default) on purpose: no tool in HEALTH_TOOLS diffs against
-      # another ref, and the header's ref resolution degrades to a bare SHA
-      # rather than lying if remote-tracking refs are ever absent. Add
-      # fetch-depth: 0 when a roster tool actually needs history, not before.
+      # Full history (fetch-depth: 0) because a roster tool now needs it:
+      # dev:stale-debug audits git history via log/blame and THROWS on a
+      # shallow clone by design (it refuses to false-green against truncated
+      # history). This flipped the previous shallow-on-purpose default the
+      # moment a history-reading tool joined HEALTH_TOOLS — exactly the
+      # trigger the old comment named.
       #
       # A manual run keeps the ref selected in the UI, because the only reason
       # to dispatch this by hand is to preview one branch's margins before
@@ -60,6 +62,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           ref: ${{ github.event_name == 'workflow_dispatch' && github.ref || 'develop' }}
+          fetch-depth: 0
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v5

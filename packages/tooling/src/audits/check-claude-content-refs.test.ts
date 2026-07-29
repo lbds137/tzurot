@@ -335,6 +335,7 @@ describe('findContentRefs (against real repo)', () => {
       'dev:focus',
       'dev:lint',
       'dev:schema-audit',
+      'dev:stale-debug',
       'dev:test',
       'dev:test-summary',
       'dev:typecheck',
