@@ -321,6 +321,51 @@ describe('MultiTagCoordinator', () => {
       expect(vi.mocked(msg.reply)).not.toHaveBeenCalled();
     });
 
+    it('delivers the errored character in-character while the PARTIAL batch proceeds', async () => {
+      // Regression: erroredOutcomes were only delivered when EVERY slot
+      // failed — in a mixed batch (Alice submits, Bob's submit throws) Bob's
+      // outcome was collected but silently dropped.
+      const msg = buildMessage();
+      chatManager.submitChatJob.mockImplementation(async ({ personality }) => {
+        if (personality.id === 'id-Bob') {
+          throw new Error('gateway write timeout');
+        }
+        return {
+          kind: 'submitted',
+          jobId: `job-${personality.name}`,
+          trackingContext: {
+            kind: 'message',
+            personality,
+            personaId: `p-${personality.name}`,
+            userMessageTime: new Date(),
+          },
+        };
+      });
+
+      await coordinator.startFanOut({
+        message: msg,
+        channel: buildChannel(),
+        slots: [
+          buildResolvedSlot(buildPersonality('Alice')), // submitted → group proceeds
+          buildResolvedSlot(buildPersonality('Bob')), // submit-errored → speaks now
+        ],
+        content: 'hi',
+        truncated: false,
+      });
+      // The errored delivery is fire-and-forget — drain the microtask queue.
+      await vi.waitFor(() => {
+        expect(slotDelivery.deliverErrorNoPersist).toHaveBeenCalledTimes(1);
+      });
+
+      // Bob's in-character error line delivered...
+      expect(slotDelivery.deliverErrorNoPersist.mock.calls[0][2].personality.id).toBe('id-Bob');
+      // ...while Alice's fan-out is fully live: entry persisted, job owned.
+      expect(persistence.putEntry).toHaveBeenCalledTimes(1);
+      expect(coordinator.ownsJob('job-Alice')).toBe(true);
+      // No system notice — this is not the all-denied shape.
+      expect(vi.mocked(msg.reply)).not.toHaveBeenCalled();
+    });
+
     it('refuses fan-out after shutdown begins', async () => {
       await coordinator.beginShutdown();
       await coordinator.startFanOut({

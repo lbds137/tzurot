@@ -141,3 +141,83 @@ export function toSnapshot(entry: RuntimeEntry): CoordinatorEntrySnapshot {
     truncated: entry.truncated,
   };
 }
+
+/**
+ * The outcome of one slot submission — a discriminated union carrying the
+ * personality (and, for `errored`, the classified error) so downstream
+ * handling can respond per-character instead of collapsing every failure to
+ * an anonymous string.
+ *
+ * - `'submitted'` — a live job to coordinate.
+ * - `'denied'` — a genuine refusal: the character can't respond (denylisted,
+ *   NSFW-gated, or restricted here). The input was understood; the character
+ *   simply isn't available. Rendered as a single system notice when the whole
+ *   batch is denied.
+ * - `'errored'` — an infrastructure failure: the submission threw (e.g. a
+ *   gateway write-timeout while persisting the trigger message). Transient.
+ *   Carries a synthetic `success:false` result so the character can deliver
+ *   the error IN ITS OWN VOICE (its `errorMessage`, else a canned line).
+ *
+ * NOTE: the `'errored'`/`'submitted'` discriminants here are DISJOINT from
+ * `RuntimeSlot.status`'s `'errored'`/`'completed'` — those are post-submission
+ * job-lifecycle states (a submitted slot whose result came back failed). These
+ * describe whether the submission itself succeeded; they only share spelling.
+ */
+export type SlotOutcome =
+  | {
+      kind: 'submitted';
+      jobId: string;
+      personality: LoadedPersonality;
+      personaId: string;
+      source: SlotSource;
+      isAutoResponse: boolean;
+    }
+  | { kind: 'denied'; personality: LoadedPersonality }
+  | {
+      kind: 'errored';
+      personality: LoadedPersonality;
+      isAutoResponse: boolean;
+      spec: LLMGenerationResult;
+    };
+
+/**
+ * Partition slot submissions into the dense runtime slots (submitted, status
+ * `'pending'`) and the errored outcomes still owed an in-character error line.
+ *
+ * Dense slot indices: denied slots are skipped, surviving slots get 0..k-1.
+ * The ResolvedSlot input may have had non-contiguous "logical" positions
+ * (e.g., reply at 0, denied activation at 1, mention at 2 → dense becomes
+ * [0:reply, 1:mention]). Recovery uses the snapshot's dense `slotIndex`
+ * directly when rehydrating and never re-resolves from input — so the indices
+ * are stable across the entry's lifetime and the dense numbering is the
+ * canonical view.
+ *
+ * Denied outcomes need no accumulation — they render as a single system
+ * notice only when the WHOLE batch is denied.
+ */
+export function partitionSlotSubmissions(slotSubmissions: SlotOutcome[]): {
+  runtimeSlots: RuntimeSlot[];
+  erroredOutcomes: Extract<SlotOutcome, { kind: 'errored' }>[];
+} {
+  const runtimeSlots: RuntimeSlot[] = [];
+  const erroredOutcomes: Extract<SlotOutcome, { kind: 'errored' }>[] = [];
+  let nextIndex = 0;
+  for (const submission of slotSubmissions) {
+    if (submission.kind !== 'submitted') {
+      if (submission.kind === 'errored') {
+        erroredOutcomes.push(submission);
+      }
+      continue;
+    }
+    runtimeSlots.push({
+      slotIndex: nextIndex++,
+      personality: submission.personality,
+      personaId: submission.personaId,
+      source: submission.source,
+      isAutoResponse: submission.isAutoResponse,
+      jobId: submission.jobId,
+      status: 'pending',
+    });
+  }
+  return { runtimeSlots, erroredOutcomes };
+}
