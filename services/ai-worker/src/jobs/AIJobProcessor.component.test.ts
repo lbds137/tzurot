@@ -217,6 +217,8 @@ describe('AIJobProcessor Component Test', () => {
         },
         message: 'Hello, test bot!',
         context: {
+          kind: 'envelope',
+          rawAssemblyInputs: { rawMessageContent: 'hello' },
           userId: 'user-test-123',
         },
         responseDestination: {
@@ -296,6 +298,8 @@ describe('AIJobProcessor Component Test', () => {
         },
         message: 'This will fail',
         context: {
+          kind: 'envelope',
+          rawAssemblyInputs: { rawMessageContent: 'hello' },
           userId: 'user-test-123',
         },
         responseDestination: {
@@ -347,6 +351,8 @@ describe('AIJobProcessor Component Test', () => {
         },
         message: 'Test routing',
         context: {
+          kind: 'envelope',
+          rawAssemblyInputs: { rawMessageContent: 'hello' },
           userId: 'user-test-123',
         },
         responseDestination: {
@@ -412,6 +418,8 @@ describe('AIJobProcessor Component Test', () => {
         },
         message: 'Test persistence',
         context: {
+          kind: 'envelope',
+          rawAssemblyInputs: { rawMessageContent: 'hello' },
           userId: 'user-test-123',
         },
         responseDestination: {

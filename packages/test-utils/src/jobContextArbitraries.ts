@@ -45,7 +45,7 @@ export interface ArbJobContext {
   userId: string;
   channelId: string;
   guildId?: string;
-  kind?: 'legacy' | 'envelope';
+  kind?: 'envelope';
   attachments?: ArbAttachment[];
   rawAssemblyInputs?: {
     rawMessageContent: string;
@@ -180,32 +180,10 @@ export function envelopeContextArb(): fc.Arbitrary<ArbJobContext> {
     );
 }
 
-/**
- * The schema-TOLERATED legacy shape (kind absent or 'legacy', fat fields
- * inline). Bot-client no longer ships this; the BullMQ schema still accepts
- * it (`.default('legacy')` for old queued jobs), and the worker's ContextStep
- * rejects it at runtime. The suite pins that narrowing explicitly.
- */
-export function legacyContextArb(): fc.Arbitrary<ArbJobContext> {
-  return fc
-    .record({
-      userId: snowflakeArb,
-      channelId: snowflakeArb,
-      explicitKind: fc.boolean(),
-      attachments: fc.array(attachmentArb(), { minLength: 0, maxLength: 2 }),
-    })
-    .map(({ userId, channelId, explicitKind, attachments }) => {
-      const context: ArbJobContext = {
-        userId,
-        channelId,
-        ...(explicitKind ? { kind: 'legacy' as const } : {}),
-        ...(attachments.length > 0 ? { attachments } : {}),
-      };
-      return context;
-    });
-}
-
 /** Whether the trigger message's own attachments include a describable one. */
+// The 'image/'/'audio/' literals here and below deliberately mirror
+// CONTENT_TYPES.IMAGE_PREFIX / AUDIO_PREFIX without importing common-types
+// (greppability aid; keeps this package dependency-light).
 export function hasDescribableDirectAttachment(context: ArbJobContext): boolean {
   return (context.attachments ?? []).some(
     att => att.contentType.startsWith('image/') || att.contentType.startsWith('audio/')

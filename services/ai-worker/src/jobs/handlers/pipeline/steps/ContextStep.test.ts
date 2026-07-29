@@ -75,6 +75,7 @@ function createValidJobData(overrides: Partial<LLMGenerationJobData> = {}): LLMG
     personality: TEST_PERSONALITY,
     message: 'Hello, how are you?',
     context: {
+      kind: 'envelope',
       userId: 'user-456',
       userName: 'TestUser',
       channelId: 'channel-789',

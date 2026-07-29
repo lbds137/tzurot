@@ -167,6 +167,7 @@ function createMockJob<T>(data: T, id = 'job-123'): Job<T> {
 
 // Common test data
 const baseContext = {
+  kind: 'envelope' as const,
   userId: 'user-123',
   channelId: 'channel-123',
 };

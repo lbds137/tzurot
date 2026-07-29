@@ -72,7 +72,11 @@ export const internalFixtures: Record<string, ConformanceEntry> = {
           // ownership-sensitive path in the pipeline sees consistent data.
           personality: loadedPersonality(personality.id, ctx.actorUserId),
           message: 'Conformance harness trigger message.',
-          context: { userId: ctx.actorDiscordId },
+          context: {
+            kind: 'envelope',
+            userId: ctx.actorDiscordId,
+            rawAssemblyInputs: { rawMessageContent: 'Conformance harness trigger message.' },
+          },
         },
       };
     },

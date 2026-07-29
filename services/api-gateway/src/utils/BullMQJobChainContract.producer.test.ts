@@ -117,63 +117,9 @@ describe('BullMQ job-chain contract — producer fixture generation', () => {
   });
   afterEach(() => vi.restoreAllMocks());
 
-  it('audio-and-image: a chain with one audio + one image attachment', async () => {
-    const context: JobContext = {
-      userId: '900000000000000700',
-      userName: 'Fixture User',
-      channelId: 'fixture-channel',
-      attachments: [
-        {
-          url: 'https://cdn.example/voice.ogg',
-          name: 'voice.ogg',
-          contentType: CONTENT_TYPES.AUDIO_OGG,
-          size: 1024,
-        },
-        {
-          url: 'https://cdn.example/photo.png',
-          name: 'photo.png',
-          contentType: CONTENT_TYPES.IMAGE_PNG,
-          size: 2048,
-        },
-      ],
-    };
-
-    await createJobChain({
-      requestId: 'fixture-req',
-      personality: PERSONALITY,
-      message: 'What is in this audio and image?',
-      context,
-      responseDestination: RESPONSE_DESTINATION,
-      llmConfigResolver: resolverStub,
-      visionConfigResolver: visionResolverStub,
-    });
-
-    const flowCall = vi.mocked(flowProducer.add).mock.calls[0][0] as unknown as {
-      name: string;
-      data: unknown;
-      children?: { name: string; data: unknown }[];
-    };
-
-    // The REAL producer output must validate against the consumer's entry schemas.
-    // A drift in createJobChain (wrong field, missing required key) fails HERE,
-    // which the old hand-written circular test could never catch.
-    expect(llmGenerationJobDataSchema.safeParse(flowCall.data).success).toBe(true);
-    const children = flowCall.children ?? [];
-    const audioChild = children.find(c => c.name === JobType.AudioTranscription);
-    const imageChild = children.find(c => c.name === JobType.ImageDescription);
-    expect(audioTranscriptionJobDataSchema.safeParse(audioChild?.data).success).toBe(true);
-    expect(imageDescriptionJobDataSchema.safeParse(imageChild?.data).success).toBe(true);
-
-    // Snapshot the captured chain — the committed contract artifact the consumer reads.
-    await expect(stableFixtureJson(flowCall)).toMatchFileSnapshot(
-      contractFixtureFile('bullmq-job-chain/audio-and-image.json')
-    );
-  });
-
   it('envelope-minimal: the thin shape bot-client actually ships (no attachments)', async () => {
-    // Post-cutover, kind:'envelope' is the ONLY shape bot-client sends. The
-    // legacy fixtures above remain deliberately: the consumer half asserts
-    // they are schema-tolerated but REJECTED by ContextStep's envelope gate.
+    // kind:'envelope' is the ONLY payload shape — the schema itself now
+    // rejects the retired legacy tolerance (pinned in jobs.test.ts).
     const context: JobContext = {
       userId: '900000000000000700',
       userName: 'Fixture User',
@@ -350,43 +296,15 @@ describe('BullMQ job-chain contract — producer fixture generation', () => {
     for (const child of children) {
       expect(child.data.sourceReferenceNumber).toBeUndefined();
     }
+    // Each child validates against its consumer entry schema (the drift check
+    // the retired legacy audio-and-image fixture used to carry).
+    const audioChild = children.find(c => c.name === JobType.AudioTranscription);
+    const imageChild = children.find(c => c.name === JobType.ImageDescription);
+    expect(audioTranscriptionJobDataSchema.safeParse(audioChild?.data).success).toBe(true);
+    expect(imageDescriptionJobDataSchema.safeParse(imageChild?.data).success).toBe(true);
 
     await expect(stableFixtureJson(flowCall)).toMatchFileSnapshot(
       contractFixtureFile('bullmq-job-chain/envelope-direct-attachments.json')
-    );
-  });
-
-  it('text-only: a plain message with no attachments (no children, no dependencies)', async () => {
-    // The dominant path: no attachments → createJobChain emits an LLM-only flow
-    // with no children and `dependencies: undefined`. A regression here would slip
-    // past the audio-and-image fixture entirely.
-    const context: JobContext = {
-      userId: '900000000000000700',
-      userName: 'Fixture User',
-      channelId: 'fixture-channel',
-    };
-
-    await createJobChain({
-      requestId: 'fixture-req-text',
-      personality: PERSONALITY,
-      message: 'just a plain text message',
-      context,
-      responseDestination: RESPONSE_DESTINATION,
-      llmConfigResolver: resolverStub,
-      visionConfigResolver: visionResolverStub,
-    });
-
-    const flowCall = vi.mocked(flowProducer.add).mock.calls[0][0] as unknown as {
-      name: string;
-      data: unknown;
-      children?: unknown[];
-    };
-
-    expect(llmGenerationJobDataSchema.safeParse(flowCall.data).success).toBe(true);
-    expect(flowCall.children).toBeUndefined();
-
-    await expect(stableFixtureJson(flowCall)).toMatchFileSnapshot(
-      contractFixtureFile('bullmq-job-chain/text-only.json')
     );
   });
 });

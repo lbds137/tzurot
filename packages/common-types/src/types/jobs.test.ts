@@ -388,6 +388,8 @@ describe('BullMQ Job Contract Tests', () => {
         },
         message: 'Hello, world!',
         context: {
+          kind: 'envelope',
+          rawAssemblyInputs: { rawMessageContent: 'hello' },
           userId: 'user-123',
         },
       };
@@ -422,6 +424,8 @@ describe('BullMQ Job Contract Tests', () => {
         },
         message: 'Hello, world!',
         context: {
+          kind: 'envelope',
+          rawAssemblyInputs: { rawMessageContent: 'hello' },
           userId: 'user-123',
           userName: 'TestUser',
           channelId: 'channel-123',
@@ -499,7 +503,11 @@ describe('BullMQ Job Contract Tests', () => {
           voiceEnabled: false,
         },
         message: 'Hello',
-        context: { userId: 'user-123' },
+        context: {
+          kind: 'envelope',
+          rawAssemblyInputs: { rawMessageContent: 'hello' },
+          userId: 'user-123',
+        },
       };
 
       // Omitted is valid (backward compatibility with in-flight jobs)
@@ -543,7 +551,11 @@ describe('BullMQ Job Contract Tests', () => {
           voiceEnabled: false,
         },
         message: 'String message',
-        context: { userId: 'user-123' },
+        context: {
+          kind: 'envelope',
+          rawAssemblyInputs: { rawMessageContent: 'hello' },
+          userId: 'user-123',
+        },
       };
 
       const resultString = llmGenerationJobDataSchema.safeParse(jobWithString);
@@ -571,7 +583,11 @@ describe('BullMQ Job Contract Tests', () => {
           voiceEnabled: false,
         },
         message: { type: 'multimodal', content: 'Object message' },
-        context: { userId: 'user-123' },
+        context: {
+          kind: 'envelope',
+          rawAssemblyInputs: { rawMessageContent: 'hello' },
+          userId: 'user-123',
+        },
       };
 
       const resultObject = llmGenerationJobDataSchema.safeParse(jobWithObject);
@@ -607,15 +623,16 @@ describe('BullMQ Job Contract Tests', () => {
 
     const minimalRawAssemblyInputs = { rawMessageContent: 'hello' };
 
-    it("defaults an absent kind to 'legacy' (in-flight old-bot jobs)", () => {
+    it('rejects an absent kind (the retired legacy-tolerance default)', () => {
+      // The schema once defaulted an absent discriminant to 'legacy' so jobs
+      // queued by a pre-cutover bot could still parse. Queue retention caps
+      // age those out within days; the tolerance is retired and a missing
+      // kind now fails at the gateway enqueue, not one step later.
       const result = llmGenerationJobDataSchema.safeParse(buildLlmJob({ userId: 'user-123' }));
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.data.context.kind).toBe('legacy');
-      }
+      expect(result.success).toBe(false);
     });
 
-    it('accepts a legacy-kind context carrying the re-derivable fields', () => {
+    it("rejects an explicit kind:'legacy' context even with the re-derivable fields inline", () => {
       const result = llmGenerationJobDataSchema.safeParse(
         buildLlmJob({
           kind: 'legacy',
@@ -626,7 +643,7 @@ describe('BullMQ Job Contract Tests', () => {
           referencedChannels: [],
         })
       );
-      expect(result.success).toBe(true);
+      expect(result.success).toBe(false);
     });
 
     it('accepts an envelope-kind context with rawAssemblyInputs and without the 4 fields', () => {
@@ -652,7 +669,12 @@ describe('BullMQ Job Contract Tests', () => {
 
     it('preserves isWeighIn through validation (regression guard for the prior schema drift)', () => {
       const result = llmGenerationJobDataSchema.safeParse(
-        buildLlmJob({ userId: 'user-123', isWeighIn: true })
+        buildLlmJob({
+          kind: 'envelope',
+          rawAssemblyInputs: { rawMessageContent: 'hello' },
+          userId: 'user-123',
+          isWeighIn: true,
+        })
       );
       expect(result.success).toBe(true);
       if (result.success) {
@@ -734,7 +756,11 @@ describe('BullMQ Job Contract Tests', () => {
           voiceEnabled: false,
         },
         message: 'Test message',
-        context: { userId: 'user-123' },
+        context: {
+          kind: 'envelope',
+          rawAssemblyInputs: { rawMessageContent: 'hello' },
+          userId: 'user-123',
+        },
       };
 
       const result = anyJobDataSchema.safeParse(llmJob);
@@ -747,7 +773,11 @@ describe('BullMQ Job Contract Tests', () => {
         jobType: 'InvalidJobType', // Not a valid JobType enum value
         responseDestination: { type: 'discord', channelId: 'channel-123' },
         message: 'Test',
-        context: { userId: 'user-123' },
+        context: {
+          kind: 'envelope',
+          rawAssemblyInputs: { rawMessageContent: 'hello' },
+          userId: 'user-123',
+        },
       };
 
       const result = anyJobDataSchema.safeParse(invalidJob);
@@ -817,6 +847,8 @@ describe('BullMQ Job Contract Tests', () => {
         },
         message: 'Hello!',
         context: {
+          kind: 'envelope',
+          rawAssemblyInputs: { rawMessageContent: 'hello' },
           userId: 'user-123',
           activePersonaId: 'persona-123',
           activePersonaName: 'ActiveUser',
@@ -878,6 +910,8 @@ describe('BullMQ Job Contract Tests', () => {
         },
         message: 'Hello!',
         context: {
+          kind: 'envelope',
+          rawAssemblyInputs: { rawMessageContent: 'hello' },
           userId: 'user-123',
           isVoiceMessage: true,
         },
@@ -913,6 +947,8 @@ describe('BullMQ Job Contract Tests', () => {
         },
         message: 'Hello!',
         context: {
+          kind: 'envelope',
+          rawAssemblyInputs: { rawMessageContent: 'hello' },
           userId: 'user-123',
         },
       };

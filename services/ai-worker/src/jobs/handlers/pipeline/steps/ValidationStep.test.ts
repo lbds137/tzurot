@@ -50,6 +50,8 @@ function createValidJobData(): LLMGenerationJobData {
     personality: TEST_PERSONALITY,
     message: 'Hello, how are you?',
     context: {
+      kind: 'envelope',
+      rawAssemblyInputs: { rawMessageContent: 'hello' },
       userId: 'user-456',
       userName: 'TestUser',
       channelId: 'channel-789',

@@ -30,16 +30,21 @@ export const TEST_PERSONALITY: LoadedPersonality = {
 };
 
 /**
- * Minimal context with only required fields
+ * Minimal context with only required fields (envelope-shaped — the only
+ * payload variant the job schemas accept).
  */
 export const MINIMAL_CONTEXT: RequestContext = {
+  kind: 'envelope',
   userId: 'user-123',
+  rawAssemblyInputs: { rawMessageContent: 'hello' },
 };
 
 /**
  * Full context with all optional fields populated
  */
 export const FULL_CONTEXT: RequestContext = {
+  kind: 'envelope',
+  rawAssemblyInputs: { rawMessageContent: 'hello' },
   userId: 'user-123',
   userName: 'TestUser',
   channelId: 'channel-123',
