@@ -272,7 +272,7 @@ function createStatusHandler(prisma: PrismaClient, baseUrl: string) {
       job: {
         ...jobFields,
         downloadUrl:
-          job.status === 'completed' && downloadToken !== null
+          job.status === 'completed'
             ? `${baseUrl}/exports/${encodeURIComponent(downloadToken)}`
             : null,
       },

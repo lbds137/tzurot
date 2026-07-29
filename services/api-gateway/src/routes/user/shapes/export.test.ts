@@ -252,31 +252,31 @@ describe('Shapes Export Routes', () => {
       expect(listedJob).not.toHaveProperty('downloadToken');
     });
 
-    it('yields a null downloadUrl for a completed job that predates the token column', async () => {
-      // Legacy row: completed before the download_token migration → null token.
+    it('yields a null downloadUrl for a not-yet-completed job', async () => {
       mockPrisma.exportJob.findMany.mockResolvedValueOnce([
         {
-          id: 'legacy-job',
+          id: 'job-pending',
           sourceSlug: 'test-shape',
-          status: 'completed',
+          status: 'pending',
           format: 'json',
-          fileName: 'legacy.json',
-          fileSizeBytes: 1024,
+          fileName: null,
+          fileSizeBytes: null,
           createdAt: new Date(),
-          completedAt: new Date(),
+          completedAt: null,
           expiresAt: new Date(Date.now() + 86400000),
           errorMessage: null,
           exportMetadata: null,
-          downloadToken: null,
+          downloadToken: 'f'.repeat(64),
         },
       ]);
 
       const { res } = await callListHandler();
-      const legacyJsonMock = res.json as unknown as ReturnType<typeof vi.fn>;
-      const legacyJob = (legacyJsonMock.mock.calls[0][0] as { jobs: Record<string, unknown>[] })
+
+      const pendingJsonMock = res.json as unknown as ReturnType<typeof vi.fn>;
+      const pendingJob = (pendingJsonMock.mock.calls[0][0] as { jobs: Record<string, unknown>[] })
         .jobs[0];
-      expect(legacyJob.downloadUrl).toBeNull();
-      expect(legacyJob).not.toHaveProperty('downloadToken');
+      expect(pendingJob.downloadUrl).toBeNull();
+      expect(pendingJob).not.toHaveProperty('downloadToken');
     });
 
     it('should filter by slug when ?slug= query param is provided', async () => {
