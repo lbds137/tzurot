@@ -9,7 +9,7 @@ import chalk from 'chalk';
 
 import type { Environment } from '../utils/env-runner.js';
 import {
-  DEFAULT_QUEUE_NAME,
+  getRailwayQueueName,
   getRailwayRedisUrl,
   createInspectorQueue,
 } from './bullmqConnection.js';
@@ -170,12 +170,10 @@ async function fetchQueueStats(queue: Queue): Promise<QueueStats> {
  * Inspect queue state
  */
 export async function inspectQueue(options: InspectQueueOptions = {}): Promise<void> {
-  const {
-    env = 'dev',
-    queue: queueName = DEFAULT_QUEUE_NAME,
-    failedLimit = 5,
-    verbose = false,
-  } = options;
+  const { env = 'dev', failedLimit = 5, verbose = false } = options;
+  // No explicit --queue: resolve the env's actual QUEUE_NAME seam rather than
+  // assuming the literal default (same rationale as ops maintenance).
+  const queueName = options.queue ?? (await getRailwayQueueName(env));
 
   console.log(chalk.cyan(`Inspecting queue "${queueName}" on ${env}...`));
   console.log('');

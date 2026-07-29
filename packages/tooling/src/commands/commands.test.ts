@@ -42,6 +42,14 @@ vi.mock('../voice/audit-references.js', () => ({
   auditReferences: vi.fn().mockResolvedValue(undefined),
 }));
 
+vi.mock('../inspect/queue.js', () => ({
+  inspectQueue: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock('../inspect/dlq.js', () => ({
+  viewDlq: vi.fn().mockResolvedValue(undefined),
+}));
+
 describe('command handlers', () => {
   let consoleLogSpy: ReturnType<typeof vi.spyOn>;
 
@@ -284,6 +292,44 @@ describe('command handlers', () => {
 
       await vi.waitFor(() => {
         expect(auditReferences).toHaveBeenCalledWith(expect.objectContaining({ json: true }));
+      });
+    });
+  });
+
+  describe('inspect commands', () => {
+    it('passes queue: undefined when --queue is not given, so QUEUE_NAME resolution can fire', async () => {
+      // Regression pin: a cac-level `{ default: 'ai-requests' }` on --queue
+      // fills options.queue BEFORE the handler runs, silently clobbering the
+      // handler's `options.queue ?? getRailwayQueueName(env)` fallback — the
+      // hardcoded-literal bug the resolution exists to prevent.
+      const { registerInspectCommands } = await import('./inspect.js');
+      const { inspectQueue } = await import('../inspect/queue.js');
+      const { viewDlq } = await import('../inspect/dlq.js');
+      const cli = cac('test');
+      registerInspectCommands(cli);
+
+      cli.parse(['node', 'test', 'inspect:queue'], { run: true });
+      await vi.waitFor(() => {
+        expect(inspectQueue).toHaveBeenCalledWith(expect.objectContaining({ queue: undefined }));
+      });
+
+      cli.parse(['node', 'test', 'inspect:dlq'], { run: true });
+      await vi.waitFor(() => {
+        expect(viewDlq).toHaveBeenCalledWith(expect.objectContaining({ queue: undefined }));
+      });
+    });
+
+    it('an explicit --queue still wins over resolution', async () => {
+      const { registerInspectCommands } = await import('./inspect.js');
+      const { inspectQueue } = await import('../inspect/queue.js');
+      const cli = cac('test');
+      registerInspectCommands(cli);
+
+      cli.parse(['node', 'test', 'inspect:queue', '--queue', 'custom-queue'], { run: true });
+      await vi.waitFor(() => {
+        expect(inspectQueue).toHaveBeenCalledWith(
+          expect.objectContaining({ queue: 'custom-queue' })
+        );
       });
     });
   });
