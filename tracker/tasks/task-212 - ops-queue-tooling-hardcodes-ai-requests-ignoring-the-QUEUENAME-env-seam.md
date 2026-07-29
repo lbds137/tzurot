@@ -1,10 +1,10 @@
 ---
 id: TASK-212
 title: 'ops queue tooling hardcodes ai-requests, ignoring the QUEUE_NAME env seam'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-07-06 00:00'
-updated_date: '2026-07-28 10:50'
+updated_date: '2026-07-29 23:36'
 labels:
   - 'area:ai-worker'
   - 'area:tooling'
