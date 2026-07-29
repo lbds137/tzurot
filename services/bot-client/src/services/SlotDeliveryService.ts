@@ -226,12 +226,13 @@ export class SlotDeliveryService {
   /**
    * Deliver an in-character error line WITHOUT persisting a conversation turn.
    *
-   * Used by the multi-tag submit-failure path (`MultiTagCoordinator`'s
-   * all-errored branch): the character's `submitChatJob` threw before any
-   * user/assistant turn was created, so there is no conversation turn to
-   * attribute — fabricating a `saveAssistantMessage` entry (which needs a
-   * `personaId` this path never resolved) would record a turn that never
-   * happened. The error line still goes out the webhook as the character.
+   * Used by the multi-tag submit-failure paths (`deliverErroredOutcomes`,
+   * reached from both the all-failed notice AND a partial batch's errored
+   * slots): the character's `submitChatJob` threw before any user/assistant
+   * turn was created, so there is no conversation turn to attribute —
+   * fabricating a `saveAssistantMessage` entry (which needs a `personaId`
+   * this path never resolved) would record a turn that never happened. The
+   * error line still goes out the webhook as the character.
    */
   async deliverErrorNoPersist(
     errorContent: string,
