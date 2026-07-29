@@ -28,6 +28,7 @@ import { type Prisma, type PrismaClient } from '@tzurot/common-types/services/pr
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { z } from 'zod';
 import { ensureOrphanSentinel } from './OrphanSentinelBootstrap.js';
+import { countCrossUserReach } from './retention/crossUserReach.js';
 import { isStillEligibleForPurge } from './retention/eligibility.js';
 import { recordPurgeSuccess } from './retention/purgeAudit.js';
 import { reHomeCrossUserCharacters } from './retention/reHome.js';
@@ -189,26 +190,6 @@ async function sweepLooseRefs(
 export class AccountDeletionService {
   constructor(private readonly prisma: PrismaClient) {}
 
-  /** Distinct OTHER users holding memories with each owned character. */
-  private async fetchOtherUserReach(
-    userId: string,
-    ownedIds: string[]
-  ): Promise<Map<string, number>> {
-    if (ownedIds.length === 0) {
-      return new Map();
-    }
-    const rows = await this.prisma.$queryRaw<{ personalityId: string; otherUsers: number }[]>`
-      SELECT m.personality_id AS "personalityId",
-             COUNT(DISTINCT p.owner_id)::int AS "otherUsers"
-      FROM memories m
-      JOIN personas p ON m.persona_id = p.id
-      WHERE m.personality_id = ANY(${ownedIds}::uuid[])
-        AND p.owner_id != ${userId}::uuid
-      GROUP BY m.personality_id
-    `;
-    return new Map(rows.map(row => [row.personalityId, row.otherUsers]));
-  }
-
   async preview(userId: string): Promise<AccountDeletePreview> {
     // Intentionally unbounded (exception to the bounded-findMany rule): the
     // deletion scope must cover the COMPLETE owned set — a paginated page
@@ -234,7 +215,10 @@ export class AccountDeletionService {
         where: { userId, status: { in: ['pending', 'in_progress'] } },
         select: { id: true },
       }),
-      this.fetchOtherUserReach(userId, ownedIds),
+      // The retention module's single reach definition — the warning shown
+      // here and the purge's re-home decision must agree on what "shared"
+      // means (memories ∪ history ∪ facts ∪ explicit grants).
+      countCrossUserReach(this.prisma, userId, ownedIds),
     ]);
 
     return {
@@ -242,7 +226,7 @@ export class AccountDeletionService {
       ownedCharacters: ownedCharacters.map(character => ({
         id: character.id,
         name: character.name,
-        otherUsersWithMemories: reach.get(character.id) ?? 0,
+        otherUsersWithData: reach.get(character.id) ?? 0,
       })),
       counts: {
         personas: personaIds.length,

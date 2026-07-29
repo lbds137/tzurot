@@ -49,12 +49,12 @@ function accountDeleteModalDisplay(): DestructiveModalDisplay {
 }
 
 function characterImpactLines(
-  ownedCharacters: { name: string; otherUsersWithMemories: number }[]
+  ownedCharacters: { name: string; otherUsersWithData: number }[]
 ): string[] {
   const listed = ownedCharacters.slice(0, MAX_LISTED_CHARACTERS).map(character => {
     const reach =
-      character.otherUsersWithMemories > 0
-        ? ` — **${character.otherUsersWithMemories}** other user(s) have memories with them`
+      character.otherUsersWithData > 0
+        ? ` — **${character.otherUsersWithData}** other user(s) have data with them`
         : '';
     return `- **${escapeMarkdown(character.name)}**${reach}`;
   });
@@ -65,7 +65,7 @@ function characterImpactLines(
 }
 
 function buildWarningDescription(preview: {
-  ownedCharacters: { name: string; otherUsersWithMemories: number }[];
+  ownedCharacters: { name: string; otherUsersWithData: number }[];
   counts: {
     personas: number;
     characters: number;
@@ -90,7 +90,7 @@ function buildWarningDescription(preview: {
     lines.push(
       '',
       '⚠️ **Your owned characters are deleted for EVERYONE**, along with every',
-      "other user's memories of them:",
+      "other user's data with them:",
       ...characterImpactLines(preview.ownedCharacters)
     );
   }

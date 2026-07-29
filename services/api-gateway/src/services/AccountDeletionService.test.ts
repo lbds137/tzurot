@@ -85,9 +85,7 @@ describe('AccountDeletionService.preview', () => {
       memories: 2,
       facts: 1,
     });
-    expect(preview.ownedCharacters).toEqual([
-      { id: 'x1', name: 'XBot', otherUsersWithMemories: 2 },
-    ]);
+    expect(preview.ownedCharacters).toEqual([{ id: 'x1', name: 'XBot', otherUsersWithData: 2 }]);
     expect(preview.hasActiveExport).toBe(false);
   });
 

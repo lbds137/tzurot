@@ -85,9 +85,11 @@ export const AccountDeleteTokenSchema = z
 export const OwnedCharacterImpactSchema = z.object({
   id: z.string(),
   name: z.string(),
-  /** Distinct OTHER users holding memories with this character — deleting
-   *  the account deletes the character and those memories for everyone. */
-  otherUsersWithMemories: z.number().int(),
+  /** Distinct OTHER users with data involving this character (memories,
+   *  history, or facts — or an explicit co-ownership grant). Same reach
+   *  definition the retention purge uses to decide re-home vs delete;
+   *  deleting the account deletes the character and that data for everyone. */
+  otherUsersWithData: z.number().int(),
 });
 
 // GET /user/account/delete/preview
