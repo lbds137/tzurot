@@ -1,10 +1,10 @@
 ---
 id: TASK-303
 title: Two fake-optional columns flagged always-passed-no-default
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-07-23 00:00'
-updated_date: '2026-07-28 10:52'
+updated_date: '2026-07-29 16:45'
 labels:
   - 'area:db'
   - 'size:S'

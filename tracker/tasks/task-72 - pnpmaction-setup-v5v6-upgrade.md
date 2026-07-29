@@ -4,12 +4,12 @@ title: pnpm/action-setup v5→v6 upgrade
 status: To Do
 assignee: []
 created_date: '2026-04-17 00:00'
-updated_date: '2026-07-28 10:47'
+updated_date: '2026-07-29 16:28'
 labels:
   - 'area:ci'
   - 'size:S'
 dependencies: []
-priority: medium
+priority: low
 ordinal: 72000
 ---
 
