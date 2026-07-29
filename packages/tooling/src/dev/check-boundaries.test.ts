@@ -28,6 +28,8 @@ vi.mock('node:fs', () => ({
 }));
 
 import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { dirname, join, relative, sep } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
   checkBoundaries,
   BOT_CLIENT_BANNED_COMMON_TYPES_PRISMA_SYMBOLS,
@@ -221,6 +223,46 @@ const prisma = new PrismaClient();
       const output = consoleLogSpy.mock.calls.flat().join(' ');
       expect(output).toContain('boundary violation');
       expect(process.exitCode).toBe(1);
+    });
+
+    it('should detect a Prisma-backed module imported via its own services subpath', async () => {
+      // SystemSettingsService is importable at its OWN subpath through the
+      // package's wildcard exports — the specifier arm must span any
+      // common-types subpath, not just services/prisma.
+      vi.mocked(readdirSync).mockImplementation(((dir: unknown) =>
+        String(dir).includes('bot-client/src') ? ['test.ts'] : []) as typeof readdirSync);
+      vi.mocked(statSync).mockReturnValue({ isDirectory: () => false } as ReturnType<
+        typeof statSync
+      >);
+      vi.mocked(readFileSync).mockReturnValue(
+        `import { SystemSettingsService } from '@tzurot/common-types/services/SystemSettingsService';`
+      );
+
+      await checkBoundaries();
+
+      const output = consoleLogSpy.mock.calls.flat().join(' ');
+      expect(output).toContain('boundary violation');
+      expect(output).toContain('Prisma-backed');
+      expect(process.exitCode).toBe(1);
+    });
+
+    it('should not flag getSystemSettings (plural) despite the banned singular', async () => {
+      // getSystemSetting (singular, the ambient Prisma-backed read) is banned;
+      // getSystemSettings (plural) is a different symbol. Pins the \b word
+      // boundary so a future rewrite to substring matching fails here.
+      vi.mocked(readdirSync).mockImplementation(((dir: unknown) =>
+        String(dir).includes('bot-client/src') ? ['test.ts'] : []) as typeof readdirSync);
+      vi.mocked(statSync).mockReturnValue({ isDirectory: () => false } as ReturnType<
+        typeof statSync
+      >);
+      vi.mocked(readFileSync).mockReturnValue(
+        `import { getSystemSettings } from '@tzurot/common-types';`
+      );
+
+      await checkBoundaries();
+
+      const output = consoleLogSpy.mock.calls.flat().join(' ');
+      expect(output).toContain('No boundary violations found');
     });
 
     it('should detect the Prisma namespace imported from the common-types barrel', async () => {
@@ -417,23 +459,87 @@ import { formatMessage } from './utils/formatter.js';
   });
 });
 
-describe('bot-client Prisma-symbol allowlist (drift guard)', () => {
-  // Loading @tzurot/common-types/services/prisma pulls in the generated Prisma
-  // client, which is heavy to transform+load the first time. Done once in
-  // beforeAll (with a generous hook timeout) so the import cost lands in setup,
-  // not under the 5s per-test budget: when every package's vitest runs at once
-  // under concurrent CI load, the first-time load can exceed the default test
-  // timeout even though the assertion itself is instant.
-  let prismaModule: typeof import('@tzurot/common-types/services/prisma');
+describe('bot-client Prisma-symbol ban list (drift guard)', () => {
+  // Discovery scans common-types SOURCE for modules that import Prisma —
+  // type-only imports (`import type { PrismaClient }`) are erased from built
+  // JS, so dist cannot be the discovery surface — then imports each discovered
+  // module via its package subpath (the built dist, what consumers actually
+  // resolve) to enumerate its runtime exports. Loading the generated Prisma
+  // client is heavy the first time; done once in beforeAll (with a generous
+  // hook timeout) so the import cost lands in setup, not under the 5s
+  // per-test budget when every package's vitest runs at once in CI.
+  const PRISMA_IMPORT_MARKER = /from\s+['"][^'"]*(?:generated\/prisma|\/prisma\.js)/;
+  const COMMON_TYPES_SRC = join(
+    dirname(fileURLToPath(import.meta.url)),
+    '../../../common-types/src'
+  );
+  // module subpath (e.g. 'services/prisma') → its runtime export names
+  const moduleExports = new Map<string, string[]>();
+
   beforeAll(async () => {
-    prismaModule = await import('@tzurot/common-types/services/prisma');
+    // node:fs is module-mocked for the scanner tests above; the drift guard
+    // walks the real tree.
+    const fs = await vi.importActual<typeof import('node:fs')>('node:fs');
+    const prismaBackedFiles: string[] = [];
+    const walk = (dir: string): void => {
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        // generated/ IS the Prisma client (plus unrelated codegen output) —
+        // it's the thing being guarded against, not a re-export surface.
+        if (entry.name === 'generated') {
+          continue;
+        }
+        const full = join(dir, entry.name);
+        if (entry.isDirectory()) {
+          walk(full);
+        } else if (
+          entry.name.endsWith('.ts') &&
+          !entry.name.endsWith('.test.ts') &&
+          !entry.name.endsWith('.d.ts') &&
+          PRISMA_IMPORT_MARKER.test(fs.readFileSync(full, 'utf-8'))
+        ) {
+          prismaBackedFiles.push(full);
+        }
+      }
+    };
+    walk(COMMON_TYPES_SRC);
+
+    for (const file of prismaBackedFiles) {
+      const subpath = relative(COMMON_TYPES_SRC, file).replace(/\.ts$/, '').split(sep).join('/');
+      // Resolves through the package's wildcard exports to the built dist. A
+      // failure here means common-types needs a rebuild, or a Prisma-backed
+      // module landed in a directory the exports map doesn't cover.
+      const mod = (await import(/* @vite-ignore */ `@tzurot/common-types/${subpath}`)) as object;
+      moduleExports.set(subpath, Object.keys(mod));
+    }
   }, 30_000);
 
-  it('every banned Prisma symbol is still a real @tzurot/common-types/services/prisma export', () => {
+  it('discovery finds the known Prisma-backed modules (scanner self-check)', () => {
+    // If the walk or the marker regex breaks, discovery returns empty and the
+    // missing-entry assertion below passes vacuously — pin the known modules
+    // so a dead scanner fails loudly instead.
+    expect([...moduleExports.keys()]).toEqual(
+      expect.arrayContaining(['services/prisma', 'services/SystemSettingsService'])
+    );
+  });
+
+  it('every runtime export of every Prisma-backed module is in the ban list (missing-entry direction)', () => {
+    const banned: readonly string[] = BOT_CLIENT_BANNED_COMMON_TYPES_PRISMA_SYMBOLS;
+    for (const [subpath, names] of moduleExports) {
+      for (const name of names) {
+        expect(
+          banned.includes(name),
+          `"${name}" (exported from @tzurot/common-types/${subpath}, a Prisma-importing module) is missing from BOT_CLIENT_BANNED_COMMON_TYPES_PRISMA_SYMBOLS — add it so bot-client is banned from importing it, or, if it is genuinely safe for bot-client, add an explicit allowlist to this drift guard with the justification.`
+        ).toBe(true);
+      }
+    }
+  });
+
+  it('every banned symbol is a real export of a Prisma-backed module (stale-entry direction)', () => {
+    const union = new Set([...moduleExports.values()].flat());
     for (const symbol of BOT_CLIENT_BANNED_COMMON_TYPES_PRISMA_SYMBOLS) {
       expect(
-        symbol in prismaModule,
-        `"${symbol}" is in check-boundaries' bot-client ban list but is no longer exported from @tzurot/common-types/services/prisma — prune it from BOT_CLIENT_BANNED_COMMON_TYPES_PRISMA_SYMBOLS (the symbol was renamed, deleted, or moved elsewhere).`
+        union.has(symbol),
+        `"${symbol}" is in check-boundaries' bot-client ban list but no Prisma-backed @tzurot/common-types module exports it — prune it from BOT_CLIENT_BANNED_COMMON_TYPES_PRISMA_SYMBOLS (the symbol was renamed, deleted, or moved elsewhere).`
       ).toBe(true);
     }
   });
