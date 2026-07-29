@@ -1,10 +1,10 @@
 ---
 id: TASK-321
 title: Two cross-user-reach definitions coexist (deletion vs retention)
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-07-24 00:00'
-updated_date: '2026-07-28 10:52'
+updated_date: '2026-07-29 02:04'
 labels:
   - 'area:conversation-history'
   - 'origin:review'
