@@ -6,7 +6,7 @@
 
 ## Unreleased on Develop
 
-_(empty — reset at beta.184)_
+- #1849 Prisma ban-list missing-entry gap closed (TASK-50; +verifyPoolTimeouts, +SystemSettingsService×4, any-subpath regex, bidirectional drift test; TASK-54 archived obsolete)
 
 ## 🔬 Smoke checklist — v3.0.0-beta.183 (post-deploy)
 

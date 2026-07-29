@@ -1,10 +1,10 @@
 ---
 id: TASK-50
 title: Drift-guard the ban list against NEW Prisma re-exports (catch missing entries)
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-06-22 00:00'
-updated_date: '2026-07-28 10:47'
+updated_date: '2026-07-29 10:37'
 labels:
   - 'area:bot-client'
   - 'area:common-types'
