@@ -133,6 +133,48 @@ describe('buildDestructiveWarning', () => {
       'This will permanently delete your conversation history.'
     );
   });
+
+  it('builds within the customId budget for a MAX-length slug riding the footer', () => {
+    // Regression pin for the history-purge overflow: a slug can reach
+    // SLUG_MAX_LENGTH (50). Embedded in entityId it blew Discord's 100-char
+    // customId cap and setCustomId THREW synchronously. The escape hatch is
+    // structural: only the snowflake channelId rides the customId; the slug
+    // rides footerText.
+    const longSlug = 'a'.repeat(50);
+    const config = createHardDeleteConfig({
+      entityType: 'conversation history',
+      entityName: longSlug,
+      additionalWarning: 'warning',
+      source: 'history',
+      operation: 'history-purge',
+      entityId: '123456789012345678901', // widest snowflake shape
+      footerText: `slug:${longSlug}`,
+    });
+
+    const result = buildDestructiveWarning(config);
+
+    const customIds = result.components[0].components.map(
+      b => (b.data as APIButtonComponentWithCustomId).custom_id
+    );
+    for (const id of customIds) {
+      expect(id.length).toBeLessThanOrEqual(100);
+    }
+    expect(result.embeds[0].data.footer?.text).toBe(`slug:${longSlug}`);
+  });
+
+  it('THROWS when a max-length slug is embedded in the entityId (the budget is real)', () => {
+    // Documents the constraint the footer pattern exists for: discord.js
+    // validates the 100-char cap at setCustomId time. If this ever stops
+    // throwing, the budget assumption changed — revisit the escape hatch.
+    const longSlug = 'a'.repeat(50);
+    expect(() =>
+      buildDestructiveWarning({
+        ...testConfig,
+        operation: 'history-purge',
+        entityId: `${longSlug}|123456789012345678901`,
+      })
+    ).toThrow();
+  });
 });
 
 describe('buildConfirmationModal', () => {
