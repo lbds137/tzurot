@@ -2,9 +2,19 @@
  * Tests for shared mapSettingToApiUpdate utility
  */
 
-import { describe, it, expect } from 'vitest';
-import { mapSettingToApiUpdate } from './settingsUpdate.js';
-import { ALL_SETTINGS } from './settingsConfig.js';
+import { describe, it, expect, vi } from 'vitest';
+import type { ButtonInteraction } from 'discord.js';
+import { mapSettingToApiUpdate, handleSetButton } from './settingsUpdate.js';
+import { ALL_SETTINGS, EXTENDED_CONTEXT_SETTINGS } from './settingsConfig.js';
+import {
+  type SettingsDashboardConfig,
+  type SettingsDashboardSession,
+  DashboardView,
+} from './types.js';
+
+vi.mock('./SettingsSessionStorage.js', () => ({
+  storeSession: vi.fn().mockResolvedValue(undefined),
+}));
 
 describe('mapSettingToApiUpdate', () => {
   describe('maxMessages', () => {
@@ -126,5 +136,100 @@ describe('mapSettingToApiUpdate', () => {
         expect(result).not.toBeNull();
       }
     });
+  });
+});
+
+describe('handleSetButton', () => {
+  // Direct tests for the branches best pinned at the function seam (guards
+  // and the update-result contract); the full ack-then-dispatch flow is
+  // exercised through handleSettingsButton in SettingsDashboardHandler.test.ts.
+  const config = {
+    level: 'channel',
+    entityType: 'test-settings',
+    titlePrefix: 'Test',
+    color: 0x5865f2,
+    settings: EXTENDED_CONTEXT_SETTINGS,
+  } as SettingsDashboardConfig;
+
+  function makeSession(): SettingsDashboardSession {
+    return {
+      level: 'channel',
+      entityId: 'entity-1',
+      entityName: '#test',
+      userId: 'user-123',
+      messageId: 'msg-1',
+      channelId: 'chan-1',
+      lastActivityAt: new Date(),
+      view: DashboardView.OVERVIEW,
+      data: {
+        maxMessages: {
+          localValue: null,
+          hasLocalOverride: false,
+          effectiveValue: 50,
+          source: 'admin',
+        },
+      },
+    };
+  }
+
+  function makeInteraction() {
+    return {
+      user: { id: 'user-123' },
+      followUp: vi.fn().mockResolvedValue(undefined),
+      editReply: vi.fn().mockResolvedValue(undefined),
+    } as unknown as ButtonInteraction & {
+      followUp: ReturnType<typeof vi.fn>;
+      editReply: ReturnType<typeof vi.fn>;
+    };
+  }
+
+  it('notifies and skips the update handler when extra is missing', async () => {
+    const interaction = makeInteraction();
+    const updateHandler = vi.fn();
+
+    await handleSetButton(interaction, config, makeSession(), undefined, updateHandler);
+
+    expect(updateHandler).not.toHaveBeenCalled();
+    expect(interaction.followUp).toHaveBeenCalledWith(
+      expect.objectContaining({ content: expect.stringContaining('Invalid button data') })
+    );
+  });
+
+  it('rejects an unknown settingId before calling the update handler', async () => {
+    const interaction = makeInteraction();
+    const updateHandler = vi.fn();
+
+    await handleSetButton(interaction, config, makeSession(), 'nonexistent:true', updateHandler);
+
+    expect(updateHandler).not.toHaveBeenCalled();
+    expect(interaction.followUp).toHaveBeenCalledWith(
+      expect.objectContaining({ content: 'Unknown setting.' })
+    );
+  });
+
+  it('parses auto to null and forwards it across the update seam', async () => {
+    const interaction = makeInteraction();
+    const updateHandler = vi.fn().mockResolvedValue({ success: true });
+
+    await handleSetButton(interaction, config, makeSession(), 'maxMessages:auto', updateHandler);
+
+    expect(updateHandler).toHaveBeenCalledWith(
+      interaction,
+      expect.objectContaining({ entityId: 'entity-1' }),
+      'maxMessages',
+      null
+    );
+  });
+
+  it('surfaces the update handler failure without re-rendering', async () => {
+    const interaction = makeInteraction();
+    const updateHandler = vi.fn().mockResolvedValue({ success: false, error: 'API down' });
+
+    await handleSetButton(interaction, config, makeSession(), 'maxMessages:25', updateHandler);
+
+    expect(interaction.followUp).toHaveBeenCalledWith(
+      expect.objectContaining({ content: expect.stringContaining('API down') })
+    );
+    expect(interaction.editReply).not.toHaveBeenCalled();
   });
 });
