@@ -21,6 +21,10 @@ import {
   toCharacterData,
 } from './api.js';
 import type { EnvConfig } from '@tzurot/common-types/config/config';
+import {
+  ORPHAN_SENTINEL_DISCORD_ID,
+  ORPHAN_SENTINEL_USERNAME,
+} from '@tzurot/common-types/constants/persona';
 import type { UserClient } from '@tzurot/clients';
 
 interface StubUserClient {
@@ -540,6 +544,23 @@ describe('Character API Client', () => {
       const result = await fetchUsernames(mockClient, ['unknown-user']);
 
       expect(result.get('unknown-user')).toBe('Unknown');
+    });
+
+    it('resolves the orphan sentinel to its display name without a Discord fetch', async () => {
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValue({ displayName: 'Real User', username: 'realuser' });
+      const mockClient = {
+        users: { fetch: fetchMock },
+      } as unknown as Parameters<typeof fetchUsernames>[0];
+
+      const result = await fetchUsernames(mockClient, [ORPHAN_SENTINEL_DISCORD_ID, 'user-1']);
+
+      expect(result.get(ORPHAN_SENTINEL_DISCORD_ID)).toBe(ORPHAN_SENTINEL_USERNAME);
+      expect(result.get('user-1')).toBe('Real User');
+      // The sentinel's reserved id must never reach the Discord API
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(fetchMock).toHaveBeenCalledWith('user-1');
     });
   });
 });
