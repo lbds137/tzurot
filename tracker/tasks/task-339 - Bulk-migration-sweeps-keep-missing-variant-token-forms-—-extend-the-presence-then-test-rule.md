@@ -3,9 +3,10 @@ id: TASK-339
 title: >-
   Bulk-migration sweeps keep missing variant token forms — extend the
   presence-then-test rule
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-07-28 11:52'
+updated_date: '2026-07-29 16:09'
 labels:
   - 'area:process'
   - 'size:S'
