@@ -89,6 +89,23 @@ describe('retentionReconcileOffDb', () => {
     expect(process.exitCode).toBeUndefined();
   });
 
+  it('reports cap-exhaustion distinctly — no phantom "failures above" advice', async () => {
+    // A >1000-row backlog with ZERO failures exhausts the per-run cap; the
+    // message must say so instead of pointing at failures that don't exist.
+    reconcileMock.mockResolvedValue({
+      ok: true,
+      data: { settled: 50, stillFailing: 0, remaining: 500 },
+    });
+
+    await retentionReconcileOffDb({ env: 'dev' });
+
+    expect(reconcileMock).toHaveBeenCalledTimes(20); // MAX_BATCHES
+    const output = logged.join('\n');
+    expect(output).toContain('batch cap');
+    expect(output).not.toContain('failures above');
+    expect(process.exitCode).toBeUndefined();
+  });
+
   it('stops looping on an in-batch failure and reports the unattempted rest', async () => {
     // Failed rows stay at the head of the queue — looping past a failing
     // batch would burn iterations re-attempting the same rows.

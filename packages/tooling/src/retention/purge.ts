@@ -253,6 +253,16 @@ export async function retentionPurge(options: RetentionPurgeOptions): Promise<vo
       )
     );
   }
+  // The endpoint sweeps one bounded batch; a backlog beyond it self-heals on
+  // the next run, but say so instead of silently under-reporting the queue.
+  if (reconciled.ok && reconciled.data.remaining > 0) {
+    console.log(
+      chalk.yellow(
+        `  off-DB rows not attempted: ${String(reconciled.data.remaining)} — ` +
+          'run retention:reconcile-off-db to drain the rest.'
+      )
+    );
+  }
 
   renderTally(tally);
 }
