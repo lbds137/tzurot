@@ -97,6 +97,13 @@ before committing to the projection.
   next same-module unit. The HttpPersonalityLoader pair (64/65) was evaluated
   and NOT pulled: both tasks say "fine at current scale" with unfired runtime
   promote-conditions — building them would be premature optimization.
+- **db (persist-routes singleton)** — #1867 (2026-07-29): TASK-174 shipped as
+  the same-module follow-up batch 4 queued. Freshness-check REFUTED the task's
+  core premise — the "likely dead" compare-first/P2002 fallback is the live
+  replay-idempotency mechanism (stable-timestamp retries, MultiTagRecovery
+  re-deliveries) — so the unit became doc-rewrite + dedup instead of code
+  deletion. Rate lesson: a task's fix shape can be stale even when its
+  problem statement is right; the grep-the-premise step is not optional.
 
 ### Phase 2 — The ~55 scattered singletons
 
