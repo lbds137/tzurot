@@ -118,6 +118,21 @@ describe('MessageFormatter', () => {
       expect(result.webhookId).toBe('webhook-789');
     });
 
+    it('should describe a sticker-only referenced message instead of rendering it blank', async () => {
+      const stickers = new Map([['1', { name: 'partyblob', description: null }]]);
+      const message = createMockMessage({
+        content: '',
+        author: createMockUser(),
+        attachments: new Map() as any,
+        embeds: [],
+        stickers: stickers as any,
+      });
+
+      const result = await formatter.formatMessage(message, 1);
+
+      expect(result.content).toBe('[Stickers: partyblob]');
+    });
+
     it('should mark message as forwarded when flag is set', async () => {
       const message = createMockMessage({
         content: 'Forwarded message',

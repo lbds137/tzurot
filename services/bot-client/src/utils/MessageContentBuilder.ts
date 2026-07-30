@@ -29,6 +29,7 @@ import { createLogger } from '@tzurot/common-types/utils/logger';
 import { extractAttachments } from './attachmentExtractor.js';
 import { extractEmbedImages } from './embedImageExtractor.js';
 import { EmbedParser } from './EmbedParser.js';
+import { describeStickersAndPoll } from './stickerPollDescriptions.js';
 import {
   isForwardedMessage,
   hasForwardedSnapshots,
@@ -268,6 +269,13 @@ export async function buildMessageContent(
   if (message.content) {
     contentParts.push(message.content);
   }
+
+  // Stickers and polls carry no text of their own, so without these lines a
+  // sticker-only or poll-only message is indistinguishable from an empty one —
+  // and convertMessage's hasProcessableContent gate drops it from context
+  // entirely. Rendering them into content also persists them with the history
+  // row (no metadata plumbing needed).
+  contentParts.push(...describeStickersAndPoll(message));
 
   // Extract and combine attachments from all sources:
   // 1. Forwarded message snapshot attachments (extracted above)
