@@ -13,6 +13,14 @@ That instinct is right, and the grounding below makes it cheaper than expected._
 
 ## Two grounded facts that shape the whole design
 
+_Provenance: both were read directly out of the **installed discord.js 14.27.0**
+(`typings/index.d.ts` for the edit-options interfaces, `src/util/Constants.js` for
+the sticker format map, `src/structures/Sticker.js` for `get url()`), not inferred
+from documentation. The PR's reviewer could not confirm them — its sandbox has no
+`node_modules` — so this note exists to stop a future session re-doubting them.
+They are pinned to that major: re-check if discord.js v15 lands, since fact 1 is
+load-bearing for "no invalidation" and fact 2 for the fallback path._
+
 **1. Asset images are IMMUTABLE per snowflake — the cache needs no invalidation.**
 `GuildStickerEditOptions` is `{name, description, tags, reason}` and
 `GuildEmojiEditOptions` is `{name, roles, reason}`; only the *create* options take
