@@ -24,6 +24,21 @@ Characters respond when you talk to them:
 Multiple characters can share a channel and weigh in on the same
 conversation.
 
+## What characters can see
+
+Beyond your text, a character takes in what you share alongside it:
+
+- **Images** — attached, pasted, or pulled from a link preview — are described
+  and folded into the conversation, so a character can react to a picture and
+  still remember it later.
+- **Stickers** are described the same way, so a character responds to what the
+  sticker actually depicts rather than just its name. Discord's own animated
+  sticker packs are the exception: those have no still image to look at, so
+  their name and Discord's own description are used instead.
+- **Voice messages** are transcribed — see [Voice](#voice).
+
+A sticker or an image on its own is enough; you don't need to add text.
+
 ## Make your own character
 
 - `/character create` starts a new character; `/character edit` opens its
