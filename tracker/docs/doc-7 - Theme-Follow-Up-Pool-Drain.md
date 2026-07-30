@@ -79,6 +79,12 @@ before committing to the projection.
   the table's "9 rows". Second batch confirming the pattern: regex-cluster
   counts ≈ 2× the buildable yield; the rest are gated/owner-call/own-PR-sized.
   Projection at this rate: ~13 clusters ≈ ~35-45 shippable items, not ~73.
+- **tooling (schema-audit sub-batch)** — #1864 (2026-07-29): 5 tasks shipped
+  (114–118) — the highest-yield batch yet, because all five came from ONE PR's
+  review rounds against ONE module family (task-117's promote-when literally
+  named the bundle). Selection heuristic confirmed: same-origin same-module
+  clusters beat trigger-regex clusters. Remaining tooling candidates (51, 142,
+  4) are own-PR-sized.
 
 ### Phase 2 — The ~55 scattered singletons
 
