@@ -258,6 +258,14 @@ export interface FastPoolConfig {
  * connection FAIL ("permission denied to set parameter"). Lock-holder
  * attribution is a separate (follow-up) concern; the 55P03 vs 57014 SQLSTATE
  * split already labels lock-vs-slow-work without it.
+ *
+ * DEPLOYMENT CAVEAT: a pooler that strips startup parameters (PgBouncer in
+ * transaction mode, Prisma Accelerate, pgpool) silently discards this
+ * `options` string — and `verifyPoolTimeouts` then FAILS GATEWAY BOOT by
+ * design (a loud crash beats silently reverting to the unbounded-hang
+ * behavior these GUCs exist to prevent). If a pooler ever fronts the
+ * gateway's DB, the GUCs must be set another way (per-role `ALTER ROLE ...
+ * SET`, or pooler passthrough config) before boot will succeed.
  */
 export function fastPoolConnectionOptions(env: NodeJS.ProcessEnv = process.env): FastPoolConfig {
   const statementTimeoutMs = resolveFastStatementTimeoutMs(env);

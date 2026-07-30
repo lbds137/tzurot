@@ -156,6 +156,17 @@ Railway provides two PostgreSQL connection types:
 
 **For local development**: Use `DATABASE_PUBLIC_URL` (TCP proxy)
 
+**No connection pooler may front the gateway's DB path.** The api-gateway's
+fast pool sets its `statement_timeout`/`lock_timeout`/`idle_in_transaction_session_timeout`
+GUCs via the Postgres `options` startup string, and a boot probe
+(`verifyPoolTimeouts`) **fails gateway boot** if they didn't apply — a loud
+crash beats silently reverting to unbounded-hang behavior. Poolers that strip
+startup parameters (PgBouncer in transaction mode, Prisma Accelerate, pgpool)
+therefore cause a boot crash whose error message names the stripped GUCs. If a
+pooler is ever introduced, set the GUCs another way first (per-role
+`ALTER ROLE ... SET`, or pooler passthrough config). See
+`fastPoolConnectionOptions` in `packages/common-types/src/services/poolConfig.ts`.
+
 ### Managing Variables
 
 ```bash
