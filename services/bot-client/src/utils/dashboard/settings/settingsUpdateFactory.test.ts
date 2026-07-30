@@ -143,7 +143,7 @@ describe('createSettingsUpdateHandler', () => {
     const handler = createSettingsUpdateHandler(TEST_ENTITY_ID, TEST_CONFIG);
     const result = await handler(mockInteraction, mockSession, 'maxMessages', 50);
 
-    expect(result).toEqual({ success: false, error: 'Failed to update setting' });
+    expect(result).toEqual({ success: false, error: 'unexpected error, please try again' });
   });
 
   it('returns newData derived from the configured sourceTier', async () => {
