@@ -244,6 +244,7 @@ export interface FastPoolConfig {
   /** Resolved GUC ms values — fed to the boot `verifyPoolTimeouts` probe. */
   statementTimeoutMs: number;
   lockTimeoutMs: number;
+  idleInTxTimeoutMs: number;
 }
 
 /**
@@ -262,6 +263,9 @@ export function fastPoolConnectionOptions(env: NodeJS.ProcessEnv = process.env):
   const statementTimeoutMs = resolveFastStatementTimeoutMs(env);
   const lockTimeoutMs = resolveFastLockTimeoutMs(env);
   const queryTimeoutMs = resolveFastQueryTimeoutMs(env);
+  // Deliberately NOT env-tunable, unlike the ladder trio above: idle-in-tx is
+  // a belt-and-suspenders reaper outside the load-bearing lock < statement <
+  // query ladder, and the fast pool runs no transactions to legitimately idle in.
   const idleInTxMs = FAST_POOL_DEFAULTS.IDLE_IN_TX_TIMEOUT_MS;
 
   // The ladder lock < statement < query is load-bearing: it's what makes exactly
@@ -290,6 +294,7 @@ export function fastPoolConnectionOptions(env: NodeJS.ProcessEnv = process.env):
     },
     statementTimeoutMs,
     lockTimeoutMs,
+    idleInTxTimeoutMs: idleInTxMs,
   };
 }
 

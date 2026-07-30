@@ -498,6 +498,7 @@ async function main(): Promise<void> {
   await verifyPoolTimeouts(rawFastPrisma, {
     statementTimeoutMs: fastCfg.statementTimeoutMs,
     lockTimeoutMs: fastCfg.lockTimeoutMs,
+    idleInTxTimeoutMs: fastCfg.idleInTxTimeoutMs,
   });
   // Every fast-pool op retries once on a dead/stale socket (Railway silently
   // reaps idle conns). Applied at the client boundary — one place, all fast-pool

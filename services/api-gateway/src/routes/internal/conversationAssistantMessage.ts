@@ -126,8 +126,8 @@ export const handlePersistAssistantMessage = (deps: RouteDeps): RequestHandler =
       // coincidental row appearing in the same window.
       const isRace = (error as { code?: string }).code === 'P2002';
       if (!isRace) {
-        // Self-label a fast-pool timeout for the prod diagnostic before
-        // rethrowing (asyncHandler turns it into the gateway's 5xx).
+        // Classify before rethrowing so the resulting 5xx carries the
+        // {label, sqlstate} diagnostic in the logs instead of a generic error.
         logFastPoolTimeout(
           logger,
           error,
