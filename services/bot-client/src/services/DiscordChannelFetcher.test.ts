@@ -99,6 +99,8 @@ function createMockMessage(
     attachments: Map<string, MockAttachment>;
     reference: { messageId: string; type?: number; channelId?: string } | null;
     reactions: Map<string, MockReaction>;
+    stickers: Map<string, { name: string; description: string | null }>;
+    poll: unknown;
   }>
 ): Message {
   const defaults = {
@@ -119,6 +121,8 @@ function createMockMessage(
     attachments: new Map(),
     reference: null,
     reactions: new Map<string, MockReaction>(),
+    stickers: new Map<string, { name: string; description: string | null }>(),
+    poll: null,
   };
 
   const config = { ...defaults, ...overrides };
@@ -160,6 +164,8 @@ function createMockMessage(
     reference: config.reference,
     // Reactions cache for extended context processing
     reactions: { cache: new Collection(config.reactions) },
+    stickers: new Collection(config.stickers),
+    poll: config.poll,
   } as unknown as Message;
 }
 
@@ -710,6 +716,50 @@ describe('DiscordChannelFetcher', () => {
 
       expect(result.keptCount).toBe(1);
       expect(result.messages[0].content).toContain('Has content');
+    });
+
+    it('should KEEP a standalone sticker-only message and describe it', async () => {
+      // The pre-filter (hasMessageContent) runs before convertMessage, so a
+      // sticker-only message has to clear THAT gate to be described at all.
+      const messages = [
+        createMockMessage({ id: '1', content: 'Has content' }),
+        createMockMessage({
+          id: '2',
+          content: '',
+          stickers: new Map([['s1', { name: 'partyblob', description: null }]]),
+        }),
+      ];
+
+      const channel = createMockChannel(messages);
+
+      const result = await fetcher.fetchRecentMessages(channel, { botUserId: 'bot123' });
+
+      expect(result.keptCount).toBe(2);
+      expect(result.messages.map(m => m.content)).toContain('[Stickers: partyblob]');
+    });
+
+    it('should KEEP a standalone poll-only message and describe it', async () => {
+      const messages = [
+        createMockMessage({ id: '1', content: 'Has content' }),
+        createMockMessage({
+          id: '2',
+          content: '',
+          poll: {
+            question: { text: 'Pizza?' },
+            answers: new Collection([
+              [0, { text: 'Yes', emoji: null }],
+              [1, { text: 'No', emoji: null }],
+            ]),
+          },
+        }),
+      ];
+
+      const channel = createMockChannel(messages);
+
+      const result = await fetcher.fetchRecentMessages(channel, { botUserId: 'bot123' });
+
+      expect(result.keptCount).toBe(2);
+      expect(result.messages.map(m => m.content)).toContain('[Poll: Pizza? — options: Yes, No]');
     });
 
     it('should filter thinking block messages from extended context', async () => {
