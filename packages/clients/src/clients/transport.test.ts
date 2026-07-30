@@ -8,7 +8,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import { GATEWAY_TIMEOUTS } from '@tzurot/common-types/constants/discord';
-import { callGateway } from './transport.js';
+import { buildQueryString, callGateway } from './transport.js';
 
 function jsonResponse(body: unknown, init?: ResponseInit): Response {
   return new Response(JSON.stringify(body), {
@@ -38,6 +38,45 @@ beforeEach(() => {
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
+});
+
+describe('buildQueryString', () => {
+  it('returns an empty string when every entry is undefined', () => {
+    // Generated methods concatenate the result unconditionally, so the
+    // no-params case must produce '' and not a bare '?'.
+    expect(buildQueryString([['a', undefined]])).toBe('');
+    expect(buildQueryString([])).toBe('');
+  });
+
+  it('skips undefined entries while keeping the defined ones', () => {
+    expect(
+      buildQueryString([
+        ['a', '1'],
+        ['b', undefined],
+        ['c', '3'],
+      ])
+    ).toBe('?a=1&c=3');
+  });
+
+  it('serializes a number identically to its pre-stringified form', () => {
+    // The point of accepting `number`: callers holding a number get the same
+    // wire output as callers who stringified first, so the widening can't
+    // change what the gateway receives.
+    expect(buildQueryString([['sinceDays', 30]])).toBe(
+      buildQueryString([['sinceDays', String(30)]])
+    );
+    expect(buildQueryString([['sinceDays', 30]])).toBe('?sinceDays=30');
+  });
+
+  it('keeps a zero value rather than dropping it as falsy', () => {
+    // The filter tests `!== undefined`, not truthiness — `0` is a legitimate
+    // value for a numeric param and must survive.
+    expect(buildQueryString([['offset', 0]])).toBe('?offset=0');
+  });
+
+  it('percent-encodes values that need it', () => {
+    expect(buildQueryString([['search', 'a b&c']])).toBe('?search=a+b%26c');
+  });
 });
 
 describe('callGateway', () => {
@@ -237,6 +276,155 @@ describe('callGateway', () => {
       expect.objectContaining({ path: baseOpts.path, method: 'GET', kind: 'http', status: 403 }),
       'Request failed'
     );
+  });
+
+  it('forwards the upstream error-page body to onWarn as rawText', async () => {
+    // The seam this batch exists to close: parseErrorResponse can now recover
+    // the body, but that only helps operators if callGateway forwards it into
+    // the log fields.
+    const onWarn = vi.fn();
+    fetchSpy.mockResolvedValueOnce(
+      new Response('<html><h1>502 Bad Gateway</h1>nginx</html>', {
+        status: 502,
+        headers: { 'Content-Type': 'text/html' },
+      })
+    );
+
+    await callGateway({ ...baseOpts, onWarn });
+
+    expect(onWarn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'http',
+        status: 502,
+        rawText: expect.stringContaining('nginx') as unknown as string,
+      }),
+      'Request failed'
+    );
+  });
+
+  it('redacts the service secret if an upstream responder echoes it back', async () => {
+    // The reflection case: a proxy that includes the request headers in its
+    // error body would otherwise put the shared secret straight into a log.
+    const onWarn = vi.fn();
+    fetchSpy.mockResolvedValueOnce(
+      new Response('400 Bad Request\nX-Service-Auth: secret-123\n', { status: 400 })
+    );
+
+    await callGateway({ ...baseOpts, onWarn });
+
+    const fields = onWarn.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(fields.rawText).not.toContain('secret-123');
+    expect(fields.rawText).toContain('[redacted]');
+  });
+
+  it('redacts an echoed username in both its encoded and decoded forms', async () => {
+    // Username headers travel encodeURIComponent-encoded, so a responder can
+    // echo either shape depending on whether it decoded before rendering.
+    const onWarn = vi.fn();
+    fetchSpy.mockResolvedValueOnce(
+      new Response('rejected for user caf%C3%A9user and also caféuser', { status: 431 })
+    );
+
+    await callGateway({
+      ...baseOpts,
+      headers: { 'X-User-Username': encodeURIComponent('caféuser') },
+      onWarn,
+    });
+
+    const fields = onWarn.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(fields.rawText).not.toContain('caf%C3%A9user');
+    expect(fields.rawText).not.toContain('caféuser');
+  });
+
+  it('redacts a secret that straddles the truncation boundary', async () => {
+    // Ordering regression: truncating first and redacting the excerpt leaves a
+    // PARTIAL secret that exact-match redaction can no longer find, so the
+    // fragment survives into the log. Redaction must run against the full body.
+    // 505 filler chars puts the secret across the 512-char cutoff.
+    const onWarn = vi.fn();
+    fetchSpy.mockResolvedValueOnce(
+      new Response(`${'x'.repeat(505)}secret-123 trailing`, { status: 400 })
+    );
+
+    await callGateway({ ...baseOpts, onWarn });
+
+    const fields = onWarn.mock.calls[0]?.[0] as Record<string, unknown>;
+    // Not just the whole secret — no prefix of it may survive either.
+    expect(fields.rawText).not.toContain('secret-');
+  });
+
+  it('skips a never-log header that is absent or empty, leaving the body intact', async () => {
+    // The skip guard is load-bearing in two ways that both mangle the log if it
+    // stops working: an EMPTY value would make `split('')` explode the body
+    // into single characters joined by the marker, and an ABSENT one would
+    // coerce to the literal string "undefined" and redact that word wherever it
+    // legitimately appears. The body contains both a plain sentence and the
+    // word "undefined" so either failure is visible.
+    const onWarn = vi.fn();
+    fetchSpy.mockResolvedValueOnce(
+      new Response('upstream reported undefined behaviour', { status: 502 })
+    );
+
+    await callGateway({
+      ...baseOpts,
+      headers: { 'X-User-Username': '' },
+      onWarn,
+    });
+
+    const fields = onWarn.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(fields.rawText).toBe('upstream reported undefined behaviour');
+  });
+
+  it('does not split a surrogate pair at the truncation boundary', async () => {
+    // An emoji straddling the cutoff would otherwise leave a lone high
+    // surrogate in the logged string.
+    const onWarn = vi.fn();
+    fetchSpy.mockResolvedValueOnce(new Response(`${'x'.repeat(511)}😀 tail`, { status: 502 }));
+
+    await callGateway({ ...baseOpts, onWarn });
+
+    const fields = onWarn.mock.calls[0]?.[0] as Record<string, unknown>;
+    const text = fields.rawText as string;
+    const lastUnit = text.charCodeAt(text.length - 1);
+    expect(lastUnit >= 0xd800 && lastUnit <= 0xdbff).toBe(false);
+  });
+
+  it('leaves non-sensitive header values intact in rawText', async () => {
+    // Guards against the redaction becoming blanket: `X-User-Id` is safe to log
+    // by the same rule, and redacting `application/json` or `false` would
+    // corrupt the very text rawText exists to preserve.
+    const onWarn = vi.fn();
+    fetchSpy.mockResolvedValueOnce(
+      new Response('<html>upstream said application/json was false for 123456789012345678</html>', {
+        status: 502,
+      })
+    );
+
+    await callGateway({
+      ...baseOpts,
+      method: 'POST',
+      body: { a: 1 },
+      headers: { 'X-User-Id': '123456789012345678', 'X-User-Is-Bot': 'false' },
+      onWarn,
+    });
+
+    const fields = onWarn.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(fields.rawText).toContain('application/json');
+    expect(fields.rawText).toContain('false');
+    expect(fields.rawText).toContain('123456789012345678');
+    expect(fields.rawText).not.toContain('[redacted]');
+  });
+
+  it('omits rawText entirely when the gateway returned a structured error', async () => {
+    // Absent, not `undefined`: a key that appears only when it carries
+    // information is what makes the log searchable.
+    const onWarn = vi.fn();
+    fetchSpy.mockResolvedValueOnce(jsonResponse({ message: 'Forbidden' }, { status: 403 }));
+
+    await callGateway({ ...baseOpts, onWarn });
+
+    const fields = onWarn.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect('rawText' in fields).toBe(false);
   });
 
   it('invokes onWarn for schema-validation failures with kind:schema', async () => {

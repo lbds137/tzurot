@@ -105,6 +105,84 @@ export interface TransportOptions {
 }
 
 /**
+ * Build a `?a=1&b=2` query string from entries, skipping `undefined` values
+ * and returning `''` when nothing survives (so callers can concatenate
+ * unconditionally).
+ *
+ * Lives here rather than inline in each generated client so the three clients
+ * share one implementation — notably one place to widen the accepted value
+ * type. `number` is accepted alongside `string` because a route whose query
+ * schema is `z.coerce.number()` narrows to a number server-side; forcing its
+ * callers to pre-stringify leaked a wire-encoding detail into call sites.
+ * The wire form is a string either way.
+ */
+export function buildQueryString(entries: [string, string | number | undefined][]): string {
+  const defined = entries.filter((e): e is [string, string | number] => e[1] !== undefined);
+  if (defined.length === 0) {
+    return '';
+  }
+  const qs = new URLSearchParams();
+  for (const [key, value] of defined) {
+    qs.set(key, String(value));
+  }
+  return '?' + qs.toString();
+}
+
+/**
+ * Request headers whose VALUES must never survive into a log line.
+ *
+ * `rawText` is the body of a responder we do NOT control (our own gateway
+ * always answers in the structured shape, so it never populates `rawText`) —
+ * which means its content is unauditable, and some proxies echo the request
+ * back in an error body. These three are what we send that would matter:
+ * the shared service secret, and the two user-context fields `00-critical.md`
+ * lists as never-log.
+ *
+ * Deliberately NOT every header we send. `X-User-Id` is safe to log by the
+ * same rule, and blanket redaction would corrupt the text it exists to
+ * preserve — `X-User-Is-Bot` is `'false'` and `Content-Type` is
+ * `'application/json'`, both of which occur naturally in an HTML error page.
+ */
+const NEVER_LOG_HEADERS = ['X-Service-Auth', 'X-User-Username', 'X-User-DisplayName'] as const;
+
+/**
+ * Replace any value we ourselves transmitted with a marker before the body
+ * reaches a log.
+ *
+ * This is exact-string replacement, not pattern-matching: we are not guessing
+ * what a secret looks like, we are checking for the specific strings this
+ * request carried. That makes it precise (no false redaction of unrelated
+ * text) and complete for the reflection case (any echo of those values is
+ * caught regardless of where in the body it appears).
+ *
+ * Username headers travel `encodeURIComponent`-encoded, so a responder could
+ * echo either form; both are redacted when they differ. Short values are
+ * redacted too — over-redacting a truncated error fragment costs a mangled log
+ * line, while under-redacting costs a rule violation.
+ */
+function redactTransmittedValues(rawText: string, headers: Record<string, string>): string {
+  let redacted = rawText;
+  for (const name of NEVER_LOG_HEADERS) {
+    const sent = headers[name];
+    if (sent === undefined || sent.length === 0) {
+      continue;
+    }
+    const forms = new Set<string>([sent]);
+    try {
+      forms.add(decodeURIComponent(sent));
+    } catch {
+      // Malformed percent-encoding — the sent form is the only one to redact.
+    }
+    for (const form of forms) {
+      // split/join rather than a RegExp: the value is arbitrary text and would
+      // otherwise need escaping to avoid being read as a pattern.
+      redacted = redacted.split(form).join('[redacted]');
+    }
+  }
+  return redacted;
+}
+
+/**
  * Classify an error thrown by `fetch` into the failure envelope: a timeout
  * (the `AbortSignal.timeout` fired) vs a genuine network error (DNS/TLS/reset).
  * Kept separate from {@link callGateway} so the main request flow stays under
@@ -247,8 +325,26 @@ export async function callGateway<T>(options: TransportOptions): Promise<Gateway
     });
 
     if (!response.ok) {
-      const parsed = await parseErrorResponse(response);
-      onWarn?.({ path, method, kind: 'http', status: response.status }, 'Request failed');
+      // Redaction is handed to the parser rather than applied to its result:
+      // it must run against the FULL body, before truncation, or a value
+      // straddling the cutoff survives as an unmatchable fragment.
+      const parsed = await parseErrorResponse(response, body =>
+        redactTransmittedValues(body, headers)
+      );
+      // `rawText` is present only when the body wasn't a structured gateway
+      // error (nginx/CDN page). Spread conditionally so the field is absent
+      // rather than `undefined` on the common path — a key that only appears
+      // when it carries information is far easier to search logs for.
+      onWarn?.(
+        {
+          path,
+          method,
+          kind: 'http',
+          status: response.status,
+          ...(parsed.rawText !== undefined && { rawText: parsed.rawText }),
+        },
+        'Request failed'
+      );
       return {
         ok: false,
         kind: 'http',

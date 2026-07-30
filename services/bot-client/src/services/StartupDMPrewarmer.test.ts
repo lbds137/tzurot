@@ -259,6 +259,8 @@ describe('StartupDMPrewarmer', () => {
 
     await prewarmer.run();
 
-    expect(mockRecentUsers).toHaveBeenCalledWith({ sinceDays: '30' });
+    // Passed as a number, not a pre-stringified one: the generated signature
+    // accepts `number | string` for coerce-number query params.
+    expect(mockRecentUsers).toHaveBeenCalledWith({ sinceDays: 30 });
   });
 });

@@ -285,9 +285,74 @@ describe('buildMethod — user flavor', () => {
     };
     const out = buildMethod(route, { flavor: 'user', pathPrefix: '/api/user' });
     // Required `personalityId` forces the options bag to be required;
-    // optional limit/sort get `?` markers.
-    expect(out).toContain(`options: { limit?: string; sort?: string; personalityId: string }`);
+    // optional limit/sort get `?` markers. `limit` is number-typed, so it also
+    // accepts a number (see the numeric-widening block below).
+    expect(out).toContain(
+      `options: { limit?: number | string; sort?: string; personalityId: string }`
+    );
     expect(out).toContain(`['limit', options.limit]`);
     expect(out).toContain(`['personalityId', options.personalityId]`);
+  });
+});
+
+describe('buildMethod — numeric query params', () => {
+  it('widens a z.coerce.number() query param to `number | string`', () => {
+    // The server coerces the string back to a number, so callers naturally
+    // hold a number; without the union every numeric call site writes
+    // `String(n)` and the wire encoding leaks into the caller.
+    const route: RouteDef = {
+      ...baseRoute,
+      query: { sinceDays: z.coerce.number().int().positive().optional() },
+    };
+    const out = buildMethod(route, { flavor: 'user', pathPrefix: '/api/user' });
+    expect(out).toContain(`options: { sinceDays?: number | string } = {}`);
+  });
+
+  it('widens a required numeric query param and keeps it required', () => {
+    // The width of the value type and the required-ness marker are independent
+    // decisions; widening must not accidentally make the param optional.
+    const route: RouteDef = {
+      ...baseRoute,
+      query: { days: z.coerce.number() },
+    };
+    const out = buildMethod(route, { flavor: 'user', pathPrefix: '/api/user' });
+    expect(out).toContain(`options: { days: number | string }`);
+    expect(out).not.toContain('days?: number | string');
+    expect(out).not.toContain('number | string } = {}');
+  });
+
+  it('sees through a .optional().default() wrapper pair to the numeric schema', () => {
+    // The two wrappers compose in either order, so the unwrap loops rather
+    // than peeling exactly one layer.
+    const route: RouteDef = {
+      ...baseRoute,
+      query: { limit: z.coerce.number().optional().default(25) },
+    };
+    const out = buildMethod(route, { flavor: 'user', pathPrefix: '/api/user' });
+    expect(out).toContain(`options: { limit?: number | string } = {}`);
+  });
+
+  it('sees through the wrappers in the opposite order too', () => {
+    // The unwrap treats ZodOptional and ZodDefault identically at each step, so
+    // it is order-agnostic by construction — this pins that property rather
+    // than leaving it as an untested consequence of the loop's shape.
+    const route: RouteDef = {
+      ...baseRoute,
+      query: { limit: z.coerce.number().default(25).optional() },
+    };
+    const out = buildMethod(route, { flavor: 'user', pathPrefix: '/api/user' });
+    expect(out).toContain(`options: { limit?: number | string } = {}`);
+  });
+
+  it('leaves non-numeric query params as plain string', () => {
+    // Guards against the widening being applied to every param — an enum or a
+    // string must NOT gain a `number` arm.
+    const route: RouteDef = {
+      ...baseRoute,
+      query: { sort: z.enum(['asc', 'desc']).optional(), search: z.string().optional() },
+    };
+    const out = buildMethod(route, { flavor: 'user', pathPrefix: '/api/user' });
+    expect(out).toContain(`options: { sort?: string; search?: string } = {}`);
+    expect(out).not.toContain('number');
   });
 });

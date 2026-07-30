@@ -212,14 +212,81 @@ describe('buildClientClass — UserClient', () => {
     expect(src).toContain(`'X-User-DisplayName': encodeURIComponent(this.user.displayName)`);
   });
 
-  it('embeds the buildQueryString helper inline (self-contained file)', () => {
+  it('omits the buildQueryString import when no route declares query params', () => {
+    // userRoutes' only member has no `query` — importing the helper here would
+    // leave an unused import in the generated file.
     const src = buildClientClass({
       className: 'UserClient',
       flavor: 'user',
       audience: 'user',
       routes: userRoutes,
     });
-    expect(src).toContain(`function buildQueryString`);
+    expect(src).not.toContain('buildQueryString');
+  });
+});
+
+describe('buildClientClass — buildQueryString wiring', () => {
+  it('imports buildQueryString for an acceptsSubject route with NO query map', () => {
+    // `acceptsSubject` contributes a `userId` query entry on its own, so the
+    // method calls the helper even though the route declares no `query`. An
+    // import check that consulted only `route.query` emitted the call without
+    // the import — a generated file referencing an unimported symbol.
+    const subjectOnlyRoutes: Record<string, RouteDef> = {
+      getThing: {
+        audience: 'user',
+        method: 'get',
+        path: '/thing/:id',
+        id: 'getThing',
+        output: z.object({ id: z.string() }),
+        acceptsSubject: true,
+      },
+    };
+    const src = buildClientClass({
+      className: 'UserClient',
+      flavor: 'user',
+      audience: 'user',
+      routes: subjectOnlyRoutes,
+    });
+    expect(src).toContain('+ buildQueryString(');
+    expect(src).toContain(`buildQueryString } from '../transport.js'`);
+  });
+
+  it('omits the import for a service client, whose routes expose no subject', () => {
+    // The mirror case: `acceptsSubject` is inert on the service flavor (no
+    // actor, so no subject parameter), so the method emits no call and the
+    // import would be unused. Guards the opposite failure from the one above.
+    const serviceRoutes: Record<string, RouteDef> = {
+      pingService: {
+        audience: 'internal',
+        method: 'get',
+        path: '/ping',
+        id: 'pingService',
+        output: z.object({ ok: z.boolean() }),
+        serviceOnly: true,
+        acceptsSubject: true,
+      },
+    };
+    const src = buildClientClass({
+      className: 'ServiceClient',
+      flavor: 'service',
+      audience: 'internal',
+      routes: serviceRoutes,
+    });
+    expect(src).not.toContain('buildQueryString');
+  });
+
+  it('imports buildQueryString from the transport instead of inlining a copy', () => {
+    const src = buildClientClass({
+      className: 'OwnerClient',
+      flavor: 'owner',
+      audience: 'admin',
+      routes: adminRoutes,
+    });
+    expect(src).toContain(`buildQueryString } from '../transport.js'`);
+    // The inline copy must be GONE, not merely accompanied by the import — a
+    // local declaration would shadow the import and silently keep three copies
+    // of the helper in the tree.
+    expect(src).not.toContain(`function buildQueryString`);
   });
 });
 
