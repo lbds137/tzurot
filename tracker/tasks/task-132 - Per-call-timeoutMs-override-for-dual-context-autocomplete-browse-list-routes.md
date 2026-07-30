@@ -47,7 +47,20 @@ overrides the route default, then wire the three `autocompleteCache.ts` call
 sites to pass `GATEWAY_TIMEOUTS.AUTOCOMPLETE`. Capability without that last step
 would be dead scaffolding.
 
-**Correction 2026-07-30 — the "ride-along" above was wrong.** A prior grounding
+**Correction 2026-07-30 (b) — `listShapes` is NOT on the DEFERRED default.**
+The grounding above says all three routes "declare NO `timeoutMs`, so they land
+on the DEFERRED (10s) read default." True for `listPersonalities`/`listPersonas`;
+FALSE for `listShapes`, which pins `GATEWAY_TIMEOUTS.EXTERNAL_PROVIDER` (40s)
+explicitly so the client outwaits the handler's external shapes.inc catalog call
+(`routes/user/shapes.ts:79-92`). Caught by the #1875 reviewer.
+
+This SHARPENS the task rather than weakening it: a shapes autocomplete cache-miss
+can hold a request open for **40 seconds** against Discord's 3s window, not 10 —
+the widest instance of the gap, and the one a per-call override would help most.
+It also means the three routes do not share one budget, so any fix must be
+per-call rather than a single route-level retier.
+
+**Correction 2026-07-30 (a) — the "ride-along" above was wrong.** A prior grounding
 note claimed `AUTOCOMPLETE_TIER` "exists nowhere in the tree" and asked for the
 `types.ts` docstring to be fixed. The symbol DOES exist
 (`packages/clients/src/routes/manifest.test.ts:35`, added 2026-06-24 by
