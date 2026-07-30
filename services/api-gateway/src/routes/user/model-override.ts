@@ -40,7 +40,11 @@ import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
 import { sendZodError } from '../../utils/zodHelpers.js';
 import { getParam } from '../../utils/requestParams.js';
-import { OVERRIDE_SUMMARY_SELECT, parseClearSlots } from './modelOverrideShared.js';
+import {
+  OVERRIDE_SUMMARY_SELECT,
+  buildOverrideSummary,
+  parseClearSlots,
+} from './modelOverrideShared.js';
 import type { ProvisionedRequest } from '../../types.js';
 import type { RouteDeps } from '../routeDeps.js';
 import { pruneEmptyPersonalityConfig } from './pruneEmptyPersonalityConfig.js';
@@ -105,31 +109,20 @@ export const handleListModelOverrides = (deps: RouteDeps): RequestHandler => {
 
     // A character can have BOTH a text and a vision override; for `all`, emit a
     // row per non-null FK (slot-tagged) so browse can badge + clear each.
+    // Enrichment runs CONCURRENTLY (Promise.all) — OpenRouterModelCache
+    // coalesces in-flight fetches, so sequential awaits only added latency.
     const emitText = allSlots || !isVision; // slot === 'text' or slot === 'all'
     const emitVision = allSlots || isVision; // slot === 'vision' or slot === 'all'
-    const result: ModelOverrideSummary[] = [];
+    const pending: Promise<ModelOverrideSummary>[] = [];
     for (const o of overrides) {
       if (emitText && o.llmConfigId !== null) {
-        result.push({
-          personalityId: o.personalityId,
-          personalityName: o.personality.name,
-          configId: o.llmConfigId,
-          configName: o.llmConfig?.name ?? null,
-          slot: 'text',
-          supportsVision: await capabilities.supportsVision(o.llmConfig?.model ?? ''),
-        });
+        pending.push(buildOverrideSummary(o, 'text', capabilities));
       }
       if (emitVision && o.visionConfigId !== null) {
-        result.push({
-          personalityId: o.personalityId,
-          personalityName: o.personality.name,
-          configId: o.visionConfigId,
-          configName: o.visionConfig?.name ?? null,
-          slot: 'vision',
-          supportsVision: await capabilities.supportsVision(o.visionConfig?.model ?? ''),
-        });
+        pending.push(buildOverrideSummary(o, 'vision', capabilities));
       }
     }
+    const result = await Promise.all(pending);
 
     logger.info({ discordUserId, count: result.length, slot }, 'Listed overrides');
     sendCustomSuccess(res, { overrides: result }, StatusCodes.OK);
@@ -197,21 +190,10 @@ export const handleSetModelOverride = (deps: RouteDeps): RequestHandler => {
       select: OVERRIDE_SUMMARY_SELECT,
     });
 
-    const result: ModelOverrideSummary = {
-      personalityId: override.personalityId,
-      personalityName: override.personality.name,
-      configId: isVision ? override.visionConfigId : override.llmConfigId,
-      configName: isVision
-        ? (override.visionConfig?.name ?? null)
-        : (override.llmConfig?.name ?? null),
-      slot: isVision ? 'vision' : 'text',
-      // Re-resolves the vision slot's capability that ensureVisionCapableModel
-      // already checked on the write-gate — harmless while resolution is a warm
-      // in-memory cache hit; revisit if it ever grows a network round-trip.
-      supportsVision: await capabilities.supportsVision(
-        (isVision ? override.visionConfig?.model : override.llmConfig?.model) ?? ''
-      ),
-    };
+    // Re-resolves the vision slot's capability that ensureVisionCapableModel
+    // already checked on the write-gate — harmless while resolution is a warm
+    // in-memory cache hit; revisit if it ever grows a network round-trip.
+    const result = await buildOverrideSummary(override, isVision ? 'vision' : 'text', capabilities);
 
     logger.info(
       {
