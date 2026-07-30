@@ -5,14 +5,16 @@
  * a Discord event, so this gateway (the Discord-event data authority) owns
  * the write — bot-client calls it synchronously pre-submission, preserving
  * strict ordering (the next message's history query always sees this row)
- * with no locks. Delegates to ConversationHistoryService.addMessage — the
- * same code path bot-client's legacy direct write uses — so the two paths
- * produce identical rows by construction during the dual-write window.
+ * with no locks. This endpoint is the SOLE creator of user-message history
+ * rows (bot-client has no Prisma; ai-worker only updates existing rows).
  *
- * Idempotent: when the row already exists (legacy write is authoritative
- * during dual-write), compares instead of writing and reports `matched`;
- * `matched: false` is the burn-in divergence signal. A create race against
- * the legacy writer (P2002) falls back to compare; other errors surface.
+ * Idempotent against replays (see conversationPersistShared.ts): an
+ * at-least-once redelivery of the same event resolves to the same
+ * deterministic id, so the handler compares instead of writing and reports
+ * `matched` — a `false` there means a replay carried different content
+ * (drift between attempts), which is a bug signal. A create that loses a
+ * duplicate-delivery race (P2002) falls back to compare; other errors
+ * surface.
  *
  * **Authentication**: `X-Service-Auth` enforcement happens upstream via the
  * global `requireServiceAuth()` on `/internal/*` in api-gateway's index.
@@ -31,6 +33,7 @@ import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { sendZodError } from '../../utils/zodHelpers.js';
 import { logFastPoolTimeout } from '../../utils/dbTimeout.js';
+import { fetchExistingConversationRow } from './conversationPersistShared.js';
 import type { RouteDeps } from '../routeDeps.js';
 
 const logger = createLogger('internal-conversation-user-message');
@@ -59,38 +62,26 @@ export const handlePersistUserMessage = (deps: RouteDeps): RequestHandler => {
     const id = generateConversationHistoryUuid(channelId, personalityId, personaId, createdAt);
 
     const compareExisting = async (): Promise<PersistUserMessageResponse | null> => {
-      const readStartedAt = Date.now();
-      let existing;
-      try {
-        existing = await prisma.conversationHistory.findUnique({
-          where: { id },
-          select: { content: true, discordMessageId: true },
-        });
-      } catch (error) {
-        // Same self-labeling the write path gets — without it, a read-side
-        // fast-pool failure (dead-conn retry exhausted) surfaces only as the
-        // global handler's generic 'Unhandled error:'.
-        logFastPoolTimeout(
-          logger,
-          error,
-          { durationMs: Date.now() - readStartedAt, channelId, id },
-          'User-message existence check hit a fast-pool DB timeout'
-        );
-        throw error;
-      }
+      const existing = await fetchExistingConversationRow(
+        prisma,
+        id,
+        logger,
+        'User-message existence check hit a fast-pool DB timeout',
+        { channelId }
+      );
       if (existing === null) {
         return null;
       }
-      // Deliberately lightweight: content + trigger id only. Both write paths
-      // construct messageMetadata from the same bot-side object, so metadata
-      // divergence could only come from serialization differences — not worth
-      // a deep JSONB comparison for the burn-in signal.
+      // Deliberately lightweight: content + trigger id only. A replay builds
+      // messageMetadata from the same bot-side object, so metadata divergence
+      // could only come from serialization differences — not worth a deep
+      // JSONB comparison for a drift signal.
       const matched =
         existing.content === content && existing.discordMessageId[0] === discordMessageId;
       if (!matched) {
         logger.warn(
           { id, channelId, contentMatch: existing.content === content },
-          'User-message dual-write DIVERGED from existing row'
+          'User-message persist replay DIVERGED from existing row'
         );
       }
       return { id, created: false, matched };
@@ -116,9 +107,10 @@ export const handlePersistUserMessage = (deps: RouteDeps): RequestHandler => {
         timestamp: createdAt,
       });
     } catch (error) {
-      // Only the unique-violation race gets the compare fallback (the legacy
-      // writer landed between our existence check and the create); any other
-      // failure must surface rather than be masked by a coincidental row.
+      // Only the unique-violation race gets the compare fallback (a duplicate
+      // delivery of the same event landed between our existence check and the
+      // create); any other failure must surface rather than be masked by a
+      // coincidental row.
       const isRace = (error as { code?: string }).code === 'P2002';
       if (!isRace) {
         // Classify before rethrowing so the resulting 5xx carries the

@@ -5,13 +5,10 @@
  * fetched for a channel+personality; the gateway runs the diff against DB
  * state and applies the writes (content updates, soft-deletes).
  *
- * The algorithm lives in ConversationSyncService.runSync (common-types) —
- * the same implementation bot-client's legacy direct path delegates to — so
- * the two paths cannot drift during the dual-write window. Idempotent:
- * re-posting an already-applied snapshot finds zero work, which is exactly
- * what the dual-write verification expects (nonzero counts here mean the
- * legacy path and this endpoint disagreed — the burn-in signal, logged
- * client-side from the response).
+ * The algorithm lives in ConversationSyncService.runSync
+ * (@tzurot/conversation-history); this endpoint is its only caller.
+ * Idempotent: re-posting an already-applied snapshot finds zero work, so
+ * at-least-once delivery of the same snapshot is harmless.
  *
  * **Authentication**: `X-Service-Auth` enforcement happens upstream via the
  * global `requireServiceAuth()` on `/internal/*` in api-gateway's index.
