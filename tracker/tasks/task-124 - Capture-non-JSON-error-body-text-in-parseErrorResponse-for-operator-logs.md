@@ -1,10 +1,10 @@
 ---
 id: TASK-124
 title: Capture non-JSON error body text in parseErrorResponse for operator logs
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-05-24 00:00'
-updated_date: '2026-07-28 10:48'
+updated_date: '2026-07-30 14:27'
 labels:
   - 'area:common-types'
   - 'size:S'
