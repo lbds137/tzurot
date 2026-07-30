@@ -29,7 +29,7 @@ import { AIProvider, isFreeModel } from '@tzurot/common-types/constants/ai';
 import { getSystemSetting } from '@tzurot/common-types/services/SystemSettingsService';
 import { getFreeTextFloor } from './freeFloors.js';
 import { ApiErrorCategory } from '@tzurot/common-types/constants/error';
-import { LLM_CONFIG_OVERRIDE_KEYS } from '@tzurot/common-types/schemas/llmAdvancedParams';
+import { applyLlmOverrideParams } from '@tzurot/common-types/schemas/llmAdvancedParams';
 import { type ResolvedLlmConfig } from '@tzurot/common-types/types/configResolution';
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import { createLogger } from '@tzurot/common-types/utils/logger';
@@ -347,16 +347,18 @@ export function applyConfigToPersonality(
   personality: LoadedPersonality,
   config: ResolvedLlmConfig
 ): LoadedPersonality {
-  const result = {
-    ...personality,
-    model: config.model,
-    provider: config.provider ?? AIProvider.OpenRouter,
-  };
-  for (const key of LLM_CONFIG_OVERRIDE_KEYS) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access -- dynamic key sweep over LLM_CONFIG_OVERRIDE_KEYS requires runtime indexing
-    (result as any)[key] = config[key] ?? undefined;
-  }
-  return result;
+  // clearAbsent: the fallback config REPLACES the preset wholesale — a key it
+  // doesn't set must clear the personality's value, not inherit it (the
+  // preset's sampling params must not survive onto the fallback model).
+  return applyLlmOverrideParams(
+    {
+      ...personality,
+      model: config.model,
+      provider: config.provider ?? AIProvider.OpenRouter,
+    },
+    config,
+    { clearAbsent: true }
+  );
 }
 
 /** One structured audit line per fire — "why did I get this model" answerable from logs. */
