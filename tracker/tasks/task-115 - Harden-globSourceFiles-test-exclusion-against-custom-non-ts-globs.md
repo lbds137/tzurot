@@ -1,10 +1,10 @@
 ---
 id: TASK-115
 title: Harden globSourceFiles test-exclusion against custom non-*.ts globs
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-05-21 00:00'
-updated_date: '2026-07-28 10:48'
+updated_date: '2026-07-30 00:57'
 labels:
   - 'area:tooling'
   - 'size:S'
