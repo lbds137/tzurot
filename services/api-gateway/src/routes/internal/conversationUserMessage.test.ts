@@ -8,6 +8,7 @@ import request from 'supertest';
 import { MessageRole } from '@tzurot/common-types/constants/message';
 import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import { generateConversationHistoryUuid } from '@tzurot/common-types/utils/deterministicUuid';
+import { type ConversationHistoryClient } from '@tzurot/conversation-history';
 import { handlePersistUserMessage } from './conversationUserMessage.js';
 import { stubRouteResolvers } from '../../test/shared-route-test-utils.js';
 
@@ -199,7 +200,7 @@ describe('POST /internal/conversation/user-message', () => {
       handlePersistUserMessage({
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
-        fastPrisma: fast as unknown as PrismaClient,
+        fastPrisma: fast as unknown as ConversationHistoryClient,
       })
     );
 
@@ -223,5 +224,22 @@ describe('POST /internal/conversation/user-message', () => {
       expect.objectContaining({ label: 'statement-timeout', sqlstate: '57014' }),
       expect.stringContaining('DB timeout')
     );
+  });
+
+  it('self-labels a fast-pool timeout on the existence-check read (symmetric with the write path)', async () => {
+    mockPrisma.conversationHistory.findUnique.mockRejectedValue(
+      Object.assign(new Error('canceling statement due to statement timeout'), { code: '57014' })
+    );
+
+    const response = await request(app)
+      .post('/internal/conversation/user-message')
+      .send(VALID_BODY);
+
+    expect(response.status).toBe(500);
+    expect(mockLogger.error).toHaveBeenCalledWith(
+      expect.objectContaining({ label: 'statement-timeout', sqlstate: '57014', id: EXPECTED_ID }),
+      'User-message existence check hit a fast-pool DB timeout'
+    );
+    expect(mockPrisma.conversationHistory.create).not.toHaveBeenCalled();
   });
 });

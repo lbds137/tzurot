@@ -30,7 +30,7 @@ import { ConversationHistoryService } from '@tzurot/conversation-history';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { sendZodError } from '../../utils/zodHelpers.js';
-import { classifyDbTimeout } from '../../utils/dbTimeout.js';
+import { logFastPoolTimeout } from '../../utils/dbTimeout.js';
 import type { RouteDeps } from '../routeDeps.js';
 
 const logger = createLogger('internal-conversation-assistant-message');
@@ -62,10 +62,25 @@ export const handlePersistAssistantMessage = (deps: RouteDeps): RequestHandler =
     const id = generateConversationHistoryUuid(channelId, personalityId, personaId, assistantTime);
 
     const compareExisting = async (): Promise<PersistAssistantMessageResponse | null> => {
-      const existing = await prisma.conversationHistory.findUnique({
-        where: { id },
-        select: { content: true, discordMessageId: true },
-      });
+      const readStartedAt = Date.now();
+      let existing;
+      try {
+        existing = await prisma.conversationHistory.findUnique({
+          where: { id },
+          select: { content: true, discordMessageId: true },
+        });
+      } catch (error) {
+        // Same self-labeling the write path gets — without it, a read-side
+        // fast-pool failure (dead-conn retry exhausted) surfaces only as the
+        // global handler's generic 'Unhandled error:'.
+        logFastPoolTimeout(
+          logger,
+          error,
+          { durationMs: Date.now() - readStartedAt, channelId, id },
+          'Assistant-message existence check hit a fast-pool DB timeout'
+        );
+        throw error;
+      }
       if (existing === null) {
         return null;
       }
@@ -113,19 +128,12 @@ export const handlePersistAssistantMessage = (deps: RouteDeps): RequestHandler =
       if (!isRace) {
         // Self-label a fast-pool timeout for the prod diagnostic before
         // rethrowing (asyncHandler turns it into the gateway's 5xx).
-        const timeout = classifyDbTimeout(error);
-        if (timeout.label !== 'other') {
-          logger.error(
-            {
-              label: timeout.label,
-              sqlstate: timeout.sqlstate,
-              durationMs: Date.now() - startedAt,
-              channelId,
-              id,
-            },
-            'Assistant-message persist hit a fast-pool DB timeout'
-          );
-        }
+        logFastPoolTimeout(
+          logger,
+          error,
+          { durationMs: Date.now() - startedAt, channelId, id },
+          'Assistant-message persist hit a fast-pool DB timeout'
+        );
         throw error;
       }
       const raced = await compareExisting();

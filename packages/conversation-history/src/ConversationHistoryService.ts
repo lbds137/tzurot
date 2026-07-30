@@ -10,7 +10,6 @@
 
 import { MessageRole } from '@tzurot/common-types/constants/message';
 import { computeHistoryCutoff } from '@tzurot/common-types/services/historyCutoff';
-import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import {
   type ConversationMessage,
   type CrossChannelHistoryGroup,
@@ -24,6 +23,7 @@ import {
   conversationRecencyOrderBy,
   mapToConversationMessage,
   mapToConversationMessages,
+  type ConversationHistoryClient,
 } from './ConversationMessageMapper.js';
 import { writeReferenceImageDescriptions } from './referenceImageDescriptions.js';
 
@@ -75,7 +75,7 @@ interface AddMessageOptions {
 }
 
 export class ConversationHistoryService {
-  constructor(private prisma: PrismaClient) {}
+  constructor(private prisma: ConversationHistoryClient) {}
 
   /**
    * Add a message to conversation history

@@ -1,6 +1,45 @@
 import { describe, it, expect, vi } from 'vitest';
 import { type PrismaClient } from '@tzurot/common-types/services/prisma';
-import { classifyDbTimeout, withDeadConnRetry, applyFastPoolDeadConnRetry } from './dbTimeout.js';
+import { type createLogger } from '@tzurot/common-types/utils/logger';
+import {
+  classifyDbTimeout,
+  withDeadConnRetry,
+  applyFastPoolDeadConnRetry,
+  logFastPoolTimeout,
+} from './dbTimeout.js';
+
+describe('logFastPoolTimeout', () => {
+  const makeLogger = (): { error: ReturnType<typeof vi.fn> } => ({ error: vi.fn() });
+
+  it('logs the classification plus the caller fields for a labeled timeout', () => {
+    const log = makeLogger();
+
+    logFastPoolTimeout(
+      log as unknown as ReturnType<typeof createLogger>,
+      { code: '55P03' },
+      { durationMs: 12, channelId: 'chan', id: 'row' },
+      'existence check hit a fast-pool DB timeout'
+    );
+
+    expect(log.error).toHaveBeenCalledWith(
+      { label: 'lock-timeout', sqlstate: '55P03', durationMs: 12, channelId: 'chan', id: 'row' },
+      'existence check hit a fast-pool DB timeout'
+    );
+  });
+
+  it('stays silent for the other class (non-timeout failures carry their own shape)', () => {
+    const log = makeLogger();
+
+    logFastPoolTimeout(
+      log as unknown as ReturnType<typeof createLogger>,
+      Object.assign(new Error('Unique constraint failed'), { code: 'P2002' }),
+      { durationMs: 5 },
+      'never logged'
+    );
+
+    expect(log.error).not.toHaveBeenCalled();
+  });
+});
 
 describe('classifyDbTimeout', () => {
   it('labels a lock_timeout by SQLSTATE 55P03', () => {
