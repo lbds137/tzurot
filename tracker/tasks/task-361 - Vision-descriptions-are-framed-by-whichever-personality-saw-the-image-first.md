@@ -1,10 +1,10 @@
 ---
 id: TASK-361
 title: Vision descriptions are framed by whichever personality saw the image first
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-07-30 16:26'
-updated_date: '2026-07-30 16:39'
+updated_date: '2026-07-30 19:23'
 labels:
   - 'area:ai-worker'
   - 'size:M'
