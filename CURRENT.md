@@ -6,7 +6,7 @@
 
 ## Unreleased on Develop
 
-_(empty — reset at v3.0.0-beta.186)_
+- #1866 refactor: fast-pool drain batch (doc-7 Phase 1, batch 4) — five tasks closed (38/39/40 + ride-alongs 176/175: `ConversationHistoryClient` narrowing with one scoped `$extends`-seam cast, symmetric read-path timeout labeling, ladder-watch closed with evidence, three-GUC boot probe, pooler caveat docs); TASK-174 annotated as the next same-module unit
 
 ## 🔬 Smoke checklist — v3.0.0-beta.186 (post-deploy)
 
