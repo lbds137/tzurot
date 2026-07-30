@@ -95,9 +95,11 @@ describe('modelAutocomplete', () => {
       expect(getModelsMock).toHaveBeenCalledWith({ outputModality: 'image' });
     });
 
-    it('passes search and stringifies limit', async () => {
+    it('passes search and forwards limit as a number', async () => {
+      // The generated signature accepts `number | string` for this
+      // coerce-number param, so no call-site stringification.
       await fetchModels({ search: 'claude', limit: 50 });
-      expect(getModelsMock).toHaveBeenCalledWith({ search: 'claude', limit: '50' });
+      expect(getModelsMock).toHaveBeenCalledWith({ search: 'claude', limit: 50 });
     });
 
     it('returns [] when the client returns an error result', async () => {
@@ -135,7 +137,7 @@ describe('modelAutocomplete', () => {
     it('requests text models with the default limit', async () => {
       getModelsMock.mockResolvedValue(okModels(sampleTextModels));
       const models = await fetchTextModels();
-      expect(getModelsMock).toHaveBeenCalledWith({ outputModality: 'text', limit: '25' });
+      expect(getModelsMock).toHaveBeenCalledWith({ outputModality: 'text', limit: 25 });
       expect(models).toEqual(sampleTextModels);
     });
 
@@ -144,7 +146,7 @@ describe('modelAutocomplete', () => {
       expect(getModelsMock).toHaveBeenCalledWith({
         outputModality: 'text',
         search: 'gpt',
-        limit: '25',
+        limit: 25,
       });
     });
   });
@@ -153,7 +155,7 @@ describe('modelAutocomplete', () => {
     it('requests vision models with the default limit', async () => {
       getModelsMock.mockResolvedValue(okModels(sampleVisionModels));
       const models = await fetchVisionModels();
-      expect(getModelsMock).toHaveBeenCalledWith({ inputModality: 'image', limit: '25' });
+      expect(getModelsMock).toHaveBeenCalledWith({ inputModality: 'image', limit: 25 });
       expect(models).toEqual(sampleVisionModels);
     });
   });

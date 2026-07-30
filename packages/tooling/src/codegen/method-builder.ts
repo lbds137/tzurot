@@ -12,6 +12,13 @@ import { z } from 'zod';
 import { resolveQueryShape, type Audience, type RouteDef } from '@tzurot/clients';
 
 /**
+ * Loop bound for {@link unwrapZodModifiers}. Real query schemas nest at most
+ * two wrappers (`.optional().default(x)`); the cap only exists so a malformed
+ * schema can't hang the generator.
+ */
+const MAX_ZOD_WRAPPER_DEPTH = 8;
+
+/**
  * Detect whether a Zod schema is marked optional. `z.string()` is required,
  * `z.string().optional()` is optional. Defaulted schemas (`z.string().default(...)`)
  * are also treated as optional since the caller can omit them.
@@ -23,6 +30,37 @@ import { resolveQueryShape, type Audience, type RouteDef } from '@tzurot/clients
  */
 function isOptionalZod(schema: z.ZodTypeAny): boolean {
   return schema instanceof z.ZodOptional || schema instanceof z.ZodDefault;
+}
+
+/**
+ * Strip `.optional()` / `.default()` wrappers to reach the schema that decides
+ * the VALUE type. Loops because the wrappers compose in either order
+ * (`.optional().default(x)` is legal), and bounds the loop so a pathological
+ * schema can't spin the generator.
+ */
+function unwrapZodModifiers(schema: z.ZodTypeAny): z.ZodTypeAny {
+  let current = schema;
+  for (let depth = 0; depth < MAX_ZOD_WRAPPER_DEPTH; depth += 1) {
+    if (!(current instanceof z.ZodOptional || current instanceof z.ZodDefault)) {
+      return current;
+    }
+    current = current.unwrap() as z.ZodTypeAny;
+  }
+  return current;
+}
+
+/**
+ * The client-facing TypeScript type for one query param.
+ *
+ * Query values are strings on the wire, so `string` is the base. A param whose
+ * schema is number-typed (`z.coerce.number()`) also accepts `number`, because
+ * the server narrows it to a number and callers naturally hold one — without
+ * the union every numeric call site has to write `String(n)`, which is the
+ * wire encoding leaking upward. `buildQueryString` stringifies, so both arms
+ * serialize identically.
+ */
+function queryFieldType(schema: z.ZodTypeAny): string {
+  return unwrapZodModifiers(schema) instanceof z.ZodNumber ? 'number | string' : 'string';
 }
 
 /**
@@ -53,6 +91,31 @@ export interface MethodBuildOptions {
   flavor: ClientFlavor;
   /** URL prefix mounted at the gateway, e.g. '/api/user'. */
   pathPrefix: string;
+}
+
+/**
+ * Whether a route exposes the `subject` parameter, which the generated method
+ * forwards as a `userId` query entry. Service clients have no actor and
+ * therefore no subject, so the flavor is part of the decision.
+ */
+function acceptsSubjectParam(route: RouteDef, flavor: ClientFlavor): boolean {
+  return route.acceptsSubject === true && flavor !== 'service';
+}
+
+/**
+ * Whether this route's generated method will contain a `buildQueryString(...)`
+ * call. TWO independent sources contribute query entries — an `acceptsSubject`
+ * route contributes `userId` even with no `query` map, and a declared `query`
+ * contributes its keys — so a check that consults only one of them is wrong for
+ * routes carrying the other.
+ *
+ * Exported because `buildImports` decides whether to import the helper and
+ * `buildMethod` decides whether to call it. Those two answers must be the same
+ * answer, not two implementations that happen to agree: when they drifted, the
+ * generated file referenced an unimported symbol.
+ */
+export function emitsQueryString(route: RouteDef, flavor: ClientFlavor): boolean {
+  return acceptsSubjectParam(route, flavor) || resolveQueryShape(route.query) !== undefined;
 }
 
 /**
@@ -92,7 +155,7 @@ export function buildMethod(route: RouteDef, options: MethodBuildOptions): strin
   const pathParamNames = extractPathParams(route.path);
   const hasInput = route.input !== undefined;
   const hasQuery = route.query !== undefined;
-  const acceptsSubject = route.acceptsSubject === true && flavor !== 'service';
+  const acceptsSubject = acceptsSubjectParam(route, flavor);
 
   // -- Method-signature parameters -----------------------------------------
 
@@ -264,13 +327,12 @@ function buildOptionsType(route: RouteDef, acceptsSubject: boolean): string {
   const shape = resolveQueryShape(route.query);
   if (shape !== undefined) {
     for (const [key, schema] of Object.entries(shape)) {
-      // All query params are strings at the wire level; their narrower
-      // typing lives in the route's Zod schema (validated server-side).
       // Required vs optional is derived from the schema's Zod wrapper:
       // `z.string()` is required (the server returns 400 on missing),
       // `z.string().optional()` or `z.string().default(...)` are optional.
+      // The value type comes from the unwrapped schema — see queryFieldType.
       const marker = isOptionalZod(schema) ? '?' : '';
-      fields.push(`${key}${marker}: string`);
+      fields.push(`${key}${marker}: ${queryFieldType(schema)}`);
     }
   }
   return `{ ${fields.join('; ')} }`;

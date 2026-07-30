@@ -10,7 +10,12 @@
 import type { Audience, RouteDef } from '@tzurot/clients';
 
 import { AUTOGEN_HEADER } from './header.js';
-import { type ClientFlavor, buildMethod, pathPrefixForAudience } from './method-builder.js';
+import {
+  type ClientFlavor,
+  buildMethod,
+  emitsQueryString,
+  pathPrefixForAudience,
+} from './method-builder.js';
 
 export interface ClientBuildOptions {
   /** 'ServiceClient' | 'OwnerClient' | 'UserClient' — used as class name. */
@@ -58,6 +63,15 @@ function buildImports(flavor: ClientFlavor, routes: Record<string, RouteDef>): s
   // `@tzurot/common-types/types/gateway-context` subpath (the root barrel is
   // being retired) — a one-way dependency, no cycle.
   const transportSymbols: string[] = ['callGateway', 'type GatewayResult'];
+  // Imported, not inlined: one shared implementation across the three clients
+  // means one place to change the accepted value type. Conditional because a
+  // client whose methods never call the helper would otherwise carry an unused
+  // import — and the condition is `emitsQueryString`, the same predicate
+  // `buildMethod` uses to decide whether to emit the call, so the import and
+  // the call cannot disagree.
+  if (Object.values(routes).some(r => emitsQueryString(r, flavor))) {
+    transportSymbols.push('buildQueryString');
+  }
   const manifestSymbols: string[] = ['ROUTE_MANIFEST'];
   const typeSymbols: string[] = [];
 
@@ -79,8 +93,6 @@ function buildImports(flavor: ClientFlavor, routes: Record<string, RouteDef>): s
     lines.push(`import type { GatewayUser } from '@tzurot/common-types/types/gateway-context';`);
   }
 
-  lines.push('');
-  lines.push(buildQueryHelper());
   return lines.join('\n');
 }
 
@@ -135,22 +147,5 @@ function buildClassDecl(className: string, flavor: ClientFlavor): string {
     ...ctorAssigns,
     `  }`,
     '',
-  ].join('\n');
-}
-
-/**
- * Inline query-string helper used by generated methods. Kept inside the
- * generated file (vs. importing from common-types) so the file is fully
- * self-contained — handy when reading the generated source in isolation.
- */
-function buildQueryHelper(): string {
-  return [
-    `function buildQueryString(entries: Array<[string, string | undefined]>): string {`,
-    `  const defined = entries.filter((e): e is [string, string] => e[1] !== undefined);`,
-    `  if (defined.length === 0) return '';`,
-    `  const qs = new URLSearchParams();`,
-    `  for (const [k, v] of defined) qs.set(k, v);`,
-    `  return '?' + qs.toString();`,
-    `}`,
   ].join('\n');
 }
