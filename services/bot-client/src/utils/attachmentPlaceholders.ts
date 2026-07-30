@@ -33,7 +33,15 @@ export function generateAttachmentPlaceholder(attachment: AttachmentMetadata): s
       attachment.name !== undefined && attachment.name !== null && attachment.name.length > 0
         ? attachment.name
         : 'attachment';
-    return `[Image: ${name}]`;
+    // A sticker travels the image path but is not a file the user uploaded.
+    // This placeholder is PERSISTED with the message row, and the post-vision
+    // upgrade that would replace it only runs when a description was actually
+    // produced — so with sticker vision switched off, or after a describe
+    // failure, whatever is written here is what the character reads forever.
+    // Must match RAGUtils' `formatProcessedAttachmentEntry`, which makes the
+    // same Sticker-vs-Image distinction on the upgrade path.
+    const kind = attachment.isSticker === true ? 'Sticker' : 'Image';
+    return `[${kind}: ${name}]`;
   }
 
   // Generic file placeholder

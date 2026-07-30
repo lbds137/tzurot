@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { Collection, MessageType, MessageReferenceType } from 'discord.js';
+import { Collection, MessageType, MessageReferenceType, StickerFormatType } from 'discord.js';
 import type { Message, Attachment, Embed, MessageSnapshot, Sticker } from 'discord.js';
 import {
   buildMessageContent,
@@ -124,6 +124,51 @@ describe('MessageContentBuilder', () => {
       // Non-empty is the load-bearing part: convertMessage's
       // hasProcessableContent gate drops a message whose content is empty.
       expect(result.content).toBe('[Stickers: partyblob]');
+    });
+
+    it('should emit a rasterizable sticker as a synthetic attachment for the vision path', async () => {
+      // The wiring seam. Every OTHER sticker fixture in this file omits
+      // `format`, so isRasterizableSticker rejects them and extractStickerImages
+      // returns undefined — meaning the `...(stickerImages ?? [])` spread into
+      // allAttachments could be deleted outright and this suite would stay
+      // green. This fixture is shaped like a real sticker precisely so that
+      // can't happen.
+      const stickers = new Collection<string, Sticker>();
+      stickers.set('111222333444555666', {
+        id: '111222333444555666',
+        name: 'partyblob',
+        description: null,
+        format: StickerFormatType.PNG,
+        url: 'https://cdn.discordapp.com/stickers/111222333444555666.png',
+      } as unknown as Sticker);
+      const message = createMockMessage({ content: '', stickers });
+
+      const result = await buildMessageContent(message);
+
+      const stickerAttachment = result.attachments.find(a => a.isSticker === true);
+      expect(stickerAttachment).toBeDefined();
+      expect(stickerAttachment?.id).toBe('111222333444555666');
+      // The text line survives alongside it — the two are complementary, and
+      // dropping the line would re-open the EmptyMessageFilter hole.
+      expect(result.content).toBe('[Stickers: partyblob]');
+    });
+
+    it('should NOT emit a Lottie sticker as an attachment (no raster form exists)', async () => {
+      const stickers = new Collection<string, Sticker>();
+      stickers.set('7', {
+        id: '7',
+        name: 'wumpus-dance',
+        description: 'Wumpus dancing',
+        format: StickerFormatType.Lottie,
+        url: 'https://cdn.discordapp.com/stickers/7.json',
+      } as unknown as Sticker);
+      const message = createMockMessage({ content: '', stickers });
+
+      const result = await buildMessageContent(message);
+
+      expect(result.attachments.some(a => a.isSticker === true)).toBe(false);
+      // Still named, so the message is never empty and the character knows.
+      expect(result.content).toBe('[Stickers: wumpus-dance — Wumpus dancing]');
     });
 
     it('should merge own and snapshot stickers when a forward also carries its own', async () => {

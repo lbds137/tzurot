@@ -59,6 +59,19 @@ export const attachmentMetadataSchema = z.object({
   duration: z.number().optional(),
   waveform: z.string().optional(),
   /**
+   * True when this entry is a Discord STICKER rendered as a synthetic
+   * attachment rather than a real message attachment.
+   *
+   * Load-bearing in three places, which is why it's a field rather than a
+   * naming convention: (1) the description is a permanently-reusable artifact
+   * keyed by the sticker's immutable snowflake, so the whole dispatch set (key,
+   * model, provider, tier) is the INSTANCE's rather than the triggering user's;
+   * (2) it renders under a `[Sticker: …]` header instead of `[Image: …]`,
+   * because calling it an image misdescribes what the user did; (3) it is what
+   * the `stickerVisionEnabled` kill switch filters on, before any download.
+   */
+  isSticker: z.boolean().optional(),
+  /**
    * Discord message ID this attachment came from (for inline image descriptions).
    * Optional because attachments in direct/triggering messages don't need source tracking.
    */

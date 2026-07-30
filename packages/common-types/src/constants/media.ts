@@ -55,6 +55,8 @@ export const CONTENT_TYPES = {
   IMAGE_JPG: 'image/jpeg',
   /** WebP image type */
   IMAGE_WEBP: 'image/webp',
+  /** GIF image type */
+  IMAGE_GIF: 'image/gif',
   /** WAV audio type */
   AUDIO_WAV: 'audio/wav',
   /** FLAC audio type */
