@@ -216,10 +216,10 @@ export function buildMethod(route: RouteDef, options: MethodBuildOptions): strin
 
   const bodyLine = hasInput ? `,\n      body: input` : '';
 
-  // Per-route timeout override: when a manifest entry declares
-  // timeoutMs (typically for slow operations that exceed the default
-  // AUTOCOMPLETE budget of 2500ms), emit a `timeoutMs: <value>` line
-  // so the transport uses it instead of falling back to the default.
+  // Per-route timeout override: when a manifest entry declares timeoutMs —
+  // either to widen a known-heavy op past the DEFERRED (10s) read default, or
+  // to pin a tier so it stays put if that default ever moves — emit a
+  // `timeoutMs: <value>` line so the transport uses it instead of the default.
   // Reading from ROUTE_MANIFEST keeps the codegen tool free of having
   // to embed the numeric value in the generated source.
   const timeoutLine =
