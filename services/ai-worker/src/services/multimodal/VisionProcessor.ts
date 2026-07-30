@@ -28,6 +28,7 @@ import { checkModelVisionSupport, visionDescriptionCache } from '../../redis.js'
 import { enterSingleFlight, exitSingleFlight } from './visionSingleFlight.js';
 import { isDataUrl } from '../../utils/attachmentFetch.js';
 import { downloadImageToDataUrl } from '../../utils/imageToDataUrl.js';
+import { getDescriptionPrompt } from '../DescriptionPromptService.js';
 import {
   VISION_PLACEHOLDER_PREFIX,
   isValidVisionDescription,
@@ -707,10 +708,18 @@ export async function describeImage(
   }
 
   try {
-    const systemPrompt =
-      personality.systemPrompt !== undefined && personality.systemPrompt.length > 0
-        ? personality.systemPrompt
-        : undefined;
+    // The INSTANCE's prompt, not this personality's. A description is cached
+    // model-agnostically (1h TTL) and reused by every personality that later
+    // sees the same image, so framing it with the triggering character bakes
+    // one character's voice into a shared artifact — and for a sticker, whose
+    // key is an immutable snowflake, the same entry is reused indefinitely.
+    // Note this is NOT solved by system prompts being a shared table: the
+    // loader substitutes {{char}} with the personality's NAME, so one row still
+    // resolves differently per character.
+    // Undefined → no system message, which is correct rather than degraded:
+    // the "objective description for archival purposes" instruction is in the
+    // user message and stands alone.
+    const systemPrompt = getDescriptionPrompt();
 
     // Derive the provider from the RESOLVED vision model when the caller didn't
     // supply one. An undefined provider makes createChatModel fall back to the
