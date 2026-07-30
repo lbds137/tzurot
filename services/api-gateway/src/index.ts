@@ -43,7 +43,10 @@ import {
   LlmConfigResolver,
   VisionConfigResolver,
 } from '@tzurot/config-resolver';
-import { ConversationRetentionService } from '@tzurot/conversation-history';
+import {
+  ConversationRetentionService,
+  type ConversationHistoryClient,
+} from '@tzurot/conversation-history';
 import { applyFastPoolDeadConnRetry } from './utils/dbTimeout.js';
 
 // Routes
@@ -301,7 +304,7 @@ async function initializeServices(prisma: PrismaClient): Promise<ServicesContext
 function registerRoutes(
   app: Express,
   prisma: PrismaClient,
-  fastPrisma: PrismaClient,
+  fastPrisma: ConversationHistoryClient,
   services: ServicesContext
 ): void {
   const {

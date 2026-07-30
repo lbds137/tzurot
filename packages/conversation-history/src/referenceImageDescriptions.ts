@@ -17,13 +17,13 @@
  */
 
 import { MessageRole } from '@tzurot/common-types/constants/message';
-import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import {
   type MessageMetadata,
   type ResolvedImageDescription,
   type StoredReferencedMessage,
 } from '@tzurot/common-types/types/schemas/message';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { type ConversationHistoryClient } from './ConversationMessageMapper.js';
 
 const logger = createLogger('ReferenceImageDescriptions');
 
@@ -74,7 +74,7 @@ export function collectRefImageDescriptions(
  * @returns number of stored reference entries that gained descriptions
  */
 export async function writeReferenceImageDescriptions(
-  prisma: PrismaClient,
+  prisma: ConversationHistoryClient,
   scope: ReferenceDescriptionScope,
   descriptionsByUrl: Map<string, string>
 ): Promise<number> {

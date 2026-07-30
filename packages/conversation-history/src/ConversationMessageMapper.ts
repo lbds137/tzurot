@@ -7,7 +7,7 @@
  */
 
 import { type MessageRole } from '@tzurot/common-types/constants/message';
-import { type Prisma } from '@tzurot/common-types/services/prisma';
+import { type Prisma, type PrismaClient } from '@tzurot/common-types/services/prisma';
 import { type ConversationMessage } from '@tzurot/common-types/types/conversationMessage';
 import {
   messageMetadataSchema,
@@ -16,6 +16,15 @@ import {
 import { createLogger } from '@tzurot/common-types/utils/logger';
 
 const logger = createLogger('ConversationMessageMapper');
+
+/**
+ * Structural subset of PrismaClient that the conversation-history modules
+ * actually use. A full PrismaClient satisfies it — and so does an
+ * `$extends`-wrapped client (api-gateway's fast pool with blanket dead-conn
+ * retry), which the nominal `PrismaClient` type would force behind an
+ * `as unknown as` cast because `$extends` returns a differently-typed client.
+ */
+export type ConversationHistoryClient = Pick<PrismaClient, 'conversationHistory'>;
 
 /**
  * Prisma select object for conversation history queries
