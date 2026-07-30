@@ -297,6 +297,16 @@ The only exception: fixing it would significantly expand the PR's scope and risk
 
 Automated reviewers can be wrong. Check schema/source/tests before implementing suggestions.
 
+**Verifying the mechanism is not verifying the scenario.** A finding has two
+parts — the mechanism ("this gate doesn't check X") and the repro that motivates
+it ("so when a user does A, B, or C, it breaks"). Confirming the mechanism in the
+source says nothing about whether each listed trigger actually reaches it. Check
+every trigger condition separately, and drop the ones that don't hold before
+repeating the scenario in a PR body, commit message, or smoke item — a wrong
+trigger there sends the owner to verify a path that was never broken, and it
+passes, which reads as confirmation. Same standard applies to a repro you wrote
+yourself.
+
 ### Don't Present Speculation as Fact
 
 When making claims about causation, origin, intent, or history, distinguish between what you **observed** (tool output, file contents, git log, schema, test results) and what you **infer** (guesses about how something got that way, who did it, or why). Only state claims as fact when you have direct evidence. Otherwise:
