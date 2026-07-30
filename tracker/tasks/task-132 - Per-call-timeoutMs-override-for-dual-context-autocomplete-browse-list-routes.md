@@ -47,9 +47,38 @@ overrides the route default, then wire the three `autocompleteCache.ts` call
 sites to pass `GATEWAY_TIMEOUTS.AUTOCOMPLETE`. Capability without that last step
 would be dead scaffolding.
 
-Ride-along found while grounding: `RouteDef.timeoutMs`'s docstring
-(routes/types.ts ~:287) tells the reader to "register the id in
-`AUTOCOMPLETE_TIER` in manifest.test.ts" — **no such symbol exists anywhere in
-the tree** (grepped packages/ + services/, the only hit is the docstring itself).
-Fix the docstring in this task's PR; it is one line and this is the file.
+**Correction 2026-07-30 — the "ride-along" above was wrong.** A prior grounding
+note claimed `AUTOCOMPLETE_TIER` "exists nowhere in the tree" and asked for the
+`types.ts` docstring to be fixed. The symbol DOES exist
+(`packages/clients/src/routes/manifest.test.ts:35`, added 2026-06-24 by
+`5a3e6c2c2`), so the docstring was correct and no fix was needed. This was a
+false negative-existence claim from an under-scoped grep — the same class as the
+`VisionDescriptionWriter` miss on #1872. `00-critical.md` requires ≥3 vocabulary
+variants plus an xray sweep before any "we don't have X".
+
+**Runtime measurement 2026-07-30 (prod, ~18h window, deployment 58f9cd4f):**
+ZERO occurrences of "Unknown interaction" / 10062 in 3726 lines of bot-client
+logs carrying real LLM traffic. This task's own promote-when signal
+("Unknown interaction autocomplete noise becomes observable") is NOT firing.
+Caveat on the measurement: prod runs at info level and the autocomplete
+cache-miss lines are `logger.debug`, so miss FREQUENCY is unmeasurable from
+these logs — but the harm signal would be an error-level throw and it is absent.
+
+**Counter-position now in the code, worth reading before building this:**
+`manifest.test.ts:30-33` states deliberately that autocomplete-invoked routes do
+NOT belong in `AUTOCOMPLETE_TIER` — "Discord bounds the autocomplete side at 3s
+client-side regardless of the gateway budget, so they correctly sit on DEFERRED
+(and are typically dual-called from deferred browse anyway)." That settles the
+ROUTE-level tier question; it does not settle the per-CALL override this task
+asks for, which is precisely the escape hatch that parenthetical leaves open.
+
+Also note the callers are dual-context one layer up, not just the routes:
+`getCachedPersonalities` is called by `randomPick.ts` (a deferred `/random`
+command), so a short budget must be threaded per call site, never applied to the
+cache function wholesale.
+
+Net: mechanism real, harm unobserved, cost `size:M`. Left filed rather than
+built or ruled out — a rule-out here is a user-visible-latency call, which is
+the owner's per `06-backlog.md`. The stale comments that made this gap look
+already-handled were fixed separately (see the read-default-flip comment sweep).
 <!-- SECTION:NOTES:END -->
