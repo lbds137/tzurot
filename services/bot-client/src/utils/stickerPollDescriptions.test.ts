@@ -8,6 +8,7 @@ import {
   describePoll,
   describeStickers,
   describeStickersAndPoll,
+  hasStickerOrPoll,
   withStickerAndPollDescriptions,
 } from './stickerPollDescriptions.js';
 
@@ -172,6 +173,26 @@ describe('describeStickersAndPoll', () => {
 
   it('returns an empty array for a message with neither', () => {
     expect(describeStickersAndPoll(messageWith({}))).toEqual([]);
+  });
+});
+
+describe('hasStickerOrPoll ↔ describeStickersAndPoll equivalence', () => {
+  // hasMessageContent uses the cheap predicate as a PRE-FILTER; if it ever
+  // disagrees with the renderers, a message gets dropped as empty that would
+  // have rendered content (the bug this pairing exists to prevent).
+  const cases: Array<[string, Parameters<typeof messageWith>[0]]> = [
+    ['nothing', {}],
+    ['own sticker', { stickers: [{ name: 's' }] }],
+    ['snapshot sticker only', { snapshotStickers: [[{ name: 'f' }]] }],
+    ['empty snapshot list', { snapshotStickers: [[]] }],
+    ['poll only', { poll: { question: 'Q?', answers: [{ text: 'A' }] } }],
+    ['poll with no answers', { poll: { question: 'Q?', answers: [] } }],
+    ['both', { stickers: [{ name: 's' }], poll: { question: 'Q?', answers: [] } }],
+  ];
+
+  it.each(cases)('agrees for %s', (_label, opts) => {
+    const message = messageWith(opts);
+    expect(hasStickerOrPoll(message)).toBe(describeStickersAndPoll(message).length > 0);
   });
 });
 
