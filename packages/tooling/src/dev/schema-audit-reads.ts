@@ -12,7 +12,7 @@
  * upgrade later if false-positive rate is too high.
  */
 
-import { Project, SyntaxKind, Node, type PropertyAccessExpression } from 'ts-morph';
+import { SyntaxKind, Node, type Project, type PropertyAccessExpression } from 'ts-morph';
 import type { PrismaField } from './schema-audit-parser.js';
 
 /** Read-mode classification for a single optional column. */
@@ -30,21 +30,14 @@ export interface ReadModeClassification {
 }
 
 /**
- * Walk a set of TS source files and classify reads of `obj.field` for each
- * given (model, field) pair.
+ * Walk an already-parsed project's source files and classify reads of
+ * `obj.field` for each given (model, field) pair. Takes a `Project` (see
+ * `globSourceFiles`) so the tree is parsed once per audit run, not per pass.
  */
 export function classifyReads(
   optionalFields: PrismaField[],
-  sourceFilePaths: string[]
+  project: Project
 ): ReadModeClassification[] {
-  const project = new Project({
-    compilerOptions: { allowJs: false, skipLibCheck: true },
-    useInMemoryFileSystem: false,
-  });
-  for (const path of sourceFilePaths) {
-    project.addSourceFileAtPathIfExists(path);
-  }
-
   const classifications = new Map<string, ReadModeClassification>();
   for (const field of optionalFields) {
     classifications.set(`${field.model}.${field.field}`, {
@@ -57,6 +50,16 @@ export function classifyReads(
     });
   }
 
+  // Index by field name so each property access checks only its candidate
+  // fields — mirrors analyzeWrites' accessor grouping (the inner linear scan
+  // was O(propAccesses × optionalFields)).
+  const fieldsByName = new Map<string, PrismaField[]>();
+  for (const field of optionalFields) {
+    const list = fieldsByName.get(field.field) ?? [];
+    list.push(field);
+    fieldsByName.set(field.field, list);
+  }
+
   for (const sourceFile of project.getSourceFiles()) {
     sourceFile.forEachDescendant(node => {
       if (!Node.isPropertyAccessExpression(node)) return;
@@ -65,8 +68,7 @@ export function classifyReads(
       const receiverName = receiver.getText();
       const fieldName = node.getName();
 
-      for (const field of optionalFields) {
-        if (field.field !== fieldName) continue;
+      for (const field of fieldsByName.get(fieldName) ?? []) {
         if (!matchesModel(receiverName, field.model)) continue;
         const classification = classifications.get(`${field.model}.${field.field}`);
         if (!classification) continue;

@@ -59,12 +59,17 @@ export function printMarkdownReport(args: MarkdownReportArgs): void {
     bySeverity.set(f.severity, list);
   }
 
+  // Index once for the per-finding breakdown lookups (was a linear .find()
+  // over each list per finding).
+  const readsByKey = new Map(readClassifications.map(c => [`${c.model}.${c.field}`, c]));
+  const writesByKey = new Map(writeClassifications.map(w => [`${w.model}.${w.field}`, w]));
+
   for (const severity of ['HIGH', 'MEDIUM', 'LOW']) {
     const group = bySeverity.get(severity);
     if (!group || group.length === 0) continue;
     console.log(`## ${severity}\n`);
     for (const f of group) {
-      printFindingBlock(f, readClassifications, writeClassifications);
+      printFindingBlock(f, readsByKey, writesByKey);
     }
   }
 }
@@ -102,14 +107,14 @@ function computeReadCoverageWarning(
 
 function printFindingBlock(
   f: AuditFinding,
-  reads: ReadModeClassification[],
-  writes: WriteSiteClassification[]
+  reads: Map<string, ReadModeClassification>,
+  writes: Map<string, WriteSiteClassification>
 ): void {
   console.log(`### \`${f.model}.${f.field}\` — ${f.recipe}\n`);
   console.log(`**Evidence**: ${f.evidence}\n`);
   console.log(`**Fix shape**: ${f.fixShape}\n`);
 
-  const read = reads.find(c => c.model === f.model && c.field === f.field);
+  const read = reads.get(`${f.model}.${f.field}`);
   if (read && read.totalReads > 0) {
     console.log(
       `**Read breakdown**: ${read.totalReads} total — ` +
@@ -118,7 +123,7 @@ function printFindingBlock(
         `${read.nonNullAssertionReads} non-null-assertion.\n`
     );
   }
-  const write = writes.find(w => w.model === f.model && w.field === f.field);
+  const write = writes.get(`${f.model}.${f.field}`);
   if (write && write.totalSites > 0) {
     console.log(
       `**Write breakdown**: ${write.totalSites} \`.create\`/\`.upsert\` sites — ` +

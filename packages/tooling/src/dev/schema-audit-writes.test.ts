@@ -7,7 +7,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { analyzeWrites } from './schema-audit-writes.js';
 import type { PrismaField } from './schema-audit-parser.js';
-import { withTempDir } from './schema-audit-test-helpers.js';
+import { withTempDir, projectFromPaths } from './schema-audit-test-helpers.js';
 
 describe('analyzeWrites', () => {
   const field: PrismaField = {
@@ -34,7 +34,7 @@ declare const prisma: { user: { create: (args: unknown) => unknown } };
 prisma.user.create({ data: { targetField: null, discordId: 'x' } });
 `,
       path => {
-        const classifications = analyzeWrites([field], [path]);
+        const classifications = analyzeWrites([field], projectFromPaths([path]));
         expect(classifications[0].nullLiteralSites).toBe(1);
         expect(classifications[0].valueSites).toBe(0);
       }
@@ -49,7 +49,7 @@ declare const id: string;
 prisma.user.create({ data: { targetField: id, discordId: 'x' } });
 `,
       path => {
-        const classifications = analyzeWrites([field], [path]);
+        const classifications = analyzeWrites([field], projectFromPaths([path]));
         expect(classifications[0].valueSites).toBe(1);
       }
     );
@@ -65,7 +65,7 @@ prisma.user.create({ data: { targetField: maybeId ?? undefined, discordId: 'y' }
 prisma.user.create({ data: { targetField: maybeId || null, discordId: 'z' } });
 `,
       path => {
-        const classifications = analyzeWrites([field], [path]);
+        const classifications = analyzeWrites([field], projectFromPaths([path]));
         // All 3 sites use a nullable-fallback pattern → null-set.
         expect(classifications[0].nullLiteralSites).toBe(3);
         expect(classifications[0].valueSites).toBe(0);
@@ -80,7 +80,7 @@ declare const prisma: { user: { create: (args: unknown) => unknown } };
 prisma.user.create({ data: { discordId: 'x' } });
 `,
       path => {
-        const classifications = analyzeWrites([field], [path]);
+        const classifications = analyzeWrites([field], projectFromPaths([path]));
         expect(classifications[0].omittedSites).toBe(1);
       }
     );
@@ -94,7 +94,7 @@ declare const partial: { discordId: string };
 prisma.user.create({ data: { ...partial } });
 `,
       path => {
-        const classifications = analyzeWrites([field], [path]);
+        const classifications = analyzeWrites([field], projectFromPaths([path]));
         expect(classifications[0].unclassifiableSites).toBe(1);
       }
     );
@@ -111,7 +111,7 @@ prisma.user.upsert({
 });
 `,
       path => {
-        const classifications = analyzeWrites([field], [path]);
+        const classifications = analyzeWrites([field], projectFromPaths([path]));
         expect(classifications[0].nullLiteralSites).toBe(1);
       }
     );
@@ -128,7 +128,7 @@ prisma.user.create({ data: { targetField: id, discordId: 'c' } });
 prisma.user.create({ data: { targetField: id, discordId: 'd' } });
 `,
       path => {
-        const classifications = analyzeWrites([field], [path]);
+        const classifications = analyzeWrites([field], projectFromPaths([path]));
         expect(classifications[0].nullLiteralSites).toBe(2);
         expect(classifications[0].valueSites).toBe(2);
         expect(classifications[0].totalSites).toBe(4);
