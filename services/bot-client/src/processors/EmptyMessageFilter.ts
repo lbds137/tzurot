@@ -11,6 +11,7 @@ import type { Message } from 'discord.js';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { IMessageProcessor } from './IMessageProcessor.js';
 import { isForwardedMessage } from '../utils/forwardedMessageUtils.js';
+import { hasStickerOrPoll } from '../utils/stickerPollDescriptions.js';
 
 const logger = createLogger('EmptyMessageFilter');
 
@@ -45,6 +46,14 @@ export class EmptyMessageFilter implements IMessageProcessor {
           break;
         }
       }
+    }
+
+    // A sticker or poll IS the message when it carries nothing else — and this
+    // filter runs at chain position 3, ahead of the trigger and DM processors,
+    // so dropping here means the bot never responds at all to someone who
+    // @-mentions it with just a sticker.
+    if (hasStickerOrPoll(message)) {
+      return Promise.resolve(false); // Continue to next processor
     }
 
     // Only filter if message has no content AND no attachments (direct or snapshot)
