@@ -693,13 +693,16 @@ describe('LlmConfigResolver', () => {
       expect(mockPrisma.adminSettings.findUnique).toHaveBeenCalledTimes(1);
     });
 
-    it('should NOT cache a null pointer', async () => {
+    it('negative-caches a null pointer (second call does not re-query)', async () => {
+      // The old "never cache null" design is retired: setAsDefault publishes a
+      // cache invalidation (→ clearCache), so the sentinel can't mask a
+      // pointer-set — and the pre-seed window stops re-querying per call.
       mockPrisma.adminSettings.findUnique.mockResolvedValue({ globalDefaultLlmConfig: null });
 
       await resolver.getGlobalDefaultConfig();
       await resolver.getGlobalDefaultConfig();
 
-      expect(mockPrisma.adminSettings.findUnique).toHaveBeenCalledTimes(2);
+      expect(mockPrisma.adminSettings.findUnique).toHaveBeenCalledTimes(1);
     });
 
     it('should handle database errors gracefully', async () => {
@@ -729,6 +732,56 @@ describe('LlmConfigResolver', () => {
           globalDefaultLlmConfig: { select: expect.any(Object) },
         },
       });
+    });
+
+    it('negative-caches the null result (second call does not re-query)', async () => {
+      mockPrisma.adminSettings.findUnique.mockResolvedValue({ freeDefaultLlmConfig: null });
+
+      expect(await resolver.getFreeDefaultConfig()).toBeNull();
+      expect(await resolver.getFreeDefaultConfig()).toBeNull();
+
+      // Guest-mode traffic with no free default configured must not re-query
+      // AdminSettings per call — mirrors VisionConfigResolver's sentinel.
+      expect(mockPrisma.adminSettings.findUnique).toHaveBeenCalledTimes(1);
+    });
+
+    it('clearCache() clears the negative sentinel so a newly-set free default is seen', async () => {
+      // First call: no free default yet → negative sentinel set.
+      mockPrisma.adminSettings.findUnique.mockResolvedValueOnce({ freeDefaultLlmConfig: null });
+      expect(await resolver.getFreeDefaultConfig()).toBeNull();
+      expect(mockPrisma.adminSettings.findUnique).toHaveBeenCalledTimes(1);
+
+      // An admin sets the pointer; setAsDefault publishes an invalidation
+      // which lands here as clearCache().
+      resolver.clearCache();
+
+      // Next call must re-query (not short-circuit on the stale sentinel).
+      mockPrisma.adminSettings.findUnique.mockResolvedValueOnce({
+        freeDefaultLlmConfig: {
+          name: 'Newly Set Default',
+          model: 'newly/set-model',
+          provider: 'openrouter',
+          advancedParameters: {},
+          contextWindowTokens: 131072,
+        },
+      });
+      const result = await resolver.getFreeDefaultConfig();
+      expect(result?.model).toBe('newly/set-model');
+      expect(mockPrisma.adminSettings.findUnique).toHaveBeenCalledTimes(2);
+    });
+
+    it('keeps the free + global negative sentinels independent (distinct keys)', async () => {
+      mockPrisma.adminSettings.findUnique.mockResolvedValue({
+        freeDefaultLlmConfig: null,
+        globalDefaultLlmConfig: null,
+      });
+
+      await resolver.getFreeDefaultConfig();
+      await resolver.getGlobalDefaultConfig();
+
+      // Each pointer's miss queried once; the free sentinel must not have
+      // short-circuited the global lookup (or vice versa).
+      expect(mockPrisma.adminSettings.findUnique).toHaveBeenCalledTimes(2);
     });
 
     it('should return config when the free default pointer is set', async () => {
@@ -817,15 +870,6 @@ describe('LlmConfigResolver', () => {
       const result = await resolver.getFreeDefaultConfig();
 
       expect(result).toBeNull();
-    });
-
-    it('should NOT cache a null pointer (admin setting it takes effect without invalidation)', async () => {
-      mockPrisma.adminSettings.findUnique.mockResolvedValue({ freeDefaultLlmConfig: null });
-
-      await resolver.getFreeDefaultConfig();
-      await resolver.getFreeDefaultConfig();
-
-      expect(mockPrisma.adminSettings.findUnique).toHaveBeenCalledTimes(2);
     });
 
     it('caches free and global defaults under SEPARATE sentinel keys', async () => {
