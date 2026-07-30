@@ -11,6 +11,7 @@ import {
   validateReasoningConstraints,
   advancedParamsToConfigFormat,
   LLM_CONFIG_OVERRIDE_KEYS,
+  applyLlmOverrideParams,
   type AdvancedParams,
 } from './llmAdvancedParams.js';
 
@@ -656,6 +657,69 @@ describe('LLM Advanced Params Schema', () => {
     it('should have exactly 18 keys', () => {
       // This test ensures we notice if keys are accidentally added or removed
       expect(LLM_CONFIG_OVERRIDE_KEYS.length).toBe(18);
+    });
+  });
+
+  describe('applyLlmOverrideParams', () => {
+    it('plain mode: copies defined keys, never clobbers with an absent key', () => {
+      const target = { model: 'm', temperature: 0.9, topP: 0.5 };
+      const result = applyLlmOverrideParams(target, { temperature: 0.2, maxTokens: 100 });
+      expect(result).toBe(target); // mutates and returns target
+      expect(result.temperature).toBe(0.2); // defined key wins
+      expect(result.topP).toBe(0.5); // absent key keeps target's value
+      expect((result as Record<string, unknown>).maxTokens).toBe(100);
+    });
+
+    it('plain mode: a null value IS copied (only undefined is skipped)', () => {
+      // Matches the original call-site loops (`value !== undefined` guard):
+      // a mapped config carrying an explicit null passes through unchanged.
+      const result = applyLlmOverrideParams({ temperature: 0.9 }, { temperature: null });
+      expect(result.temperature).toBeNull();
+    });
+
+    it('fallback mode: override wins per key, fallback fills the gaps', () => {
+      const result = applyLlmOverrideParams(
+        {},
+        { temperature: 0.1, topP: null },
+        { fallback: { temperature: 0.9, topP: 0.8, maxTokens: 50 } }
+      );
+      expect(result).toEqual({
+        temperature: 0.1, // override wins
+        topP: 0.8, // null falls through to fallback (?? semantics)
+        maxTokens: 50, // absent in override → fallback
+      });
+    });
+
+    it('fallback mode: undefined in both sources assigns nothing', () => {
+      const result = applyLlmOverrideParams({}, {}, { fallback: {} });
+      expect(Object.keys(result)).toHaveLength(0);
+    });
+
+    it('clearAbsent mode: an absent key CLEARS the target value', () => {
+      const target = { model: 'fallback-model', temperature: 0.9, seed: 42 };
+      const result = applyLlmOverrideParams(target, { temperature: 0.3 }, { clearAbsent: true });
+      expect(result.temperature).toBe(0.3);
+      expect(result.seed).toBeUndefined(); // preset value cleared, not inherited
+    });
+
+    it('clearAbsent mode: a null value normalizes to undefined (`?? undefined`)', () => {
+      const result = applyLlmOverrideParams(
+        { temperature: 0.9 },
+        { temperature: null },
+        { clearAbsent: true }
+      );
+      expect(result.temperature).toBeUndefined();
+    });
+
+    it('never touches keys outside LLM_CONFIG_OVERRIDE_KEYS', () => {
+      const target = { model: 'keep-me', unrelated: 'keep-me-too' };
+      applyLlmOverrideParams(
+        target,
+        { model: 'evil', unrelated: 'evil' } as Record<string, unknown>,
+        { clearAbsent: true }
+      );
+      expect(target.model).toBe('keep-me');
+      expect(target.unrelated).toBe('keep-me-too');
     });
   });
 });

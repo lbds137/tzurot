@@ -421,3 +421,46 @@ export const LLM_CONFIG_OVERRIDE_KEYS = [
  * Type for LLM config override keys.
  * Useful for type-safe iteration and validation.
  */
+export type LlmConfigOverrideKey = (typeof LLM_CONFIG_OVERRIDE_KEYS)[number];
+
+/** Any object carrying some subset of the override keys (a LoadedPersonality, a mapped/resolved config). */
+type LlmOverrideSource = Readonly<Partial<Record<LlmConfigOverrideKey, unknown>>>;
+
+/**
+ * THE shared `LLM_CONFIG_OVERRIDE_KEYS` copy loop — the one place that decides
+ * how override-key values move between configs and personalities, so the
+ * resolver/stamp/fallback call sites cannot drift on the same question.
+ *
+ * Three modes, each preserving its call site's exact semantics:
+ * - **plain** (no options): copy `primary[key]` onto `target`, skipping
+ *   `undefined` — an absent key never clobbers what `target` carries
+ *   (resolver `extractFromPersonality`, gateway stamp `applyResolvedConfig`).
+ * - **fallback**: per-key `primary[key] ?? fallback[key]`, skipping
+ *   `undefined` (resolver `mergeWithPersonality` — override wins, personality
+ *   fills gaps).
+ * - **clearAbsent**: assign `primary[key] ?? undefined` unconditionally — a
+ *   key absent from `primary` CLEARS `target`'s value (quota fallback: the
+ *   fallback config replaces the preset wholesale; the preset's sampling
+ *   params must not survive onto the fallback model).
+ *
+ * Mutates and returns `target` (every call site builds `target` fresh).
+ */
+export function applyLlmOverrideParams<T extends object>(
+  target: T,
+  primary: LlmOverrideSource,
+  options?: { fallback?: LlmOverrideSource; clearAbsent?: boolean }
+): T {
+  const sink = target as Record<LlmConfigOverrideKey, unknown>;
+  for (const key of LLM_CONFIG_OVERRIDE_KEYS) {
+    if (options?.clearAbsent === true) {
+      sink[key] = primary[key] ?? undefined;
+      continue;
+    }
+    const value =
+      options?.fallback === undefined ? primary[key] : (primary[key] ?? options.fallback[key]);
+    if (value !== undefined) {
+      sink[key] = value;
+    }
+  }
+  return target;
+}
