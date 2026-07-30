@@ -110,7 +110,7 @@ describe('POST /internal/conversation/user-message', () => {
     expect(response.body.created).toBe(true);
   });
 
-  it('reports matched=true without writing when an identical row exists (dual-write)', async () => {
+  it('reports matched=true without writing when an identical row exists (idempotent replay)', async () => {
     mockPrisma.conversationHistory.findUnique.mockResolvedValue({
       content: VALID_BODY.content,
       discordMessageId: [VALID_BODY.discordMessageId],
@@ -125,7 +125,7 @@ describe('POST /internal/conversation/user-message', () => {
     expect(mockPrisma.conversationHistory.create).not.toHaveBeenCalled();
   });
 
-  it('reports matched=false when the existing row diverges (burn-in signal)', async () => {
+  it('reports matched=false when the existing row diverges (replay drift signal)', async () => {
     mockPrisma.conversationHistory.findUnique.mockResolvedValue({
       content: 'different content',
       discordMessageId: [VALID_BODY.discordMessageId],

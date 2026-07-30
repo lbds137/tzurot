@@ -4,15 +4,16 @@
  * Persists the assistant conversation-history row after bot-client confirms
  * Discord delivery. The gateway owns the write: it derives the assistant
  * timestamp (user message + 1ms — preserves chronological ordering), the
- * deterministic row UUID, and the token count. Delegates the create to
- * ConversationHistoryService.addMessage — the SAME code path bot-client's
- * legacy direct write uses — so the two paths produce identical rows by
- * construction during the dual-write window.
+ * deterministic row UUID, and the token count. This endpoint is the SOLE
+ * creator of assistant history rows (bot-client has no Prisma; ai-worker
+ * only updates existing rows).
  *
- * Idempotent: when the row already exists (bot-client's legacy write is
- * authoritative during dual-write and normally lands first), this handler
- * compares instead of writing and reports `matched` — a `false` there is the
- * burn-in divergence signal.
+ * Idempotent against replays (see conversationPersistShared.ts): an
+ * at-least-once redelivery — a retry, or MultiTagRecovery re-running a
+ * delivery after deploy-orphan rehydration — resolves to the same
+ * deterministic id, so this handler compares instead of writing and reports
+ * `matched`; a `false` there means the replay carried different content
+ * (drift between attempts), which is a bug signal.
  *
  * **Authentication**: `X-Service-Auth` enforcement happens upstream via the
  * global `requireServiceAuth()` on `/internal/*` in api-gateway's index.
@@ -31,6 +32,7 @@ import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { sendZodError } from '../../utils/zodHelpers.js';
 import { logFastPoolTimeout } from '../../utils/dbTimeout.js';
+import { fetchExistingConversationRow } from './conversationPersistShared.js';
 import type { RouteDeps } from '../routeDeps.js';
 
 const logger = createLogger('internal-conversation-assistant-message');
@@ -62,25 +64,13 @@ export const handlePersistAssistantMessage = (deps: RouteDeps): RequestHandler =
     const id = generateConversationHistoryUuid(channelId, personalityId, personaId, assistantTime);
 
     const compareExisting = async (): Promise<PersistAssistantMessageResponse | null> => {
-      const readStartedAt = Date.now();
-      let existing;
-      try {
-        existing = await prisma.conversationHistory.findUnique({
-          where: { id },
-          select: { content: true, discordMessageId: true },
-        });
-      } catch (error) {
-        // Same self-labeling the write path gets — without it, a read-side
-        // fast-pool failure (dead-conn retry exhausted) surfaces only as the
-        // global handler's generic 'Unhandled error:'.
-        logFastPoolTimeout(
-          logger,
-          error,
-          { durationMs: Date.now() - readStartedAt, channelId, id },
-          'Assistant-message existence check hit a fast-pool DB timeout'
-        );
-        throw error;
-      }
+      const existing = await fetchExistingConversationRow(
+        prisma,
+        id,
+        logger,
+        'Assistant-message existence check hit a fast-pool DB timeout',
+        { channelId }
+      );
       if (existing === null) {
         return null;
       }
@@ -94,7 +84,7 @@ export const handlePersistAssistantMessage = (deps: RouteDeps): RequestHandler =
             contentMatch: existing.content === content,
             chunkIdsMatch: chunkIdsMatch(existing.discordMessageId, chunkMessageIds),
           },
-          'Assistant-message dual-write DIVERGED from existing row'
+          'Assistant-message persist replay DIVERGED from existing row'
         );
       }
       return { id, created: false, matched };
@@ -119,11 +109,11 @@ export const handlePersistAssistantMessage = (deps: RouteDeps): RequestHandler =
         timestamp: assistantTime,
       });
     } catch (error) {
-      // Only the unique-violation race gets the compare fallback: the legacy
-      // writer landed between our existence check and the create, so the row
-      // exists and comparing is the correct outcome. Any other failure
-      // (FK violation, transient DB error) must surface, not be masked by a
-      // coincidental row appearing in the same window.
+      // Only the unique-violation race gets the compare fallback: a duplicate
+      // delivery of the same event landed between our existence check and the
+      // create, so the row exists and comparing is the correct outcome. Any
+      // other failure (FK violation, transient DB error) must surface, not be
+      // masked by a coincidental row appearing in the same window.
       const isRace = (error as { code?: string }).code === 'P2002';
       if (!isRace) {
         // Classify before rethrowing so the resulting 5xx carries the

@@ -244,9 +244,9 @@ export const internalRoutes = {
    * POST /api/internal/conversation/assistant-message
    * Bot-client persists the assistant turn after Discord delivery succeeds
    * (the gateway derives the deterministic row id, +1ms timestamp, and token
-   * count). Idempotent upsert-with-compare — during the dual-write window an
-   * existing row is compared, not overwritten, and `matched: false` is the
-   * divergence signal.
+   * count). Idempotent against replays — a redelivery resolves to the same
+   * deterministic id, an existing row is compared rather than overwritten,
+   * and `matched: false` flags content drift between attempts.
    */
   persistAssistantMessage: {
     audience: 'internal',
