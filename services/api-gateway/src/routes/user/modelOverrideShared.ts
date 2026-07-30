@@ -6,7 +6,9 @@
  */
 
 import type { Request, Response } from 'express';
+import type { ModelOverrideSummary } from '@tzurot/common-types/schemas/api/model-override';
 import { parseModelSlotQueryAllowAll } from '../../utils/configRouteHelpers.js';
+import type { ModelCapabilityService } from '../../services/ModelCapabilityService.js';
 
 /**
  * Select shape shared by the override list and upsert responses. `model`
@@ -20,6 +22,41 @@ export const OVERRIDE_SUMMARY_SELECT = {
   visionConfigId: true,
   visionConfig: { select: { name: true, model: true } },
 } as const;
+
+/** The row shape {@link OVERRIDE_SUMMARY_SELECT} produces. */
+export interface OverrideSummaryRow {
+  personalityId: string;
+  personality: { name: string };
+  llmConfigId: string | null;
+  llmConfig: { name: string; model: string } | null;
+  visionConfigId: string | null;
+  visionConfig: { name: string; model: string } | null;
+}
+
+/**
+ * Build one slot-tagged summary from an OVERRIDE_SUMMARY_SELECT row — the
+ * single emitter behind the LIST (one row per non-null FK) and SET responses,
+ * so the summary shape and its supportsVision enrichment cannot drift between
+ * them. Independent per row, so LIST callers can `Promise.all` the map
+ * (OpenRouterModelCache coalesces in-flight fetches — concurrent is the
+ * intended shape, matching the user/llm-config list handler).
+ */
+export async function buildOverrideSummary(
+  override: OverrideSummaryRow,
+  slot: 'text' | 'vision',
+  capabilities: ModelCapabilityService
+): Promise<ModelOverrideSummary> {
+  const isVision = slot === 'vision';
+  const config = isVision ? override.visionConfig : override.llmConfig;
+  return {
+    personalityId: override.personalityId,
+    personalityName: override.personality.name,
+    configId: isVision ? override.visionConfigId : override.llmConfigId,
+    configName: config?.name ?? null,
+    slot,
+    supportsVision: await capabilities.supportsVision(config?.model ?? ''),
+  };
+}
 
 export interface ClearSlots {
   slot: 'text' | 'vision' | 'all';
