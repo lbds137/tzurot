@@ -3,10 +3,10 @@ id: TASK-38
 title: >-
   Type the applyFastPoolDeadConnRetry $extends result instead of as unknown as
   PrismaClient
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-07-01 00:00'
-updated_date: '2026-07-28 10:46'
+updated_date: '2026-07-30 02:33'
 labels:
   - 'area:db'
   - 'origin:review'

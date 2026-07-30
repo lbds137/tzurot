@@ -85,6 +85,18 @@ before committing to the projection.
   named the bundle). Selection heuristic confirmed: same-origin same-module
   clusters beat trigger-regex clusters. Remaining tooling candidates (51, 142,
   4) are own-PR-sized.
+- **db (fast-pool sub-batch)** — #1866 (2026-07-29): 5 tasks shipped — 3 planned
+  (38/39; 40 closed-with-evidence, no code) + 2 ride-alongs (176/175) that the
+  `deferred-refs` hook surfaced at commit time because their promote-when
+  ("next touching the fast-pool code") fired on this exact diff. New mechanism
+  note: the hook is a live batch-grower — same-module tasks it surfaces
+  mid-batch fold in at near-zero cost (this is Phase 3's reachability thesis
+  working before Phase 3 is built). TASK-174 surfaced too but stayed filed (its
+  own fix shape demands a separate PR — behavioral write-path change); it
+  gained the read-wrapper dedup scope from #1866's review and is the natural
+  next same-module unit. The HttpPersonalityLoader pair (64/65) was evaluated
+  and NOT pulled: both tasks say "fine at current scale" with unfired runtime
+  promote-conditions — building them would be premature optimization.
 
 ### Phase 2 — The ~55 scattered singletons
 

@@ -3,10 +3,10 @@ id: TASK-175
 title: >-
   Document the "pooler strips options → gateway boot fails" caveat for the fast
   pool
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-06-25 00:00'
-updated_date: '2026-07-28 10:49'
+updated_date: '2026-07-30 02:33'
 labels:
   - 'area:db'
   - 'area:docs'
