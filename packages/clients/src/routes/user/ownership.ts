@@ -75,10 +75,11 @@ export const userOwnershipRoutes = {
     output: GetPersonalityResponseSchema,
     requiresProvisionedUser: true,
     meta: { safeRead: true },
-    // Called as the first leg of settings/overrides dashboards (alongside
-    // resolveCascade/resolvePersonalityCascade) post-defer. The 2500ms
-    // autocomplete-budget default can time out under slow-DB conditions
-    // before the cascade is even attempted; match the cascade routes.
+    // Pinned to DEFERRED explicitly: called as the first leg of
+    // settings/overrides dashboards (alongside resolveCascade/
+    // resolvePersonalityCascade) post-defer, and slow-DB conditions can
+    // stall it before the cascade is even attempted. Matches the tier of
+    // the cascade routes it pairs with, independent of the read default.
     timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,
   },
 
@@ -206,9 +207,9 @@ export const userOwnershipRoutes = {
     output: GetPersonaResponseSchema,
     requiresProvisionedUser: true,
     meta: { safeRead: true },
-    // DEFERRED budget: persona CRUD is driven from post-defer
-    // dashboards (profile view/edit), not the autocomplete hot path; the
-    // 2500ms default is too tight under slow-DB conditions.
+    // Pinned to DEFERRED explicitly: persona CRUD is driven from post-defer
+    // dashboards (profile view/edit), not the autocomplete hot path, so it
+    // keeps the 10s budget even if the read default ever moves.
     timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,
   },
 
