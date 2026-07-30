@@ -13,7 +13,11 @@ import {
   LLM_CONFIG_OVERRIDE_KEYS,
   applyLlmOverrideParams,
   type AdvancedParams,
+  type LlmConfigOverrideKey,
 } from './llmAdvancedParams.js';
+import type { MappedLlmConfigWithName } from '../services/LlmConfigMapper.js';
+import type { ResolvedLlmConfig } from '../types/configResolution.js';
+import type { LoadedPersonality } from '../types/schemas/personality.js';
 
 describe('LLM Advanced Params Schema', () => {
   describe('SamplingParamsSchema', () => {
@@ -720,6 +724,20 @@ describe('LLM Advanced Params Schema', () => {
       );
       expect(target.model).toBe('keep-me');
       expect(target.unrelated).toBe('keep-me-too');
+    });
+
+    it('every override key is an own (typed) property of the copy-loop source types', () => {
+      // Compile-time drift pin: LlmOverrideSource is structural with unknown
+      // values, so a source type silently dropping one of the 18 keys would
+      // read as "always absent" instead of failing the build. Pick<> refuses
+      // to compile if any key leaves these types — this test exists for the
+      // typecheck, the runtime assertion is a formality.
+      const pin = (
+        _personality: Pick<LoadedPersonality, LlmConfigOverrideKey> | null,
+        _resolved: Pick<ResolvedLlmConfig, LlmConfigOverrideKey> | null,
+        _mapped: Pick<MappedLlmConfigWithName, LlmConfigOverrideKey> | null
+      ): boolean => true;
+      expect(pin(null, null, null)).toBe(true);
     });
   });
 });
