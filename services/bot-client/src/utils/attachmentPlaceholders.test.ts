@@ -80,6 +80,34 @@ describe('attachmentPlaceholders', () => {
       expect(result).toBe('[Image: attachment]');
     });
 
+    it('should label a sticker as Sticker, not Image', () => {
+      // This placeholder is PERSISTED. The post-vision upgrade that would
+      // replace it only runs when a description was produced, so with sticker
+      // vision off (or after a describe failure) this text is permanent — and
+      // `[Image: partyblob]` tells the character someone uploaded a file when
+      // they picked a sticker.
+      const attachment: AttachmentMetadata = {
+        id: '111222333444555666',
+        url: 'https://cdn.discordapp.com/stickers/111222333444555666.png',
+        contentType: 'image/png',
+        name: 'partyblob',
+        isSticker: true,
+      };
+
+      expect(generateAttachmentPlaceholder(attachment)).toBe('[Sticker: partyblob]');
+    });
+
+    it('should keep the Image label when isSticker is absent', () => {
+      // Guards the default — the branch must not flip for ordinary uploads.
+      const attachment: AttachmentMetadata = {
+        url: 'https://example.com/photo.jpg',
+        contentType: 'image/jpeg',
+        name: 'photo.jpg',
+      };
+
+      expect(generateAttachmentPlaceholder(attachment)).toBe('[Image: photo.jpg]');
+    });
+
     it('should generate placeholder for generic file', () => {
       const attachment: AttachmentMetadata = {
         url: 'https://example.com/document.pdf',

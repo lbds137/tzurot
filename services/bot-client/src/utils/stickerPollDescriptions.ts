@@ -13,9 +13,14 @@
  * - **Poll vote counts.** They mutate after the fetch, and this text is
  *   persisted — a frozen tally would be wrong forever. The question and the
  *   options are the poll's semantic content; the tally is volatile state.
- * - **Sticker images.** Stickers are not attachments and never reach the
- *   vision path; the name (and description, when Discord supplies one) is all
- *   the semantic signal available without downloading the asset.
+ *
+ * These renderers cover EVERY sticker, including ones `stickerAttachments.ts`
+ * also sends down the vision path for a real image description. That overlap is
+ * deliberate, not redundancy to clean up: this line is what makes a
+ * sticker-only message non-empty, and `EmptyMessageFilter` drops a message with
+ * no content before any trigger processor runs. Rendering only the
+ * un-describable stickers here would re-open exactly that hole for the
+ * describable ones whenever vision is disabled or fails.
  */
 
 import type { Message, MessageSnapshot, Sticker } from 'discord.js';
@@ -55,14 +60,26 @@ function describeSticker(sticker: Sticker): string {
  * unconditionally and filter falsy.
  */
 export function describeStickers(message: Message): string {
-  const own = collectionValues<Sticker>(message.stickers);
-  const snapshots = collectionValues<MessageSnapshot>(message.messageSnapshots);
-  const forwarded = snapshots.flatMap(snapshot => collectionValues<Sticker>(snapshot.stickers));
-  const all = [...own, ...forwarded];
+  const all = collectAllStickers(message);
   if (all.length === 0) {
     return '';
   }
   return `[Stickers: ${all.map(describeSticker).join(', ')}]`;
+}
+
+/**
+ * Every sticker on a message: its own, plus any carried by a forwarded
+ * message's snapshots.
+ *
+ * Exported because `stickerAttachments.ts` needs the identical set — one walk
+ * of the snapshot structure, so the text rendering and the vision injection can
+ * never disagree about which stickers a message carries.
+ */
+export function collectAllStickers(message: Message): Sticker[] {
+  const own = collectionValues<Sticker>(message.stickers);
+  const snapshots = collectionValues<MessageSnapshot>(message.messageSnapshots);
+  const forwarded = snapshots.flatMap(snapshot => collectionValues<Sticker>(snapshot.stickers));
+  return [...own, ...forwarded];
 }
 
 /**

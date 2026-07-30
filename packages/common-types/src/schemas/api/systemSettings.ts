@@ -36,6 +36,8 @@ export const SystemSettingsSchema = z.object({
   factsInPromptEnabled: z.boolean(),
   /** Share GLM-4.5-Air with guests via the system z.ai coding-plan key. */
   zaiFreeTierEnabled: z.boolean(),
+  /** Vision-describe rasterizable stickers (instance-funded, cached per snowflake). */
+  stickerVisionEnabled: z.boolean(),
   /** Episodes per (channel, personality) before an extraction batch enqueues. */
   extractionBatchThreshold: z.number().int().min(1).max(50),
   /** Extraction engine — switching models MUST re-run `pnpm eval:extraction` first. */
@@ -278,6 +280,23 @@ export const SYSTEM_SETTINGS_REGISTRY: SystemSettingsRegistry = {
     liveness: 'live',
     fallback: false,
     seedSource: 'ZAI_FREE_TIER_ENABLED',
+  },
+  stickerVisionEnabled: {
+    key: 'stickerVisionEnabled',
+    label: 'Sticker Vision',
+    description:
+      'Vision-describe rasterizable stickers. Instance-funded; one call per sticker, ever.',
+    group: GROUP_MODELS_LIMITS,
+    control: 'boolean',
+    liveness: 'live',
+    // Defaults ON: the feature is the point, and the spend it authorizes is
+    // bounded by the number of DISTINCT stickers ever seen rather than by
+    // traffic — each one is described once and cached under its immutable
+    // snowflake. The switch exists to stop a surprising warmup burst, not
+    // because the steady state is expensive.
+    fallback: true,
+    // No predecessor: this setting is new, not migrated from an env var.
+    seedSource: '(none — introduced as a system setting)',
   },
   zaiHeadroomPercent: {
     key: 'zaiHeadroomPercent',

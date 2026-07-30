@@ -39,6 +39,16 @@ vi.mock('@tzurot/common-types/utils/logger', async () => {
   };
 });
 
+// Runtime system settings. Defaults to the registry fallback (sticker vision
+// ON); the kill-switch tests flip it.
+const { systemSettingMock } = vi.hoisted(() => ({
+  systemSettingMock: vi.fn<(key: string) => unknown>(() => true),
+}));
+
+vi.mock('@tzurot/common-types/services/SystemSettingsService', () => ({
+  getSystemSetting: (key: string) => systemSettingMock(key),
+}));
+
 // Mock the attachmentFetch utility so tests control fetch / validation /
 // resize / data-URL building without hitting network or sharp. Error classes
 // (ExpiredJobError, AttachmentTooLargeError, etc.) are passed through from
@@ -613,5 +623,85 @@ describe('DownloadAttachmentsStep', () => {
     // guard would silently undercount pre-populated data URLs as 0 bytes.
     expect(job.data.context.attachments![0].size).toBeGreaterThan(0);
     expect(job.data.context.attachments![0].size).toBe(Math.ceil((dataUrl.length * 3) / 4));
+  });
+});
+
+describe('DownloadAttachmentsStep — sticker vision kill switch', () => {
+  let step: DownloadAttachmentsStep;
+
+  const stickerAttachment = {
+    id: '111222333444555666',
+    url: 'https://cdn.discordapp.com/stickers/111222333444555666.png',
+    name: 'partyblob',
+    contentType: 'image/png',
+    isSticker: true,
+  };
+  const imageAttachment = {
+    url: 'https://cdn.discordapp.com/attachments/1/2/photo.png',
+    name: 'photo.png',
+    contentType: 'image/png',
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    systemSettingMock.mockReturnValue(true);
+    step = new DownloadAttachmentsStep(0);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('downloads sticker attachments when the switch is ON', async () => {
+    const job = createJob([stickerAttachment]);
+
+    await step.process(createContext(job));
+
+    expect(fetchAttachmentBytesMock).toHaveBeenCalledTimes(1);
+    expect(job.data.context.attachments).toHaveLength(1);
+  });
+
+  it('drops sticker attachments BEFORE any network work when the switch is OFF', async () => {
+    // "Off" has to be free, not merely quiet: a dropped sticker must never be
+    // fetched, resized, or counted against the aggregate payload cap.
+    systemSettingMock.mockReturnValue(false);
+    const job = createJob([stickerAttachment]);
+
+    await step.process(createContext(job));
+
+    expect(fetchAttachmentBytesMock).not.toHaveBeenCalled();
+    expect(job.data.context.attachments ?? []).toHaveLength(0);
+  });
+
+  it('keeps ordinary attachments when the switch is OFF', async () => {
+    // The switch is scoped to stickers — flipping it must not disable image
+    // handling generally.
+    systemSettingMock.mockReturnValue(false);
+    const job = createJob([stickerAttachment, imageAttachment]);
+
+    await step.process(createContext(job));
+
+    expect(job.data.context.attachments).toHaveLength(1);
+    expect(job.data.context.attachments![0].name).toBe('photo.png');
+  });
+
+  it('filters stickers out of the extended-context group too', async () => {
+    // Extended context is a separate array; filtering only the trigger group
+    // would leave history stickers billing while the switch reads OFF.
+    systemSettingMock.mockReturnValue(false);
+    const job = createJob([], [stickerAttachment]);
+
+    await step.process(createContext(job));
+
+    expect(fetchAttachmentBytesMock).not.toHaveBeenCalled();
+    expect(job.data.context.extendedContextAttachments ?? []).toHaveLength(0);
+  });
+
+  it('reads the sticker switch by name', async () => {
+    const job = createJob([stickerAttachment]);
+
+    await step.process(createContext(job));
+
+    expect(systemSettingMock).toHaveBeenCalledWith('stickerVisionEnabled');
   });
 });

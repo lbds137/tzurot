@@ -77,6 +77,29 @@ describe('RAGUtils', () => {
       expect(result).toBe('[Image: attachment]\nSome image');
     });
 
+    it('labels a sticker as a Sticker, not an Image', () => {
+      // A sticker travels the image path but the user picked a sticker; calling
+      // it an image tells the character someone uploaded a file.
+      const attachments: ProcessedAttachment[] = [
+        createAttachment(AttachmentType.Image, 'A cartoon blob celebrating', {
+          name: 'partyblob',
+          isSticker: true,
+        }),
+      ];
+
+      const result = buildAttachmentDescriptions(attachments);
+      expect(result).toBe('[Sticker: partyblob]\nA cartoon blob celebrating');
+    });
+
+    it('keeps the Image label when isSticker is absent', () => {
+      // Guards the default: the header must not flip for ordinary attachments.
+      const attachments: ProcessedAttachment[] = [
+        createAttachment(AttachmentType.Image, 'A photo', { name: 'photo.png' }),
+      ];
+
+      expect(buildAttachmentDescriptions(attachments)).toBe('[Image: photo.png]\nA photo');
+    });
+
     it('should format voice message with duration and wrap transcript in structured tags', () => {
       const attachments: ProcessedAttachment[] = [
         createAttachment(AttachmentType.Audio, 'User said hello and asked about the weather', {

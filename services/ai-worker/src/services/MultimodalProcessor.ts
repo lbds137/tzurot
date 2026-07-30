@@ -14,6 +14,7 @@
 
 import { type AIProvider } from '@tzurot/common-types/constants/ai';
 import { AttachmentType, CONTENT_TYPES } from '@tzurot/common-types/constants/media';
+import { getSystemSetting } from '@tzurot/common-types/services/SystemSettingsService';
 import { RETRY_CONFIG } from '@tzurot/common-types/constants/timing';
 import { type AttachmentMetadata } from '@tzurot/common-types/types/schemas/discord';
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
@@ -88,6 +89,68 @@ export interface ProcessAttachmentOptions {
 }
 
 /**
+ * Re-shape vision auth so the call is funded and configured by the INSTANCE
+ * rather than by the user who happened to trigger it.
+ *
+ * A sticker description is keyed by the sticker's immutable snowflake, so it is
+ * written once and then read by every user and every character forever. Two
+ * consequences follow, and the second is the one that actually decides it:
+ *
+ * - Billing a BYOK user for a permanent shared artifact is surprising ("why was
+ *   I charged for a sticker I sent once?").
+ * - More importantly, under first-sighter-pays the artifact's QUALITY becomes a
+ *   lottery: whoever sights a sticker first decides, via their key's model, how
+ *   well it is described for everyone thereafter. Instance-funded means
+ *   instance-CONFIGURED — the operator's vision settings write the permanent
+ *   record.
+ *
+ * Expressed by clearing the user-attributed inputs, which routes the existing
+ * resolver down its system-key path. Deliberately NOT a new auth branch: the
+ * fallback chain, quota handling, and failure rendering all stay shared.
+ */
+function asInstanceFundedAuth(base: ResolveVisionConfigOptions): ResolveVisionConfigOptions {
+  return {
+    ...base,
+    isGuestMode: true,
+    userId: undefined,
+    mainApiKey: undefined,
+    mainProvider: undefined,
+  };
+}
+
+/**
+ * The model that writes a permanent shared-asset description.
+ *
+ * MUST be paired with {@link asInstanceFundedAuth} and passed as an explicit
+ * model override, because `isGuestMode` is not only an auth signal in this
+ * codebase — `selectVisionModel` reads it as a TIER selector and free-forces
+ * the model at every priority level, and `composeVisionTiers` uses it to pick
+ * the chain's floor. Setting it for auth purposes alone would therefore
+ * collapse every sticker onto the free vision floor, which is the exact
+ * opposite of "the operator's settings write the permanent record" — and
+ * permanently so, since the description is cached under an immutable snowflake
+ * and the canonical cache's tier-promotion can never fire for an asset whose
+ * every describe is pinned to the lowest tier.
+ *
+ * Uses the operator's configured paid floor rather than the personality's own
+ * vision model on purpose: the artifact is shared, so ONE operator-chosen model
+ * should write it regardless of which character happened to see the sticker
+ * first. That also keeps the record reproducible — the same sticker gets the
+ * same treatment everywhere.
+ *
+ * ACCEPTED LIMIT: that guarantee covers the PRIMARY attempt only. If the pinned
+ * model fails on a retryable category, the fallback chain's lower tiers still
+ * degrade to the free floor (`composeVisionTiers` picks the floor from
+ * `isGuestMode`, and the resolver force-downgrades every non-primary tier for a
+ * guest). So a sticker whose paid describe fails can still end up with a
+ * free-tier description. Deliberate: "free but described" beats "undescribed",
+ * and it matches the degradation every other guest-path call already gets.
+ */
+function sharedAssetVisionModel(): string {
+  return getSystemSetting('fallbackVisionModel');
+}
+
+/**
  * Process a single attachment (helper function for retry logic)
  */
 async function processSingleAttachment(
@@ -105,19 +168,52 @@ async function processSingleAttachment(
     visionAuth,
   } = options;
   if (attachment.contentType.startsWith(CONTENT_TYPES.IMAGE_PREFIX)) {
+    // A shared asset is instance-funded on EVERY path, not just the one the
+    // primary caller uses. Deciding it here — rather than at each
+    // `processAttachments` call site — is deliberate: several callers omit the
+    // `visionAuth` bundle entirely (DependencyStep's legacy branch,
+    // ConversationInputProcessor's defensive branch), and a rule enforced at N
+    // call sites is a rule that silently stops holding at the N+1th.
+    const isSharedAsset = attachment.isSticker === true;
+
+    // EVERY caller-supplied dispatch input is replaced for a shared asset, in
+    // one literal rather than field-by-field at the call. The caller resolved
+    // all four for the TRIGGERING USER and the PERSONALITY's vision model; a
+    // shared asset uses none of that, and overriding only some of them produces
+    // mismatched pairs — a personality's provider against the operator's model
+    // misroutes to a 401, and a stale key or tier silently un-does the
+    // instance-funding rule. Keeping them adjacent is what makes a future
+    // addition visibly belong here too.
+    const dispatch = isSharedAsset
+      ? {
+          isGuestMode: true,
+          userApiKey: undefined,
+          // Let describeImage derive it from the model below via
+          // detectVisionProvider — the Phase-4 path resolves it the same way.
+          provider: undefined,
+          // Not optional polish — see sharedAssetVisionModel: the auth re-shape
+          // sets `isGuestMode`, which doubles as a tier selector, so without an
+          // explicit model the description lands on the free floor forever.
+          model: sharedAssetVisionModel(),
+        }
+      : { isGuestMode, userApiKey, provider: visionProvider, model };
+
     // Phase-4 path: when the caller supplied auth inputs, retry down the fallback chain
     // (the wrapper resolves per-tier auth + never throws). Otherwise fall back to the
     // single-model describeImage with the pre-resolved config (legacy / no-resolver path).
+    const effectiveAuth =
+      visionAuth !== undefined && isSharedAsset ? asInstanceFundedAuth(visionAuth) : visionAuth;
     const description =
-      visionAuth !== undefined
-        ? await describeImageWithFallback(attachment, personality, visionAuth, {
+      effectiveAuth !== undefined
+        ? await describeImageWithFallback(attachment, personality, effectiveAuth, {
             loggingContext,
+            model: dispatch.model,
           })
-        : await describeImage(attachment, personality, isGuestMode, userApiKey, {
+        : await describeImage(attachment, personality, dispatch.isGuestMode, dispatch.userApiKey, {
             skipNegativeCache: true,
             loggingContext,
-            provider: visionProvider,
-            model,
+            provider: dispatch.provider,
+            model: dispatch.model,
           });
     logger.info({ name: attachment.name }, 'Processed image attachment');
     return {

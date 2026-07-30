@@ -50,6 +50,7 @@ const SYSTEM_SETTING_EMOJI: Record<string, string> = {
   fallbackVisionModel: '👁️',
   fallbackTextModelFree: '🆓',
   fallbackVisionModelFree: '🖼️',
+  stickerVisionEnabled: '🏷️',
 };
 
 /** Human labels for enum choice values (fall back to the raw value). */
