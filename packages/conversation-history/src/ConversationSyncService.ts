@@ -76,9 +76,8 @@ export class ConversationSyncService {
    * against a snapshot of observed Discord messages.
    *
    * This is THE sync algorithm — api-gateway's `/internal/conversation/sync`
-   * endpoint and bot-client's legacy direct path both delegate here, so the
-   * two paths cannot drift during the dual-write window. Idempotent:
-   * re-running an already-applied snapshot finds zero work.
+   * endpoint is its only caller. Idempotent: re-running an already-applied
+   * snapshot finds zero work.
    *
    * Errors are swallowed into logs (matching the defensive style of the
    * individual operations below) — sync is opportunistic and must never fail
