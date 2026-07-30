@@ -6,6 +6,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { describeImage, transcribeAudio, processAttachments } from './MultimodalProcessor.js';
 import type { AttachmentMetadata } from '@tzurot/common-types/types/schemas/discord';
 import type { LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
+import { AIProvider } from '@tzurot/common-types/constants/ai';
+import { SYSTEM_SETTINGS_FALLBACKS } from '@tzurot/common-types/schemas/api/systemSettings';
 import { AttachmentType, CONTENT_TYPES } from '@tzurot/common-types/constants/media';
 import type { ResolveVisionConfigOptions } from './multimodal/visionAuthResolver.js';
 import type { ApiKeyResolver } from './ApiKeyResolver.js';
@@ -32,6 +34,22 @@ const {
   mockVisionCacheStoreFailure: vi.fn(),
   mockDescribeImageWithFallback: vi.fn(),
 }));
+
+// Runtime system settings. The sticker path reads `fallbackVisionModel` to pin
+// the model that writes a permanent shared-asset description.
+const { systemSettingMock } = vi.hoisted(() => ({
+  systemSettingMock: vi.fn<(key: string) => unknown>(),
+}));
+
+vi.mock('@tzurot/common-types/services/SystemSettingsService', async () => {
+  const actual = await vi.importActual<
+    typeof import('@tzurot/common-types/services/SystemSettingsService')
+  >('@tzurot/common-types/services/SystemSettingsService');
+  return {
+    ...actual,
+    getSystemSetting: (key: string) => systemSettingMock(key),
+  };
+});
 
 // Mock the Phase-4 fallback wrapper so we can assert processAttachments ROUTES the
 // visionAuth bundle to it (rather than the single-model describeImage). This is the seam
@@ -99,6 +117,15 @@ describe('MultimodalProcessor', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+
+    // Pin only the operator vision floor; every other key keeps its real
+    // registry fallback. A blanket stub would hand model-valued settings a
+    // boolean, which breaks selectVisionModel for the non-sticker tests.
+    systemSettingMock.mockImplementation((key: string) =>
+      key === 'fallbackVisionModel'
+        ? 'operator/paid-vision-model'
+        : SYSTEM_SETTINGS_FALLBACKS[key as keyof typeof SYSTEM_SETTINGS_FALLBACKS]
+    );
 
     // Reset mock implementations to default
     mockModelInvoke.mockResolvedValue({
@@ -271,6 +298,161 @@ describe('MultimodalProcessor', () => {
         type: AttachmentType.Image,
         description: 'Fallback-loop description',
       });
+    });
+
+    it('funds a STICKER description from the instance, not the triggering user', async () => {
+      // A sticker description is keyed by an immutable snowflake, so it is
+      // written once and read by everyone forever. Under first-sighter-pays,
+      // whoever sights it first would decide — via their key's model — how well
+      // it is described for every future reader. The user-attributed inputs
+      // must therefore be cleared before the call.
+      vi.useRealTimers();
+      const stickerAttachment: AttachmentMetadata = {
+        id: '111222333444555666',
+        url: 'https://cdn.discordapp.com/stickers/111222333444555666.png',
+        name: 'partyblob',
+        contentType: CONTENT_TYPES.IMAGE_PNG,
+        isSticker: true,
+      };
+      const byokAuth: ResolveVisionConfigOptions = {
+        personality: mockPersonality,
+        mainProvider: AIProvider.OpenRouter,
+        mainApiKey: 'sk-user-byok-key',
+        isGuestMode: false,
+        userId: 'user-1',
+        apiKeyResolver: {
+          resolveApiKey: vi.fn(),
+          tryResolveUserKey: vi.fn(),
+        } as unknown as ApiKeyResolver,
+      };
+
+      await processAttachments([stickerAttachment], mockPersonality, {
+        isGuestMode: false,
+        visionAuth: byokAuth,
+      });
+
+      // Assert across the seam: what CROSSES to the describe call is the
+      // instance-funded shape, regardless of what the caller resolved.
+      expect(mockDescribeImageWithFallback).toHaveBeenCalledWith(
+        stickerAttachment,
+        mockPersonality,
+        expect.objectContaining({
+          isGuestMode: true,
+          userId: undefined,
+          mainApiKey: undefined,
+          mainProvider: undefined,
+        }),
+        expect.objectContaining({ loggingContext: expect.any(Object) })
+      );
+    });
+
+    it('pins a STICKER to the operator-configured vision model', async () => {
+      // The trap this guards: `asInstanceFundedAuth` sets `isGuestMode: true`
+      // for auth routing, but that flag is ALSO the tier selector — without an
+      // explicit model override, selectVisionModel free-forces every sticker
+      // onto the free floor, and the snowflake cache makes that permanent.
+      vi.useRealTimers();
+      const stickerAttachment: AttachmentMetadata = {
+        id: '111222333444555666',
+        url: 'https://cdn.discordapp.com/stickers/111222333444555666.png',
+        name: 'partyblob',
+        contentType: CONTENT_TYPES.IMAGE_PNG,
+        isSticker: true,
+      };
+
+      await processAttachments([stickerAttachment], mockPersonality, {
+        isGuestMode: false,
+        visionAuth: {
+          personality: mockPersonality,
+          mainProvider: AIProvider.OpenRouter,
+          mainApiKey: 'sk-user-byok-key',
+          isGuestMode: false,
+          userId: 'user-1',
+          apiKeyResolver: {
+            resolveApiKey: vi.fn(),
+            tryResolveUserKey: vi.fn(),
+          } as unknown as ApiKeyResolver,
+        },
+      });
+
+      expect(mockDescribeImageWithFallback).toHaveBeenCalledWith(
+        stickerAttachment,
+        mockPersonality,
+        expect.anything(),
+        expect.objectContaining({ model: 'operator/paid-vision-model' })
+      );
+    });
+
+    it('forwards an explicit caller model to the fallback chain for a NON-sticker', async () => {
+      // Latent coupling, pinned so it can't drift: the shared-dispatch refactor
+      // made this branch forward `model` to describeImageWithFallback, which it
+      // previously never received. No caller supplies `model` AND `visionAuth`
+      // together today, so this is a no-op in production — but if one ever does,
+      // the explicit model must win over selectVisionModel's dynamic resolution,
+      // which is what the field's own contract promises.
+      vi.useRealTimers();
+      const imageAttachment: AttachmentMetadata = {
+        url: 'https://cdn.discordapp.com/image1.png',
+        name: 'image1.png',
+        contentType: CONTENT_TYPES.IMAGE_PNG,
+      };
+
+      await processAttachments([imageAttachment], mockPersonality, {
+        isGuestMode: false,
+        model: 'caller/explicit-model',
+        visionAuth: {
+          personality: mockPersonality,
+          mainProvider: AIProvider.OpenRouter,
+          mainApiKey: 'sk-user-byok-key',
+          isGuestMode: false,
+          userId: 'user-1',
+          apiKeyResolver: {
+            resolveApiKey: vi.fn(),
+            tryResolveUserKey: vi.fn(),
+          } as unknown as ApiKeyResolver,
+        },
+      });
+
+      expect(mockDescribeImageWithFallback).toHaveBeenCalledWith(
+        imageAttachment,
+        mockPersonality,
+        expect.anything(),
+        expect.objectContaining({ model: 'caller/explicit-model' })
+      );
+    });
+
+    it('leaves a NON-sticker image on the caller-resolved auth', async () => {
+      // The mirror case: clearing auth for ordinary attachments would silently
+      // move every user's image description onto the system key.
+      vi.useRealTimers();
+      const imageAttachment: AttachmentMetadata = {
+        url: 'https://cdn.discordapp.com/image1.png',
+        name: 'image1.png',
+        contentType: CONTENT_TYPES.IMAGE_PNG,
+      };
+      const byokAuth: ResolveVisionConfigOptions = {
+        personality: mockPersonality,
+        mainProvider: AIProvider.OpenRouter,
+        mainApiKey: 'sk-user-byok-key',
+        isGuestMode: false,
+        userId: 'user-1',
+        apiKeyResolver: {
+          resolveApiKey: vi.fn(),
+          tryResolveUserKey: vi.fn(),
+        } as unknown as ApiKeyResolver,
+      };
+
+      await processAttachments([imageAttachment], mockPersonality, {
+        isGuestMode: false,
+        visionAuth: byokAuth,
+      });
+
+      expect(mockDescribeImageWithFallback).toHaveBeenCalledWith(
+        imageAttachment,
+        mockPersonality,
+        byokAuth,
+        expect.objectContaining({ loggingContext: expect.any(Object) })
+      );
     });
 
     it('should process single audio attachment successfully', async () => {
@@ -545,6 +727,73 @@ describe('MultimodalProcessor', () => {
           apiKey: userApiKey,
         })
       );
+    });
+
+    it('never bills a STICKER to the user key, even with no visionAuth bundle', async () => {
+      // Several callers omit the visionAuth bundle entirely (DependencyStep's
+      // legacy branch, ConversationInputProcessor's defensive branch). The
+      // instance-funded rule has to hold on those paths too, or a resolver
+      // hiccup silently reverts a permanent shared artifact to first-sighter
+      // -pays — with no error and no log line to notice it by.
+      const attachments: AttachmentMetadata[] = [
+        {
+          id: '111222333444555666',
+          url: 'https://cdn.discordapp.com/stickers/111222333444555666.png',
+          name: 'partyblob',
+          contentType: CONTENT_TYPES.IMAGE_PNG,
+          isSticker: true,
+        },
+      ];
+
+      const promise = processAttachments(attachments, mockPersonality, {
+        isGuestMode: false,
+        userApiKey: 'user-test-key-12345',
+      });
+
+      await vi.runAllTimersAsync();
+      await promise;
+
+      expect(mockCreateChatModel).toHaveBeenCalled();
+      const constructorArg = mockCreateChatModel.mock.calls[0][0] as { apiKey?: string };
+      expect(constructorArg.apiKey).not.toBe('user-test-key-12345');
+    });
+
+    it('does not pair a STICKER with the personality-resolved provider', async () => {
+      // The caller resolves `visionProvider` for the PERSONALITY's vision model.
+      // A shared asset uses the operator's model instead, so carrying that
+      // provider through pairs a model with the wrong route — describeImage
+      // prefers an explicit provider over deriving one, so the mismatch reaches
+      // createChatModel and fails at the API rather than describing anything.
+      const attachments: AttachmentMetadata[] = [
+        {
+          id: '111222333444555666',
+          url: 'https://cdn.discordapp.com/stickers/111222333444555666.png',
+          name: 'partyblob',
+          contentType: CONTENT_TYPES.IMAGE_PNG,
+          isSticker: true,
+        },
+      ];
+
+      const promise = processAttachments(attachments, mockPersonality, {
+        isGuestMode: false,
+        userApiKey: 'user-test-key-12345',
+        visionProvider: AIProvider.ZaiCoding,
+        model: 'personality/own-vision-model',
+      });
+
+      await vi.runAllTimersAsync();
+      await promise;
+
+      expect(mockCreateChatModel).toHaveBeenCalled();
+      const constructorArg = mockCreateChatModel.mock.calls[0][0] as {
+        provider?: string;
+        modelName?: string;
+        apiKey?: string;
+      };
+      // Not the caller's provider, and not the caller's model or key either —
+      // the whole dispatch set is replaced together.
+      expect(constructorArg.provider).not.toBe(AIProvider.ZaiCoding);
+      expect(constructorArg.apiKey).not.toBe('user-test-key-12345');
     });
 
     it('should use system key when userApiKey is undefined', async () => {

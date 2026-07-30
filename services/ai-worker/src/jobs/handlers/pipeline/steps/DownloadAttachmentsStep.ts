@@ -33,6 +33,7 @@
  * MEDIA_NOT_FOUND so users see the failure list in a Discord spoiler tag.
  */
 
+import { getSystemSetting } from '@tzurot/common-types/services/SystemSettingsService';
 import { type AttachmentMetadata } from '@tzurot/common-types/types/schemas/discord';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { IPipelineStep, GenerationContext } from '../types.js';
@@ -85,6 +86,17 @@ function hasMessageText(message: string | object | undefined): boolean {
   return false;
 }
 
+/**
+ * Drop sticker-sourced attachments when sticker vision is switched off.
+ *
+ * Filtering here rather than at the describe call is what makes "off" actually
+ * free: a dropped sticker is never downloaded, never resized, and never counted
+ * against the job's aggregate payload cap.
+ */
+function keepStickersIf(enabled: boolean, attachments: AttachmentMetadata[]): AttachmentMetadata[] {
+  return enabled ? attachments : attachments.filter(a => a.isSticker !== true);
+}
+
 export class DownloadAttachmentsStep implements IPipelineStep {
   readonly name = 'DownloadAttachments';
 
@@ -98,8 +110,30 @@ export class DownloadAttachmentsStep implements IPipelineStep {
   async process(context: GenerationContext): Promise<GenerationContext> {
     const { job } = context;
 
-    const triggerAttachments = job.data.context?.attachments ?? [];
-    const extendedAttachments = job.data.context?.extendedContextAttachments ?? [];
+    // Sticker attachments are dropped here, before any network work, when the
+    // runtime switch is off — bot-client always sends them (it has no reader for
+    // system settings), so this is the single point where the feature is on or
+    // off. Dropping them costs the message nothing: the `[Stickers: …]` line
+    // that bot-client renders into the content names every sticker regardless,
+    // so the character still knows one arrived and what it was called.
+    const stickerVisionEnabled = getSystemSetting('stickerVisionEnabled');
+    const triggerAttachments = keepStickersIf(
+      stickerVisionEnabled,
+      job.data.context?.attachments ?? []
+    );
+    const extendedAttachments = keepStickersIf(
+      stickerVisionEnabled,
+      job.data.context?.extendedContextAttachments ?? []
+    );
+
+    // Publish the filtered view BEFORE the short-circuit below. When the switch
+    // drops the only attachment on a message, the early return fires and the
+    // write-back at the end of process() never runs — leaving the dropped
+    // sticker visible to every downstream step, which is the opposite of off.
+    if (job.data.context !== undefined) {
+      job.data.context.attachments = triggerAttachments;
+      job.data.context.extendedContextAttachments = extendedAttachments;
+    }
 
     // No attachments → nothing to expire. Short-circuit before the queue-age
     // gate so text-only jobs that sit through a backpressure incident don't

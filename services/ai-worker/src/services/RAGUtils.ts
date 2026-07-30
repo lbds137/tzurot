@@ -97,7 +97,11 @@ function formatProcessedAttachmentEntry(a: ProcessedAttachment): string {
   if (a.type === AttachmentType.Image) {
     const name =
       a.metadata.name !== undefined && a.metadata.name.length > 0 ? a.metadata.name : 'attachment';
-    return `[Image: ${name}]\n${a.description}`;
+    // A sticker travels the image path but is not an image the user attached —
+    // labelling it `[Image: …]` would tell the character someone uploaded a
+    // file when they picked a sticker, which changes how it reads the gesture.
+    const header = a.metadata.isSticker === true ? 'Sticker' : 'Image';
+    return `[${header}: ${name}]\n${a.description}`;
   }
   if (a.type === AttachmentType.Audio) {
     const header = buildAudioAttachmentHeader(a);

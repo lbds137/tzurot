@@ -28,6 +28,7 @@ import { type AttachmentMetadata } from '@tzurot/common-types/types/schemas/disc
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { extractAttachments } from './attachmentExtractor.js';
 import { extractEmbedImages } from './embedImageExtractor.js';
+import { extractStickerImages } from './stickerAttachments.js';
 import { EmbedParser } from './EmbedParser.js';
 import { describeStickersAndPoll, hasStickerOrPoll } from './stickerPollDescriptions.js';
 import {
@@ -281,16 +282,29 @@ export async function buildMessageContent(
   // 1. Forwarded message snapshot attachments (extracted above)
   // 2. Regular attachments on the main message
   // 3. Embed images from main message embeds
+  // 4. Rasterizable stickers as synthetic attachments — so the vision path can
+  //    describe what the sticker actually depicts. The `[Stickers: …]` line
+  //    pushed above still names every sticker regardless; these two are
+  //    complementary, not alternatives (see stickerPollDescriptions.ts).
   const regularAttachments = extractAttachments(message.attachments);
   const embedImages = extractEmbedImages(message.embeds);
+  const stickerImages = extractStickerImages(message);
   const allAttachments: AttachmentMetadata[] = [
     ...snapshotAttachments,
     ...(regularAttachments ?? []),
     ...(embedImages ?? []),
+    ...(stickerImages ?? []),
   ];
 
   // Process voice messages and categorize attachments
   // Voice transcripts are collected separately for structured XML formatting
+  //
+  // `stickerImages` is deliberately NOT passed: this pass exists to split voice
+  // from non-voice and to build the `[Attachments: …]` text line, and a sticker
+  // is neither. Listing it there would print `[Attachments: image/png: Yipee!]`
+  // directly beneath the `[Stickers: Yipee!]` line that already named it. The
+  // stickers still reach ai-worker via `allAttachments` above — which is the
+  // field that carries them to the vision path.
   const { hasVoiceMessage, voiceTranscripts, nonVoiceAttachments } = await processVoiceAttachments({
     messageId: message.id,
     originalMessageId: message.reference?.messageId,
