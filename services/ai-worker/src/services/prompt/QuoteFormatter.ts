@@ -190,8 +190,22 @@ export function formatForwardedQuote(content: ForwardedMessageContent): string {
 const DEDUP_REPLY_TARGET_PREFIX = '[Referenced message — full text in the chat log]';
 
 /**
+ * Variant used when the stub carries media descriptions. The extra clause is
+ * load-bearing, not decoration: the chat-log copy of an embed or attachment
+ * carries the raw URL, never a description, so media enrichment has no
+ * counterpart there and "full text in the chat log" would send the model
+ * somewhere the answer has never been.
+ *
+ * Conditional rather than unconditional so a text-only stub — the common case —
+ * neither pays the tokens nor invites the model to hunt for media that isn't there.
+ */
+const DEDUP_REPLY_TARGET_PREFIX_WITH_MEDIA =
+  '[Referenced message — full text in the chat log; its media is described here]';
+
+/**
  * Options for formatting a deduplicated reference stub.
- * Lightweight — no attachments, embeds, or location context.
+ * Lightweight — no embeds or location context (both are reproduced verbatim in
+ * <chat_log>), but media descriptions ARE carried: they exist nowhere else.
  */
 export interface DedupedQuoteOptions {
   /** Reference number (real-time refs only) */
@@ -209,6 +223,16 @@ export interface DedupedQuoteOptions {
   /** Original message content, already text-capped upstream (`buildDedupedReferenceStub`).
    *  Rendered as-is — NOT re-truncated here. Empty → marker-only stub. */
   content: string;
+  /**
+   * Vision descriptions for this reference's images. NOT redundant with the
+   * <chat_log> copy: history renders an embed/attachment as its URL, so a
+   * description dropped here is enrichment that was computed, paid for, and
+   * never reaches the model. The stub's own `[image/png: name]` markers name
+   * the file, not what is in it.
+   */
+  imageDescriptions?: { filename: string; description: string }[];
+  /** Voice transcripts for this reference's audio — same reasoning as `imageDescriptions`. */
+  voiceTranscripts?: string[];
 }
 
 /**
@@ -224,10 +248,10 @@ export function formatDedupedQuote(opts: DedupedQuoteOptions): string {
   // (e.g. `I...` for `I got myself off…`) that the model reads as an unfinished sentence.
   // The text is already bounded; the markers are short metadata that must survive intact.
   // Empty content (e.g. a bot's own reply-target) → marker only, no trailing blank.
-  const content =
-    opts.content.length > 0
-      ? `${DEDUP_REPLY_TARGET_PREFIX}\n\n${opts.content}`
-      : DEDUP_REPLY_TARGET_PREFIX;
+  const hasMedia =
+    (opts.imageDescriptions?.length ?? 0) > 0 || (opts.voiceTranscripts?.length ?? 0) > 0;
+  const prefix = hasMedia ? DEDUP_REPLY_TARGET_PREFIX_WITH_MEDIA : DEDUP_REPLY_TARGET_PREFIX;
+  const content = opts.content.length > 0 ? `${prefix}\n\n${opts.content}` : prefix;
 
   return formatQuoteElement({
     number: opts.number,
@@ -237,5 +261,7 @@ export function formatDedupedQuote(opts: DedupedQuoteOptions): string {
     timestamp: opts.timestamp,
     timeFormatted: opts.timeFormatted,
     content,
+    imageDescriptions: opts.imageDescriptions,
+    voiceTranscripts: opts.voiceTranscripts,
   });
 }

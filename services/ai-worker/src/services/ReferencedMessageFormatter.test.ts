@@ -9,17 +9,26 @@ import { type ReferencedMessage } from '@tzurot/common-types/types/schemas/messa
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 
 // Use vi.hoisted() to create mocks that persist across test resets
-const { mockDescribeImage, mockTranscribeAudio, mockFormatTimestampWithDelta } = vi.hoisted(() => ({
-  mockDescribeImage: vi.fn(),
-  mockTranscribeAudio: vi.fn(),
-  mockFormatTimestampWithDelta: vi.fn(),
-}));
+const { mockDescribeImage, mockTranscribeAudio, mockFormatTimestampWithDelta, mockLogger } =
+  vi.hoisted(() => ({
+    mockDescribeImage: vi.fn(),
+    mockTranscribeAudio: vi.fn(),
+    mockFormatTimestampWithDelta: vi.fn(),
+    mockLogger: { info: vi.fn(), debug: vi.fn(), warn: vi.fn(), error: vi.fn() },
+  }));
 
 // Mock the MultimodalProcessor module
 vi.mock('./MultimodalProcessor.js', () => ({
   describeImage: mockDescribeImage,
   transcribeAudio: mockTranscribeAudio,
 }));
+
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
+  return { ...actual, createLogger: () => mockLogger };
+});
 
 // Mock formatTimestampWithDelta for consistent test output
 vi.mock('@tzurot/common-types/utils/dateFormatting', async () => {
@@ -1638,6 +1647,207 @@ describe('ReferencedMessageFormatter', () => {
       );
 
       expect(searchText).toBe('first message\n\nthird message');
+    });
+  });
+
+  /**
+   * Enrichment traceability — the economic invariant: PAID WORK MUST APPEAR.
+   *
+   * Vision and transcription cost money and latency before this renderer runs.
+   * Whatever reaches it must come out the other side, in every render mode. The
+   * assertion is deliberately NOT a field-by-field parity check: the two bugs of
+   * this class dropped two DIFFERENT fields (`authorRole`, then image
+   * descriptions), so enumerating fields only ever catches the last one. A
+   * sentinel that must survive catches whichever field goes next.
+   *
+   * Line coverage was green through both bugs — the dropped values executed,
+   * they just went nowhere. This is an oracle, not more coverage.
+   *
+   * The stored half of the matrix lives in xmlMetadataFormatters.test.ts.
+   */
+  describe('enrichment traceability: paid work must appear (live path)', () => {
+    const VISION_SENTINEL = 'SENTINEL_VISION_a7f3c9';
+    const TRANSCRIPT_SENTINEL = 'SENTINEL_TRANSCRIPT_b2e8d1';
+
+    function refWithImage(overrides: Partial<ReferencedMessage> = {}): ReferencedMessage {
+      return {
+        referenceNumber: 1,
+        discordMessageId: 'msg-1',
+        discordUserId: 'user-1',
+        authorUsername: 'testuser',
+        authorDisplayName: 'Test User',
+        content: 'look at this',
+        embeds: '',
+        timestamp: '2025-12-06T00:00:00Z',
+        locationContext: '',
+        attachments: [
+          {
+            url: 'https://cdn.example.com/embed-image-1.png',
+            contentType: 'image/png',
+            name: 'embed-image-1.png',
+            size: 1000,
+          },
+        ],
+        ...overrides,
+      };
+    }
+
+    /** One vision description, already produced by the dependency stage. */
+    const preprocessedImage = {
+      1: [
+        {
+          type: AttachmentType.Image,
+          description: VISION_SENTINEL,
+          originalUrl: 'https://cdn.example.com/embed-image-1.png',
+          metadata: {
+            url: 'https://cdn.example.com/embed-image-1.png',
+            name: 'embed-image-1.png',
+            contentType: 'image/png',
+            size: 1000,
+          },
+        },
+      ],
+    };
+
+    it.each([
+      ['a full reference', false],
+      ['a DEDUPED reference', true],
+    ])('renders a preprocessed vision description into %s', async (_label, isDeduplicated) => {
+      const { formatted, searchText } = await formatter.formatReferencedMessages(
+        // The stub builder strips `attachments`, so the deduped case models the
+        // real wire shape: descriptions arrive ONLY via preprocessing.
+        [refWithImage(isDeduplicated ? { isDeduplicated: true, attachments: undefined } : {})],
+        mockPersonality,
+        false,
+        preprocessedImage
+      );
+
+      expect(formatted).toContain(VISION_SENTINEL);
+      // Retrieval sees it too — history has no copy of a description to match on.
+      expect(searchText).toContain(VISION_SENTINEL);
+      // ...and no new spend was incurred to get it there.
+      expect(mockDescribeImage).not.toHaveBeenCalled();
+    });
+
+    it('renders a preprocessed voice transcript into a deduped reference', async () => {
+      const { formatted } = await formatter.formatReferencedMessages(
+        [refWithImage({ isDeduplicated: true, attachments: undefined, content: '' })],
+        mockPersonality,
+        false,
+        {
+          1: [
+            {
+              type: AttachmentType.Audio,
+              description: TRANSCRIPT_SENTINEL,
+              originalUrl: 'https://cdn.example.com/voice.ogg',
+              metadata: {
+                url: 'https://cdn.example.com/voice.ogg',
+                name: 'voice.ogg',
+                contentType: 'audio/ogg',
+                size: 2000,
+              },
+            },
+          ],
+        }
+      );
+
+      expect(formatted).toContain('<transcript>');
+      expect(formatted).toContain(TRANSCRIPT_SENTINEL);
+      expect(mockTranscribeAudio).not.toHaveBeenCalled();
+    });
+
+    it('pairs the count: every description handed in comes back out', async () => {
+      const descriptions = ['SENTINEL_ONE', 'SENTINEL_TWO', 'SENTINEL_THREE'];
+      const { formatted } = await formatter.formatReferencedMessages(
+        [refWithImage({ isDeduplicated: true, attachments: undefined })],
+        mockPersonality,
+        false,
+        {
+          1: descriptions.map((description, i) => ({
+            type: AttachmentType.Image,
+            description,
+            originalUrl: `https://cdn.example.com/img-${i}.png`,
+            metadata: {
+              url: `https://cdn.example.com/img-${i}.png`,
+              name: `img-${i}.png`,
+              contentType: 'image/png',
+              size: 1000,
+            },
+          })),
+        }
+      );
+
+      for (const description of descriptions) {
+        expect(formatted).toContain(description);
+      }
+      expect(formatted.match(/<image filename=/g)).toHaveLength(descriptions.length);
+      expect(mockLogger.warn).not.toHaveBeenCalled();
+    });
+
+    it('warns when enrichment with real content reaches the renderer and is dropped', async () => {
+      // The tripwire itself, modelled on the shape it exists to catch: a result
+      // carrying a real description that the splitter has no arm for. That is
+      // what a THIRD enrichment type would look like on the day it is added and
+      // the deduped branch is not taught about it — work computed, work
+      // discarded — and the silence around it was why a human was the only
+      // detector the first two times.
+      //
+      // The cast is the point: `AttachmentType` has only Image and Audio today,
+      // so the unhandled arm is not otherwise constructible. Pinning it now
+      // means the warn is proven to fire before anyone needs it to.
+      await formatter.formatReferencedMessages(
+        [refWithImage({ isDeduplicated: true, attachments: undefined })],
+        mockPersonality,
+        false,
+        {
+          1: [
+            {
+              type: 'video' as AttachmentType,
+              description: 'a clip the splitter cannot render yet',
+              originalUrl: 'https://cdn.example.com/clip.mp4',
+              metadata: {
+                url: 'https://cdn.example.com/clip.mp4',
+                name: 'clip.mp4',
+                contentType: 'video/mp4',
+                size: 1000,
+              },
+            },
+          ],
+        }
+      );
+
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.objectContaining({ referenceNumber: 1, renderable: 1, rendered: 0 }),
+        expect.stringContaining('not reaching the prompt')
+      );
+    });
+
+    it('stays silent when a transcription legitimately produces nothing', async () => {
+      // A silent audio clip transcribes to '' on SUCCESS. Nothing was dropped,
+      // so the tripwire must not fire — otherwise ordinary traffic generates
+      // warn noise and the signal that matters gets tuned out.
+      await formatter.formatReferencedMessages(
+        [refWithImage({ isDeduplicated: true, attachments: undefined })],
+        mockPersonality,
+        false,
+        {
+          1: [
+            {
+              type: AttachmentType.Audio,
+              description: '',
+              originalUrl: 'https://cdn.example.com/silence.ogg',
+              metadata: {
+                url: 'https://cdn.example.com/silence.ogg',
+                name: 'silence.ogg',
+                contentType: 'audio/ogg',
+                size: 500,
+              },
+            },
+          ],
+        }
+      );
+
+      expect(mockLogger.warn).not.toHaveBeenCalled();
     });
   });
 });

@@ -19,6 +19,51 @@ import { deriveRefRole } from '../../services/prompt/referenceRole.js';
 import type { RawHistoryEntry } from './conversationTypes.js';
 
 /**
+ * Split a stored reference's media into the two renderable shapes: hydrated
+ * vision descriptions, and `[contentType: name]` markers for everything else.
+ *
+ * A described image renders as `<image_descriptions>` INSTEAD of a marker, so the
+ * same picture never appears twice in two vocabularies. The suppression is
+ * per-attachment, not per-reference: vision can resolve some of a message's
+ * images and not others (failures are never persisted), and a whole-reference
+ * gate would drop the undescribed one's marker too — leaving it with neither a
+ * description nor a name, i.e. invisible. Every image ends up with exactly one
+ * of the two representations.
+ *
+ * Correspondence is by filename because that is what `ResolvedImageDescription`
+ * carries, and every producer derives it from the attachment's own `name` — so
+ * the two agree by construction. The nameless fallback must be the producers'
+ * `'image'`, NOT this function's marker fallback (`'attachment'`): a mismatch
+ * there would fail the lookup and render a nameless image both ways. Two images
+ * sharing a filename within one reference would over-suppress; Discord's own
+ * naming makes that a non-case (`embed-image-1.png`, `embed-image-2.png`, …).
+ *
+ * Shared by the full and deduped branches on purpose. These two renderings drifted
+ * once already (the deduped branch rendered neither, silently discarding every
+ * `resolvedImageDescriptions` row `persistReferenceDescriptions` had written for
+ * exactly this purpose); routing both through one splitter is what keeps them level.
+ */
+function splitStoredMedia(ref: StoredReferencedMessage): {
+  imageDescriptions?: { filename: string; description: string }[];
+  attachmentLines?: string[];
+} {
+  const imageDescs = ref.resolvedImageDescriptions;
+  const hasImageDescs = imageDescs !== undefined && imageDescs.length > 0;
+  const describedFilenames = new Set(imageDescs?.map(desc => desc.filename));
+  const attachmentsForLines = ref.attachments?.filter(
+    att => !att.contentType.startsWith('image/') || !describedFilenames.has(att.name ?? 'image')
+  );
+
+  return {
+    imageDescriptions: hasImageDescs ? imageDescs : undefined,
+    attachmentLines:
+      attachmentsForLines !== undefined && attachmentsForLines.length > 0
+        ? attachmentsForLines.map(att => `[${att.contentType}: ${att.name ?? 'attachment'}]`)
+        : undefined,
+  };
+}
+
+/**
  * Format a single stored reference as a <quote> element.
  *
  * Uses the shared formatQuoteElement() for consistent XML structure across
@@ -51,12 +96,7 @@ function formatStoredReferencedMessage(
     locationContext = ref.locationContext;
   }
 
-  // If hydrated image descriptions exist, only show non-image attachments in attachmentLines
-  const imageDescs = ref.resolvedImageDescriptions;
-  const hasImageDescs = imageDescs !== undefined && imageDescs.length > 0;
-  const attachmentsForLines = hasImageDescs
-    ? ref.attachments?.filter(att => !att.contentType.startsWith('image/'))
-    : ref.attachments;
+  const media = splitStoredMedia(ref);
 
   return formatQuoteElement({
     type: ref.isForwarded === true ? 'forward' : undefined,
@@ -70,11 +110,8 @@ function formatStoredReferencedMessage(
     content: ref.content,
     locationContext,
     embedsXml: ref.embeds !== undefined && ref.embeds.length > 0 ? [ref.embeds] : undefined,
-    imageDescriptions: imageDescs,
-    attachmentLines:
-      attachmentsForLines !== undefined && attachmentsForLines.length > 0
-        ? attachmentsForLines.map(att => `[${att.contentType}: ${att.name ?? 'attachment'}]`)
-        : undefined,
+    imageDescriptions: media.imageDescriptions,
+    attachmentLines: media.attachmentLines,
   });
 }
 
@@ -119,7 +156,19 @@ export function formatQuotedSection(
     formatStoredReferencedMessage(ref, personalityName, allPersonalityNames)
   );
 
-  // Deduped refs: lightweight stubs with truncated content and reply-target note
+  // Deduped refs: lightweight stubs with truncated content and reply-target note.
+  // Image DESCRIPTIONS still ride along — `persistReferenceDescriptions` writes
+  // them onto the stored row precisely so a quoted image survives replay, and the
+  // history entry the stub points at renders that image as a URL, not a
+  // description. Attachment MARKERS are deliberately omitted: a marker names a
+  // file the chat log already lists, which is the redundancy dedup exists to cut.
+  //
+  // No `voiceTranscripts` here, unlike the live path — not a dropped field. The
+  // live path reads transcripts from in-memory preprocessing; a stored reference
+  // has no persisted equivalent (`StoredReferencedMessage` carries
+  // `resolvedImageDescriptions` and no audio counterpart), so there is nothing
+  // to forward. Absence is a data gap, not an omission — passing something here
+  // requires the schema to carry it first.
   const formattedDeduped = dedupedRefs.map(ref => {
     const authorName = ref.resolvedPersonaName ?? (ref.authorDisplayName || ref.authorUsername);
     const role = deriveRefRole(ref.authorRole, authorName, personalityName, allPersonalityNames);
@@ -134,6 +183,7 @@ export function formatQuotedSection(
       // renders as-is. Stored refs carry attachments separately (attachmentLines), so content
       // is text-only and safe to cap directly.
       content: capDedupText(ref.content),
+      imageDescriptions: splitStoredMedia(ref).imageDescriptions,
     });
   });
 
