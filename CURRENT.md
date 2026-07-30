@@ -1,30 +1,21 @@
 # Current
 
-> **Version**: v3.0.0-beta.185 (released 2026-07-29) — drain-campaign hardening III + channel-settings reset: #1849 Prisma ban-list drift guard · #1850 test:audit \*Loader.ts · #1851 job-dispatch seam tests · #1852 partial multi-tag errored delivery · #1853 long-slug /history purge · #1854 Reset-to-defaults (Tier-A) · #1855 openrouter/free vision · #1856 bounded reconcile sweep. No migrations. Release review: clean LGTM. Notes: GitHub release v3.0.0-beta.185.
+> **Version**: v3.0.0-beta.186 (released 2026-07-29) — follow-up pool drain batches 1–3 + fake-optional tightening: #1858 process docs · #1859 NOT NULL columns (migration `20260729160733` premigrated to prod pre-merge, owner-approved no-window) · #1860 stale-scaffolding removal · #1861 `dev:stale-debug` · #1862 jobs/queue batch · #1863 config batch · #1864 schema-audit batch. Release review: verifying LGTM (hand-traced migration write paths + envelope producer). Notes: GitHub release v3.0.0-beta.186.
 
 ---
 
 ## Unreleased on Develop
 
-- #1858 docs: review-rider checklist (TASK-329) · variant-token sweep rule (TASK-339) · publish-race note (TASK-295)
-- #1859 refactor: fake-optional columns → NOT NULL (TASK-303) — **carries migration `20260729160733`** (two `SET NOT NULL`s; applied to dev 2026-07-29; **prod needs `release:premigrate` at the next cut** — additive-safe, no maintenance window)
-- #1860 debug: stale scaffolding removed — transport probe, db-sync milestone logs, 275-day DM-detection remnant
-- #1861 feat(tooling): `dev:stale-debug` blame-based audit (TASK-143) — weekly `ops health` roster; weekly-audit checkout now `fetch-depth: 0`; round-4 optional hardening filed as TASK-354
-- #1862 fix: jobs/queue drain batch (doc-7 Phase 1, batch 1 of ~13) — six tasks closed (10/97/171/212/219/319); TASK-219 retires the legacy job-context tolerance (`kind: 'envelope'` required — additive code change, no migration)
-- #1863 refactor: config drain batch (doc-7 Phase 1, batch 2) — three tasks closed (12/37/42: shared override-key copy loop, LLM admin-default negative cache, shared override-summary emitter); TASK-28 archived obsolete, TASK-188 re-grounded
-- #1864 refactor: schema-audit drain batch (doc-7 Phase 1, batch 3) — five tasks closed (114–118: single ts-morph parse, glob-independent test exclusion, two index-map lookups, reviewedAt date validation)
+_(empty — reset at v3.0.0-beta.186)_
 
-## 🔬 Smoke checklist — v3.0.0-beta.185 (post-deploy)
+## 🔬 Smoke checklist — v3.0.0-beta.186 (post-deploy)
 
-_Risk-scoped: one needs-smoke path (the release's only new user-visible flow); carried items from beta.183 retained._
+_Risk-scoped: NO new needs-smoke items — the release is internal-only (refactors, tooling, schema tightening); its runtime-unverified paths self-verify via their own log lines (204 transport on the next delete-style internal call; release-DM short-circuit on the next bot-level blast failure; admin-default negative cache on its invalidation path). Carried items from beta.182 retained._
 
-| #   | Item                                                                                                                                                     | Why it's here                                                                                                                            | Status                                                                                                |
-| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| 1   | `/channel settings` → Reset to defaults → confirm → values revert to inherited (any mod-permission channel, dev or prod)                                 | #1854's flow is unit/factory-tested but never runtime-clicked; one click-through proves button → confirm → clear → re-render end to end. | ✅ PASS (owner, 2026-07-29; prod logs show gateway clear + bot re-render 118ms apart, no error lines) |
-| 2   | Observability (agent-runnable): first organic memory deletion in prod → logs show `Propagated memory deletion to derived facts` with sane `factsRetired` | Carried from beta.182 — the cascade's only runtime-unverified path; self-verifies via its own log line.                                  | ⬜ pending (carried)                                                                                  |
-| 3   | OPTIONAL dev smoke: `/memory delete` a memory with a derived fact on dev → the fact drops out of `/memory facts`                                         | Carried from beta.182; hands-on cascade check if wanted before trusting item 2.                                                          | ⬜ optional (carried)                                                                                 |
-
-_Observability-instead-of-smoke (no action): partial multi-tag errored delivery (#1852) self-verifies via its own warn/info lines on the first real gateway write-timeout; long-slug purge (#1853) has real-builder regression pins, optional 30s hands-on with a 30+-char slug._
+| #   | Item                                                                                                                                                     | Why it's here                                                                                           | Status                |
+| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- | --------------------- |
+| 2   | Observability (agent-runnable): first organic memory deletion in prod → logs show `Propagated memory deletion to derived facts` with sane `factsRetired` | Carried from beta.182 — the cascade's only runtime-unverified path; self-verifies via its own log line. | ⬜ pending (carried)  |
+| 3   | OPTIONAL dev smoke: `/memory delete` a memory with a derived fact on dev → the fact drops out of `/memory facts`                                         | Carried from beta.182; hands-on cascade check if wanted before trusting item 2.                         | ⬜ optional (carried) |
 
 ## ⏭️ NEXT SESSION STARTS HERE
 
@@ -55,7 +46,7 @@ Design ACCEPTED 2026-07-23 (council trio + 6 owner calls) → [`inactivity-reten
 
 **D15 refined, not followed**: off-DB-before-DB is not implementable (the off-DB work is a function of the transaction's outcome), so DB-first stands and the ledger's `pending` + `off_db_pending` is the retry handle. Recorded in the design doc.
 
-**Open follow-ups**: `sendCustomSuccess`→`sendContractSuccess` internal-routes sweep (deliberately not ridden on the destructive PR) · two fake-optional columns · the purge-concurrency assumption (two members, both gated on Phase 4) · unbounded off-DB reconcile sweep.
+**Open follow-ups**: `sendCustomSuccess`→`sendContractSuccess` internal-routes sweep (deliberately not ridden on the destructive PR) · the purge-concurrency assumption (two members, both gated on Phase 4). _(Struck at beta.186: fake-optional columns shipped #1859; bounded reconcile sweep shipped #1856/beta.185.)_
 
 ## UX Epic — Phase 3 IN FLIGHT (2026-07-20 → )
 
