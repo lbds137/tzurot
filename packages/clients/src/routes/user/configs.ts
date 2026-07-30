@@ -93,8 +93,8 @@ export const userConfigRoutes = {
     output: GetTimezoneResponseSchema,
     requiresProvisionedUser: true,
     meta: { safeRead: true },
-    // Read post-defer in the settings dashboard; the autocomplete budget
-    // is too tight for the slowest paths.
+    // Pinned to DEFERRED explicitly: read post-defer in the settings
+    // dashboard, so it keeps the 10s budget even if the read default moves.
     timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,
   },
 
@@ -233,7 +233,8 @@ export const userConfigRoutes = {
     // Called in the message-handling hot path (before any deferReply), so the
     // budget is the tight 2500ms AUTOCOMPLETE cap rather than DEFERRED — a slow
     // gateway must degrade to personality defaults fast, not stall the pipeline.
-    // (This was the transport default already; declaring it pins the intent.)
+    // AUTOCOMPLETE is opt-in only (the read default is DEFERRED); this is the
+    // sole member of `AUTOCOMPLETE_TIER` in manifest.test.ts, which enforces it.
     timeoutMs: GATEWAY_TIMEOUTS.AUTOCOMPLETE,
   },
 

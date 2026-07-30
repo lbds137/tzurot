@@ -260,8 +260,12 @@ export async function getCachedPersonas(
 /**
  * Get cached shapes for a user. Cache miss triggers a gateway fetch.
  *
- * Default route timeout (AUTOCOMPLETE = 2500ms) fits inside Discord's
- * 3-second autocomplete budget.
+ * `listShapes` carries an explicit `EXTERNAL_PROVIDER` (40s) pin so the client
+ * outwaits the handler's call to the external shapes.inc catalog — a budget
+ * sized for the deferred browse/import path, not for autocomplete. Discord
+ * bounds the autocomplete side at 3s client-side regardless, so on a slow
+ * catalog a cache-miss fetch can still be open long after the interaction has
+ * expired — wasteful, not incorrect (the cache absorbs the retry).
  */
 export async function getCachedShapes(userClient: UserClient): Promise<ApiCheck<ShapesSummary[]>> {
   const userId = userClient.actor;

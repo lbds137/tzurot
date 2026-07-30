@@ -69,9 +69,9 @@ export const userConfigOverrideRoutes = {
     output: GetUserConfigDefaultsResponseSchema,
     requiresProvisionedUser: true,
     meta: { safeRead: true },
-    // DEFERRED budget: read post-defer in the settings dashboard
-    // alongside the cascade resolves; the 2500ms autocomplete default is too
-    // tight under slow-DB conditions. Paired-handshake consistency with the
+    // Pinned to DEFERRED explicitly: read post-defer in the settings dashboard
+    // alongside the cascade resolves, so it keeps the 10s budget even if the
+    // read default ever moves. Paired-handshake consistency with the
     // PATCH/DELETE on the same /defaults path.
     timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,
   },
@@ -105,10 +105,11 @@ export const userConfigOverrideRoutes = {
     output: ResolvedConfigOverridesSchema,
     requiresProvisionedUser: true,
     meta: { safeRead: true },
-    // 5-tier cascade resolution can chain several Prisma reads on a slow
-    // day; the autocomplete-budget transport default (2500ms) is too tight
-    // for the slash-command callers (handleSettings / handleOverrides /
-    // fetchAndConvertSettingsData) that drive dashboards post-defer.
+    // Pinned to DEFERRED explicitly: 5-tier cascade resolution can chain
+    // several Prisma reads on a slow day, and the slash-command callers
+    // (handleSettings / handleOverrides / fetchAndConvertSettingsData) drive
+    // dashboards post-defer — so it keeps the 10s budget even if the read
+    // default ever moves.
     timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,
   },
 

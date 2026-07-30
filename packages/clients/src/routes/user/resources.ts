@@ -317,8 +317,9 @@ export const userResourceRoutes = {
     output: GetVoiceResolutionResponseSchema,
     requiresProvisionedUser: true,
     meta: { safeRead: true },
-    // Cascade resolution can chain multiple Prisma reads — the autocomplete
-    // default isn't enough headroom for the slowest legs.
+    // Pinned to DEFERRED explicitly: cascade resolution can chain multiple
+    // Prisma reads, so the slowest legs keep their 10s headroom even if the
+    // read default ever moves.
     timeoutMs: GATEWAY_TIMEOUTS.DEFERRED,
   },
 
