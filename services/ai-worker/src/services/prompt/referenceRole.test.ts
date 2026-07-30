@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { UNKNOWN_USER_NAME } from '@tzurot/common-types/constants/message';
 import { deriveRefRole } from './referenceRole.js';
 
 describe('deriveRefRole name matching (fallback path)', () => {
@@ -99,5 +100,28 @@ describe('deriveRefRole', () => {
     // Documented degraded behavior: without the full personality set, only the active
     // personality's own messages resolve to assistant in the fallback window.
     expect(deriveRefRole(undefined, 'Lila ▽', 'Lilith')).toBe('user');
+  });
+
+  it('falls back to user for a third-party bot, which the instruction calls a person', () => {
+    // Accepted transition-window degradation, NOT a missed case. Without a stamp
+    // there is no bot-authorship signal, so third-party automation is
+    // indistinguishable from a human here and reads as "user". Only reachable
+    // when an old bot-client produced the reference mid-rolling-deploy — the
+    // stamped path renders role="bot" (see ReferencedMessageFormatter's
+    // non-persona-automation case).
+    expect(deriveRefRole(undefined, 'MEE6', 'Lilith')).toBe('user');
+  });
+
+  it('resolves an identity-stripped forwarded reference to user, never assistant', () => {
+    // Discord strips author identity from message snapshots, so SnapshotFormatter
+    // stamps UNKNOWN_USER_NAME rather than a real display name. That is what bounds
+    // the name-collision edge: a forwarded reference carries no author name to
+    // collide with a personality's, so it cannot be promoted to assistant no matter
+    // how long it lives. Pinning it here keeps that reasoning honest if the
+    // placeholder ever changes to something a personality name could prefix.
+    expect(deriveRefRole(undefined, UNKNOWN_USER_NAME, 'Lilith')).toBe('user');
+    expect(deriveRefRole(undefined, UNKNOWN_USER_NAME, 'Lilith', new Set(['Lilith', 'Lila']))).toBe(
+      'user'
+    );
   });
 });

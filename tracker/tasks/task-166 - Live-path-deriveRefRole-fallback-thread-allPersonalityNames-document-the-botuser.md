@@ -3,10 +3,10 @@ id: TASK-166
 title: >-
   Live-path deriveRefRole: thread allPersonalityNames + document the bot-to-user
   fallback
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-06-24 00:00'
-updated_date: '2026-07-28 10:49'
+updated_date: '2026-07-30 21:48'
 labels:
   - 'area:bot-client'
   - 'size:S'
