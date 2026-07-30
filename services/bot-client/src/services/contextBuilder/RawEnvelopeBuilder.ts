@@ -29,6 +29,7 @@ import type { z } from 'zod';
 import type { ExtendedContextUser, FetchResult } from '../channelFetcher/types.js';
 import { VoiceMessageProcessor } from '../../processors/VoiceMessageProcessor.js';
 import { getEffectiveContent } from '../../utils/forwardedMessageUtils.js';
+import { withStickerAndPollDescriptions } from '../../utils/stickerPollDescriptions.js';
 import { buildKnownChannelEnvironments } from '../CrossChannelHistoryFetcher.js';
 
 /** The pre-resolution extended-context snapshot threaded out of the fetch. */
@@ -158,7 +159,10 @@ export function buildRawAssemblyInputs(
     // getEffectiveContent yields message.content for normal triggers and the
     // forward snapshot text for forwarded ones; a bare message.content is empty
     // for a forward, which drops the whole forwarded message from the prompt.
-    rawMessageContent: getEffectiveContent(message),
+    // Sticker/poll descriptions append here rather than inside
+    // getEffectiveContent: that util is also the routing/mention-detection
+    // text source, which must stay byte-faithful to what the user typed.
+    rawMessageContent: withStickerAndPollDescriptions(message, getEffectiveContent(message)),
     rawRoutingTranscript: VoiceMessageProcessor.getVoiceTranscript(message),
     rawAuthorDisplayName: refs?.rawAuthorDisplayName,
     // No clone needed (unlike the participant guild map): this scalar is a

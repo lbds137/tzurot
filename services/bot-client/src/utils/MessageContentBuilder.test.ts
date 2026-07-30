@@ -7,7 +7,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Collection, MessageType, MessageReferenceType } from 'discord.js';
-import type { Message, Attachment, Embed, MessageSnapshot } from 'discord.js';
+import type { Message, Attachment, Embed, MessageSnapshot, Sticker } from 'discord.js';
 import {
   buildMessageContent,
   formatAttachmentDescription,
@@ -79,6 +79,10 @@ function createMockMessage(overrides: Record<string, unknown> = {}): Message {
     embeds,
     reference: null,
     messageSnapshots,
+    // Always present on a real Message; a fixture omitting them is the
+    // untyped-mock drift that `as unknown as Message` hides from the compiler.
+    stickers: new Collection<string, Sticker>(),
+    poll: null,
     type: MessageType.Default,
     ...overrides,
   } as unknown as Message;
@@ -108,6 +112,60 @@ describe('MessageContentBuilder', () => {
 
       expect(result.content).toBe('');
       expect(result.attachments).toEqual([]);
+    });
+
+    it('should describe a sticker-only message so it is not read as empty', async () => {
+      const stickers = new Collection<string, Sticker>();
+      stickers.set('1', { name: 'partyblob', description: null } as unknown as Sticker);
+      const message = createMockMessage({ content: '', stickers });
+
+      const result = await buildMessageContent(message);
+
+      // Non-empty is the load-bearing part: convertMessage's
+      // hasProcessableContent gate drops a message whose content is empty.
+      expect(result.content).toBe('[Stickers: partyblob]');
+    });
+
+    it('should merge own and snapshot stickers when a forward also carries its own', async () => {
+      const ownStickers = new Collection<string, Sticker>();
+      ownStickers.set('1', { name: 'own', description: null } as unknown as Sticker);
+      const snapshotStickers = new Collection<string, Sticker>();
+      snapshotStickers.set('2', { name: 'forwarded', description: null } as unknown as Sticker);
+      const messageSnapshots = new Collection<string, MessageSnapshot>();
+      messageSnapshots.set('1', {
+        content: 'forwarded body',
+        embeds: [],
+        attachments: new Collection(),
+        stickers: snapshotStickers,
+      } as unknown as MessageSnapshot);
+      const message = createMockMessage({
+        content: '',
+        stickers: ownStickers,
+        messageSnapshots,
+        reference: { type: MessageReferenceType.Forward, messageId: 'src' },
+      });
+
+      const result = await buildMessageContent(message);
+
+      expect(result.isForwarded).toBe(true);
+      expect(result.content).toContain('[Stickers: own, forwarded]');
+    });
+
+    it('should describe a poll alongside the message text', async () => {
+      const message = createMockMessage({
+        content: 'vote now',
+        poll: {
+          question: { text: 'Pizza?' },
+          answers: new Collection<number, unknown>([
+            [0, { text: 'Yes', emoji: null }],
+            [1, { text: 'No', emoji: null }],
+          ]),
+        },
+      });
+
+      const result = await buildMessageContent(message);
+
+      expect(result.content).toBe('vote now\n\n[Poll: Pizza? — options: Yes, No]');
     });
 
     it('should include attachment descriptions when includeAttachments is true', async () => {
