@@ -14,17 +14,9 @@
  */
 
 import { z } from 'zod';
-import { callGateway, type GatewayResult } from '../transport.js';
+import { callGateway, type GatewayResult, buildQueryString } from '../transport.js';
 import { ROUTE_MANIFEST } from '../../routes/manifest.js';
 import { type ActorDiscordId } from '../../routes/types.js';
-
-function buildQueryString(entries: Array<[string, string | undefined]>): string {
-  const defined = entries.filter((e): e is [string, string] => e[1] !== undefined);
-  if (defined.length === 0) return '';
-  const qs = new URLSearchParams();
-  for (const [k, v] of defined) qs.set(k, v);
-  return '?' + qs.toString();
-}
 
 export interface OwnerClientOptions {
   /** Full gateway base URL, e.g. https://api-gateway.example.com. */

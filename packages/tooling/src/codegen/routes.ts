@@ -1,7 +1,7 @@
 /**
  * Route-codegen orchestrator.
  *
- * Reads ROUTE_MANIFEST from @tzurot/common-types, partitions by audience,
+ * Reads ROUTE_MANIFEST from @tzurot/clients, partitions by audience,
  * generates one client class per flavor (Service / Owner / User), and
  * either writes them to disk or compares them against the on-disk
  * versions (drift-detection mode for CI).

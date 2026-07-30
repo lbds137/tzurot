@@ -186,7 +186,7 @@ export class StartupDMPrewarmer {
     | { kind: 'fatal'; err: Error }
   > {
     try {
-      const result = await getServiceClient().recentUsers({ sinceDays: String(SINCE_DAYS) });
+      const result = await getServiceClient().recentUsers({ sinceDays: SINCE_DAYS });
       if (result.ok) {
         return { kind: 'success', ids: result.data.discordIds };
       }

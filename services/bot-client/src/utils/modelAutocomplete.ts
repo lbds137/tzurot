@@ -59,7 +59,7 @@ export async function fetchModels(
     inputModality?: string;
     outputModality?: string;
     search?: string;
-    limit?: string;
+    limit?: number;
   } = {};
 
   if (options.textOnly === true) {
@@ -73,9 +73,7 @@ export async function fetchModels(
     query.search = options.search;
   }
   if (options.limit !== undefined && options.limit > 0) {
-    // String for the URL query param; the route manifest coerces it back to a
-    // number (z.coerce.number).
-    query.limit = String(options.limit);
+    query.limit = options.limit;
   }
 
   if (options.strict === true) {

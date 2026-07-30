@@ -45,7 +45,13 @@ fi
 # run the codegen, stage the regenerated files. Keeps the committed
 # _generated/ artifacts in lock-step with the manifest so reviewers see
 # both halves of every change in the same diff.
-STAGED_MANIFEST=$(git diff --cached --name-only | grep -E '^packages/clients/src/routes/' || true)
+# Test files are excluded: they can't change the manifest the codegen reads, so
+# a test-only edit triggers a regen whose output is byte-identical and re-stages
+# unchanged files. Narrowing to non-test sources keeps the hook silent on the
+# commits where it has nothing to do.
+STAGED_MANIFEST=$(git diff --cached --name-only |
+    grep -E '^packages/clients/src/routes/.*\.ts$' |
+    grep -v '\.test\.ts$' || true)
 
 if [ -n "$STAGED_MANIFEST" ]; then
     echo "Route manifest changed - regenerating client classes..."

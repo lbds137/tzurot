@@ -14,16 +14,8 @@
  */
 
 import { z } from 'zod';
-import { callGateway, type GatewayResult } from '../transport.js';
+import { callGateway, type GatewayResult, buildQueryString } from '../transport.js';
 import { ROUTE_MANIFEST } from '../../routes/manifest.js';
-
-function buildQueryString(entries: Array<[string, string | undefined]>): string {
-  const defined = entries.filter((e): e is [string, string] => e[1] !== undefined);
-  if (defined.length === 0) return '';
-  const qs = new URLSearchParams();
-  for (const [k, v] of defined) qs.set(k, v);
-  return '?' + qs.toString();
-}
 
 export interface ServiceClientOptions {
   /** Full gateway base URL, e.g. https://api-gateway.example.com. */
@@ -233,7 +225,7 @@ export class ServiceClient {
   /**
    * @safeRead Server-side has no observable mutation — safe to cache client-side.
    */
-  async recentUsers(options: { sinceDays?: string } = {}): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.recentUsers.output>>> {
+  async recentUsers(options: { sinceDays?: number | string } = {}): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.recentUsers.output>>> {
     const fullPath = '/api/internal/users/recent' + buildQueryString([['sinceDays', options.sinceDays]]);
     return callGateway({
       baseUrl: this.baseUrl,
@@ -334,7 +326,7 @@ export class ServiceClient {
   /**
    * @safeRead Server-side has no observable mutation — safe to cache client-side.
    */
-  async getModels(options: { inputModality?: string; outputModality?: string; search?: string; limit?: string } = {}): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.getModels.output>>> {
+  async getModels(options: { inputModality?: string; outputModality?: string; search?: string; limit?: number | string } = {}): Promise<GatewayResult<z.infer<typeof ROUTE_MANIFEST.getModels.output>>> {
     const fullPath = '/api/internal/models' + buildQueryString([['inputModality', options.inputModality], ['outputModality', options.outputModality], ['search', options.search], ['limit', options.limit]]);
     return callGateway({
       baseUrl: this.baseUrl,
