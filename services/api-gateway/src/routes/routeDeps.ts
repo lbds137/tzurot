@@ -44,7 +44,10 @@ import type {
   LlmConfigResolver,
   VisionConfigResolver,
 } from '@tzurot/config-resolver';
-import type { ConversationRetentionService } from '@tzurot/conversation-history';
+import type {
+  ConversationHistoryClient,
+  ConversationRetentionService,
+} from '@tzurot/conversation-history';
 import type { OpenRouterModelCache } from '../services/OpenRouterModelCache.js';
 
 export interface RouteDeps {
@@ -58,8 +61,11 @@ export interface RouteDeps {
    * bot-client's ~20s abort. Optional: only the two persist handlers use it
    * (`deps.fastPrisma ?? deps.prisma`), and it degrades to the main pool if the
    * gateway didn't build one. See `fastPoolConnectionOptions` + `verifyPoolTimeouts`.
+   * Typed as the structural conversation-history subset: the fast pool is
+   * dedicated to conversation-event persists by design, so any other model's
+   * ops on it fail to compile (and the `$extends`-wrapped client needs no cast).
    */
-  readonly fastPrisma?: PrismaClient;
+  readonly fastPrisma?: ConversationHistoryClient;
 
   // ---- Cache-invalidation services (route-specific) ----------------------
 

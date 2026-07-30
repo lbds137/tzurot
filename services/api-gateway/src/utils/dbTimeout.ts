@@ -19,6 +19,7 @@
 
 import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { type ConversationHistoryClient } from '@tzurot/conversation-history';
 
 const retryLogger = createLogger('fast-pool-retry');
 
@@ -101,6 +102,29 @@ export function classifyDbTimeout(error: unknown): DbTimeoutClassification {
 }
 
 /**
+ * Self-label a fast-pool timeout for the prod diagnostic before the caller
+ * rethrows. No-ops on `other` — non-timeout failures (P2002, constraint
+ * violations) already carry their own diagnostic shape, and the persist
+ * routes' race handling branches on those BEFORE reaching this.
+ *
+ * Shared by the persist routes' write catches AND their existence-check
+ * reads, so a `findUnique`-triggered fast-pool failure logs the same
+ * `{label, sqlstate, durationMs}` diagnostic as a write failure instead of
+ * surfacing as a generic unhandled error.
+ */
+export function logFastPoolTimeout(
+  log: ReturnType<typeof createLogger>,
+  error: unknown,
+  fields: Record<string, unknown>,
+  message: string
+): void {
+  const timeout = classifyDbTimeout(error);
+  if (timeout.label !== 'other') {
+    log.error({ label: timeout.label, sqlstate: timeout.sqlstate, ...fields }, message);
+  }
+}
+
+/**
  * Run a fast-pool persist, retrying ONCE if the first attempt fails with the
  * dead/stale-socket class (`query-timeout-or-dead-conn`).
  *
@@ -147,8 +171,13 @@ export async function withDeadConnRetry<T>(
  * conversation-event persists by design (deterministic-UUID upsert-shaped writes
  * + pure reads). Do NOT reuse this on the main pool, where non-idempotent writes
  * would double-execute on retry.
+ *
+ * The return type is the structural `ConversationHistoryClient` subset, not
+ * `PrismaClient`: the narrow type enforces the dedication above — a consumer
+ * reaching for `$transaction`, `$queryRaw`, or any other model's ops on the
+ * fast pool fails to compile.
  */
-export function applyFastPoolDeadConnRetry(client: PrismaClient): PrismaClient {
+export function applyFastPoolDeadConnRetry(client: PrismaClient): ConversationHistoryClient {
   return client.$extends({
     query: {
       $allOperations: ({ model, operation, args, query }) =>
@@ -161,7 +190,11 @@ export function applyFastPoolDeadConnRetry(client: PrismaClient): PrismaClient {
             )
         ),
     },
-    // $extends returns a structurally-compatible but differently-typed client;
-    // the fast pool only ever runs the ops PrismaClient already exposes.
-  }) as unknown as PrismaClient;
+    // A query-only extension leaves every delegate's runtime behavior intact,
+    // but Prisma types the extended delegate's args as `Exact<...>`, which is
+    // nominally incompatible with the base delegate's `SelectSubset<...>` —
+    // so the narrowing needs a cast. Scoped to ONE model's delegate ops
+    // (unlike the former `as unknown as PrismaClient`, which also vouched for
+    // $transaction/$queryRaw and every other model the extension never sees).
+  }) as unknown as ConversationHistoryClient;
 }

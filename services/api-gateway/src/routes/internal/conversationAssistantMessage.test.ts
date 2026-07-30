@@ -8,6 +8,7 @@ import request from 'supertest';
 import { MessageRole } from '@tzurot/common-types/constants/message';
 import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import { generateConversationHistoryUuid } from '@tzurot/common-types/utils/deterministicUuid';
+import { type ConversationHistoryClient } from '@tzurot/conversation-history';
 import { handlePersistAssistantMessage } from './conversationAssistantMessage.js';
 import { stubRouteResolvers } from '../../test/shared-route-test-utils.js';
 
@@ -202,7 +203,7 @@ describe('POST /internal/conversation/assistant-message', () => {
       handlePersistAssistantMessage({
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
-        fastPrisma: fast as unknown as PrismaClient,
+        fastPrisma: fast as unknown as ConversationHistoryClient,
       })
     );
 
@@ -226,5 +227,22 @@ describe('POST /internal/conversation/assistant-message', () => {
       expect.objectContaining({ label: 'lock-timeout', sqlstate: '55P03' }),
       expect.stringContaining('DB timeout')
     );
+  });
+
+  it('self-labels a fast-pool timeout on the existence-check read (symmetric with the write path)', async () => {
+    mockPrisma.conversationHistory.findUnique.mockRejectedValue(
+      Object.assign(new Error('canceling statement due to lock timeout'), { code: '55P03' })
+    );
+
+    const response = await request(app)
+      .post('/internal/conversation/assistant-message')
+      .send(VALID_BODY);
+
+    expect(response.status).toBe(500);
+    expect(mockLogger.error).toHaveBeenCalledWith(
+      expect.objectContaining({ label: 'lock-timeout', sqlstate: '55P03', id: EXPECTED_ID }),
+      'Assistant-message existence check hit a fast-pool DB timeout'
+    );
+    expect(mockPrisma.conversationHistory.create).not.toHaveBeenCalled();
   });
 });
