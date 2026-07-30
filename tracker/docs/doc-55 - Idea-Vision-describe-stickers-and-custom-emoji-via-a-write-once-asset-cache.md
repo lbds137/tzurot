@@ -11,13 +11,42 @@ name; custom emoji maybe, gated on cost. Owner's own proposal: cache
 descriptions in a DB keyed by the asset's snowflake so nothing is re-described.
 That instinct is right, and the grounding below makes it cheaper than expected._
 
-**SCHEDULED (owner, 2026-07-30): build this as the capstone of the NEXT release,
-not now.** Not a high current priority, but explicitly not to be put off long —
-the owner wants to keep draining the follow-up pool first and then land this so
-the release has something interesting in it beyond internal refactors. **Promote
-when**: the drain run for the next release is judged sufficient and the cut is
-being planned — this goes in BEFORE the release PR, as its headline item. Design
-is settled (both open calls decided below), so it is build-ready on promotion.
+**PR-1 SHIPPED 2026-07-30 as #1872** — the sticker half is done and on develop
+as the beta.187 capstone. The emoji half is permanently ruled out (council 4/4,
+below). PR-2 (durable snowflake-keyed table) is NOT built; it remains the only
+outstanding piece of this doc.
+
+## Corrections to this doc, found by building it (#1872)
+
+Recorded so the next reader doesn't re-derive them — and one is a correction to
+a correction, which is the more useful lesson:
+
+1. **`VisionDescriptionWriter` exists.** During planning the agent claimed it did
+   not, off a single `find -name 'VisionDescriptionWriter*'` that missed
+   `services/ai-worker/src/services/context/visionDescriptionWriter.ts` because
+   the filename is lowercase. That false absence reached the plan, the PR body,
+   and the owner before the round-6 review caught it. This doc was RIGHT.
+   (`00-critical.md` § negative existence claims requires ≥3 vocabulary variants
+   plus an xray sweep; one case-sensitive `find` is not that.) The real structure
+   is two layers: `VisionDescriptionCache` (Redis `vision:canon:{id}`, 1h TTL,
+   tier-promoted) caches the description, and
+   `VisionDescriptionWriter.persistTriggerDescriptions` upgrades the persisted
+   history placeholder afterwards — early-returning when no description was
+   produced, which is what makes a wrong placeholder permanent.
+2. **"The only genuinely new component is the snowflake-keyed lookup" understated
+   it.** Vision auth resolves per request, so the system-key ruling needed an
+   explicit force. Worse, `isGuestMode` doubles as a MODEL-TIER selector
+   (`selectVisionModel` free-forces at every priority; `composeVisionTiers` picks
+   the floor from it) — so routing auth through it would have collapsed every
+   sticker onto the free floor permanently. The shipped code pins the operator's
+   `fallbackVisionModel` explicitly to avoid that.
+3. **`AttachmentMetadata.id` was already the snowflake-preferring cache key**, so
+   the "write-once cache" needed zero new key machinery — `extractEmbedImages`
+   was the precedent to mirror, not a new pipeline.
+
+Also superseded: this doc's note that TASK-356 narrows to poll-edits only still
+holds, but see TASK-359 — `SnapshotFormatter` has NO sticker awareness at all,
+which is an older #1868 gap this work surfaced.
 
 ## Two grounded facts that shape the whole design
 

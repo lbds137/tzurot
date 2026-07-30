@@ -79,6 +79,3 @@ Allow `/deny` entries to have an optional expiration for temporary bans (e.g., `
 
 Admin-managed list of words to auto-spoiler in voice transcripts (`||word||`). Add `spoilerWords` string array to `AdminSettings` JSONB with case-insensitive word-boundary matching.
 
-#### ✨ Discord Emoji/Sticker Image Support
-
-Support custom Discord emoji and stickers in vision context. Extract emoji URLs from `<:name:id>` format, sticker URLs from message stickers, include alongside attachments.
