@@ -200,6 +200,6 @@ async function handleSettingUpdate(
     return { success: true, newData };
   } catch (error) {
     logger.error({ err: error, settingId }, 'Error updating setting');
-    return { success: false, error: 'Failed to update setting' };
+    return { success: false, error: 'unexpected error, please try again' };
   }
 }

@@ -11,6 +11,14 @@ name; custom emoji maybe, gated on cost. Owner's own proposal: cache
 descriptions in a DB keyed by the asset's snowflake so nothing is re-described.
 That instinct is right, and the grounding below makes it cheaper than expected._
 
+**SCHEDULED (owner, 2026-07-30): build this as the capstone of the NEXT release,
+not now.** Not a high current priority, but explicitly not to be put off long —
+the owner wants to keep draining the follow-up pool first and then land this so
+the release has something interesting in it beyond internal refactors. **Promote
+when**: the drain run for the next release is judged sufficient and the cut is
+being planned — this goes in BEFORE the release PR, as its headline item. Design
+is settled (both open calls decided below), so it is build-ready on promotion.
+
 ## Two grounded facts that shape the whole design
 
 _Provenance: both were read directly out of the **installed discord.js 14.27.0**

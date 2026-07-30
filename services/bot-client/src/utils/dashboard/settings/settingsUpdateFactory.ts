@@ -143,7 +143,7 @@ export function createSettingsUpdateHandler(
         { err: error, settingId, entityId },
         `${config.logContext} Error updating setting`
       );
-      return { success: false, error: 'Failed to update setting' };
+      return { success: false, error: 'unexpected error, please try again' };
     }
   };
 }

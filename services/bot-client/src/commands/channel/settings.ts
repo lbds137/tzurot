@@ -88,11 +88,19 @@ const CHANNEL_SETTINGS_CONFIG: SettingsDashboardConfig = {
  * @param context - DeferredCommandContext (already deferred by framework)
  */
 export async function handleChannelSettings(context: DeferredCommandContext): Promise<void> {
-  const { channelId, member, interaction } = context;
+  const { channelId, interaction } = context;
   const userId = context.user.id;
 
-  // Check permissions: Manage Messages required
-  if (member?.permissions.has(PermissionFlagsBits.ManageMessages) !== true) {
+  // Manage Messages required — read from `interaction.memberPermissions`, NOT
+  // `context.member.permissions`. The latter is documented as "taking only
+  // roles and owner status into account": guild-wide, blind to per-channel
+  // overwrites. This command governs ONE channel, so the channel-scoped
+  // source is the correct authority — a moderator whose role grants Manage
+  // Messages but who is denied it by an overwrite HERE should not manage this
+  // channel's settings. It also keeps this check identical in scope to the
+  // per-click recheck below; two different scopes would deny every click with
+  // a misleading "you no longer have…" for anyone using channel overwrites.
+  if (interaction.memberPermissions?.has(PermissionFlagsBits.ManageMessages) !== true) {
     await context.editReply({
       content: renderSpec(
         CATALOG.error.permissionDenied(
@@ -152,13 +160,45 @@ export async function handleChannelSettings(context: DeferredCommandContext): Pr
 }
 
 /**
+ * Re-check the Manage Messages permission that every mutation here depends on.
+ *
+ * `handleChannelSettings` checks it once when the dashboard opens, but the
+ * session outlives a permission revocation: a moderator demoted mid-session
+ * would otherwise keep mutating channel overrides until the session expired.
+ * Authority has to hold at the CLICK, not just at the open — most of all for
+ * reset, which clears every override at once.
+ *
+ * Returns a failure result to hand straight back (composed upstream as
+ * `Failed to update: …` / `Failed to reset: …`), or null when still permitted.
+ * `memberPermissions` is null outside a guild; channel settings are
+ * guild-only, so that reads as "not permitted" correctly.
+ */
+function denyIfPermissionRevoked(
+  interaction: ButtonInteraction | ModalSubmitInteraction
+): SettingUpdateResult | null {
+  if (interaction.memberPermissions?.has(PermissionFlagsBits.ManageMessages) === true) {
+    return null;
+  }
+  return {
+    success: false,
+    error: 'you no longer have the **Manage Messages** permission in this channel',
+  };
+}
+
+/**
  * Build a per-interaction update handler bound to a specific channel ID.
  * Used both by handleChannelSettings (dashboard init) and createSettingsCommandHandlers
  * (interaction routers) so the channelId binding lives in exactly one place.
  */
 function createUpdateHandler(channelId: string): SettingUpdateHandler {
-  return (interaction, session, settingId, newValue) =>
-    handleSettingUpdate(interaction, session, settingId, newValue, channelId);
+  return async (interaction, session, settingId, newValue) => {
+    const denied = denyIfPermissionRevoked(interaction);
+    if (denied !== null) {
+      logger.warn({ channelId, userId: interaction.user.id }, 'Update denied: permission revoked');
+      return denied;
+    }
+    return handleSettingUpdate(interaction, session, settingId, newValue, channelId);
+  };
 }
 
 /**
@@ -169,6 +209,11 @@ function createUpdateHandler(channelId: string): SettingUpdateHandler {
 function createResetHandler(channelId: string): SettingsResetHandler {
   return async (interaction: ButtonInteraction): Promise<SettingUpdateResult> => {
     const userId = interaction.user.id;
+    const denied = denyIfPermissionRevoked(interaction);
+    if (denied !== null) {
+      logger.warn({ channelId, userId }, 'Reset denied: permission revoked');
+      return denied;
+    }
     logger.debug({ channelId, userId }, 'Resetting channel overrides');
 
     try {
@@ -304,6 +349,6 @@ async function handleSettingUpdate(
     return { success: true, newData };
   } catch (error) {
     logger.error({ err: error, settingId, channelId }, 'Error updating setting');
-    return { success: false, error: 'Failed to update setting' };
+    return { success: false, error: 'unexpected error, please try again' };
   }
 }
