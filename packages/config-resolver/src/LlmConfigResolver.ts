@@ -16,8 +16,10 @@
  * and the LLM-specific `getFreeDefaultConfig` lookup.
  */
 
+import { INTERVALS } from '@tzurot/common-types/constants/timing';
 import { ADMIN_SETTINGS_SINGLETON_ID } from '@tzurot/common-types/schemas/api/adminSettings';
-import { LLM_CONFIG_OVERRIDE_KEYS } from '@tzurot/common-types/schemas/llmAdvancedParams';
+import { applyLlmOverrideParams } from '@tzurot/common-types/schemas/llmAdvancedParams';
+import { TTLCache } from '@tzurot/common-types/utils/TTLCache';
 import {
   LLM_CONFIG_SELECT_WITH_NAME,
   mapLlmConfigFromDbWithName,
@@ -49,9 +51,40 @@ export class LlmConfigResolver extends BaseConfigResolver<
 > {
   private prisma: PrismaClient;
 
+  /**
+   * Negative-result cache for the no-axis admin defaults (free AND global),
+   * mirroring VisionConfigResolver's: the positive cache (`this.cache`) can't
+   * store a null result (TTLCache rejects null values), so without this every
+   * pre-seed call (no default pointer set yet) re-queries AdminSettings. A
+   * truthy marker under the sentinel key short-circuits those repeated misses
+   * for the same TTL window the positive cache uses.
+   */
+  private readonly noDefaultCache: TTLCache<true>;
+
   constructor(prisma: PrismaClient, options?: BaseConfigResolverOptions) {
     super('LlmConfigResolver', options);
     this.prisma = prisma;
+    this.noDefaultCache = new TTLCache<true>({
+      // Same fallback as BaseConfigResolver's positive cache, so the negative
+      // sentinel and the positive entry expire on the same window — neither
+      // can outlive the other and mask a state transition.
+      ttl: options?.cacheTtlMs ?? INTERVALS.API_KEY_CACHE_TTL,
+      now: options?.now,
+    });
+  }
+
+  /**
+   * Clear both caches on invalidation. The base only clears the positive cache
+   * (`this.cache`); the negative-default sentinels must be cleared too —
+   * otherwise a pub/sub invalidation fired right after an admin sets the first
+   * free/global default would leave the stale "no default" marker in place
+   * until its TTL expired. (Admin pointer-sets publish an invalidation via
+   * LlmConfigService.setAsDefault, so the pointer still takes effect
+   * immediately.)
+   */
+  override clearCache(): void {
+    super.clearCache();
+    this.noDefaultCache.clear();
   }
 
   /**
@@ -116,19 +149,8 @@ export class LlmConfigResolver extends BaseConfigResolver<
   protected async extractFromPersonality(
     personality: LoadedPersonality
   ): Promise<ResolvedLlmConfig> {
-    // Start with required field
-    const result = { model: personality.model } as ResolvedLlmConfig;
-
-    // Copy all config keys from personality
-    for (const key of LLM_CONFIG_OVERRIDE_KEYS) {
-      const value = personality[key];
-      if (value !== undefined) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access -- Dynamic key assignment from LLM_CONFIG_OVERRIDE_KEYS requires runtime indexing
-        (result as any)[key] = value;
-      }
-    }
-
-    return result;
+    // Required field first, then every defined override key from personality.
+    return applyLlmOverrideParams({ model: personality.model }, personality);
   }
 
   /**
@@ -146,21 +168,11 @@ export class LlmConfigResolver extends BaseConfigResolver<
     override: MappedLlmConfigWithName,
     _tier: 'user-personality' | 'user-default'
   ): ResolvedLlmConfig {
-    // Start with required field (model is always from override)
-    const result = { model: override.model } as ResolvedLlmConfig;
-
-    // For each config key, use override if defined, else personality
-    for (const key of LLM_CONFIG_OVERRIDE_KEYS) {
-      const overrideValue = override[key];
-      const personalityValue = personality[key];
-      const value = overrideValue ?? personalityValue;
-      if (value !== undefined) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access -- Dynamic key assignment from LLM_CONFIG_OVERRIDE_KEYS requires runtime indexing
-        (result as any)[key] = value;
-      }
-    }
-
-    return result;
+    // Model is always from override; per key, override wins and personality
+    // fills the gaps.
+    return applyLlmOverrideParams({ model: override.model }, override, {
+      fallback: personality,
+    });
   }
 
   /**
@@ -184,8 +196,10 @@ export class LlmConfigResolver extends BaseConfigResolver<
 
   /**
    * Shared reader for the two AdminSettings default pointers. Cached under a
-   * sentinel key (no user/personality axis); a null pointer is NOT cached, so
-   * an admin setting the pointer takes effect without an invalidation event.
+   * sentinel key (no user/personality axis). A null pointer is negatively
+   * cached (mirrors VisionConfigResolver) — an admin setting the pointer
+   * still takes effect immediately because setAsDefault publishes a cache
+   * invalidation, which clears the sentinel via {@link clearCache}.
    */
   private async getAdminDefaultConfig(
     pointer: 'freeDefaultLlmConfig' | 'globalDefaultLlmConfig',
@@ -196,6 +210,11 @@ export class LlmConfigResolver extends BaseConfigResolver<
     if (cached !== null) {
       this.logger.debug({ source: 'cache', label }, 'Admin default config resolved from cache');
       return cached.config;
+    }
+
+    // Negative-cache hit: a recent query found no default pointer — skip the DB.
+    if (this.noDefaultCache.has(cacheKey)) {
+      return null;
     }
 
     try {
@@ -213,6 +232,7 @@ export class LlmConfigResolver extends BaseConfigResolver<
 
       if (dbConfig === null) {
         this.logger.debug({ pointer }, 'No default config pointer set in admin_settings');
+        this.noDefaultCache.set(cacheKey, true);
         return null;
       }
 

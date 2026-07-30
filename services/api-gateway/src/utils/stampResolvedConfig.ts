@@ -7,7 +7,7 @@
  * module under the line limit and to give the resolve-and-stamp logic its own test surface.
  */
 
-import { LLM_CONFIG_OVERRIDE_KEYS } from '@tzurot/common-types/schemas/llmAdvancedParams';
+import { applyLlmOverrideParams } from '@tzurot/common-types/schemas/llmAdvancedParams';
 import { type ConfigSourceId } from '@tzurot/common-types/types/schemas/generation';
 import {
   type LoadedPersonality,
@@ -64,15 +64,9 @@ function applyResolvedConfig(
   personality: LoadedPersonality,
   config: ResolvedLlmConfig
 ): LoadedPersonality {
-  const result = { ...personality, model: config.model };
-  for (const key of LLM_CONFIG_OVERRIDE_KEYS) {
-    const value = config[key];
-    if (value !== undefined) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access -- Dynamic key assignment from LLM_CONFIG_OVERRIDE_KEYS requires runtime indexing
-      (result as any)[key] = value;
-    }
-  }
-  return result;
+  // Defined config keys win; keys the config doesn't set keep the
+  // personality's value (plain mode — an absent key never clobbers).
+  return applyLlmOverrideParams({ ...personality, model: config.model }, config);
 }
 
 /**
