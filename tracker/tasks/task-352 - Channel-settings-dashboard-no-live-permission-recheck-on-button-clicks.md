@@ -1,9 +1,10 @@
 ---
 id: TASK-352
 title: 'Channel settings dashboard: no live permission recheck on button clicks'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-07-29 12:32'
+updated_date: '2026-07-30 12:07'
 labels:
   - 'origin:review'
 dependencies: []
