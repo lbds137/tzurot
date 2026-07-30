@@ -138,11 +138,14 @@ describe('Channel Settings Dashboard', () => {
     const mockEditReply = vi.fn().mockResolvedValue({ id: 'message-123' });
 
     // Mock the underlying interaction - createSettingsDashboard uses this
+    // memberPermissions (channel-scoped, overwrite-aware) is the authority for
+    // BOTH the open-time check and the per-click recheck — see settings.ts.
     const mockInteraction = {
       deferred: true,
       replied: false,
       editReply: mockEditReply,
       user: { id: '123456789' },
+      memberPermissions: { has: vi.fn().mockReturnValue(hasPermission) },
     };
 
     // Create mock context that mirrors DeferredCommandContext
@@ -150,9 +153,12 @@ describe('Channel Settings Dashboard', () => {
       interaction: mockInteraction,
       user: { id: '123456789' },
       guild: null,
+      // Present because a real guild context has it, but deliberately
+      // permissive: if the open-time check ever regresses to this guild-wide
+      // source, the permission test below fails instead of passing silently.
       member: {
         permissions: {
-          has: vi.fn().mockReturnValue(hasPermission),
+          has: vi.fn().mockReturnValue(true),
         },
       },
       channel: null,
@@ -414,9 +420,13 @@ describe('Channel Settings Dashboard', () => {
   });
 
   describe('handleChannelSettingsButton', () => {
-    const createButtonInteraction = (customId: string) => ({
+    // `permitted` mirrors a real guild interaction's memberPermissions: the
+    // mutation handlers re-check Manage Messages on every click, so a fixture
+    // omitting it would read as a demoted moderator and deny everything.
+    const createButtonInteraction = (customId: string, permitted = true) => ({
       customId,
       user: { id: '123456789' },
+      memberPermissions: { has: vi.fn().mockReturnValue(permitted) },
       reply: vi.fn(),
       update: vi.fn(),
       showModal: vi.fn(),
@@ -475,7 +485,7 @@ describe('Channel Settings Dashboard', () => {
 
       expect(interaction.followUp).toHaveBeenCalledWith(
         expect.objectContaining({
-          content: expect.stringContaining('Failed to update setting'),
+          content: expect.stringContaining('unexpected error, please try again'),
         })
       );
     });
@@ -496,6 +506,41 @@ describe('Channel Settings Dashboard', () => {
         'channel-settings::reset-cancel::channel-123',
         'channel-settings::reset-confirm::channel-123',
       ]);
+    });
+
+    it('reset-confirm is REFUSED when Manage Messages was revoked mid-session', async () => {
+      // The dashboard-open check happened while the user still had the
+      // permission; the session outlives the revocation, so the click has to
+      // re-check. Reset clears every override, so this is the worst one to let
+      // through.
+      const interaction = createButtonInteraction(
+        'channel-settings::reset-confirm::channel-123',
+        false
+      );
+      mockSessionManager.get.mockReturnValue(settingViewSession());
+      stub.clearChannelConfigOverrides.mockResolvedValue(makeOk({ cleared: true }));
+
+      await handleChannelSettingsButton(interaction as unknown as ButtonInteraction);
+
+      expect(stub.clearChannelConfigOverrides).not.toHaveBeenCalled();
+      expect(interaction.followUp).toHaveBeenCalledWith(
+        expect.objectContaining({ content: expect.stringContaining('Manage Messages') })
+      );
+    });
+
+    it('a set click is REFUSED when Manage Messages was revoked mid-session', async () => {
+      const interaction = createButtonInteraction(
+        'channel-settings::set::channel-123::maxMessages:auto',
+        false
+      );
+      mockSessionManager.get.mockReturnValue(settingViewSession());
+
+      await handleChannelSettingsButton(interaction as unknown as ButtonInteraction);
+
+      expect(stub.updateChannelConfigOverrides).not.toHaveBeenCalled();
+      expect(interaction.followUp).toHaveBeenCalledWith(
+        expect.objectContaining({ content: expect.stringContaining('Manage Messages') })
+      );
     });
 
     it('reset-confirm clears the channel overrides and re-renders from fresh data', async () => {
@@ -531,6 +576,7 @@ describe('Channel Settings Dashboard', () => {
       const interaction = {
         customId: 'channel-settings::set::channel-123::maxMessages:auto',
         user: { id: '123456789' },
+        memberPermissions: { has: vi.fn().mockReturnValue(true) },
         reply: vi.fn(),
         update: vi.fn(),
         showModal: vi.fn(),
@@ -570,9 +616,16 @@ describe('Channel Settings Dashboard', () => {
   });
 
   describe('handleChannelSettingsModal', () => {
-    const createMockModalInteraction = (customId: string, inputValue: string) => ({
+    const createMockModalInteraction = (
+      customId: string,
+      inputValue: string,
+      permitted = true
+    ) => ({
       customId,
       user: { id: '123456789' },
+      // Modal submits route through the same update handler, so they get the
+      // same Manage Messages recheck.
+      memberPermissions: { has: vi.fn().mockReturnValue(permitted) },
       fields: {
         getTextInputValue: vi.fn().mockReturnValue(inputValue),
       },
@@ -634,6 +687,29 @@ describe('Channel Settings Dashboard', () => {
       expect(stub.updateChannelConfigOverrides).toHaveBeenCalledWith('channel-123', {
         maxAge: 7200,
       });
+    });
+
+    it('a modal submit is REFUSED when Manage Messages was revoked mid-session', async () => {
+      // The modal path shares createUpdateHandler's closure with the buttons,
+      // so it inherits the recheck — pinned here so a future modal-specific
+      // wiring change cannot quietly bypass it.
+      // '2h', not raw seconds: maxAge parses as a duration string, and an
+      // invalid value is rejected by client-side validation BEFORE the update
+      // handler runs — which would make this test pass/fail for the wrong reason.
+      const interaction = createMockModalInteraction(
+        'channel-settings::modal::channel-123::maxAge',
+        '2h',
+        false
+      );
+
+      mockSessionManager.get.mockReturnValue(createSessionWithSetting('maxAge'));
+
+      await handleChannelSettingsModal(interaction as never);
+
+      expect(stub.updateChannelConfigOverrides).not.toHaveBeenCalled();
+      expect(interaction.followUp).toHaveBeenCalledWith(
+        expect.objectContaining({ content: expect.stringContaining('Manage Messages') })
+      );
     });
 
     it('should update maxAge setting to "off" (disabled)', async () => {

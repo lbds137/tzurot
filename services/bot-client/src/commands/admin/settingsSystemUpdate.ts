@@ -80,6 +80,6 @@ export async function handleSystemSettingUpdate(
     return { success: true, newData };
   } catch (error) {
     logger.error({ err: error, settingId }, 'Error updating system setting');
-    return { success: false, error: 'Failed to update setting' };
+    return { success: false, error: 'unexpected error, please try again' };
   }
 }
