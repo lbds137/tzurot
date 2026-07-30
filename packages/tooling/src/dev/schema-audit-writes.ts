@@ -14,11 +14,11 @@
  */
 
 import {
-  Project,
   Node,
   SyntaxKind,
   type CallExpression,
   type ObjectLiteralExpression,
+  type Project,
 } from 'ts-morph';
 import type { PrismaField } from './schema-audit-parser.js';
 
@@ -128,22 +128,16 @@ function classifyInitializer(initializer: Node): WriteOutcome {
 }
 
 /**
- * Walk source files looking for `prisma.<model>.create({ data: {...} })` and
+ * Walk an already-parsed project's source files looking for
+ * `prisma.<model>.create({ data: {...} })` and
  * `prisma.<model>.upsert({ ..., create: {...} })` invocations. Classify each
- * tracked optional field at each invocation site.
+ * tracked optional field at each invocation site. Takes a `Project` (see
+ * `globSourceFiles`) so the tree is parsed once per audit run, not per pass.
  */
 export function analyzeWrites(
   optionalFields: PrismaField[],
-  sourceFilePaths: string[]
+  project: Project
 ): WriteSiteClassification[] {
-  const project = new Project({
-    compilerOptions: { allowJs: false, skipLibCheck: true },
-    useInMemoryFileSystem: false,
-  });
-  for (const path of sourceFilePaths) {
-    project.addSourceFileAtPathIfExists(path);
-  }
-
   const classifications = new Map<string, WriteSiteClassification>();
   for (const field of optionalFields) {
     classifications.set(`${field.model}.${field.field}`, {

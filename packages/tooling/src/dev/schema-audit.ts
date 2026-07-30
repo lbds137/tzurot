@@ -37,11 +37,9 @@ export interface SchemaAuditOptions {
   repoRoot?: string;
   schemaPath?: string;
   /**
-   * Source globs to analyze. **Each glob MUST end with `*.ts`** — the
-   * test-exclusion pattern is derived by suffix-substituting `*.ts` → `*.test.ts`.
-   * A glob that doesn't end in `*.ts` (e.g., `services/foo.tsx`) will silently
-   * include test files because the substitution becomes a no-op. File a
-   * tracker task for tightening if a real consumer hits this gap.
+   * Source globs to analyze. Test files are excluded via a glob-independent
+   * `!**\/*.test.ts` negation, so custom globs (including `*.tsx`-shaped
+   * ones) don't need any particular suffix.
    */
   sourceGlobs?: string[];
   /** Path to audit.config (defaults to ./audit.config.ts at repo root). */
@@ -67,10 +65,10 @@ export async function runSchemaAudit(options: SchemaAuditOptions = {}): Promise<
   const config = await loadAuditConfig(configPath);
   validateSuppressions(config.suppressions, fields);
 
-  const sourceFilePaths = globSourceFiles(repoRoot, sourceGlobs);
+  const { paths: sourceFilePaths, project } = globSourceFiles(repoRoot, sourceGlobs);
 
-  const readClassifications = classifyReads(optionalFields, sourceFilePaths);
-  const writeClassifications = analyzeWrites(optionalFields, sourceFilePaths);
+  const readClassifications = classifyReads(optionalFields, project);
+  const writeClassifications = analyzeWrites(optionalFields, project);
   const allFindings = generateFindings(readClassifications, writeClassifications, fields);
   const findings = applySuppressions(allFindings, config.suppressions);
   const suppressedCount = allFindings.length - findings.length;
@@ -100,21 +98,31 @@ export async function runSchemaAudit(options: SchemaAuditOptions = {}): Promise<
   process.exitCode = findings.length > 0 ? 1 : 0;
 }
 
-/** Resolve source-file paths via ts-morph's glob-aware project loader. */
-function globSourceFiles(repoRoot: string, sourceGlobs: string[]): string[] {
+/**
+ * Resolve source files via ts-morph's glob-aware project loader. Returns the
+ * PARSED project alongside the paths: the analyzers reuse it directly, so the
+ * source tree is parsed once per audit run instead of once per pass.
+ *
+ * The test exclusion is a glob-independent `!**\/*.test.ts` negation (it used
+ * to be derived by suffix-substituting each input glob's `*.ts` → `*.test.ts`,
+ * which silently no-opped — and excluded nothing — for any custom glob not
+ * ending in `*.ts`). `**\/*.test.ts` matches any filename ending in
+ * `.test.ts`, including `Foo.component.test.ts` — verified empirically.
+ *
+ * Exported for tests; production entry is {@link runSchemaAudit}.
+ */
+export function globSourceFiles(
+  repoRoot: string,
+  sourceGlobs: string[]
+): { paths: string[]; project: Project } {
   const project = new Project({ compilerOptions: { allowJs: false, skipLibCheck: true } });
-  for (const glob of sourceGlobs) {
-    // `**/*.test.ts` matches any filename ending in `.test.ts`, including
-    // `Foo.component.test.ts` / `Foo.spec.test.ts` — verified empirically. No
-    // separate `*.component.test.ts` exclusion needed.
-    project.addSourceFilesAtPaths([
-      `${repoRoot}/${glob}`,
-      `!${repoRoot}/${glob.replace(/\*\.ts$/, '*.test.ts')}`,
-      `!${repoRoot}/**/dist/**`,
-      `!${repoRoot}/**/node_modules/**`,
-    ]);
-  }
-  return project.getSourceFiles().map(sf => sf.getFilePath());
+  project.addSourceFilesAtPaths([
+    ...sourceGlobs.map(glob => `${repoRoot}/${glob}`),
+    `!${repoRoot}/**/*.test.ts`,
+    `!${repoRoot}/**/dist/**`,
+    `!${repoRoot}/**/node_modules/**`,
+  ]);
+  return { paths: project.getSourceFiles().map(sf => sf.getFilePath()), project };
 }
 
 interface JsonEmitArgs {

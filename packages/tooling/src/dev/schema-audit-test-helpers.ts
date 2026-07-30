@@ -10,6 +10,20 @@
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { Project } from 'ts-morph';
+
+/**
+ * Build a parsed ts-morph `Project` from explicit file paths — the input
+ * shape `classifyReads`/`analyzeWrites` take since Project construction
+ * moved to `globSourceFiles` (parse once per audit run, not per pass).
+ */
+export function projectFromPaths(paths: string[]): Project {
+  const project = new Project({ compilerOptions: { allowJs: false, skipLibCheck: true } });
+  for (const path of paths) {
+    project.addSourceFileAtPathIfExists(path);
+  }
+  return project;
+}
 
 /**
  * Run `fn` inside a fresh temp directory. The directory is created with
