@@ -104,6 +104,29 @@ before committing to the projection.
   re-deliveries) — so the unit became doc-rewrite + dedup instead of code
   deletion. Rate lesson: a task's fix shape can be stale even when its
   problem statement is right; the grep-the-premise step is not optional.
+- **route-codegen (same-ORIGIN cluster)** — #1871 (2026-07-30): 5 tasks closed
+  (120/122/123/124 shipped, 125 closed as already-shipped-with-tests). Selected
+  by a NEW query shape: instead of clustering by domain, grep every open task
+  for its surfacing PR number and take the largest group — `#1090` yielded 5
+  members in one module family. This is the `#1864` heuristic made mechanical,
+  and it is the highest-value selector found so far because a single PR's review
+  rounds produce genuinely colocated work.
+  **Staleness rate is the headline: 2 of 5 tasks had drifted.** TASK-122's
+  "confirmed latent bug" was already fixed (only its docstring + test-skip
+  remained); TASK-123's two-part complaint was half-shipped; TASK-125 was fully
+  shipped WITH tests. Freshness-checking cost ~15 minutes and removed ~40% of
+  the batch's assumed work — do it before every batch, not as a courtesy.
+  Counter-data to the "gated tasks are unbuildable" prior: TASK-123's
+  promote-when ("numeric-coerce causes call-site friction") had **already
+  fired** — four call sites were manually stringifying, two with comments
+  explaining the workaround. A gated task can be overdue rather than premature;
+  check the condition instead of assuming it hasn't fired.
+  Review cost was unusually high for a mechanical batch (5 rounds, 3 real
+  findings, all mine): a missing import from a two-place predicate that drifted,
+  a redaction that ran AFTER truncation so a boundary-straddling secret survived
+  as an unmatchable fragment, and a mutation-score drop from moving code into a
+  ratchet-tracked package. All three are rider-checklist classes — the fix that
+  ADDS code to an approved change is where scrutiny drops.
 
 ### Phase 2 — The ~55 scattered singletons
 
