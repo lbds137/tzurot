@@ -127,6 +127,31 @@ describe('loadAuditConfig', () => {
     });
   });
 
+  it('throws when reviewedAt is a string but not a parseable date', async () => {
+    // The field is an accountability/staleness timestamp — "last tuesday"
+    // must fail loud, or a future freshness audit can't parse it.
+    await withTempDir(async dir => {
+      const path = join(dir, 'audit.config.json');
+      writeFileSync(
+        path,
+        JSON.stringify({ suppressions: [{ key: 'k', reason: 'r', reviewedAt: 'last tuesday' }] })
+      );
+      await expect(loadAuditConfig(path)).rejects.toThrow(/must be a parseable date/);
+    });
+  });
+
+  it('accepts an ISO-date reviewedAt', async () => {
+    await withTempDir(async dir => {
+      const path = join(dir, 'audit.config.json');
+      writeFileSync(
+        path,
+        JSON.stringify({ suppressions: [{ key: 'k', reason: 'r', reviewedAt: '2026-07-29' }] })
+      );
+      const config = await loadAuditConfig(path);
+      expect(config.suppressions[0].reviewedAt).toBe('2026-07-29');
+    });
+  });
+
   it('also validates .ts config exports', async () => {
     await withTempDir(async dir => {
       const path = join(dir, 'audit.config.ts');

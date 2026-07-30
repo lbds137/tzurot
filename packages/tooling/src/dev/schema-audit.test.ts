@@ -9,7 +9,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { runSchemaAudit } from './schema-audit.js';
+import { runSchemaAudit, globSourceFiles } from './schema-audit.js';
 import { withTempDir } from './schema-audit-test-helpers.js';
 
 // Local alias: e2e tests describe `dir` as "the project root" for readability.
@@ -145,6 +145,51 @@ model User {
       expect(parsed.stats).toHaveProperty('suppressedCount');
       expect(parsed.stats).toHaveProperty('findings');
       expect(Array.isArray(parsed.findings)).toBe(true);
+    });
+  });
+});
+
+describe('globSourceFiles', () => {
+  it('returns the parsed project alongside paths (single parse per audit run)', async () => {
+    await withTempDir(dir => {
+      mkdirSync(join(dir, 'src'));
+      writeFileSync(join(dir, 'src', 'a.ts'), 'export const a = 1;');
+
+      const { paths, project } = globSourceFiles(dir, ['src/**/*.ts']);
+
+      expect(paths).toHaveLength(1);
+      // The returned project already carries the parsed files — analyzers
+      // consume it directly instead of re-parsing from the paths.
+      expect(project.getSourceFiles().map(sf => sf.getFilePath())).toEqual(paths);
+    });
+  });
+
+  it('excludes *.test.ts regardless of the input glob shape', async () => {
+    await withTempDir(dir => {
+      mkdirSync(join(dir, 'src'));
+      writeFileSync(join(dir, 'src', 'a.ts'), 'export const a = 1;');
+      writeFileSync(join(dir, 'src', 'a.test.ts'), 'export const t = 1;');
+
+      const { paths } = globSourceFiles(dir, ['src/**/*.ts']);
+
+      expect(paths).toHaveLength(1);
+      expect(paths[0].endsWith('a.ts')).toBe(true);
+    });
+  });
+
+  it('a custom non-*.ts glob no longer self-excludes everything', async () => {
+    // The old suffix-substitution built the exclusion by replacing the input
+    // glob's `*.ts` with `*.test.ts`; a glob not ending in `*.ts` made that a
+    // no-op and the "exclusion" became the glob itself — excluding every file
+    // it was meant to include.
+    await withTempDir(dir => {
+      mkdirSync(join(dir, 'src'));
+      writeFileSync(join(dir, 'src', 'a.tsx'), 'export const a = 1;');
+
+      const { paths } = globSourceFiles(dir, ['src/**/*.tsx']);
+
+      expect(paths).toHaveLength(1);
+      expect(paths[0].endsWith('a.tsx')).toBe(true);
     });
   });
 });

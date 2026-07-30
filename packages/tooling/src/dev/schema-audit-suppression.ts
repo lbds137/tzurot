@@ -100,6 +100,14 @@ function assertConfigShape(value: unknown, configPath: string): SchemaAuditConfi
         `Config at ${configPath}: \`suppressions[${i}].reviewedAt\` must be a string when present.`
       );
     }
+    // reviewedAt is an accountability/staleness timestamp — "last tuesday"
+    // or a typo must fail loud, or a future freshness audit can't parse it.
+    if (typeof e.reviewedAt === 'string' && Number.isNaN(Date.parse(e.reviewedAt))) {
+      throw new Error(
+        `Config at ${configPath}: \`suppressions[${i}].reviewedAt\` must be a parseable date ` +
+          `(got "${e.reviewedAt}") — use ISO format, e.g. "2026-07-29".`
+      );
+    }
   }
   return value as SchemaAuditConfig;
 }

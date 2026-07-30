@@ -5,7 +5,7 @@
 import { describe, it, expect } from 'vitest';
 import { existsSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { withTempDir } from './schema-audit-test-helpers.js';
+import { withTempDir, projectFromPaths } from './schema-audit-test-helpers.js';
 
 describe('withTempDir', () => {
   it('creates a directory and passes its path to the callback', async () => {
@@ -44,5 +44,18 @@ describe('withTempDir', () => {
     ).rejects.toThrow('boom');
     expect(capturedDir).not.toBeNull();
     expect(existsSync(capturedDir as unknown as string)).toBe(false);
+  });
+});
+
+describe('projectFromPaths', () => {
+  it('parses exactly the given paths, skipping missing files', async () => {
+    await withTempDir(dir => {
+      const real = join(dir, 'real.ts');
+      writeFileSync(real, 'export const x = 1;');
+
+      const project = projectFromPaths([real, join(dir, 'missing.ts')]);
+
+      expect(project.getSourceFiles().map(sf => sf.getFilePath())).toEqual([real]);
+    });
   });
 });
