@@ -93,11 +93,16 @@ ones, and they argue for treating emoji differently:
    adds little over the name. A sticker's name is frequently terse while the
    image *is* the message — a much better value-per-token ratio.
 
-## Both open calls — DECIDED by council (2026-07-30, unanimous 3/3)
+## Both open calls — DECIDED by council (2026-07-30, unanimous 4/4)
 
-GLM 5.2 · Kimi K2.7-code · Qwen 3.7 Max, asked in parallel. No split, so no
-tiebreaker pass. Both answers were unanimous, and the second one **overruled the
-agent's own recommendation** (which had been the emoji-dominant gate below).
+GLM 5.2 · Kimi K2.7-code · Qwen 3.7 Max asked in parallel, then **Kimi K3
+re-run independently**: the agent had used a stale cached copy of
+`/tzurot-council-mcp` and consulted K2.7-code when the skill had already
+named K3 (since 2026-07-25). K3 was asked the same questions with an explicit
+"give me your independent view, not a consensus-seeking one" instruction. It
+**agreed on both**, so no split and no tiebreaker — and it supplied the two
+strongest arguments on record, folded in below. The emoji answer **overruled
+the agent's own recommendation** (which had been the emoji-dominant gate).
 
 **1. Asset descriptions use the SYSTEM key, never a user's BYOK key.** All three
 framed this identically and it's the framing that settles it: a description is
@@ -110,6 +115,22 @@ conditional billing branch. Interacts with `doc-43` (BYOK-first extraction
 billing) but does not contradict it: extraction is work done *for that user*,
 asset description is not.
 
+**K3's stronger argument for the same conclusion — it is not about money.** The
+description is a permanent shared artifact, so under "first-sighter pays" its
+QUALITY becomes a lottery decided by whichever key happened to be in play at
+first sight: a BYOK user on a weak vision model writes a worse permanent
+description for every future user and persona. Instance-funded means
+instance-*configured* — the owner picks the model that writes the permanent
+record. That is a correctness argument, not a fairness one, and it is the one to
+lead with. Two corollaries: option (c) ("system key only when the trigger is
+BYOK") **logically collapses into (b)** — when the trigger is a system-key user
+the system key is the only key in play, so every branch selects the same
+outcome and the conditional is vestigial; and if a deployment ever lacks a
+system key, **disable descriptions rather than charge first-sighters**, keeping
+the "shared assets are instance-funded" rule intact. Abuse is bounded (one call
+per asset ever); a daily cap is the fix if it ever becomes real — don't build it
+now.
+
 **2. Custom emoji are NEVER vision-described — name-only, permanently.** All
 three chose (c) over the emoji-dominant gate (b), and rejected (b) on the same
 two grounds: the marginal information is near-zero because the *name already
@@ -121,6 +142,32 @@ is exactly the surprising behavior the heuristic was meant to avoid. Qwen named
 the only case (b) would genuinely serve — a badly-named emoji like `:img_8492:`
 used alone — and judged it too rare to build a pipeline branch for. Revisit only
 if real logs show specific custom emoji are repeatedly ambiguous to the model.
+
+**K3 sharpened why the marginal value is near-zero rather than merely small**,
+with two arguments none of the other three made:
+
+1. **Emoji names are under selection pressure to be descriptive.** The name IS
+   the invocation syntax — emoji with untypable or unmemorable names don't get
+   used. Discord culture has already done the labeling work; `:pepehands:` *is*
+   the description.
+2. **Where the name fails, vision fails too.** An opaque emoji's meaning
+   (`:xanderhype:`) is *conventional* — a server in-joke — not visual. A vision
+   call returns "cartoon man, sunglasses, mouth open": the pixels, not the
+   meaning. So the residual value is a rare∩rare∩rare intersection: opaque name
+   AND visually legible AND the distinction changes the reply.
+
+It also named a mechanical problem with the gate that the token argument misses:
+**the generation-timing fork has no good answer.** Describe eagerly on first
+sight and you pay option (a)'s call volume for emoji that may never trip the
+gate; describe lazily on gate-trip and you either block a turn on a vision call
+or render the same message differently depending on cache warmth —
+timing-dependent behavior in the prompt builder.
+
+**And the reversal is asymmetric, which is why (c) is the safe start:** because
+the cache is write-once and injection is a separate stage, (c) forecloses
+nothing. Adopting (b) later is a prompt-builder change plus lazy backfill — no
+schema change, no migration. Starting with (b) and ripping it out is the harder
+direction.
 
 **Consequence: the build shrinks substantially.** No emoji path, no
 dominance heuristic, no `kind` discriminator needed on the table (stickers

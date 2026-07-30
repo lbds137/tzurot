@@ -3,9 +3,10 @@ id: TASK-353
 title: >-
   Settings update handlers: catch-branch error text composes redundantly (4
   sites)
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-07-29 13:20'
+updated_date: '2026-07-30 12:07'
 labels:
   - 'origin:review'
 dependencies: []
