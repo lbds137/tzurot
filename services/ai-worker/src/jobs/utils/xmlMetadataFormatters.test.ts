@@ -92,15 +92,32 @@ const { mockFormatQuoteElement, mockFormatDedupedQuote } = vi.hoisted(() => {
   // Mirror the REAL formatDedupedQuote: render content AS-IS (no truncation). The cap now
   // happens upstream in formatQuotedSection via the real capDedupText, so the
   // "truncates long content" test below verifies THAT cap, not a mock-side truncation.
+  //
+  // `imageDescriptions` must be forwarded here or the mock silently swallows the
+  // very field the deduped path was fixed to carry — a stub that drops what the
+  // real function renders makes this suite blind to the bug it should catch.
   const fdq = vi
     .fn()
     .mockImplementation(
-      (opts: { from: string; role?: string; timeFormatted?: string; content: string }) => {
+      (opts: {
+        from: string;
+        role?: string;
+        timeFormatted?: string;
+        content: string;
+        imageDescriptions?: { filename: string; description: string }[];
+      }) => {
+        // The real prefix switches on whether media rides along; mirror that or
+        // the stub asserts a wording the production path would not emit.
+        const prefix =
+          (opts.imageDescriptions?.length ?? 0) > 0
+            ? '[Referenced message — full text in the chat log; its media is described here]'
+            : '[Referenced message — full text in the chat log]';
         return fqe({
           from: opts.from,
           role: opts.role,
           timeFormatted: opts.timeFormatted,
-          content: `[Referenced message — full text in the chat log]\n\n${opts.content}`,
+          content: `${prefix}\n\n${opts.content}`,
+          imageDescriptions: opts.imageDescriptions,
         });
       }
     );
@@ -234,6 +251,54 @@ describe('xmlMetadataFormatters', () => {
       expect(result).not.toContain('[image/png: photo.png]');
     });
 
+    it('keeps a marker for an image that has no description, when a sibling does', () => {
+      // Partial vision resolution: two images, one describe succeeded and one
+      // failed. Failures are never persisted (visionDescriptionWriter), so the
+      // stored row carries one description for two images. Gating the marker
+      // filter on "this reference has ANY description" would drop BOTH markers
+      // and render only one image — the undescribed one vanishes entirely,
+      // which is the same silent-invisibility class this whole path just fixed.
+      const msg = makeEntry({
+        messageMetadata: {
+          referencedMessages: [
+            {
+              discordMessageId: '123',
+              authorUsername: 'user1',
+              authorDisplayName: 'User One',
+              content: 'two images',
+              timestamp: '2026-01-01T00:00:00.000Z',
+              locationContext: '',
+              attachments: [
+                {
+                  id: 'att-1',
+                  url: 'https://cdn.discord.com/described.png',
+                  contentType: 'image/png',
+                  name: 'described.png',
+                },
+                {
+                  id: 'att-2',
+                  url: 'https://cdn.discord.com/undescribed.png',
+                  contentType: 'image/png',
+                  name: 'undescribed.png',
+                },
+              ],
+              resolvedImageDescriptions: [
+                { filename: 'described.png', description: 'A sunset over the ocean' },
+              ],
+            },
+          ],
+        },
+      });
+
+      const result = formatQuotedSection(msg, 'user', personalityName, undefined, undefined);
+
+      expect(result).toContain('A sunset over the ocean');
+      // The described one is not ALSO a marker...
+      expect(result).not.toContain('[image/png: described.png]');
+      // ...and the undescribed one is still visible as one.
+      expect(result).toContain('[image/png: undescribed.png]');
+    });
+
     it('shows non-image attachments alongside image descriptions', () => {
       const msg = makeEntry({
         messageMetadata: {
@@ -325,6 +390,62 @@ describe('xmlMetadataFormatters', () => {
       expect(result).toContain('[Referenced message — full text in the chat log]');
       expect(result).toContain('Duplicated message that is in history');
       expect(result).toContain('from="User One"');
+    });
+
+    it('carries hydrated image descriptions across the deduped seam', () => {
+      // `persistReferenceDescriptions` writes resolvedImageDescriptions onto the
+      // stored row for exactly this moment. The deduped branch used to pass only
+      // `content`, so every one of those rows was discarded and the quoted image
+      // reached the model as a bare `[image/png: …]` marker.
+      //
+      // Asserted at the seam (toHaveBeenCalledWith), not just on the rendered
+      // string: this suite stubs QuoteFormatter, so a string-only assertion would
+      // be testing the stub's own rendering rather than what the caller forwarded.
+      const msg = makeEntry({
+        messageMetadata: {
+          referencedMessages: [
+            {
+              discordMessageId: 'already-in-history',
+              authorUsername: 'user1',
+              authorDisplayName: 'User One',
+              content: 'look at this',
+              timestamp: '2026-01-01T00:00:00.000Z',
+              locationContext: '',
+              attachments: [
+                {
+                  id: 'att-1',
+                  url: 'https://cdn.discord.com/embed-image-1.png',
+                  contentType: 'image/png',
+                  name: 'embed-image-1.png',
+                },
+              ],
+              resolvedImageDescriptions: [
+                { filename: 'embed-image-1.png', description: 'SENTINEL_STORED_VISION' },
+              ],
+            },
+          ],
+        },
+      });
+
+      const result = formatQuotedSection(
+        msg,
+        'user',
+        personalityName,
+        new Set(['already-in-history']),
+        undefined
+      );
+
+      expect(mockFormatDedupedQuote).toHaveBeenCalledWith(
+        expect.objectContaining({
+          imageDescriptions: [
+            { filename: 'embed-image-1.png', description: 'SENTINEL_STORED_VISION' },
+          ],
+        })
+      );
+      expect(result).toContain('SENTINEL_STORED_VISION');
+      // The marker is the fallback for an UNdescribed image; with a description
+      // in hand it would be the same picture named twice.
+      expect(result).not.toContain('[image/png: embed-image-1.png]');
     });
 
     it('renders role="bot" on a deduped stub from a non-persona bot reference', () => {

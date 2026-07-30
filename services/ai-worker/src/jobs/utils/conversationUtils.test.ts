@@ -903,6 +903,63 @@ describe('Conversation Utilities', () => {
       expect(result).toContain('Replying to your earlier message');
     });
 
+    /**
+     * Enrichment traceability, stored half — PAID WORK MUST APPEAR.
+     *
+     * The live half lives in ReferencedMessageFormatter.test.ts; this is the same
+     * invariant on the replay path, and it runs the REAL chain
+     * (formatConversationHistoryAsXml → xmlMetadataFormatters → QuoteFormatter)
+     * with nothing between the stored row and the prompt XML stubbed out. The
+     * matching test in xmlMetadataFormatters.test.ts asserts at the seam because
+     * that suite mocks QuoteFormatter; this one asserts on the real output.
+     */
+    it.each([
+      ['a full quote', 'msg-not-in-history'],
+      ['a DEDUPED stub', 'msg-already-in-history'],
+    ])('renders a hydrated image description into %s', (_label, quotedMessageId) => {
+      const referencedMessage: StoredReferencedMessage = {
+        discordMessageId: quotedMessageId,
+        authorUsername: 'bob',
+        authorDisplayName: 'Bob',
+        content: 'look at this',
+        timestamp: '2025-01-01T00:00:00Z',
+        locationContext: '',
+        attachments: [
+          {
+            url: 'https://cdn.discord.com/embed-image-1.png',
+            contentType: 'image/png',
+            name: 'embed-image-1.png',
+          },
+        ],
+        resolvedImageDescriptions: [
+          { filename: 'embed-image-1.png', description: 'SENTINEL_REPLAY_VISION' },
+        ],
+      };
+
+      const history: RawHistoryEntry[] = [
+        {
+          id: 'internal-uuid-1',
+          role: 'user',
+          content: 'the original post',
+          personaName: 'Bob',
+          discordMessageId: ['msg-already-in-history'],
+        },
+        {
+          id: 'internal-uuid-2',
+          role: 'user',
+          content: 'Replying to your earlier message',
+          personaName: 'Alice',
+          messageMetadata: { referencedMessages: [referencedMessage] },
+        },
+      ];
+
+      const result = formatConversationHistoryAsXml(history, 'TestBot');
+
+      expect(result).toContain(
+        '<image filename="embed-image-1.png">SENTINEL_REPLAY_VISION</image>'
+      );
+    });
+
     it('should keep quoted messages that are NOT in conversation history', () => {
       const quotedMessageId = 'msg-not-in-history';
 

@@ -8,6 +8,7 @@
 
 import { type AIProvider } from '@tzurot/common-types/constants/ai';
 import { TEXT_LIMITS } from '@tzurot/common-types/constants/discord';
+import { AttachmentType } from '@tzurot/common-types/constants/media';
 import { type ReferencedMessage } from '@tzurot/common-types/types/schemas/message';
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import { type SttDispatch } from '@tzurot/common-types/types/sttProvider';
@@ -33,7 +34,7 @@ const logger = createLogger('ReferencedMessageFormatter');
  * bot's own words read as a turn to continue. Kept as a named constant so the wording
  * is visible alongside the other prompt-text constants instead of buried inline.
  */
-const CONTEXTUAL_REFERENCES_INSTRUCTION = `<instruction>Messages the user's current message is replying to or quoting — read them only to understand what the user is responding to. A quote's role says who wrote it: role="assistant" is one of your own earlier lines (context, never a turn to continue or extend); role="user" is a person; role="character" is a different AI character — a conversation peer, not you and not the human you're replying to; role="bot" is a non-character bot or automated webhook. Respond to the user's current message. A stubbed quote's full text appears in <chat_log>.</instruction>`;
+const CONTEXTUAL_REFERENCES_INSTRUCTION = `<instruction>Messages the user's current message is replying to or quoting — read them only to understand what the user is responding to. A quote's role says who wrote it: role="assistant" is one of your own earlier lines (context, never a turn to continue or extend); role="user" is a person; role="character" is a different AI character — a conversation peer, not you and not the human you're replying to; role="bot" is a non-character bot or automated webhook. Respond to the user's current message. A stubbed quote's full text appears in <chat_log>; any media it describes appears only in the quote itself.</instruction>`;
 
 /**
  * Context for reference formatting. `userApiKey` is the key for
@@ -65,6 +66,76 @@ interface ReferenceVisionAuth {
 export interface FormattedReferences {
   formatted: string;
   searchText: string;
+}
+
+/** The renderable enrichment children a reference's preprocessed results yield. */
+interface SplitEnrichment {
+  imageDescriptions?: { filename: string; description: string }[];
+  voiceTranscripts?: string[];
+  /**
+   * Entries that CARRY something worth rendering (non-empty description).
+   * The tripwire's denominator is this rather than the raw entry count: a
+   * successful-but-empty transcription (a silent audio clip) has nothing to
+   * render and is not a drop, and counting it as one would warn on every
+   * occurrence of ordinary traffic.
+   */
+  renderable: number;
+  /** Of those, how many actually produced a rendered child. */
+  rendered: number;
+}
+
+/**
+ * Split already-preprocessed reference attachments into renderable children.
+ *
+ * This is the READ side only — every result here was produced (and paid for) by
+ * the dependency-job stage; nothing new is computed, so a deduped stub still
+ * triggers zero vision/STT calls.
+ *
+ * The deduped branch needs its own splitter rather than reusing
+ * `processAttachmentsParallel`: that helper walks `ref.attachments` and looks
+ * preprocessing up by URL, and `buildDedupedReferenceStub` strips `attachments`
+ * from the stub, so it would find nothing to walk. The preprocessed entries
+ * carry their own metadata and are self-sufficient. Discriminating on
+ * `ProcessedAttachment.type` (not `metadata.contentType`) is deliberate — the
+ * dependency step synthesizes metadata with a placeholder `image/unknown` /
+ * `audio/unknown` content type, so a content-type test would misroute audio.
+ */
+function splitPreprocessedEnrichment(
+  preprocessed: ProcessedAttachment[] | undefined
+): SplitEnrichment {
+  if (preprocessed === undefined || preprocessed.length === 0) {
+    return { renderable: 0, rendered: 0 };
+  }
+
+  const imageDescriptions: { filename: string; description: string }[] = [];
+  const voiceTranscripts: string[] = [];
+  let renderable = 0;
+  for (const entry of preprocessed) {
+    if (entry.description.length === 0) {
+      // Nothing to render and nothing lost — a silent audio clip transcribes to
+      // '' on SUCCESS. Not counted as renderable, so it never trips the drop warn.
+      continue;
+    }
+    renderable++;
+    if (entry.type === AttachmentType.Image) {
+      // `name` is optional on AttachmentMetadata; the dependency step derives it
+      // from the URL basename, so undefined means a synthesized attachment with
+      // no filename at all — the description is still the payload worth keeping.
+      imageDescriptions.push({
+        filename: entry.metadata.name ?? 'image',
+        description: entry.description,
+      });
+    } else if (entry.type === AttachmentType.Audio) {
+      voiceTranscripts.push(entry.description);
+    }
+  }
+
+  return {
+    imageDescriptions: imageDescriptions.length > 0 ? imageDescriptions : undefined,
+    voiceTranscripts: voiceTranscripts.length > 0 ? voiceTranscripts : undefined,
+    renderable,
+    rendered: imageDescriptions.length + voiceTranscripts.length,
+  };
 }
 
 /**
@@ -99,9 +170,23 @@ export class ReferencedMessageFormatter {
 
     // Process each reference into XML
     for (const ref of references) {
-      // Deduped stubs: lightweight quote with reply-target note (no attachment processing)
+      // Deduped stubs: lightweight quote with reply-target note. No NEW
+      // attachment work is done — but media enrichment already computed by the
+      // dependency stage IS rendered here, because <chat_log> carries the
+      // embed/attachment URL and never its description.
+      //
+      // The stub's `content` also carries `[image/png: name]` markers folded in
+      // by `buildDedupedReferenceStub`. That overlap is intentional for now: the
+      // marker is the FALLBACK for an image whose description never arrived, and
+      // the builder can't know whether it will. Filenames match across the two,
+      // so they read as one image, not two. (The stored path in
+      // `xmlMetadataFormatters` drops its markers instead — it can, because it
+      // sees both at once. Collapsing that asymmetry is the projection refactor.)
       if (ref.isDeduplicated === true) {
         const { absolute, relative } = formatTimestampWithDelta(ref.timestamp);
+        const preprocessedForRef = preprocessedAttachments?.[ref.referenceNumber];
+        const enrichment = splitPreprocessedEnrichment(preprocessedForRef);
+        this.warnOnDroppedEnrichment(ref.referenceNumber, enrichment);
         referenceElements.push(
           formatDedupedQuote({
             number: ref.referenceNumber,
@@ -116,12 +201,24 @@ export class ReferencedMessageFormatter {
             timestamp:
               absolute.length > 0 && relative.length > 0 ? { absolute, relative } : undefined,
             content: ref.content,
+            imageDescriptions: enrichment.imageDescriptions,
+            voiceTranscripts: enrichment.voiceTranscripts,
           })
         );
         // The stub's capped text copy is real signal; the reply-target
         // marker the quote renderer adds is not, so contribute the raw
-        // content only (empty for a bot's own reply-target).
-        searchParts.push(ref.content);
+        // content only (empty for a bot's own reply-target). Media
+        // descriptions ride along for the same reason they ride into the
+        // prompt: history has no copy of them to retrieve against.
+        searchParts.push(
+          [
+            ref.content,
+            ...(enrichment.imageDescriptions ?? []).map(img => img.description),
+            ...(enrichment.voiceTranscripts ?? []),
+          ]
+            .filter(part => part.length > 0)
+            .join('\n')
+        );
         continue;
       }
 
@@ -174,6 +271,26 @@ export class ReferencedMessageFormatter {
         .filter(part => part.length > 0)
         .join('\n\n'),
     };
+  }
+
+  /**
+   * Tripwire for the enrichment-drop class: preprocessed results reached this
+   * renderer but produced fewer rendered children than there were results.
+   *
+   * It exists because the drop it guards was invisible — four vision calls ran,
+   * succeeded, cost 47s, and were discarded with zero log output, so the only
+   * detector in the system was a human noticing the character couldn't see the
+   * images. With the deduped branch rendering them this should never fire; if a
+   * future field goes missing the same way, it says so instead.
+   */
+  private warnOnDroppedEnrichment(referenceNumber: number, enrichment: SplitEnrichment): void {
+    if (enrichment.renderable > enrichment.rendered) {
+      logger.warn(
+        { referenceNumber, renderable: enrichment.renderable, rendered: enrichment.rendered },
+        '[ReferencedMessageFormatter] Preprocessed reference enrichment was not rendered — ' +
+          'vision/transcription work was paid for and is not reaching the prompt'
+      );
+    }
   }
 
   /**
