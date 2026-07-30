@@ -12,6 +12,8 @@ function createMockMessage(options: {
   content: string;
   attachmentCount: number;
   snapshotAttachmentCount?: number;
+  stickerNames?: string[];
+  poll?: unknown;
 }): Message {
   const attachments = new Map();
   for (let i = 0; i < options.attachmentCount; i++) {
@@ -35,11 +37,18 @@ function createMockMessage(options: {
     });
   }
 
+  const stickers = new Map(
+    (options.stickerNames ?? []).map(name => [name, { name, description: null }])
+  );
+
   return {
     id: '123456789',
     content: options.content,
     attachments,
     messageSnapshots: messageSnapshots.size > 0 ? messageSnapshots : null,
+    // Always present on a real Message — this filter now consults both.
+    stickers,
+    poll: options.poll ?? null,
   } as unknown as Message;
 }
 
@@ -48,6 +57,26 @@ describe('EmptyMessageFilter', () => {
 
   beforeEach(() => {
     filter = new EmptyMessageFilter();
+  });
+
+  it('should NOT filter a sticker-only message (it would never reach the trigger processors)', async () => {
+    const message = createMockMessage({
+      content: '',
+      attachmentCount: 0,
+      stickerNames: ['partyblob'],
+    });
+
+    await expect(filter.process(message)).resolves.toBe(false);
+  });
+
+  it('should NOT filter a poll-only message', async () => {
+    const message = createMockMessage({
+      content: '',
+      attachmentCount: 0,
+      poll: { question: { text: 'Pizza?' }, answers: new Map() },
+    });
+
+    await expect(filter.process(message)).resolves.toBe(false);
   });
 
   it('should filter out empty messages', async () => {
