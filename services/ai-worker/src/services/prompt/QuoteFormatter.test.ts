@@ -417,6 +417,33 @@ describe('QuoteFormatter', () => {
       expect(result).toContain('role="assistant"');
     });
 
+    it('promises media only when media actually rides along', () => {
+      // The marker is a claim about where to look. On a text-only stub, naming
+      // media sends the model hunting for something that was never attached;
+      // on a stub that carries descriptions, staying silent about them points
+      // it at <chat_log>, where images exist only as URLs.
+      const textOnly = formatDedupedQuote({ from: 'Alice', role: 'user', content: 'just words' });
+      expect(textOnly).toContain('[Referenced message — full text in the chat log]');
+      expect(textOnly).not.toContain('media');
+
+      const withMedia = formatDedupedQuote({
+        from: 'Alice',
+        role: 'user',
+        content: 'look at this',
+        imageDescriptions: [{ filename: 'a.png', description: 'a lighthouse at dusk' }],
+      });
+      expect(withMedia).toContain('its media is described here');
+      expect(withMedia).toContain('<image filename="a.png">a lighthouse at dusk</image>');
+
+      const withTranscript = formatDedupedQuote({
+        from: 'Alice',
+        role: 'user',
+        content: '',
+        voiceTranscripts: ['hey are you around'],
+      });
+      expect(withTranscript).toContain('its media is described here');
+    });
+
     it('does NOT let long attachment markers truncate away the text preview', () => {
       // Regression: a reply-target with two long image-filename markers + short text. The
       // content is already text-capped upstream (buildDedupedReferenceStub); formatDedupedQuote
