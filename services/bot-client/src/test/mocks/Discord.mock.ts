@@ -308,6 +308,10 @@ export function createMockMessage(overrides: MockInput<Message> = EMPTY_OVERRIDE
     mentions: createMockMessageMentions(),
     attachments: createMockCollection(),
     embeds: [],
+    // Also always present on a real Message — a message-shape consumer added
+    // later must not have to discover these are missing from the shared mock.
+    stickers: createMockCollection(),
+    poll: null,
     reference: null,
     type: 0, // DEFAULT message type
     reply: vi.fn().mockResolvedValue(null),

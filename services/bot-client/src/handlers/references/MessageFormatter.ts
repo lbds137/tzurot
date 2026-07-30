@@ -16,6 +16,7 @@ import { extractDiscordEnvironment } from '../../utils/discordContext.js';
 import { extractAttachments } from '../../utils/attachmentExtractor.js';
 import { extractEmbedImages } from '../../utils/embedImageExtractor.js';
 import { EmbedParser } from '../../utils/EmbedParser.js';
+import { withStickerAndPollDescriptions } from '../../utils/stickerPollDescriptions.js';
 import { type TranscriptRetriever } from './TranscriptRetriever.js';
 import { classifyReferenceAuthorRole } from './authorRole.js';
 import {
@@ -43,7 +44,7 @@ export class MessageFormatter {
   ): { content: string; attachments: AttachmentList } {
     if (isForwarded && hasForwardedSnapshots(message)) {
       return {
-        content: extractForwardedContent(message),
+        content: withStickerAndPollDescriptions(message, extractForwardedContent(message)),
         attachments: extractForwardedAttachments(message),
       };
     }
@@ -51,7 +52,9 @@ export class MessageFormatter {
     const regularAttachments = extractAttachments(message.attachments);
     const embedImages = extractEmbedImages(message.embeds);
     return {
-      content: message.content,
+      // Without the descriptions, replying to a sticker-only or poll-only
+      // message renders an empty [Reference N] block.
+      content: withStickerAndPollDescriptions(message, message.content),
       attachments: [...(regularAttachments ?? []), ...(embedImages ?? [])],
     };
   }

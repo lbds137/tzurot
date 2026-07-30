@@ -5,7 +5,7 @@ import {
   rawAssemblyInputsSchema,
   type RawAssemblyInputs,
 } from '@tzurot/common-types/types/schemas/rawEnvelope';
-import { MessageReferenceType, type Message } from 'discord.js';
+import { Collection, MessageReferenceType, type Message, type Sticker } from 'discord.js';
 
 const { mockGetVoiceTranscript } = vi.hoisted(() => ({
   mockGetVoiceTranscript: vi.fn((): string | undefined => undefined),
@@ -50,16 +50,28 @@ const makeMessage = (
 const makeForwardedMessage = (
   snapshotContent: string,
   opts: { withReferenceType?: boolean; topLevelContent?: string } = {}
-) =>
-  ({
+) => {
+  // A real snapshot carries stickers (MessageSnapshot keeps that field) — the
+  // fixture mirrors the full Collection surface, not just the members the
+  // forward-content path happens to read, so a consumer added later doesn't
+  // trip over a half-built mock.
+  const snapshot = { content: snapshotContent, stickers: new Collection<string, Sticker>() };
+  return {
     client: {},
     content: opts.topLevelContent ?? '',
     mentions: { users: new Map() },
+    stickers: new Collection<string, Sticker>(),
+    poll: null,
     ...(opts.withReferenceType === true
       ? { reference: { type: MessageReferenceType.Forward } }
       : {}),
-    messageSnapshots: { size: 1, first: () => ({ content: snapshotContent }) },
-  }) as unknown as Message;
+    messageSnapshots: {
+      size: 1,
+      first: () => snapshot,
+      values: () => [snapshot].values(),
+    },
+  } as unknown as Message;
+};
 
 const makeConversationMessage = (overrides: Partial<ConversationMessage> = {}) =>
   ({
