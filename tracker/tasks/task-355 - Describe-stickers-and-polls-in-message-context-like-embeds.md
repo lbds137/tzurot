@@ -1,9 +1,10 @@
 ---
 id: TASK-355
 title: Describe stickers and polls in message context (like embeds)
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-07-30 02:45'
+updated_date: '2026-07-30 04:47'
 labels:
   - 'size:M'
 dependencies: []
