@@ -32,6 +32,10 @@ import { HealthStatus } from '@tzurot/common-types/constants/service';
 import { TIMEOUTS } from '@tzurot/common-types/constants/timing';
 import { createPrismaClient, type PrismaClient } from '@tzurot/common-types/services/prisma';
 import { registerSystemSettings } from '@tzurot/common-types/services/SystemSettingsService';
+import {
+  DescriptionPromptService,
+  registerDescriptionPrompt,
+} from './services/DescriptionPromptService.js';
 import { type AnyJobData } from '@tzurot/common-types/types/jobs';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { registerProcessLifecycle } from '@tzurot/common-types/utils/processLifecycle';
@@ -383,6 +387,21 @@ async function main(): Promise<void> {
   // (quota options, pipeline floors, extraction gates) that can't take
   // constructor injection — see registerSystemSettings' doc for the contract.
   registerSystemSettings(systemSettings);
+
+  // Same contract, same reason: describeImage sits several layers below
+  // anything holding a Prisma client, and a vision description must be framed
+  // by the INSTANCE rather than by whichever personality triggered it.
+  //
+  // Primed BEFORE registration, mirroring systemSettings.prime(). An unprimed
+  // read returns undefined, which means "send no system message" — the right
+  // steady-state answer for an unconfigured instance, the wrong one during a
+  // cold start, and the resulting description is CACHED and reused by every
+  // other personality. Without this await, every deploy would mint a window of
+  // unframed descriptions that outlive the boot they came from.
+  // refresh() swallows its own errors, so boot cannot die here.
+  const descriptionPrompt = new DescriptionPromptService(prisma);
+  await descriptionPrompt.refresh();
+  registerDescriptionPrompt(descriptionPrompt);
 
   // Initialize local embedding service (required for both vector memory and duplicate detection)
   const localEmbeddingService = await initializeLocalEmbedding();

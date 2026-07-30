@@ -11,6 +11,12 @@ import {
 } from './VisionProcessor.js';
 import type { AttachmentMetadata } from '@tzurot/common-types/types/schemas/discord';
 import type { LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
+import type { PrismaClient } from '@tzurot/common-types/services/prisma';
+import {
+  DescriptionPromptService,
+  registerDescriptionPrompt,
+  resetDescriptionPromptRegistration,
+} from '../DescriptionPromptService.js';
 import { AI_DEFAULTS, FREE_ROUTER_MODEL } from '@tzurot/common-types/constants/ai';
 import { SYSTEM_SETTINGS_FALLBACKS } from '@tzurot/common-types/schemas/api/systemSettings';
 import {
@@ -631,44 +637,67 @@ describe('VisionProcessor', () => {
     });
 
     describe('system prompt handling', () => {
-      it('should include system prompt when provided', async () => {
+      afterEach(() => {
+        resetDescriptionPromptRegistration();
+      });
+
+      it('frames the description with the INSTANCE prompt, not the personality', async () => {
+        // The description is cached model-agnostically and reused by every
+        // other personality — permanently, for a snowflake-keyed sticker. So
+        // whichever character triggered it must not shape it.
         mockCheckModelVisionSupport.mockResolvedValue(true);
+        const service = new DescriptionPromptService({
+          systemPrompt: {
+            findFirst: vi.fn().mockResolvedValue({ content: 'Instance description framing.' }),
+          },
+        } as unknown as PrismaClient);
+        await service.refresh();
+        registerDescriptionPrompt(service);
 
         const personality = createMockPersonality({
           model: 'gpt-4o',
           visionModel: undefined,
-          systemPrompt: 'You are a helpful assistant',
+          systemPrompt: 'You are Lila, a mischievous raccoon.',
         });
 
         await describeImage(mockAttachment, personality);
 
         const messages = mockModelInvoke.mock.calls[0][0];
-        expect(messages[0]).toMatchObject({
-          content: 'You are a helpful assistant',
-        });
+        expect(messages[0]).toMatchObject({ content: 'Instance description framing.' });
+        // The personality's own prompt must not reach the model at all — note
+        // a shared system_prompts row still resolves per-character, because the
+        // loader substitutes {{char}} with the personality's NAME.
+        expect(JSON.stringify(messages)).not.toContain('Lila');
       });
 
-      it('should work without system prompt', async () => {
+      it('sends NO system message when no instance prompt is configured', async () => {
+        // Correct rather than degraded: the "objective description for archival
+        // purposes" instruction lives in the user message and stands alone.
+        mockCheckModelVisionSupport.mockResolvedValue(true);
+        resetDescriptionPromptRegistration();
+
+        const personality = createMockPersonality({
+          model: 'gpt-4o',
+          visionModel: undefined,
+          systemPrompt: 'You are Lila, a mischievous raccoon.',
+        });
+
+        const result = await describeImage(mockAttachment, personality);
+
+        const messages = mockModelInvoke.mock.calls[0][0];
+        // Only the image+instruction human message.
+        expect(messages).toHaveLength(1);
+        expect(JSON.stringify(messages)).not.toContain('Lila');
+        expect(result).toBe('Mocked image description');
+      });
+
+      it('still describes when the personality has no prompt of its own', async () => {
         mockCheckModelVisionSupport.mockResolvedValue(true);
 
         const personality = createMockPersonality({
           model: 'gpt-4o',
           visionModel: undefined,
           systemPrompt: '',
-        });
-
-        const result = await describeImage(mockAttachment, personality);
-
-        expect(result).toBe('Mocked image description');
-      });
-
-      it('should handle undefined system prompt', async () => {
-        mockCheckModelVisionSupport.mockResolvedValue(true);
-
-        const personality = createMockPersonality({
-          model: 'gpt-4o',
-          visionModel: undefined,
-          systemPrompt: undefined as any,
         });
 
         const result = await describeImage(mockAttachment, personality);
