@@ -6,7 +6,9 @@
 
 ## Unreleased on Develop
 
-- #1866 refactor: fast-pool drain batch (doc-7 Phase 1, batch 4) — five tasks closed (38/39/40 + ride-alongs 176/175: `ConversationHistoryClient` narrowing with one scoped `$extends`-seam cast, symmetric read-path timeout labeling, ladder-watch closed with evidence, three-GUC boot probe, pooler caveat docs); TASK-174 annotated as the next same-module unit
+- #1866 refactor: fast-pool drain batch (doc-7 Phase 1, batch 4) — five tasks closed (38/39/40 + ride-alongs 176/175: `ConversationHistoryClient` narrowing with one scoped `$extends`-seam cast, symmetric read-path timeout labeling, ladder-watch closed with evidence, three-GUC boot probe, pooler caveat docs)
+- #1867 refactor: persist routes document replay idempotency (TASK-174) — freshness-check REFUTED the task's "fallback is dead" premise (compare-first/P2002 is the live replay-idempotency mechanism: stable-timestamp retries + MultiTagRecovery re-deliveries); dual-write archaeology rewritten across five surfaces, shared `fetchExistingConversationRow` extracted, zero control-flow change
+- doc filings 2026-07-29: doc-54 (diegetic Discord events — deletion tombstones + reaction stimuli, with the organic-vs-data-rights deletion constraint) + TASK-355 (sticker/poll context fidelity), from the literal-goose/raccoon card review
 
 ## 🔬 Smoke checklist — v3.0.0-beta.186 (post-deploy)
 
