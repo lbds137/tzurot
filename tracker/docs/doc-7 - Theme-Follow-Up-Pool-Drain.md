@@ -74,6 +74,11 @@ before committing to the projection.
   table's "10 rows" overcounted by including gated members. Hand-read confirmed
   essential before each batch. Note: browse/UI cluster should WAIT for the UX
   epic's Waves 4–6 (factory sweep rewrites that surface).
+- **config** — #1863 (2026-07-29): 3 tasks shipped (12/37/42) + 2 dispositioned
+  (28 archived on a measurement — premise gone; 188 re-grounded half-stale) of
+  the table's "9 rows". Second batch confirming the pattern: regex-cluster
+  counts ≈ 2× the buildable yield; the rest are gated/owner-call/own-PR-sized.
+  Projection at this rate: ~13 clusters ≈ ~35-45 shippable items, not ~73.
 
 ### Phase 2 — The ~55 scattered singletons
 

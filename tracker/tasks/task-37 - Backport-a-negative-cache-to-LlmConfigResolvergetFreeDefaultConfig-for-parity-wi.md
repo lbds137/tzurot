@@ -1,10 +1,10 @@
 ---
 id: TASK-37
 title: Negative cache for LlmConfigResolver.getFreeDefaultConfig (parity)
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-07-01 00:00'
-updated_date: '2026-07-28 10:46'
+updated_date: '2026-07-30 00:36'
 labels:
   - 'origin:review'
   - 'area:config-resolver'

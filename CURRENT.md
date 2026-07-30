@@ -11,6 +11,7 @@
 - #1860 debug: stale scaffolding removed — transport probe, db-sync milestone logs, 275-day DM-detection remnant
 - #1861 feat(tooling): `dev:stale-debug` blame-based audit (TASK-143) — weekly `ops health` roster; weekly-audit checkout now `fetch-depth: 0`; round-4 optional hardening filed as TASK-354
 - #1862 fix: jobs/queue drain batch (doc-7 Phase 1, batch 1 of ~13) — six tasks closed (10/97/171/212/219/319); TASK-219 retires the legacy job-context tolerance (`kind: 'envelope'` required — additive code change, no migration)
+- #1863 refactor: config drain batch (doc-7 Phase 1, batch 2) — three tasks closed (12/37/42: shared override-key copy loop, LLM admin-default negative cache, shared override-summary emitter); TASK-28 archived obsolete, TASK-188 re-grounded
 
 ## 🔬 Smoke checklist — v3.0.0-beta.185 (post-deploy)
 
