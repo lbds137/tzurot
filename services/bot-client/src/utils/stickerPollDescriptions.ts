@@ -54,12 +54,9 @@ function describeSticker(sticker: Sticker): string {
  * a poll). Empty string when there are none, so callers can push
  * unconditionally and filter falsy.
  */
-export function describeStickers(message: Message | MessageSnapshot): string {
+export function describeStickers(message: Message): string {
   const own = collectionValues<Sticker>(message.stickers);
-  const snapshots =
-    'messageSnapshots' in message
-      ? collectionValues<MessageSnapshot>(message.messageSnapshots)
-      : [];
+  const snapshots = collectionValues<MessageSnapshot>(message.messageSnapshots);
   const forwarded = snapshots.flatMap(snapshot => collectionValues<Sticker>(snapshot.stickers));
   const all = [...own, ...forwarded];
   if (all.length === 0) {
@@ -78,6 +75,16 @@ interface PollAnswerLike {
   emoji: { name: string | null } | null;
 }
 
+/**
+ * Read `message.poll`, normalizing an absent field to null. The `?? null` does
+ * runtime work the types call redundant: discord.js declares `poll` as
+ * `Poll | null` (never undefined), but a partial-shaped message can omit the
+ * field entirely — the same case collectionValues covers.
+ */
+function pollOf(message: Message): Message['poll'] {
+  return message.poll ?? null;
+}
+
 /** One poll answer's label: its text, else its emoji name, else a placeholder. */
 function describeAnswer(answer: PollAnswerLike): string {
   if (answer.text !== null && answer.text.length > 0) {
@@ -94,11 +101,8 @@ function describeAnswer(answer: PollAnswerLike): string {
  * miss entirely).
  */
 export function describePoll(message: Message): string {
-  // The cast widens, not narrows: discord.js declares `poll` as `Poll | null`
-  // (never undefined), but a partial-shaped message can omit the field
-  // entirely — same reason collectionValues tolerates an absent Collection.
-  const poll = message.poll as Message['poll'] | undefined;
-  if (poll === null || poll === undefined) {
+  const poll = pollOf(message);
+  if (poll === null) {
     return '';
   }
   const question =
@@ -116,6 +120,24 @@ export function describePoll(message: Message): string {
  */
 export function describeStickersAndPoll(message: Message): string[] {
   return [describeStickers(message), describePoll(message)].filter(part => part.length > 0);
+}
+
+/**
+ * Whether the message carries either shape — i.e. whether
+ * {@link describeStickersAndPoll} would produce anything.
+ *
+ * `hasMessageContent` needs this WITHOUT building the description strings: it
+ * runs as a pre-filter over every message in a fetched batch, and a message it
+ * rejects never reaches the renderers at all. The two must agree exactly or a
+ * message gets filtered out as empty and then would have rendered content —
+ * a `describeStickersAndPoll`-vs-this equivalence test pins that.
+ */
+export function hasStickerOrPoll(message: Message): boolean {
+  const ownStickers = collectionValues<Sticker>(message.stickers).length > 0;
+  const snapshotStickers = collectionValues<MessageSnapshot>(message.messageSnapshots).some(
+    snapshot => collectionValues<Sticker>(snapshot.stickers).length > 0
+  );
+  return ownStickers || snapshotStickers || pollOf(message) !== null;
 }
 
 /**

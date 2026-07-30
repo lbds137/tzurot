@@ -29,7 +29,7 @@ import { createLogger } from '@tzurot/common-types/utils/logger';
 import { extractAttachments } from './attachmentExtractor.js';
 import { extractEmbedImages } from './embedImageExtractor.js';
 import { EmbedParser } from './EmbedParser.js';
-import { describeStickersAndPoll } from './stickerPollDescriptions.js';
+import { describeStickersAndPoll, hasStickerOrPoll } from './stickerPollDescriptions.js';
 import {
   isForwardedMessage,
   hasForwardedSnapshots,
@@ -385,6 +385,11 @@ export function hasMessageContent(message: Message): boolean {
     message.attachments.size > 0 ||
     (message.embeds !== undefined && message.embeds.length > 0) ||
     (message.messageSnapshots !== undefined && message.messageSnapshots.size > 0) ||
-    isForwardedMessage(message)
+    isForwardedMessage(message) ||
+    // Stickers and polls ARE the content of a message that carries nothing
+    // else. This predicate runs as the extended-context pre-filter, BEFORE
+    // buildMessageContent, so omitting them here drops the message before it
+    // can ever be described — the earlier of the two gates wins.
+    hasStickerOrPoll(message)
   );
 }
