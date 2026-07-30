@@ -162,10 +162,11 @@ export function createPrismaClient(opts?: CreatePrismaClientOptions): PrismaClie
  */
 export async function verifyPoolTimeouts(
   prisma: PrismaClient,
-  expected: { statementTimeoutMs: number; lockTimeoutMs: number }
+  expected: { statementTimeoutMs: number; lockTimeoutMs: number; idleInTxTimeoutMs: number }
 ): Promise<void> {
   const rows = await prisma.$queryRaw<{ name: string; setting: string }[]>`
-    SELECT name, setting FROM pg_settings WHERE name IN ('statement_timeout', 'lock_timeout')
+    SELECT name, setting FROM pg_settings
+    WHERE name IN ('statement_timeout', 'lock_timeout', 'idle_in_transaction_session_timeout')
   `;
   const got: Record<string, number> = {};
   for (const row of rows) {
@@ -173,11 +174,13 @@ export async function verifyPoolTimeouts(
   }
   if (
     got.statement_timeout !== expected.statementTimeoutMs ||
-    got.lock_timeout !== expected.lockTimeoutMs
+    got.lock_timeout !== expected.lockTimeoutMs ||
+    got.idle_in_transaction_session_timeout !== expected.idleInTxTimeoutMs
   ) {
     throw new Error(
       `Fast-pool DB timeouts did not apply: expected statement_timeout=` +
-        `${expected.statementTimeoutMs}ms, lock_timeout=${expected.lockTimeoutMs}ms; got ` +
+        `${expected.statementTimeoutMs}ms, lock_timeout=${expected.lockTimeoutMs}ms, ` +
+        `idle_in_transaction_session_timeout=${expected.idleInTxTimeoutMs}ms; got ` +
         `${JSON.stringify(got)}. The Postgres 'options' startup string was likely stripped ` +
         `(connection pooler?) — fix before serving traffic.`
     );

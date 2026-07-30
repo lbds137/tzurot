@@ -226,6 +226,20 @@ describe('POST /internal/conversation/user-message', () => {
     );
   });
 
+  it('self-labels the dead-conn class at the handler level (client-side timeout, no sqlstate)', async () => {
+    mockPrisma.conversationHistory.create.mockRejectedValue(new Error('Query read timeout'));
+
+    const response = await request(app)
+      .post('/internal/conversation/user-message')
+      .send(VALID_BODY);
+
+    expect(response.status).toBe(500);
+    expect(mockLogger.error).toHaveBeenCalledWith(
+      expect.objectContaining({ label: 'query-timeout-or-dead-conn' }),
+      expect.stringContaining('DB timeout')
+    );
+  });
+
   it('self-labels a fast-pool timeout on the existence-check read (symmetric with the write path)', async () => {
     mockPrisma.conversationHistory.findUnique.mockRejectedValue(
       Object.assign(new Error('canceling statement due to statement timeout'), { code: '57014' })

@@ -157,14 +157,15 @@ describe('verifyPoolTimeouts', () => {
   const fakePrisma = (rows: { name: string; setting: string }[]): PrismaClient =>
     ({ $queryRaw: vi.fn().mockResolvedValue(rows) }) as unknown as PrismaClient;
 
-  it('resolves when statement_timeout + lock_timeout match the expected ms', async () => {
+  it('resolves when all three GUCs match the expected ms', async () => {
     await expect(
       verifyPoolTimeouts(
         fakePrisma([
           { name: 'statement_timeout', setting: '5000' },
           { name: 'lock_timeout', setting: '2000' },
+          { name: 'idle_in_transaction_session_timeout', setting: '5000' },
         ]),
-        { statementTimeoutMs: 5000, lockTimeoutMs: 2000 }
+        { statementTimeoutMs: 5000, lockTimeoutMs: 2000, idleInTxTimeoutMs: 5000 }
       )
     ).resolves.toBeUndefined();
   });
@@ -175,8 +176,22 @@ describe('verifyPoolTimeouts', () => {
         fakePrisma([
           { name: 'statement_timeout', setting: '0' },
           { name: 'lock_timeout', setting: '0' },
+          { name: 'idle_in_transaction_session_timeout', setting: '0' },
         ]),
-        { statementTimeoutMs: 5000, lockTimeoutMs: 2000 }
+        { statementTimeoutMs: 5000, lockTimeoutMs: 2000, idleInTxTimeoutMs: 5000 }
+      )
+    ).rejects.toThrow(/did not apply/);
+  });
+
+  it('throws when ONLY idle_in_transaction_session_timeout diverges', async () => {
+    await expect(
+      verifyPoolTimeouts(
+        fakePrisma([
+          { name: 'statement_timeout', setting: '5000' },
+          { name: 'lock_timeout', setting: '2000' },
+          { name: 'idle_in_transaction_session_timeout', setting: '0' },
+        ]),
+        { statementTimeoutMs: 5000, lockTimeoutMs: 2000, idleInTxTimeoutMs: 5000 }
       )
     ).rejects.toThrow(/did not apply/);
   });

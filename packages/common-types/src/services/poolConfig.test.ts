@@ -147,6 +147,7 @@ describe('fastPoolConnectionOptions', () => {
     const cfg = fastPoolConnectionOptions({});
     expect(cfg.statementTimeoutMs).toBe(FAST_POOL_DEFAULTS.STATEMENT_TIMEOUT_MS);
     expect(cfg.lockTimeoutMs).toBe(FAST_POOL_DEFAULTS.LOCK_TIMEOUT_MS);
+    expect(cfg.idleInTxTimeoutMs).toBe(FAST_POOL_DEFAULTS.IDLE_IN_TX_TIMEOUT_MS);
     // Ladder invariant: lock < statement < query so exactly one fires first.
     expect(cfg.lockTimeoutMs).toBeLessThan(cfg.statementTimeoutMs);
     expect(cfg.statementTimeoutMs).toBeLessThan(cfg.poolOverrides.query_timeout);
