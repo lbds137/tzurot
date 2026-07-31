@@ -428,6 +428,21 @@ The answer is 42.`;
       expect(result.visibleContent).toBe('before the answer.');
     });
 
+    it('preserves a quoted tag at the very start of the response', () => {
+      // Boundary the table fixtures do not reach: they always put prose before
+      // the quote, so the tag never lands near offset 0 — which is where the
+      // code-span scan's own early return lives. Here the backtick occupies
+      // offset 0 and the tag starts at 1, so the head anchor sees a backtick
+      // where it requires `<` and declines, and the scan still reports quoted.
+      const opening = '`<think>` is what the model emits before answering.';
+      expect(extractThinkingBlocks(opening).visibleContent).toBe(opening);
+      expect(extractThinkingBlocks(opening).thinkingContent).toBeNull();
+
+      const closing = '`</think>` is the terminator it writes afterwards.';
+      expect(extractThinkingBlocks(closing).visibleContent).toBe(closing);
+      expect(extractThinkingBlocks(closing).thinkingContent).toBeNull();
+    });
+
     it('preserves a quoted stutter-shaped fragment at the start of a line', () => {
       // The chimera-artifact cleanup eats a whole `token. </tag>` fragment and
       // runs before the orphan pass, so without its own gate it corrupts the
