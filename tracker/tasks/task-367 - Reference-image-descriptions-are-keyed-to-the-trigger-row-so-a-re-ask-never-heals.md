@@ -70,10 +70,72 @@ for reply references until this task lands. The user-visible fix for the owner's
 workflow is the LIVE path, which renders from preprocessing and works today.
 
 **Consequence for this task's fix shape:** "re-key persistence" understates the
-work — the durable store has to be built, not moved. That points at the same
-artifact doc-55 PR-2 already proposed for stickers: a table keyed by the ASSET
-(attachment/sticker identity), not by any conversation row. One store, both
-consumers, cross-trigger reuse for free. **Worth an owner call before building**
-— it is a schema addition and the convergence with doc-55 PR-2 is a design
-decision, not a technical detail.
+work — the durable store has to be built, not moved.
+
+## COUNCIL 2026-07-30 — the asset table was PROPOSED, SPLIT, and REJECTED
+
+My first read pointed at an asset-keyed table converged with doc-55 PR-2's
+sticker table. Councilled, it split 2-1 FOR that table (GLM 5.2, Qwen 3.7 Max)
+against Kimi K3, who argued the durable store already exists — **the history
+row** — and that the write was abandoned mid-relocation. Tiebreaker (Gemini 3.1
+Pro, both positions verbatim) backed Kimi **decisively**. Resolved on merit, not
+vote count, because two verified facts post-dated the split:
+
+1. **The table does not remove this task; it is strictly additive.** Both
+   majority designs assume a hydrator reads the table at replay — but
+   `hydrateStoredReferences` iterates `messageMetadata.referencedMessages` to
+   learn WHICH references exist. The table would supply descriptions and not the
+   reference's existence, author, timestamp, or text. Gemini: *"Position A is not
+   an alternative solution; it is strictly additive work that fails to solve the
+   core architectural disconnect."*
+2. **Qwen's economic case does not hold as stated.** On replay there is no vision
+   job: the hydrator reads the 1h Redis canonical and, on miss, renders a bare
+   marker. Expiry causes DEGRADATION, not re-payment. Re-payment needs a NEW
+   reply to the SAME image later — common for stickers (globally shared),
+   uncommon for attachments (one message). That asymmetry is exactly why doc-55's
+   sticker table earns its keep and an attachment table does not.
+
+**THE FIX (accepted): complete the abandoned relocation.** The worker persists
+the references it built — descriptions inline in
+`messageMetadata.referencedMessages[].resolvedImageDescriptions` — into the
+history row. `persistReferenceDescriptions` stops being read-back-and-patch and
+becomes write-what-you-built, so **the same function builds what is rendered and
+what is stored and the two cannot drift**. That property, not any test, is what
+kills the class.
+
+Why this shape wins on the beta.110 lesson specifically: durability makes three
+things permanent, not one — persisted failures, unstable keys, and absent
+lifecycle. Inline persistence has **no key dimension at all** (no derivation at
+replay, no urlHash fallback, no miss mode; absence means "never computed," which
+is retryable, never "lookup failed") and **inherits retention for free**
+(description lifetime = history lifetime; an asset table would keep describing
+deleted images forever and need a sweep nobody has written).
+
+Share with doc-55 PR-2 **policy, not schema** — successes-only, tier promotion,
+`deriveAttachmentCacheKey`. Precedent: the vision and voice caches already share
+key derivation and nothing else. doc-55 PR-2 ships unchanged, on its own terms.
+
+**Accepted cost:** descriptions freeze at the model that produced them; a better
+vision model later does not upgrade old rows. Replay needs a quality floor, not
+a ceiling.
+
+**Revisit condition (Gemini, verbatim in spirit):** if telemetry shows a high
+volume of NEW replies to OLD (>1h) attachments — continuous canonical-cache
+misses re-paying vision on the live path — the low-reuse assumption is falsified
+and a snowflake-keyed table becomes worth building purely as cost dedup.
+
+**Sequencing: TASK-365 FIRST, then this.** Persisting before the projection
+refactor would persist a shape 365 is about to replace.
+
+**Test shape this task needs (Kimi):** a ROUND-TRIP test — save → replay →
+sentinel appears. Field-parity tests structurally cannot catch "nothing writes
+this field," which is exactly how this went unnoticed; only a round-trip can.
+Given prod-as-soak and a currently-inert stored path, that test is the only
+coverage this path will ever get.
+
+**Also fixed by construction here:** the stored path has no persisted
+voice-transcript field (`storedReferencedMessageSchema` carries
+`resolvedImageDescriptions` only), so a stored reference's transcript never
+survives replay. Writing the built reference resolves this the same way it
+resolves images. Surfaced by #1877's round-2 review.
 <!-- SECTION:DESCRIPTION:END -->
