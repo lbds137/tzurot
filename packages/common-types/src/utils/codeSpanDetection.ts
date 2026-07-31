@@ -17,6 +17,16 @@
  * mention is genuinely ambiguous and this predicate will report `false` for it;
  * callers that need to handle that case need a second discriminator (position,
  * for instance).
+ *
+ * Known simplification: fence detection is position-agnostic. Real Markdown
+ * fences are line-anchored, but any literal triple backtick toggles state here,
+ * so a reply using ``` inline ("she typed ``` by mistake") flips the scan into
+ * fence mode for the rest of the string. That is tolerable because it fails
+ * toward preserving content: an over-eager fence makes callers decline to
+ * extract, and the worst outcome is reasoning that stays visible rather than a
+ * reply that loses text. Line-anchoring it would be stricter and is fine to add
+ * — but only with a caller that needs the precision, since the loose form has
+ * the safer failure direction.
  */
 
 /**
