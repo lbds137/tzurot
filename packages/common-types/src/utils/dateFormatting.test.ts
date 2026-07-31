@@ -5,7 +5,6 @@ import {
   formatRelativeTime,
   formatMemoryTimestamp,
   formatRelativeTimeDelta,
-  formatTimestampWithDelta,
   formatPromptTimestamp,
   formatDateShort,
   formatDateTimeCompact,
@@ -201,41 +200,6 @@ describe('dateFormatting', () => {
 
     it('should return empty string for invalid date', () => {
       expect(formatRelativeTimeDelta('not-a-date')).toBe('');
-    });
-  });
-
-  describe('formatTimestampWithDelta', () => {
-    beforeEach(() => {
-      vi.useFakeTimers();
-      vi.setSystemTime(new Date('2025-01-27T12:00:00Z'));
-    });
-
-    afterEach(() => {
-      vi.useRealTimers();
-    });
-
-    it('should return both absolute and relative formats', () => {
-      const date = new Date('2025-01-13T12:00:00Z'); // 14 days ago
-      const result = formatTimestampWithDelta(date, 'UTC');
-
-      expect(result.absolute).toBe('Mon, Jan 13, 2025');
-      expect(result.relative).toBe('2 weeks ago');
-    });
-
-    it('should handle recent timestamps', () => {
-      const date = new Date('2025-01-27T11:55:00Z'); // 5 minutes ago
-      const result = formatTimestampWithDelta(date, 'UTC');
-
-      expect(result.absolute).toBe('Mon, Jan 27, 2025');
-      expect(result.relative).toBe('5 minutes ago');
-    });
-
-    it('should handle old timestamps', () => {
-      const date = new Date('2024-01-27T12:00:00Z'); // 1 year ago
-      const result = formatTimestampWithDelta(date, 'UTC');
-
-      expect(result.absolute).toBe('Sat, Jan 27, 2024');
-      expect(result.relative).toBe('1 year ago');
     });
   });
 

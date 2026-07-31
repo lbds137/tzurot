@@ -8,45 +8,27 @@
 
 import { type StoredReferencedMessage } from '@tzurot/common-types/types/schemas/message';
 import { formatPromptTimestamp } from '@tzurot/common-types/utils/dateFormatting';
-import { renderAttachment } from '../../services/prompt/QuoteFormatter.js';
+import { renderReference } from '../../services/prompt/RenderableReference.js';
 import type { RawHistoryEntry } from './conversationTypes.js';
 import { resolveSpeakerInfo, type ChatLogRole } from './participantUtils.js';
-import { buildStoredAttachments } from './xmlMetadataFormatters.js';
+import { fromStoredReference } from './xmlMetadataFormatters.js';
 
 /**
- * Estimate character length for a stored reference
+ * Character length of a stored reference, measured by rendering it.
+ *
+ * Not an approximation of the renderer — the renderer. The hand-written
+ * estimate this replaced was wrong in every direction at once: it invented
+ * attribute names the emitter never used (`author=`, `location=`), it added a
+ * phantom ` forwarded="true"` for forwards while the emitter writes
+ * `type="forward"`, and it could only drift further as the renderer moved.
+ *
+ * Deliberately measures the FULL render even for a reference the prompt will
+ * dedupe: this estimator has no view of the history-id set that decides that,
+ * so it over-estimates rather than guessing — the conservative direction for a
+ * budget.
  */
-function estimateReferenceLength(ref: StoredReferencedMessage): number {
-  const authorName = ref.authorDisplayName || ref.authorUsername;
-  let length =
-    `<quote number="1" author="${authorName}" location="${ref.locationContext}">\n${ref.content}\n</quote>`
-      .length;
-
-  if (ref.embeds !== undefined && ref.embeds.length > 0) {
-    length += `\n<embeds>${ref.embeds}</embeds>`.length;
-  }
-
-  const attachments = buildStoredAttachments(ref);
-  if (attachments.length > 0) {
-    // Measured through the REAL producer/renderer pair rather than a local
-    // approximation of them. The marker-string estimate this replaced was wrong
-    // in three compounding ways: it omitted a persisted description entirely
-    // (the largest single term in a reference's cost), it rendered every
-    // attachment image-shaped regardless of modality, and it could only ever
-    // drift further as the renderer moved.
-    //
-    // This is the shape the rest of the estimator still needs (see TASK-370):
-    // the surrounding <quote> estimate below is still a hand-written
-    // approximation and still disagrees with the renderer on attribute names.
-    length += `\n<attachments>\n${attachments.map(renderAttachment).join('\n')}\n</attachments>`
-      .length;
-  }
-
-  if (ref.isForwarded === true) {
-    length += ' forwarded="true"'.length;
-  }
-
-  return length;
+function estimateReferenceLength(ref: StoredReferencedMessage, personalityName: string): number {
+  return renderReference(fromStoredReference(ref, personalityName)).length;
 }
 
 /**
@@ -81,7 +63,10 @@ function resolveSpeakerForEstimation(
 /**
  * Estimate length for referenced messages section
  */
-function estimateReferencedMessagesLength(refs: StoredReferencedMessage[]): number {
+function estimateReferencedMessagesLength(
+  refs: StoredReferencedMessage[],
+  personalityName: string
+): number {
   if (refs.length === 0) {
     return 0;
   }
@@ -91,7 +76,7 @@ function estimateReferencedMessagesLength(refs: StoredReferencedMessage[]): numb
 
   // Add length for each reference
   for (const ref of refs) {
-    length += estimateReferenceLength(ref) + 1; // +1 for newline
+    length += estimateReferenceLength(ref, personalityName) + 1; // +1 for newline
   }
 
   return length;
@@ -244,7 +229,7 @@ export function getFormattedMessageCharLength(
   const metadata = msg.messageMetadata;
   if (metadata !== undefined) {
     if (isUser && metadata.referencedMessages !== undefined) {
-      totalLength += estimateReferencedMessagesLength(metadata.referencedMessages);
+      totalLength += estimateReferencedMessagesLength(metadata.referencedMessages, personalityName);
     }
     totalLength += estimateImageDescriptionsLength(metadata.imageDescriptions);
     totalLength += estimateEmbedsLength(metadata.embedsXml);

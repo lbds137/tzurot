@@ -9,11 +9,11 @@ import { type ReferencedMessage } from '@tzurot/common-types/types/schemas/messa
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 
 // Use vi.hoisted() to create mocks that persist across test resets
-const { mockDescribeImage, mockTranscribeAudio, mockFormatTimestampWithDelta, mockLogger } =
+const { mockDescribeImage, mockTranscribeAudio, mockFormatPromptTimestamp, mockLogger } =
   vi.hoisted(() => ({
     mockDescribeImage: vi.fn(),
     mockTranscribeAudio: vi.fn(),
-    mockFormatTimestampWithDelta: vi.fn(),
+    mockFormatPromptTimestamp: vi.fn(),
     mockLogger: { info: vi.fn(), debug: vi.fn(), warn: vi.fn(), error: vi.fn() },
   }));
 
@@ -30,14 +30,14 @@ vi.mock('@tzurot/common-types/utils/logger', async () => {
   return { ...actual, createLogger: () => mockLogger };
 });
 
-// Mock formatTimestampWithDelta for consistent test output
+// Mock formatPromptTimestamp for consistent test output
 vi.mock('@tzurot/common-types/utils/dateFormatting', async () => {
   const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/dateFormatting')>(
     '@tzurot/common-types/utils/dateFormatting'
   );
   return {
     ...actual,
-    formatTimestampWithDelta: mockFormatTimestampWithDelta,
+    formatPromptTimestamp: mockFormatPromptTimestamp,
   };
 });
 
@@ -49,10 +49,7 @@ describe('ReferencedMessageFormatter', () => {
     vi.clearAllMocks();
 
     // Restore default mock implementations after mockReset clears them
-    mockFormatTimestampWithDelta.mockReturnValue({
-      absolute: 'Fri, Dec 6, 2025',
-      relative: 'just now',
-    });
+    mockFormatPromptTimestamp.mockReturnValue('2025-12-06 (Fri) 00:00 • just now');
 
     formatter = new ReferencedMessageFormatter();
     mockPersonality = {
@@ -202,8 +199,12 @@ describe('ReferencedMessageFormatter', () => {
         mockPersonality
       );
 
-      // Should contain time tag with absolute and relative attributes
-      expect(result).toContain('<time absolute="Fri, Dec 6, 2025" relative="just now"/>');
+      // One timestamp format across every quote path: the t attribute, built by
+      // the same helper <message> uses in <chat_log>. The live paths used to
+      // render a <time absolute relative/> child instead, so the same quote
+      // carried its timestamp two different ways depending on its source.
+      expect(result).toContain('t="2025-12-06 (Fri) 00:00 • just now"');
+      expect(result).not.toContain('<time');
     });
   });
 
@@ -230,7 +231,7 @@ describe('ReferencedMessageFormatter', () => {
       );
 
       expect(result).toContain(
-        '<quote number="1" from="Test User" username="testuser" role="user">'
+        '<quote number="1" from="Test User" username="testuser" role="user"'
       );
       expect(result).toContain('</quote>');
       // Location is now pre-formatted XML from bot-client (DRY with current message context)
@@ -238,7 +239,7 @@ describe('ReferencedMessageFormatter', () => {
       expect(result).toContain('<server name="Test Guild"/>');
       expect(result).toContain('<channel name="general" type="text"/>');
       // Time now includes both absolute date and relative time (mocked)
-      expect(result).toContain('<time absolute="Fri, Dec 6, 2025" relative="just now"/>');
+      expect(result).toContain('t="2025-12-06 (Fri) 00:00 • just now"');
       expect(result).toContain('<content>Hello world!</content>');
     });
 
@@ -291,7 +292,7 @@ describe('ReferencedMessageFormatter', () => {
       );
 
       expect(result).toContain(
-        '<quote number="1" from="Test User" username="testuser" role="user">'
+        '<quote number="1" from="Test User" username="testuser" role="user"'
       );
       // Empty content should not generate <content> tag
       expect(result).not.toContain('<content>');
@@ -329,10 +330,10 @@ describe('ReferencedMessageFormatter', () => {
         mockPersonality
       );
 
-      expect(result).toContain('<quote number="1" from="User One" username="user1" role="user">');
+      expect(result).toContain('<quote number="1" from="User One" username="user1" role="user"');
       expect(result).toContain('First message');
 
-      expect(result).toContain('<quote number="2" from="User Two" username="user2" role="user">');
+      expect(result).toContain('<quote number="2" from="User Two" username="user2" role="user"');
       expect(result).toContain('Second message');
     });
 
@@ -360,9 +361,7 @@ describe('ReferencedMessageFormatter', () => {
         mockPersonality
       );
 
-      expect(result).toContain(
-        '<quote number="1" from="Test Bot" username="Test Bot" role="assistant">'
-      );
+      expect(result).toContain('<quote number="1" from="Test Bot" role="assistant"');
       expect(result).toContain('<content>Something I said earlier</content>');
     });
 
@@ -395,9 +394,7 @@ describe('ReferencedMessageFormatter', () => {
         { allPersonalityNames: new Set(['Ha-Shem', 'Test Bot']) }
       );
 
-      expect(result).toContain(
-        '<quote number="1" from="Ha-Shem" username="Ha-Shem" role="character">'
-      );
+      expect(result).toContain('<quote number="1" from="Ha-Shem" role="character"');
       // The legend text mentions role="assistant"; assert on the quote attribute shape.
       expect(result).not.toContain('from="Ha-Shem" username="Ha-Shem" role="assistant"');
     });
@@ -426,7 +423,7 @@ describe('ReferencedMessageFormatter', () => {
         mockPersonality
       );
 
-      expect(result).toContain('<quote number="1" from="SomeBot" username="SomeBot" role="bot">');
+      expect(result).toContain('<quote number="1" from="SomeBot" role="bot"');
     });
 
     it('falls back to role="user" when authorRole is absent and the author is not a persona', async () => {
@@ -453,7 +450,7 @@ describe('ReferencedMessageFormatter', () => {
         mockPersonality
       );
 
-      expect(result).toContain('<quote number="1" from="Someone" username="someone" role="user">');
+      expect(result).toContain('<quote number="1" from="Someone" username="someone" role="user"');
     });
 
     it('falls back to role="assistant" when authorRole is absent but the author matches the active personality', async () => {
@@ -508,7 +505,7 @@ describe('ReferencedMessageFormatter', () => {
         mockPersonality
       );
 
-      expect(result).toContain('<quote number="1" from="Alice" username="alice123" role="user">');
+      expect(result).toContain('<quote number="1" from="Alice" username="alice123" role="user"');
       expect(result).toContain('[Referenced message — full text in the chat log]');
       expect(result).toContain('Some truncated content...');
       expect(result).toContain('</quote>');
@@ -562,9 +559,7 @@ describe('ReferencedMessageFormatter', () => {
         references,
         mockPersonality
       );
-      expect(result).toContain(
-        '<quote number="1" from="Test Bot" username="Test Bot" role="assistant">'
-      );
+      expect(result).toContain('<quote number="1" from="Test Bot" role="assistant"');
       expect(result).toContain('[Referenced message — full text in the chat log]');
     });
 
@@ -589,7 +584,7 @@ describe('ReferencedMessageFormatter', () => {
         references,
         mockPersonality
       );
-      expect(result).toContain('<quote number="1" from="SomeBot" username="SomeBot" role="bot">');
+      expect(result).toContain('<quote number="1" from="SomeBot" role="bot"');
     });
 
     it('should not process attachments for deduped stubs', async () => {
@@ -644,7 +639,7 @@ describe('ReferencedMessageFormatter', () => {
         mockPersonality
       );
 
-      expect(result).toContain('<time absolute="Fri, Dec 6, 2025" relative="just now"/>');
+      expect(result).toContain('t="2025-12-06 (Fri) 00:00 • just now"');
     });
   });
 
@@ -1070,7 +1065,7 @@ describe('ReferencedMessageFormatter', () => {
       );
 
       expect(result).toContain(
-        '<quote number="1" from="Test User" username="testuser" role="user">'
+        '<quote number="1" from="Test User" username="testuser" role="user"'
       );
       expect(result).toContain('Just text');
       expect(result).not.toContain('<attachments>');
@@ -1098,7 +1093,7 @@ describe('ReferencedMessageFormatter', () => {
       );
 
       expect(result).toContain(
-        '<quote number="1" from="Test User" username="testuser" role="user">'
+        '<quote number="1" from="Test User" username="testuser" role="user"'
       );
       expect(result).toContain('Just text');
       expect(result).not.toContain('<attachments>');
@@ -1125,10 +1120,17 @@ describe('ReferencedMessageFormatter', () => {
         mockPersonality
       );
 
-      // Forwarded messages use shared QuoteFormatter format
-      expect(result).toContain('<quote type="forward" from="Unknown">');
+      // A forwarded reference is now rendered by the SAME renderer as any
+      // other, with forwarding as a field on it. It therefore keeps its
+      // reference number, role and location, all of which the old
+      // forwarded-only wrapper dropped — and `from` is the author the
+      // reference actually carries ('Unknown User', because Discord strips
+      // author identity from message snapshots) rather than a literal the
+      // wrapper hardcoded because it had nothing to render.
+      expect(result).toContain('<quote number="1" type="forward" from="Unknown User" role="user"');
       expect(result).not.toContain('forwarded="true"');
       expect(result).toContain('<content>This is a forwarded message</content>');
+      expect(result).toContain('(forwarded message)');
     });
 
     it('should format regular (non-forwarded) messages without forwarded attribute', async () => {
@@ -1155,7 +1157,7 @@ describe('ReferencedMessageFormatter', () => {
 
       // Should NOT have forwarded attribute
       expect(result).toContain(
-        '<quote number="1" from="Test User" username="testuser" role="user">'
+        '<quote number="1" from="Test User" username="testuser" role="user"'
       );
       expect(result).not.toContain('forwarded="true"');
       expect(result).not.toContain('type="forward"');
@@ -1196,11 +1198,11 @@ describe('ReferencedMessageFormatter', () => {
 
       // First reference - regular
       expect(result).toContain(
-        '<quote number="1" from="Test User" username="testuser" role="user">'
+        '<quote number="1" from="Test User" username="testuser" role="user"'
       );
 
-      // Second reference - forwarded (uses shared QuoteFormatter format)
-      expect(result).toContain('<quote type="forward" from="Unknown">');
+      // Second reference - forwarded, and now numbered like every other quote
+      expect(result).toContain('<quote number="2" type="forward" from="Unknown User" role="user"');
       expect(result).toContain('<content>Forwarded message</content>');
     });
   });

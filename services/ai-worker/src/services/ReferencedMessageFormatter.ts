@@ -12,17 +12,20 @@ import { AttachmentType } from '@tzurot/common-types/constants/media';
 import { type ReferencedMessage } from '@tzurot/common-types/types/schemas/message';
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import { type SttDispatch } from '@tzurot/common-types/types/sttProvider';
-import { formatTimestampWithDelta } from '@tzurot/common-types/utils/dateFormatting';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { ProcessedAttachment } from './MultimodalProcessor.js';
 import {
-  formatQuoteElement,
-  formatForwardedQuote,
-  formatDedupedQuote,
   attachmentEnrichment,
-  type ForwardedMessageContent,
+  buildRenderableAttachments,
   type RenderableAttachment,
 } from './prompt/QuoteFormatter.js';
+import {
+  dedupeReference,
+  promptTime,
+  referenceSearchText,
+  renderReference,
+  type RenderableReference,
+} from './prompt/RenderableReference.js';
 import { deriveRefRole } from './prompt/referenceRole.js';
 import { processAttachmentsParallel } from './AttachmentProcessor.js';
 import { extractXmlTextContent } from '../utils/xmlTextExtractor.js';
@@ -70,57 +73,50 @@ export interface FormattedReferences {
   searchText: string;
 }
 
-/** The renderable enrichment children a reference's preprocessed results yield. */
-interface SplitEnrichment {
-  attachments: RenderableAttachment[];
-  /**
-   * Entries that CARRY something worth rendering (non-empty description).
-   * The tripwire's denominator is this rather than the raw entry count: a
-   * successful-but-empty transcription (a silent audio clip) has nothing to
-   * render and is not a drop, and counting it as one would warn on every
-   * occurrence of ordinary traffic.
-   */
-  renderable: number;
-  /** Of those, how many actually produced a rendered child. */
-  rendered: number;
-}
-
 /**
- * Split already-preprocessed reference attachments into renderable children.
+ * Build a deduped reference's attachments from enrichment the dependency stage
+ * already produced.
  *
- * This is the READ side only — every result here was produced (and paid for) by
- * the dependency-job stage; nothing new is computed, so a deduped stub still
- * triggers zero vision/STT calls.
+ * READ side only — every description here was computed (and paid for) upstream,
+ * so a deduped stub still triggers zero vision/STT calls. That is the whole
+ * reason this exists instead of `processAttachmentsParallel`, which computes
+ * what it cannot find.
  *
- * The deduped branch needs its own splitter rather than reusing
- * `processAttachmentsParallel`: that helper walks `ref.attachments` and looks
- * preprocessing up by URL, and `buildDedupedReferenceStub` strips `attachments`
- * from the stub, so it would find nothing to walk. The preprocessed entries
- * carry their own metadata and are self-sufficient. Discriminating on
- * `ProcessedAttachment.type` (not `metadata.contentType`) is deliberate — the
- * dependency step synthesizes metadata with a placeholder `image/unknown` /
- * `audio/unknown` content type, so a content-type test would misroute audio.
+ * Correlation is by URL. Discriminating a preprocessed entry by
+ * `ProcessedAttachment.type` rather than `metadata.contentType` is deliberate —
+ * the dependency step synthesizes a placeholder `image/unknown` / `audio/unknown`
+ * content type, so a content-type test would misroute audio. The rendered
+ * `type` attribute comes from the reference's OWN attachment list, which
+ * carries the real one.
  */
-function splitPreprocessedEnrichment(
+function buildDedupedAttachments(
+  ref: ReferencedMessage,
   preprocessed: ProcessedAttachment[] | undefined
-): SplitEnrichment {
-  if (preprocessed === undefined || preprocessed.length === 0) {
-    return { attachments: [], renderable: 0, rendered: 0 };
-  }
+): RenderableAttachment[] {
+  const results = preprocessed ?? [];
+  const matched = new Set<ProcessedAttachment>();
 
-  const attachments: RenderableAttachment[] = [];
-  let renderable = 0;
-  for (const entry of preprocessed) {
-    if (entry.description.length === 0) {
-      // Nothing to render and nothing lost — a silent audio clip transcribes to
-      // '' on SUCCESS. Not counted as renderable, so it never trips the drop warn.
+  const attachments = buildRenderableAttachments(ref.attachments ?? [], att => {
+    const hit = results.find(entry => entry.originalUrl === att.url);
+    if (hit === undefined || hit.description.length === 0) {
+      return undefined;
+    }
+    matched.add(hit);
+    return hit.description;
+  });
+
+  // Enrichment whose attachment row is missing still renders. A description is
+  // paid-for work; dropping one because the correlation missed is exactly the
+  // class this module exists to close. Modality comes from the entry's own
+  // `type`; the content type does not, per the note above.
+  //
+  // Any OTHER modality is deliberately left unrendered and stays counted, so
+  // the drop tripwire fires: silently downgrading an unknown type to a bare
+  // image would misdescribe it AND discard the description.
+  for (const entry of results) {
+    if (matched.has(entry) || entry.description.length === 0) {
       continue;
     }
-    renderable++;
-    // `name` is optional on AttachmentMetadata; the dependency step derives it
-    // from the URL basename, so undefined means a synthesized attachment with no
-    // filename at all. Left undefined rather than defaulted — the attribute is
-    // omitted instead of carrying an invented name.
     if (entry.type === AttachmentType.Image) {
       attachments.push({
         kind: 'image',
@@ -131,35 +127,32 @@ function splitPreprocessedEnrichment(
       attachments.push({
         kind: 'voice',
         filename: entry.metadata.name,
-        // Duration only — deliberately NOT contentType. Per the note above, the
-        // dependency step synthesizes `audio/unknown` here, so forwarding it
-        // would render a `type` attribute that is a placeholder dressed as fact.
         durationSeconds: entry.metadata.duration,
         description: entry.description,
       });
     }
-    // Any other type falls through UNRENDERED and stays counted in `renderable`,
-    // so the drop tripwire below fires. That is deliberate: silently downgrading
-    // an unknown modality to a bare <file/> would discard the description this
-    // function exists to carry, which is the exact class the tripwire watches.
   }
 
-  return { attachments, renderable, rendered: attachments.length };
+  return attachments;
 }
 
 /**
- * The semantic text an attachment contributes to a retrieval query: its
- * enrichment only.
+ * How much enrichment the dependency stage produced for this reference.
  *
- * Filenames, content types and status markers are deliberately excluded — they
- * are metadata about the file, not about what is IN it, and an embedding query
- * carrying `photo.png` matches on the noise rather than the content. (The
- * previous shape fed the whole rendered line, prefix included, into the query.)
+ * The denominator for the drop tripwire below. Empty descriptions are excluded:
+ * a silent audio clip transcribes to `''` on SUCCESS, so counting it would warn
+ * on ordinary traffic.
  */
-function collectAttachmentText(attachments: RenderableAttachment[]): string[] {
-  return attachments
-    .map(attachmentEnrichment)
-    .filter((desc): desc is string => desc !== undefined && desc.length > 0);
+function countAvailableEnrichment(preprocessed: ProcessedAttachment[] | undefined): number {
+  return (preprocessed ?? []).filter(entry => entry.description.length > 0).length;
+}
+
+/** How much of it survived into the rendered attachments. */
+function countRenderedEnrichment(attachments: RenderableAttachment[]): number {
+  return attachments.filter(att => {
+    const text = attachmentEnrichment(att);
+    return text !== undefined && text.length > 0;
+  }).length;
 }
 
 /**
@@ -178,8 +171,7 @@ export class ReferencedMessageFormatter {
    * @param personality - Personality configuration for vision/transcription models
    * @param isGuestMode - Whether the user is in guest mode (no BYOK API key)
    * @param preprocessedAttachments - Pre-processed attachments keyed by reference number (avoids inline API calls)
-   * @param userApiKey - User's BYOK API key (for BYOK users)
-   * @param sttDispatch - Resolved STT dispatch (provider + matching BYOK key)
+   * @param apiKeys - Vision/STT auth plus the personality-name set for role derivation
    * @returns The prompt XML plus the plain-text search rendering
    */
   async formatReferencedMessages(
@@ -192,79 +184,31 @@ export class ReferencedMessageFormatter {
     const referenceElements: string[] = [];
     const searchParts: string[] = [];
 
-    // Process each reference into XML
     for (const ref of references) {
-      // Deduped stubs: lightweight quote with reply-target note. No NEW
-      // attachment work is done — but media enrichment already computed by the
-      // dependency stage IS rendered here, because <chat_log> carries the
-      // embed/attachment URL and never its description.
-      //
-      // The stub's `content` also carries `[image/png: name]` markers folded in
-      // by `buildDedupedReferenceStub`. That overlap is intentional for now: the
-      // marker is the FALLBACK for an image whose description never arrived, and
-      // the builder can't know whether it will. Filenames match across the two,
-      // so they read as one image, not two. (The stored path in
-      // `xmlMetadataFormatters` drops its markers instead — it can, because it
-      // sees both at once. Collapsing that asymmetry is the projection refactor.)
-      if (ref.isDeduplicated === true) {
-        const { absolute, relative } = formatTimestampWithDelta(ref.timestamp);
-        const preprocessedForRef = preprocessedAttachments?.[ref.referenceNumber];
-        const enrichment = splitPreprocessedEnrichment(preprocessedForRef);
-        this.warnOnDroppedEnrichment(ref.referenceNumber, enrichment);
-        referenceElements.push(
-          formatDedupedQuote({
-            number: ref.referenceNumber,
-            from: ref.authorDisplayName,
-            username: ref.authorUsername,
-            role: deriveRefRole(
-              ref.authorRole,
-              ref.authorDisplayName || ref.authorUsername,
-              personality.displayName,
-              apiKeys?.allPersonalityNames
-            ),
-            timestamp:
-              absolute.length > 0 && relative.length > 0 ? { absolute, relative } : undefined,
-            content: ref.content,
-            attachments: enrichment.attachments,
-          })
-        );
-        // The stub's capped text copy is real signal; the reply-target
-        // marker the quote renderer adds is not, so contribute the raw
-        // content only (empty for a bot's own reply-target). Media
-        // descriptions ride along for the same reason they ride into the
-        // prompt: history has no copy of them to retrieve against.
-        searchParts.push(
-          [ref.content, ...collectAttachmentText(enrichment.attachments)]
-            .filter(part => part.length > 0)
-            .join('\n')
-        );
-        continue;
-      }
-
-      // Forwarded messages use the shared QuoteFormatter for consistency
-      if (ref.isForwarded === true) {
-        const forwarded = await this.formatForwardedReference(
-          ref,
-          personality,
-          isGuestMode,
-          preprocessedAttachments?.[ref.referenceNumber],
-          apiKeys
-        );
-        referenceElements.push(forwarded.element);
-        searchParts.push(forwarded.searchText);
-        continue;
-      }
-
-      // Non-forwarded messages: standard quote format
-      const standard = await this.formatStandardReference(
+      const renderable = await this.fromLiveReference(
         ref,
         personality,
         isGuestMode,
         preprocessedAttachments?.[ref.referenceNumber],
         apiKeys
       );
-      referenceElements.push(standard.element);
-      searchParts.push(standard.searchText);
+
+      // Dedup is a projection of the reference above, never a second build —
+      // so a field this formatter learns to carry reaches the stub for free.
+      referenceElements.push(
+        renderReference(ref.isDeduplicated === true ? dedupeReference(renderable) : renderable)
+      );
+
+      // Search text comes from the PRE-projection reference: the stub's prose
+      // marker and its truncation are prompt-shaping, not semantic content.
+      searchParts.push(
+        referenceSearchText(
+          renderable,
+          ref.embeds !== undefined && ref.embeds.length > 0
+            ? extractXmlTextContent(ref.embeds)
+            : undefined
+        )
+      );
     }
 
     const formattedText = referenceElements.join('\n');
@@ -293,77 +237,24 @@ export class ReferencedMessageFormatter {
   }
 
   /**
-   * Tripwire for the enrichment-drop class: preprocessed results reached this
-   * renderer but produced fewer rendered children than there were results.
+   * Adapt a live reference into the canonical renderable shape.
    *
-   * It exists because the drop it guards was invisible — four vision calls ran,
-   * succeeded, cost 47s, and were discarded with zero log output, so the only
-   * detector in the system was a human noticing the character couldn't see the
-   * images. With the deduped branch rendering them this should never fire; if a
-   * future field goes missing the same way, it says so instead.
+   * The one place the live schema is read. Everything downstream — full,
+   * forwarded, and deduped alike — sees the same object, which is why
+   * forwarding is now an attribute on it rather than a separate render method
+   * that quietly dropped the number, role, username and location.
    */
-  private warnOnDroppedEnrichment(referenceNumber: number, enrichment: SplitEnrichment): void {
-    if (enrichment.renderable > enrichment.rendered) {
-      logger.warn(
-        { referenceNumber, renderable: enrichment.renderable, rendered: enrichment.rendered },
-        '[ReferencedMessageFormatter] Preprocessed reference enrichment was not rendered — ' +
-          'vision/transcription work was paid for and is not reaching the prompt'
-      );
-    }
-  }
-
-  /**
-   * Semantic text of one reference for the retrieval query: message text,
-   * attachment description/transcription lines, and embed text (embeds are
-   * pre-formatted XML, so tag-strip JUST that piece — content only, no
-   * envelope). Location context, timestamps, and role metadata never
-   * belong in an embedding query.
-   */
-  private buildReferenceSearchText(
-    ref: ReferencedMessage,
-    attachments: RenderableAttachment[]
-  ): string {
-    const pieces = [ref.content, ...collectAttachmentText(attachments)];
-    if (ref.embeds !== undefined && ref.embeds.length > 0) {
-      pieces.push(extractXmlTextContent(ref.embeds));
-    }
-    return pieces
-      .map(piece => piece.trim())
-      .filter(piece => piece.length > 0)
-      .join('\n');
-  }
-
-  /**
-   * Format a standard (non-forwarded) reference as XML.
-   */
-  private async formatStandardReference(
+  private async fromLiveReference(
     ref: ReferencedMessage,
     personality: LoadedPersonality,
     isGuestMode: boolean,
-    preprocessedForRef?: ProcessedAttachment[],
+    preprocessedForRef: ProcessedAttachment[] | undefined,
     apiKeys?: ReferenceVisionAuth
-  ): Promise<{ element: string; searchText: string }> {
-    const { userApiKey, sttDispatch, visionProvider, visionModel } = apiKeys ?? {};
-    const { absolute, relative } = formatTimestampWithDelta(ref.timestamp);
-
-    let attachments: RenderableAttachment[] = [];
-    if (ref.attachments && ref.attachments.length > 0) {
-      attachments = await processAttachmentsParallel({
-        attachments: ref.attachments,
-        referenceNumber: ref.referenceNumber,
-        personality,
-        isGuestMode,
-        preprocessedAttachments: preprocessedForRef,
-        userApiKey,
-        sttDispatch,
-        visionProvider,
-        model: visionModel,
-      });
-    }
-
-    const element = formatQuoteElement({
+  ): Promise<RenderableReference> {
+    return {
       number: ref.referenceNumber,
-      from: ref.authorDisplayName,
+      isForwarded: ref.isForwarded,
+      from: ref.authorDisplayName || ref.authorUsername,
       username: ref.authorUsername,
       role: deriveRefRole(
         ref.authorRole,
@@ -371,59 +262,86 @@ export class ReferencedMessageFormatter {
         personality.displayName,
         apiKeys?.allPersonalityNames
       ),
-      timestamp: absolute.length > 0 && relative.length > 0 ? { absolute, relative } : undefined,
-      content: ref.content || undefined,
+      time: promptTime(ref.timestamp),
+      content: ref.content,
       locationContext: ref.locationContext,
-      embedsXml: ref.embeds ? [ref.embeds] : undefined,
-      attachments: attachments.length > 0 ? attachments : undefined,
-    });
-
-    return { element, searchText: this.buildReferenceSearchText(ref, attachments) };
+      embedsXml: ref.embeds !== undefined && ref.embeds.length > 0 ? [ref.embeds] : undefined,
+      attachments: await this.buildAttachments(
+        ref,
+        personality,
+        isGuestMode,
+        preprocessedForRef,
+        apiKeys
+      ),
+    };
   }
 
   /**
-   * Format a forwarded reference using the shared QuoteFormatter.
-   * Ensures consistent XML output between the message link path and chat history path.
+   * A reference's attachments — computed for a full render, read-only for a
+   * deduped one.
+   *
+   * The split is about SPEND, not shape: a stub must not trigger a vision or
+   * transcription call for an attachment whose full copy is already in
+   * <chat_log>. Both arms return the same structure.
    */
-  private async formatForwardedReference(
+  private async buildAttachments(
     ref: ReferencedMessage,
     personality: LoadedPersonality,
     isGuestMode: boolean,
-    preprocessedForRef?: ProcessedAttachment[],
+    preprocessedForRef: ProcessedAttachment[] | undefined,
     apiKeys?: ReferenceVisionAuth
-  ): Promise<{ element: string; searchText: string }> {
-    const { userApiKey, sttDispatch, visionProvider, visionModel } = apiKeys ?? {};
-    const { absolute, relative } = formatTimestampWithDelta(ref.timestamp);
-
-    const forwardedContent: ForwardedMessageContent = {
-      textContent: ref.content ?? undefined,
-      timestamp: absolute.length > 0 && relative.length > 0 ? { absolute, relative } : undefined,
-      embedsXml: ref.embeds ? [ref.embeds] : undefined,
-    };
-
-    // Process attachments if present
-    let attachments: RenderableAttachment[] = [];
-    if (ref.attachments && ref.attachments.length > 0) {
-      attachments = await processAttachmentsParallel({
-        attachments: ref.attachments,
-        referenceNumber: ref.referenceNumber,
-        personality,
-        isGuestMode,
-        preprocessedAttachments: preprocessedForRef,
-        userApiKey,
-        sttDispatch,
-        visionProvider,
-        model: visionModel,
-      });
-
-      if (attachments.length > 0) {
-        forwardedContent.attachments = attachments;
-      }
+  ): Promise<RenderableAttachment[]> {
+    if (ref.isDeduplicated === true) {
+      const attachments = buildDedupedAttachments(ref, preprocessedForRef);
+      this.warnOnDroppedEnrichment(
+        ref.referenceNumber,
+        countAvailableEnrichment(preprocessedForRef),
+        countRenderedEnrichment(attachments)
+      );
+      return attachments;
     }
 
-    return {
-      element: formatForwardedQuote(forwardedContent),
-      searchText: this.buildReferenceSearchText(ref, attachments),
-    };
+    if (ref.attachments === undefined || ref.attachments.length === 0) {
+      return [];
+    }
+
+    const { userApiKey, sttDispatch, visionProvider, visionModel } = apiKeys ?? {};
+    return processAttachmentsParallel({
+      attachments: ref.attachments,
+      referenceNumber: ref.referenceNumber,
+      personality,
+      isGuestMode,
+      preprocessedAttachments: preprocessedForRef,
+      userApiKey,
+      sttDispatch,
+      visionProvider,
+      model: visionModel,
+    });
+  }
+
+  /**
+   * Tripwire for the enrichment-drop class: preprocessed results reached this
+   * renderer but produced fewer enriched children than there were results.
+   *
+   * It exists because the drop it guards was invisible — four vision calls ran,
+   * succeeded, cost 47s, and were discarded with zero log output, so the only
+   * detector in the system was a human noticing the character couldn't see the
+   * images. The projection makes the old drop unreachable, but one route
+   * survives: enrichment for an attachment that classifies as a `file` has
+   * nowhere to go, because `RenderableFile` carries no description. If that
+   * ever happens, this says so instead of swallowing it.
+   */
+  private warnOnDroppedEnrichment(
+    referenceNumber: number,
+    available: number,
+    rendered: number
+  ): void {
+    if (available > rendered) {
+      logger.warn(
+        { referenceNumber, renderable: available, rendered },
+        '[ReferencedMessageFormatter] Preprocessed reference enrichment was not rendered — ' +
+          'vision/transcription work was paid for and is not reaching the prompt'
+      );
+    }
   }
 }

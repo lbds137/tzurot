@@ -119,6 +119,59 @@ export function classifyAttachment(attachment: {
 }
 
 /**
+ * The Discord-side fields an attachment must expose to be rendered. Structural
+ * rather than `AttachmentMetadata` for the same reason `classifyAttachment` is —
+ * this module stays free of the Discord schema.
+ */
+export interface AttachmentSource {
+  contentType?: string;
+  name?: string;
+  isVoiceMessage?: boolean;
+  duration?: number;
+}
+
+/**
+ * Build one renderable element per attachment, pairing each with whatever
+ * enrichment the caller can find for it.
+ *
+ * `describe` is the ONE thing that differs between producers: the live path
+ * correlates preprocessing results by URL, the stored path correlates persisted
+ * descriptions by filename. Everything after that — classify, pick the arm,
+ * name the absence — was two copies of the same fifteen lines, and they had
+ * already drifted once (see `classifyAttachment`). A miss returns the
+ * modality's own "no enrichment" status rather than a bare element, so the
+ * model can tell "we have no transcript" from "there was nothing here".
+ *
+ * Enrichment for an attachment that classifies as `file` is DROPPED, because
+ * `RenderableFile` has no slot for it. That is a real (if rare) loss, so
+ * callers pair this with a count check — see `warnOnDroppedEnrichment`.
+ */
+export function buildRenderableAttachments<T extends AttachmentSource>(
+  attachments: readonly T[],
+  describe: (attachment: T) => string | undefined
+): RenderableAttachment[] {
+  return attachments.map((att): RenderableAttachment => {
+    const identity = { filename: att.name, contentType: att.contentType };
+    const found = describe(att);
+    // Narrowed to a variable rather than tested inline per arm: a boolean flag
+    // would not narrow `string | undefined` down to the union's `description: string`.
+    const description = found !== undefined && found.length > 0 ? found : undefined;
+    switch (classifyAttachment(att)) {
+      case 'image':
+        return description !== undefined
+          ? { kind: 'image', ...identity, description }
+          : { kind: 'image', ...identity, status: 'undescribed' };
+      case 'voice':
+        return description !== undefined
+          ? { kind: 'voice', ...identity, durationSeconds: att.duration, description }
+          : { kind: 'voice', ...identity, durationSeconds: att.duration, status: 'untranscribed' };
+      case 'file':
+        return { kind: 'file', ...identity };
+    }
+  });
+}
+
+/**
  * Options for formatting a single <quote> element.
  * Callers populate the fields relevant to their context.
  */
@@ -135,10 +188,16 @@ export interface QuoteElementOptions {
   username?: string;
   /** Speaker role: assistant (the responding persona's own line), character (a sibling persona), user (a person), or bot (other automation) */
   role?: RenderedQuoteRole;
-  /** Pre-formatted timestamp string (for t="" attribute on <quote>) */
+  /**
+   * Pre-formatted timestamp for the `t=""` attribute — always via
+   * `formatPromptTimestamp`, the same helper `<message>` uses in `<chat_log>`.
+   *
+   * There used to be a second slot here (a `{absolute, relative}` pair rendered
+   * as a `<time/>` child) that only the live paths filled, so the same quote
+   * carried its timestamp as a child element or as an attribute depending on
+   * which renderer reached it. One slot, one format.
+   */
   timeFormatted?: string;
-  /** Structured timestamp (for <time> child element) */
-  timestamp?: { absolute: string; relative: string };
   /** Text content */
   content?: string;
   /** Location context XML (pre-formatted) */
@@ -168,7 +227,6 @@ export interface QuoteElementOptions {
  * Output format:
  * ```xml
  * <quote [number="N"] [type="forward"] [from="Name"] [username="user"] [role="user|assistant|character|bot"] [t="..."]>
- *   <time absolute="..." relative="..."/>     (if timestamp provided)
  *   <content>text</content>                   (if content provided and non-empty)
  *   locationContext XML                        (if provided and non-empty)
  *   <embeds>...</embeds>
@@ -204,14 +262,6 @@ export function formatQuoteElement(opts: QuoteElementOptions): string {
     .join(' ');
 
   const parts: string[] = [`<quote${attrs.length > 0 ? ' ' + attrs : ''}>`];
-
-  // Structured timestamp as child element
-  if (opts.timestamp !== undefined) {
-    const { absolute, relative } = opts.timestamp;
-    if (absolute.length > 0 && relative.length > 0) {
-      parts.push(`<time absolute="${escapeXml(absolute)}" relative="${escapeXml(relative)}"/>`);
-    }
-  }
 
   // Simple child sections. content and the attachment children carry
   // user-derived text and are escaped at emit. locationContext and embedsXml are
@@ -326,8 +376,18 @@ function addArraySection<T>(
 }
 
 /**
- * Normalized content for a forwarded message.
- * Both code paths build this DTO, then call formatForwardedQuote().
+ * Normalized content for a forwarded HISTORY MESSAGE.
+ *
+ * One consumer only: `conversationUtils.formatSingleHistoryEntryAsXml`, which
+ * renders a forwarded message from its own persisted `messageMetadata`. It is
+ * NOT a reference — there is no `ReferencedMessage` anywhere in that path — so
+ * it cannot take a `RenderableReference`; it is a second, legitimate consumer
+ * of the shared emitter.
+ *
+ * Forwarded *references* used to come through here too, which is why the author
+ * is hardcoded: the wrapper had no author to render. That cost them their
+ * reference number, role, username and location on every forwarded reply. They
+ * now go through `renderReference`, which reads `isForwarded` as a field.
  */
 export interface ForwardedMessageContent {
   /** Plain text content of the forwarded message */
@@ -338,111 +398,20 @@ export interface ForwardedMessageContent {
   attachments?: RenderableAttachment[];
   /** Persisted marker strings — see `QuoteElementOptions.legacyAttachmentLines`. */
   legacyAttachmentLines?: string[];
-  /** Timestamp with both absolute date and relative time */
-  timestamp?: { absolute: string; relative: string };
 }
 
 /**
- * Format a forwarded message as a <quote> element.
- * Thin wrapper over formatQuoteElement() for the forwarded message use case.
+ * Format a forwarded history message as a <quote type="forward"> element.
+ * The forwarding message carries no author for the forwarded content itself,
+ * so `from` is a literal here rather than a dropped field.
  */
 export function formatForwardedQuote(content: ForwardedMessageContent): string {
   return formatQuoteElement({
     type: 'forward',
     from: 'Unknown',
-    timestamp: content.timestamp,
     content: content.textContent,
     embedsXml: content.embedsXml,
     attachments: content.attachments,
     legacyAttachmentLines: content.legacyAttachmentLines,
-  });
-}
-
-/**
- * Prefix for deduplicated reference stubs. Order-agnostic (points to <chat_log>
- * rather than "above" — references are assembled BEFORE <chat_log>) and drops
- * the "reply target" Discord-UI jargon, which read as a task to the model.
- */
-// Prose marker — avoids literal tag syntax so it isn't escaped when it rides
-// through escapeXmlContent inside <content>.
-const DEDUP_REPLY_TARGET_PREFIX = '[Referenced message — full text in the chat log]';
-
-/**
- * Variant used when the stub carries media descriptions. The extra clause is
- * load-bearing, not decoration: the chat-log copy of an embed or attachment
- * carries the raw URL, never a description, so media enrichment has no
- * counterpart there and "full text in the chat log" would send the model
- * somewhere the answer has never been.
- *
- * Conditional rather than unconditional so a text-only stub — the common case —
- * neither pays the tokens nor invites the model to hunt for media that isn't there.
- */
-const DEDUP_REPLY_TARGET_PREFIX_WITH_MEDIA =
-  '[Referenced message — full text in the chat log; its media is described here]';
-
-/**
- * Options for formatting a deduplicated reference stub.
- * Lightweight — no embeds or location context (both are reproduced verbatim in
- * <chat_log>), but media descriptions ARE carried: they exist nowhere else.
- */
-export interface DedupedQuoteOptions {
-  /** Reference number (real-time refs only) */
-  number?: number;
-  /** Author display name */
-  from: string;
-  /** Author username (real-time refs only) */
-  username?: string;
-  /** Speaker role — `assistant` (the responding persona's own line), `character` (a sibling persona), `user` (a person), `bot` (other automation). */
-  role?: RenderedQuoteRole;
-  /** Structured timestamp as child element */
-  timestamp?: { absolute: string; relative: string };
-  /** Pre-formatted timestamp as attribute */
-  timeFormatted?: string;
-  /** Original message content, already text-capped upstream (`buildDedupedReferenceStub`).
-   *  Rendered as-is — NOT re-truncated here. Empty → marker-only stub. */
-  content: string;
-  /**
-   * This reference's attachments with their enrichment. NOT redundant with the
-   * <chat_log> copy: history renders an embed/attachment as its URL, so a
-   * description dropped here is enrichment that was computed, paid for, and
-   * never reaches the model. The stub's own `[image/png: name]` markers name
-   * the file, not what is in it.
-   */
-  attachments?: RenderableAttachment[];
-}
-
-/**
- * Format a deduplicated reference as a lightweight <quote> stub. Renders the (already
- * text-capped, via `capDedupText` at the caller) content as-is and prepends the reply-target
- * note — does NOT truncate, so markers can't cannibalize the text preview.
- */
-export function formatDedupedQuote(opts: DedupedQuoteOptions): string {
-  // Do NOT truncate here. `opts.content` is already TEXT-capped upstream by
-  // `buildDedupedReferenceStub` (it truncates the text to DEDUP_STUB_CONTENT, THEN prepends
-  // the attachment markers). Re-applying the limit to the COMBINED markers+text let long
-  // image-filename markers eat the whole budget, leaving a misleading 1-char text fragment
-  // (e.g. `I...` for `I got myself off…`) that the model reads as an unfinished sentence.
-  // The text is already bounded; the markers are short metadata that must survive intact.
-  // Empty content (e.g. a bot's own reply-target) → marker only, no trailing blank.
-  // The "its media is described here" clause is earned only by an attachment
-  // that actually carries enrichment. An undescribed one still renders (it is
-  // signal that something was attached), but pointing the model at a
-  // description that does not exist is the failure the clause exists to avoid.
-  const hasMedia = (opts.attachments ?? []).some(att => {
-    const enrichment = attachmentEnrichment(att);
-    return enrichment !== undefined && enrichment.length > 0;
-  });
-  const prefix = hasMedia ? DEDUP_REPLY_TARGET_PREFIX_WITH_MEDIA : DEDUP_REPLY_TARGET_PREFIX;
-  const content = opts.content.length > 0 ? `${prefix}\n\n${opts.content}` : prefix;
-
-  return formatQuoteElement({
-    number: opts.number,
-    from: opts.from,
-    username: opts.username,
-    role: opts.role,
-    timestamp: opts.timestamp,
-    timeFormatted: opts.timeFormatted,
-    content,
-    attachments: opts.attachments,
   });
 }

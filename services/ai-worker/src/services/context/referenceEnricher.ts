@@ -34,7 +34,6 @@ import { type ConversationMessage } from '@tzurot/common-types/types/conversatio
 import { type ReferencedMessage } from '@tzurot/common-types/types/schemas/message';
 import {
   appendVoiceTranscripts,
-  buildDedupedReferenceStub,
   isBotAuthoredReference,
   isDuplicateReference,
   stripBotVoiceAttachments,
@@ -96,7 +95,14 @@ export async function enrichRawReferences(
       );
 
       if (duplicate) {
-        return buildDedupedReferenceStub(raw);
+        // Flag only. The stub SHAPE — emptying the content, capping the
+        // preview, folding in attachment markers, dropping embeds and location
+        // — used to be built here, field by field, which is precisely how
+        // fields nobody remembered to list went missing (the quoted role, then
+        // the attachments, then the forwarded flag). It is a render-time
+        // projection now (`dedupeReference`), where the full reference is still
+        // in hand and subtraction is the only operation.
+        return { ...raw, isDeduplicated: true };
       }
 
       if (raw.isForwarded === true) {

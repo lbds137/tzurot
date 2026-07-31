@@ -9,7 +9,6 @@ import type { Message } from 'discord.js';
 import { type ReferencedMessage } from '@tzurot/common-types/types/schemas/message';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { MessageLinkParser } from '@tzurot/common-types/utils/messageLinkParser';
-import { buildDedupedReferenceStub } from '@tzurot/common-types/utils/referenceEnrichment';
 import { isForwardedMessage, type ReferenceMetadata } from './types.js';
 import { type MessageFormatter } from './MessageFormatter.js';
 import { type SnapshotFormatter } from './SnapshotFormatter.js';
@@ -98,7 +97,7 @@ export class ReferenceFormatter {
     const state: FormatState = { references, rawReferences, collectRaw, linkMap, nextNumber: 1 };
     for (const { message, metadata } of selected) {
       if (metadata.isDeduplicated === true) {
-        this.appendDedupedStub(message, metadata, state);
+        this.appendDedupedReference(message, metadata, state);
       } else if (isForwardedMessage(message)) {
         this.appendForwardedSnapshots(message, metadata, state);
       } else {
@@ -124,16 +123,20 @@ export class ReferenceFormatter {
     };
   }
 
-  /** Deduped: enriched side gets a stub; raw side gets the full snapshot. */
-  private appendDedupedStub(message: Message, metadata: ReferenceMetadata, s: FormatState): void {
-    // Build the full raw snapshot first and derive the stub from it via the
-    // shared kernel — the same stub the worker-side assembler produces when
-    // its own dedup re-run agrees, so the two shapes cannot drift.
+  /** Deduped: the full snapshot, on both sides. */
+  private appendDedupedReference(
+    message: Message,
+    metadata: ReferenceMetadata,
+    s: FormatState
+  ): void {
+    // No stub is built here any more. Deduplication is decided and rendered
+    // worker-side (ai-worker re-runs it against its OWN assembled history), and
+    // the thin envelope carries `rawReferences` only — so a stub built here
+    // reached nothing but two log statements while giving the stub shape a
+    // second, drift-prone home.
     const raw = this.messageFormatter.buildRawReference(message, s.nextNumber).reference;
-    s.references.push(buildDedupedReferenceStub(raw));
+    s.references.push(raw);
     if (s.collectRaw) {
-      // The raw side never stubs: the worker re-derives dedup against its
-      // OWN hydrated history, so it needs the full pre-dedup snapshot.
       s.rawReferences.push(raw);
     }
     this.trackLink(metadata, s.nextNumber, s.linkMap);

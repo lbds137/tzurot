@@ -84,7 +84,6 @@ export const KNOWN_UNPROTECTED_TAGS: Record<string, string> = {
   category: 'Self-closing; category name attribute via escapeXml.',
   channel: 'Self-closing; channel name/type/topic attributes via escapeXml.',
   thread: 'Self-closing; thread name attribute via escapeXml.',
-  time: 'Self-closing; timestamp attributes via escapeXml.',
   file:
     'Self-closing attachment element; filename/type attributes via escapeXml (full). ' +
     'Never wraps content — an attachment with enrichment renders as <image>/<voice>, ' +

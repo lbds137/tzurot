@@ -13,7 +13,6 @@
  * envelope reference snapshots and retrieves transcripts DB-only.
  */
 
-import { TEXT_LIMITS } from '../constants/discord.js';
 import { CONTENT_TYPES } from '../constants/media.js';
 import { INTERVALS } from '../constants/timing.js';
 import type { AttachmentMetadata } from '../types/schemas/discord.js';
@@ -134,75 +133,6 @@ export function stripBotVoiceAttachments(reference: ReferencedMessage): Referenc
   return kept.length === reference.attachments.length
     ? reference
     : { ...reference, attachments: kept };
-}
-
-/**
- * The SINGLE truncation point for dedup-stub previews. Caps a TEXT preview to
- * `DEDUP_STUB_CONTENT` (+ `…`). Applied to text ONLY — never to text-with-markers — so
- * attachment markers (folded in separately, after this) can't eat the budget and squeeze
- * the text to a misleading fragment. `formatDedupedQuote` renders the result as-is: every
- * caller must cap here first (both `buildDedupedReferenceStub` and the stored-history path
- * in `xmlMetadataFormatters.formatQuotedSection`).
- */
-export function capDedupText(text: string): string {
-  const limit = TEXT_LIMITS.DEDUP_STUB_CONTENT;
-  return text.length > limit ? text.substring(0, limit) + '...' : text;
-}
-
-/**
- * Collapse a full reference into the minimal deduplicated stub: truncated
- * content (with attachment markers), no embeds/location. The stub keeps the
- * reference number — numbering is assigned before the dedup decision, so stubs
- * consume numbers and downstream `[Reference N]` links stay stable.
- *
- * Attachment markers (`[contentType: name]`) are folded into the content so an
- * image-only reply-target doesn't collapse to an empty quote — without them the
- * model sees nothing and reports "no image," even though the full message (with
- * its rendered image description) is in the history the stub points at. The
- * marker's filename lets the model correlate the stub with that history entry.
- *
- * With attachments present the returned `content` can exceed `DEDUP_STUB_CONTENT`
- * (markers are prepended AFTER the text is truncated) — that's intentional and FINAL:
- * `formatDedupedQuote` renders it as-is. It must NOT re-apply the limit to the combined
- * markers+text, or long image-filename markers eat the whole budget and squeeze the text
- * hint to a misleading fragment (`I...` for `I got myself off…`). The text is capped here
- * (this is the single truncation point); the markers are short metadata kept whole.
- */
-export function buildDedupedReferenceStub(reference: ReferencedMessage): ReferencedMessage {
-  // Bot-authored stubs carry NO preview. A snippet of the model's own prior text
-  // is exactly the "continue this fragment" trigger; the full message is in
-  // <chat_log> regardless, so the marker (added downstream) is enough. User
-  // reply-targets keep a short preview — genuine content the model may need.
-  let content = '';
-  if (!isBotAuthoredReference(reference)) {
-    const truncatedContent = capDedupText(reference.content);
-    // Markers go FIRST (before the truncated text). The text already has its FULL
-    // DEDUP_STUB_CONTENT budget above; markers are appended without eating it, because
-    // formatDedupedQuote renders this as-is (no second truncation). The full message the
-    // stub points at is in history regardless; the marker filenames are the correlation
-    // hint that must survive.
-    const attachmentMarkers = (reference.attachments ?? [])
-      .map(att => `[${att.contentType}: ${att.name ?? 'attachment'}]`)
-      .join('\n');
-    content = [attachmentMarkers, truncatedContent].filter(s => s.length > 0).join('\n\n');
-  }
-  return {
-    referenceNumber: reference.referenceNumber,
-    discordMessageId: reference.discordMessageId,
-    discordUserId: reference.discordUserId,
-    authorUsername: reference.authorUsername,
-    authorDisplayName: reference.authorDisplayName,
-    // authorIsBot/webhookId still gate the content-emptying above; authorRole is the
-    // carried-through classification the formatter renders as the <quote role> signal.
-    authorIsBot: reference.authorIsBot,
-    webhookId: reference.webhookId,
-    authorRole: reference.authorRole,
-    content,
-    embeds: '',
-    timestamp: reference.timestamp,
-    locationContext: '',
-    isDeduplicated: true,
-  };
 }
 
 /** Retrieves the transcript for one voice attachment, or null when unavailable. */

@@ -267,9 +267,10 @@ describe('MessageReferenceExtractor (Orchestration)', () => {
   });
 
   describe('Deduplication', () => {
-    it('should preserve REPLY references in history as deduped stubs', async () => {
-      // Replies in conversation history are preserved as lightweight stubs
-      // so the AI knows which message the user is responding to.
+    it('still emits a REPLY reference that is already in history', async () => {
+      // A reply whose target is already in the chat log is not dropped — the AI
+      // still needs to know WHICH message the user is responding to. It ships
+      // as the full snapshot; ai-worker decides whether to stub it.
       const referencedMessage = createMockMessage({
         id: 'referenced-123',
         content: 'Already in history - preserved as stub',
@@ -297,9 +298,8 @@ describe('MessageReferenceExtractor (Orchestration)', () => {
 
       const references = await dedupExtractor.extractReferences(message);
 
-      // Deduped reply should be preserved as a stub with isDeduplicated flag
       expect(references.length).toBe(1);
-      expect(references[0].isDeduplicated).toBe(true);
+      expect(references[0].isDeduplicated).toBeUndefined();
       expect(references[0].content).toBe('Already in history - preserved as stub');
     });
 
@@ -343,12 +343,11 @@ describe('MessageReferenceExtractor (Orchestration)', () => {
       const notDeduped = await extract([]); // ref NOT in history → full reference
       const deduped = await extract(['referenced-123']); // ref in history → stubbed
 
-      // The dedup decision DID diverge the local enriched references...
-      expect(notDeduped.references[0].isDeduplicated).not.toBe(true);
-      expect(deduped.references[0].isDeduplicated).toBe(true);
-
-      // ...but the SHIPPED envelope fields are byte-identical — the dedup decision
-      // (and therefore getChannelHistory) leaves no trace on the wire.
+      // The dedup decision now leaves no trace ANYWHERE on this side — not just
+      // on the wire. It used to diverge the local enriched references (full vs.
+      // stub); that stub reached two log statements and nothing else, while
+      // giving the stub shape a second home to drift in.
+      expect(deduped.references).toEqual(notDeduped.references);
       expect(deduped.rawReferences).toEqual(notDeduped.rawReferences);
       expect(deduped.updatedContent).toEqual(notDeduped.updatedContent);
     });
