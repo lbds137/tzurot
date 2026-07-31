@@ -57,7 +57,17 @@ User request 2026-07-05 (recalled from earlier thinking). Three connected parts 
 
 #### ✨ Message-Action Affordances: edit / regenerate / delete / ping (emoji reactions + edit flow)
 
-**DESIGN ACCEPTED 2026-07-05**: [`docs/proposals/backlog/message-actions.md`](../../docs/proposals/backlog/message-actions.md) — context-menu → ephemeral panel (no reactions v1), Info/Delete → Regenerate → Edit phasing, edit-in-place-first chunk strategy (owner-refined), permissions = triggering user + bot owner. PluralKit research done (mandate below discharged). Build when prioritized.
+**DESIGN ACCEPTED 2026-07-05**: [`docs/proposals/backlog/message-actions.md`](../../docs/proposals/backlog/message-actions.md) — context-menu → ephemeral panel (no reactions v1), Info/Delete → Regenerate → Edit phasing, edit-in-place-first chunk strategy (owner-refined), permissions = triggering user + bot owner. PluralKit research done (mandate below discharged).
+
+**🔺 PRIORITY BUMPED — owner 2026-07-30**: _"bump the priority on app context menu commands for regenerating an AI output, and maybe one for deleting bot messages or webhooks. but only accessible to the bot owner and whoever triggered that bot message or webhook reply (similar rules to inspect)."_
+
+The re-ask matches the accepted design exactly — **Regenerate** and **Delete** are both already spec'd at `permission = triggering user (via personaId → Persona.ownerId) or bot owner`, and the design's own rationale cites `/inspect` as the precedent ("D16 already commits to message context-menu commands (Inspect) — same registration, second command"). Nothing to re-design; this is a build-order change.
+
+Owner's named priority is **Regenerate first, Delete second** — note this INVERTS the spec's Info/Delete → Regenerate → Edit phasing, which front-loaded the cheap actions. Worth one conversation before building: Regenerate is the most valuable and the most complex (re-run generation + the three chunk-count cases + history + memory re-capture), so leading with it means the hardest slice ships first with no warm-up on the panel plumbing.
+
+**Known dependency, unchanged**: Delete's memory propagation needs the accepted memory design's Phase-0 `messageIds` linkage. Regenerate needs `triggerMessageId` rows (Phase-0 FK) with a 24h diagnostics fallback for pre-FK rows. Neither is satisfied by a context-menu command alone — check both before scheduling.
+
+The context-menu infrastructure itself is NOT a blocker: `services/bot-client/src/commands/inspectMessage.ts` already ships a `ContextMenuCommandBuilder` with `ApplicationCommandType.Message`, and `CommandHandler.ts:122` already routes them.
 
 User request 2026-07-03, expanding the earlier emoji-actions idea. Inspiration is part shapes.inc (emoji-reaction support for a couple of these) and part PluralKit (proxied-message editing; 🔔 bell to ping the proxied user). **Research-first**: PluralKit is open source — study how it does webhook-message editing/reactions for one working reference (not to copy, but as information on one way of doing it). Scope should also include a brainstorming/research pass on adjacent usability improvements that would make Tzurot better.
 
