@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  formatDedupedQuote,
+  buildRenderableAttachments,
   formatForwardedQuote,
   formatQuoteElement,
   renderAttachment,
@@ -77,26 +77,6 @@ describe('QuoteFormatter', () => {
       });
 
       expect(result).toContain('t="2025-01-25 (Sat) 14:30 • just now"');
-    });
-
-    it('should include structured timestamp as child element', () => {
-      const result = formatQuoteElement({
-        from: 'User',
-        timestamp: { absolute: 'Fri, Dec 6, 2025', relative: 'just now' },
-        content: 'Hello',
-      });
-
-      expect(result).toContain('<time absolute="Fri, Dec 6, 2025" relative="just now"/>');
-    });
-
-    it('should skip timestamp child when absolute or relative is empty', () => {
-      const result = formatQuoteElement({
-        from: 'User',
-        timestamp: { absolute: '', relative: 'just now' },
-        content: 'Hello',
-      });
-
-      expect(result).not.toContain('<time');
     });
 
     it('should include location context', () => {
@@ -258,11 +238,11 @@ describe('QuoteFormatter', () => {
       expect(result).not.toContain('</character>');
     });
 
-    it('should order elements correctly: time → content → location → embeds → attachments', () => {
+    it('should order elements correctly: content → location → embeds → attachments', () => {
       const result = formatQuoteElement({
         number: 1,
         from: 'User',
-        timestamp: { absolute: 'Jan 1, 2025', relative: 'now' },
+        timeFormatted: '2025-01-01 (Wed) 09:00 • now',
         content: 'Hello',
         locationContext: '<location type="guild"><server name="G"/></location>',
         embedsXml: ['<embed>E</embed>'],
@@ -274,7 +254,6 @@ describe('QuoteFormatter', () => {
       });
 
       const positions = [
-        result.indexOf('<time'),
         result.indexOf('<content>'),
         result.indexOf('<location'),
         result.indexOf('<embeds>'),
@@ -404,21 +383,6 @@ describe('QuoteFormatter', () => {
       expect(result).toContain('filename="file&quot;name.png"');
     });
 
-    it('should include timestamp when provided', () => {
-      const content: ForwardedMessageContent = {
-        textContent: 'Hello',
-        timestamp: { absolute: 'Mon, Jan 15, 2024', relative: '2 weeks ago' },
-      };
-
-      const result = formatForwardedQuote(content);
-
-      expect(result).toContain('<time absolute="Mon, Jan 15, 2024" relative="2 weeks ago"/>');
-      // Time should come before content
-      const timePos = result.indexOf('<time');
-      const contentPos = result.indexOf('<content>');
-      expect(timePos).toBeLessThan(contentPos);
-    });
-
     it('should format voice transcripts', () => {
       const content: ForwardedMessageContent = {
         attachments: [{ kind: 'voice', description: 'Hey, can you hear me?' }],
@@ -452,7 +416,6 @@ describe('QuoteFormatter', () => {
           { kind: 'file', filename: 'doc.pdf', contentType: 'application/pdf' },
         ],
         embedsXml: ['<embed>Link preview</embed>'],
-        timestamp: { absolute: 'Feb 10, 2026', relative: 'just now' },
       };
 
       const result = formatForwardedQuote(content);
@@ -460,7 +423,6 @@ describe('QuoteFormatter', () => {
       // Verify all sections present and ordered
       const sections = [
         '<quote type="forward"',
-        '<time ',
         '<content>',
         '<embeds>',
         '<attachments>',
@@ -504,81 +466,85 @@ describe('QuoteFormatter', () => {
     });
   });
 
-  describe('formatDedupedQuote', () => {
-    it('prepends the referenced-message marker before a user reply-target preview', () => {
-      const result = formatDedupedQuote({ from: 'Alice', role: 'user', content: 'some text' });
-      expect(result).toContain('[Referenced message — full text in the chat log]');
-      expect(result).toContain('some text');
-      expect(result).toContain('role="user"');
-    });
+  describe('buildRenderableAttachments', () => {
+    const image = { name: 'photo.png', contentType: 'image/png' };
+    const voice = { name: 'clip.ogg', contentType: 'audio/ogg', isVoiceMessage: true, duration: 7 };
+    const music = { name: 'song.mp3', contentType: 'audio/mpeg' };
+    const doc = { name: 'report.pdf', contentType: 'application/pdf' };
 
-    it('renders a marker-only stub (no preview) when content is empty', () => {
-      // The bot's-own-reply-target case: no self-preview to invite continuation.
-      const result = formatDedupedQuote({ from: 'Lilith', role: 'assistant', content: '' });
-      expect(result).toContain(
-        '<content>[Referenced message — full text in the chat log]</content>'
+    const none = (): string | undefined => undefined;
+
+    it('pairs each attachment with the enrichment the caller finds for it', () => {
+      const built = buildRenderableAttachments([image, voice], att =>
+        att.name === 'photo.png' ? 'a cat' : 'hello there'
       );
-      expect(result).toContain('role="assistant"');
+
+      expect(built).toEqual([
+        { kind: 'image', filename: 'photo.png', contentType: 'image/png', description: 'a cat' },
+        {
+          kind: 'voice',
+          filename: 'clip.ogg',
+          contentType: 'audio/ogg',
+          durationSeconds: 7,
+          description: 'hello there',
+        },
+      ]);
     });
 
-    it('promises media only when media actually rides along', () => {
-      // The marker is a claim about where to look. On a text-only stub, naming
-      // media sends the model hunting for something that was never attached;
-      // on a stub that carries descriptions, staying silent about them points
-      // it at <chat_log>, where images exist only as URLs.
-      const textOnly = formatDedupedQuote({ from: 'Alice', role: 'user', content: 'just words' });
-      expect(textOnly).toContain('[Referenced message — full text in the chat log]');
-      expect(textOnly).not.toContain('media');
-
-      const withMedia = formatDedupedQuote({
-        from: 'Alice',
-        role: 'user',
-        content: 'look at this',
-        attachments: [{ kind: 'image', filename: 'a.png', description: 'a lighthouse at dusk' }],
-      });
-      expect(withMedia).toContain('its media is described here');
-      expect(withMedia).toContain('<image filename="a.png">a lighthouse at dusk</image>');
-
-      const withTranscript = formatDedupedQuote({
-        from: 'Alice',
-        role: 'user',
-        content: '',
-        attachments: [{ kind: 'voice', description: 'hey are you around' }],
-      });
-      expect(withTranscript).toContain('its media is described here');
+    it('names the absence per modality rather than emitting a bare element', () => {
+      expect(buildRenderableAttachments([image, voice], none)).toEqual([
+        { kind: 'image', filename: 'photo.png', contentType: 'image/png', status: 'undescribed' },
+        {
+          kind: 'voice',
+          filename: 'clip.ogg',
+          contentType: 'audio/ogg',
+          durationSeconds: 7,
+          status: 'untranscribed',
+        },
+      ]);
     });
 
-    it('names an undescribed attachment without claiming it is described', () => {
-      // The two halves pull opposite ways and both matter. The attachment must
-      // RENDER — an image with no description and no element is invisible, which
-      // is the drop this whole shape exists to close. But the marker must NOT
-      // promise a description, or the model goes looking for one that never
-      // arrived and apologises for missing it.
-      const result = formatDedupedQuote({
-        from: 'Alice',
-        role: 'user',
-        content: 'check this',
-        attachments: [{ kind: 'image', filename: 'unlucky.png', status: 'undescribed' }],
-      });
-
-      expect(result).toContain('<image filename="unlucky.png" status="undescribed"/>');
-      expect(result).not.toContain('its media is described here');
-      expect(result).toContain('[Referenced message — full text in the chat log]');
+    it('treats an empty description as absent — a silent clip is not a transcript', () => {
+      expect(buildRenderableAttachments([voice], () => '')).toEqual([
+        {
+          kind: 'voice',
+          filename: 'clip.ogg',
+          contentType: 'audio/ogg',
+          durationSeconds: 7,
+          status: 'untranscribed',
+        },
+      ]);
     });
 
-    it('does NOT let long attachment markers truncate away the text preview', () => {
-      // Regression: a reply-target with two long image-filename markers + short text. The
-      // content is already text-capped upstream (buildDedupedReferenceStub); formatDedupedQuote
-      // must render it WHOLE — re-truncating the combined markers+text left a misleading "I..."
-      // that the model read as an unfinished sentence.
-      const content =
-        '[image/jpeg: SPOILER_PXL_20260701_221008932.jpg]\n' +
-        '[image/jpeg: SPOILER_PXL_20260701_222104453.jpg]\n\n' +
-        'I got myself off with this fucker';
-      const result = formatDedupedQuote({ from: 'Lila', role: 'user', content });
-      // The real text survives intact — no misleading 1-char "I..." fragment.
-      expect(result).toContain('I got myself off with this fucker');
-      expect(result).not.toContain('I...</content>');
+    it('keeps duration on a voice message whether or not a transcript arrived', () => {
+      const [transcribed] = buildRenderableAttachments([voice], () => 'hi');
+      const [silent] = buildRenderableAttachments([voice], none);
+
+      expect(transcribed).toMatchObject({ durationSeconds: 7 });
+      expect(silent).toMatchObject({ durationSeconds: 7 });
+    });
+
+    it('classifies on isVoiceMessage, not on audio/* — a music file is not a failed transcript', () => {
+      expect(buildRenderableAttachments([music], none)).toEqual([
+        { kind: 'file', filename: 'song.mp3', contentType: 'audio/mpeg' },
+      ]);
+    });
+
+    it('renders a plain file with no enrichment slot at all', () => {
+      // Deliberate: nothing describes a .zip, so the union gives RenderableFile
+      // no description field. A caller that finds enrichment for one is warned
+      // by its own count check (see warnOnDroppedEnrichment) rather than
+      // silently misrendering it.
+      expect(buildRenderableAttachments([doc], () => 'a quarterly report')).toEqual([
+        { kind: 'file', filename: 'report.pdf', contentType: 'application/pdf' },
+      ]);
+    });
+
+    it('omits the filename entirely when there is no real name', () => {
+      const [built] = buildRenderableAttachments([{ contentType: 'image/png' }], () => 'a cat');
+
+      expect(built).toEqual({ kind: 'image', contentType: 'image/png', description: 'a cat' });
+      expect(renderAttachment(built)).toBe('<image type="image/png">a cat</image>');
     });
   });
 });

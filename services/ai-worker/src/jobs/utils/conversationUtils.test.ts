@@ -17,7 +17,8 @@ import {
   type RawHistoryEntry,
 } from './conversationUtils.js';
 import { renderAttachment } from '../../services/prompt/QuoteFormatter.js';
-import { buildStoredAttachments } from './xmlMetadataFormatters.js';
+import { renderReference } from '../../services/prompt/RenderableReference.js';
+import { buildStoredAttachments, fromStoredReference } from './xmlMetadataFormatters.js';
 import { MessageRole } from '@tzurot/common-types/constants/message';
 import {
   type CrossChannelHistoryGroupEntry,
@@ -599,8 +600,9 @@ describe('Conversation Utilities', () => {
 
       expect(result).toContain('<quoted_messages>');
       expect(result).toContain('</quoted_messages>');
-      // Uses shared <quote> element structure via formatQuoteElement
-      expect(result).toContain('<quote from="Bob" role="user"');
+      // Uses the shared <quote> element structure via renderReference. The
+      // username rides along because it differs from the display name.
+      expect(result).toContain('<quote from="Bob" username="bob" role="user"');
       expect(result).toContain('<content>Original message</content>');
     });
 
@@ -990,7 +992,7 @@ describe('Conversation Utilities', () => {
 
       // Quoted messages section should be present since the quoted message is NOT in history
       expect(result).toContain('<quoted_messages>');
-      expect(result).toContain('<quote from="Bob" role="user"');
+      expect(result).toContain('<quote from="Bob" username="bob" role="user"');
       expect(result).toContain('<content>Message from a different conversation</content>');
     });
 
@@ -1069,7 +1071,7 @@ describe('Conversation Utilities', () => {
       const result = formatConversationHistoryAsXml(history, 'TestBot');
 
       // The quoted message should have role="assistant" since it's from TestBot
-      expect(result).toContain('<quote from="TestBot" role="assistant"');
+      expect(result).toContain('<quote from="TestBot" username="testbot" role="assistant"');
     });
 
     it('should infer role="user" for quoted messages from other users', () => {
@@ -1096,7 +1098,7 @@ describe('Conversation Utilities', () => {
       const result = formatConversationHistoryAsXml(history, 'TestBot');
 
       // The quoted message should have role="user" since it's from Bob (not TestBot)
-      expect(result).toContain('<quote from="Bob" role="user"');
+      expect(result).toContain('<quote from="Bob" username="bob" role="user"');
     });
 
     it('should format multiple messages in order', () => {
@@ -1733,6 +1735,44 @@ describe('Conversation Utilities', () => {
         '<voice filename="clip.ogg" type="audio/ogg" duration="9s" status="untranscribed"/>'
       );
       expect(rendered).toContain('<file filename="doc.pdf" type="application/pdf"/>');
+    });
+
+    it('measures the WHOLE quote through the real renderer, not just its attachments', () => {
+      // The strongest form of the parity pin. Everything outside <attachments>
+      // used to be a hand-written string in the estimator that had drifted off
+      // the emitter entirely — it invented `author=` and `location=` attributes
+      // the renderer has never emitted, and added a phantom ` forwarded="true"`
+      // where the renderer writes `type="forward"`. Exact equality is what
+      // catches that; a greater-than assertion cannot.
+      const ref: StoredReferencedMessage = {
+        discordMessageId: '123456',
+        authorUsername: 'bob',
+        authorDisplayName: 'Bob',
+        authorRole: 'user',
+        content: 'Original message content',
+        embeds: '<embed>\n<title>A link</title>\n</embed>',
+        timestamp: '2025-01-01T00:00:00Z',
+        locationContext: '<location type="guild">\n<server name="G"/>\n</location>',
+        isForwarded: true,
+        attachments: [
+          { url: 'https://example.com/p.png', contentType: 'image/png', name: 'photo.png' },
+        ],
+        resolvedImageDescriptions: [{ filename: 'photo.png', description: 'a lighthouse' }],
+      };
+
+      const withRef = getFormattedMessageCharLength(
+        { role: 'user', content: 'Reply', messageMetadata: { referencedMessages: [ref] } },
+        'TestBot'
+      );
+      const withoutRef = getFormattedMessageCharLength(
+        { role: 'user', content: 'Reply' },
+        'TestBot'
+      );
+
+      const wrapper = '\n<quoted_messages>\n</quoted_messages>'.length;
+      const quote = renderReference(fromStoredReference(ref, 'TestBot')).length;
+
+      expect(withRef - withoutRef).toBe(wrapper + quote + 1); // +1 for the joining newline
     });
 
     it('should include forwarded type in reference length', () => {

@@ -7,19 +7,21 @@
  */
 
 import { type StoredReferencedMessage } from '@tzurot/common-types/types/schemas/message';
-import { formatPromptTimestamp } from '@tzurot/common-types/utils/dateFormatting';
 import {
   escapeXmlContent,
   neutralizeWrapperClosingTags,
 } from '@tzurot/common-types/utils/promptSanitizer';
-import { capDedupText } from '@tzurot/common-types/utils/referenceEnrichment';
 import { escapeXml } from '@tzurot/common-types/utils/xmlBuilder';
 import {
-  formatQuoteElement,
-  formatDedupedQuote,
-  classifyAttachment,
+  buildRenderableAttachments,
   type RenderableAttachment,
 } from '../../services/prompt/QuoteFormatter.js';
+import {
+  dedupeReference,
+  promptTime,
+  renderReference,
+  type RenderableReference,
+} from '../../services/prompt/RenderableReference.js';
 import { deriveRefRole } from '../../services/prompt/referenceRole.js';
 import type { RawHistoryEntry } from './conversationTypes.js';
 
@@ -48,34 +50,22 @@ export function buildStoredAttachments(ref: StoredReferencedMessage): Renderable
   );
   const matched = new Set<string>();
 
-  const attachments: RenderableAttachment[] = (ref.attachments ?? []).map(att => {
-    const common = { filename: att.name, contentType: att.contentType };
-
-    // Same classifier the live path uses — see `classifyAttachment`. These two
-    // producers must agree about what a given attachment IS, or the same file
-    // renders one way in the turn it arrives and another when replayed.
-    switch (classifyAttachment(att)) {
-      case 'image': {
-        const name = att.name;
-        const description = name !== undefined ? descriptionsByFilename.get(name) : undefined;
-        if (name !== undefined && description !== undefined) {
-          matched.add(name);
-          return { kind: 'image', ...common, description };
-        }
-        return { kind: 'image', ...common, status: 'undescribed' };
-      }
-      case 'voice':
-        // Always `untranscribed` on this path, and that is the honest rendering
-        // rather than a bug: `StoredReferencedMessage` has no audio counterpart
-        // to `resolvedImageDescriptions`, so a replayed voice reference has no
-        // transcript to carry. Saying so beats an unexplained bare element —
-        // closing the gap is a schema change (TASK-367), not a render change.
-        // The duration IS persisted, so it rides along; the live path forwards
-        // it too, and dropping it here was one more live/stored divergence.
-        return { kind: 'voice', ...common, durationSeconds: att.duration, status: 'untranscribed' };
-      case 'file':
-        return { kind: 'file', ...common };
+  // Only images can be enriched here, and that is honest rather than a gap in
+  // this function: `StoredReferencedMessage` has no audio counterpart to
+  // `resolvedImageDescriptions`, so a replayed voice reference has no transcript
+  // to carry and renders `status="untranscribed"`. Closing THAT is a schema
+  // change (TASK-367), not a render change — and a shared builder that quietly
+  // emitted an empty transcript section would paper over it.
+  const attachments = buildRenderableAttachments(ref.attachments ?? [], att => {
+    const name = att.name;
+    if (name === undefined) {
+      return undefined;
     }
+    const description = descriptionsByFilename.get(name);
+    if (description !== undefined) {
+      matched.add(name);
+    }
+    return description;
   });
 
   for (const [filename, description] of descriptionsByFilename) {
@@ -88,54 +78,50 @@ export function buildStoredAttachments(ref: StoredReferencedMessage): Renderable
 }
 
 /**
- * Format a single stored reference as a <quote> element.
+ * Adapt a stored history reference into the canonical renderable shape.
  *
- * Uses the shared formatQuoteElement() for consistent XML structure across
- * all quote formatting paths (real-time refs, history refs, forwarded messages).
- *
- * @param ref - The stored referenced message
- * @param personalityName - Name of the active AI personality (to infer role)
- * @param allPersonalityNames - Optional set of all AI personality names in the conversation
- * @returns Formatted XML string
+ * The one place the stored schema is read. `number` stays absent by design — a
+ * replayed quote has no `[Reference N]` marker in the current message to point
+ * at, so numbering it would invent a referent.
  */
-function formatStoredReferencedMessage(
+export function fromStoredReference(
   ref: StoredReferencedMessage,
   personalityName: string,
   allPersonalityNames?: Set<string>
-): string {
-  // Use hydrated persona name if available, fall back to original Discord display name
-  const authorName = ref.resolvedPersonaName ?? (ref.authorDisplayName || ref.authorUsername);
-  const role = deriveRefRole(ref.authorRole, authorName, personalityName, allPersonalityNames);
+): RenderableReference {
+  // Hydrated persona name where one resolved, else the Discord display name.
+  const from = ref.resolvedPersonaName ?? (ref.authorDisplayName || ref.authorUsername);
 
-  // Format location if present (should be XML formatted by bot-client using shared formatLocationAsXml)
-  // Skip legacy Markdown format (from old stored data) - detectable by "**Server**" or
-  // "This conversation is taking place" patterns that predate XML formatting
-  let locationContext: string | undefined;
-  if (
-    ref.locationContext !== undefined &&
-    ref.locationContext.length > 0 &&
-    !ref.locationContext.includes('**Server**') &&
-    !ref.locationContext.includes('This conversation is taking place')
-  ) {
-    locationContext = ref.locationContext;
-  }
-
-  const attachments = buildStoredAttachments(ref);
-
-  return formatQuoteElement({
-    type: ref.isForwarded === true ? 'forward' : undefined,
-    from: authorName,
+  return {
+    isForwarded: ref.isForwarded,
+    from,
     fromId: ref.resolvedPersonaId,
-    role,
-    timeFormatted:
-      ref.timestamp !== undefined && ref.timestamp.length > 0
-        ? formatPromptTimestamp(ref.timestamp)
-        : undefined,
+    username: ref.authorUsername,
+    role: deriveRefRole(ref.authorRole, from, personalityName, allPersonalityNames),
+    time: promptTime(ref.timestamp),
     content: ref.content,
-    locationContext,
+    locationContext: usableLocationContext(ref.locationContext),
     embedsXml: ref.embeds !== undefined && ref.embeds.length > 0 ? [ref.embeds] : undefined,
-    attachments: attachments.length > 0 ? attachments : undefined,
-  });
+    attachments: buildStoredAttachments(ref),
+  };
+}
+
+/**
+ * Location context, unless it predates XML formatting.
+ *
+ * Legacy stored rows carry a Markdown location block that would render as prose
+ * inside the quote. Detectable by two phrases the old format always contained.
+ */
+function usableLocationContext(locationContext: string | undefined): string | undefined {
+  if (
+    locationContext === undefined ||
+    locationContext.length === 0 ||
+    locationContext.includes('**Server**') ||
+    locationContext.includes('This conversation is taking place')
+  ) {
+    return undefined;
+  }
+  return locationContext;
 }
 
 /** Format quoted messages section for XML output */
@@ -174,39 +160,17 @@ export function formatQuotedSection(
     return '';
   }
 
-  // Full refs: existing behavior
   const formattedFull = fullRefs.map(ref =>
-    formatStoredReferencedMessage(ref, personalityName, allPersonalityNames)
+    renderReference(fromStoredReference(ref, personalityName, allPersonalityNames))
   );
 
-  // Deduped refs: lightweight stubs with truncated content and reply-target note.
-  // Media rides along in full — `persistReferenceDescriptions` writes descriptions
-  // onto the stored row precisely so a quoted image survives replay, and the
-  // history entry the stub points at renders that image as a URL, not a
-  // description.
-  //
-  // An UNdescribed attachment now renders here too, as a `status`-carrying
-  // element. Its predecessor omitted markers on this branch as chat-log
-  // redundancy, which was true for the file's NAME and false for its existence:
-  // an attachment with no description and no marker is simply invisible, the
-  // same drop class as the descriptions this branch used to lose entirely.
-  const formattedDeduped = dedupedRefs.map(ref => {
-    const authorName = ref.resolvedPersonaName ?? (ref.authorDisplayName || ref.authorUsername);
-    const role = deriveRefRole(ref.authorRole, authorName, personalityName, allPersonalityNames);
-    return formatDedupedQuote({
-      from: authorName,
-      role,
-      timeFormatted:
-        ref.timestamp !== undefined && ref.timestamp.length > 0
-          ? formatPromptTimestamp(ref.timestamp)
-          : undefined,
-      // Cap the stored text preview HERE (the single truncation point) — formatDedupedQuote
-      // renders as-is. Stored refs carry their attachments as structured elements, so
-      // content is text-only and safe to cap directly.
-      content: capDedupText(ref.content),
-      attachments: buildStoredAttachments(ref),
-    });
-  });
+  // Deduped refs are the SAME reference, projected — not a second build. Media
+  // rides along in full: `persistReferenceDescriptions` writes descriptions onto
+  // the stored row precisely so a quoted image survives replay, and the history
+  // entry the stub points at renders that image as a URL, not a description.
+  const formattedDeduped = dedupedRefs.map(ref =>
+    renderReference(dedupeReference(fromStoredReference(ref, personalityName, allPersonalityNames)))
+  );
 
   const allFormatted = [...formattedFull, ...formattedDeduped].join('\n');
   return `\n<quoted_messages>\n${allFormatted}\n</quoted_messages>`;

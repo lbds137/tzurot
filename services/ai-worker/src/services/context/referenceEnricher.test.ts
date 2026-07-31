@@ -48,38 +48,43 @@ describe('enrichRawReferences', () => {
     expect(result[0].isDeduplicated).toBeUndefined();
   });
 
-  it('stubs a reference whose id is in the assembled history', async () => {
+  it('flags a reference whose id is in the assembled history, and changes nothing else', async () => {
+    const raw = rawRef({ content: 'x'.repeat(TEXT_LIMITS.DEDUP_STUB_CONTENT + 40) });
     const result = await enrichRawReferences({
-      rawReferences: [rawRef({ content: 'x'.repeat(TEXT_LIMITS.DEDUP_STUB_CONTENT + 5) })],
+      rawReferences: [raw],
+      history: [historyRow('ref-1', new Date(NOW - 5_000))],
+      retrieveTranscript: noTranscript,
+      nowMs: NOW,
+    });
+    // The enricher sets the FLAG and nothing else. Emptying the content,
+    // capping the preview and dropping embeds/location used to happen here, in
+    // a field-by-field rebuild — which is exactly how fields nobody remembered
+    // to list went missing. It is a render-time projection now, so everything
+    // downstream still has the full reference to project FROM.
+    expect(result[0].isDeduplicated).toBe(true);
+    expect(result[0].content).toBe('x'.repeat(TEXT_LIMITS.DEDUP_STUB_CONTENT + 40));
+    expect(result[0].embeds).toBe(raw.embeds);
+    expect(result[0].locationContext).toBe(raw.locationContext);
+  });
+
+  it('keeps the attachments on a deduped reference so the renderer can still draw them', async () => {
+    // The regression this pins: the old stub STRIPPED `attachments`, so the
+    // renderer had only preprocessing results to go on and an attachment whose
+    // vision call never ran was simply invisible.
+    const attachments = [
+      { url: 'https://cdn/board.png', contentType: 'image/png', name: 'board.png' },
+    ];
+    const result = await enrichRawReferences({
+      rawReferences: [rawRef({ content: '', attachments })],
       history: [historyRow('ref-1', new Date(NOW - 5_000))],
       retrieveTranscript: noTranscript,
       nowMs: NOW,
     });
     expect(result[0].isDeduplicated).toBe(true);
-    expect(result[0].content).toBe('x'.repeat(TEXT_LIMITS.DEDUP_STUB_CONTENT) + '...');
-    expect(result[0].embeds).toBe('');
-    expect(result[0].locationContext).toBe('');
+    expect(result[0].attachments).toEqual(attachments);
   });
 
-  it('keeps the image attachment marker when stubbing a duplicate image-only reply-target', async () => {
-    const result = await enrichRawReferences({
-      rawReferences: [
-        rawRef({
-          content: '', // image-only message — without the marker the stub is blank
-          attachments: [
-            { url: 'https://cdn/board.png', contentType: 'image/png', name: 'board.png' },
-          ],
-        }),
-      ],
-      history: [historyRow('ref-1', new Date(NOW - 5_000))],
-      retrieveTranscript: noTranscript,
-      nowMs: NOW,
-    });
-    expect(result[0].isDeduplicated).toBe(true);
-    expect(result[0].content).toBe('[image/png: board.png]');
-  });
-
-  it('emits a marker-only stub for the bot’s own deduped voice reply-target', async () => {
+  it('strips the bot’s own TTS audio before the dedup decision', async () => {
     const result = await enrichRawReferences({
       rawReferences: [
         rawRef({
@@ -95,11 +100,13 @@ describe('enrichRawReferences', () => {
       nowMs: NOW,
     });
     expect(result[0].isDeduplicated).toBe(true);
-    // A bot-authored reply-target is the model's own prior line; a snippet of it is a
-    // "continue this fragment" trigger, and the full message is in <chat_log>. So the
-    // bot's deduped stub is marker-only — no audio marker AND no text preview. (The
-    // audio-strip still applies to non-deduped bot quotes, which keep their text.)
-    expect(result[0].content).toBe('');
+    // A personality reply's `audio/*` attachment is TTS *delivery* of its own
+    // text, not content the model attached — so it is dropped here, on both
+    // render branches. Withholding the TEXT preview is a separate decision and
+    // lives with the renderer (`dedupeReference` keys it on role="assistant"),
+    // which is why the content survives this step intact.
+    expect(result[0].attachments).toEqual([]);
+    expect(result[0].content).toBe('You are allowed to be furious about this');
   });
 
   it('stubs a recent webhook reference via the time fallback', async () => {
@@ -158,10 +165,12 @@ describe('enrichRawReferences', () => {
       retrieveTranscript: noTranscript,
       nowMs: NOW,
     });
-    // Mirrors the bot-side formatter loop: isDeduplicated branch wins over
-    // the forwarded branch, so the stub drops the isForwarded flag too.
+    // Dedup wins over the forwarded pass-through, as it does on the bot side —
+    // but the forwarded flag SURVIVES now. The old stub rebuilt the reference
+    // without it, so a forwarded reference that also deduped silently lost its
+    // forwarded-ness: the third instance of the dropped-field class.
     expect(result[0].isDeduplicated).toBe(true);
-    expect(result[0].isForwarded).toBeUndefined();
+    expect(result[0].isForwarded).toBe(true);
     expect(result[0].content).toBe('forwarded snapshot content');
   });
 

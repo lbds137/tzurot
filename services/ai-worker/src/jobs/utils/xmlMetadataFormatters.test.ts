@@ -71,21 +71,21 @@ vi.mock('@tzurot/common-types/utils/xmlBuilder', async () => {
 // Delegating keeps the call-argument assertions — the seam this suite verifies is
 // what `formatQuotedSection` HANDS the renderer — while the rendering itself is
 // the production code's, so it cannot drift.
-const { mockFormatQuoteElement, mockFormatDedupedQuote } = vi.hoisted(() => ({
-  mockFormatQuoteElement: vi.fn(),
-  mockFormatDedupedQuote: vi.fn(),
+const { mockRenderReference, mockDedupeReference } = vi.hoisted(() => ({
+  mockRenderReference: vi.fn(),
+  mockDedupeReference: vi.fn(),
 }));
 
-vi.mock('../../services/prompt/QuoteFormatter.js', async () => {
-  const actual = await vi.importActual<typeof import('../../services/prompt/QuoteFormatter.js')>(
-    '../../services/prompt/QuoteFormatter.js'
-  );
-  mockFormatQuoteElement.mockImplementation(actual.formatQuoteElement);
-  mockFormatDedupedQuote.mockImplementation(actual.formatDedupedQuote);
+vi.mock('../../services/prompt/RenderableReference.js', async () => {
+  const actual = await vi.importActual<
+    typeof import('../../services/prompt/RenderableReference.js')
+  >('../../services/prompt/RenderableReference.js');
+  mockRenderReference.mockImplementation(actual.renderReference);
+  mockDedupeReference.mockImplementation(actual.dedupeReference);
   return {
     ...actual,
-    formatQuoteElement: mockFormatQuoteElement,
-    formatDedupedQuote: mockFormatDedupedQuote,
+    renderReference: mockRenderReference,
+    dedupeReference: mockDedupeReference,
   };
 });
 
@@ -479,7 +479,7 @@ describe('xmlMetadataFormatters', () => {
         undefined
       );
 
-      expect(mockFormatDedupedQuote).toHaveBeenCalledWith(
+      expect(mockDedupeReference).toHaveBeenCalledWith(
         expect.objectContaining({
           attachments: [
             {
@@ -498,8 +498,8 @@ describe('xmlMetadataFormatters', () => {
     });
 
     it('renders role="bot" on a deduped stub from a non-persona bot reference', () => {
-      // Stored authorRole flows through the deduped path too — regression guard against
-      // the role attribute being dropped between deriveRefRole and formatDedupedQuote.
+      // Stored authorRole flows through the deduped path too — regression guard
+      // against the role attribute being dropped across the projection.
       const msg = makeEntry({
         messageMetadata: {
           referencedMessages: [
