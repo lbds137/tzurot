@@ -4,6 +4,7 @@
 
 import { describe, it, expect } from 'vitest';
 import {
+  KNOWN_THINKING_TAGS,
   extractThinkingBlocks,
   hasThinkingBlocks,
   extractApiReasoningContent,
@@ -348,14 +349,17 @@ The answer is 42.`;
       expect(result.blockCount).toBe(0);
     });
 
-    it('should still extract unclosed tag mid-response (content exists before tag)', () => {
-      // When there's visible content before the unclosed tag, extraction is safe
+    it('should NOT extract an unclosed tag mid-response (the model is quoting it)', () => {
+      // A tag preceded by real prose is the model TALKING about the tag, not
+      // opening a reasoning block — every unclosed case observed in production
+      // is head-anchored. Extracting here truncated a user-visible reply
+      // mid-sentence and refiled the remainder as reasoning.
       const content = 'The answer is Paris. <think>Wait, let me reconsider...';
       const result = extractThinkingBlocks(content);
 
-      expect(result.thinkingContent).toBe('Wait, let me reconsider...');
-      expect(result.visibleContent).toBe('The answer is Paris.');
-      expect(result.blockCount).toBe(1);
+      expect(result.thinkingContent).toBeNull();
+      expect(result.visibleContent).toBe(content);
+      expect(result.blockCount).toBe(0);
     });
 
     it('should handle GLM 4.5 Air glitch — unclosed tag with full response inside', () => {
@@ -370,6 +374,121 @@ The answer is 42.`;
       expect(result.visibleContent).toContain('The capital of France is Paris');
       expect(result.visibleContent).not.toContain('<think>');
       expect(result.blockCount).toBe(0);
+    });
+  });
+
+  describe('quoted control syntax', () => {
+    // This product hosts AI characters, so replies routinely DISCUSS model
+    // internals — a character explaining what <thinking> means emits the same
+    // bytes as a model opening a reasoning block. Two discriminators separate
+    // them, and each covers what the other cannot:
+    //   - opening tags: position (a real unclosed block is head-anchored)
+    //   - closing tags: code markup (the Kimi K2.5 shape is mid-line too, so
+    //     position cannot tell them apart)
+
+    it('preserves a reply that quotes an opening tag inside inline code', () => {
+      const reply = [
+        'Okay. Now I see it. All four.',
+        '',
+        'The third one is where it gets strange — someone started a new',
+        'incognito chat, and the entire user message was just the fragment',
+        '`<thinking>',
+        'I am a',
+        '???`. That is not a question. That is not a prompt.',
+        '',
+        'Which means the fourth screenshot is the interesting one.',
+      ].join('\n');
+
+      const result = extractThinkingBlocks(reply);
+
+      expect(result.visibleContent).toBe(reply);
+      expect(result.thinkingContent).toBeNull();
+      expect(result.blockCount).toBe(0);
+    });
+
+    it('preserves a reply that mentions a closing tag inside inline code', () => {
+      const reply =
+        'Models like DeepSeek emit their reasoning and then terminate it with a `</think>` marker before the real answer begins. That is why you sometimes see it leak.';
+
+      const result = extractThinkingBlocks(reply);
+
+      expect(result.visibleContent).toBe(reply);
+      expect(result.thinkingContent).toBeNull();
+      expect(result.blockCount).toBe(0);
+    });
+
+    it('KNOWN LIMIT: an unfenced closing tag mid-prose is still consumed', () => {
+      // Positionally identical to the Kimi K2.5 shape this path exists to
+      // serve, with no code markup to separate them. Extraction stays the
+      // default when the only available signal is absent — pinned so the
+      // boundary is visible rather than discovered.
+      const content = 'Some models close their reasoning with </think> before the answer.';
+      const result = extractThinkingBlocks(content);
+
+      expect(result.visibleContent).toBe('before the answer.');
+    });
+
+    it('preserves a quoted stutter-shaped fragment at the start of a line', () => {
+      // The chimera-artifact cleanup eats a whole `token. </tag>` fragment and
+      // runs before the orphan pass, so without its own gate it corrupts the
+      // reply first — leaving a dangling backtick and a mangled sentence.
+      const content = 'Some notes:\n`eh. </think>` shows the shape some models emit.';
+      const result = extractThinkingBlocks(content);
+
+      expect(result.visibleContent).toBe(content);
+      expect(result.thinkingContent).toBeNull();
+    });
+
+    it('KNOWN LIMIT: an unquoted mid-response opening tag leaks its literal text', () => {
+      // The other side of the same trade. Declining to extract means the tag
+      // itself now renders to the user rather than being consumed along with
+      // the rest of the reply. Cosmetic leak on a path never observed in
+      // production, against data loss on one that was — pinned so the choice
+      // is legible rather than looking like an oversight.
+      const content = 'The answer is Paris. <think>Wait, let me reconsider...';
+      const result = extractThinkingBlocks(content);
+
+      expect(result.visibleContent).toContain('<think>');
+      expect(result.thinkingContent).toBeNull();
+    });
+
+    describe('every known tag, in every quoting shape', () => {
+      // The tag vocabulary grows with each model revision, and every addition
+      // widens the surface on which a QUOTED delimiter can be mistaken for a
+      // real one. Driving this table off the exported constant means a newly
+      // added tag inherits the coverage instead of arriving unguarded.
+      const quotingShapes = [
+        {
+          label: 'inline backticks',
+          wrap: (tag: string): string => `Models emit a \`${tag}\` marker before answering.`,
+        },
+        {
+          label: 'a fenced block',
+          wrap: (tag: string): string => `Like so:\n\`\`\`\n${tag}\n\`\`\`\nThat is the shape.`,
+        },
+      ];
+
+      for (const tag of KNOWN_THINKING_TAGS) {
+        for (const { label, wrap } of quotingShapes) {
+          it(`preserves <${tag}> quoted in ${label}`, () => {
+            const content = wrap(`<${tag}>`);
+            const result = extractThinkingBlocks(content);
+
+            expect(result.visibleContent).toBe(content);
+            expect(result.thinkingContent).toBeNull();
+            expect(result.blockCount).toBe(0);
+          });
+
+          it(`preserves </${tag}> quoted in ${label}`, () => {
+            const content = wrap(`</${tag}>`);
+            const result = extractThinkingBlocks(content);
+
+            expect(result.visibleContent).toBe(content);
+            expect(result.thinkingContent).toBeNull();
+            expect(result.blockCount).toBe(0);
+          });
+        }
+      }
     });
   });
 
@@ -558,16 +677,16 @@ Sarcasm is just encrypted honesty.`;
       expect(result.blockCount).toBe(1);
     });
 
-    it('should strip leading stray punctuation after truncated thinking extraction', () => {
-      // When an unclosed tag is removed, visible content may start with stray punctuation
-      // left over from the truncated reasoning (e.g., "., " or ", " fragments)
+    it('should preserve a mid-response unclosed tag rather than extracting it', () => {
+      // This case used a mid-response unclosed tag as its vehicle for testing
+      // leading-punctuation cleanup, which the complete-tag cases below cover
+      // directly. Mid-response extraction is the truncation bug, so the whole
+      // reply must survive.
       const content = 'Some visible text. <think>Unclosed thinking that was truncated';
       const result = extractThinkingBlocks(content);
 
-      // The unclosed tag content is extracted as thinking
-      expect(result.thinkingContent).toBe('Unclosed thinking that was truncated');
-      // Visible content should be clean
-      expect(result.visibleContent).toBe('Some visible text.');
+      expect(result.thinkingContent).toBeNull();
+      expect(result.visibleContent).toBe(content);
     });
 
     it('should strip leading punctuation when visible content starts with stray period', () => {
@@ -1238,6 +1357,14 @@ describe('hasThinkingBlocks', () => {
 
   it('should return true for unclosed tags (fallback detection)', () => {
     expect(hasThinkingBlocks('<think>unclosed content')).toBe(true);
+  });
+
+  it('should return false for a tag quoted mid-prose (mirrors the extractor anchor)', () => {
+    // The detector shares the extractor's head anchor on purpose. Reporting
+    // true here would make `hasReasoningTagsInContent` tell /inspect that a
+    // reply contains reasoning when the model was only talking about a tag.
+    expect(hasThinkingBlocks('The answer is Paris. <think>Wait, let me reconsider...')).toBe(false);
+    expect(hasThinkingBlocks('Models emit a `<thinking>` marker first.')).toBe(false);
   });
 
   it('should return true for additional tag types', () => {
