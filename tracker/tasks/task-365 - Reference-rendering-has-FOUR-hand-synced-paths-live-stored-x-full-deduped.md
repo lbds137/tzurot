@@ -132,4 +132,51 @@ Also confirmed by reading: `buildDedupedReferenceStub` drops `attachments` AND
 `isForwarded` from its reconstruction — so a forwarded reference that also
 dedupes loses its forwarded-ness silently. Third instance of the same class,
 found without a bug report, and it closes by construction under the projection.
+
+## CONVERGE TOWARD THE STORED PATH, NOT AWAY FROM IT
+
+The framing above (and the council's) implicitly treats the two renderers as
+peers to be merged. Reading `xmlMetadataFormatters.formatStoredReferencedMessage`
+end to end says otherwise: **the stored full path is already very close to the
+canonical `renderReference` this task wants**, and the live path is the outlier.
+
+Concretely, the stored path already does three things the live path does not:
+
+1. **Forwarded is a MODE, not a separate function.** It renders forwarding as
+   `type: ref.isForwarded ? 'forward' : undefined` on the one renderer. The live
+   path has a whole separate `formatForwardedReference` method that duplicates
+   the timestamp/attachment/embeds handling of `formatStandardReference`. Kimi's
+   `renderReference(ref, mode)` shape is *already implemented* on the stored
+   side; the live side is what has to give.
+2. **Media splitting is correct and per-attachment.** `splitStoredMedia` emits a
+   description OR a marker per image, never both and never neither. The live
+   path has no equivalent — its deduped branch carries descriptions while its
+   own content string separately carries markers for the same image, an overlap
+   its comment admits is intentional-for-now.
+3. **Persona hydration** (`resolvedPersonaName` / `resolvedPersonaId` →
+   `from` / `from_id`) has no live counterpart at all.
+
+So the migration direction flips: lift `formatStoredReferencedMessage`'s shape
+into the shared `renderReference`, then make the LIVE path produce a
+`ResolvedReference` that feeds it — rather than treating the live formatter as
+the base and teaching it about stored rows.
+
+**Two more divergences the union must decide, both model-visible:**
+
+- **`number`.** `[Reference N]` numbering is live-only (`StoredReferencedMessage`
+  has no `referenceNumber`); the stored path renders quotes unnumbered. Either
+  the stored path starts numbering positionally or the attribute stays
+  conditional — this is a prompt-shape decision, so it belongs with the owner's
+  vocabulary call rather than being settled silently by whichever branch the
+  refactor happens to write first.
+- **`username`.** The live deduped stub passes it; the stored deduped branch does
+  not. Same quote, one attribute apart.
+
+**Do NOT "fix" the missing `voiceTranscripts` on the stored deduped branch.**
+Its comment is correct and worth preserving through the refactor: the live path
+reads transcripts from in-memory preprocessing, and `StoredReferencedMessage`
+has no audio counterpart to `resolvedImageDescriptions`. That is a schema gap
+owned by TASK-367 (persist the built reference), not a dropped field here — and
+a projection that "inherits every field by construction" must not paper over it
+by emitting an empty section.
 <!-- SECTION:DESCRIPTION:END -->
