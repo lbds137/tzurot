@@ -3,9 +3,10 @@ id: TASK-372
 title: >-
   PROD: quoted <thinking> tag mid-response truncates the visible reply and
   inflates reasoning
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-07-31 01:19'
+updated_date: '2026-07-31 04:12'
 labels:
   - 'area:ai-worker'
 dependencies: []
