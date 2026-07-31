@@ -35,10 +35,29 @@ ordinal: 373000
 
 ## SCOPE UPDATE — what #1880 closed, and what it settled for the rest of the sweep
 
-`thinkingExtraction.ts` is **done**: the unclosed-tag path (position anchor), the
-orphan-closing-tag path (code markup), and the `ORPHAN_CLOSING_TAG_CLEANUP` +
-`CHIMERA_ARTIFACT_PATTERN` erasure passes are all gated, with a table-driven
-guard over `KNOWN_THINKING_TAGS` × quoting shape so a new tag inherits coverage.
+**Correction to an earlier version of this section.** It claimed
+`thinkingExtraction.ts` was "done" while **Pass 2 — the primary extractor, for
+complete `<tag>…</tag>` pairs — was still ungated**, in the same file. The claim
+was written from the list of paths I had fixed rather than from the list of
+paths that exist, which is the completion-overclaim failure `00-critical.md`
+names. #1880's review caught it; the gap was runtime-confirmed (a reply
+demonstrating the syntax lost its example entirely) and fixed before merge.
+
+Recording it because the lesson generalises to this task: **enumerate the parse
+sites in a file before declaring the file swept.** The reasoning that hid it was
+also wrong in a specific, repeatable way — Pass 2 was scoped out on the grounds
+that "a quoted complete pair is indistinguishable from a real one," which is
+false for exactly the same reason it was false on the orphan path: a BACKTICKED
+pair is distinguishable. Watch for that argument at the remaining sites; it is
+seductive and it was wrong both times.
+
+`thinkingExtraction.ts` is **now** done: the unclosed-tag path (position anchor),
+the orphan-closing-tag path (code markup), Pass 2's complete pairs (code markup,
+gated on both the collection and removal sides), `hasThinkingBlocks`, and the
+`ORPHAN_CLOSING_TAG_CLEANUP` + `CHIMERA_ARTIFACT_PATTERN` erasure passes are all
+gated — with a table-driven guard over `KNOWN_THINKING_TAGS` × quoting shape ×
+{opening, closing, complete pair} so a new tag inherits coverage in all three
+forms.
 
 Three results that carry to every remaining site, so they are not re-derived:
 
@@ -53,7 +72,10 @@ Three results that carry to every remaining site, so they are not re-derived:
    observed real cases.
 3. **`isInsideCodeSpan` exists** (`packages/common-types/src/utils/codeSpanDetection.ts`)
    — inline backticks + fenced blocks, single left-to-right scan. Reuse it;
-   do not write a second one.
+   do not write a second one. Two known gaps, both documented at the source:
+   fence detection is not line-anchored (fails toward preserving content, so
+   tolerable), and double-backtick spans are not modelled (fails toward
+   extracting — the wrong direction; TASK-377).
 
 **Perf caveat, from #1880's round-2 review — a member of this task, since this
 task owns the reuse.** `isInsideCodeSpan` re-scans from offset 0 on every call,
