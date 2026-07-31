@@ -32,4 +32,42 @@ ordinal: 373000
 **Test shape (applies to every site found)**: feed content that QUOTES the delimiter mid-prose and assert the output is unchanged — nothing extracted, nothing truncated. Verify RED where the site is actually broken.
 
 **Discriminators worth evaluating once, then applying consistently** (rather than per-site ad hoc): position heuristics (real control syntax is a prefix/suffix phenomenon; quoted syntax is mid-text), code-fence and inline-backtick awareness, and proportion guards (refuse an extraction that would consume most of the response).
+
+## SCOPE UPDATE — what #1880 closed, and what it settled for the rest of the sweep
+
+`thinkingExtraction.ts` is **done**: the unclosed-tag path (position anchor), the
+orphan-closing-tag path (code markup), and the `ORPHAN_CLOSING_TAG_CLEANUP` +
+`CHIMERA_ARTIFACT_PATTERN` erasure passes are all gated, with a table-driven
+guard over `KNOWN_THINKING_TAGS` × quoting shape so a new tag inherits coverage.
+
+Three results that carry to every remaining site, so they are not re-derived:
+
+1. **The proportion guard is evidence-rejected. Do not re-propose it.** The
+   production reply had ~2/3 of its text before the quoted tag, so extraction
+   consumed only ~1/3 — no threshold loose enough to spare genuine truncation
+   would have fired.
+2. **The discriminator is per-site by necessity, not by sloppiness.** Position
+   works only where the real signal is a prefix/suffix phenomenon; where the
+   real shape is mid-text (the Kimi K2.5 orphan tag), code markup is the ONLY
+   separator. Expect to pick per site and justify the pick from that site's own
+   observed real cases.
+3. **`isInsideCodeSpan` exists** (`packages/common-types/src/utils/codeSpanDetection.ts`)
+   — inline backticks + fenced blocks, single left-to-right scan. Reuse it;
+   do not write a second one.
+
+**Perf caveat, from #1880's round-2 review — a member of this task, since this
+task owns the reuse.** `isInsideCodeSpan` re-scans from offset 0 on every call,
+so a caller that invokes it once per candidate match is O(n·m). Irrelevant at
+Discord reply lengths (low thousands of chars, few candidates), which is why
+#1880 left it alone. It stops being irrelevant at the sites THIS task targets —
+`promptSanitizer` runs over the full assembled prompt, not one reply. Before
+wiring it into a whole-prompt path, either hoist the scan (compute code-span
+ranges once per string and binary-search offsets) or confirm the call count is
+bounded. Measure at the site; do not optimize blind.
+
+**Check TASK-375 before designing a discriminator for the unfenced-quote gap.**
+The remaining gap (an unfenced `</think>` mid-prose is still consumed) exists
+ONLY to keep the Kimi K2.5 orphan path working. If that model is out of
+rotation, deleting the path closes the gap by construction — a cheaper and more
+honest answer than a cleverer heuristic.
 <!-- SECTION:DESCRIPTION:END -->
