@@ -502,6 +502,18 @@ The answer is 42.`;
             expect(result.thinkingContent).toBeNull();
             expect(result.blockCount).toBe(0);
           });
+
+          it(`preserves a complete <${tag}>…</${tag}> pair quoted in ${label}`, () => {
+            // The likeliest shape of all: demonstrating the syntax means
+            // writing both halves. Unguarded, the example's body is filed as
+            // reasoning and disappears from the reply entirely.
+            const content = wrap(`<${tag}>example reasoning</${tag}>`);
+            const result = extractThinkingBlocks(content);
+
+            expect(result.visibleContent).toBe(content);
+            expect(result.thinkingContent).toBeNull();
+            expect(result.blockCount).toBe(0);
+          });
         }
       }
     });
@@ -1380,6 +1392,13 @@ describe('hasThinkingBlocks', () => {
     // reply contains reasoning when the model was only talking about a tag.
     expect(hasThinkingBlocks('The answer is Paris. <think>Wait, let me reconsider...')).toBe(false);
     expect(hasThinkingBlocks('Models emit a `<thinking>` marker first.')).toBe(false);
+    expect(hasThinkingBlocks('Use `<think>x</think>` like so.')).toBe(false);
+  });
+
+  it('should still return true when a real pair sits alongside a quoted one', () => {
+    // The gate skips quoted matches rather than bailing on the first one, so a
+    // reply that reasons AND shows an example still reports as reasoning.
+    expect(hasThinkingBlocks('Use `<think>x</think>` like so.<think>real</think>')).toBe(true);
   });
 
   it('should return true for additional tag types', () => {

@@ -526,6 +526,51 @@ function tryFallbackExtraction(thinkingParts: string[], visibleContent: string):
 }
 
 /**
+ * Pass 2 — extract every complete `<tag>…</tag>` pair that is not quoted.
+ *
+ * A quoted complete pair is the most natural way a reply demonstrates the
+ * syntax (`` `<think>like this</think>` ``), and it needs the same code-markup
+ * gate as the fallback paths — otherwise the example's body is filed as
+ * reasoning and vanishes from the reply.
+ *
+ * The gate is applied TWICE, against different strings, which is why this reads
+ * as two passes rather than one: enumeration indexes into `normalized`, while
+ * removal re-matches over `visibleContent` (already shortened by Pass 1), so an
+ * offset from one does not address the other.
+ *
+ * Skipping (rather than bailing) means a reply that both reasons AND shows an
+ * example still yields its real reasoning.
+ *
+ * @param thinkingParts - Accumulator, appended in place
+ * @returns `visibleContent` with the unquoted pairs removed
+ */
+function extractCompleteTagPairs(
+  normalized: string,
+  visibleContent: string,
+  thinkingParts: string[]
+): string {
+  let remaining = visibleContent;
+
+  for (const pattern of THINKING_PATTERNS) {
+    pattern.lastIndex = 0;
+    for (const match of normalized.matchAll(pattern)) {
+      const thinkContent = match[1].trim();
+      if (!isInsideCodeSpan(normalized, match.index) && thinkContent.length > 0) {
+        thinkingParts.push(thinkContent);
+      }
+    }
+
+    pattern.lastIndex = 0;
+    const beforeStrip = remaining;
+    remaining = beforeStrip.replace(pattern, (matchText: string, _body: string, offset: number) =>
+      isInsideCodeSpan(beforeStrip, offset) ? matchText : ''
+    );
+  }
+
+  return remaining;
+}
+
+/**
  * Extract thinking blocks from AI response content.
  *
  * Models like DeepSeek R1, Qwen QwQ, GLM-4.x, and Claude with prompted thinking
@@ -623,18 +668,7 @@ export function extractThinkingBlocks(content: string): ThinkingExtraction {
   // in Pass 1, once as its own tag match in Pass 2. Edge case is not
   // user-visible (it only affects `showThinking` output) and would require
   // a pathological input shape. Left as-is intentionally.
-  for (const pattern of THINKING_PATTERNS) {
-    pattern.lastIndex = 0;
-    const matches = normalized.matchAll(pattern);
-    for (const match of matches) {
-      const thinkContent = match[1].trim();
-      if (thinkContent.length > 0) {
-        thinkingParts.push(thinkContent);
-      }
-    }
-    pattern.lastIndex = 0;
-    visibleContent = visibleContent.replace(pattern, '');
-  }
+  visibleContent = extractCompleteTagPairs(normalized, visibleContent, thinkingParts);
 
   // Fallback extraction (only if no complete tags found)
   if (thinkingParts.length === 0) {
@@ -671,8 +705,13 @@ export function hasThinkingBlocks(content: string): boolean {
   const normalized = normalizeThinkingTagNamespaces(content);
   for (const pattern of THINKING_PATTERNS) {
     pattern.lastIndex = 0; // Reset regex state
-    if (pattern.test(normalized)) {
-      return true;
+    for (const match of normalized.matchAll(pattern)) {
+      // Mirrors the extractor's code-markup gate: a quoted pair is an example,
+      // and reporting it here would tell /inspect a reply contains reasoning
+      // that the extractor deliberately left alone.
+      if (!isInsideCodeSpan(normalized, match.index)) {
+        return true;
+      }
     }
   }
 
