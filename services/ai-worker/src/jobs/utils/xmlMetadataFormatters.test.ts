@@ -58,77 +58,36 @@ vi.mock('@tzurot/common-types/utils/xmlBuilder', async () => {
   };
 });
 
-// Mock QuoteFormatter - pass through to real implementation for structural tests
-const { mockFormatQuoteElement, mockFormatDedupedQuote } = vi.hoisted(() => {
-  const fqe = vi.fn().mockImplementation((opts: Record<string, unknown>) => {
-    const attrs: string[] = [];
-    if (opts.type !== undefined) attrs.push(`type="${opts.type}"`);
-    if (opts.from !== undefined) attrs.push(`from="${opts.from}"`);
-    if (opts.fromId !== undefined) attrs.push(`from_id="${opts.fromId}"`);
-    if (opts.role !== undefined) attrs.push(`role="${opts.role}"`);
-    if (opts.timeFormatted !== undefined) attrs.push(`t="${opts.timeFormatted}"`);
-    const attrStr = attrs.length > 0 ? ' ' + attrs.join(' ') : '';
-
-    const parts = [`<quote${attrStr}>`];
-    if (opts.content !== undefined) parts.push(`<content>${opts.content}</content>`);
-    if (opts.imageDescriptions !== undefined) {
-      const imgs = opts.imageDescriptions as { filename: string; description: string }[];
-      parts.push('<image_descriptions>');
-      for (const img of imgs) {
-        parts.push(`<image filename="${img.filename}">${img.description}</image>`);
-      }
-      parts.push('</image_descriptions>');
-    }
-    if (opts.attachmentLines !== undefined) {
-      const lines = opts.attachmentLines as string[];
-      parts.push('<attachments>');
-      parts.push(...lines);
-      parts.push('</attachments>');
-    }
-    parts.push('</quote>');
-    return parts.join('\n');
-  });
-
-  // Mirror the REAL formatDedupedQuote: render content AS-IS (no truncation). The cap now
-  // happens upstream in formatQuotedSection via the real capDedupText, so the
-  // "truncates long content" test below verifies THAT cap, not a mock-side truncation.
-  //
-  // `imageDescriptions` must be forwarded here or the mock silently swallows the
-  // very field the deduped path was fixed to carry — a stub that drops what the
-  // real function renders makes this suite blind to the bug it should catch.
-  const fdq = vi
-    .fn()
-    .mockImplementation(
-      (opts: {
-        from: string;
-        role?: string;
-        timeFormatted?: string;
-        content: string;
-        imageDescriptions?: { filename: string; description: string }[];
-      }) => {
-        // The real prefix switches on whether media rides along; mirror that or
-        // the stub asserts a wording the production path would not emit.
-        const prefix =
-          (opts.imageDescriptions?.length ?? 0) > 0
-            ? '[Referenced message — full text in the chat log; its media is described here]'
-            : '[Referenced message — full text in the chat log]';
-        return fqe({
-          from: opts.from,
-          role: opts.role,
-          timeFormatted: opts.timeFormatted,
-          content: `${prefix}\n\n${opts.content}`,
-          imageDescriptions: opts.imageDescriptions,
-        });
-      }
-    );
-
-  return { mockFormatQuoteElement: fqe, mockFormatDedupedQuote: fdq };
-});
-
-vi.mock('../../services/prompt/QuoteFormatter.js', () => ({
-  formatQuoteElement: mockFormatQuoteElement,
-  formatDedupedQuote: mockFormatDedupedQuote,
+// Spies that DELEGATE to the real QuoteFormatter rather than reimplementing it.
+//
+// Their predecessors were hand-written stand-ins that rebuilt the <quote> element
+// from scratch — a second renderer, kept in sync by hand, in the test suite for
+// the bug class that is exactly "renderers kept in sync by hand". It failed the
+// way that always fails: the stub dropped a field the real function rendered, and
+// the suite went blind to the very drop it was meant to catch (fixed once by
+// bolting `imageDescriptions` onto the stub, which bought one field and left the
+// next one just as exposed).
+//
+// Delegating keeps the call-argument assertions — the seam this suite verifies is
+// what `formatQuotedSection` HANDS the renderer — while the rendering itself is
+// the production code's, so it cannot drift.
+const { mockFormatQuoteElement, mockFormatDedupedQuote } = vi.hoisted(() => ({
+  mockFormatQuoteElement: vi.fn(),
+  mockFormatDedupedQuote: vi.fn(),
 }));
+
+vi.mock('../../services/prompt/QuoteFormatter.js', async () => {
+  const actual = await vi.importActual<typeof import('../../services/prompt/QuoteFormatter.js')>(
+    '../../services/prompt/QuoteFormatter.js'
+  );
+  mockFormatQuoteElement.mockImplementation(actual.formatQuoteElement);
+  mockFormatDedupedQuote.mockImplementation(actual.formatDedupedQuote);
+  return {
+    ...actual,
+    formatQuoteElement: mockFormatQuoteElement,
+    formatDedupedQuote: mockFormatDedupedQuote,
+  };
+});
 
 function makeEntry(overrides: Partial<RawHistoryEntry> = {}): RawHistoryEntry {
   return {
@@ -244,20 +203,19 @@ describe('xmlMetadataFormatters', () => {
       });
 
       const result = formatQuotedSection(msg, 'user', personalityName, undefined, undefined);
-      expect(result).toContain('<image_descriptions>');
-      expect(result).toContain('filename="photo.png"');
-      expect(result).toContain('A sunset over the ocean');
-      // Image attachments should NOT appear in attachmentLines
+      expect(result).toContain(
+        '<image filename="photo.png" type="image/png">A sunset over the ocean</image>'
+      );
+      // ONE element for the image, not a description plus a separate marker.
       expect(result).not.toContain('[image/png: photo.png]');
+      expect(result.match(/<image /g)).toHaveLength(1);
     });
 
-    it('keeps a marker for an image that has no description, when a sibling does', () => {
+    it('keeps an undescribed image visible when a sibling image IS described', () => {
       // Partial vision resolution: two images, one describe succeeded and one
       // failed. Failures are never persisted (visionDescriptionWriter), so the
-      // stored row carries one description for two images. Gating the marker
-      // filter on "this reference has ANY description" would drop BOTH markers
-      // and render only one image — the undescribed one vanishes entirely,
-      // which is the same silent-invisibility class this whole path just fixed.
+      // stored row carries one description for two images. The undescribed one
+      // must not vanish — that silent invisibility is the class this path fixed.
       const msg = makeEntry({
         messageMetadata: {
           referencedMessages: [
@@ -292,11 +250,16 @@ describe('xmlMetadataFormatters', () => {
 
       const result = formatQuotedSection(msg, 'user', personalityName, undefined, undefined);
 
-      expect(result).toContain('A sunset over the ocean');
-      // The described one is not ALSO a marker...
-      expect(result).not.toContain('[image/png: described.png]');
-      // ...and the undescribed one is still visible as one.
-      expect(result).toContain('[image/png: undescribed.png]');
+      // The described one carries its description...
+      expect(result).toContain(
+        '<image filename="described.png" type="image/png">A sunset over the ocean</image>'
+      );
+      // ...and the undescribed one is still present, saying why it is bare.
+      expect(result).toContain(
+        '<image filename="undescribed.png" type="image/png" status="undescribed"/>'
+      );
+      // Exactly two elements for two images — no duplicate representation.
+      expect(result.match(/<image /g)).toHaveLength(2);
     });
 
     it('shows non-image attachments alongside image descriptions', () => {
@@ -331,15 +294,13 @@ describe('xmlMetadataFormatters', () => {
       });
 
       const result = formatQuotedSection(msg, 'user', personalityName, undefined, undefined);
-      // Image description rendered
-      expect(result).toContain('A cat');
-      // Non-image attachment shown in attachmentLines
-      expect(result).toContain('[application/pdf: doc.pdf]');
-      // Image attachment NOT in attachmentLines
+      // Both modalities render, under the one wrapper.
+      expect(result).toContain('<image filename="photo.png" type="image/png">A cat</image>');
+      expect(result).toContain('<file filename="doc.pdf" type="application/pdf"/>');
       expect(result).not.toContain('[image/png: photo.png]');
     });
 
-    it('shows all attachments as lines when no image descriptions hydrated', () => {
+    it('still names an image when no description was hydrated at all', () => {
       const msg = makeEntry({
         messageMetadata: {
           referencedMessages: [
@@ -364,8 +325,90 @@ describe('xmlMetadataFormatters', () => {
       });
 
       const result = formatQuotedSection(msg, 'user', personalityName, undefined, undefined);
-      // Without hydrated descriptions, images show as attachment lines
-      expect(result).toContain('[image/png: photo.png]');
+      // Without a hydrated description the image is still named, with the reason
+      // it has no text — rather than being omitted or rendered as a bare marker.
+      expect(result).toContain(
+        '<image filename="photo.png" type="image/png" status="undescribed"/>'
+      );
+    });
+
+    it('classifies audio exactly as the live path does', () => {
+      // Regression: the stored path used to treat ANY `audio/*` as a voice
+      // message while the live path required `isVoiceMessage`. The same music
+      // clip therefore rendered `<file/>` in the turn it was posted and
+      // `<voice status="untranscribed"/>` when replayed from history — the same
+      // object speaking two vocabularies depending on which path reached it,
+      // which is the split this whole change removes. Both now call
+      // `classifyAttachment`; this pins that they agree.
+      const msg = makeEntry({
+        messageMetadata: {
+          referencedMessages: [
+            {
+              discordMessageId: '123',
+              authorUsername: 'user1',
+              authorDisplayName: 'User One',
+              content: 'audio',
+              timestamp: '2026-01-01T00:00:00.000Z',
+              locationContext: '',
+              attachments: [
+                {
+                  id: 'att-1',
+                  url: 'https://cdn.discord.com/song.mp3',
+                  contentType: 'audio/mp3',
+                  name: 'song.mp3',
+                },
+                {
+                  id: 'att-2',
+                  url: 'https://cdn.discord.com/note.ogg',
+                  contentType: 'audio/ogg',
+                  name: 'note.ogg',
+                  isVoiceMessage: true,
+                  duration: 7,
+                },
+              ],
+            },
+          ],
+        },
+      });
+
+      const result = formatQuotedSection(msg, 'user', personalityName, undefined, undefined);
+
+      // Shared audio file: NOT a failed transcription.
+      expect(result).toContain('<file filename="song.mp3" type="audio/mp3"/>');
+      // A real voice message, with its persisted duration carried through.
+      expect(result).toContain(
+        '<voice filename="note.ogg" type="audio/ogg" duration="7s" status="untranscribed"/>'
+      );
+    });
+
+    it('keeps a description whose attachment row has gone missing', () => {
+      // Data-drift protection: a description is paid-for enrichment, so it is
+      // appended even when nothing in `attachments` matches its filename.
+      // Dropping it would re-create the exact silent-loss class this function
+      // was rewritten to close.
+      const msg = makeEntry({
+        messageMetadata: {
+          referencedMessages: [
+            {
+              discordMessageId: '123',
+              authorUsername: 'user1',
+              authorDisplayName: 'User One',
+              content: 'orphaned description',
+              timestamp: '2026-01-01T00:00:00.000Z',
+              locationContext: '',
+              attachments: [],
+              resolvedImageDescriptions: [
+                { filename: 'vanished.png', description: 'SENTINEL_ORPHAN_DESCRIPTION' },
+              ],
+            },
+          ],
+        },
+      });
+
+      const result = formatQuotedSection(msg, 'user', personalityName, undefined, undefined);
+      expect(result).toContain(
+        '<image filename="vanished.png">SENTINEL_ORPHAN_DESCRIPTION</image>'
+      );
     });
 
     it('renders deduped stubs for refs whose discordMessageId is in history', () => {
@@ -398,9 +441,10 @@ describe('xmlMetadataFormatters', () => {
       // `content`, so every one of those rows was discarded and the quoted image
       // reached the model as a bare `[image/png: …]` marker.
       //
-      // Asserted at the seam (toHaveBeenCalledWith), not just on the rendered
-      // string: this suite stubs QuoteFormatter, so a string-only assertion would
-      // be testing the stub's own rendering rather than what the caller forwarded.
+      // Asserted at the seam (toHaveBeenCalledWith) AND on the output: the seam
+      // assertion pins what this caller FORWARDS, which is the hop that dropped
+      // the descriptions, and it stays meaningful even if the renderer changes
+      // how it draws them.
       const msg = makeEntry({
         messageMetadata: {
           referencedMessages: [
@@ -437,15 +481,20 @@ describe('xmlMetadataFormatters', () => {
 
       expect(mockFormatDedupedQuote).toHaveBeenCalledWith(
         expect.objectContaining({
-          imageDescriptions: [
-            { filename: 'embed-image-1.png', description: 'SENTINEL_STORED_VISION' },
+          attachments: [
+            {
+              kind: 'image',
+              filename: 'embed-image-1.png',
+              contentType: 'image/png',
+              description: 'SENTINEL_STORED_VISION',
+            },
           ],
         })
       );
       expect(result).toContain('SENTINEL_STORED_VISION');
-      // The marker is the fallback for an UNdescribed image; with a description
-      // in hand it would be the same picture named twice.
+      // One element for the picture, never a description plus a marker.
       expect(result).not.toContain('[image/png: embed-image-1.png]');
+      expect(result.match(/<image /g)).toHaveLength(1);
     });
 
     it('renders role="bot" on a deduped stub from a non-persona bot reference', () => {

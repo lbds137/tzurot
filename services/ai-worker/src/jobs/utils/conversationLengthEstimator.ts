@@ -8,8 +8,10 @@
 
 import { type StoredReferencedMessage } from '@tzurot/common-types/types/schemas/message';
 import { formatPromptTimestamp } from '@tzurot/common-types/utils/dateFormatting';
+import { renderAttachment } from '../../services/prompt/QuoteFormatter.js';
 import type { RawHistoryEntry } from './conversationTypes.js';
 import { resolveSpeakerInfo, type ChatLogRole } from './participantUtils.js';
+import { buildStoredAttachments } from './xmlMetadataFormatters.js';
 
 /**
  * Estimate character length for a stored reference
@@ -24,11 +26,20 @@ function estimateReferenceLength(ref: StoredReferencedMessage): number {
     length += `\n<embeds>${ref.embeds}</embeds>`.length;
   }
 
-  if (ref.attachments !== undefined && ref.attachments.length > 0) {
-    const attachmentItems = ref.attachments
-      .map(att => `[${att.contentType}: ${att.name ?? 'attachment'}]`)
-      .join(', ');
-    length += `\n<attachments>${attachmentItems}</attachments>`.length;
+  const attachments = buildStoredAttachments(ref);
+  if (attachments.length > 0) {
+    // Measured through the REAL producer/renderer pair rather than a local
+    // approximation of them. The marker-string estimate this replaced was wrong
+    // in three compounding ways: it omitted a persisted description entirely
+    // (the largest single term in a reference's cost), it rendered every
+    // attachment image-shaped regardless of modality, and it could only ever
+    // drift further as the renderer moved.
+    //
+    // This is the shape the rest of the estimator still needs (see TASK-370):
+    // the surrounding <quote> estimate below is still a hand-written
+    // approximation and still disagrees with the renderer on attribute names.
+    length += `\n<attachments>\n${attachments.map(renderAttachment).join('\n')}\n</attachments>`
+      .length;
   }
 
   if (ref.isForwarded === true) {

@@ -11,12 +11,112 @@
  * to provide context about the quote source.
  */
 
+import { CONTENT_TYPES } from '@tzurot/common-types/constants/media';
 import { type RenderedQuoteRole } from './referenceRole.js';
-import {
-  escapeXmlContent,
-  neutralizeWrapperClosingTags,
-} from '@tzurot/common-types/utils/promptSanitizer';
+import { escapeXmlContent } from '@tzurot/common-types/utils/promptSanitizer';
 import { escapeXml } from '@tzurot/common-types/utils/xmlBuilder';
+
+/**
+ * Fields every attachment carries regardless of modality.
+ *
+ * The shape is deliberately STRUCTURED rather than a pre-rendered line. A
+ * producer that hands back `- Image (photo.png): a cat` has thrown away the
+ * filename and the description as separate values, so every consumer downstream
+ * can only paste the string somewhere — which is how the same attachment came
+ * to render four different ways depending on which path reached it.
+ */
+interface AttachmentIdentity {
+  /**
+   * Original filename. OMITTED ENTIRELY when there is no real name — never
+   * synthesized. A placeholder is worse than an absence here: filenames are
+   * matched across producers (`error-screenshot-checkout.png` is often the only
+   * signal an undescribed image has left), and two producers inventing
+   * different placeholders is a correspondence bug waiting to happen.
+   */
+  filename?: string;
+  /** Discord content type, when known. */
+  contentType?: string;
+}
+
+/**
+ * Enrichment is EITHER present OR explained — never both. Expressed as a union
+ * with `never` arms so the contradiction ("here is the transcript, and also we
+ * failed to transcribe it") cannot be constructed.
+ */
+type Enrichment<TStatus extends string> =
+  { description: string; status?: never } | { description?: never; status?: TStatus };
+
+/** An image, with its vision description when one arrived. */
+export type RenderableImage = AttachmentIdentity & { kind: 'image' } & Enrichment<
+    'undescribed' | 'expired' | 'unprocessed'
+  >;
+
+/** A voice message, with its transcript when one arrived. */
+export type RenderableVoice = AttachmentIdentity & {
+  kind: 'voice';
+  /** Clip length in seconds, when known. */
+  durationSeconds?: number;
+} & Enrichment<'untranscribed' | 'expired' | 'unprocessed'>;
+
+/** Any other attachment. Never carries enrichment — nothing describes a .zip. */
+export interface RenderableFile extends AttachmentIdentity {
+  kind: 'file';
+  status?: 'unprocessed';
+}
+
+/**
+ * One attachment, in the shape the prompt renders it.
+ *
+ * A discriminated union rather than one flat interface, so the invariants are
+ * the compiler's to keep rather than a doc comment's: `durationSeconds` cannot
+ * appear on an image, `description` cannot appear on a file (the renderer would
+ * silently drop it), and a status cannot name the wrong modality's failure —
+ * `untranscribed` on an image is now unwriteable.
+ *
+ * Absent enrichment is rendered EXPLICITLY via `status` rather than by
+ * omission: a bare `<image filename="x.png"/>` leaves the model unable to tell
+ * "vision failed" from "still processing" from "nothing worth describing", so
+ * it invents one or apologises for a description that was never coming. Stated,
+ * it can say the true thing. (`expired` is for the retention work's aged-out
+ * case; `unprocessed` is the last-resort "something threw before we could
+ * classify the failure".)
+ */
+export type RenderableAttachment = RenderableImage | RenderableVoice | RenderableFile;
+
+/**
+ * Which element an attachment renders as.
+ *
+ * Lives here, beside the vocabulary it returns, because BOTH producers need the
+ * same answer and they had already drifted: the live path keyed voice on
+ * `isVoiceMessage` alone while the stored path also accepted any `audio/*`, so
+ * an ordinary music clip rendered `<file/>` in the turn it was posted and
+ * `<voice status="untranscribed"/>` when the same attachment was replayed from
+ * history. That is the exact "same object, different vocabulary per path" split
+ * this whole shape exists to remove — reintroduced, one level down, by two
+ * copies of a three-line rule.
+ *
+ * `isVoiceMessage` is the right discriminator and is available to both:
+ * producers persist it on `attachmentMetadataSchema`, so the stored path never
+ * needed a content-type fallback. An `audio/*` file WITHOUT the flag is someone
+ * sharing a sound file, not a voice message, and calling it a failed
+ * transcription tells the model something untrue.
+ *
+ * Structurally typed rather than taking `AttachmentMetadata` so this module
+ * stays free of the Discord schema — the same trick `isBotAuthoredReference`
+ * uses.
+ */
+export function classifyAttachment(attachment: {
+  isVoiceMessage?: boolean;
+  contentType?: string;
+}): RenderableAttachment['kind'] {
+  if (attachment.isVoiceMessage === true) {
+    return 'voice';
+  }
+  if (attachment.contentType?.startsWith(CONTENT_TYPES.IMAGE_PREFIX) === true) {
+    return 'image';
+  }
+  return 'file';
+}
 
 /**
  * Options for formatting a single <quote> element.
@@ -45,12 +145,21 @@ export interface QuoteElementOptions {
   locationContext?: string;
   /** Pre-formatted embed XML strings */
   embedsXml?: string[];
-  /** Image descriptions */
-  imageDescriptions?: { filename: string; description: string }[];
-  /** Voice transcripts */
-  voiceTranscripts?: string[];
-  /** Pre-formatted attachment lines */
-  attachmentLines?: string[];
+  /** This quote's attachments — images, voice, files — with their enrichment. */
+  attachments?: RenderableAttachment[];
+  /**
+   * Pre-rendered `[contentType: name]` marker strings, rendered verbatim inside
+   * <attachments>.
+   *
+   * LEGACY, and deliberately named so. Its only caller is the forwarded-history
+   * path, whose source (`messageMetadata.forwardedAttachmentLines`) is a
+   * PERSISTED `string[]` — rows already in the database that cannot be
+   * un-rendered back into `RenderableAttachment`s. Every other producer emits
+   * structured attachments. Do not add a caller: the slot is the affordance
+   * that let the vocabularies diverge, and it goes away once the producer
+   * persists structure instead of strings.
+   */
+  legacyAttachmentLines?: string[];
 }
 
 /**
@@ -62,12 +171,21 @@ export interface QuoteElementOptions {
  *   <time absolute="..." relative="..."/>     (if timestamp provided)
  *   <content>text</content>                   (if content provided and non-empty)
  *   locationContext XML                        (if provided and non-empty)
- *   <image_descriptions>...</image_descriptions>
  *   <embeds>...</embeds>
- *   <voice_transcripts>...</voice_transcripts>
- *   <attachments>...</attachments>
+ *   <attachments>
+ *     <image filename="cat.png">a cat asleep on a keyboard</image>
+ *     <image filename="unlucky.png" status="undescribed"/>
+ *     <voice filename="clip.ogg" duration="12s">hey, can you hear me</voice>
+ *     <file filename="report.pdf" type="application/pdf"/>
+ *   </attachments>
  * </quote>
  * ```
+ *
+ * Every attachment renders as ONE element under ONE wrapper, whether or not its
+ * enrichment arrived. The alternative — a described image under
+ * `<image_descriptions>` and an undescribed one under `<attachments>` — put the
+ * same object in two unrelated vocabularies chosen by whether an API call
+ * succeeded, and forced consumers to correlate the two halves by filename.
  */
 export function formatQuoteElement(opts: QuoteElementOptions): string {
   // Build opening tag attributes (data-driven to reduce branching)
@@ -95,34 +213,97 @@ export function formatQuoteElement(opts: QuoteElementOptions): string {
     }
   }
 
-  // Simple child sections. content/image-descriptions/attachmentLines carry
+  // Simple child sections. content and the attachment children carry
   // user-derived text and are escaped at emit. locationContext and embedsXml are
   // pre-formatted XML from trusted internal sources (ReferencedMessageFormatter;
   // bot-client's EmbedParser, which escapeXml's every embed field) — those two
   // are passed through verbatim; do NOT route raw user input through them.
   addNonEmpty(parts, opts.content, c => `<content>${escapeXmlContent(c)}</content>`);
   addNonEmpty(parts, opts.locationContext, loc => loc);
-  addArraySection(parts, opts.imageDescriptions, 'image_descriptions', imgs =>
-    imgs.map(
-      img =>
-        `<image filename="${escapeXml(img.filename)}">${escapeXmlContent(img.description)}</image>`
-    )
-  );
   addArraySection(parts, opts.embedsXml, 'embeds', e => e);
-  // voice_transcripts/transcript are NOT in PROTECTED_TAGS (see promptSanitizer),
-  // so escapeXmlContent alone leaves </transcript> live — neutralize the wrapper
-  // closings the same way the current-turn audio path does.
-  addArraySection(parts, opts.voiceTranscripts, 'voice_transcripts', ts =>
-    ts.map(t => `<transcript>${neutralizeWrapperClosingTags(escapeXmlContent(t))}</transcript>`)
-  );
-  // attachmentLines carry unescaped filenames / transcriptions — escape so a
-  // crafted name can't close </attachments>/</quote> and break out.
-  addArraySection(parts, opts.attachmentLines, 'attachments', a =>
-    a.map(line => escapeXmlContent(line))
-  );
+  // One <attachments> section for both producers. legacyAttachmentLines carry
+  // unescaped filenames — escape so a crafted name can't close </attachments>
+  // or </quote> and break out.
+  const attachmentItems = [
+    ...(opts.attachments ?? []).map(renderAttachment),
+    ...(opts.legacyAttachmentLines ?? []).map(line => escapeXmlContent(line)),
+  ];
+  addArraySection(parts, attachmentItems, 'attachments', items => items);
 
   parts.push('</quote>');
   return parts.join('\n');
+}
+
+/**
+ * Render one attachment as its per-modality element.
+ *
+ * The element name is written out per branch rather than interpolated from
+ * `kind`. That is not verbosity for its own sake: `pnpm ops guard:prompt-tags`
+ * finds emitted tags by scanning source for literal `<tag …>` forms, so a
+ * `` `<${kind}…>` `` template would render three structural tags the guard
+ * cannot see — a silent hole in exactly the check that decides whether user
+ * content inside them gets escaped.
+ */
+export function renderAttachment(att: RenderableAttachment): string {
+  switch (att.kind) {
+    case 'image': {
+      const attrs = joinAttrs([
+        ['filename', att.filename],
+        ['type', att.contentType],
+        ['status', att.status],
+      ]);
+      const body = renderEnrichment(att.description);
+      return body === undefined ? `<image${attrs}/>` : `<image${attrs}>${body}</image>`;
+    }
+    case 'voice': {
+      const attrs = joinAttrs([
+        ['filename', att.filename],
+        ['type', att.contentType],
+        ['duration', att.durationSeconds !== undefined ? `${att.durationSeconds}s` : undefined],
+        ['status', att.status],
+      ]);
+      const body = renderEnrichment(att.description);
+      return body === undefined ? `<voice${attrs}/>` : `<voice${attrs}>${body}</voice>`;
+    }
+    case 'file':
+      return `<file${joinAttrs([
+        ['filename', att.filename],
+        ['type', att.contentType],
+        ['status', att.status],
+      ])}/>`;
+  }
+}
+
+/**
+ * The enrichment text an attachment carries, if any.
+ *
+ * Exists because the union deliberately gives `RenderableFile` no `description`
+ * field — nothing describes a .zip — so consumers that want "whatever text this
+ * attachment contributes" need one place that knows that, rather than each
+ * re-deriving it and one of them eventually getting it wrong.
+ */
+export function attachmentEnrichment(att: RenderableAttachment): string | undefined {
+  return att.kind === 'file' ? undefined : att.description;
+}
+
+/** Join defined attribute pairs into a leading-space attribute string. */
+function joinAttrs(defs: [string, string | undefined][]): string {
+  const list = defs
+    .filter((entry): entry is [string, string] => entry[1] !== undefined)
+    .map(([key, val]) => `${key}="${escapeXml(val)}"`)
+    .join(' ');
+  return list.length > 0 ? ` ${list}` : '';
+}
+
+/**
+ * Escape an attachment's enrichment for use as element text. `image` and
+ * `voice` are in PROTECTED_TAGS, so `escapeXmlContent` neutralizes a closing
+ * form appearing inside a description or transcript.
+ */
+function renderEnrichment(description: string | undefined): string | undefined {
+  return description !== undefined && description.length > 0
+    ? escapeXmlContent(description)
+    : undefined;
 }
 
 /** Append formatted string if value is defined and non-empty */
@@ -151,14 +332,12 @@ function addArraySection<T>(
 export interface ForwardedMessageContent {
   /** Plain text content of the forwarded message */
   textContent?: string;
-  /** Image descriptions from vision processing */
-  imageDescriptions?: { filename: string; description: string }[];
   /** Pre-formatted embed XML strings (callers must provide well-formed XML) */
   embedsXml?: string[];
-  /** Voice message transcripts */
-  voiceTranscripts?: string[];
-  /** Pre-formatted attachment lines (non-image, non-voice) */
-  attachmentLines?: string[];
+  /** This message's attachments with their enrichment. */
+  attachments?: RenderableAttachment[];
+  /** Persisted marker strings — see `QuoteElementOptions.legacyAttachmentLines`. */
+  legacyAttachmentLines?: string[];
   /** Timestamp with both absolute date and relative time */
   timestamp?: { absolute: string; relative: string };
 }
@@ -173,10 +352,9 @@ export function formatForwardedQuote(content: ForwardedMessageContent): string {
     from: 'Unknown',
     timestamp: content.timestamp,
     content: content.textContent,
-    imageDescriptions: content.imageDescriptions,
     embedsXml: content.embedsXml,
-    voiceTranscripts: content.voiceTranscripts,
-    attachmentLines: content.attachmentLines,
+    attachments: content.attachments,
+    legacyAttachmentLines: content.legacyAttachmentLines,
   });
 }
 
@@ -224,15 +402,13 @@ export interface DedupedQuoteOptions {
    *  Rendered as-is — NOT re-truncated here. Empty → marker-only stub. */
   content: string;
   /**
-   * Vision descriptions for this reference's images. NOT redundant with the
+   * This reference's attachments with their enrichment. NOT redundant with the
    * <chat_log> copy: history renders an embed/attachment as its URL, so a
    * description dropped here is enrichment that was computed, paid for, and
    * never reaches the model. The stub's own `[image/png: name]` markers name
    * the file, not what is in it.
    */
-  imageDescriptions?: { filename: string; description: string }[];
-  /** Voice transcripts for this reference's audio — same reasoning as `imageDescriptions`. */
-  voiceTranscripts?: string[];
+  attachments?: RenderableAttachment[];
 }
 
 /**
@@ -248,8 +424,14 @@ export function formatDedupedQuote(opts: DedupedQuoteOptions): string {
   // (e.g. `I...` for `I got myself off…`) that the model reads as an unfinished sentence.
   // The text is already bounded; the markers are short metadata that must survive intact.
   // Empty content (e.g. a bot's own reply-target) → marker only, no trailing blank.
-  const hasMedia =
-    (opts.imageDescriptions?.length ?? 0) > 0 || (opts.voiceTranscripts?.length ?? 0) > 0;
+  // The "its media is described here" clause is earned only by an attachment
+  // that actually carries enrichment. An undescribed one still renders (it is
+  // signal that something was attached), but pointing the model at a
+  // description that does not exist is the failure the clause exists to avoid.
+  const hasMedia = (opts.attachments ?? []).some(att => {
+    const enrichment = attachmentEnrichment(att);
+    return enrichment !== undefined && enrichment.length > 0;
+  });
   const prefix = hasMedia ? DEDUP_REPLY_TARGET_PREFIX_WITH_MEDIA : DEDUP_REPLY_TARGET_PREFIX;
   const content = opts.content.length > 0 ? `${prefix}\n\n${opts.content}` : prefix;
 
@@ -261,7 +443,6 @@ export function formatDedupedQuote(opts: DedupedQuoteOptions): string {
     timestamp: opts.timestamp,
     timeFormatted: opts.timeFormatted,
     content,
-    imageDescriptions: opts.imageDescriptions,
-    voiceTranscripts: opts.voiceTranscripts,
+    attachments: opts.attachments,
   });
 }

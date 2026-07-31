@@ -21,7 +21,10 @@ import {
   type TimeGapConfig,
 } from '@tzurot/common-types/utils/timeGap';
 import { escapeXml } from '@tzurot/common-types/utils/xmlBuilder';
-import { formatForwardedQuote } from '../../services/prompt/QuoteFormatter.js';
+import {
+  formatForwardedQuote,
+  type RenderableAttachment,
+} from '../../services/prompt/QuoteFormatter.js';
 
 // Re-export from extracted modules for backward compatibility
 export { extractParticipants } from './participantUtils.js';
@@ -62,6 +65,31 @@ import {
  * @param allPersonalityNames - Optional set of all AI personality names in the conversation (for multi-AI collision detection)
  * @returns Formatted XML string, or empty string if message should be skipped
  */
+
+/**
+ * Adapt a forwarded message's persisted enrichment into renderable attachments.
+ *
+ * The two source arrays are the schema's own split — descriptions and transcripts
+ * are stored separately — but they describe the same kind of thing, so they merge
+ * into one ordered list here rather than staying two sections in the output.
+ * Neither array carries a content type, and transcripts carry no filename either;
+ * both are simply omitted rather than filled with a placeholder.
+ */
+function toRenderableAttachments(
+  metadata: RawHistoryEntry['messageMetadata']
+): RenderableAttachment[] {
+  return [
+    ...(metadata?.imageDescriptions ?? []).map((img): RenderableAttachment => ({
+      kind: 'image',
+      filename: img.filename,
+      description: img.description,
+    })),
+    ...(metadata?.voiceTranscripts ?? []).map((transcript): RenderableAttachment => ({
+      kind: 'voice',
+      description: transcript,
+    })),
+  ];
+}
 
 export function formatSingleHistoryEntryAsXml(
   msg: RawHistoryEntry,
@@ -130,10 +158,12 @@ export function formatSingleHistoryEntryAsXml(
     // so the shared formatter produces consistent XML across both code paths
     const forwardedQuote = formatForwardedQuote({
       textContent: msg.content,
-      imageDescriptions: msg.messageMetadata?.imageDescriptions,
       embedsXml: msg.messageMetadata?.embedsXml,
-      voiceTranscripts: msg.messageMetadata?.voiceTranscripts,
-      attachmentLines: hasAttachmentFallback ? forwardedAttachmentLines : undefined,
+      attachments: toRenderableAttachments(msg.messageMetadata),
+      // Persisted `[contentType: name]` strings — the one producer this refactor
+      // cannot restructure, because the rows already exist. See
+      // `QuoteElementOptions.legacyAttachmentLines`.
+      legacyAttachmentLines: hasAttachmentFallback ? forwardedAttachmentLines : undefined,
     });
     formattedContent = `<quoted_messages>\n${forwardedQuote}\n</quoted_messages>`;
     // Attachments already included in quote, don't duplicate at message level

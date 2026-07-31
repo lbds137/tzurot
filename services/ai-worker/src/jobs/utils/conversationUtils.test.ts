@@ -16,6 +16,8 @@ import {
   getFormattedMessageCharLength,
   type RawHistoryEntry,
 } from './conversationUtils.js';
+import { renderAttachment } from '../../services/prompt/QuoteFormatter.js';
+import { buildStoredAttachments } from './xmlMetadataFormatters.js';
 import { MessageRole } from '@tzurot/common-types/constants/message';
 import {
   type CrossChannelHistoryGroupEntry,
@@ -685,8 +687,8 @@ describe('Conversation Utilities', () => {
       // Should have forwarded wrapping even with no text content
       expect(result).toContain('<quoted_messages>');
       expect(result).toContain('<quote type="forward" from="Unknown">');
-      expect(result).toContain('<image_descriptions>');
-      expect(result).toContain('A beautiful sunset photo');
+      expect(result).toContain('<attachments>');
+      expect(result).toContain('<image filename="img.png">A beautiful sunset photo</image>');
       expect(result).toContain('</quote>');
       // Should NOT be empty
       expect(result).not.toMatch(/<message[^>]*><\/message>/);
@@ -718,22 +720,21 @@ describe('Conversation Utilities', () => {
       const result = formatConversationHistoryAsXml(history, 'TestBot');
 
       // Attachments should be INSIDE the quote, not at message level
-      // The quote should contain: content + image_descriptions + embeds + voice_transcript
+      // The quote should contain: content + embeds + attachments, and the
+      // attachments section now holds every modality rather than one section each.
       expect(result).toMatch(
-        /<quote type="forward" from="Unknown">.*<image_descriptions>.*<\/image_descriptions>.*<\/quote>/s
+        /<quote type="forward" from="Unknown">.*<attachments>.*<\/attachments>.*<\/quote>/s
       );
       expect(result).toMatch(
         /<quote type="forward" from="Unknown">.*<embeds>.*<\/embeds>.*<\/quote>/s
       );
-      expect(result).toMatch(
-        /<quote type="forward" from="Unknown">.*<voice_transcripts>.*<\/voice_transcripts>.*<\/quote>/s
-      );
+      expect(result).toMatch(/<attachments>.*<image .*<voice>.*<\/attachments>/s);
 
       // Attachments should NOT appear outside the quoted_messages section
       // (after </quoted_messages> and before </message>)
-      expect(result).not.toMatch(/<\/quoted_messages>\s*<image_descriptions>/);
+      expect(result).not.toMatch(/<\/quoted_messages>\s*<attachments>/);
       expect(result).not.toMatch(/<\/quoted_messages>\s*<embeds>/);
-      expect(result).not.toMatch(/<\/quoted_messages>\s*<voice_transcripts>/);
+      expect(result).not.toMatch(/<\/quoted_messages>\s*<image_descriptions>/);
     });
 
     it('should use forwardedAttachmentLines as fallback when no vision descriptions', () => {
@@ -789,11 +790,12 @@ describe('Conversation Utilities', () => {
 
       const result = formatConversationHistoryAsXml(history, 'TestBot');
 
-      // Should use vision descriptions, not attachment fallback
-      expect(result).toContain('<image_descriptions>');
-      expect(result).toContain('A beautiful sunset over the ocean');
-      // Should NOT include the fallback attachment lines
-      expect(result).not.toContain('<attachments>');
+      // Should use vision descriptions, not the persisted marker fallback.
+      expect(result).toContain(
+        '<image filename="photo.png">A beautiful sunset over the ocean</image>'
+      );
+      // The redundant marker for the SAME file must not also render — that is
+      // the invariant; the wrapper it would have rendered in is now shared.
       expect(result).not.toContain('[image/png: photo.png]');
     });
 
@@ -956,7 +958,7 @@ describe('Conversation Utilities', () => {
       const result = formatConversationHistoryAsXml(history, 'TestBot');
 
       expect(result).toContain(
-        '<image filename="embed-image-1.png">SENTINEL_REPLAY_VISION</image>'
+        '<image filename="embed-image-1.png" type="image/png">SENTINEL_REPLAY_VISION</image>'
       );
     });
 
@@ -1632,6 +1634,105 @@ describe('Conversation Utilities', () => {
       const withoutAtt = getFormattedMessageCharLength(msgWithoutAtt, 'TestBot');
 
       expect(withAtt).toBeGreaterThan(withoutAtt);
+    });
+
+    it('counts a hydrated image description in the reference length', () => {
+      // The described branch is the whole point of the estimate: a persisted
+      // vision description is the largest single term a quoted message
+      // contributes, and the marker-string estimate this replaced omitted it
+      // entirely — so the budget believed a described image cost the same as a
+      // bare filename. Sized against a long sentinel so the delta cannot be
+      // confused with attribute-level noise.
+      const description = 'A '.repeat(200) + 'lighthouse';
+
+      const base = {
+        discordMessageId: '123456',
+        authorUsername: 'bob',
+        authorDisplayName: 'Bob',
+        content: 'Message',
+        timestamp: '2025-01-01T00:00:00Z',
+        locationContext: '#general',
+        attachments: [
+          { url: 'https://example.com/p.png', contentType: 'image/png', name: 'photo.png' },
+        ],
+      };
+
+      const described: StoredReferencedMessage = {
+        ...base,
+        resolvedImageDescriptions: [{ filename: 'photo.png', description }],
+      };
+
+      const lengthOf = (ref: StoredReferencedMessage): number =>
+        getFormattedMessageCharLength(
+          { role: 'user', content: 'Reply', messageMetadata: { referencedMessages: [ref] } },
+          'TestBot'
+        );
+
+      // Compared as a ratio, not an exact figure: the undescribed arm carries a
+      // `status="undescribed"` attribute the described arm does not, so the two
+      // differ by the description MINUS a small constant. Pinning the constant
+      // would make this test a transcription of the tag syntax; the invariant
+      // worth holding is that the description is counted essentially in full.
+      // Dropped entirely, this delta goes NEGATIVE.
+      const delta = lengthOf(described) - lengthOf(base);
+      expect(delta).toBeGreaterThan(description.length * 0.9);
+    });
+
+    it('measures attachments through the real producer/renderer pair', () => {
+      // Parity pin, not an approximation check. The estimator used to hand-write
+      // its own version of the attachment markup, which drifted from the renderer
+      // in every direction at once — wrong element per modality, a `status` on
+      // files that never carry one, descriptions omitted entirely. It now calls
+      // `buildStoredAttachments` + `renderAttachment` directly, and this test
+      // fails the moment anyone reintroduces a local copy.
+      const withAttachments: StoredReferencedMessage = {
+        discordMessageId: '123456',
+        authorUsername: 'bob',
+        authorDisplayName: 'Bob',
+        content: 'Message',
+        timestamp: '2025-01-01T00:00:00Z',
+        locationContext: '#general',
+        attachments: [
+          { url: 'https://example.com/p.png', contentType: 'image/png', name: 'photo.png' },
+          {
+            url: 'https://example.com/v.ogg',
+            contentType: 'audio/ogg',
+            name: 'clip.ogg',
+            // `isVoiceMessage` is what makes this a voice message on BOTH paths.
+            // Without it this is a shared audio file and renders as <file/>.
+            isVoiceMessage: true,
+            duration: 9,
+          },
+          { url: 'https://example.com/d.pdf', contentType: 'application/pdf', name: 'doc.pdf' },
+        ],
+        resolvedImageDescriptions: [{ filename: 'photo.png', description: 'a lighthouse' }],
+      };
+      const withoutAttachments: StoredReferencedMessage = {
+        ...withAttachments,
+        attachments: undefined,
+        resolvedImageDescriptions: undefined,
+      };
+
+      const lengthOf = (ref: StoredReferencedMessage): number =>
+        getFormattedMessageCharLength(
+          { role: 'user', content: 'Reply', messageMetadata: { referencedMessages: [ref] } },
+          'TestBot'
+        );
+
+      const rendered = buildStoredAttachments(withAttachments).map(renderAttachment).join('\n');
+      const expected = `\n<attachments>\n${rendered}\n</attachments>`.length;
+
+      expect(lengthOf(withAttachments) - lengthOf(withoutAttachments)).toBe(expected);
+
+      // And the three modalities really are distinct in that rendering — the
+      // specific thing the hand-written estimate got wrong.
+      expect(rendered).toContain(
+        '<image filename="photo.png" type="image/png">a lighthouse</image>'
+      );
+      expect(rendered).toContain(
+        '<voice filename="clip.ogg" type="audio/ogg" duration="9s" status="untranscribed"/>'
+      );
+      expect(rendered).toContain('<file filename="doc.pdf" type="application/pdf"/>');
     });
 
     it('should include forwarded type in reference length', () => {

@@ -19,7 +19,9 @@ import {
   formatQuoteElement,
   formatForwardedQuote,
   formatDedupedQuote,
+  attachmentEnrichment,
   type ForwardedMessageContent,
+  type RenderableAttachment,
 } from './prompt/QuoteFormatter.js';
 import { deriveRefRole } from './prompt/referenceRole.js';
 import { processAttachmentsParallel } from './AttachmentProcessor.js';
@@ -70,8 +72,7 @@ export interface FormattedReferences {
 
 /** The renderable enrichment children a reference's preprocessed results yield. */
 interface SplitEnrichment {
-  imageDescriptions?: { filename: string; description: string }[];
-  voiceTranscripts?: string[];
+  attachments: RenderableAttachment[];
   /**
    * Entries that CARRY something worth rendering (non-empty description).
    * The tripwire's denominator is this rather than the raw entry count: a
@@ -104,11 +105,10 @@ function splitPreprocessedEnrichment(
   preprocessed: ProcessedAttachment[] | undefined
 ): SplitEnrichment {
   if (preprocessed === undefined || preprocessed.length === 0) {
-    return { renderable: 0, rendered: 0 };
+    return { attachments: [], renderable: 0, rendered: 0 };
   }
 
-  const imageDescriptions: { filename: string; description: string }[] = [];
-  const voiceTranscripts: string[] = [];
+  const attachments: RenderableAttachment[] = [];
   let renderable = 0;
   for (const entry of preprocessed) {
     if (entry.description.length === 0) {
@@ -117,25 +117,49 @@ function splitPreprocessedEnrichment(
       continue;
     }
     renderable++;
+    // `name` is optional on AttachmentMetadata; the dependency step derives it
+    // from the URL basename, so undefined means a synthesized attachment with no
+    // filename at all. Left undefined rather than defaulted — the attribute is
+    // omitted instead of carrying an invented name.
     if (entry.type === AttachmentType.Image) {
-      // `name` is optional on AttachmentMetadata; the dependency step derives it
-      // from the URL basename, so undefined means a synthesized attachment with
-      // no filename at all — the description is still the payload worth keeping.
-      imageDescriptions.push({
-        filename: entry.metadata.name ?? 'image',
+      attachments.push({
+        kind: 'image',
+        filename: entry.metadata.name,
         description: entry.description,
       });
     } else if (entry.type === AttachmentType.Audio) {
-      voiceTranscripts.push(entry.description);
+      attachments.push({
+        kind: 'voice',
+        filename: entry.metadata.name,
+        // Duration only — deliberately NOT contentType. Per the note above, the
+        // dependency step synthesizes `audio/unknown` here, so forwarding it
+        // would render a `type` attribute that is a placeholder dressed as fact.
+        durationSeconds: entry.metadata.duration,
+        description: entry.description,
+      });
     }
+    // Any other type falls through UNRENDERED and stays counted in `renderable`,
+    // so the drop tripwire below fires. That is deliberate: silently downgrading
+    // an unknown modality to a bare <file/> would discard the description this
+    // function exists to carry, which is the exact class the tripwire watches.
   }
 
-  return {
-    imageDescriptions: imageDescriptions.length > 0 ? imageDescriptions : undefined,
-    voiceTranscripts: voiceTranscripts.length > 0 ? voiceTranscripts : undefined,
-    renderable,
-    rendered: imageDescriptions.length + voiceTranscripts.length,
-  };
+  return { attachments, renderable, rendered: attachments.length };
+}
+
+/**
+ * The semantic text an attachment contributes to a retrieval query: its
+ * enrichment only.
+ *
+ * Filenames, content types and status markers are deliberately excluded — they
+ * are metadata about the file, not about what is IN it, and an embedding query
+ * carrying `photo.png` matches on the noise rather than the content. (The
+ * previous shape fed the whole rendered line, prefix included, into the query.)
+ */
+function collectAttachmentText(attachments: RenderableAttachment[]): string[] {
+  return attachments
+    .map(attachmentEnrichment)
+    .filter((desc): desc is string => desc !== undefined && desc.length > 0);
 }
 
 /**
@@ -201,8 +225,7 @@ export class ReferencedMessageFormatter {
             timestamp:
               absolute.length > 0 && relative.length > 0 ? { absolute, relative } : undefined,
             content: ref.content,
-            imageDescriptions: enrichment.imageDescriptions,
-            voiceTranscripts: enrichment.voiceTranscripts,
+            attachments: enrichment.attachments,
           })
         );
         // The stub's capped text copy is real signal; the reply-target
@@ -211,11 +234,7 @@ export class ReferencedMessageFormatter {
         // descriptions ride along for the same reason they ride into the
         // prompt: history has no copy of them to retrieve against.
         searchParts.push(
-          [
-            ref.content,
-            ...(enrichment.imageDescriptions ?? []).map(img => img.description),
-            ...(enrichment.voiceTranscripts ?? []),
-          ]
+          [ref.content, ...collectAttachmentText(enrichment.attachments)]
             .filter(part => part.length > 0)
             .join('\n')
         );
@@ -300,8 +319,11 @@ export class ReferencedMessageFormatter {
    * envelope). Location context, timestamps, and role metadata never
    * belong in an embedding query.
    */
-  private buildReferenceSearchText(ref: ReferencedMessage, attachmentLines: string[]): string {
-    const pieces = [ref.content, ...attachmentLines];
+  private buildReferenceSearchText(
+    ref: ReferencedMessage,
+    attachments: RenderableAttachment[]
+  ): string {
+    const pieces = [ref.content, ...collectAttachmentText(attachments)];
     if (ref.embeds !== undefined && ref.embeds.length > 0) {
       pieces.push(extractXmlTextContent(ref.embeds));
     }
@@ -324,9 +346,9 @@ export class ReferencedMessageFormatter {
     const { userApiKey, sttDispatch, visionProvider, visionModel } = apiKeys ?? {};
     const { absolute, relative } = formatTimestampWithDelta(ref.timestamp);
 
-    let attachmentLines: string[] = [];
+    let attachments: RenderableAttachment[] = [];
     if (ref.attachments && ref.attachments.length > 0) {
-      attachmentLines = await processAttachmentsParallel({
+      attachments = await processAttachmentsParallel({
         attachments: ref.attachments,
         referenceNumber: ref.referenceNumber,
         personality,
@@ -353,10 +375,10 @@ export class ReferencedMessageFormatter {
       content: ref.content || undefined,
       locationContext: ref.locationContext,
       embedsXml: ref.embeds ? [ref.embeds] : undefined,
-      attachmentLines: attachmentLines.length > 0 ? attachmentLines : undefined,
+      attachments: attachments.length > 0 ? attachments : undefined,
     });
 
-    return { element, searchText: this.buildReferenceSearchText(ref, attachmentLines) };
+    return { element, searchText: this.buildReferenceSearchText(ref, attachments) };
   }
 
   /**
@@ -380,9 +402,9 @@ export class ReferencedMessageFormatter {
     };
 
     // Process attachments if present
-    let attachmentLines: string[] = [];
+    let attachments: RenderableAttachment[] = [];
     if (ref.attachments && ref.attachments.length > 0) {
-      attachmentLines = await processAttachmentsParallel({
+      attachments = await processAttachmentsParallel({
         attachments: ref.attachments,
         referenceNumber: ref.referenceNumber,
         personality,
@@ -394,14 +416,14 @@ export class ReferencedMessageFormatter {
         model: visionModel,
       });
 
-      if (attachmentLines.length > 0) {
-        forwardedContent.attachmentLines = attachmentLines;
+      if (attachments.length > 0) {
+        forwardedContent.attachments = attachments;
       }
     }
 
     return {
       element: formatForwardedQuote(forwardedContent),
-      searchText: this.buildReferenceSearchText(ref, attachmentLines),
+      searchText: this.buildReferenceSearchText(ref, attachments),
     };
   }
 }

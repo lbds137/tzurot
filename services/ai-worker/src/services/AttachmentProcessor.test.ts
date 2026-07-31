@@ -88,7 +88,12 @@ describe('AttachmentProcessor', () => {
       });
 
       expect(result).toHaveLength(1);
-      expect(result[0]).toContain('- Image (photo.png): A beautiful landscape');
+      expect(result[0]).toEqual({
+        kind: 'image',
+        filename: 'photo.png',
+        contentType: 'image/png',
+        description: 'A beautiful landscape',
+      });
       expect(mockDescribeImage).toHaveBeenCalledTimes(1);
     });
 
@@ -149,7 +154,13 @@ describe('AttachmentProcessor', () => {
       });
 
       expect(result).toHaveLength(1);
-      expect(result[0]).toContain('- Voice Message (10s): "Hello world"');
+      expect(result[0]).toEqual({
+        kind: 'voice',
+        filename: 'voice.ogg',
+        contentType: 'audio/ogg',
+        durationSeconds: 10,
+        description: 'Hello world',
+      });
       expect(mockTranscribeAudio).toHaveBeenCalledTimes(1);
     });
 
@@ -169,7 +180,11 @@ describe('AttachmentProcessor', () => {
       });
 
       expect(result).toHaveLength(1);
-      expect(result[0]).toBe('- File: document.pdf (application/pdf)');
+      expect(result[0]).toEqual({
+        kind: 'file',
+        filename: 'document.pdf',
+        contentType: 'application/pdf',
+      });
       expect(mockDescribeImage).not.toHaveBeenCalled();
       expect(mockTranscribeAudio).not.toHaveBeenCalled();
     });
@@ -221,9 +236,13 @@ describe('AttachmentProcessor', () => {
       });
 
       expect(result).toHaveLength(3);
-      expect(result[0]).toContain('- Image (photo.png)');
-      expect(result[1]).toContain('- Voice Message (5s)');
-      expect(result[2]).toBe('- File: doc.pdf (application/pdf)');
+      expect(result[0]).toMatchObject({ kind: 'image', filename: 'photo.png' });
+      expect(result[1]).toMatchObject({ kind: 'voice', filename: 'voice.ogg', durationSeconds: 5 });
+      expect(result[2]).toEqual({
+        kind: 'file',
+        filename: 'doc.pdf',
+        contentType: 'application/pdf',
+      });
 
       // Image + voice callbacks were in-flight at the same time → concurrent dispatch.
       expect(maxInFlight).toBeGreaterThan(1);
@@ -247,7 +266,14 @@ describe('AttachmentProcessor', () => {
       });
 
       expect(result).toHaveLength(1);
-      expect(result[0]).toContain('- Image (broken.png) [vision processing failed]');
+      // Still rendered, and it says WHY there is no description — an attachment
+      // that silently vanishes on failure is the drop class `status` closes.
+      expect(result[0]).toEqual({
+        kind: 'image',
+        filename: 'broken.png',
+        contentType: 'image/png',
+        status: 'undescribed',
+      });
     });
 
     it('should handle voice transcription failures gracefully', async () => {
@@ -270,7 +296,13 @@ describe('AttachmentProcessor', () => {
       });
 
       expect(result).toHaveLength(1);
-      expect(result[0]).toContain('- Voice Message (5s) [transcription failed]');
+      expect(result[0]).toEqual({
+        kind: 'voice',
+        filename: 'voice.ogg',
+        contentType: 'audio/ogg',
+        durationSeconds: 5,
+        status: 'untranscribed',
+      });
     });
 
     it('should use preprocessed image descriptions when available', async () => {
@@ -302,7 +334,11 @@ describe('AttachmentProcessor', () => {
       });
 
       expect(result).toHaveLength(1);
-      expect(result[0]).toContain('- Image (photo.png): Preprocessed landscape');
+      expect(result[0]).toMatchObject({
+        kind: 'image',
+        filename: 'photo.png',
+        description: 'Preprocessed landscape',
+      });
       expect(mockDescribeImage).not.toHaveBeenCalled();
     });
 
@@ -339,7 +375,12 @@ describe('AttachmentProcessor', () => {
       });
 
       expect(result).toHaveLength(1);
-      expect(result[0]).toContain('- Voice Message (10s): "Preprocessed transcription"');
+      expect(result[0]).toMatchObject({
+        kind: 'voice',
+        filename: 'voice.ogg',
+        durationSeconds: 10,
+        description: 'Preprocessed transcription',
+      });
       expect(mockTranscribeAudio).not.toHaveBeenCalled();
     });
 
@@ -374,8 +415,130 @@ describe('AttachmentProcessor', () => {
       });
 
       expect(result).toHaveLength(1);
-      expect(result[0]).toContain('- Image (photo.png): Inline fallback');
+      expect(result[0]).toMatchObject({
+        kind: 'image',
+        filename: 'photo.png',
+        description: 'Inline fallback',
+      });
       expect(mockDescribeImage).toHaveBeenCalledTimes(1);
+    });
+
+    it('keeps modality and identity when processing throws before dispatch', async () => {
+      // The last-resort path: something threw OUTSIDE the per-attachment
+      // try/catch, so the processor never got to classify its own failure.
+      // Forced here by making the preprocessed lookup throw — the one piece of
+      // work that runs before dispatch.
+      //
+      // What must survive is the SHAPE. An image that blew up must not read as
+      // an ordinary document, and it must not vanish: the predecessor rendered
+      // a nameless `<file/>` for every rejection, which is indistinguishable
+      // from a real unprocessed file and loses the fact that anything failed.
+      // Must be NON-empty: findPreprocessedByUrl early-returns on a zero-length
+      // list, so an empty array never reaches `.find` and the throw never fires.
+      const exploding = [
+        {
+          type: AttachmentType.Image,
+          description: 'unused',
+          originalUrl: 'https://example.com/other.png',
+          metadata: {
+            url: 'https://example.com/other.png',
+            name: 'other.png',
+            contentType: 'image/png',
+            size: 1,
+          },
+        },
+      ];
+      exploding.find = () => {
+        throw new Error('boom before dispatch');
+      };
+
+      const result = await processAttachmentsParallel({
+        attachments: [
+          {
+            url: 'https://example.com/photo.png',
+            contentType: 'image/png',
+            name: 'photo.png',
+            size: 1000,
+          },
+        ],
+        referenceNumber: 1,
+        personality: mockPersonality,
+        isGuestMode: false,
+        preprocessedAttachments: exploding,
+      });
+
+      expect(result).toEqual([
+        {
+          kind: 'image',
+          filename: 'photo.png',
+          contentType: 'image/png',
+          status: 'unprocessed',
+        },
+      ]);
+    });
+
+    it('preserves each modality across the pre-dispatch failure', async () => {
+      // The voice and file arms of the same fallback. Covered explicitly rather
+      // than left to "it mirrors the image arm": the whole point of the arm is
+      // that a failed voice message does not read as a document, so an untested
+      // arm is exactly where that would regress unnoticed.
+      const exploding = [
+        {
+          type: AttachmentType.Image,
+          description: 'unused',
+          originalUrl: 'https://example.com/other.png',
+          metadata: {
+            url: 'https://example.com/other.png',
+            name: 'other.png',
+            contentType: 'image/png',
+            size: 1,
+          },
+        },
+      ];
+      exploding.find = () => {
+        throw new Error('boom before dispatch');
+      };
+
+      const result = await processAttachmentsParallel({
+        attachments: [
+          {
+            url: 'https://example.com/note.ogg',
+            contentType: 'audio/ogg',
+            name: 'note.ogg',
+            size: 100,
+            isVoiceMessage: true,
+            duration: 4,
+          },
+          {
+            url: 'https://example.com/doc.pdf',
+            contentType: 'application/pdf',
+            name: 'doc.pdf',
+            size: 200,
+          },
+        ],
+        referenceNumber: 1,
+        personality: mockPersonality,
+        isGuestMode: false,
+        preprocessedAttachments: exploding,
+      });
+
+      expect(result).toEqual([
+        {
+          kind: 'voice',
+          filename: 'note.ogg',
+          contentType: 'audio/ogg',
+          // Duration comes from Discord's metadata, not from the transcription
+          // that failed — so it survives the failure.
+          durationSeconds: 4,
+          status: 'unprocessed',
+        },
+        {
+          kind: 'file',
+          filename: 'doc.pdf',
+          contentType: 'application/pdf',
+          status: 'unprocessed',
+        },
+      ]);
     });
 
     it('should treat non-voice audio files as regular files', async () => {
@@ -395,7 +558,11 @@ describe('AttachmentProcessor', () => {
       });
 
       expect(result).toHaveLength(1);
-      expect(result[0]).toBe('- File: music.mp3 (audio/mp3)');
+      expect(result[0]).toEqual({
+        kind: 'file',
+        filename: 'music.mp3',
+        contentType: 'audio/mp3',
+      });
       expect(mockTranscribeAudio).not.toHaveBeenCalled();
     });
   });

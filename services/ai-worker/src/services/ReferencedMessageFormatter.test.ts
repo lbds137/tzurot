@@ -707,9 +707,15 @@ describe('ReferencedMessageFormatter', () => {
 
       // Verify all images were processed
       expect(mockDescribeImage).toHaveBeenCalledTimes(3);
-      expect(result).toContain('- Image (image1.png): Description of image1.png');
-      expect(result).toContain('- Image (image2.png): Description of image2.png');
-      expect(result).toContain('- Image (image3.png): Description of image3.png');
+      expect(result).toContain(
+        '<image filename="image1.png" type="image/png">Description of image1.png</image>'
+      );
+      expect(result).toContain(
+        '<image filename="image2.png" type="image/png">Description of image2.png</image>'
+      );
+      expect(result).toContain(
+        '<image filename="image3.png" type="image/png">Description of image3.png</image>'
+      );
 
       // All three describeImage callbacks were in-flight simultaneously → parallel processing.
       expect(maxInFlight).toBe(3);
@@ -747,7 +753,9 @@ describe('ReferencedMessageFormatter', () => {
         mockPersonality
       );
 
-      expect(result).toContain('- Image (broken.png) [vision processing failed]');
+      expect(result).toContain(
+        '<image filename="broken.png" type="image/png" status="undescribed"/>'
+      );
     });
 
     it('should handle mixed success and failure in parallel processing', async () => {
@@ -807,9 +815,15 @@ describe('ReferencedMessageFormatter', () => {
         mockPersonality
       );
 
-      expect(result).toContain('- Image (image1.png): Description of image1');
-      expect(result).toContain('- Image (image2.png) [vision processing failed]');
-      expect(result).toContain('- Image (image3.png): Description of image3');
+      expect(result).toContain(
+        '<image filename="image1.png" type="image/png">Description of image1</image>'
+      );
+      expect(result).toContain(
+        '<image filename="image2.png" type="image/png" status="undescribed"/>'
+      );
+      expect(result).toContain(
+        '<image filename="image3.png" type="image/png">Description of image3</image>'
+      );
     });
   });
 
@@ -871,8 +885,12 @@ describe('ReferencedMessageFormatter', () => {
       );
 
       expect(mockTranscribeAudio).toHaveBeenCalledTimes(2);
-      expect(result).toContain('- Voice Message (5s): "Transcription of voice 5s"');
-      expect(result).toContain('- Voice Message (10s): "Transcription of voice 10s"');
+      expect(result).toContain(
+        '<voice filename="voice1.ogg" type="audio/ogg" duration="5s">Transcription of voice 5s</voice>'
+      );
+      expect(result).toContain(
+        '<voice filename="voice2.ogg" type="audio/ogg" duration="10s">Transcription of voice 10s</voice>'
+      );
 
       // Both transcribe callbacks were in-flight simultaneously → parallel processing.
       expect(maxInFlight).toBe(2);
@@ -912,7 +930,9 @@ describe('ReferencedMessageFormatter', () => {
         mockPersonality
       );
 
-      expect(result).toContain('- Voice Message (5s) [transcription failed]');
+      expect(result).toContain(
+        '<voice filename="voice.ogg" type="audio/ogg" duration="5s" status="untranscribed"/>'
+      );
     });
   });
 
@@ -967,9 +987,13 @@ describe('ReferencedMessageFormatter', () => {
         mockPersonality
       );
 
-      expect(result).toContain('- Image (photo.png): Image description');
-      expect(result).toContain('- Voice Message (5s): "Voice transcription"');
-      expect(result).toContain('- File: document.pdf (application/pdf)');
+      expect(result).toContain(
+        '<image filename="photo.png" type="image/png">Image description</image>'
+      );
+      expect(result).toContain(
+        '<voice filename="voice.ogg" type="audio/ogg" duration="5s">Voice transcription</voice>'
+      );
+      expect(result).toContain('<file filename="document.pdf" type="application/pdf"/>');
 
       // Both async processors should have been called
       expect(mockDescribeImage).toHaveBeenCalledTimes(1);
@@ -1010,7 +1034,7 @@ describe('ReferencedMessageFormatter', () => {
 
       // Should NOT transcribe non-voice messages
       expect(mockTranscribeAudio).not.toHaveBeenCalled();
-      expect(result).toContain('- File: music.mp3 (audio/mp3)');
+      expect(result).toContain('<file filename="music.mp3" type="audio/mp3"/>');
     });
   });
 
@@ -1233,7 +1257,9 @@ describe('ReferencedMessageFormatter', () => {
       );
 
       // Should use preprocessed description
-      expect(result).toContain('- Image (photo.png): Preprocessed: A beautiful landscape');
+      expect(result).toContain(
+        '<image filename="photo.png" type="image/png">Preprocessed: A beautiful landscape</image>'
+      );
 
       // Should NOT call vision API
       expect(mockDescribeImage).not.toHaveBeenCalled();
@@ -1295,7 +1321,7 @@ describe('ReferencedMessageFormatter', () => {
 
       // Should use preprocessed transcription
       expect(result).toContain(
-        '- Voice Message (10s): "Preprocessed: Hello, this is a test message"'
+        '<voice filename="voice.ogg" type="audio/ogg" duration="10s">Preprocessed: Hello, this is a test message</voice>'
       );
 
       // Should NOT call STT API
@@ -1338,7 +1364,9 @@ describe('ReferencedMessageFormatter', () => {
       );
 
       // Should fall back to inline processing
-      expect(result).toContain('- Image (photo.png): Inline processed description');
+      expect(result).toContain(
+        '<image filename="photo.png" type="image/png">Inline processed description</image>'
+      );
       expect(mockDescribeImage).toHaveBeenCalledTimes(1);
     });
 
@@ -1394,7 +1422,9 @@ describe('ReferencedMessageFormatter', () => {
       );
 
       // Should fall back since URL doesn't match
-      expect(result).toContain('- Image (photo.png): Inline fallback description');
+      expect(result).toContain(
+        '<image filename="photo.png" type="image/png">Inline fallback description</image>'
+      );
       expect(mockDescribeImage).toHaveBeenCalledTimes(1);
     });
 
@@ -1482,8 +1512,12 @@ describe('ReferencedMessageFormatter', () => {
       );
 
       // Both should use their respective preprocessed descriptions
-      expect(result).toContain('- Image (image1.png): Description for reference 1');
-      expect(result).toContain('- Image (image2.png): Description for reference 2');
+      expect(result).toContain(
+        '<image filename="image1.png" type="image/png">Description for reference 1</image>'
+      );
+      expect(result).toContain(
+        '<image filename="image2.png" type="image/png">Description for reference 2</image>'
+      );
 
       // No inline API calls
       expect(mockDescribeImage).not.toHaveBeenCalled();
@@ -1541,7 +1575,9 @@ describe('ReferencedMessageFormatter', () => {
       );
 
       // Should fall back to inline processing since description is empty
-      expect(result).toContain('- Image (photo.png): Inline description');
+      expect(result).toContain(
+        '<image filename="photo.png" type="image/png">Inline description</image>'
+      );
       expect(mockDescribeImage).toHaveBeenCalledTimes(1);
     });
   });
@@ -1745,14 +1781,22 @@ describe('ReferencedMessageFormatter', () => {
                 name: 'voice.ogg',
                 contentType: 'audio/ogg',
                 size: 2000,
+                duration: 6,
               },
             },
           ],
         }
       );
 
-      expect(formatted).toContain('<transcript>');
+      // Duration rides along on THIS path too. Of the voice-rendering call
+      // sites, this deduped one was the last to still drop it — the fixture had
+      // no `duration` at all, so nothing would have caught the field being
+      // wired up wrong in either direction.
+      expect(formatted).toContain('<voice filename="voice.ogg" duration="6s">');
       expect(formatted).toContain(TRANSCRIPT_SENTINEL);
+      // NOT the synthesized `audio/unknown` the dependency step stamps on
+      // preprocessed metadata — a placeholder must not render as fact.
+      expect(formatted).not.toContain('type="audio/unknown"');
       expect(mockTranscribeAudio).not.toHaveBeenCalled();
     });
 
