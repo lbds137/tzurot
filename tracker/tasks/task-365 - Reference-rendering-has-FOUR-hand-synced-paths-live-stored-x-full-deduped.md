@@ -316,6 +316,95 @@ persona hydration at all, so the same persona's message renders a different
   `embedsXml` is pre-formatted by bot-client's EmbedParser. File separately if
   it is worth doing.
 
+## SECOND GROUNDING PASS — the recorded sequencing is not buildable as written
+
+Read the remaining consumers before starting PR-1 (`conversationUtils`,
+`referenceEnricher`, `AttachmentProcessor`, the two schemas). Five corrections,
+the last of which restructures the PRs. The DESIGN — one canonical type, two
+adapters, one renderer, dedup as projection, unified attachment vocabulary — is
+unchanged. What changes is what can ship in which PR.
+
+**1. Six render paths, and the sixth is not a reference.** `conversationUtils.ts:131`
+renders a forwarded HISTORY MESSAGE through `formatForwardedQuote`, filling all
+four enrichment slots from `msg.messageMetadata`. It has no `ReferencedMessage`
+anywhere in it, so it can never take a `RenderableReference` — it is a
+legitimate second consumer of the shared emitter, not a member of the collapse.
+Enumerate it anyway: it constrains what the emitter's interface may drop.
+
+**2. The `attachmentLines` slot CANNOT be fully deleted.** That sixth path feeds
+it from `messageMetadata.forwardedAttachmentLines` — a **persisted `string[]`**
+(`schemas/message.ts:167`, produced at `DiscordChannelFetcher.ts:460` as
+`[contentType: name]` markers). Pre-rendered strings already in the database
+cannot be un-parsed, which is the same argument that forces the
+`processAttachmentsParallel` change to come FIRST, now pointing the other way.
+So the slot survives, narrowed and renamed to say so, until the producer emits
+structured metadata and legacy rows are handled. Deleting the affordance is
+still the goal; it is one migration away, not one refactor away.
+
+**3. The dedup exclusion set is THREE members, not one.** This task recorded
+"exactly ONE member (`content`) … the only one history provably carries."
+False on the code: `formatDedupedQuote` also omits `locationContext` and
+`embedsXml`, and its own docstring gives the reason — both are reproduced
+verbatim in `<chat_log>`. A one-member projection would add every stub's embeds
+back, which is the token cost dedup exists to avoid. Correct set:
+`content → marker`, `locationContext`, `embedsXml`.
+
+The safety property that motivated projection is untouched by this, and that is
+the point worth keeping: what matters is **subtraction from the canonical render
+rather than field-by-field reconstruction**, so a NEW field is inherited by
+default. Whether the subtraction set has one member or three changes nothing
+about that. "Exactly one" was rhetoric; it read as a design constraint.
+
+**4. `buildDedupedReferenceStub` is NOT deletable — only bot-client's CALL is.**
+The verified-dead chain recorded above is `ReferenceFormatter.ts:133`. The LIVE
+caller is `referenceEnricher.ts:99` (ai-worker), which produces the very stubs
+`formatReferencedMessages`'s `isDeduplicated` branch renders. An earlier note
+here reads as though the function itself goes; it does not. Under the projection
+its body collapses to flag-setting — the content-emptying, marker-folding and
+capping move to the renderer's projection helper, where the full reference is
+still in hand.
+
+**5. "PR-1 must be output-identical" is unachievable, and the split inverts.**
+Every element of the collapse changes output, so byte-equality cannot be the
+acceptance test:
+
+- the projection changes deduped output by construction (that is its purpose);
+- one renderer reading `isForwarded` must pick ONE `from` rule, and the two
+  paths disagree today (live forwarded hardcodes `from="Unknown"` and drops
+  number/role/username/location; stored forwarded uses the ref's own author);
+- the live and stored paths render the same attachment four different ways
+  (`- Image (x): d` · `<image filename=…>d</image>` · `[image/png: x]` ·
+  `- Image (x) [vision processing failed]`), selected by source AND by whether
+  vision succeeded. One renderer + byte-equality ⇒ a mode param, which correction
+  #1 of the third council pass already rejected on independent grounds.
+
+So the vocabulary flip is not a rider that can follow the collapse — it is the
+collapse's **prerequisite**, which is what the council was reaching for with
+"the return-type change cannot be staged after." Corrected sequencing:
+
+- **PR-1 — attachment vocabulary.** `processAttachmentsParallel` returns
+  `RenderableAttachment[]`; `formatQuoteElement` emits the settled
+  `<attachments>` vocabulary with `status`; `imageDescriptions` /
+  `voiceTranscripts` slots deleted; `attachmentLines` narrowed per #2. All six
+  paths update in place. This is the model-visible diff and it gets the clean
+  revert handle Kimi wanted — it simply comes first, because the collapse cannot
+  be expressed without it.
+- **PR-2 — the collapse.** `RenderableReference`, `fromLiveReference` /
+  `fromStoredReference`, `renderReference(ref)`, dedup as projection with the
+  three-member exclusion set, `username` conditionality, live persona hydration,
+  bot-client's dead stub call deleted. Closes the absorbed follow-up (an
+  undescribed attachment on a deduped ref) by construction.
+- **PR-3 — message-level alignment**, filed separately rather than assumed:
+  `formatImageSection` / `formatVoiceSection` still emit `<image_descriptions>` /
+  `<voice_transcripts>` at MESSAGE level. Leaving them recreates at the message
+  level exactly the split PR-1 removes at the quote level, so consistency wants
+  it — but it is the widest model-visible surface here (every history message,
+  over persisted metadata), so it gets its own decision rather than riding along.
+
+**Acceptance test, replacing byte-equality**: snapshot all six paths before, and
+require the after-diff to contain ONLY an enumerated, written-down changelist.
+Stronger than byte-equality, and unlike byte-equality it is actually satisfiable.
+
 **Do NOT "fix" the missing `voiceTranscripts` on the stored deduped branch.**
 Its comment is correct and worth preserving through the refactor: the live path
 reads transcripts from in-memory preprocessing, and `StoredReferencedMessage`
