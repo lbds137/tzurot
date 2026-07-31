@@ -425,6 +425,12 @@ function extractOrphanClosingTag(
 
     const content = visibleContent.slice(0, tagOffset).trim();
     if (content.length < MIN_ORPHAN_CONTENT_LENGTH) {
+      // Bail entirely rather than trying the next candidate. Too little text
+      // before the FIRST real closing tag means this is stray garbage (the
+      // chimera stutter shape), not reasoning — and the right handler for that
+      // is the blanket cleanup pass, which strips the tag and keeps the text.
+      // Searching on would find a later tag and misfile everything before it,
+      // including the garbage, as thinking.
       return null;
     }
 
