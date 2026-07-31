@@ -188,6 +188,134 @@ from `DiscordChannelFetcher` instead — a different path entirely.
 
 So the deletion is safe. Trace the guard, not just the write.
 
+## SETTLED DESIGN — third council pass (GLM 5.2 · Kimi K3 · Qwen 3.7 Max)
+
+Re-councilled because the two earlier passes ran on a premise the grounding
+above disproved (four paths, two peer renderers, live-as-base). Owner delegated
+the vocabulary call with one constraint: _"I don't care that much as long as
+it's consistent."_ That constraint is what decides it — the inconsistency worth
+fixing turned out not to be live-vs-stored at all.
+
+### The real inconsistency
+
+An image renders under `<image_descriptions>` when the vision call SUCCEEDED and
+under `<attachments>` when it did not. The same object, two unrelated tag names,
+selected by whether an API call worked. Voice has the same split. And the two
+container names are in different registers: `<image_descriptions>` /
+`<voice_transcripts>` name the DERIVED ARTIFACT, `<attachments>` names the
+SOURCE OBJECT.
+
+### The vocabulary (3/3 agreed on the shape; specifics synthesized)
+
+```xml
+<attachments>
+  <image filename="cat.png">a cat asleep on a keyboard</image>
+  <image filename="unlucky.png" status="undescribed"/>
+  <voice filename="audio.ogg">hey, can you hear me</voice>
+  <file filename="report.pdf"/>
+</attachments>
+```
+
+`<image_descriptions>` and `<voice_transcripts>` are **deleted**. Everything
+names the source object; enrichment is the element's text content.
+
+Per choice, and why it beat the alternative:
+
+- **Per-modality tags over `<attachment type="image">`** (GLM over Qwen):
+  `<image ` is both cheaper and more readable than `<attachment type="image" `.
+- **Enrichment as text content over a `<description>` child** (Qwen over GLM):
+  flatter, and it is the form ALREADY in production
+  (`<image filename="X">desc</image>`), so it ships pre-tested.
+- **Keep the `<attachments>` wrapper** (GLM over Qwen): matches `<embeds>`, and
+  `addArraySection` already emits wrapped sections.
+- **`status` when enrichment is absent** (GLM's unasked-for find): silently
+  omitting the description leaves the model unable to distinguish "failed" from
+  "still processing" from "nothing worth describing", so it hallucinates one or
+  apologises for a missing one. Stated explicitly, it can say the true thing.
+
+**`status` value space is designed for TASK-367 now, not retrofitted**:
+`undescribed` · `untranscribed` · `expired`. The owner's locked retention
+decision (an aged-out image renders a content-free presence note) guarantees a
+second cause for "no description", so a boolean `failed` would need migrating
+the moment 367 lands.
+
+**Filename is signal, not just an identifier — owner call.** Sometimes the name
+carries the clue (`error-screenshot-checkout.png`). It is therefore carried in
+BOTH arms, and it matters most on the undescribed arm where it is the only
+signal left. Corollary: **omit the attribute entirely when there is no real
+name** — never synthesize a placeholder. Today two paths invent different ones
+(`?? 'image'` and `?? 'attachment'`), and `splitStoredMedia` matches
+described-vs-undescribed BY filename, so the two fallbacks disagreeing renders a
+nameless image twice. One element per attachment removes the correspondence
+lookup, and that whole bug class with it.
+
+**Emit `username` only when it differs from the display name** (Qwen). Resolves
+the open live-vs-stored `username` divergence on a principle rather than a coin
+flip, and costs fewer tokens.
+
+### Type names — 3/3, independently
+
+`RenderableReference` / `RenderableAttachment`; constructors `fromLiveReference`
+/ `fromStoredReference`. All three rejected `Resolved`: it already means
+persona-hydrated in this codebase (`resolvedPersonaName`,
+`resolvedImageDescriptions`), and overloading it would collide.
+
+Membership rule (GLM, sharpened by Kimi): a field belongs on the canonical type
+**iff the emitter draws it** — the criterion is drawn-ness, NOT divergence. That
+dissolves most of the live/stored field split, because `discordUserId`,
+`authorDiscordId`, `webhookId`, `authorIsBot` and `discordMessageId` all drive
+UPSTREAM dedup/role decisions and never reach the renderer (verified by grep).
+`referenceNumber` is the one live-only field that IS drawn, so it stays.
+`from`/`fromId` enter **pre-resolved** so `resolvedPersona*` never enters either.
+
+### Design corrections to this task's own recorded shape (Kimi K3)
+
+1. **There is no `mode` param.** This task recorded
+   `renderReference(ref, mode: 'full' | 'deduped')`. Wrong on both halves:
+   `isForwarded` is a FIELD, so passing it as a mode creates a second source of
+   truth that can disagree with the ref; and dedup is the PROJECTION already
+   agreed above, not a mode. End state: **1 renderer, 2 adapters, 1 projection
+   helper, 0 mode params.** `renderReference(ref)` reads `ref.isForwarded`;
+   deduped is `renderReference({...ref, content: STUB_MARKER})`.
+2. **Deleting the string return type is necessary but insufficient — delete the
+   `attachmentLines: string[]` SLOT from `formatQuoteElement`'s options.** While
+   the slot exists, the next caller fills it and the divergence regenerates. The
+   slot is the affordance.
+3. **Keep hydration out of the renderer.** Adapters resolve identity; the
+   renderer stays pure.
+
+### Sequencing — two PRs (Kimi; council split 3 ways, this is the synthesis)
+
+All three agree the `processAttachmentsParallel` return-type change cannot be
+staged AFTER the collapse — pre-rendered strings cannot be un-parsed. They split
+on whether the model-visible flip rides along: GLM said one PR, Qwen said decide
+first then one PR, Kimi said two.
+
+**Taking Kimi's**: PR-1 collapses the render paths and must be **output-
+identical** — snapshot every path's XML before and after and prove byte-equality.
+PR-2 is the vocabulary flip: a small, independently revertible diff with a clean
+prompt delta. That makes the refactor provably behaviour-preserving and gives the
+model-visible change its own revert handle.
+
+Bundle into PR-2 (same class, same decision): the vocabulary flip, `username`
+conditionality, and **live persona hydration** — Kimi's find: live does no
+persona hydration at all, so the same persona's message renders a different
+`from_id` live vs stored.
+
+### Council claims REJECTED (verified against the code, not assumed)
+
+- **"Rename `<quote>` to `<message>`"** (Qwen): would COLLIDE.
+  `conversationUtils.ts:147` already emits `<message from=… role=… t=…>` for
+  chat-log history; `<quote>` is used only inside `<contextual_references>` /
+  `<quoted_messages>`. The distinction Qwen thought was missing is the one that
+  already exists.
+- **"XML injection is unhandled (critical)"** (Qwen): already handled —
+  `escapeXml` on attributes, `escapeXmlContent` on text,
+  `neutralizeWrapperClosingTags` on transcripts, all in `formatQuoteElement`.
+- **Structured `<embed>` normalization** (Qwen): real, but out of scope here —
+  `embedsXml` is pre-formatted by bot-client's EmbedParser. File separately if
+  it is worth doing.
+
 **Do NOT "fix" the missing `voiceTranscripts` on the stored deduped branch.**
 Its comment is correct and worth preserving through the refactor: the live path
 reads transcripts from in-memory preprocessing, and `StoredReferencedMessage`
