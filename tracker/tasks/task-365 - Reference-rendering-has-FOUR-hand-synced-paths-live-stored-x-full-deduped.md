@@ -388,12 +388,33 @@ collapse's **prerequisite**, which is what the council was reaching for with
   `status`; `imageDescriptions` / `voiceTranscripts` slots deleted;
   `attachmentLines` narrowed per #2. All six paths updated in place. Grew past
   its filing — see the close-out section at the end of this task.
-- **PR-2 — the collapse.** `RenderableReference`, `fromLiveReference` /
-  `fromStoredReference`, `renderReference(ref)`, dedup as projection with the
-  three-member exclusion set, `username` conditionality, live persona hydration,
-  bot-client's dead stub call deleted. Closes the absorbed follow-up (an
-  undescribed attachment on a deduped ref) by construction.
-- **PR-3 — message-level alignment**, filed separately rather than assumed:
+- **PR-2 — the collapse. ✅ SHIPPED (#1882).** `RenderableReference`,
+  `fromLiveReference` / `fromStoredReference`, `renderReference(ref)`, dedup as
+  projection with the three-member exclusion set, `username` conditionality,
+  bot-client's dead stub call deleted. Closed the absorbed follow-up (an
+  undescribed attachment on a deduped ref) by construction. Live persona
+  hydration split out — see PR-3 below. Close-out at the end of this task.
+- **PR-3 — live persona hydration.** Recorded here as a rider on PR-2; split
+  out during the build on MECHANISM, not effort. It is not a render change: it
+  needs a Prisma client inside `ConversationInputProcessor` /
+  `ReferencedMessageFormatter`, neither of which has one, plus a per-turn batch
+  resolve (`batchResolveByDiscordIds`, as `storedReferenceHydrator` does — or a
+  reuse of the participant resolution `MemoryRetriever` already performs, which
+  is a real design question with a cost dimension). Bundling it would have added
+  a service dependency and a new failure mode to a refactor whose acceptance
+  test was an output changelist.
+
+  It lands cleanly afterwards and cannot regenerate the divergence class: the
+  canonical type already carries `from` / `fromId`, one renderer already draws
+  them, and `fromLiveReference` is the only function that would change.
+
+  _Problem_: live quotes render the Discord display name while `<chat_log>` and
+  stored quotes render the persona name and bind `from_id` — the same person
+  under two names in one prompt, with no ID binding on the live path.
+  _Acceptance_: a persona's live-quoted message and its `<message>` line in the
+  chat log carry the same `from` and the same `from_id`.
+
+- **PR-4 — message-level alignment**, filed separately rather than assumed:
   `formatImageSection` / `formatVoiceSection` still emit `<image_descriptions>` /
   `<voice_transcripts>` at MESSAGE level. Leaving them recreates at the message
   level exactly the split PR-1 removes at the quote level, so consistency wants
@@ -450,3 +471,53 @@ image twice — once as a marker folded into `content`, once structurally. That
 last one closes by construction under the projection; it is the clearest single
 proof that PR-2 is worth doing.
 <!-- SECTION:DESCRIPTION:END -->
+
+## PR-2 CLOSE-OUT (#1882) — what shipped, and what is left
+
+**Acceptance was an enumerated changelist, not byte-equality** (the second
+grounding pass proved the latter unachievable). All six paths were rendered
+before and after against fixed fixtures and diffed; twelve differences, each
+deliberate, are tabulated in #1882's body. Three were decisions PR-2 made that
+the recorded design had not settled — the timestamp convergence, the
+bot-preview narrowing, and the `username` rule — and were approved in plan mode
+before the build.
+
+Three more surfaced only from the actual before/after diff, which is the
+argument for taking the snapshot first rather than reasoning about it:
+
+- live deduped attachments were missing their `type` attribute (they were built
+  from synthesized preprocessing metadata that omits content type);
+- stored deduped quotes had lost `from_id`, so the model could not bind them to
+  `<participants>` — one more field the stub's rebuild forgot;
+- the deduped search text carried `[image/png: …]` marker noise into the
+  embedding query, and dropped the reference's embed text.
+
+**Shipped beyond the filed scope**, all the same class:
+
+- `buildRenderableAttachments` — `buildStoredAttachments` and
+  `splitPreprocessedEnrichment` were two copies of one algorithm differing only
+  in correlation key. One kernel, one `describe` callback (inside the 2-callback
+  ceiling), each caller keeping its own orphan-enrichment tail because an
+  unmatched stored description and an unmatched `ProcessedAttachment` are
+  genuinely different shapes.
+- `formatTimestampWithDelta` deleted from `common-types` — the timestamp
+  convergence left it with zero callers.
+- `buildDedupedReferenceStub` and `capDedupText` left `common-types` entirely;
+  the stub collapsed to `{...raw, isDeduplicated: true}` inline in
+  `referenceEnricher`.
+- The estimator's whole-`<quote>` parity, not just its attachments — it had
+  invented `author=` and `location=` attributes the emitter never wrote, and a
+  phantom ` forwarded="true"` where the emitter writes `type="forward"`. Pinned
+  by exact equality. Closes the rest of TASK-370's reference-path drift row.
+
+**The structural guard worth reusing**: `dedupeReference`'s test walks the
+reference's OWN keys and asserts every non-subtracted one is inherited. A
+field-by-field rebuild fails it the moment someone adds a field and forgets to
+copy it — without anyone having to update a list. That is the shape to reach
+for whenever "these two must agree" cannot be collapsed to one.
+
+**Filed out of PR-2**: TASK-379 (bot-client's enriched `references` array is
+dead work — it feeds two log counts while running Redis+DB transcript lookups
+per reference). TASK-34's mechanism was restated: its `[contentType: name]`
+markers no longer exist, but the unbounded per-attachment stub cost survives in
+a new form and is the owner's call.

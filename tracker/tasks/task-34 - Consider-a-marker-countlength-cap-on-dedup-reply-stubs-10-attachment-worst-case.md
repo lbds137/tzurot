@@ -6,7 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-07-01 00:00'
-updated_date: '2026-07-28 10:46'
+updated_date: '2026-07-31 16:15'
 labels:
   - 'origin:review'
   - 'area:ai-worker'
@@ -19,8 +19,15 @@ ordinal: 34000
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
+Consider a per-attachment cap on dedup reply-stubs (10-attachment worst case)
 
-Consider a marker-count/length cap on dedup reply-stubs (10-attachment worst case)
+**Why:** A "lightweight" dedup stub has no upper bound on its attachment cost. Worst case: a reply-target with Discord's max 10 attachments, each with a long filename.
 
-**Why:** The dedup-stub truncation fix (single truncation point, text-only cap) deliberately preserves ALL attachment filename markers in full — removing the only upper bound on combined stub size. Worst case: a reply-target with Discord's max 10 long-filename attachments produces a "lightweight" stub of ~1000+ chars in `<contextual_references>`/`<quoted_messages>`, a real (if narrow) token-budget change. Documented as intentional by the `preserves all markers in full` test in `referenceEnrichment.test.ts`. **Fix shape**: cap marker COUNT (e.g. first N + `[+K more attachments]`) rather than truncating filenames (they're the correlation hint). Needs its own design + tests. **Promote when**: marker-heavy stubs observed bloating prompts, or next touching the dedup-stub format. Surfaced 2026-07-01 (PR #1431 post-squash review).
+**Mechanism CHANGED by #1882 (TASK-365 PR-2) — the concern survives, its shape does not.** The original filing was about `[contentType: name]` text markers folded into the stub's content by `buildDedupedReferenceStub`, which deliberately preserved every marker in full. That code is gone: the stub is now a projection of the full render, so each attachment is a structural element (`<image filename="x.png" type="image/png" status="undescribed"/>`). That is MORE characters per attachment than the marker was, not fewer — so re-measure before deciding this is worth doing.
+
+**Fix shape** (unchanged in principle): cap the attachment COUNT rather than truncating filenames, which are the correlation hint. `renderReference`/`dedupeReference` in `services/ai-worker/src/services/prompt/RenderableReference.ts` is the one place it would go, and it would apply uniformly to both source paths for the first time.
+
+**Owner call, not an agent's**: it is a token-budget/prompt-shape decision.
+
+**Promote when**: attachment-heavy stubs observed bloating prompts. Surfaced 2026-07-01 (PR #1431 post-squash review); mechanism restated 2026-07-31 (#1882).
 <!-- SECTION:DESCRIPTION:END -->
