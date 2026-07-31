@@ -382,13 +382,12 @@ So the vocabulary flip is not a rider that can follow the collapse — it is the
 collapse's **prerequisite**, which is what the council was reaching for with
 "the return-type change cannot be staged after." Corrected sequencing:
 
-- **PR-1 — attachment vocabulary.** `processAttachmentsParallel` returns
-  `RenderableAttachment[]`; `formatQuoteElement` emits the settled
-  `<attachments>` vocabulary with `status`; `imageDescriptions` /
-  `voiceTranscripts` slots deleted; `attachmentLines` narrowed per #2. All six
-  paths update in place. This is the model-visible diff and it gets the clean
-  revert handle Kimi wanted — it simply comes first, because the collapse cannot
-  be expressed without it.
+- **PR-1 — attachment vocabulary. ✅ SHIPPED (#1881, merged to develop).**
+  `processAttachmentsParallel` returns `RenderableAttachment[]`;
+  `formatQuoteElement` emits the settled `<attachments>` vocabulary with
+  `status`; `imageDescriptions` / `voiceTranscripts` slots deleted;
+  `attachmentLines` narrowed per #2. All six paths updated in place. Grew past
+  its filing — see the close-out section at the end of this task.
 - **PR-2 — the collapse.** `RenderableReference`, `fromLiveReference` /
   `fromStoredReference`, `renderReference(ref)`, dedup as projection with the
   three-member exclusion set, `username` conditionality, live persona hydration,
@@ -412,4 +411,42 @@ has no audio counterpart to `resolvedImageDescriptions`. That is a schema gap
 owned by TASK-367 (persist the built reference), not a dropped field here — and
 a projection that "inherits every field by construction" must not paper over it
 by emitting an empty section.
+
+## PR-1 CLOSE-OUT (#1881) — what shipped, and what PR-2 inherits
+
+Shipped beyond the filed scope, all of it the same class the task is about:
+
+- **`RenderableAttachment` is a discriminated union.** `durationSeconds` cannot
+  appear on an image, `description` cannot appear on a file, a status cannot
+  name another modality's failure, and `description`/`status` cannot co-occur.
+  Six `@ts-expect-error` assertions fail the build if any of that stops holding.
+  PR-2 should extend the same treatment to `RenderableReference` rather than
+  re-deriving invariants in prose.
+- **`classifyAttachment` is single-sourced** (`QuoteFormatter.ts`). It closed a
+  live/stored split introduced *while fixing that exact pattern*: the stored
+  path also accepted any `audio/*`, so an ordinary music clip rendered `<file/>`
+  live and `<voice status="untranscribed"/>` on replay.
+- **`duration` rides every voice path.** A sweep of all five construction sites
+  found two dropping it; only one had been reported. **Do the enumeration in
+  PR-2 too** — patching the reported site is how the second one survived.
+- **The estimator stopped being a second renderer** — `estimateReferenceLength`
+  now calls `buildStoredAttachments` + `renderAttachment`, with a parity test.
+  Closes two rows of TASK-370's drift table.
+- **`ProcessedAttachmentResult.index`** deleted (threaded through three
+  functions, never read).
+
+**The lesson PR-2 should carry**: three separate findings in this PR resolved to
+*delete the copy*, not *sync the copies* — the estimator's hand-written markup,
+the test suite's hand-rolled mock renderer, and the duplicated classifier. Each
+was three to six lines, which is exactly why none felt worth extracting until it
+drifted. When PR-2 finds two things that must agree, the default answer is one
+of them should not exist.
+
+**Still true for PR-2**, unchanged by this PR: the six-path enumeration, the
+persisted-`string[]` constraint on `legacyAttachmentLines` (#2 above), the
+three-member dedup exclusion set (#3), `buildDedupedReferenceStub`'s live caller
+(#4), and the accepted overlap where a live deduped stub renders a described
+image twice — once as a marker folded into `content`, once structurally. That
+last one closes by construction under the projection; it is the clearest single
+proof that PR-2 is worth doing.
 <!-- SECTION:DESCRIPTION:END -->
