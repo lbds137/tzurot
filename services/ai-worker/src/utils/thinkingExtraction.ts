@@ -24,6 +24,7 @@
  * 3. Logged for debugging purposes
  */
 
+import { isInsideCodeSpan } from '@tzurot/common-types/utils/codeSpanDetection';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 
 const logger = createLogger('ThinkingExtraction');
@@ -46,8 +47,14 @@ interface ThinkingExtraction {
  *
  * CONSTRAINT: Tag names must use only [a-z_] characters (no regex
  * metacharacters), since names are interpolated directly into patterns.
+ *
+ * Exported so the quoted-delimiter guard suite can enumerate the vocabulary
+ * rather than restate it. Every name added here widens the surface on which a
+ * reply that merely QUOTES the tag could be mistaken for one that uses it, so
+ * the guard must grow with the list automatically — a hand-maintained copy in
+ * the tests would drift on exactly the revision that needed it.
  */
-const KNOWN_THINKING_TAGS = [
+export const KNOWN_THINKING_TAGS = [
   'think', // DeepSeek R1, Qwen QwQ, GLM-4.x, Kimi K2
   'thinking', // Claude prompted, some distilled models
   'ant_thinking', // Legacy Anthropic format
@@ -284,19 +291,28 @@ function normalizeThinkingTagNamespaces(content: string): string {
 }
 
 /**
- * Pattern to match unclosed thinking tags (model truncation or errors).
- * Matches opening tag followed by content until end of string.
- * Only used as a fallback when no complete tags are found.
+ * Pattern to match an unclosed thinking tag at the HEAD of a response (model
+ * truncation or errors). Only used as a fallback when no complete tags are found.
+ *
+ * The `^\s*` anchor is load-bearing, and matches the convention every Pass-1
+ * pattern above already relies on: a genuine unclosed reasoning block is a
+ * PREFIX phenomenon — the model opened its reasoning and never closed it, so
+ * nothing precedes the tag. A tag appearing after real prose is, by definition,
+ * the model TALKING about the tag. Without the anchor, a reply quoting
+ * `<thinking>` had everything from that point to end-of-string consumed as
+ * reasoning, truncating the user-visible message mid-sentence.
  */
-const UNCLOSED_TAG_PATTERN = new RegExp(`<(${TAG_ALT})>([\\s\\S]*)$`, 'gi');
+const HEAD_UNCLOSED_TAG_PATTERN = new RegExp(`^\\s*<(${TAG_ALT})>([\\s\\S]*)$`, 'i');
 
 /**
- * Pattern to match orphan closing tags with preceding content (no opening tag).
- * Some models (e.g., Kimi K2.5) may output thinking content without an opening tag,
- * just closing with </think>. This captures the content before the closing tag.
- * Matches: "thinking content here</think>visible response"
+ * Pattern to detect an opening thinking tag anywhere in the content.
+ *
+ * Diagnostic only — never used to strip. It reports the case the head anchor
+ * above declines to act on, so a genuine mid-response unclosed block (not yet
+ * observed in production, but not impossible) would surface in logs instead of
+ * silently rendering its raw tag.
  */
-const ORPHAN_CLOSING_TAG_PATTERN = new RegExp(`^([\\s\\S]*?)<\\/(${TAG_ALT})>`, 'i');
+const ANY_OPENING_TAG_PATTERN = new RegExp(`<(${TAG_ALT})>`, 'gi');
 
 /**
  * Pattern to clean up "chimera artifacts" - short garbage fragments before orphan closing tags.
@@ -309,9 +325,13 @@ const CHIMERA_ARTIFACT_PATTERN = new RegExp(
 );
 
 /**
- * Pattern to remove any remaining orphan closing tags.
+ * Pattern matching a thinking closing tag anywhere in the content.
+ *
+ * Serves both consumers of orphan closing tags: `extractOrphanClosingTag`
+ * enumerates candidates with it, and `cleanupVisibleContent` removes whatever
+ * survives. Both skip occurrences inside code markup — see `isInsideCodeSpan`.
  */
-const ORPHAN_CLOSING_TAG_CLEANUP = new RegExp(`<\\/(${TAG_ALT})>`, 'gi');
+const CLOSING_TAG_PATTERN = new RegExp(`<\\/(${TAG_ALT})>`, 'gi');
 
 /**
  * Pattern to clean up OpenAI "Harmony" format tokens that leak from GPT-OSS-120B.
@@ -325,95 +345,126 @@ const HARMONY_TOKEN_PATTERN = /<\|(?:start|end|channel|separator|im_start|im_end
 /** Minimum content length to extract from orphan closing tags */
 const MIN_ORPHAN_CONTENT_LENGTH = 20;
 
-/** Opening tag pattern for stripping bare tags without capturing content */
-const OPENING_TAG_PATTERN = new RegExp(`<(${TAG_ALT})>`, 'gi');
-
 /**
- * Extract content from unclosed thinking tags (model truncation fallback).
+ * Strip a head-anchored unclosed thinking tag, keeping its body visible.
  *
- * When the unclosed tag would consume the entire response (no visible content
- * remains after extraction), this is likely a model glitch (e.g. GLM 4.5 Air
- * forgetting to close the tag) rather than genuine truncated reasoning. In that
- * case, we strip the opening tag and keep all content visible.
+ * An unclosed opening tag means the model opened a reasoning block and never
+ * closed it — either a glitch (GLM 4.5 Air) or truncation. In both cases the
+ * body is the response the user is waiting for, so the tag is removed and
+ * everything after it stays visible rather than being filed as reasoning.
+ * Only the leading tag is removed: a later occurrence is prose the model wrote
+ * and must survive verbatim.
  *
- * @returns Object with extracted thinking and remaining visible, or null if no match
+ * @returns Content with the leading tag removed, or null when no head tag matched
  */
-function extractUnclosedTag(
-  visibleContent: string
-): { thinkingContent: string; visibleContent: string } | null {
-  UNCLOSED_TAG_PATTERN.lastIndex = 0;
-  const match = UNCLOSED_TAG_PATTERN.exec(visibleContent);
+function stripHeadUnclosedTag(visibleContent: string): string | null {
+  const match = HEAD_UNCLOSED_TAG_PATTERN.exec(visibleContent);
   if (match === null) {
     return null;
   }
 
-  const tagName = match[1];
-  const content = match[2].trim();
-  if (content.length === 0) {
+  const body = match[2];
+  if (body.trim().length === 0) {
     return null;
   }
 
   logger.warn(
-    { tagName, contentLength: content.length },
-    'Found unclosed thinking tag - content may be incomplete'
+    { tagName: match[1], contentLength: body.length },
+    'Found unclosed thinking tag at start of response — stripping tag, keeping content visible'
   );
 
-  UNCLOSED_TAG_PATTERN.lastIndex = 0;
-  const cleaned = visibleContent.replace(UNCLOSED_TAG_PATTERN, '');
+  return body;
+}
 
-  // If extraction would leave visible content empty, this is likely a model glitch
-  // (e.g. GLM 4.5 Air). Strip the opening tag instead and keep content visible.
-  if (cleaned.trim().length === 0) {
-    logger.warn(
-      { contentLength: content.length },
-      'Unclosed tag would consume entire response — keeping content visible'
-    );
-    return {
-      thinkingContent: '',
-      visibleContent: visibleContent.replace(OPENING_TAG_PATTERN, '').trim(),
-    };
+/**
+ * Report an opening thinking tag that the head anchor declined to act on.
+ *
+ * Every unclosed-tag case observed in production has been head-anchored, so a
+ * mid-response one is expected to be a quotation. This log exists so that
+ * assumption is falsifiable: if a model genuinely opens reasoning mid-response,
+ * it shows up here instead of silently rendering a raw tag to the user.
+ */
+function logDeclinedMidResponseTag(visibleContent: string): void {
+  ANY_OPENING_TAG_PATTERN.lastIndex = 0;
+  const match = ANY_OPENING_TAG_PATTERN.exec(visibleContent);
+  if (match === null) {
+    return;
   }
 
-  return { thinkingContent: content, visibleContent: cleaned };
+  logger.info(
+    {
+      tagName: match[1],
+      tagOffset: match.index,
+      quoted: isInsideCodeSpan(visibleContent, match.index),
+      contentLength: visibleContent.length,
+    },
+    'Opening thinking tag mid-response — treated as quoted prose, left visible'
+  );
 }
 
 /**
  * Extract content from orphan closing tags (no opening tag).
+ *
+ * Some models (e.g. Kimi K2.5) emit reasoning with no opening tag and simply
+ * terminate it with `</think>`, so the closing tag sits mid-line, mid-text —
+ * positionally identical to a reply that merely MENTIONS the tag. Code markup
+ * is the only signal that separates the two, so candidates inside a backtick
+ * span or fenced block are skipped and the next one is considered.
+ *
  * @returns Extracted content and cleaned visible content, or null if no match
  */
 function extractOrphanClosingTag(
   visibleContent: string
 ): { content: string; cleaned: string } | null {
-  const match = ORPHAN_CLOSING_TAG_PATTERN.exec(visibleContent);
-  if (match === null) {
-    return null;
+  CLOSING_TAG_PATTERN.lastIndex = 0;
+  for (const match of visibleContent.matchAll(CLOSING_TAG_PATTERN)) {
+    const tagOffset = match.index;
+    if (isInsideCodeSpan(visibleContent, tagOffset)) {
+      continue;
+    }
+
+    const content = visibleContent.slice(0, tagOffset).trim();
+    if (content.length < MIN_ORPHAN_CONTENT_LENGTH) {
+      return null;
+    }
+
+    logger.warn(
+      { tagName: match[1], contentLength: content.length },
+      'Found orphan closing tag - extracted preceding content as thinking'
+    );
+
+    return { content, cleaned: visibleContent.slice(tagOffset + match[0].length) };
   }
 
-  const content = match[1].trim();
-  const tagName = match[2];
-
-  if (content.length < MIN_ORPHAN_CONTENT_LENGTH) {
-    return null;
-  }
-
-  logger.warn(
-    { tagName, contentLength: content.length },
-    'Found orphan closing tag - extracted preceding content as thinking'
-  );
-
-  const cleaned = visibleContent.replace(ORPHAN_CLOSING_TAG_PATTERN, '');
-  return { content, cleaned };
+  return null;
 }
 
 /**
  * Clean up visible content after extraction.
  */
 function cleanupVisibleContent(content: string): string {
-  // Clean chimera artifacts
-  let result = content.replace(CHIMERA_ARTIFACT_PATTERN, '');
+  // Clean chimera artifacts — skipping quoted ones, same as the orphan pass
+  // below. This pattern eats a whole `token. </tag>` fragment, so a quoted
+  // example starting a line loses its text and leaves a dangling backtick.
+  // The stutter it targets is one merged model's quirk; the false positive
+  // lands on every model, which is why the gate is worth more than the pass.
+  // Test the CLOSING TAG's position, not the match start: this pattern's match
+  // begins at the preceding newline, which sits outside the backtick span the
+  // quoted tag lives in, so gating on `offset` would never fire.
+  let result = content.replace(
+    CHIMERA_ARTIFACT_PATTERN,
+    (match: string, _tagName: string, offset: number) =>
+      isInsideCodeSpan(content, offset + match.lastIndexOf('</')) ? match : ''
+  );
 
-  // Remove remaining orphan closing tags
-  result = result.replace(ORPHAN_CLOSING_TAG_CLEANUP, '');
+  // Remove remaining orphan closing tags — except ones the model quoted inside
+  // code markup, where deleting the tag would corrupt the quotation it wrote.
+  const beforeOrphanCleanup = result;
+  result = beforeOrphanCleanup.replace(
+    CLOSING_TAG_PATTERN,
+    (match: string, _tagName: string, offset: number) =>
+      isInsideCodeSpan(beforeOrphanCleanup, offset) ? match : ''
+  );
 
   // Remove OpenAI Harmony format token leakage (GPT-OSS-120B)
   result = result.replace(HARMONY_TOKEN_PATTERN, '');
@@ -450,14 +501,13 @@ function extractFromReasoningDetail(detail: ReasoningDetail): string | null {
  * Attempts unclosed tags first, then orphan closing tags.
  */
 function tryFallbackExtraction(thinkingParts: string[], visibleContent: string): string {
-  // Try unclosed tags (e.g. model truncation or GLM 4.5 Air glitch)
-  const unclosed = extractUnclosedTag(visibleContent);
-  if (unclosed !== null) {
-    if (unclosed.thinkingContent.length > 0) {
-      thinkingParts.push(unclosed.thinkingContent);
-    }
-    return unclosed.visibleContent;
+  // Try a head-anchored unclosed tag (model truncation or GLM 4.5 Air glitch)
+  const stripped = stripHeadUnclosedTag(visibleContent);
+  if (stripped !== null) {
+    return stripped;
   }
+
+  logDeclinedMidResponseTag(visibleContent);
 
   // Try orphan closing tags (no opening tag, e.g. Kimi K2.5)
   const orphan = extractOrphanClosingTag(visibleContent);
@@ -620,9 +670,10 @@ export function hasThinkingBlocks(content: string): boolean {
     }
   }
 
-  // Also check for unclosed tags
-  UNCLOSED_TAG_PATTERN.lastIndex = 0;
-  if (UNCLOSED_TAG_PATTERN.test(normalized)) {
+  // Also check for a head-anchored unclosed tag. Mirrors the extractor's own
+  // anchor so diagnostics don't report reasoning for a reply that merely quotes
+  // a tag mid-prose — `hasReasoningTagsInContent` would otherwise over-report.
+  if (HEAD_UNCLOSED_TAG_PATTERN.test(normalized)) {
     return true;
   }
 
