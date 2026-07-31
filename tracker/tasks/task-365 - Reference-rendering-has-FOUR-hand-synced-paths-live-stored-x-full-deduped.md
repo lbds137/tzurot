@@ -172,6 +172,22 @@ the base and teaching it about stored rows.
 - **`username`.** The live deduped stub passes it; the stored deduped branch does
   not. Same quote, one attribute apart.
 
+**bot-client's stub deletion — VERIFIED dead, and here is the chain**, because
+the obvious read says otherwise and the next person will hit the same scare.
+`ReferenceFormatter.appendDedupedStub` pushes the stub into `s.references`,
+which reaches `ConversationPersistence`, whose line ~271 writes
+`referencedMessages: convertToStoredReferences(referencedMessages)` — a DB
+write, not a log line. That looks like the stub being persisted.
+
+It is not reachable. `PersonalityChatManager` calls `saveUserMessage` WITHOUT a
+`referencedMessages` argument (the arg was removed as a no-op — the thin
+envelope never carries that field), so the optional param is undefined and the
+`if (referencedMessages && ...)` guard never opens on the live path. The
+enriched array's only live consumers are log lines. Stored reference rows come
+from `DiscordChannelFetcher` instead — a different path entirely.
+
+So the deletion is safe. Trace the guard, not just the write.
+
 **Do NOT "fix" the missing `voiceTranscripts` on the stored deduped branch.**
 Its comment is correct and worth preserving through the refactor: the live path
 reads transcripts from in-memory preprocessing, and `StoredReferencedMessage`
