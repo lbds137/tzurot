@@ -33,4 +33,24 @@ ordinal: 371000
 **Also decide**: Input and Post-Processing share the `maxChunks: 3` cap. Input carries the full user message plus referenced-message content and can run long too.
 
 **Class**: same as TASK-368 — a load-bearing invariant living in prose where nothing executes it, contradicted by code in the same file. Third instance found on 2026-07-30. Worth adding to 368's sweep scope: the sweep should catch a docstring contradicted by its OWN function body, not only cross-module carriage claims.
+
+## OWNER DECISION 2026-07-30 — cap 10, scheduled AFTER the fast follow
+
+_"10 is plenty. this was not really 6 chunks of reasoning, just a bug. so in practice I think it's unlikely we'll ever hit 10. it can come after the fast follow."_
+
+**`maxChunks: 10`.** The sharpening matters and should survive into the build: the
+observed 10k was **inflated by TASK-372** — roughly 4k of it was user-facing prose
+misfiled as reasoning by the quoted-delimiter bug. Genuine reasoning at
+`effort=medium` is materially smaller, so once 372 lands the cap may never bind
+at all. That is the reason this is low-urgency rather than a reason to skip it:
+the docstring/code contradiction still needs resolving either way, and a cap
+that never fires is the correct end state, not evidence the work is pointless.
+
+Ordering: **after the fast follow** (365 → 367 → 370 → 368). Do NOT ship the cap
+change before 372 — measuring "is 10 enough?" against bug-inflated reasoning
+sizes would calibrate against noise.
+
+Still open at build time: whether Input and Post-Processing move to 10 as well,
+or keep 3. Input carries the full user message plus referenced content, so it has
+a real case; Post-Processing is a two-version diff and probably does not.
 <!-- SECTION:DESCRIPTION:END -->

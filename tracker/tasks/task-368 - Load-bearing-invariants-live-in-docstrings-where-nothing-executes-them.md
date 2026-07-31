@@ -52,4 +52,40 @@ must be derived rather than asserted.
 
 **Acceptance addition:** a deduped stub of a message whose own history entry
 already renders `<image_descriptions>` must NOT repeat them.
+
+## SCOPE WIDENED — owner 2026-07-30: _"we need to be broader in our surface audit to catch any other similar bug classes"_
+
+Three instances surfaced in a single day, and the third does not fit the
+original framing:
+
+1. `persistReferenceDescriptions`'s docstring names the exact symptom of
+   TASK-364 — cross-module carriage claim, the original scope.
+2. The deduped stub's `[Referenced message — full text in the chat log]` marker —
+   a factual claim about another renderer's output, asserted in a string literal.
+3. **`buildReasoningView` (TASK-371)** — a docstring recording an explicit owner
+   decision (_"reading text must never require a file download"_) contradicted by
+   `maxChunks: 3` **thirty lines below it, in the same function**.
+
+**So the sweep is NOT only cross-module carriage claims.** Widen to any
+load-bearing claim that nothing executes, including:
+
+- a docstring contradicted by its OWN function body (instance 3 — the cheapest
+  to find and the easiest to have missed, because there is no module boundary to
+  make anyone suspicious);
+- a **recorded owner/design decision** in prose, which a later change can
+  override without anyone noticing — instance 3 arrived that way (`00fb239ca`
+  had a coherent rationale and simply did not know the decision existed);
+- string literals making factual claims about what some other layer produced
+  (instance 2).
+
+**Method note**: enumerate deterministically rather than by reading around.
+Candidate greps — `owner decision`, `always`, `never`, `must`, `guaranteed`,
+`so X need not`, `is in the chat log` — across `services/**` and `packages/**`
+docstrings and string literals, then judge each hit for whether anything
+executes it. Sampling is what let three coexist.
+
+**Sibling audit, different class**: TASK-372's failure (content that QUOTES our
+own control syntax is indistinguishable from real control syntax) is not an
+unenforced-invariant problem and should not be folded in here — it has its own
+sweep.
 <!-- SECTION:DESCRIPTION:END -->
