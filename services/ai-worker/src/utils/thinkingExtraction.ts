@@ -668,6 +668,14 @@ export function extractThinkingBlocks(content: string): ThinkingExtraction {
   // in Pass 1, once as its own tag match in Pass 2. Edge case is not
   // user-visible (it only affects `showThinking` output) and would require
   // a pathological input shape. Left as-is intentionally.
+  //
+  // The same two-string split bounds the quote gate inside: it is evaluated
+  // against `normalized` when collecting and against the post-Pass-1 string
+  // when removing, so where a Pass-1 extractor stripped a head prefix the two
+  // scans could in principle disagree about whether an occurrence is quoted.
+  // Same blast radius as above — only `thinkingParts` bucketing, never
+  // `visibleContent` — because the removal side is the one the reply sees and
+  // it always scans the string it is about to modify.
   visibleContent = extractCompleteTagPairs(normalized, visibleContent, thinkingParts);
 
   // Fallback extraction (only if no complete tags found)

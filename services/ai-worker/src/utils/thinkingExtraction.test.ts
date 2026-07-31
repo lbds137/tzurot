@@ -454,6 +454,24 @@ The answer is 42.`;
       expect(result.thinkingContent).toBeNull();
     });
 
+    it('skips a quoted closing-tag candidate and extracts from the next real one', () => {
+      // The one branch this change turned from a single match into a loop, so
+      // it is the one that could be accidentally right. Every other case has
+      // either no quoted tag or only a quoted tag; this has both, in order.
+      const content =
+        'The docs mention `</think>` as the delimiter. ' +
+        'Actual internal reasoning that is long enough to pass the minimum length check.' +
+        '</think>Real answer.';
+      const result = extractThinkingBlocks(content);
+
+      expect(result.visibleContent).toBe('Real answer.');
+      expect(result.blockCount).toBe(1);
+      // The quoted example rides along into thinkingContent, because the real
+      // tag's prefix starts at position 0 and necessarily spans it. Harmless —
+      // thinkingContent is diagnostic/spoiler output, never the reply.
+      expect(result.thinkingContent).toContain('Actual internal reasoning');
+    });
+
     it('KNOWN LIMIT: an unquoted mid-response opening tag leaks its literal text', () => {
       // The other side of the same trade. Declining to extract means the tag
       // itself now renders to the user rather than being consumed along with
