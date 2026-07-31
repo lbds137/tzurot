@@ -32,7 +32,10 @@
  *
  * Deliberately NOT here: `voice_transcripts` / `transcript` — wrapped AFTER
  * escaping and neutralized via `neutralizeWrapperClosingTags` on every path
- * (protecting them would escape our own wrapper).
+ * (protecting them would escape our own wrapper). Note this is about those two
+ * MESSAGE-level tags only; the singular `voice` element listed below is a
+ * quote-level attachment child and IS protected through the ordinary
+ * `escapeXmlContent` mechanism, so the two are not in tension.
  */
 export const PROTECTED_TAGS = [
   // Top-level section boundaries (escaping any reaches top-level system scope)
@@ -69,6 +72,12 @@ export const PROTECTED_TAGS = [
   'image_descriptions',
   'image',
   'attachments',
+  // Per-attachment elements inside <attachments>. `image` and `voice` wrap
+  // user-derived enrichment (a vision description, a voice transcript), so a
+  // closing form in that text must not break out of the quote it sits in.
+  // `file` is self-closing (attributes only) and is classified in
+  // guard:prompt-tags' KNOWN_UNPROTECTED_TAGS instead.
+  'voice',
   // Participant boundaries (one participant must not forge another's block).
   // role/note are single-pass emissions (not inside the re-escaped persona),
   // so protecting them is clean containment with no double-escape conflict.

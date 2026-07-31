@@ -7,7 +7,6 @@
  */
 
 import { type AIProvider } from '@tzurot/common-types/constants/ai';
-import { CONTENT_TYPES } from '@tzurot/common-types/constants/media';
 import { RETRY_CONFIG } from '@tzurot/common-types/constants/timing';
 import { type ReferencedMessage } from '@tzurot/common-types/types/schemas/message';
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
@@ -15,6 +14,7 @@ import { type SttDispatch } from '@tzurot/common-types/types/sttProvider';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { describeImage, transcribeAudio, type ProcessedAttachment } from './MultimodalProcessor.js';
 import type { VisionLoggingContext } from './multimodal/VisionProcessor.js';
+import { classifyAttachment, type RenderableAttachment } from './prompt/QuoteFormatter.js';
 import { withRetry } from '../utils/retry.js';
 
 const logger = createLogger('AttachmentProcessor');
@@ -23,10 +23,8 @@ const logger = createLogger('AttachmentProcessor');
  * Processed attachment result for a single attachment
  */
 interface ProcessedAttachmentResult {
-  /** Index of the attachment in the original array */
-  index: number;
-  /** Formatted line for the prompt */
-  line: string;
+  /** The attachment in renderable form — structured, never a pre-rendered line. */
+  attachment: RenderableAttachment;
 }
 
 /**
@@ -35,8 +33,6 @@ interface ProcessedAttachmentResult {
 interface ProcessSingleAttachmentOptions {
   /** Attachment to process */
   attachment: NonNullable<ReferencedMessage['attachments']>[0];
-  /** Index in the attachments array */
-  index: number;
   /** Reference number for logging */
   referenceNumber: number;
   /** Personality configuration */
@@ -62,7 +58,6 @@ interface ProcessSingleAttachmentOptions {
  */
 interface ProcessImageOptions {
   attachment: ProcessSingleAttachmentOptions['attachment'];
-  index: number;
   referenceNumber: number;
   personality: LoadedPersonality;
   isGuestMode: boolean;
@@ -107,7 +102,7 @@ export interface ProcessAttachmentsOptions {
  */
 export async function processAttachmentsParallel(
   options: ProcessAttachmentsOptions
-): Promise<string[]> {
+): Promise<RenderableAttachment[]> {
   const {
     attachments,
     referenceNumber,
@@ -124,10 +119,9 @@ export async function processAttachmentsParallel(
     return [];
   }
 
-  const processingPromises = attachments.map((attachment, index) =>
+  const processingPromises = attachments.map(attachment =>
     processSingleAttachment({
       attachment,
-      index,
       referenceNumber,
       personality,
       isGuestMode,
@@ -142,21 +136,53 @@ export async function processAttachmentsParallel(
 
   const results = await Promise.allSettled(processingPromises);
 
-  const attachmentLines: string[] = [];
+  const rendered: RenderableAttachment[] = [];
   for (let i = 0; i < results.length; i++) {
     const result = results[i];
     if (result.status === 'fulfilled') {
-      attachmentLines.push(result.value.line);
+      rendered.push(result.value.attachment);
     } else {
       logger.error(
         { err: result.reason, index: i, referenceNumber },
         'Unexpected error in attachment processing'
       );
-      attachmentLines.push(`- Attachment [processing error]`);
+      const attachment = attachments[i];
+      if (attachment !== undefined) {
+        rendered.push(unprocessedAttachment(attachment));
+      }
     }
   }
 
-  return attachmentLines;
+  return rendered;
+}
+
+/**
+ * Render an attachment whose processing threw before it could classify its own
+ * failure. Keeps the modality and identity — degrading everything to a nameless
+ * `<file/>` would make a blown-up image indistinguishable from an ordinary
+ * document, and losing the element entirely is the drop class this shape closes.
+ */
+function unprocessedAttachment(
+  attachment: ProcessSingleAttachmentOptions['attachment']
+): RenderableAttachment {
+  const identity = {
+    filename: attachment.name,
+    contentType: attachment.contentType,
+    status: 'unprocessed',
+  } as const;
+
+  switch (classifyAttachment(attachment)) {
+    case 'voice':
+      // Duration survives the failure. It comes from Discord's own metadata, not
+      // from the transcription that just blew up, so there is no reason to lose
+      // it — and "a 4-second clip we could not process" is more useful to the
+      // model than "some voice message we could not process".
+      return { kind: 'voice', ...identity, durationSeconds: attachment.duration };
+    case 'image':
+      return { kind: 'image', ...identity };
+    case 'file':
+      return { kind: 'file', ...identity };
+  }
 }
 
 /** Find preprocessed result for an attachment by URL */
@@ -173,20 +199,26 @@ function findPreprocessedByUrl(
 /** Process voice message attachment */
 async function processVoiceAttachment(
   attachment: ProcessSingleAttachmentOptions['attachment'],
-  index: number,
   referenceNumber: number,
   preprocessed?: ProcessedAttachment,
   sttDispatch?: SttDispatch
 ): Promise<ProcessedAttachmentResult> {
+  // Identity only — NOT a whole RenderableVoice. `kind` and the enrichment are
+  // supplied per return site, because the type makes description and status
+  // mutually exclusive and a pre-built object cannot commit to either arm.
+  const identity = {
+    kind: 'voice',
+    filename: attachment.name,
+    contentType: attachment.contentType,
+    durationSeconds: attachment.duration,
+  } as const;
+
   if (preprocessed?.description !== undefined && preprocessed.description !== '') {
     logger.debug(
       { referenceNumber, url: attachment.url },
       'Using preprocessed voice transcription'
     );
-    return {
-      index,
-      line: `- Voice Message (${attachment.duration}s): "${preprocessed.description}"`,
-    };
+    return { attachment: { ...identity, description: preprocessed.description } };
   }
 
   try {
@@ -207,13 +239,13 @@ async function processVoiceAttachment(
         operationName: `Voice transcription (reference ${referenceNumber})`,
       }
     );
-    return { index, line: `- Voice Message (${attachment.duration}s): "${result.value.text}"` };
+    return { attachment: { ...identity, description: result.value.text } };
   } catch (error) {
     logger.error(
       { err: error, referenceNumber, url: attachment.url },
       'Voice transcription failed'
     );
-    return { index, line: `- Voice Message (${attachment.duration}s) [transcription failed]` };
+    return { attachment: { ...identity, status: 'untranscribed' } };
   }
 }
 
@@ -223,7 +255,6 @@ async function processImageAttachment(
 ): Promise<ProcessedAttachmentResult> {
   const {
     attachment,
-    index,
     referenceNumber,
     personality,
     isGuestMode,
@@ -233,9 +264,16 @@ async function processImageAttachment(
     visionProvider,
     model,
   } = options;
+  // Identity only — see the note in processVoiceAttachment.
+  const identity = {
+    kind: 'image',
+    filename: attachment.name,
+    contentType: attachment.contentType,
+  } as const;
+
   if (preprocessed?.description !== undefined && preprocessed.description !== '') {
     logger.debug({ referenceNumber, url: attachment.url }, 'Using preprocessed image description');
-    return { index, line: `- Image (${attachment.name}): ${preprocessed.description}` };
+    return { attachment: { ...identity, description: preprocessed.description } };
   }
 
   try {
@@ -262,10 +300,10 @@ async function processImageAttachment(
         operationName: `Image description (reference ${referenceNumber})`,
       }
     );
-    return { index, line: `- Image (${attachment.name}): ${result.value}` };
+    return { attachment: { ...identity, description: result.value } };
   } catch (error) {
     logger.error({ err: error, referenceNumber, url: attachment.url }, 'Image processing failed');
-    return { index, line: `- Image (${attachment.name}) [vision processing failed]` };
+    return { attachment: { ...identity, status: 'undescribed' } };
   }
 }
 
@@ -278,7 +316,6 @@ async function processSingleAttachment(
 ): Promise<ProcessedAttachmentResult> {
   const {
     attachment,
-    index,
     referenceNumber,
     personality,
     isGuestMode,
@@ -291,24 +328,28 @@ async function processSingleAttachment(
   } = options;
   const preprocessed = findPreprocessedByUrl(attachment.url, preprocessedAttachments);
 
-  if (attachment.isVoiceMessage === true) {
-    return processVoiceAttachment(attachment, index, referenceNumber, preprocessed, sttDispatch);
+  switch (classifyAttachment(attachment)) {
+    case 'voice':
+      return processVoiceAttachment(attachment, referenceNumber, preprocessed, sttDispatch);
+    case 'image':
+      return processImageAttachment({
+        attachment,
+        referenceNumber,
+        personality,
+        isGuestMode,
+        preprocessed,
+        userApiKey,
+        loggingContext,
+        visionProvider,
+        model,
+      });
+    case 'file':
+      return {
+        attachment: {
+          kind: 'file',
+          filename: attachment.name,
+          contentType: attachment.contentType,
+        },
+      };
   }
-
-  if (attachment.contentType?.startsWith(CONTENT_TYPES.IMAGE_PREFIX)) {
-    return processImageAttachment({
-      attachment,
-      index,
-      referenceNumber,
-      personality,
-      isGuestMode,
-      preprocessed,
-      userApiKey,
-      loggingContext,
-      visionProvider,
-      model,
-    });
-  }
-
-  return { index, line: `- File: ${attachment.name} (${attachment.contentType})` };
 }
