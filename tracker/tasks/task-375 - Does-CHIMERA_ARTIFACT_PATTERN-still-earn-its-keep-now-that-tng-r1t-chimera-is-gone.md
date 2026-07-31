@@ -1,0 +1,28 @@
+---
+id: TASK-375
+title: >-
+  Does CHIMERA_ARTIFACT_PATTERN still earn its keep now that tng-r1t-chimera is
+  gone?
+status: To Do
+assignee: []
+created_date: '2026-07-31 02:17'
+labels:
+  - 'size:S'
+dependencies: []
+priority: low
+ordinal: 375000
+---
+
+## Description
+
+<!-- SECTION:DESCRIPTION:BEGIN -->
+Surfaced during PR #1880 (quoted-control-syntax fix). The pattern in services/ai-worker/src/utils/thinkingExtraction.ts targets a stutter shape observed in the merged tng-r1t-chimera model. Owner note during that review: "the Chimera model is dead to me now that it is gone from the OpenRouter Free tier."
+
+Why this is a question and not a deletion: the pattern runs on EVERY response, not only chimera ones, so its cost is model-independent even though its benefit is model-specific. #1880 confirmed a real false positive at runtime - a quoted `token. </tag>` fragment at the start of a line was eaten, leaving a dangling backtick and a mangled sentence - and gated it on isInsideCodeSpan. That closes the observed corruption; it does not answer whether the pass is still buying anything.
+
+What to check before removing: whether any model currently in rotation emits the stutter shape (short token + period immediately before an orphan closing tag). Evidence source is prod logs plus the /inspect raw-content diagnostics, not reasoning about which models we think we run. 00-critical is explicit that "this seems unnecessary" is a reason to verify, not to delete, and the KEEP-list lesson applies: wired-in is not the same as live.
+
+Outcome is one of: (a) remove the pattern and its three tests with the evidence recorded in the removing commit, or (b) keep it and note in its docstring which live model justifies it, so the next reader does not re-ask.
+
+Note the shape of the risk if removed wrongly: the stutter leaks a garbage fragment into a user-visible reply. Cosmetic, recoverable, low blast radius - which is why this is worth resolving rather than carrying forever.
+<!-- SECTION:DESCRIPTION:END -->
