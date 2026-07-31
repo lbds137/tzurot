@@ -71,4 +71,65 @@ attachment whose vision call FAILED renders with neither marker nor description
 `fullRender minus content`, the attachment renders exactly as the full path does
 and the gap closes by construction. **Add it to the acceptance check**: a
 deduped reference with an UNdescribed attachment must still name that attachment.
+
+## GROUNDING PASS — three corrections from reading the code
+
+Read end to end before building, per "principle from advisors, target from the
+code". The verdict holds; three specifics in the framing above are wrong or
+understated, and the third changes what the open owner question actually is.
+
+**1. It is not four paths — the live renderer has THREE branches.**
+`ReferencedMessageFormatter.formatReferencedMessages` dispatches deduped /
+forwarded / standard. So the matrix is (live × {deduped, forwarded, standard}) ×
+(stored × {full, deduped}) = five render paths, not four. `formatForwardedQuote`
+is a thin wrapper over the same core, so it collapses for free — but it must be
+in the enumeration or the sweep misses it.
+
+**2. `formatQuoteElement` is ALREADY the one XML renderer.** Every path calls it
+(`QuoteFormatter.ts`). The divergence is not two renderers emitting different
+XML — it is which SLOT each caller fills:
+
+| Path | fills | emits |
+| --- | --- | --- |
+| live standard + forwarded | `attachmentLines: string[]` | `<attachments>` |
+| live deduped | `imageDescriptions` / `voiceTranscripts` | `<image_descriptions>`, `<voice_transcripts>` |
+| stored (both) | `imageDescriptions` + attachment markers | `<image_descriptions>` + `<attachments>` |
+
+So the "same reference renders different XML per path" split runs THROUGH the
+live renderer, not just between live and stored — the deduped branch already
+speaks the stored path's vocabulary while its own sibling branches do not.
+
+**3. The vocabulary question has a concrete mechanical cause**, which makes the
+owner's call narrower than "unify the XML". `processAttachmentsParallel`
+(`AttachmentProcessor.ts:108`) returns `Promise<string[]>` — pre-RENDERED lines
+(`- Image (photo.png): …`). A caller holding strings has no structured filename
+or description left to place, so it can only fill `<attachments>`. The live
+deduped branch escapes this precisely because `splitPreprocessedEnrichment`
+gives it structured entries instead.
+
+**The unification is therefore: make `processAttachmentsParallel` return
+structured results and let the renderer format them** — not a change to the XML
+emitter, which is already shared. The owner call stands (it is model-visible:
+`<attachments>` lines become `<image_descriptions>` entries for the standard and
+forwarded branches) but it is one upstream return-type change, not a rewrite of
+the emitter.
+
+**Type divergence the `ResolvedReference` union must absorb** — the two source
+schemas (`packages/common-types/src/types/schemas/message.ts`) name the same
+domain object with different fields, which is the drift underneath everything
+above:
+
+| | `ReferencedMessage` (live) | `StoredReferencedMessage` |
+| --- | --- | --- |
+| author identity | `discordUserId` | `authorDiscordId` |
+| numbering | `referenceNumber` | positional |
+| bot signals | `webhookId`, `authorIsBot` | — |
+| dedup flag | `isDeduplicated` | — |
+| persona | — | `resolvedPersonaId` / `resolvedPersonaName` |
+| images | — | `resolvedImageDescriptions` |
+
+Also confirmed by reading: `buildDedupedReferenceStub` drops `attachments` AND
+`isForwarded` from its reconstruction — so a forwarded reference that also
+dedupes loses its forwarded-ness silently. Third instance of the same class,
+found without a bug report, and it closes by construction under the projection.
 <!-- SECTION:DESCRIPTION:END -->
