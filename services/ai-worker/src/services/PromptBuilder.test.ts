@@ -50,19 +50,6 @@ vi.mock('@tzurot/common-types/config/config', async () => {
   };
 });
 
-vi.mock('@tzurot/common-types/utils/dateFormatting', async () => {
-  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/dateFormatting')>(
-    '@tzurot/common-types/utils/dateFormatting'
-  );
-  return {
-    ...actual,
-    formatTimestampWithDelta: vi.fn((_date: Date) => ({
-      absolute: 'Mon, Jan 15, 2024',
-      relative: '2 weeks ago',
-    })),
-  };
-});
-
 vi.mock('@tzurot/common-types/utils/logger', async () => {
   const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
     '@tzurot/common-types/utils/logger'

@@ -30,13 +30,12 @@ describe('extractXmlTextContent', () => {
 
   it('should return empty string for structural-only XML', () => {
     const xml = `<contextual_references>
-<quote number="1">
-<author display_name="User" username="user"/>
+<quote number="1" from="User" username="user" role="user" t="2025-11-04 (Tue) 09:12 • 2 months ago">
 <location type="guild">
 <server name="Test Guild"/>
 <channel name="general" type="text"/>
 </location>
-<time absolute="Mon, Nov 4, 2025" relative="2 months ago"/>
+<image filename="photo.png" status="undescribed"/>
 </quote>
 </contextual_references>`;
     const result = extractXmlTextContent(xml);

@@ -367,8 +367,12 @@ describe('ReferenceFormatter', () => {
     });
   });
 
-  describe('Deduplicated Stubs', () => {
-    it('should produce minimal ReferencedMessage for deduped metadata', async () => {
+  // Deduplication is DECIDED here (the crawler's metadata routes it) but no
+  // longer SHAPED here. ai-worker re-runs the decision against its own assembled
+  // history and projects the stub at render time, so this side ships the full
+  // snapshot and lets the worker subtract.
+  describe('Deduplicated References', () => {
+    it('emits the FULL snapshot for a deduped reference', async () => {
       const crawledMessages = new Map<string, { message: Message; metadata: ReferenceMetadata }>([
         [
           'deduped-1',
@@ -392,16 +396,16 @@ describe('ReferenceFormatter', () => {
 
       expect(result.references).toHaveLength(1);
       const ref = result.references[0];
-      expect(ref.isDeduplicated).toBe(true);
+      // Not flagged here: the flag is the WORKER's, set when its own dedup
+      // re-run agrees. Flagging it on this side would be a second opinion.
+      expect(ref.isDeduplicated).toBeUndefined();
       expect(ref.content).toBe('This is the original message content');
-      expect(ref.embeds).toBe('');
-      expect(ref.locationContext).toBe('');
       expect(ref.referenceNumber).toBe(1);
-      // Should NOT call messageFormatter.formatMessage
+      // Still skips the enrichment path — a deduped reference needs no transcripts.
       expect(mockMessageFormatter.formatMessage).not.toHaveBeenCalled();
     });
 
-    it('should truncate long content in deduped stubs to ~100 chars', async () => {
+    it("does NOT truncate the content — capping is the renderer's single decision", async () => {
       const longContent = 'A'.repeat(200);
       const crawledMessages = new Map<string, { message: Message; metadata: ReferenceMetadata }>([
         [
@@ -424,12 +428,10 @@ describe('ReferenceFormatter', () => {
 
       const result = await formatter.format('', crawledMessages, 10);
 
-      const ref = result.references[0];
-      expect(ref.content.length).toBeLessThanOrEqual(103); // 100 + '...'
-      expect(ref.content.endsWith('...')).toBe(true);
+      expect(result.references[0].content).toBe(longContent);
     });
 
-    it('should not truncate short content in deduped stubs', async () => {
+    it('leaves short content alone too', async () => {
       const crawledMessages = new Map<string, { message: Message; metadata: ReferenceMetadata }>([
         [
           'deduped-short',
@@ -454,11 +456,11 @@ describe('ReferenceFormatter', () => {
       expect(result.references[0].content).toBe('Short');
     });
 
-    it('should fold the attachment marker into an image-only deduped stub (empty text)', async () => {
-      // Image-only reply target: empty text + one image attachment. The deduped
-      // stub the bot ships to the worker must carry the attachment marker so the
-      // model can correlate it with the (image-described) history entry; without
-      // it the stub collapses to an empty quote and the model reports "no image."
+    it('ships an image-only reference with its attachments INTACT', async () => {
+      // The stub this replaced folded a `[image/png: photo.png]` text marker
+      // into the content and dropped the attachment list. That cost the worker
+      // the only structured record of what was attached, so an image whose
+      // vision call never ran rendered as nothing at all.
       vi.mocked(mockMessageFormatter.buildRawReference).mockReturnValueOnce({
         reference: {
           referenceNumber: 1,
@@ -499,8 +501,10 @@ describe('ReferenceFormatter', () => {
       const result = await formatter.format('', crawledMessages, 10);
 
       const ref = result.references[0];
-      expect(ref.isDeduplicated).toBe(true);
-      expect(ref.content).toBe('[image/png: photo.png]');
+      expect(ref.content).toBe('');
+      expect(ref.attachments).toEqual([
+        { url: 'https://cdn/photo.png', contentType: 'image/png', name: 'photo.png' },
+      ]);
     });
 
     it('should use snapshot content for deduped forwarded messages', async () => {
@@ -544,7 +548,6 @@ describe('ReferenceFormatter', () => {
 
       expect(result.references).toHaveLength(1);
       const ref = result.references[0];
-      expect(ref.isDeduplicated).toBe(true);
       // Should use snapshot content, not empty message.content
       expect(ref.content).toBe('Forwarded snapshot content here');
     });
@@ -607,7 +610,7 @@ describe('ReferenceFormatter', () => {
   });
 
   describe('collectRaw (raw assembly envelope)', () => {
-    it('returns full pre-dedup raw snapshots alongside stubbed enriched references', async () => {
+    it('returns the same full snapshot on both sides for a deduped reference', async () => {
       const longContent = 'B'.repeat(200);
       const crawledMessages = new Map<string, { message: Message; metadata: ReferenceMetadata }>([
         [
@@ -626,11 +629,11 @@ describe('ReferenceFormatter', () => {
 
       const result = await formatter.format('content', crawledMessages, 10, { collectRaw: true });
 
-      // Enriched side: stubbed (truncated, isDeduplicated).
-      expect(result.references[0].isDeduplicated).toBe(true);
-      expect(result.references[0].content.length).toBeLessThan(longContent.length);
-      // Raw side: FULL content, same reference number — the worker re-derives
-      // dedup against its own hydrated history.
+      // Both sides carry the full snapshot now. The enriched side used to hold
+      // a truncated stub, which existed only to reach two log statements — the
+      // envelope has always carried `rawReferences` alone, and the worker
+      // re-derives dedup against its own hydrated history.
+      expect(result.references[0].content).toBe(longContent);
       expect(result.rawReferences).toHaveLength(1);
       expect(result.rawReferences?.[0].content).toBe(longContent);
       expect(result.rawReferences?.[0].referenceNumber).toBe(result.references[0].referenceNumber);

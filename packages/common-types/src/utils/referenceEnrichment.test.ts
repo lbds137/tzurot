@@ -1,11 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
 import { INTERVALS } from '../constants/timing.js';
-import { TEXT_LIMITS } from '../constants/discord.js';
 import type { ReferencedMessage } from '../types/schemas/message.js';
 import {
   appendVoiceTranscripts,
-  buildDedupedReferenceStub,
-  capDedupText,
   isBotAuthoredReference,
   isDuplicateReference,
   stripBotVoiceAttachments,
@@ -97,129 +94,6 @@ describe('isDuplicateReference', () => {
         undefined
       )
     ).toBe(true);
-  });
-});
-
-// Defaults to non-bot: bot-authored stubs are now marker-only (empty content), so the
-// dedup-content assertions below need a user-authored reference to keep their text.
-function fullReference(content: string, botAuthored = false): ReferencedMessage {
-  return {
-    referenceNumber: 3,
-    discordMessageId: 'msg-9',
-    ...(botAuthored ? { webhookId: 'wh-1', authorIsBot: true } : {}),
-    discordUserId: 'user-1',
-    authorUsername: 'someone',
-    authorDisplayName: 'Someone',
-    content,
-    embeds: '<embed>stuff</embed>',
-    timestamp: '2026-06-01T11:59:00.000Z',
-    locationContext: '<location>here</location>',
-    attachments: [{ url: 'https://cdn/x.png', contentType: 'image/png', name: 'x.png' }],
-    isForwarded: true,
-  };
-}
-
-describe('capDedupText', () => {
-  it('returns text at or under the limit unchanged (no ellipsis)', () => {
-    const short = 'X'.repeat(TEXT_LIMITS.DEDUP_STUB_CONTENT);
-    expect(capDedupText(short)).toBe(short);
-    expect(capDedupText('hi')).toBe('hi');
-    expect(capDedupText('')).toBe('');
-  });
-
-  it('caps over-limit text to DEDUP_STUB_CONTENT chars + ellipsis', () => {
-    const long = 'X'.repeat(TEXT_LIMITS.DEDUP_STUB_CONTENT + 100);
-    const capped = capDedupText(long);
-    expect(capped).toBe('X'.repeat(TEXT_LIMITS.DEDUP_STUB_CONTENT) + '...');
-    expect(capped).not.toContain('X'.repeat(TEXT_LIMITS.DEDUP_STUB_CONTENT + 1));
-  });
-});
-
-describe('buildDedupedReferenceStub', () => {
-  it('strips embeds/location/flags and folds the attachment marker into content', () => {
-    const stub = buildDedupedReferenceStub(fullReference('short content'));
-    expect(stub).toEqual({
-      referenceNumber: 3,
-      discordMessageId: 'msg-9',
-      discordUserId: 'user-1',
-      authorUsername: 'someone',
-      authorDisplayName: 'Someone',
-      // marker first (truncation-safe), then the original text
-      content: '[image/png: x.png]\n\nshort content',
-      embeds: '',
-      timestamp: '2026-06-01T11:59:00.000Z',
-      locationContext: '',
-      isDeduplicated: true,
-    });
-  });
-
-  it('renders attachment markers alone for an image-only reply-target (empty text)', () => {
-    const stub = buildDedupedReferenceStub(fullReference(''));
-    expect(stub.content).toBe('[image/png: x.png]');
-  });
-
-  it('emits one marker per attachment, using contentType + name', () => {
-    const ref = fullReference('look at these');
-    ref.attachments = [
-      { url: 'https://cdn/a.jpg', contentType: 'image/jpeg', name: 'a.jpg' },
-      { url: 'https://cdn/v.ogg', contentType: 'audio/ogg' }, // no name → 'attachment'
-    ];
-    const stub = buildDedupedReferenceStub(ref);
-    expect(stub.content).toBe('[image/jpeg: a.jpg]\n[audio/ogg: attachment]\n\nlook at these');
-  });
-
-  it('leaves content untouched (no leading newlines) when there are no attachments', () => {
-    const ref = fullReference('plain text');
-    ref.attachments = undefined;
-    const stub = buildDedupedReferenceStub(ref);
-    expect(stub.content).toBe('plain text');
-  });
-
-  it('truncates the text portion but keeps the leading marker', () => {
-    const long = 'x'.repeat(TEXT_LIMITS.DEDUP_STUB_CONTENT + 10);
-    const stub = buildDedupedReferenceStub(fullReference(long));
-    expect(stub.content).toBe(
-      '[image/png: x.png]\n\n' + 'x'.repeat(TEXT_LIMITS.DEDUP_STUB_CONTENT) + '...'
-    );
-  });
-
-  it('preserves all markers in full even when they alone exceed the content budget', () => {
-    // Several long-named attachments whose markers TOGETHER blow past
-    // DEDUP_STUB_CONTENT. buildDedupedReferenceStub must NOT truncate the
-    // markers (only the text portion is truncated) — they carry the
-    // filename→history correlation that downstream re-truncation
-    // (formatDedupedQuote) is told to protect by keeping them first.
-    const ref = fullReference('hi');
-    const longName = (n: number) => `${'really-long-attachment-name-'.repeat(2)}${n}.png`;
-    ref.attachments = [
-      { url: 'https://cdn/1.png', contentType: 'image/png', name: longName(1) },
-      { url: 'https://cdn/2.png', contentType: 'image/png', name: longName(2) },
-      { url: 'https://cdn/3.png', contentType: 'image/png', name: longName(3) },
-    ];
-    const expectedMarkers = ref.attachments
-      .map(att => `[${att.contentType}: ${att.name}]`)
-      .join('\n');
-
-    // Sanity-check the test actually exercises the over-budget case.
-    expect(expectedMarkers.length).toBeGreaterThan(TEXT_LIMITS.DEDUP_STUB_CONTENT);
-
-    const stub = buildDedupedReferenceStub(ref);
-    // Every marker survives untruncated, markers-first, with the short text after.
-    expect(stub.content).toBe(`${expectedMarkers}\n\nhi`);
-  });
-
-  it('emits a marker-only stub (empty content) for the bot’s own reply-target', () => {
-    // A snippet of the bot's own prior text is the "continue this fragment" trigger;
-    // the full message is in <chat_log> regardless, so bot-authored stubs carry no
-    // preview and no attachment markers. The marker is prepended downstream.
-    const stub = buildDedupedReferenceStub(fullReference('the bot said this earlier', true));
-    expect(stub.content).toBe('');
-  });
-
-  it('preserves authorIsBot/webhookId so the formatter can derive role="assistant"', () => {
-    const stub = buildDedupedReferenceStub(fullReference('x', true));
-    expect(stub.authorIsBot).toBe(true);
-    expect(stub.webhookId).toBe('wh-1');
   });
 });
 

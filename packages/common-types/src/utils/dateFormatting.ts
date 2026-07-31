@@ -295,46 +295,6 @@ export function formatRelativeTimeDelta(timestamp: Date | string | number): stri
 }
 
 /**
- * Result type for memory timestamp with delta
- */
-interface TimestampWithDelta {
-  /** Absolute date (e.g., "Mon, Jan 15, 2025") */
-  absolute: string;
-  /** Relative time delta (e.g., "2 weeks ago") */
-  relative: string;
-}
-
-/**
- * Format a timestamp with both absolute date and relative time delta
- *
- * This is the recommended function for LTM memory formatting as it provides
- * both the precise date and a human-readable temporal distance.
- *
- * Example:
- * {
- *   absolute: "Mon, Jan 15, 2025",
- *   relative: "2 weeks ago"
- * }
- *
- * Used for:
- * - LTM memory entries in prompts
- * - Referenced message formatting
- *
- * @param timestamp - Timestamp to format
- * @param timezone - Optional IANA timezone. Defaults to APP_SETTINGS.TIMEZONE
- * @returns Object with both absolute and relative formats
- */
-export function formatTimestampWithDelta(
-  timestamp: Date | string | number,
-  timezone?: string
-): TimestampWithDelta {
-  return {
-    absolute: formatMemoryTimestamp(timestamp, timezone),
-    relative: formatRelativeTimeDelta(timestamp),
-  };
-}
-
-/**
  * Format a timestamp for prompt display with unified format
  *
  * Format: "YYYY-MM-DD (Day) HH:MM • relative"
