@@ -14,53 +14,77 @@ import {
 } from '@tzurot/common-types/utils/promptSanitizer';
 import { capDedupText } from '@tzurot/common-types/utils/referenceEnrichment';
 import { escapeXml } from '@tzurot/common-types/utils/xmlBuilder';
-import { formatQuoteElement, formatDedupedQuote } from '../../services/prompt/QuoteFormatter.js';
+import {
+  formatQuoteElement,
+  formatDedupedQuote,
+  classifyAttachment,
+  type RenderableAttachment,
+} from '../../services/prompt/QuoteFormatter.js';
 import { deriveRefRole } from '../../services/prompt/referenceRole.js';
 import type { RawHistoryEntry } from './conversationTypes.js';
 
 /**
- * Split a stored reference's media into the two renderable shapes: hydrated
- * vision descriptions, and `[contentType: name]` markers for everything else.
+ * Build a stored reference's attachments in renderable form: one element per
+ * attachment, carrying its persisted vision description when there is one.
  *
- * A described image renders as `<image_descriptions>` INSTEAD of a marker, so the
- * same picture never appears twice in two vocabularies. The suppression is
- * per-attachment, not per-reference: vision can resolve some of a message's
- * images and not others (failures are never persisted), and a whole-reference
- * gate would drop the undescribed one's marker too — leaving it with neither a
- * description nor a name, i.e. invisible. Every image ends up with exactly one
- * of the two representations.
+ * The predecessor split this into two lists — described images in one
+ * vocabulary, everything else as `[contentType: name]` markers in another —
+ * and then had to suppress a marker whenever a description existed for the
+ * same file, matching the two halves BY FILENAME. That correspondence was
+ * fragile in a specific way: the two sides defaulted a nameless attachment
+ * differently (`'image'` vs `'attachment'`), so the lookup missed and the same
+ * picture rendered twice. One element per attachment removes the lookup, and
+ * that whole bug class with it — a nameless attachment now simply has no
+ * `filename` attribute, and there is nothing to correlate.
  *
- * Correspondence is by filename because that is what `ResolvedImageDescription`
- * carries, and every producer derives it from the attachment's own `name` — so
- * the two agree by construction. The nameless fallback must be the producers'
- * `'image'`, NOT this function's marker fallback (`'attachment'`): a mismatch
- * there would fail the lookup and render a nameless image both ways. Two images
- * sharing a filename within one reference would over-suppress; Discord's own
- * naming makes that a non-case (`embed-image-1.png`, `embed-image-2.png`, …).
- *
- * Shared by the full and deduped branches on purpose. These two renderings drifted
- * once already (the deduped branch rendered neither, silently discarding every
- * `resolvedImageDescriptions` row `persistReferenceDescriptions` had written for
- * exactly this purpose); routing both through one splitter is what keeps them level.
+ * Descriptions are joined ONTO the attachment list rather than replacing it, and
+ * any description that matches no attachment is still appended: a description is
+ * paid-for enrichment, and dropping one because its attachment row went missing
+ * would re-create the class this function exists to close.
  */
-function splitStoredMedia(ref: StoredReferencedMessage): {
-  imageDescriptions?: { filename: string; description: string }[];
-  attachmentLines?: string[];
-} {
-  const imageDescs = ref.resolvedImageDescriptions;
-  const hasImageDescs = imageDescs !== undefined && imageDescs.length > 0;
-  const describedFilenames = new Set(imageDescs?.map(desc => desc.filename));
-  const attachmentsForLines = ref.attachments?.filter(
-    att => !att.contentType.startsWith('image/') || !describedFilenames.has(att.name ?? 'image')
+export function buildStoredAttachments(ref: StoredReferencedMessage): RenderableAttachment[] {
+  const descriptionsByFilename = new Map(
+    (ref.resolvedImageDescriptions ?? []).map(desc => [desc.filename, desc.description])
   );
+  const matched = new Set<string>();
 
-  return {
-    imageDescriptions: hasImageDescs ? imageDescs : undefined,
-    attachmentLines:
-      attachmentsForLines !== undefined && attachmentsForLines.length > 0
-        ? attachmentsForLines.map(att => `[${att.contentType}: ${att.name ?? 'attachment'}]`)
-        : undefined,
-  };
+  const attachments: RenderableAttachment[] = (ref.attachments ?? []).map(att => {
+    const common = { filename: att.name, contentType: att.contentType };
+
+    // Same classifier the live path uses — see `classifyAttachment`. These two
+    // producers must agree about what a given attachment IS, or the same file
+    // renders one way in the turn it arrives and another when replayed.
+    switch (classifyAttachment(att)) {
+      case 'image': {
+        const name = att.name;
+        const description = name !== undefined ? descriptionsByFilename.get(name) : undefined;
+        if (name !== undefined && description !== undefined) {
+          matched.add(name);
+          return { kind: 'image', ...common, description };
+        }
+        return { kind: 'image', ...common, status: 'undescribed' };
+      }
+      case 'voice':
+        // Always `untranscribed` on this path, and that is the honest rendering
+        // rather than a bug: `StoredReferencedMessage` has no audio counterpart
+        // to `resolvedImageDescriptions`, so a replayed voice reference has no
+        // transcript to carry. Saying so beats an unexplained bare element —
+        // closing the gap is a schema change (TASK-367), not a render change.
+        // The duration IS persisted, so it rides along; the live path forwards
+        // it too, and dropping it here was one more live/stored divergence.
+        return { kind: 'voice', ...common, durationSeconds: att.duration, status: 'untranscribed' };
+      case 'file':
+        return { kind: 'file', ...common };
+    }
+  });
+
+  for (const [filename, description] of descriptionsByFilename) {
+    if (!matched.has(filename)) {
+      attachments.push({ kind: 'image', filename, description });
+    }
+  }
+
+  return attachments;
 }
 
 /**
@@ -96,7 +120,7 @@ function formatStoredReferencedMessage(
     locationContext = ref.locationContext;
   }
 
-  const media = splitStoredMedia(ref);
+  const attachments = buildStoredAttachments(ref);
 
   return formatQuoteElement({
     type: ref.isForwarded === true ? 'forward' : undefined,
@@ -110,8 +134,7 @@ function formatStoredReferencedMessage(
     content: ref.content,
     locationContext,
     embedsXml: ref.embeds !== undefined && ref.embeds.length > 0 ? [ref.embeds] : undefined,
-    imageDescriptions: media.imageDescriptions,
-    attachmentLines: media.attachmentLines,
+    attachments: attachments.length > 0 ? attachments : undefined,
   });
 }
 
@@ -157,18 +180,16 @@ export function formatQuotedSection(
   );
 
   // Deduped refs: lightweight stubs with truncated content and reply-target note.
-  // Image DESCRIPTIONS still ride along — `persistReferenceDescriptions` writes
-  // them onto the stored row precisely so a quoted image survives replay, and the
+  // Media rides along in full — `persistReferenceDescriptions` writes descriptions
+  // onto the stored row precisely so a quoted image survives replay, and the
   // history entry the stub points at renders that image as a URL, not a
-  // description. Attachment MARKERS are deliberately omitted: a marker names a
-  // file the chat log already lists, which is the redundancy dedup exists to cut.
+  // description.
   //
-  // No `voiceTranscripts` here, unlike the live path — not a dropped field. The
-  // live path reads transcripts from in-memory preprocessing; a stored reference
-  // has no persisted equivalent (`StoredReferencedMessage` carries
-  // `resolvedImageDescriptions` and no audio counterpart), so there is nothing
-  // to forward. Absence is a data gap, not an omission — passing something here
-  // requires the schema to carry it first.
+  // An UNdescribed attachment now renders here too, as a `status`-carrying
+  // element. Its predecessor omitted markers on this branch as chat-log
+  // redundancy, which was true for the file's NAME and false for its existence:
+  // an attachment with no description and no marker is simply invisible, the
+  // same drop class as the descriptions this branch used to lose entirely.
   const formattedDeduped = dedupedRefs.map(ref => {
     const authorName = ref.resolvedPersonaName ?? (ref.authorDisplayName || ref.authorUsername);
     const role = deriveRefRole(ref.authorRole, authorName, personalityName, allPersonalityNames);
@@ -180,10 +201,10 @@ export function formatQuotedSection(
           ? formatPromptTimestamp(ref.timestamp)
           : undefined,
       // Cap the stored text preview HERE (the single truncation point) — formatDedupedQuote
-      // renders as-is. Stored refs carry attachments separately (attachmentLines), so content
-      // is text-only and safe to cap directly.
+      // renders as-is. Stored refs carry their attachments as structured elements, so
+      // content is text-only and safe to cap directly.
       content: capDedupText(ref.content),
-      imageDescriptions: splitStoredMedia(ref).imageDescriptions,
+      attachments: buildStoredAttachments(ref),
     });
   });
 

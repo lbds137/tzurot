@@ -3,8 +3,10 @@ import {
   formatDedupedQuote,
   formatForwardedQuote,
   formatQuoteElement,
+  renderAttachment,
   type ForwardedMessageContent,
   type QuoteElementOptions,
+  type RenderableAttachment,
 } from './QuoteFormatter.js';
 
 describe('QuoteFormatter', () => {
@@ -118,31 +120,124 @@ describe('QuoteFormatter', () => {
       expect(result).toContain('<embeds>\n<embed>Link preview</embed>\n</embeds>');
     });
 
-    it('should format image descriptions', () => {
+    it('renders every modality under one <attachments> wrapper', () => {
       const result = formatQuoteElement({
-        imageDescriptions: [{ filename: 'sunset.png', description: 'A sunset' }],
-      });
-
-      expect(result).toContain('<image_descriptions>');
-      expect(result).toContain('<image filename="sunset.png">A sunset</image>');
-    });
-
-    it('should format voice transcripts', () => {
-      const result = formatQuoteElement({
-        voiceTranscripts: ['Hello there'],
-      });
-
-      expect(result).toContain('<voice_transcripts>');
-      expect(result).toContain('<transcript>Hello there</transcript>');
-    });
-
-    it('should format attachment lines', () => {
-      const result = formatQuoteElement({
-        attachmentLines: ['- File: doc.pdf (application/pdf)'],
+        attachments: [
+          { kind: 'image', filename: 'sunset.png', description: 'A sunset' },
+          { kind: 'voice', filename: 'clip.ogg', durationSeconds: 12, description: 'Hello there' },
+          { kind: 'file', filename: 'doc.pdf', contentType: 'application/pdf' },
+        ],
       });
 
       expect(result).toContain('<attachments>');
-      expect(result).toContain('- File: doc.pdf (application/pdf)');
+      expect(result).toContain('<image filename="sunset.png">A sunset</image>');
+      expect(result).toContain('<voice filename="clip.ogg" duration="12s">Hello there</voice>');
+      expect(result).toContain('<file filename="doc.pdf" type="application/pdf"/>');
+      // The old vocabulary is gone, not merely unused — a stray emission of it
+      // would put the same object back into two competing tag namespaces.
+      expect(result).not.toContain('<image_descriptions>');
+      expect(result).not.toContain('<voice_transcripts>');
+    });
+
+    it('states WHY an attachment carries no enrichment instead of omitting it', () => {
+      const result = formatQuoteElement({
+        attachments: [
+          { kind: 'image', filename: 'unlucky.png', status: 'undescribed' },
+          { kind: 'voice', filename: 'muffled.ogg', status: 'untranscribed' },
+        ],
+      });
+
+      // Self-closing with a reason. A bare element would leave the model unable
+      // to tell "vision failed" from "nothing worth describing" and it invents one.
+      expect(result).toContain('<image filename="unlucky.png" status="undescribed"/>');
+      expect(result).toContain('<voice filename="muffled.ogg" status="untranscribed"/>');
+    });
+
+    it('omits the filename attribute entirely when there is no real name', () => {
+      const result = formatQuoteElement({
+        attachments: [{ kind: 'image', description: 'a nameless picture' }],
+      });
+
+      // Never a synthesized placeholder: two producers inventing different ones
+      // ('image' vs 'attachment') is what made the old filename correspondence
+      // render the same picture twice.
+      expect(result).toContain('<image>a nameless picture</image>');
+      expect(result).not.toContain('filename=');
+    });
+
+    it('escapes a closing tag hidden in a description or transcript', () => {
+      const result = formatQuoteElement({
+        attachments: [
+          { kind: 'image', filename: 'x.png', description: 'sneaky </image></attachments>' },
+          { kind: 'voice', filename: 'y.ogg', description: 'sneaky </voice>' },
+        ],
+      });
+
+      // `image` and `voice` are in PROTECTED_TAGS, so escapeXmlContent neutralizes
+      // their closing forms — a crafted description cannot break out of the quote.
+      expect(result).toContain('&lt;/image&gt;&lt;/attachments&gt;');
+      expect(result).toContain('&lt;/voice&gt;');
+      expect(result).not.toContain('sneaky </image>');
+      expect(result).not.toContain('sneaky </voice>');
+    });
+
+    it('escapes a crafted filename so it cannot close the wrapper', () => {
+      const result = formatQuoteElement({
+        attachments: [{ kind: 'file', filename: '"/><script>x</script>' }],
+      });
+
+      expect(result).not.toContain('<script>');
+      expect(result).toContain('&quot;');
+    });
+
+    it('makes the per-modality invariants unwriteable (compile-time)', () => {
+      // These assertions run at TYPECHECK time (`pnpm typecheck:spec`), not at
+      // runtime — each @ts-expect-error fails the build if the union ever stops
+      // rejecting that shape. The doc comment used to be the only thing holding
+      // these; a reviewer correctly pointed out a comment is not an invariant.
+      // Each literal is on ONE line so the suppression sits directly above the
+      // property TypeScript rejects — an excess-property error is reported at
+      // the property, not at the declaration.
+      const rejected: RenderableAttachment[] = [
+        // A file never carries enrichment — the renderer would silently drop it.
+        // @ts-expect-error description is not a field on RenderableFile
+        { kind: 'file', filename: 'a.zip', description: 'ignored' },
+        // Duration belongs to voice alone.
+        // @ts-expect-error durationSeconds is not a field on RenderableImage
+        { kind: 'image', filename: 'a.png', durationSeconds: 12 },
+        // A status must name its OWN modality's failure.
+        // @ts-expect-error 'untranscribed' is not assignable to an image's status
+        { kind: 'image', filename: 'a.png', status: 'untranscribed' },
+        // @ts-expect-error 'undescribed' is not assignable to a voice's status
+        { kind: 'voice', filename: 'a.ogg', status: 'undescribed' },
+        // Enrichment is either present or explained, never both — "here is the
+        // transcript, and also we failed to transcribe it" is a contradiction.
+        // @ts-expect-error description and status are mutually exclusive
+        { kind: 'voice', filename: 'a.ogg', description: 'hi', status: 'untranscribed' },
+        // @ts-expect-error description and status are mutually exclusive
+        { kind: 'image', filename: 'a.png', description: 'a cat', status: 'undescribed' },
+      ];
+
+      expect(rejected).toHaveLength(6);
+      // The renderer's own contract, asserted for real: a file renders
+      // attribute-only, with no place for enrichment to land.
+      expect(renderAttachment({ kind: 'file', filename: 'a.zip' })).toBe(
+        '<file filename="a.zip"/>'
+      );
+    });
+
+    it('renders legacy marker strings alongside structured attachments', () => {
+      const result = formatQuoteElement({
+        attachments: [{ kind: 'image', filename: 'new.png', description: 'structured' }],
+        legacyAttachmentLines: ['[image/png: persisted.png]'],
+      });
+
+      // One wrapper holds both — the legacy slot exists only because those rows
+      // are already in the database as pre-rendered strings.
+      expect(result).toContain('<attachments>');
+      expect(result).toContain('<image filename="new.png">structured</image>');
+      expect(result).toContain('[image/png: persisted.png]');
+      expect(result.match(/<attachments>/g)).toHaveLength(1);
     });
 
     it('should escape from attribute', () => {
@@ -163,32 +258,37 @@ describe('QuoteFormatter', () => {
       expect(result).not.toContain('</character>');
     });
 
-    it('should order elements correctly: time → content → location → images → embeds → voice → attachments', () => {
+    it('should order elements correctly: time → content → location → embeds → attachments', () => {
       const result = formatQuoteElement({
         number: 1,
         from: 'User',
         timestamp: { absolute: 'Jan 1, 2025', relative: 'now' },
         content: 'Hello',
         locationContext: '<location type="guild"><server name="G"/></location>',
-        imageDescriptions: [{ filename: 'img.png', description: 'An image' }],
         embedsXml: ['<embed>E</embed>'],
-        voiceTranscripts: ['Voice'],
-        attachmentLines: ['- File: f.txt (text/plain)'],
+        attachments: [
+          { kind: 'image', filename: 'img.png', description: 'An image' },
+          { kind: 'voice', filename: 'v.ogg', description: 'Voice' },
+          { kind: 'file', filename: 'f.txt', contentType: 'text/plain' },
+        ],
       });
 
       const positions = [
         result.indexOf('<time'),
         result.indexOf('<content>'),
         result.indexOf('<location'),
-        result.indexOf('<image_descriptions>'),
         result.indexOf('<embeds>'),
-        result.indexOf('<voice_transcripts>'),
         result.indexOf('<attachments>'),
       ];
 
       for (let i = 1; i < positions.length; i++) {
         expect(positions[i]).toBeGreaterThan(positions[i - 1]);
       }
+
+      // Within <attachments>, source order is preserved across modalities — the
+      // list is one sequence, not three grouped sections.
+      expect(result.indexOf('<image ')).toBeLessThan(result.indexOf('<voice '));
+      expect(result.indexOf('<voice ')).toBeLessThan(result.indexOf('<file '));
     });
 
     it('should skip empty content', () => {
@@ -233,40 +333,46 @@ describe('QuoteFormatter', () => {
 
     it('should format an image-only forwarded message', () => {
       const content: ForwardedMessageContent = {
-        imageDescriptions: [
-          { filename: 'sunset.png', description: 'A beautiful sunset over the ocean' },
+        attachments: [
+          {
+            kind: 'image',
+            filename: 'sunset.png',
+            description: 'A beautiful sunset over the ocean',
+          },
         ],
       };
 
       const result = formatForwardedQuote(content);
 
       expect(result).toContain('<quote type="forward" from="Unknown">');
-      expect(result).toContain('<image_descriptions>');
+      expect(result).toContain('<attachments>');
       expect(result).toContain(
         '<image filename="sunset.png">A beautiful sunset over the ocean</image>'
       );
-      expect(result).toContain('</image_descriptions>');
+      expect(result).toContain('</attachments>');
       expect(result).not.toContain('<content>');
     });
 
     it('should format mixed content (text + images + embeds)', () => {
       const content: ForwardedMessageContent = {
         textContent: 'Check this out',
-        imageDescriptions: [{ filename: 'screenshot.png', description: 'An error dialog' }],
+        attachments: [
+          { kind: 'image', filename: 'screenshot.png', description: 'An error dialog' },
+        ],
         embedsXml: ['<embed title="Link Preview">Some content</embed>'],
       };
 
       const result = formatForwardedQuote(content);
 
       expect(result).toContain('<content>Check this out</content>');
-      expect(result).toContain('<image_descriptions>');
+      expect(result).toContain('<attachments>');
       expect(result).toContain('<embeds>');
-      // Content should come before images, images before embeds
+      // Content → embeds → attachments
       const contentPos = result.indexOf('<content>');
-      const imagePos = result.indexOf('<image_descriptions>');
       const embedsPos = result.indexOf('<embeds>');
-      expect(contentPos).toBeLessThan(imagePos);
-      expect(imagePos).toBeLessThan(embedsPos);
+      const attachmentsPos = result.indexOf('<attachments>');
+      expect(contentPos).toBeLessThan(embedsPos);
+      expect(embedsPos).toBeLessThan(attachmentsPos);
     });
 
     it('should handle empty content (all fields undefined)', () => {
@@ -289,7 +395,7 @@ describe('QuoteFormatter', () => {
 
     it('should escape image filenames in attributes', () => {
       const content: ForwardedMessageContent = {
-        imageDescriptions: [{ filename: 'file"name.png', description: 'A normal image' }],
+        attachments: [{ kind: 'image', filename: 'file"name.png', description: 'A normal image' }],
       };
 
       const result = formatForwardedQuote(content);
@@ -315,37 +421,37 @@ describe('QuoteFormatter', () => {
 
     it('should format voice transcripts', () => {
       const content: ForwardedMessageContent = {
-        voiceTranscripts: ['Hey, can you hear me?'],
-      };
-
-      const result = formatForwardedQuote(content);
-
-      expect(result).toContain('<voice_transcripts>');
-      expect(result).toContain('<transcript>Hey, can you hear me?</transcript>');
-    });
-
-    it('should format pre-formatted attachment lines', () => {
-      const content: ForwardedMessageContent = {
-        attachmentLines: ['- File: document.pdf (application/pdf)', '- File: data.csv (text/csv)'],
+        attachments: [{ kind: 'voice', description: 'Hey, can you hear me?' }],
       };
 
       const result = formatForwardedQuote(content);
 
       expect(result).toContain('<attachments>');
-      expect(result).toContain('- File: document.pdf (application/pdf)');
-      expect(result).toContain('- File: data.csv (text/csv)');
+      expect(result).toContain('<voice>Hey, can you hear me?</voice>');
+    });
+
+    it('should format persisted legacy marker lines', () => {
+      const content: ForwardedMessageContent = {
+        legacyAttachmentLines: ['[image/png: photo.png]', '[text/csv: data.csv]'],
+      };
+
+      const result = formatForwardedQuote(content);
+
+      expect(result).toContain('<attachments>');
+      expect(result).toContain('[image/png: photo.png]');
+      expect(result).toContain('[text/csv: data.csv]');
     });
 
     it('should format full complex forwarded message with all fields', () => {
       const content: ForwardedMessageContent = {
         textContent: 'Important message',
-        imageDescriptions: [
-          { filename: 'img1.png', description: 'First image' },
-          { filename: 'img2.jpg', description: 'Second image' },
+        attachments: [
+          { kind: 'image', filename: 'img1.png', description: 'First image' },
+          { kind: 'image', filename: 'img2.jpg', description: 'Second image' },
+          { kind: 'voice', description: 'Voice note transcript' },
+          { kind: 'file', filename: 'doc.pdf', contentType: 'application/pdf' },
         ],
         embedsXml: ['<embed>Link preview</embed>'],
-        voiceTranscripts: ['Voice note transcript'],
-        attachmentLines: ['- File: doc.pdf (application/pdf)'],
         timestamp: { absolute: 'Feb 10, 2026', relative: 'just now' },
       };
 
@@ -356,9 +462,7 @@ describe('QuoteFormatter', () => {
         '<quote type="forward"',
         '<time ',
         '<content>',
-        '<image_descriptions>',
         '<embeds>',
-        '<voice_transcripts>',
         '<attachments>',
         '</quote>',
       ];
@@ -374,21 +478,21 @@ describe('QuoteFormatter', () => {
     it('should skip empty text content', () => {
       const content: ForwardedMessageContent = {
         textContent: '',
-        imageDescriptions: [{ filename: 'img.png', description: 'An image' }],
+        attachments: [{ kind: 'image', filename: 'img.png', description: 'An image' }],
       };
 
       const result = formatForwardedQuote(content);
 
       expect(result).not.toContain('<content>');
-      expect(result).toContain('<image_descriptions>');
+      expect(result).toContain('<attachments>');
     });
 
     it('should handle multiple images', () => {
       const content: ForwardedMessageContent = {
-        imageDescriptions: [
-          { filename: 'a.png', description: 'Image A' },
-          { filename: 'b.png', description: 'Image B' },
-          { filename: 'c.png', description: 'Image C' },
+        attachments: [
+          { kind: 'image', filename: 'a.png', description: 'Image A' },
+          { kind: 'image', filename: 'b.png', description: 'Image B' },
+          { kind: 'image', filename: 'c.png', description: 'Image C' },
         ],
       };
 
@@ -430,7 +534,7 @@ describe('QuoteFormatter', () => {
         from: 'Alice',
         role: 'user',
         content: 'look at this',
-        imageDescriptions: [{ filename: 'a.png', description: 'a lighthouse at dusk' }],
+        attachments: [{ kind: 'image', filename: 'a.png', description: 'a lighthouse at dusk' }],
       });
       expect(withMedia).toContain('its media is described here');
       expect(withMedia).toContain('<image filename="a.png">a lighthouse at dusk</image>');
@@ -439,9 +543,27 @@ describe('QuoteFormatter', () => {
         from: 'Alice',
         role: 'user',
         content: '',
-        voiceTranscripts: ['hey are you around'],
+        attachments: [{ kind: 'voice', description: 'hey are you around' }],
       });
       expect(withTranscript).toContain('its media is described here');
+    });
+
+    it('names an undescribed attachment without claiming it is described', () => {
+      // The two halves pull opposite ways and both matter. The attachment must
+      // RENDER — an image with no description and no element is invisible, which
+      // is the drop this whole shape exists to close. But the marker must NOT
+      // promise a description, or the model goes looking for one that never
+      // arrived and apologises for missing it.
+      const result = formatDedupedQuote({
+        from: 'Alice',
+        role: 'user',
+        content: 'check this',
+        attachments: [{ kind: 'image', filename: 'unlucky.png', status: 'undescribed' }],
+      });
+
+      expect(result).toContain('<image filename="unlucky.png" status="undescribed"/>');
+      expect(result).not.toContain('its media is described here');
+      expect(result).toContain('[Referenced message — full text in the chat log]');
     });
 
     it('does NOT let long attachment markers truncate away the text preview', () => {

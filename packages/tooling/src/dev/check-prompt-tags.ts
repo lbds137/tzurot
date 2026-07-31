@@ -85,6 +85,10 @@ export const KNOWN_UNPROTECTED_TAGS: Record<string, string> = {
   channel: 'Self-closing; channel name/type/topic attributes via escapeXml.',
   thread: 'Self-closing; thread name attribute via escapeXml.',
   time: 'Self-closing; timestamp attributes via escapeXml.',
+  file:
+    'Self-closing attachment element; filename/type attributes via escapeXml (full). ' +
+    'Never wraps content — an attachment with enrichment renders as <image>/<voice>, ' +
+    'both of which ARE protected.',
   from_id: 'Attribute-only (escapeXml) plus literal constraint text; not a content tag.',
   roles: 'Wraps <role> elements whose values are escapeXml (full).',
   guild_info: 'Attributes + child <role>s all escapeXml (full).',

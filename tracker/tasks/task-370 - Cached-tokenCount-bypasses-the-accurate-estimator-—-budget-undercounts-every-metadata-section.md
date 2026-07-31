@@ -36,4 +36,39 @@ Known call sites with the `tokenCount ?? estimator` shape:
 **Acceptance**: an executable parity check. Render a message with EVERY metadata section populated, compare the budget's number against the real rendered token count, and fail on drift beyond a stated tolerance. That makes the estimator/renderer pair self-policing instead of hand-synced (task-368's class).
 
 **Exhaustive sweep still owed** (owner asked for it explicitly): enumerate every budget/truncation decision in the prompt-assembly path, not just these three, and confirm each measures the rendered form. Enumerate deterministically — grep every `tokenCount` consumer AND every call site of the estimator — rather than sampling.
+
+## CORRECTION — "the estimator is NOT the problem" is only true section-by-section
+
+Found while building TASK-365's attachment-vocabulary PR. The claim above holds
+at the level it was checked (all five sections are ACCOUNTED FOR) and fails one
+level down: `estimateReferenceLength` (same file, top) models a `<quote>` shape
+the renderer has not emitted for some time. Read side by side:
+
+| Estimator emits | `formatQuoteElement` actually emits |
+| --- | --- |
+| `author="…"` | `from="…"` |
+| `location="…"` as an ATTRIBUTE | `locationContext` as a child ELEMENT |
+| `forwarded="true"` | `type="forward"` |
+| — | `<time …/>`, `role`, `username`, `from_id`, `number` |
+| ~~`resolvedImageDescriptions` not counted at all~~ | ✅ CLOSED — see below |
+| ~~every attachment estimated as an `<image>`~~ | ✅ CLOSED — see below |
+
+So a reference's estimate can be wrong by the entire length of its vision
+descriptions — the largest single term a quoted message contributes, and exactly
+the term the retention work is about to make more common.
+
+**The attachments portion is CLOSED, and it closed by proving the fix shape.**
+TASK-365's PR-1 first tried to mirror the renderer by hand and got it wrong in
+two directions at once (every attachment estimated image-shaped: a voice message
+lost its `duration`, a plain file gained a `status` it can never carry). Two
+independent reviews caught it. The answer was not a better mirror — it was to
+delete the mirror: the estimator now calls `buildStoredAttachments` +
+`renderAttachment`, the same pair the prompt renders through, and a parity test
+in `conversationUtils.test.ts` fails the moment anyone reintroduces a local copy.
+
+**That is the template for the rest of this task.** The surrounding `<quote>`
+estimate is still hand-written and still disagrees with the renderer on
+attribute names — do the same thing to it: call `formatQuoteElement` and measure.
+It also subsumes the acceptance check written above, because a parity test
+between two renderers is unnecessary when there is only one.
 <!-- SECTION:DESCRIPTION:END -->
