@@ -363,6 +363,31 @@ export function attachmentEnrichment(att: RenderableAttachment): string | undefi
   return att.kind === 'file' ? undefined : att.description;
 }
 
+/**
+ * Identity of one piece of enrichment, for comparing across renderers: its text
+ * AND the modality it came from.
+ *
+ * Keyed rather than compared as a bare string because the two modalities arrive
+ * from different producers (vision and STT) and mean different things, so a
+ * transcript that happens to read the same as a description is not the same
+ * content — and the consequence of conflating them is an element silently
+ * dropped as a duplicate of something it has nothing to do with. The separator is
+ * NUL because neither producer can emit one, so no description can spoof another
+ * modality's key the way a printable delimiter would allow.
+ *
+ * Filename is deliberately NOT part of the key, though it would make two
+ * same-kind attachments with byte-identical descriptions distinguishable. It is
+ * optional on `AttachmentIdentity` and never synthesized, so keying on it would
+ * leave nameless attachments unkeyable — and it would make the match depend on
+ * two producers agreeing on a filename, which is the correspondence class the
+ * URL-keyed enrichment store was introduced to retire. The residual cost is that
+ * such a pair subtracts together; they are duplicates of each other, and the
+ * description they share is in the chat log either way.
+ */
+export function enrichmentKey(kind: RenderableAttachment['kind'], text: string): string {
+  return `${kind}\u0000${text}`;
+}
+
 /** Join defined attribute pairs into a leading-space attribute string. */
 function joinAttrs(defs: [string, string | undefined][]): string {
   const list = defs
