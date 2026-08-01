@@ -10,9 +10,16 @@
  * - Add <message speaker="Name"> prefixes
  * - Append <reactions>...</reactions> blocks (mimicking conversation history metadata)
  * - Still occasionally add "Name:" prefixes
+ *
+ * Every pattern here DELETES, so each one is also a way to destroy a character's
+ * legitimate reply — this product hosts AI characters and they are routinely
+ * asked about the very structures these patterns hunt for. Matches inside code
+ * markup are therefore left alone (`replaceOutsideCodeMarkup`), which is the
+ * same discriminator the reasoning-tag extractor settled on for the same reason.
  */
 
 import { type MessageContent } from '@tzurot/common-types/types/ai';
+import { isInsideCodeSpan } from '@tzurot/common-types/utils/codeSpanDetection';
 import { findLeadingMentionsEnd, stripLeadingMentions } from '@tzurot/common-types/utils/discord';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 
@@ -81,6 +88,45 @@ function buildArtifactPatterns(personalityName: string): RegExp[] {
 }
 
 /**
+ * Strip every match of `pattern` EXCEPT the ones inside code markup.
+ *
+ * These patterns delete, and a character on this product routinely writes ABOUT
+ * prompt structure — so a reply demonstrating `` `</chat_log>` `` is
+ * indistinguishable from a model that leaked one, and the demonstration is what
+ * gets eaten. Code markup is the discriminator: a real leaked artifact is never
+ * backticked, because the model emits it as structure rather than as an example.
+ *
+ * Position cannot decide it here. Most of these patterns are already anchored to
+ * the start or end, and a QUOTED artifact at the start or end sits at the same
+ * offset a real one would — the anchor says where, not whether. (The anchors do
+ * incidentally protect the fenced case, since a leading backtick means `^<tag`
+ * no longer matches; the gate is what covers the unanchored patterns, where
+ * nothing else does.)
+ *
+ * The offset is found BY TYPE rather than by position. `String.replace` passes a
+ * replacer the match, then one argument per capture group, then the offset, then
+ * the whole input — plus a `groups` object when the pattern has named groups.
+ * Every one of those is a string or undefined except the offset, so the number
+ * IS the offset, and stays so no matter how many groups a pattern grows or
+ * whether any of them are named. A positional index cannot say that: it is
+ * correct only for the patterns that exist today, and a named group added later
+ * would silently hand this function the input string instead, with no type error
+ * to catch it. The invariant is executable rather than a comment asking the next
+ * author to remember.
+ *
+ * @internal Exported for testing
+ */
+export function replaceOutsideCodeMarkup(text: string, pattern: RegExp): string {
+  return text.replace(pattern, (...args: unknown[]) => {
+    const match = args[0] as string;
+    const offset = args.find((arg): arg is number => typeof arg === 'number');
+    // Unreachable per the contract above; degrading to 0 keeps the pre-gate
+    // behaviour (offset 0 is never inside code markup, so the match strips).
+    return isInsideCodeSpan(text, offset ?? 0) ? match : '';
+  });
+}
+
+/**
  * Apply patterns iteratively until no more matches
  */
 function applyPatternsIteratively(
@@ -96,7 +142,7 @@ function applyPatternsIteratively(
     let matched = false;
 
     for (const pattern of patterns) {
-      cleaned = cleaned.replace(pattern, '').trim();
+      cleaned = replaceOutsideCodeMarkup(cleaned, pattern).trim();
       if (cleaned !== beforeStrip) {
         strippedCount++;
         matched = true;
