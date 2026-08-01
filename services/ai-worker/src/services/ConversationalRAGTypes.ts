@@ -12,6 +12,7 @@ import type { AttachmentMetadata } from '@tzurot/common-types/types/schemas/disc
 import type {
   CrossChannelHistoryGroupEntry,
   ReferencedMessage,
+  StoredReferencedMessage,
 } from '@tzurot/common-types/types/schemas/message';
 import type { LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import type { SttDispatch } from '@tzurot/common-types/types/sttProvider';
@@ -120,21 +121,10 @@ export interface ConversationContext {
     tokenCount?: number;
     /** Structured metadata (referenced messages, image descriptions, reactions) */
     messageMetadata?: {
-      referencedMessages?: {
-        discordMessageId: string;
-        authorUsername: string;
-        authorDisplayName: string;
-        content: string;
-        embeds?: string;
-        timestamp: string;
-        locationContext: string;
-        attachments?: { id?: string; url: string; contentType: string; name?: string }[];
-        isForwarded?: boolean;
-        authorDiscordId?: string;
-        resolvedPersonaId?: string;
-        resolvedPersonaName?: string;
-        resolvedImageDescriptions?: { filename: string; description: string }[];
-      }[];
+      // The schema type, not a hand-written copy of it: a re-declaration here
+      // makes any new stored-reference field invisible to this path until
+      // someone remembers to update it in three places.
+      referencedMessages?: StoredReferencedMessage[];
       imageDescriptions?: { filename: string; description: string }[];
       /** Embed XML strings for extended context messages */
       embedsXml?: string[];
@@ -224,6 +214,12 @@ export interface ProcessedInputs {
   referencedMessagesDescriptions: string | undefined;
   referencedMessagesTextForSearch: string | undefined;
   searchQuery: string;
+  /**
+   * The turn's references in durable form, for the trigger history row. Empty
+   * when the message quoted nothing. Carried out of input processing rather
+   * than written there because the write is the RAG service's Prisma to own.
+   */
+  durableReferences: StoredReferencedMessage[];
   // Note: extendedContextDescriptions removed - image descriptions are now
   // injected inline into conversation history entries for better context colocation
 }

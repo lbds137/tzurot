@@ -14,18 +14,14 @@ import { type SttDispatch } from '@tzurot/common-types/types/sttProvider';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { describeImage, transcribeAudio, type ProcessedAttachment } from './MultimodalProcessor.js';
 import type { VisionLoggingContext } from './multimodal/VisionProcessor.js';
-import { classifyAttachment, type RenderableAttachment } from './prompt/QuoteFormatter.js';
+import {
+  classifyAttachment,
+  type BuiltAttachment,
+  type RenderableAttachment,
+} from './prompt/QuoteFormatter.js';
 import { withRetry } from '../utils/retry.js';
 
 const logger = createLogger('AttachmentProcessor');
-
-/**
- * Processed attachment result for a single attachment
- */
-interface ProcessedAttachmentResult {
-  /** The attachment in renderable form — structured, never a pre-rendered line. */
-  attachment: RenderableAttachment;
-}
 
 /**
  * Options for processing a single attachment
@@ -102,7 +98,7 @@ export interface ProcessAttachmentsOptions {
  */
 export async function processAttachmentsParallel(
   options: ProcessAttachmentsOptions
-): Promise<RenderableAttachment[]> {
+): Promise<BuiltAttachment[]> {
   const {
     attachments,
     referenceNumber,
@@ -136,11 +132,11 @@ export async function processAttachmentsParallel(
 
   const results = await Promise.allSettled(processingPromises);
 
-  const rendered: RenderableAttachment[] = [];
+  const rendered: BuiltAttachment[] = [];
   for (let i = 0; i < results.length; i++) {
     const result = results[i];
     if (result.status === 'fulfilled') {
-      rendered.push(result.value.attachment);
+      rendered.push(result.value);
     } else {
       logger.error(
         { err: result.reason, index: i, referenceNumber },
@@ -148,7 +144,7 @@ export async function processAttachmentsParallel(
       );
       const attachment = attachments[i];
       if (attachment !== undefined) {
-        rendered.push(unprocessedAttachment(attachment));
+        rendered.push({ url: attachment.url, attachment: unprocessedAttachment(attachment) });
       }
     }
   }
@@ -202,7 +198,7 @@ async function processVoiceAttachment(
   referenceNumber: number,
   preprocessed?: ProcessedAttachment,
   sttDispatch?: SttDispatch
-): Promise<ProcessedAttachmentResult> {
+): Promise<BuiltAttachment> {
   // Identity only — NOT a whole RenderableVoice. `kind` and the enrichment are
   // supplied per return site, because the type makes description and status
   // mutually exclusive and a pre-built object cannot commit to either arm.
@@ -218,7 +214,10 @@ async function processVoiceAttachment(
       { referenceNumber, url: attachment.url },
       'Using preprocessed voice transcription'
     );
-    return { attachment: { ...identity, description: preprocessed.description } };
+    return {
+      url: attachment.url,
+      attachment: { ...identity, description: preprocessed.description },
+    };
   }
 
   try {
@@ -239,20 +238,18 @@ async function processVoiceAttachment(
         operationName: `Voice transcription (reference ${referenceNumber})`,
       }
     );
-    return { attachment: { ...identity, description: result.value.text } };
+    return { url: attachment.url, attachment: { ...identity, description: result.value.text } };
   } catch (error) {
     logger.error(
       { err: error, referenceNumber, url: attachment.url },
       'Voice transcription failed'
     );
-    return { attachment: { ...identity, status: 'untranscribed' } };
+    return { url: attachment.url, attachment: { ...identity, status: 'untranscribed' } };
   }
 }
 
 /** Process image attachment */
-async function processImageAttachment(
-  options: ProcessImageOptions
-): Promise<ProcessedAttachmentResult> {
+async function processImageAttachment(options: ProcessImageOptions): Promise<BuiltAttachment> {
   const {
     attachment,
     referenceNumber,
@@ -273,7 +270,10 @@ async function processImageAttachment(
 
   if (preprocessed?.description !== undefined && preprocessed.description !== '') {
     logger.debug({ referenceNumber, url: attachment.url }, 'Using preprocessed image description');
-    return { attachment: { ...identity, description: preprocessed.description } };
+    return {
+      url: attachment.url,
+      attachment: { ...identity, description: preprocessed.description },
+    };
   }
 
   try {
@@ -300,10 +300,10 @@ async function processImageAttachment(
         operationName: `Image description (reference ${referenceNumber})`,
       }
     );
-    return { attachment: { ...identity, description: result.value } };
+    return { url: attachment.url, attachment: { ...identity, description: result.value } };
   } catch (error) {
     logger.error({ err: error, referenceNumber, url: attachment.url }, 'Image processing failed');
-    return { attachment: { ...identity, status: 'undescribed' } };
+    return { url: attachment.url, attachment: { ...identity, status: 'undescribed' } };
   }
 }
 
@@ -313,7 +313,7 @@ async function processImageAttachment(
  */
 async function processSingleAttachment(
   options: ProcessSingleAttachmentOptions
-): Promise<ProcessedAttachmentResult> {
+): Promise<BuiltAttachment> {
   const {
     attachment,
     referenceNumber,
@@ -345,6 +345,7 @@ async function processSingleAttachment(
       });
     case 'file':
       return {
+        url: attachment.url,
         attachment: {
           kind: 'file',
           filename: attachment.name,

@@ -24,6 +24,10 @@ vi.mock('./MultimodalProcessor.js', () => ({
 }));
 
 describe('AttachmentProcessor', () => {
+  /** The renderable half of each built pair — what these cases assert on. */
+  const rendered = (built: { attachment: unknown }[]): unknown[] =>
+    built.map(entry => entry.attachment);
+
   let mockPersonality: LoadedPersonality;
 
   beforeEach(() => {
@@ -88,7 +92,7 @@ describe('AttachmentProcessor', () => {
       });
 
       expect(result).toHaveLength(1);
-      expect(result[0]).toEqual({
+      expect(result[0].attachment).toEqual({
         kind: 'image',
         filename: 'photo.png',
         contentType: 'image/png',
@@ -154,7 +158,7 @@ describe('AttachmentProcessor', () => {
       });
 
       expect(result).toHaveLength(1);
-      expect(result[0]).toEqual({
+      expect(result[0].attachment).toEqual({
         kind: 'voice',
         filename: 'voice.ogg',
         contentType: 'audio/ogg',
@@ -180,7 +184,7 @@ describe('AttachmentProcessor', () => {
       });
 
       expect(result).toHaveLength(1);
-      expect(result[0]).toEqual({
+      expect(result[0].attachment).toEqual({
         kind: 'file',
         filename: 'document.pdf',
         contentType: 'application/pdf',
@@ -236,9 +240,13 @@ describe('AttachmentProcessor', () => {
       });
 
       expect(result).toHaveLength(3);
-      expect(result[0]).toMatchObject({ kind: 'image', filename: 'photo.png' });
-      expect(result[1]).toMatchObject({ kind: 'voice', filename: 'voice.ogg', durationSeconds: 5 });
-      expect(result[2]).toEqual({
+      expect(result[0].attachment).toMatchObject({ kind: 'image', filename: 'photo.png' });
+      expect(result[1].attachment).toMatchObject({
+        kind: 'voice',
+        filename: 'voice.ogg',
+        durationSeconds: 5,
+      });
+      expect(result[2].attachment).toEqual({
         kind: 'file',
         filename: 'doc.pdf',
         contentType: 'application/pdf',
@@ -268,7 +276,7 @@ describe('AttachmentProcessor', () => {
       expect(result).toHaveLength(1);
       // Still rendered, and it says WHY there is no description — an attachment
       // that silently vanishes on failure is the drop class `status` closes.
-      expect(result[0]).toEqual({
+      expect(result[0].attachment).toEqual({
         kind: 'image',
         filename: 'broken.png',
         contentType: 'image/png',
@@ -296,7 +304,7 @@ describe('AttachmentProcessor', () => {
       });
 
       expect(result).toHaveLength(1);
-      expect(result[0]).toEqual({
+      expect(result[0].attachment).toEqual({
         kind: 'voice',
         filename: 'voice.ogg',
         contentType: 'audio/ogg',
@@ -334,7 +342,7 @@ describe('AttachmentProcessor', () => {
       });
 
       expect(result).toHaveLength(1);
-      expect(result[0]).toMatchObject({
+      expect(result[0].attachment).toMatchObject({
         kind: 'image',
         filename: 'photo.png',
         description: 'Preprocessed landscape',
@@ -375,7 +383,7 @@ describe('AttachmentProcessor', () => {
       });
 
       expect(result).toHaveLength(1);
-      expect(result[0]).toMatchObject({
+      expect(result[0].attachment).toMatchObject({
         kind: 'voice',
         filename: 'voice.ogg',
         durationSeconds: 10,
@@ -415,7 +423,7 @@ describe('AttachmentProcessor', () => {
       });
 
       expect(result).toHaveLength(1);
-      expect(result[0]).toMatchObject({
+      expect(result[0].attachment).toMatchObject({
         kind: 'image',
         filename: 'photo.png',
         description: 'Inline fallback',
@@ -467,7 +475,7 @@ describe('AttachmentProcessor', () => {
         preprocessedAttachments: exploding,
       });
 
-      expect(result).toEqual([
+      expect(rendered(result)).toEqual([
         {
           kind: 'image',
           filename: 'photo.png',
@@ -522,7 +530,7 @@ describe('AttachmentProcessor', () => {
         preprocessedAttachments: exploding,
       });
 
-      expect(result).toEqual([
+      expect(rendered(result)).toEqual([
         {
           kind: 'voice',
           filename: 'note.ogg',
@@ -538,6 +546,30 @@ describe('AttachmentProcessor', () => {
           contentType: 'application/pdf',
           status: 'unprocessed',
         },
+      ]);
+    });
+
+    it('pairs each built element with its source URL', async () => {
+      // Not rendered — it is the key the enrichment gets written down under, so
+      // a description the model saw this turn can be replayed the next one.
+      const result = await processAttachmentsParallel({
+        attachments: [
+          { url: 'https://example.com/a.png', contentType: 'image/png', name: 'a.png', size: 1 },
+          {
+            url: 'https://example.com/b.pdf',
+            contentType: 'application/pdf',
+            name: 'b.pdf',
+            size: 2,
+          },
+        ],
+        referenceNumber: 1,
+        personality: mockPersonality,
+        isGuestMode: false,
+      });
+
+      expect(result.map(entry => entry.url)).toEqual([
+        'https://example.com/a.png',
+        'https://example.com/b.pdf',
       ]);
     });
 
@@ -558,7 +590,7 @@ describe('AttachmentProcessor', () => {
       });
 
       expect(result).toHaveLength(1);
-      expect(result[0]).toEqual({
+      expect(result[0].attachment).toEqual({
         kind: 'file',
         filename: 'music.mp3',
         contentType: 'audio/mp3',

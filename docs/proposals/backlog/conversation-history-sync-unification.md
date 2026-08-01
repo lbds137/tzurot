@@ -24,7 +24,7 @@ Council rejected **(i)** (extend the shared apply path — unanimously a *fake* 
 | `ConversationSyncService.updateMessageContent` | `content`, `tokenCount`, `editedAt` | Semantic (heal-on-read Discord edit) — *should* bump & win |
 | `ConversationHistoryService:198` | enriched `content`, `tokenCount` | Creation-lifecycle enrichment (benign) |
 | `ConversationHistoryService:350` | `discordMessageId` (chunk IDs) | Creation-lifecycle (post-send, benign) |
-| `referenceImageDescriptions:121` | `messageMetadata` (image descriptions) | Creation-lifecycle enrichment (benign) |
+| `triggerReferenceWriter.writeTriggerReferences` | `messageMetadata` (the turn's built references) | Creation-lifecycle enrichment (benign) |
 
 The two heal-on-read writes are exactly the semantic reconciliations (iii) *relies on*. The other three fire once at message creation, before any soft-delete, and dev has no organic traffic to re-trigger them post-soft-delete. **No ongoing per-read non-semantic write exists** — so (iii) does not bite. It's the root-cause fix and the one truly-uniform mechanism.
 

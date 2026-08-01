@@ -178,8 +178,12 @@ describe('hydrateStoredReferences', () => {
       attachmentId: 'att-1',
       url: 'https://cdn.discord.com/img.png',
     });
-    expect(ref.resolvedImageDescriptions).toEqual([
-      { filename: 'photo.png', description: 'A beautiful sunset over the ocean' },
+    expect(ref.attachmentEnrichment).toEqual([
+      {
+        url: 'https://cdn.discord.com/img.png',
+        kind: 'image',
+        description: 'A beautiful sunset over the ocean',
+      },
     ]);
   });
 
@@ -202,7 +206,7 @@ describe('hydrateStoredReferences', () => {
     await hydrateStoredReferences(history as RawHistoryEntry[], prisma, cache as never);
 
     expect(cache.get).not.toHaveBeenCalled();
-    expect(ref.resolvedImageDescriptions).toBeUndefined();
+    expect(ref.attachmentEnrichment).toBeUndefined();
   });
 
   it('handles vision cache miss gracefully', async () => {
@@ -225,7 +229,7 @@ describe('hydrateStoredReferences', () => {
 
     await hydrateStoredReferences(history as RawHistoryEntry[], prisma, cache as never);
 
-    expect(ref.resolvedImageDescriptions).toBeUndefined();
+    expect(ref.attachmentEnrichment).toBeUndefined();
   });
 
   it('deduplicates Discord IDs across multiple refs', async () => {
@@ -260,7 +264,7 @@ describe('hydrateStoredReferences', () => {
     expect(ref2.resolvedPersonaName).toBe('Lila');
   });
 
-  it('uses "image" as default filename when name is missing', async () => {
+  it('keys a nameless attachment by URL — there is no filename to fall back on', async () => {
     const prisma = createMockPrisma();
     const cache = createMockVisionCache();
 
@@ -275,8 +279,15 @@ describe('hydrateStoredReferences', () => {
 
     await hydrateStoredReferences(history as RawHistoryEntry[], prisma, cache as never);
 
-    expect(ref.resolvedImageDescriptions).toEqual([
-      { filename: 'image', description: 'A cat sitting on a mat' },
+    // The predecessor invented `'image'` here, and another producer invented
+    // `'attachment'`, so the two disagreed and the same picture rendered twice.
+    // A URL is always present and always unique.
+    expect(ref.attachmentEnrichment).toEqual([
+      {
+        url: 'https://cdn.discord.com/img.png',
+        kind: 'image',
+        description: 'A cat sitting on a mat',
+      },
     ]);
   });
 
@@ -317,8 +328,39 @@ describe('hydrateStoredReferences', () => {
 
     expect(ref.resolvedPersonaName).toBe('Lila');
     expect(ref.resolvedPersonaId).toBe('p1');
-    expect(ref.resolvedImageDescriptions).toEqual([
-      { filename: 'photo.png', description: 'A sunset photo' },
+    expect(ref.attachmentEnrichment).toEqual([
+      { url: 'https://cdn.discord.com/img.png', kind: 'image', description: 'A sunset photo' },
+    ]);
+  });
+
+  it('leaves a reference that already carries persisted enrichment alone', async () => {
+    // Heal-on-read, not overwrite: the persisted copy came from the build that
+    // produced what the model actually saw, so a cache entry never replaces it.
+    const prisma = createMockPrisma();
+    const cache = createMockVisionCache();
+
+    const ref = makeRef({
+      attachments: [
+        {
+          id: 'att-1',
+          url: 'https://cdn.discord.com/img.png',
+          contentType: 'image/png',
+          name: 'photo.png',
+        },
+      ],
+      attachmentEnrichment: [
+        { url: 'https://cdn.discord.com/img.png', kind: 'image', description: 'PERSISTED' },
+      ],
+    });
+    const history = [makeEntry({ messageMetadata: { referencedMessages: [ref] } })];
+
+    cache.get.mockResolvedValue('FROM THE CACHE');
+
+    await hydrateStoredReferences(history as RawHistoryEntry[], prisma, cache as never);
+
+    expect(cache.get).not.toHaveBeenCalled();
+    expect(ref.attachmentEnrichment).toEqual([
+      { url: 'https://cdn.discord.com/img.png', kind: 'image', description: 'PERSISTED' },
     ]);
   });
 });

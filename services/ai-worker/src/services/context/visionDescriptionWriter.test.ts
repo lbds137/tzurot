@@ -18,14 +18,8 @@ import { type JobContext } from '@tzurot/common-types/types/jobs';
 import { VisionDescriptionWriter } from './visionDescriptionWriter.js';
 import type { ProcessedAttachment } from '../MultimodalProcessor.js';
 
-function makeHistory(): {
-  updateLastUserMessage: ReturnType<typeof vi.fn>;
-  persistReferenceImageDescriptions: ReturnType<typeof vi.fn>;
-} {
-  return {
-    updateLastUserMessage: vi.fn().mockResolvedValue(true),
-    persistReferenceImageDescriptions: vi.fn().mockResolvedValue(1),
-  };
+function makeHistory(): { updateLastUserMessage: ReturnType<typeof vi.fn> } {
+  return { updateLastUserMessage: vi.fn().mockResolvedValue(true) };
 }
 
 function makeContext(partial: Partial<JobContext> = {}): JobContext {
@@ -65,7 +59,8 @@ describe('VisionDescriptionWriter', () => {
       'chan-1',
       'pers-1',
       'persona-1',
-      'look at this\n\n[Image: img.png]\na red bicycle leaning on a wall'
+      'look at this\n\n[Image: img.png]\na red bicycle leaning on a wall',
+      { triggerMessageId: undefined }
     );
   });
 
@@ -85,7 +80,31 @@ describe('VisionDescriptionWriter', () => {
       'chan-1',
       'pers-1',
       'persona-1',
-      '[Image: img.png]\na red bicycle leaning on a wall'
+      '[Image: img.png]\na red bicycle leaning on a wall',
+      { triggerMessageId: undefined }
+    );
+  });
+
+  it('targets the row the job was queued for, not just the latest one', async () => {
+    // The other write this job makes uses the same id. A second message landing
+    // mid-generation must not collect this one's descriptions.
+    const history = makeHistory();
+    const writer = new VisionDescriptionWriter(history as never);
+
+    await writer.persistTriggerDescriptions({
+      jobId: 'j1',
+      message: 'look at this',
+      jobContext: makeContext({ triggerMessageId: 'discord-42' }),
+      personalityId: 'pers-1',
+      processedAttachments: [imageAttachment],
+    });
+
+    expect(history.updateLastUserMessage).toHaveBeenCalledWith(
+      'chan-1',
+      'pers-1',
+      'persona-1',
+      expect.any(String),
+      { triggerMessageId: 'discord-42' }
     );
   });
 
@@ -193,102 +212,5 @@ describe('VisionDescriptionWriter', () => {
       expect.objectContaining({ jobId: 'j1' }),
       expect.stringContaining('placeholders remain')
     );
-  });
-
-  describe('persistReferenceDescriptions', () => {
-    const audioRefAttachment: ProcessedAttachment = {
-      type: AttachmentType.Audio,
-      description: 'a spoken greeting',
-      originalUrl: 'https://cdn/voice.ogg',
-      metadata: { url: 'https://cdn/voice.ogg', name: 'voice.ogg', contentType: 'audio/ogg' },
-    };
-
-    it('builds a URL→description map for images and forwards it to the history service', async () => {
-      const history = makeHistory();
-      const writer = new VisionDescriptionWriter(history as never);
-
-      await writer.persistReferenceDescriptions({
-        jobId: 'j1',
-        jobContext: makeContext(),
-        personalityId: 'pers-1',
-        processedReferenceAttachments: { 1: [imageAttachment] },
-      });
-
-      expect(history.persistReferenceImageDescriptions).toHaveBeenCalledWith(
-        'chan-1',
-        'pers-1',
-        'persona-1',
-        new Map([['https://cdn/img.png', 'a red bicycle leaning on a wall']])
-      );
-    });
-
-    it('excludes non-image attachments from the description map', async () => {
-      const history = makeHistory();
-      const writer = new VisionDescriptionWriter(history as never);
-
-      await writer.persistReferenceDescriptions({
-        jobId: 'j1',
-        jobContext: makeContext(),
-        personalityId: 'pers-1',
-        processedReferenceAttachments: { 1: [imageAttachment, audioRefAttachment] },
-      });
-
-      expect(history.persistReferenceImageDescriptions).toHaveBeenCalledWith(
-        'chan-1',
-        'pers-1',
-        'persona-1',
-        new Map([['https://cdn/img.png', 'a red bicycle leaning on a wall']])
-      );
-    });
-
-    it('skips when there are no image descriptions to persist', async () => {
-      const history = makeHistory();
-      const writer = new VisionDescriptionWriter(history as never);
-
-      await writer.persistReferenceDescriptions({
-        jobId: 'j1',
-        jobContext: makeContext(),
-        personalityId: 'pers-1',
-        processedReferenceAttachments: { 1: [audioRefAttachment] },
-      });
-
-      expect(history.persistReferenceImageDescriptions).not.toHaveBeenCalled();
-    });
-
-    it('skips when the persona id is missing', async () => {
-      const history = makeHistory();
-      const writer = new VisionDescriptionWriter(history as never);
-
-      await writer.persistReferenceDescriptions({
-        jobId: 'j1',
-        jobContext: makeContext({ activePersonaId: undefined }),
-        personalityId: 'pers-1',
-        processedReferenceAttachments: { 1: [imageAttachment] },
-      });
-
-      expect(history.persistReferenceImageDescriptions).not.toHaveBeenCalled();
-    });
-
-    it('never throws — a failed persist warns and resolves', async () => {
-      const history = {
-        updateLastUserMessage: vi.fn(),
-        persistReferenceImageDescriptions: vi.fn().mockRejectedValue(new Error('db down')),
-      };
-      const writer = new VisionDescriptionWriter(history as never);
-
-      await expect(
-        writer.persistReferenceDescriptions({
-          jobId: 'j1',
-          jobContext: makeContext(),
-          personalityId: 'pers-1',
-          processedReferenceAttachments: { 1: [imageAttachment] },
-        })
-      ).resolves.toBeUndefined();
-
-      expect(mockLogger.warn).toHaveBeenCalledWith(
-        expect.objectContaining({ jobId: 'j1' }),
-        expect.stringContaining('cache-only hydration remains')
-      );
-    });
   });
 });

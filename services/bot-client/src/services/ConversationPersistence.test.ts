@@ -4,7 +4,6 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ConversationPersistence } from './ConversationPersistence.js';
-import type { ReferencedMessage } from '@tzurot/common-types/types/schemas/message';
 import type { LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import type { Message } from 'discord.js';
 
@@ -175,102 +174,35 @@ describe('ConversationPersistence', () => {
       });
     });
 
-    it('should store references in messageMetadata, not content', async () => {
+    it('does NOT write referencedMessages — the worker owns that field', async () => {
+      // The worker is the side that resolves a quote's images and voice notes,
+      // so it writes the snapshot together with the enrichment that makes the
+      // snapshot worth having. A second writer here would race it and store a
+      // stripped copy. The option this test used to exercise is gone; what
+      // remains is the guarantee that nothing reintroduces it.
       const mockMessage = createMockMessage({
         id: 'discord-msg-123',
         channelId: 'channel-123',
         guildId: 'guild-123',
       });
 
-      const referencedMessages: ReferencedMessage[] = [
-        {
-          referenceNumber: 1,
-          discordMessageId: 'ref-msg-1',
-          discordUserId: 'user-456',
-          authorUsername: 'otheruser',
-          authorDisplayName: 'Other User',
-          content: 'Referenced message',
-          embeds: '',
-          timestamp: '2025-01-01T10:00:00Z',
-          locationContext: 'Test Guild > #general',
-        },
-      ];
-
       await persistence.saveUserMessage({
         message: mockMessage,
         personality: mockPersonality,
         personaId: 'persona-uuid-123',
         messageContent: 'Replying to [Reference 1]',
-        referencedMessages,
       });
 
-      // Content should NOT contain references — they go in messageMetadata
       expect(persistUserMessageViaGateway).toHaveBeenCalledWith({
         channelId: 'channel-123',
         guildId: 'guild-123',
         personalityId: 'personality-123',
         personaId: 'persona-uuid-123',
-        content: 'Replying to [Reference 1]', // Just the text, no reference content
+        content: 'Replying to [Reference 1]',
         discordMessageId: 'discord-msg-123',
-        messageMetadata: {
-          referencedMessages: [
-            {
-              discordMessageId: 'ref-msg-1',
-              authorUsername: 'otheruser',
-              authorDisplayName: 'Other User',
-              content: 'Referenced message',
-              embeds: undefined,
-              timestamp: '2025-01-01T10:00:00Z',
-              locationContext: 'Test Guild > #general',
-              attachments: undefined,
-              isForwarded: undefined,
-            },
-          ],
-        },
+        messageMetadata: undefined,
         messageTime: expect.any(Date),
       });
-    });
-
-    it('carries authorRole through to the stored reference snapshot', async () => {
-      // The classify-once link: bot-client classified the role; convertToStoredReferences
-      // must persist it so the stored-history quote renders the same role as the live one.
-      // Deleting `authorRole: ref.authorRole` there would make this assertion fail.
-      const mockMessage = createMockMessage({
-        id: 'discord-msg-role',
-        channelId: 'channel-123',
-        guildId: 'guild-123',
-      });
-
-      const referencedMessages: ReferencedMessage[] = [
-        {
-          referenceNumber: 1,
-          discordMessageId: 'ref-role-1',
-          discordUserId: 'user-456',
-          authorUsername: 'somebot',
-          authorDisplayName: 'SomeBot',
-          content: 'automated output',
-          embeds: '',
-          timestamp: '2025-01-01T10:00:00Z',
-          locationContext: 'Test Guild > #general',
-          authorRole: 'bot',
-        },
-      ];
-
-      await persistence.saveUserMessage({
-        message: mockMessage,
-        personality: mockPersonality,
-        personaId: 'persona-uuid-123',
-        messageContent: 'Replying to [Reference 1]',
-        referencedMessages,
-      });
-
-      expect(persistUserMessageViaGateway).toHaveBeenCalledWith(
-        expect.objectContaining({
-          messageMetadata: {
-            referencedMessages: [expect.objectContaining({ authorRole: 'bot' })],
-          },
-        })
-      );
     });
 
     it('should persist isForwarded in messageMetadata for forwarded messages', async () => {
@@ -393,7 +325,7 @@ describe('ConversationPersistence', () => {
       expect(buildMessageContent).not.toHaveBeenCalled();
     });
 
-    it('should store both attachments in content and references in metadata', async () => {
+    it('puts attachments in content as placeholders, and nothing else in metadata', async () => {
       const mockMessage = createMockMessage({
         id: 'discord-msg-123',
         channelId: 'channel-123',
@@ -402,40 +334,22 @@ describe('ConversationPersistence', () => {
 
       const attachments = [{ url: 'https://cdn.discord.com/image.png', contentType: 'image/png' }];
 
-      const referencedMessages: ReferencedMessage[] = [
-        {
-          referenceNumber: 1,
-          discordMessageId: 'ref-msg-1',
-          discordUserId: 'user-456',
-          authorUsername: 'otheruser',
-          authorDisplayName: 'Other User',
-          content: 'Referenced message',
-          embeds: '',
-          timestamp: '2025-01-01T10:00:00Z',
-          locationContext: 'Test Guild > #general',
-        },
-      ];
-
       await persistence.saveUserMessage({
         message: mockMessage,
         personality: mockPersonality,
         personaId: 'persona-uuid-123',
         messageContent: 'Image with reference',
         attachments,
-        referencedMessages,
       });
 
-      // Attachments go in content (as placeholders), references go in metadata
       expect(persistUserMessageViaGateway).toHaveBeenCalledWith({
         channelId: 'channel-123',
         guildId: 'guild-123',
         personalityId: 'personality-123',
         personaId: 'persona-uuid-123',
-        content: 'Image with reference\n\n[Placeholder: 1 attachment(s)]', // Attachments in content
+        content: 'Image with reference\n\n[Placeholder: 1 attachment(s)]',
         discordMessageId: 'discord-msg-123',
-        messageMetadata: {
-          referencedMessages: expect.any(Array), // References in metadata
-        },
+        messageMetadata: undefined,
         messageTime: expect.any(Date),
       });
     });

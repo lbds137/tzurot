@@ -7,10 +7,13 @@
 import { describe, it, expect } from 'vitest';
 import { MessageRole } from '../../constants/index.js';
 import {
+  attachmentEnrichmentSchema,
   crossChannelMessageSchema,
   crossChannelHistoryGroupSchema,
+  messageMetadataSchema,
   referencedMessageSchema,
   referenceAuthorRoleSchema,
+  storedReferencedMessageSchema,
   type CrossChannelMessage,
   type CrossChannelHistoryGroupEntry,
 } from './message.js';
@@ -246,5 +249,64 @@ describe('referenceAuthorRoleSchema', () => {
 
   it('rejects an unknown role', () => {
     expect(referenceAuthorRoleSchema.safeParse('system').success).toBe(false);
+  });
+});
+
+describe('attachmentEnrichmentSchema', () => {
+  const entry = { url: 'https://cdn/a.png', kind: 'image', description: 'a cat' };
+
+  it('accepts both modalities', () => {
+    expect(attachmentEnrichmentSchema.safeParse(entry).success).toBe(true);
+    expect(
+      attachmentEnrichmentSchema.safeParse({ ...entry, kind: 'voice', description: 'hello' })
+        .success
+    ).toBe(true);
+  });
+
+  it('rejects a modality with no element to render as', () => {
+    // `file` is deliberately absent: RenderableFile has no enrichment slot, so
+    // an entry claiming one could never be drawn.
+    expect(attachmentEnrichmentSchema.safeParse({ ...entry, kind: 'file' }).success).toBe(false);
+  });
+
+  it('requires the URL — it is the key the enrichment is found by at replay', () => {
+    const { url: _dropped, ...withoutUrl } = entry;
+    expect(attachmentEnrichmentSchema.safeParse(withoutUrl).success).toBe(false);
+  });
+});
+
+describe('storedReferencedMessageSchema — what survives the DB round trip', () => {
+  // `parseMessageMetadata` runs this schema over every history row on the way
+  // OUT of Postgres, in strip mode. An undeclared key is therefore deleted
+  // silently between the INSERT and the renderer, which is precisely how a
+  // reference's enrichment could stop being persisted without anything failing.
+  const stored = {
+    discordMessageId: 'msg-1',
+    authorUsername: 'alice',
+    authorDisplayName: 'Alice',
+    content: 'look at this',
+    timestamp: '2026-07-31T12:00:00.000Z',
+    locationContext: '',
+    attachmentEnrichment: [{ url: 'https://cdn/a.png', kind: 'image', description: 'a cat' }],
+  };
+
+  it('carries attachmentEnrichment through', () => {
+    const parsed = storedReferencedMessageSchema.parse(stored);
+
+    expect(parsed.attachmentEnrichment).toEqual(stored.attachmentEnrichment);
+  });
+
+  it('strips a key the schema does not declare', () => {
+    const parsed = storedReferencedMessageSchema.parse({ ...stored, inventedField: 'gone' });
+
+    expect(parsed).not.toHaveProperty('inventedField');
+  });
+
+  it('survives nested inside messageMetadata, which is the shape actually stored', () => {
+    const parsed = messageMetadataSchema.parse({ referencedMessages: [stored] });
+
+    expect(parsed.referencedMessages?.[0].attachmentEnrichment).toEqual(
+      stored.attachmentEnrichment
+    );
   });
 });

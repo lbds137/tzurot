@@ -181,6 +181,7 @@ export class ConversationInputProcessor {
       referencedMessagesDescriptions,
       referencedMessagesTextForSearch,
       searchQuery,
+      durableReferences: formattedReferences?.durable ?? [],
     };
   }
 }

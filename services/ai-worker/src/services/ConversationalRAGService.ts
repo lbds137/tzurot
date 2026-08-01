@@ -17,6 +17,7 @@ import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import { type MessageContent } from '@tzurot/common-types/types/ai';
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { ConversationHistoryService } from '@tzurot/conversation-history';
 import { contentToText } from '../utils/baseMessageContent.js';
 import { logAndThrow } from '../utils/errorHandling.js';
 import { ReferencedMessageFormatter } from './ReferencedMessageFormatter.js';
@@ -59,6 +60,7 @@ import type {
   GenerateResponseOptions,
   DeferredMemoryData,
 } from './ConversationalRAGTypes.js';
+import { persistBuiltReferences } from './context/referencePersistence.js';
 import { loadPersonasAndResolveReferences } from './personaReferenceLoader.js';
 
 const logger = createLogger('ConversationalRAGService');
@@ -75,6 +77,7 @@ export class ConversationalRAGService {
   private responsePostProcessor: ResponsePostProcessor;
   private inputProcessor: ConversationInputProcessor;
   private memoryPersistence: MemoryPersistenceService;
+  private history: ConversationHistoryService;
 
   constructor(
     private readonly prisma: PrismaClient,
@@ -99,6 +102,7 @@ export class ConversationalRAGService {
     this.referencedMessageFormatter = new ReferencedMessageFormatter();
     this.contextWindowManager = new ContextWindowManager();
     this.userReferenceResolver = new UserReferenceResolver(prisma);
+    this.history = new ConversationHistoryService(prisma);
     this.contentBudgetManager = new ContentBudgetManager(
       this.promptBuilder,
       this.contextWindowManager
@@ -322,6 +326,16 @@ export class ConversationalRAGService {
         userApiKey,
         sttDispatch,
         visionAuth,
+      });
+
+      // Step 1.4: Write the references down. Vision and transcription were paid
+      // for above; without this their only copy is a one-hour cache entry, and
+      // the same quote replayed tomorrow renders `status="undescribed"`.
+      await persistBuiltReferences({
+        history: this.history,
+        references: inputs.durableReferences,
+        personalityId: personality.id,
+        scope: context,
       });
 
       // Record input processing for diagnostics
