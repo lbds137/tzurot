@@ -24,7 +24,10 @@
  * 3. Logged for debugging purposes
  */
 
-import { isInsideCodeSpan } from '@tzurot/common-types/utils/codeSpanDetection';
+import {
+  isInsideCodeSpan,
+  replaceOutsideCodeMarkup,
+} from '@tzurot/common-types/utils/codeSpanDetection';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 
 const logger = createLogger('ThinkingExtraction');
@@ -405,11 +408,23 @@ function logDeclinedMidResponseTag(visibleContent: string): void {
 /**
  * Extract content from orphan closing tags (no opening tag).
  *
- * Some models (e.g. Kimi K2.5) emit reasoning with no opening tag and simply
- * terminate it with `</think>`, so the closing tag sits mid-line, mid-text —
- * positionally identical to a reply that merely MENTIONS the tag. Code markup
- * is the only signal that separates the two, so candidates inside a backtick
- * span or fenced block are skipped and the next one is considered.
+ * Some models emit reasoning with no opening tag and simply terminate it with
+ * `</think>`, so the closing tag sits mid-line, mid-text — positionally
+ * identical to a reply that merely MENTIONS the tag. Code markup is the only
+ * signal that separates the two, so candidates inside a backtick span or fenced
+ * block are skipped and the next one is considered.
+ *
+ * This path is LIVE, not legacy. Kimi K2.5 is where the shape was first seen,
+ * but a prod log sweep found the current emitter to be `glm-4.5-air`, an
+ * in-rotation free-tier model: six extractions across 374 generations, bodies of
+ * 1256–2098 chars, three of them followed by healthy visible output. Deleting
+ * this path would put 1–2 KB of raw reasoning in front of those replies.
+ *
+ * The consequence for the quoted-syntax audit: because the path must stay, so
+ * must its ambiguity. An UNFENCED mid-prose `</think>` ("it just prints </think>
+ * before answering") is still consumed, and no discriminator can separate that
+ * from the real thing — both are mid-line, mid-text prose. That gap is a
+ * permanent known limit rather than something a future heuristic closes.
  *
  * @returns Extracted content and cleaned visible content, or null if no match
  */
@@ -446,6 +461,27 @@ function extractOrphanClosingTag(
 }
 
 /**
+ * Report that the chimera-stutter pass actually stripped something.
+ *
+ * The pattern targets one merged model's quirk (`tng-r1t-chimera`) but runs on
+ * every response, so its cost is model-independent while its benefit is not —
+ * and that model left the OpenRouter free tier. Whether the pass still earns its
+ * keep is an evidence question, and until this line existed the pass stripped
+ * silently, so there was nothing to answer it with.
+ *
+ * Permanent observability (`feat`), not scaffolding — do not sweep it as stale
+ * instrumentation. It fires only on a real strip, which is expected to be rare;
+ * a run of zero over a release is the evidence that retires the pattern, and any
+ * occurrence names the model that still justifies it.
+ */
+function logChimeraArtifactStripped(before: string, after: string): void {
+  logger.info(
+    { strippedChars: before.length - after.length, contentLength: before.length },
+    'Chimera stutter artifact stripped from response'
+  );
+}
+
+/**
  * Clean up visible content after extraction.
  */
 function cleanupVisibleContent(content: string): string {
@@ -456,21 +492,17 @@ function cleanupVisibleContent(content: string): string {
   // lands on every model, which is why the gate is worth more than the pass.
   // Test the CLOSING TAG's position, not the match start: this pattern's match
   // begins at the preceding newline, which sits outside the backtick span the
-  // quoted tag lives in, so gating on `offset` would never fire.
-  let result = content.replace(
-    CHIMERA_ARTIFACT_PATTERN,
-    (match: string, _tagName: string, offset: number) =>
-      isInsideCodeSpan(content, offset + match.lastIndexOf('</')) ? match : ''
+  // quoted tag lives in, so gating on the match start would never fire.
+  let result = replaceOutsideCodeMarkup(content, CHIMERA_ARTIFACT_PATTERN, match =>
+    match.lastIndexOf('</')
   );
+  if (result !== content) {
+    logChimeraArtifactStripped(content, result);
+  }
 
   // Remove remaining orphan closing tags — except ones the model quoted inside
   // code markup, where deleting the tag would corrupt the quotation it wrote.
-  const beforeOrphanCleanup = result;
-  result = beforeOrphanCleanup.replace(
-    CLOSING_TAG_PATTERN,
-    (match: string, _tagName: string, offset: number) =>
-      isInsideCodeSpan(beforeOrphanCleanup, offset) ? match : ''
-  );
+  result = replaceOutsideCodeMarkup(result, CLOSING_TAG_PATTERN);
 
   // Remove OpenAI Harmony format token leakage (GPT-OSS-120B)
   result = result.replace(HARMONY_TOKEN_PATTERN, '');
@@ -561,10 +593,7 @@ function extractCompleteTagPairs(
     }
 
     pattern.lastIndex = 0;
-    const beforeStrip = remaining;
-    remaining = beforeStrip.replace(pattern, (matchText: string, _body: string, offset: number) =>
-      isInsideCodeSpan(beforeStrip, offset) ? matchText : ''
-    );
+    remaining = replaceOutsideCodeMarkup(remaining, pattern);
   }
 
   return remaining;

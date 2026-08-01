@@ -10,7 +10,6 @@ import {
   stripResponseArtifacts,
   stripUserMessageEcho,
   normalizeForEchoMatch,
-  replaceOutsideCodeMarkup,
 } from './responseArtifacts.js';
 
 describe('stripResponseArtifacts', () => {
@@ -559,29 +558,6 @@ describe('stripResponseArtifacts', () => {
       expect(stripResponseArtifacts(content, 'Emily')).toBe(
         'You would see `</chat_log>` at the end.'
       );
-    });
-  });
-});
-
-describe('replaceOutsideCodeMarkup', () => {
-  // The offset is found by TYPE, not by position, so these pin the property
-  // directly rather than only through the patterns that happen to exist in
-  // `buildArtifactPatterns` today. The named-group row is the one that matters:
-  // it is where a positional `args.length - 2` silently reads the input string
-  // instead of the offset, with no type error, and the strip would then be made
-  // against the wrong position rather than fail loudly.
-  const shapes: [label: string, pattern: RegExp][] = [
-    ['no capture groups', /<\/chat_log>/g],
-    ['one positional group', /<\/(chat_log)>/g],
-    ['two positional groups', /<(\/)(chat_log)>/g],
-    ['a NAMED group', /<\/(?<tag>chat_log)>/g],
-    ['named and positional groups', /<(\/)(?<tag>chat_log)>/g],
-  ];
-
-  describe.each(shapes)('%s', (_label, pattern) => {
-    it('spares a quoted match and strips an unquoted one', () => {
-      const text = 'quoted `</chat_log>` then real </chat_log>';
-      expect(replaceOutsideCodeMarkup(text, pattern)).toBe('quoted `</chat_log>` then real ');
     });
   });
 });
