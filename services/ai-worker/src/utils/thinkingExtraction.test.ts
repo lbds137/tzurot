@@ -499,6 +499,14 @@ The answer is 42.`;
           label: 'a fenced block',
           wrap: (tag: string): string => `Like so:\n\`\`\`\n${tag}\n\`\`\`\nThat is the shape.`,
         },
+        {
+          // Markdown's form for code containing a literal backtick. Modelling
+          // backticks as independent toggles nets this out to "not code", so the
+          // tag reads as unquoted and the example is stripped. Every row here
+          // fails without run-based delimiter matching.
+          label: 'a double-backtick span',
+          wrap: (tag: string): string => `Models emit a \`\`${tag}\`\` marker before answering.`,
+        },
       ];
 
       for (const tag of KNOWN_THINKING_TAGS) {
