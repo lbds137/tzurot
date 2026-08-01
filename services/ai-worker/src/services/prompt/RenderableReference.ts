@@ -129,6 +129,16 @@ function informativeUsername(ref: RenderableReference): string | undefined {
  * Prefix for deduplicated reference stubs. Order-agnostic (points to <chat_log>
  * rather than "above" — references are assembled BEFORE <chat_log>) and drops
  * the "reply target" Discord-UI jargon, which read as a task to the model.
+ *
+ * It tells the model where to look, so it is a claim about the OTHER renderer's
+ * output and true only while one invariant holds: every entry in the dedup
+ * index also survives into the rendered chat log. `formatConversationHistoryAsXml`
+ * drops any entry whose render comes back empty — which `resolveSpeakerInfo`
+ * returns for a role that is neither user nor assistant — while the index keeps
+ * it, and a stub built against such an entry would point at nothing. Unreachable
+ * today: nothing writes a system-role conversation row. Written down because
+ * the day something does, this marker starts lying silently, and the failure
+ * looks like the model ignoring a quote rather than like a renderer disagreeing.
  */
 // Prose marker — avoids literal tag syntax so it isn't escaped when it rides
 // through escapeXmlContent inside <content>.
