@@ -1,6 +1,18 @@
-## 🏗 Active Epic: Automated Inactivity Retention & Purge
+## 🏗 Active Epic: Follow-Up Pool Drain (`doc-7`)
 
-_Focus: a non-commercial solo-operator bot should not retain per-user data (conversations, memories, facts, user-created personas/characters, usage logs) indefinitely for people who stopped using it. Ship an automated retention/purge mechanism keyed on inactivity + unreachability. Promoted 2026-07-23 (owner: "I'm not a commercial entity that can retain user data indefinitely for people who haven't touched the bot in over 3 months"); triggered by beta.174's blast surfacing 26 `50278`-undeliverable users. **Temporarily displaces the UX epic** (parked below) until this ships, then UX standardization resumes._
+_Focus: get the small-item pool to a size where the digest's aging surface is actionable — by shipping the work, not deleting it. Owner call 2026-07-25: "what I want to focus on is draining the backlog."_
+
+**Promoted to the slot 2026-08-01.** It had been the real work for a week (batches 1–7 shipped) while the slot still pointed at retention — which is exactly how a second epic ends up running unlabelled. Full scope, measurement, and the per-batch rate log live in tracker `doc-7`; the selection heuristic that works is **same-origin, same-module clusters** (cluster open tasks by surfacing PR number), not trigger-regex clusters.
+
+**Boundary reminder**: rule-outs are owner-gated and fail closed — the agent ships work and verifies-obsolete by grep; merit-removals surface to the owner (`06-backlog.md` § Ruling an item out).
+
+---
+
+## ✅ Build-complete, calendar-only: Automated Inactivity Retention & Purge
+
+_Focus: a non-commercial solo-operator bot should not retain per-user data (conversations, memories, facts, user-created personas/characters, usage logs) indefinitely for people who stopped using it. Ship an automated retention/purge mechanism keyed on inactivity + unreachability. Promoted 2026-07-23 (owner: "I'm not a commercial entity that can retain user data indefinitely for people who haven't touched the bot in over 3 months"); triggered by beta.174's blast surfacing 26 `50278`-undeliverable users._
+
+> **Released the slot 2026-08-01 — nothing here needs building.** Phases 1–3 shipped; Phase 3 went runtime-complete 2026-07-27 (45 users purged, first prod notify run, final books 0 purge-eligible of 227, 7 in grace). **Everything remaining is calendar**: grace expiries ~2026-08-26, surfaced by the daily nag; activity aborts the clock. Phase 4 (autonomy) is parked. Kept in this file rather than archived because the phase table below is the operational record for the runtime lifecycle still in flight.
 
 **Design ACCEPTED 2026-07-23** (owner + council trio GLM 5.2 · Kimi K2.7-code · Qwen 3.7 Max) → [`docs/proposals/backlog/inactivity-retention-purge.md`](../docs/proposals/backlog/inactivity-retention-purge.md). Key locked decisions: **single 180-day window** (not flat-90d — council: too aggressive for user-created content); **`lastActiveAt`** stamped on any interaction + **backfilled from history** (not ship-time — kills the zombie cohort); **undeliverable = `50278`+`50007`, never `20026`** (bot-wide quarantine would false-flag everyone — blast-radius safety); **circuit breaker** (halt+page on a >X% mass-flag run); **manual-approval-first** → autonomous-with-breaker later; privacy-policy entry.
 
