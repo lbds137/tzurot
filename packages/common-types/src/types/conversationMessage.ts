@@ -15,7 +15,11 @@ export interface ConversationMessage {
   id: string;
   role: MessageRole;
   content: string;
-  tokenCount?: number; // Cached token count (computed once, reused on every request)
+  // Content-only tiktoken count, computed once at insert. NOT the entry's cost
+  // in a prompt — it omits the XML envelope and every metadata section — so
+  // budget paths measure the rendered entry instead (measureHistoryEntryTokens).
+  // Nothing currently reads this to make a decision.
+  tokenCount?: number;
   createdAt: Date;
   personaId: string;
   personaName?: string; // The user's persona name for display in context

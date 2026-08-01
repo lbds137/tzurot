@@ -11,9 +11,10 @@ import { formatLocationAsXml } from '@tzurot/common-types/utils/environmentForma
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { countTextTokens } from '@tzurot/common-types/utils/tokenCounter';
 import {
+  collectPersonalityNames,
   formatCrossChannelHistoryAsXml,
-  getFormattedMessageCharLength,
 } from '../../jobs/utils/conversationUtils.js';
+import { measureHistoryEntryTokens } from '../../jobs/utils/historyTokenMeasure.js';
 
 const logger = createLogger('CrossChannelSerializer');
 
@@ -58,11 +59,13 @@ export function serializeCrossChannelHistory(
     // Messages arrive in chronological order (oldest first) from getCrossChannelHistory,
     // so we iterate in reverse and then restore chronological order for XML output.
     const messages = group.messages;
+    // Per-group, matching formatCrossChannelHistoryAsXml, which renders each
+    // group through its own formatConversationHistoryAsXml call and so derives
+    // the name set from that group's messages alone.
+    const allPersonalityNames = collectPersonalityNames(messages, personalityName);
     for (let i = messages.length - 1; i >= 0; i--) {
       const msg = messages[i];
-      // Use cached tokenCount when available, fall back to chars/4 approximation
-      const msgTokens =
-        msg.tokenCount ?? Math.ceil(getFormattedMessageCharLength(msg, personalityName) / 4);
+      const msgTokens = measureHistoryEntryTokens(msg, personalityName, allPersonalityNames);
       if (tokensUsed + groupTokens + msgTokens > availableBudget) {
         // Contiguous tail: once we hit a message that doesn't fit, stop selecting from
         // this group entirely. Skipping to older messages would create narrative gaps.

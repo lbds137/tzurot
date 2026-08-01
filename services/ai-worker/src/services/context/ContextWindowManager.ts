@@ -14,9 +14,10 @@ import { countTextTokens } from '@tzurot/common-types/utils/tokenCounter';
 import type { MemoryDocument } from '../ConversationalRAGTypes.js';
 import {
   type RawHistoryEntry,
+  collectPersonalityNames,
   formatConversationHistoryAsXml,
-  getFormattedMessageCharLength,
 } from '../../jobs/utils/conversationUtils.js';
+import { measureHistoryEntryTokens } from '../../jobs/utils/historyTokenMeasure.js';
 import { serializeCrossChannelHistory } from './CrossChannelSerializer.js';
 import { MemoryBudgetManager, type MemorySelectionResult } from './MemoryBudgetManager.js';
 
@@ -156,10 +157,19 @@ export class ContextWindowManager {
     const selectedEntries: RawHistoryEntry[] = [];
     let estimatedTokens = 0;
 
+    // Scoped to the FETCHED history, while the final render scopes to the
+    // SELECTED subset. A name that appears only in a dropped entry therefore
+    // widens the measurement but not the shipped XML — an over-measure, which
+    // is the safe direction for a budget.
+    const allPersonalityNames = collectPersonalityNames(rawHistory, personalityName);
+
     for (let i = rawHistory.length - 1; i >= 0; i--) {
       const entry = rawHistory[i];
-      const entryTokens =
-        entry.tokenCount ?? Math.ceil(getFormattedMessageCharLength(entry, personalityName) / 4);
+      // Measured, not looked up: the DB's `tokenCount` counts raw content only,
+      // so it omits the XML envelope and every metadata section this entry will
+      // actually ship. Spending against the same budget the accurate
+      // countHistoryTokens sized requires measuring the same way.
+      const entryTokens = measureHistoryEntryTokens(entry, personalityName, allPersonalityNames);
 
       if (estimatedTokens + entryTokens > budgetAfterOverhead) {
         logger.debug(

@@ -108,12 +108,16 @@ describe('serializeCrossChannelHistory', () => {
   });
 
   it('should use recency strategy: keep newest messages when budget is tight', () => {
+    // Sizes are driven by real content, not a hand-set tokenCount: selection
+    // measures the rendered entry, so a fixture whose declared count disagrees
+    // with its content would test nothing.
+    const padding = 'padding words to make this message cost real tokens '.repeat(3);
     const group = createGroup({
       messages: [
-        { id: 'msg-1', role: MessageRole.User, content: 'Oldest message', tokenCount: 50 },
-        { id: 'msg-2', role: MessageRole.Assistant, content: 'Second message', tokenCount: 50 },
-        { id: 'msg-3', role: MessageRole.User, content: 'Third message', tokenCount: 50 },
-        { id: 'msg-4', role: MessageRole.Assistant, content: 'Newest message', tokenCount: 50 },
+        { id: 'msg-1', role: MessageRole.User, content: `Oldest message ${padding}` },
+        { id: 'msg-2', role: MessageRole.Assistant, content: `Second message ${padding}` },
+        { id: 'msg-3', role: MessageRole.User, content: `Third message ${padding}` },
+        { id: 'msg-4', role: MessageRole.Assistant, content: `Newest message ${padding}` },
       ],
     });
 
@@ -166,7 +170,13 @@ describe('serializeCrossChannelHistory', () => {
         guild: { id: 'guild-1', name: 'Test Server' },
         channel: { id: 'channel-1', name: 'expensive', type: 'text' },
       },
-      messages: [{ id: 'msg-1', role: MessageRole.User, content: 'Huge message', tokenCount: 300 }],
+      messages: [
+        {
+          id: 'msg-1',
+          role: MessageRole.User,
+          content: `Huge message ${'that goes on and on at length '.repeat(30)}`,
+        },
+      ],
     });
     // Group 2: small messages that would fit if budget were available
     const cheapGroup = createGroup({

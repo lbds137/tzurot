@@ -67,6 +67,16 @@ vi.mock('../../jobs/utils/conversationUtils.js', () => ({
     (entry: { role: string; content: string }) =>
       `<message from="User" role="${entry.role}">${entry.content}</message>`
   ),
+  // Real behaviour, not a stub: countHistoryTokens must derive the sibling-name
+  // set the renderer will use, and a stub returning an empty set would hide a
+  // caller that stopped passing it.
+  collectPersonalityNames: (history: { role: string; personalityName?: string }[], name: string) =>
+    new Set([
+      name,
+      ...history
+        .filter(m => m.role === 'assistant' && m.personalityName !== undefined)
+        .map(m => m.personalityName as string),
+    ]),
 }));
 
 describe('MemoryBudgetManager', () => {

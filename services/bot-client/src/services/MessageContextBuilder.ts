@@ -338,7 +338,8 @@ export class MessageContextBuilder {
 
     // Step 5: Convert conversation history to API format
     // Include messageMetadata so referenced messages can be formatted at prompt time
-    // Include tokenCount for accurate token budget calculations (avoids chars/4 fallback)
+    // tokenCount rides along but no longer drives any budget decision — the worker
+    // measures the rendered entry (measureHistoryEntryTokens); see the field's own doc
     // Extract attachments using unified buildMessageContent
     // This ensures forwarded message snapshot attachments are included (DRY principle)
     // Voice transcripts are handled upstream (passed in via content parameter)
