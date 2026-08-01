@@ -1,13 +1,12 @@
 /**
- * Seam test: DownloadAttachmentsStep → DependencyStep.
+ * Seam test: ExtendedContextResolutionStep → DownloadAttachmentsStep → DependencyStep.
  *
- * These two steps run back-to-back in the real pipeline, and the second reads a
- * distinction the first can erase. `DependencyStep` treats an ABSENT
- * `extendedContextAttachments` as "derive the image list from the raw envelope"
- * — the only path there is, since bot-client stopped shipping that field with
- * the thin envelope. `DownloadAttachmentsStep` writes the field back on every
- * job. If it writes `[]` where the field was absent, extended-context vision is
- * switched off for the whole service, silently.
+ * These steps run back-to-back in the real pipeline and together decide whether
+ * extended-context images get described at all. The original bug: the field's
+ * ABSENCE was an unnamed instruction ("derive the list from the raw envelope"),
+ * and a `?? []` normalization in the middle step erased it — switching the
+ * feature off service-wide, silently, because an empty list and a
+ * filtered-to-empty list are indistinguishable downstream.
  *
  * That shipped. Both steps had thorough unit tests and neither could catch it:
  * DependencyStep's fixtures construct the absent-field shape directly (what the
@@ -16,6 +15,13 @@
  * order exercises the handoff — per `02-code-standards.md` § "Assert what
  * crosses a mocked seam", this is the one wiring test that mocks only the
  * external boundary (vision) and lets the chain run for real.
+ *
+ * The convention itself is now gone: the front-door step resolves the field
+ * once, so absence carries no meaning for a later step to erase. What this test
+ * guards has shifted accordingly — from "do not erase the sentinel" to "the
+ * outcome holds across the whole chain, and an explicitly empty list is still
+ * honoured rather than re-derived." The outcome cases are unchanged; only the
+ * case that pinned the old mechanism was replaced.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -25,6 +31,7 @@ import { AttachmentType } from '@tzurot/common-types/constants/media';
 import { type LLMGenerationJobData } from '@tzurot/common-types/types/jobs';
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import { DownloadAttachmentsStep } from './DownloadAttachmentsStep.js';
+import { ExtendedContextResolutionStep } from './ExtendedContextResolutionStep.js';
 import { DependencyStep } from './DependencyStep.js';
 import type { GenerationContext } from '../types.js';
 
@@ -132,8 +139,18 @@ function contextFor(job: Job<LLMGenerationJobData>): GenerationContext {
   } as unknown as GenerationContext;
 }
 
-async function runBothSteps(job: Job<LLMGenerationJobData>): Promise<GenerationContext> {
-  const afterDownload = await new DownloadAttachmentsStep(0).process(contextFor(job));
+/**
+ * Run the real pipeline prefix that decides extended-context vision, in order.
+ *
+ * This grew a step: `ExtendedContextResolutionStep` now resolves the list at the
+ * front door, and the two steps below consume the result. Adding it here is
+ * modelling the pipeline as it is — the assertions in every case are unchanged.
+ * Omitting it would leave the harness testing a chain that no longer exists,
+ * which is how a seam test starts passing for the wrong reason.
+ */
+async function runChain(job: Job<LLMGenerationJobData>): Promise<GenerationContext> {
+  const afterResolve = await new ExtendedContextResolutionStep().process(contextFor(job));
+  const afterDownload = await new DownloadAttachmentsStep(0).process(afterResolve);
   return new DependencyStep().process(afterDownload);
 }
 
@@ -155,7 +172,7 @@ describe('extended-context vision survives the DownloadAttachments → Dependenc
   });
 
   it('describes envelope-derived images on a text-only job', async () => {
-    const result = await runBothSteps(thinEnvelopeJob());
+    const result = await runChain(thinEnvelopeJob());
 
     expect(mockProcessAttachments).toHaveBeenCalled();
     expect(result.preprocessing?.extendedContextAttachments).toHaveLength(1);
@@ -164,11 +181,27 @@ describe('extended-context vision survives the DownloadAttachments → Dependenc
     );
   });
 
+  it('puts envelope-derived images through the download gate, not straight to vision', async () => {
+    // Asserted directly rather than inferred. Before front-door resolution the
+    // field was absent when DownloadAttachmentsStep ran, so extended-context
+    // images never entered its grouping and reached vision as raw CDN URLs —
+    // no fetch, no queue-age check. The other cases would still pass if that
+    // regressed (a skipped download yields no successes, so the vision mock
+    // never fires and they fail for a DIFFERENT reason); this one names the
+    // behaviour, so a regression says what actually broke.
+    await runChain(thinEnvelopeJob());
+
+    expect(mockDownloadImageToDataUrl).toHaveBeenCalledWith(
+      RAW_IMAGE.url,
+      expect.objectContaining({ contentType: RAW_IMAGE.contentType })
+    );
+  });
+
   it('describes envelope-derived images when the job ALSO carries a trigger attachment', async () => {
     // Separate arm: a job with trigger attachments skips the early return, so
     // it reaches the post-download write-back — a second place that can erase
     // the absent-field sentinel.
-    const result = await runBothSteps(
+    const result = await runChain(
       thinEnvelopeJob({
         attachments: [
           {
@@ -182,13 +215,36 @@ describe('extended-context vision survives the DownloadAttachments → Dependenc
     expect(result.preprocessing?.extendedContextAttachments).toHaveLength(1);
   });
 
-  it('leaves the field absent after download so the derive path stays reachable', async () => {
-    // The mechanism itself, pinned directly: whatever else DownloadAttachmentsStep
-    // does, it must not invent `[]` for a field that arrived absent.
+  it('resolves the field at the front door, so nothing downstream reads absence', async () => {
+    // Replaces the old "leaves the field absent after download" case, which
+    // pinned the CONVENTION rather than the outcome: it asserted the field was
+    // still `undefined` after download, because DependencyStep needed that
+    // absence as its instruction to derive. The convention is gone, so the
+    // invariant inverts — the field is real before any consumer sees it, which
+    // is what makes a stray `?? []` harmless instead of catastrophic.
     const job = thinEnvelopeJob();
-    await new DownloadAttachmentsStep(0).process(contextFor(job));
+    const afterResolve = await new ExtendedContextResolutionStep().process(contextFor(job));
 
-    expect(job.data.context.extendedContextAttachments).toBeUndefined();
+    expect(job.data.context.extendedContextAttachments).toEqual([RAW_IMAGE]);
+
+    // And it survives download as a real list, never decaying back to absent.
+    await new DownloadAttachmentsStep(0).process(afterResolve);
+    expect(job.data.context.extendedContextAttachments).not.toBeUndefined();
+  });
+
+  it('honours an explicitly EMPTY payload list instead of re-deriving from the envelope', async () => {
+    // The one thing worth keeping from the old absent-vs-empty distinction. An
+    // empty list that the payload shipped ON PURPOSE is a decision ("no
+    // extended-context images for this job"), and the envelope's raw list must
+    // not override it. `??` could not express this once the field was always
+    // present; the resolver's explicit `!== undefined` check does.
+    const job = thinEnvelopeJob();
+    job.data.context.extendedContextAttachments = [];
+
+    const result = await runChain(job);
+
+    expect(mockProcessAttachments).not.toHaveBeenCalled();
+    expect(result.preprocessing?.extendedContextAttachments ?? []).toHaveLength(0);
   });
 
   it('keeps a REALLY-empty list empty when every extended download fails', async () => {
@@ -203,7 +259,7 @@ describe('extended-context vision survives the DownloadAttachments → Dependenc
       { url: 'https://cdn.discordapp.com/attachments/3/3/gone.png', contentType: 'image/png' },
     ];
 
-    const result = await runBothSteps(job);
+    const result = await runChain(job);
 
     expect(job.data.context.extendedContextAttachments).toEqual([]);
     // …and the envelope's raw list is NOT resurrected in its place.
