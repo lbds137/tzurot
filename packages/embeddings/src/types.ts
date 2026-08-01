@@ -69,6 +69,16 @@ export interface WorkerResponse {
   modelLoaded?: boolean;
   /** Set on the 'ready' message only — surfaced in the main thread's init log. */
   modelSource?: ModelSource;
+  /**
+   * Set on a successful 'embed' only: how many tokens the model's OWN tokenizer
+   * produced for the input, counted before truncation.
+   *
+   * Present so overflow is observable. The pipeline truncates silently at
+   * `EMBEDDING_MAX_INPUT_TOKENS` (constants.ts), so without this number a
+   * caller cannot distinguish "embedded all of it" from "embedded the first
+   * quarter of it" — both return an equally valid vector.
+   */
+  inputTokens?: number;
 }
 
 /**
