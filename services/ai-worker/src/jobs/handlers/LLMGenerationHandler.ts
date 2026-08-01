@@ -61,6 +61,7 @@ import {
   ConfigStep,
   AuthStep,
   ContextStep,
+  ExtendedContextResolutionStep,
   DownloadAttachmentsStep,
   GenerationStep,
   TTSStep,
@@ -76,12 +77,14 @@ const logger = createLogger('LLMGenerationHandler');
  * 2. NormalizationStep - Normalizes legacy data formats (roles, timestamps)
  * 3. ConfigStep - Resolves LLM config with user overrides
  * 4. AuthStep - Resolves API key (BYOK) and handles guest mode
- * 5. DownloadAttachmentsStep - Fetches attachment bytes from Discord CDN and
+ * 5. ExtendedContextResolutionStep - Resolves `extendedContextAttachments` once,
+ *    so no later step has to read meaning into the field being absent
+ * 6. DownloadAttachmentsStep - Fetches attachment bytes from Discord CDN and
  *    embeds them as data URLs (replaces the old sync download in api-gateway)
- * 6. DependencyStep - Fetches preprocessing results (audio/image) from Redis
- * 7. ContextStep - Prepares conversation history and participants
- * 8. GenerationStep - Calls RAG service to generate response
- * 9. TTSStep - Synthesizes audio from response text (non-critical, graceful degradation)
+ * 7. DependencyStep - Fetches preprocessing results (audio/image) from Redis
+ * 8. ContextStep - Prepares conversation history and participants
+ * 9. GenerationStep - Calls RAG service to generate response
+ * 10. TTSStep - Synthesizes audio from response text (non-critical, graceful degradation)
  *
  * Most steps are stateless - context flows through as function arguments,
  * ensuring thread safety when handling concurrent jobs. One exception:
@@ -184,6 +187,11 @@ export class LLMGenerationHandler {
         quotaFallbackCaches,
         zaiFreeTierAdmission,
       }),
+      // Must precede DownloadAttachmentsStep: it resolves
+      // `extendedContextAttachments` once so no later step interprets the
+      // field's absence, and it puts extended-context images through the same
+      // download + queue-age gate as trigger attachments.
+      new ExtendedContextResolutionStep(),
       new DownloadAttachmentsStep(),
       new DependencyStep(apiKeyResolver, visionDescriptionWriter),
       // Handler (and thus this pipeline) is constructed once at worker

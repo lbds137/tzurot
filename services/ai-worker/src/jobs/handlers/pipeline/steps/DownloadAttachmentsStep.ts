@@ -97,27 +97,6 @@ function keepStickersIf(enabled: boolean, attachments: AttachmentMetadata[]): At
   return enabled ? attachments : attachments.filter(a => a.isSticker !== true);
 }
 
-/**
- * Apply the sticker filter WITHOUT inventing a value for a field that was absent.
- *
- * `undefined` and `[]` are different states on `extendedContextAttachments`, and
- * a later step reads the difference: bot-client stopped shipping the field with
- * the thin envelope, so `DependencyStep` treats absence as "derive the list from
- * the raw envelope instead" via `?? deriveExtendedContextImages(...)`. `??` does
- * not fall through on `[]`. Normalizing absent to empty here therefore switched
- * OFF every extended-context image description — silently, because an empty list
- * and a filtered-to-empty list look identical downstream.
- *
- * Filtering an absent list still yields absent; only a list that was really there
- * can be really emptied.
- */
-function filterOptional(
-  enabled: boolean,
-  attachments: AttachmentMetadata[] | undefined
-): AttachmentMetadata[] | undefined {
-  return attachments === undefined ? undefined : keepStickersIf(enabled, attachments);
-}
-
 export class DownloadAttachmentsStep implements IPipelineStep {
   readonly name = 'DownloadAttachments';
 
@@ -142,14 +121,15 @@ export class DownloadAttachmentsStep implements IPipelineStep {
       stickerVisionEnabled,
       job.data.context?.attachments ?? []
     );
-    // Absence is load-bearing on this field — see filterOptional. Keep the
-    // possibly-undefined form for the write-back; the local download work below
-    // uses the `?? []` view.
-    const extendedOptional = filterOptional(
+    // `ExtendedContextResolutionStep` runs earlier in the pipeline and always
+    // leaves a real array here, so this is a plain filter — there is no absent
+    // state left to preserve. That is the point of resolving at the front door:
+    // the `?? []` normalization that switched extended-context vision off
+    // service-wide is now harmless rather than merely forbidden.
+    const extendedAttachments = keepStickersIf(
       stickerVisionEnabled,
-      job.data.context?.extendedContextAttachments
+      job.data.context?.extendedContextAttachments ?? []
     );
-    const extendedAttachments = extendedOptional ?? [];
 
     // Publish the filtered view BEFORE the short-circuit below. When the switch
     // drops the only attachment on a message, the early return fires and the
@@ -157,7 +137,7 @@ export class DownloadAttachmentsStep implements IPipelineStep {
     // sticker visible to every downstream step, which is the opposite of off.
     if (job.data.context !== undefined) {
       job.data.context.attachments = triggerAttachments;
-      job.data.context.extendedContextAttachments = extendedOptional;
+      job.data.context.extendedContextAttachments = extendedAttachments;
     }
 
     // No attachments → nothing to expire. Short-circuit before the queue-age
@@ -240,15 +220,16 @@ export class DownloadAttachmentsStep implements IPipelineStep {
     // Mutate the job.data view of attachments so downstream steps see data URLs.
     // job.data is a plain object on this worker's copy of the job — safe to assign.
     //
-    // The extended write-back stays absence-preserving for the same reason as
-    // the one above: a job carrying trigger attachments but no extended list
-    // reaches here with `extendedOptional === undefined`, and writing this
-    // group's (empty) successes would re-close the derive path for exactly
-    // those jobs.
+    // Both write-backs are now unconditional. This one used to preserve absence
+    // (`extendedOptional === undefined ? undefined : …`) because a job with
+    // trigger attachments but no extended list would otherwise have its derive
+    // path re-closed — a conditional that existed solely to protect a
+    // convention `ExtendedContextResolutionStep` has since removed. Writing the
+    // successes is now simply correct: the list is real, and what survived
+    // download is what downstream should see.
     if (job.data.context !== undefined) {
       job.data.context.attachments = triggerResult.successes;
-      job.data.context.extendedContextAttachments =
-        extendedOptional === undefined ? undefined : extendedResult.successes;
+      job.data.context.extendedContextAttachments = extendedResult.successes;
     }
 
     return context;
