@@ -143,6 +143,46 @@ rests on datetime preceding request_id, which is independent of the error. Findi
 unaffected. **If this question is councilled again, send the section table above, not line
 numbers.**
 
+## PHASE-0 SPIKE RESOLVED 2026-08-01 — the z.ai coding endpoint DOES cache
+
+The design's one open empirical question ("z.ai implicit on standard endpoint, **coding endpoint
+unverified**") is **answered, positively**. This was the gate on whether the whole epic pays off
+on the dominant production route, so it was worth running before any restructuring.
+
+Probe: three sequential `chat/completions` calls to `https://api.z.ai/api/coding/paas/v4`
+(`glm-4.5-air`, `max_tokens: 1`), sharing a ~6.3k-token identical system prefix and differing
+only in the final user line.
+
+| call | `prompt_tokens` | `prompt_tokens_details.cached_tokens` | |
+| --- | ---: | ---: | --- |
+| 1 (cold) | 6,426 | **0** | warms the prefix |
+| 2 (same prefix, new tail) | 6,426 | **6,272** | **97.6% cached** |
+| 3 (same prefix, new tail) | 6,426 | **6,272** | stable |
+
+Conclusions:
+
+- **Implicit/automatic** — no `cache_control` markers required on this endpoint. The epic's
+  Phase-3 marker work is therefore NOT needed for the z.ai route (it remains needed for
+  Anthropic/Qwen via OpenRouter).
+- **Field name: `usage.prompt_tokens_details.cached_tokens`** (nested, not top-level). This is
+  what Phase-0's "cache telemetry fields" item must read; `rg cached_tokens` currently returns
+  nothing in our source, so no code reads it today.
+- **Granularity is fine, not all-or-nothing**: 6,272 of 6,426 cached, i.e. the shared prefix
+  cached and only the ~154-token differing tail was re-billed. That is exactly the behaviour the
+  stability-tier design assumes.
+- `prompt_tokens` stays at full count — the discount is expressed via `cached_tokens`, not by
+  reducing `prompt_tokens`. Any cost measurement must read the nested field, not infer from
+  prompt totals.
+
+**Not yet measured: the TTL.** Calls here were seconds apart. The cold-start economics in the
+Risks section above (does a persona recoup the warm-up before the entry expires?) still needs a
+gap-probe — re-run the same script with a deliberate delay between calls 2 and 3 to bracket it.
+
+Probe method note: the script dumped the WHOLE `usage` object rather than reading a guessed field
+name — which is what saved it. Its own verdict line printed "NO cache-named field in usage"
+because it only scanned top-level keys and `cached_tokens` is nested one level down. The raw dump
+showed the truth the summary logic got wrong.
+
 **TASK-392** (`<contextual_references>` rendered byte-identically in BOTH the system message and
 the user message, 1,866 tokens duplicated per referencing request) is **absorbed by this theme** —
 artifact §2.2 already rules it: references live ONLY in the user message. Do not fix it as a
