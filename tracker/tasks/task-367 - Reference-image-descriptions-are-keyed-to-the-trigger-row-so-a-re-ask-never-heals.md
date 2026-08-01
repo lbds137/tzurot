@@ -3,9 +3,10 @@ id: TASK-367
 title: >-
   Reference image descriptions are keyed to the trigger row, so a re-ask never
   heals
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-07-30 23:08'
+updated_date: '2026-08-01 01:19'
 labels:
   - 'area:ai-worker'
 dependencies: []
