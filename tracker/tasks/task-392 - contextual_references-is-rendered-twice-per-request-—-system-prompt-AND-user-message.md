@@ -36,4 +36,30 @@ Both return values are sent. `ContentBudgetManager` lines 284 and 351 are the tw
 **Open question before fixing — is it deliberate?** No rationale was found in code or docs. The system-prompt slot has a documented section-ordering argument (the Sandwich Method comment on buildFullSystemPrompt); the user-message append carries only a comment about escaping ORDER, not about why it exists. A recency-bias argument for keeping references adjacent to the user turn is plausible and would be a legitimate reason to keep both. **Owner call**, since it affects prompt behaviour and not just cost.
 
 **Acceptance**: either one render site, or a comment at both sites stating why two are intended.
+
+## ANSWERED 2026-08-01 — absorbed by doc-17; do NOT fix standalone
+
+The open question above (is the dual placement deliberate?) is already settled, and in the
+direction that is NOT obvious: **keep the USER-MESSAGE copy, delete the SYSTEM-PROMPT one.**
+
+Source: `docs/proposals/backlog/prompt-assembly-architecture.md` §2.2, the design ACCEPTED
+2026-07-05 (council trio + fact-check) under theme doc-17 (Provider Prompt Caching). Verbatim:
+_"The references duplication dies here: `<contextual_references>` lives ONLY in the user message,
+and ONLY for out-of-window targets."_
+
+**Why that direction.** The system message is the cacheable prefix. Anything volatile in it
+breaks prefix caching for everything after it, and references change every turn. §2.1 puts
+references in the V tier, which §2.2 renders inside the final user message. Deleting the
+user-message copy — the intuitive read, and the one this task originally leaned toward — would
+be exactly backwards: it would keep volatile content in the prefix.
+
+**§2.4 goes further**: references should carry only OUT-OF-WINDOW targets. An in-window reply
+gets a one-line pointer, because the full text is already in the history array.
+
+**Disposition: do not fix this as a standalone dedup.** It falls out of doc-17's Phase-1 V-tier
+hoist (measured 2026-08-01: 10,341 tokens of volatile content to move, of which this is 1,866).
+A standalone fix would either duplicate that work or do it backwards. This task stays open as
+the tracked instance of the waste, and closes when Phase 1 lands.
+
+The measurement that sizes it, plus the corrected phase sequencing, is recorded in doc-17.
 <!-- SECTION:DESCRIPTION:END -->

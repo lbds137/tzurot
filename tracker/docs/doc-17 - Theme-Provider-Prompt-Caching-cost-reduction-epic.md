@@ -87,3 +87,64 @@ Cache hits depend on the longest stable prefix between requests, regardless of s
 - Original cache-breaker commit: `6bbb25c08 feat(ai-worker): cross-turn duplication detection with retry`.
 
 Surfaced 2026-05-07 during user-driven intake — recalled from earlier thinking.
+
+---
+
+## MEASURED 2026-08-01 — the phase table's "Phase 0 is independently valuable" is WRONG
+
+Sizes below are from a real prod request (`/inspect` req `456ec221`, Lilith, GLM 5.2 via the
+z.ai coding plan), not estimates. Billed prompt 47,820 tokens; system message 45,227.
+
+| section | ~tokens | tier | line |
+| --- | ---: | --- | ---: |
+| `<system_identity>` | 4,730 | **S1 stable** (per persona) | 1 |
+| `<context>`/`<datetime>` | 58 | V | 96 |
+| `<request_id>` **(cache-buster, LIVE)** | 14 | V | 104 |
+| `<participants>` | 599 | V | 107 |
+| `<fact>` × 10 — RAG memory archive | 7,804 | V (per query) | 135 |
+| `<contextual_references>` | 1,866 | V (per turn) | 444 |
+| `<chat_log>` | 27,548 | H (grows every turn) | 525 |
+| `<protocol>` | 2,604 | **S0 stable, byte-identical across ALL personas** | 1536 |
+
+**Three findings that change the phasing:**
+
+1. **Phase 0 as written buys ~0.** `<datetime>` (line 96) sits BEFORE `<request_id>` (line 104)
+   and is equally volatile, so deleting the buster moves the cache breakpoint from line 96 to
+   line 96. Measured delta: **+72 tokens.** Council confirmed independently (GLM 5.2, Qwen
+   3.7 Max, 2026-08-01) — Qwen: _"the caching equivalent of removing the second lock on a door
+   whose first lock is already broken."_ The buster still ships in prod; deleting it is correct
+   (it is dead weight) but must not be sold as a caching win on its own.
+
+2. **Prefix caching is strictly sequential, so Phase 2 cannot pay off before Phase 1** (Qwen,
+   and it survives the premise error below). The messages array tokenizes AFTER the system
+   message, so an unstable system message means NOTHING downstream caches — including a
+   perfectly restructured history array. Extracting `<chat_log>` while the system message still
+   carries volatile content delivers **zero** caching ROI. The phase table should say Phase 2
+   *depends on* Phase 1 rather than implying either is independently bankable.
+
+3. **`<protocol>` is stranded.** 2,604 tokens of S0 content — identical for every persona, so on
+   automatic-prefix providers every persona would share those bytes — currently sits at the END,
+   behind ~40k tokens of volatile content. The S0-before-S1 reorder §2.1 already calls for is
+   worth **more than doubling** the cacheable prefix (4,730 → 7,334), and is most of Phase 1's
+   realistic win.
+
+**The real Phase 1 hoist**, therefore, is the whole V tier out of the system message —
+datetime + request_id + participants + memory archive + references = **10,341 tokens** — not
+just the timestamp. Ceiling once done but before history extraction: **~7,334 of 47,820 (15%)**.
+The remaining 27,548 (58%) is `<chat_log>` and needs Phase 2's breakpoint B.
+
+**Council-premise caveat, recorded so the numbers above are not re-derived from the bad ones:**
+both models were given line numbers WITHOUT section contents and both independently assumed
+lines 107–443 were a stable `<participants>` block worth ~8,400 tokens. It is actually 599
+tokens of participants plus 7,804 tokens of per-query RAG memory — the most volatile content in
+the prompt. Their shared "+8,400 from hoisting datetime" figure is wrong; the correct figure is
++72. Their convergent verdict (Phase 0 is not independently valuable) is unaffected, because it
+rests on datetime preceding request_id, which is independent of the error. Finding #2 is also
+unaffected. **If this question is councilled again, send the section table above, not line
+numbers.**
+
+**TASK-392** (`<contextual_references>` rendered byte-identically in BOTH the system message and
+the user message, 1,866 tokens duplicated per referencing request) is **absorbed by this theme** —
+artifact §2.2 already rules it: references live ONLY in the user message. Do not fix it as a
+standalone dedup; it falls out of the V-tier hoist, and fixing it the other way (deleting the
+user-message copy) would be exactly backwards for caching.
