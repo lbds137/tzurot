@@ -185,16 +185,19 @@ export class DependencyStep implements IPipelineStep {
   }
 
   /**
-   * Persist rich attachment descriptions into durable stored history,
-   * decoupled from generation success (the writer never throws):
-   * - trigger message's own attachments → upgraded message content
-   * - referenced (quoted/replied-to) images → stored
-   *   `referencedMessages[].resolvedImageDescriptions`, so a quoted image
-   *   survives the ~1h vision-cache TTL on replay
+   * Persist the trigger message's OWN rich attachment descriptions into its
+   * stored content, decoupled from generation success (the writer never
+   * throws).
    *
-   * Both use the RAW job personality (NOT config.effectivePersonality): the
-   * update must match the key the row was saved under, and routing-time
-   * personality substitution doesn't change the saved row's key.
+   * Quoted-message media is persisted elsewhere — by the formatter that builds
+   * the references, which is the only place the description that reaches the
+   * prompt is in hand. Deriving it a second time from these preprocessing
+   * results was how the stored copy could differ from the rendered one, and it
+   * missed the inline-fallback path's descriptions entirely.
+   *
+   * Uses the RAW job personality (NOT config.effectivePersonality): the update
+   * must match the key the row was saved under, and routing-time personality
+   * substitution doesn't change the saved row's key.
    */
   private async persistVisionDescriptions(
     context: GenerationContext,
@@ -205,24 +208,14 @@ export class DependencyStep implements IPipelineStep {
     if (this.visionDescriptionWriter === undefined || jobContext === undefined) {
       return;
     }
-    const personalityId = job.data.personality.id;
 
     if (preprocessing.processedAttachments.length > 0) {
       await this.visionDescriptionWriter.persistTriggerDescriptions({
         jobId: job.id,
         message: job.data.message,
         jobContext,
-        personalityId,
+        personalityId: job.data.personality.id,
         processedAttachments: preprocessing.processedAttachments,
-      });
-    }
-
-    if (Object.keys(preprocessing.referenceAttachments).length > 0) {
-      await this.visionDescriptionWriter.persistReferenceDescriptions({
-        jobId: job.id,
-        jobContext,
-        personalityId,
-        processedReferenceAttachments: preprocessing.referenceAttachments,
       });
     }
   }

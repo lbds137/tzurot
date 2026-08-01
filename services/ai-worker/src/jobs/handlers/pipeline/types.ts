@@ -12,7 +12,10 @@ import type { ResolvedConfigOverrides } from '@tzurot/common-types/schemas/api/c
 import type { AudioProviderId } from '@tzurot/common-types/types/audio-provider';
 import type { LLMGenerationJobData } from '@tzurot/common-types/types/jobs';
 import type { LLMGenerationResult } from '@tzurot/common-types/types/schemas/generation';
-import type { CrossChannelHistoryGroupEntry } from '@tzurot/common-types/types/schemas/message';
+import type {
+  CrossChannelHistoryGroupEntry,
+  StoredReferencedMessage,
+} from '@tzurot/common-types/types/schemas/message';
 import type { SttDispatch } from '@tzurot/common-types/types/sttProvider';
 import type { BaseMessage } from '@langchain/core/messages';
 import type { DiagnosticCollector } from '../../../services/DiagnosticCollector.js';
@@ -44,27 +47,10 @@ export interface ConversationHistoryEntry {
   personalityName?: string;
   /** Structured metadata (referenced messages, attachments) - formatted at prompt time */
   messageMetadata?: {
-    referencedMessages?: {
-      discordMessageId: string;
-      authorUsername: string;
-      authorDisplayName: string;
-      content: string;
-      embeds?: string;
-      timestamp: string;
-      locationContext: string;
-      attachments?: {
-        id?: string;
-        url: string;
-        contentType: string;
-        name?: string;
-        size?: number;
-      }[];
-      isForwarded?: boolean;
-      authorDiscordId?: string;
-      resolvedPersonaId?: string;
-      resolvedPersonaName?: string;
-      resolvedImageDescriptions?: { filename: string; description: string }[];
-    }[];
+    // The schema type, not a hand-written copy of it: a re-declaration here
+    // makes any new stored-reference field invisible to this path until
+    // someone remembers to update it in three places.
+    referencedMessages?: StoredReferencedMessage[];
   };
 }
 
