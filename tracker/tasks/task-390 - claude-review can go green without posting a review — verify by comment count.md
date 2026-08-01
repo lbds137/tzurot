@@ -1,6 +1,8 @@
 ---
 id: TASK-390
-title: Release-PR claude-review posts nothing past ~2x the diff size that works
+title: >-
+  claude-review can go green without posting a review — verify by comment count,
+  not by check colour
 status: To Do
 assignee: []
 created_date: '2026-08-01 16:35'
@@ -63,4 +65,42 @@ review that sees the release as a unit. Silent failure: the check is green.
 
 **Acceptance**: a release PR of #1891's size receives a posted review, or the
 workflow states in the job output why it declined.
+## CORRECTION 2026-08-01 — the size hypothesis above is WRONG
+
+A third attempt POSTED a full review, on a diff one file LARGER than the two
+that failed. Size is not the discriminator and the table above is a coincidence.
+
+Actual sequence on #1891:
+
+| attempt | trigger | SHA | diff | posted? |
+| --- | --- | --- | --- | --- |
+| 1 | PR opened (fresh run) | 7c60a42e1 | 673KB | NO |
+| 2 | `gh run rerun` of attempt 1 | 7c60a42e1 | 673KB | NO |
+| 3 | push of TASK-390 (fresh run) | 499603bcc | ~674KB | **YES** |
+
+Two FRESH runs on near-identical input, one failed and one succeeded. That rules
+out size, rules out rerun-vs-fresh, and leaves **intermittent non-deterministic
+failure** as the honest reading. Four release PRs with a clean split at the size
+boundary is exactly what a spurious correlation looks like, and it was built
+from four points because four were available — not because four were enough.
+
+**What survives from the original finding**, and it is the part that matters:
+
+- **A green `claude-review` check does not mean a review was posted.** Verified
+  three times on one PR. The check reports that the action completed, nothing
+  more.
+- **The agent output is suppressed** (`full output hidden for security`), so the
+  cause cannot be read from logs without `show_full_output: true`. That remains
+  true and is why attempt 1 and 2 will never be explained.
+- **The remediation is verification, not redesign.** Count `claude[bot]`
+  comments via the API rather than trusting the check colour, and re-run on a
+  fresh SHA if the count is zero. `05-tooling.md` already says this under
+  claude-review health; this is the third recorded occurrence and the first on a
+  release PR.
+
+**Do NOT act on the size theory.** No prompt redesign is warranted by this
+evidence. If the intermittency becomes frequent enough to cost real cycles, the
+next step is `show_full_output: true` via a main-cut PR to see what the agent
+actually does — measurement before design, which is the step this task skipped
+the first time.
 <!-- SECTION:DESCRIPTION:END -->
