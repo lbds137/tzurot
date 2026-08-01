@@ -10,6 +10,7 @@ import {
   stripResponseArtifacts,
   stripUserMessageEcho,
   normalizeForEchoMatch,
+  replaceOutsideCodeMarkup,
 } from './responseArtifacts.js';
 
 describe('stripResponseArtifacts', () => {
@@ -467,6 +468,120 @@ describe('stripResponseArtifacts', () => {
     it('should strip multiple prompt template tags', () => {
       const content = 'Response</chat_log></participants>';
       expect(stripResponseArtifacts(content, 'Emily')).toBe('Response');
+    });
+  });
+
+  describe('content that QUOTES an artifact is not an artifact', () => {
+    // Every pattern in this module deletes, and a character on this product is
+    // routinely asked about the structures these patterns hunt for. The
+    // discriminator is code markup: a real leaked artifact is never backticked,
+    // because the model emits it as structure rather than as an example.
+    //
+    // WHAT EACH ROW ACTUALLY PROVES — measured for EVERY family by disabling
+    // the gate and re-running, not generalized from the ones written first:
+    //
+    //   - `prompt-template closing tag` is the ONLY family that goes red without
+    //     the gate. It is the one unanchored, global pattern, so nothing else
+    //     was stopping it from eating a quoted tag mid-prose.
+    //   - All nine others pass with the gate disabled, because their patterns
+    //     are anchored to `^` or `$` and a leading/trailing backtick already
+    //     means no match. They are NOT gate coverage. They pin the ANCHOR as the
+    //     thing protecting those families — so de-anchoring one later (a
+    //     plausible "make this catch mid-response too" edit) turns them red,
+    //     which is exactly when someone needs to be told the gate is now
+    //     load-bearing for that family.
+    //
+    // The gate is applied uniformly anyway: a per-pattern exemption list would
+    // be one more thing to keep in sync with the anchors it mirrors.
+    // COVERS EVERY TAG-SHAPED PATTERN in `buildArtifactPatterns`, not a
+    // selection of them — the anchor argument is exactly the kind of reasoning
+    // this file exists to distrust, so it is measured per family rather than
+    // generalized from the families that happened to get written first. The two
+    // patterns left out are the `Name:` prefix and the `[timestamp]` prefix,
+    // which are not control syntax: there is no "quoted" form of them to confuse
+    // with a real one.
+    const artifacts: [family: string, artifact: string][] = [
+      ['prompt-template closing tag (global, unanchored)', '</chat_log>'],
+      ['generic trailing closing tag', '</message>'],
+      ['tool-use wrapper', '<function_calls>'],
+      ['tool-use orphan closing tag', '</function_results>'],
+      ['speaker identification', '<from id="abc">Emily</from>'],
+      ['reactions block', '<reactions>👍</reactions>'],
+      ['last_message echo block', '<last_message>User: hi</last_message>'],
+      ['self-contained metadata tag', '<result>Emily</result>'],
+      ['received-message receipt', '<received message>hi</received>'],
+      ['message speaker prefix', '<message speaker="Emily">'],
+    ];
+
+    describe.each(artifacts)('%s', (_family, artifact) => {
+      it('survives inside an inline code span', () => {
+        const content = `The prompt wraps history in \`${artifact}\` — that is the marker.`;
+        expect(stripResponseArtifacts(content, 'Emily')).toBe(content);
+      });
+
+      it('survives inside a fenced block', () => {
+        const content = `Here is the shape:\n\`\`\`xml\n${artifact}\n\`\`\`\nThat is what you would see.`;
+        expect(stripResponseArtifacts(content, 'Emily')).toBe(content);
+      });
+    });
+
+    it('still strips the same artifact when it is NOT quoted', () => {
+      // The other half of the pair: the gate must not have simply disabled the
+      // stripping. Same tag, same position, no backticks.
+      expect(stripResponseArtifacts('Hello</chat_log> there', 'Emily')).toBe('Hello there');
+    });
+
+    it('an UNBALANCED fence makes a real artifact survive, never eats content', () => {
+      // `isInsideCodeSpan` toggles on every ``` without line-anchoring, so an
+      // odd number of them before a real artifact classifies it as "inside code"
+      // and the artifact is left alone. Measured, not assumed — the same input
+      // with a balanced fence strips normally, below.
+      //
+      // Pinned rather than fixed because the direction is the safe one: the
+      // failure is a stray `</chat_log>` reaching the reader, never a sentence
+      // of the character's reply being deleted. If the shared detector is ever
+      // made line-anchored, this test goes red and is the place to notice that
+      // the trade was re-decided.
+      const unbalanced = 'Try ```npm install and then it works.</chat_log>';
+      expect(stripResponseArtifacts(unbalanced, 'Emily')).toBe(unbalanced);
+
+      const balanced = 'Try ```npm install``` and then it works.</chat_log>';
+      expect(stripResponseArtifacts(balanced, 'Emily')).toBe(
+        'Try ```npm install``` and then it works.'
+      );
+    });
+
+    it('strips a real trailing artifact while sparing a quoted one earlier', () => {
+      // The case the gate exists for — both forms in one reply, which is exactly
+      // what a character explaining its own prompt while the model leaks a tag
+      // would produce.
+      const content = 'You would see `</chat_log>` at the end.</chat_log>';
+      expect(stripResponseArtifacts(content, 'Emily')).toBe(
+        'You would see `</chat_log>` at the end.'
+      );
+    });
+  });
+});
+
+describe('replaceOutsideCodeMarkup', () => {
+  // The offset is found by TYPE, not by position, so these pin the property
+  // directly rather than only through the patterns that happen to exist in
+  // `buildArtifactPatterns` today. The named-group row is the one that matters:
+  // it is where a positional `args.length - 2` silently reads the input string
+  // instead of the offset, with no type error, and the strip would then be made
+  // against the wrong position rather than fail loudly.
+  const shapes: [label: string, pattern: RegExp][] = [
+    ['no capture groups', /<\/chat_log>/g],
+    ['one positional group', /<\/(chat_log)>/g],
+    ['two positional groups', /<(\/)(chat_log)>/g],
+    ['a NAMED group', /<\/(?<tag>chat_log)>/g],
+    ['named and positional groups', /<(\/)(?<tag>chat_log)>/g],
+  ];
+
+  describe.each(shapes)('%s', (_label, pattern) => {
+    it('spares a quoted match and strips an unquoted one', () => {
+      const text = 'quoted `</chat_log>` then real </chat_log>';
+      expect(replaceOutsideCodeMarkup(text, pattern)).toBe('quoted `</chat_log>` then real ');
     });
   });
 });
