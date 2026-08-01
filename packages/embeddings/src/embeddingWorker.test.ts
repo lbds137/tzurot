@@ -106,6 +106,80 @@ describe('embeddingWorker', () => {
       expect(postedMessages[0].vector).toHaveLength(384);
     });
 
+    describe('inputTokens (pre-truncation count)', () => {
+      // These assert ACROSS the mocked pipeline seam. The whole point of
+      // `inputTokens` is to make silent truncation visible, and it reads a real
+      // transformers.js Tensor shape — so if that shape ever moves, every
+      // overflow warning degrades to "unknown" with no other symptom. Mocking
+      // the extractor without a `.tokenizer` (as the other tests here do) takes
+      // the early-return path and proves nothing about the parsing.
+
+      /** Drive one embed through the worker and return the posted response. */
+      async function embedWith(
+        tokenizer: unknown
+      ): Promise<WorkerResponse & { inputTokens?: number }> {
+        const mockExtractor = Object.assign(
+          vi.fn().mockResolvedValue({ data: new Float32Array(384).fill(0.1) }),
+          tokenizer === undefined ? {} : { tokenizer }
+        );
+        mockPipeline.mockResolvedValue(mockExtractor);
+
+        await loadWorker();
+        const handler = getMessageHandler();
+
+        postedMessages.length = 0;
+        await handler({ type: 'health', id: 1 });
+        await vi.waitFor(() => expect(postedMessages.length).toBe(1));
+
+        postedMessages.length = 0;
+        await handler({ type: 'embed', text: 'Hello world', id: 2 });
+        await vi.waitFor(() => expect(postedMessages.length).toBe(1));
+
+        return postedMessages[0];
+      }
+
+      it('reports the sequence length from the tensor dims', async () => {
+        // The real shape, confirmed against the vendored model: an over-long
+        // input tokenizes to [1, 602] here while only 512 get embedded.
+        const response = await embedWith(() => ({ input_ids: { dims: [1, 602] } }));
+
+        expect(response.status).toBe('success');
+        expect(response.inputTokens).toBe(602);
+      });
+
+      it('falls back to size when dims is absent', async () => {
+        const response = await embedWith(() => ({ input_ids: { size: 47 } }));
+
+        expect(response.inputTokens).toBe(47);
+      });
+
+      it('degrades to undefined when the tokenizer throws, without failing the embed', async () => {
+        const response = await embedWith(() => {
+          throw new Error('tokenizer exploded');
+        });
+
+        // The invariant that matters: a broken diagnostic must never cost an
+        // embedding. Losing the count is acceptable; losing the vector is not.
+        expect(response.status).toBe('success');
+        expect(response.vector).toHaveLength(384);
+        expect(response.inputTokens).toBeUndefined();
+      });
+
+      it('degrades to undefined when the shape is unrecognised', async () => {
+        const response = await embedWith(() => ({ input_ids: { somethingElse: 1 } }));
+
+        expect(response.status).toBe('success');
+        expect(response.inputTokens).toBeUndefined();
+      });
+
+      it('degrades to undefined when the pipeline exposes no tokenizer', async () => {
+        const response = await embedWith(undefined);
+
+        expect(response.status).toBe('success');
+        expect(response.inputTokens).toBeUndefined();
+      });
+    });
+
     it('should return error when no text provided', async () => {
       await loadWorker();
       const handler = getMessageHandler();

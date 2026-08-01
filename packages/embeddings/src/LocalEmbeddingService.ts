@@ -35,6 +35,7 @@ import {
   WORKER_TIMEOUT_MS,
   WORKER_INIT_TIMEOUT_MS,
 } from './constants.js';
+import { describeInputOverflow } from './inputWindow.js';
 
 const logger = createLogger('LocalEmbeddingService');
 
@@ -207,6 +208,7 @@ export class LocalEmbeddingService implements IEmbeddingService {
       const response = await this.sendMessage({ type: 'embed', text });
 
       if (response.status === 'success' && response.vector) {
+        this.warnOnTruncatedInput(text, response.inputTokens);
         return new Float32Array(response.vector);
       }
 
@@ -216,6 +218,24 @@ export class LocalEmbeddingService implements IEmbeddingService {
       logger.error({ err: error }, '[LocalEmbeddingService] Failed to get embedding');
       return undefined;
     }
+  }
+
+  /**
+   * Report an input the model could only read part of.
+   *
+   * Logged at `warn` because the caller asked for work that did not happen: the
+   * discarded text contributed nothing to the vector, so any downstream claim
+   * that "X was included in the query" is false past this point.
+   */
+  private warnOnTruncatedInput(text: string, inputTokens: number | undefined): void {
+    const overflow = describeInputOverflow(text, inputTokens);
+    if (overflow === undefined) {
+      return;
+    }
+    logger.warn(
+      overflow,
+      '[LocalEmbeddingService] Input exceeded the model window — the tail was discarded before embedding'
+    );
   }
 
   /**

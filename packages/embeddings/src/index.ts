@@ -23,6 +23,10 @@
 export type { IEmbeddingService } from './types.js';
 
 // Constants
+// EMBEDDING_MAX_INPUT_TOKENS is deliberately NOT re-exported: it is the
+// package's own constraint, and consumers learn about overflow from the warn
+// LocalEmbeddingService emits rather than by budgeting against it themselves.
+// Export it when a caller actually needs to size an input against the window.
 export {
   LOCAL_EMBEDDING_DIMENSIONS,
   SEMANTIC_SIMILARITY_THRESHOLD,
