@@ -206,8 +206,15 @@ export function buildSystemPromptView(
 // ---------------------------------------------------------------------------
 
 /**
- * Reasoning content, always inline — chunked across ephemeral messages when
- * long (owner decision: reading text must never require a file download).
+ * Reasoning content, chunked across ephemeral messages.
+ *
+ * The standing owner decision is that reading text must never require a file
+ * download. The `maxChunks` cap below does NOT currently honour it: past the
+ * cap `sendChunkedReply` sends the overflow as a text-file attachment, so a
+ * long reasoning dump still lands as a download. Stated rather than implied
+ * because the previous wording ("always inline") read as a guarantee the code
+ * thirty lines down contradicts. Raising the cap is the open decision; until
+ * then this is the honest description of what happens.
  *
  * Reasoning content is shown to non-owners by design (per project decision —
  * model thinking is genuinely interesting and the user already saw the

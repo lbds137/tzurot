@@ -4,8 +4,15 @@ import { type RawAssemblyInputs } from '@tzurot/common-types/types/schemas/rawEn
 /**
  * Normalizes a raw extended-context message (as fetched bot-side) into the
  * internal `ConversationMessage` shape used during assembly. The wire schema
- * leaves several fields optional that the fetcher always populates; this fills
- * the defensive defaults so downstream assembly never has to guard them.
+ * leaves several fields optional that the fetcher populates in practice; this
+ * fills defensive defaults so the shape is total.
+ *
+ * The defaults make the fields PRESENT, not meaningful — `''` and `[]` are
+ * "absent, spelled in a non-optional type". Downstream still guards them, and
+ * should: `findDescriptionsForEntry` checks `id.length > 0` and
+ * `buildHistoryEntryIndex` skips empty ids, because an entry defaulted here
+ * must not match another entry defaulted the same way. Read this as widening a
+ * type, never as a guarantee that the values are real.
  */
 export function fromApiMessage(
   msg: NonNullable<RawAssemblyInputs['rawExtendedContextMessages']>[number],
