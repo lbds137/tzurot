@@ -88,4 +88,51 @@ executes it. Sampling is what let three coexist.
 own control syntax is indistinguishable from real control syntax) is not an
 unenforced-invariant problem and should not be folded in here — it has its own
 sweep.
+
+## AUDIT RUN 2026-08-01 — method corrected, sweep done, task NOT closeable
+
+**The Method note above is wrong and was not followed.** Measured against this
+task's own three known instances, its suggested vocabulary (`owner decision`,
+`always`, `never`, `must`) finds **one of three**: instance 1 described a symptom
+in plain prose, instance 2 said "carries the raw URL, never a description" — no
+carriage-claim pattern matches either. A codebase-wide grep would return a tidy
+list with ~33% recall over 76k comment lines, which is worse than not sweeping
+because it reads as thorough. Greps were therefore scoped to the sub-classes they
+can actually decide, and the prompt-assembly surface (32 files, where all three
+instances originated) was READ.
+
+What the sweep covered and found:
+
+- **All 24 recorded-decision sites** (`owner decision` / `design decision` /
+  `owner call`), each checked against its surrounding code. Exactly ONE
+  contradiction: `buildReasoningView`. Retention grace window, z.ai single-model
+  rule, ANY-source fact retirement, bystander purge-without-notice, free-tier
+  rolling window — all consistent. This class is in better shape than the
+  three-in-one-day filing implied.
+- **Files pairing an absolute claim with a cap** (instance 3's self-contradiction
+  shape): 5 candidates, 4 hold.
+- **String literals asserting another layer's output**: only the two
+  `DEDUP_PREFIX` variants.
+
+Dispositions:
+
+- Instance 1 (`persistReferenceDescriptions`) — GONE, deleted by #1883 before the
+  sweep ran. Verified by grep, not assumed.
+- Instance 2 + the acceptance addition — SHIPPED in #1887. GLM 5.2's
+  derive-the-exclusion-set proposal is what shipped: `chatLogEnrichmentFor` asks
+  the section renderers rather than restating their conditions.
+- Instance 3 (`maxChunks: 3`) — CONFIRMED live by mechanism, not code-reading
+  alone: past the cap `sendChunkedReply` sends the overflow as a text-file
+  attachment, which is exactly what the recorded decision forbids. The cap change
+  is TASK-371 and owner-gated; #1888 changed only the wording so the
+  contradiction is visible rather than hidden.
+- New: `fromApiMessage` claimed downstream "never has to guard" fields that
+  downstream correctly guards — reworded in #1888.
+- New: `DEDUP_PREFIX` is true only while every dedup-index entry survives into
+  the rendered chat log. Unreachable (nothing writes a system-role conversation
+  row), so the invariant was RECORDED rather than coded around — writing
+  unreachable code is speculation with a maintenance cost.
+
+**Remaining before this closes**: the `maxChunks` value itself (TASK-371, owner
+decision) and the live-path variant (TASK-387). The sweep half is done.
 <!-- SECTION:DESCRIPTION:END -->
