@@ -35,4 +35,48 @@ ordinal: 393000
 **Verify first**: confirm the score-flatness correlation on a second capture with a large attachment and on one without, before assuming the retrieval-quality link. The truncation itself is already proven.
 
 **Acceptance**: the embedded query is bounded to the model window by construction, every intended part is represented, and no log claims a contribution that truncation removed.
+
+## SPLIT 2026-08-01 — measurement SHIPPED (#1893), allocation policy still open
+
+The acceptance criteria above bundle two different kinds of work. The third
+clause shipped; the first two are blocked on evidence that does not exist yet.
+
+**Shipped in #1893** — the problem is now observable instead of invisible:
+
+- `EMBEDDING_MAX_INPUT_TOKENS` names the 512 constraint, pinned by test to the
+  vendored model config so a model swap breaks the test rather than silently
+  invalidating every warn.
+- The worker counts with the model OWN tokenizer before the pipeline runs
+  (calling it bare is what yields the pre-truncation length) and reports
+  `inputTokens`; `LocalEmbeddingService` warns on overflow with the discarded
+  count and observed chars-per-token.
+- `SearchQueryBuilder` no longer logs `Including referenced message content in
+  memory search query` — the claim it could not verify. It reports the
+  assembled composition with each part offset instead, so a starved part is
+  visible as an offset already past the window.
+
+**NOT shipped, deliberately: which text wins the window.** The four options in
+the fix-shape above are not equally safe, and the project already has data
+saying the obvious one is risky. `reports/goldens-mining/fold-ab-result.md`
+measured dilution on content-rich queries as monotonically harmful — recall@10
+fell 0.436 to 0.390 to 0.256 to 0.195 as the fold widened. Option (a),
+per-part allocation, guarantees every part contributes, which is the same shape
+as the fold that lost. It may still be right; it is not obviously right.
+
+**The blocker is a goldens gap, and it is concrete.**
+`reports/goldens-mining/conversation-goldens.json` holds 40 mined turns whose
+`messageMetadata` carries only `referencedMessages` — **zero attachment-bearing
+turns**. No query of the shape this task is about has ever been scored, so
+every option here would be shipped on reasoning alone. That is exactly the
+circularity the pre-registered fold gate was designed to avoid.
+
+**Prerequisite before any allocation change**: mine goldens that include
+attachment-bearing turns (image descriptions especially, since they are the
+long dominant part), then A/B the options the same way the fold was A/B-d. The
+miner is `packages/tooling/src/memory/mine-conversation-goldens.ts`.
+
+**Promote when**: attachment goldens exist, OR the new overflow warn shows a
+high enough rate in prod to justify prioritising the mining. The warn is how
+that rate becomes knowable — grep ai-worker for
+`Input exceeded the model window`.
 <!-- SECTION:DESCRIPTION:END -->
