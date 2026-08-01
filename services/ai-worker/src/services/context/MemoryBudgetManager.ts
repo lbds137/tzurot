@@ -18,8 +18,9 @@ import { formatSingleMemory, getMemoryWrapperOverheadText } from '../prompt/Memo
 import type { MemoryDocument } from '../ConversationalRAGTypes.js';
 import {
   type RawHistoryEntry,
-  formatSingleHistoryEntryAsXml,
+  collectPersonalityNames,
 } from '../../jobs/utils/conversationUtils.js';
+import { measureHistoryEntryTokens } from '../../jobs/utils/historyTokenMeasure.js';
 
 const logger = createLogger('MemoryBudgetManager');
 
@@ -209,13 +210,11 @@ export class MemoryBudgetManager {
   /**
    * Count total tokens in conversation history
    *
-   * Uses tiktoken (via countTextTokens) on the actual formatted XML for each message.
-   * This ensures accurate token counting that matches the exact prompt format.
+   * Sums the same per-entry measurement the selection loops spend against, so
+   * the number that SIZES the history budget and the number that SPENDS it
+   * cannot disagree.
    *
-   * The database tokenCount only counts raw message content, not the XML format,
-   * so we always format and count for accuracy.
-   *
-   * @param rawHistory - Raw conversation history with optional tokenCount
+   * @param rawHistory - Raw conversation history
    * @param personalityName - Personality name for formatting (determines speaker name)
    * @returns Total tokens for all history messages (using tiktoken)
    */
@@ -224,14 +223,11 @@ export class MemoryBudgetManager {
       return 0;
     }
 
+    const allPersonalityNames = collectPersonalityNames(rawHistory, personalityName);
+
     let totalTokens = 0;
     for (const entry of rawHistory) {
-      // Format the entry as XML (same format used in the actual prompt)
-      // Then count tokens with tiktoken for accuracy
-      const formattedXml = formatSingleHistoryEntryAsXml(entry, personalityName);
-      if (formattedXml.length > 0) {
-        totalTokens += countTextTokens(formattedXml);
-      }
+      totalTokens += measureHistoryEntryTokens(entry, personalityName, allPersonalityNames);
     }
 
     return totalTokens;
