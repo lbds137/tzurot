@@ -3,9 +3,10 @@ id: TASK-388
 title: >-
   Extract the code-markup-gated replace so thinkingExtraction stops indexing
   offsets positionally
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-01 14:02'
+updated_date: '2026-08-01 17:31'
 labels:
   - 'size:S'
 dependencies: []
