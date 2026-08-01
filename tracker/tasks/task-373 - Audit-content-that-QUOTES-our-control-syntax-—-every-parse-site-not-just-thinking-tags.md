@@ -135,6 +135,37 @@ irrelevant over a single reply with few candidates. It remains open for
 so the caveat is likely moot rather than pending.
 
 **Still open**: the `<action>`-tag leak handler (now.md Untriaged) is a FUTURE
-parse site and must be designed against this class rather than retrofitted; the
-unfenced-quote gap is unchanged and still gated on the TASK-375 question above.
+parse site and must be designed against this class rather than retrofitted.
+
+## THE UNFENCED-QUOTE GAP IS PERMANENT — resolved 2026-08-01, do not re-derive
+
+TASK-375's evidence sweep came back the opposite way from the hoped-for answer,
+and it closes an option this task was holding open.
+
+The cheap structural answer on the table was: retire `extractOrphanClosingTag`,
+and the unfenced-quote ambiguity disappears by construction, because it only
+exists to serve that path. **That is now ruled out on runtime evidence.** A
+10-deployment prod sweep (36,094 lines, 374 generations) found the path firing 6
+times, every one from `glm-4.5-air` — an in-rotation free-tier model, not the
+retired Kimi K2.5 the docstring credited — recovering reasoning bodies of
+1256-2098 chars, three of them followed by healthy visible output.
+
+So the path stays, and therefore so does its ambiguity: an UNFENCED mid-prose
+`</think>` ("it just prints </think> before answering") is still consumed, and
+no discriminator separates it from the real emission, because both are mid-line
+mid-text prose with no code markup and no position signal. Recorded in
+`extractOrphanClosingTag`'s docstring as a permanent known limit.
+
+**Do not spend another design pass on a cleverer discriminator for this gap.**
+The two candidates are already evidence-rejected: the proportion guard (result 1
+above) and retirement-by-construction (here). What remains is the observability
+answer — if a user ever reports it, the reply's text is recoverable from the
+diagnostic log.
+
+**Ridden in the same PR** (both members of this task, both now Done): TASK-377
+gave `isInsideCodeSpan` run-based backtick delimiters, closing the
+double-backtick gap noted in result 3 — which mattered more than its "not seen"
+priority suggested, since the sweep shows the discriminator is load-bearing on a
+live path rather than defensive. TASK-388 made `replaceOutsideCodeMarkup` the
+single definition, discharging this task's reuse ownership.
 <!-- SECTION:DESCRIPTION:END -->

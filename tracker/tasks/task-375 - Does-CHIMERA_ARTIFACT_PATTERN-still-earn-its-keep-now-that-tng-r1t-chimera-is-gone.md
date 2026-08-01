@@ -55,4 +55,41 @@ on the first: it deletes an ambiguity this codebase currently cannot resolve.
 Order note: this is the cheap structural answer to a gap TASK-373 would
 otherwise try to solve with a cleverer discriminator. Check the lifecycle
 question BEFORE designing one.
+
+## EVIDENCE SWEEP RUN 2026-08-01 — question two is ANSWERED, and the answer is KEEP
+
+Method: 10 prod ai-worker deployments pulled by deployment ID (2026-07-27 →
+08-01), 36,094 lines, 374 `Generation complete` events, grepped locally rather
+than through the Railway filter DSL.
+
+**Does any live model emit a bare orphan `</think>`? YES — decisively.**
+`Found orphan closing tag` fired **6 times**, and every one carried
+`modelName="glm-4.5-air"` — NOT the Kimi K2.5 the docstring credited. Extracted
+bodies were 1256, 1629, 1679, 1830, 2023 and 2098 chars. **Three were followed
+by healthy visible output** (2016 / 1452 / 400 chars), i.e. the model reasoned,
+emitted a bare `</think>`, then answered, and the extractor correctly separated
+the two. Deleting the path would have put 1.2-2.1 KB of raw reasoning in front
+of those three replies.
+
+`extractOrphanClosingTag` therefore **stays**, and glm-4.5-air is an
+in-rotation free-tier model, so this is not a path awaiting retirement. Outcome
+(b) from the header applies: kept, with the docstring now naming the live model
+and the measurement (#code-span PR, `thinkingExtraction.ts`).
+
+**Consequence for TASK-373, already written back there:** the unfenced-quote gap
+CANNOT be closed by construction. That was this task's cheap structural answer
+and it is off the table — the ambiguity is permanent.
+
+**Question one (the chimera stutter) is still open, and now instrumented.**
+`CHIMERA_ARTIFACT_PATTERN` stripped silently, so no log could answer it; the
+same PR adds a `logger.info` that fires only on a real strip. Note the shapes
+are related but not identical, so a "no" on question two would not have settled
+this one either way: `extractOrphanClosingTag` bails when under 20 chars precede
+the first closing tag, which is exactly the stutter shape, so the chimera pass
+is the handler for the case the orphan path declines.
+
+**Promote when**: one release of prod exposure has passed. Grep ai-worker for
+`Chimera stutter artifact stripped`. Zero occurrences is the evidence that
+retires the pattern and its three tests (outcome (a)); any occurrence names the
+model that still justifies it (outcome (b)).
 <!-- SECTION:DESCRIPTION:END -->
