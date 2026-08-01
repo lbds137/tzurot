@@ -4,10 +4,6 @@
 
 ---
 
-## 🔬 beta.188 smoke — ✅ CLOSED
-
-Item A **PASS** (owner, 2026-07-30 21:10): a vxreddit link posted untriggered, then a reply tagging COLD → _"Okay. Now I see it. All four."_ and each screenshot addressed INDIVIDUALLY with content read from inside it. The exact inverse of the failure that opened the investigation (_"I can see the URLs for four images, but the content isn't rendering for me"_). The descriptions were always COMPUTED (`referencedAttachmentCount=4 totalPreprocessed=4`); #1877 fixed the render hop that discarded them. Item A2's "expected: it still cannot" is what TASK-367 healed — its verification is smoke item 16 below.
-
 ## ⏭️ NEXT SESSION STARTS HERE
 
 **The fast follow — "enrichment is data, not cache."** Owner-directed 2026-07-30: the prod bug shipped in beta.188; the untangling is the next cut and is wanted _properly, once and for all_. One root cause behind every symptom: enrichment output (vision descriptions, transcripts) was built cache-shaped (Redis, TTL, best-effort) when it is data-shaped (expensive, conversation-scoped, must persist).
