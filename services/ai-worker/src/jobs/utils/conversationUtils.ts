@@ -61,7 +61,9 @@ import {
  *
  * @param msg - Raw history entry to format
  * @param personalityName - Name of the AI personality (for marking its own messages)
- * @param historyMessageIds - Optional set of Discord message IDs already in history (for quote deduplication)
+ * @param historyEntries - Optional Discord-message-ID → history entry index. The
+ *   key decides quote deduplication; the entry answers what the chat log already
+ *   renders for a deduped quote, so the stub can subtract what would be a repeat.
  * @param allPersonalityNames - Optional set of all AI personality names in the conversation (for multi-AI collision detection)
  * @returns Formatted XML string, or empty string if message should be skipped
  */
@@ -94,7 +96,7 @@ function toRenderableAttachments(
 export function formatSingleHistoryEntryAsXml(
   msg: RawHistoryEntry,
   personalityName: string,
-  historyMessageIds?: Set<string>,
+  historyEntries?: Map<string, RawHistoryEntry>,
   allPersonalityNames?: Set<string>
 ): string {
   const speakerInfo = resolveSpeakerInfo(msg, personalityName, allPersonalityNames);
@@ -127,16 +129,14 @@ export function formatSingleHistoryEntryAsXml(
     msg,
     normalizedRole,
     personalityName,
-    historyMessageIds,
+    historyEntries,
     allPersonalityNames
   );
   const imageSection = formatImageSection(msg);
   const embedsSection = formatEmbedsSection(msg);
-  // The bot's own voice output (assistant role) is TTS of its message text, so
-  // its transcript merely duplicates `content`. Only render transcripts for
-  // inbound (user) voice, where the transcript is the sole record of what was
-  // said. Without this guard, the bot's lines appear twice in the chat log.
-  const voiceSection = normalizedRole === 'assistant' ? '' : formatVoiceSection(msg);
+  // Assistant transcripts are suppressed inside formatVoiceSection — the rule
+  // belongs with the renderer so `chatLogEnrichmentFor` gets the same answer.
+  const voiceSection = formatVoiceSection(msg, normalizedRole);
   const reactionsSection = formatReactionsSection(msg);
 
   // For forwarded messages, use shared QuoteFormatter for consistency
@@ -186,24 +186,43 @@ interface FormatConversationHistoryOptions {
 }
 
 /**
- * Build set of Discord message IDs for quote deduplication
- * This prevents duplicating quoted content that's already in the conversation.
- * Uses discordMessageId (Discord snowflakes) NOT id (internal database UUIDs) because
- * referenced messages are identified by their Discord message ID.
+ * Index history by Discord message ID for quote deduplication.
+ *
+ * Uses discordMessageId (Discord snowflakes) NOT id (internal database UUIDs)
+ * because referenced messages are identified by their Discord message ID. A
+ * chunked message carries several IDs and each one maps back to the same entry.
+ *
+ * The ENTRY rather than a bare ID because two different questions are asked of
+ * this: whether a quote is already in the conversation (dedup), and what the
+ * chat log renders for it (how much of the quote is then redundant). The second
+ * needs the entry, and answering it by assumption is what let a stub print the
+ * same vision description twice.
  */
-export function buildHistoryMessageIdSet(history: RawHistoryEntry[]): Set<string> {
-  const historyMessageIds = new Set<string>();
+export function buildHistoryEntryIndex(history: RawHistoryEntry[]): Map<string, RawHistoryEntry> {
+  const byDiscordId = new Map<string, RawHistoryEntry>();
   for (const msg of history) {
     // Each message may have multiple Discord IDs (for chunked messages)
     if (msg.discordMessageId !== undefined) {
       for (const discordId of msg.discordMessageId) {
         if (discordId.length > 0) {
-          historyMessageIds.add(discordId);
+          byDiscordId.set(discordId, msg);
         }
       }
     }
   }
-  return historyMessageIds;
+  return byDiscordId;
+}
+
+/**
+ * Build set of Discord message IDs for quote deduplication.
+ *
+ * The ID-only projection of {@link buildHistoryEntryIndex}, for consumers that
+ * genuinely only ask membership (the shipped-message set that filters
+ * already-in-prompt memories). Delegating keeps one definition of which IDs a
+ * history entry contributes.
+ */
+export function buildHistoryMessageIdSet(history: RawHistoryEntry[]): Set<string> {
+  return new Set(buildHistoryEntryIndex(history).keys());
 }
 
 /**
@@ -276,7 +295,7 @@ export function formatConversationHistoryAsXml(
     return '';
   }
 
-  const historyMessageIds = buildHistoryMessageIdSet(history);
+  const historyEntries = buildHistoryEntryIndex(history);
   const allPersonalityNames = collectPersonalityNames(history, personalityName);
 
   const messages: string[] = [];
@@ -291,7 +310,7 @@ export function formatConversationHistoryAsXml(
     const formatted = formatSingleHistoryEntryAsXml(
       msg,
       personalityName,
-      historyMessageIds,
+      historyEntries,
       allPersonalityNames
     );
     if (formatted.length > 0) {

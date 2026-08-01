@@ -27,6 +27,7 @@ import { PrismaClient } from '@tzurot/common-types/services/prisma';
 import { type ReferencedMessage } from '@tzurot/common-types/types/schemas/message';
 import { ConversationHistoryService } from '@tzurot/conversation-history';
 import { createTestPGlite, loadPGliteSchema, seedUserWithPersona } from '@tzurot/test-utils';
+import { type RawHistoryEntry } from '../../jobs/utils/conversationTypes.js';
 import { formatQuotedSection } from '../../jobs/utils/xmlMetadataFormatters.js';
 import { type BuiltAttachment } from './QuoteFormatter.js';
 import { toStoredReference } from './storedReference.js';
@@ -141,8 +142,18 @@ describe('built references survive the round trip (component, PGLite)', () => {
     });
   });
 
-  /** Read the trigger row back the way generation does, and render its quotes. */
-  async function replayQuotes(historyMessageIds?: Set<string>): Promise<string> {
+  /**
+   * Read the trigger row back the way generation does, and render its quotes.
+   *
+   * `dedupId` puts that message in the chat log, which is what makes the quote
+   * render as a stub. `chatLogCarries` is what the chat-log ENTRY for it renders
+   * on its own — the second question, and the one that decides whether the stub
+   * repeating its media would be a duplicate.
+   */
+  async function replayQuotes(
+    dedupId?: string,
+    chatLogCarries?: RawHistoryEntry['messageMetadata']
+  ): Promise<string> {
     const rows = await history.getChannelHistory(CHANNEL, 10);
     const trigger = rows.find(row => row.role === MessageRole.User);
     expect(trigger).toBeDefined();
@@ -152,7 +163,19 @@ describe('built references survive the round trip (component, PGLite)', () => {
       { role: 'user', content: trigger?.content ?? '', messageMetadata: trigger?.messageMetadata },
       'user',
       'Ref Bot',
-      historyMessageIds,
+      dedupId === undefined
+        ? undefined
+        : new Map([
+            [
+              dedupId,
+              {
+                role: 'user',
+                content: '',
+                discordMessageId: [dedupId],
+                messageMetadata: chatLogCarries,
+              },
+            ],
+          ]),
       undefined
     );
   }
@@ -184,16 +207,40 @@ describe('built references survive the round trip (component, PGLite)', () => {
 
   it('carries both across the DEDUPED replay arm too', async () => {
     // The stub subtracts the reference's TEXT because the chat log already has
-    // it; its media has no such second copy, so the media must ride along. This
-    // arm is where enrichment kept getting dropped, twice, under green coverage.
+    // it. Here the chat-log entry carries no enrichment of its own, so the media
+    // has no second copy and must ride along. This arm is where enrichment kept
+    // getting dropped, twice, under green coverage.
     const stored = toStoredReference(liveReference(), builtAttachments());
     await history.storeTriggerReferences(CHANNEL, PERSONALITY, PERSONA, [stored], TRIGGER_MESSAGE);
 
-    const rendered = await replayQuotes(new Set([stored.discordMessageId]));
+    const rendered = await replayQuotes(stored.discordMessageId);
 
     expect(rendered).toContain('full text in the chat log');
     expect(rendered).toContain(IMAGE_SENTINEL);
     expect(rendered).toContain(VOICE_SENTINEL);
+    expect(rendered).toContain('its media is described here');
+  });
+
+  it('does NOT repeat media the chat-log entry already renders', async () => {
+    // The inverse arm, and the reason the subtraction is derived rather than
+    // decided once: when the referenced message was ITSELF a trigger, its own
+    // history entry renders <image_descriptions>/<voice_transcripts>, so the
+    // stub repeating them prints the same paid text twice in one prompt.
+    const stored = toStoredReference(liveReference(), builtAttachments());
+    await history.storeTriggerReferences(CHANNEL, PERSONALITY, PERSONA, [stored], TRIGGER_MESSAGE);
+
+    const rendered = await replayQuotes(stored.discordMessageId, {
+      imageDescriptions: [{ filename: 'whiteboard.png', description: IMAGE_SENTINEL }],
+      voiceTranscripts: [VOICE_SENTINEL],
+    });
+
+    // Still a stub pointing at the chat log...
+    expect(rendered).toContain('full text in the chat log');
+    // ...but it no longer promises media it is not carrying, and does not
+    // reprint what the chat log renders one element away.
+    expect(rendered).not.toContain('its media is described here');
+    expect(rendered).not.toContain(IMAGE_SENTINEL);
+    expect(rendered).not.toContain(VOICE_SENTINEL);
   });
 
   it('renders an absence, not an invention, when nothing was ever computed', async () => {

@@ -12,8 +12,10 @@ import {
   formatEmbedsSection,
   formatVoiceSection,
   formatReactionsSection,
+  chatLogEnrichmentFor,
 } from './xmlMetadataFormatters.js';
 import type { RawHistoryEntry } from './conversationTypes.js';
+import { enrichmentKey } from '../../services/prompt/QuoteFormatter.js';
 
 // Mock common-types
 vi.mock('@tzurot/common-types/utils/dateFormatting', async () => {
@@ -95,6 +97,23 @@ function makeEntry(overrides: Partial<RawHistoryEntry> = {}): RawHistoryEntry {
     content: 'Test message',
     ...overrides,
   } as RawHistoryEntry;
+}
+
+/**
+ * A history index whose entry carries no enrichment of its own.
+ *
+ * The default for a dedup fixture, and the case the whole feature is built for:
+ * the chat log renders that message's attachment as a bare URL, so a deduped
+ * stub must keep the description it was handed. Pass `metadata` to build the
+ * opposite case — an entry whose own rendering already carries it.
+ */
+function historyIndex(
+  id: string,
+  metadata?: RawHistoryEntry['messageMetadata']
+): Map<string, RawHistoryEntry> {
+  return new Map([
+    [id, makeEntry({ discordMessageId: [id], content: '', messageMetadata: metadata })],
+  ]);
 }
 
 describe('xmlMetadataFormatters', () => {
@@ -440,7 +459,7 @@ describe('xmlMetadataFormatters', () => {
         },
       });
 
-      const historyIds = new Set(['already-in-history']);
+      const historyIds = historyIndex('already-in-history');
       const result = formatQuotedSection(msg, 'user', personalityName, historyIds, undefined);
       expect(result).toContain('<quoted_messages>');
       expect(result).toContain('[Referenced message — full text in the chat log]');
@@ -492,7 +511,7 @@ describe('xmlMetadataFormatters', () => {
         msg,
         'user',
         personalityName,
-        new Set(['already-in-history']),
+        historyIndex('already-in-history'),
         undefined
       );
 
@@ -506,7 +525,12 @@ describe('xmlMetadataFormatters', () => {
               description: 'SENTINEL_STORED_VISION',
             },
           ],
-        })
+        }),
+        // The second seam argument, and the one the stub cannot derive alone:
+        // what the chat-log entry itself renders. Empty here — that entry has no
+        // enrichment of its own — so nothing is subtracted and the description
+        // rides along, which is what the output assertion below then confirms.
+        new Set()
       );
       expect(result).toContain('SENTINEL_STORED_VISION');
       // One element for the picture, never a description plus a marker.
@@ -533,7 +557,7 @@ describe('xmlMetadataFormatters', () => {
         },
       });
 
-      const historyIds = new Set(['already-in-history']);
+      const historyIds = historyIndex('already-in-history');
       const result = formatQuotedSection(msg, 'user', personalityName, historyIds, undefined);
       expect(result).toContain('role="bot"');
     });
@@ -555,7 +579,7 @@ describe('xmlMetadataFormatters', () => {
         },
       });
 
-      const historyIds = new Set(['in-history']);
+      const historyIds = historyIndex('in-history');
       const result = formatQuotedSection(msg, 'user', personalityName, historyIds, undefined);
       // Should contain truncated content with '...'
       expect(result).toContain('X'.repeat(100) + '...');
@@ -586,7 +610,7 @@ describe('xmlMetadataFormatters', () => {
         },
       });
 
-      const historyIds = new Set(['in-history']);
+      const historyIds = historyIndex('in-history');
       const result = formatQuotedSection(msg, 'user', personalityName, historyIds, undefined);
       expect(result).toContain('<quoted_messages>');
       // Full ref for User Two
@@ -661,16 +685,70 @@ describe('xmlMetadataFormatters', () => {
   describe('formatVoiceSection', () => {
     it('returns empty string when no voiceTranscripts', () => {
       const msg = makeEntry();
-      expect(formatVoiceSection(msg)).toBe('');
+      expect(formatVoiceSection(msg, 'user')).toBe('');
     });
 
     it('formats voice transcripts', () => {
       const msg = makeEntry({
         messageMetadata: { voiceTranscripts: ['Hello, this is a test'] },
       });
-      const result = formatVoiceSection(msg);
+      const result = formatVoiceSection(msg, 'user');
       expect(result).toContain('<voice_transcripts>');
       expect(result).toContain('<transcript>Hello, this is a test</transcript>');
+    });
+
+    it('suppresses the assistant own-TTS transcript', () => {
+      // Its transcript merely duplicates `content`. The guard lives in the
+      // renderer rather than the caller so `chatLogEnrichmentFor` — which has to
+      // ask the same question — cannot get a different answer.
+      const msg = makeEntry({
+        messageMetadata: { voiceTranscripts: ['the bot reading its own reply'] },
+      });
+      expect(formatVoiceSection(msg, 'assistant')).toBe('');
+    });
+  });
+
+  describe('chatLogEnrichmentFor', () => {
+    it('reports the descriptions and transcripts the entry itself renders', () => {
+      const entry = makeEntry({
+        messageMetadata: {
+          imageDescriptions: [{ filename: 'a.png', description: 'a whiteboard' }],
+          voiceTranscripts: ['spoken words'],
+        },
+      });
+      expect(chatLogEnrichmentFor(entry, 'TestBot', undefined)).toEqual(
+        new Set([enrichmentKey('image', 'a whiteboard'), enrichmentKey('voice', 'spoken words')])
+      );
+    });
+
+    it('reports nothing for an entry carrying no enrichment', () => {
+      expect(chatLogEnrichmentFor(makeEntry(), 'TestBot', undefined).size).toBe(0);
+    });
+
+    it('excludes the assistant transcript the chat log suppresses', () => {
+      // Derived, not restated: the transcript is present in the metadata but the
+      // renderer declines to emit it, so it is NOT carried and a quote of it
+      // still has to bring its own copy.
+      const entry = makeEntry({
+        role: 'assistant',
+        messageMetadata: {
+          imageDescriptions: [{ filename: 'a.png', description: 'a whiteboard' }],
+          voiceTranscripts: ['the bot reading its own reply'],
+        },
+      });
+      expect(chatLogEnrichmentFor(entry, 'TestBot', undefined)).toEqual(
+        new Set([enrichmentKey('image', 'a whiteboard')])
+      );
+    });
+
+    it('reports nothing for an entry the chat log declines to render at all', () => {
+      const entry = makeEntry({
+        role: 'system',
+        messageMetadata: {
+          imageDescriptions: [{ filename: 'a.png', description: 'a whiteboard' }],
+        },
+      });
+      expect(chatLogEnrichmentFor(entry, 'TestBot', undefined).size).toBe(0);
     });
   });
 

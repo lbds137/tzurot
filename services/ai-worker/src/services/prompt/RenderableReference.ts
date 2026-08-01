@@ -26,6 +26,7 @@ import { TEXT_LIMITS } from '@tzurot/common-types/constants/discord';
 import { formatPromptTimestamp } from '@tzurot/common-types/utils/dateFormatting';
 import {
   attachmentEnrichment,
+  enrichmentKey,
   formatQuoteElement,
   type RenderableAttachment,
 } from './QuoteFormatter.js';
@@ -134,14 +135,19 @@ function informativeUsername(ref: RenderableReference): string | undefined {
 const DEDUP_PREFIX = '[Referenced message — full text in the chat log]';
 
 /**
- * Variant used when the stub carries media enrichment. The extra clause is
- * load-bearing, not decoration: the chat-log copy of an embed or attachment
- * carries the raw URL, never a description, so media enrichment has no
- * counterpart there and "full text in the chat log" would send the model
- * somewhere the answer has never been.
+ * Variant used when the stub still carries media enrichment after subtraction.
+ * The extra clause is load-bearing, not decoration: where the chat-log copy of
+ * an attachment is only its raw URL, the enrichment has no counterpart there
+ * and a bare "full text in the chat log" would send the model somewhere the
+ * answer has never been.
  *
- * Conditional rather than unconditional so a text-only stub — the common case —
- * neither pays the tokens nor invites the model to hunt for media that isn't there.
+ * Whether that is so is NOT decided here. It is a fact about what the chat-log
+ * renderer emitted for that specific entry — true for a message nobody has
+ * triggered on, false for one whose own history entry renders
+ * <image_descriptions> — so `dedupeReference` subtracts against the renderer's
+ * actual output and this prefix is chosen from what survives. Conditional also
+ * keeps a text-only stub, the common case, from paying the tokens or inviting
+ * the model to hunt for media that isn't there.
  */
 const DEDUP_PREFIX_WITH_MEDIA =
   '[Referenced message — full text in the chat log; its media is described here]';
@@ -169,23 +175,48 @@ function capDedupText(text: string): string {
  * That is the whole point: its predecessor listed the fields it wanted and so
  * silently lost every field nobody remembered to list (the role, then the
  * attachments, then the forwarded flag). Here a field that does not appear
- * below is inherited, and adding a fourth exclusion is a conspicuous edit to
+ * below is inherited, and adding a fifth exclusion is a conspicuous edit to
  * this function rather than an omission nobody can see.
  *
- * The exclusion set has exactly three members, and each has the same
- * justification — <chat_log> reproduces it verbatim, so the stub would be
- * paying twice:
+ * Every member of the exclusion set has the same justification — <chat_log>
+ * reproduces it verbatim, so the stub would be paying twice:
  *
  * - `content` → the marker, plus a capped preview;
  * - `locationContext`;
- * - `embedsXml`.
+ * - `embedsXml`;
+ * - any attachment whose enrichment the chat log ALREADY renders.
  *
- * Media enrichment is deliberately NOT excluded. History renders an attachment
- * as its URL, so a description dropped here is enrichment that was computed,
- * paid for, and never reaches the model.
+ * That last member is CONDITIONAL, and it is the only one the stub cannot
+ * decide alone: whether history carries an attachment's description is a fact
+ * about the other renderer's output, so the caller passes what that renderer
+ * actually produced (`carriedByChatLog`) rather than this function assuming an
+ * answer. Both fixed answers are wrong in opposite halves of the input —
+ * dropping unconditionally discards vision spend for a message history renders
+ * as a bare URL, and carrying unconditionally prints the same description twice
+ * for a message whose own history entry already renders <image_descriptions>.
+ *
+ * With no set supplied, nothing is subtracted. That is the safe default: a
+ * duplicated description costs tokens, a dropped one costs the answer.
  */
-export function dedupeReference(ref: RenderableReference): RenderableReference {
-  const hasMedia = ref.attachments.some(att => {
+export function dedupeReference(
+  ref: RenderableReference,
+  carriedByChatLog?: ReadonlySet<string>
+): RenderableReference {
+  const attachments =
+    carriedByChatLog === undefined || carriedByChatLog.size === 0
+      ? ref.attachments
+      : ref.attachments.filter(att => {
+          const enrichment = attachmentEnrichment(att);
+          // Undescribed attachments are never subtracted — the chat log has
+          // nothing to render for them either, so the stub is their only mention.
+          return (
+            enrichment === undefined || !carriedByChatLog.has(enrichmentKey(att.kind, enrichment))
+          );
+        });
+
+  // Computed AFTER the subtraction: a stub whose media is entirely accounted
+  // for in the chat log must not promise "its media is described here".
+  const hasMedia = attachments.some(att => {
     const enrichment = attachmentEnrichment(att);
     return enrichment !== undefined && enrichment.length > 0;
   });
@@ -204,6 +235,7 @@ export function dedupeReference(ref: RenderableReference): RenderableReference {
     content: preview.length > 0 ? `${prefix}\n\n${preview}` : prefix,
     locationContext: undefined,
     embedsXml: undefined,
+    attachments,
   };
 }
 
