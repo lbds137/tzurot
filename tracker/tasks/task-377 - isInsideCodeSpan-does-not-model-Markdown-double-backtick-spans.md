@@ -1,9 +1,10 @@
 ---
 id: TASK-377
 title: isInsideCodeSpan does not model Markdown double-backtick spans
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-07-31 04:11'
+updated_date: '2026-08-01 17:31'
 labels:
   - 'size:S'
 dependencies: []
