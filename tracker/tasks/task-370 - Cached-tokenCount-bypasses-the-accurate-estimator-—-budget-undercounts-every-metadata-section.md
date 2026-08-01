@@ -3,9 +3,10 @@ id: TASK-370
 title: >-
   Cached tokenCount bypasses the accurate estimator — budget undercounts every
   metadata section
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-07-31 01:03'
+updated_date: '2026-08-01 03:36'
 labels:
   - 'area:ai-worker'
 dependencies: []
