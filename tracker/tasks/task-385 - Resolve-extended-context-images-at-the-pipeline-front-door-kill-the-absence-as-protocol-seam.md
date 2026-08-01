@@ -36,5 +36,38 @@ Three costs, in order of confidence:
 
 **Acceptance**: `rg 'extendedContextAttachments'` shows exactly one writer before DownloadAttachmentsStep; DependencyStep reads the field with no fallback; the #1884 seam test still passes (it should, unchanged — the behaviour it pins is the outcome, not the mechanism).
 
+## CORRECTION 2026-08-01 — the seam-test acceptance clause above is WRONG
+
+Checked before building, against `extendedContextVisionSeam.test.ts` as it
+actually stands. The claim "unchanged — it pins the outcome, not the mechanism"
+is false for one of its four cases, and the distinction matters because getting
+it wrong invites either a broken build or the far worse habit of quietly
+rewriting a regression test to match new code.
+
+Case-by-case under the front-door fix:
+
+1. `describes envelope-derived images on a text-only job` — **passes unchanged**
+   (pure outcome: vision ran, description landed).
+2. `describes envelope-derived images when the job ALSO carries a trigger
+   attachment` — **passes unchanged** (same, on the non-short-circuit arm).
+3. `leaves the field absent after download so the derive path stays reachable` —
+   **MUST CHANGE.** It asserts
+   `expect(job.data.context.extendedContextAttachments).toBeUndefined()`, i.e. it
+   pins absence-as-protocol BY NAME. That is precisely the convention this task
+   deletes. Replace it with the inverted invariant: the field is RESOLVED before
+   `DownloadAttachmentsStep` runs, so absence carries no meaning to erase.
+4. `keeps a REALLY-empty list empty when every extended download fails` —
+   **passes unchanged**, and is worth keeping exactly as-is. Its real content is
+   "do not resurrect the envelope's raw list and re-attempt dead URLs," which
+   still holds: a present-then-emptied list stays `[]`, and DependencyStep reads
+   `[]` with no fallback. Verify this one is genuinely green rather than assuming
+   — it is the arm that guards against the fix trading one silent failure for
+   another.
+
+So the honest acceptance is **3 of 4 seam cases unchanged, 1 replaced** — and the
+replacement is a test-plan item, not a licence to edit whatever goes red.
+Anything else in that file going red means the fix broke behaviour, not that the
+test is stale.
+
 **Not urgent**: #1884 restores correct behaviour. This removes the class. Do it with the release behind us, on its own PR.
 <!-- SECTION:DESCRIPTION:END -->
