@@ -25,51 +25,6 @@ import { processCrossProviderVisionImages } from './extendedContextVisionProcess
 const logger = createLogger('DependencyStep');
 
 /**
- * Derive the extended-context image list from the raw envelope when the thin
- * payload no longer ships `extendedContextAttachments`. The raw list is
- * images-only and uncapped (the channel fetcher collects only images;
- * raw inputs ship pre-decision) — apply the SAME cap rule the bot applied at
- * ship time: most-recent-maxImages via slice(-cap), and maxImages <= 0 means
- * the feature is off (the bot ships undefined then, not []).
- *
- * `rawImages` is oldest-first (the fetcher's collection order, preserved on
- * the wire), so slice(-cap) keeps the most-recent cap items — matching the
- * bot's own slice(-maxImages) on the same-ordered list.
- */
-export function deriveExtendedContextImages(
-  rawImages: AttachmentMetadata[] | undefined,
-  maxImages: number | undefined
-): AttachmentMetadata[] | undefined {
-  if (rawImages === undefined) {
-    return undefined;
-  }
-  const cap = maxImages ?? 0;
-  if (cap <= 0) {
-    return undefined;
-  }
-  return rawImages.slice(-cap);
-}
-
-/**
- * Prefer the payload's resolved image list; under the thin payload the bot
- * stops shipping it and the raw envelope is the source of truth. Invariant:
- * a payload field must never be the only carrier of data the envelope also
- * holds (otherwise dropping it from the thin payload silently loses the data).
- */
-function selectExtendedContextImages(
-  jobContext: GenerationContext['job']['data']['context'] | undefined,
-  maxImages: number | undefined
-): AttachmentMetadata[] | undefined {
-  return (
-    jobContext?.extendedContextAttachments ??
-    deriveExtendedContextImages(
-      jobContext?.rawAssemblyInputs?.rawExtendedContextImageAttachments,
-      maxImages
-    )
-  );
-}
-
-/**
  * Audio info from transcription job
  */
 interface AudioInfo {
@@ -155,11 +110,11 @@ export class DependencyStep implements IPipelineStep {
 
     // Process extended context attachments inline (not from dependency jobs)
     // Pass auth context for BYOK support (user's API key if available).
-    const extendedContextImages = selectExtendedContextImages(
-      jobContext,
-      context.configOverrides?.maxImages
-    );
-    if (extendedContextImages && extendedContextImages.length > 0) {
+    // No fallback: `ExtendedContextResolutionStep` resolved this at the front
+    // door, so the field is the answer rather than a hint about where to look
+    // for one. `?? []` is a plain default for the no-context case only.
+    const extendedContextImages = jobContext?.extendedContextAttachments ?? [];
+    if (extendedContextImages.length > 0) {
       const extendedContextAttachments = await this.processExtendedContextAttachments(
         extendedContextImages,
         personality,

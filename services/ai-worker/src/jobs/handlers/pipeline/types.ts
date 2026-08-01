@@ -183,7 +183,23 @@ export interface PreparedContext {
  * It is created fresh for each job, ensuring thread safety.
  */
 export interface GenerationContext {
-  /** The BullMQ job being processed */
+  /**
+   * The BullMQ job being processed.
+   *
+   * **Ordering invariant the types cannot express**:
+   * `job.data.context.extendedContextAttachments` is optional on the wire — the
+   * thin envelope genuinely omits it — but `ExtendedContextResolutionStep`
+   * resolves it into a real array early in the pipeline, and every step after
+   * that point may treat it as present. Its ABSENCE used to be an unnamed
+   * instruction ("derive the list from the raw envelope"), which is what let a
+   * `?? []` in an unrelated step silently disable extended-context vision
+   * service-wide.
+   *
+   * A step inserted BEFORE that resolution gets no compiler help telling
+   * "not yet resolved" apart from "resolved to nothing". If you add one, read
+   * the field only after resolution, or resolve it yourself — do not
+   * reintroduce a meaning for absence.
+   */
   job: Job<LLMGenerationJobData>;
 
   /** Processing start time */
