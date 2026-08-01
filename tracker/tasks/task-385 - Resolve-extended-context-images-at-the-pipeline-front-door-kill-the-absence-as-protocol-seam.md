@@ -3,9 +3,10 @@ id: TASK-385
 title: >-
   Resolve extended-context images at the pipeline front door (kill the
   absence-as-protocol seam)
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-01 02:49'
+updated_date: '2026-08-01 22:28'
 labels:
   - 'size:M'
 dependencies: []
