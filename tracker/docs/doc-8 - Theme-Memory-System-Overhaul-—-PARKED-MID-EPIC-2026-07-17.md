@@ -27,7 +27,26 @@ _Focus: implement the ACCEPTED memory architecture — typed memories (episode/f
 | --- | --- |
 | 0 — integrity + eval baseline | ✅ DONE 2026-07-05 (#1490/#1497/#1498) |
 | 2 — typed memories + extraction (all slices: schema #1527, shadow worker #1528, READ path #1565, quality #1566, correction #1567/#1568, cost knobs) | ✅ DONE 2026-07-13; **PROD-ENABLED** (`extractionEnabled` + `factsInPromptEnabled` both ON in prod, owner-confirmed). Episode `type`/`salience` deferred to 1b. |
-| 1a — hybrid retrieval (RRF) | **REFUTED twice** (toy + real 800-row corpus: RRF ≈ dense, slightly worse @5). Branch `feat/memory-hybrid-retrieval` STAYS PARKED (owner 2026-07-12) as FTS-index input — FTS genuinely saved 2 rare-term queries; the fusion diluted dense's wins. |
+| 1a — hybrid retrieval (RRF) | **REFUTED twice** (toy + real 800-row corpus: RRF ≈ dense, slightly worse @5). Branch `feat/memory-hybrid-retrieval` STAYS PARKED (owner 2026-07-12) as FTS-index input — FTS genuinely saved 2 rare-term queries; the fusion diluted dense's wins. **Head `8acf63ccc` (2026-07-06).** See the parked-branch note below before touching it. |
+
+**The parked branch, for whoever finds it stale (checked 2026-08-01):**
+`feat/memory-hybrid-retrieval` @ `8acf63ccc` is **~1040 commits behind develop**
+and has no PR, open or closed. That is expected, not rot: the feature it
+implements was refuted on evidence, so it was never going to merge.
+
+- **Do NOT rebase it.** It touches `PgvectorQueryBuilder`/`PgvectorTypes`, which
+  have moved substantially, and it carries a migration that would need
+  renumbering. The result would be a cleanly-rebased branch nobody intends to
+  merge. Read it with `git show 8acf63ccc` instead — that works identically
+  whether or not the ref is current.
+- **Do NOT delete the ref.** It is the only thing keeping those commits
+  reachable; deleting the branch makes them GC-able. The stale ref IS the
+  preservation mechanism.
+- **What is worth salvaging when 1a is revisited**: the FTS index migration
+  (`20260706095024_add_memories_content_fts_index`), the eval corpus
+  (`services/ai-worker/src/services/eval/retrieval-goldens.json`), and the
+  FTS-side query construction in `PgvectorQueryBuilder`. The RRF fusion itself
+  is the refuted part — take the index, leave the fusion.
 | 1b — composite scoring | **Sim REFUTED 2026-07-13/14** (40 judged goldens, owner-confirmed verdict FINAL): prod ordering wins outright (recall@10 0.695); every pre-registered composite loses; salience-as-extracted is anti-signal. **Redirect shipped**: slice A (valid_from = evidence time) ✅ #1644 released beta.165, dev+prod repaired (21,493 rows, class closed). **Slice B (read-side dup collapse): recommendation DON'T-BUILD** — offline gate showed quality-neutral at 0.95 with ~1 wasted slot/400 benefit; at 0.90 real false-collapses. Awaiting the owner's felt-repetition re-measure. Real 1b targets identified by the judging (near-dup rows flooding pools, event-obsoleted facts co-ranking, wrong-entity class at retrieval) — the design inputs below. Full verdict: `reports/goldens-mining/fact-sim-verdict.md` (local). |
 | 1c — retrieval-query sophistication | ✅ DONE 2026-07-12 — honest re-baseline (4 slices #1610–#1613) refuted the fold as a global win (bare 0.436 vs fold3 0.390); **conditional-fold shipped #1614** (fold iff <5 content words; cond 0.548, 4 fixes / 0 breaks); rung-2 (LLM rewrite) refuted. |
 | 3 — scoping matrix activation | evidence-gated. Owner design input 2026-07-10: classify facts OBJECTIVE (persona-global) vs RELATIONAL (relationship-experience) at extraction so the blend policy can widen them differently. Sharing asymmetry already DECIDED+SHIPPED 2026-07-10 (facts honor `shareLtmAcrossPersonalities`; cross-personality browse view is a follow-ups row). |
