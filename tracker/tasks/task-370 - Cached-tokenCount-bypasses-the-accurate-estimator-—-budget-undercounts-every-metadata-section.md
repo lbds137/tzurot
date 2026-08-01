@@ -71,4 +71,48 @@ estimate is still hand-written and still disagrees with the renderer on
 attribute names — do the same thing to it: call `formatQuoteElement` and measure.
 It also subsumes the acceptance check written above, because a parity test
 between two renderers is unnecessary when there is only one.
+
+## FRESHNESS CHECK 2026-07-31 (before starting) — the `<quote>` half is CLOSED too
+
+Verified against the code, not the board. Both halves of the CORRECTION above
+are now done, and neither was done by this task:
+
+- **attachments** — closed by TASK-365 PR-1 (#1881).
+- **the surrounding `<quote>` shape** — closed by TASK-365 PR-2 (#1882).
+  `estimateReferenceLength` is now three lines: `renderReference(fromStoredReference(ref, personalityName)).length`.
+  Every drift in the table above (`author=` vs `from=`, location-as-attribute,
+  `forwarded="true"` vs `type="forward"`, the missing `role`/`username`/
+  `from_id`/`number`/`t=`) is gone by construction, because there is no second
+  renderer left to drift.
+
+**So the acceptance criterion written above — "an executable parity check
+between the budget's number and the real rendered count" — is moot for
+references, exactly as the CORRECTION predicted:** a parity test between two
+renderers is unnecessary when there is only one.
+
+## WHAT ACTUALLY REMAINS — the original diagnosis, untouched
+
+The primary cause has not been worked at all, and closing the estimator's
+drift makes it WORSE-shaped rather than better: the codebase now has an
+accurate measurement that almost nothing calls.
+
+Three consumers, enumerated by `rg '\.tokenCount' --type ts` (deterministic,
+not sampled — this is the whole population):
+
+| Site | Shape |
+| --- | --- |
+| `services/ai-worker/src/services/context/ContextWindowManager.ts:162` | `entry.tokenCount ?? Math.ceil(getFormattedMessageCharLength(...) / 4)` — the PRIMARY history trimmer |
+| `services/ai-worker/src/services/context/CrossChannelSerializer.ts:65` | same shape, cross-channel groups |
+| `packages/common-types/src/utils/tokenCounter.ts:146` | `messages[i].tokenCount` — still needs classifying as budget path or not |
+
+`tokenCount` is written once at insert as `countTextTokens(content)` — content
+only, no metadata — so it is essentially always present and the `??` fallback
+essentially never fires. Every prompt is larger than the budget believes by the
+full rendered size of its quoted messages, image descriptions, embeds,
+transcripts and reactions.
+
+**Next step is a measurement, not a fix.** The cache exists for a reason;
+before removing the preference, measure what `getFormattedMessageCharLength`
+costs per entry against a realistic history window. That number decides between
+"always run the estimator" and "make the cached value mean the rendered form."
 <!-- SECTION:DESCRIPTION:END -->
