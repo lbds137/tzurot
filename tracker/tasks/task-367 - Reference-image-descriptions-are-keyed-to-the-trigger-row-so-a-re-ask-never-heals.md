@@ -138,4 +138,57 @@ voice-transcript field (`storedReferencedMessageSchema` carries
 `resolvedImageDescriptions` only), so a stored reference's transcript never
 survives replay. Writing the built reference resolves this the same way it
 resolves images. Surfaced by #1877's round-2 review.
+
+## SHIPPED 2026-07-31 — #1883
+
+The council's shape held: the durable store is the history row, and the write is
+`write-what-you-built` rather than read-back-and-patch. Three things the design
+did not settle, decided at build time:
+
+**1. One enrichment field, not two.** Adding `resolvedVoiceTranscripts` beside
+`resolvedImageDescriptions` would have rebuilt the parallel-field shape PR-1
+spent itself removing. `attachmentEnrichment` carries both — a description and a
+transcript are the same thing to every consumer: the text that becomes the
+element's content.
+
+**2. Keyed by attachment URL, not filename.** The old key was wrong in two ways
+at once: two `image.png`s in one reply are indistinguishable, and a nameless
+attachment had no key at all (producers invented `'image'` vs `'attachment'`,
+the lookup missed, the same picture rendered twice). PR-1 removed that symptom
+by rendering one element per attachment; this removes the cause. The entry also
+records the renderer's own `kind`, so enrichment whose attachment row went
+missing replays under the right element instead of being guessed at.
+
+**3. The cannot-drift seam is `BuiltAttachment`.** `processAttachmentsParallel`
+and `buildDedupedAttachments` now return `{ url, attachment }`, so the persisted
+text is read off the very object the renderer emits — via `attachmentEnrichment()`,
+the accessor that produces the element's content. Deriving it a second time from
+`ProcessedAttachment` (the obvious cheaper route) would have silently skipped
+the inline-fallback path's descriptions, which is TASK-366's class.
+
+`resolvedImageDescriptions` was DELETED rather than migrated: its only DB writer
+went with `67b33a08a` (2026-06-20) and history is deleted at 30 days in both
+environments, so no surviving row can carry it.
+
+**The DB-state question from the Confidence note above is settled by that same
+arithmetic** — 41 days since the last writer, 30-day retention — rather than by
+a query.
+
+**Also shipped, not in the plan**: both writes a job makes to its history row
+now target it by `triggerMessageId` (falling back to most-recent), so a second
+message arriving mid-generation cannot collect one job's content and another's
+references. Prod logs showed zero `No user message found to update` in a
+5000-line window, so this is robustness, not a bug fix.
+
+**Test**: the round trip, per Kimi — build with two sentinels, store, read back
+through `parseMessageMetadata`, render, find both. Verified to FAIL when the Zod
+schema drops the field, which is the specific way this would have gone quiet
+again (strip mode deletes undeclared keys on every read).
+
+**Filed while building**: TASK-382 (the second dedup layer on mismatched key
+spaces), TASK-383 (the serial-vision hypothesis, carried forward unverified).
+
+**Still open from this task's own text**: the extended-context half of the owner
+decisions (re-vision only within retention, `maxImages` as a spend cap persisted
+images do not consume) ships after this, per the recorded sequencing.
 <!-- SECTION:DESCRIPTION:END -->
