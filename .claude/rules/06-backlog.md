@@ -43,6 +43,16 @@ pnpm tracker doc create 'Idea: Title'                                       # fi
 pnpm ops backlog:digest                                                     # the briefing
 ```
 
+**Apostrophes silently break the `$'...'` description.** `$'…'` is what makes
+`\n` a real newline, and the usual way to get an apostrophe inside it —
+`'"'"'` — CLOSES the ANSI-C string and reopens a plain one, so every `\n` after
+the first apostrophe stays a literal backslash-n and the whole body files as one
+unreadable line. Three tasks were filed that way before review caught one.
+Avoid the apostrophe (`doc-56's` → `the doc-56`), or write the body by editing
+the task file directly. Either way **read the file back after creating a task
+with a multi-paragraph description** — `pnpm ops backlog` gates on frontmatter
+parsing and cannot see a mangled body.
+
 - **A task description carries why, what, and acceptance** — same bar as any backlog entry. `Promote when: <event>` is an optional annotation (see the admission bar).
 - **Labels**: `area:<package-or-domain>` (db, redis, voice, bot-client, …). Label at filing; the digest's per-area counts are the jump-around index.
 - **Size + priority** (set at filing; every existing task carries them): `size:S` (<~1hr, one file) / `size:M` (a PR) / `size:L` (multi-PR or needs design) labels, plus the CLI priority field — `high` (prod-correctness / data-rights adjacent) · `medium` (real improvement, no urgency) · `low` (gated, speculative, or watch items). The drain query: `pnpm tracker task list -l size:S --priority high --plain`.

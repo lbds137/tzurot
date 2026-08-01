@@ -1,6 +1,21 @@
 # Caching Architecture Audit
 
 > Last updated: 2025-12-20
+>
+> **Scope: horizontal-scaling safety only.** This document asks "what breaks
+> when there is more than one replica" — in-memory vs Redis, per-replica
+> staleness, pub/sub invalidation. It has nothing to say about **durability**,
+> because a Redis entry and a DB row look identical on this axis. For "what
+> happens when this is lost", see
+> [durability-tiers.md](./durability-tiers.md).
+>
+> **The cache inventory below is historical.** It was written before several
+> caches were added, removed, or re-tiered, and the durability audit found three
+> of its descendants in `.claude/rules/03-database.md` factually wrong. Treat the
+> inventory as a record of what existed in 2025-12; the current one lives in
+> `durability-tiers.md`. The scaling ANALYSIS — the invalidation strategies, the
+> pub/sub map, the resolved channel-activation case — is still accurate and is
+> why this file is kept rather than deleted.
 
 ## Executive Summary
 
