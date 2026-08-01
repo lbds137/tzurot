@@ -92,4 +92,49 @@ The remaining gap (an unfenced `</think>` mid-prose is still consumed) exists
 ONLY to keep the Kimi K2.5 orphan path working. If that model is out of
 rotation, deleting the path closes the gap by construction — a cheaper and more
 honest answer than a cleverer heuristic.
+
+## SWEEP RUN 2026-08-01 — the enumeration, and the rule that bounds it
+
+**The finding that shrinks the rest of this task: escaping preserves, extraction
+deletes — and only destructive sites need this discriminator.** `escapeXmlContent`
+turns a quoted `</character>` into `&lt;/character&gt;`, which the model reads as
+the literal text: the example survives, rendered inert, and a false positive
+costs nothing. A destructive site cannot recover. So `promptSanitizer`,
+`xmlBuilder`, and every other escaping path are out of scope ON PRINCIPLE rather
+than one at a time — which answers the "verify rather than assume, and note WHY
+it is safe" item in the site list above. Do not re-audit them per-tag.
+
+Parse sites over model output, enumerated (not sampled):
+
+| Site | Verdict |
+| --- | --- |
+| `thinkingExtraction.ts` | gated (#1880) |
+| `responseArtifacts.ts` | gated (#1889) |
+| `promptSanitizer` / `xmlBuilder` | escaping — structurally immune, see rule above |
+| `extractJsonPayload` | not this class: unwraps a fence we asked for, on a JSON response, not prose |
+
+**`responseArtifacts.ts` result, and the method worth copying.** A 5-family ×
+2-quoting-shape table was written, then the gate was DISABLED and the table
+re-run. Only the prompt-template-closing-tag family went red — it is the only
+unanchored, global pattern in the file. The other four are protected by their
+own `^`/`$` anchors, because a leading or trailing backtick already means no
+match, so their rows pass with the gate off and are NOT gate coverage. They are
+kept and relabelled as pinning the ANCHOR, so a later "make this catch
+mid-response too" edit turns them red exactly when the gate becomes load-bearing
+there. **Run the table against a disabled gate before believing it** — a
+quoted-syntax table looks like coverage whether or not the site was ever
+exposed.
+
+Confirms result #2 above from a second site: the discriminator is per-site, and
+here the answer was code markup for one pattern and the existing anchor for the
+rest.
+
+**Perf caveat discharged for this site**: `isInsideCodeSpan`'s scan-from-zero is
+irrelevant over a single reply with few candidates. It remains open for
+`promptSanitizer` — which the rule above now says we never need to wire it into,
+so the caveat is likely moot rather than pending.
+
+**Still open**: the `<action>`-tag leak handler (now.md Untriaged) is a FUTURE
+parse site and must be designed against this class rather than retrofitted; the
+unfenced-quote gap is unchanged and still gated on the TASK-375 question above.
 <!-- SECTION:DESCRIPTION:END -->
