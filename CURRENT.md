@@ -20,7 +20,7 @@
 
 **Post-release watch, from the release review**: every generation now renders + tokenizes each history entry instead of reading a cached count (#1885 — the cache understated cost by up to 87%). Measured at 50–120 ms end-to-end per request. Worth a glance at prod generation latency now that it is live; the trade is deliberate (correctness over a map lookup) but unverified at prod scale.
 
-_Also approved and not yet done: three one-liners — fallback→assistant tripwire log, autocomplete miss-duration log at info, and rewriting the route-tier comment to carry the cache-warming reasoning._
+_The three approved one-liners are now **TASK-395** — they had ridden two sessions as prose here, and CURRENT.md is reset every release cut, so the tracker is their real home. Their original justification was already unrecoverable from the session logs when filed; the task records the sites found in source and flags the third as unidentified rather than guessing._
 
 **Owner decisions locked** (still governing): no asset table for attachments — council split 2-1 for one, Gemini tiebroke for Kimi's history-row design · descriptions live 30d keyed to `DAYS_TO_KEEP_HISTORY`, not any user-facing `maxAge` · direct replies always re-vision regardless of age · extended context re-visions only within retention · an undescribed old image renders a content-free presence note, never a filename stub · extended-context quota exemption ships AFTER persistence · `maxImages` is a spend cap persisted images do not consume, with no second render lever.
 
