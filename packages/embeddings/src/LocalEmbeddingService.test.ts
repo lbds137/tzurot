@@ -7,6 +7,7 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { Worker } from 'node:worker_threads';
 import {
   LocalEmbeddingService,
   LOCAL_EMBEDDING_DIMENSIONS,
@@ -18,6 +19,22 @@ import {
 vi.mock('node:worker_threads', () => ({
   Worker: vi.fn(),
 }));
+
+const warnSpy = vi.fn();
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
+  return {
+    ...actual,
+    createLogger: () => ({
+      info: vi.fn(),
+      debug: vi.fn(),
+      warn: (...args: unknown[]) => warnSpy(...args),
+      error: vi.fn(),
+    }),
+  };
+});
 
 describe('LocalEmbeddingService', () => {
   describe('constants', () => {
@@ -208,6 +225,95 @@ describe('LocalEmbeddingService', () => {
     it('should return 384 dimensions', () => {
       const service = new LocalEmbeddingService();
       expect(service.getDimensions()).toBe(384);
+    });
+  });
+
+  describe('overflow warn wiring', () => {
+    // A WIRING test, per 02-code-standards rule 7: it runs the real chain
+    // (getEmbedding -> sendMessage -> describeInputOverflow -> logger.warn) and
+    // mocks only the external boundary, the worker thread. The pieces are each
+    // unit-tested elsewhere, which is exactly why this is needed — every one of
+    // those suites mocks the seam it would have to cross, so a slip like
+    // `warnOnTruncatedInput(text, undefined)` would leave them all green while
+    // silently killing every overflow warning this PR exists to produce.
+
+    /**
+     * A fake worker thread that replies to health and embed with a fixed count.
+     *
+     * Must be a `function` expression, not an arrow: the service calls
+     * `new Worker(path)`, and an arrow function is not a constructor — vitest
+     * reports it as "did not use 'function' or 'class' in its implementation"
+     * and `initialize()` fails with a TypeError swallowed by its catch.
+     */
+    function installFakeWorker(inputTokens: number | undefined): void {
+      vi.mocked(Worker).mockImplementation(function () {
+        const handlers: ((msg: unknown) => void)[] = [];
+        const emit = (msg: unknown): void => {
+          for (const handler of handlers) {
+            handler(msg);
+          }
+        };
+
+        // The 'ready' signal must land after initialize() has awaited into
+        // waitForReady and registered its handler; a macrotask guarantees that.
+        setTimeout(() => emit({ id: 0, status: 'ready', modelSource: 'local' }), 0);
+
+        return {
+          on: (event: string, handler: (msg: unknown) => void) => {
+            if (event === 'message') {
+              handlers.push(handler);
+            }
+          },
+          off: () => undefined,
+          postMessage: (msg: { id: number; type: string }) => {
+            const reply =
+              msg.type === 'health'
+                ? { id: msg.id, status: 'success', modelLoaded: true }
+                : {
+                    id: msg.id,
+                    status: 'success',
+                    vector: new Array(LOCAL_EMBEDDING_DIMENSIONS).fill(0.1),
+                    inputTokens,
+                  };
+            setTimeout(() => emit(reply), 0);
+          },
+          terminate: () => Promise.resolve(0),
+        } as unknown as Worker;
+      });
+    }
+
+    async function embedWithReportedTokens(
+      inputTokens: number | undefined
+    ): Promise<Float32Array | undefined> {
+      installFakeWorker(inputTokens);
+      const service = new LocalEmbeddingService();
+      expect(await service.initialize()).toBe(true);
+      warnSpy.mockClear();
+      return service.getEmbedding('some text the model only partly read');
+    }
+
+    it('warns with the discarded count when the worker reports overflow', async () => {
+      const vector = await embedWithReportedTokens(2093);
+
+      expect(vector).toHaveLength(LOCAL_EMBEDDING_DIMENSIONS);
+      expect(warnSpy).toHaveBeenCalledTimes(1);
+      expect(warnSpy.mock.calls[0][0]).toMatchObject({
+        inputTokens: 2093,
+        maxInputTokens: 512,
+        discardedTokens: 1581,
+      });
+    });
+
+    it('stays silent when the input fits the window', async () => {
+      await embedWithReportedTokens(120);
+
+      expect(warnSpy).not.toHaveBeenCalled();
+    });
+
+    it('stays silent when the worker could not count', async () => {
+      await embedWithReportedTokens(undefined);
+
+      expect(warnSpy).not.toHaveBeenCalled();
     });
   });
 });
