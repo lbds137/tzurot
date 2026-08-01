@@ -163,20 +163,24 @@ const cache = new TTLCache<ValueType>({
 
 ### Existing Cache Implementations
 
-| Cache              | Location                     | TTL   | Type                   |
-| ------------------ | ---------------------------- | ----- | ---------------------- |
-| Channel Activation | `gatewayServiceCalls.ts`     | 30s   | TTLCache + pub/sub     |
-| Admin Settings     | `gatewayServiceCalls.ts`     | 60s   | TTLCache (in-memory)   |
-| Personality        | `PersonalityService.ts`      | 5 min | TTLCache + pub/sub     |
-| Personality (bot)  | `HttpPersonalityLoader.ts`   | 5 min | TTLCache (+ negative)  |
-| Denylist           | `DenylistCache.ts`           | -     | In-memory + pub/sub    |
-| User               | `UserService.ts`             | 5 min | TTLCache (in-memory)   |
-| Autocomplete       | `autocompleteCache.ts`       | 60s   | TTLCache (in-memory)   |
-| OpenRouter Models  | `OpenRouterModelCache.ts`    | 24h   | Redis-backed           |
-| Vision Description | `VisionDescriptionCache.ts`  | 1h    | Redis-backed (L1 only) |
-| Voice Transcript   | `VoiceTranscriptCache.ts`    | -     | Custom (in-memory)     |
-| Redis Dedup        | `RedisDeduplicationCache.ts` | TTL   | Redis-backed           |
+`Tier` is the durability tier — see [durability-tiers.md](../../docs/reference/architecture/durability-tiers.md) for what each means and how to sort a new cache into one. **1** = recomputable for free, loss is correctness-neutral. **2** = costs money to regenerate and is conversation-scoped (the history row is the system of record; Redis is L1 only). **3** = costs money and the asset outlives the conversation (needs a home that is not a TTL).
+
+| Cache              | Location                     | TTL           | Tier | Type                                 |
+| ------------------ | ---------------------------- | ------------- | ---- | ------------------------------------ |
+| Channel Activation | `gatewayServiceCalls.ts`     | 30s           | 1    | TTLCache + pub/sub                   |
+| Admin Settings     | `gatewayServiceCalls.ts`     | 60s           | 1    | TTLCache (in-memory)                 |
+| Personality        | `PersonalityService.ts`      | 5 min         | 1    | TTLCache + pub/sub                   |
+| Personality (bot)  | `HttpPersonalityLoader.ts`   | 5 min         | 1    | TTLCache (+ 60s negative)            |
+| Denylist           | `DenylistCache.ts`           | -             | 1    | In-memory + pub/sub                  |
+| User               | `UserService.ts`             | **1h**        | 1    | TTLCache (in-memory)                 |
+| Autocomplete       | `autocompleteCache.ts`       | 60s           | 1    | TTLCache (+ LRU-bounded stale, 500)  |
+| OpenRouter Models  | `OpenRouterModelCache.ts`    | **5 min/24h** | 1    | **Two-tier**: memory L1 → Redis      |
+| Vision Description | `VisionDescriptionCache.ts`  | 1h            | 2    | Redis L1 over `attachmentEnrichment` |
+| Voice Transcript   | `VoiceTranscriptCache.ts`    | **1h**        | 2    | **Redis-backed**, L1 over the row    |
+| Redis Dedup        | `RedisDeduplicationCache.ts` | configurable  | 1    | Redis-backed                         |
+
+Three rows were wrong before the durability audit and are corrected in bold: `User` said 5 min (it is 1h — `USER_CACHE_TTL_MS`), `OpenRouter Models` hid its 5-minute in-memory L1 in front of the 24h Redis entry, and `Voice Transcript` said "Custom (in-memory)" with no TTL when it is Redis `setex` at `INTERVALS.VOICE_TRANSCRIPT_TTL`. **Verify a row against the constant before relying on it** — every value here was re-read from source, and a stale TTL in an always-loaded table is a wrong premise in every session that reads it.
 
 **Cache invalidation services** (Redis pub/sub): `CacheInvalidationService`, `LlmConfigCacheInvalidationService`, `ChannelActivationCacheInvalidationService`, `ApiKeyCacheInvalidationService`, `PersonaCacheInvalidationService`
 
-**Full cache audit:** `docs/reference/architecture/CACHING_AUDIT.md`
+**Durability tiers + full inventory:** [`docs/reference/architecture/durability-tiers.md`](../../docs/reference/architecture/durability-tiers.md). The older [`CACHING_AUDIT.md`](../../docs/reference/architecture/CACHING_AUDIT.md) covers a different axis (horizontal-scaling safety) and its inventory is historical.
