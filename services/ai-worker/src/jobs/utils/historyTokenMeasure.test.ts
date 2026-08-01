@@ -134,7 +134,7 @@ describe('measureHistoryEntryTokens', () => {
     const dedupedRender = formatSingleHistoryEntryAsXml(
       entry,
       PERSONALITY,
-      new Set(['1399000000000000001'])
+      new Map([['1399000000000000001', { role: 'user', content: '' }]])
     );
 
     // Pinning WHICH form gets measured. The two differ, so this would catch a

@@ -44,8 +44,8 @@ const logger = createLogger('StoredReference');
  *
  * Two fields are deliberately NOT carried:
  * - `isDeduplicated` — a decision about THIS turn's prompt. Replay re-derives
- *   it from its own `historyMessageIds`, and a stored `true` would stub a
- *   quote whose full copy had since aged out of the window.
+ *   it from its own history index (`buildHistoryEntryIndex`), and a stored
+ *   `true` would stub a quote whose full copy had since aged out of the window.
  * - the derived `role` — `authorRole` is stored raw instead, because the
  *   sibling-persona demotion depends on which personalities are visible in the
  *   replaying turn's history, not this one's.

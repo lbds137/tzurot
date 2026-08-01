@@ -4,6 +4,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { TEXT_LIMITS } from '@tzurot/common-types/constants/discord';
+import { enrichmentKey } from './QuoteFormatter.js';
 import {
   dedupeReference,
   promptTime,
@@ -104,7 +105,7 @@ describe('promptTime', () => {
 });
 
 describe('dedupeReference', () => {
-  it('inherits EVERY field except the three it subtracts', () => {
+  it('inherits EVERY field except the three it always subtracts', () => {
     // The structural guard on the whole projection. A field-by-field rebuild —
     // the shape this replaced, and the source of three separate dropped-field
     // bugs — fails here the moment someone adds a field to the reference and
@@ -168,6 +169,81 @@ describe('dedupeReference', () => {
 
     expect(described.content).toContain('its media is described here');
     expect(undescribed.content).not.toContain('its media is described here');
+  });
+
+  describe('subtracting enrichment the chat log already renders', () => {
+    it('drops an attachment whose description the chat log carries', () => {
+      const stub = dedupeReference(reference(), new Set([enrichmentKey('image', 'a cat')]));
+
+      expect(stub.attachments).toEqual([]);
+      // And the prefix follows the subtraction rather than the input: promising
+      // "its media is described here" beside nothing is the same class of false
+      // claim this whole change exists to remove.
+      expect(stub.content).not.toContain('its media is described here');
+    });
+
+    it('keeps an attachment the chat log does NOT carry', () => {
+      const stub = dedupeReference(
+        reference(),
+        new Set([enrichmentKey('image', 'some other description')])
+      );
+
+      expect(renderReference(stub)).toContain('a cat');
+      expect(stub.content).toContain('its media is described here');
+    });
+
+    it('subtracts per attachment, not all-or-nothing', () => {
+      const stub = dedupeReference(
+        reference({
+          attachments: [
+            { kind: 'image', filename: 'carried.png', description: 'in the chat log' },
+            { kind: 'image', filename: 'orphan.png', description: 'nowhere else' },
+          ],
+        }),
+        new Set([enrichmentKey('image', 'in the chat log')])
+      );
+
+      expect(stub.attachments).toHaveLength(1);
+      expect(renderReference(stub)).toContain('nowhere else');
+      expect(renderReference(stub)).not.toContain('carried.png');
+    });
+
+    it('never subtracts an UNDESCRIBED attachment', () => {
+      // The chat log has nothing to render for it either, so the stub is its
+      // only mention — subtracting would erase the fact that it exists.
+      const stub = dedupeReference(
+        reference({
+          attachments: [{ kind: 'image', filename: 'broken.png', status: 'undescribed' }],
+        }),
+        new Set([enrichmentKey('image', 'a cat')])
+      );
+
+      expect(renderReference(stub)).toContain(
+        '<image filename="broken.png" status="undescribed"/>'
+      );
+    });
+
+    it('does not subtract across modalities on identical text', () => {
+      // The set is keyed by kind, so a TRANSCRIPT the chat log carries cannot
+      // cancel an image described with the same words. Improbable, but the two
+      // strings come from different producers and mean different things, and
+      // conflating them drops an element for a reason unrelated to it.
+      const stub = dedupeReference(
+        reference({
+          attachments: [{ kind: 'image', filename: 'sign.png', description: 'meet me at seven' }],
+        }),
+        new Set([enrichmentKey('voice', 'meet me at seven')])
+      );
+
+      expect(renderReference(stub)).toContain('meet me at seven');
+    });
+
+    it('subtracts nothing when the caller supplies no set', () => {
+      // The safe default, and it has a direction: a duplicated description costs
+      // tokens, a dropped one costs the answer.
+      expect(dedupeReference(reference()).attachments).toEqual(reference().attachments);
+      expect(dedupeReference(reference(), new Set()).attachments).toEqual(reference().attachments);
+    });
   });
 
   describe('the preview', () => {
