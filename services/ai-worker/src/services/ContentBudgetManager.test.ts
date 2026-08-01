@@ -574,15 +574,17 @@ describe('ContentBudgetManager', () => {
     it('preselect with a REAL ContextWindowManager exposes the exact shipped boundary and ids', () => {
       // Four entries, newest-first selection under a budget that fits only
       // the newest two — E1/E2 drop, E3/E4 ship.
+      // Sized so the REAL budget math (window 1450 − base 100 − msg 100 −
+      // real memory reserve) fits exactly TWO entries: E1/E2 drop, E3/E4 ship.
+      // The size has to come from actual content — selection measures the
+      // rendered entry, so a declared tokenCount would size nothing.
+      const bulk = 'lorem ipsum dolor sit amet consectetur adipiscing elit '.repeat(50);
       const entry = (n: number): Record<string, unknown> => ({
         id: `uuid-${n}`,
         discordMessageId: [`snowflake-${n}`],
         role: n % 2 === 0 ? 'assistant' : 'user',
-        content: `message ${n}`,
+        content: `message ${n} ${bulk}`,
         createdAt: new Date(1_000_000 + n * 60_000).toISOString(),
-        // Sized so the REAL budget math (window 1450 − base 100 − msg 100 −
-        // real memory hardCap) fits exactly TWO entries: E1/E2 drop, E3/E4 ship.
-        tokenCount: 400,
       });
       const realManager = new RealContextWindowManager();
       const manager = new ContentBudgetManager(mockPromptBuilder, realManager);
