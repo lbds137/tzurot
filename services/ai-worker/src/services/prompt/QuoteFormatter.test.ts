@@ -467,19 +467,33 @@ describe('QuoteFormatter', () => {
   });
 
   describe('buildRenderableAttachments', () => {
-    const image = { name: 'photo.png', contentType: 'image/png' };
-    const voice = { name: 'clip.ogg', contentType: 'audio/ogg', isVoiceMessage: true, duration: 7 };
-    const music = { name: 'song.mp3', contentType: 'audio/mpeg' };
-    const doc = { name: 'report.pdf', contentType: 'application/pdf' };
+    const image = { url: 'https://cdn/photo.png', name: 'photo.png', contentType: 'image/png' };
+    const voice = {
+      url: 'https://cdn/clip.ogg',
+      name: 'clip.ogg',
+      contentType: 'audio/ogg',
+      isVoiceMessage: true,
+      duration: 7,
+    };
+    const music = { url: 'https://cdn/song.mp3', name: 'song.mp3', contentType: 'audio/mpeg' };
+    const doc = {
+      url: 'https://cdn/report.pdf',
+      name: 'report.pdf',
+      contentType: 'application/pdf',
+    };
 
     const none = (): string | undefined => undefined;
+
+    /** The renderable half — what these cases are about. */
+    const rendered = <T extends { attachment: unknown }>(built: T[]): unknown[] =>
+      built.map(entry => entry.attachment);
 
     it('pairs each attachment with the enrichment the caller finds for it', () => {
       const built = buildRenderableAttachments([image, voice], att =>
         att.name === 'photo.png' ? 'a cat' : 'hello there'
       );
 
-      expect(built).toEqual([
+      expect(rendered(built)).toEqual([
         { kind: 'image', filename: 'photo.png', contentType: 'image/png', description: 'a cat' },
         {
           kind: 'voice',
@@ -492,7 +506,7 @@ describe('QuoteFormatter', () => {
     });
 
     it('names the absence per modality rather than emitting a bare element', () => {
-      expect(buildRenderableAttachments([image, voice], none)).toEqual([
+      expect(rendered(buildRenderableAttachments([image, voice], none))).toEqual([
         { kind: 'image', filename: 'photo.png', contentType: 'image/png', status: 'undescribed' },
         {
           kind: 'voice',
@@ -505,7 +519,7 @@ describe('QuoteFormatter', () => {
     });
 
     it('treats an empty description as absent — a silent clip is not a transcript', () => {
-      expect(buildRenderableAttachments([voice], () => '')).toEqual([
+      expect(rendered(buildRenderableAttachments([voice], () => ''))).toEqual([
         {
           kind: 'voice',
           filename: 'clip.ogg',
@@ -520,12 +534,12 @@ describe('QuoteFormatter', () => {
       const [transcribed] = buildRenderableAttachments([voice], () => 'hi');
       const [silent] = buildRenderableAttachments([voice], none);
 
-      expect(transcribed).toMatchObject({ durationSeconds: 7 });
-      expect(silent).toMatchObject({ durationSeconds: 7 });
+      expect(transcribed.attachment).toMatchObject({ durationSeconds: 7 });
+      expect(silent.attachment).toMatchObject({ durationSeconds: 7 });
     });
 
     it('classifies on isVoiceMessage, not on audio/* — a music file is not a failed transcript', () => {
-      expect(buildRenderableAttachments([music], none)).toEqual([
+      expect(rendered(buildRenderableAttachments([music], none))).toEqual([
         { kind: 'file', filename: 'song.mp3', contentType: 'audio/mpeg' },
       ]);
     });
@@ -535,16 +549,34 @@ describe('QuoteFormatter', () => {
       // no description field. A caller that finds enrichment for one is warned
       // by its own count check (see warnOnDroppedEnrichment) rather than
       // silently misrendering it.
-      expect(buildRenderableAttachments([doc], () => 'a quarterly report')).toEqual([
+      expect(rendered(buildRenderableAttachments([doc], () => 'a quarterly report'))).toEqual([
         { kind: 'file', filename: 'report.pdf', contentType: 'application/pdf' },
       ]);
     });
 
     it('omits the filename entirely when there is no real name', () => {
-      const [built] = buildRenderableAttachments([{ contentType: 'image/png' }], () => 'a cat');
+      const [built] = buildRenderableAttachments(
+        [{ url: 'https://cdn/nameless.png', contentType: 'image/png' }],
+        () => 'a cat'
+      );
 
-      expect(built).toEqual({ kind: 'image', contentType: 'image/png', description: 'a cat' });
-      expect(renderAttachment(built)).toBe('<image type="image/png">a cat</image>');
+      expect(built.attachment).toEqual({
+        kind: 'image',
+        contentType: 'image/png',
+        description: 'a cat',
+      });
+      expect(renderAttachment(built.attachment)).toBe('<image type="image/png">a cat</image>');
+    });
+
+    it('pairs every element with the URL of the attachment it came from', () => {
+      // The URL is not rendered — it is the key the built enrichment is written
+      // down under, so a description the model saw can be replayed tomorrow.
+      const built = buildRenderableAttachments([image, doc], () => 'a cat');
+
+      expect(built.map(entry => entry.url)).toEqual([
+        'https://cdn/photo.png',
+        'https://cdn/report.pdf',
+      ]);
     });
   });
 });

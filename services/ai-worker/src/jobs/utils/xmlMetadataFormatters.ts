@@ -12,117 +12,9 @@ import {
   neutralizeWrapperClosingTags,
 } from '@tzurot/common-types/utils/promptSanitizer';
 import { escapeXml } from '@tzurot/common-types/utils/xmlBuilder';
-import {
-  buildRenderableAttachments,
-  type RenderableAttachment,
-} from '../../services/prompt/QuoteFormatter.js';
-import {
-  dedupeReference,
-  promptTime,
-  renderReference,
-  type RenderableReference,
-} from '../../services/prompt/RenderableReference.js';
-import { deriveRefRole } from '../../services/prompt/referenceRole.js';
+import { dedupeReference, renderReference } from '../../services/prompt/RenderableReference.js';
+import { fromStoredReference } from '../../services/prompt/storedReference.js';
 import type { RawHistoryEntry } from './conversationTypes.js';
-
-/**
- * Build a stored reference's attachments in renderable form: one element per
- * attachment, carrying its persisted vision description when there is one.
- *
- * The predecessor split this into two lists — described images in one
- * vocabulary, everything else as `[contentType: name]` markers in another —
- * and then had to suppress a marker whenever a description existed for the
- * same file, matching the two halves BY FILENAME. That correspondence was
- * fragile in a specific way: the two sides defaulted a nameless attachment
- * differently (`'image'` vs `'attachment'`), so the lookup missed and the same
- * picture rendered twice. One element per attachment removes the lookup, and
- * that whole bug class with it — a nameless attachment now simply has no
- * `filename` attribute, and there is nothing to correlate.
- *
- * Descriptions are joined ONTO the attachment list rather than replacing it, and
- * any description that matches no attachment is still appended: a description is
- * paid-for enrichment, and dropping one because its attachment row went missing
- * would re-create the class this function exists to close.
- */
-export function buildStoredAttachments(ref: StoredReferencedMessage): RenderableAttachment[] {
-  const descriptionsByFilename = new Map(
-    (ref.resolvedImageDescriptions ?? []).map(desc => [desc.filename, desc.description])
-  );
-  const matched = new Set<string>();
-
-  // Only images can be enriched here, and that is honest rather than a gap in
-  // this function: `StoredReferencedMessage` has no audio counterpart to
-  // `resolvedImageDescriptions`, so a replayed voice reference has no transcript
-  // to carry and renders `status="untranscribed"`. Closing THAT is a schema
-  // change (TASK-367), not a render change — and a shared builder that quietly
-  // emitted an empty transcript section would paper over it.
-  const attachments = buildRenderableAttachments(ref.attachments ?? [], att => {
-    const name = att.name;
-    if (name === undefined) {
-      return undefined;
-    }
-    const description = descriptionsByFilename.get(name);
-    if (description !== undefined) {
-      matched.add(name);
-    }
-    return description;
-  });
-
-  for (const [filename, description] of descriptionsByFilename) {
-    if (!matched.has(filename)) {
-      attachments.push({ kind: 'image', filename, description });
-    }
-  }
-
-  return attachments;
-}
-
-/**
- * Adapt a stored history reference into the canonical renderable shape.
- *
- * The one place the stored schema is read. `number` stays absent by design — a
- * replayed quote has no `[Reference N]` marker in the current message to point
- * at, so numbering it would invent a referent.
- */
-export function fromStoredReference(
-  ref: StoredReferencedMessage,
-  personalityName: string,
-  allPersonalityNames?: Set<string>
-): RenderableReference {
-  // Hydrated persona name where one resolved, else the Discord display name.
-  const from = ref.resolvedPersonaName ?? (ref.authorDisplayName || ref.authorUsername);
-
-  return {
-    isForwarded: ref.isForwarded,
-    from,
-    fromId: ref.resolvedPersonaId,
-    username: ref.authorUsername,
-    role: deriveRefRole(ref.authorRole, from, personalityName, allPersonalityNames),
-    time: promptTime(ref.timestamp),
-    content: ref.content,
-    locationContext: usableLocationContext(ref.locationContext),
-    embedsXml: ref.embeds !== undefined && ref.embeds.length > 0 ? [ref.embeds] : undefined,
-    attachments: buildStoredAttachments(ref),
-  };
-}
-
-/**
- * Location context, unless it predates XML formatting.
- *
- * Legacy stored rows carry a Markdown location block that would render as prose
- * inside the quote. Detectable by two phrases the old format always contained.
- */
-function usableLocationContext(locationContext: string | undefined): string | undefined {
-  if (
-    locationContext === undefined ||
-    locationContext.length === 0 ||
-    locationContext.includes('**Server**') ||
-    locationContext.includes('This conversation is taking place')
-  ) {
-    return undefined;
-  }
-  return locationContext;
-}
 
 /** Format quoted messages section for XML output */
 export function formatQuotedSection(
@@ -165,9 +57,10 @@ export function formatQuotedSection(
   );
 
   // Deduped refs are the SAME reference, projected — not a second build. Media
-  // rides along in full: `persistReferenceDescriptions` writes descriptions onto
-  // the stored row precisely so a quoted image survives replay, and the history
-  // entry the stub points at renders that image as a URL, not a description.
+  // rides along in full: the worker writes each reference's descriptions and
+  // transcripts onto this row when it builds them, precisely so quoted media
+  // survives replay, and the history entry the stub points at renders that
+  // image as a URL, not a description.
   const formattedDeduped = dedupedRefs.map(ref =>
     renderReference(dedupeReference(fromStoredReference(ref, personalityName, allPersonalityNames)))
   );

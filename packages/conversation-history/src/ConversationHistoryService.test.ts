@@ -6,6 +6,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { ConversationHistoryService } from './ConversationHistoryService.js';
 import { MessageRole } from '@tzurot/common-types/constants/message';
 import { type PrismaClient } from '@tzurot/common-types/services/prisma';
+import { type StoredReferencedMessage } from '@tzurot/common-types/types/schemas/message';
 
 // countTextTokens now lives in @tzurot/common-types (consumed by the production
 // service via the barrel), so intercept it through a partial mock rather than a
@@ -686,9 +687,11 @@ describe('ConversationHistoryService - Token Count Caching', () => {
       mockPrismaClient.conversationHistory.update.mockResolvedValue({});
 
       await service.updateLastUserMessage('channel-123', 'personality-456', 'persona-789', 'new', {
-        attachmentDescriptions: [
-          { type: 'image', description: 'a cat', originalUrl: 'https://cdn/c.png' },
-        ],
+        newMetadata: {
+          attachmentDescriptions: [
+            { type: 'image', description: 'a cat', originalUrl: 'https://cdn/c.png' },
+          ],
+        },
       });
 
       expect(mockPrismaClient.conversationHistory.update).toHaveBeenCalledWith({
@@ -710,32 +713,38 @@ describe('ConversationHistoryService - Token Count Caching', () => {
     });
   });
 
-  describe('persistReferenceImageDescriptions', () => {
-    const storedRef = (overrides = {}) => ({
-      discordMessageId: 'ref-msg-1',
-      authorUsername: 'alice',
-      authorDisplayName: 'Alice',
-      content: 'look',
-      timestamp: '2026-06-17T00:00:00.000Z',
-      locationContext: '',
-      attachments: [{ url: 'https://cdn/a.png', contentType: 'image/png', name: 'cat.png' }],
-      ...overrides,
-    });
+  describe('storeTriggerReferences', () => {
+    // Typed, not inferred: without this the fixture's `kind` widens to `string`
+    // and the compiler stops noticing when the schema's shape moves.
+    const storedRef = (overrides: Partial<StoredReferencedMessage> = {}): StoredReferencedMessage =>
+      ({
+        discordMessageId: 'ref-msg-1',
+        authorUsername: 'alice',
+        authorDisplayName: 'Alice',
+        content: 'look',
+        timestamp: '2026-06-17T00:00:00.000Z',
+        locationContext: '',
+        attachments: [{ url: 'https://cdn/a.png', contentType: 'image/png', name: 'cat.png' }],
+        attachmentEnrichment: [
+          { url: 'https://cdn/a.png', kind: 'image', description: 'a tabby cat' },
+        ],
+        ...overrides,
+      }) satisfies StoredReferencedMessage;
 
-    it('writes resolvedImageDescriptions onto matching stored references (metadata only)', async () => {
+    it('writes the built references onto the row, preserving other metadata keys', async () => {
       mockPrismaClient.conversationHistory.findFirst.mockResolvedValue({
         id: 'msg-ref',
         role: MessageRole.User,
         content: 'should not change',
-        messageMetadata: { referencedMessages: [storedRef()], embedsXml: ['<e/>'] },
+        messageMetadata: { embedsXml: ['<e/>'] },
       });
       mockPrismaClient.conversationHistory.update.mockResolvedValue({});
 
-      const count = await service.persistReferenceImageDescriptions(
+      const count = await service.storeTriggerReferences(
         'channel-123',
         'personality-456',
         'persona-789',
-        new Map([['https://cdn/a.png', 'a tabby cat']])
+        [storedRef()]
       );
 
       expect(count).toBe(1);
@@ -744,12 +753,7 @@ describe('ConversationHistoryService - Token Count Caching', () => {
         data: {
           messageMetadata: {
             embedsXml: ['<e/>'],
-            referencedMessages: [
-              {
-                ...storedRef(),
-                resolvedImageDescriptions: [{ filename: 'cat.png', description: 'a tabby cat' }],
-              },
-            ],
+            referencedMessages: [storedRef()],
           },
         },
       });
@@ -759,80 +763,110 @@ describe('ConversationHistoryService - Token Count Caching', () => {
       );
     });
 
-    it('replaces (does not merge) pre-existing resolvedImageDescriptions', async () => {
+    it('replaces (does not merge into) whatever references the row already had', async () => {
       mockPrismaClient.conversationHistory.findFirst.mockResolvedValue({
         id: 'msg-ref',
         role: MessageRole.User,
         messageMetadata: {
           referencedMessages: [
-            {
-              ...storedRef(),
-              // stale value from a prior persist — must be fully replaced
-              resolvedImageDescriptions: [
-                { filename: 'cat.png', description: 'STALE description' },
-              ],
-            },
+            storedRef({ content: 'a STALE snapshot', attachmentEnrichment: [] }),
           ],
         },
       });
       mockPrismaClient.conversationHistory.update.mockResolvedValue({});
 
-      const count = await service.persistReferenceImageDescriptions(
+      await service.storeTriggerReferences('channel-123', 'personality-456', 'persona-789', [
+        storedRef(),
+      ]);
+
+      const written =
+        mockPrismaClient.conversationHistory.update.mock.calls[0][0].data.messageMetadata
+          .referencedMessages;
+      expect(written).toEqual([storedRef()]);
+    });
+
+    it('targets the trigger row EXACTLY when the job carries its Discord id', async () => {
+      mockPrismaClient.conversationHistory.findFirst.mockResolvedValue({
+        id: 'msg-exact',
+        role: MessageRole.User,
+        messageMetadata: null,
+      });
+      mockPrismaClient.conversationHistory.update.mockResolvedValue({});
+
+      await service.storeTriggerReferences(
         'channel-123',
         'personality-456',
         'persona-789',
-        new Map([['https://cdn/a.png', 'fresh description']])
+        [storedRef()],
+        'discord-trigger-9'
+      );
+
+      expect(mockPrismaClient.conversationHistory.findFirst).toHaveBeenCalledWith({
+        where: {
+          channelId: 'channel-123',
+          personalityId: 'personality-456',
+          personaId: 'persona-789',
+          role: MessageRole.User,
+          discordMessageId: { has: 'discord-trigger-9' },
+        },
+      });
+      expect(mockPrismaClient.conversationHistory.update).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 'msg-exact' } })
+      );
+    });
+
+    it('falls back to the most recent user row when the exact lookup finds nothing', async () => {
+      // The bot's trigger-message persist is best-effort, so the row may never
+      // have been written under that id — the write must still land.
+      mockPrismaClient.conversationHistory.findFirst
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce({ id: 'msg-recent', role: MessageRole.User, messageMetadata: null });
+      mockPrismaClient.conversationHistory.update.mockResolvedValue({});
+
+      const count = await service.storeTriggerReferences(
+        'channel-123',
+        'personality-456',
+        'persona-789',
+        [storedRef()],
+        'discord-trigger-9'
       );
 
       expect(count).toBe(1);
-      const written =
-        mockPrismaClient.conversationHistory.update.mock.calls[0][0].data.messageMetadata
-          .referencedMessages[0].resolvedImageDescriptions;
-      expect(written).toEqual([{ filename: 'cat.png', description: 'fresh description' }]);
-    });
-
-    it('returns 0 and skips the update when no stored reference matches', async () => {
-      mockPrismaClient.conversationHistory.findFirst.mockResolvedValue({
-        id: 'msg-ref',
-        role: MessageRole.User,
-        messageMetadata: { referencedMessages: [storedRef()] },
+      expect(mockPrismaClient.conversationHistory.findFirst).toHaveBeenCalledTimes(2);
+      expect(mockPrismaClient.conversationHistory.findFirst).toHaveBeenLastCalledWith({
+        where: {
+          channelId: 'channel-123',
+          personalityId: 'personality-456',
+          personaId: 'persona-789',
+          role: MessageRole.User,
+        },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       });
-
-      const count = await service.persistReferenceImageDescriptions(
-        'channel-123',
-        'personality-456',
-        'persona-789',
-        new Map([['https://cdn/UNMATCHED.png', 'nope']])
+      expect(mockPrismaClient.conversationHistory.update).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 'msg-recent' } })
       );
-
-      expect(count).toBe(0);
-      expect(mockPrismaClient.conversationHistory.update).not.toHaveBeenCalled();
     });
 
-    it('returns 0 without a DB read when the description map is empty', async () => {
-      const count = await service.persistReferenceImageDescriptions(
+    it('returns 0 without a DB read when there are no references', async () => {
+      const count = await service.storeTriggerReferences(
         'channel-123',
         'personality-456',
         'persona-789',
-        new Map()
+        []
       );
 
       expect(count).toBe(0);
       expect(mockPrismaClient.conversationHistory.findFirst).not.toHaveBeenCalled();
     });
 
-    it('returns 0 when the message has no stored references', async () => {
-      mockPrismaClient.conversationHistory.findFirst.mockResolvedValue({
-        id: 'msg-ref',
-        role: MessageRole.User,
-        messageMetadata: { embedsXml: ['<e/>'] },
-      });
+    it('returns 0 when no user row exists to write to', async () => {
+      mockPrismaClient.conversationHistory.findFirst.mockResolvedValue(null);
 
-      const count = await service.persistReferenceImageDescriptions(
+      const count = await service.storeTriggerReferences(
         'channel-123',
         'personality-456',
         'persona-789',
-        new Map([['https://cdn/a.png', 'a tabby cat']])
+        [storedRef()]
       );
 
       expect(count).toBe(0);
@@ -843,12 +877,9 @@ describe('ConversationHistoryService - Token Count Caching', () => {
       mockPrismaClient.conversationHistory.findFirst.mockRejectedValue(new Error('db down'));
 
       await expect(
-        service.persistReferenceImageDescriptions(
-          'channel-123',
-          'personality-456',
-          'persona-789',
-          new Map([['https://cdn/a.png', 'a tabby cat']])
-        )
+        service.storeTriggerReferences('channel-123', 'personality-456', 'persona-789', [
+          storedRef(),
+        ])
       ).resolves.toBe(0);
     });
 
@@ -856,36 +887,15 @@ describe('ConversationHistoryService - Token Count Caching', () => {
       mockPrismaClient.conversationHistory.findFirst.mockResolvedValue({
         id: 'msg-ref',
         role: MessageRole.User,
-        messageMetadata: { referencedMessages: [storedRef()] },
+        messageMetadata: null,
       });
       mockPrismaClient.conversationHistory.update.mockRejectedValue(new Error('update failed'));
 
       await expect(
-        service.persistReferenceImageDescriptions(
-          'channel-123',
-          'personality-456',
-          'persona-789',
-          new Map([['https://cdn/a.png', 'a tabby cat']])
-        )
+        service.storeTriggerReferences('channel-123', 'personality-456', 'persona-789', [
+          storedRef(),
+        ])
       ).resolves.toBe(0);
-    });
-
-    it('returns 0 when the found row has null messageMetadata', async () => {
-      mockPrismaClient.conversationHistory.findFirst.mockResolvedValue({
-        id: 'msg-ref',
-        role: MessageRole.User,
-        messageMetadata: null,
-      });
-
-      const count = await service.persistReferenceImageDescriptions(
-        'channel-123',
-        'personality-456',
-        'persona-789',
-        new Map([['https://cdn/a.png', 'a tabby cat']])
-      );
-
-      expect(count).toBe(0);
-      expect(mockPrismaClient.conversationHistory.update).not.toHaveBeenCalled();
     });
   });
 

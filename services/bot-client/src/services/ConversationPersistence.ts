@@ -11,11 +11,7 @@
  */
 
 import { NO_TEXT_CONTENT_PLACEHOLDER } from '@tzurot/common-types/constants/message';
-import {
-  type ReferencedMessage,
-  type MessageMetadata,
-  type StoredReferencedMessage,
-} from '@tzurot/common-types/types/schemas/message';
+import { type MessageMetadata } from '@tzurot/common-types/types/schemas/message';
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { Message } from 'discord.js';
@@ -28,27 +24,6 @@ import {
 } from '../utils/gatewayWriteHelpers.js';
 
 const logger = createLogger('ConversationPersistence');
-
-/**
- * Convert ReferencedMessage (from request) to StoredReferencedMessage (for database)
- * This creates a snapshot of the referenced message at the time it was referenced.
- */
-function convertToStoredReferences(references: ReferencedMessage[]): StoredReferencedMessage[] {
-  return references.map(ref => ({
-    discordMessageId: ref.discordMessageId,
-    authorUsername: ref.authorUsername,
-    authorDisplayName: ref.authorDisplayName,
-    content: ref.content,
-    embeds: ref.embeds || undefined,
-    timestamp: ref.timestamp,
-    locationContext: ref.locationContext,
-    attachments: ref.attachments,
-    isForwarded: ref.isForwarded,
-    // Carry the classification forward so the stored-history quote renders the same
-    // role as the live one (classify-once in MessageFormatter, render in the worker).
-    authorRole: ref.authorRole,
-  }));
-}
 
 /**
  * Options for saving a user message
@@ -72,8 +47,6 @@ interface SaveUserMessageOptions {
     duration?: number;
     waveform?: string;
   }[];
-  /** Referenced messages */
-  referencedMessages?: ReferencedMessage[];
 }
 
 /**
@@ -121,8 +94,6 @@ interface SaveUserMessageFromFieldsOptions {
     duration?: number;
     waveform?: string;
   }[];
-  /** Referenced messages (optional) */
-  referencedMessages?: ReferencedMessage[];
   /** Whether this message was forwarded from another channel */
   isForwarded?: boolean;
   /** Embed XML strings for forwarded messages (persisted to survive DB round-trip) */
@@ -168,12 +139,12 @@ export class ConversationPersistence {
    *
    * STORAGE PHILOSOPHY (2025-12):
    * - `content`: Plain text only (user message + attachment placeholders)
-   * - `messageMetadata.referencedMessages`: Structured snapshot of referenced messages
-   * - Referenced messages are NOT appended to content anymore
+   * - `messageMetadata`: structured data (forwarded flag, embed XML)
+   * - Referenced messages are NOT appended to content, and are not written
+   *   here at all — ai-worker owns `messageMetadata.referencedMessages`
    */
   async saveUserMessage(options: SaveUserMessageOptions): Promise<void> {
-    const { message, personality, personaId, messageContent, attachments, referencedMessages } =
-      options;
+    const { message, personality, personaId, messageContent, attachments } = options;
 
     const isForwarded = isForwardedMessage(message);
 
@@ -206,7 +177,6 @@ export class ConversationPersistence {
       personaId,
       messageContent,
       attachments,
-      referencedMessages,
       isForwarded: isForwarded || undefined,
       embedsXml,
       timestamp: message.createdAt,
@@ -249,7 +219,6 @@ export class ConversationPersistence {
       personaId,
       messageContent,
       attachments,
-      referencedMessages,
       isForwarded,
       embedsXml,
       timestamp,
@@ -264,13 +233,11 @@ export class ConversationPersistence {
       userMessageContent += attachmentPlaceholders;
     }
 
-    // Build message metadata with referenced messages (stored structurally, not as text)
+    // References are NOT written here. The worker owns that field: it is the
+    // side that resolves a quote's images and voice notes, and writing the
+    // snapshot from here would store one without the enrichment that makes it
+    // worth storing.
     let metadata: MessageMetadata | undefined;
-    if (referencedMessages && referencedMessages.length > 0) {
-      metadata = {
-        referencedMessages: convertToStoredReferences(referencedMessages),
-      };
-    }
 
     // Persist forwarded flag in metadata for DB round-trip
     if (isForwarded === true) {
@@ -309,8 +276,6 @@ export class ConversationPersistence {
         channelId,
         hasAttachments: attachments && attachments.length > 0,
         attachmentCount: attachments?.length ?? 0,
-        hasReferences: referencedMessages && referencedMessages.length > 0,
-        referenceCount: referencedMessages?.length ?? 0,
         contentLength: userMessageContent.length,
         hasMetadata: metadata !== undefined,
       },

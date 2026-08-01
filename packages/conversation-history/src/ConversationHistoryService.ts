@@ -14,7 +14,10 @@ import {
   type ConversationMessage,
   type CrossChannelHistoryGroup,
 } from '@tzurot/common-types/types/conversationMessage';
-import { type MessageMetadata } from '@tzurot/common-types/types/schemas/message';
+import {
+  type MessageMetadata,
+  type StoredReferencedMessage,
+} from '@tzurot/common-types/types/schemas/message';
 import { generateConversationHistoryUuid } from '@tzurot/common-types/utils/deterministicUuid';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { countTextTokens } from '@tzurot/common-types/utils/tokenCounter';
@@ -25,7 +28,7 @@ import {
   mapToConversationMessages,
   type ConversationHistoryClient,
 } from './ConversationMessageMapper.js';
-import { writeReferenceImageDescriptions } from './referenceImageDescriptions.js';
+import { findTriggerMessage, writeTriggerReferences } from './triggerReferenceWriter.js';
 
 const logger = createLogger('ConversationHistoryService');
 
@@ -149,34 +152,30 @@ export class ConversationHistoryService {
   }
 
   /**
-   * Update the most recent message for a persona in a channel
-   * Used to enrich user messages with attachment descriptions after AI processing
+   * Update the trigger user message for a persona in a channel.
+   * Used to enrich user messages with attachment descriptions after AI processing.
    *
    * @param newContent Updated plain text content (user message + attachment descriptions)
-   * @param newMetadata Optional updated metadata (with processed attachment descriptions)
+   * @param options `triggerMessageId` targets the exact row the job was queued
+   *   for (see {@link findTriggerMessage}); `newMetadata` merges onto the row's
+   *   existing metadata rather than replacing it.
    */
   async updateLastUserMessage(
     channelId: string,
     personalityId: string,
     personaId: string,
     newContent: string,
-    newMetadata?: MessageMetadata
+    options?: { newMetadata?: MessageMetadata; triggerMessageId?: string }
   ): Promise<boolean> {
+    const { newMetadata, triggerMessageId } = options ?? {};
     try {
-      // Find the most recent user message for this persona
-      const lastMessage = await this.prisma.conversationHistory.findFirst({
-        where: {
-          channelId,
-          personalityId,
-          personaId,
-          role: MessageRole.User,
-        },
-        // id tiebreak so a createdAt-ms tie deterministically resolves to one
-        // row — this then drives an update() on lastMessage.id below.
-        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-      });
+      const target = await findTriggerMessage(
+        this.prisma,
+        { channelId, personalityId, personaId },
+        triggerMessageId
+      );
 
-      if (!lastMessage) {
+      if (target === null) {
         logger.warn(
           {},
           `No user message found to update (channel: ${channelId}, personality: ${personalityId}, persona: ${personaId.substring(0, 8)}...)`
@@ -191,13 +190,13 @@ export class ConversationHistoryService {
       // embedsXml/referencedMessages/etc. that were persisted at message creation).
       const mergedMetadata =
         newMetadata !== undefined
-          ? { ...((lastMessage.messageMetadata as MessageMetadata | null) ?? {}), ...newMetadata }
+          ? { ...((target.messageMetadata as MessageMetadata | null) ?? {}), ...newMetadata }
           : undefined;
 
       // Update the content, token count, and optionally metadata
       await this.prisma.conversationHistory.update({
         where: {
-          id: lastMessage.id,
+          id: target.id,
         },
         data: {
           content: newContent,
@@ -207,7 +206,12 @@ export class ConversationHistoryService {
       });
 
       logger.debug(
-        { messageId: lastMessage.id, tokenCount, hasMetadata: newMetadata !== undefined },
+        {
+          messageId: target.id,
+          tokenCount,
+          hasMetadata: newMetadata !== undefined,
+          targeting: target.targeting,
+        },
         'Updated user message with enriched content'
       );
       return true;
@@ -218,25 +222,26 @@ export class ConversationHistoryService {
   }
 
   /**
-   * Persist resolved image descriptions onto the most recent user message's
-   * stored referenced-message metadata, so a quoted image survives the ~1h
-   * Redis vision-cache TTL the hydrator reads from. Delegates to
-   * {@link writeReferenceImageDescriptions} (extracted to keep this file under
-   * the max-lines ceiling).
+   * Store the references the worker built for a turn onto that turn's trigger
+   * user message, so quoted media survives replay out of `<chat_log>` instead
+   * of expiring with the ~1h vision cache. Delegates to
+   * {@link writeTriggerReferences} (extracted to keep this file under the
+   * max-lines ceiling).
    *
-   * @param descriptionsByUrl attachment URL → resolved description text
-   * @returns number of stored reference entries that gained descriptions
+   * @returns number of references stored
    */
-  async persistReferenceImageDescriptions(
+  async storeTriggerReferences(
     channelId: string,
     personalityId: string,
     personaId: string,
-    descriptionsByUrl: Map<string, string>
+    references: StoredReferencedMessage[],
+    triggerMessageId?: string
   ): Promise<number> {
-    return writeReferenceImageDescriptions(
+    return writeTriggerReferences(
       this.prisma,
       { channelId, personalityId, personaId },
-      descriptionsByUrl
+      references,
+      triggerMessageId
     );
   }
 

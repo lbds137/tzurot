@@ -79,12 +79,28 @@ export const referencedMessageSchema = z.object({
 });
 
 /**
- * Resolved image description for a referenced message's image attachment.
- * Single source of truth for the shape: both the Zod field below and the
- * derived `ResolvedImageDescription` type reference this, so they can't drift.
+ * Enrichment the worker computed for one of a referenced message's
+ * attachments — a vision description or a voice transcript, whichever the
+ * modality called for. One shape for both, because they are the same thing to
+ * every consumer: the text that becomes the attachment element's content.
+ *
+ * Keyed by attachment URL. That is the key BOTH producers already correlate
+ * on (`AttachmentProcessor.findPreprocessedByUrl`, `buildDedupedAttachments`),
+ * whereas `id` is optional on `attachmentMetadataSchema` and a filename is not
+ * unique within a message — two `image.png`s in one reply are ordinary.
+ *
+ * `kind` is the renderer's OWN classification, recorded at build time, so an
+ * orphan entry (enrichment whose attachment row is missing from the snapshot)
+ * replays under the right element instead of being guessed at from a content
+ * type that isn't there.
+ *
+ * ABSENCE MEANS "never computed" — a retryable state — never "lookup failed".
+ * There is no key derivation at replay and no miss mode, which is the property
+ * that keeps a durable description from making a FAILURE permanent.
  */
-export const resolvedImageDescriptionSchema = z.object({
-  filename: z.string(),
+export const attachmentEnrichmentSchema = z.object({
+  url: z.string(),
+  kind: z.enum(['image', 'voice']),
   description: z.string(),
 });
 
@@ -111,7 +127,14 @@ export const storedReferencedMessageSchema = z.object({
   // Ephemeral — set by hydration in ai-worker before prompt formatting
   resolvedPersonaId: z.string().optional(),
   resolvedPersonaName: z.string().optional(),
-  resolvedImageDescriptions: z.array(resolvedImageDescriptionSchema).optional(),
+  /**
+   * Persistent — written by the worker at the moment it builds this reference
+   * for the prompt, so a quoted image's description and a quoted voice note's
+   * transcript live as long as the history row does rather than as long as a
+   * cache entry. Also the target the replay hydrator heals into when a row
+   * predates that write.
+   */
+  attachmentEnrichment: z.array(attachmentEnrichmentSchema).optional(),
 });
 
 /**
@@ -203,7 +226,7 @@ export type ReferencedMessage = z.infer<typeof referencedMessageSchema>;
 
 export type StoredReferencedMessage = z.infer<typeof storedReferencedMessageSchema>;
 
-export type ResolvedImageDescription = z.infer<typeof resolvedImageDescriptionSchema>;
+export type AttachmentEnrichment = z.infer<typeof attachmentEnrichmentSchema>;
 
 export type ReactionReactor = z.infer<typeof reactionReactorSchema>;
 

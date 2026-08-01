@@ -382,7 +382,6 @@ describe('DependencyStep', () => {
   describe('vision-description persistence', () => {
     const makeWriter = () => ({
       persistTriggerDescriptions: vi.fn().mockResolvedValue(undefined),
-      persistReferenceDescriptions: vi.fn().mockResolvedValue(undefined),
     });
 
     it('persists trigger descriptions post-vision when attachments were processed', async () => {
@@ -430,10 +429,13 @@ describe('DependencyStep', () => {
       });
 
       expect(writer.persistTriggerDescriptions).not.toHaveBeenCalled();
-      expect(writer.persistReferenceDescriptions).not.toHaveBeenCalled();
     });
 
-    it('persists reference descriptions when a referenced-image dependency was processed', async () => {
+    it('leaves a REFERENCED image to the formatter that builds the reference', async () => {
+      // A quoted image's description is persisted by the code that renders the
+      // quote, where the exact string the model saw is in hand. Deriving it a
+      // second time from these results is how the stored and rendered copies
+      // could differ — and it silently skipped the inline-fallback path.
       const imageResult: ImageDescriptionResult = {
         requestId: 'test-req',
         success: true,
@@ -444,7 +446,7 @@ describe('DependencyStep', () => {
       const writer = makeWriter();
       const stepWithWriter = new DependencyStep(undefined, writer as never);
 
-      await stepWithWriter.process({
+      const result = await stepWithWriter.process({
         job: createMockJob({
           dependencies: [
             {
@@ -458,18 +460,12 @@ describe('DependencyStep', () => {
         startTime: Date.now(),
       });
 
-      // Reference attachments route here, not to trigger descriptions
+      // It still reaches the formatter through the step's own output...
+      expect(result.preprocessing?.referenceAttachments).toEqual({
+        1: [expect.objectContaining({ description: 'A quoted image' })],
+      });
+      // ...and this step writes nothing for it.
       expect(writer.persistTriggerDescriptions).not.toHaveBeenCalled();
-      expect(writer.persistReferenceDescriptions).toHaveBeenCalledWith(
-        expect.objectContaining({
-          jobId: 'job-123',
-          personalityId: TEST_PERSONALITY.id,
-          jobContext: expect.objectContaining({ channelId: 'channel-789' }),
-          processedReferenceAttachments: expect.objectContaining({
-            1: [expect.objectContaining({ description: 'A quoted image' })],
-          }),
-        })
-      );
     });
   });
 

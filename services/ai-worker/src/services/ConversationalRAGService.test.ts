@@ -90,6 +90,13 @@ vi.mock('../redis.js', () => ({
 vi.mock('./storedReferenceHydrator.js', () => ({
   hydrateStoredReferences: vi.fn().mockResolvedValue(undefined),
 }));
+// The durable-reference write. Mocked so the SEAM is assertable — what this
+// service forwards is the hop where a built reference would silently stop being
+// persisted, and no output of generateResponse would change if it did.
+const mockPersistBuiltReferences = vi.fn().mockResolvedValue(undefined);
+vi.mock('./context/referencePersistence.js', () => ({
+  persistBuiltReferences: (...args: unknown[]) => mockPersistBuiltReferences(...args),
+}));
 vi.mock('./multimodal/visionAuthResolver.js', () => ({
   resolveVisionConfig: mockResolveVisionConfig,
 }));
@@ -244,6 +251,41 @@ describe('ConversationalRAGService', () => {
         retrievedMemories: 0,
         modelUsed: 'test-model',
       });
+    });
+
+    it('writes the built references down, scoped to this turn', async () => {
+      const personality = createMockPersonality();
+      const context = createMockContext();
+      getReferencedMessageFormatterMock().formatReferencedMessages.mockResolvedValueOnce({
+        formatted: '<contextual_references/>',
+        searchText: '',
+        durable: [{ discordMessageId: 'ref-9', content: 'SENTINEL_PERSISTED_REFERENCE' }],
+      });
+
+      await service.generateResponse(personality, 'Hello', {
+        ...context,
+        referencedMessages: [
+          {
+            referenceNumber: 1,
+            discordMessageId: 'ref-9',
+            discordUserId: 'user-9',
+            authorUsername: 'quoted',
+            authorDisplayName: 'Quoted',
+            content: 'the quoted text',
+            embeds: '',
+            timestamp: '2026-07-31T12:00:00.000Z',
+            locationContext: '',
+          },
+        ],
+      });
+
+      expect(mockPersistBuiltReferences).toHaveBeenCalledWith(
+        expect.objectContaining({
+          references: [{ discordMessageId: 'ref-9', content: 'SENTINEL_PERSISTED_REFERENCE' }],
+          personalityId: personality.id,
+          scope: expect.objectContaining({ channelId: context.channelId }),
+        })
+      );
     });
 
     it('should format user message via PromptBuilder', async () => {

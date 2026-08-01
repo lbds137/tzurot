@@ -124,10 +124,28 @@ export function classifyAttachment(attachment: {
  * this module stays free of the Discord schema.
  */
 export interface AttachmentSource {
+  url: string;
   contentType?: string;
   name?: string;
   isVoiceMessage?: boolean;
   duration?: number;
+}
+
+/**
+ * A rendered attachment together with the URL of the attachment it was built
+ * from.
+ *
+ * The URL is NOT part of `RenderableAttachment` — the renderer does not draw
+ * it, and the membership rule for that type is drawn-ness. It is carried
+ * alongside because the description or transcript in `attachment` is expensive
+ * work that has to be written down, and the durable copy needs a key. Keeping
+ * the pair means the persisted text is read out of the very object the
+ * renderer emits, rather than re-derived from the enrichment source — which is
+ * how a persisted description and a rendered one stay the same string.
+ */
+export interface BuiltAttachment {
+  url: string;
+  attachment: RenderableAttachment;
 }
 
 /**
@@ -149,26 +167,35 @@ export interface AttachmentSource {
 export function buildRenderableAttachments<T extends AttachmentSource>(
   attachments: readonly T[],
   describe: (attachment: T) => string | undefined
-): RenderableAttachment[] {
-  return attachments.map((att): RenderableAttachment => {
+): BuiltAttachment[] {
+  return attachments.map((att): BuiltAttachment => {
     const identity = { filename: att.name, contentType: att.contentType };
     const found = describe(att);
     // Narrowed to a variable rather than tested inline per arm: a boolean flag
     // would not narrow `string | undefined` down to the union's `description: string`.
     const description = found !== undefined && found.length > 0 ? found : undefined;
-    switch (classifyAttachment(att)) {
-      case 'image':
-        return description !== undefined
-          ? { kind: 'image', ...identity, description }
-          : { kind: 'image', ...identity, status: 'undescribed' };
-      case 'voice':
-        return description !== undefined
-          ? { kind: 'voice', ...identity, durationSeconds: att.duration, description }
-          : { kind: 'voice', ...identity, durationSeconds: att.duration, status: 'untranscribed' };
-      case 'file':
-        return { kind: 'file', ...identity };
-    }
+    return { url: att.url, attachment: renderableFor(att, identity, description) };
   });
+}
+
+/** Pick the modality's arm — enriched, or naming its own absence. */
+function renderableFor(
+  att: AttachmentSource,
+  identity: { filename?: string; contentType?: string },
+  description: string | undefined
+): RenderableAttachment {
+  switch (classifyAttachment(att)) {
+    case 'image':
+      return description !== undefined
+        ? { kind: 'image', ...identity, description }
+        : { kind: 'image', ...identity, status: 'undescribed' };
+    case 'voice':
+      return description !== undefined
+        ? { kind: 'voice', ...identity, durationSeconds: att.duration, description }
+        : { kind: 'voice', ...identity, durationSeconds: att.duration, status: 'untranscribed' };
+    case 'file':
+      return { kind: 'file', ...identity };
+  }
 }
 
 /**

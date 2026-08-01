@@ -5,7 +5,7 @@
  * so the shared type package stays types/schemas/utils:
  *   - `ConversationHistoryService` — channel + cross-channel history retrieval/writes
  *   - `ConversationSyncService` — Discord-edit/delete reconciliation against the DB
- *   - `referenceImageDescriptions` — vision-description persistence on referenced messages
+ *   - `triggerReferenceWriter` — durable storage of the references a turn was built from
  *   - `ConversationMessageMapper` — Prisma select + row→domain mapping
  *
  * Per the epic's boundary principle, the LOGIC lives here; shared data SHAPES

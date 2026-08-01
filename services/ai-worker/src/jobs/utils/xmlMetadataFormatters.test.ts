@@ -194,8 +194,12 @@ describe('xmlMetadataFormatters', () => {
                   name: 'photo.png',
                 },
               ],
-              resolvedImageDescriptions: [
-                { filename: 'photo.png', description: 'A sunset over the ocean' },
+              attachmentEnrichment: [
+                {
+                  url: 'https://cdn.discord.com/img.png',
+                  kind: 'image',
+                  description: 'A sunset over the ocean',
+                },
               ],
             },
           ],
@@ -213,8 +217,8 @@ describe('xmlMetadataFormatters', () => {
 
     it('keeps an undescribed image visible when a sibling image IS described', () => {
       // Partial vision resolution: two images, one describe succeeded and one
-      // failed. Failures are never persisted (visionDescriptionWriter), so the
-      // stored row carries one description for two images. The undescribed one
+      // failed. Only enrichment that exists is persisted, so the stored row
+      // carries one description for two images. The undescribed one
       // must not vanish — that silent invisibility is the class this path fixed.
       const msg = makeEntry({
         messageMetadata: {
@@ -240,8 +244,12 @@ describe('xmlMetadataFormatters', () => {
                   name: 'undescribed.png',
                 },
               ],
-              resolvedImageDescriptions: [
-                { filename: 'described.png', description: 'A sunset over the ocean' },
+              attachmentEnrichment: [
+                {
+                  url: 'https://cdn.discord.com/described.png',
+                  kind: 'image',
+                  description: 'A sunset over the ocean',
+                },
               ],
             },
           ],
@@ -287,7 +295,9 @@ describe('xmlMetadataFormatters', () => {
                   name: 'doc.pdf',
                 },
               ],
-              resolvedImageDescriptions: [{ filename: 'photo.png', description: 'A cat' }],
+              attachmentEnrichment: [
+                { url: 'https://cdn.discord.com/img.png', kind: 'image', description: 'A cat' },
+              ],
             },
           ],
         },
@@ -383,9 +393,10 @@ describe('xmlMetadataFormatters', () => {
 
     it('keeps a description whose attachment row has gone missing', () => {
       // Data-drift protection: a description is paid-for enrichment, so it is
-      // appended even when nothing in `attachments` matches its filename.
-      // Dropping it would re-create the exact silent-loss class this function
-      // was rewritten to close.
+      // appended even when no attachment row carries its URL. Dropping it would
+      // re-create the exact silent-loss class this function was rewritten to
+      // close. It renders under the modality recorded when it was BUILT, so an
+      // orphaned transcript can never be announced as a picture.
       const msg = makeEntry({
         messageMetadata: {
           referencedMessages: [
@@ -397,8 +408,12 @@ describe('xmlMetadataFormatters', () => {
               timestamp: '2026-01-01T00:00:00.000Z',
               locationContext: '',
               attachments: [],
-              resolvedImageDescriptions: [
-                { filename: 'vanished.png', description: 'SENTINEL_ORPHAN_DESCRIPTION' },
+              attachmentEnrichment: [
+                {
+                  url: 'https://cdn.discord.com/vanished.png',
+                  kind: 'image',
+                  description: 'SENTINEL_ORPHAN_DESCRIPTION',
+                },
               ],
             },
           ],
@@ -406,9 +421,7 @@ describe('xmlMetadataFormatters', () => {
       });
 
       const result = formatQuotedSection(msg, 'user', personalityName, undefined, undefined);
-      expect(result).toContain(
-        '<image filename="vanished.png">SENTINEL_ORPHAN_DESCRIPTION</image>'
-      );
+      expect(result).toContain('<image>SENTINEL_ORPHAN_DESCRIPTION</image>');
     });
 
     it('renders deduped stubs for refs whose discordMessageId is in history', () => {
@@ -436,10 +449,10 @@ describe('xmlMetadataFormatters', () => {
     });
 
     it('carries hydrated image descriptions across the deduped seam', () => {
-      // `persistReferenceDescriptions` writes resolvedImageDescriptions onto the
-      // stored row for exactly this moment. The deduped branch used to pass only
-      // `content`, so every one of those rows was discarded and the quoted image
-      // reached the model as a bare `[image/png: …]` marker.
+      // The worker writes each reference's enrichment onto the stored row for
+      // exactly this moment. The deduped branch used to pass only `content`, so
+      // every one of those rows was discarded and the quoted image reached the
+      // model as a bare `[image/png: …]` marker.
       //
       // Asserted at the seam (toHaveBeenCalledWith) AND on the output: the seam
       // assertion pins what this caller FORWARDS, which is the hop that dropped
@@ -463,8 +476,12 @@ describe('xmlMetadataFormatters', () => {
                   name: 'embed-image-1.png',
                 },
               ],
-              resolvedImageDescriptions: [
-                { filename: 'embed-image-1.png', description: 'SENTINEL_STORED_VISION' },
+              attachmentEnrichment: [
+                {
+                  url: 'https://cdn.discord.com/embed-image-1.png',
+                  kind: 'image',
+                  description: 'SENTINEL_STORED_VISION',
+                },
               ],
             },
           ],

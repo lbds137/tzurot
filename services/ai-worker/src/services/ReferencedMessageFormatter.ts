@@ -9,7 +9,10 @@
 import { type AIProvider } from '@tzurot/common-types/constants/ai';
 import { TEXT_LIMITS } from '@tzurot/common-types/constants/discord';
 import { AttachmentType } from '@tzurot/common-types/constants/media';
-import { type ReferencedMessage } from '@tzurot/common-types/types/schemas/message';
+import {
+  type ReferencedMessage,
+  type StoredReferencedMessage,
+} from '@tzurot/common-types/types/schemas/message';
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import { type SttDispatch } from '@tzurot/common-types/types/sttProvider';
 import { createLogger } from '@tzurot/common-types/utils/logger';
@@ -17,7 +20,7 @@ import type { ProcessedAttachment } from './MultimodalProcessor.js';
 import {
   attachmentEnrichment,
   buildRenderableAttachments,
-  type RenderableAttachment,
+  type BuiltAttachment,
 } from './prompt/QuoteFormatter.js';
 import {
   dedupeReference,
@@ -27,6 +30,7 @@ import {
   type RenderableReference,
 } from './prompt/RenderableReference.js';
 import { deriveRefRole } from './prompt/referenceRole.js';
+import { toStoredReference } from './prompt/storedReference.js';
 import { processAttachmentsParallel } from './AttachmentProcessor.js';
 import { extractXmlTextContent } from '../utils/xmlTextExtractor.js';
 
@@ -71,6 +75,16 @@ interface ReferenceVisionAuth {
 export interface FormattedReferences {
   formatted: string;
   searchText: string;
+  /**
+   * The same references in durable form, ready for the trigger history row.
+   *
+   * Third rendering of one build, not a second one: the enrichment inside it is
+   * read straight off the objects this loop just handed the renderer, so a
+   * description that reached the prompt and the description that reaches the
+   * database are the same string by construction. Vision and transcription are
+   * paid work, and until this existed the only copy lived in a one-hour cache.
+   */
+  durable: StoredReferencedMessage[];
 }
 
 /**
@@ -92,7 +106,7 @@ export interface FormattedReferences {
 function buildDedupedAttachments(
   ref: ReferencedMessage,
   preprocessed: ProcessedAttachment[] | undefined
-): RenderableAttachment[] {
+): BuiltAttachment[] {
   const results = preprocessed ?? [];
   const matched = new Set<ProcessedAttachment>();
 
@@ -119,16 +133,22 @@ function buildDedupedAttachments(
     }
     if (entry.type === AttachmentType.Image) {
       attachments.push({
-        kind: 'image',
-        filename: entry.metadata.name,
-        description: entry.description,
+        url: entry.originalUrl,
+        attachment: {
+          kind: 'image',
+          filename: entry.metadata.name,
+          description: entry.description,
+        },
       });
     } else if (entry.type === AttachmentType.Audio) {
       attachments.push({
-        kind: 'voice',
-        filename: entry.metadata.name,
-        durationSeconds: entry.metadata.duration,
-        description: entry.description,
+        url: entry.originalUrl,
+        attachment: {
+          kind: 'voice',
+          filename: entry.metadata.name,
+          durationSeconds: entry.metadata.duration,
+          description: entry.description,
+        },
       });
     }
   }
@@ -148,9 +168,9 @@ function countAvailableEnrichment(preprocessed: ProcessedAttachment[] | undefine
 }
 
 /** How much of it survived into the rendered attachments. */
-function countRenderedEnrichment(attachments: RenderableAttachment[]): number {
-  return attachments.filter(att => {
-    const text = attachmentEnrichment(att);
+function countRenderedEnrichment(attachments: BuiltAttachment[]): number {
+  return attachments.filter(built => {
+    const text = attachmentEnrichment(built.attachment);
     return text !== undefined && text.length > 0;
   }).length;
 }
@@ -183,9 +203,10 @@ export class ReferencedMessageFormatter {
   ): Promise<FormattedReferences> {
     const referenceElements: string[] = [];
     const searchParts: string[] = [];
+    const durable: StoredReferencedMessage[] = [];
 
     for (const ref of references) {
-      const renderable = await this.fromLiveReference(
+      const { renderable, built } = await this.fromLiveReference(
         ref,
         personality,
         isGuestMode,
@@ -198,6 +219,12 @@ export class ReferencedMessageFormatter {
       referenceElements.push(
         renderReference(ref.isDeduplicated === true ? dedupeReference(renderable) : renderable)
       );
+
+      // Persisted from the PRE-projection reference, and from the enrichment as
+      // built rather than as rendered: the stub subtracts content for THIS
+      // turn's prompt, but replay decides dedup for itself and needs the whole
+      // reference to decide from.
+      durable.push(toStoredReference(ref, built));
 
       // Search text comes from the PRE-projection reference: the stub's prose
       // marker and its truncation are prompt-shaping, not semantic content.
@@ -233,6 +260,7 @@ export class ReferencedMessageFormatter {
         .map(part => part.trim())
         .filter(part => part.length > 0)
         .join('\n\n'),
+      durable,
     };
   }
 
@@ -250,29 +278,34 @@ export class ReferencedMessageFormatter {
     isGuestMode: boolean,
     preprocessedForRef: ProcessedAttachment[] | undefined,
     apiKeys?: ReferenceVisionAuth
-  ): Promise<RenderableReference> {
+  ): Promise<{ renderable: RenderableReference; built: BuiltAttachment[] }> {
+    const built = await this.buildAttachments(
+      ref,
+      personality,
+      isGuestMode,
+      preprocessedForRef,
+      apiKeys
+    );
+
     return {
-      number: ref.referenceNumber,
-      isForwarded: ref.isForwarded,
-      from: ref.authorDisplayName || ref.authorUsername,
-      username: ref.authorUsername,
-      role: deriveRefRole(
-        ref.authorRole,
-        ref.authorDisplayName || ref.authorUsername,
-        personality.displayName,
-        apiKeys?.allPersonalityNames
-      ),
-      time: promptTime(ref.timestamp),
-      content: ref.content,
-      locationContext: ref.locationContext,
-      embedsXml: ref.embeds !== undefined && ref.embeds.length > 0 ? [ref.embeds] : undefined,
-      attachments: await this.buildAttachments(
-        ref,
-        personality,
-        isGuestMode,
-        preprocessedForRef,
-        apiKeys
-      ),
+      built,
+      renderable: {
+        number: ref.referenceNumber,
+        isForwarded: ref.isForwarded,
+        from: ref.authorDisplayName || ref.authorUsername,
+        username: ref.authorUsername,
+        role: deriveRefRole(
+          ref.authorRole,
+          ref.authorDisplayName || ref.authorUsername,
+          personality.displayName,
+          apiKeys?.allPersonalityNames
+        ),
+        time: promptTime(ref.timestamp),
+        content: ref.content,
+        locationContext: ref.locationContext,
+        embedsXml: ref.embeds !== undefined && ref.embeds.length > 0 ? [ref.embeds] : undefined,
+        attachments: built.map(entry => entry.attachment),
+      },
     };
   }
 
@@ -290,7 +323,7 @@ export class ReferencedMessageFormatter {
     isGuestMode: boolean,
     preprocessedForRef: ProcessedAttachment[] | undefined,
     apiKeys?: ReferenceVisionAuth
-  ): Promise<RenderableAttachment[]> {
+  ): Promise<BuiltAttachment[]> {
     if (ref.isDeduplicated === true) {
       const attachments = buildDedupedAttachments(ref, preprocessedForRef);
       this.warnOnDroppedEnrichment(

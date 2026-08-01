@@ -9,7 +9,10 @@
  */
 
 import { type PrismaClient } from '@tzurot/common-types/services/prisma';
-import { type StoredReferencedMessage } from '@tzurot/common-types/types/schemas/message';
+import {
+  type AttachmentEnrichment,
+  type StoredReferencedMessage,
+} from '@tzurot/common-types/types/schemas/message';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { VisionDescriptionCache } from './VisionDescriptionCache.js';
 import { batchResolveByDiscordIds } from './reference/BatchResolvers.js';
@@ -63,7 +66,15 @@ async function resolvePersonas(
   return resolved;
 }
 
-/** Look up vision descriptions from cache for refs with image attachments. Returns hit count. */
+/**
+ * Heal a stored reference whose images were never written down, from the vision
+ * cache. Returns hit count.
+ *
+ * A fallback, not the primary source: the worker now persists what it built
+ * onto the row itself, so this only fires for rows written before that (or
+ * where the write missed). Rows that already carry enrichment are left alone —
+ * the persisted copy is the one the renderer's own build produced.
+ */
 async function resolveVisionDescriptions(
   refs: StoredReferencedMessage[],
   visionCache: VisionDescriptionCache
@@ -71,21 +82,24 @@ async function resolveVisionDescriptions(
   let hits = 0;
 
   for (const ref of refs) {
+    if (ref.attachmentEnrichment !== undefined && ref.attachmentEnrichment.length > 0) {
+      continue;
+    }
     const imageAttachments = ref.attachments?.filter(att => att.contentType.startsWith('image/'));
     if (imageAttachments === undefined || imageAttachments.length === 0) {
       continue;
     }
 
-    const descriptions: { filename: string; description: string }[] = [];
+    const enrichment: AttachmentEnrichment[] = [];
     for (const att of imageAttachments) {
       const description = await visionCache.get({ attachmentId: att.id, url: att.url });
       if (description !== null) {
-        descriptions.push({ filename: att.name ?? 'image', description });
+        enrichment.push({ url: att.url, kind: 'image', description });
       }
     }
 
-    if (descriptions.length > 0) {
-      ref.resolvedImageDescriptions = descriptions;
+    if (enrichment.length > 0) {
+      ref.attachmentEnrichment = enrichment;
       hits++;
     }
   }

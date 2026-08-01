@@ -18,7 +18,10 @@ import {
 } from './conversationUtils.js';
 import { renderAttachment } from '../../services/prompt/QuoteFormatter.js';
 import { renderReference } from '../../services/prompt/RenderableReference.js';
-import { buildStoredAttachments, fromStoredReference } from './xmlMetadataFormatters.js';
+import {
+  buildStoredAttachments,
+  fromStoredReference,
+} from '../../services/prompt/storedReference.js';
 import { MessageRole } from '@tzurot/common-types/constants/message';
 import {
   type CrossChannelHistoryGroupEntry,
@@ -935,8 +938,12 @@ describe('Conversation Utilities', () => {
             name: 'embed-image-1.png',
           },
         ],
-        resolvedImageDescriptions: [
-          { filename: 'embed-image-1.png', description: 'SENTINEL_REPLAY_VISION' },
+        attachmentEnrichment: [
+          {
+            url: 'https://cdn.discord.com/embed-image-1.png',
+            kind: 'image',
+            description: 'SENTINEL_REPLAY_VISION',
+          },
         ],
       };
 
@@ -1661,7 +1668,7 @@ describe('Conversation Utilities', () => {
 
       const described: StoredReferencedMessage = {
         ...base,
-        resolvedImageDescriptions: [{ filename: 'photo.png', description }],
+        attachmentEnrichment: [{ url: 'https://example.com/p.png', kind: 'image', description }],
       };
 
       const lengthOf = (ref: StoredReferencedMessage): number =>
@@ -1707,12 +1714,14 @@ describe('Conversation Utilities', () => {
           },
           { url: 'https://example.com/d.pdf', contentType: 'application/pdf', name: 'doc.pdf' },
         ],
-        resolvedImageDescriptions: [{ filename: 'photo.png', description: 'a lighthouse' }],
+        attachmentEnrichment: [
+          { url: 'https://example.com/p.png', kind: 'image', description: 'a lighthouse' },
+        ],
       };
       const withoutAttachments: StoredReferencedMessage = {
         ...withAttachments,
         attachments: undefined,
-        resolvedImageDescriptions: undefined,
+        attachmentEnrichment: undefined,
       };
 
       const lengthOf = (ref: StoredReferencedMessage): number =>
@@ -1757,7 +1766,9 @@ describe('Conversation Utilities', () => {
         attachments: [
           { url: 'https://example.com/p.png', contentType: 'image/png', name: 'photo.png' },
         ],
-        resolvedImageDescriptions: [{ filename: 'photo.png', description: 'a lighthouse' }],
+        attachmentEnrichment: [
+          { url: 'https://example.com/p.png', kind: 'image', description: 'a lighthouse' },
+        ],
       };
 
       const withRef = getFormattedMessageCharLength(

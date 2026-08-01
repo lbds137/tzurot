@@ -78,6 +78,7 @@ describe('ConversationInputProcessor', () => {
       formatReferencedMessages: vi.fn().mockResolvedValue({
         formatted: '<references>formatted</references>',
         searchText: 'reference text for search',
+        durable: [{ discordMessageId: 'ref-1', content: 'SENTINEL_DURABLE_REFERENCE' }],
       }),
     } as unknown as ReferencedMessageFormatter;
 
@@ -337,6 +338,36 @@ describe('ConversationInputProcessor', () => {
       expect(result.referencedMessagesDescriptions).toBe('<references>formatted</references>');
     });
 
+    it("forwards the formatter's durable references verbatim", async () => {
+      // The hop between building a reference and writing it down. A test that
+      // only checked the prompt XML would pass with this dropped, and the
+      // enrichment would silently stop being persisted — which is exactly how
+      // the predecessor spent weeks writing nothing.
+      const context = createMockContext({
+        referencedMessages: [
+          {
+            referenceNumber: 1,
+            discordMessageId: 'msg1',
+            discordUserId: 'user1',
+            authorUsername: 'user1',
+            authorDisplayName: 'User One',
+            content: 'Referenced content',
+            embeds: '',
+            timestamp: '2025-01-01T00:00:00Z',
+            locationContext: '<location/>',
+          },
+        ],
+      });
+
+      const result = await processor.processInputs(mockPersonality, mockMessage, context, {
+        isGuestMode: false,
+      });
+
+      expect(result.durableReferences).toEqual([
+        { discordMessageId: 'ref-1', content: 'SENTINEL_DURABLE_REFERENCE' },
+      ]);
+    });
+
     it('should not format references when none present', async () => {
       const context = createMockContext({ referencedMessages: [] });
 
@@ -346,6 +377,7 @@ describe('ConversationInputProcessor', () => {
 
       expect(mockReferencedMessageFormatter.formatReferencedMessages).not.toHaveBeenCalled();
       expect(result.referencedMessagesDescriptions).toBeUndefined();
+      expect(result.durableReferences).toEqual([]);
     });
 
     it('should extract text from references for memory search', async () => {

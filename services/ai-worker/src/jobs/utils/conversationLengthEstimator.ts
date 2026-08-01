@@ -9,9 +9,9 @@
 import { type StoredReferencedMessage } from '@tzurot/common-types/types/schemas/message';
 import { formatPromptTimestamp } from '@tzurot/common-types/utils/dateFormatting';
 import { renderReference } from '../../services/prompt/RenderableReference.js';
+import { fromStoredReference } from '../../services/prompt/storedReference.js';
 import type { RawHistoryEntry } from './conversationTypes.js';
 import { resolveSpeakerInfo, type ChatLogRole } from './participantUtils.js';
-import { fromStoredReference } from './xmlMetadataFormatters.js';
 
 /**
  * Character length of a stored reference, measured by rendering it.
