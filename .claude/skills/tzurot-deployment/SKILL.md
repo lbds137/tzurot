@@ -1,7 +1,7 @@
 ---
 name: tzurot-deployment
 description: 'Railway deployment procedures. Invoke with /tzurot-deployment for deploying, checking logs, and troubleshooting.'
-lastUpdated: '2026-07-05'
+lastUpdated: '2026-08-02'
 ---
 
 # Deployment Procedures
@@ -156,6 +156,8 @@ railway logs <DEPLOYMENT_ID> --service ai-worker --environment production --line
 The `--filter` flag uses Railway's query DSL (`@level:error`, quoted phrases like `"vision AND 404"`, etc.). For multi-token literal substring searches, single tokens often work better than quoted phrases — Railway's filter syntax doesn't always behave like grep.
 
 **When this matters**: investigations into bugs that surfaced just before a release deploy, or cross-deployment timeline traces.
+
+**"Did X ever log?" sweeps back to the feature's ship date — not the current deployment.** The current deployment only answers "is X logging NOW"; a negative from it says nothing about whether X ever fired (a ~30-minute-old deployment once backed a "no cascade logs" claim that a 5-deployment, ~12.5k-line sweep then overturned; a later 15-deployment sweep retroactively closed several smoke items). Enumerate deployments back to when the log line shipped and sweep each by ID before stating a negative.
 
 ### Empty log results = debug the query, not the retention
 

@@ -1,7 +1,7 @@
 ---
 name: tzurot-testing
 description: 'Testing procedures. Invoke with /tzurot-testing for test execution, coverage audits, and debugging test failures.'
-lastUpdated: '2026-07-20'
+lastUpdated: '2026-08-02'
 ---
 
 # Testing Procedures
@@ -223,6 +223,19 @@ rendering, a failure sequence tests can't reach). Surface only the needs-smoke
 tier for the owner to run — they don't want to hand-test high-confidence
 changes ("what's the level of confidence… I don't feel like testing them unless
 confidence is limited").
+
+**Batch smoke asks into ONE numbered pass at release kickoff — including
+deferrals carried from previous releases.** The owner's explicit ask: "I would
+like to know everything you need me to smoke test in dev so I can just knock it
+all out in one go. maybe including the deferred items still hanging around from
+previous releases too." Sweep CURRENT.md for carried-over deferred items before
+presenting; drip-feeding asks across the session forces repeat phone sessions.
+Two gates before an item enters the batch: (a) **retro-log-close first** — check
+whether prod/dev logs can already prove the item ran correctly (a 15-deployment
+sweep has closed several items the owner would otherwise have hand-tested; the
+owner's "I feel like I probably did 8 already" is a search order); (b) the item
+is only askable for work that is **merged to develop** — dev deploys from
+develop, so "smoke test my branch" is not an executable request.
 
 ## Definition of Done
 
