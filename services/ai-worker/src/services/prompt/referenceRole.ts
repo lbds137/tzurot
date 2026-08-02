@@ -25,9 +25,20 @@
  * Without the fallback on the live path, a personality's own reply-target would
  * read as `role="user"` during that window — the exact self-reply confusion the
  * classifier exists to prevent.
+ *
+ * Both causes above are transitional. A THIRD is permanent and recurring:
+ * `classifyReferenceAuthorRole` deliberately omits the stamp when a message
+ * carries an `applicationId` but the client's own identity is not yet known
+ * (before `ClientReady`, and during every gateway reconnect) — our persona and
+ * a foreign bot are genuinely indistinguishable there, and a wrong `bot` stamp
+ * would be DURABLE. It defers to this fallback instead. So this path does not
+ * decay to zero; treat it as live code, not as scaffolding awaiting removal.
  */
 
+import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { ReferenceAuthorRole } from '@tzurot/common-types/types/schemas/message';
+
+const logger = createLogger('referenceRole');
 
 /**
  * The role vocabulary RENDERED into `<quote role="...">` attributes. Extends
@@ -141,10 +152,20 @@ export function deriveRefRole(
   if (authorRole !== undefined) {
     return authorRole;
   }
-  if (
-    matchesPersonality(authorName, personalityName) ||
-    matchesSelfVariant(authorName, personalityName, allPersonalityNames)
-  ) {
+  const selfMatch = matchesPersonality(authorName, personalityName);
+  if (selfMatch || matchesSelfVariant(authorName, personalityName, allPersonalityNames)) {
+    // Tripwire for the collision edge documented below: this fallback is a pure
+    // name-match with no bot-authorship guard, so a human whose display name
+    // prefixes a personality's is promoted to `assistant` here — indistinguishable
+    // at this seam from the persona's own line. That risk is argued to be bounded;
+    // this log is what would falsify the argument. The author name is NOT logged
+    // (a Discord display name is username-class PII), so the signal is VOLUME:
+    // a low, reconnect-correlated rate matches the design, and a sustained or
+    // growing rate means an assumption here is wrong and deserves a targeted probe.
+    logger.info(
+      { personalityName, via: selfMatch ? 'self' : 'self-variant' },
+      'Reference role resolved by name-match fallback (no authorRole stamp)'
+    );
     return 'assistant';
   }
   if (matchesSiblingPersonality(authorName, personalityName, allPersonalityNames)) {

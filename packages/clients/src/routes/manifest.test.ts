@@ -31,6 +31,14 @@ const entries = Object.entries(ROUTE_MANIFEST) as [string, AnyRouteDef][];
  * tier's name. Discord bounds the autocomplete side at 3s client-side regardless
  * of the gateway budget, so they correctly sit on DEFERRED (and are typically
  * dual-called from deferred browse anyway).
+ *
+ * The reason a long budget is not merely tolerable but USEFUL there: an
+ * autocomplete fetch that outlives its interaction still commits to
+ * `autocompleteCache` on success, so it warms the entry the user's next
+ * keystroke reads. Aborting it early would throw that work away and make the
+ * following keystroke miss too. Retiering an autocomplete-invoked route down
+ * therefore trades a wasted-but-harmless open request for a colder cache —
+ * which is why the escape hatch belongs per-CALL, not per-route.
  */
 const AUTOCOMPLETE_TIER = new Set<string>(['resolveUserLlmConfig']);
 

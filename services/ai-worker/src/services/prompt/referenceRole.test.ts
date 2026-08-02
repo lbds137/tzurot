@@ -1,6 +1,17 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { UNKNOWN_USER_NAME } from '@tzurot/common-types/constants/message';
 import { deriveRefRole } from './referenceRole.js';
+
+const { mockLogger } = vi.hoisted(() => ({
+  mockLogger: { info: vi.fn(), debug: vi.fn(), warn: vi.fn(), error: vi.fn() },
+}));
+
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
+  return { ...actual, createLogger: () => mockLogger };
+});
 
 describe('deriveRefRole name matching (fallback path)', () => {
   it('matches when the author name is prefixed by the active personality name', () => {
@@ -123,5 +134,67 @@ describe('deriveRefRole', () => {
     expect(deriveRefRole(undefined, UNKNOWN_USER_NAME, 'Lilith', new Set(['Lilith', 'Lila']))).toBe(
       'user'
     );
+  });
+});
+
+describe('name-match fallback tripwire', () => {
+  beforeEach(() => {
+    mockLogger.info.mockClear();
+  });
+
+  it('fires when the fallback promotes to assistant on a direct self-match', () => {
+    deriveRefRole(undefined, 'Lilith ▽', 'Lilith');
+
+    expect(mockLogger.info).toHaveBeenCalledTimes(1);
+    expect(mockLogger.info).toHaveBeenCalledWith(
+      { personalityName: 'Lilith', via: 'self' },
+      expect.stringContaining('name-match fallback')
+    );
+  });
+
+  it('distinguishes the self-variant arm, which matches under a different name vocabulary', () => {
+    // Stored rows carry `personality.name` while the live path passes displayName,
+    // so the two arms fire in different deployments — telling them apart is what
+    // makes the volume signal diagnosable rather than just a number.
+    // Same fixture as the self-variant behavioural pin above: the author matches
+    // the STORED name while the responder is identified by displayName, so the
+    // direct prefix check misses and only the self-variant guard resolves it.
+    deriveRefRole(
+      undefined,
+      'Yeshua ▽',
+      'Yeshua ben Yosef',
+      new Set(['Yeshua', 'Ha-Shem', 'Yeshua ben Yosef'])
+    );
+
+    expect(mockLogger.info).toHaveBeenCalledWith(
+      expect.objectContaining({ via: 'self-variant' }),
+      expect.any(String)
+    );
+  });
+
+  it('never logs the author name — a Discord display name is username-class PII', () => {
+    // The collision this tripwire watches for is precisely a HUMAN whose name
+    // prefixes a personality's, so the tempting field to add is the one that must
+    // never be added. Pinned so a future "make it more diagnosable" edit fails here
+    // instead of in prod logs.
+    deriveRefRole(undefined, 'Lilith Smith', 'Lilith');
+
+    const [payload] = mockLogger.info.mock.calls[0];
+    expect(JSON.stringify(payload)).not.toContain('Lilith Smith');
+  });
+
+  it('stays silent when a stamp is present — this is the fallback path only', () => {
+    deriveRefRole('assistant', 'Lilith ▽', 'Lilith');
+    deriveRefRole('user', 'Some Human', 'Lilith');
+    deriveRefRole('bot', 'MEE6', 'Lilith');
+
+    expect(mockLogger.info).not.toHaveBeenCalled();
+  });
+
+  it('stays silent when the fallback does NOT promote to assistant', () => {
+    deriveRefRole(undefined, 'Some Human', 'Lilith');
+    deriveRefRole(undefined, 'Lila ▽', 'Lilith', new Set(['Lila', 'Lilith']));
+
+    expect(mockLogger.info).not.toHaveBeenCalled();
   });
 });
