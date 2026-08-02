@@ -8,6 +8,7 @@
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { ProcessedAttachment } from '../MultimodalProcessor.js';
 import { extractContentDescriptions } from '../RAGUtils.js';
+import { ATTACHMENT_SEARCH_BUDGET_CHARS, truncateAtWordBoundary } from './searchQueryBudget.js';
 
 const logger = createLogger('SearchQueryBuilder');
 
@@ -58,29 +59,29 @@ export function describeParts(
  * The recentHistoryWindow solves the "pronoun problem" where users say things like
  * "what do you think about that?" - without context, LTM search can't find relevant memories.
  *
- * ## This builder is UNBOUNDED, and the embedder is not
+ * ## Allocation: order + the attachment budget
  *
- * The parts are concatenated with no cap, but the embedding model reads only
- * `EMBEDDING_MAX_INPUT_TOKENS` (512) and discards the rest silently. Parts are
- * appended in the order below, so **a long earlier part starves every later
- * one**: measured on a real prod turn, a 1,700-char image description pushed the
- * query to 2,093 tokens and the referenced-message text — appended last —
- * contributed nothing at all.
+ * The embedding model reads only `EMBEDDING_MAX_INPUT_TOKENS` (512) and
+ * discards the rest silently, so **a long earlier part starves every later
+ * one** — order is allocation. Two measured results govern how the parts are
+ * bounded, and they point in OPPOSITE directions:
  *
- * Two consequences worth knowing before changing anything here:
+ * - **Folded history dilutes.** The fold-aware A/B on mined goldens found
+ *   recall@10 falling 0.436 → 0.390 → 0.256 → 0.195 as the fold widened,
+ *   which is why the recent-history part is gated by `shouldFoldSearchQuery`
+ *   (queryFoldGate.ts).
+ * - **Attachment text is signal, not dilution.** The attachment-allocation A/B
+ *   on mined attachment goldens found the opposite dose-response — recall@10
+ *   RISES with attachment text (bare 0.379 → lead-sentence 0.482 → half-window
+ *   0.528-equivalent) — so the attachment part must NOT be gated out or
+ *   trimmed to a lead sentence. It is instead capped at
+ *   `ATTACHMENT_SEARCH_BUDGET_CHARS` (half the window), which scored
+ *   indistinguishably from the full text while guaranteeing the parts after
+ *   it (`referencedMessagesText`) actually reach the embedder — before the
+ *   cap, a median-length image description starved them out entirely.
  *
- * - **Order is allocation.** Whatever comes first wins the window. That is not a
- *   considered ranking; it is the order the parts happened to be written in.
- * - **More text is not more signal.** The fold-aware A/B on mined goldens found
- *   dilution actively harmful for content-rich queries — recall@10 fell 0.436 →
- *   0.390 → 0.256 → 0.195 as the fold widened. That is why the recent-history
- *   part is gated by `shouldFoldSearchQuery` (queryFoldGate.ts) and the others
- *   are not (yet).
- *
- * Fixing the allocation therefore needs evidence, not just a budget: the
- * goldens are text-only today, so no attachment-bearing turn has ever been
- * scored. `LocalEmbeddingService` now warns on overflow, which is how the real
- * rate becomes measurable.
+ * The eval arms (`../eval/allocationArms.ts`) import the same budget code, so
+ * a change here is automatically what the next A/B measures.
  */
 export function buildSearchQuery(
   userMessage: string,
@@ -101,18 +102,9 @@ export function buildSearchQuery(
     parts.push({ name: 'userMessage', text: userMessage });
   }
 
-  // Add attachment descriptions (voice transcriptions, image descriptions)
-  if (processedAttachments.length > 0) {
-    const descriptions = extractContentDescriptions(processedAttachments);
-
-    if (descriptions.length > 0) {
-      parts.push({ name: 'attachmentDescriptions', text: descriptions });
-
-      // Log when using voice transcription instead of "Hello"
-      if (userMessage.trim() === 'Hello') {
-        logger.info('Using voice transcription for memory search instead of "Hello" fallback');
-      }
-    }
+  const attachmentPart = buildAttachmentPart(processedAttachments, userMessage);
+  if (attachmentPart !== null) {
+    parts.push({ name: 'attachmentDescriptions', text: attachmentPart.text });
   }
 
   // Add referenced message content for semantic search
@@ -134,11 +126,49 @@ export function buildSearchQuery(
   // happened. Offsets make starvation legible: a part whose offset already
   // exceeds the window never reached the model. The authoritative overflow
   // signal is LocalEmbeddingService's warn, which counts real model tokens;
-  // this is the composition that produced it.
+  // this is the composition that produced it. `attachmentCharsBeforeBudget`
+  // (only present when the cap actually removed text) is how the budget's
+  // real-world bite becomes measurable.
+  const attachmentCharsBeforeBudget =
+    attachmentPart !== null && attachmentPart.beforeBudgetChars > ATTACHMENT_SEARCH_BUDGET_CHARS
+      ? attachmentPart.beforeBudgetChars
+      : undefined;
   logger.info(
-    { totalChars: query.length, parts: describeParts(parts) },
+    {
+      totalChars: query.length,
+      parts: describeParts(parts),
+      ...(attachmentCharsBeforeBudget !== undefined ? { attachmentCharsBeforeBudget } : {}),
+    },
     'Assembled memory search query'
   );
 
   return query;
+}
+
+/**
+ * Budget-capped attachment part, or null when there is nothing to add.
+ * `beforeBudgetChars` carries the pre-cap length for the composition log.
+ */
+function buildAttachmentPart(
+  processedAttachments: ProcessedAttachment[],
+  userMessage: string
+): { text: string; beforeBudgetChars: number } | null {
+  if (processedAttachments.length === 0) {
+    return null;
+  }
+  const descriptions = extractContentDescriptions(processedAttachments);
+  if (descriptions.length === 0) {
+    return null;
+  }
+
+  // The turn has no real user text — the attachment content (a transcript or
+  // an image description) is what the search runs on.
+  if (userMessage.trim() === 'Hello') {
+    logger.info('Using attachment content for memory search instead of "Hello" fallback');
+  }
+
+  return {
+    text: truncateAtWordBoundary(descriptions, ATTACHMENT_SEARCH_BUDGET_CHARS),
+    beforeBudgetChars: descriptions.length,
+  };
 }

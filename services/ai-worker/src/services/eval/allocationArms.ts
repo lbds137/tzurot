@@ -12,7 +12,7 @@
  *                     (voice transcripts ride whole: they ARE the user's words,
  *                     not a model's description of them).
  * - `budget-dense`  — bare + descriptions truncated to half the window
- *                     ({@link ATTACHMENT_BUDGET_CHARS}), the per-part-allocation
+ *                     (`ATTACHMENT_SEARCH_BUDGET_CHARS`), the per-part-allocation
  *                     policy shape.
  * - `current-dense` — bare + full descriptions; the embedder truncates at 512
  *                     tokens keeping the head. This is production behavior.
@@ -26,18 +26,15 @@
  * {@link parseAttachmentSegments} strips the storage dressing so every arm —
  * including `current` — is built from the text production actually embeds.
  *
- * ## Why a char budget, not a token budget
- *
- * The window is 512 model tokens (`EMBEDDING_MAX_INPUT_TOKENS`, deliberately
- * un-exported from `@tzurot/embeddings` until a production caller sizes against
- * it). Real prod prose measures ~4 chars/token (the overflow warn reports the
- * observed ratio per request), so the half-window budget is 1024 chars. The
- * eval only needs "roughly half the window"; a production budget policy would
- * count real tokens via the worker's tokenizer.
+ * The budget constant and truncation come from the PRODUCTION policy module
+ * (`../prompt/searchQueryBudget.ts`) — the arm measures literally the code
+ * that ships, so measurement and policy cannot drift apart.
  */
 
-/** Half the 512-token window at the ~4 chars/token measured on prod prose. */
-export const ATTACHMENT_BUDGET_CHARS = 1024;
+import {
+  ATTACHMENT_SEARCH_BUDGET_CHARS,
+  truncateAtWordBoundary,
+} from '../prompt/searchQueryBudget.js';
 
 /** Dense arms in report order: production first, then ascending attachment text. */
 export const ALLOCATION_DENSE_ARMS = [
@@ -118,20 +115,6 @@ export function leadSentence(text: string): string {
 }
 
 /**
- * Truncate to at most `maxChars`, backing up to the last whitespace so the cut
- * lands between words — unless that would sacrifice more than half the budget
- * (one unbroken run), in which case cut hard.
- */
-export function truncateAtWordBoundary(text: string, maxChars: number): string {
-  if (text.length <= maxChars) {
-    return text;
-  }
-  const slice = text.slice(0, maxChars);
-  const lastBreak = Math.max(slice.lastIndexOf(' '), slice.lastIndexOf('\n'));
-  return (lastBreak > maxChars / 2 ? slice.slice(0, lastBreak) : slice).trimEnd();
-}
-
-/**
  * Build every dense arm's query for one golden. An empty string means the arm
  * has nothing to search with (an image-only turn under the bare policy) — the
  * pooling runner skips the retrieval and the arm scores the miss it earned.
@@ -150,7 +133,7 @@ export function buildAllocationQueries(golden: {
     'current-dense': joinParts(bare, full),
     'bare-dense': bare,
     'lead-dense': joinParts(bare, lead),
-    'budget-dense': joinParts(bare, truncateAtWordBoundary(full, ATTACHMENT_BUDGET_CHARS)),
+    'budget-dense': joinParts(bare, truncateAtWordBoundary(full, ATTACHMENT_SEARCH_BUDGET_CHARS)),
   };
 }
 
