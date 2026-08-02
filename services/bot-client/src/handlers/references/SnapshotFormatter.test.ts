@@ -64,6 +64,36 @@ describe('SnapshotFormatter', () => {
     } as unknown as MessageSnapshot;
   }
 
+  describe('forwarded stickers', () => {
+    it('attaches a forwarded snapshot sticker so vision can describe it', () => {
+      // A forward carries its stickers on the SNAPSHOT, not on the forwarding
+      // message, and this path formats the snapshot directly — so it needs its
+      // own extractor. Before this, a forwarded sticker reached the model as a
+      // name with no image behind it.
+      const snapshot = createMockSnapshot({
+        stickers: new Map([
+          [
+            '77',
+            {
+              id: '77',
+              name: 'shipit',
+              format: 1, // StickerFormatType.PNG
+              url: 'https://cdn.discordapp.com/stickers/77.png',
+            },
+          ],
+        ]),
+      });
+
+      const forwardedFrom = createMockMessage();
+
+      const result = formatter.formatSnapshot(snapshot, 1, forwardedFrom);
+
+      expect(result.attachments).toEqual([
+        expect.objectContaining({ id: '77', isSticker: true, contentType: 'image/png' }),
+      ]);
+    });
+  });
+
   describe('Basic Formatting', () => {
     it('should format a simple snapshot', () => {
       const snapshot = createMockSnapshot({

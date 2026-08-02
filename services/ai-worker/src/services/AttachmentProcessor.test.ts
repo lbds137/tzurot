@@ -12,9 +12,16 @@ import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/perso
 import { processAttachmentsParallel } from './AttachmentProcessor.js';
 
 // Use vi.hoisted() to create mocks that persist across test resets
-const { mockDescribeImage, mockTranscribeAudio } = vi.hoisted(() => ({
+const { mockDescribeImage, mockTranscribeAudio, mockGetSystemSetting } = vi.hoisted(() => ({
   mockDescribeImage: vi.fn(),
   mockTranscribeAudio: vi.fn(),
+  // Defaults to the registry default (sticker vision ON) so every pre-existing
+  // case behaves exactly as before; only the kill-switch case flips it.
+  mockGetSystemSetting: vi.fn(() => true),
+}));
+
+vi.mock('@tzurot/common-types/services/SystemSettingsService', () => ({
+  getSystemSetting: mockGetSystemSetting,
 }));
 
 // Mock the MultimodalProcessor module
@@ -52,6 +59,69 @@ describe('AttachmentProcessor', () => {
   });
 
   describe('processAttachmentsParallel', () => {
+    it('does not spend a vision call on a sticker when the kill switch is off', async () => {
+      // The reference/quoted/forwarded path reaches vision through here, NOT
+      // through DownloadAttachmentsStep — so the switch has to bite here too.
+      // Without this, turning sticker vision OFF still bills for every sticker
+      // in a reply's quoted message: a switch that reads as off while spending.
+      // `Once`, not a persistent return: `vi.clearAllMocks()` in beforeEach
+      // clears call history but NOT a configured mockReturnValue, so the plain
+      // form leaks "switch off" into every later test in the file. Harmless
+      // today (nothing below uses a sticker) and a trap tomorrow — the next
+      // sticker test added anywhere after this would silently inherit it and
+      // fail for a reason unrelated to its own change.
+      // One call per processAttachmentsParallel, so Once is exactly the scope.
+      mockGetSystemSetting.mockReturnValueOnce(false);
+
+      const result = await processAttachmentsParallel({
+        attachments: [
+          { url: 'https://cdn/sticker.png', contentType: 'image/png', isSticker: true },
+        ],
+        referenceNumber: 1,
+        personality: mockPersonality,
+        isGuestMode: false,
+      } as never);
+
+      expect(mockDescribeImage).not.toHaveBeenCalled();
+      expect(result).toEqual([]);
+    });
+
+    it('still describes a NON-sticker image when the sticker switch is off', async () => {
+      // The switch governs stickers only; an ordinary quoted image is untouched.
+      // `Once`, not a persistent return: `vi.clearAllMocks()` in beforeEach
+      // clears call history but NOT a configured mockReturnValue, so the plain
+      // form leaks "switch off" into every later test in the file. Harmless
+      // today (nothing below uses a sticker) and a trap tomorrow — the next
+      // sticker test added anywhere after this would silently inherit it and
+      // fail for a reason unrelated to its own change.
+      // One call per processAttachmentsParallel, so Once is exactly the scope.
+      mockGetSystemSetting.mockReturnValueOnce(false);
+      mockDescribeImage.mockResolvedValue('a photo of a dog');
+
+      await processAttachmentsParallel({
+        attachments: [{ url: 'https://cdn/photo.png', contentType: 'image/png' }],
+        referenceNumber: 1,
+        personality: mockPersonality,
+        isGuestMode: false,
+      } as never);
+
+      expect(mockDescribeImage).toHaveBeenCalled();
+    });
+
+    it('CANARY: a later test still sees sticker vision ON (leak check)', async () => {
+      // Placed AFTER the two kill-switch cases in file order. If either leaked
+      // its `false` return, this sticker would be filtered and describeImage
+      // would never fire.
+      mockDescribeImage.mockResolvedValue('a sticker of a cat');
+      await processAttachmentsParallel({
+        attachments: [{ url: 'https://cdn/s.png', contentType: 'image/png', isSticker: true }],
+        referenceNumber: 1,
+        personality: mockPersonality,
+        isGuestMode: false,
+      } as never);
+      expect(mockDescribeImage).toHaveBeenCalled();
+    });
+
     it('should return empty array for empty attachments', async () => {
       const result = await processAttachmentsParallel({
         attachments: [],

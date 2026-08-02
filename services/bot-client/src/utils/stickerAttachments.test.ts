@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { StickerFormatType, type Message, type Sticker } from 'discord.js';
-import { extractStickerImages, isRasterizableSticker } from './stickerAttachments.js';
+import {
+  extractSnapshotStickerImages,
+  extractStickerImages,
+  isRasterizableSticker,
+  stickersToAttachments,
+} from './stickerAttachments.js';
 
 interface StickerFixture {
   id: string;
@@ -136,5 +141,66 @@ describe('extractStickerImages', () => {
     const ids = extractStickerImages(message)?.map(a => a.id);
 
     expect(ids).toEqual(['own', 'forwarded']);
+  });
+});
+
+describe('extractSnapshotStickerImages', () => {
+  // The reference-rendering paths format a forwarded SNAPSHOT directly, without
+  // the parent Message that extractStickerImages needs — so this is the shape
+  // those call sites actually hold.
+  const snapshotWith = (list: StickerFixture[]): { stickers: Map<string, StickerFixture> } => ({
+    stickers: new Map(list.map(s => [s.id, s])),
+  });
+
+  it('converts a snapshot’s rasterizable stickers', () => {
+    const result = extractSnapshotStickerImages(snapshotWith([sticker({ id: '1' })]) as never);
+
+    expect(result).toEqual([
+      expect.objectContaining({ id: '1', isSticker: true, contentType: 'image/png' }),
+    ]);
+  });
+
+  it('returns undefined when the snapshot carries no stickers', () => {
+    // undefined, not [] — matches extractEmbedImages so both spread the same way.
+    expect(extractSnapshotStickerImages(snapshotWith([]) as never)).toBeUndefined();
+  });
+
+  it('returns undefined when the stickers collection is absent entirely', () => {
+    expect(extractSnapshotStickerImages({} as never)).toBeUndefined();
+    expect(extractSnapshotStickerImages({ stickers: null } as never)).toBeUndefined();
+  });
+
+  it('drops Lottie stickers, which have no raster form to describe', () => {
+    const result = extractSnapshotStickerImages(
+      snapshotWith([
+        sticker({ id: 'lottie', format: StickerFormatType.Lottie }),
+        sticker({ id: 'png' }),
+      ]) as never
+    );
+
+    expect(result?.map(a => a.id)).toEqual(['png']);
+  });
+});
+
+describe('stickersToAttachments', () => {
+  it('is the single conversion both extractors share', () => {
+    // Pinned directly because the whole point of the kernel is that a live
+    // message and a forwarded snapshot cannot drift in how a sticker becomes an
+    // attachment — only in how the stickers are collected.
+    const one = sticker({ id: 'shared', format: StickerFormatType.GIF });
+
+    expect(stickersToAttachments([one] as never)).toEqual(
+      extractSnapshotStickerImages({ stickers: new Map([['shared', one]]) } as never)
+    );
+  });
+
+  it('uses image/gif only for GIF, image/png for PNG and APNG', () => {
+    const result = stickersToAttachments([
+      sticker({ id: 'g', format: StickerFormatType.GIF }),
+      sticker({ id: 'a', format: StickerFormatType.APNG }),
+      sticker({ id: 'p', format: StickerFormatType.PNG }),
+    ] as never);
+
+    expect(result?.map(a => a.contentType)).toEqual(['image/gif', 'image/png', 'image/png']);
   });
 });

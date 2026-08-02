@@ -20,6 +20,7 @@ import {
   type RenderableAttachment,
 } from './prompt/QuoteFormatter.js';
 import { withRetry } from '../utils/retry.js';
+import { filterStickersBySetting } from '@tzurot/common-types/services/stickerVisionGate';
 
 const logger = createLogger('AttachmentProcessor');
 
@@ -92,9 +93,13 @@ export interface ProcessAttachmentsOptions {
 /**
  * Process all attachments in parallel.
  *
- * Uses Promise.allSettled to process images and voice messages concurrently,
- * significantly reducing latency when multiple attachments are present.
+ * Images and voice messages are processed concurrently, which materially cuts
+ * latency when a reference carries several. Each is caught individually so one
+ * failure degrades to an unprocessed placeholder rather than losing the batch.
  * If preprocessed attachments are provided, uses them instead of making API calls.
+ *
+ * Stickers are subject to the `stickerVisionEnabled` kill switch here — this is
+ * the reference/quoted/forwarded path, distinct from `DownloadAttachmentsStep`.
  */
 export async function processAttachmentsParallel(
   options: ProcessAttachmentsOptions
@@ -115,38 +120,68 @@ export async function processAttachmentsParallel(
     return [];
   }
 
-  const processingPromises = attachments.map(attachment =>
-    processSingleAttachment({
-      attachment,
-      referenceNumber,
-      personality,
-      isGuestMode,
-      preprocessedAttachments,
-      userApiKey,
-      sttDispatch,
-      loggingContext,
-      visionProvider,
-      model,
+  // Referenced, quoted and forwarded messages reach vision through here — a
+  // separate path from DownloadAttachmentsStep, so the sticker kill switch has
+  // to bite here too. Without it, switching sticker vision OFF still bills for
+  // every sticker in a reply's quoted message: a switch that reads as off while
+  // spending. Applied before the fan-out so a dropped sticker costs no call at
+  // all, not a call whose result is discarded.
+  const visionable = filterStickersBySetting(attachments);
+  if (visionable.length === 0) {
+    return [];
+  }
+
+  // Each outcome CARRIES its attachment rather than being matched back by
+  // index. Two arrays walked in parallel is the shape that just broke: adding
+  // the sticker gate made `results` 1:1 with the FILTERED list while the
+  // failure path still indexed the unfiltered one, so a dropped sticker ahead
+  // of a failure misidentified it — and could resurface the very sticker the
+  // kill switch removed. The branch is near-unreachable (both modality helpers
+  // catch internally; only the pre-dispatch classify is unguarded), which is
+  // precisely why it went unnoticed and why the fix is structural rather than a
+  // corrected subscript.
+  type Attachment = ProcessSingleAttachmentOptions['attachment'];
+  type Outcome =
+    { ok: true; built: BuiltAttachment } | { ok: false; attachment: Attachment; error: unknown };
+
+  const outcomes: Outcome[] = await Promise.all(
+    visionable.map(async (attachment): Promise<Outcome> => {
+      try {
+        return {
+          ok: true,
+          built: await processSingleAttachment({
+            attachment,
+            referenceNumber,
+            personality,
+            isGuestMode,
+            preprocessedAttachments,
+            userApiKey,
+            sttDispatch,
+            loggingContext,
+            visionProvider,
+            model,
+          }),
+        };
+      } catch (error) {
+        return { ok: false, attachment, error };
+      }
     })
   );
 
-  const results = await Promise.allSettled(processingPromises);
-
   const rendered: BuiltAttachment[] = [];
-  for (let i = 0; i < results.length; i++) {
-    const result = results[i];
-    if (result.status === 'fulfilled') {
-      rendered.push(result.value);
-    } else {
-      logger.error(
-        { err: result.reason, index: i, referenceNumber },
-        'Unexpected error in attachment processing'
-      );
-      const attachment = attachments[i];
-      if (attachment !== undefined) {
-        rendered.push({ url: attachment.url, attachment: unprocessedAttachment(attachment) });
-      }
+  for (const outcome of outcomes) {
+    if (outcome.ok) {
+      rendered.push(outcome.built);
+      continue;
     }
+    logger.error(
+      { err: outcome.error, url: outcome.attachment.url, referenceNumber },
+      'Unexpected error in attachment processing'
+    );
+    rendered.push({
+      url: outcome.attachment.url,
+      attachment: unprocessedAttachment(outcome.attachment),
+    });
   }
 
   return rendered;

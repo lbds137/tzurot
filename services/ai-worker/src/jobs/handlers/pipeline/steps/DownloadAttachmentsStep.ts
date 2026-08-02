@@ -34,6 +34,7 @@
  */
 
 import { getSystemSetting } from '@tzurot/common-types/services/SystemSettingsService';
+import { keepStickersIf } from '@tzurot/common-types/services/stickerVisionGate';
 import { type AttachmentMetadata } from '@tzurot/common-types/types/schemas/discord';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { IPipelineStep, GenerationContext } from '../types.js';
@@ -84,17 +85,6 @@ function hasMessageText(message: string | object | undefined): boolean {
   //   - anything else                → reaches this `return false` and is
   //                                    treated as text-empty (fail closed).
   return false;
-}
-
-/**
- * Drop sticker-sourced attachments when sticker vision is switched off.
- *
- * Filtering here rather than at the describe call is what makes "off" actually
- * free: a dropped sticker is never downloaded, never resized, and never counted
- * against the job's aggregate payload cap.
- */
-function keepStickersIf(enabled: boolean, attachments: AttachmentMetadata[]): AttachmentMetadata[] {
-  return enabled ? attachments : attachments.filter(a => a.isSticker !== true);
 }
 
 export class DownloadAttachmentsStep implements IPipelineStep {
