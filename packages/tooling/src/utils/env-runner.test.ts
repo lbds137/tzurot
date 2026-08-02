@@ -46,6 +46,38 @@ describe('env-runner', () => {
     });
   });
 
+  describe('resolveDatabaseUrl', () => {
+    const ORIGINAL_DB_URL = process.env.DATABASE_URL;
+
+    afterEach(() => {
+      if (ORIGINAL_DB_URL === undefined) {
+        delete process.env.DATABASE_URL;
+      } else {
+        process.env.DATABASE_URL = ORIGINAL_DB_URL;
+      }
+    });
+
+    it('returns the local DATABASE_URL for env=local', async () => {
+      process.env.DATABASE_URL = 'postgresql://localhost/tzurot';
+      const { resolveDatabaseUrl } = await import('./env-runner.js');
+      expect(resolveDatabaseUrl('local')).toBe('postgresql://localhost/tzurot');
+    });
+
+    it('throws for env=local when DATABASE_URL is unset', async () => {
+      delete process.env.DATABASE_URL;
+      const { resolveDatabaseUrl } = await import('./env-runner.js');
+      expect(() => resolveDatabaseUrl('local')).toThrow(/DATABASE_URL not set/);
+    });
+
+    it('fetches the Railway public URL for env=dev', async () => {
+      vi.mocked(execFileSync).mockReturnValue(
+        JSON.stringify({ DATABASE_PUBLIC_URL: 'postgresql://railway-dev/db' })
+      );
+      const { resolveDatabaseUrl } = await import('./env-runner.js');
+      expect(resolveDatabaseUrl('dev')).toBe('postgresql://railway-dev/db');
+    });
+  });
+
   describe('getRailwayEnvName', () => {
     it('should map dev to development', async () => {
       const { getRailwayEnvName } = await import('./env-runner.js');
