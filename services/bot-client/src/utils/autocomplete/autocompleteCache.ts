@@ -160,6 +160,30 @@ function commitFetchedField<K extends keyof UserAutocompleteData>(
 }
 
 /**
+ * Log a completed cache-miss round-trip at INFO.
+ *
+ * A miss costs a full gateway round-trip against Discord's hard 3s autocomplete
+ * deadline, so miss LATENCY — not miss count — is what decides whether
+ * autocomplete is usable under load. Everything else on this path logs at
+ * debug, which production does not emit, so without this line the duration is
+ * unobservable in the only environment where it matters.
+ *
+ * Supersedes the per-field `Cached <thing>` debug lines it replaced: same
+ * `count`, plus the duration, at a level prod actually keeps.
+ */
+function logMissDuration(
+  userId: string,
+  field: keyof UserAutocompleteData,
+  startedAt: number,
+  count: number
+): void {
+  logger.info(
+    { userId, field, durationMs: Date.now() - startedAt, count },
+    'Autocomplete cache miss fetched'
+  );
+}
+
+/**
  * Handle the transient-error path: return stale data if present, else error.
  */
 function fallbackToStale<K extends keyof UserAutocompleteData>(
@@ -193,18 +217,24 @@ export async function getCachedPersonalities(
   }
 
   logger.debug({ userId }, 'Personality cache miss, fetching');
+  const startedAt = Date.now();
 
   try {
     const result = await userClient.listPersonalities();
 
     if (result.ok) {
       commitFetchedField(userId, 'personalities', result.data.personalities);
-      logger.debug({ userId, count: result.data.personalities.length }, 'Cached personalities');
+      logMissDuration(userId, 'personalities', startedAt, result.data.personalities.length);
       return { kind: 'ok', value: result.data.personalities };
     }
 
     logger.warn(
-      { userId, error: result.error, httpStatus: result.status },
+      {
+        userId,
+        error: result.error,
+        httpStatus: result.status,
+        durationMs: Date.now() - startedAt,
+      },
       'Failed to fetch personalities'
     );
     if (isTransientHttpStatus(result.status)) {
@@ -233,18 +263,24 @@ export async function getCachedPersonas(
   }
 
   logger.debug({ userId }, 'Persona cache miss, fetching');
+  const startedAt = Date.now();
 
   try {
     const result = await userClient.listPersonas();
 
     if (result.ok) {
       commitFetchedField(userId, 'personas', result.data.personas);
-      logger.debug({ userId, count: result.data.personas.length }, 'Cached personas');
+      logMissDuration(userId, 'personas', startedAt, result.data.personas.length);
       return { kind: 'ok', value: result.data.personas };
     }
 
     logger.warn(
-      { userId, error: result.error, httpStatus: result.status },
+      {
+        userId,
+        error: result.error,
+        httpStatus: result.status,
+        durationMs: Date.now() - startedAt,
+      },
       'Failed to fetch personas'
     );
     if (isTransientHttpStatus(result.status)) {
@@ -276,18 +312,24 @@ export async function getCachedShapes(userClient: UserClient): Promise<ApiCheck<
   }
 
   logger.debug({ userId }, 'Shapes cache miss, fetching');
+  const startedAt = Date.now();
 
   try {
     const result = await userClient.listShapes();
 
     if (result.ok) {
       commitFetchedField(userId, 'shapes', result.data.shapes);
-      logger.debug({ userId, count: result.data.shapes.length }, 'Cached shapes');
+      logMissDuration(userId, 'shapes', startedAt, result.data.shapes.length);
       return { kind: 'ok', value: result.data.shapes };
     }
 
     logger.warn(
-      { userId, error: result.error, httpStatus: result.status },
+      {
+        userId,
+        error: result.error,
+        httpStatus: result.status,
+        durationMs: Date.now() - startedAt,
+      },
       'Failed to fetch shapes'
     );
     if (isTransientHttpStatus(result.status)) {
