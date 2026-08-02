@@ -1,7 +1,7 @@
 ---
 name: tzurot-session-mining
 description: 'Mine Claude session logs for recurring friction and convert findings into structural fixes (rules/skills/hooks). Invoke with /tzurot-session-mining periodically or when a failure pattern feels recurrent but unquantified.'
-lastUpdated: '2026-07-19'
+lastUpdated: '2026-08-02'
 ---
 
 # Session Friction Mining
@@ -58,6 +58,13 @@ against the README's mined ranges. **Never re-mine an already-mined range** —
 re-mined findings inflate recurrence counts and re-litigate settled
 operationalizations. The ACTIVE session (this one) is fine to include if it
 has substantial history; note that its tail is still being written.
+
+**Also read the prior run's disposition list** (same README entry — Step 4
+requires one per proposal): confirm each `shipped` PR merged and each
+`task-<N>` still resolves (`pnpm tracker task list --search <term> --plain`),
+and flag any proposal whose disposition is missing or dangling. This look-back
+is the consumer of the disposition table — without it, proposals evaporate
+between runs exactly as the 2026-07-25 run's did.
 
 ## Step 1 — Extract corpus
 
@@ -149,6 +156,13 @@ Structurally: **rule** (hard constraint, every contributor) → **skill**
   output is a proposal, not a mandate.
 - Update `mined-corpus/reports/README.md` with the newly-mined corpus date
   ranges (this is what Step 0 of the NEXT run checks).
+- **The README entry must carry a disposition per proposal** — each P/R-numbered
+  item ends the run as exactly one of `shipped <PR/commit>`, `task-<N>`
+  (tracker), or `rejected (<reason>)`. A proposal with no disposition is the
+  promise-rot this skill exists to mine: the 2026-07-25 run left three of its
+  four proposals in the synthesis report only, and all three silently
+  evaporated. Step 0 of the next run reads these dispositions and flags any
+  `task-<N>` that no longer resolves.
 - Session-end: any deferred finding gets a backlog entry per `06-backlog.md`
   — a report row is not a tracking surface.
 

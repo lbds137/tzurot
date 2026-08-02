@@ -1,7 +1,7 @@
 ---
 name: tzurot-git-workflow
 description: 'Git workflow procedures. Invoke with /tzurot-git-workflow for commit, PR, and release procedures.'
-lastUpdated: '2026-07-29'
+lastUpdated: '2026-08-02'
 ---
 
 # Git Workflow Procedures
@@ -425,6 +425,14 @@ After a release merges to main, reset the "Unreleased on Develop" section in
 CURRENT.md to only track items since the new release tag. Failing to do this
 caused duplicate entries in the beta.94 release notes (items from beta.93
 were re-listed because CURRENT.md still tracked them).
+
+Also flag that a **fresh session** is available as an alternative to compacting
+onward when the session has spanned one or more releases — long-lived sessions
+accumulate compaction churn ("again" re-asks, re-explained context) and the
+owner has named session-per-release as the preferred cadence. This is a
+technical-breakpoint flag per `09-interaction-style.md` § Don't Suggest
+Stopping (a fresh session continues the work — it is not a stop); one sentence
+at close-out is enough, and the call is theirs.
 
 ## GitHub CLI (Use ops instead of broken `gh pr edit`)
 
