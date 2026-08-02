@@ -252,13 +252,9 @@ ${escapeXmlContent(persona)}
         ? formatEnvironmentContext(context.environment)
         : '<location type="dm">Direct Message (private one-on-one chat)</location>';
 
-    // Unique request ID to break API-level prompt caching
-    const requestId = `${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
-
     const contextSection = `\n\n<context>
 <datetime>${datetime}</datetime>
 ${locationXml}
-<request_id>${requestId}</request_id>
 </context>`;
 
     // Conversation participants

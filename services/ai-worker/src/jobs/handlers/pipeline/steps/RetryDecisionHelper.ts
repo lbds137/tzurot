@@ -92,7 +92,6 @@ export function logFallbackUsed(fallback: FallbackResponse, jobId: string | unde
 interface RetryConfigForLog {
   temperatureOverride?: number;
   frequencyPenaltyOverride?: number;
-  historyReductionPercent?: number;
 }
 
 /** Log escalating retry parameters when attempt > 1 */
@@ -110,7 +109,6 @@ export function logRetryEscalation(
       attempt,
       temperatureOverride: retryConfig.temperatureOverride,
       frequencyPenaltyOverride: retryConfig.frequencyPenaltyOverride,
-      historyReductionPercent: retryConfig.historyReductionPercent,
     },
     'Escalating retry parameters'
   );

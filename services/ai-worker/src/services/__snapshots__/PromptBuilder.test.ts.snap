@@ -26,7 +26,6 @@ exports[`PromptBuilder > Prompt Snapshots > buildFullSystemPrompt snapshots > sh
 <context>
 <datetime>Saturday, June 15, 2024 at 10:30 AM EDT</datetime>
 <location type="dm">Direct Message (private one-on-one chat)</location>
-<request_id>NORMALIZED</request_id>
 </context>
 
 <protocol>
@@ -72,7 +71,6 @@ exports[`PromptBuilder > Prompt Snapshots > buildFullSystemPrompt snapshots > sh
 <category name="Development"/>
 <channel name="bot-testing" type="text"/>
 </location>
-<request_id>NORMALIZED</request_id>
 </context>
 
 <participants>
@@ -128,7 +126,6 @@ exports[`PromptBuilder > Prompt Snapshots > buildFullSystemPrompt snapshots > sh
 <context>
 <datetime>Saturday, June 15, 2024 at 10:30 AM EDT</datetime>
 <location type="dm">Direct Message (private one-on-one chat)</location>
-<request_id>NORMALIZED</request_id>
 </context>
 
 <participants>
@@ -207,7 +204,6 @@ exports[`PromptBuilder > Prompt Snapshots > buildFullSystemPrompt snapshots > sh
 <context>
 <datetime>Saturday, June 15, 2024 at 10:30 AM EDT</datetime>
 <location type="dm">Direct Message (private one-on-one chat)</location>
-<request_id>NORMALIZED</request_id>
 </context>
 
 <contextual_references>

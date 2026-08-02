@@ -104,7 +104,8 @@ export const RETRY_TEMPERATURE_MAX = 1.0;
  * Generate a random temperature for retry attempts.
  * Returns a value between RETRY_TEMPERATURE_MIN and RETRY_TEMPERATURE_MAX (inclusive).
  *
- * The random jitter helps bust API-level caches more effectively than a fixed value.
+ * The jitter varies sampling between attempts so a retry doesn't fall into the
+ * same output attractor; it does not touch the input (prompt bytes stay stable).
  */
 export function getRetryTemperature(): number {
   const range = RETRY_TEMPERATURE_MAX - RETRY_TEMPERATURE_MIN;
@@ -118,13 +119,14 @@ export function getRetryTemperature(): number {
 export const RETRY_ATTEMPT_2_FREQUENCY_PENALTY = 0.5;
 
 /**
- * Percent of oldest conversation history to remove on Attempt 3.
- * This changes the input significantly, breaking cache keys.
- */
-export const RETRY_ATTEMPT_3_HISTORY_REDUCTION = 0.3;
-
-/**
  * Build retry configuration for escalating duplicate detection.
+ *
+ * Escalation is sampling-only: temperature jitter + frequency penalty from
+ * attempt 2 on. There is deliberately NO input mutation (a history shrink on
+ * attempt 3 existed once as a cache-breaker — provider prefix caching affects
+ * billing, not sampling, so mutating the input bought nothing and cost prompt
+ * stability). If duplicate retries regress, tune sampling params; never
+ * reintroduce input entropy.
  *
  * @param attempt Current attempt number (1-based)
  * @returns Retry configuration with appropriate overrides for the attempt
@@ -132,26 +134,16 @@ export const RETRY_ATTEMPT_3_HISTORY_REDUCTION = 0.3;
 export function buildRetryConfig(attempt: number): {
   temperatureOverride?: number;
   frequencyPenaltyOverride?: number;
-  historyReductionPercent?: number;
 } {
   if (attempt === 1) {
     // Attempt 1: Normal generation, no overrides
     return {};
   }
 
-  if (attempt === 2) {
-    // Attempt 2: Increase temperature (with jitter) and frequency penalty
-    return {
-      temperatureOverride: getRetryTemperature(),
-      frequencyPenaltyOverride: RETRY_ATTEMPT_2_FREQUENCY_PENALTY,
-    };
-  }
-
-  // Attempt 3+: Also reduce history to break cache
+  // Attempt 2+: Increase temperature (with jitter) and frequency penalty
   return {
     temperatureOverride: getRetryTemperature(),
     frequencyPenaltyOverride: RETRY_ATTEMPT_2_FREQUENCY_PENALTY,
-    historyReductionPercent: RETRY_ATTEMPT_3_HISTORY_REDUCTION,
   };
 }
 

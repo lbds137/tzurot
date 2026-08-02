@@ -385,7 +385,6 @@ export class ConversationalRAGService {
         userMessage: inputs.userMessage,
         processedAttachments: inputs.processedAttachments,
         referencedMessagesDescriptions: inputs.referencedMessagesDescriptions,
-        historyReductionPercent: retryConfig?.historyReductionPercent,
         effectiveContextWindowTokens,
       };
       const preselected = this.contentBudgetManager.preselectHistory(budgetOptionsBase);
