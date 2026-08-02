@@ -202,13 +202,23 @@ function buildResponseField(llmResponse: DiagnosticPayload['llmResponse']): {
 } {
   const lowTokenWarning =
     llmResponse.completionTokens < 100 && llmResponse.completionTokens > 0 ? ' ⚠️ LOW' : '';
+  const lines = [
+    `**Finish Reason:** ${formatFinishReason(llmResponse.finishReason)}`,
+    `**Prompt Tokens:** ${llmResponse.promptTokens}`,
+    `**Completion Tokens:** ${llmResponse.completionTokens}${lowTokenWarning}`,
+  ];
+  // Provider-reported prefix-cache hit. Absent = provider reported no cache
+  // activity (old logs predate the field); 0 = a real cold-prefix report.
+  if (llmResponse.cachedPromptTokens !== undefined) {
+    const hitPercent =
+      llmResponse.promptTokens > 0
+        ? ` (${Math.round((llmResponse.cachedPromptTokens / llmResponse.promptTokens) * 100)}%)`
+        : '';
+    lines.push(`**Cached Tokens:** ${llmResponse.cachedPromptTokens}${hitPercent}`);
+  }
   return {
     name: '📤 Response',
-    value: [
-      `**Finish Reason:** ${formatFinishReason(llmResponse.finishReason)}`,
-      `**Prompt Tokens:** ${llmResponse.promptTokens}`,
-      `**Completion Tokens:** ${llmResponse.completionTokens}${lowTokenWarning}`,
-    ].join('\n'),
+    value: lines.join('\n'),
     inline: true,
   };
 }

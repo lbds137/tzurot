@@ -4,10 +4,9 @@
  * Handles language model invocation with retry logic, timeout handling, and model caching.
  * Extracted from ConversationalRAGService for better modularity and testability.
  *
- * Reasoning Model Support:
- * - Detects and handles reasoning/thinking models (o1, Claude 3.7+, Gemini Thinking)
- * - Transforms messages for models that don't support system messages
- * - Thinking tag extraction delegated to ResponsePostProcessor
+ * Messages pass through unmodified — no request-shape rewrites exist (the
+ * o-series system→user transform died with the o-series deprecation), and
+ * thinking-tag extraction is delegated to ResponsePostProcessor.
  */
 
 import { type BaseMessage } from '@langchain/core/messages';
@@ -152,7 +151,6 @@ export class LLMInvoker {
    * - Exponential backoff between retries (1s, 2s, 4s, ...)
    * - Dynamic global timeout based on attachment count
    * - Per-attempt timeout using LLM_PER_ATTEMPT constant
-   * - Reasoning model support (o1, Claude 3.7+, Gemini Thinking)
    */
   async invokeWithRetry(options: InvokeWithRetryOptions): Promise<BaseMessage> {
     const {
@@ -570,14 +568,27 @@ export class LLMInvoker {
     }
 
     const finishReason = resolveFinishReason(metadata);
-    const usage = metadata.usage as
-      { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number } | undefined;
+    // Read LangChain's normalized usage_metadata, not response_metadata.usage —
+    // the latter is only populated when the provider returns a truthy
+    // system_fingerprint, which OpenRouter generally does not, so it logged
+    // undefined on the dominant route.
+    const usage = (
+      response as {
+        usage_metadata?: {
+          input_tokens?: number;
+          output_tokens?: number;
+          total_tokens?: number;
+          input_token_details?: { cache_read?: number };
+        };
+      }
+    ).usage_metadata;
 
     const logContext: Record<string, unknown> = { modelName, finishReason };
     if (usage !== undefined) {
-      logContext.promptTokens = usage.prompt_tokens;
-      logContext.completionTokens = usage.completion_tokens;
+      logContext.promptTokens = usage.input_tokens;
+      logContext.completionTokens = usage.output_tokens;
       logContext.totalTokens = usage.total_tokens;
+      logContext.cachedPromptTokens = usage.input_token_details?.cache_read;
     }
 
     if (finishReason === FINISH_REASONS.LENGTH) {
@@ -620,8 +631,8 @@ export class LLMInvoker {
 
   /**
    * Extract diagnostic metadata from a response for enriched error logging.
-   * Pulls finish_reason, token usage, refusal, and key inventories from
-   * LangChain's response_metadata and additional_kwargs.
+   * Pulls finish_reason and key inventories from LangChain's response_metadata
+   * and additional_kwargs, and token usage from the normalized usage_metadata.
    */
   private extractResponseDiagnostics(response: BaseMessage): Record<string, unknown> {
     const metadata = (response as { response_metadata?: Record<string, unknown> })
@@ -629,15 +640,17 @@ export class LLMInvoker {
     const additionalKwargs = (response as { additional_kwargs?: Record<string, unknown> })
       .additional_kwargs;
     const finishReason = resolveFinishReason(metadata);
-    const usage = metadata?.usage as
-      { prompt_tokens?: number; completion_tokens?: number } | undefined;
+    // usage_metadata, not response_metadata.usage — see logFinishReason.
+    const usage = (
+      response as { usage_metadata?: { input_tokens?: number; output_tokens?: number } }
+    ).usage_metadata;
 
     return {
       responseType: Array.isArray(response.content) ? 'array' : typeof response.content,
       contentLength: Array.isArray(response.content) ? response.content.length : 0,
       finishReason,
-      promptTokens: usage?.prompt_tokens,
-      completionTokens: usage?.completion_tokens,
+      promptTokens: usage?.input_tokens,
+      completionTokens: usage?.output_tokens,
       refusal:
         (response as unknown as Record<string, unknown>).refusal ??
         additionalKwargs?.refusal ??

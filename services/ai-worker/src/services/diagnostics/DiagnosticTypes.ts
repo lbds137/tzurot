@@ -115,6 +115,20 @@ export interface LlmResponseData {
   finishReason: string;
   promptTokens: number;
   completionTokens: number;
+  /**
+   * Prompt tokens served from the provider's prefix cache
+   * (`usage.prompt_tokens_details.cached_tokens`, via LangChain's
+   * `usage_metadata.input_token_details.cache_read`). Undefined when the
+   * provider reported no cache activity; 0 is a real report of a cold prefix.
+   * This is the epic's primary caching measurement.
+   */
+  cachedPromptTokens?: number;
+  /**
+   * OpenRouter's `usage.cache_discount` billing adjustment (negative =
+   * cache-read savings). OpenRouter-only; z.ai reports cache activity via
+   * cachedPromptTokens alone.
+   */
+  cacheDiscount?: number;
   modelUsed: string;
   /** Debug info for reasoning extraction troubleshooting */
   reasoningDebug?: {

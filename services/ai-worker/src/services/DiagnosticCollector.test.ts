@@ -504,6 +504,26 @@ describe('DiagnosticCollector', () => {
       });
     });
 
+    it('should carry cache telemetry through to the finalized payload', () => {
+      // The collector copies llmResponse field-by-field — a hand-maintained
+      // list, which is exactly where a new field silently drops. Sentinels pin
+      // the copy-through end to end (recordLlmResponse → finalize).
+      collector.recordLlmResponse({
+        rawContent: 'cached response',
+        finishReason: 'stop',
+        promptTokens: 6426,
+        completionTokens: 1,
+        cachedPromptTokens: 6272,
+        cacheDiscount: -0.0123,
+        modelUsed: 'glm-4.7',
+      });
+
+      const payload = collector.finalize();
+
+      expect(payload.llmResponse.cachedPromptTokens).toBe(6272);
+      expect(payload.llmResponse.cacheDiscount).toBe(-0.0123);
+    });
+
     it('should record reasoning debug info when provided', () => {
       collector.recordLlmResponse({
         rawContent: 'Response with reasoning',
