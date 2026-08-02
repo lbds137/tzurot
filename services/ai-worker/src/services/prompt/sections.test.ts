@@ -1,10 +1,13 @@
 import { describe, it, expect } from 'vitest';
-import {
-  assembleSections,
-  describeSections,
-  SECTION_SEPARATOR,
-  type PromptSection,
-} from './sections.js';
+import { layoutSections, SECTION_SEPARATOR, type PromptSection } from './sections.js';
+
+function assembleSections(sections: PromptSection[]): string {
+  return layoutSections(sections).text;
+}
+
+function describeSections(sections: PromptSection[]) {
+  return layoutSections(sections).descriptions;
+}
 
 function section(id: string, text: string, tier: PromptSection['tier'] = 'V'): PromptSection {
   return { id, tier, render: () => text };

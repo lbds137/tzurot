@@ -13,8 +13,8 @@ import { HumanMessage, SystemMessage } from '@langchain/core/messages';
 interface MockPromptBuilderInstance {
   formatUserMessage: ReturnType<typeof vi.fn>;
   buildSearchQuery: ReturnType<typeof vi.fn>;
-  buildFullSystemPrompt: ReturnType<typeof vi.fn>;
-  buildFullSystemPromptWithSections: ReturnType<typeof vi.fn>;
+  buildSystemMessage: ReturnType<typeof vi.fn>;
+  buildVolatilePrefix: ReturnType<typeof vi.fn>;
   buildHumanMessage: ReturnType<typeof vi.fn>;
   countTokens: ReturnType<typeof vi.fn>;
   countMemoryTokens: ReturnType<typeof vi.fn>;
@@ -28,8 +28,8 @@ let mockInstance: MockPromptBuilderInstance | null = null;
  * **Default Behaviors:**
  * - `formatUserMessage()` → Returns `'formatted user message'`
  * - `buildSearchQuery()` → Returns `'search query'`
- * - `buildFullSystemPrompt()` → Returns `SystemMessage('system prompt')`
- * - `buildFullSystemPromptWithSections()` → Returns `{ message, sections: [] }`
+ * - `buildSystemMessage()` → Returns `{ message: SystemMessage('system prompt'), sections: [] }`
+ * - `buildVolatilePrefix()` → Returns `'<context>volatile prefix</context>'`
  * - `buildHumanMessage()` → Returns `{ message: HumanMessage, contentForStorage: string }`
  * - `countTokens()` → Returns `100` tokens
  * - `countMemoryTokens()` → Returns `50` tokens
@@ -40,11 +40,11 @@ function createMockFunctions(): MockPromptBuilderInstance {
   return {
     formatUserMessage: vi.fn().mockReturnValue('formatted user message'),
     buildSearchQuery: vi.fn().mockReturnValue('search query'),
-    buildFullSystemPrompt: vi.fn().mockReturnValue(new SystemMessage('system prompt')),
-    buildFullSystemPromptWithSections: vi.fn().mockReturnValue({
+    buildSystemMessage: vi.fn().mockReturnValue({
       message: new SystemMessage('system prompt'),
       sections: [],
     }),
+    buildVolatilePrefix: vi.fn().mockReturnValue('<context>volatile prefix</context>'),
     buildHumanMessage: vi.fn().mockReturnValue({
       message: new HumanMessage('human message'),
       contentForStorage: 'content for storage',
@@ -61,8 +61,8 @@ export const mockPromptBuilder = {
   PromptBuilder: class MockPromptBuilder {
     formatUserMessage: ReturnType<typeof vi.fn>;
     buildSearchQuery: ReturnType<typeof vi.fn>;
-    buildFullSystemPrompt: ReturnType<typeof vi.fn>;
-    buildFullSystemPromptWithSections: ReturnType<typeof vi.fn>;
+    buildSystemMessage: ReturnType<typeof vi.fn>;
+    buildVolatilePrefix: ReturnType<typeof vi.fn>;
     buildHumanMessage: ReturnType<typeof vi.fn>;
     countTokens: ReturnType<typeof vi.fn>;
     countMemoryTokens: ReturnType<typeof vi.fn>;
@@ -71,8 +71,8 @@ export const mockPromptBuilder = {
       const fns = createMockFunctions();
       this.formatUserMessage = fns.formatUserMessage;
       this.buildSearchQuery = fns.buildSearchQuery;
-      this.buildFullSystemPrompt = fns.buildFullSystemPrompt;
-      this.buildFullSystemPromptWithSections = fns.buildFullSystemPromptWithSections;
+      this.buildSystemMessage = fns.buildSystemMessage;
+      this.buildVolatilePrefix = fns.buildVolatilePrefix;
       this.buildHumanMessage = fns.buildHumanMessage;
       this.countTokens = fns.countTokens;
       this.countMemoryTokens = fns.countMemoryTokens;

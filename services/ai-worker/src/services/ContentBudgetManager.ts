@@ -258,16 +258,37 @@ export class ContentBudgetManager {
       factTokensUsed,
     } = this.selectMemories(opts, dedupedMemories, preselected.memoryReserve);
 
-    // Build final system prompt
-    // Note: Image descriptions are now inline in serializedHistory (via injectImageDescriptions)
+    // Build the FINAL messages. The system message carries only the stable
+    // tiers + history; every V-tier block — including the just-selected
+    // memories/facts — renders into the human message's volatile prefix, so
+    // the final human message must be rebuilt HERE, after selection. (The
+    // pre-pass message from buildBaseComponents lacks the memory blocks by
+    // construction; shipping it would silently drop everything retrieval
+    // just paid for.)
+    // Note: Image descriptions are inline in serializedHistory (via injectImageDescriptions)
+    const finalVolatilePrefix = this.promptBuilder.buildVolatilePrefix({
+      personality: processedPersonality,
+      context,
+      participantPersonas,
+      referencedMessagesFormatted: opts.referencedMessagesDescriptions,
+      facts: selectedFacts,
+      relevantMemories,
+    });
+    const { message: currentMessage } = this.promptBuilder.buildHumanMessage(
+      opts.userMessage,
+      opts.processedAttachments,
+      {
+        activePersonaName: context.activePersonaName,
+        volatilePrefix: finalVolatilePrefix,
+        activePersonaId: context.activePersonaId,
+        discordUsername: context.discordUsername,
+        personalityName: processedPersonality.name,
+      }
+    );
     const { message: systemPrompt, sections: systemPromptSections } =
-      this.promptBuilder.buildFullSystemPromptWithSections({
+      this.promptBuilder.buildSystemMessage({
         personality: processedPersonality,
-        participantPersonas,
-        relevantMemories,
-        facts: selectedFacts,
         context,
-        referencedMessagesFormatted: opts.referencedMessagesDescriptions,
         serializedHistory,
       });
 
@@ -290,6 +311,7 @@ export class ContentBudgetManager {
       serializedHistory,
       systemPrompt,
       systemPromptSections,
+      currentMessage,
       memoryTokensUsed,
       factTokensUsed,
       historyTokensUsed,
@@ -304,6 +326,15 @@ export class ContentBudgetManager {
     };
   }
 
+  /**
+   * Measurement pre-pass. The human message is built with the PRE-RETRIEVAL
+   * volatile prefix (context + participants + references — everything knowable
+   * before memory retrieval), so `currentMessageTokens` counts the V-tier
+   * content exactly once, in the container that ships it. Memories/facts are
+   * absent by design (not retrieved yet); they spend from the memory reserve
+   * and land in the FINAL human message built in `allocate`.
+   * `systemPromptBaseTokens` is the stable S0+S1 prefix only (no history yet).
+   */
   private buildBaseComponents(opts: BudgetAllocationOptions): {
     currentMessage: HumanMessage;
     contentForStorage: string;
@@ -318,28 +349,32 @@ export class ContentBudgetManager {
       referencedMessagesDescriptions,
     } = opts;
 
+    const volatilePrefix = this.promptBuilder.buildVolatilePrefix({
+      personality: processedPersonality,
+      context,
+      participantPersonas,
+      referencedMessagesFormatted: referencedMessagesDescriptions,
+    });
+
     const { message: currentMessage, contentForStorage } = this.promptBuilder.buildHumanMessage(
       userMessage,
       processedAttachments,
       {
         activePersonaName: context.activePersonaName,
-        referencedMessagesDescriptions,
+        volatilePrefix,
         activePersonaId: context.activePersonaId,
         discordUsername: context.discordUsername,
         personalityName: processedPersonality.name,
       }
     );
 
-    const systemPromptBaseOnly = this.promptBuilder.buildFullSystemPrompt({
+    const systemPromptBaseOnly = this.promptBuilder.buildSystemMessage({
       personality: processedPersonality,
-      participantPersonas,
-      relevantMemories: [],
       context,
-      referencedMessagesFormatted: referencedMessagesDescriptions,
     });
 
     const systemPromptBaseTokens = this.promptBuilder.countTokens(
-      contentToText(systemPromptBaseOnly.content)
+      contentToText(systemPromptBaseOnly.message.content)
     );
 
     return { currentMessage, contentForStorage, systemPromptBaseTokens };

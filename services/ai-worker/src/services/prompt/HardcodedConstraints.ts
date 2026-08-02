@@ -30,35 +30,23 @@ export const PLATFORM_CONSTRAINTS = `<platform_constraints>
  * Identity constraints - prevent AI from "becoming" other participants.
  * Uses precise language validated by MCP council for maximum effectiveness.
  *
- * Placed right after platform constraints in the identity section.
+ * A pure function of the personality — deliberately: this block is S1-tier
+ * (static per persona) so the cacheable system-message prefix stays
+ * byte-stable across requests. The per-request name-collision disambiguation
+ * renders as a `<note>` in the V-tier participants block instead.
  *
  * @param personalityName - The AI character's name
- * @param collisionInfo - Optional info when a user shares the AI's name
  */
-export function buildIdentityConstraints(
-  personalityName: string,
-  collisionInfo?: { userName: string; discordUsername: string }
-): string {
-  // personalityName / userName / discordUsername are user-authored and were
-  // previously interpolated raw into these constraints — escape them so a
-  // crafted name can't inject a closing tag or a fake constraint.
+export function buildIdentityConstraints(personalityName: string): string {
+  // personalityName is user-authored and was previously interpolated raw into
+  // these constraints — escape it so a crafted name can't inject a closing
+  // tag or a fake constraint.
   const safeName = escapeXmlContent(personalityName);
-  let constraints = `<identity_constraints>
+  return `<identity_constraints>
 <constraint>Limit agency strictly to ${safeName}; treat all other chat participants as independent, immutable external users.</constraint>
 <constraint>Generate only a single turn of dialogue or action for ${safeName}, then terminate generation immediately.</constraint>
-<constraint>Never impersonate, speak for, or predict the reactions of other users in the chat log.</constraint>`;
-
-  // Add explicit instruction when a user shares the AI's name
-  if (collisionInfo !== undefined) {
-    const safeUserName = escapeXmlContent(collisionInfo.userName);
-    const safeDiscord = escapeXmlContent(collisionInfo.discordUsername);
-    constraints += `
-<constraint>Note: A user named "${safeUserName}" shares your name. They appear as "${safeUserName} (@${safeDiscord})" in the chat log. This is a different person - address them naturally.</constraint>`;
-  }
-
-  constraints += '\n</identity_constraints>';
-
-  return constraints;
+<constraint>Never impersonate, speak for, or predict the reactions of other users in the chat log.</constraint>
+</identity_constraints>`;
 }
 
 /**

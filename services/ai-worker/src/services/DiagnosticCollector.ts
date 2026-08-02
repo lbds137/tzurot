@@ -28,7 +28,6 @@ import {
   type DiagnosticTokenBudget,
   type DiagnosticAssembledPrompt,
   type DiagnosticPromptSection,
-  type DiagnosticMessage,
   type DiagnosticLlmConfig,
   type DiagnosticLlmResponse,
   type DiagnosticPostProcessing,
@@ -36,6 +35,7 @@ import {
   type DiagnosticError,
 } from '@tzurot/common-types/types/diagnostic';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { convertMessageToDiagnostic } from './diagnostics/messageConversion.js';
 import type { MemoryDocument } from './ConversationalRAGTypes.js';
 import type {
   DiagnosticCollectorOptions,
@@ -191,6 +191,9 @@ export class DiagnosticCollector {
     this.tokenBudget = {
       contextWindowSize: data.contextWindowSize,
       systemPromptTokens: data.systemPromptTokens,
+      ...(data.currentMessageTokens !== undefined && {
+        currentMessageTokens: data.currentMessageTokens,
+      }),
       memoryTokensUsed: data.memoryTokensUsed,
       historyTokensUsed: data.historyTokensUsed,
       memoriesDropped: data.memoriesDropped,
@@ -242,55 +245,10 @@ export class DiagnosticCollector {
     systemPromptSections?: DiagnosticPromptSection[]
   ): void {
     this.assembledPrompt = {
-      messages: messages.map(msg => this.convertMessage(msg)),
+      messages: messages.map(msg => convertMessageToDiagnostic(msg)),
       totalTokenEstimate: tokenEstimate,
       ...(systemPromptSections !== undefined ? { systemPromptSections } : {}),
     };
-  }
-
-  /**
-   * Convert a LangChain message to our diagnostic format
-   */
-  private convertMessage(msg: BaseMessage): DiagnosticMessage {
-    // Extract role from message type
-    const msgType = msg._getType();
-    let role: 'system' | 'user' | 'assistant';
-
-    switch (msgType) {
-      case 'system':
-        role = 'system';
-        break;
-      case 'human':
-        role = 'user';
-        break;
-      case 'ai':
-        role = 'assistant';
-        break;
-      default:
-        role = 'user'; // Default fallback
-    }
-
-    // Extract content - handle both string and array formats
-    let content: string;
-    if (typeof msg.content === 'string') {
-      content = msg.content;
-    } else if (Array.isArray(msg.content)) {
-      content = msg.content
-        .map(part => {
-          if (typeof part === 'string') {
-            return part;
-          }
-          if (typeof part === 'object' && 'text' in part) {
-            return part.text;
-          }
-          return '[non-text content]';
-        })
-        .join('');
-    } else {
-      content = String(msg.content);
-    }
-
-    return { role, content };
   }
 
   /**

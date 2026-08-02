@@ -1,19 +1,20 @@
 /**
  * Typed prompt sections — the assembly model for the system/human containers.
  *
- * Replaces the single template-literal concatenation in `buildFullSystemPrompt`
- * with named, tier-tagged parts, mirroring the `QueryPart` pattern in
- * `SearchQueryBuilder.ts` (name + text + offset diagnostics). The tier tags the
- * stability class from the prompt-assembly architecture
- * (`docs/proposals/backlog/prompt-assembly-architecture.md` §2.1); placement
- * decisions keyed on tier arrive with the Phase-1 restructure — until then the
- * tier is descriptive metadata carried by the composition log and the
- * diagnostic payload (which the prefix-diff tool annotates against).
+ * Named, tier-tagged parts mirroring the `QueryPart` pattern in
+ * `SearchQueryBuilder.ts` (name + text + offset diagnostics). The tier carries
+ * the stability class from the prompt-assembly architecture
+ * (`docs/proposals/backlog/prompt-assembly-architecture.md` §2.1) and drives
+ * placement: S0/S1 sections form the cacheable system-message prefix, H
+ * follows it, and V-tier sections render into the volatile prefix of the
+ * current user message.
  *
  * `render()` returns a BARE block — no leading/trailing separator; the
  * assembler owns the joining. An empty string means "omit this section
- * entirely" (no separator is emitted for it). Phase 3 (provider cache markers)
- * is expected to widen `render()` to content-parts arrays; string is the
+ * entirely" (no separator is emitted for it — every section is uniformly
+ * conditional, unlike the pre-section-model template which hardcoded the
+ * first separators unconditionally). Phase 3 (provider cache markers) is
+ * expected to widen `render()` to content-parts arrays; string is the
  * deliberate simpler shape while both containers are single strings.
  */
 
@@ -52,35 +53,35 @@ export interface SectionDescription {
   offset: number;
 }
 
-/**
- * Join the non-empty sections with the separator, in order.
- */
-export function assembleSections(sections: PromptSection[]): string {
-  return sections
-    .map(section => section.render())
-    .filter(text => text.length > 0)
-    .join(SECTION_SEPARATOR);
+/** A container's assembled text plus its section placement map. */
+export interface SectionLayout {
+  text: string;
+  descriptions: SectionDescription[];
 }
 
 /**
- * Describe each RENDERED section's size and offset in the assembled string.
- * Omitted (empty) sections produce no entry — an absent id in the description
- * is itself signal. The offsets index into `assembleSections`' output exactly;
- * the composition log and the prefix-diff tool both key on that property.
+ * Render every section ONCE and derive both the assembled string and the
+ * per-section placement map from that single pass. `render()` therefore has a
+ * single-call contract — load-bearing once Phase 3 widens renders to
+ * content-parts arrays (and a hard requirement should any render ever grow a
+ * side effect). Omitted (empty) sections produce no text, no separator, and
+ * no description entry — an absent id in the map is itself signal.
  */
-export function describeSections(sections: PromptSection[]): SectionDescription[] {
+export function layoutSections(sections: PromptSection[]): SectionLayout {
   const descriptions: SectionDescription[] = [];
+  const parts: string[] = [];
   let offset = 0;
   for (const section of sections) {
     const text = section.render();
     if (text.length === 0) {
       continue;
     }
-    if (descriptions.length > 0) {
+    if (parts.length > 0) {
       offset += SECTION_SEPARATOR.length;
     }
     descriptions.push({ id: section.id, tier: section.tier, chars: text.length, offset });
+    parts.push(text);
     offset += text.length;
   }
-  return descriptions;
+  return { text: parts.join(SECTION_SEPARATOR), descriptions };
 }

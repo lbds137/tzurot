@@ -17,12 +17,7 @@ import type {
 import type { ProcessedAttachment } from './MultimodalProcessor.js';
 import { formatParticipantsContext } from './prompt/ParticipantFormatter.js';
 import { formatMemoriesContext, formatFactsContext } from './prompt/MemoryFormatter.js';
-import {
-  assembleSections,
-  describeSections,
-  type PromptSection,
-  type SectionDescription,
-} from './prompt/sections.js';
+import { layoutSections, type PromptSection, type SectionDescription } from './prompt/sections.js';
 import { formatPersonalityFields } from './prompt/PersonalityFieldsFormatter.js';
 import { formatEnvironmentContext } from './prompt/EnvironmentFormatter.js';
 import { extractContentDescriptions } from './RAGUtils.js';
@@ -43,18 +38,27 @@ import { logDetailedPromptAssembly, detectNameCollision } from './prompt/PromptL
 
 const logger = createLogger('PromptBuilder');
 
-/** Options for building a full system prompt */
-interface BuildFullSystemPromptOptions {
+/**
+ * Options for building the system message — the CACHEABLE container.
+ * Carries only stable-tier inputs plus history; everything per-request
+ * volatile renders via {@link PromptBuilder.buildVolatilePrefix} instead.
+ */
+interface BuildSystemMessageOptions {
   personality: LoadedPersonality;
-  participantPersonas: Map<string, ParticipantInfo>;
-  relevantMemories: MemoryDocument[];
-  /** Distilled active facts for the `<facts>` block (Phase 2 slice 4a; empty/absent = no block). */
-  facts?: FactForPrompt[];
+  /** Needed for persona-name resolution on the legacy protocol path. */
   context: ConversationContext;
-  referencedMessagesFormatted?: string;
   serializedHistory?: string;
-  // Note: extendedContextDescriptions removed - image descriptions are now
-  // injected inline into serializedHistory entries for better context colocation
+}
+
+/** Options for building the V-tier prefix of the current user message. */
+interface BuildVolatilePrefixOptions {
+  personality: LoadedPersonality;
+  context: ConversationContext;
+  participantPersonas: Map<string, ParticipantInfo>;
+  referencedMessagesFormatted?: string;
+  /** Distilled active facts for the `<facts>` block (empty/absent = no block). */
+  facts?: FactForPrompt[];
+  relevantMemories?: MemoryDocument[];
 }
 
 /**
@@ -120,7 +124,13 @@ export class PromptBuilder {
     processedAttachments: ProcessedAttachment[],
     options?: {
       activePersonaName?: string;
-      referencedMessagesDescriptions?: string;
+      /**
+       * The V-tier block set from {@link buildVolatilePrefix}, prepended
+       * BEFORE the `<from>`-wrapped user turn. Never escaped (system-generated
+       * XML whose user-derived leaf values were escaped by each formatter) and
+       * never stored — `contentForStorage` is captured before it attaches.
+       */
+      volatilePrefix?: string;
       activePersonaId?: string;
       /** Discord username for disambiguation when persona name matches personality name */
       discordUsername?: string;
@@ -128,13 +138,8 @@ export class PromptBuilder {
       personalityName?: string;
     }
   ): { message: HumanMessage; contentForStorage: string } {
-    const {
-      activePersonaName,
-      referencedMessagesDescriptions,
-      activePersonaId,
-      discordUsername,
-      personalityName,
-    } = options ?? {};
+    const { activePersonaName, volatilePrefix, activePersonaId, discordUsername, personalityName } =
+      options ?? {};
 
     // Build message content with attachments
     let messageContent = userMessage;
@@ -151,39 +156,33 @@ export class PromptBuilder {
       );
     }
 
-    // Capture content BEFORE adding referenced messages (for storage)
+    // Capture content BEFORE escaping and BEFORE the volatile prefix — this is
+    // what persists to history/LTM, and V-tier content must never reach storage.
     const contentForStorage = messageContent;
 
-    // Escape user content BEFORE appending references — references are system-generated
-    // XML (<contextual_references>) and must NOT be escaped
+    // Escape the user's content; the volatile prefix is system-generated XML
+    // and is prepended AFTER the wrap, un-escaped.
     const safeUserContent = escapeXmlContent(messageContent);
 
-    // Append referenced messages (for LLM prompt only, not storage)
-    let safeContent: string;
-    if (referencedMessagesDescriptions !== undefined && referencedMessagesDescriptions.length > 0) {
-      safeContent =
-        safeUserContent.length > 0
-          ? `${safeUserContent}\n\n${referencedMessagesDescriptions}`
-          : referencedMessagesDescriptions;
-      logger.info(
-        { referencesLength: referencedMessagesDescriptions.length },
-        'Appended references'
-      );
-    } else {
-      safeContent = safeUserContent;
-    }
-
-    // Add speaker identification
-    let finalContent = safeContent;
-
+    // Add speaker identification around the user's turn only
+    let turnContent = safeUserContent;
     if (activePersonaName !== undefined && activePersonaName.length > 0) {
       const displayName = buildDisambiguatedDisplayName(
         activePersonaName,
         personalityName,
         discordUsername
       );
-      finalContent = wrapWithSpeakerIdentification(safeContent, displayName, activePersonaId);
+      turnContent = wrapWithSpeakerIdentification(safeUserContent, displayName, activePersonaId);
     }
+
+    // V prefix leads; the <from>-wrapped turn closes the message so the user's
+    // actual words sit nearest the generation point.
+    const finalContent =
+      volatilePrefix !== undefined && volatilePrefix.length > 0
+        ? turnContent.length > 0
+          ? `${volatilePrefix}\n\n${turnContent}`
+          : volatilePrefix
+        : turnContent;
 
     return {
       message: new HumanMessage(finalContent),
@@ -192,38 +191,27 @@ export class PromptBuilder {
   }
 
   /**
-   * Convenience wrapper over {@link buildFullSystemPromptWithSections} for
-   * callers that only need the message (the base/measurement build, tests).
-   */
-  buildFullSystemPrompt(options: BuildFullSystemPromptOptions): SystemMessage {
-    return this.buildFullSystemPromptWithSections(options).message;
-  }
-
-  /**
-   * Build full system prompt with personas, memories, and date context.
+   * Build the system message — the CACHEABLE container (S0 → S1 → H).
    *
-   * Assembly runs over typed {@link PromptSection}s (see prompt/sections.ts);
-   * the returned descriptions map each rendered section's tier and offset —
-   * the diagnostic payload stores them so the prefix-diff tool can annotate
-   * a cache-miss divergence with the section it landed in.
+   * Order is placement-by-tier per the accepted architecture (§2.1): the
+   * cross-persona-static S0 block leads so automatic-prefix providers share
+   * those bytes across every persona; the per-persona S1 block follows;
+   * `chat_log` (H) is last — it grows per turn, so everything before it stays
+   * a stable prefix between turns. Nothing per-request volatile renders here;
+   * that content lives in {@link buildVolatilePrefix}. The recency-tail
+   * placement protocol/output_constraints held before this restructure was
+   * deliberately traded for cacheability (the voice-consistency gate guards
+   * the quality side; see the epic roadmap).
    *
-   * Section ordering follows Gemini's "XML Containment & Sandwich Method":
-   * identity + constraints first (who am I, what I must NOT do), volatile
-   * context/participants/retrieval in the middle, chat_log, then protocol +
-   * output constraints at the END for recency bias.
+   * The returned descriptions map each rendered section's tier and offset —
+   * the diagnostic payload stores them so the prefix-diff tool can annotate a
+   * cache-miss divergence with the section it landed in.
    */
-  buildFullSystemPromptWithSections(options: BuildFullSystemPromptOptions): {
+  buildSystemMessage(options: BuildSystemMessageOptions): {
     message: SystemMessage;
     sections: SectionDescription[];
   } {
-    const {
-      personality,
-      participantPersonas,
-      relevantMemories,
-      context,
-      referencedMessagesFormatted,
-      serializedHistory,
-    } = options;
+    const { personality, context, serializedHistory } = options;
 
     const { persona, protocol } = formatPersonalityFields(
       personality,
@@ -251,14 +239,61 @@ ${escapeXmlContent(persona)}
 </character>
 </system_identity>`;
 
-    // Identity constraints - prevent identity bleeding
-    const collisionInfo = detectNameCollision(
-      context.activePersonaName,
-      context.discordUsername,
-      personality.name,
-      personality.id
+    // Identity constraints — static per persona. The name-collision note (a
+    // per-request concern) renders in the V-tier participants block instead.
+    const identityConstraintsSection = buildIdentityConstraints(personality.name);
+
+    // Conversation history as XML (legend lives in buildChatLogSection)
+    const chatLogSection = buildChatLogSection(serializedHistory, personality.name);
+
+    // Protocol. Outer escape kept: it also covers the LEGACY raw-systemPrompt
+    // path (author XML), and the <protocol> boundary protection stops
+    // sub-section values escaping.
+    const protocolSection =
+      protocol.length > 0 ? `<protocol>\n${escapeXmlContent(protocol)}\n</protocol>` : '';
+
+    const sections: PromptSection[] = [
+      { id: 'platform_constraints', tier: 'S0', render: () => PLATFORM_CONSTRAINTS },
+      { id: 'output_constraints', tier: 'S0', render: () => OUTPUT_CONSTRAINTS },
+      { id: 'system_identity', tier: 'S1', render: () => identitySection },
+      { id: 'identity_constraints', tier: 'S1', render: () => identityConstraintsSection },
+      { id: 'protocol', tier: 'S1', render: () => protocolSection },
+      { id: 'chat_log', tier: 'H', render: () => chatLogSection },
+    ];
+
+    const { text: fullSystemPrompt, descriptions: sectionDescriptions } = layoutSections(sections);
+
+    logger.info(
+      { sections: sectionDescriptions, total: fullSystemPrompt.length },
+      'System prompt composition'
     );
-    const identityConstraintsSection = buildIdentityConstraints(personality.name, collisionInfo);
+
+    // Detailed prompt assembly logging (development only)
+    logDetailedPromptAssembly({
+      personality,
+      persona,
+      protocol,
+      context,
+      historyLength: serializedHistory?.length ?? 0,
+      fullSystemPrompt,
+    });
+
+    return { message: new SystemMessage(fullSystemPrompt), sections: sectionDescriptions };
+  }
+
+  /**
+   * Build the V-tier volatile prefix of the current user message: datetime and
+   * location context, the participant roster (with the name-collision note
+   * when one is detected), retrieved facts and memories, and the contextual
+   * references. Everything here changes per request — placing it in the user
+   * message keeps the system message byte-stable so the provider's prefix
+   * cache actually hits (§2.2 of the accepted architecture; this placement is
+   * also what ended the references double-render across both containers).
+   *
+   * Always non-empty: the `<context>` block renders unconditionally.
+   */
+  buildVolatilePrefix(options: BuildVolatilePrefixOptions): string {
+    const { personality, context, participantPersonas } = options;
 
     // Current date/time and environment context wrapped in <context>
     const datetime = formatFullDateTime(new Date(), context.userTimezone);
@@ -273,17 +308,29 @@ ${escapeXmlContent(persona)}
 ${locationXml}
 </context>`;
 
-    // Conversation participants
+    // Conversation participants, carrying the name-collision disambiguation
+    // when the active user's display name matches the character's.
+    const collisionInfo = detectNameCollision(
+      context.activePersonaName,
+      context.discordUsername,
+      personality.name,
+      personality.id
+    );
+    const collisionNote =
+      collisionInfo !== undefined
+        ? `A user named "${escapeXmlContent(collisionInfo.userName)}" shares your name. They appear as "${escapeXmlContent(collisionInfo.userName)} (@${escapeXmlContent(collisionInfo.discordUsername)})" in the chat log. This is a different person - address them naturally.`
+        : undefined;
     const participantsContext = formatParticipantsContext(
       participantPersonas,
-      context.activePersonaName
+      context.activePersonaName,
+      collisionNote
     );
 
-    // Distilled active facts (Phase 2), rendered ahead of the historical archive.
-    // Subject-bound to the triggering message's author — fact retrieval is scoped
-    // to that persona, and unbound "the user" statements misattribute in
-    // multi-user channels. Both names also resolve {user}/{assistant} statement
-    // placeholders (extraction episodes are placeholder-templated).
+    // Distilled active facts, rendered ahead of the historical archive.
+    // Subject-bound to the triggering message's author — fact retrieval is
+    // scoped to that persona, and unbound "the user" statements misattribute
+    // in multi-user channels. Both names also resolve {user}/{assistant}
+    // statement placeholders (extraction episodes are placeholder-templated).
     const factsContext = formatFactsContext(options.facts ?? [], {
       subjectName: context.activePersonaName,
       personalityName: personality.name,
@@ -291,70 +338,26 @@ ${locationXml}
     });
 
     // Relevant memories from past interactions
-    const memoryContext = formatMemoriesContext(relevantMemories, context.userTimezone);
+    const memoryContext = formatMemoriesContext(
+      options.relevantMemories ?? [],
+      context.userTimezone
+    );
 
-    // Referenced messages (from replies and message links)
-    const referencesContext = referencedMessagesFormatted ?? '';
+    // Referenced messages (from replies and message links) — rendered ONLY
+    // here; the system message never carries them.
+    const referencesContext = options.referencedMessagesFormatted ?? '';
 
-    if (referencesContext.length > 0) {
-      logger.info(
-        { referencesContextLength: referencesContext.length },
-        'Formatted referencesContext'
-      );
-    }
-
-    // Conversation history as XML (legend lives in buildChatLogSection)
-    const chatLogSection = buildChatLogSection(serializedHistory, personality.name);
-
-    // Protocol (near END of prompt - recency bias for highest impact). Outer
-    // escape kept: it also covers the LEGACY raw-systemPrompt path (author XML),
-    // and the <protocol> boundary protection stops sub-section values escaping.
-    const protocolSection =
-      protocol.length > 0 ? `<protocol>\n${escapeXmlContent(protocol)}\n</protocol>` : '';
-
-    // The Sandwich Method order (identity first, protocol + output constraints
-    // last for recency). Tiers are descriptive until the Phase-1 restructure
-    // keys placement on them; identity_constraints is tagged S1 although its
-    // collision constraint is request-dependent today — that constraint moves
-    // to the V-tier participants block when tiers become load-bearing.
     const sections: PromptSection[] = [
-      { id: 'system_identity', tier: 'S1', render: () => identitySection },
-      { id: 'identity_constraints', tier: 'S1', render: () => identityConstraintsSection },
-      { id: 'platform_constraints', tier: 'S0', render: () => PLATFORM_CONSTRAINTS },
       { id: 'context', tier: 'V', render: () => contextSection },
       { id: 'participants', tier: 'V', render: () => participantsContext },
       { id: 'facts', tier: 'V', render: () => factsContext },
       { id: 'memory_archive', tier: 'V', render: () => memoryContext },
       { id: 'contextual_references', tier: 'V', render: () => referencesContext },
-      { id: 'chat_log', tier: 'H', render: () => chatLogSection },
-      { id: 'protocol', tier: 'S1', render: () => protocolSection },
-      { id: 'output_constraints', tier: 'S0', render: () => OUTPUT_CONSTRAINTS },
     ];
 
-    const fullSystemPrompt = assembleSections(sections);
-    const sectionDescriptions = describeSections(sections);
-
-    logger.info(
-      { sections: sectionDescriptions, total: fullSystemPrompt.length },
-      'Prompt composition'
-    );
-
-    // Detailed prompt assembly logging (development only)
-    const historyLength = serializedHistory?.length ?? 0;
-    logDetailedPromptAssembly({
-      personality,
-      persona,
-      protocol,
-      participantPersonas,
-      participantsContext,
-      context,
-      relevantMemories,
-      memoryContext,
-      historyLength,
-      fullSystemPrompt,
-    });
-
-    return { message: new SystemMessage(fullSystemPrompt), sections: sectionDescriptions };
+    const { text, descriptions } = layoutSections(sections);
+    logger.info({ sections: descriptions, total: text.length }, 'Volatile prefix composition');
+    return text;
   }
 
   /**
