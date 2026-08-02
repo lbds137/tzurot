@@ -72,7 +72,6 @@ export const KNOWN_UNPROTECTED_TAGS: Record<string, string> = {
   context:
     'Wrapper over <datetime> (system time) + <location> (escapeXml); no escaped-content descendant.',
   datetime: 'System-generated current time (formatFullDateTime).',
-  request_id: 'System-generated correlation id.',
   think: 'Literal example text inside a hardcoded <constraint>, not a content wrapper.',
   user: 'Literal example text inside a hardcoded <constraint>, not a content wrapper.',
   // Values fully entity-escaped via escapeXml (< > & " ' → entities) — a closing

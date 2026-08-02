@@ -312,12 +312,6 @@ export interface BudgetAllocationOptions {
   // Note: extendedContextDescriptions removed - image descriptions are now
   // injected inline into conversation history entries for better context colocation
   /**
-   * Optional percentage (0-1) to reduce history budget by.
-   * Used during duplicate detection retries (attempt 3) to break API-level caching
-   * by changing the context window.
-   */
-  historyReductionPercent?: number;
-  /**
    * The input-token budget for this generation: the configured
    * contextWindowTokens clamped to the model's real limit when known
    * (see contextWindowResolver.ts).
@@ -364,11 +358,9 @@ export interface ModelInvocationOptions {
 /**
  * Configuration for escalating retry strategy when duplicate responses are detected.
  *
- * The "Ladder of Desperation" progressively increases randomness and changes
- * context to break API-level caching on free models:
+ * Escalation is sampling-only (the prompt bytes stay stable across attempts):
  * - Attempt 1: Normal generation
- * - Attempt 2: Increase temperature and frequency_penalty
- * - Attempt 3: Reduce context by removing oldest messages
+ * - Attempt 2+: Increase temperature (jittered) and frequency_penalty
  */
 export interface DuplicateRetryConfig {
   /** Current attempt number (1-based) */
@@ -377,8 +369,6 @@ export interface DuplicateRetryConfig {
   temperatureOverride?: number;
   /** Frequency penalty override for this attempt */
   frequencyPenaltyOverride?: number;
-  /** Percent of oldest history to remove (0-1) */
-  historyReductionPercent?: number;
 }
 
 /**

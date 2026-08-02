@@ -849,12 +849,18 @@ describe('LLMInvoker', () => {
     });
 
     describe('reasoning model support', () => {
-      it('should detect and log reasoning model type for o1 models', async () => {
+      it('should pass messages through unchanged for the deprecated o-series (transform deleted)', async () => {
         const mockModel = {
           invoke: vi.fn().mockResolvedValue({ content: 'Reasoning response' }),
         } as any as BaseChatModel;
 
-        const messages: BaseMessage[] = [new HumanMessage('Hello')];
+        // 'openai/o1-preview' is the exact name that used to trigger the
+        // system→user rewrite. The o-series is deprecated and the transform is
+        // gone — the system message must reach the model intact.
+        const messages: BaseMessage[] = [
+          new SystemMessage('System rules'),
+          new HumanMessage('Hello'),
+        ];
 
         const result = await invoker.invokeWithRetry({
           model: mockModel,
@@ -864,6 +870,11 @@ describe('LLMInvoker', () => {
 
         expect(result.content).toBe('Reasoning response');
         expect(mockModel.invoke).toHaveBeenCalledTimes(1);
+        const sentMessages = (mockModel.invoke as ReturnType<typeof vi.fn>).mock
+          .calls[0][0] as BaseMessage[];
+        expect(sentMessages).toHaveLength(2);
+        expect(sentMessages[0]).toBeInstanceOf(SystemMessage);
+        expect(sentMessages[0].content).toBe('System rules');
       });
 
       it('should detect and log reasoning model type for Claude thinking models', async () => {

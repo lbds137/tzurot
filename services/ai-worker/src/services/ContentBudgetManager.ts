@@ -83,7 +83,7 @@ export class ContentBudgetManager {
   preselectHistory(
     opts: Omit<BudgetAllocationOptions, 'retrievedMemories' | 'facts'>
   ): PreselectedHistory {
-    const { personality, context, historyReductionPercent } = opts;
+    const { personality, context } = opts;
     const contextWindowTokens = opts.effectiveContextWindowTokens;
 
     // Cast is safe: buildBaseComponents reads only prompt/message inputs,
@@ -109,25 +109,10 @@ export class ContentBudgetManager {
       historyTokens
     );
 
-    let historyBudget = Math.max(
+    const historyBudget = Math.max(
       0,
       contextWindowTokens - systemPromptBaseTokens - currentMessageTokens - memoryReserve
     );
-    // History reduction for duplicate-detection retries (changes the context
-    // window to break API-level caching on free models) — history absorbs it;
-    // the memory reserve is untouched, same as the old order.
-    if (historyReductionPercent !== undefined && historyReductionPercent > 0) {
-      const reducedBudget = Math.floor(historyBudget * (1 - historyReductionPercent));
-      logger.info(
-        {
-          reductionPercent: Math.round(historyReductionPercent * 100),
-          originalBudget: historyBudget,
-          reducedBudget,
-        },
-        'Reducing history budget for duplicate retry'
-      );
-      historyBudget = reducedBudget;
-    }
 
     const {
       serializedHistory,

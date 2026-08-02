@@ -2,68 +2,15 @@
  * Tests for Reasoning Model Utilities
  */
 
-import { describe, it, expect, vi } from 'vitest';
-import { SystemMessage, HumanMessage, AIMessage } from '@langchain/core/messages';
+import { describe, it, expect } from 'vitest';
 import {
   detectReasoningModelType,
-  getReasoningModelConfig,
   isReasoningModel,
-  transformMessagesForReasoningModel,
-  stripThinkingTags,
-  processReasoningModelOutput,
   ReasoningModelType,
 } from './reasoningModelUtils.js';
 
-// Mock logger
-vi.mock('@tzurot/common-types/utils/logger', async () => {
-  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
-    '@tzurot/common-types/utils/logger'
-  );
-  return {
-    ...actual,
-    createLogger: () => ({
-      debug: vi.fn(),
-      info: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-    }),
-  };
-});
-
 describe('ReasoningModelUtils', () => {
   describe('detectReasoningModelType', () => {
-    describe('OpenAI o-series detection', () => {
-      it('should detect o1 as OpenAI reasoning model', () => {
-        expect(detectReasoningModelType('o1')).toBe(ReasoningModelType.OpenAIReasoning);
-        expect(detectReasoningModelType('openai/o1')).toBe(ReasoningModelType.OpenAIReasoning);
-      });
-
-      it('should detect o1-preview as OpenAI reasoning model', () => {
-        expect(detectReasoningModelType('o1-preview')).toBe(ReasoningModelType.OpenAIReasoning);
-        expect(detectReasoningModelType('openai/o1-preview')).toBe(
-          ReasoningModelType.OpenAIReasoning
-        );
-      });
-
-      it('should detect o1-mini as OpenAI reasoning model', () => {
-        expect(detectReasoningModelType('o1-mini')).toBe(ReasoningModelType.OpenAIReasoning);
-        expect(detectReasoningModelType('openai/o1-mini')).toBe(ReasoningModelType.OpenAIReasoning);
-      });
-
-      it('should detect o3 as OpenAI reasoning model', () => {
-        expect(detectReasoningModelType('o3')).toBe(ReasoningModelType.OpenAIReasoning);
-        expect(detectReasoningModelType('openai/o3')).toBe(ReasoningModelType.OpenAIReasoning);
-      });
-
-      it('should detect o3-mini as OpenAI reasoning model', () => {
-        expect(detectReasoningModelType('o3-mini')).toBe(ReasoningModelType.OpenAIReasoning);
-      });
-
-      it('should handle date suffixes', () => {
-        expect(detectReasoningModelType('o1-2024')).toBe(ReasoningModelType.OpenAIReasoning);
-      });
-    });
-
     describe('Claude extended thinking detection', () => {
       it('should detect Claude 3.7 as extended thinking model', () => {
         expect(detectReasoningModelType('claude-3-7-sonnet')).toBe(
@@ -269,75 +216,8 @@ describe('ReasoningModelUtils', () => {
     });
   });
 
-  describe('getReasoningModelConfig', () => {
-    it('should return correct config for OpenAI o-series', () => {
-      const config = getReasoningModelConfig('openai/o1');
-
-      expect(config.type).toBe(ReasoningModelType.OpenAIReasoning);
-      expect(config.allowsSystemMessage).toBe(false);
-      expect(config.requiredTemperature).toBeNull();
-      expect(config.useMaxCompletionTokens).toBe(true);
-      expect(config.mayContainThinkingTags).toBe(true);
-    });
-
-    it('should return correct config for Claude extended thinking', () => {
-      const config = getReasoningModelConfig('anthropic/claude-3-7-sonnet');
-
-      expect(config.type).toBe(ReasoningModelType.ClaudeExtendedThinking);
-      expect(config.allowsSystemMessage).toBe(true);
-      expect(config.requiredTemperature).toBe(1.0);
-      expect(config.useMaxCompletionTokens).toBe(false);
-      expect(config.mayContainThinkingTags).toBe(true);
-    });
-
-    it('should return correct config for Gemini thinking', () => {
-      const config = getReasoningModelConfig('gemini-2.0-flash-thinking');
-
-      expect(config.type).toBe(ReasoningModelType.GeminiThinking);
-      expect(config.allowsSystemMessage).toBe(true);
-      expect(config.requiredTemperature).toBeNull();
-      expect(config.mayContainThinkingTags).toBe(true);
-    });
-
-    it('should return standard config for regular models', () => {
-      const config = getReasoningModelConfig('gpt-4-turbo');
-
-      expect(config.type).toBe(ReasoningModelType.Standard);
-      expect(config.allowsSystemMessage).toBe(true);
-      expect(config.requiredTemperature).toBeNull();
-      expect(config.useMaxCompletionTokens).toBe(false);
-      expect(config.mayContainThinkingTags).toBe(false);
-    });
-
-    it('should return correct config for DeepSeek R1', () => {
-      const config = getReasoningModelConfig('deepseek/deepseek-r1');
-
-      expect(config.type).toBe(ReasoningModelType.DeepSeekR1);
-      expect(config.allowsSystemMessage).toBe(true);
-      expect(config.requiredTemperature).toBeNull();
-      expect(config.mayContainThinkingTags).toBe(true);
-    });
-
-    it('should return correct config for Qwen QwQ', () => {
-      const config = getReasoningModelConfig('qwen/qwq-32b');
-
-      expect(config.type).toBe(ReasoningModelType.QwenReasoning);
-      expect(config.allowsSystemMessage).toBe(true);
-      expect(config.mayContainThinkingTags).toBe(true);
-    });
-
-    it('should return correct config for GLM thinking', () => {
-      const config = getReasoningModelConfig('glm-4.7');
-
-      expect(config.type).toBe(ReasoningModelType.GlmThinking);
-      expect(config.allowsSystemMessage).toBe(true);
-      expect(config.mayContainThinkingTags).toBe(true);
-    });
-  });
-
   describe('isReasoningModel', () => {
     it('should return true for reasoning models', () => {
-      expect(isReasoningModel('o1')).toBe(true);
       expect(isReasoningModel('claude-3-7-sonnet')).toBe(true);
       expect(isReasoningModel('gemini-2.0-flash-thinking')).toBe(true);
     });
@@ -359,148 +239,14 @@ describe('ReasoningModelUtils', () => {
       expect(isReasoningModel('gemini-2.0-flash')).toBe(false);
       expect(isReasoningModel('deepseek/deepseek-chat')).toBe(false);
     });
-  });
 
-  describe('transformMessagesForReasoningModel', () => {
-    it('should not transform messages for standard models', () => {
-      const messages = [
-        new SystemMessage('You are a helpful assistant'),
-        new HumanMessage('Hello'),
-      ];
-
-      const config = getReasoningModelConfig('gpt-4');
-      const transformed = transformMessagesForReasoningModel(messages, config);
-
-      expect(transformed).toHaveLength(2);
-      expect(transformed[0]).toBeInstanceOf(SystemMessage);
-    });
-
-    it('should convert system message to human message prefix for o-series', () => {
-      const messages = [
-        new SystemMessage('You are a helpful assistant'),
-        new HumanMessage('Hello'),
-      ];
-
-      const config = getReasoningModelConfig('o1');
-      const transformed = transformMessagesForReasoningModel(messages, config);
-
-      expect(transformed).toHaveLength(1);
-      expect(transformed[0]).toBeInstanceOf(HumanMessage);
-      expect(transformed[0].content).toContain('[System Instructions]');
-      expect(transformed[0].content).toContain('You are a helpful assistant');
-      expect(transformed[0].content).toContain('Hello');
-    });
-
-    it('should handle messages without system message', () => {
-      const messages = [new HumanMessage('Hello'), new AIMessage('Hi there!')];
-
-      const config = getReasoningModelConfig('o1');
-      const transformed = transformMessagesForReasoningModel(messages, config);
-
-      expect(transformed).toHaveLength(2);
-      expect(transformed[0].content).toBe('Hello');
-    });
-
-    it('should preserve conversation history order', () => {
-      const messages = [
-        new SystemMessage('System'),
-        new HumanMessage('User 1'),
-        new AIMessage('AI 1'),
-        new HumanMessage('User 2'),
-      ];
-
-      const config = getReasoningModelConfig('o1');
-      const transformed = transformMessagesForReasoningModel(messages, config);
-
-      // System merged into first human, then rest preserved
-      expect(transformed).toHaveLength(3);
-      expect(transformed[0]).toBeInstanceOf(HumanMessage);
-      expect(transformed[0].content).toContain('[System Instructions]');
-      expect(transformed[1]).toBeInstanceOf(AIMessage);
-      expect(transformed[2]).toBeInstanceOf(HumanMessage);
-      expect(transformed[2].content).toBe('User 2');
-    });
-  });
-
-  describe('stripThinkingTags', () => {
-    it('should remove <thinking> tags and their content', () => {
-      const content = '<thinking>Let me think...</thinking>Here is my answer.';
-      expect(stripThinkingTags(content)).toBe('Here is my answer.');
-    });
-
-    it('should handle multiline thinking content', () => {
-      const content = `<thinking>
-Step 1: Consider the problem
-Step 2: Analyze options
-Step 3: Form conclusion
-</thinking>
-The answer is 42.`;
-
-      expect(stripThinkingTags(content)).toBe('The answer is 42.');
-    });
-
-    it('should handle multiple thinking blocks', () => {
-      const content =
-        '<thinking>First thought</thinking>Answer 1. <thinking>Second thought</thinking>Answer 2.';
-      // Note: The space between Answer 1. and the second thinking block is preserved
-      expect(stripThinkingTags(content)).toBe('Answer 1. Answer 2.');
-    });
-
-    it('should handle <think> variant', () => {
-      const content = '<think>Some thinking</think>The answer.';
-      expect(stripThinkingTags(content)).toBe('The answer.');
-    });
-
-    it('should be case insensitive', () => {
-      const content = '<THINKING>Thoughts</THINKING>Answer';
-      expect(stripThinkingTags(content)).toBe('Answer');
-    });
-
-    it('should handle nested content correctly', () => {
-      const content =
-        '<thinking>Outer <b>bold</b> text with newlines\nand more</thinking>Final answer.';
-      expect(stripThinkingTags(content)).toBe('Final answer.');
-    });
-
-    it('should return original content when no thinking tags', () => {
-      const content = 'Just a normal response without thinking.';
-      expect(stripThinkingTags(content)).toBe('Just a normal response without thinking.');
-    });
-
-    it('should trim whitespace after stripping', () => {
-      const content = '  <thinking>thoughts</thinking>  Answer  ';
-      expect(stripThinkingTags(content)).toBe('Answer');
-    });
-  });
-
-  describe('processReasoningModelOutput', () => {
-    it('should strip thinking tags for reasoning models', () => {
-      const content = '<thinking>Internal reasoning</thinking>User-facing response';
-      const config = getReasoningModelConfig('o1');
-
-      expect(processReasoningModelOutput(content, config)).toBe('User-facing response');
-    });
-
-    it('should not modify output for standard models', () => {
-      const content = '<thinking>This should stay</thinking>Response';
-      const config = getReasoningModelConfig('gpt-4');
-
-      expect(processReasoningModelOutput(content, config)).toBe(content);
-    });
-
-    it('should handle Claude extended thinking output', () => {
-      const content = `<thinking>
-Let me consider this carefully:
-1. First, I'll analyze the question
-2. Then form a response
-</thinking>
-
-Based on my analysis, the answer is clear.`;
-
-      const config = getReasoningModelConfig('claude-3-7-sonnet');
-      const result = processReasoningModelOutput(content, config);
-
-      expect(result).toBe('Based on my analysis, the answer is clear.');
+    it('should return false for the deprecated OpenAI o-series (pattern deleted)', () => {
+      // The o-series is fully deprecated upstream; its detection pattern and the
+      // system-message transform it gated were removed. Names like these now
+      // detect as Standard, which is correct for models that no longer exist.
+      expect(isReasoningModel('o1')).toBe(false);
+      expect(isReasoningModel('openai/o1-preview')).toBe(false);
+      expect(isReasoningModel('o3-mini')).toBe(false);
     });
   });
 });
