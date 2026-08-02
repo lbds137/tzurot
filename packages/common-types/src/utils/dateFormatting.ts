@@ -295,6 +295,44 @@ export function formatRelativeTimeDelta(timestamp: Date | string | number): stri
 }
 
 /**
+ * Format a timestamp ABSOLUTELY for frozen prompt content (chat_log).
+ *
+ * Format: "YYYY-MM-DD (Day) HH:MM" — always, with no relative suffix and no
+ * age-dependent branching. Both of {@link formatPromptTimestamp}'s dynamic
+ * parts re-render differently as time passes ("2h ago" → "3h ago"; the time
+ * component drops at the 7-day boundary), which mutates FROZEN history bytes
+ * between requests and silently breaks the provider prompt-cache prefix at
+ * the oldest drifted message. Chat-log entries must serialize identically on
+ * every render; volatile-tier content (memory archive, references) keeps the
+ * relative form — it re-renders per request anyway and recency phrasing is
+ * genuinely useful there.
+ *
+ * @param timestamp - Timestamp to format
+ * @param timezone - Optional IANA timezone. Defaults to APP_SETTINGS.TIMEZONE
+ * @returns Absolute timestamp string, or empty string for invalid date
+ */
+export function formatAbsoluteTimestamp(
+  timestamp: Date | string | number,
+  timezone?: string
+): string {
+  const date = parseTimestamp(timestamp);
+  if (!date) {
+    return '';
+  }
+
+  const tz = resolveTimezone(timezone);
+  const dayOfWeek = date.toLocaleDateString(LOCALE, { weekday: 'short', timeZone: tz });
+  const datePart = formatDateOnly(date, tz);
+  const time = date.toLocaleTimeString(LOCALE, {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    timeZone: tz,
+  });
+  return `${datePart} (${dayOfWeek}) ${time}`;
+}
+
+/**
  * Format a timestamp for prompt display with unified format
  *
  * Format: "YYYY-MM-DD (Day) HH:MM • relative"
@@ -303,10 +341,11 @@ export function formatRelativeTimeDelta(timestamp: Date | string | number): stri
  * For older timestamps (>7 days), omits time:
  * Example: "2025-11-15 (Fri) • 2 months ago"
  *
- * Used for:
- * - Message timestamps in chat_log
+ * Used for VOLATILE-tier prompt content that re-renders per request:
  * - Referenced message timestamps
  * - Memory timestamps in memory_archive
+ * (chat_log uses {@link formatAbsoluteTimestamp} — frozen history must not
+ * carry time-drifting text.)
  *
  * @param timestamp - Timestamp to format
  * @param timezone - Optional IANA timezone. Defaults to APP_SETTINGS.TIMEZONE

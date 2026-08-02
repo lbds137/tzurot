@@ -6,6 +6,7 @@ import {
   formatMemoryTimestamp,
   formatRelativeTimeDelta,
   formatPromptTimestamp,
+  formatAbsoluteTimestamp,
   formatDateShort,
   formatDateTimeCompact,
   formatDiscordTimestamp,
@@ -200,6 +201,25 @@ describe('dateFormatting', () => {
 
     it('should return empty string for invalid date', () => {
       expect(formatRelativeTimeDelta('not-a-date')).toBe('');
+    });
+  });
+
+  describe('formatAbsoluteTimestamp', () => {
+    it('formats YYYY-MM-DD (Day) HH:MM with no relative suffix', () => {
+      const result = formatAbsoluteTimestamp(new Date('2025-01-25T14:30:00Z'), 'UTC');
+      expect(result).toBe('2025-01-25 (Sat) 14:30');
+      expect(result).not.toContain('•');
+    });
+
+    it('keeps the SAME format regardless of age (no 7-day branch)', () => {
+      // The age branch is itself cache-poison: a chat-log entry crossing the
+      // boundary would re-serialize differently. Absolute means absolute.
+      const old = formatAbsoluteTimestamp(new Date('2020-06-15T09:05:00Z'), 'UTC');
+      expect(old).toBe('2020-06-15 (Mon) 09:05');
+    });
+
+    it('returns empty string for an invalid date', () => {
+      expect(formatAbsoluteTimestamp('not a date')).toBe('');
     });
   });
 

@@ -12,7 +12,7 @@
  */
 
 import { type CrossChannelHistoryGroupEntry } from '@tzurot/common-types/types/schemas/message';
-import { formatPromptTimestamp } from '@tzurot/common-types/utils/dateFormatting';
+import { formatAbsoluteTimestamp } from '@tzurot/common-types/utils/dateFormatting';
 import { formatLocationAsXml } from '@tzurot/common-types/utils/environmentFormatter';
 import { escapeXmlContent } from '@tzurot/common-types/utils/promptSanitizer';
 import {
@@ -106,11 +106,14 @@ export function formatSingleHistoryEntryAsXml(
 
   const { speakerName, role, normalizedRole } = speakerInfo;
 
-  // Format the timestamp with unified format (escape for use in attribute)
-  // Format: "YYYY-MM-DD (Day) HH:MM • relative" - combines date, time, and relative in one token-efficient attribute
+  // Absolute-only timestamp: "YYYY-MM-DD (Day) HH:MM". Chat-log entries are
+  // frozen content — a relative suffix (or the old 7-day format switch) would
+  // re-render differently as time passes and silently break the provider
+  // prompt-cache prefix at the oldest drifted message. Elapsed-time cues live
+  // in the <time_gap> markers, which are inter-message deltas and stable.
   const timeAttr =
     msg.createdAt !== undefined && msg.createdAt.length > 0
-      ? ` t="${escapeXml(formatPromptTimestamp(msg.createdAt))}"`
+      ? ` t="${escapeXml(formatAbsoluteTimestamp(msg.createdAt))}"`
       : '';
 
   // Escape content to prevent XML injection
