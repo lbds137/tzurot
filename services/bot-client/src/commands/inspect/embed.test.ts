@@ -355,6 +355,38 @@ describe('buildDiagnosticEmbed', () => {
     expect(embed.toJSON().footer?.text).toContain('buttons and menu');
   });
 
+  it('shows Cached Tokens with hit percent when the provider reported cache activity', () => {
+    const payload = createMockPayload();
+    payload.llmResponse.promptTokens = 1000;
+    payload.llmResponse.cachedPromptTokens = 750;
+
+    const embed = buildDiagnosticEmbed(payload);
+    const fields = embed.toJSON().fields ?? [];
+    const responseField = fields.find(f => f.name.includes('Response'));
+    expect(responseField?.value).toContain('**Cached Tokens:** 750 (75%)');
+  });
+
+  it('renders Cached Tokens without a percent when promptTokens is 0 (no divide-by-zero)', () => {
+    const payload = createMockPayload();
+    payload.llmResponse.promptTokens = 0;
+    payload.llmResponse.cachedPromptTokens = 0;
+
+    const embed = buildDiagnosticEmbed(payload);
+    const fields = embed.toJSON().fields ?? [];
+    const responseField = fields.find(f => f.name.includes('Response'));
+    expect(responseField?.value).toContain('**Cached Tokens:** 0');
+    expect(responseField?.value).not.toContain('%');
+  });
+
+  it('omits Cached Tokens when the provider reported no cache activity (old logs included)', () => {
+    const payload = createMockPayload();
+
+    const embed = buildDiagnosticEmbed(payload);
+    const fields = embed.toJSON().fields ?? [];
+    const responseField = fields.find(f => f.name.includes('Response'));
+    expect(responseField?.value).not.toContain('Cached Tokens');
+  });
+
   it('should include reasoning field when reasoning config present', () => {
     const payload = createMockPayload();
     payload.llmConfig.allParams = { reasoning: { effort: 'high', enabled: true } };

@@ -357,6 +357,8 @@ export class DiagnosticCollector {
       finishReason: data.finishReason,
       promptTokens: data.promptTokens,
       completionTokens: data.completionTokens,
+      cachedPromptTokens: data.cachedPromptTokens,
+      cacheDiscount: data.cacheDiscount,
       modelUsed: data.modelUsed,
       reasoningDebug: data.reasoningDebug,
     };
@@ -379,6 +381,8 @@ export class DiagnosticCollector {
       finishReason: data.finishReason ?? FINISH_REASONS.UNKNOWN,
       promptTokens: data.promptTokens ?? 0,
       completionTokens: data.completionTokens ?? 0,
+      cachedPromptTokens: data.cachedPromptTokens,
+      cacheDiscount: data.cacheDiscount,
       modelUsed: data.modelUsed ?? 'unknown',
       reasoningDebug: data.reasoningDebug,
     };

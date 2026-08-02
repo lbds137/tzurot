@@ -126,6 +126,45 @@ describe('extractAndPopulateOpenRouterReasoning', () => {
       expect(openrouter.provider).toBe('Chutes');
     });
 
+    it('captures usage.cache_discount before __raw_response is deleted (only recoverable here)', () => {
+      const message = buildMessage({
+        content: 'response',
+        finishReason: 'stop',
+        rawResponse: {
+          provider: 'Anthropic',
+          usage: { prompt_tokens: 1000, cache_discount: -0.0042 },
+          choices: [{ message: { content: 'response' } }],
+        },
+      });
+
+      extractAndPopulateOpenRouterReasoning(message);
+
+      const openrouter = (message.response_metadata as Record<string, unknown>).openrouter as {
+        cacheDiscount?: number;
+      };
+      expect(openrouter.cacheDiscount).toBe(-0.0042);
+      // The source is gone — the capture above was the only chance.
+      expect(message.additional_kwargs.__raw_response).toBeUndefined();
+    });
+
+    it('omits cacheDiscount when usage carries none (or usage is absent)', () => {
+      const message = buildMessage({
+        content: 'response',
+        finishReason: 'stop',
+        rawResponse: {
+          usage: { prompt_tokens: 1000 },
+          choices: [{ message: { content: 'response' } }],
+        },
+      });
+
+      extractAndPopulateOpenRouterReasoning(message);
+
+      const openrouter = (message.response_metadata as Record<string, unknown>).openrouter as {
+        cacheDiscount?: number;
+      };
+      expect(openrouter.cacheDiscount).toBeUndefined();
+    });
+
     it('captures apiMessageKeys (distinguishes structured-reasoning vs content-only responses)', () => {
       const message = buildMessage({
         content: 'response',
