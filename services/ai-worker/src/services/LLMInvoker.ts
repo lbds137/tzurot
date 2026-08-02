@@ -44,11 +44,7 @@ import {
 import { type RateLimitCache, assertValidCacheKeyId } from './RateLimitCache.js';
 import type { CreditExhaustionCache } from './CreditExhaustionCache.js';
 import { rateLimitCache, creditExhaustionCache } from '../redis.js';
-import {
-  getReasoningModelConfig,
-  transformMessagesForReasoningModel,
-  ReasoningModelType,
-} from '../utils/reasoningModelUtils.js';
+import { isReasoningModel } from '../utils/reasoningModelUtils.js';
 
 const logger = createLogger('LLMInvoker');
 
@@ -208,24 +204,6 @@ export class LLMInvoker {
     // LLM always gets full independent timeout budget (480s = 8 minutes)
     const globalTimeoutMs = TIMEOUTS.LLM_INVOCATION;
 
-    // Get reasoning model config for special handling
-    const reasoningConfig = getReasoningModelConfig(modelName);
-    const isReasoningModel = reasoningConfig.type !== ReasoningModelType.Standard;
-
-    if (isReasoningModel) {
-      logger.info(
-        {
-          modelName,
-          reasoningType: reasoningConfig.type,
-          allowsSystemMessage: reasoningConfig.allowsSystemMessage,
-        },
-        'Detected reasoning model, applying special handling'
-      );
-    }
-
-    // Transform messages for reasoning models (e.g., convert system to user for o1)
-    const transformedMessages = transformMessagesForReasoningModel(messages, reasoningConfig);
-
     logger.info(
       {
         modelName,
@@ -233,9 +211,8 @@ export class LLMInvoker {
         audioCount,
         jobTimeout,
         globalTimeoutMs,
-        isReasoningModel,
-        originalMessageCount: messages.length,
-        transformedMessageCount: transformedMessages.length,
+        isReasoningModel: isReasoningModel(modelName),
+        messageCount: messages.length,
       },
       `Dynamic timeout calculated: ${globalTimeoutMs}ms (job: ${jobTimeout}ms)`
     );
@@ -244,24 +221,21 @@ export class LLMInvoker {
     // Fast-fail on permanent errors (auth, quota, content policy, etc.)
     let result;
     try {
-      result = await withRetry(
-        () => this.invokeSingleAttempt(model, transformedMessages, modelName),
-        {
-          maxAttempts,
-          globalTimeoutMs,
-          logger,
-          operationName: `LLM invocation (${modelName})`,
-          shouldRetry: shouldRetryError,
-          getErrorContext: getErrorLogContext,
-          // A cause-class attempt error (429/quota/credit/404-model) must
-          // survive as the terminal `lastError` even when a LATER attempt dies
-          // of the per-attempt abort (TIMEOUT) — during a 429 storm the abort
-          // is the symptom, the rate limit is the cause. NOT the wide
-          // retargetable set: withRetry keeps the LAST preferred error, so a
-          // wide predicate would let the trailing symptom overwrite the cause.
-          preferTerminalError: isCausePrecedenceFailure,
-        }
-      );
+      result = await withRetry(() => this.invokeSingleAttempt(model, messages, modelName), {
+        maxAttempts,
+        globalTimeoutMs,
+        logger,
+        operationName: `LLM invocation (${modelName})`,
+        shouldRetry: shouldRetryError,
+        getErrorContext: getErrorLogContext,
+        // A cause-class attempt error (429/quota/credit/404-model) must
+        // survive as the terminal `lastError` even when a LATER attempt dies
+        // of the per-attempt abort (TIMEOUT) — during a 429 storm the abort
+        // is the symptom, the rate limit is the cause. NOT the wide
+        // retargetable set: withRetry keeps the LAST preferred error, so a
+        // wide predicate would let the trailing symptom overwrite the cause.
+        preferTerminalError: isCausePrecedenceFailure,
+      });
     } catch (err) {
       // Cache rate-limit state on 429 with a usable reset header so the next
       // call in the same window short-circuits at the top of this function.

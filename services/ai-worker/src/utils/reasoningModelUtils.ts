@@ -1,29 +1,22 @@
 /**
- * Reasoning Model Utilities
+ * Reasoning Model Detection
  *
- * Handles special requirements for AI models with reasoning/thinking capabilities:
- * - OpenAI o1/o3 series: No system messages, use max_completion_tokens
- * - Claude 3.7+: Extended thinking requires temperature=1
- * - Gemini 2.0 Flash Thinking: Uses thinkingConfig.thinkingBudget
+ * Identifies models with reasoning/thinking capabilities by name. Consumers:
+ * reasoning-effort plumbing (ModelFactory) and invocation logging (LLMInvoker).
  *
- * All reasoning models may emit `<thinking>` tags that should be stripped from output.
+ * Detection is the whole job. Thinking-tag stripping lives in
+ * ResponsePostProcessor's extraction chain, which handles the per-family tag
+ * vocabularies; reasoning-model request-shape rewrites no longer exist (the
+ * o-series system-message transform was deleted when OpenAI deprecated the
+ * o-series — no current model rejects the `system` role).
  */
-
-import { createLogger } from '@tzurot/common-types/utils/logger';
-import { SystemMessage, HumanMessage, type BaseMessage } from '@langchain/core/messages';
-
-const logger = createLogger('ReasoningModelUtils');
 
 /**
  * Patterns to identify reasoning/thinking models
  *
  * These models may emit thinking tags that need to be stripped from output.
- * Detection enables early stripping in LLMInvoker as a first line of defense.
  */
 const REASONING_MODEL_PATTERNS = {
-  // OpenAI o1/o3 models - require no system messages
-  OPENAI_O_SERIES: /^(openai\/)?o[13](-mini|-preview)?(-\d+)?$/i,
-
   // Claude models with extended thinking capability
   // Claude 3.7+ supports extended thinking (e.g., claude-3-7-sonnet-20250219)
   CLAUDE_EXTENDED_THINKING: /claude-3-[789]|claude-4/i,
@@ -66,9 +59,7 @@ const REASONING_MODEL_PATTERNS = {
 export enum ReasoningModelType {
   /** Standard model - no special handling needed */
   Standard = 'standard',
-  /** OpenAI o1/o3 - no system messages allowed */
-  OpenAIReasoning = 'openai-reasoning',
-  /** Claude with extended thinking - temperature must be 1.0 */
+  /** Claude with extended thinking */
   ClaudeExtendedThinking = 'claude-extended-thinking',
   /** Gemini thinking model */
   GeminiThinking = 'gemini-thinking',
@@ -93,28 +84,11 @@ export enum ReasoningModelType {
 }
 
 /**
- * Configuration adjustments needed for reasoning models
- */
-interface ReasoningModelConfig {
-  /** Type of reasoning model */
-  type: ReasoningModelType;
-  /** Whether system messages are allowed */
-  allowsSystemMessage: boolean;
-  /** Required temperature (null = use default) */
-  requiredTemperature: number | null;
-  /** Whether to use max_completion_tokens instead of max_tokens */
-  useMaxCompletionTokens: boolean;
-  /** Whether output may contain <thinking> tags to strip */
-  mayContainThinkingTags: boolean;
-}
-
-/**
  * Pattern-to-type mapping for data-driven detection.
  * Order matters: more specific patterns should be checked first.
  * Generic thinking is last to avoid false positives.
  */
 const DETECTION_ORDER: readonly { pattern: RegExp; type: ReasoningModelType }[] = [
-  { pattern: REASONING_MODEL_PATTERNS.OPENAI_O_SERIES, type: ReasoningModelType.OpenAIReasoning },
   {
     pattern: REASONING_MODEL_PATTERNS.CLAUDE_EXTENDED_THINKING,
     type: ReasoningModelType.ClaudeExtendedThinking,
@@ -135,7 +109,7 @@ const DETECTION_ORDER: readonly { pattern: RegExp; type: ReasoningModelType }[] 
 /**
  * Detect the type of reasoning model from its name
  *
- * @param modelName - The model identifier (e.g., "openai/o1-preview", "deepseek/deepseek-r1")
+ * @param modelName - The model identifier (e.g., "deepseek/deepseek-r1")
  * @returns The type of reasoning model
  */
 export function detectReasoningModelType(modelName: string): ReasoningModelType {
@@ -148,73 +122,6 @@ export function detectReasoningModelType(modelName: string): ReasoningModelType 
 }
 
 /**
- * Get configuration requirements for a reasoning model
- *
- * @param modelName - The model identifier
- * @returns Configuration requirements
- */
-export function getReasoningModelConfig(modelName: string): ReasoningModelConfig {
-  const type = detectReasoningModelType(modelName);
-
-  switch (type) {
-    case ReasoningModelType.OpenAIReasoning:
-      return {
-        type,
-        allowsSystemMessage: false,
-        requiredTemperature: null, // o1/o3 doesn't support temperature parameter
-        useMaxCompletionTokens: true,
-        mayContainThinkingTags: true,
-      };
-
-    case ReasoningModelType.ClaudeExtendedThinking:
-      return {
-        type,
-        allowsSystemMessage: true,
-        requiredTemperature: 1.0, // Extended thinking requires temperature=1
-        useMaxCompletionTokens: false,
-        mayContainThinkingTags: true,
-      };
-
-    case ReasoningModelType.GeminiThinking:
-      return {
-        type,
-        allowsSystemMessage: true,
-        requiredTemperature: null,
-        useMaxCompletionTokens: false,
-        mayContainThinkingTags: true,
-      };
-
-    // DeepSeek, Qwen, GLM, Kimi, GPT-OSS, StepFun, Hermes 4, MiMo
-    // All emit <think> tags in text output
-    case ReasoningModelType.DeepSeekR1:
-    case ReasoningModelType.QwenReasoning:
-    case ReasoningModelType.GlmThinking:
-    case ReasoningModelType.KimiThinking:
-    case ReasoningModelType.GptOss:
-    case ReasoningModelType.StepFun:
-    case ReasoningModelType.Hermes4:
-    case ReasoningModelType.MiMo:
-    case ReasoningModelType.GenericThinking:
-      return {
-        type,
-        allowsSystemMessage: true,
-        requiredTemperature: null,
-        useMaxCompletionTokens: false,
-        mayContainThinkingTags: true,
-      };
-
-    default:
-      return {
-        type: ReasoningModelType.Standard,
-        allowsSystemMessage: true,
-        requiredTemperature: null,
-        useMaxCompletionTokens: false,
-        mayContainThinkingTags: false,
-      };
-  }
-}
-
-/**
  * Check if a model is a reasoning/thinking model
  *
  * @param modelName - The model identifier
@@ -222,118 +129,4 @@ export function getReasoningModelConfig(modelName: string): ReasoningModelConfig
  */
 export function isReasoningModel(modelName: string): boolean {
   return detectReasoningModelType(modelName) !== ReasoningModelType.Standard;
-}
-
-/**
- * Transform messages for reasoning models that don't support system messages.
- * Converts SystemMessage to a HumanMessage with the system content prefixed.
- *
- * @param messages - Original messages array
- * @param modelConfig - Reasoning model configuration
- * @returns Transformed messages array
- */
-// eslint-disable-next-line sonarjs/cognitive-complexity -- Transforms system→user messages for models without system message support, with content merging and role deduplication
-export function transformMessagesForReasoningModel(
-  messages: BaseMessage[],
-  modelConfig: ReasoningModelConfig
-): BaseMessage[] {
-  if (modelConfig.allowsSystemMessage) {
-    return messages;
-  }
-
-  // For models that don't support system messages (OpenAI o1/o3),
-  // convert system message to user message with a prefix
-  const transformedMessages: BaseMessage[] = [];
-  let systemContent = '';
-
-  for (const message of messages) {
-    if (message instanceof SystemMessage || message._getType() === 'system') {
-      // Collect system message content to prepend to first user message
-      const content =
-        typeof message.content === 'string'
-          ? message.content
-          : Array.isArray(message.content)
-            ? message.content
-                .map(c => (typeof c === 'object' && 'text' in c ? c.text : ''))
-                .join('')
-            : '';
-      systemContent += content + '\n\n';
-      logger.debug(
-        { contentLength: content.length },
-        'Converting system message to context prefix'
-      );
-    } else {
-      transformedMessages.push(message);
-    }
-  }
-
-  // If we collected system content, prepend it to the first user message
-  if (systemContent && transformedMessages.length > 0) {
-    const firstMessage = transformedMessages[0];
-    if (firstMessage instanceof HumanMessage || firstMessage._getType() === 'human') {
-      const originalContent =
-        typeof firstMessage.content === 'string'
-          ? firstMessage.content
-          : Array.isArray(firstMessage.content)
-            ? firstMessage.content
-                .map(c => (typeof c === 'object' && 'text' in c ? c.text : ''))
-                .join('')
-            : '';
-
-      // Create new message with system context prepended
-      transformedMessages[0] = new HumanMessage({
-        content: `[System Instructions]\n${systemContent}[End System Instructions]\n\n${originalContent}`,
-      });
-
-      logger.info('Prepended system message content to first user message for o-series model');
-    }
-  }
-
-  return transformedMessages;
-}
-
-/**
- * Strip thinking tags from model output.
- * Removes content between <thinking> and </thinking> tags (including the tags).
- *
- * @param content - The model output content
- * @returns Content with thinking tags removed
- */
-export function stripThinkingTags(content: string): string {
-  // Match <thinking>...</thinking> including newlines (non-greedy)
-  const thinkingPattern = /<thinking>[\s\S]*?<\/thinking>/gi;
-
-  const stripped = content.replace(thinkingPattern, '').trim();
-
-  // Also handle lowercase and variations
-  const thinkPattern2 = /<think>[\s\S]*?<\/think>/gi;
-  const finalResult = stripped.replace(thinkPattern2, '').trim();
-
-  if (finalResult !== content) {
-    const removedLength = content.length - finalResult.length;
-    logger.debug(
-      { originalLength: content.length, strippedLength: finalResult.length, removedLength },
-      'Stripped thinking tags from response'
-    );
-  }
-
-  return finalResult;
-}
-
-/**
- * Process model output to strip thinking tags if needed
- *
- * @param content - The raw model output
- * @param modelConfig - Reasoning model configuration
- * @returns Processed content
- */
-export function processReasoningModelOutput(
-  content: string,
-  modelConfig: ReasoningModelConfig
-): string {
-  if (!modelConfig.mayContainThinkingTags) {
-    return content;
-  }
-
-  return stripThinkingTags(content);
 }

@@ -263,7 +263,6 @@ describe('logRetryEscalation', () => {
       logRetryEscalation('job-1', 2, {
         temperatureOverride: 0.9,
         frequencyPenaltyOverride: 0.3,
-        historyReductionPercent: 50,
       })
     ).not.toThrow();
   });

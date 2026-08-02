@@ -103,8 +103,7 @@ export async function generateWithDuplicateRetry(
     // so we need a fresh copy for each attempt.
     const attemptContext = cloneContextForRetry(conversationContext);
 
-    // Generate response - each call gets new request_id via entropy injection
-    // Pass retry config for escalating parameters on duplicate retries
+    // Generate response with escalating sampling parameters on duplicate retries
     // IMPORTANT: skipMemoryStorage=true prevents storing memory on every retry attempt.
     // Memory is stored ONCE after the retry loop completes (see process method).
     // diagnosticCollector captures data from each attempt - overwrites with final attempt's data

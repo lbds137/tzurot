@@ -772,7 +772,9 @@ describe('PromptBuilder', () => {
       // Context now in <context> section
       expect(content).toContain('<context>');
       expect(content).toContain('<datetime>');
-      expect(content).toContain('<request_id>'); // Entropy injection to break API caching
+      // No <request_id>: per-request entropy in the prompt was a deliberate
+      // cache-buster and is gone — the prefix must stay byte-stable.
+      expect(content).not.toContain('<request_id>');
       // Protocol section
       expect(content).toContain('<protocol>');
       expect(content).toContain('You are a helpful assistant');
@@ -1444,13 +1446,7 @@ describe('PromptBuilder', () => {
           context: baseContext,
         });
 
-        // Normalize request_id which contains random entropy
-        const content = (result.content as string).replace(
-          /<request_id>[^<]+<\/request_id>/g,
-          '<request_id>NORMALIZED</request_id>'
-        );
-
-        expect(content).toMatchSnapshot();
+        expect(result.content as string).toMatchSnapshot();
       });
 
       it('should match snapshot with multiple participants (stop sequence scenario)', () => {
@@ -1517,12 +1513,7 @@ describe('PromptBuilder', () => {
           context: baseContext,
         });
 
-        const content = (result.content as string).replace(
-          /<request_id>[^<]+<\/request_id>/g,
-          '<request_id>NORMALIZED</request_id>'
-        );
-
-        expect(content).toMatchSnapshot();
+        expect(result.content as string).toMatchSnapshot();
       });
 
       it('should match snapshot with memories and guild environment', () => {
@@ -1559,12 +1550,7 @@ describe('PromptBuilder', () => {
           context: contextWithGuild,
         });
 
-        const content = (result.content as string).replace(
-          /<request_id>[^<]+<\/request_id>/g,
-          '<request_id>NORMALIZED</request_id>'
-        );
-
-        expect(content).toMatchSnapshot();
+        expect(result.content as string).toMatchSnapshot();
       });
 
       it('should match snapshot with referenced messages', () => {
@@ -1580,12 +1566,7 @@ I was wondering about the performance implications of using pgvector
 </contextual_references>`,
         });
 
-        const content = (result.content as string).replace(
-          /<request_id>[^<]+<\/request_id>/g,
-          '<request_id>NORMALIZED</request_id>'
-        );
-
-        expect(content).toMatchSnapshot();
+        expect(result.content as string).toMatchSnapshot();
       });
     });
 

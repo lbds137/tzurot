@@ -20,7 +20,6 @@ import {
   RETRY_TEMPERATURE_MIN,
   RETRY_TEMPERATURE_MAX,
   RETRY_ATTEMPT_2_FREQUENCY_PENALTY,
-  RETRY_ATTEMPT_3_HISTORY_REDUCTION,
 } from './duplicateDetection.js';
 import { isCrossTurnDuplicate, isRecentDuplicate } from './crossTurnDetection.js';
 import { getRecentAssistantMessages } from './conversationHistoryUtils.js';
@@ -694,11 +693,10 @@ describe('buildRetryConfig', () => {
       const config = buildRetryConfig(1);
       expect(config.temperatureOverride).toBeUndefined();
       expect(config.frequencyPenaltyOverride).toBeUndefined();
-      expect(config.historyReductionPercent).toBeUndefined();
     });
   });
 
-  describe('attempt 2 (increased randomness)', () => {
+  describe('attempt 2+ (increased randomness, sampling-only)', () => {
     it('should return temperature and frequency penalty overrides', () => {
       const config = buildRetryConfig(2);
       expect(config.temperatureOverride).toBeGreaterThanOrEqual(RETRY_TEMPERATURE_MIN);
@@ -706,12 +704,7 @@ describe('buildRetryConfig', () => {
       expect(config.frequencyPenaltyOverride).toBe(RETRY_ATTEMPT_2_FREQUENCY_PENALTY);
     });
 
-    it('should NOT include history reduction on attempt 2', () => {
-      const config = buildRetryConfig(2);
-      expect(config.historyReductionPercent).toBeUndefined();
-    });
-
-    it('should use temperature in range 0.95-1.0 to break cache', () => {
+    it('should use temperature in range 0.95-1.0', () => {
       expect(RETRY_TEMPERATURE_MIN).toBe(0.95);
       expect(RETRY_TEMPERATURE_MAX).toBe(1.0);
     });
@@ -719,58 +712,37 @@ describe('buildRetryConfig', () => {
     it('should use frequency penalty 0.5 for variety', () => {
       expect(RETRY_ATTEMPT_2_FREQUENCY_PENALTY).toBe(0.5);
     });
-  });
 
-  describe('attempt 3+ (aggressive cache breaking)', () => {
-    it('should include all overrides including history reduction', () => {
-      const config = buildRetryConfig(3);
-      expect(config.temperatureOverride).toBeGreaterThanOrEqual(RETRY_TEMPERATURE_MIN);
-      expect(config.temperatureOverride).toBeLessThanOrEqual(RETRY_TEMPERATURE_MAX);
-      expect(config.frequencyPenaltyOverride).toBe(RETRY_ATTEMPT_2_FREQUENCY_PENALTY);
-      expect(config.historyReductionPercent).toBe(RETRY_ATTEMPT_3_HISTORY_REDUCTION);
-    });
-
-    it('should use 30% history reduction on attempt 3', () => {
-      expect(RETRY_ATTEMPT_3_HISTORY_REDUCTION).toBe(0.3);
-    });
-
-    it('should return configs with same structure for attempt 4+ (temperature varies)', () => {
+    it('should return the same sampling-only structure for attempts 3+ (no input mutation)', () => {
+      // Escalation is deliberately sampling-only: the prompt bytes stay stable
+      // across attempts. A history shrink existed once as a cache-breaker and
+      // was removed — an attempt must never mutate the input again.
+      const config2 = buildRetryConfig(2);
       const config3 = buildRetryConfig(3);
       const config4 = buildRetryConfig(4);
-      const config5 = buildRetryConfig(5);
 
-      // All should have the same keys/structure
-      expect(Object.keys(config4)).toEqual(Object.keys(config3));
-      expect(Object.keys(config5)).toEqual(Object.keys(config3));
-
-      // Frequency penalty and history reduction should be identical
-      expect(config4.frequencyPenaltyOverride).toBe(config3.frequencyPenaltyOverride);
-      expect(config5.frequencyPenaltyOverride).toBe(config3.frequencyPenaltyOverride);
-      expect(config4.historyReductionPercent).toBe(config3.historyReductionPercent);
-      expect(config5.historyReductionPercent).toBe(config3.historyReductionPercent);
-
-      // Temperature values should be within valid range (but may vary due to jitter)
-      expect(config4.temperatureOverride).toBeGreaterThanOrEqual(RETRY_TEMPERATURE_MIN);
-      expect(config4.temperatureOverride).toBeLessThanOrEqual(RETRY_TEMPERATURE_MAX);
-      expect(config5.temperatureOverride).toBeGreaterThanOrEqual(RETRY_TEMPERATURE_MIN);
-      expect(config5.temperatureOverride).toBeLessThanOrEqual(RETRY_TEMPERATURE_MAX);
+      for (const config of [config2, config3, config4]) {
+        expect(Object.keys(config).sort()).toEqual([
+          'frequencyPenaltyOverride',
+          'temperatureOverride',
+        ]);
+        expect(config.temperatureOverride).toBeGreaterThanOrEqual(RETRY_TEMPERATURE_MIN);
+        expect(config.temperatureOverride).toBeLessThanOrEqual(RETRY_TEMPERATURE_MAX);
+        expect(config.frequencyPenaltyOverride).toBe(RETRY_ATTEMPT_2_FREQUENCY_PENALTY);
+      }
     });
   });
 
   describe('escalation strategy', () => {
-    it('should escalate progressively', () => {
+    it('should escalate from no overrides to sampling overrides', () => {
       const attempt1 = buildRetryConfig(1);
       const attempt2 = buildRetryConfig(2);
-      const attempt3 = buildRetryConfig(3);
 
       // Attempt 1: No overrides
       expect(Object.keys(attempt1).length).toBe(0);
 
-      // Attempt 2: Temperature + frequency penalty
+      // Attempt 2+: Temperature + frequency penalty
       expect(Object.keys(attempt2).length).toBe(2);
-
-      // Attempt 3: All three overrides
-      expect(Object.keys(attempt3).length).toBe(3);
     });
   });
 });
