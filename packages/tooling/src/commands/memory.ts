@@ -12,6 +12,15 @@ const ENV_OPTION_DESC = 'Environment: local, dev, or prod';
 const ENV_OPTION_DEFAULT = { default: 'dev' } as const;
 const FORCE_OPTION_DESC = 'Skip production confirmation prompt';
 
+// Shared by the three goldens miners (sonarjs/no-duplicate-string at 3 uses).
+const PERSONA_OPTION = '--persona-id <uuid>';
+const PERSONA_OPTION_DESC = 'Persona UUID to mine (required)';
+const SAMPLE_OPTION = '--sample <n>';
+const HISTORY_WINDOW_OPTION = '--history-window <n>';
+const HISTORY_WINDOW_OPTION_DESC = 'Prior turns to capture per golden (default 50)';
+const OUT_OPTION = '--out <dir>';
+const OUT_OPTION_DESC = 'Output dir (default reports/goldens-mining — gitignored)';
+
 /**
  * Parse an optional positive-integer CLI flag. Returns the number, `undefined`
  * if the flag is absent, or `null` if it's present-but-invalid (having already
@@ -119,10 +128,10 @@ function registerGoldensCommands(cli: CAC): void {
       "Mine a stratified sample of a persona's memories for retrieval-eval goldens"
     )
     .option(ENV_OPTION, ENV_OPTION_DESC, ENV_OPTION_DEFAULT)
-    .option('--persona-id <uuid>', 'Persona UUID to mine (required)')
+    .option(PERSONA_OPTION, PERSONA_OPTION_DESC)
     .option('--personality-ids <csv>', 'Personality UUIDs to include (default: top 2 by count)')
-    .option('--sample <n>', 'Target sample size (default 800)')
-    .option('--out <dir>', 'Output dir (default reports/goldens-mining — gitignored)')
+    .option(SAMPLE_OPTION, 'Target sample size (default 800)')
+    .option(OUT_OPTION, OUT_OPTION_DESC)
     .action(
       async (options: {
         env?: Environment;
@@ -176,6 +185,50 @@ function registerGoldensCommands(cli: CAC): void {
     });
 }
 
+/** The attachment-goldens miner — additive to the conversation set (see mine-attachment-goldens.ts). */
+function registerAttachmentGoldensCommand(cli: CAC): void {
+  cli
+    .command(
+      'memory:mine-attachment-goldens',
+      'Mine attachment-bearing user turns (image descriptions, voice transcripts) for the search-query allocation A/B'
+    )
+    .option(ENV_OPTION, ENV_OPTION_DESC, ENV_OPTION_DEFAULT)
+    .option(PERSONA_OPTION, PERSONA_OPTION_DESC)
+    .option(SAMPLE_OPTION, 'Target golden count across kinds (default 24)')
+    .option(HISTORY_WINDOW_OPTION, HISTORY_WINDOW_OPTION_DESC)
+    .option(OUT_OPTION, OUT_OPTION_DESC)
+    .action(
+      async (options: {
+        env?: Environment;
+        personaId?: string;
+        sample?: string;
+        historyWindow?: string;
+        out?: string;
+      }) => {
+        const personaId = requirePersonaId(options.personaId);
+        if (personaId === null) {
+          return;
+        }
+        const sampleSize = parsePositiveIntOption(options.sample, '--sample');
+        if (sampleSize === null) {
+          return;
+        }
+        const historyWindow = parsePositiveIntOption(options.historyWindow, '--history-window');
+        if (historyWindow === null) {
+          return;
+        }
+        const { mineAttachmentGoldens } = await import('../memory/mine-attachment-goldens.js');
+        await mineAttachmentGoldens({
+          env: options.env ?? 'dev',
+          personaId,
+          sampleSize,
+          historyWindow,
+          outDir: options.out,
+        });
+      }
+    );
+}
+
 /** The conversation-goldens miner — its own registrar so registerGoldensCommands stays under the line cap. */
 function registerConversationGoldensCommand(cli: CAC): void {
   cli
@@ -184,10 +237,10 @@ function registerConversationGoldensCommand(cli: CAC): void {
       'Mine real user turns + their preceding conversation window (the fold input) for the retrieval re-baseline'
     )
     .option(ENV_OPTION, ENV_OPTION_DESC, ENV_OPTION_DEFAULT)
-    .option('--persona-id <uuid>', 'Persona UUID to mine (required)')
-    .option('--sample <n>', 'Target golden count across all styles (default 40)')
-    .option('--history-window <n>', 'Prior turns to capture per golden (default 50)')
-    .option('--out <dir>', 'Output dir (default reports/goldens-mining — gitignored)')
+    .option(PERSONA_OPTION, PERSONA_OPTION_DESC)
+    .option(SAMPLE_OPTION, 'Target golden count across all styles (default 40)')
+    .option(HISTORY_WINDOW_OPTION, HISTORY_WINDOW_OPTION_DESC)
+    .option(OUT_OPTION, OUT_OPTION_DESC)
     .action(
       async (options: {
         env?: Environment;
@@ -272,6 +325,7 @@ export function registerMemoryCommands(cli: CAC): void {
   registerRepairFactTimestampsCommand(cli);
   registerGoldensCommands(cli);
   registerConversationGoldensCommand(cli);
+  registerAttachmentGoldensCommand(cli);
 
   // Cleanup duplicate memories
   cli

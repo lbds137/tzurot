@@ -190,6 +190,13 @@ interface Candidate {
   style: QueryStyle;
 }
 
+/** The row-identity fields prior-history fetching needs (shared with the attachment miner). */
+export interface PriorHistoryTarget {
+  id: string;
+  channelId: string;
+  createdAt: Date;
+}
+
 /**
  * Fetch the turns preceding a target in the same CHANNEL — the exact substrate
  * production folds. Production's history source (`ConversationHistoryService.
@@ -200,9 +207,9 @@ interface Candidate {
  * helps. `extractRecentHistoryWindow` slices the tail of this window. Returns null
  * when there is too little history to fold.
  */
-async function fetchPriorHistory(
+export async function fetchPriorHistory(
   prisma: PrismaClient,
-  candidate: Candidate,
+  candidate: PriorHistoryTarget,
   historyWindow: number
 ): Promise<ConversationTurn[] | null> {
   const priorRows = await prisma.$queryRaw<RawTurnRow[]>`
