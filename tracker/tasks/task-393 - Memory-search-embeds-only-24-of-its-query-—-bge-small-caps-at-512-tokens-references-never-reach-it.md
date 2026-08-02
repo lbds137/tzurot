@@ -109,4 +109,37 @@ the judged conversation set).
 reorder / separate-embeds) in the fold-aware eval harness
 (`services/ai-worker/src/services/eval/foldAware*.eval.test.ts`), scored on
 these goldens with the same pool→judge→qrels flow as the fold re-baseline.
+
+## 2026-08-02 — allocation A/B SCORED (PR #1901); the evidence picked the policy
+
+Harness shipped in #1901 (`pnpm eval:allocation-goldens` / `eval:allocation-score`);
+pooled live against dev (24/24 goldens, 748 candidates, 633 guard-eligible),
+judged same-protocol as the fold re-baseline (rubric in the local
+`allocation-qrels.json`). Full table: local `allocation-ab-result.md`.
+
+**The result INVERTS the fold prior — attachment text is signal, not dilution.**
+Dose-response recall@10 rises monotonically with attachment text: bare 0.379 →
+lead 0.482 → budget(≤1024 chars) 0.511 → current(full, embedder-truncated)
+0.528. Paired flips vs production's `current`: `bare` net **−5** @10 (1 fix /
+6 breaks — the `shouldFoldSearchQuery`-style gate is DEAD); `lead` net −1 (not
+free); `budget` net **0** (0 fixes / 0 breaks, 23/24 both-hit —
+indistinguishable from full text). Voice goldens: 0 misses in every arm (stored
+voice rows carry the transcript in the bare text). Observed counter-pattern,
+n=2: on reaction-gif turns the description drowns the gif-banter thread
+(current breaks bare-hits there) — recorded, not actionable at this n.
+
+**Decision (evidence-made): cap the attachment part of the search query at
+half the window (~1024 chars, word-boundary), keep everything else as-is.**
+It is measured-free on recall AND by construction un-starves
+`referencedMessagesText`, which today is ALWAYS discarded behind a median-case
+3,654-char description — restoring the behavior the builder already claims.
+Rejected on evidence: bare/gating (−5), lead-sentence (−1). Reorder alone was
+already ruled out in the original fix-shape (moves which part is dropped);
+separate-embeds not needed given budget ≈ current.
+
+**Remaining to close this task**: (1) ship the cap in
+`SearchQueryBuilder`/`searchQueryBudget` with the eval arm importing the SAME
+truncation code so measurement and policy can't drift; (2) post-release,
+re-check the prod overflow-warn rate (`Input exceeded the model window`) —
+after the cap it should fire only on pathological reference/multi-part turns.
 <!-- SECTION:DESCRIPTION:END -->
