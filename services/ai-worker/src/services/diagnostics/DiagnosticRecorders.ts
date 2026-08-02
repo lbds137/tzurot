@@ -200,6 +200,9 @@ export function recordBudgetDiagnostics(opts: BudgetDiagnosticOptions): void {
   collector.recordTokenBudget({
     contextWindowSize,
     systemPromptTokens: opts.countTokens(contentToText(budgetResult.systemPrompt.content)),
+    // The FINAL human message (volatile prefix incl. selected facts/memories
+    // + the turn) — the container that now carries all V-tier spend.
+    currentMessageTokens: opts.countTokens(contentToText(budgetResult.currentMessage.content)),
     memoryTokensUsed: budgetResult.memoryTokensUsed,
     historyTokensUsed: budgetResult.historyTokensUsed,
     memoriesDropped: budgetResult.memoriesDroppedCount,

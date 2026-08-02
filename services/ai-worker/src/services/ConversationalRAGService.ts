@@ -122,10 +122,9 @@ export class ConversationalRAGService {
       personality,
       systemPrompt,
       systemPromptSections,
+      currentMessage,
       userMessage,
-      processedAttachments,
       context,
-      referencedMessagesDescriptions,
       userApiKey,
       isGuestMode,
       retryConfig,
@@ -134,20 +133,11 @@ export class ConversationalRAGService {
     } = opts;
     // Cast from opaque DiagnosticCollectorRef to concrete type (safe — callers always pass DiagnosticCollector)
     const diagnosticCollector = diagnosticCollectorRef as DiagnosticCollector | undefined;
-    // Build current message
-    const { message: currentMessage } = this.promptBuilder.buildHumanMessage(
-      userMessage,
-      processedAttachments,
-      {
-        activePersonaName: context.activePersonaName,
-        referencedMessagesDescriptions,
-        activePersonaId: context.activePersonaId,
-        discordUsername: context.discordUsername,
-        personalityName: personality.name,
-      }
-    );
 
-    // Build messages array
+    // Both messages come from the budget allocation — the human message
+    // carries the selected memory/fact blocks in its volatile prefix, so it
+    // must never be rebuilt here (a rebuild would ship a memory-less turn
+    // while the budget assumed otherwise).
     const messages: BaseMessage[] = [systemPrompt, currentMessage];
 
     // Check reasoning capability (async, cached with 5-min TTL)
@@ -437,10 +427,9 @@ export class ConversationalRAGService {
         personality,
         systemPrompt: budgetResult.systemPrompt,
         systemPromptSections: budgetResult.systemPromptSections,
+        currentMessage: budgetResult.currentMessage,
         userMessage: inputs.userMessage,
-        processedAttachments: inputs.processedAttachments,
         context,
-        referencedMessagesDescriptions: inputs.referencedMessagesDescriptions,
         userApiKey,
         isGuestMode,
         retryConfig,

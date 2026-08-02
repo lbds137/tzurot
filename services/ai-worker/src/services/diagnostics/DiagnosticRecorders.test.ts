@@ -164,6 +164,7 @@ describe('DiagnosticRecorders', () => {
         serializedHistory: '',
         systemPrompt: new SystemMessage('system prompt text'),
         systemPromptSections: [],
+        currentMessage: new HumanMessage('turn'),
         memoryTokensUsed: 50,
         factTokensUsed: 0,
         historyTokensUsed: 200,
@@ -191,6 +192,9 @@ describe('DiagnosticRecorders', () => {
       expect(mockCollector.recordTokenBudget).toHaveBeenCalledWith({
         contextWindowSize: 24576,
         systemPromptTokens: 'system prompt text'.length,
+        // The FINAL human message ('turn' fixture) — the volatile-prefix
+        // container the /inspect budget view keys its new semantics on.
+        currentMessageTokens: 'turn'.length,
         memoryTokensUsed: 50,
         historyTokensUsed: 200,
         memoriesDropped: 1,
@@ -216,6 +220,7 @@ describe('DiagnosticRecorders', () => {
         serializedHistory: '',
         systemPrompt: new SystemMessage('sys'),
         systemPromptSections: [],
+        currentMessage: new HumanMessage('turn'),
         memoryTokensUsed: 10,
         factTokensUsed: 42,
         historyTokensUsed: 20,

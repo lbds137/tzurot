@@ -9,11 +9,7 @@ import { getConfig } from '@tzurot/common-types/config/config';
 import { TEXT_LIMITS } from '@tzurot/common-types/constants/discord';
 import { formatMemoryTimestamp } from '@tzurot/common-types/utils/dateFormatting';
 import { createLogger } from '@tzurot/common-types/utils/logger';
-import type {
-  MemoryDocument,
-  ConversationContext,
-  ParticipantInfo,
-} from '../ConversationalRAGTypes.js';
+import type { ConversationContext } from '../ConversationalRAGTypes.js';
 
 const logger = createLogger('PromptBuilder');
 const config = getConfig();
@@ -23,11 +19,7 @@ export interface PromptAssemblyLogOptions {
   personality: { id: string; name: string };
   persona: string;
   protocol: string;
-  participantPersonas: Map<string, ParticipantInfo>;
-  participantsContext: string;
   context: ConversationContext;
-  relevantMemories: MemoryDocument[];
-  memoryContext: string;
   historyLength: number;
   fullSystemPrompt: string;
 }
@@ -40,40 +32,17 @@ export function logDetailedPromptAssembly(opts: PromptAssemblyLogOptions): void 
     return;
   }
 
-  const {
-    personality,
-    persona,
-    protocol,
-    participantPersonas,
-    participantsContext,
-    context,
-    relevantMemories,
-    memoryContext,
-    historyLength,
-    fullSystemPrompt,
-  } = opts;
+  const { personality, persona, protocol, context, historyLength, fullSystemPrompt } = opts;
 
+  // Participant/memory details moved with those blocks into the volatile
+  // prefix; its own 'Volatile prefix composition' log carries their sizes.
   logger.debug(
     {
       personalityId: personality.id,
       personalityName: personality.name,
       personaLength: persona.length,
       protocolLength: protocol.length,
-      participantCount: participantPersonas.size,
-      participantsContextLength: participantsContext.length,
       activePersonaName: context.activePersonaName,
-      memoryCount: relevantMemories.length,
-      memoryIds: relevantMemories.map(m =>
-        m.metadata?.id !== undefined && typeof m.metadata.id === 'string'
-          ? m.metadata.id
-          : 'unknown'
-      ),
-      memoryTimestamps: relevantMemories.map(m =>
-        m.metadata?.createdAt !== undefined && m.metadata.createdAt !== null
-          ? formatMemoryTimestamp(m.metadata.createdAt)
-          : 'unknown'
-      ),
-      totalMemoryChars: memoryContext.length,
       historyLength,
       totalSystemPromptLength: fullSystemPrompt.length,
       stmCount: context.conversationHistory?.length ?? 0,

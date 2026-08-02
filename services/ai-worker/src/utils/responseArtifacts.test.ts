@@ -462,6 +462,9 @@ describe('stripResponseArtifacts', () => {
       expect(stripResponseArtifacts('Hello!</protocol>', 'Emily')).toBe('Hello!');
       expect(stripResponseArtifacts('Hello!</memory_archive>', 'Emily')).toBe('Hello!');
       expect(stripResponseArtifacts('Hello!</contextual_references>', 'Emily')).toBe('Hello!');
+      // facts joined the list when the V-tier blocks moved next to the user
+      // turn — the echo-probability position.
+      expect(stripResponseArtifacts('Hello!</facts>', 'Emily')).toBe('Hello!');
     });
 
     it('should strip multiple prompt template tags', () => {

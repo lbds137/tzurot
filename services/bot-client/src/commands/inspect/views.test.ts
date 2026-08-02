@@ -571,6 +571,42 @@ describe('buildTokenBudgetView', () => {
     expect(notesOf(result)).toContain('7 facts');
   });
 
+  it('renders the tier-restructured chart: Message row, System NOT fact-subtracted', () => {
+    // NEW logs carry currentMessageTokens (the volatile prefix + turn). Facts
+    // and memories live INSIDE that container now — System stays whole, the
+    // Message row shows current minus the facts/memory shares, and the total
+    // accounts for the current message instead of memory alone.
+    const payload = createMockPayload();
+    payload.tokenBudget.factTokensUsed = 1000;
+    payload.tokenBudget.factsIncluded = 4;
+    payload.tokenBudget.memoryTokensUsed = 2000;
+    payload.tokenBudget.currentMessageTokens = 5000;
+    const result = buildTokenBudgetView(payload, 'req-123', OWNER_CTX);
+
+    const desc = result.embeds![0].data.description ?? '';
+    // System renders its full 4,000 — no subtraction on the new semantics
+    expect(desc).toMatch(/^System.*4,000$/m);
+    // Message = 5000 - 2000 memory - 1000 facts = 2,000
+    expect(desc).toMatch(/^Message.*2,000$/m);
+    expect(desc).toMatch(/^Facts.*1,000$/m);
+    expect(desc).toMatch(/^Memory.*2,000$/m);
+  });
+
+  it('accounts the whole current message in the total on tier-restructured logs', () => {
+    const payload = createMockPayload();
+    payload.tokenBudget.contextWindowSize = 100000;
+    payload.tokenBudget.systemPromptTokens = 10000;
+    payload.tokenBudget.currentMessageTokens = 20000;
+    payload.tokenBudget.memoryTokensUsed = 5000;
+    payload.tokenBudget.historyTokensUsed = 30000;
+    const result = buildTokenBudgetView(payload, 'req-123', OWNER_CTX);
+
+    const desc = result.embeds![0].data.description ?? '';
+    // Free = 100000 - (10000 system + 20000 current + 30000 history) = 40,000.
+    // Memory is INSIDE current — the legacy formula would have read 55,000.
+    expect(desc).toMatch(/^Free.*40,000$/m);
+  });
+
   it('renders the legacy chart (no Facts row) for logs predating fact accounting', () => {
     const payload = createMockPayload();
     // factTokensUsed / factsIncluded / factsDropped intentionally undefined
