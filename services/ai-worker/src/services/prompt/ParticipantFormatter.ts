@@ -129,6 +129,6 @@ export function formatParticipantsContext(
 
   parts.push('</participants>');
 
-  // Return with leading newlines for proper prompt spacing
-  return '\n\n' + parts.join('\n');
+  // Bare block — the section assembler owns inter-section separators.
+  return parts.join('\n');
 }

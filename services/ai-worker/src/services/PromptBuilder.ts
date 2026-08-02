@@ -17,6 +17,12 @@ import type {
 import type { ProcessedAttachment } from './MultimodalProcessor.js';
 import { formatParticipantsContext } from './prompt/ParticipantFormatter.js';
 import { formatMemoriesContext, formatFactsContext } from './prompt/MemoryFormatter.js';
+import {
+  assembleSections,
+  describeSections,
+  type PromptSection,
+  type SectionDescription,
+} from './prompt/sections.js';
 import { formatPersonalityFields } from './prompt/PersonalityFieldsFormatter.js';
 import { formatEnvironmentContext } from './prompt/EnvironmentFormatter.js';
 import { extractContentDescriptions } from './RAGUtils.js';
@@ -64,7 +70,7 @@ function buildChatLogSection(
   if (serializedHistory === undefined || serializedHistory.length === 0) {
     return '';
   }
-  return `\n\n<chat_log>
+  return `<chat_log>
 <instruction>The conversation so far. Each message's role says who wrote it: role="assistant" marks your own earlier lines (${escapeXmlContent(personalityName)}); role="user" marks humans (match from_id to <participants>); role="character" marks a different AI character — a conversation peer, never you.</instruction>
 ${serializedHistory}
 </chat_log>`;
@@ -186,20 +192,30 @@ export class PromptBuilder {
   }
 
   /**
-   * Build full system prompt with personas, memories, and date context
-   *
-   * NEW ARCHITECTURE (2025-12): Full XML structure to prevent identity bleeding
-   *
-   * Section ordering follows Gemini's "XML Containment & Sandwich Method":
-   * 1. <system_identity> - Identity, character, AND constraints (who am I, what I must NOT do)
-   * 2. <context> - Date/time and location (when and where)
-   * 3. <participants> - Who else is involved (NOT including self)
-   * 4. <memory_archive> - Historical memories (middle = less attention = good for archives)
-   * 5. <contextual_references> - Referenced messages from replies/links
-   * 6. <chat_log> - Serialized conversation history with XML tags per message
-   * 7. <protocol> - Behavior rules (END for recency bias)
+   * Convenience wrapper over {@link buildFullSystemPromptWithSections} for
+   * callers that only need the message (the base/measurement build, tests).
    */
   buildFullSystemPrompt(options: BuildFullSystemPromptOptions): SystemMessage {
+    return this.buildFullSystemPromptWithSections(options).message;
+  }
+
+  /**
+   * Build full system prompt with personas, memories, and date context.
+   *
+   * Assembly runs over typed {@link PromptSection}s (see prompt/sections.ts);
+   * the returned descriptions map each rendered section's tier and offset —
+   * the diagnostic payload stores them so the prefix-diff tool can annotate
+   * a cache-miss divergence with the section it landed in.
+   *
+   * Section ordering follows Gemini's "XML Containment & Sandwich Method":
+   * identity + constraints first (who am I, what I must NOT do), volatile
+   * context/participants/retrieval in the middle, chat_log, then protocol +
+   * output constraints at the END for recency bias.
+   */
+  buildFullSystemPromptWithSections(options: BuildFullSystemPromptOptions): {
+    message: SystemMessage;
+    sections: SectionDescription[];
+  } {
     const {
       personality,
       participantPersonas,
@@ -252,7 +268,7 @@ ${escapeXmlContent(persona)}
         ? formatEnvironmentContext(context.environment)
         : '<location type="dm">Direct Message (private one-on-one chat)</location>';
 
-    const contextSection = `\n\n<context>
+    const contextSection = `<context>
 <datetime>${datetime}</datetime>
 ${locationXml}
 </context>`;
@@ -278,10 +294,7 @@ ${locationXml}
     const memoryContext = formatMemoriesContext(relevantMemories, context.userTimezone);
 
     // Referenced messages (from replies and message links)
-    const referencesContext =
-      referencedMessagesFormatted !== undefined && referencedMessagesFormatted.length > 0
-        ? `\n\n${referencedMessagesFormatted}`
-        : '';
+    const referencesContext = referencedMessagesFormatted ?? '';
 
     if (referencesContext.length > 0) {
       logger.info(
@@ -297,32 +310,37 @@ ${locationXml}
     // escape kept: it also covers the LEGACY raw-systemPrompt path (author XML),
     // and the <protocol> boundary protection stops sub-section values escaping.
     const protocolSection =
-      protocol.length > 0 ? `\n\n<protocol>\n${escapeXmlContent(protocol)}\n</protocol>` : '';
+      protocol.length > 0 ? `<protocol>\n${escapeXmlContent(protocol)}\n</protocol>` : '';
 
-    // Output constraints at the VERY END (recency bias for format compliance)
-    const outputConstraintsSection = `\n\n${OUTPUT_CONSTRAINTS}`;
+    // The Sandwich Method order (identity first, protocol + output constraints
+    // last for recency). Tiers are descriptive until the Phase-1 restructure
+    // keys placement on them; identity_constraints is tagged S1 although its
+    // collision constraint is request-dependent today — that constraint moves
+    // to the V-tier participants block when tiers become load-bearing.
+    const sections: PromptSection[] = [
+      { id: 'system_identity', tier: 'S1', render: () => identitySection },
+      { id: 'identity_constraints', tier: 'S1', render: () => identityConstraintsSection },
+      { id: 'platform_constraints', tier: 'S0', render: () => PLATFORM_CONSTRAINTS },
+      { id: 'context', tier: 'V', render: () => contextSection },
+      { id: 'participants', tier: 'V', render: () => participantsContext },
+      { id: 'facts', tier: 'V', render: () => factsContext },
+      { id: 'memory_archive', tier: 'V', render: () => memoryContext },
+      { id: 'contextual_references', tier: 'V', render: () => referencesContext },
+      { id: 'chat_log', tier: 'H', render: () => chatLogSection },
+      { id: 'protocol', tier: 'S1', render: () => protocolSection },
+      { id: 'output_constraints', tier: 'S0', render: () => OUTPUT_CONSTRAINTS },
+    ];
 
-    // Assemble in correct order using Sandwich Method
-    const fullSystemPrompt = `${identitySection}\n\n${identityConstraintsSection}\n\n${PLATFORM_CONSTRAINTS}${contextSection}${participantsContext}${factsContext}${memoryContext}${referencesContext}${chatLogSection}${protocolSection}${outputConstraintsSection}`;
+    const fullSystemPrompt = assembleSections(sections);
+    const sectionDescriptions = describeSections(sections);
 
-    // Basic prompt composition logging
-    const historyLength = serializedHistory?.length ?? 0;
-    const promptLengths = {
-      identity: identitySection.length,
-      identityConstraints: identityConstraintsSection.length,
-      platformConstraints: PLATFORM_CONSTRAINTS.length,
-      context: contextSection.length,
-      participants: participantsContext.length,
-      memories: memoryContext.length,
-      references: referencesContext.length,
-      history: historyLength,
-      protocol: protocolSection.length,
-      outputConstraints: outputConstraintsSection.length,
-      total: fullSystemPrompt.length,
-    };
-    logger.info(promptLengths, 'Prompt composition');
+    logger.info(
+      { sections: sectionDescriptions, total: fullSystemPrompt.length },
+      'Prompt composition'
+    );
 
     // Detailed prompt assembly logging (development only)
+    const historyLength = serializedHistory?.length ?? 0;
     logDetailedPromptAssembly({
       personality,
       persona,
@@ -336,7 +354,7 @@ ${locationXml}
       fullSystemPrompt,
     });
 
-    return new SystemMessage(fullSystemPrompt);
+    return { message: new SystemMessage(fullSystemPrompt), sections: sectionDescriptions };
   }
 
   /**

@@ -133,7 +133,8 @@ export function formatMemoriesContext(
     .map(doc => formatSingleMemory(doc, timezone))
     .join('\n');
 
-  return '\n\n' + buildMemoryArchiveXml(formattedMemories);
+  // Bare block — the section assembler owns inter-section separators.
+  return buildMemoryArchiveXml(formattedMemories);
 }
 
 /**
@@ -235,5 +236,6 @@ export function formatFactsContext(facts: FactForPrompt[], names?: FactRenderNam
     return '';
   }
   const formatted = facts.map(f => formatSingleFact(f, names)).join('\n');
-  return '\n\n' + buildFactsXml(formatted, names?.subjectName);
+  // Bare block — the section assembler owns inter-section separators.
+  return buildFactsXml(formatted, names?.subjectName);
 }

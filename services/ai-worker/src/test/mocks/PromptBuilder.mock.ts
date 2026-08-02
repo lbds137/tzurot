@@ -14,6 +14,7 @@ interface MockPromptBuilderInstance {
   formatUserMessage: ReturnType<typeof vi.fn>;
   buildSearchQuery: ReturnType<typeof vi.fn>;
   buildFullSystemPrompt: ReturnType<typeof vi.fn>;
+  buildFullSystemPromptWithSections: ReturnType<typeof vi.fn>;
   buildHumanMessage: ReturnType<typeof vi.fn>;
   countTokens: ReturnType<typeof vi.fn>;
   countMemoryTokens: ReturnType<typeof vi.fn>;
@@ -28,6 +29,7 @@ let mockInstance: MockPromptBuilderInstance | null = null;
  * - `formatUserMessage()` → Returns `'formatted user message'`
  * - `buildSearchQuery()` → Returns `'search query'`
  * - `buildFullSystemPrompt()` → Returns `SystemMessage('system prompt')`
+ * - `buildFullSystemPromptWithSections()` → Returns `{ message, sections: [] }`
  * - `buildHumanMessage()` → Returns `{ message: HumanMessage, contentForStorage: string }`
  * - `countTokens()` → Returns `100` tokens
  * - `countMemoryTokens()` → Returns `50` tokens
@@ -39,6 +41,10 @@ function createMockFunctions(): MockPromptBuilderInstance {
     formatUserMessage: vi.fn().mockReturnValue('formatted user message'),
     buildSearchQuery: vi.fn().mockReturnValue('search query'),
     buildFullSystemPrompt: vi.fn().mockReturnValue(new SystemMessage('system prompt')),
+    buildFullSystemPromptWithSections: vi.fn().mockReturnValue({
+      message: new SystemMessage('system prompt'),
+      sections: [],
+    }),
     buildHumanMessage: vi.fn().mockReturnValue({
       message: new HumanMessage('human message'),
       contentForStorage: 'content for storage',
@@ -56,6 +62,7 @@ export const mockPromptBuilder = {
     formatUserMessage: ReturnType<typeof vi.fn>;
     buildSearchQuery: ReturnType<typeof vi.fn>;
     buildFullSystemPrompt: ReturnType<typeof vi.fn>;
+    buildFullSystemPromptWithSections: ReturnType<typeof vi.fn>;
     buildHumanMessage: ReturnType<typeof vi.fn>;
     countTokens: ReturnType<typeof vi.fn>;
     countMemoryTokens: ReturnType<typeof vi.fn>;
@@ -65,6 +72,7 @@ export const mockPromptBuilder = {
       this.formatUserMessage = fns.formatUserMessage;
       this.buildSearchQuery = fns.buildSearchQuery;
       this.buildFullSystemPrompt = fns.buildFullSystemPrompt;
+      this.buildFullSystemPromptWithSections = fns.buildFullSystemPromptWithSections;
       this.buildHumanMessage = fns.buildHumanMessage;
       this.countTokens = fns.countTokens;
       this.countMemoryTokens = fns.countMemoryTokens;

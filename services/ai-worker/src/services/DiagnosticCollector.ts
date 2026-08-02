@@ -27,6 +27,7 @@ import {
   type DiagnosticMemoryEntry,
   type DiagnosticTokenBudget,
   type DiagnosticAssembledPrompt,
+  type DiagnosticPromptSection,
   type DiagnosticMessage,
   type DiagnosticLlmConfig,
   type DiagnosticLlmResponse,
@@ -231,12 +232,19 @@ export class DiagnosticCollector {
   }
 
   /**
-   * Record Stage 4: Assembled prompt (the exact messages sent to the LLM)
+   * Record Stage 4: Assembled prompt (the exact messages sent to the LLM).
+   * `systemPromptSections` maps each system-prompt section's tier/size/offset —
+   * the prefix-diff tool reads it to name the section a divergence landed in.
    */
-  recordAssembledPrompt(messages: BaseMessage[], tokenEstimate: number): void {
+  recordAssembledPrompt(
+    messages: BaseMessage[],
+    tokenEstimate: number,
+    systemPromptSections?: DiagnosticPromptSection[]
+  ): void {
     this.assembledPrompt = {
       messages: messages.map(msg => this.convertMessage(msg)),
       totalTokenEstimate: tokenEstimate,
+      ...(systemPromptSections !== undefined ? { systemPromptSections } : {}),
     };
   }
 

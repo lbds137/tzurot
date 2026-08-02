@@ -196,6 +196,26 @@ export interface DiagnosticAssembledPrompt {
   messages: DiagnosticMessage[];
   /** Estimated total tokens */
   totalTokenEstimate: number;
+  /**
+   * Per-section map of the system prompt (id, stability tier, char size,
+   * offset into the system message). Written from the prompt builder's
+   * section model; the prefix-diff tool reads it to annotate cache-miss
+   * divergence offsets with the section they landed in. Absent on payloads
+   * recorded before the section model shipped.
+   */
+  systemPromptSections?: DiagnosticPromptSection[];
+}
+
+/** One system-prompt section's placement (mirrors ai-worker's SectionDescription). */
+export interface DiagnosticPromptSection {
+  /** Stable section id (e.g. 'system_identity', 'chat_log') */
+  id: string;
+  /** Stability tier: S0 cross-persona static · S1 per-persona · H history · V volatile */
+  tier: 'S0' | 'S1' | 'H' | 'V';
+  /** Rendered length in chars (separators excluded) */
+  chars: number;
+  /** Offset of the section's first char in the system message */
+  offset: number;
 }
 
 /**

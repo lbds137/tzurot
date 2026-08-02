@@ -18,6 +18,7 @@ import type { LoadedPersonality } from '@tzurot/common-types/types/schemas/perso
 import type { SttDispatch } from '@tzurot/common-types/types/sttProvider';
 import type { SummonAnonymity } from '@tzurot/common-types/types/summon-anonymity';
 import type { ProcessedAttachment } from './MultimodalProcessor.js';
+import type { SectionDescription } from './prompt/sections.js';
 
 /**
  * Cross-provider vision auth, resolved ONCE per request and threaded to every
@@ -271,6 +272,10 @@ export interface BudgetAllocationResult {
   selectedFacts: FactForPrompt[];
   serializedHistory: string;
   systemPrompt: BaseMessage;
+  /** Per-section tier/size/offset map of the FINAL system prompt — stored in
+   *  the diagnostic payload so the prefix-diff tool can name the section a
+   *  cache-miss divergence landed in. */
+  systemPromptSections: SectionDescription[];
   memoryTokensUsed: number;
   /** Tokens consumed by the `<facts>` block (wrapper + statements). */
   factTokensUsed: number;
@@ -333,6 +338,8 @@ export interface DiagnosticCollectorRef {}
 export interface ModelInvocationOptions {
   personality: LoadedPersonality;
   systemPrompt: BaseMessage;
+  /** Section map of systemPrompt, recorded into the diagnostic payload. */
+  systemPromptSections?: SectionDescription[];
   userMessage: string;
   processedAttachments: ProcessedAttachment[];
   context: ConversationContext;
