@@ -36,7 +36,10 @@ import {
   ConfigCascadeCacheInvalidationService,
   SystemSettingsCacheInvalidationService,
 } from '@tzurot/cache-invalidation';
-import { SystemSettingsService } from '@tzurot/common-types/services/SystemSettingsService';
+import {
+  SystemSettingsService,
+  registerSystemSettings,
+} from '@tzurot/common-types/services/SystemSettingsService';
 import { PersonalityService } from '@tzurot/identity';
 import {
   ConfigCascadeResolver,
@@ -247,7 +250,14 @@ async function initializeServices(prisma: PrismaClient): Promise<ServicesContext
     systemSettings.invalidate();
   });
   await systemSettings.prime();
-  logger.info('SystemSettingsService seeded, primed, and subscribed to invalidation');
+  // Register the ambient instance, per registerSystemSettings' contract ("each
+  // service registers its wired instance at boot"). api-gateway was building
+  // and priming the service but never registering it, so every free-function
+  // `getSystemSetting` read in this process silently served the registry
+  // FALLBACK instead of the admin's value — which would have made the sticker
+  // gate below a no-op.
+  registerSystemSettings(systemSettings);
+  logger.info('SystemSettingsService seeded, primed, registered, and subscribed to invalidation');
 
   // Orphaned-Characters sentinel (retention D11): the holder a purge re-homes a
   // departed user's still-used characters to. The purge creates it lazily too,

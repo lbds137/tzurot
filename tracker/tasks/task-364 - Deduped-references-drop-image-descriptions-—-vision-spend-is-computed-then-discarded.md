@@ -3,9 +3,10 @@ id: TASK-364
 title: >-
   Deduped references drop image descriptions — vision spend is computed then
   discarded
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-07-30 22:35'
+updated_date: '2026-08-01 23:43'
 labels:
   - 'area:ai-worker'
 dependencies: []
@@ -38,6 +39,28 @@ The stub's premise — "full text in the chat log" — is FALSE for embed images
 **Same class as TASK-162** (role dropped on the deduped path, since fixed) — the deduped path keeps losing fields.
 
 **Fix shape is a DESIGN CALL, owner-gated:** (a) thread descriptions into the deduped stub (costs tokens, but they are NOT duplicated since history lacks them); (b) make history carry embed-image descriptions so the stub premise becomes true; (c) do not dedup messages whose images are undescribed in history.
+
+## SHIPPED — closed 2026-08-01 on runtime evidence
+
+Fixed by `88adc17d6` (on develop AND main), taking option **(a)**: thread the
+descriptions into the deduped stub, in all three render sites, plus the stub
+wording — the old "full text in the chat log" premise was the trap, true for
+text and false for media.
+
+**This task sat at To Do / HIGH priority after its fix shipped**, i.e. at the top
+of the drain queue while already done. Caught by the freshness-check that
+`doc-7`'s batch log requires before every batch; it is the session-end
+removal-gate miss that gate exists for.
+
+**Runtime-confirmed 2026-08-01** from a prod `/inspect` capture (req
+`456ec221`), independently of the code read: a deduped quote rendered as
+`[Referenced message — full text in the chat log; its media is described here]`
+and carried its `<voice>` transcript inline. The paid enrichment now reaches the
+model instead of being computed and discarded.
+
+Later work refined the same path rather than reverting it: #1883 gave quoted
+enrichment a durable home and #1887 stopped the REPLAY path repeating what the
+chat log already carries.
 <!-- SECTION:DESCRIPTION:END -->
 
 ## COMPLETE DIAGNOSIS 2026-07-30 (owner supplied a working capture — regression CONFIRMED)
