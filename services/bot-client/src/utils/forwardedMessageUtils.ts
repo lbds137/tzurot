@@ -28,6 +28,7 @@ import {
 import { type AttachmentMetadata } from '@tzurot/common-types/types/schemas/discord';
 import { extractAttachments } from './attachmentExtractor.js';
 import { extractEmbedImages } from './embedImageExtractor.js';
+import { extractSnapshotStickerImages } from './stickerAttachments.js';
 import { isVoiceAttachment } from './voiceAttachment.js';
 
 /**
@@ -202,6 +203,13 @@ export function extractForwardedAttachments(message: Message): AttachmentMetadat
     const embedImages = extractEmbedImages(snapshot.embeds);
     if (embedImages !== undefined) {
       attachments.push(...embedImages);
+    }
+
+    // ...and the snapshot's stickers, which were the one media kind this walk
+    // skipped — a forwarded sticker arrived name-only, never described.
+    const stickerImages = extractSnapshotStickerImages(snapshot);
+    if (stickerImages !== undefined) {
+      attachments.push(...stickerImages);
     }
   }
 

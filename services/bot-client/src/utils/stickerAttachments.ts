@@ -58,13 +58,18 @@ function stickerContentType(sticker: Sticker): string {
 }
 
 /**
- * Convert a message's rasterizable stickers into synthetic image attachments.
+ * Convert a sticker list into synthetic image attachments.
+ *
+ * The shared kernel behind every extractor below. It exists because stickers
+ * reach the vision chain from several shapes — a live `Message`, a forwarded
+ * `MessageSnapshot` — and the CONVERSION must not be re-derived per shape. Only
+ * the collection differs; the mapping is one definition.
  *
  * Returns `undefined` (not `[]`) when there is nothing to convert, matching
  * `extractEmbedImages`'s contract so both can be spread the same way.
  */
-export function extractStickerImages(message: Message): AttachmentMetadata[] | undefined {
-  const rasterizable = collectAllStickers(message).filter(isRasterizableSticker);
+export function stickersToAttachments(stickers: Sticker[]): AttachmentMetadata[] | undefined {
+  const rasterizable = stickers.filter(isRasterizableSticker);
   if (rasterizable.length === 0) {
     return undefined;
   }
@@ -77,4 +82,38 @@ export function extractStickerImages(message: Message): AttachmentMetadata[] | u
     name: sticker.name,
     isSticker: true,
   }));
+}
+
+/**
+ * Convert a message's rasterizable stickers into synthetic image attachments.
+ *
+ * Covers the message's own stickers AND any its forwarded snapshots carry —
+ * `collectAllStickers` walks both, so a live message never needs the snapshot
+ * extractor below as well.
+ */
+export function extractStickerImages(message: Message): AttachmentMetadata[] | undefined {
+  return stickersToAttachments(collectAllStickers(message));
+}
+
+/**
+ * Convert ONE forwarded snapshot's stickers into synthetic image attachments.
+ *
+ * Needed because the reference-rendering paths format a snapshot directly,
+ * without the parent `Message` that {@link extractStickerImages} requires —
+ * `ReferenceFormatter` dispatches a forward to `SnapshotFormatter.formatSnapshot`
+ * per snapshot, and `extractForwardedAttachments` walks snapshots itself.
+ *
+ * Mirrors `extractEmbedImages(snapshot.embeds)`, which already sits beside every
+ * call site of this: a forwarded sticker was the one media kind those paths
+ * still rendered name-only, so a character replying to a forwarded sticker saw
+ * its name and never its content.
+ */
+export function extractSnapshotStickerImages(snapshot: {
+  stickers?: { values(): Iterable<Sticker> } | null;
+}): AttachmentMetadata[] | undefined {
+  const stickers = snapshot.stickers;
+  if (stickers === undefined || stickers === null) {
+    return undefined;
+  }
+  return stickersToAttachments([...stickers.values()]);
 }

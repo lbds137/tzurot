@@ -11,6 +11,7 @@ import { formatLocationAsXml } from '@tzurot/common-types/utils/environmentForma
 import { extractDiscordEnvironment } from '../../utils/discordContext.js';
 import { extractAttachments } from '../../utils/attachmentExtractor.js';
 import { extractEmbedImages } from '../../utils/embedImageExtractor.js';
+import { extractSnapshotStickerImages } from '../../utils/stickerAttachments.js';
 import { EmbedParser } from '../../utils/EmbedParser.js';
 
 /**
@@ -72,8 +73,16 @@ export class SnapshotFormatter {
     // Extract images from snapshot embeds (for vision model processing)
     const embedImages = extractEmbedImages(snapshot.embeds);
 
-    // Combine both types of attachments
-    const allAttachments = [...(regularAttachments ?? []), ...(embedImages ?? [])];
+    // Forwarded stickers get the same treatment — without this a forwarded
+    // sticker reached the model as a name with no image behind it.
+    const stickerImages = extractSnapshotStickerImages(snapshot);
+
+    // Combine all attachment kinds
+    const allAttachments = [
+      ...(regularAttachments ?? []),
+      ...(embedImages ?? []),
+      ...(stickerImages ?? []),
+    ];
 
     // Process embeds from snapshot (XML format)
     const embedString =

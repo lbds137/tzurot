@@ -133,6 +133,39 @@ describe('MessageFormatter', () => {
       expect(result.content).toBe('[Stickers: partyblob]');
     });
 
+    it('should attach a referenced sticker so vision can describe it, not just name it', async () => {
+      // The name line above is only half. Without the sticker reaching
+      // `attachments`, a character replying to a sticker saw what it was CALLED
+      // and never what it depicted — while the same sticker sent directly was
+      // described. This is the wiring, not the conversion (that is unit-tested
+      // in stickerAttachments.test.ts); it fails if the call site is dropped.
+      const stickers = new Map([
+        [
+          '99',
+          {
+            id: '99',
+            name: 'partyblob',
+            description: null,
+            format: 1, // StickerFormatType.PNG
+            url: 'https://cdn.discordapp.com/stickers/99.png',
+          },
+        ],
+      ]);
+      const message = createMockMessage({
+        content: '',
+        author: createMockUser(),
+        attachments: new Map() as any,
+        embeds: [],
+        stickers: stickers as any,
+      });
+
+      const result = await formatter.formatMessage(message, 1);
+
+      expect(result.attachments).toEqual([
+        expect.objectContaining({ id: '99', isSticker: true, contentType: 'image/png' }),
+      ]);
+    });
+
     it('should mark message as forwarded when flag is set', async () => {
       const message = createMockMessage({
         content: 'Forwarded message',

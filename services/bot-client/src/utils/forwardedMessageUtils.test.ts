@@ -40,6 +40,7 @@ function createMockMessage(options: {
       isVoiceMessage?: boolean;
     }>;
     embeds?: Array<{ title?: string; description?: string }>;
+    stickers?: Array<{ id: string; name: string; format: number; url: string }>;
   }>;
   attachments?: Array<{
     url: string;
@@ -94,6 +95,10 @@ function createMockMessage(options: {
         content: snap.content ?? '',
         attachments: snapAttachments,
         embeds: snap.embeds ?? [],
+        // Discord keeps a forward's stickers on the SNAPSHOT, not on the
+        // forwarding message — the shape the sticker extractor reads.
+        stickers:
+          snap.stickers === undefined ? undefined : new Map(snap.stickers.map(st => [st.id, st])),
       });
     });
 
@@ -286,6 +291,34 @@ describe('forwardedMessageUtils', () => {
   });
 
   describe('extractForwardedAttachments', () => {
+    it('extracts a snapshot sticker as a synthetic image attachment', () => {
+      // This walk collected regular attachments and embed images but skipped
+      // stickers, so a forwarded sticker arrived name-only and vision never saw
+      // it. The other media kinds beside it are the reason the omission was easy
+      // to miss.
+      const message = createMockMessage({
+        referenceType: MessageReferenceType.Forward,
+        snapshots: [
+          {
+            stickers: [
+              {
+                id: '55',
+                name: 'thumbsup',
+                format: 1, // StickerFormatType.PNG
+                url: 'https://cdn.discordapp.com/stickers/55.png',
+              },
+            ],
+          },
+        ],
+      });
+
+      const result = extractForwardedAttachments(message);
+
+      expect(result).toEqual([
+        expect.objectContaining({ id: '55', isSticker: true, contentType: 'image/png' }),
+      ]);
+    });
+
     it('should extract attachments from snapshot', () => {
       const message = createMockMessage({
         referenceType: MessageReferenceType.Forward,

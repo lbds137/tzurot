@@ -12,6 +12,19 @@ import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/perso
 import type { LlmConfigResolver, VisionConfigResolver } from '@tzurot/config-resolver';
 
 // Mock the queue (flowProducer for job dependencies)
+const mockGetSystemSetting = vi.hoisted(() => vi.fn(() => true));
+vi.mock('@tzurot/common-types/services/stickerVisionGate', async () => {
+  const actual = await vi.importActual<
+    typeof import('@tzurot/common-types/services/stickerVisionGate')
+  >('@tzurot/common-types/services/stickerVisionGate');
+  return {
+    ...actual,
+    // Exercise the REAL filter, only the setting read is controlled.
+    filterStickersBySetting: <T extends { isSticker?: boolean }>(a: T[]): T[] =>
+      actual.keepStickersIf(mockGetSystemSetting(), a),
+  };
+});
+
 vi.mock('../queue.js', () => ({
   flowProducer: {
     add: vi.fn(),
@@ -131,6 +144,72 @@ describe('jobChainOrchestrator (FlowProducer)', () => {
   });
 
   describe('with attachments', () => {
+    it('does NOT queue an ImageDescription job for a sticker when the switch is off', async () => {
+      // The spend is committed HERE, not in ai-worker: this child job runs to
+      // completion before the generation job starts, so a filter downstream
+      // would only discard a description already paid for. If this regresses,
+      // `stickerVisionEnabled` silently becomes a display toggle that still bills.
+      mockGetSystemSetting.mockReturnValueOnce(false);
+
+      const context: JobContext = {
+        kind: 'envelope',
+        rawAssemblyInputs: { rawMessageContent: 'hello' },
+        userId: 'user-123',
+        channelId: 'channel-123',
+        attachments: [
+          {
+            url: 'https://example.com/sticker.png',
+            name: 'partyblob',
+            contentType: CONTENT_TYPES.IMAGE_PNG,
+            size: 2048,
+            isSticker: true,
+          },
+        ],
+      };
+
+      await createJobChain({
+        requestId: 'req-sticker-off',
+        personality: mockPersonality,
+        message: 'what is that',
+        context,
+        responseDestination: mockResponseDestination,
+      });
+
+      const flowCall = (flowProducer.add as any).mock.calls[0][0];
+      expect(flowCall.children ?? []).toHaveLength(0);
+      expect(flowCall.data.dependencies ?? []).toHaveLength(0);
+    });
+
+    it('DOES queue an ImageDescription job for a sticker when the switch is on', async () => {
+      const context: JobContext = {
+        kind: 'envelope',
+        rawAssemblyInputs: { rawMessageContent: 'hello' },
+        userId: 'user-123',
+        channelId: 'channel-123',
+        attachments: [
+          {
+            url: 'https://example.com/sticker.png',
+            name: 'partyblob',
+            contentType: CONTENT_TYPES.IMAGE_PNG,
+            size: 2048,
+            isSticker: true,
+          },
+        ],
+      };
+
+      await createJobChain({
+        requestId: 'req-sticker-on',
+        personality: mockPersonality,
+        message: 'what is that',
+        context,
+        responseDestination: mockResponseDestination,
+      });
+
+      const flowCall = (flowProducer.add as any).mock.calls[0][0];
+      expect(flowCall.children).toHaveLength(1);
+      expect(flowCall.children[0].name).toBe(JobType.ImageDescription);
+    });
+
     it('should create flow with preprocessing children and LLM parent', async () => {
       const context: JobContext = {
         kind: 'envelope',

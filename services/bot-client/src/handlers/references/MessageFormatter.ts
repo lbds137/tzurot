@@ -15,6 +15,7 @@ const logger = createLogger('MessageFormatter');
 import { extractDiscordEnvironment } from '../../utils/discordContext.js';
 import { extractAttachments } from '../../utils/attachmentExtractor.js';
 import { extractEmbedImages } from '../../utils/embedImageExtractor.js';
+import { extractStickerImages } from '../../utils/stickerAttachments.js';
 import { EmbedParser } from '../../utils/EmbedParser.js';
 import { withStickerAndPollDescriptions } from '../../utils/stickerPollDescriptions.js';
 import { type TranscriptRetriever } from './TranscriptRetriever.js';
@@ -51,11 +52,21 @@ export class MessageFormatter {
 
     const regularAttachments = extractAttachments(message.attachments);
     const embedImages = extractEmbedImages(message.embeds);
+    // Stickers ride the same synthetic-attachment path as embed images so the
+    // reference gets a vision DESCRIPTION, not just the name that
+    // `withStickerAndPollDescriptions` renders below. Both together is the
+    // established shape — it is what `MessageContentBuilder` does for the
+    // triggering message; this path was simply missing the image half.
+    const stickerImages = extractStickerImages(message);
     return {
       // Without the descriptions, replying to a sticker-only or poll-only
       // message renders an empty [Reference N] block.
       content: withStickerAndPollDescriptions(message, message.content),
-      attachments: [...(regularAttachments ?? []), ...(embedImages ?? [])],
+      attachments: [
+        ...(regularAttachments ?? []),
+        ...(embedImages ?? []),
+        ...(stickerImages ?? []),
+      ],
     };
   }
 

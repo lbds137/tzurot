@@ -6,6 +6,7 @@
  */
 
 import { CONTENT_TYPES } from '@tzurot/common-types/constants/media';
+import { filterStickersBySetting } from '@tzurot/common-types/services/stickerVisionGate';
 import {
   JobType,
   JOB_PREFIXES,
@@ -244,7 +245,20 @@ function processAttachmentsForJobs(
     referenceNumber?: number;
   }
 ): PreprocessingJobsResult {
-  const { audio, images } = categorizeAttachments(attachments);
+  // THE sticker kill switch. This is where the spend is committed: every
+  // `image/*` attachment below becomes an ImageDescription child job that
+  // BullMQ runs to completion before the generation job starts. A sticker
+  // filtered anywhere downstream has already been billed — the filter would
+  // only discard a description we paid for.
+  //
+  // Both call sites funnel through here (trigger attachments and each
+  // referenced message's), so one gate covers every sticker in the request.
+  //
+  // Read per call rather than threaded: this whole collection path is
+  // synchronous, so every read lands in one tick and they cannot observe a
+  // mid-request flip — the hazard `keepStickersIf`'s explicit-boolean form
+  // exists to prevent elsewhere.
+  const { audio, images } = categorizeAttachments(filterStickersBySetting(attachments));
   const children: FlowJob[] = [];
   const dependencies: JobDependency[] = [];
 
