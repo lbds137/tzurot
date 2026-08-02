@@ -3,9 +3,10 @@ id: TASK-382
 title: >-
   filterDuplicateReferences re-runs a dedup the enricher already did, on
   mismatched key spaces
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-01 00:13'
+updated_date: '2026-08-02 03:20'
 labels:
   - 'size:M'
 dependencies: []
