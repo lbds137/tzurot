@@ -33,9 +33,10 @@ vi.mock('@tzurot/common-types/utils/dateFormatting', async () => {
       // Simple mock that returns a formatted string
       return 'just now';
     }),
-    formatPromptTimestamp: vi.fn((_timestamp: string | Date | number) => {
-      // Simple mock that returns a unified timestamp string
-      return '2025-01-25 (Sat) 14:30 • just now';
+    formatAbsoluteTimestamp: vi.fn((_timestamp: string | Date | number) => {
+      // Simple mock returning the absolute-only chat_log form (no relative
+      // suffix — frozen history must serialize identically on every render)
+      return '2025-01-25 (Sat) 14:30';
     }),
   };
 });
@@ -507,7 +508,7 @@ describe('Conversation Utilities', () => {
 
       const result = formatConversationHistoryAsXml(history, 'TestBot');
 
-      expect(result).toContain('t="2025-01-25 (Sat) 14:30 • just now"'); // Mocked formatPromptTimestamp
+      expect(result).toContain('t="2025-01-25 (Sat) 14:30"'); // Mocked formatAbsoluteTimestamp
     });
 
     it('should skip system messages', () => {
@@ -1689,7 +1690,7 @@ describe('Conversation Utilities', () => {
       // Format should be: <message from="..." from_id="..." role="..." t="...">
       // Uses unified timestamp format
       expect(result).toMatch(
-        /<message from="Alice" from_id="persona-uuid-123" role="user" t="2025-01-25 \(Sat\) 14:30 • just now">/
+        /<message from="Alice" from_id="persona-uuid-123" role="user" t="2025-01-25 \(Sat\) 14:30">/
       );
     });
 
@@ -2136,7 +2137,7 @@ describe('Conversation Utilities', () => {
       // Both messages should have unified t attribute (mocked to consistent value)
       expect(result).toMatch(/t="[^"]+"/);
       // Should appear twice (once per message)
-      const tAttrCount = (result.match(/t="2025-01-25 \(Sat\) 14:30 • just now"/g) || []).length;
+      const tAttrCount = (result.match(/t="2025-01-25 \(Sat\) 14:30"/g) || []).length;
       expect(tAttrCount).toBe(2);
     });
   });
