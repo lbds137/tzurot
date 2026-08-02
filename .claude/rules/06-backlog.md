@@ -107,7 +107,8 @@ Items are **never** deleted by calendar. The digest's oldest-20 surface exists s
 3. Run `pnpm ops backlog:digest` for the tracker briefing (areas · oldest · newest)
 4. **Freshness-check before presenting**: a board entry is a snapshot, not a fact. Before presenting a Production Issue as live, verify it against reality (git log for fixes that already landed, the user's own runtime experience, recent release notes). When two entries share a symptom, check whether they're one underlying seam — the z.ai "routing bug" and the footer mis-attribution were tracked separately but were one bug.
 5. If Current Focus is empty, pull from ⚡ Quick Wins (in `now.md`), `backlog/active-epic.md`, or the digest's oldest surface
-6. Do NOT load `backlog/cold/` or `tracker/tasks/` wholesale — grep/query on demand
+6. **Repo-state sweep** — the owner should never be the one to discover these mid-session: `gh pr list --author app/dependabot` (waiting dependabot PRs), `git fetch -p && git branch -r --no-merged origin/develop` (dangling remote branches — before flagging one, grep `tracker/` and `backlog/` for the branch name to find its recorded parked disposition), and any red or silently-empty workflow run on open PRs (the SHA-pinned `actions/runs?head_sha=…` query in `05-tooling.md` § PR Monitoring — it catches the died-before-dispatch case `gh pr checks` structurally cannot show). Surface findings in the session-start summary.
+7. Do NOT load `backlog/cold/` or `tracker/tasks/` wholesale — grep/query on demand
 
 ### Ending a Session
 
