@@ -1,10 +1,10 @@
 ---
 id: TASK-359
 title: Stickers in referenced/quoted messages are not vision-described
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-07-30 15:50'
-updated_date: '2026-07-30 17:08'
+updated_date: '2026-08-02 00:04'
 labels:
   - 'size:M'
 dependencies: []
