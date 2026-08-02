@@ -22,7 +22,6 @@ import { shouldFoldSearchQuery } from './prompt/queryFoldGate.js';
 import { collectPersonalityNames } from '../jobs/utils/conversationUtils.js';
 import type { PromptBuilder } from './PromptBuilder.js';
 import type { ReferencedMessageFormatter } from './ReferencedMessageFormatter.js';
-import type { ResponsePostProcessor } from './ResponsePostProcessor.js';
 import type {
   ConversationContext,
   ProcessedInputs,
@@ -37,8 +36,7 @@ const logger = createLogger('ConversationInputProcessor');
 export class ConversationInputProcessor {
   constructor(
     private promptBuilder: PromptBuilder,
-    private referencedMessageFormatter: ReferencedMessageFormatter,
-    private responsePostProcessor: ResponsePostProcessor
+    private referencedMessageFormatter: ReferencedMessageFormatter
   ) {}
 
   /**
@@ -116,20 +114,33 @@ export class ConversationInputProcessor {
     // Format the user's message
     const userMessage = this.promptBuilder.formatUserMessage(message, context);
 
-    // Filter out referenced messages that are already in conversation history
-    const filteredReferences = this.responsePostProcessor.filterDuplicateReferences(
-      context.referencedMessages,
-      context.rawConversationHistory
-    );
+    // References are used as-is. Deduplication already happened in
+    // `referenceEnricher`, which FLAGS `isDeduplicated` and deliberately never
+    // drops — the stub is a render-time projection, because building it
+    // field-by-field is how the quoted role, the attachments and the forwarded
+    // flag each went missing in turn.
+    //
+    // A second filter used to run here and has been removed. It keyed on
+    // history `id`, which the enricher's `discordMessageId` key already
+    // subsumes: DB-history rows hold a database UUID there (no snowflake can
+    // match it), and extended-context rows hold the Discord message id — the
+    // same value that row also carries in `discordMessageId`. Both dedups read
+    // the same merged history, so every match `id` could find was already
+    // FLAGGED by the enricher — and the removed filter exempted anything
+    // flagged. The only references it could ever drop were therefore ones the
+    // real dedup had decided were NOT duplicates. A dropped reference is also
+    // never persisted onto the trigger row, so firing would have deleted a
+    // live reference outright rather than shortening it.
+    const references = context.referencedMessages ?? [];
 
     // Format referenced messages (with vision/transcription). The formatter
     // returns the prompt XML alongside a plain-text search rendering built
     // from the raw pieces — never tag-strip the formatted block for search,
     // that leaks instruction boilerplate into the embedding query.
     const formattedReferences =
-      filteredReferences.length > 0
+      references.length > 0
         ? await this.referencedMessageFormatter.formatReferencedMessages(
-            filteredReferences,
+            references,
             personality,
             isGuestMode,
             context.preprocessedReferenceAttachments,
