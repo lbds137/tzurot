@@ -31,6 +31,8 @@ export interface GoldenPool {
   goldenId: string;
   message: string;
   style: string;
+  /** Attachment kind (image/voice/mixed) — set by the allocation pools only. */
+  kind?: string;
   oldestHistoryMs: number;
   arms: string[];
   candidates: PooledCandidate[];
