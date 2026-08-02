@@ -61,6 +61,8 @@
     "eval:extraction": "vitest run --config vitest.eval.config.ts services/ai-worker/src/services/eval/memoryExtraction.eval.test.ts",
     "eval:fact-goldens": "vitest run --config vitest.eval.config.ts services/ai-worker/src/services/eval/factPooling.eval.test.ts",
     "eval:fact-score": "vitest run --config vitest.eval.config.ts services/ai-worker/src/services/eval/factScoring.eval.test.ts",
+    "eval:allocation-goldens": "vitest run --config vitest.eval.config.ts services/ai-worker/src/services/eval/attachmentAllocationPooling.eval.test.ts",
+    "eval:allocation-score": "vitest run --config vitest.eval.config.ts services/ai-worker/src/services/eval/attachmentAllocationScoring.eval.test.ts",
     "tracker": "backlog"
   },
   "devDependencies": {
