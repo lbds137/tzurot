@@ -53,4 +53,43 @@ exposure is a rolling-deploy window of minutes that ALSO requires a human whose
 display name prefixes a personality's. Whether that residual justifies threading
 a bot-authorship guard is a quality/user-visible call and therefore the owner's,
 per `06-backlog.md` — surfaced 2026-07-30, awaiting that call.
+
+**CORRECTION 2026-08-02 — the residual exposure is NOT "a rolling-deploy window
+of minutes." It recurs on every gateway reconnect, indefinitely.**
+
+The 2026-07-30 grounding above is right that forwarded refs are bounded and that
+pre-classifier stored history has aged out. It is wrong about what remains,
+because it missed a change that had already landed two days earlier:
+`classifyReferenceAuthorRole` now returns `undefined` — omitting the stamp — for
+ANY message carrying an `applicationId` while the client's own identity is not
+yet known. That is true before `ClientReady` and during every gateway
+reconnect, both of which recur for the life of the service. The omission is
+deliberate: our persona and a foreign bot are genuinely indistinguishable there,
+and a wrong `bot` stamp would be DURABLE in stored history, so bot-client defers
+to this fallback on purpose.
+
+So the fallback is permanent live code, not a deploy-window remnant, and the
+collision needs only a name-prefix match plus a reference received during any
+reconnect. Still narrow — but a different decision than the one the previous
+grounding described. `referenceRole.ts`'s module doc carried the same wrong
+framing and was corrected in the same PR as the instrument below.
+
+**The instrument now exists.** The fallback logs at info whenever it promotes to
+`assistant`, carrying the personality name and which arm fired (`via: self` for a
+direct prefix match, `self-variant` for the stored-name-vs-displayName match).
+The author name is deliberately absent — a Discord display name is
+username-class PII, banned by `00-critical.md`, and a test pins the omission.
+
+So the signal is VOLUME, not per-event diagnosis. What to look for before
+deciding:
+
+- Near-zero over a week including at least one reconnect → residual confirmed
+  negligible; ruling this out becomes cheap and evidence-backed.
+- A steady rate → the reconnect window is wider than assumed, and threading a
+  bot-authorship signal into the fallback earns its cost.
+- A rate that does not correlate with reconnects at all → a premise here is
+  wrong and deserves a targeted probe before any decision.
+
+Still the owner's call per `06-backlog.md` (user-visible quality), but the call
+now has an instrument behind it instead of an argument.
 <!-- SECTION:DESCRIPTION:END -->

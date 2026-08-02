@@ -1,9 +1,10 @@
 ---
 id: TASK-395
 title: Three approved observability one-liners from beta.189 that never shipped
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-01 20:54'
+updated_date: '2026-08-02 04:25'
 labels:
   - 'size:S'
   - 'area:ai-worker'
