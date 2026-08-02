@@ -34,6 +34,7 @@ import { buildSearchQuery } from '../prompt/SearchQueryBuilder.js';
 import { shouldFoldSearchQuery } from '../prompt/queryFoldGate.js';
 import { extractRecentHistoryWindow } from '../RAGUtils.js';
 import { isLexicalEcho } from './nonCircularityGuard.js';
+import { oldestHistoryMs } from './poolingArms.js';
 import {
   FACT_WEIGHT_GRID,
   compositePolicy,
@@ -151,12 +152,8 @@ describe.skipIf(!ready)('fact pooling (live dev fact store)', () => {
         message: golden.message,
         style: golden.style,
         // Metadata-only for facts (validFrom doesn't map onto the conversation
-        // window). Empty history → MAX_SAFE_INTEGER, not Math.min()'s Infinity,
-        // which JSON.stringify silently corrupts to null in the persisted pool.
-        oldestHistoryMs:
-          golden.priorHistory.length === 0
-            ? Number.MAX_SAFE_INTEGER
-            : Math.min(...golden.priorHistory.map(turn => new Date(turn.createdAt).getTime())),
+        // window).
+        oldestHistoryMs: oldestHistoryMs(golden.priorHistory),
         arms: ['prod'],
         channelId: golden.channelId,
         searchQuery,

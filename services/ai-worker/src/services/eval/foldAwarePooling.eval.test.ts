@@ -29,7 +29,14 @@ import { PgvectorMemoryAdapter } from '../PgvectorMemoryAdapter.js';
 import { buildSearchQuery } from '../prompt/SearchQueryBuilder.js';
 import { extractRecentHistoryWindow } from '../RAGUtils.js';
 import { classifyCandidate } from './nonCircularityGuard.js';
-import { denseArm, ftsArm, armSortKey, rankBadge, type RetrievedRow } from './poolingArms.js';
+import {
+  denseArm,
+  ftsArm,
+  armSortKey,
+  rankBadge,
+  oldestHistoryMs,
+  type RetrievedRow,
+} from './poolingArms.js';
 import type { PooledCandidate, GoldenPool } from './qrelsReconciliation.js';
 
 const WORK_DIR = join(process.cwd(), 'reports/goldens-mining');
@@ -117,13 +124,7 @@ describe.skipIf(!ready)('fold-aware pooling (live dev memory store)', () => {
       // channel-scoped priorHistory (capped at historyWindow). Production can also fold
       // cross-channel timestamps in, which would push this slightly older — acceptable
       // for the temporal guard (a looser cutoff only makes the folded arm's bar HIGHER).
-      // Empty history → MAX_SAFE_INTEGER: no fold window exists, so nothing should
-      // classify as in-window (no real timestamp exceeds it), and unlike Math.min()'s
-      // Infinity it survives JSON persistence (Infinity stringifies to null).
-      const oldestHistoryMs =
-        golden.priorHistory.length === 0
-          ? Number.MAX_SAFE_INTEGER
-          : Math.min(...golden.priorHistory.map(turn => new Date(turn.createdAt).getTime()));
+      const historyFloorMs = oldestHistoryMs(golden.priorHistory);
       const foldWindowText = extractRecentHistoryWindow(turns, PROD_FOLD_TURNS) ?? '';
 
       // Build the arm → query map. Dense arms embed + pgvector; FTS arms lexical.
@@ -171,7 +172,7 @@ describe.skipIf(!ready)('fold-aware pooling (live dev memory store)', () => {
         ranks: candidate.ranks,
         verdict: classifyCandidate(
           { createdAtMs: candidate.createdAtMs, content: candidate.content },
-          { oldestHistoryMs, foldWindowText }
+          { oldestHistoryMs: historyFloorMs, foldWindowText }
         ),
       }));
 
@@ -179,7 +180,7 @@ describe.skipIf(!ready)('fold-aware pooling (live dev memory store)', () => {
         goldenId: golden.id,
         message: golden.message,
         style: golden.style,
-        oldestHistoryMs,
+        oldestHistoryMs: historyFloorMs,
         arms: [...Object.keys(denseQueries), 'bare-fts', `fold${PROD_FOLD_TURNS}-fts`],
         candidates,
       });

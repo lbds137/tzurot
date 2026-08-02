@@ -30,7 +30,14 @@ import { AI_DEFAULTS } from '@tzurot/common-types/constants/ai';
 import { PgvectorMemoryAdapter } from '../PgvectorMemoryAdapter.js';
 import { extractRecentHistoryWindow } from '../RAGUtils.js';
 import { classifyCandidate } from './nonCircularityGuard.js';
-import { denseArm, ftsArm, armSortKey, rankBadge, type RetrievedRow } from './poolingArms.js';
+import {
+  denseArm,
+  ftsArm,
+  armSortKey,
+  rankBadge,
+  oldestHistoryMs,
+  type RetrievedRow,
+} from './poolingArms.js';
 import {
   buildAllocationQueries,
   ALLOCATION_DENSE_ARMS,
@@ -131,10 +138,7 @@ describe.skipIf(!ready)('attachment-allocation pooling (live dev memory store)',
       // Same guard inputs as the fold runner (see its inline comments): the
       // window is what production's PROMPT already carries, so an in-window or
       // echoed memory can't count as a retrieval win for ANY allocation arm.
-      const oldestHistoryMs =
-        golden.priorHistory.length === 0
-          ? Number.MAX_SAFE_INTEGER
-          : Math.min(...golden.priorHistory.map(turn => new Date(turn.createdAt).getTime()));
+      const historyFloorMs = oldestHistoryMs(golden.priorHistory);
       const foldWindowText = extractRecentHistoryWindow(turns, PROD_FOLD_TURNS) ?? '';
 
       const queries = buildAllocationQueries(golden);
@@ -171,7 +175,7 @@ describe.skipIf(!ready)('attachment-allocation pooling (live dev memory store)',
         ranks: candidate.ranks,
         verdict: classifyCandidate(
           { createdAtMs: candidate.createdAtMs, content: candidate.content },
-          { oldestHistoryMs, foldWindowText }
+          { oldestHistoryMs: historyFloorMs, foldWindowText }
         ),
       }));
 
@@ -180,7 +184,7 @@ describe.skipIf(!ready)('attachment-allocation pooling (live dev memory store)',
         message: golden.message,
         style: golden.style,
         kind: golden.attachmentKind,
-        oldestHistoryMs,
+        oldestHistoryMs: historyFloorMs,
         arms: [...ALLOCATION_DENSE_ARMS, FTS_ARM],
         candidates,
       });

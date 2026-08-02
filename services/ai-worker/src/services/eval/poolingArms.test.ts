@@ -5,6 +5,7 @@ import {
   ftsArm,
   armSortKey,
   rankBadge,
+  oldestHistoryMs,
   POOL_K,
   OVERFETCH,
   SCORE_FLOOR,
@@ -86,6 +87,24 @@ describe('ftsArm', () => {
       content: 'content of m1',
     });
     expect(out.filter(row => row.corpusId === 'group-a')).toHaveLength(1);
+  });
+});
+
+describe('oldestHistoryMs', () => {
+  it('returns the earliest turn timestamp', () => {
+    const history = [
+      { createdAt: '2026-01-02T00:00:00Z' },
+      { createdAt: '2026-01-01T00:00:00Z' },
+      { createdAt: '2026-01-03T00:00:00Z' },
+    ];
+    expect(oldestHistoryMs(history)).toBe(new Date('2026-01-01T00:00:00Z').getTime());
+  });
+
+  it('returns MAX_SAFE_INTEGER (not Infinity) for empty history so JSON survives', () => {
+    expect(oldestHistoryMs([])).toBe(Number.MAX_SAFE_INTEGER);
+    expect(JSON.parse(JSON.stringify({ ms: oldestHistoryMs([]) })).ms).toBe(
+      Number.MAX_SAFE_INTEGER
+    );
   });
 });
 
