@@ -19,6 +19,8 @@ _Focus: restructure prompt assembly so the prefix is stable enough for provider-
 
 **Gates + known instabilities on record**: voice-consistency comparison harness (20–30 turns × 3+ personas) must be built and run after PR-5 ships, BEFORE Phase 2 starts · legacy-format protocols resolve `{user}` per-speaker (JSON protocols don't) — decide remedy before Phase-3 markers · Phase-3 spikes still open: Qwen cache economics + `ChatOpenAI` `cache_control` serialization · quality fallback recorded: OUTPUT_CONSTRAINTS can return to the recency tail for ~150 re-billed tokens/turn if the reorder regresses voice.
 
+**Phase-2 design input — history-window trim hysteresis (owner question 2026-08-02, "can caching survive the sliding chat-log window?")**: a true sliding-window cache is impossible at the provider API — KV caches are position-anchored, so a front-trim invalidates the chat-log portion (S0/S1 still hit). But the window start today JITTERS: `historyBudget = window − base − currentMessage − memoryReserve` is recomputed per turn and `currentMessage` varies, so the oldest included entry can move even when nothing was genuinely trimmed — each jitter is an avoidable H-tier miss. The lever: quantize/hysteresis the window start (move it rarely, in batches, so most turns are pure appends). Design it into Phase 2's history extraction, which rebuilds this windowing anyway; `cache:prefix-diff` will show the jitter rate on prod data post-release.
+
 ---
 
 ## ⏸ Standing background: Follow-Up Pool Drain (`doc-7`)
