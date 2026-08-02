@@ -20,7 +20,6 @@ _Ordered index of future themes. Grep-on-demand — not loaded at session start.
 - **Preset Cascade Standardization (multi-PR epic)** (`doc-15`) — character-tier preset editing + cross-tier cascade UX parity
 - **Character Portability** (`doc-2`) — import/export characters and user data; users own their data _(partial — reconciled 2026-06-26: /character export + shapes-import shipped; PNG card import + sidecar prompts remain)_
 - **User-Requested Features** (`doc-26`) — multi-personality channels, sidecar prompts, allowlists, emoji actions
-- **Provider Prompt Caching (cost-reduction epic)** (`doc-17`) — stabilize prompt prefix for provider-side caching to cut multi-turn cost
 - **Model Configuration Overhaul** (`doc-9`) — first-class vision config + LLM config profiles bundling paid/free/vision
 - **z.ai Catalog + 402 Error-Shape Verification** (`doc-29`) — capture real provider error shapes (z.ai catalog-drift, z.ai 402 subscription-lapse, OpenRouter 402 credit variants), then narrow the deliberately-broad defensive branches that shipped without samples _(gated on a real probe or production incident producing the error-shape data)_
 - **Next-Gen AI Capabilities** (`doc-11`) — agentic scaffolding, advanced prompt features, image generation
