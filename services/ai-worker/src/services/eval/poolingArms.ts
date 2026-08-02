@@ -123,6 +123,19 @@ export async function ftsArm(
   return out;
 }
 
+/**
+ * Oldest prior-history timestamp, for the non-circularity guard's temporal
+ * cutoff. Empty history → MAX_SAFE_INTEGER: no window exists, so nothing should
+ * classify as in-window (no real timestamp exceeds it) — and unlike
+ * Math.min()'s Infinity it survives JSON persistence (Infinity stringifies to
+ * null in the pool file).
+ */
+export function oldestHistoryMs(priorHistory: { createdAt: string }[]): number {
+  return priorHistory.length === 0
+    ? Number.MAX_SAFE_INTEGER
+    : Math.min(...priorHistory.map(turn => new Date(turn.createdAt).getTime()));
+}
+
 /** Sort candidates by best (lowest) rank across all arms for sheet readability. */
 export function armSortKey(candidate: PooledCandidate): number {
   const ranks = Object.values(candidate.ranks);
