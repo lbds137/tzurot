@@ -1,6 +1,6 @@
 {
   "name": "@tzurot/scripts",
-  "version": "3.0.0-beta.189",
+  "version": "3.0.0-beta.190",
   "private": true,
   "type": "module",
   "description": "Utility scripts for Tzurot development and operations",
