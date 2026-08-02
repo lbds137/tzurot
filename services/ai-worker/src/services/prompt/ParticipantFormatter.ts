@@ -43,14 +43,42 @@ import type { ParticipantInfo } from '../ConversationalRAGTypes.js';
  *
  * @param participantPersonas - Map of participant names to their ParticipantInfo
  * @param activePersonaName - Name of the currently active speaker (for group conversation note)
+ * @param collisionNote - Pre-escaped note text when a user shares the character's
+ *   name; rendered as a `<note>` so the roster itself carries the
+ *   disambiguation. Forces the block to render even with an empty roster —
+ *   the note must reach the model regardless.
  * @returns Formatted participants context string in XML, or empty string if no participants
  */
+/** The trailing `<note>` lines: collision disambiguation + group-conversation hint. */
+function buildRosterNotes(
+  participantCount: number,
+  activePersonaName?: string,
+  collisionNote?: string
+): string[] {
+  const notes: string[] = [];
+  // Name-collision disambiguation (caller pre-escapes the interpolated names)
+  if (collisionNote !== undefined) {
+    notes.push(`<note>${collisionNote}</note>`);
+  }
+  if (participantCount > 1) {
+    const rawExampleName =
+      activePersonaName !== undefined && activePersonaName.length > 0 ? activePersonaName : 'Alice';
+    // activePersonaName is user-authored — was interpolated raw into <note>.
+    const exampleName = escapeXmlContent(rawExampleName);
+    notes.push(
+      `<note>This is a group conversation. Messages use from_id to indicate the speaker. Example: "${exampleName}: message"</note>`
+    );
+  }
+  return notes;
+}
+
 // eslint-disable-next-line sonarjs/cognitive-complexity -- Builds XML for each participant with conditional persona description, system prompt, and group conversation notes
 export function formatParticipantsContext(
   participantPersonas: Map<string, ParticipantInfo>,
-  activePersonaName?: string
+  activePersonaName?: string,
+  collisionNote?: string
 ): string {
-  if (participantPersonas.size === 0) {
+  if (participantPersonas.size === 0 && collisionNote === undefined) {
     return '';
   }
 
@@ -116,16 +144,7 @@ export function formatParticipantsContext(
     parts.push('</participant>');
   }
 
-  // Group conversation note
-  if (participantPersonas.size > 1) {
-    const rawExampleName =
-      activePersonaName !== undefined && activePersonaName.length > 0 ? activePersonaName : 'Alice';
-    // activePersonaName is user-authored — was interpolated raw into <note>.
-    const exampleName = escapeXmlContent(rawExampleName);
-    parts.push(
-      `<note>This is a group conversation. Messages use from_id to indicate the speaker. Example: "${exampleName}: message"</note>`
-    );
-  }
+  parts.push(...buildRosterNotes(participantPersonas.size, activePersonaName, collisionNote));
 
   parts.push('</participants>');
 

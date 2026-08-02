@@ -69,10 +69,13 @@ function buildArtifactPatterns(personalityName: string): RegExp[] {
     // Leading <received message>...</received> block: GLM 4.5 Air echoes the user's message
     // in a hallucinated receipt structure before responding
     /^<received(?:\s+message)?(?:\s[^>]*)?>[\s\S]*?<\/received>\s*/i,
-    // Prompt template orphan closing tags: model echoes closing tags from the system prompt's
+    // Prompt template orphan closing tags: model echoes closing tags from the prompt's
     // XML structure (e.g., </chat_log> from PromptBuilder.ts). Stripped from anywhere in content
-    // since they can appear mid-response, not just trailing.
-    /<\/(?:chat_log|participants|protocol|memory_archive|contextual_references)>/gi,
+    // since they can appear mid-response, not just trailing. `facts` joined the list when the
+    // V-tier blocks moved into the user message, directly adjacent to the current turn —
+    // the echo-probability position. (`context` is deliberately absent: too collision-prone
+    // as prose.)
+    /<\/(?:chat_log|participants|protocol|memory_archive|contextual_references|facts)>/gi,
     // Trailing <reactions> block: LLM mimics history metadata. ReDoS: leading `\s{0,64}` bounded (unbounded `\s*` before literal retries at every position).
     /\s{0,64}<reactions>[\s\S]*?<\/reactions>\s*$/i,
     // Generic trailing closing tag: catches </message>, </module>, </current_turn>, etc.

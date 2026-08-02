@@ -369,6 +369,25 @@ describe('ConversationalRAGService', () => {
       expect(getLLMInvokerMock().invokeWithRetry).toHaveBeenCalled();
     });
 
+    it("ships the budget allocation's FINAL human message — never a rebuild", async () => {
+      // The final human message carries the selected memory/fact blocks in its
+      // volatile prefix. An independent rebuild here would silently ship a
+      // memory-less turn while the budget assumed otherwise — the exact bug
+      // class the allocate-owns-currentMessage seam exists to prevent.
+      const personality = createMockPersonality();
+      const context = createMockContext();
+
+      await service.generateResponse(personality, 'Test message', context);
+
+      const invokeArgs = getLLMInvokerMock().invokeWithRetry.mock.calls[0][0] as {
+        messages: { content: unknown }[];
+      };
+      const lastHumanBuild = getPromptBuilderMock().buildHumanMessage.mock.results.at(-1)
+        ?.value as { message: { content: unknown } };
+      expect(invokeArgs.messages).toHaveLength(2);
+      expect(invokeArgs.messages[1]).toBe(lastHumanBuild.message);
+    });
+
     it('should return model name in response', async () => {
       const personality = createMockPersonality();
       const context = createMockContext();
@@ -449,14 +468,13 @@ describe('ConversationalRAGService', () => {
 
       const result = await service.generateResponse(personality, 'Recall something', context);
 
-      expect(getPromptBuilderMock().buildFullSystemPromptWithSections).toHaveBeenCalledWith({
+      expect(getPromptBuilderMock().buildVolatilePrefix).toHaveBeenCalledWith({
         personality,
         participantPersonas: expect.any(Map),
         relevantMemories: memories,
         facts: [],
         context,
         referencedMessagesFormatted: undefined,
-        serializedHistory: expect.anything(),
       });
       expect(result.retrievedMemories).toBe(2);
     });
@@ -488,7 +506,7 @@ describe('ConversationalRAGService', () => {
       );
       // The non-empty facts flow through the REAL ContentBudgetManager into the
       // prompt's <facts> block (default budget mocks let one fact fit).
-      expect(getPromptBuilderMock().buildFullSystemPromptWithSections).toHaveBeenCalledWith(
+      expect(getPromptBuilderMock().buildVolatilePrefix).toHaveBeenCalledWith(
         expect.objectContaining({ facts })
       );
     });
@@ -504,14 +522,13 @@ describe('ConversationalRAGService', () => {
 
       await service.generateResponse(personality, 'Hello', context);
 
-      expect(getPromptBuilderMock().buildFullSystemPromptWithSections).toHaveBeenCalledWith({
+      expect(getPromptBuilderMock().buildVolatilePrefix).toHaveBeenCalledWith({
         personality,
         participantPersonas: participantMap,
         relevantMemories: expect.any(Array),
         facts: [],
         context,
         referencedMessagesFormatted: undefined,
-        serializedHistory: expect.anything(),
       });
     });
 
@@ -547,7 +564,7 @@ describe('ConversationalRAGService', () => {
 
       await service.generateResponse(personality, 'Hello', context);
 
-      const call = getPromptBuilderMock().buildFullSystemPromptWithSections.mock.calls[0]?.[0] as
+      const call = getPromptBuilderMock().buildVolatilePrefix.mock.calls[0]?.[0] as
         { participantPersonas: Map<string, { personaId: string; content?: string }> } | undefined;
       expect(call).toBeDefined();
       const participants = call!.participantPersonas;
@@ -885,14 +902,13 @@ describe('ConversationalRAGService', () => {
 
       await service.generateResponse(personality, 'Respond to Dave', context);
 
-      expect(getPromptBuilderMock().buildFullSystemPromptWithSections).toHaveBeenCalledWith({
+      expect(getPromptBuilderMock().buildVolatilePrefix).toHaveBeenCalledWith({
         personality,
         participantPersonas: expect.any(Map),
         relevantMemories: expect.any(Array),
         facts: [],
         context,
         referencedMessagesFormatted: 'formatted references',
-        serializedHistory: expect.anything(),
       });
     });
 

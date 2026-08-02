@@ -276,6 +276,11 @@ export interface BudgetAllocationResult {
    *  the diagnostic payload so the prefix-diff tool can name the section a
    *  cache-miss divergence landed in. */
   systemPromptSections: SectionDescription[];
+  /** The FINAL human message: V-tier prefix (context/participants/facts/
+   *  memories/references) + the `<from>`-wrapped user turn. Built here, after
+   *  memory selection — the invoker must ship THIS message; rebuilding one
+   *  elsewhere would drop the selected memory blocks. */
+  currentMessage: BaseMessage;
   memoryTokensUsed: number;
   /** Tokens consumed by the `<facts>` block (wrapper + statements). */
   factTokensUsed: number;
@@ -340,10 +345,12 @@ export interface ModelInvocationOptions {
   systemPrompt: BaseMessage;
   /** Section map of systemPrompt, recorded into the diagnostic payload. */
   systemPromptSections?: SectionDescription[];
+  /** The final human message from the budget allocation (see
+   *  BudgetAllocationResult.currentMessage). */
+  currentMessage: BaseMessage;
+  /** The user's raw text — post-processing reads it (echo-stripping). */
   userMessage: string;
-  processedAttachments: ProcessedAttachment[];
   context: ConversationContext;
-  referencedMessagesDescriptions: string | undefined;
   userApiKey?: string;
   /** True when this route bills the SYSTEM key (guests + quota retargets) —
    * drives cache-identity provenance so a retarget never scopes as the user. */

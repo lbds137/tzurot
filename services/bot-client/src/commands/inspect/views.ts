@@ -395,21 +395,33 @@ export function buildTokenBudgetView(
   const { tokenBudget } = payload;
   const total = tokenBudget.contextWindowSize || 1;
 
-  // Facts render INSIDE the system prompt, so systemPromptTokens already
-  // includes them — subtract them out for their own row (older logs predate
-  // fact accounting and render the legacy three-row chart).
+  // Container semantics changed with the S0/S1/V restructure; the field's
+  // presence is the version marker.
+  // - NEW logs (currentMessageTokens present): facts/memories render inside
+  //   the current message's volatile prefix. System is pure S0/S1/history-
+  //   free base; "Message" is the current message MINUS the facts/memory
+  //   share (they keep their own rows).
+  // - OLD logs: facts rendered inside the system prompt — subtract them out
+  //   of the System row, and no Message row exists.
   const factTokens = tokenBudget.factTokensUsed;
+  const currentTokens = tokenBudget.currentMessageTokens;
+  const isTierRestructured = currentTokens !== undefined;
   const systemTokens =
-    factTokens !== undefined
+    !isTierRestructured && factTokens !== undefined
       ? Math.max(0, tokenBudget.systemPromptTokens - factTokens)
       : tokenBudget.systemPromptTokens;
+  const messageTokens = isTierRestructured
+    ? Math.max(0, currentTokens - tokenBudget.memoryTokensUsed - (factTokens ?? 0))
+    : undefined;
 
   const systemPct = (systemTokens / total) * 100;
   const factsPct = ((factTokens ?? 0) / total) * 100;
   const memoryPct = (tokenBudget.memoryTokensUsed / total) * 100;
   const historyPct = (tokenBudget.historyTokensUsed / total) * 100;
-  const usedTokens =
-    tokenBudget.systemPromptTokens + tokenBudget.memoryTokensUsed + tokenBudget.historyTokensUsed;
+  const messagePct = ((messageTokens ?? 0) / total) * 100;
+  const usedTokens = isTierRestructured
+    ? tokenBudget.systemPromptTokens + currentTokens + tokenBudget.historyTokensUsed
+    : tokenBudget.systemPromptTokens + tokenBudget.memoryTokensUsed + tokenBudget.historyTokensUsed;
   const remaining = Math.max(0, total - usedTokens);
   const remainingPct = (remaining / total) * 100;
 
@@ -422,6 +434,7 @@ export function buildTokenBudgetView(
   const chart = [
     '```',
     row('System', systemTokens, systemPct),
+    ...(messageTokens !== undefined ? [row('Message', messageTokens, messagePct)] : []),
     ...(factTokens !== undefined ? [row('Facts', factTokens, factsPct)] : []),
     row('Memory', tokenBudget.memoryTokensUsed, memoryPct),
     row('History', tokenBudget.historyTokensUsed, historyPct),

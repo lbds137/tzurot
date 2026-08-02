@@ -143,6 +143,16 @@ export interface DiagnosticTokenBudget {
   contextWindowSize: number;
   /** Tokens used by system prompt (base) */
   systemPromptTokens: number;
+  /**
+   * Tokens of the FINAL current human message: the volatile prefix
+   * (context/participants/references AND the selected facts/memories) plus
+   * the user's turn. `memoryTokensUsed`/`factTokensUsed` are SUBSETS of this
+   * number — the UI derives the prefix-other share by subtracting them.
+   * `undefined` on logs written before the S0/S1/V restructure (when volatile
+   * content lived inside the system prompt); presence of this field is the
+   * version marker the UI branches on.
+   */
+  currentMessageTokens?: number;
   /** Tokens used by included memories */
   memoryTokensUsed: number;
   /** Tokens used by conversation history */
@@ -151,9 +161,11 @@ export interface DiagnosticTokenBudget {
   memoriesDropped: number;
   /**
    * Tokens consumed by the `<facts>` block (wrapper + statements). Facts take
-   * a reserved slice of the memory budget FIRST (episodes get the remainder)
-   * and render INSIDE the system prompt — so `systemPromptTokens` includes
-   * this number; the UI subtracts it out to attribute facts their own line.
+   * a reserved slice of the memory budget FIRST (episodes get the remainder).
+   * Placement changed with the S0/S1/V restructure: facts now render in the
+   * current message's volatile prefix, so on NEW logs (currentMessageTokens
+   * present) this is a subset of `currentMessageTokens`; on OLD logs it was
+   * included in `systemPromptTokens` and the UI subtracts it out there.
    * `undefined` on logs written before fact accounting existed.
    */
   factTokensUsed?: number;

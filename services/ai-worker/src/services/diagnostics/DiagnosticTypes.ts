@@ -56,6 +56,8 @@ export interface MemoryRetrievalData {
 export interface TokenBudgetData {
   contextWindowSize: number;
   systemPromptTokens: number;
+  /** FINAL current-message tokens (volatile prefix + turn); see common-types doc. */
+  currentMessageTokens?: number;
   memoryTokensUsed: number;
   historyTokensUsed: number;
   memoriesDropped: number;

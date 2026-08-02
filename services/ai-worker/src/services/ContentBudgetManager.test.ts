@@ -41,10 +41,8 @@ describe('ContentBudgetManager', () => {
         message: { content: 'User message content' },
         contentForStorage: 'User message for storage',
       }),
-      buildFullSystemPrompt: vi.fn().mockReturnValue(mockSystemPrompt),
-      buildFullSystemPromptWithSections: vi
-        .fn()
-        .mockReturnValue({ message: mockSystemPrompt, sections: [] }),
+      buildSystemMessage: vi.fn().mockReturnValue({ message: mockSystemPrompt, sections: [] }),
+      buildVolatilePrefix: vi.fn().mockReturnValue('<context>volatile prefix</context>'),
       countTokens: vi.fn().mockReturnValue(100),
       countMemoryTokens: vi.fn().mockReturnValue(50),
     } as unknown as PromptBuilder;
@@ -100,6 +98,33 @@ describe('ContentBudgetManager', () => {
       expect(result).toHaveProperty('memoriesDroppedCount');
       expect(result).toHaveProperty('messagesDropped');
       expect(result).toHaveProperty('contentForStorage');
+    });
+
+    it('builds the FINAL human message with the POST-selection volatile prefix', () => {
+      // The sequencing seam: the pre-pass prefix lacks memories/facts (not
+      // retrieved yet); the final prefix — built after selection — is what the
+      // shipped human message must carry. Distinct sentinels per call pin that
+      // the final buildHumanMessage received the SECOND prefix, and that the
+      // final prefix build got the selected memories.
+      vi.mocked(mockPromptBuilder.buildVolatilePrefix)
+        .mockReturnValueOnce('<context>PRE-PASS</context>')
+        .mockReturnValueOnce('<context>FINAL-WITH-MEMORIES</context>');
+      const options = createBaseOptions();
+
+      budgetManager.allocate(options, budgetManager.preselectHistory(options));
+
+      const humanCalls = vi.mocked(mockPromptBuilder.buildHumanMessage).mock.calls;
+      expect(humanCalls[0][2]).toMatchObject({ volatilePrefix: '<context>PRE-PASS</context>' });
+      expect(humanCalls.at(-1)?.[2]).toMatchObject({
+        volatilePrefix: '<context>FINAL-WITH-MEMORIES</context>',
+      });
+      // The pre-pass prefix build must NOT receive memories/facts…
+      const prefixCalls = vi.mocked(mockPromptBuilder.buildVolatilePrefix).mock.calls;
+      expect(prefixCalls[0][0].relevantMemories).toBeUndefined();
+      expect(prefixCalls[0][0].facts).toBeUndefined();
+      // …while the final one receives the selected sets.
+      expect(prefixCalls.at(-1)?.[0].relevantMemories).toBeDefined();
+      expect(prefixCalls.at(-1)?.[0].facts).toBeDefined();
     });
 
     it('should build human message from prompt builder', () => {
@@ -193,16 +218,19 @@ describe('ContentBudgetManager', () => {
 
       budgetManager.allocate(options, budgetManager.preselectHistory(options));
 
-      // The system prompt is built exactly twice:
-      // 1. Base system prompt (pre-pass, for token counting) — plain variant
-      // 2. Final with memories AND history — sections variant, whose section
-      //    descriptions ride into the diagnostic payload
+      // Each container is built exactly twice per request:
+      // 1. Pre-pass (token measurement): system without history, volatile
+      //    prefix WITHOUT memories/facts (not retrieved yet), human message
+      //    carrying that pre-pass prefix.
+      // 2. Final: system with history; prefix with the selected memory
+      //    blocks; the human message the invoker actually ships.
       // The old middle build (prompt-with-memories to size the history
       // budget) is gone by design: the history budget uses the memory
       // RESERVE so it is computable BEFORE retrieval — that ordering is what
       // closes the STM/LTM coverage hole.
-      expect(mockPromptBuilder.buildFullSystemPrompt).toHaveBeenCalledTimes(1);
-      expect(mockPromptBuilder.buildFullSystemPromptWithSections).toHaveBeenCalledTimes(1);
+      expect(mockPromptBuilder.buildSystemMessage).toHaveBeenCalledTimes(2);
+      expect(mockPromptBuilder.buildVolatilePrefix).toHaveBeenCalledTimes(2);
+      expect(mockPromptBuilder.buildHumanMessage).toHaveBeenCalledTimes(2);
     });
 
     it('should pass participant personas to system prompt builder', () => {
@@ -213,7 +241,7 @@ describe('ContentBudgetManager', () => {
 
       budgetManager.allocate(options, budgetManager.preselectHistory(options));
 
-      expect(mockPromptBuilder.buildFullSystemPromptWithSections).toHaveBeenCalledWith(
+      expect(mockPromptBuilder.buildVolatilePrefix).toHaveBeenCalledWith(
         expect.objectContaining({
           participantPersonas: options.participantPersonas,
         })
@@ -226,7 +254,7 @@ describe('ContentBudgetManager', () => {
 
       budgetManager.allocate(options, budgetManager.preselectHistory(options));
 
-      expect(mockPromptBuilder.buildFullSystemPromptWithSections).toHaveBeenCalledWith(
+      expect(mockPromptBuilder.buildVolatilePrefix).toHaveBeenCalledWith(
         expect.objectContaining({
           referencedMessagesFormatted: 'Referenced: Some quoted message',
         })
@@ -400,7 +428,7 @@ describe('ContentBudgetManager', () => {
       expect(episodeBudget).toBe(700);
       // The selected facts cross the seam into the prompt build.
       const promptFacts = vi
-        .mocked(mockPromptBuilder.buildFullSystemPromptWithSections)
+        .mocked(mockPromptBuilder.buildVolatilePrefix)
         .mock.calls.at(-1)?.[0].facts;
       expect(promptFacts).toHaveLength(2);
     });
@@ -436,7 +464,7 @@ describe('ContentBudgetManager', () => {
       expect(episodeBudget).toBe(300);
       // Nothing crosses the seam into the prompt build.
       const promptFacts = vi
-        .mocked(mockPromptBuilder.buildFullSystemPromptWithSections)
+        .mocked(mockPromptBuilder.buildVolatilePrefix)
         .mock.calls.at(-1)?.[0].facts;
       expect(promptFacts).toEqual([]);
     });
@@ -644,7 +672,7 @@ describe('ContentBudgetManager', () => {
         { ...options, retrievedMemories: [droppedMemory, shippedMemory], facts: [] },
         preselected
       );
-      const calls = vi.mocked(mockPromptBuilder.buildFullSystemPromptWithSections).mock.calls;
+      const calls = vi.mocked(mockPromptBuilder.buildVolatilePrefix).mock.calls;
       const finalPromptArgs = calls[calls.length - 1][0] as {
         relevantMemories: MemoryDocument[];
       };
