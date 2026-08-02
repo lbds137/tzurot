@@ -10,7 +10,6 @@
  */
 
 import { type MessageContent } from '@tzurot/common-types/types/ai';
-import { type ReferencedMessage } from '@tzurot/common-types/types/schemas/message';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { stripResponseArtifacts, stripUserMessageEcho } from '../utils/responseArtifacts.js';
 import { removeDuplicateResponse } from '../utils/duplicateDetection.js';
@@ -314,52 +313,5 @@ export class ResponsePostProcessor {
       wasDeduplicated,
       onlyThinkingProduced,
     };
-  }
-
-  /**
-   * Filter out referenced messages that are already in conversation history.
-   *
-   * Prevents token waste from duplicating content. When a user replies to
-   * a recent message, that message is likely already in the conversation history.
-   */
-  filterDuplicateReferences(
-    referencedMessages: ReferencedMessage[] | undefined,
-    conversationHistory: { id?: string }[] | undefined
-  ): ReferencedMessage[] {
-    if (!referencedMessages || referencedMessages.length === 0) {
-      return [];
-    }
-
-    if (!conversationHistory || conversationHistory.length === 0) {
-      return referencedMessages;
-    }
-
-    // Build set of message IDs from conversation history
-    const historyIds = new Set<string>();
-    for (const msg of conversationHistory) {
-      if (msg.id !== undefined && msg.id.length > 0) {
-        historyIds.add(msg.id);
-      }
-    }
-
-    // Filter out referenced messages that are already in history
-    // Preserve deduped stubs — they carry the reply-target signal with truncated content
-    const filtered = referencedMessages.filter(
-      ref => ref.isDeduplicated === true || !historyIds.has(ref.discordMessageId)
-    );
-
-    if (filtered.length < referencedMessages.length) {
-      const removed = referencedMessages.length - filtered.length;
-      logger.debug(
-        {
-          originalCount: referencedMessages.length,
-          filteredCount: filtered.length,
-          removedCount: removed,
-        },
-        'Filtered duplicate references from history'
-      );
-    }
-
-    return filtered;
   }
 }

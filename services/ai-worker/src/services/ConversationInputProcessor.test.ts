@@ -14,7 +14,6 @@ import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/perso
 import type { ConversationContext } from './ConversationalRAGTypes.js';
 import type { PromptBuilder } from './PromptBuilder.js';
 import type { ReferencedMessageFormatter } from './ReferencedMessageFormatter.js';
-import type { ResponsePostProcessor } from './ResponsePostProcessor.js';
 import type { ProcessedAttachment } from './MultimodalProcessor.js';
 
 // Use vi.hoisted() to create mocks that persist across test resets
@@ -37,7 +36,6 @@ describe('ConversationInputProcessor', () => {
   let processor: ConversationInputProcessor;
   let mockPromptBuilder: PromptBuilder;
   let mockReferencedMessageFormatter: ReferencedMessageFormatter;
-  let mockResponsePostProcessor: ResponsePostProcessor;
 
   const createMockPersonality = (overrides = {}): LoadedPersonality => ({
     id: 'test-personality',
@@ -82,18 +80,10 @@ describe('ConversationInputProcessor', () => {
       }),
     } as unknown as ReferencedMessageFormatter;
 
-    mockResponsePostProcessor = {
-      filterDuplicateReferences: vi.fn().mockImplementation(refs => refs || []),
-    } as unknown as ResponsePostProcessor;
-
     mockProcessAttachments.mockResolvedValue([]);
     mockExtractRecentHistoryWindow.mockReturnValue('recent history window');
 
-    processor = new ConversationInputProcessor(
-      mockPromptBuilder,
-      mockReferencedMessageFormatter,
-      mockResponsePostProcessor
-    );
+    processor = new ConversationInputProcessor(mockPromptBuilder, mockReferencedMessageFormatter);
   });
 
   describe('resolveUserName', () => {
@@ -274,7 +264,7 @@ describe('ConversationInputProcessor', () => {
       expect(mockPromptBuilder.formatUserMessage).toHaveBeenCalledWith(mockMessage, context);
     });
 
-    it('should filter duplicate references', async () => {
+    it('passes references through unfiltered — dedup flags, it does not drop', async () => {
       const referencedMessages: ReferencedMessage[] = [
         {
           referenceNumber: 1,
@@ -288,7 +278,7 @@ describe('ConversationInputProcessor', () => {
           locationContext: '<location/>',
         },
       ];
-      const rawHistory = [{ id: 'msg2' }];
+      const rawHistory = [{ id: 'msg1' }]; // collides with the reference's discordMessageId above
       const context = createMockContext({
         referencedMessages,
         rawConversationHistory: rawHistory,
@@ -296,10 +286,22 @@ describe('ConversationInputProcessor', () => {
 
       await processor.processInputs(mockPersonality, mockMessage, context, { isGuestMode: false });
 
-      expect(mockResponsePostProcessor.filterDuplicateReferences).toHaveBeenCalledWith(
-        referencedMessages,
-        rawHistory
-      );
+      // The fixture collides the reference's `discordMessageId` with a history
+      // entry's `id` — the one shape the removed second filter keyed on. It is
+      // reachable in production (an extended-context row's `id` IS its Discord
+      // message id), but only on rows that also carry that same id in
+      // `discordMessageId`, so `referenceEnricher` has already FLAGGED such a
+      // reference by the time it gets here — and the removed filter exempted
+      // anything flagged. Dedup flags rather than drops, so the reference must
+      // survive to be rendered as a stub and persisted onto the trigger row.
+      // Reintroducing that filter turns this test red.
+      expect(mockReferencedMessageFormatter.formatReferencedMessages).toHaveBeenCalled();
+      const [passedRefs] = (
+        mockReferencedMessageFormatter.formatReferencedMessages as unknown as {
+          mock: { calls: unknown[][] };
+        }
+      ).mock.calls[0];
+      expect(passedRefs).toEqual(referencedMessages);
     });
 
     it('should format referenced messages when present', async () => {
