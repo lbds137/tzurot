@@ -10,29 +10,13 @@
 import chalk from 'chalk';
 import { execFileSync } from 'node:child_process';
 
-import { type Environment, getRailwayDatabaseUrl, getRailwayEnvName } from '../utils/env-runner.js';
+import { type Environment, getRailwayEnvName, resolveDatabaseUrl } from '../utils/env-runner.js';
 
 interface InspectTtsConfigsOptions {
   env: Environment;
 }
 
 const TAKE_LIMIT = 200;
-
-/**
- * Build the env vars for executing the inspector against the requested env's DB.
- * For 'local', we use the local DATABASE_URL; for 'dev'/'prod', we fetch the
- * Railway DATABASE_PUBLIC_URL via railway CLI.
- */
-function resolveDatabaseUrl(env: Environment): string {
-  if (env === 'local') {
-    const local = process.env.DATABASE_URL;
-    if (local === undefined || local.length === 0) {
-      throw new Error('DATABASE_URL not set in local environment');
-    }
-    return local;
-  }
-  return getRailwayDatabaseUrl(env);
-}
 
 /**
  * Run `tsx` to execute the inspection logic in a child process with the
@@ -103,6 +87,11 @@ async function main() {
   }
 }
 
-await main();
+// No top-level await: tsx -e compiles the inline script as CJS, where
+// top-level await is a hard esbuild error.
+main().catch(error => {
+  console.error(error);
+  process.exit(1);
+});
 `.trim();
 }

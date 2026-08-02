@@ -75,6 +75,22 @@ export function getRailwayEnvName(env: Environment): string {
 }
 
 /**
+ * Resolve the DATABASE_URL for any environment: the local `.env` value for
+ * 'local', the Railway public proxy URL for 'dev'/'prod'. Shared by the
+ * DB-reading inspection tools (inspect:tts-configs, cache:prefix-diff).
+ */
+export function resolveDatabaseUrl(env: Environment): string {
+  if (env === 'local') {
+    const local = process.env.DATABASE_URL;
+    if (local === undefined || local.length === 0) {
+      throw new Error('DATABASE_URL not set in local environment');
+    }
+    return local;
+  }
+  return getRailwayDatabaseUrl(env);
+}
+
+/**
  * Fetch DATABASE_PUBLIC_URL from Railway for a given environment
  *
  * Uses the pgvector service which has the public proxy URL configured.

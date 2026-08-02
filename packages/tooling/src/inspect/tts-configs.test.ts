@@ -29,6 +29,19 @@ vi.mock('node:child_process', () => ({
 vi.mock('../utils/env-runner.js', () => ({
   getRailwayDatabaseUrl: mockGetRailwayDatabaseUrl,
   getRailwayEnvName: mockGetRailwayEnvName,
+  // Mirrors the real branching (local .env vs Railway) so the seam assertions
+  // below stay meaningful; the branch logic itself is unit-tested for real in
+  // utils/env-runner.test.ts.
+  resolveDatabaseUrl: (env: string) => {
+    if (env === 'local') {
+      const local = process.env.DATABASE_URL;
+      if (local === undefined || local.length === 0) {
+        throw new Error('DATABASE_URL not set in local environment');
+      }
+      return local;
+    }
+    return mockGetRailwayDatabaseUrl(env);
+  },
 }));
 
 import { inspectTtsConfigs, buildInspectorScript } from './tts-configs.js';

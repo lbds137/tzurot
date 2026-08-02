@@ -7,6 +7,7 @@
 import type { CAC } from 'cac';
 
 import { validateEnvironment, type Environment } from '../utils/env-runner.js';
+import { rawOptionValue } from '../utils/cli-args.js';
 
 export function registerCacheCommands(cli: CAC): void {
   cli.command('cache:inspect', 'Inspect Turborepo cache size and status').action(async () => {
@@ -24,6 +25,38 @@ export function registerCacheCommands(cli: CAC): void {
 
   cli
     .command(
+      'cache:prefix-diff',
+      'Diff consecutive requests’ system prompts to diagnose provider-cache misses'
+    )
+    .option('--env <env>', 'Environment to target (local, dev, prod)', { default: 'dev' })
+    .option('--channel <channelId>', 'Discord channel to trace (snowflake)')
+    .option('--personality <uuid>', 'Restrict to one personality')
+    .option('--limit <pairs>', 'Consecutive pairs to compare', { default: 5 })
+    .example('ops cache:prefix-diff --env dev --channel 123456789012345678')
+    .example('ops cache:prefix-diff --env prod --channel 123456789012345678 --limit 10')
+    .action(async (options: { env: string; personality?: string; limit: number }) => {
+      validateEnvironment(options.env);
+      // Snowflakes MUST come from the raw argv: cac number-coerces digit-only
+      // values and a snowflake exceeds MAX_SAFE_INTEGER (see utils/cli-args.ts).
+      const channelId = rawOptionValue(process.argv, '--channel');
+      if (channelId === undefined || channelId.length === 0) {
+        throw new Error('--channel is required (Discord channel snowflake)');
+      }
+      const limit = Number(options.limit);
+      if (!Number.isInteger(limit) || limit < 1) {
+        throw new Error(`--limit must be a positive integer, got: ${String(options.limit)}`);
+      }
+      const { runPrefixDiff } = await import('../cache/prefix-diff.js');
+      await runPrefixDiff({
+        env: options.env as Environment,
+        channelId,
+        personalityId: options.personality,
+        limit,
+      });
+    });
+
+  cli
+    .command(
       'cache:clear-credit-exhaustion',
       'Clear an OpenRouter credit-exhaustion cache entry (operator escape valve)'
     )
@@ -32,12 +65,14 @@ export function registerCacheCommands(cli: CAC): void {
     .option('--system', 'Clear the system-bucket entry (guest mode / system-key fallback)')
     .example('ops cache:clear-credit-exhaustion --env prod --user-id 278863839632818186')
     .example('ops cache:clear-credit-exhaustion --env dev --system')
-    .action(async (options: { env: string; userId?: string; system?: boolean }) => {
+    .action(async (options: { env: string; system?: boolean }) => {
       validateEnvironment(options.env);
+      // Raw argv for the same snowflake-precision reason as --channel above.
+      const userId = rawOptionValue(process.argv, '--user-id');
       const { clearCreditExhaustion } = await import('../cache/clear-credit-exhaustion.js');
       await clearCreditExhaustion({
         env: options.env as Environment,
-        userId: options.userId,
+        userId,
         system: options.system,
       });
     });
