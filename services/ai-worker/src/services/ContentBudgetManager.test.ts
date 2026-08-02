@@ -42,6 +42,9 @@ describe('ContentBudgetManager', () => {
         contentForStorage: 'User message for storage',
       }),
       buildFullSystemPrompt: vi.fn().mockReturnValue(mockSystemPrompt),
+      buildFullSystemPromptWithSections: vi
+        .fn()
+        .mockReturnValue({ message: mockSystemPrompt, sections: [] }),
       countTokens: vi.fn().mockReturnValue(100),
       countMemoryTokens: vi.fn().mockReturnValue(50),
     } as unknown as PromptBuilder;
@@ -190,14 +193,16 @@ describe('ContentBudgetManager', () => {
 
       budgetManager.allocate(options, budgetManager.preselectHistory(options));
 
-      // buildFullSystemPrompt is called exactly twice:
-      // 1. Base system prompt (pre-pass, for token counting)
-      // 2. Final with memories AND history
+      // The system prompt is built exactly twice:
+      // 1. Base system prompt (pre-pass, for token counting) — plain variant
+      // 2. Final with memories AND history — sections variant, whose section
+      //    descriptions ride into the diagnostic payload
       // The old middle build (prompt-with-memories to size the history
       // budget) is gone by design: the history budget uses the memory
       // RESERVE so it is computable BEFORE retrieval — that ordering is what
       // closes the STM/LTM coverage hole.
-      expect(mockPromptBuilder.buildFullSystemPrompt).toHaveBeenCalledTimes(2);
+      expect(mockPromptBuilder.buildFullSystemPrompt).toHaveBeenCalledTimes(1);
+      expect(mockPromptBuilder.buildFullSystemPromptWithSections).toHaveBeenCalledTimes(1);
     });
 
     it('should pass participant personas to system prompt builder', () => {
@@ -208,7 +213,7 @@ describe('ContentBudgetManager', () => {
 
       budgetManager.allocate(options, budgetManager.preselectHistory(options));
 
-      expect(mockPromptBuilder.buildFullSystemPrompt).toHaveBeenCalledWith(
+      expect(mockPromptBuilder.buildFullSystemPromptWithSections).toHaveBeenCalledWith(
         expect.objectContaining({
           participantPersonas: options.participantPersonas,
         })
@@ -221,7 +226,7 @@ describe('ContentBudgetManager', () => {
 
       budgetManager.allocate(options, budgetManager.preselectHistory(options));
 
-      expect(mockPromptBuilder.buildFullSystemPrompt).toHaveBeenCalledWith(
+      expect(mockPromptBuilder.buildFullSystemPromptWithSections).toHaveBeenCalledWith(
         expect.objectContaining({
           referencedMessagesFormatted: 'Referenced: Some quoted message',
         })
@@ -395,7 +400,7 @@ describe('ContentBudgetManager', () => {
       expect(episodeBudget).toBe(700);
       // The selected facts cross the seam into the prompt build.
       const promptFacts = vi
-        .mocked(mockPromptBuilder.buildFullSystemPrompt)
+        .mocked(mockPromptBuilder.buildFullSystemPromptWithSections)
         .mock.calls.at(-1)?.[0].facts;
       expect(promptFacts).toHaveLength(2);
     });
@@ -431,7 +436,7 @@ describe('ContentBudgetManager', () => {
       expect(episodeBudget).toBe(300);
       // Nothing crosses the seam into the prompt build.
       const promptFacts = vi
-        .mocked(mockPromptBuilder.buildFullSystemPrompt)
+        .mocked(mockPromptBuilder.buildFullSystemPromptWithSections)
         .mock.calls.at(-1)?.[0].facts;
       expect(promptFacts).toEqual([]);
     });
@@ -639,7 +644,7 @@ describe('ContentBudgetManager', () => {
         { ...options, retrievedMemories: [droppedMemory, shippedMemory], facts: [] },
         preselected
       );
-      const calls = vi.mocked(mockPromptBuilder.buildFullSystemPrompt).mock.calls;
+      const calls = vi.mocked(mockPromptBuilder.buildFullSystemPromptWithSections).mock.calls;
       const finalPromptArgs = calls[calls.length - 1][0] as {
         relevantMemories: MemoryDocument[];
       };

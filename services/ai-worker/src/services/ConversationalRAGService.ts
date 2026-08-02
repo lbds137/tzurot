@@ -47,7 +47,7 @@ import { resolveRagVisionAuth, enrichRagHistory } from './multimodal/ragVisionAu
 import type { ApiKeyResolver } from './ApiKeyResolver.js';
 import {
   parseResponseMetadata,
-  recordLlmConfigDiagnostic,
+  recordPreInvocationDiagnostics,
   recordLlmResponseDiagnostic,
   recordBudgetDiagnostics,
 } from './diagnostics/DiagnosticRecorders.js';
@@ -121,6 +121,7 @@ export class ConversationalRAGService {
     const {
       personality,
       systemPrompt,
+      systemPromptSections,
       userMessage,
       processedAttachments,
       context,
@@ -163,22 +164,19 @@ export class ConversationalRAGService {
     // Calculate attachment counts for timeout
     const { imageCount, audioCount } = countMediaAttachments(context.attachments);
 
-    // Record assembled prompt and LLM config for diagnostics
+    // Record assembled prompt (with section map) + LLM config for diagnostics
     if (diagnosticCollector) {
-      const totalTokenEstimate =
-        this.promptBuilder.countTokens(contentToText(systemPrompt.content)) +
-        this.promptBuilder.countTokens(contentToText(currentMessage.content));
-
-      diagnosticCollector.recordAssembledPrompt(messages, totalTokenEstimate);
-      recordLlmConfigDiagnostic({
+      recordPreInvocationDiagnostics({
         collector: diagnosticCollector,
+        messages,
+        systemPromptSections,
+        countTokens: text => this.promptBuilder.countTokens(text),
         modelName,
         personality,
         effectiveTemperature: retryConfig?.temperatureOverride ?? personality.temperature,
         effectiveFrequencyPenalty:
           retryConfig?.frequencyPenaltyOverride ?? personality.frequencyPenalty,
       });
-      diagnosticCollector.markLlmInvocationStart();
     }
 
     // cacheKeyId scopes doom caches by BILLING identity: guest/system-key
@@ -438,6 +436,7 @@ export class ConversationalRAGService {
       const modelResult = await this.invokeModelAndClean({
         personality,
         systemPrompt: budgetResult.systemPrompt,
+        systemPromptSections: budgetResult.systemPromptSections,
         userMessage: inputs.userMessage,
         processedAttachments: inputs.processedAttachments,
         context,

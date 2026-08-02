@@ -449,7 +449,7 @@ describe('ConversationalRAGService', () => {
 
       const result = await service.generateResponse(personality, 'Recall something', context);
 
-      expect(getPromptBuilderMock().buildFullSystemPrompt).toHaveBeenCalledWith({
+      expect(getPromptBuilderMock().buildFullSystemPromptWithSections).toHaveBeenCalledWith({
         personality,
         participantPersonas: expect.any(Map),
         relevantMemories: memories,
@@ -488,7 +488,7 @@ describe('ConversationalRAGService', () => {
       );
       // The non-empty facts flow through the REAL ContentBudgetManager into the
       // prompt's <facts> block (default budget mocks let one fact fit).
-      expect(getPromptBuilderMock().buildFullSystemPrompt).toHaveBeenCalledWith(
+      expect(getPromptBuilderMock().buildFullSystemPromptWithSections).toHaveBeenCalledWith(
         expect.objectContaining({ facts })
       );
     });
@@ -504,7 +504,7 @@ describe('ConversationalRAGService', () => {
 
       await service.generateResponse(personality, 'Hello', context);
 
-      expect(getPromptBuilderMock().buildFullSystemPrompt).toHaveBeenCalledWith({
+      expect(getPromptBuilderMock().buildFullSystemPromptWithSections).toHaveBeenCalledWith({
         personality,
         participantPersonas: participantMap,
         relevantMemories: expect.any(Array),
@@ -547,7 +547,7 @@ describe('ConversationalRAGService', () => {
 
       await service.generateResponse(personality, 'Hello', context);
 
-      const call = getPromptBuilderMock().buildFullSystemPrompt.mock.calls[0]?.[0] as
+      const call = getPromptBuilderMock().buildFullSystemPromptWithSections.mock.calls[0]?.[0] as
         { participantPersonas: Map<string, { personaId: string; content?: string }> } | undefined;
       expect(call).toBeDefined();
       const participants = call!.participantPersonas;
@@ -885,7 +885,7 @@ describe('ConversationalRAGService', () => {
 
       await service.generateResponse(personality, 'Respond to Dave', context);
 
-      expect(getPromptBuilderMock().buildFullSystemPrompt).toHaveBeenCalledWith({
+      expect(getPromptBuilderMock().buildFullSystemPromptWithSections).toHaveBeenCalledWith({
         personality,
         participantPersonas: expect.any(Map),
         relevantMemories: expect.any(Array),
