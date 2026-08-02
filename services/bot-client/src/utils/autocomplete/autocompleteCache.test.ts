@@ -19,19 +19,18 @@ import type { UserClient } from '@tzurot/clients';
 import type { PersonaSummary, ShapesSummary } from './autocompleteCache.js';
 import { makeOk, makeErr } from '../../test/gatewayClientStubs.js';
 
+// One shared logger instance rather than a fresh object per createLogger() call:
+// the miss-duration line is asserted below, and a per-call object would leave the
+// test holding a different mock than the module under test writes to.
+const { mockLogger } = vi.hoisted(() => ({
+  mockLogger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+}));
+
 vi.mock('@tzurot/common-types/utils/logger', async () => {
   const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
     '@tzurot/common-types/utils/logger'
   );
-  return {
-    ...actual,
-    createLogger: () => ({
-      debug: vi.fn(),
-      info: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-    }),
-  };
+  return { ...actual, createLogger: () => mockLogger };
 });
 
 // One mock per typed-client method, shared across tests. `vi.clearAllMocks()`
@@ -537,5 +536,80 @@ describe('autocompleteCache', () => {
       expect(mockListPersonalities).not.toHaveBeenCalled();
       expect(mockListPersonas).not.toHaveBeenCalled();
     });
+  });
+
+  describe('cache-miss duration logging', () => {
+    // Fake timers here so the mocked fetch can advance the clock by a known
+    // amount, pinning that the logged value is the ELAPSED delta and not a raw
+    // timestamp — the mistake a "durationMs is a number" assertion would miss.
+    // Safe despite the TTLCache/performance.now caveat noted above: these tests
+    // never rely on TTL expiry, only on Date.now.
+    const FETCH_MS = 1250;
+
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    const cases = [
+      {
+        field: 'personalities',
+        fetchMock: mockListPersonalities,
+        call: getCachedPersonalities,
+        payload: { personalities: [{ id: 'p1' }, { id: 'p2' }] },
+      },
+      {
+        field: 'personas',
+        fetchMock: mockListPersonas,
+        call: getCachedPersonas,
+        payload: { personas: [{ id: 'x1' }] },
+      },
+      {
+        field: 'shapes',
+        fetchMock: mockListShapes,
+        call: getCachedShapes,
+        payload: { shapes: [] },
+      },
+    ] as const;
+
+    for (const { field, fetchMock, call, payload } of cases) {
+      it(`logs the ${field} miss round-trip at info with its elapsed duration`, async () => {
+        fetchMock.mockImplementation(async () => {
+          vi.advanceTimersByTime(FETCH_MS);
+          return makeOk(payload);
+        });
+
+        await call(stubUser(`user-${field}`));
+
+        expect(mockLogger.info).toHaveBeenCalledWith(
+          {
+            userId: `user-${field}`,
+            field,
+            durationMs: FETCH_MS,
+            count: Object.values(payload)[0].length,
+          },
+          'Autocomplete cache miss fetched'
+        );
+      });
+
+      it(`carries the elapsed duration on a failed ${field} fetch`, async () => {
+        // The slow-failure case is the one that most needs measuring — a fetch
+        // that times out is exactly what blows Discord's interactivity window.
+        fetchMock.mockImplementation(async () => {
+          vi.advanceTimersByTime(FETCH_MS);
+          return makeErr(500);
+        });
+
+        await call(stubUser(`user-fail-${field}`));
+
+        expect(mockLogger.warn).toHaveBeenCalledWith(
+          expect.objectContaining({ durationMs: FETCH_MS }),
+          expect.stringContaining('Failed to fetch')
+        );
+      });
+    }
   });
 });
