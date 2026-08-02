@@ -1,10 +1,27 @@
-## 🏗 Active Epic: Follow-Up Pool Drain (`doc-7`)
+## 🏗 Active Epic: Provider Prompt Caching (`doc-17`)
 
-_Focus: get the small-item pool to a size where the digest's aging surface is actionable — by shipping the work, not deleting it. Owner call 2026-07-25: "what I want to focus on is draining the backlog."_
+_Focus: restructure prompt assembly so the prefix is stable enough for provider-side prompt caching — spend is input-token-dominated, and caching discounts exactly that side. Owner-picked 2026-08-02._
 
-**Promoted to the slot 2026-08-01.** It had been the real work for a week (batches 1–7 shipped) while the slot still pointed at retention — which is exactly how a second epic ends up running unlabelled. Full scope, measurement, and the per-batch rate log live in tracker `doc-7`; the selection heuristic that works is **same-origin, same-module clusters** (cluster open tasks by surfacing PR number), not trigger-regex clusters.
+**Design ACCEPTED 2026-07-05** → [`docs/proposals/backlog/prompt-assembly-architecture.md`](../docs/proposals/backlog/prompt-assembly-architecture.md) (stability tiers S0/S1/H/V, verified per-provider cache matrix). **Corrected phasing measured 2026-08-01** (doc-17: prod req `456ec221` section table + council pass): Phase 0 alone buys ~0 (+72 tokens — datetime precedes the buster); caching is strictly sequential, so history extraction can't pay before the V-hoist; un-stranding the 2,604-token cross-persona `<protocol>` is most of Phase 1's win (ceiling ~15% of the measured request; the remaining 58% is `<chat_log>`, Phase 2's). **The z.ai coding endpoint caches implicitly** — 97.6% hit measured on a shared prefix (`usage.prompt_tokens_details.cached_tokens`), so the dominant prod route pays with no markers.
 
-**Boundary reminder**: rule-outs are owner-gated and fail closed — the agent ships work and verifies-obsolete by grep; merit-removals surface to the owner (`06-backlog.md` § Ruling an item out).
+### Phase 0 + 1 PR plan (approved 2026-08-02; full mechanics in the session plan)
+
+| PR  | Contents                                                                                                                                                              | Gate                             |
+| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------- |
+| 1   | Deletions: o-series transform (§2.6 dead code) · `historyReductionPercent` retry shrink · `<request_id>` buster (+ stale registry entry, REASONING_MODEL_FORMATS fix) | verify-and-remove                |
+| 2   | Cache telemetry: `usage_metadata.input_token_details.cache_read` → diagnostics + `/inspect` + completion log; OpenRouter `cache_write_tokens`/`cache_discount` capture | the epic's measurement           |
+| 3   | Typed section model (`{id, tier, render}`), behavior-preserving; section offsets into the diagnostic payload                                                          | **zero snapshot diff**           |
+| 4   | Prefix-diff tool (`pnpm ops`) over consecutive diagnostic rows, annotated by section boundaries                                                                        | the cache debugger, before PR-5  |
+| 5   | **Phase 1 restructure**: S0→S1→H reorder + V-hoist into the human message (context/participants/facts/memories/references), collision note → participants, memory framing language, allocate-owns-currentMessage budget seam | snap diff = review artifact; **closes TASK-392** |
+| 6   | Absolute timestamps in chat_log (kills relative-drift cache poison)                                                                                                    | after PR-5, attributable         |
+
+**Gates + known instabilities on record**: voice-consistency comparison harness (20–30 turns × 3+ personas) must be built and run after PR-5 ships, BEFORE Phase 2 starts · legacy-format protocols resolve `{user}` per-speaker (JSON protocols don't) — decide remedy before Phase-3 markers · Phase-3 spikes still open: Qwen cache economics + `ChatOpenAI` `cache_control` serialization · quality fallback recorded: OUTPUT_CONSTRAINTS can return to the recency tail for ~150 re-billed tokens/turn if the reorder regresses voice.
+
+---
+
+## ⏸ Standing background: Follow-Up Pool Drain (`doc-7`)
+
+_Displaced from the slot 2026-08-02 by the owner's caching pick — the pool remains the idle-time/between-epic unit, not abandoned._ Batches 1–10 shipped. Full scope + per-batch rate log in tracker `doc-7`; the selection heuristic that works is **same-origin, same-module clusters** (cluster open tasks by surfacing PR number). Remaining clusters at displacement: `#1317` (159–162), `#1323` (167–169), `#1321` (163–165), `#1119` (131–133), `#1035` (100–102). Boundary reminder: rule-outs are owner-gated and fail closed (`06-backlog.md` § Ruling an item out).
 
 ---
 
