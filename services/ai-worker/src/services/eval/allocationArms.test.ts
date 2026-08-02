@@ -1,11 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import {
-  parseAttachmentSegments,
-  leadSentence,
-  truncateAtWordBoundary,
-  buildAllocationQueries,
-  ATTACHMENT_BUDGET_CHARS,
-} from './allocationArms.js';
+import { parseAttachmentSegments, leadSentence, buildAllocationQueries } from './allocationArms.js';
+import { ATTACHMENT_SEARCH_BUDGET_CHARS } from '../prompt/searchQueryBudget.js';
 
 const IMAGE_BLOCK = '[Image: gym.png]\nA large room with rubber flooring. Mirrors line the wall.';
 const VOICE_BLOCK =
@@ -88,25 +83,6 @@ describe('leadSentence', () => {
   });
 });
 
-describe('truncateAtWordBoundary', () => {
-  it('returns short text unchanged', () => {
-    expect(truncateAtWordBoundary('short', 100)).toBe('short');
-  });
-
-  it('cuts at the last word boundary inside the budget', () => {
-    expect(truncateAtWordBoundary('alpha beta gamma delta', 17)).toBe('alpha beta gamma');
-  });
-
-  it('cuts hard when the only boundary sacrifices over half the budget', () => {
-    const text = `ab ${'x'.repeat(50)}`;
-    expect(truncateAtWordBoundary(text, 20)).toBe(text.slice(0, 20));
-  });
-
-  it('treats newlines as boundaries', () => {
-    expect(truncateAtWordBoundary('alpha beta\ngamma delta', 17)).toBe('alpha beta\ngamma');
-  });
-});
-
 describe('buildAllocationQueries', () => {
   const golden = {
     messageBare: 'look at this gym',
@@ -132,15 +108,15 @@ describe('buildAllocationQueries', () => {
     );
   });
 
-  it('caps the budget arm attachment part at ATTACHMENT_BUDGET_CHARS', () => {
+  it('caps the budget arm attachment part at the production budget', () => {
     const longDescription = `${'word '.repeat(400)}end.`;
     const queries = buildAllocationQueries({
       messageBare: 'context',
       attachmentText: `[Image: big.png]\n${longDescription}`,
     });
     const attachmentPart = queries['budget-dense'].slice('context\n\n'.length);
-    expect(attachmentPart.length).toBeLessThanOrEqual(ATTACHMENT_BUDGET_CHARS);
-    expect(attachmentPart.length).toBeGreaterThan(ATTACHMENT_BUDGET_CHARS - 20);
+    expect(attachmentPart.length).toBeLessThanOrEqual(ATTACHMENT_SEARCH_BUDGET_CHARS);
+    expect(attachmentPart.length).toBeGreaterThan(ATTACHMENT_SEARCH_BUDGET_CHARS - 20);
     expect(queries['current-dense'].length).toBeGreaterThan(queries['budget-dense'].length);
   });
 

@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 
+const mockLoggerInfo = vi.fn();
 vi.mock('@tzurot/common-types/utils/logger', async () => {
   const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
     '@tzurot/common-types/utils/logger'
@@ -7,7 +8,7 @@ vi.mock('@tzurot/common-types/utils/logger', async () => {
   return {
     ...actual,
     createLogger: () => ({
-      info: vi.fn(),
+      info: (...args: unknown[]) => mockLoggerInfo(...args),
       debug: vi.fn(),
       warn: vi.fn(),
       error: vi.fn(),
@@ -17,11 +18,12 @@ vi.mock('@tzurot/common-types/utils/logger', async () => {
 
 vi.mock('../RAGUtils.js', () => ({
   extractContentDescriptions: vi.fn((attachments: unknown[]) =>
-    attachments.map(() => 'attachment description').join('\n')
+    attachments.map((a: unknown) => (a as { description: string }).description).join('\n\n')
   ),
 }));
 
 import { buildSearchQuery, describeParts, type QueryPart } from './SearchQueryBuilder.js';
+import { ATTACHMENT_SEARCH_BUDGET_CHARS } from './searchQueryBudget.js';
 import type { ProcessedAttachment } from '../MultimodalProcessor.js';
 import { AttachmentType } from '@tzurot/common-types/constants/media';
 
@@ -53,7 +55,7 @@ describe('SearchQueryBuilder', () => {
 
     it('should include attachment descriptions', () => {
       const result = buildSearchQuery('Look at this', [makeAttachment()]);
-      expect(result).toContain('attachment description');
+      expect(result).toContain('An image of a cat');
       expect(result).toContain('Look at this');
     });
 
@@ -65,7 +67,7 @@ describe('SearchQueryBuilder', () => {
     it('should skip "Hello" fallback user message', () => {
       const result = buildSearchQuery('Hello', [makeAttachment()]);
       expect(result).not.toContain('Hello');
-      expect(result).toContain('attachment description');
+      expect(result).toContain('An image of a cat');
     });
 
     it('should return "Hello" if nothing else is available', () => {
@@ -87,6 +89,59 @@ describe('SearchQueryBuilder', () => {
       );
       const parts = result.split('\n\n');
       expect(parts.length).toBe(4);
+    });
+
+    // The attachment budget (searchQueryBudget.ts): descriptions are capped at
+    // half the embedder window so the parts AFTER them — the referenced-message
+    // text especially — actually reach the model. Before the cap, a
+    // median-length image description starved the references out entirely.
+    describe('attachment budget', () => {
+      const longAttachment = () =>
+        makeAttachment({ description: `${'word '.repeat(800)}end of description.` });
+
+      it('caps the attachment part at the budget, cut between words', () => {
+        const result = buildSearchQuery('Look at this', [longAttachment()]);
+        const attachmentPart = result.split('\n\n')[1];
+        expect(attachmentPart.length).toBeLessThanOrEqual(ATTACHMENT_SEARCH_BUDGET_CHARS);
+        expect(attachmentPart.length).toBeGreaterThan(ATTACHMENT_SEARCH_BUDGET_CHARS - 20);
+        expect(attachmentPart.endsWith('word')).toBe(true);
+      });
+
+      it('keeps the referenced-message text within reach of the embedder window', () => {
+        const result = buildSearchQuery(
+          'short question',
+          [longAttachment()],
+          'Ref: the message being replied to'
+        );
+        expect(result).toContain('Ref: the message being replied to');
+        // ~4 chars/token measured on real traffic → 512 tokens ≈ 2048 chars.
+        // With the attachment capped at half that, the reference's offset must
+        // land inside the window instead of thousands of chars past it.
+        expect(result.indexOf('Ref: the message being replied to')).toBeLessThan(512 * 4);
+      });
+
+      it('leaves a within-budget attachment untouched', () => {
+        const result = buildSearchQuery('Look at this', [makeAttachment()]);
+        expect(result.split('\n\n')[1]).toBe('An image of a cat');
+      });
+
+      it('reports the pre-cap length in the composition log only when the cap bit', () => {
+        mockLoggerInfo.mockClear();
+        buildSearchQuery('Look at this', [longAttachment()]);
+        const capped = mockLoggerInfo.mock.calls.find(
+          call => (call[1] as string) === 'Assembled memory search query'
+        );
+        expect(capped?.[0]).toMatchObject({
+          attachmentCharsBeforeBudget: 'word '.repeat(800).length + 'end of description.'.length,
+        });
+
+        mockLoggerInfo.mockClear();
+        buildSearchQuery('Look at this', [makeAttachment()]);
+        const uncapped = mockLoggerInfo.mock.calls.find(
+          call => (call[1] as string) === 'Assembled memory search query'
+        );
+        expect(uncapped?.[0]).not.toHaveProperty('attachmentCharsBeforeBudget');
+      });
     });
   });
 
