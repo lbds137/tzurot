@@ -19,6 +19,15 @@ export interface ParsedResponseMetadata {
     input_tokens?: number;
     output_tokens?: number;
     total_tokens?: number;
+    /**
+     * LangChain's normalization of the provider's `prompt_tokens_details`.
+     * `cache_read` carries `cached_tokens` — prompt tokens served from the
+     * provider's prefix cache. Populated on both OpenRouter and z.ai-direct
+     * responses whenever the provider reports cache activity.
+     */
+    input_token_details?: {
+      cache_read?: number;
+    };
   };
   responseMetadata?: {
     finish_reason?: string;
@@ -33,6 +42,7 @@ export interface ParsedResponseMetadata {
       provider?: string;
       apiMessageKeys?: string[];
       apiReasoningLength?: number;
+      cacheDiscount?: number;
     };
   };
   additionalKwargs?: {
@@ -186,6 +196,8 @@ export function recordLlmResponseDiagnostic(
     finishReason,
     promptTokens: metadata.usageMetadata?.input_tokens ?? 0,
     completionTokens: metadata.usageMetadata?.output_tokens ?? 0,
+    cachedPromptTokens: metadata.usageMetadata?.input_token_details?.cache_read,
+    cacheDiscount: metadata.responseMetadata?.openrouter?.cacheDiscount,
     modelUsed: modelName,
     reasoningDebug: buildReasoningDebug(rawContent, metadata),
   });

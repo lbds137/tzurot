@@ -246,6 +246,14 @@ export interface DiagnosticLlmResponse {
   promptTokens: number;
   /** Tokens in the completion */
   completionTokens: number;
+  /**
+   * Prompt tokens served from the provider's prefix cache
+   * (`usage.prompt_tokens_details.cached_tokens`). Undefined = provider
+   * reported no cache activity; 0 = a real report of a cold prefix.
+   */
+  cachedPromptTokens?: number;
+  /** OpenRouter's `usage.cache_discount` billing adjustment (negative = savings) */
+  cacheDiscount?: number;
   /** Model actually used (may differ from requested) */
   modelUsed: string;
   /** Debug info for reasoning extraction troubleshooting */

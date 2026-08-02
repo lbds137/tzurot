@@ -275,6 +275,44 @@ describe('DiagnosticRecorders', () => {
       expect(call.completionTokens).toBe(0);
     });
 
+    it('should thread cache telemetry through from both sources (sentinel values)', () => {
+      // The cached-token count comes from LangChain's normalized usage path;
+      // the discount only exists on the OpenRouter raw capture. Sentinels
+      // assert each field reaches the collector from its OWN source — a
+      // dropped forward here silently kills the epic's measurement.
+      const mockCollector = { recordLlmResponse: vi.fn() };
+      const metadata: ParsedResponseMetadata = {
+        usageMetadata: {
+          input_tokens: 6426,
+          output_tokens: 1,
+          input_token_details: { cache_read: 6272 },
+        },
+        responseMetadata: {
+          finish_reason: 'stop',
+          openrouter: { apiMessageKeys: [], apiReasoningLength: 0, cacheDiscount: -0.0123 },
+        },
+      };
+
+      recordLlmResponseDiagnostic(mockCollector as never, 'response', 'model', metadata);
+
+      const call = mockCollector.recordLlmResponse.mock.calls[0][0] as Record<string, unknown>;
+      expect(call.cachedPromptTokens).toBe(6272);
+      expect(call.cacheDiscount).toBe(-0.0123);
+    });
+
+    it('should leave cache telemetry undefined when the provider reported none', () => {
+      const mockCollector = { recordLlmResponse: vi.fn() };
+      const metadata: ParsedResponseMetadata = {
+        usageMetadata: { input_tokens: 500, output_tokens: 200 },
+      };
+
+      recordLlmResponseDiagnostic(mockCollector as never, 'response', 'model', metadata);
+
+      const call = mockCollector.recordLlmResponse.mock.calls[0][0] as Record<string, unknown>;
+      expect(call.cachedPromptTokens).toBeUndefined();
+      expect(call.cacheDiscount).toBeUndefined();
+    });
+
     it('should resolve finish_reason from various field names', () => {
       const mockCollector = { recordLlmResponse: vi.fn() };
 

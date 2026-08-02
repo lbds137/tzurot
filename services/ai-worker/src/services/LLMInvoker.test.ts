@@ -15,6 +15,26 @@ import {
 } from '@tzurot/common-types/constants/error';
 import { TIMEOUTS } from '@tzurot/common-types/constants/timing';
 
+// Capture the module logger so tests can assert log payloads (the finish-reason
+// and response-diagnostics paths are log-only — the logger IS their output seam).
+const mockLoggerInfo = vi.fn();
+const mockLoggerDebug = vi.fn();
+const mockLoggerWarn = vi.fn();
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
+  return {
+    ...actual,
+    createLogger: () => ({
+      info: (...args: unknown[]) => mockLoggerInfo(...args),
+      debug: (...args: unknown[]) => mockLoggerDebug(...args),
+      warn: (...args: unknown[]) => mockLoggerWarn(...args),
+      error: vi.fn(),
+    }),
+  };
+});
+
 // Mock ModelFactory
 vi.mock('./ModelFactory.js', () => ({
   createChatModel: vi.fn(({ modelName }) => ({
@@ -846,6 +866,90 @@ describe('LLMInvoker', () => {
 
       expect(result.content).toBe('The file has a .ext extension');
       expect(mockModel.invoke).toHaveBeenCalledTimes(1); // No retry needed
+    });
+
+    describe('usage logging reads usage_metadata (not response_metadata.usage)', () => {
+      // response_metadata.usage is only populated when the provider returns a
+      // truthy system_fingerprint — OpenRouter generally does not, so reading
+      // it logged undefined token counts on the dominant route. These tests pin
+      // the switch to LangChain's normalized usage_metadata, including the
+      // cache-read field the caching epic measures.
+      it('logs promptTokens/cachedPromptTokens from usage_metadata on the length-finish warn', async () => {
+        const mockModel = {
+          invoke: vi.fn().mockResolvedValue({
+            content: 'Truncated response',
+            response_metadata: { finish_reason: 'length' },
+            usage_metadata: {
+              input_tokens: 100,
+              output_tokens: 5,
+              total_tokens: 105,
+              input_token_details: { cache_read: 80 },
+            },
+          }),
+        } as any as BaseChatModel;
+
+        await invoker.invokeWithRetry({
+          model: mockModel,
+          messages: [new HumanMessage('Hello')],
+          modelName: 'test-model',
+        });
+
+        const lengthLog = mockLoggerInfo.mock.calls.find(call =>
+          (call[1] as string)?.includes('token limit')
+        );
+        expect(lengthLog?.[0]).toMatchObject({
+          promptTokens: 100,
+          completionTokens: 5,
+          totalTokens: 105,
+          cachedPromptTokens: 80,
+        });
+      });
+
+      it('ignores response_metadata.usage (the system_fingerprint-gated dead path)', async () => {
+        const mockModel = {
+          invoke: vi.fn().mockResolvedValue({
+            content: 'Truncated response',
+            response_metadata: { finish_reason: 'length', usage: { prompt_tokens: 999 } },
+            usage_metadata: { input_tokens: 100, output_tokens: 5 },
+          }),
+        } as any as BaseChatModel;
+
+        await invoker.invokeWithRetry({
+          model: mockModel,
+          messages: [new HumanMessage('Hello')],
+          modelName: 'test-model',
+        });
+
+        const lengthLog = mockLoggerInfo.mock.calls.find(call =>
+          (call[1] as string)?.includes('token limit')
+        );
+        expect(lengthLog?.[0]).toMatchObject({ promptTokens: 100 });
+        expect(lengthLog?.[0]).not.toMatchObject({ promptTokens: 999 });
+      });
+
+      it('extractResponseDiagnostics reports usage_metadata tokens on the empty-response warn', async () => {
+        const mockModel = {
+          invoke: vi.fn().mockResolvedValue({
+            content: '',
+            response_metadata: { finish_reason: 'stop' },
+            usage_metadata: { input_tokens: 250, output_tokens: 0 },
+          }),
+        } as any as BaseChatModel;
+
+        await expect(
+          invoker.invokeWithRetry({
+            model: mockModel,
+            messages: [new HumanMessage('Hello')],
+            modelName: 'test-model',
+            maxAttempts: 1,
+          })
+        ).rejects.toThrow();
+
+        const emptyLog = mockLoggerWarn.mock.calls.find(call =>
+          (call[1] as string)?.includes('Empty response')
+        );
+        expect(emptyLog?.[0]).toMatchObject({ promptTokens: 250, completionTokens: 0 });
+      });
     });
 
     describe('reasoning model support', () => {

@@ -259,7 +259,15 @@ export class ConversationalRAGService {
     );
 
     logger.info(
-      { charCount: cleanedContent.length, personalityName: personality.name, modelName },
+      {
+        charCount: cleanedContent.length,
+        personalityName: personality.name,
+        modelName,
+        promptTokens: usageMetadata?.input_tokens,
+        // Prefix-cache hit size (provider-reported). The prod cache-hit-rate
+        // measurement greps this field — cachedPromptTokens/promptTokens.
+        cachedPromptTokens: usageMetadata?.input_token_details?.cache_read,
+      },
       'Generated response'
     );
 

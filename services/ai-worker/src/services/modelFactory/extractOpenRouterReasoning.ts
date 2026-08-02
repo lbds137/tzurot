@@ -56,6 +56,15 @@ export interface OpenRouterMessageMetadata {
    * diagnostics can surface what the provider actually said.
    */
   providerError?: { message?: string; code?: number | string };
+  /**
+   * OpenRouter's `usage.cache_discount` — the billing adjustment applied for
+   * prompt-cache reads (negative = savings) or writes (positive = premium on
+   * write-priced providers like Anthropic). Only OpenRouter emits it, and only
+   * here is it recoverable: LangChain's usage normalization doesn't carry it,
+   * and `__raw_response` is deleted below. Absent when the provider reported
+   * no cache activity.
+   */
+  cacheDiscount?: number;
 }
 
 /**
@@ -155,6 +164,10 @@ function buildOpenrouterMetadata(
   const providerError = extractProviderErrorObject(raw);
   if (providerError !== undefined) {
     result.providerError = providerError;
+  }
+  const usage = raw.usage as Record<string, unknown> | undefined;
+  if (usage !== undefined && typeof usage.cache_discount === 'number') {
+    result.cacheDiscount = usage.cache_discount;
   }
   return result;
 }
