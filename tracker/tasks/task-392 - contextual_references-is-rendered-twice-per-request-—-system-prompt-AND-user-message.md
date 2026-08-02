@@ -3,9 +3,10 @@ id: TASK-392
 title: >-
   contextual_references is rendered twice per request — system prompt AND user
   message
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-01 18:05'
+updated_date: '2026-08-02 20:42'
 labels:
   - 'size:M'
   - 'area:ai-worker'
@@ -62,4 +63,14 @@ A standalone fix would either duplicate that work or do it backwards. This task 
 the tracked instance of the waste, and closes when Phase 1 lands.
 
 The measurement that sizes it, plus the corrected phase sequencing, is recorded in doc-17.
+
+## 2026-08-02 — SHIPPED (#1907); Done
+
+Phase 1 landed exactly as the design ruled: `<contextual_references>` renders ONLY in the
+user message's volatile prefix (`buildVolatilePrefix`); the system-prompt copy is gone, and
+the budget's double-COUNT of the same string died with the double-ship. Pinned by test:
+"renders references in the volatile prefix ONLY (the double-render is dead)". The ~1,900
+duplicated tokens per referencing request are recovered on every such request from the next
+release on. Verification of the realized effect rides the epic's post-release cache
+measurement (CURRENT.md § Watches).
 <!-- SECTION:DESCRIPTION:END -->
