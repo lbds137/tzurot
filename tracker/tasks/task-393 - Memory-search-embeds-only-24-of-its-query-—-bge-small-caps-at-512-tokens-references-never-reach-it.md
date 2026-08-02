@@ -79,4 +79,34 @@ miner is `packages/tooling/src/memory/mine-conversation-goldens.ts`.
 high enough rate in prod to justify prioritising the mining. The warn is how
 that rate becomes knowable — grep ai-worker for
 `Input exceeded the model window`.
+
+## 2026-08-02 — goldens gap CLOSED (PR #1900); promote condition met
+
+**The prod-warn arm cannot fire yet**: #1893 (`449e110a7`) is on develop,
+unreleased — prod (beta.189) still emits the OLD
+`Including referenced message content in memory search query` line the PR
+deleted (verified in a 5,000-line prod ai-worker window). Re-check the warn
+rate after the next release ships.
+
+**The goldens arm is done instead.** `pnpm ops memory:mine-attachment-goldens`
+(PR #1900) mined **24 attachment goldens (16 image / 8 voice)**, each with the
+bare-message/attachment-block split and the fold history window, into
+`reports/goldens-mining/attachment-goldens.json` (local-only, additive beside
+the judged conversation set).
+
+**Two findings from the mining probe** (dev copy of the synced history):
+
+- `messageMetadata.attachmentDescriptions` has **no producer** — 0 of 4,020
+  retained user turns carry it. Attachment text lives appended in `content`
+  (`VisionDescriptionWriter` upgrades the placeholder row post-vision), so the
+  miner splits by content marker. Dead schema surface filed separately.
+- The overflow is the **median** case for attachment turns, not the tail:
+  enriched-image turns run p50 3,654 chars / p90 12,550 / max 30,648 against
+  the ~2,000-char (512-token) model window. 69 image + 44 voice turns in the
+  persona's retained history (~7% of user turns).
+
+**Next**: allocation A/B arms (current / per-part budget / lead-sentence /
+reorder / separate-embeds) in the fold-aware eval harness
+(`services/ai-worker/src/services/eval/foldAware*.eval.test.ts`), scored on
+these goldens with the same pool→judge→qrels flow as the fold re-baseline.
 <!-- SECTION:DESCRIPTION:END -->
