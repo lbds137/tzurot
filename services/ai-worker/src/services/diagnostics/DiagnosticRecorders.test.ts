@@ -27,10 +27,11 @@ import {
   parseResponseMetadata,
   recordLlmConfigDiagnostic,
   recordLlmResponseDiagnostic,
+  recordPreInvocationDiagnostics,
   recordBudgetDiagnostics,
   type ParsedResponseMetadata,
 } from './DiagnosticRecorders.js';
-import { SystemMessage } from '@langchain/core/messages';
+import { SystemMessage, HumanMessage } from '@langchain/core/messages';
 import type { DiagnosticCollector } from '../DiagnosticCollector.js';
 import type { BudgetAllocationResult, MemoryDocument } from '../ConversationalRAGTypes.js';
 
@@ -162,6 +163,7 @@ describe('DiagnosticRecorders', () => {
         selectedFacts: [],
         serializedHistory: '',
         systemPrompt: new SystemMessage('system prompt text'),
+        systemPromptSections: [],
         memoryTokensUsed: 50,
         factTokensUsed: 0,
         historyTokensUsed: 200,
@@ -213,6 +215,7 @@ describe('DiagnosticRecorders', () => {
         selectedFacts: [{ statement: 'fact a' }, { statement: 'fact b' }],
         serializedHistory: '',
         systemPrompt: new SystemMessage('sys'),
+        systemPromptSections: [],
         memoryTokensUsed: 10,
         factTokensUsed: 42,
         historyTokensUsed: 20,
@@ -238,6 +241,36 @@ describe('DiagnosticRecorders', () => {
           factsDropped: 3,
         })
       );
+    });
+  });
+
+  describe('recordPreInvocationDiagnostics', () => {
+    it('records prompt (with sections), config, and start mark in one call', () => {
+      const mockCollector = {
+        recordAssembledPrompt: vi.fn(),
+        recordLlmConfig: vi.fn(),
+        markLlmInvocationStart: vi.fn(),
+      };
+      const sections = [{ id: 'system_identity', tier: 'S1' as const, chars: 10, offset: 0 }];
+      const messages = [new SystemMessage('0123456789'), new HumanMessage('01234')];
+
+      recordPreInvocationDiagnostics({
+        collector: mockCollector as never,
+        messages,
+        systemPromptSections: sections,
+        countTokens: text => text.length,
+        modelName: 'z-ai/glm-4.7',
+        personality: { topP: 0.9 } as never,
+        effectiveTemperature: 0.8,
+        effectiveFrequencyPenalty: undefined,
+      });
+
+      // Token estimate sums every message through the provided counter.
+      expect(mockCollector.recordAssembledPrompt).toHaveBeenCalledWith(messages, 15, sections);
+      expect(mockCollector.recordLlmConfig).toHaveBeenCalledWith(
+        expect.objectContaining({ model: 'z-ai/glm-4.7', temperature: 0.8, topP: 0.9 })
+      );
+      expect(mockCollector.markLlmInvocationStart).toHaveBeenCalledTimes(1);
     });
   });
 

@@ -5,6 +5,8 @@
  * extracting verbose inline construction from the main orchestration methods.
  */
 
+import type { BaseMessage } from '@langchain/core/messages';
+import type { DiagnosticPromptSection } from '@tzurot/common-types/types/diagnostic';
 import type { DiagnosticCollector } from '../DiagnosticCollector.js';
 import { resolveFinishReason } from '@tzurot/common-types/constants/finishReasons';
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
@@ -113,6 +115,33 @@ export function recordLlmConfigDiagnostic(opts: LlmConfigDiagnosticOptions): voi
     route: personality.route,
     verbosity: personality.verbosity,
   });
+}
+
+/** Options for recording everything the collector needs before model.invoke() */
+interface PreInvocationDiagnosticOptions extends LlmConfigDiagnosticOptions {
+  /** The exact messages array about to be sent to the model */
+  messages: BaseMessage[];
+  /** Section map of the system prompt (tier/size/offset), for the prefix-diff tool */
+  systemPromptSections?: DiagnosticPromptSection[];
+  countTokens: (text: string) => number;
+}
+
+/**
+ * Record the assembled prompt (with its section map), the LLM config, and the
+ * invocation start mark — the full pre-invoke diagnostic set — in one call.
+ */
+export function recordPreInvocationDiagnostics(opts: PreInvocationDiagnosticOptions): void {
+  const totalTokenEstimate = opts.messages.reduce(
+    (sum, message) => sum + opts.countTokens(contentToText(message.content)),
+    0
+  );
+  opts.collector.recordAssembledPrompt(
+    opts.messages,
+    totalTokenEstimate,
+    opts.systemPromptSections
+  );
+  recordLlmConfigDiagnostic(opts);
+  opts.collector.markLlmInvocationStart();
 }
 
 /** Build reasoning debug info for diagnostics */

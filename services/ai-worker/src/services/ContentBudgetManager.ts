@@ -260,15 +260,16 @@ export class ContentBudgetManager {
 
     // Build final system prompt
     // Note: Image descriptions are now inline in serializedHistory (via injectImageDescriptions)
-    const systemPrompt = this.promptBuilder.buildFullSystemPrompt({
-      personality: processedPersonality,
-      participantPersonas,
-      relevantMemories,
-      facts: selectedFacts,
-      context,
-      referencedMessagesFormatted: opts.referencedMessagesDescriptions,
-      serializedHistory,
-    });
+    const { message: systemPrompt, sections: systemPromptSections } =
+      this.promptBuilder.buildFullSystemPromptWithSections({
+        personality: processedPersonality,
+        participantPersonas,
+        relevantMemories,
+        facts: selectedFacts,
+        context,
+        referencedMessagesFormatted: opts.referencedMessagesDescriptions,
+        serializedHistory,
+      });
 
     this.logAllocation({
       contextWindowTokens,
@@ -288,6 +289,7 @@ export class ContentBudgetManager {
       selectedFacts,
       serializedHistory,
       systemPrompt,
+      systemPromptSections,
       memoryTokensUsed,
       factTokensUsed,
       historyTokensUsed,

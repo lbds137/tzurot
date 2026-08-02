@@ -378,6 +378,27 @@ describe('DiagnosticCollector', () => {
       const payload = collector.finalize();
       expect(payload.assembledPrompt.messages[0].content).toBe('First partSecond part');
     });
+
+    it('should carry system-prompt section descriptions into the finalized payload', () => {
+      // The prefix-diff tool reads these off the stored payload — a dropped
+      // forward here silently removes its annotation source.
+      const sections = [
+        { id: 'system_identity', tier: 'S1' as const, chars: 120, offset: 0 },
+        { id: 'chat_log', tier: 'H' as const, chars: 4000, offset: 122 },
+      ];
+
+      collector.recordAssembledPrompt([new SystemMessage('sys')], 100, sections);
+
+      const payload = collector.finalize();
+      expect(payload.assembledPrompt.systemPromptSections).toEqual(sections);
+    });
+
+    it('should omit systemPromptSections when none are provided', () => {
+      collector.recordAssembledPrompt([new SystemMessage('sys')], 100);
+
+      const payload = collector.finalize();
+      expect(payload.assembledPrompt.systemPromptSections).toBeUndefined();
+    });
   });
 
   describe('recordLlmConfig', () => {

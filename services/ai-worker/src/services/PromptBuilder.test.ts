@@ -1402,6 +1402,66 @@ describe('PromptBuilder', () => {
    * - Extended context with image descriptions
    * - Voice transcripts
    */
+  describe('buildFullSystemPromptWithSections — production section list', () => {
+    // Pins the REAL section array in PromptBuilder (ids, tiers, order) against
+    // a build where every section renders. The synthetic sections.test.ts pins
+    // the assembler contract; this pins the production wiring — the list the
+    // prefix-diff tool annotates against. A wrong id/tier or a section missing
+    // from the array fails here instead of surfacing as a mis-annotated diff.
+    it('describes every rendered section with its id and tier, in assembly order', () => {
+      const { message, sections } = promptBuilder.buildFullSystemPromptWithSections({
+        personality: {
+          id: 'p-1',
+          slug: 'sect-bot',
+          ownerId: 'owner-1',
+          name: 'SectBot',
+          systemPrompt: 'Be helpful.',
+          characterInfo: 'A section-model test character',
+          personalityTraits: 'Precise',
+          voiceEnabled: false,
+          displayName: 'Sect Bot',
+          model: 'gpt-4',
+          provider: 'openrouter',
+          temperature: 0.7,
+          maxTokens: 2000,
+          contextWindowTokens: 8000,
+        },
+        participantPersonas: new Map([
+          ['User', { content: 'A tester', isActive: true, personaId: 'persona-1' }],
+        ]),
+        relevantMemories: [
+          { pageContent: 'Test memory', metadata: { createdAt: new Date('2024-01-15').getTime() } },
+        ],
+        facts: [{ statement: 'Likes tests.' }],
+        context: { userId: 'user-1', activePersonaName: 'User' } as ConversationContext,
+        referencedMessagesFormatted: '<contextual_references>ref</contextual_references>',
+        serializedHistory: '<message>hi</message>',
+      });
+
+      expect(sections.map(section => `${section.tier}:${section.id}`)).toEqual([
+        'S1:system_identity',
+        'S1:identity_constraints',
+        'S0:platform_constraints',
+        'V:context',
+        'V:participants',
+        'V:facts',
+        'V:memory_archive',
+        'V:contextual_references',
+        'H:chat_log',
+        'S1:protocol',
+        'S0:output_constraints',
+      ]);
+
+      // Offsets index back into the actual assembled message.
+      const content = message.content as string;
+      for (const section of sections) {
+        const slice = content.slice(section.offset, section.offset + section.chars);
+        expect(slice.length).toBe(section.chars);
+      }
+      expect(content.slice(sections[0].offset, 17)).toBe('<system_identity>');
+    });
+  });
+
   describe('Prompt Snapshots', () => {
     // Fixed date for deterministic snapshots
     const FIXED_DATE = new Date('2024-06-15T14:30:00Z');
