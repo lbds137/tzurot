@@ -110,8 +110,7 @@ export class ConversationalRAGService {
     this.responsePostProcessor = new ResponsePostProcessor();
     this.inputProcessor = new ConversationInputProcessor(
       this.promptBuilder,
-      this.referencedMessageFormatter,
-      this.responsePostProcessor
+      this.referencedMessageFormatter
     );
     this.memoryPersistence = new MemoryPersistenceService(longTermMemory, this.memoryRetriever);
   }
