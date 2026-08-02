@@ -217,7 +217,8 @@ export interface QuoteElementOptions {
   role?: RenderedQuoteRole;
   /**
    * Pre-formatted timestamp for the `t=""` attribute — always via
-   * `formatPromptTimestamp`, the same helper `<message>` uses in `<chat_log>`.
+   * `formatPromptTimestamp` (quotes are volatile-tier content and keep the
+   * relative form; `<chat_log>` messages use `formatAbsoluteTimestamp`).
    *
    * There used to be a second slot here (a `{absolute, relative}` pair rendered
    * as a `<time/>` child) that only the live paths filled, so the same quote
