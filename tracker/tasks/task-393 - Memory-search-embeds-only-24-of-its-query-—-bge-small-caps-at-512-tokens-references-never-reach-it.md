@@ -3,9 +3,10 @@ id: TASK-393
 title: >-
   Memory search embeds only 24% of its query — bge-small caps at 512 tokens,
   references never reach it
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-01 18:05'
+updated_date: '2026-08-02 16:20'
 labels:
   - 'size:M'
   - 'area:ai-worker'
@@ -142,4 +143,16 @@ separate-embeds not needed given budget ≈ current.
 truncation code so measurement and policy can't drift; (2) post-release,
 re-check the prod overflow-warn rate (`Input exceeded the model window`) —
 after the cap it should fire only on pathological reference/multi-part turns.
+
+## 2026-08-02 — SHIPPED (#1902); Done
+
+The cap landed: `ATTACHMENT_SEARCH_BUDGET_CHARS` (1024 chars, word-boundary,
+lone-surrogate-safe) in `prompt/searchQueryBudget.ts`, applied to the
+`attachmentDescriptions` part; `allocationArms.ts` imports the same code so
+the next A/B measures the shipped policy. Composition log gains
+`attachmentCharsBeforeBudget` (present only when the cap bit). References now
+reach the embedder on median attachment turns by construction.
+
+The post-release verification (overflow-warn rate + cap bite rate) lives in
+CURRENT.md § Watches — it is a calendar-gated check, not open work.
 <!-- SECTION:DESCRIPTION:END -->
