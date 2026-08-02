@@ -4,16 +4,18 @@ _Focus: restructure prompt assembly so the prefix is stable enough for provider-
 
 **Design ACCEPTED 2026-07-05** → [`docs/proposals/backlog/prompt-assembly-architecture.md`](../docs/proposals/backlog/prompt-assembly-architecture.md) (stability tiers S0/S1/H/V, verified per-provider cache matrix). **Corrected phasing measured 2026-08-01** (doc-17: prod req `456ec221` section table + council pass): Phase 0 alone buys ~0 (+72 tokens — datetime precedes the buster); caching is strictly sequential, so history extraction can't pay before the V-hoist; un-stranding the 2,604-token cross-persona `<protocol>` is most of Phase 1's win (ceiling ~15% of the measured request; the remaining 58% is `<chat_log>`, Phase 2's). **The z.ai coding endpoint caches implicitly** — 97.6% hit measured on a shared prefix (`usage.prompt_tokens_details.cached_tokens`), so the dominant prod route pays with no markers.
 
-### Phase 0 + 1 PR plan (approved 2026-08-02; full mechanics in the session plan)
+### Phase 0 + 1 — ✅ BUILD-COMPLETE 2026-08-02 (all six PRs merged same-day; unreleased)
 
-| PR  | Contents                                                                                                                                                              | Gate                             |
-| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------- |
-| 1   | Deletions: o-series transform (§2.6 dead code) · `historyReductionPercent` retry shrink · `<request_id>` buster (+ stale registry entry, REASONING_MODEL_FORMATS fix) | verify-and-remove                |
-| 2   | Cache telemetry: `usage_metadata.input_token_details.cache_read` → diagnostics + `/inspect` + completion log; OpenRouter `cache_write_tokens`/`cache_discount` capture | the epic's measurement           |
-| 3   | Typed section model (`{id, tier, render}`), behavior-preserving; section offsets into the diagnostic payload                                                          | **zero snapshot diff**           |
-| 4   | Prefix-diff tool (`pnpm ops`) over consecutive diagnostic rows, annotated by section boundaries                                                                        | the cache debugger, before PR-5  |
-| 5   | **Phase 1 restructure**: S0→S1→H reorder + V-hoist into the human message (context/participants/facts/memories/references), collision note → participants, memory framing language, allocate-owns-currentMessage budget seam | snap diff = review artifact; **closes TASK-392** |
-| 6   | Absolute timestamps in chat_log (kills relative-drift cache poison)                                                                                                    | after PR-5, attributable         |
+| PR         | Contents                                                                                                                                                                 |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| ✅ #1903   | Deletions: o-series transform (dead) · `historyReductionPercent` retry shrink · `<request_id>` buster — all three anti-cache/dead, −660 lines                            |
+| ✅ #1904   | Cache telemetry: `cachedPromptTokens` in diagnostics + `/inspect` + the greppable `Generated response` log; OpenRouter `cacheDiscount` captured pre-`__raw_response`-delete |
+| ✅ #1905   | Typed section model (`{id, tier, render}`), byte-identical (zero snapshot diff); section offsets into the diagnostic payload                                              |
+| ✅ #1906   | `pnpm ops cache:prefix-diff` — the cache-miss debugger (runtime-verified against dev; also fixed 3 live tooling bugs: tsx-CJS top-level await, cac snowflake precision, pino-on-stdout) |
+| ✅ #1907   | **The restructure**: system = S0→S1→H cacheable prefix; ALL V-tier content → the user message's volatile prefix; **TASK-392 closed** (~1,900 dup tokens/referencing request recovered); `/inspect` budget view gained version-aware semantics |
+| ✅ #1908   | Absolute-only chat_log timestamps (`formatAbsoluteTimestamp`) — the last self-inflicted prefix poison                                                                     |
+
+**Post-release measurement (the epic's proof)**: after the next release, two consecutive same-persona turns on prod → `cachedPromptTokens` nonzero on turn 2 (grep `Generated response`); a repeated 456ec221-style `/inspect` capture measures the realized cacheable fraction against the predicted ~15%. `pnpm ops cache:prefix-diff --env prod --channel <id>` names any unexpected divergence by section.
 
 **Gates + known instabilities on record**: voice-consistency comparison harness (20–30 turns × 3+ personas) must be built and run after PR-5 ships, BEFORE Phase 2 starts · legacy-format protocols resolve `{user}` per-speaker (JSON protocols don't) — decide remedy before Phase-3 markers · Phase-3 spikes still open: Qwen cache economics + `ChatOpenAI` `cache_control` serialization · quality fallback recorded: OUTPUT_CONSTRAINTS can return to the recency tail for ~150 re-billed tokens/turn if the reorder regresses voice.
 
