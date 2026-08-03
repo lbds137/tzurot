@@ -3,9 +3,10 @@ id: TASK-412
 title: >-
   Delete dead legacy router factories and sweep stale route-header paths in
   api-gateway
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-03 18:27'
+updated_date: '2026-08-03 23:37'
 labels:
   - 'size:M'
 dependencies: []

@@ -3,9 +3,10 @@ id: TASK-413
 title: >-
   Retire the defineCommand legacy execute arm and unreachable CommandHandler
   slash dispatch
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-03 18:27'
+updated_date: '2026-08-03 22:28'
 labels:
   - 'size:M'
 dependencies: []
