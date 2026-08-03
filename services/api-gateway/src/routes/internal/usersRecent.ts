@@ -1,5 +1,5 @@
 /**
- * GET /internal/users/recent?sinceDays=30
+ * GET /api/internal/users/recent?sinceDays=30
  *
  * Returns Discord IDs of users with usage_logs activity in the last N days.
  * Service-auth protected (global middleware in api-gateway/src/index.ts).

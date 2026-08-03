@@ -3,19 +3,19 @@
  * Set/reset TTS config overrides for personalities, plus user global default.
  *
  * Endpoints:
- * - GET    /user/tts-override              - List all user's TTS overrides
- * - PUT    /user/tts-override              - Set override for a personality
- * - GET    /user/tts-override/default      - Get user's global default TTS config
- * - PUT    /user/tts-override/default      - Set user's global default TTS config
- * - DELETE /user/tts-override/default      - Clear user's global default TTS config
- * - DELETE /user/tts-override/:personalityId - Remove override (MUST be after /default)
+ * - GET    /api/user/tts-override              - List all user's TTS overrides
+ * - PUT    /api/user/tts-override              - Set override for a personality
+ * - GET    /api/user/tts-override/default      - Get user's global default TTS config
+ * - PUT    /api/user/tts-override/default      - Set user's global default TTS config
+ * - DELETE /api/user/tts-override/default      - Clear user's global default TTS config
+ * - DELETE /api/user/tts-override/:personalityId - Remove override (MUST be after /default)
  *
  * Mirrors `routes/user/model-override.ts` exactly — same shape, same
  * idempotency contract — but acts on `UserPersonalityConfig.ttsConfigId`
  * and `User.defaultTtsConfigId` instead of the LLM equivalents.
  */
 
-import { Router, type Response, type RequestHandler } from 'express';
+import { type Response, type RequestHandler } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import { ADMIN_SETTINGS_SINGLETON_ID } from '@tzurot/common-types/schemas/api/adminSettings';
 import {
@@ -27,7 +27,6 @@ import {
 import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import { generateUserPersonalityConfigUuid } from '@tzurot/common-types/utils/deterministicUuid';
 import { createLogger } from '@tzurot/common-types/utils/logger';
-import { requireUserAuth, requireProvisionedUser } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import {
   tryInvalidateCache,
@@ -337,28 +336,3 @@ export const handleDeleteTtsOverride = (deps: RouteDeps): RequestHandler => {
     sendCustomSuccess(res, { deleted: true, wasSet: true }, StatusCodes.OK);
   });
 };
-
-export function createTtsOverrideRoutes(deps: RouteDeps): Router {
-  const router = Router();
-  const requireProvisioned = requireProvisionedUser(deps.prisma);
-
-  router.get('/', requireUserAuth(), requireProvisioned, handleListTtsOverrides(deps));
-  router.put('/', requireUserAuth(), requireProvisioned, handleSetTtsOverride(deps));
-  // /default routes MUST come before /:personalityId to avoid the parameter shadowing them
-  router.get('/default', requireUserAuth(), requireProvisioned, handleGetTtsDefaultConfig(deps));
-  router.put('/default', requireUserAuth(), requireProvisioned, handleSetTtsDefaultConfig(deps));
-  router.delete(
-    '/default',
-    requireUserAuth(),
-    requireProvisioned,
-    handleClearTtsDefaultConfig(deps)
-  );
-  router.delete(
-    '/:personalityId',
-    requireUserAuth(),
-    requireProvisioned,
-    handleDeleteTtsOverride(deps)
-  );
-
-  return router;
-}

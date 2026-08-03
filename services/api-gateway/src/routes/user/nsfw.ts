@@ -1,13 +1,12 @@
 /**
  * User NSFW Verification Routes
- * GET /user/nsfw - Get NSFW verification status
- * POST /user/nsfw/verify - Mark user as NSFW verified (called when user interacts in NSFW channel)
+ * GET /api/user/nsfw - Get NSFW verification status
+ * POST /api/user/nsfw/verify - Mark user as NSFW verified (called when user interacts in NSFW channel)
  */
 
-import { Router, type Response, type RequestHandler } from 'express';
+import { type Response, type RequestHandler } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import { createLogger } from '@tzurot/common-types/utils/logger';
-import { requireUserAuth, requireProvisionedUser } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { resolveProvisionedUserId } from '../../utils/resolveProvisionedUserId.js';
 import { sendCustomSuccess } from '../../utils/responseHelpers.js';
@@ -102,20 +101,3 @@ export const handleVerifyNsfw = (deps: RouteDeps): RequestHandler => {
     );
   });
 };
-
-export function createNsfwRoutes(deps: RouteDeps): Router {
-  const router = Router();
-  router.get(
-    '/',
-    requireUserAuth(),
-    requireProvisionedUser(deps.prisma),
-    handleGetNsfwStatus(deps)
-  );
-  router.post(
-    '/verify',
-    requireUserAuth(),
-    requireProvisionedUser(deps.prisma),
-    handleVerifyNsfw(deps)
-  );
-  return router;
-}

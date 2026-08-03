@@ -6,7 +6,7 @@
  */
 
 import { vi } from 'vitest';
-import type { Request, Response, Router } from 'express';
+import type { Request, RequestHandler, Response, Router } from 'express';
 import type { ConfigCascadeResolver, LlmConfigResolver } from '@tzurot/config-resolver';
 import { getRouteHandler } from './expressRouterUtils.js';
 
@@ -94,6 +94,25 @@ export function getHandler(
   path: string
 ): RouteHandler {
   return getRouteHandler(router, method, path) as RouteHandler;
+}
+
+/**
+ * Adapt a bare `RequestHandler` export (the shape `routes/_generated/mounts.ts`
+ * mounts) to the two-argument call shape used across route tests. Express
+ * always supplies `next`; handlers wrapped in `asyncHandler` only reach for it
+ * on a thrown error, so a `vi.fn()` stand-in is enough.
+ *
+ * The parameter is the plain `Request` rather than `RouteHandler`'s
+ * `Request & { userId: string }` so that suites building a bare mock request
+ * can call the result too; contravariance keeps it assignable to
+ * `RouteHandler` for the suites that do attach `userId`.
+ */
+export function asRouteHandler(
+  handler: RequestHandler
+): (req: Request, res: Response) => Promise<void> {
+  return async (req, res) => {
+    await handler(req, res, vi.fn());
+  };
 }
 
 /**

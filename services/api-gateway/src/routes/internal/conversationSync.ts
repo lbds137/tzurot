@@ -1,5 +1,5 @@
 /**
- * POST /internal/conversation/sync
+ * POST /api/internal/conversation/sync
  *
  * Opportunistic edit/delete sync. bot-client ships the Discord snapshot it
  * fetched for a channel+personality; the gateway runs the diff against DB

@@ -14,8 +14,8 @@
  * and the TTS-global flows — but every unit test mocked above the validation
  * boundary, so nothing failed.
  *
- * Strategy: mount the REAL route aggregators with a mocked Prisma (so the real
- * service + formatter run), drive each endpoint through supertest, and assert
+ * Strategy: mount the REAL handlers with a mocked Prisma (so the real service +
+ * formatter run), drive each endpoint through supertest, and assert
  * the emitted body parses against `ROUTE_MANIFEST[id].output` — the same schema
  * the generated client validates with. LIST / GET / CREATE / UPDATE — every
  * config-emitting admin verb — is covered for both resources.
@@ -41,8 +41,19 @@ vi.mock('../../utils/llmConfigValidation.js', () => ({
   validateLlmConfigModelFields: vi.fn().mockResolvedValue(true),
 }));
 
-import { createAdminLlmConfigRoutes } from './llm-config.js';
-import { createAdminTtsConfigRoutes } from './tts-config.js';
+import {
+  handleCreateGlobalLlmConfig,
+  handleGetGlobalLlmConfig,
+  handleListGlobalLlmConfigs,
+  handleUpdateGlobalLlmConfig,
+} from './llm-config.js';
+import {
+  handleCreateGlobalTtsConfig,
+  handleGetGlobalTtsConfig,
+  handleListGlobalTtsConfigs,
+  handleUpdateGlobalTtsConfig,
+} from './tts-config.js';
+import { requireOwnerAuth } from '../../services/AuthMiddleware.js';
 import { stubRouteResolvers } from '../../test/shared-route-test-utils.js';
 
 // A valid RFC-4122 UUID — `LlmConfigSummarySchema.id` / `TtsConfigSummarySchema.id`
@@ -108,7 +119,11 @@ describe('Admin LLM config response contract', () => {
 
     app = express();
     app.use(express.json());
-    app.use('/admin/llm-config', createAdminLlmConfigRoutes({ ...stubRouteResolvers(), prisma }));
+    const deps = { ...stubRouteResolvers(), prisma };
+    app.get('/admin/llm-config', requireOwnerAuth(), handleListGlobalLlmConfigs(deps));
+    app.post('/admin/llm-config', requireOwnerAuth(), handleCreateGlobalLlmConfig(deps));
+    app.get('/admin/llm-config/:id', requireOwnerAuth(), handleGetGlobalLlmConfig(deps));
+    app.put('/admin/llm-config/:id', requireOwnerAuth(), handleUpdateGlobalLlmConfig(deps));
   });
 
   it('GET /admin/llm-config satisfies listGlobalLlmConfigs output schema', async () => {
@@ -178,7 +193,11 @@ describe('Admin TTS config response contract', () => {
 
     app = express();
     app.use(express.json());
-    app.use('/admin/tts-config', createAdminTtsConfigRoutes({ ...stubRouteResolvers(), prisma }));
+    const deps = { ...stubRouteResolvers(), prisma };
+    app.get('/admin/tts-config', requireOwnerAuth(), handleListGlobalTtsConfigs(deps));
+    app.post('/admin/tts-config', requireOwnerAuth(), handleCreateGlobalTtsConfig(deps));
+    app.get('/admin/tts-config/:id', requireOwnerAuth(), handleGetGlobalTtsConfig(deps));
+    app.put('/admin/tts-config/:id', requireOwnerAuth(), handleUpdateGlobalTtsConfig(deps));
   });
 
   it('GET /admin/tts-config satisfies listGlobalTtsConfigs output schema', async () => {

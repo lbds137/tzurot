@@ -1,8 +1,8 @@
 /**
  * Shapes.inc Export Routes (Async)
  *
- * POST /user/shapes/export   - Start an async export job
- * GET  /user/shapes/export/jobs - List export job history
+ * POST /api/user/shapes/export   - Start an async export job
+ * GET  /api/user/shapes/export/jobs - List export job history
  *
  * Export data is fetched asynchronously by ai-worker and stored in PostgreSQL.
  * Users download completed exports via GET /exports/:token (public endpoint).

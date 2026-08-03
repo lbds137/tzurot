@@ -1,9 +1,9 @@
 /**
- * POST /admin/db-sync
+ * POST /api/admin/db-sync
  * Bidirectional database synchronization between dev and prod
  */
 
-import { Router, type Request, type RequestHandler, type Response } from 'express';
+import { type Request, type RequestHandler, type Response } from 'express';
 import { getConfig } from '@tzurot/common-types/config/config';
 import { DbSyncSchema } from '@tzurot/common-types/schemas/api/admin';
 import { transientPoolOptions } from '@tzurot/common-types/services/poolConfig';
@@ -11,7 +11,6 @@ import { PrismaClient } from '@tzurot/common-types/services/prisma';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { DatabaseSyncService } from '../../services/DatabaseSyncService.js';
-import { requireOwnerAuth } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
@@ -24,8 +23,7 @@ const logger = createLogger('admin-db-sync');
  * POST /api/admin/db-sync — named handler export consumed by the
  * generated mounts.ts codegen. The returned `RequestHandler` is
  * composition-ready; middleware (auth, rate limiters) is applied by
- * the caller — at the prefix mount for codegen-driven routes, or
- * per-route for the legacy factory below.
+ * the caller at the mount site.
  */
 export const handleDbSync = (_deps: RouteDeps): RequestHandler =>
   asyncHandler(async (req: Request, res: Response) => {
@@ -81,14 +79,3 @@ export const handleDbSync = (_deps: RouteDeps): RequestHandler =>
       timestamp: new Date().toISOString(),
     });
   });
-
-/**
- * Legacy factory for the `/admin/db-sync` mount. Wraps the named
- * handler with the per-route middleware for callers that haven't
- * yet migrated to the bare handler export.
- */
-export function createDbSyncRoute(deps: RouteDeps): Router {
-  const router = Router();
-  router.post('/', requireOwnerAuth(), handleDbSync(deps));
-  return router;
-}

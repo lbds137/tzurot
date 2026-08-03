@@ -70,10 +70,10 @@ const mockPrisma = {
   $executeRaw: vi.fn().mockResolvedValue(1),
 };
 
-import { createTestKeyRoute } from './testKey.js';
+import { handleTestWalletKey } from './testKey.js';
 import { AIProvider } from '@tzurot/common-types/constants/ai';
 import { type PrismaClient } from '@tzurot/common-types/services/prisma';
-import { findRoute, getRouteHandler } from '../../test/expressRouterUtils.js';
+import { asRouteHandler } from '../../test/shared-route-test-utils.js';
 
 // Helper to create mock request/response
 function createMockReqRes(body: Record<string, unknown> = {}) {
@@ -98,8 +98,7 @@ async function callHandler(
   req: Request & { userId: string },
   res: Response
 ): Promise<void> {
-  const router = createTestKeyRoute(prisma as PrismaClient);
-  const handler = getRouteHandler(router, 'post');
+  const handler = asRouteHandler(handleTestWalletKey({ prisma: prisma as PrismaClient }));
   await handler(req, res);
 }
 
@@ -114,24 +113,6 @@ describe('POST /wallet/test', () => {
       tag: 'mock-tag',
     });
     mockPrisma.userApiKey.updateMany.mockResolvedValue({ count: 1 });
-  });
-
-  describe('route factory', () => {
-    it('should create a router', () => {
-      const router = createTestKeyRoute(mockPrisma as unknown as PrismaClient);
-
-      expect(router).toBeDefined();
-      expect(typeof router).toBe('function');
-    });
-
-    it('should have POST route registered', () => {
-      const router = createTestKeyRoute(mockPrisma as unknown as PrismaClient);
-
-      expect(router.stack).toBeDefined();
-      expect(router.stack.length).toBeGreaterThan(0);
-
-      expect(findRoute(router, 'post', '/')).toBeDefined();
-    });
   });
 
   describe('validation', () => {

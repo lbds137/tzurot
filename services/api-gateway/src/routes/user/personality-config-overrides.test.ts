@@ -7,7 +7,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { Request, Response } from 'express';
+import type { Request, RequestHandler, Response } from 'express';
 
 // Hoisted mocks
 const { mockGetOrCreateUser, mockGetOrCreateUserShell, mockResolveOverrides } = vi.hoisted(() => ({
@@ -93,9 +93,13 @@ const mockDeps = {
   } as unknown as import('@tzurot/config-resolver').ConfigCascadeResolver,
 } as unknown as import('../routeDeps.js').RouteDeps;
 
-import { createPersonalityConfigOverrideRoutes } from './personality-config-overrides.js';
-import { getRouteHandler, findRoute } from '../../test/expressRouterUtils.js';
+import {
+  handleResolvePersonalityCascade,
+  handleUpdatePersonalityConfigDefaults,
+} from './personality-config-overrides.js';
 import type { PrismaClient } from '@tzurot/common-types/services/prisma';
+import { asRouteHandler, type RouteHandler } from '../../test/shared-route-test-utils.js';
+import type { RouteDeps } from '../routeDeps.js';
 
 const TEST_DISCORD_USER_ID = 'discord-user-123';
 const TEST_PERSONALITY_ID = '00000000-0000-0000-0000-000000000003';
@@ -118,12 +122,12 @@ function createMockReqRes(body: Record<string, unknown> = {}, params: Record<str
   return { req, res };
 }
 
-function getHandler(
-  router: ReturnType<typeof createPersonalityConfigOverrideRoutes>,
-  method: 'get' | 'patch',
-  path: string
-) {
-  return getRouteHandler(router, method, path);
+/**
+ * Build a bare handler with the given deps — the same export
+ * routes/_generated/mounts.ts mounts, invoked directly.
+ */
+function buildHandler(handler: (deps: RouteDeps) => RequestHandler, deps: RouteDeps): RouteHandler {
+  return asRouteHandler(handler(deps));
 }
 
 describe('/user/config-overrides personality routes', () => {
@@ -133,20 +137,9 @@ describe('/user/config-overrides personality routes', () => {
     mockPrisma.personality.update.mockResolvedValue({});
   });
 
-  describe('route factory', () => {
-    it('should create a router with personality routes', () => {
-      const router = createPersonalityConfigOverrideRoutes(mockDeps);
-
-      expect(router).toBeDefined();
-      expect(findRoute(router, 'get', '/resolve-personality/:personalityId')).toBeDefined();
-      expect(findRoute(router, 'patch', '/personality/:personalityId')).toBeDefined();
-    });
-  });
-
   describe('GET /resolve-personality/:personalityId', () => {
     it('should return resolved 3-tier cascade', async () => {
-      const router = createPersonalityConfigOverrideRoutes(mockDeps);
-      const handler = getHandler(router, 'get', '/resolve-personality/:personalityId');
+      const handler = buildHandler(handleResolvePersonalityCascade, mockDeps);
       const { req, res } = createMockReqRes({}, { personalityId: TEST_PERSONALITY_ID });
 
       await handler(req, res);
@@ -156,8 +149,7 @@ describe('/user/config-overrides personality routes', () => {
     });
 
     it('should reject non-UUID personalityId', async () => {
-      const router = createPersonalityConfigOverrideRoutes(mockDeps);
-      const handler = getHandler(router, 'get', '/resolve-personality/:personalityId');
+      const handler = buildHandler(handleResolvePersonalityCascade, mockDeps);
       const { req, res } = createMockReqRes({}, { personalityId: 'not-a-uuid' });
 
       await handler(req, res);
@@ -169,8 +161,7 @@ describe('/user/config-overrides personality routes', () => {
 
   describe('PATCH /personality/:personalityId', () => {
     it('should reject non-UUID personalityId', async () => {
-      const router = createPersonalityConfigOverrideRoutes(mockDeps);
-      const handler = getHandler(router, 'patch', '/personality/:personalityId');
+      const handler = buildHandler(handleUpdatePersonalityConfigDefaults, mockDeps);
       const { req, res } = createMockReqRes({ maxMessages: 25 }, { personalityId: 'not-a-uuid' });
 
       await handler(req, res);
@@ -179,8 +170,7 @@ describe('/user/config-overrides personality routes', () => {
     });
 
     it('should return 404 when personality not found', async () => {
-      const router = createPersonalityConfigOverrideRoutes(mockDeps);
-      const handler = getHandler(router, 'patch', '/personality/:personalityId');
+      const handler = buildHandler(handleUpdatePersonalityConfigDefaults, mockDeps);
       const { req, res } = createMockReqRes(
         { maxMessages: 25 },
         { personalityId: TEST_PERSONALITY_ID }
@@ -197,8 +187,7 @@ describe('/user/config-overrides personality routes', () => {
         configDefaults: null,
       });
 
-      const router = createPersonalityConfigOverrideRoutes(mockDeps);
-      const handler = getHandler(router, 'patch', '/personality/:personalityId');
+      const handler = buildHandler(handleUpdatePersonalityConfigDefaults, mockDeps);
       const { req, res } = createMockReqRes(
         { maxMessages: 25 },
         { personalityId: TEST_PERSONALITY_ID }
@@ -215,8 +204,7 @@ describe('/user/config-overrides personality routes', () => {
         configDefaults: null,
       });
 
-      const router = createPersonalityConfigOverrideRoutes(mockDeps);
-      const handler = getHandler(router, 'patch', '/personality/:personalityId');
+      const handler = buildHandler(handleUpdatePersonalityConfigDefaults, mockDeps);
       const { req, res } = createMockReqRes(
         { maxMessages: 25 },
         { personalityId: TEST_PERSONALITY_ID }
@@ -243,8 +231,7 @@ describe('/user/config-overrides personality routes', () => {
         configDefaults: { maxImages: 5 },
       });
 
-      const router = createPersonalityConfigOverrideRoutes(mockDeps);
-      const handler = getHandler(router, 'patch', '/personality/:personalityId');
+      const handler = buildHandler(handleUpdatePersonalityConfigDefaults, mockDeps);
       const { req, res } = createMockReqRes(
         { maxMessages: 25 },
         { personalityId: TEST_PERSONALITY_ID }
@@ -270,13 +257,12 @@ describe('/user/config-overrides personality routes', () => {
         invalidatePersonality: vi.fn().mockResolvedValue(undefined),
       };
 
-      const router = createPersonalityConfigOverrideRoutes({
+      const handler = buildHandler(handleUpdatePersonalityConfigDefaults, {
         ...mockDeps,
         cascadeInvalidation: mockInvalidation as unknown as NonNullable<
-          Parameters<typeof createPersonalityConfigOverrideRoutes>[0]['cascadeInvalidation']
+          RouteDeps['cascadeInvalidation']
         >,
       });
-      const handler = getHandler(router, 'patch', '/personality/:personalityId');
       const { req, res } = createMockReqRes(
         { maxMessages: 25 },
         { personalityId: TEST_PERSONALITY_ID }
@@ -297,13 +283,12 @@ describe('/user/config-overrides personality routes', () => {
         invalidatePersonality: vi.fn().mockRejectedValue(new Error('Redis connection lost')),
       };
 
-      const router = createPersonalityConfigOverrideRoutes({
+      const handler = buildHandler(handleUpdatePersonalityConfigDefaults, {
         ...mockDeps,
         cascadeInvalidation: mockInvalidation as unknown as NonNullable<
-          Parameters<typeof createPersonalityConfigOverrideRoutes>[0]['cascadeInvalidation']
+          RouteDeps['cascadeInvalidation']
         >,
       });
-      const handler = getHandler(router, 'patch', '/personality/:personalityId');
       const { req, res } = createMockReqRes(
         { maxMessages: 25 },
         { personalityId: TEST_PERSONALITY_ID }
@@ -322,8 +307,7 @@ describe('/user/config-overrides personality routes', () => {
         configDefaults: null,
       });
 
-      const router = createPersonalityConfigOverrideRoutes(mockDeps);
-      const handler = getHandler(router, 'patch', '/personality/:personalityId');
+      const handler = buildHandler(handleUpdatePersonalityConfigDefaults, mockDeps);
       const { req, res } = createMockReqRes(
         { maxMessages: -5 },
         { personalityId: TEST_PERSONALITY_ID }

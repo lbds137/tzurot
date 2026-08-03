@@ -1,5 +1,5 @@
 /**
- * PUT /user/personality/:slug
+ * PUT /api/user/personality/:slug
  * Update an owned personality
  */
 

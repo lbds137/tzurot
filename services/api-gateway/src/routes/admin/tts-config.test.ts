@@ -7,10 +7,10 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { Request, Response, Router } from 'express';
+import type { Request, RequestHandler, Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
-import { getAllRoutes } from '../../test/expressRouterUtils.js';
-import { stubRouteResolvers } from '../../test/shared-route-test-utils.js';
+import { asRouteHandler, stubRouteResolvers } from '../../test/shared-route-test-utils.js';
+import type { RouteDeps } from '../routeDeps.js';
 
 const sampleRawConfig = {
   id: 'cfg-uuid-1',
@@ -77,7 +77,15 @@ vi.mock('@tzurot/common-types/utils/logger', async () => {
   };
 });
 
-const { createAdminTtsConfigRoutes } = await import('./tts-config.js');
+const {
+  handleCreateGlobalTtsConfig,
+  handleDeleteGlobalTtsConfig,
+  handleGetGlobalTtsConfig,
+  handleListGlobalTtsConfigs,
+  handleSetGlobalTtsConfigDefault,
+  handleSetGlobalTtsConfigFreeDefault,
+  handleUpdateGlobalTtsConfig,
+} = await import('./tts-config.js');
 const { TtsInvalidProviderError } = await import('../../services/TtsConfigService.js');
 
 function makeMockRes() {
@@ -99,25 +107,6 @@ function makeMockReq(overrides: Record<string, unknown> = {}): Request {
   } as unknown as Request;
 }
 
-interface RouterLayer {
-  route?: {
-    path: string;
-    methods: Record<string, boolean>;
-    stack: Array<{ handle: (req: Request, res: Response) => Promise<void> }>;
-  };
-}
-
-function extractHandler(router: Router, method: string, path: string) {
-  const stack = (router as unknown as { stack: RouterLayer[] }).stack;
-  const layer = stack.find(
-    l => l.route?.path === path && l.route?.methods[method.toLowerCase()] === true
-  );
-  if (!layer?.route) {
-    throw new Error(`Handler for ${method} ${path} not found`);
-  }
-  return layer.route.stack[layer.route.stack.length - 1].handle;
-}
-
 const mockPrisma = {
   ttsConfig: {
     findUnique: vi.fn(),
@@ -133,26 +122,12 @@ const mockPrisma = {
   },
 };
 
-function buildRouter() {
-  return createAdminTtsConfigRoutes({ ...stubRouteResolvers(), prisma: mockPrisma as never });
+/** Build one bare handler with the mock deps — the shape mounts.ts registers. */
+function buildHandler(handler: (deps: RouteDeps) => RequestHandler) {
+  return asRouteHandler(handler({ ...stubRouteResolvers(), prisma: mockPrisma as never }));
 }
 
 describe('admin/tts-config routes', () => {
-  describe('middleware composition', () => {
-    it('wires requireOwnerAuth on every route', () => {
-      // Handler-extraction tests pick the last handler, which bypasses
-      // middleware. Inspect the router stack directly so a regression that
-      // removed requireOwnerAuth() from any route would fail this check.
-      const routes = getAllRoutes(buildRouter());
-      expect(routes.length, 'expected at least one registered route').toBeGreaterThan(0);
-      for (const route of routes) {
-        expect(route.stackLength, `${route.path} missing auth middleware`).toBeGreaterThanOrEqual(
-          2
-        );
-      }
-    });
-  });
-
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(mockService.formatConfigDetail).mockImplementation((c: typeof sampleRawConfig) => ({
@@ -176,7 +151,7 @@ describe('admin/tts-config routes', () => {
   describe('GET / (list)', () => {
     it('returns all GLOBAL configs in the formatted shape', async () => {
       vi.mocked(mockService.list).mockResolvedValue([sampleRawConfig]);
-      const handler = extractHandler(buildRouter(), 'GET', '/');
+      const handler = buildHandler(handleListGlobalTtsConfigs);
       const { res, json, status } = makeMockRes();
 
       await handler(makeMockReq(), res);
@@ -202,7 +177,7 @@ describe('admin/tts-config routes', () => {
   describe('GET /:id (get)', () => {
     it('returns 404 when config not found', async () => {
       vi.mocked(mockService.getById).mockResolvedValue(null);
-      const handler = extractHandler(buildRouter(), 'GET', '/:id');
+      const handler = buildHandler(handleGetGlobalTtsConfig);
       const { res, json } = makeMockRes();
 
       await handler(makeMockReq({ params: { id: 'missing' } }), res);
@@ -211,7 +186,7 @@ describe('admin/tts-config routes', () => {
 
     it('returns formatted config when found', async () => {
       vi.mocked(mockService.getById).mockResolvedValue(sampleRawConfig);
-      const handler = extractHandler(buildRouter(), 'GET', '/:id');
+      const handler = buildHandler(handleGetGlobalTtsConfig);
       const { res, json } = makeMockRes();
 
       await handler(makeMockReq({ params: { id: 'cfg-uuid-1' } }), res);
@@ -226,7 +201,7 @@ describe('admin/tts-config routes', () => {
   describe('POST / (create)', () => {
     it('returns 403 FORBIDDEN when admin user is not in DB', async () => {
       vi.mocked(mockPrisma.user.findUnique).mockResolvedValue(null);
-      const handler = extractHandler(buildRouter(), 'POST', '/');
+      const handler = buildHandler(handleCreateGlobalTtsConfig);
       const { res, json } = makeMockRes();
 
       await handler(makeMockReq({ body: { name: 'Sys', provider: 'self-hosted' } }), res);
@@ -239,7 +214,7 @@ describe('admin/tts-config routes', () => {
         exists: true,
         conflictId: 'cfg-existing',
       });
-      const handler = extractHandler(buildRouter(), 'POST', '/');
+      const handler = buildHandler(handleCreateGlobalTtsConfig);
       const { res, json } = makeMockRes();
 
       await handler(makeMockReq({ body: { name: 'Existing', provider: 'self-hosted' } }), res);
@@ -250,7 +225,7 @@ describe('admin/tts-config routes', () => {
     it('returns 201 on happy path', async () => {
       vi.mocked(mockPrisma.user.findUnique).mockResolvedValue({ id: 'admin-uuid-1' });
       vi.mocked(mockService.create).mockResolvedValue(sampleRawConfig);
-      const handler = extractHandler(buildRouter(), 'POST', '/');
+      const handler = buildHandler(handleCreateGlobalTtsConfig);
       const { res, status } = makeMockRes();
 
       await handler(makeMockReq({ body: { name: 'New Global', provider: 'mistral' } }), res);
@@ -266,7 +241,7 @@ describe('admin/tts-config routes', () => {
   describe('PUT /:id (edit)', () => {
     it('returns 404 when config not found', async () => {
       vi.mocked(mockPrisma.ttsConfig.findUnique).mockResolvedValue(null);
-      const handler = extractHandler(buildRouter(), 'PUT', '/:id');
+      const handler = buildHandler(handleUpdateGlobalTtsConfig);
       const { res, json } = makeMockRes();
 
       await handler(makeMockReq({ params: { id: 'missing' }, body: { description: 'new' } }), res);
@@ -278,7 +253,7 @@ describe('admin/tts-config routes', () => {
         ...sampleRawConfig,
         isGlobal: false,
       });
-      const handler = extractHandler(buildRouter(), 'PUT', '/:id');
+      const handler = buildHandler(handleUpdateGlobalTtsConfig);
       const { res, json } = makeMockRes();
 
       await handler(
@@ -296,7 +271,7 @@ describe('admin/tts-config routes', () => {
     it('translates TtsInvalidProviderError to 400 VALIDATION_ERROR', async () => {
       vi.mocked(mockPrisma.ttsConfig.findUnique).mockResolvedValue(sampleRawConfig);
       vi.mocked(mockService.update).mockRejectedValue(new TtsInvalidProviderError('mistal'));
-      const handler = extractHandler(buildRouter(), 'PUT', '/:id');
+      const handler = buildHandler(handleUpdateGlobalTtsConfig);
       const { res, json } = makeMockRes();
 
       await handler(
@@ -317,7 +292,7 @@ describe('admin/tts-config routes', () => {
         ...sampleRawConfig,
         modelId: 'voxtral-mini-tts-2603',
       });
-      const handler = extractHandler(buildRouter(), 'PUT', '/:id');
+      const handler = buildHandler(handleUpdateGlobalTtsConfig);
       const { res, status } = makeMockRes();
 
       await handler(
@@ -334,7 +309,7 @@ describe('admin/tts-config routes', () => {
   describe('PUT /:id/set-default', () => {
     it('returns 404 when config not found', async () => {
       vi.mocked(mockPrisma.ttsConfig.findUnique).mockResolvedValue(null);
-      const handler = extractHandler(buildRouter(), 'PUT', '/:id/set-default');
+      const handler = buildHandler(handleSetGlobalTtsConfigDefault);
       const { res, json } = makeMockRes();
 
       await handler(makeMockReq({ params: { id: 'missing' } }), res);
@@ -346,7 +321,7 @@ describe('admin/tts-config routes', () => {
         ...sampleRawConfig,
         isGlobal: false,
       });
-      const handler = extractHandler(buildRouter(), 'PUT', '/:id/set-default');
+      const handler = buildHandler(handleSetGlobalTtsConfigDefault);
       const { res, json } = makeMockRes();
 
       await handler(makeMockReq({ params: { id: 'cfg-uuid-1' } }), res);
@@ -356,7 +331,7 @@ describe('admin/tts-config routes', () => {
 
     it('calls service.setAsDefault on happy path', async () => {
       vi.mocked(mockPrisma.ttsConfig.findUnique).mockResolvedValue(sampleRawConfig);
-      const handler = extractHandler(buildRouter(), 'PUT', '/:id/set-default');
+      const handler = buildHandler(handleSetGlobalTtsConfigDefault);
       const { res, json } = makeMockRes();
 
       await handler(makeMockReq({ params: { id: 'cfg-uuid-1' } }), res);
@@ -372,7 +347,7 @@ describe('admin/tts-config routes', () => {
         ...sampleRawConfig,
         provider: 'elevenlabs',
       });
-      const handler = extractHandler(buildRouter(), 'PUT', '/:id/set-free-default');
+      const handler = buildHandler(handleSetGlobalTtsConfigFreeDefault);
       const { res, json } = makeMockRes();
 
       await handler(makeMockReq({ params: { id: 'cfg-uuid-1' } }), res);
@@ -391,7 +366,7 @@ describe('admin/tts-config routes', () => {
         provider: 'self-hosted',
         isGlobal: false,
       });
-      const handler = extractHandler(buildRouter(), 'PUT', '/:id/set-free-default');
+      const handler = buildHandler(handleSetGlobalTtsConfigFreeDefault);
       const { res, json } = makeMockRes();
 
       await handler(makeMockReq({ params: { id: 'cfg-uuid-1' } }), res);
@@ -404,7 +379,7 @@ describe('admin/tts-config routes', () => {
         ...sampleRawConfig,
         provider: 'self-hosted',
       });
-      const handler = extractHandler(buildRouter(), 'PUT', '/:id/set-free-default');
+      const handler = buildHandler(handleSetGlobalTtsConfigFreeDefault);
       const { res, json } = makeMockRes();
 
       await handler(makeMockReq({ params: { id: 'cfg-uuid-1' } }), res);
@@ -417,7 +392,7 @@ describe('admin/tts-config routes', () => {
         ...sampleRawConfig,
         provider: 'mistral',
       });
-      const handler = extractHandler(buildRouter(), 'PUT', '/:id/set-free-default');
+      const handler = buildHandler(handleSetGlobalTtsConfigFreeDefault);
       const { res, json } = makeMockRes();
 
       await handler(makeMockReq({ params: { id: 'cfg-uuid-1' } }), res);
@@ -433,7 +408,7 @@ describe('admin/tts-config routes', () => {
   describe('DELETE /:id', () => {
     it('returns 404 when config not found', async () => {
       vi.mocked(mockPrisma.ttsConfig.findUnique).mockResolvedValue(null);
-      const handler = extractHandler(buildRouter(), 'DELETE', '/:id');
+      const handler = buildHandler(handleDeleteGlobalTtsConfig);
       const { res, json } = makeMockRes();
 
       await handler(makeMockReq({ params: { id: 'missing' } }), res);
@@ -445,7 +420,7 @@ describe('admin/tts-config routes', () => {
         ...sampleRawConfig,
         isGlobal: false,
       });
-      const handler = extractHandler(buildRouter(), 'DELETE', '/:id');
+      const handler = buildHandler(handleDeleteGlobalTtsConfig);
       const { res, json } = makeMockRes();
 
       await handler(makeMockReq({ params: { id: 'cfg-uuid-1' } }), res);
@@ -461,7 +436,7 @@ describe('admin/tts-config routes', () => {
         globalDefaultTtsConfigId: 'cfg-uuid-1',
         freeDefaultTtsConfigId: null,
       } as never);
-      const handler = extractHandler(buildRouter(), 'DELETE', '/:id');
+      const handler = buildHandler(handleDeleteGlobalTtsConfig);
       const { res, json } = makeMockRes();
 
       await handler(makeMockReq({ params: { id: 'cfg-uuid-1' } }), res);
@@ -482,7 +457,7 @@ describe('admin/tts-config routes', () => {
         globalDefaultTtsConfigId: null,
         freeDefaultTtsConfigId: 'cfg-uuid-1',
       } as never);
-      const handler = extractHandler(buildRouter(), 'DELETE', '/:id');
+      const handler = buildHandler(handleDeleteGlobalTtsConfig);
       const { res, json } = makeMockRes();
 
       await handler(makeMockReq({ params: { id: 'cfg-uuid-1' } }), res);
@@ -501,7 +476,7 @@ describe('admin/tts-config routes', () => {
         blocker: 'Cannot delete: TTS config is used as default by 2 personality(ies)',
         warning: null,
       });
-      const handler = extractHandler(buildRouter(), 'DELETE', '/:id');
+      const handler = buildHandler(handleDeleteGlobalTtsConfig);
       const { res, json } = makeMockRes();
 
       await handler(makeMockReq({ params: { id: 'cfg-uuid-1' } }), res);
@@ -511,7 +486,7 @@ describe('admin/tts-config routes', () => {
 
     it('returns 200 with deleted: true on happy path', async () => {
       vi.mocked(mockPrisma.ttsConfig.findUnique).mockResolvedValue(sampleRawConfig);
-      const handler = extractHandler(buildRouter(), 'DELETE', '/:id');
+      const handler = buildHandler(handleDeleteGlobalTtsConfig);
       const { res, json } = makeMockRes();
 
       await handler(makeMockReq({ params: { id: 'cfg-uuid-1' } }), res);
@@ -528,7 +503,7 @@ describe('admin/tts-config routes', () => {
         blocker: null,
         warning: "Deleting this TTS config will reset 3 user(s)' personal default to NULL",
       });
-      const handler = extractHandler(buildRouter(), 'DELETE', '/:id');
+      const handler = buildHandler(handleDeleteGlobalTtsConfig);
       const { res, json } = makeMockRes();
 
       await handler(makeMockReq({ params: { id: 'cfg-uuid-1' } }), res);
@@ -551,7 +526,7 @@ describe('admin/tts-config routes', () => {
         blocker: 'Cannot delete: TTS config is used as default by 2 personality(ies)',
         warning: "Deleting this TTS config will reset 3 user(s)' personal default to NULL",
       });
-      const handler = extractHandler(buildRouter(), 'DELETE', '/:id');
+      const handler = buildHandler(handleDeleteGlobalTtsConfig);
       const { res, json } = makeMockRes();
 
       await handler(makeMockReq({ params: { id: 'cfg-uuid-1' } }), res);

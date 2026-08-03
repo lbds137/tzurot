@@ -6,9 +6,10 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { Request, Response, Router } from 'express';
+import type { Request, RequestHandler, Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
-import { stubRouteResolvers } from '../../test/shared-route-test-utils.js';
+import { asRouteHandler, stubRouteResolvers } from '../../test/shared-route-test-utils.js';
+import type { RouteDeps } from '../routeDeps.js';
 
 vi.mock('../../services/AuthMiddleware.js', () => ({
   requireUserAuth: () => (_req: Request, _res: Response, next: () => void) => next(),
@@ -56,7 +57,14 @@ vi.mock('@tzurot/common-types/utils/logger', async () => {
   };
 });
 
-const { createTtsOverrideRoutes } = await import('./tts-override.js');
+const {
+  handleClearTtsDefaultConfig,
+  handleDeleteTtsOverride,
+  handleGetTtsDefaultConfig,
+  handleListTtsOverrides,
+  handleSetTtsDefaultConfig,
+  handleSetTtsOverride,
+} = await import('./tts-override.js');
 
 function makeMockRes() {
   const json = vi.fn();
@@ -75,25 +83,6 @@ function makeMockReq(overrides: Record<string, unknown> = {}): Request {
     body: {},
     ...overrides,
   } as unknown as Request;
-}
-
-interface RouterLayer {
-  route?: {
-    path: string;
-    methods: Record<string, boolean>;
-    stack: Array<{ handle: (req: Request, res: Response) => Promise<void> }>;
-  };
-}
-
-function extractHandler(router: Router, method: string, path: string) {
-  const stack = (router as unknown as { stack: RouterLayer[] }).stack;
-  const layer = stack.find(
-    l => l.route?.path === path && l.route?.methods[method.toLowerCase()] === true
-  );
-  if (!layer?.route) {
-    throw new Error(`Handler for ${method} ${path} not found`);
-  }
-  return layer.route.stack[layer.route.stack.length - 1].handle;
 }
 
 const mockPrisma = {
@@ -129,12 +118,15 @@ const mockCache = {
   invalidateAll: vi.fn().mockResolvedValue(undefined),
 };
 
-function buildRouter() {
-  return createTtsOverrideRoutes({
-    ...stubRouteResolvers(),
-    prisma: mockPrisma as never,
-    ttsConfigCacheInvalidation: mockCache as never,
-  });
+/** Build one bare handler with the mock deps — the shape mounts.ts registers. */
+function buildHandler(handler: (deps: RouteDeps) => RequestHandler) {
+  return asRouteHandler(
+    handler({
+      ...stubRouteResolvers(),
+      prisma: mockPrisma as never,
+      ttsConfigCacheInvalidation: mockCache as never,
+    })
+  );
 }
 
 const VALID_UUID_A = '11111111-1111-4111-8111-111111111111';
@@ -156,7 +148,7 @@ describe('user/tts-override routes', () => {
           ttsConfig: { name: 'kyutai-self-hosted' },
         },
       ]);
-      const handler = extractHandler(buildRouter(), 'GET', '/');
+      const handler = buildHandler(handleListTtsOverrides);
       const { res, json } = makeMockRes();
 
       await handler(makeMockReq(), res);
@@ -180,7 +172,7 @@ describe('user/tts-override routes', () => {
 
     it('handles empty list', async () => {
       vi.mocked(mockPrisma.userPersonalityConfig.findMany).mockResolvedValue([]);
-      const handler = extractHandler(buildRouter(), 'GET', '/');
+      const handler = buildHandler(handleListTtsOverrides);
       const { res, json } = makeMockRes();
 
       await handler(makeMockReq(), res);
@@ -190,7 +182,7 @@ describe('user/tts-override routes', () => {
 
   describe('PUT / (set override)', () => {
     it('returns 400 on invalid UUID', async () => {
-      const handler = extractHandler(buildRouter(), 'PUT', '/');
+      const handler = buildHandler(handleSetTtsOverride);
       const { res } = makeMockRes();
 
       await handler(
@@ -202,7 +194,7 @@ describe('user/tts-override routes', () => {
 
     it('returns 404 when personality not found', async () => {
       vi.mocked(mockPrisma.personality.findFirst).mockResolvedValue(null);
-      const handler = extractHandler(buildRouter(), 'PUT', '/');
+      const handler = buildHandler(handleSetTtsOverride);
       const { res, json } = makeMockRes();
 
       await handler(
@@ -223,7 +215,7 @@ describe('user/tts-override routes', () => {
         name: 'Alice',
       });
       vi.mocked(mockPrisma.ttsConfig.findFirst).mockResolvedValue(null);
-      const handler = extractHandler(buildRouter(), 'PUT', '/');
+      const handler = buildHandler(handleSetTtsOverride);
       const { res, json } = makeMockRes();
 
       await handler(
@@ -253,7 +245,7 @@ describe('user/tts-override routes', () => {
         ttsConfigId: VALID_UUID_B,
         ttsConfig: { name: 'kyutai-self-hosted' },
       });
-      const handler = extractHandler(buildRouter(), 'PUT', '/');
+      const handler = buildHandler(handleSetTtsOverride);
       const { res, status, json } = makeMockRes();
 
       await handler(
@@ -282,7 +274,7 @@ describe('user/tts-override routes', () => {
         defaultTtsConfigId: null,
         defaultTtsConfig: null,
       });
-      const handler = extractHandler(buildRouter(), 'GET', '/default');
+      const handler = buildHandler(handleGetTtsDefaultConfig);
       const { res, json } = makeMockRes();
 
       await handler(makeMockReq(), res);
@@ -296,7 +288,7 @@ describe('user/tts-override routes', () => {
         defaultTtsConfigId: 'c1',
         defaultTtsConfig: { name: 'kyutai-self-hosted' },
       });
-      const handler = extractHandler(buildRouter(), 'GET', '/default');
+      const handler = buildHandler(handleGetTtsDefaultConfig);
       const { res, json } = makeMockRes();
 
       await handler(makeMockReq(), res);
@@ -309,7 +301,7 @@ describe('user/tts-override routes', () => {
   describe('PUT /default', () => {
     it('returns 404 when config not accessible', async () => {
       vi.mocked(mockPrisma.ttsConfig.findFirst).mockResolvedValue(null);
-      const handler = extractHandler(buildRouter(), 'PUT', '/default');
+      const handler = buildHandler(handleSetTtsDefaultConfig);
       const { res, json } = makeMockRes();
 
       await handler(makeMockReq({ body: { configId: VALID_UUID_A } }), res);
@@ -322,7 +314,7 @@ describe('user/tts-override routes', () => {
         id: VALID_UUID_A,
         name: 'kyutai-self-hosted',
       });
-      const handler = extractHandler(buildRouter(), 'PUT', '/default');
+      const handler = buildHandler(handleSetTtsDefaultConfig);
       const { res, json } = makeMockRes();
 
       await handler(makeMockReq({ body: { configId: VALID_UUID_A } }), res);
@@ -342,7 +334,7 @@ describe('user/tts-override routes', () => {
     it('returns idempotent success with wasSet:false when no default exists', async () => {
       vi.mocked(mockPrisma.user.findUnique).mockResolvedValue({ defaultTtsConfigId: null });
       vi.mocked(mockPrisma.ttsConfig.findFirst).mockResolvedValue(null);
-      const handler = extractHandler(buildRouter(), 'DELETE', '/default');
+      const handler = buildHandler(handleClearTtsDefaultConfig);
       const { res, json } = makeMockRes();
 
       await handler(makeMockReq(), res);
@@ -357,7 +349,7 @@ describe('user/tts-override routes', () => {
     it('clears defaultTtsConfigId when one is set, returning wasSet: true', async () => {
       vi.mocked(mockPrisma.user.findUnique).mockResolvedValue({ defaultTtsConfigId: 'c1' });
       vi.mocked(mockPrisma.ttsConfig.findFirst).mockResolvedValue(null);
-      const handler = extractHandler(buildRouter(), 'DELETE', '/default');
+      const handler = buildHandler(handleClearTtsDefaultConfig);
       const { res, json } = makeMockRes();
 
       await handler(makeMockReq(), res);
@@ -382,7 +374,7 @@ describe('user/tts-override routes', () => {
       vi.mocked(mockPrisma.adminSettings.findUnique).mockResolvedValue({
         freeDefaultTtsConfig: { id: 'free-id', name: 'kyutai-self-hosted' },
       } as never);
-      const handler = extractHandler(buildRouter(), 'DELETE', '/default');
+      const handler = buildHandler(handleClearTtsDefaultConfig);
       const { res, json } = makeMockRes();
 
       await handler(makeMockReq(), res);
@@ -399,7 +391,7 @@ describe('user/tts-override routes', () => {
       vi.mocked(mockPrisma.adminSettings.findUnique).mockResolvedValue({
         freeDefaultTtsConfig: { id: 'free-id', name: 'kyutai-self-hosted' },
       } as never);
-      const handler = extractHandler(buildRouter(), 'DELETE', '/default');
+      const handler = buildHandler(handleClearTtsDefaultConfig);
       const { res, json } = makeMockRes();
 
       await handler(makeMockReq(), res);
@@ -420,7 +412,7 @@ describe('user/tts-override routes', () => {
   describe('DELETE /:personalityId (reset override)', () => {
     it('returns idempotent success when no override exists', async () => {
       vi.mocked(mockPrisma.userPersonalityConfig.findFirst).mockResolvedValue(null);
-      const handler = extractHandler(buildRouter(), 'DELETE', '/:personalityId');
+      const handler = buildHandler(handleDeleteTtsOverride);
       const { res, json } = makeMockRes();
 
       await handler(makeMockReq({ params: { personalityId: VALID_UUID_A } }), res);
@@ -434,7 +426,7 @@ describe('user/tts-override routes', () => {
         ttsConfigId: null,
         personality: { name: 'Alice' },
       });
-      const handler = extractHandler(buildRouter(), 'DELETE', '/:personalityId');
+      const handler = buildHandler(handleDeleteTtsOverride);
       const { res, json } = makeMockRes();
 
       await handler(makeMockReq({ params: { personalityId: VALID_UUID_A } }), res);
@@ -448,7 +440,7 @@ describe('user/tts-override routes', () => {
         ttsConfigId: 'c1',
         personality: { name: 'Alice' },
       });
-      const handler = extractHandler(buildRouter(), 'DELETE', '/:personalityId');
+      const handler = buildHandler(handleDeleteTtsOverride);
       const { res, json } = makeMockRes();
 
       await handler(makeMockReq({ params: { personalityId: VALID_UUID_A } }), res);

@@ -52,7 +52,7 @@ interface ListResponse {
 }
 
 /**
- * Handler for GET /user/memory/list
+ * Handler for GET /api/user/memory/list
  *
  * Query parameters:
  * - personalityId: Filter by personality (optional)

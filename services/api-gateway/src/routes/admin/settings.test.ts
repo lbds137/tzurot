@@ -6,13 +6,18 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { createAdminSettingsRoutes } from './settings.js';
+import {
+  handleClearAdminSettings,
+  handleGetAdminSettings,
+  handleUpdateAdminSettings,
+} from './settings.js';
 import { ADMIN_SETTINGS_SINGLETON_ID } from '@tzurot/common-types/schemas/api/adminSettings';
 import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import express from 'express';
 import request from 'supertest';
-import { getAllRoutes } from '../../test/expressRouterUtils.js';
 import { stubRouteResolvers } from '../../test/shared-route-test-utils.js';
+import { requireOwnerAuth } from '../../services/AuthMiddleware.js';
+import type { RouteDeps } from '../routeDeps.js';
 
 // Mock isBotOwner - must be before vi.mock to be hoisted
 const mockIsBotOwner = vi.fn().mockReturnValue(true);
@@ -112,33 +117,19 @@ function createDefaultSettings(
   };
 }
 
-describe('Admin Settings Routes (Singleton)', () => {
-  describe('middleware composition', () => {
-    it('GET / stays inline-auth (service-only allowed); PATCH/DELETE use middleware', () => {
-      // settings.ts has a mixed auth shape: GET supports service-only calls
-      // (bot-client hydrates admin settings at startup with no userId), so it
-      // can't migrate to requireOwnerAuth() middleware. PATCH and DELETE are
-      // owner-only writes — they got the standard requireOwnerAuth middleware
-      // in this PR. Lock the asymmetry in by asserting the resulting stack
-      // lengths.
-      const router = createAdminSettingsRoutes({
-        ...stubRouteResolvers(),
-        prisma: createMockPrisma() as unknown as PrismaClient,
-      });
-      const routes = getAllRoutes(router);
-      const byPath = new Map(routes.map(r => [`${r.methods[0]} ${r.path}`, r]));
-      expect(byPath.get('get /')?.stackLength, 'GET / must stay inline-auth (1 handler)').toBe(1);
-      expect(
-        byPath.get('patch /config-defaults')?.stackLength,
-        'PATCH /config-defaults must use requireOwnerAuth middleware'
-      ).toBeGreaterThanOrEqual(2);
-      expect(
-        byPath.get('delete /config-defaults')?.stackLength,
-        'DELETE /config-defaults must use requireOwnerAuth middleware'
-      ).toBeGreaterThanOrEqual(2);
-    });
-  });
+/**
+ * Register the three admin-settings handlers the way
+ * routes/_generated/mounts.ts does: GET keeps its inline `isAuthorizedForRead`
+ * check (so service-only calls with no userId still pass), while the two
+ * writes sit behind `requireOwnerAuth()`.
+ */
+function mountAdminSettings(app: express.Express, deps: RouteDeps): void {
+  app.get('/admin/settings', handleGetAdminSettings(deps));
+  app.patch('/admin/settings/config-defaults', requireOwnerAuth(), handleUpdateAdminSettings(deps));
+  app.delete('/admin/settings/config-defaults', requireOwnerAuth(), handleClearAdminSettings(deps));
+}
 
+describe('Admin Settings Routes (Singleton)', () => {
   let mockPrisma: ReturnType<typeof createMockPrisma>;
   let app: express.Express;
 
@@ -161,13 +152,10 @@ describe('Admin Settings Routes (Singleton)', () => {
       req.headers['x-user-id'] = MOCK_USER_ID;
       next();
     });
-    app.use(
-      '/admin/settings',
-      createAdminSettingsRoutes({
-        ...stubRouteResolvers(),
-        prisma: mockPrisma as unknown as PrismaClient,
-      })
-    );
+    mountAdminSettings(app, {
+      ...stubRouteResolvers(),
+      prisma: mockPrisma as unknown as PrismaClient,
+    });
     // Add error handler
     app.use(
       (err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
@@ -228,13 +216,10 @@ describe('Admin Settings Routes (Singleton)', () => {
       appWithoutUserId = express();
       appWithoutUserId.use(express.json());
       // Intentionally NOT injecting userId - simulating internal service call
-      appWithoutUserId.use(
-        '/admin/settings',
-        createAdminSettingsRoutes({
-          ...stubRouteResolvers(),
-          prisma: mockPrisma as unknown as PrismaClient,
-        })
-      );
+      mountAdminSettings(appWithoutUserId, {
+        ...stubRouteResolvers(),
+        prisma: mockPrisma as unknown as PrismaClient,
+      });
     });
 
     it('should allow GET request without userId (service-only operation)', async () => {
@@ -335,14 +320,11 @@ describe('Admin Settings Routes (Singleton)', () => {
         (req as express.Request & { userId: string }).userId = MOCK_USER_ID;
         next();
       });
-      appWithInvalidation.use(
-        '/admin/settings',
-        createAdminSettingsRoutes({
-          ...stubRouteResolvers(),
-          prisma: mockPrisma as unknown as PrismaClient,
-          cascadeInvalidation: mockInvalidation as never,
-        })
-      );
+      mountAdminSettings(appWithInvalidation, {
+        ...stubRouteResolvers(),
+        prisma: mockPrisma as unknown as PrismaClient,
+        cascadeInvalidation: mockInvalidation as never,
+      });
 
       const updatedSettings = createDefaultSettings({
         configDefaults: { maxMessages: 30 },
@@ -410,14 +392,11 @@ describe('Admin Settings Routes (Singleton)', () => {
         (req as express.Request & { userId: string }).userId = MOCK_USER_ID;
         next();
       });
-      appWithInvalidation.use(
-        '/admin/settings',
-        createAdminSettingsRoutes({
-          ...stubRouteResolvers(),
-          prisma: mockPrisma as unknown as PrismaClient,
-          cascadeInvalidation: mockInvalidation as never,
-        })
-      );
+      mountAdminSettings(appWithInvalidation, {
+        ...stubRouteResolvers(),
+        prisma: mockPrisma as unknown as PrismaClient,
+        cascadeInvalidation: mockInvalidation as never,
+      });
 
       mockPrisma.adminSettings.update.mockResolvedValue(createDefaultSettings());
 

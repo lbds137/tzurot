@@ -1,14 +1,13 @@
 /**
  * Admin Usage Routes
- * GET /admin/usage - Get global token usage statistics (all users)
+ * GET /api/admin/usage - Get global token usage statistics (all users)
  */
 
-import { Router, type Response, type Request, type RequestHandler } from 'express';
+import { type Response, type Request, type RequestHandler } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import { Duration, DurationParseError } from '@tzurot/common-types/utils/Duration';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { shortModelName } from '@tzurot/common-types/utils/modelNames';
-import { requireOwnerAuth } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { ZAI_PLAN_METER_SNAPSHOT_KEY } from '@tzurot/common-types/constants/redis-keys';
 import { sendCustomSuccess } from '../../utils/responseHelpers.js';
@@ -216,9 +215,3 @@ export const handleGetAdminUsageStats = (deps: RouteDeps): RequestHandler => {
     sendCustomSuccess(res, stats, StatusCodes.OK);
   });
 };
-
-export function createAdminUsageRoutes(deps: RouteDeps): Router {
-  const router = Router();
-  router.get('/', requireOwnerAuth(), handleGetAdminUsageStats(deps));
-  return router;
-}

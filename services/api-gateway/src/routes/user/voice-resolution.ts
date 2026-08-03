@@ -5,7 +5,7 @@
  * resolved TTS provider for a personality, the resolved STT provider for
  * the user, and a cloned-voice summary in a single round-trip.
  *
- *   GET /user/voice-resolution?personalityId=X
+ *   GET /api/user/voice-resolution?personalityId=X
  *
  * STT resolution uses {@link SttResolver} directly — speaker-bound cascade
  * (override → tts-derived → voice-engine), no per-personality dimension.
@@ -13,7 +13,7 @@
  * does vary per personality.
  */
 
-import { Router, type Response, type RequestHandler } from 'express';
+import { type Response, type RequestHandler } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import {
   type GetVoiceResolutionResponse,
@@ -25,7 +25,6 @@ import {
 import { type LoadedTtsPersonality } from '@tzurot/common-types/types/configResolution';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { TtsConfigResolver, SttResolver } from '@tzurot/config-resolver';
-import { requireUserAuth, requireProvisionedUser } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { resolveProvisionedUserId } from '../../utils/resolveProvisionedUserId.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
@@ -141,14 +140,3 @@ export const handleGetVoiceResolution = (deps: RouteDeps): RequestHandler => {
     sendCustomSuccess(res, response, StatusCodes.OK);
   });
 };
-
-export function createVoiceResolutionRoutes(deps: RouteDeps): Router {
-  const router = Router();
-  router.get(
-    '/',
-    requireUserAuth(),
-    requireProvisionedUser(deps.prisma),
-    handleGetVoiceResolution(deps)
-  );
-  return router;
-}

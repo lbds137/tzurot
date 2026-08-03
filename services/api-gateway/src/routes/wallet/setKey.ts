@@ -1,5 +1,5 @@
 /**
- * POST /wallet/set
+ * POST /api/user/wallet/set
  * Store encrypted API key for a user
  *
  * Security:
@@ -8,16 +8,13 @@
  * - Never logs or returns the actual key
  */
 
-import { Router, type Response, type RequestHandler } from 'express';
+import { type Response, type RequestHandler } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import { WALLET_ERROR_MESSAGES } from '@tzurot/common-types/constants/wallet';
 import { SetWalletKeySchema } from '@tzurot/common-types/schemas/api/wallet';
-import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import { generateUserApiKeyUuid } from '@tzurot/common-types/utils/deterministicUuid';
 import { encryptApiKey } from '@tzurot/common-types/utils/encryption';
 import { createLogger } from '@tzurot/common-types/utils/logger';
-import { type ApiKeyCacheInvalidationService } from '@tzurot/cache-invalidation';
-import { requireUserAuth, requireProvisionedUser } from '../../services/AuthMiddleware.js';
 import { stampNotifyOptedIn, liftNotifyAutoDisable } from '../../services/notifyOptIn.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { resolveProvisionedUserId } from '../../utils/resolveProvisionedUserId.js';
@@ -56,7 +53,7 @@ function mapValidationErrorToResponse(validation: ApiKeyValidationResult): Error
   }
 }
 
-/** POST /api/user/wallet — store a validated API key for the current user. */
+/** POST /api/user/wallet/set — store a validated API key for the current user. */
 export const handleSetWalletKey = (deps: WalletSetDeps): RequestHandler => {
   const { prisma, apiKeyCacheInvalidation } = deps;
   return asyncHandler(async (req: ProvisionedRequest, res: Response) => {
@@ -140,17 +137,3 @@ export const handleSetWalletKey = (deps: WalletSetDeps): RequestHandler => {
     );
   });
 };
-
-export function createSetKeyRoute(
-  prisma: PrismaClient,
-  apiKeyCacheInvalidation?: ApiKeyCacheInvalidationService
-): Router {
-  const router = Router();
-  router.post(
-    '/',
-    requireUserAuth(),
-    requireProvisionedUser(prisma),
-    handleSetWalletKey({ prisma, apiKeyCacheInvalidation })
-  );
-  return router;
-}

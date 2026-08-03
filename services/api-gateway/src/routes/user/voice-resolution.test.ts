@@ -5,9 +5,10 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { Request, Response, Router } from 'express';
+import type { Request, RequestHandler, Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
-import { stubRouteResolvers } from '../../test/shared-route-test-utils.js';
+import { asRouteHandler, stubRouteResolvers } from '../../test/shared-route-test-utils.js';
+import type { RouteDeps } from '../routeDeps.js';
 
 vi.mock('../../services/AuthMiddleware.js', () => ({
   requireUserAuth: () => (_req: Request, _res: Response, next: () => void) => next(),
@@ -59,7 +60,7 @@ vi.mock('@tzurot/config-resolver', () => {
   };
 });
 
-const { createVoiceResolutionRoutes } = await import('./voice-resolution.js');
+const { handleGetVoiceResolution } = await import('./voice-resolution.js');
 
 function makeMockRes() {
   const json = vi.fn();
@@ -75,22 +76,6 @@ function makeMockReq(query: Record<string, unknown> = {}): Request {
   } as unknown as Request;
 }
 
-interface RouterLayer {
-  route?: {
-    path: string;
-    methods: Record<string, boolean>;
-    stack: Array<{ handle: (req: Request, res: Response) => Promise<void> }>;
-  };
-}
-function extractHandler(router: Router, method: string, path: string) {
-  const stack = (router as unknown as { stack: RouterLayer[] }).stack;
-  const layer = stack.find(
-    l => l.route?.path === path && l.route?.methods[method.toLowerCase()] === true
-  );
-  if (!layer?.route) throw new Error(`Handler for ${method} ${path} not found`);
-  return layer.route.stack[layer.route.stack.length - 1].handle;
-}
-
 const VALID_PERSONALITY_ID = '11111111-1111-4111-8111-111111111111';
 
 const mockPrisma = {
@@ -98,8 +83,9 @@ const mockPrisma = {
   user: { findUnique: vi.fn() },
 };
 
-function buildRouter() {
-  return createVoiceResolutionRoutes({ ...stubRouteResolvers(), prisma: mockPrisma as never });
+/** Build one bare handler with the mock deps — the shape mounts.ts registers. */
+function buildHandler(handler: (deps: RouteDeps) => RequestHandler) {
+  return asRouteHandler(handler({ ...stubRouteResolvers(), prisma: mockPrisma as never }));
 }
 
 describe('user/voice-resolution route', () => {
@@ -128,7 +114,7 @@ describe('user/voice-resolution route', () => {
       warnings: [],
     });
 
-    const handler = extractHandler(buildRouter(), 'get', '/');
+    const handler = buildHandler(handleGetVoiceResolution);
     const { res, json, status } = makeMockRes();
 
     await handler(makeMockReq({ personalityId: VALID_PERSONALITY_ID }), res);
@@ -157,7 +143,7 @@ describe('user/voice-resolution route', () => {
     mockResolveStt.mockResolvedValue({ provider: 'voice-engine', source: 'hardcoded' });
     mockResolveAudioProviderKeys.mockResolvedValue({ keys: new Map() });
 
-    const handler = extractHandler(buildRouter(), 'get', '/');
+    const handler = buildHandler(handleGetVoiceResolution);
     const { res, json } = makeMockRes();
 
     await handler(makeMockReq({ personalityId: VALID_PERSONALITY_ID }), res);
@@ -180,7 +166,7 @@ describe('user/voice-resolution route', () => {
     mockResolveStt.mockResolvedValue({ provider: 'voice-engine', source: 'hardcoded' });
     mockResolveAudioProviderKeys.mockResolvedValue({ keys: new Map() });
 
-    const handler = extractHandler(buildRouter(), 'get', '/');
+    const handler = buildHandler(handleGetVoiceResolution);
     const { res, json } = makeMockRes();
 
     await handler(makeMockReq({ personalityId: VALID_PERSONALITY_ID }), res);
@@ -196,7 +182,7 @@ describe('user/voice-resolution route', () => {
   it('returns 404 when personality is missing', async () => {
     mockPrisma.personality.findFirst.mockResolvedValue(null);
 
-    const handler = extractHandler(buildRouter(), 'get', '/');
+    const handler = buildHandler(handleGetVoiceResolution);
     const { res, status } = makeMockRes();
 
     await handler(makeMockReq({ personalityId: VALID_PERSONALITY_ID }), res);
@@ -205,7 +191,7 @@ describe('user/voice-resolution route', () => {
   });
 
   it('rejects non-uuid personalityId via Zod', async () => {
-    const handler = extractHandler(buildRouter(), 'get', '/');
+    const handler = buildHandler(handleGetVoiceResolution);
     const { res, status } = makeMockRes();
 
     await handler(makeMockReq({ personalityId: 'not-a-uuid' }), res);

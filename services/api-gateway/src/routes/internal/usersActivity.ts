@@ -1,5 +1,5 @@
 /**
- * POST /internal/users/activity
+ * POST /api/internal/users/activity
  *
  * Service-only endpoint. Records a "the user is active" signal for slash
  * commands that never otherwise reach the gateway — pure-client commands like

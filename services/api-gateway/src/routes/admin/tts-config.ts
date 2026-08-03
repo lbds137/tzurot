@@ -3,13 +3,13 @@
  * Owner-only endpoints for managing global TTS configurations
  *
  * Endpoints:
- * - GET    /admin/tts-config                  - List all TTS configs
- * - GET    /admin/tts-config/:id              - Get single config detail
- * - POST   /admin/tts-config                  - Create a global TTS config
- * - PUT    /admin/tts-config/:id              - Edit a global config
- * - PUT    /admin/tts-config/:id/set-default  - Set a config as system default
- * - PUT    /admin/tts-config/:id/set-free-default - Set a config as free tier default
- * - DELETE /admin/tts-config/:id              - Delete a global config
+ * - GET    /api/admin/tts-config                      - List all TTS configs
+ * - GET    /api/admin/tts-config/:id                  - Get single config detail
+ * - POST   /api/admin/tts-config                      - Create a global TTS config
+ * - PUT    /api/admin/tts-config/:id                  - Edit a global config
+ * - PUT    /api/admin/tts-config/:id/set-default      - Set a config as system default
+ * - PUT    /api/admin/tts-config/:id/set-free-default - Set a config as free tier default
+ * - DELETE /api/admin/tts-config/:id                  - Delete a global config
  *
  * Mirrors `routes/admin/llm-config.ts` shape minus LLM-specific concerns
  * (no model-context enrichment, no model-fields validation).
@@ -21,7 +21,7 @@
  * (LLM-specific OpenRouter convention) but applies the TTS-shaped invariant.
  */
 
-import { Router, type Response, type Request, type RequestHandler } from 'express';
+import { type Response, type Request, type RequestHandler } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import { ADMIN_SETTINGS_SINGLETON_ID } from '@tzurot/common-types/schemas/api/adminSettings';
 import {
@@ -31,7 +31,6 @@ import {
 import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import { isSelfHostedTtsProvider } from '@tzurot/common-types/services/tts/TtsProvider';
 import { createLogger } from '@tzurot/common-types/utils/logger';
-import { requireOwnerAuth } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
@@ -342,23 +341,3 @@ export const handleSetGlobalTtsConfigFreeDefault = (deps: RouteDeps): RequestHan
 
 export const handleDeleteGlobalTtsConfig = (deps: RouteDeps): RequestHandler =>
   asyncHandler(createDeleteHandler(buildService(deps), deps.prisma));
-
-// --- Main route factory ----------------------------------------------------
-
-export function createAdminTtsConfigRoutes(deps: RouteDeps): Router {
-  const router = Router();
-
-  router.get('/', requireOwnerAuth(), handleListGlobalTtsConfigs(deps));
-  router.get('/:id', requireOwnerAuth(), handleGetGlobalTtsConfig(deps));
-  router.post('/', requireOwnerAuth(), handleCreateGlobalTtsConfig(deps));
-  router.put('/:id', requireOwnerAuth(), handleUpdateGlobalTtsConfig(deps));
-  router.put('/:id/set-default', requireOwnerAuth(), handleSetGlobalTtsConfigDefault(deps));
-  router.put(
-    '/:id/set-free-default',
-    requireOwnerAuth(),
-    handleSetGlobalTtsConfigFreeDefault(deps)
-  );
-  router.delete('/:id', requireOwnerAuth(), handleDeleteGlobalTtsConfig(deps));
-
-  return router;
-}

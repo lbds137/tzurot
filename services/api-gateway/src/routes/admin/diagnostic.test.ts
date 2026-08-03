@@ -10,12 +10,18 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { createDiagnosticRoutes } from './diagnostic.js';
+import {
+  handleGetDiagnosticByMessage,
+  handleGetDiagnosticByRequestId,
+  handleGetDiagnosticByResponse,
+  handleGetRecentDiagnostics,
+  handleUpdateDiagnosticResponseIds,
+} from './diagnostic.js';
 import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 import type { DiagnosticPayload } from '@tzurot/common-types/types/diagnostic';
 import express from 'express';
 import request from 'supertest';
-import { findRoute, getAllRoutes } from '../../test/expressRouterUtils.js';
+import { requireServiceAuth, requireUserAuth } from '../../services/AuthMiddleware.js';
 
 /** Configurable userId injected by the mocked requireUserAuth — flip per test. */
 let mockCallerUserId = 'admin-discord-id';
@@ -50,11 +56,9 @@ vi.mock('@tzurot/common-types/utils/ownerMiddleware', async () => {
   };
 });
 
-// Mock AuthMiddleware — auth gating runs unconditionally in tests. Each mock
-// stamps a unique marker on the request so the route-registration test can
-// verify which middleware is wired to each route by identity (not just by
-// stack depth). requireUserAuth injects mockCallerUserId for the
-// isBotOwner branching in the route handlers.
+// Mock AuthMiddleware — auth gating runs unconditionally in tests.
+// requireUserAuth injects mockCallerUserId for the isBotOwner branching in
+// the route handlers.
 vi.mock('../../services/AuthMiddleware.js', () => ({
   requireUserAuth:
     () => (req: { userId?: string; __authMarker?: string }, _res: unknown, next: () => void) => {
@@ -69,57 +73,6 @@ vi.mock('../../services/AuthMiddleware.js', () => ({
 }));
 
 describe('Admin Diagnostic Routes', () => {
-  describe('middleware composition', () => {
-    it('wires an auth middleware on every route', () => {
-      // GET routes get requireUserAuth (with server-side userId filtering for
-      // non-owners); PATCH gets requireServiceAuth (internal call only).
-      // The structural test only inspects the resulting router stack length.
-      const routes = getAllRoutes(createDiagnosticRoutes({} as unknown as PrismaClient));
-      expect(routes.length, 'expected at least one registered route').toBeGreaterThan(0);
-      for (const route of routes) {
-        expect(route.stackLength, `${route.path} missing auth middleware`).toBeGreaterThanOrEqual(
-          2
-        );
-      }
-    });
-
-    // Structural stack-length is not enough — accidentally swapping
-    // requireServiceAuth and requireUserAuth would keep stack depth the same
-    // but flip which authentication contract guards each route. The mocks set
-    // a distinct `__authMarker` on the request so we can verify which
-    // middleware is actually registered at each route by identity.
-    it('wires requireUserAuth on GET routes and requireServiceAuth on PATCH', () => {
-      const router = createDiagnosticRoutes({} as unknown as PrismaClient);
-
-      const expectations: { method: 'get' | 'patch'; path: string; marker: string }[] = [
-        { method: 'get', path: '/recent', marker: 'user' },
-        { method: 'get', path: '/by-message/:messageId', marker: 'user' },
-        { method: 'get', path: '/by-response/:messageId', marker: 'user' },
-        { method: 'get', path: '/:requestId', marker: 'user' },
-        { method: 'patch', path: '/:requestId/response-ids', marker: 'service' },
-      ];
-
-      for (const { method, path, marker } of expectations) {
-        const layer = findRoute(router, method, path);
-        if (layer?.route === undefined) {
-          throw new Error(`Expected route registered: ${method.toUpperCase()} ${path}`);
-        }
-        // The first stack entry is the auth middleware; the last is the
-        // route handler. We invoke the auth middleware directly with a
-        // synthetic req so it stamps its marker.
-        const authMiddleware = layer.route.stack[0].handle;
-        const req: { __authMarker?: string; userId?: string } = {};
-        const next = vi.fn();
-        authMiddleware(req, {} as object, next);
-        expect(
-          req.__authMarker,
-          `${method.toUpperCase()} ${path} wired wrong auth middleware`
-        ).toBe(marker);
-        expect(next).toHaveBeenCalled();
-      }
-    });
-  });
-
   let mockPrisma: {
     llmDiagnosticLog: {
       findMany: ReturnType<typeof vi.fn>;
@@ -211,7 +164,30 @@ describe('Admin Diagnostic Routes', () => {
 
     app = express();
     app.use(express.json());
-    app.use('/admin/diagnostic', createDiagnosticRoutes(mockPrisma as unknown as PrismaClient));
+    // Registration order mirrors routes/_generated/mounts.ts: the `/by-*`
+    // literals precede `/:requestId` so the param doesn't shadow them.
+    const deps = { prisma: mockPrisma as unknown as PrismaClient };
+    app.get('/admin/diagnostic/recent', requireUserAuth(), handleGetRecentDiagnostics(deps));
+    app.get(
+      '/admin/diagnostic/by-message/:messageId',
+      requireUserAuth(),
+      handleGetDiagnosticByMessage(deps)
+    );
+    app.get(
+      '/admin/diagnostic/by-response/:messageId',
+      requireUserAuth(),
+      handleGetDiagnosticByResponse(deps)
+    );
+    app.get(
+      '/admin/diagnostic/:requestId',
+      requireUserAuth(),
+      handleGetDiagnosticByRequestId(deps)
+    );
+    app.patch(
+      '/admin/diagnostic/:requestId/response-ids',
+      requireServiceAuth(),
+      handleUpdateDiagnosticResponseIds(deps)
+    );
   });
 
   describe('GET /admin/diagnostic/recent', () => {

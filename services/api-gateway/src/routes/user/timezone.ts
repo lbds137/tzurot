@@ -1,15 +1,14 @@
 /**
  * User Timezone Routes
- * GET /user/timezone - Get current timezone
- * PUT /user/timezone - Set timezone
+ * GET /api/user/timezone - Get current timezone
+ * PUT /api/user/timezone - Set timezone
  */
 
-import { Router, type Response, type RequestHandler } from 'express';
+import { type Response, type RequestHandler } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import { isValidTimezone, getTimezoneInfo } from '@tzurot/common-types/constants/timezone';
 import { SetTimezoneInputSchema } from '@tzurot/common-types/schemas/api/timezone';
 import { createLogger } from '@tzurot/common-types/utils/logger';
-import { requireUserAuth, requireProvisionedUser } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { resolveProvisionedUserId } from '../../utils/resolveProvisionedUserId.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
@@ -89,10 +88,3 @@ export const handleSetTimezone = (deps: RouteDeps): RequestHandler => {
     );
   });
 };
-
-export function createTimezoneRoutes(deps: RouteDeps): Router {
-  const router = Router();
-  router.get('/', requireUserAuth(), requireProvisionedUser(deps.prisma), handleGetTimezone(deps));
-  router.put('/', requireUserAuth(), requireProvisionedUser(deps.prisma), handleSetTimezone(deps));
-  return router;
-}

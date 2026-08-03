@@ -3,15 +3,15 @@
  * Set/reset LLM config overrides for personalities
  *
  * Endpoints:
- * - GET /user/model-override - List all user's model overrides
- * - PUT /user/model-override - Set override for a personality
- * - GET /user/model-override/default - Get user's global default config
- * - PUT /user/model-override/default - Set user's global default config
- * - DELETE /user/model-override/default - Clear user's global default config
- * - DELETE /user/model-override/:personalityId - Remove override (MUST be after /default routes)
+ * - GET /api/user/model-override - List all user's model overrides
+ * - PUT /api/user/model-override - Set override for a personality
+ * - GET /api/user/model-override/default - Get user's global default config
+ * - PUT /api/user/model-override/default - Set user's global default config
+ * - DELETE /api/user/model-override/default - Clear user's global default config
+ * - DELETE /api/user/model-override/:personalityId - Remove override (MUST be after /default routes)
  */
 
-import { Router, type Response, type RequestHandler } from 'express';
+import { type Response, type RequestHandler } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import { ADMIN_SETTINGS_SINGLETON_ID } from '@tzurot/common-types/schemas/api/adminSettings';
 import {
@@ -23,7 +23,6 @@ import {
 import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import { generateUserPersonalityConfigUuid } from '@tzurot/common-types/utils/deterministicUuid';
 import { createLogger } from '@tzurot/common-types/utils/logger';
-import { requireUserAuth, requireProvisionedUser } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import {
   parseModelSlotQuery,
@@ -461,28 +460,3 @@ export const handleDeleteModelOverride = (deps: RouteDeps): RequestHandler => {
     sendCustomSuccess(res, { deleted: true }, StatusCodes.OK);
   });
 };
-
-export function createModelOverrideRoutes(deps: RouteDeps): Router {
-  const router = Router();
-  const requireProvisioned = requireProvisionedUser(deps.prisma);
-
-  router.get('/', requireUserAuth(), requireProvisioned, handleListModelOverrides(deps));
-  router.put('/', requireUserAuth(), requireProvisioned, handleSetModelOverride(deps));
-  // /default routes MUST come before /:personalityId to avoid the parameter shadowing them
-  router.get('/default', requireUserAuth(), requireProvisioned, handleGetDefaultModelConfig(deps));
-  router.put('/default', requireUserAuth(), requireProvisioned, handleSetDefaultModelConfig(deps));
-  router.delete(
-    '/default',
-    requireUserAuth(),
-    requireProvisioned,
-    handleClearDefaultModelConfig(deps)
-  );
-  router.delete(
-    '/:personalityId',
-    requireUserAuth(),
-    requireProvisioned,
-    handleDeleteModelOverride(deps)
-  );
-
-  return router;
-}

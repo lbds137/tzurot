@@ -3,16 +3,16 @@
  * Owner-only endpoints for managing global LLM configurations
  *
  * Endpoints:
- * - GET /admin/llm-config - List all LLM configs
- * - GET /admin/llm-config/:id - Get single config with full params
- * - POST /admin/llm-config - Create a global LLM config
- * - PUT /admin/llm-config/:id - Edit a global config
- * - PUT /admin/llm-config/:id/set-default - Set a config as system default
- * - PUT /admin/llm-config/:id/set-free-default - Set a config as free tier default
- * - DELETE /admin/llm-config/:id - Delete a global config
+ * - GET /api/admin/llm-config - List all LLM configs
+ * - GET /api/admin/llm-config/:id - Get single config with full params
+ * - POST /api/admin/llm-config - Create a global LLM config
+ * - PUT /api/admin/llm-config/:id - Edit a global config
+ * - PUT /api/admin/llm-config/:id/set-default - Set a config as system default
+ * - PUT /api/admin/llm-config/:id/set-free-default - Set a config as free tier default
+ * - DELETE /api/admin/llm-config/:id - Delete a global config
  */
 
-import { Router, type Response, type Request, type RequestHandler } from 'express';
+import { type Response, type Request, type RequestHandler } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import { isFreeTierEligibleModel } from '@tzurot/common-types/constants/ai';
 import { ADMIN_SETTINGS_SINGLETON_ID } from '@tzurot/common-types/schemas/api/adminSettings';
@@ -22,7 +22,6 @@ import {
 } from '@tzurot/common-types/schemas/api/llm-config';
 import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import { createLogger } from '@tzurot/common-types/utils/logger';
-import { requireOwnerAuth } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
@@ -413,23 +412,3 @@ export const handleSetGlobalLlmConfigFreeDefault = (deps: RouteDeps): RequestHan
 
 export const handleDeleteGlobalLlmConfig = (deps: RouteDeps): RequestHandler =>
   asyncHandler(createDeleteConfigHandler(buildService(deps), deps.prisma));
-
-// --- Main Route Factory ---
-
-export function createAdminLlmConfigRoutes(deps: RouteDeps): Router {
-  const router = Router();
-
-  router.get('/', requireOwnerAuth(), handleListGlobalLlmConfigs(deps));
-  router.get('/:id', requireOwnerAuth(), handleGetGlobalLlmConfig(deps));
-  router.post('/', requireOwnerAuth(), handleCreateGlobalLlmConfig(deps));
-  router.put('/:id', requireOwnerAuth(), handleUpdateGlobalLlmConfig(deps));
-  router.put('/:id/set-default', requireOwnerAuth(), handleSetGlobalLlmConfigDefault(deps));
-  router.put(
-    '/:id/set-free-default',
-    requireOwnerAuth(),
-    handleSetGlobalLlmConfigFreeDefault(deps)
-  );
-  router.delete('/:id', requireOwnerAuth(), handleDeleteGlobalLlmConfig(deps));
-
-  return router;
-}

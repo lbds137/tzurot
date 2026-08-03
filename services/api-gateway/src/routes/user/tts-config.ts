@@ -3,11 +3,11 @@
  * CRUD operations for user-owned TTS configurations
  *
  * Endpoints:
- * - GET    /user/tts-config     - List configs (global + user)
- * - GET    /user/tts-config/:id - Get single config detail
- * - POST   /user/tts-config     - Create user config
- * - PUT    /user/tts-config/:id - Update user config
- * - DELETE /user/tts-config/:id - Delete user config
+ * - GET    /api/user/tts-config     - List configs (global + user)
+ * - GET    /api/user/tts-config/:id - Get single config detail
+ * - POST   /api/user/tts-config     - Create user config
+ * - PUT    /api/user/tts-config/:id - Update user config
+ * - DELETE /api/user/tts-config/:id - Delete user config
  *
  * Mirrors `routes/user/llm-config.ts` shape minus LLM-specific concerns
  * (no model-context enrichment via OpenRouterModelCache, no model-fields
@@ -21,7 +21,7 @@
  * filed as a follow-up rather than introduced in PR 3b.
  */
 
-import { Router, type Response, type RequestHandler } from 'express';
+import { type Response, type RequestHandler } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import {
   type TtsConfigSummary,
@@ -32,7 +32,6 @@ import { type TtsProviderId } from '@tzurot/common-types/services/tts/TtsProvide
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { isBotOwner } from '@tzurot/common-types/utils/ownerMiddleware';
 import { computeLlmConfigPermissions } from '@tzurot/common-types/utils/permissions';
-import { requireUserAuth, requireProvisionedUser } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { resolveProvisionedUserId } from '../../utils/resolveProvisionedUserId.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
@@ -379,18 +378,3 @@ export const handleUpdateUserTtsConfig = (deps: RouteDeps): RequestHandler =>
 
 export const handleDeleteUserTtsConfig = (deps: RouteDeps): RequestHandler =>
   asyncHandler(createDeleteHandler(buildService(deps)));
-
-// --- Main route factory ----------------------------------------------------
-
-export function createTtsConfigRoutes(deps: RouteDeps): Router {
-  const router = Router();
-  const requireProvisioned = requireProvisionedUser(deps.prisma);
-
-  router.get('/', requireUserAuth(), requireProvisioned, handleListUserTtsConfigs(deps));
-  router.get('/:id', requireUserAuth(), requireProvisioned, handleGetUserTtsConfig(deps));
-  router.post('/', requireUserAuth(), requireProvisioned, handleCreateUserTtsConfig(deps));
-  router.put('/:id', requireUserAuth(), requireProvisioned, handleUpdateUserTtsConfig(deps));
-  router.delete('/:id', requireUserAuth(), requireProvisioned, handleDeleteUserTtsConfig(deps));
-
-  return router;
-}

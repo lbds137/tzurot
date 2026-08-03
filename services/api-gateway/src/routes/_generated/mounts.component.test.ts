@@ -115,6 +115,89 @@ describe('mounts.ts — audience-prefix routing', () => {
     });
   });
 
+  // The two blocks below pin per-route invariants that used to be asserted by
+  // structural router-stack tests in the route files themselves. Those tests
+  // inspected a pre-cutover route factory; the manifest + these mounts own the
+  // wiring now, so the assertions belong here, at the level that decides it.
+
+  describe('diagnostic routes — split across two audiences', () => {
+    // The diagnostic reads are user-audience (any authenticated user, filtered
+    // server-side to their own rows; the owner sees everything), while the
+    // response-ids write is a service-to-service call from bot-client with no
+    // human actor. Swapping those two audiences would silently either lock
+    // bot-client out of the write or expose the write to any Discord user, and
+    // neither shows up as a 404, so each route is probed by identity of gate.
+    it.each([
+      '/api/user/diagnostic/recent',
+      '/api/user/diagnostic/by-message/1234567890123456789',
+      '/api/user/diagnostic/by-response/1234567890123456789',
+      '/api/user/diagnostic/some-request-id',
+    ])('rejects unauthenticated GET %s with 401', async path => {
+      const res = await request(app).get(path);
+      // 401 proves requireUserAuth() is wired on the route: without it the
+      // request would reach the handler and fail some other way.
+      expect(res.status).toBe(401);
+    });
+
+    it('does not gate PATCH /api/internal/diagnostic/:requestId/response-ids on user auth', async () => {
+      const res = await request(app)
+        .patch('/api/internal/diagnostic/req-123/response-ids')
+        .send({});
+      // Mounted (≠ 404) and NOT behind user auth (≠ 401) — the internal
+      // audience carries no user middleware; the shared service secret is
+      // enforced globally in index.ts. The empty body then trips the handler's
+      // own Zod parse and answers 400, which is what makes these negative
+      // assertions load-bearing rather than vacuous; the 400 itself is
+      // behavior covered by admin/diagnostic.test.ts, so it isn't pinned here.
+      // ≠ 403 closes the remaining gate shape: an auth layer rejecting the
+      // no-user call outright would break bot-client's delivery write.
+      expect(res.status).not.toBe(404);
+      expect(res.status).not.toBe(401);
+      expect(res.status).not.toBe(403);
+    });
+  });
+
+  describe('admin-settings — one handler, two mounts with different gates', () => {
+    // handleGetAdminSettings is mounted twice on purpose: bot-client hydrates
+    // its admin-settings cache at startup with no Discord actor, so the read
+    // needs an ungated internal alias; the same read under /api/admin is
+    // owner-only. Collapsing either mount into the other breaks one of the two
+    // callers, so both halves are pinned.
+    it('serves the internal read without user auth', async () => {
+      const res = await request(app).get('/api/internal/admin-settings');
+      // The handler is reached and dies on the inert stub prisma (500), which
+      // is the proof there is no user gate in front of it — a gated route
+      // would have short-circuited to 401 or 403 before touching prisma. The
+      // ≠ 403 arm matters most: isAuthorizedForRead rejecting the no-userId
+      // call is exactly the regression that locks bot-client out of its
+      // startup cache hydration.
+      expect(res.status).not.toBe(404);
+      expect(res.status).not.toBe(401);
+      expect(res.status).not.toBe(403);
+    });
+
+    it('rejects the unauthenticated admin read with 401', async () => {
+      const res = await request(app).get('/api/admin/settings');
+      expect(res.status).toBe(401);
+    });
+
+    // A caller that presents an identity clears requireUserAuth and lands on
+    // requireOwnerAuth, which answers 403 for a non-owner. Asserting both codes
+    // per route is what distinguishes "user auth only" from "user + owner auth"
+    // — a route missing the owner gate would answer something other than 403.
+    it.each([
+      { method: 'get' as const, path: '/api/admin/settings' },
+      { method: 'patch' as const, path: '/api/admin/settings/config-defaults' },
+      { method: 'delete' as const, path: '/api/admin/settings/config-defaults' },
+    ])('gates $method $path behind user auth then owner auth', async ({ method, path }) => {
+      const unauthenticated = await request(app)[method](path).send({});
+      expect(unauthenticated.status).toBe(401);
+
+      const nonOwner = await request(app)[method](path).set('X-User-Id', 'not-the-owner').send({});
+      expect(nonOwner.status).toBe(403);
+    });
+  });
+
   describe('unmounted prefixes', () => {
     it('returns 404 for unmounted paths', async () => {
       const res = await request(app).get('/some/random/path');

@@ -6,19 +6,18 @@
  * providers slot in by registering a `VoiceProviderClient` below.
  *
  * Endpoints:
- * - GET /                    — list cloned voices (across all configured providers)
- * - DELETE /:provider/:voiceId — delete a single voice from the named provider
- * - POST /clear              — delete ALL tzurot-prefixed voices across all providers
+ * - GET /api/user/voices                    — list cloned voices (across all configured providers)
+ * - DELETE /api/user/voices/:provider/:voiceId — delete a single voice from the named provider
+ * - POST /api/user/voices/clear              — delete ALL tzurot-prefixed voices across all providers
  */
 
-import { Router, type Response as ExpressResponse, type RequestHandler } from 'express';
+import { type Response as ExpressResponse, type RequestHandler } from 'express';
 import { TTS_VOICE_NAME_PREFIX } from '@tzurot/common-types/constants/ai';
 import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import { isAudioProviderId, type AudioProviderId } from '@tzurot/common-types/types/audio-provider';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { ErrorCode, type AuthenticatedRequest } from '../../types.js';
 import { type ErrorResponse, ErrorResponses } from '../../utils/errorResponses.js';
-import { requireUserAuth, requireProvisionedUser } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendCustomSuccess, sendError } from '../../utils/responseHelpers.js';
 import { resolveAudioProviderKeys } from '../../utils/audioProviderKeyResolver.js';
@@ -505,23 +504,3 @@ export const handleDeleteVoice = (deps: RouteDeps): RequestHandler => {
     await deleteVoiceImpl(prisma, req, res);
   });
 };
-
-// ===== Router setup ========================================================
-
-export function createVoicesRoutes(deps: RouteDeps): Router {
-  const router = Router();
-  const requireProvisioned = requireProvisionedUser(deps.prisma);
-
-  router.get('/', requireUserAuth(), requireProvisioned, handleListVoices(deps));
-  // Register /models and /clear before /:provider/:voiceId so the wildcard doesn't shadow them
-  router.get('/models', requireUserAuth(), requireProvisioned, handleListVoiceModels(deps));
-  router.post('/clear', requireUserAuth(), requireProvisioned, handleClearVoices(deps));
-  router.delete(
-    '/:provider/:voiceId',
-    requireUserAuth(),
-    requireProvisioned,
-    handleDeleteVoice(deps)
-  );
-
-  return router;
-}

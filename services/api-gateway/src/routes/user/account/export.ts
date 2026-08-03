@@ -1,8 +1,8 @@
 /**
  * Account Data-Rights Export Routes (Async)
  *
- * POST /user/account/export        - Start a full-account export job
- * GET  /user/account/export/status - Latest account export job state
+ * POST /api/user/account/export        - Start a full-account export job
+ * GET  /api/user/account/export/status - Latest account export job state
  *
  * Rides the shapes-export spine: an export_jobs row (sentinel
  * sourceService='account') filled asynchronously by ai-worker, downloaded
