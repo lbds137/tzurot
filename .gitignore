@@ -102,6 +102,10 @@ railway_dev_logs.md
 # Session-local Claude runtime state
 .claude/scheduled_tasks.lock
 
+# Harness-created agent worktrees (knip scans untracked dirs — an unignored
+# worktree adds thousands of false unused-file findings to local pnpm quality)
+.claude/worktrees/
+
 # Stryker mutation-testing scratch
 .stryker-tmp/
 scripts/migrations/barrel-kill/symbol-map.json

@@ -55,29 +55,3 @@ export function isUserContentMessage(message: Message): boolean {
 
   return false;
 }
-
-/**
- * Check if a message is a forwarded message.
- *
- * Re-exports from forwardedMessageUtils.ts for backward compatibility.
- * Use forwardedMessageUtils.ts directly for new code.
- *
- * @see forwardedMessageUtils.ts for more utilities:
- *   - hasForwardedSnapshots() - check if snapshots are available
- *   - extractAllForwardedContent() - comprehensive content extraction
- *   - hasForwardedContent() - check if forwarded message has content
- */
-export { isForwardedMessage } from './forwardedMessageUtils.js';
-
-/**
- * Get the effective content from a message.
- *
- * For regular messages: returns message.content
- * For forwarded messages: returns the content from the first snapshot (with fallback)
- *
- * This should be used by processors instead of directly accessing message.content
- * to ensure forwarded messages are handled correctly.
- *
- * Re-exports from forwardedMessageUtils.ts for backward compatibility.
- */
-export { getEffectiveContent } from './forwardedMessageUtils.js';

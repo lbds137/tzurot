@@ -12,8 +12,11 @@
 | `max-nested-callbacks`   | 3     | Warn  | Extract/flatten        |
 | `max-statements`         | 50    | Warn  | Extract helpers        |
 
-**Note**: Test files (`*.test.ts`, `*.spec.ts`) are fully excluded from ESLint
-via the `ignores` block in `eslint.config.js`. The limits above apply to
+**Note**: Test files (`*.test.ts`, `*.spec.ts`) are excluded from the
+size/complexity limits above (production blocks ignore them), but they are NOT
+lint-free: a dedicated test block in `eslint.config.js` still lints them
+(vitest correctness rules plus style rules like `import/no-duplicates` and
+`prefer-optional-chain`, without type-checking). The limits above apply to
 production code only. Do NOT split test files to satisfy max-lines — keep all
 tests for a module in one colocated file for discoverability.
 

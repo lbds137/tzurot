@@ -37,9 +37,6 @@ import { renderSpec } from '../../ux/render/render.js';
 import { createClonedPreset } from './cloneName.js';
 import { ackUpdate } from '../../ux/render/reply.js';
 
-// Re-export for backward compatibility
-export { buildPresetDashboardOptions } from './config.js';
-
 const logger = createLogger('preset-dashboard-buttons');
 
 /** Recovery command shown in expired session messages */

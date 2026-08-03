@@ -35,8 +35,7 @@ import type { MultiTagCoordinator } from '../services/MultiTagCoordinator.js';
 import { resolveSlots } from '../services/SlotResolver.js';
 import { findPersonalityMentions } from '../utils/personalityMentionParser.js';
 import { VoiceMessageProcessor } from './VoiceMessageProcessor.js';
-import { isForwardedMessage } from '../utils/forwardedMessageUtils.js';
-import { getEffectiveContent } from '../utils/messageTypeUtils.js';
+import { getEffectiveContent, isForwardedMessage } from '../utils/forwardedMessageUtils.js';
 import { getThreadParentId } from '../utils/discordChannelTypes.js';
 import { shouldNotifyUser } from './notificationCache.js';
 
