@@ -6,7 +6,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { MessageFlags } from 'discord.js';
 import type { ButtonInteraction } from 'discord.js';
 import {
-  buildPresetDashboardOptions,
   handleCloseButton,
   handleRefreshButton,
   handleToggleGlobalButton,
@@ -19,7 +18,7 @@ import { generateClonedName } from './cloneName.js';
 import { handleDashboardClose } from '../../utils/dashboard/closeHandler.js';
 import { refreshDashboardUI } from '../../utils/dashboard/refreshHandler.js';
 import { DASHBOARD_MESSAGES, formatSessionExpiredMessage } from '../../utils/dashboard/messages.js';
-import type { FlattenedPresetData } from './config.js';
+import { buildPresetDashboardOptions, type FlattenedPresetData } from './config.js';
 
 // Sentinel returned by mocked `clientsFor`; flows through to mocked api.ts helpers
 // so tests assert calls receive the same sentinel rather than a legacy GatewayUser.

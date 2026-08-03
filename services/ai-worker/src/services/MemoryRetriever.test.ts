@@ -108,27 +108,6 @@ describe('MemoryRetriever', () => {
     });
   });
 
-  describe('getPersonaContent', () => {
-    it('should delegate to PersonaResolver.getPersonaContentForPrompt', async () => {
-      mockPersonaResolver.getPersonaContentForPrompt.mockResolvedValue(
-        'Name: Alice\nPronouns: she/her\nA friendly person who loves coding'
-      );
-
-      const result = await retriever.getPersonaContent('persona-123');
-
-      expect(mockPersonaResolver.getPersonaContentForPrompt).toHaveBeenCalledWith('persona-123');
-      expect(result).toBe('Name: Alice\nPronouns: she/her\nA friendly person who loves coding');
-    });
-
-    it('should return null when PersonaResolver returns null', async () => {
-      mockPersonaResolver.getPersonaContentForPrompt.mockResolvedValue(null);
-
-      const result = await retriever.getPersonaContent('persona-123');
-
-      expect(result).toBeNull();
-    });
-  });
-
   describe('getAllParticipantPersonas', () => {
     const testPersonalityId = 'personality-123';
 

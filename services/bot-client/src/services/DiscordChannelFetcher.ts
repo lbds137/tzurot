@@ -11,10 +11,7 @@ import { INTERNAL_DISCORD_ID_PREFIX } from '@tzurot/common-types/constants/perso
 import { computeHistoryCutoff } from '@tzurot/common-types/services/historyCutoff';
 import { type ConversationMessage } from '@tzurot/common-types/types/conversationMessage';
 import { type AttachmentMetadata } from '@tzurot/common-types/types/schemas/discord';
-import {
-  type MessageReaction,
-  type StoredReferencedMessage,
-} from '@tzurot/common-types/types/schemas/message';
+import { type StoredReferencedMessage } from '@tzurot/common-types/types/schemas/message';
 import {
   normalizeMessageForContext,
   extractMessagePrefixName,
@@ -38,12 +35,8 @@ import {
 import {
   extractGuildInfo,
   limitParticipants,
-  collectReactorUsers as collectReactorUsersImpl,
 } from './channelFetcher/ParticipantContextCollector.js';
-import {
-  processReactions,
-  extractReactions as extractReactionsImpl,
-} from './channelFetcher/ReactionProcessor.js';
+import { processReactions } from './channelFetcher/ReactionProcessor.js';
 import { executeDatabaseSync } from './channelFetcher/SyncExecutor.js';
 
 export type { FetchableChannel } from './channelFetcher/types.js';
@@ -511,18 +504,5 @@ export class DiscordChannelFetcher {
     personalityId: string
   ): Promise<SyncResult> {
     return executeDatabaseSync(discordMessages, channelId, personalityId);
-  }
-
-  /** Wrapper for backward compatibility - delegates to ReactionProcessor */
-  extractReactions(msg: Message): Promise<MessageReaction[]> {
-    return extractReactionsImpl(msg);
-  }
-
-  /** Wrapper for backward compatibility - delegates to ParticipantContextCollector */
-  collectReactorUsers(
-    reactions: MessageReaction[],
-    existingUserIds: Set<string>
-  ): ExtendedContextUser[] {
-    return collectReactorUsersImpl(reactions, existingUserIds);
   }
 }

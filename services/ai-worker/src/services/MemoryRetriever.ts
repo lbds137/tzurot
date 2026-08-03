@@ -483,15 +483,6 @@ export class MemoryRetriever {
   }
 
   /**
-   * Get persona content by personaId (legacy - flattened string)
-   * @deprecated Use getPersonaData for structured data
-   * Delegates to PersonaResolver for consistent content formatting
-   */
-  async getPersonaContent(personaId: string): Promise<string | null> {
-    return this.personaResolver.getPersonaContentForPrompt(personaId);
-  }
-
-  /**
    * Resolve user's persona for memory operations (LTM storage/retrieval)
    * Exposes PersonaResolver's resolution for external callers.
    *
