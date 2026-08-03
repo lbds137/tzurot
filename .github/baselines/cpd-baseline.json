@@ -1,9 +1,9 @@
 {
   "version": 1,
-  "lastUpdated": "2026-07-26T20:06:41.029Z",
-  "filteredLines": 1787,
+  "lastUpdated": "2026-08-03T15:17:40.033Z",
+  "filteredLines": 1799,
   "filteredCount": 117,
-  "rawDedupedLines": 1712,
+  "rawDedupedLines": 1724,
   "rawCount": 121,
   "threshold": 0.8,
   "graceMargin": 10,
@@ -12,7 +12,7 @@
     "toolVersion": "cpd-check/1.0",
     "configHash": "a7f4e5150567",
     "nodeVersion": "v24.11.1",
-    "generatedFromSha": "eadebce0034d0cc382abbe7b7d4867d8ad635e25",
-    "generatedAt": "2026-07-26T20:06:41.029Z"
+    "generatedFromSha": "4b8b578e9f11064cddbfc3647c2ee9d9bb7a73b5",
+    "generatedAt": "2026-08-03T15:17:40.033Z"
   }
 }

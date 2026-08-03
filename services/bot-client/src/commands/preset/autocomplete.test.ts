@@ -355,7 +355,7 @@ describe('handleAutocomplete', () => {
         name: 'preset',
         value: '',
       } as unknown as string);
-      vi.mocked(mockInteraction.options.getSubcommand).mockReturnValue('set-default');
+      vi.mocked(mockInteraction.options.getSubcommand).mockReturnValue('default');
       ownerStub.listGlobalLlmConfigs.mockResolvedValue(makeErr(403, 'forbidden'));
 
       await handleAutocomplete(mockInteraction);
@@ -368,7 +368,7 @@ describe('handleAutocomplete', () => {
         name: 'preset',
         value: 'claude',
       } as unknown as string);
-      vi.mocked(mockInteraction.options.getSubcommand).mockReturnValue('set-default');
+      vi.mocked(mockInteraction.options.getSubcommand).mockReturnValue('default');
       ownerStub.listGlobalLlmConfigs.mockResolvedValue(cacheableFixture);
 
       await handleAutocomplete(mockInteraction);
@@ -388,7 +388,7 @@ describe('handleAutocomplete', () => {
         name: 'preset',
         value: '',
       } as unknown as string);
-      vi.mocked(mockInteraction.options.getSubcommand).mockReturnValue('set-default');
+      vi.mocked(mockInteraction.options.getSubcommand).mockReturnValue('default');
       ownerStub.listGlobalLlmConfigs.mockResolvedValue(
         makeOk({
           configs: [
@@ -433,7 +433,7 @@ describe('handleAutocomplete', () => {
         name: 'preset',
         value: '',
       } as unknown as string);
-      vi.mocked(mockInteraction.options.getSubcommand).mockReturnValue('set-default');
+      vi.mocked(mockInteraction.options.getSubcommand).mockReturnValue('default');
       // Even with a vision slot chosen, the picker fetches the full unscoped list
       // and badges by capability — so it doesn't reorder when the slot changes.
       vi.mocked(mockInteraction.options.getString).mockReturnValue('vision');
@@ -449,7 +449,7 @@ describe('handleAutocomplete', () => {
         name: 'preset',
         value: '',
       } as unknown as string);
-      vi.mocked(mockInteraction.options.getSubcommand).mockReturnValue('set-default');
+      vi.mocked(mockInteraction.options.getSubcommand).mockReturnValue('default');
       ownerStub.listGlobalLlmConfigs.mockResolvedValue(cacheableFixture);
 
       await handleAutocomplete(mockInteraction);

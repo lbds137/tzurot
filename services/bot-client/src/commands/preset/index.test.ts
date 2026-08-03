@@ -45,7 +45,7 @@ vi.mock('../../utils/modal/retry.js', async importOriginal => {
 // Note: delete is now handled via the dashboard, not a standalone command
 
 // Mock global subcommand handlers
-vi.mock('./global/set-default.js', () => ({ handleGlobalSetDefault: vi.fn() }));
+vi.mock('./global/default.js', () => ({ handleGlobalSetDefault: vi.fn() }));
 vi.mock('./global/free-default.js', () => ({ handleGlobalSetFreeDefault: vi.fn() }));
 
 // Mock override subcommand handlers (moved from /settings preset)
@@ -58,15 +58,15 @@ vi.mock('./override/browse.js', () => ({
 }));
 vi.mock('./override/set.js', () => ({ handleSet: vi.fn() }));
 vi.mock('./override/clear.js', () => ({ handleClear: vi.fn() }));
-vi.mock('./set-default.js', () => ({ handleSetDefault: vi.fn() }));
-vi.mock('./clear-default.js', () => ({ handleClearDefault: vi.fn() }));
+vi.mock('./default/set.js', () => ({ handleDefaultSet: vi.fn() }));
+vi.mock('./default/clear.js', () => ({ handleDefaultClear: vi.fn() }));
 vi.mock('./override/autocomplete.js', () => ({ handleAutocomplete: vi.fn() }));
 
 import { handleBrowse, isPresetBrowseInteraction } from './browse.js';
 import { buildPresetSeedModal } from './create.js';
 import { buildModalRetryRow } from '../../utils/modal/retry.js';
 import { handleCreate } from './create.js';
-import { handleGlobalSetDefault } from './global/set-default.js';
+import { handleGlobalSetDefault } from './global/default.js';
 import { handleGlobalSetFreeDefault } from './global/free-default.js';
 import {
   handlePresetBrowse as handleOverrideBrowse,
@@ -76,8 +76,8 @@ import {
 } from './override/browse.js';
 import { handleSet as handleOverrideSet } from './override/set.js';
 import { handleClear as handleOverrideClear } from './override/clear.js';
-import { handleSetDefault } from './set-default.js';
-import { handleClearDefault } from './clear-default.js';
+import { handleDefaultSet } from './default/set.js';
+import { handleDefaultClear } from './default/clear.js';
 import { handleAutocomplete as handleOverrideAutocomplete } from './override/autocomplete.js';
 
 describe('Preset Command', () => {
@@ -131,7 +131,7 @@ describe('Preset Command', () => {
       // Note: 'edit' was removed - global presets can be edited via /preset edit
     });
 
-    it('should have override subcommand group with symmetric set/clear/set-default/clear-default', () => {
+    it('should have override subcommand group with symmetric browse/set/clear', () => {
       const json = data.toJSON();
       const options = json.options ?? [];
 
@@ -143,17 +143,28 @@ describe('Preset Command', () => {
       const subcommands = ((overrideGroup as { options?: { name: string }[] })?.options ?? []).map(
         s => s.name
       );
-      // The override group is per-character only; the account-default pair
-      // (set-default/clear-default) lives at the command ROOT — a default is
-      // a baseline, not an override.
+      // The override group is per-character only; the account default lives in
+      // its own `default` group — a default is a baseline, not an override.
       expect(subcommands).toEqual(['browse', 'set', 'clear']);
     });
 
-    it('exposes the account-default pair as root subcommands', () => {
+    it('exposes the account default as a `default` group, not root verb-suffix subcommands', () => {
       const json = presetCommand.data.toJSON();
-      const rootSubNames = (json.options ?? []).filter(opt => opt.type === 1).map(opt => opt.name);
-      expect(rootSubNames).toContain('set-default');
-      expect(rootSubNames).toContain('clear-default');
+      const options = json.options ?? [];
+
+      const rootSubNames = options.filter(opt => opt.type === 1).map(opt => opt.name);
+      expect(rootSubNames).not.toContain('set-default');
+      expect(rootSubNames).not.toContain('clear-default');
+
+      const defaultGroup = options
+        .filter((opt: { type: number }) => opt.type === 2)
+        .find((g: { name: string }) => g.name === 'default');
+      expect(defaultGroup).toBeDefined();
+
+      const defaultSubcommands = (
+        (defaultGroup as { options?: { name: string }[] })?.options ?? []
+      ).map(s => s.name);
+      expect(defaultSubcommands).toEqual(['set', 'clear']);
     });
 
     it('keeps the historical override componentPrefix for in-flight components', () => {
@@ -230,10 +241,10 @@ describe('Preset Command', () => {
     });
 
     it.each([
-      ['set-default', handleSetDefault],
-      ['clear-default', handleClearDefault],
-    ])('routes root %s to the account-default handler', async (subcommand, handler) => {
-      const context = createMockContext(subcommand as string, null);
+      ['set', handleDefaultSet],
+      ['clear', handleDefaultClear],
+    ])('routes default %s to the account-default handler', async (subcommand, handler) => {
+      const context = createMockContext(subcommand as string, 'default');
       await execute(context);
       expect(handler).toHaveBeenCalledWith(context);
     });
@@ -259,15 +270,15 @@ describe('Preset Command', () => {
       expect(handleOverrideAutocomplete).toHaveBeenCalledWith(interaction);
     });
 
-    it('routes root set-default autocomplete to the ASSIGNABLE pool handler', async () => {
-      // set-default assigns a preset like override set does, so it shares the
+    it('routes `default set` autocomplete to the ASSIGNABLE pool handler', async () => {
+      // `default set` assigns a preset like `override set` does, so it shares the
       // override autocomplete (assignable configs + guest-mode upsell) rather
       // than the base pool of your editable presets.
       const interaction = {
         options: {
           getFocused: () => ({ name: 'preset', value: '' }),
-          getSubcommandGroup: () => null,
-          getSubcommand: () => 'set-default',
+          getSubcommandGroup: () => 'default',
+          getSubcommand: () => 'set',
         },
       } as never;
 

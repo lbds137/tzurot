@@ -1,6 +1,6 @@
 /**
  * Preset Global Set Default Handler
- * Handles /preset global set-default subcommand
+ * Handles /preset global default subcommand
  * Sets a global config as the system default (owner only)
  */
 
@@ -10,12 +10,12 @@ import type { DeferredCommandContext } from '../../../utils/commandContext/types
 import { handleGlobalPresetUpdate } from './globalPresetHelpers.js';
 
 /**
- * Handle /preset global set-default
+ * Handle /preset global default
  */
 export async function handleGlobalSetDefault(context: DeferredCommandContext): Promise<void> {
   const options = presetGlobalDefaultOptions(context.interaction);
   const configId = options.preset();
-  // Admin set-default targets a slot; pass it so a vision preset
+  // The admin default targets a slot; pass it so a vision preset
   // promotes to the vision default. Defaults Chat → existing usage unchanged.
   const slot = toModelSlot(options.slot() ?? DEFAULT_MODEL_SLOT);
 

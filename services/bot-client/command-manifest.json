@@ -1865,55 +1865,62 @@
             "options": []
           },
           {
-            "type": 1,
-            "name": "set-default",
-            "description": "Set your default preset — used for every character without an override",
+            "type": 2,
+            "name": "default",
+            "description": "Manage your default preset",
             "options": [
               {
-                "autocomplete": true,
-                "type": 3,
-                "name": "preset",
-                "description": "Which preset",
-                "required": true
+                "type": 1,
+                "name": "set",
+                "description": "Set your default preset — used for every character without an override",
+                "options": [
+                  {
+                    "autocomplete": true,
+                    "type": 3,
+                    "name": "preset",
+                    "description": "Which preset",
+                    "required": true
+                  },
+                  {
+                    "type": 3,
+                    "choices": [
+                      {
+                        "name": "Chat",
+                        "value": "text"
+                      },
+                      {
+                        "name": "Vision",
+                        "value": "vision"
+                      }
+                    ],
+                    "name": "slot",
+                    "description": "Which slot to target: Chat (default) or Vision",
+                    "required": false
+                  }
+                ]
               },
               {
-                "type": 3,
-                "choices": [
+                "type": 1,
+                "name": "clear",
+                "description": "Clear your default preset",
+                "options": [
                   {
-                    "name": "Chat",
-                    "value": "text"
-                  },
-                  {
-                    "name": "Vision",
-                    "value": "vision"
+                    "type": 3,
+                    "choices": [
+                      {
+                        "name": "Chat",
+                        "value": "text"
+                      },
+                      {
+                        "name": "Vision",
+                        "value": "vision"
+                      }
+                    ],
+                    "name": "slot",
+                    "description": "Which slot to target: Chat (default) or Vision",
+                    "required": false
                   }
-                ],
-                "name": "slot",
-                "description": "Which slot to target: Chat (default) or Vision",
-                "required": false
-              }
-            ]
-          },
-          {
-            "type": 1,
-            "name": "clear-default",
-            "description": "Clear your default preset",
-            "options": [
-              {
-                "type": 3,
-                "choices": [
-                  {
-                    "name": "Chat",
-                    "value": "text"
-                  },
-                  {
-                    "name": "Vision",
-                    "value": "vision"
-                  }
-                ],
-                "name": "slot",
-                "description": "Which slot to target: Chat (default) or Vision",
-                "required": false
+                ]
               }
             ]
           },
@@ -2485,23 +2492,17 @@
               },
               {
                 "type": 1,
-                "name": "set-default",
-                "description": "Set your global default TTS config",
+                "name": "default",
+                "description": "Set (or clear) your global default TTS config",
                 "options": [
                   {
                     "autocomplete": true,
                     "type": 3,
                     "name": "tts",
-                    "description": "Which TTS config",
-                    "required": true
+                    "description": "Which TTS config — leave empty to clear your default",
+                    "required": false
                   }
                 ]
-              },
-              {
-                "type": 1,
-                "name": "clear-default",
-                "description": "Clear your global default TTS config",
-                "options": []
               }
             ]
           },

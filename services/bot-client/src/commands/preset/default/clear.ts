@@ -1,30 +1,30 @@
 /**
- * Preset Clear-Default Handler
- * Handles /preset clear-default subcommand
+ * Preset Default Clear Handler
+ * Handles /preset default clear subcommand
  * Clears the user's global default preset
  */
 
 import { EmbedBuilder } from 'discord.js';
 import { toModelSlot } from '@tzurot/common-types/constants/ai';
 import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
-import { presetClearDefaultOptions } from '@tzurot/common-types/generated/commandOptions';
+import { presetDefaultClearOptions } from '@tzurot/common-types/generated/commandOptions';
 import { createLogger } from '@tzurot/common-types/utils/logger';
-import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
-import { clientsFor } from '../../utils/gatewayClients.js';
-import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
-import { renderSpec } from '../../ux/render/render.js';
+import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
+import { clientsFor } from '../../../utils/gatewayClients.js';
+import { classifyGatewayFailure } from '../../../ux/catalog/classify.js';
+import { renderSpec } from '../../../ux/render/render.js';
 
-const logger = createLogger('preset-clear-default');
+const logger = createLogger('preset-default-clear');
 
 /**
- * Handle /preset clear-default
+ * Handle /preset default clear
  */
-export async function handleClearDefault(context: DeferredCommandContext): Promise<void> {
+export async function handleDefaultClear(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;
   // No slot → clear BOTH defaults (`all`); an explicit slot clears just that one.
   // The vision default is a separate FK from the text default, so a no-slot clear
   // has to target both or it silently leaves the other in place.
-  const slotOption = presetClearDefaultOptions(context.interaction).slot();
+  const slotOption = presetDefaultClearOptions(context.interaction).slot();
   const slot = slotOption !== null ? toModelSlot(slotOption) : 'all';
 
   try {
@@ -90,7 +90,7 @@ export async function handleClearDefault(context: DeferredCommandContext): Promi
       'Cleared default config'
     );
   } catch (error) {
-    logger.error({ err: error, userId, command: 'Preset Clear-Default' }, 'Error');
+    logger.error({ err: error, userId, command: 'Preset Default Clear' }, 'Error');
     await context.editReply({
       content: renderSpec(
         classifyGatewayFailure(error, 'default preset', { failedAction: 'clear the default' })

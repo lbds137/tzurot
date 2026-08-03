@@ -36,8 +36,7 @@ vi.mock('./tts/browse.js', () => ({
 }));
 vi.mock('./tts/set.js', () => ({ handleTtsSet: vi.fn() }));
 vi.mock('./tts/clear.js', () => ({ handleTtsClear: vi.fn() }));
-vi.mock('./tts/set-default.js', () => ({ handleTtsSetDefault: vi.fn() }));
-vi.mock('./tts/clear-default.js', () => ({ handleTtsClearDefault: vi.fn() }));
+vi.mock('./tts/default.js', () => ({ handleTtsDefault: vi.fn() }));
 vi.mock('./tts/autocomplete.js', () => ({ handleAutocomplete: vi.fn() }));
 
 vi.mock('./voices/browse.js', () => ({
@@ -59,8 +58,7 @@ vi.mock('./voices/purge.js', () => ({
 import { handleTtsBrowse } from './tts/browse.js';
 import { handleTtsSet } from './tts/set.js';
 import { handleTtsClear } from './tts/clear.js';
-import { handleTtsSetDefault } from './tts/set-default.js';
-import { handleTtsClearDefault } from './tts/clear-default.js';
+import { handleTtsDefault } from './tts/default.js';
 import { handleAutocomplete as handleTtsAutocomplete } from './tts/autocomplete.js';
 import {
   handleBrowseVoices,
@@ -108,7 +106,7 @@ describe('Voice Command', () => {
       const ttsSubcommands = ((tts as { options?: { name: string }[] }).options ?? [])
         .map(s => s.name)
         .sort();
-      expect(ttsSubcommands).toEqual(['browse', 'clear', 'clear-default', 'set', 'set-default']);
+      expect(ttsSubcommands).toEqual(['browse', 'clear', 'default', 'set']);
     });
 
     it('exposes the voices subcommand shape', () => {
@@ -135,16 +133,10 @@ describe('Voice Command', () => {
       expect(handleTtsClear).toHaveBeenCalledOnce();
     });
 
-    it('routes /voice tts set-default to handleTtsSetDefault', async () => {
-      const ctx = createMockContext('set-default', 'tts');
+    it('routes /voice tts default to handleTtsDefault', async () => {
+      const ctx = createMockContext('default', 'tts');
       await execute(ctx as any);
-      expect(handleTtsSetDefault).toHaveBeenCalledOnce();
-    });
-
-    it('routes /voice tts clear-default to handleTtsClearDefault', async () => {
-      const ctx = createMockContext('clear-default', 'tts');
-      await execute(ctx as any);
-      expect(handleTtsClearDefault).toHaveBeenCalledOnce();
+      expect(handleTtsDefault).toHaveBeenCalledOnce();
     });
 
     it('routes /voice tts browse to handleTtsBrowse', async () => {

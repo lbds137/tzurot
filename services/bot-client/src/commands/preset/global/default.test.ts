@@ -1,7 +1,7 @@
 /**
  * Tests for Preset Global Set Default Handler
  *
- * Tests /preset global set-default subcommand:
+ * Tests /preset global default subcommand:
  * - Successful default setting
  * - API error handling
  */
@@ -30,7 +30,7 @@ vi.mock('../../../utils/gatewayClients.js', () => ({
   clientsFor: clientsForMock,
 }));
 
-const { handleGlobalSetDefault } = await import('./set-default.js');
+const { handleGlobalSetDefault } = await import('./default.js');
 
 interface OwnerClientStub {
   setGlobalLlmConfigDefault: ReturnType<typeof vi.fn>;

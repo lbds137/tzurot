@@ -1,35 +1,35 @@
 /**
- * Preset Set-Default Handler
- * Handles /preset set-default subcommand
+ * Preset Default Set Handler
+ * Handles /preset default set subcommand
  * Sets the user's global default preset (applies to all characters)
  */
 
 import { EmbedBuilder } from 'discord.js';
 import { DEFAULT_MODEL_SLOT, toModelSlot } from '@tzurot/common-types/constants/ai';
 import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
-import { presetSetDefaultOptions } from '@tzurot/common-types/generated/commandOptions';
+import { presetDefaultSetOptions } from '@tzurot/common-types/generated/commandOptions';
 import { createLogger } from '@tzurot/common-types/utils/logger';
-import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
-import { clientsFor } from '../../utils/gatewayClients.js';
-import { classifyGatewayFailure } from '../../ux/catalog/classify.js';
-import { renderSpec } from '../../ux/render/render.js';
+import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
+import { clientsFor } from '../../../utils/gatewayClients.js';
+import { classifyGatewayFailure } from '../../../ux/catalog/classify.js';
+import { renderSpec } from '../../../ux/render/render.js';
 import {
   handleUnlockModelsUpsell,
   checkGuestModePremiumAccess,
-} from './override/guestModeValidation.js';
+} from '../override/guestModeValidation.js';
 
-const logger = createLogger('preset-set-default');
+const logger = createLogger('preset-default-set');
 
 /**
- * Handle /preset set-default
+ * Handle /preset default set
  */
-export async function handleSetDefault(context: DeferredCommandContext): Promise<void> {
+export async function handleDefaultSet(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;
-  const options = presetSetDefaultOptions(context.interaction);
+  const options = presetDefaultSetOptions(context.interaction);
   const configId = options.preset();
   // The slot (text = chat default, or vision) decides which default FK the value
   // writes; the gateway capability-gates the vision slot. Without sending it a
-  // vision default silently lands in the text slot — mirror clear-default.
+  // vision default silently lands in the text slot — mirror `default clear`.
   const slot = toModelSlot(options.slot() ?? DEFAULT_MODEL_SLOT);
 
   if (await handleUnlockModelsUpsell(context, configId, userId)) {
@@ -66,7 +66,7 @@ export async function handleSetDefault(context: DeferredCommandContext): Promise
           `**${data.default.configName}**.\n\n` +
           'This will be used for all characters unless you have a specific override.'
       )
-      .setFooter({ text: 'Use /preset clear-default to remove this setting' })
+      .setFooter({ text: 'Use /preset default clear to remove this setting' })
       .setTimestamp();
 
     await context.editReply({ embeds: [embed] });
@@ -76,7 +76,7 @@ export async function handleSetDefault(context: DeferredCommandContext): Promise
       'Set default config'
     );
   } catch (error) {
-    logger.error({ err: error, userId, command: 'Preset Set-Default' }, 'Error');
+    logger.error({ err: error, userId, command: 'Preset Default Set' }, 'Error');
     await context.editReply({
       content: renderSpec(
         classifyGatewayFailure(error, 'default preset', { failedAction: 'set the default' })
