@@ -37,6 +37,7 @@ function makePreview(overrides: {
   return {
     users: Array.from({ length: listedUsers }, (_, i) => ({
       discordId: `99000000000000${String(i).padStart(4, '0')}`,
+      username: `inactive${String(i)}`,
       inactiveSince: '2025-09-01T00:00:00.000Z',
       reason: i === 0 ? ('unreachable' as const) : ('account_gone' as const),
       ownedCharacters: { toDelete: 1, toReHome: 0 },
@@ -206,6 +207,39 @@ describe('buildRetentionNagEmbed', () => {
 
     expect(expiredOnly.description).toContain('Reachable branch');
     expect(expiredOnly.description).toContain('**2** grace-expired');
+  });
+
+  it('renders all three identity tokens per user line', () => {
+    // The owner reads this embed on mobile, where `<@id>` mentions frequently
+    // fail to resolve — the plain-text username is the readable identity, and
+    // the backticked id stays the copy-paste handle for the CLI commands.
+    const embed = buildRetentionNagEmbed(makePreview({ eligibleCount: 1 })).toJSON();
+
+    expect(embed.description).toContain('<@990000000000000000>');
+    expect(embed.description).toContain('@inactive0');
+    expect(embed.description).toContain('`990000000000000000`');
+  });
+
+  it('escapes markdown in the username (user-controlled text in an owner embed)', () => {
+    const preview = makePreview({ eligibleCount: 1 });
+    preview.users[0] = { ...preview.users[0], username: '*bold*`tick`' };
+
+    const embed = buildRetentionNagEmbed(preview).toJSON();
+
+    expect(embed.description).toContain('\\*bold\\*\\`tick\\`');
+    expect(embed.description).not.toContain('@*bold*');
+  });
+
+  it('omits the username token entirely when the stored username is empty', () => {
+    // Fail-open: the schema deliberately allows an empty username, so the line
+    // must render without a dangling `@` rather than crash the nag.
+    const preview = makePreview({ eligibleCount: 1 });
+    preview.users[0] = { ...preview.users[0], username: '   ' };
+
+    const embed = buildRetentionNagEmbed(preview).toJSON();
+
+    expect(embed.description).toContain('<@990000000000000000> — `990000000000000000`');
+    expect(embed.description).not.toContain('@ —');
   });
 
   it('caps the listed users and reports the overflow', () => {

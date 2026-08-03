@@ -46,6 +46,7 @@ describe('RetentionPurgeService.buildPreview', () => {
     {
       userId: 'u1',
       discordId: '900000000000000001',
+      username: 'inactiveuser',
       inactiveSince: new Date('2025-01-01T00:00:00Z'),
       accountGone: false,
       unreachable: true,
@@ -97,6 +98,7 @@ describe('RetentionPurgeService.buildPreview', () => {
     const cohort = ['u1', 'u2', 'u3'].map((userId, i) => ({
       userId,
       discordId: `90000000000000000${i}`,
+      username: `inactive${String(i)}`,
       inactiveSince: new Date('2025-01-01T00:00:00Z'),
       accountGone: false,
       unreachable: true,
@@ -128,6 +130,7 @@ describe('RetentionPurgeService.buildPreview', () => {
       {
         userId: 'u2',
         discordId: '900000000000000002',
+        username: 'gracelapsed',
         inactiveSince: new Date('2025-02-01T00:00:00Z'),
         accountGone: false,
         unreachable: false,

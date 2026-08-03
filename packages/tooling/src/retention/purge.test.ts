@@ -21,6 +21,7 @@ function cohort(...discordIds: string[]) {
   return {
     users: discordIds.map(discordId => ({
       discordId,
+      username: `user${discordId.slice(-2)}`,
       inactiveSince: '2025-01-01T00:00:00.000Z',
       reason: 'unreachable' as const,
       ownedCharacters: { toDelete: 1, toReHome: 0 },

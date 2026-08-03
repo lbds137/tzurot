@@ -40,6 +40,8 @@ export type PurgeReason = 'unreachable' | 'account_gone' | 'grace_expired' | 'by
 export interface PurgeCohortRow {
   userId: string;
   discordId: string;
+  /** Display-only identity token for the operator surfaces (nag embed, CLI). */
+  username: string;
   /** Effective inactivity anchor: last_active_at ?? created_at. */
   inactiveSince: Date;
   reason: PurgeReason;
@@ -48,6 +50,7 @@ export interface PurgeCohortRow {
 interface CohortSqlRow {
   userId: string;
   discordId: string;
+  username: string;
   inactiveSince: Date;
   accountGone: boolean;
   unreachable: boolean;
@@ -142,6 +145,7 @@ function toCohortRow(row: CohortSqlRow): PurgeCohortRow {
   return {
     userId: row.userId,
     discordId: row.discordId,
+    username: row.username,
     inactiveSince: row.inactiveSince,
     // Label precedence mirrors signal strength: a gone account beats
     // unreachable, either unreachable stamp beats the two reachable reasons (a
@@ -177,6 +181,7 @@ export async function selectEligibleUsers(db: Prisma.TransactionClient): Promise
   const rows = await db.$queryRaw<CohortSqlRow[]>`
     SELECT u.id AS "userId",
            u.discord_id AS "discordId",
+           u.username AS "username",
            COALESCE(u.last_active_at, u.created_at) AS "inactiveSince",
            (u.discord_account_gone_at IS NOT NULL) AS "accountGone",
            (u.dm_undeliverable_since IS NOT NULL) AS "unreachable",

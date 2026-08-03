@@ -317,6 +317,15 @@ export const RetentionPreviewUserSchema = z.object({
    * pipeline's recipient schemas stay strict; such rows never qualify there.
    */
   discordId: z.string().min(1).max(32),
+  /**
+   * Display-only identity token, rendered beside the id because `<@id>`
+   * mentions often fail to resolve on mobile. Deliberately NOT `.min(1)`:
+   * the same fail-open doctrine `discordId` above documents — nag delivery
+   * outranks field validity, so a malformed or empty stored username must
+   * never crash the CLI or silence the daily nag. The rendering surfaces
+   * omit the token rather than reject the payload.
+   */
+  username: z.string().max(255),
   /** Inactivity anchor as ISO — last_active_at, or created_at when never stamped. */
   inactiveSince: z.string().datetime(),
   /**

@@ -69,8 +69,11 @@ export function renderPreview(preview: RetentionPreviewResponse): void {
       user.ownedCharacters.toDelete + user.ownedCharacters.toReHome === 0
         ? 'no characters'
         : `${user.ownedCharacters.toDelete} to delete, ${user.ownedCharacters.toReHome} to re-home`;
+    // An empty stored username drops its column rather than printing a
+    // dangling `@` — the schema keeps the field fail-open on content.
+    const usernameColumn = user.username.trim() === '' ? '' : `@${user.username}  `;
     console.log(
-      `  ${user.discordId}  inactive since ${inactiveSince}  ` +
+      `  ${user.discordId}  ${usernameColumn}inactive since ${inactiveSince}  ` +
         `${chalk.dim(REASON_LABEL[user.reason])}  ${chalk.dim(`(${characters})`)}`
     );
   }
