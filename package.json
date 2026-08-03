@@ -63,6 +63,9 @@
     "eval:fact-score": "vitest run --config vitest.eval.config.ts services/ai-worker/src/services/eval/factScoring.eval.test.ts",
     "eval:allocation-goldens": "vitest run --config vitest.eval.config.ts services/ai-worker/src/services/eval/attachmentAllocationPooling.eval.test.ts",
     "eval:allocation-score": "vitest run --config vitest.eval.config.ts services/ai-worker/src/services/eval/attachmentAllocationScoring.eval.test.ts",
+    "eval:voice-replay": "vitest run --config vitest.eval.config.ts services/ai-worker/src/services/eval/voiceReplay.eval.test.ts",
+    "eval:voice-judge": "vitest run --config vitest.eval.config.ts services/ai-worker/src/services/eval/voiceJudge.eval.test.ts",
+    "eval:voice-verdict": "vitest run --config vitest.eval.config.ts services/ai-worker/src/services/eval/voiceVerdict.eval.test.ts",
     "tracker": "backlog"
   },
   "devDependencies": {
