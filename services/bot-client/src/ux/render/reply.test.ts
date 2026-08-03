@@ -8,10 +8,12 @@ import {
   followUpSpec,
   replySpec,
   replySpecSafe,
+  topLevelErrorSpec,
   type RepliableInteraction,
   type DeferUpdatableInteraction,
 } from './reply.js';
 import { CATALOG } from '../catalog/catalog.js';
+import { InfraError } from '@tzurot/clients';
 
 vi.mock('@tzurot/common-types/utils/logger', async () => {
   const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
@@ -181,5 +183,24 @@ describe('replySpecSafe', () => {
     interaction.reply.mockRejectedValue(new Error('Unknown interaction'));
 
     await expect(replySpecSafe(interaction, CATALOG.error.commandFailed())).resolves.not.toThrow();
+  });
+});
+
+describe('topLevelErrorSpec', () => {
+  const fallback = CATALOG.error.commandFailed();
+
+  it('returns the transient shape for an InfraError (transient gateway failure)', () => {
+    const err = new InfraError({ ok: false, kind: 'timeout', error: 'timed out', status: 0 });
+    const spec = topLevelErrorSpec(err, fallback);
+    expect(spec.text).toContain('try again later');
+    expect(spec).not.toBe(fallback);
+  });
+
+  it('returns the surface-specific fallback for a non-infra Error', () => {
+    expect(topLevelErrorSpec(new Error('boom'), fallback)).toBe(fallback);
+  });
+
+  it('returns the fallback for a non-Error throwable', () => {
+    expect(topLevelErrorSpec('string error', fallback)).toBe(fallback);
   });
 });

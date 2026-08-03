@@ -9,17 +9,7 @@
  * CommandHandler looked for `handleModal`. The typo was silently ignored,
  * causing cryptic runtime errors. This pattern prevents that class of bug.
  *
- * Usage (legacy - receives raw interaction):
- * ```typescript
- * export default defineCommand({
- *   data: new SlashCommandBuilder().setName('ping').setDescription('Pong'),
- *   execute: async (interaction) => {
- *     await interaction.editReply('Pong!');
- *   },
- * });
- * ```
- *
- * Usage (new - receives typed context, compile-time safe):
+ * Usage:
  * ```typescript
  * export default defineCommand({
  *   data: new SlashCommandBuilder().setName('ping').setDescription('Pong'),
@@ -33,7 +23,6 @@
  */
 
 import type {
-  ChatInputCommandInteraction,
   ContextMenuCommandBuilder,
   MessageContextMenuCommandInteraction,
   ModalSubmitInteraction,
@@ -72,9 +61,9 @@ export interface CommandDefinition {
    * - 'modal': Not deferred - command shows a modal first
    * - 'none': Not deferred - command handles response timing itself
    *
-   * When set, the command's execute() receives a typed SafeCommandContext
-   * instead of raw ChatInputCommandInteraction. This enables compile-time
-   * prevention of InteractionAlreadyReplied errors.
+   * Optional: when unset, the dispatcher defaults to 'ephemeral'. The mode
+   * determines which SafeCommandContext variant execute() receives, which is
+   * what makes InteractionAlreadyReplied errors a compile-time failure.
    *
    * For commands with mixed subcommand modes, use `subcommandDeferralModes`
    * to override specific subcommands.
@@ -108,12 +97,10 @@ export interface CommandDefinition {
    * Main command execution handler.
    * Called when the slash command is invoked.
    *
-   * If deferralMode is set, receives a typed SafeCommandContext.
-   * Otherwise, receives raw ChatInputCommandInteraction (legacy mode).
+   * Always receives a typed SafeCommandContext — the dispatcher creates the
+   * variant matching the effective deferral mode before calling this.
    */
-  execute:
-    | ((interaction: ChatInputCommandInteraction) => Promise<void>)
-    | ((context: SafeCommandContext) => Promise<void>);
+  execute: (context: SafeCommandContext) => Promise<void>;
 
   /**
    * Autocomplete handler for commands with autocomplete options.

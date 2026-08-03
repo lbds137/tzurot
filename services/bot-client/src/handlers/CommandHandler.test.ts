@@ -5,12 +5,10 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { CommandHandler, topLevelErrorSpec } from './CommandHandler.js';
-import { CATALOG } from '../ux/catalog/catalog.js';
+import { CommandHandler } from './CommandHandler.js';
 import { InfraError } from '@tzurot/clients';
-import { Collection, MessageFlags, type SlashCommandBuilder } from 'discord.js';
+import { Collection, type SlashCommandBuilder } from 'discord.js';
 import type {
-  ChatInputCommandInteraction,
   ModalSubmitInteraction,
   AutocompleteInteraction,
   ButtonInteraction,
@@ -41,25 +39,6 @@ vi.mock('node:fs', () => ({
 }));
 
 import { readdirSync, statSync } from 'node:fs';
-
-describe('topLevelErrorSpec', () => {
-  const fallback = CATALOG.error.commandFailed();
-
-  it('returns the transient shape for an InfraError (transient gateway failure)', () => {
-    const err = new InfraError({ ok: false, kind: 'timeout', error: 'timed out', status: 0 });
-    const spec = topLevelErrorSpec(err, fallback);
-    expect(spec.text).toContain('try again later');
-    expect(spec).not.toBe(fallback);
-  });
-
-  it('returns the surface-specific fallback for a non-infra Error', () => {
-    expect(topLevelErrorSpec(new Error('boom'), fallback)).toBe(fallback);
-  });
-
-  it('returns the fallback for a non-Error throwable', () => {
-    expect(topLevelErrorSpec('string error', fallback)).toBe(fallback);
-  });
-});
 
 describe('CommandHandler', () => {
   let handler: CommandHandler;
@@ -235,7 +214,7 @@ describe('CommandHandler', () => {
     });
   });
 
-  describe('handleInteraction', () => {
+  describe('handleModalInteraction / handleComponentInteraction', () => {
     beforeEach(() => {
       // Add a mock command to the handler
       const mockCommand: Command = {
@@ -252,28 +231,9 @@ describe('CommandHandler', () => {
       (handler as any).prefixToCommand.set('test', mockCommand);
     });
 
-    it('should execute chat input command', async () => {
-      const mockInteraction = {
-        isChatInputCommand: () => true,
-        isModalSubmit: () => false,
-        commandName: 'test',
-        reply: vi.fn().mockResolvedValue(undefined),
-        followUp: vi.fn(),
-        replied: false,
-        deferred: false,
-      } as unknown as ChatInputCommandInteraction;
-
-      await handler.handleInteraction(mockInteraction);
-
-      const command = handler.getCommands().get('test');
-      expect(command?.execute).toHaveBeenCalledWith(mockInteraction);
-    });
-
     it('should ignore modal submit when command has no handleModal', async () => {
       // Commands without handleModal export do not handle modals (no fallback to execute)
       const mockInteraction = {
-        isChatInputCommand: () => false,
-        isModalSubmit: () => true,
         customId: 'test::create',
         reply: vi.fn().mockResolvedValue(undefined),
         followUp: vi.fn(),
@@ -281,7 +241,7 @@ describe('CommandHandler', () => {
         deferred: false,
       } as unknown as ModalSubmitInteraction;
 
-      await handler.handleInteraction(mockInteraction);
+      await handler.handleModalInteraction(mockInteraction);
 
       const command = handler.getCommands().get('test');
       // execute should NOT be called - modals require handleModal
@@ -303,8 +263,6 @@ describe('CommandHandler', () => {
       (handler as any).prefixToCommand.set('modal-test', mockCommand);
 
       const mockInteraction = {
-        isChatInputCommand: () => false,
-        isModalSubmit: () => true,
         customId: 'modal-test::create',
         reply: vi.fn().mockResolvedValue(undefined),
         followUp: vi.fn(),
@@ -312,7 +270,7 @@ describe('CommandHandler', () => {
         deferred: false,
       } as unknown as ModalSubmitInteraction;
 
-      await handler.handleInteraction(mockInteraction);
+      await handler.handleModalInteraction(mockInteraction);
 
       expect(mockHandleModal).toHaveBeenCalledWith(mockInteraction);
       expect(mockCommand.execute).not.toHaveBeenCalled();
@@ -334,8 +292,6 @@ describe('CommandHandler', () => {
       (handler as any).prefixToCommand.set('test', mockCommand);
 
       const mockInteraction = {
-        isChatInputCommand: () => false,
-        isModalSubmit: () => true,
         customId: 'test::edit::entity-123',
         reply: vi.fn().mockResolvedValue(undefined),
         followUp: vi.fn(),
@@ -343,7 +299,7 @@ describe('CommandHandler', () => {
         deferred: false,
       } as unknown as ModalSubmitInteraction;
 
-      await handler.handleInteraction(mockInteraction);
+      await handler.handleModalInteraction(mockInteraction);
 
       // Should extract 'test' from 'test::edit::entity-123' and call handleModal
       expect(mockHandleModal).toHaveBeenCalledWith(mockInteraction);
@@ -368,8 +324,6 @@ describe('CommandHandler', () => {
       (handler as any).prefixToCommand.set('admin-settings', mockCommand);
 
       const mockInteraction = {
-        isChatInputCommand: () => false,
-        isModalSubmit: () => true,
         customId: 'admin-settings::modal::global::maxAge',
         reply: vi.fn().mockResolvedValue(undefined),
         followUp: vi.fn(),
@@ -377,176 +331,9 @@ describe('CommandHandler', () => {
         deferred: false,
       } as unknown as ModalSubmitInteraction;
 
-      await handler.handleInteraction(mockInteraction);
+      await handler.handleModalInteraction(mockInteraction);
 
       expect(mockHandleModal).toHaveBeenCalledWith(mockInteraction);
-    });
-
-    it('should reply with error for unknown command', async () => {
-      const mockInteraction = {
-        isChatInputCommand: () => true,
-        isModalSubmit: () => false,
-        commandName: 'unknown',
-        reply: vi.fn().mockResolvedValue(undefined),
-        followUp: vi.fn(),
-        replied: false,
-        deferred: false,
-      } as unknown as ChatInputCommandInteraction;
-
-      await handler.handleInteraction(mockInteraction);
-
-      expect(mockInteraction.reply).toHaveBeenCalledWith({
-        content: 'Unknown command!',
-        flags: MessageFlags.Ephemeral,
-      });
-    });
-
-    it('should execute help command like any other command', async () => {
-      // Note: Help command accesses commands via interaction.client.commands,
-      // not as a second argument. This is handled by the help command itself.
-      const mockHelpCommand: Command = {
-        data: {
-          name: 'help',
-          description: 'Show all available commands',
-        } as unknown as SlashCommandBuilder,
-        execute: vi.fn().mockResolvedValue(undefined),
-      };
-
-      handler.getCommands().set('help', mockHelpCommand);
-
-      const mockInteraction = {
-        isChatInputCommand: () => true,
-        isModalSubmit: () => false,
-        commandName: 'help',
-        reply: vi.fn().mockResolvedValue(undefined),
-        followUp: vi.fn(),
-        replied: false,
-        deferred: false,
-      } as unknown as ChatInputCommandInteraction;
-
-      await handler.handleInteraction(mockInteraction);
-
-      // Help is executed like any other command (no special handling)
-      expect(mockHelpCommand.execute).toHaveBeenCalledWith(mockInteraction);
-    });
-
-    it('should handle command execution error with reply', async () => {
-      const mockCommand: Command = {
-        data: {
-          name: 'failing',
-          description: 'Failing command',
-        } as unknown as SlashCommandBuilder,
-        execute: vi.fn().mockRejectedValue(new Error('Command failed')),
-      };
-
-      handler.getCommands().set('failing', mockCommand);
-
-      const mockInteraction = {
-        isChatInputCommand: () => true,
-        isModalSubmit: () => false,
-        commandName: 'failing',
-        reply: vi.fn().mockResolvedValue(undefined),
-        followUp: vi.fn(),
-        replied: false,
-        deferred: false,
-      } as unknown as ChatInputCommandInteraction;
-
-      await handler.handleInteraction(mockInteraction);
-
-      expect(mockInteraction.reply).toHaveBeenCalledWith({
-        content: '❌ There was an error executing this command!',
-        flags: MessageFlags.Ephemeral,
-      });
-    });
-
-    it('should handle command execution error with followUp when already replied', async () => {
-      const mockCommand: Command = {
-        data: {
-          name: 'failing',
-          description: 'Failing command',
-        } as unknown as SlashCommandBuilder,
-        execute: vi.fn().mockRejectedValue(new Error('Command failed')),
-      };
-
-      handler.getCommands().set('failing', mockCommand);
-
-      const mockInteraction = {
-        isChatInputCommand: () => true,
-        isModalSubmit: () => false,
-        commandName: 'failing',
-        reply: vi.fn().mockResolvedValue(undefined),
-        followUp: vi.fn().mockResolvedValue(undefined),
-        replied: true, // Already replied
-        deferred: false,
-      } as unknown as ChatInputCommandInteraction;
-
-      await handler.handleInteraction(mockInteraction);
-
-      expect(mockInteraction.followUp).toHaveBeenCalledWith({
-        content: '❌ There was an error executing this command!',
-        flags: MessageFlags.Ephemeral,
-      });
-      expect(mockInteraction.reply).not.toHaveBeenCalled();
-    });
-
-    it('fills the deferral placeholder via editReply when deferred (fixed: was followUp)', async () => {
-      // Deliberate behavior change: the old sendErrorReply followUp'd a
-      // deferred-but-unreplied interaction, stranding the "Thinking…"
-      // placeholder forever. The unified replySpec path edits it instead.
-      const mockCommand: Command = {
-        data: {
-          name: 'failing',
-          description: 'Failing command',
-        } as unknown as SlashCommandBuilder,
-        execute: vi.fn().mockRejectedValue(new Error('Command failed')),
-      };
-
-      handler.getCommands().set('failing', mockCommand);
-
-      const mockInteraction = {
-        isChatInputCommand: () => true,
-        isModalSubmit: () => false,
-        commandName: 'failing',
-        reply: vi.fn().mockResolvedValue(undefined),
-        followUp: vi.fn().mockResolvedValue(undefined),
-        editReply: vi.fn().mockResolvedValue(undefined),
-        replied: false,
-        deferred: true, // Deferred
-      } as unknown as ChatInputCommandInteraction;
-
-      await handler.handleInteraction(mockInteraction);
-
-      expect(mockInteraction.editReply).toHaveBeenCalledWith({
-        content: '❌ There was an error executing this command!',
-      });
-      expect(mockInteraction.followUp).not.toHaveBeenCalled();
-      expect(mockInteraction.reply).not.toHaveBeenCalled();
-    });
-
-    it('should not throw when error reply itself fails (interaction already acknowledged)', async () => {
-      const mockCommand: Command = {
-        data: {
-          name: 'failing',
-          description: 'Failing command',
-        } as unknown as SlashCommandBuilder,
-        execute: vi.fn().mockRejectedValue(new Error('Command failed')),
-      };
-
-      handler.getCommands().set('failing', mockCommand);
-
-      const mockInteraction = {
-        isChatInputCommand: () => true,
-        isModalSubmit: () => false,
-        commandName: 'failing',
-        // reply throws because Discord already acknowledged the interaction
-        reply: vi.fn().mockRejectedValue(new Error('Interaction has already been acknowledged.')),
-        followUp: vi.fn(),
-        replied: false,
-        deferred: false,
-      } as unknown as ChatInputCommandInteraction;
-
-      // Should not throw — the failed error reply is caught internally
-      await expect(handler.handleInteraction(mockInteraction)).resolves.toBeUndefined();
     });
 
     it('should not throw when modal error reply itself fails', async () => {
@@ -563,8 +350,6 @@ describe('CommandHandler', () => {
       (handler as any).prefixToCommand.set('modal-fail', mockCommand);
 
       const mockInteraction = {
-        isChatInputCommand: () => false,
-        isModalSubmit: () => true,
         customId: 'modal-fail::edit::entity-123',
         reply: vi.fn().mockRejectedValue(new Error('Interaction has already been acknowledged.')),
         followUp: vi.fn(),
@@ -572,7 +357,7 @@ describe('CommandHandler', () => {
         deferred: false,
       } as unknown as ModalSubmitInteraction;
 
-      await expect(handler.handleInteraction(mockInteraction)).resolves.toBeUndefined();
+      await expect(handler.handleModalInteraction(mockInteraction)).resolves.toBeUndefined();
     });
 
     it('should early-return when command has no handleSelectMenu handler', async () => {
