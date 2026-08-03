@@ -1,0 +1,27 @@
+---
+id: TASK-416
+title: >-
+  Guest-mode derivation is asymmetric: bot-client any-provider key vs ai-worker
+  OpenRouter-only
+status: To Do
+assignee: []
+created_date: '2026-08-03 21:09'
+updated_date: '2026-08-03 21:09'
+labels:
+  - 'size:M'
+  - 'area:bot-client'
+  - 'area:ai-worker'
+dependencies: []
+priority: medium
+ordinal: 416000
+---
+
+## Description
+
+<!-- SECTION:DESCRIPTION:BEGIN -->
+Why: a user whose only active BYOK key is ElevenLabs/Mistral/z.ai sees the full-access UI (no Guest Mode preamble in /preset browse, no strikethrough, paid presets selectable) but generation still substitutes the free model and shows the free-model footer — the two services answer "is this user a guest" differently.
+Evidence (re-verified on develop): bot-client derives from ANY active key — preset/browse.ts:336,377 and preset/override/guestModeValidation.ts:93 use walletResult.data.keys.some(k => k.isActive); ai-worker derives from the OpenRouter key alone — ApiKeyResolver.ts:106 defaults provider to AIProvider.OpenRouter, :139-142 sets isGuestMode on the system-key branch, AuthStep.ts:332.
+Fix shape: owner call on which semantic wins (chat guest-mode should probably key on chat-capable providers), then align the other side + the upsell/strikethrough surfaces.
+Acceptance: both services agree on guest-mode for a user holding only a non-OpenRouter key; the BYOK manual pass (Pass E known-asymmetry note in BYOK_MANUAL_TESTING.md) is updated to assert the chosen behavior.
+Surfaced by the TASK-408 doc rewrite.
+<!-- SECTION:DESCRIPTION:END -->
