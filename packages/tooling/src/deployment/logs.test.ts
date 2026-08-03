@@ -1,13 +1,15 @@
 import { describe, it, expect, vi, beforeEach, afterEach, type MockInstance } from 'vitest';
 
-// Mock chalk
+// Mock chalk. The colour-carrying helpers wrap rather than pass through, so a
+// colorization assertion can distinguish red from yellow from untouched — an
+// identity mock makes every such expectation trivially true.
 vi.mock('chalk', () => ({
   default: {
     cyan: Object.assign((s: string) => s, { bold: (s: string) => s }),
     green: (s: string) => s,
-    yellow: (s: string) => s,
-    red: (s: string) => s,
-    dim: (s: string) => s,
+    yellow: (s: string) => `<yellow>${s}</yellow>`,
+    red: (s: string) => `<red>${s}</red>`,
+    dim: (s: string) => `<dim>${s}</dim>`,
   },
 }));
 
@@ -24,7 +26,7 @@ vi.mock('../utils/env-runner.js', () => ({
 }));
 
 import { execFileSync } from 'node:child_process';
-import { fetchLogs, parseSinceMs } from './logs.js';
+import { fetchLogs, parseSinceMs, colorizeLogs } from './logs.js';
 
 describe('fetchLogs', () => {
   let consoleLogSpy: MockInstance;
@@ -473,5 +475,55 @@ describe('parseSinceMs', () => {
 
   it('throws on garbage', () => {
     expect(() => parseSinceMs('soonish', NOW)).toThrow('Cannot parse --since');
+  });
+});
+
+describe('colorizeLogs', () => {
+  /**
+   * The shape `railway logs` actually renders: RFC3339 ingest prefix, a
+   * BRACKETED level tag, the message, then pino's logfmt pairs. The JSON /
+   * `level=` forms the function also matches never appear in this position —
+   * they only show up inside a payload (`--json`, or raw pino output).
+   */
+  const railwayTagged = (tag: string, msg: string): string =>
+    `2026-07-03T02:00:02.898914Z [${tag}] ${msg} time=1751500000000 pid=1 ` +
+    `hostname="859ec3aad942" name="ai-worker"`;
+
+  it('reds a Railway-rendered [ERROR] line', () => {
+    const line = railwayTagged('ERROR', 'Error: connect ECONNREFUSED');
+    expect(colorizeLogs(line)).toBe(`<red>${line}</red>`);
+  });
+
+  it('yellows a Railway-rendered [WARN] line', () => {
+    const line = railwayTagged('WARN', 'Redis reconnect scheduled');
+    expect(colorizeLogs(line)).toBe(`<yellow>${line}</yellow>`);
+  });
+
+  it('dims a Railway-rendered [DEBUG] line', () => {
+    const line = railwayTagged('DEBUG', 'Cache hit for personality');
+    expect(colorizeLogs(line)).toBe(`<dim>${line}</dim>`);
+  });
+
+  it('passes a Railway-rendered [INFO] line through untouched', () => {
+    // Railway tags EVERY pino stdout line [INFO] regardless of the pino level,
+    // so this is the common case and must stay uncoloured.
+    const line = railwayTagged('INFO', 'Generated response');
+    expect(colorizeLogs(line)).toBe(line);
+  });
+
+  it('still reds the JSON payload form', () => {
+    const line = '{"level":"error","msg":"vision fallback exhausted"}';
+    expect(colorizeLogs(line)).toBe(`<red>${line}</red>`);
+  });
+
+  it('still reds the logfmt payload form', () => {
+    const line = 'vision fallback exhausted level=error pid=1';
+    expect(colorizeLogs(line)).toBe(`<red>${line}</red>`);
+  });
+
+  it('colorizes each line of a multi-line block independently', () => {
+    const err = railwayTagged('ERROR', 'boom');
+    const info = railwayTagged('INFO', 'fine');
+    expect(colorizeLogs(`${err}\n${info}`)).toBe(`<red>${err}</red>\n${info}`);
   });
 });
