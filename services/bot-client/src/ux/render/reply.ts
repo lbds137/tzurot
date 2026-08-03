@@ -20,10 +20,25 @@ import {
   type StringSelectMenuInteraction,
 } from 'discord.js';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { InfraError } from '@tzurot/clients';
+import { CATALOG } from '../catalog/catalog.js';
 import type { MessageSpec } from '../catalog/types.js';
 import { renderSpec, type RenderOptions } from './render.js';
 
 const logger = createLogger('ux-reply');
+
+/**
+ * Spec for a top-level command/interaction error. An `InfraError` (a gateway
+ * call failed for an infrastructure reason — timeout/network/5xx, surfaced
+ * via the Pattern-B result helpers in `@tzurot/clients`) gets the transient
+ * shape, so a blip never reads to the user as a definitive failure of the
+ * command. Everything else keeps the surface-specific fallback spec.
+ */
+export function topLevelErrorSpec(error: unknown, fallback: MessageSpec): MessageSpec {
+  return error instanceof InfraError
+    ? CATALOG.error.transient("Couldn't reach the server right now.")
+    : fallback;
+}
 
 /** Every repliable interaction shape the bot handles. */
 export type RepliableInteraction =

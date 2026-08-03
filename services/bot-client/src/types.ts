@@ -5,7 +5,6 @@
  */
 
 import type {
-  ChatInputCommandInteraction,
   ModalSubmitInteraction,
   AutocompleteInteraction,
   StringSelectMenuInteraction,
@@ -58,8 +57,8 @@ export interface Command {
    * - 'modal': Not deferred - command shows a modal first
    * - 'none': Not deferred - command handles response timing itself
    *
-   * When set, execute() receives a typed SafeCommandContext.
-   * When not set (legacy mode), execute() receives raw ChatInputCommandInteraction.
+   * Optional: when unset, the dispatcher defaults to 'ephemeral'. The mode
+   * determines which SafeCommandContext variant execute() receives.
    */
   deferralMode?: DeferralMode;
 
@@ -74,12 +73,10 @@ export interface Command {
   /**
    * Main command execution handler.
    *
-   * If deferralMode is set, receives a typed SafeCommandContext.
-   * Otherwise, receives raw ChatInputCommandInteraction (legacy mode).
+   * Always receives a typed SafeCommandContext — the dispatcher creates the
+   * variant matching the effective deferral mode before calling this.
    */
-  execute:
-    | ((interaction: ChatInputCommandInteraction) => Promise<void>)
-    | ((context: SafeCommandContext) => Promise<void>);
+  execute: (context: SafeCommandContext) => Promise<void>;
 
   /** Optional autocomplete handler for commands with autocomplete options */
   autocomplete?: (interaction: AutocompleteInteraction) => Promise<void>;
