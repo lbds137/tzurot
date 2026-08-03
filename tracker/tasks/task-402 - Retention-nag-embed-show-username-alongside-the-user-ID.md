@@ -1,10 +1,10 @@
 ---
 id: TASK-402
 title: 'Retention nag embed: show @username alongside the user ID'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-02 21:44'
-updated_date: '2026-08-02 21:44'
+updated_date: '2026-08-03 16:59'
 labels:
   - 'area:bot-client'
   - 'size:S'
