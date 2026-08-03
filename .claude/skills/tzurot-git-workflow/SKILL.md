@@ -1,7 +1,7 @@
 ---
 name: tzurot-git-workflow
 description: 'Git workflow procedures. Invoke with /tzurot-git-workflow for commit, PR, and release procedures.'
-lastUpdated: '2026-08-02'
+lastUpdated: '2026-08-03'
 ---
 
 # Git Workflow Procedures
@@ -142,6 +142,8 @@ Dependabot PRs have three distinct cleanup paths — using the wrong one wastes 
 **Key constraint**: `@dependabot rebase` **refuses to run** if any commit on the branch is authored by someone other than dependabot. GitHub's "Update branch" UI button appears to rebase, but it actually adds a merge commit authored by `github-actions[bot]` — which poisons the branch for `rebase`. Once that happens, `recreate` is the only in-band recovery.
 
 **Rule of thumb**: don't hit "Update branch" on dependabot PRs. Use the chat command. If you do hit it by accident, don't waste time on `rebase` — go straight to `recreate`.
+
+**`dependabot.yml` is read from the DEFAULT branch (`main`)** — same trap as the claude workflow files below. An `ignore:` entry merged to `develop` does nothing until the next release lands it on `main`; dependabot will keep opening PRs with the "ignored" dep in the meantime (observed: the bullmq ignore merged to develop, and the very next recreate still carried bullmq 6). For immediate effect, comment `@dependabot ignore <dep-name> major version` on the open PR — a server-side ignore, persistent until `@dependabot unignore <dep-name> major version`, and it works per-dependency inside grouped PRs. Config entry = durable documentation; chat command = the thing that actually stops the PRs. Removing an ignore later requires BOTH the config-entry removal and the unignore comment.
 
 ## Claude workflow changes target `main`, not `develop`
 
