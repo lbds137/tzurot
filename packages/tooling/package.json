@@ -30,10 +30,10 @@
     "@tzurot/clients": "workspace:*",
     "@tzurot/common-types": "workspace:*",
     "@tzurot/embeddings": "workspace:*",
-    "bullmq": "^5.81.2",
+    "bullmq": "^6.0.2",
     "cac": "^7.0.0",
     "chalk": "^6.0.0",
-    "ioredis": "^5.11.1",
+    "ioredis": "^6.0.0",
     "ts-morph": "^28.0.0",
     "yaml": "^2.9.0"
   },

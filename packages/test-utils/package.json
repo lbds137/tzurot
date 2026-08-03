@@ -25,7 +25,7 @@
     "@electric-sql/pglite": "^0.5.4",
     "@electric-sql/pglite-pgvector": "^0.0.5",
     "fast-check": "^4.9.0",
-    "ioredis": "^5.11.1"
+    "ioredis": "^6.0.0"
   },
   "devDependencies": {
     "@types/node": "^26.1.2",
