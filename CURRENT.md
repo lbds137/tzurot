@@ -12,7 +12,7 @@
 
 1. `pnpm ops prompt:mine-voice-probes --env dev --owner <your discordId>` → **veto/approve the printed persona list** (auto-picks 4 most-active from YOUR conversations only — privacy scope is owner-decision, code-enforced; ≥1 JSON + ≥1 legacy protocol forced). Pre-restructure mining window closes **~Sep 1** (30d retention).
 2. Persona-model census from the picked list → confirm the judge family is disjoint (default `anthropic/claude-sonnet-4.5` via OpenRouter; override `VOICE_EVAL_JUDGE_MODEL`).
-3. `VOICE_EVAL_DRY_RUN=1 pnpm eval:voice-replay` (needs `EVAL_MEMORY_DATABASE_URL`) → cost sanity (~1.6–1.9M input tokens ≈ $4–8 + ~$3 judge).
+3. `VOICE_EVAL_DRY_RUN=1 pnpm eval:voice-replay` → cost sanity (~1.6–1.9M input tokens ≈ $4–8 + ~$3 judge). Env comes from Railway (owner: "you can always grab them from railway"): `EVAL_MEMORY_DATABASE_URL` = dev pgvector `DATABASE_PUBLIC_URL`, `OPENROUTER_API_KEY`/`ZAI_CODING_API_KEY` from the dev ai-worker service variables.
 4. `pnpm eval:voice-replay` → `pnpm eval:voice-judge` → **owner blind-reviews `reports/voice-consistency/judgment-sheet.md`** (~10–15 pairs, check ONE verdict box per pair + HARD BREAK when seen) → `pnpm eval:voice-verdict` → verdict + numbers recorded in `active-epic.md`. FAIL path: `VOICE_EVAL_ARMS=A,C` re-run → gate `VOICE_EVAL_GATE_KIND=CA` (the OUTPUT_CONSTRAINTS-to-tail remedy).
    _Carried runner nits (fold into any runner touch-up, not worth a CI cycle alone): `afterAll` disconnect guard when PrismaClient construction throws; retry-once wastes a cycle on deterministic parse failures._
 
