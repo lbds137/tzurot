@@ -661,6 +661,7 @@ describe('SecretRotationEntrySchema', () => {
 describe('RetentionPreviewUserSchema', () => {
   const user = {
     discordId: '900000000000000071',
+    username: 'inactiveuser',
     inactiveSince: '2025-01-01T00:00:00.000Z',
     reason: 'unreachable' as const,
     ownedCharacters: { toDelete: 2, toReHome: 1 },
@@ -686,6 +687,30 @@ describe('RetentionPreviewUserSchema', () => {
     expect(RetentionPreviewUserSchema.safeParse({ ...user, discordId: 'unknown' }).success).toBe(
       true
     );
+  });
+
+  it('ACCEPTS an empty username — nag delivery outranks field validity', () => {
+    // Same fail-open doctrine as the discordId above: the username is a
+    // display-only identity token, and a malformed or blank stored value must
+    // never crash the CLI or silence the daily nag. The rendering surfaces
+    // omit the token instead.
+    expect(RetentionPreviewUserSchema.safeParse({ ...user, username: '' }).success).toBe(true);
+    expect(RetentionPreviewUserSchema.safeParse({ ...user, username: '*weird*' }).success).toBe(
+      true
+    );
+  });
+
+  it('REQUIRES the username field — a missing one must not silently strip', () => {
+    // The client transport Zod-parses in strip mode, so an undeclared field
+    // vanishes before any consumer sees it; the producer always supplies this
+    // one (the column is NOT NULL).
+    const withoutUsername = {
+      discordId: user.discordId,
+      inactiveSince: user.inactiveSince,
+      reason: user.reason,
+      ownedCharacters: user.ownedCharacters,
+    };
+    expect(RetentionPreviewUserSchema.safeParse(withoutUsername).success).toBe(false);
   });
 
   it('still rejects empty/oversized ids and negative character counts', () => {

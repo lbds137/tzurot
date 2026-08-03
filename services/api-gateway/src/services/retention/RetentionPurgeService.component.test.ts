@@ -250,6 +250,18 @@ describe('RetentionPurgeService (component, PGLite)', () => {
     expect(byId.get(BYSTANDER)).toBe('bystander');
   });
 
+  it('threads each seeded username through to the preview rows', async () => {
+    // End-to-end pin of the identity token the operator surfaces render beside
+    // the id: real column → the cohort SELECT → toCohortRow → buildPreview.
+    // Keyed on the two reasons exactly one seeded user holds.
+    const preview = await service.buildPreview();
+
+    expect(preview.users.find(user => user.reason === 'account_gone')?.username).toBe(
+      'goneaccount'
+    );
+    expect(preview.users.find(user => user.reason === 'bystander')?.username).toBe('bystanderrow');
+  });
+
   it('reports the character split and userbase share in the preview', async () => {
     const preview = await service.buildPreview();
 

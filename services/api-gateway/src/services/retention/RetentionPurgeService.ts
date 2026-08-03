@@ -61,6 +61,8 @@ export const BREAKER_HARD_FRACTION = 0.25;
 
 export interface RetentionPreviewUser {
   discordId: string;
+  /** Display-only identity token: the operator surfaces render it beside the id. */
+  username: string;
   inactiveSince: string;
   reason: PurgeReason;
   ownedCharacters: {
@@ -150,6 +152,7 @@ export class RetentionPurgeService {
     const users: RetentionPreviewUser[] = await Promise.all(
       cohort.map(async row => ({
         discordId: row.discordId,
+        username: row.username,
         inactiveSince: row.inactiveSince.toISOString(),
         reason: row.reason,
         ownedCharacters: await this.splitOwnedCharacters(row.userId),

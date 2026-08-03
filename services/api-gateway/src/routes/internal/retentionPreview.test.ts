@@ -19,6 +19,7 @@ const PREVIEW = {
   users: [
     {
       discordId: '900000000000000001',
+      username: 'inactiveuser',
       inactiveSince: '2025-01-01T00:00:00.000Z',
       reason: 'unreachable' as const,
       ownedCharacters: { toDelete: 1, toReHome: 2 },

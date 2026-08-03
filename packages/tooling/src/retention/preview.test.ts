@@ -30,12 +30,14 @@ const COHORT = {
   users: [
     {
       discordId: '900000000000000001',
+      username: 'unreachableuser',
       inactiveSince: '2025-01-01T00:00:00.000Z',
       reason: 'unreachable' as const,
       ownedCharacters: { toDelete: 1, toReHome: 2 },
     },
     {
       discordId: '900000000000000002',
+      username: 'goneaccount',
       inactiveSince: '2025-02-01T00:00:00.000Z',
       reason: 'account_gone' as const,
       ownedCharacters: { toDelete: 0, toReHome: 0 },
@@ -147,6 +149,33 @@ describe('renderPreview', () => {
     expect(output).toContain('Discord account deleted');
     expect(output).toContain('2 would be re-homed');
     expect(output).toContain('Read-only');
+    logSpy.mockRestore();
+  });
+
+  it('prints the username beside each id (the readable identity token)', () => {
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+    renderPreview(COHORT);
+
+    const output = logSpy.mock.calls.flat().join('\n');
+    expect(output).toContain('@unreachableuser');
+    expect(output).toContain('@goneaccount');
+    logSpy.mockRestore();
+  });
+
+  it('omits the username column for a row whose stored username is empty', () => {
+    // The schema keeps the field fail-open on content, so the report must
+    // render a blank username as an absent column, never a dangling `@`.
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+    renderPreview({
+      ...COHORT,
+      users: [{ ...COHORT.users[0], username: '   ' }],
+    });
+
+    const output = logSpy.mock.calls.flat().join('\n');
+    expect(output).toContain('900000000000000001  inactive since');
+    expect(output).not.toContain('@ ');
     logSpy.mockRestore();
   });
 

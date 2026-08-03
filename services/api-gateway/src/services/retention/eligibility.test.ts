@@ -112,6 +112,7 @@ describe('the eligibility predicate', () => {
       {
         userId: 'u1',
         discordId: '900000000000000001',
+        username: 'goneaccount',
         inactiveSince: new Date('2025-01-01'),
         accountGone: true,
         unreachable: true,
@@ -120,6 +121,7 @@ describe('the eligibility predicate', () => {
       {
         userId: 'u2',
         discordId: '900000000000000002',
+        username: 'unreachableuser',
         inactiveSince: new Date('2025-02-01'),
         accountGone: false,
         unreachable: true,
@@ -128,6 +130,7 @@ describe('the eligibility predicate', () => {
       {
         userId: 'u3',
         discordId: '900000000000000003',
+        username: 'graceexpired',
         inactiveSince: new Date('2025-03-01'),
         accountGone: false,
         unreachable: false,
@@ -136,6 +139,7 @@ describe('the eligibility predicate', () => {
       {
         userId: 'u4',
         discordId: '900000000000000004',
+        username: 'bystanderrow',
         inactiveSince: new Date('2025-04-01'),
         accountGone: false,
         unreachable: false,
@@ -151,6 +155,28 @@ describe('the eligibility predicate', () => {
       'grace_expired',
       'bystander',
     ]);
+  });
+
+  it('selects the username and maps it through to the cohort row', async () => {
+    // The operator surfaces (nag embed, preview CLI) render it beside the id;
+    // it rides the SAME cohort query — a separate lookup would fork the
+    // predicate's one round-trip.
+    const { db, queryRaw } = makeDb([
+      {
+        userId: 'u1',
+        discordId: '900000000000000001',
+        username: 'inactiveuser',
+        inactiveSince: new Date('2025-01-01'),
+        accountGone: false,
+        unreachable: true,
+        wasNotified: false,
+      },
+    ]);
+
+    const cohort = await selectEligibleUsers(db);
+
+    expect(flattenSql(queryRaw.mock.calls[0])).toContain('u.username AS "username"');
+    expect(cohort[0].username).toBe('inactiveuser');
   });
 });
 
