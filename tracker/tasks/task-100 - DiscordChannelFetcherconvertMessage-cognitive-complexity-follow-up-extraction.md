@@ -1,10 +1,10 @@
 ---
 id: TASK-100
 title: DiscordChannelFetcher.convertMessage cognitive-complexity follow-up extraction
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-05-16 00:00'
-updated_date: '2026-07-28 10:48'
+updated_date: '2026-08-03 17:42'
 labels:
   - 'area:bot-client'
   - 'size:S'
