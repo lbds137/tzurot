@@ -1,10 +1,10 @@
 /**
  * Persona CRUD Routes
- * - GET / - List user's personas
- * - GET /:id - Get a specific persona
- * - POST / - Create a new persona
- * - PUT /:id - Update a persona
- * - DELETE /:id - Delete a persona
+ * - GET /api/user/persona - List user's personas
+ * - GET /api/user/persona/:id - Get a specific persona
+ * - POST /api/user/persona - Create a new persona
+ * - PUT /api/user/persona/:id - Update a persona
+ * - DELETE /api/user/persona/:id - Delete a persona
  */
 
 import { type Response, type RequestHandler } from 'express';

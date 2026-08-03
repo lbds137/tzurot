@@ -2,15 +2,14 @@
  * Personality Config Overrides Routes
  *
  * Endpoints for personality-level config cascade overrides (creator-only):
- * - GET /resolve-personality/:personalityId - Resolve hardcoded → admin → personality cascade
- * - PATCH /personality/:personalityId - Update Personality.configDefaults
+ * - GET /api/user/config-overrides/resolve-personality/:personalityId - Resolve hardcoded → admin → personality cascade
+ * - PATCH /api/user/config-overrides/personality/:personalityId - Update Personality.configDefaults
  *
  * These are mounted under /user/config-overrides/ alongside the user-level endpoints.
  */
 
-import { Router, type Response, type RequestHandler } from 'express';
+import { type Response, type RequestHandler } from 'express';
 import { StatusCodes } from 'http-status-codes';
-import { requireUserAuth, requireProvisionedUser } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import {
   tryInvalidateCache,
@@ -93,14 +92,3 @@ export const handleUpdatePersonalityConfigDefaults = (deps: RouteDeps): RequestH
     sendCustomSuccess(res, { configDefaults: merged }, StatusCodes.OK);
   });
 };
-
-export function createPersonalityConfigOverrideRoutes(deps: RouteDeps): Router {
-  const router = Router();
-  router.use(requireUserAuth());
-  router.use(requireProvisionedUser(deps.prisma));
-
-  router.get('/resolve-personality/:personalityId', handleResolvePersonalityCascade(deps));
-  router.patch('/personality/:personalityId', handleUpdatePersonalityConfigDefaults(deps));
-
-  return router;
-}

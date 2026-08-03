@@ -1,5 +1,5 @@
 /**
- * GET /internal/personality/load
+ * GET /api/internal/personality/load
  *
  * Routing read: resolves a personality by name/slug/alias/UUID with the same
  * access-control semantics as PersonalityService.loadPersonality (public OR

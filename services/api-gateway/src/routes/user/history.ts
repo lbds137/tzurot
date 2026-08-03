@@ -5,12 +5,13 @@
  * Per-persona epoch tracking: Each user's persona has independent history visibility.
  * Uses UserPersonaHistoryConfig table for per-persona epoch storage.
  *
- * POST /user/history/clear - Set context epoch (soft reset)
- * POST /user/history/undo - Restore previous epoch
- * GET /user/history/stats - Get history statistics
+ * POST /api/user/history/clear - Set context epoch (soft reset)
+ * POST /api/user/history/undo - Restore previous epoch
+ * GET /api/user/history/stats - Get history statistics
+ * DELETE /api/user/history/hard-delete - Permanent, irreversible deletion
  */
 
-import { Router, type Response, type Request, type RequestHandler } from 'express';
+import { type Response, type Request, type RequestHandler } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import {
   ClearHistorySchema,
@@ -25,7 +26,6 @@ import {
   ConversationHistoryService,
   ConversationRetentionService,
 } from '@tzurot/conversation-history';
-import { requireUserAuth, requireProvisionedUser } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
@@ -49,7 +49,7 @@ interface HistoryHandlerDeps {
 type RouteHandler = (req: Request, res: Response) => Promise<void>;
 
 /**
- * Handle POST /user/history/clear
+ * Handle POST /api/user/history/clear
  * Set context epoch to current time (soft reset)
  */
 function createClearHandler(deps: HistoryHandlerDeps): RouteHandler {
@@ -129,7 +129,7 @@ function createClearHandler(deps: HistoryHandlerDeps): RouteHandler {
 }
 
 /**
- * Handle POST /user/history/undo
+ * Handle POST /api/user/history/undo
  * Restore previous context epoch
  */
 function createUndoHandler(deps: HistoryHandlerDeps): RouteHandler {
@@ -213,7 +213,7 @@ function createUndoHandler(deps: HistoryHandlerDeps): RouteHandler {
 }
 
 /**
- * Handle GET /user/history/stats
+ * Handle GET /api/user/history/stats
  * Get conversation history statistics
  */
 function createStatsHandler(deps: HistoryHandlerDeps): RouteHandler {
@@ -290,7 +290,7 @@ function createStatsHandler(deps: HistoryHandlerDeps): RouteHandler {
 }
 
 /**
- * Handle DELETE /user/history/hard-delete
+ * Handle DELETE /api/user/history/hard-delete
  * Permanently delete conversation history
  */
 function createHardDeleteHandler(deps: HistoryHandlerDeps): RouteHandler {
@@ -381,20 +381,3 @@ export const handleGetHistoryStats = (deps: RouteDeps): RequestHandler =>
 /** DELETE /api/user/history/hard-delete — permanent deletion */
 export const handleHardDeleteHistory = (deps: RouteDeps): RequestHandler =>
   createHardDeleteHandler(buildHistoryDeps(deps));
-
-export function createHistoryRoutes(deps: RouteDeps): Router {
-  const router = Router();
-  const requireProvisioned = requireProvisionedUser(deps.prisma);
-
-  router.post('/clear', requireUserAuth(), requireProvisioned, handleClearHistory(deps));
-  router.post('/undo', requireUserAuth(), requireProvisioned, handleUndoHistory(deps));
-  router.get('/stats', requireUserAuth(), requireProvisioned, handleGetHistoryStats(deps));
-  router.delete(
-    '/hard-delete',
-    requireUserAuth(),
-    requireProvisioned,
-    handleHardDeleteHistory(deps)
-  );
-
-  return router;
-}

@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { Request, Response } from 'express';
+import type { Request, RequestHandler, Response } from 'express';
 
 // Hoisted mocks for resolvers so they're available before module loading
 const { mockResolveOverrides, mockResolveConfig } = vi.hoisted(() => ({
@@ -177,8 +177,16 @@ const mockCacheInvalidation = {
   invalidateAll: vi.fn().mockResolvedValue(undefined),
 } as unknown as import('@tzurot/cache-invalidation').LlmConfigCacheInvalidationService;
 
-import { createLlmConfigRoutes } from './llm-config.js';
-import { getRouteHandler, findRoute } from '../../test/expressRouterUtils.js';
+import {
+  handleCreateUserLlmConfig,
+  handleDeleteUserLlmConfig,
+  handleGetUserLlmConfig,
+  handleListUserLlmConfigs,
+  handleResolveUserLlmConfig,
+  handleUpdateUserLlmConfig,
+} from './llm-config.js';
+import { asRouteHandler, type RouteHandler } from '../../test/shared-route-test-utils.js';
+import type { RouteDeps } from '../routeDeps.js';
 import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import { computeLlmConfigPermissions } from '@tzurot/common-types/utils/permissions';
 
@@ -205,13 +213,12 @@ function createMockReqRes(
   return { req, res };
 }
 
-// Helper to get handler from router
-function getHandler(
-  router: ReturnType<typeof createLlmConfigRoutes>,
-  method: 'get' | 'post' | 'put' | 'delete',
-  path: string
-) {
-  return getRouteHandler(router, method, path);
+/**
+ * Build a bare handler with the given deps — the same export
+ * routes/_generated/mounts.ts mounts, invoked directly.
+ */
+function buildHandler(handler: (deps: RouteDeps) => RequestHandler, deps: RouteDeps): RouteHandler {
+  return asRouteHandler(handler(deps));
 }
 
 describe('/user/llm-config routes', () => {
@@ -233,48 +240,6 @@ describe('/user/llm-config routes', () => {
     mockPrisma.userApiKey.findFirst.mockResolvedValue(null);
   });
 
-  describe('route factory', () => {
-    it('should create a router', () => {
-      const router = createLlmConfigRoutes(mockDeps);
-
-      expect(router).toBeDefined();
-      expect(typeof router).toBe('function');
-    });
-
-    it('should have GET / route registered', () => {
-      const router = createLlmConfigRoutes(mockDeps);
-
-      expect(router.stack).toBeDefined();
-      expect(router.stack.length).toBeGreaterThan(0);
-
-      expect(findRoute(router, 'get', '/')).toBeDefined();
-    });
-
-    it('should have GET /:id route registered', () => {
-      const router = createLlmConfigRoutes(mockDeps);
-
-      expect(findRoute(router, 'get', '/:id')).toBeDefined();
-    });
-
-    it('should have POST route registered', () => {
-      const router = createLlmConfigRoutes(mockDeps);
-
-      expect(findRoute(router, 'post', '/')).toBeDefined();
-    });
-
-    it('should have PUT /:id route registered', () => {
-      const router = createLlmConfigRoutes(mockDeps);
-
-      expect(findRoute(router, 'put', '/:id')).toBeDefined();
-    });
-
-    it('should have DELETE route registered', () => {
-      const router = createLlmConfigRoutes(mockDeps);
-
-      expect(findRoute(router, 'delete', '/:id')).toBeDefined();
-    });
-  });
-
   describe('GET /user/llm-config', () => {
     it('should return global configs', async () => {
       const globalConfig = {
@@ -288,8 +253,7 @@ describe('/user/llm-config routes', () => {
       };
       mockPrisma.llmConfig.findMany.mockResolvedValueOnce([globalConfig]).mockResolvedValueOnce([]);
 
-      const router = createLlmConfigRoutes(mockDeps);
-      const handler = getHandler(router, 'get', '/');
+      const handler = buildHandler(handleListUserLlmConfigs, mockDeps);
       const { req, res } = createMockReqRes();
 
       await handler(req, res);
@@ -315,8 +279,7 @@ describe('/user/llm-config routes', () => {
       };
       mockPrisma.llmConfig.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([userConfig]);
 
-      const router = createLlmConfigRoutes(mockDeps);
-      const handler = getHandler(router, 'get', '/');
+      const handler = buildHandler(handleListUserLlmConfigs, mockDeps);
       const { req, res } = createMockReqRes();
 
       await handler(req, res);
@@ -370,11 +333,10 @@ describe('/user/llm-config routes', () => {
         ),
       } as unknown as import('../../services/OpenRouterModelCache.js').OpenRouterModelCache;
 
-      const router = createLlmConfigRoutes({
+      const handler = buildHandler(handleListUserLlmConfigs, {
         ...mockDeps,
         modelCache,
       });
-      const handler = getHandler(router, 'get', '/');
       const { req, res } = createMockReqRes();
 
       await handler(req, res);
@@ -396,8 +358,7 @@ describe('/user/llm-config routes', () => {
     it('should return 404 when config not found', async () => {
       mockPrisma.llmConfig.findUnique.mockResolvedValue(null);
 
-      const router = createLlmConfigRoutes(mockDeps);
-      const handler = getHandler(router, 'get', '/:id');
+      const handler = buildHandler(handleGetUserLlmConfig, mockDeps);
       const { req, res } = createMockReqRes({}, { id: 'config-123' });
 
       await handler(req, res);
@@ -420,8 +381,7 @@ describe('/user/llm-config routes', () => {
         memoryLimit: 20,
       });
 
-      const router = createLlmConfigRoutes(mockDeps);
-      const handler = getHandler(router, 'get', '/:id');
+      const handler = buildHandler(handleGetUserLlmConfig, mockDeps);
       const { req, res } = createMockReqRes({}, { id: 'config-123' });
 
       await handler(req, res);
@@ -459,11 +419,10 @@ describe('/user/llm-config routes', () => {
         getModelById: vi.fn().mockResolvedValue(null), // glm-5.2 not on OpenRouter
       } as unknown as import('../../services/OpenRouterModelCache.js').OpenRouterModelCache;
 
-      const router = createLlmConfigRoutes({
+      const handler = buildHandler(handleGetUserLlmConfig, {
         ...mockDeps,
         modelCache,
       });
-      const handler = getHandler(router, 'get', '/:id');
       const { req, res } = createMockReqRes({}, { id: 'config-123' });
 
       await handler(req, res);
@@ -495,11 +454,10 @@ describe('/user/llm-config routes', () => {
         getModelById: vi.fn().mockResolvedValue(null),
       } as unknown as import('../../services/OpenRouterModelCache.js').OpenRouterModelCache;
 
-      const router = createLlmConfigRoutes({
+      const handler = buildHandler(handleGetUserLlmConfig, {
         ...mockDeps,
         modelCache,
       });
-      const handler = getHandler(router, 'get', '/:id');
       const { req, res } = createMockReqRes({}, { id: 'config-123' });
 
       await handler(req, res);
@@ -527,8 +485,7 @@ describe('/user/llm-config routes', () => {
         memoryLimit: 20,
       });
 
-      const router = createLlmConfigRoutes(mockDeps);
-      const handler = getHandler(router, 'get', '/:id');
+      const handler = buildHandler(handleGetUserLlmConfig, mockDeps);
       const { req, res } = createMockReqRes({}, { id: 'config-123' });
 
       await handler(req, res);
@@ -554,8 +511,7 @@ describe('/user/llm-config routes', () => {
       // (otherwise supertest hangs waiting for a response that never comes).
       mockValidateLlmConfigModelFields.mockResolvedValueOnce(false);
 
-      const router = createLlmConfigRoutes(mockDeps);
-      const handler = getHandler(router, 'post', '/');
+      const handler = buildHandler(handleCreateUserLlmConfig, mockDeps);
       const { req, res } = createMockReqRes({ name: 'My Config', model: 'bad-model' });
 
       await handler(req, res);
@@ -566,8 +522,7 @@ describe('/user/llm-config routes', () => {
     });
 
     it('should reject missing name', async () => {
-      const router = createLlmConfigRoutes(mockDeps);
-      const handler = getHandler(router, 'post', '/');
+      const handler = buildHandler(handleCreateUserLlmConfig, mockDeps);
       const { req, res } = createMockReqRes({ model: 'gpt-4' });
 
       await handler(req, res);
@@ -582,8 +537,7 @@ describe('/user/llm-config routes', () => {
     });
 
     it('should reject missing model', async () => {
-      const router = createLlmConfigRoutes(mockDeps);
-      const handler = getHandler(router, 'post', '/');
+      const handler = buildHandler(handleCreateUserLlmConfig, mockDeps);
       const { req, res } = createMockReqRes({ name: 'My Config' });
 
       await handler(req, res);
@@ -597,8 +551,7 @@ describe('/user/llm-config routes', () => {
     });
 
     it('should reject name over 100 characters', async () => {
-      const router = createLlmConfigRoutes(mockDeps);
-      const handler = getHandler(router, 'post', '/');
+      const handler = buildHandler(handleCreateUserLlmConfig, mockDeps);
       const { req, res } = createMockReqRes({
         name: 'a'.repeat(101),
         model: 'gpt-4',
@@ -618,8 +571,7 @@ describe('/user/llm-config routes', () => {
     it('should reject duplicate name for user', async () => {
       mockPrisma.llmConfig.findFirst.mockResolvedValue({ id: 'existing' });
 
-      const router = createLlmConfigRoutes(mockDeps);
-      const handler = getHandler(router, 'post', '/');
+      const handler = buildHandler(handleCreateUserLlmConfig, mockDeps);
       const { req, res } = createMockReqRes({ name: 'My Config', model: 'gpt-4' });
 
       await handler(req, res);
@@ -645,8 +597,7 @@ describe('/user/llm-config routes', () => {
         memoryLimit: 20,
       });
 
-      const router = createLlmConfigRoutes(mockDeps);
-      const handler = getHandler(router, 'post', '/');
+      const handler = buildHandler(handleCreateUserLlmConfig, mockDeps);
       const { req, res } = createMockReqRes({ name: 'My Config', model: 'gpt-4' });
 
       await handler(req, res);
@@ -682,8 +633,7 @@ describe('/user/llm-config routes', () => {
         memoryLimit: 20,
       });
 
-      const router = createLlmConfigRoutes(mockDeps);
-      const handler = getHandler(router, 'post', '/');
+      const handler = buildHandler(handleCreateUserLlmConfig, mockDeps);
       const { req, res } = createMockReqRes({ name: 'GLM Config', model: 'z-ai/glm-5.2' });
 
       await handler(req, res);
@@ -717,11 +667,10 @@ describe('/user/llm-config routes', () => {
         getModelById: vi.fn().mockResolvedValue(null),
       } as unknown as import('../../services/OpenRouterModelCache.js').OpenRouterModelCache;
 
-      const router = createLlmConfigRoutes({
+      const handler = buildHandler(handleCreateUserLlmConfig, {
         ...mockDeps,
         modelCache,
       });
-      const handler = getHandler(router, 'post', '/');
       const { req, res } = createMockReqRes({ name: 'GLM Config', model: 'z-ai/glm-5.2' });
 
       await handler(req, res);
@@ -746,8 +695,7 @@ describe('/user/llm-config routes', () => {
         memoryLimit: 20,
       });
 
-      const router = createLlmConfigRoutes(mockDeps);
-      const handler = getHandler(router, 'post', '/');
+      const handler = buildHandler(handleCreateUserLlmConfig, mockDeps);
       const { req, res } = createMockReqRes({
         name: 'My Config',
         model: 'gpt-4',
@@ -780,8 +728,7 @@ describe('/user/llm-config routes', () => {
         contextWindowTokens: 100000,
       });
 
-      const router = createLlmConfigRoutes(mockDeps);
-      const handler = getHandler(router, 'post', '/');
+      const handler = buildHandler(handleCreateUserLlmConfig, mockDeps);
       const { req, res } = createMockReqRes({
         name: 'Context Config',
         model: 'gpt-4',
@@ -807,11 +754,10 @@ describe('/user/llm-config routes', () => {
     it('should return 400 when model validation fails on update', async () => {
       mockValidateLlmConfigModelFields.mockResolvedValueOnce(false);
 
-      const router = createLlmConfigRoutes({
+      const handler = buildHandler(handleUpdateUserLlmConfig, {
         ...mockDeps,
         llmConfigCacheInvalidation: mockCacheInvalidation,
       });
-      const handler = getHandler(router, 'put', '/:id');
       const { req, res } = createMockReqRes(
         { contextWindowTokens: 999999999 },
         { id: 'config-123' }
@@ -826,11 +772,10 @@ describe('/user/llm-config routes', () => {
     it('should return 404 when config not found', async () => {
       mockPrisma.llmConfig.findUnique.mockResolvedValue(null);
 
-      const router = createLlmConfigRoutes({
+      const handler = buildHandler(handleUpdateUserLlmConfig, {
         ...mockDeps,
         llmConfigCacheInvalidation: mockCacheInvalidation,
       });
-      const handler = getHandler(router, 'put', '/:id');
       const { req, res } = createMockReqRes({ name: 'New Name' }, { id: 'config-123' });
 
       await handler(req, res);
@@ -869,11 +814,10 @@ describe('/user/llm-config routes', () => {
         memoryLimit: 20,
       });
 
-      const router = createLlmConfigRoutes({
+      const handler = buildHandler(handleUpdateUserLlmConfig, {
         ...mockDeps,
         llmConfigCacheInvalidation: mockCacheInvalidation,
       });
-      const handler = getHandler(router, 'put', '/:id');
       const req = {
         body: { isGlobal: true },
         params: { id: 'config-123' },
@@ -921,11 +865,10 @@ describe('/user/llm-config routes', () => {
         memoryLimit: 20,
       });
 
-      const router = createLlmConfigRoutes({
+      const handler = buildHandler(handleUpdateUserLlmConfig, {
         ...mockDeps,
         llmConfigCacheInvalidation: mockCacheInvalidation,
       });
-      const handler = getHandler(router, 'put', '/:id');
       const { req, res } = createMockReqRes(
         { name: 'Updated Global Config' },
         { id: 'config-123' }
@@ -950,11 +893,10 @@ describe('/user/llm-config routes', () => {
         memoryLimit: 20,
       });
 
-      const router = createLlmConfigRoutes({
+      const handler = buildHandler(handleUpdateUserLlmConfig, {
         ...mockDeps,
         llmConfigCacheInvalidation: mockCacheInvalidation,
       });
-      const handler = getHandler(router, 'put', '/:id');
       const { req, res } = createMockReqRes({ name: 'New Name' }, { id: 'config-123' });
 
       await handler(req, res);
@@ -972,11 +914,10 @@ describe('/user/llm-config routes', () => {
         memoryLimit: 20,
       });
 
-      const router = createLlmConfigRoutes({
+      const handler = buildHandler(handleUpdateUserLlmConfig, {
         ...mockDeps,
         llmConfigCacheInvalidation: mockCacheInvalidation,
       });
-      const handler = getHandler(router, 'put', '/:id');
       const { req, res } = createMockReqRes({}, { id: 'config-123' });
 
       await handler(req, res);
@@ -990,11 +931,10 @@ describe('/user/llm-config routes', () => {
     });
 
     it('should reject non-boolean isGlobal value', async () => {
-      const router = createLlmConfigRoutes({
+      const handler = buildHandler(handleUpdateUserLlmConfig, {
         ...mockDeps,
         llmConfigCacheInvalidation: mockCacheInvalidation,
       });
-      const handler = getHandler(router, 'put', '/:id');
       // Send string instead of boolean - Zod validates before DB lookup
       const { req, res } = createMockReqRes({ isGlobal: 'true' }, { id: 'config-123' });
 
@@ -1038,11 +978,10 @@ describe('/user/llm-config routes', () => {
         memoryLimit: 20,
       });
 
-      const router = createLlmConfigRoutes({
+      const handler = buildHandler(handleUpdateUserLlmConfig, {
         ...mockDeps,
         llmConfigCacheInvalidation: mockCacheInvalidation,
       });
-      const handler = getHandler(router, 'put', '/:id');
       const { req, res } = createMockReqRes(
         { name: 'New Name', advancedParameters: { temperature: 0.9 } },
         { id: 'config-123' }
@@ -1100,11 +1039,10 @@ describe('/user/llm-config routes', () => {
         memoryLimit: 20,
       });
 
-      const router = createLlmConfigRoutes({
+      const handler = buildHandler(handleUpdateUserLlmConfig, {
         ...mockDeps,
         llmConfigCacheInvalidation: mockCacheInvalidation,
       });
-      const handler = getHandler(router, 'put', '/:id');
       const { req, res } = createMockReqRes({ model: 'z-ai/glm-5.2' }, { id: 'config-123' });
 
       await handler(req, res);
@@ -1147,12 +1085,11 @@ describe('/user/llm-config routes', () => {
         getModelById: vi.fn().mockResolvedValue(null),
       } as unknown as import('../../services/OpenRouterModelCache.js').OpenRouterModelCache;
 
-      const router = createLlmConfigRoutes({
+      const handler = buildHandler(handleUpdateUserLlmConfig, {
         ...mockDeps,
         llmConfigCacheInvalidation: mockCacheInvalidation,
         modelCache,
       });
-      const handler = getHandler(router, 'put', '/:id');
       const { req, res } = createMockReqRes({ model: 'z-ai/glm-5.2' }, { id: 'config-123' });
 
       await handler(req, res);
@@ -1177,11 +1114,10 @@ describe('/user/llm-config routes', () => {
       });
       mockPrisma.llmConfig.findFirst.mockResolvedValue({ id: 'other-existing' });
 
-      const router = createLlmConfigRoutes({
+      const handler = buildHandler(handleUpdateUserLlmConfig, {
         ...mockDeps,
         llmConfigCacheInvalidation: mockCacheInvalidation,
       });
-      const handler = getHandler(router, 'put', '/:id');
       const { req, res } = createMockReqRes({ name: 'Taken Name' }, { id: 'config-123' });
 
       await handler(req, res);
@@ -1219,11 +1155,10 @@ describe('/user/llm-config routes', () => {
         memoryLimit: 20,
       });
 
-      const router = createLlmConfigRoutes({
+      const handler = buildHandler(handleUpdateUserLlmConfig, {
         ...mockDeps,
         llmConfigCacheInvalidation: mockCacheInvalidation,
       });
-      const handler = getHandler(router, 'put', '/:id');
       const { req, res } = createMockReqRes({ name: 'New Name' }, { id: 'config-123' });
 
       await handler(req, res);
@@ -1263,8 +1198,7 @@ describe('/user/llm-config routes', () => {
         memoryLimit: 20,
       });
 
-      const router = createLlmConfigRoutes(mockDeps);
-      const handler = getHandler(router, 'put', '/:id');
+      const handler = buildHandler(handleUpdateUserLlmConfig, mockDeps);
       const { req, res } = createMockReqRes({ model: 'claude-3' }, { id: 'config-123' });
 
       await handler(req, res);
@@ -1313,8 +1247,7 @@ describe('/user/llm-config routes', () => {
         memoryLimit: 20,
       });
 
-      const router = createLlmConfigRoutes(mockDeps);
-      const handler = getHandler(router, 'put', '/:id');
+      const handler = buildHandler(handleUpdateUserLlmConfig, mockDeps);
       const { req, res } = createMockReqRes({ name: 'Renamed Verbatim' }, { id: 'config-123' });
 
       await handler(req, res);
@@ -1343,8 +1276,7 @@ describe('/user/llm-config routes', () => {
         memoryLimit: 20,
       });
 
-      const router = createLlmConfigRoutes(mockDeps);
-      const handler = getHandler(router, 'put', '/:id');
+      const handler = buildHandler(handleUpdateUserLlmConfig, mockDeps);
       const { req, res } = createMockReqRes({ model: 'new-model' }, { id: 'config-123' });
 
       await handler(req, res);
@@ -1358,8 +1290,7 @@ describe('/user/llm-config routes', () => {
     it('should return 404 when user not found', async () => {
       mockPrisma.user.findFirst.mockResolvedValue(null);
 
-      const router = createLlmConfigRoutes(mockDeps);
-      const handler = getHandler(router, 'delete', '/:id');
+      const handler = buildHandler(handleDeleteUserLlmConfig, mockDeps);
       const { req, res } = createMockReqRes({}, { id: 'config-123' });
 
       await handler(req, res);
@@ -1371,8 +1302,7 @@ describe('/user/llm-config routes', () => {
       // Service uses findUnique for getById
       mockPrisma.llmConfig.findUnique.mockResolvedValue(null);
 
-      const router = createLlmConfigRoutes(mockDeps);
-      const handler = getHandler(router, 'delete', '/:id');
+      const handler = buildHandler(handleDeleteUserLlmConfig, mockDeps);
       const { req, res } = createMockReqRes({}, { id: 'config-123' });
 
       await handler(req, res);
@@ -1396,8 +1326,7 @@ describe('/user/llm-config routes', () => {
       mockPrisma.userPersonalityConfig.count.mockResolvedValue(0);
       mockPrisma.llmConfig.delete.mockResolvedValue({} as unknown);
 
-      const router = createLlmConfigRoutes(mockDeps);
-      const handler = getHandler(router, 'delete', '/:id');
+      const handler = buildHandler(handleDeleteUserLlmConfig, mockDeps);
       const { req, res } = createMockReqRes({}, { id: 'config-123' });
 
       await handler(req, res);
@@ -1422,8 +1351,7 @@ describe('/user/llm-config routes', () => {
         memoryLimit: 20,
       });
 
-      const router = createLlmConfigRoutes(mockDeps);
-      const handler = getHandler(router, 'delete', '/:id');
+      const handler = buildHandler(handleDeleteUserLlmConfig, mockDeps);
       const { req, res } = createMockReqRes({}, { id: 'config-123' });
 
       await handler(req, res);
@@ -1445,8 +1373,7 @@ describe('/user/llm-config routes', () => {
       mockPrisma.personalityDefaultConfig.count.mockResolvedValue(0);
       mockPrisma.userPersonalityConfig.count.mockResolvedValue(2);
 
-      const router = createLlmConfigRoutes(mockDeps);
-      const handler = getHandler(router, 'delete', '/:id');
+      const handler = buildHandler(handleDeleteUserLlmConfig, mockDeps);
       const { req, res } = createMockReqRes({}, { id: 'config-123' });
 
       await handler(req, res);
@@ -1473,8 +1400,7 @@ describe('/user/llm-config routes', () => {
       mockPrisma.personalityDefaultConfig.count.mockResolvedValue(0);
       mockPrisma.userPersonalityConfig.count.mockResolvedValue(0);
 
-      const router = createLlmConfigRoutes(mockDeps);
-      const handler = getHandler(router, 'delete', '/:id');
+      const handler = buildHandler(handleDeleteUserLlmConfig, mockDeps);
       const { req, res } = createMockReqRes({}, { id: 'config-123' });
 
       await handler(req, res);
@@ -1508,8 +1434,7 @@ describe('/user/llm-config routes', () => {
       // Force the service to return a non-null warning via the underlying user.count.
       mockPrisma.user.count.mockResolvedValueOnce(5);
 
-      const router = createLlmConfigRoutes(mockDeps);
-      const handler = getHandler(router, 'delete', '/:id');
+      const handler = buildHandler(handleDeleteUserLlmConfig, mockDeps);
       const { req, res } = createMockReqRes({}, { id: 'config-123' });
 
       await handler(req, res);
@@ -1537,8 +1462,7 @@ describe('/user/llm-config routes', () => {
       mockPrisma.personalityDefaultConfig.count.mockResolvedValue(0);
       mockPrisma.userPersonalityConfig.count.mockResolvedValue(0);
 
-      const router = createLlmConfigRoutes(mockDeps);
-      const handler = getHandler(router, 'delete', '/:id');
+      const handler = buildHandler(handleDeleteUserLlmConfig, mockDeps);
       const { req, res } = createMockReqRes({}, { id: 'config-123' });
 
       await handler(req, res);
@@ -1564,8 +1488,7 @@ describe('/user/llm-config routes', () => {
       mockPrisma.personalityDefaultConfig.count.mockResolvedValue(0);
       mockPrisma.userPersonalityConfig.count.mockResolvedValue(7);
 
-      const router = createLlmConfigRoutes(mockDeps);
-      const handler = getHandler(router, 'delete', '/:id');
+      const handler = buildHandler(handleDeleteUserLlmConfig, mockDeps);
       const { req, res } = createMockReqRes({}, { id: 'config-123' });
 
       await handler(req, res);
@@ -1589,8 +1512,7 @@ describe('/user/llm-config routes', () => {
       mockPrisma.personalityDefaultConfig.count.mockResolvedValue(0);
       mockPrisma.userPersonalityConfig.count.mockResolvedValue(2);
 
-      const router = createLlmConfigRoutes(mockDeps);
-      const handler = getHandler(router, 'delete', '/:id');
+      const handler = buildHandler(handleDeleteUserLlmConfig, mockDeps);
       const { req, res } = createMockReqRes({}, { id: 'config-123' });
 
       await handler(req, res);
@@ -1641,12 +1563,11 @@ describe('/user/llm-config routes', () => {
         memoryLimit: 20,
       });
 
-      const router = createLlmConfigRoutes({
+      const handler = buildHandler(handleGetUserLlmConfig, {
         ...mockDeps,
         llmConfigCacheInvalidation: mockCacheInvalidation,
         modelCache: mockModelCache,
       });
-      const handler = getHandler(router, 'get', '/:id');
       const { req, res } = createMockReqRes({}, { id: 'config-123' });
 
       await handler(req, res);
@@ -1681,12 +1602,11 @@ describe('/user/llm-config routes', () => {
         advancedParameters: null,
       });
 
-      const router = createLlmConfigRoutes({
+      const handler = buildHandler(handleCreateUserLlmConfig, {
         ...mockDeps,
         llmConfigCacheInvalidation: mockCacheInvalidation,
         modelCache: mockModelCache,
       });
-      const handler = getHandler(router, 'post', '/');
       const { req, res } = createMockReqRes({
         name: 'New Config',
         model: 'anthropic/claude-sonnet-4',
@@ -1736,12 +1656,11 @@ describe('/user/llm-config routes', () => {
         advancedParameters: null,
       });
 
-      const router = createLlmConfigRoutes({
+      const handler = buildHandler(handleUpdateUserLlmConfig, {
         ...mockDeps,
         llmConfigCacheInvalidation: mockCacheInvalidation,
         modelCache: mockModelCache,
       });
-      const handler = getHandler(router, 'put', '/:id');
       const { req, res } = createMockReqRes({ name: 'Updated Config' }, { id: 'config-123' });
 
       await handler(req, res);
@@ -1760,8 +1679,7 @@ describe('/user/llm-config routes', () => {
 
   describe('POST /user/llm-config/resolve', () => {
     it('should reject missing personalityId', async () => {
-      const router = createLlmConfigRoutes(mockDeps);
-      const handler = getHandler(router, 'post', '/resolve');
+      const handler = buildHandler(handleResolveUserLlmConfig, mockDeps);
       const { req, res } = createMockReqRes({
         personalityConfig: { id: 'p-1', name: 'Test', model: 'gpt-4' },
       });
@@ -1772,8 +1690,7 @@ describe('/user/llm-config routes', () => {
     });
 
     it('should reject missing personalityConfig', async () => {
-      const router = createLlmConfigRoutes(mockDeps);
-      const handler = getHandler(router, 'post', '/resolve');
+      const handler = buildHandler(handleResolveUserLlmConfig, mockDeps);
       const { req, res } = createMockReqRes({
         personalityId: 'personality-123',
       });
@@ -1784,8 +1701,7 @@ describe('/user/llm-config routes', () => {
     });
 
     it('should reject invalid personalityConfig structure', async () => {
-      const router = createLlmConfigRoutes(mockDeps);
-      const handler = getHandler(router, 'post', '/resolve');
+      const handler = buildHandler(handleResolveUserLlmConfig, mockDeps);
       const { req, res } = createMockReqRes({
         personalityId: 'personality-123',
         personalityConfig: { invalid: true }, // Missing required fields
@@ -1797,8 +1713,7 @@ describe('/user/llm-config routes', () => {
     });
 
     it('should resolve config and include overrides in response', async () => {
-      const router = createLlmConfigRoutes(mockDeps);
-      const handler = getHandler(router, 'post', '/resolve');
+      const handler = buildHandler(handleResolveUserLlmConfig, mockDeps);
       const { req, res } = createMockReqRes({
         personalityId: 'personality-123',
         personalityConfig: { id: 'p-1', name: 'Test', model: 'gpt-4' },
@@ -1823,8 +1738,7 @@ describe('/user/llm-config routes', () => {
     });
 
     it('should pass channelId to cascade resolver when provided', async () => {
-      const router = createLlmConfigRoutes(mockDeps);
-      const handler = getHandler(router, 'post', '/resolve');
+      const handler = buildHandler(handleResolveUserLlmConfig, mockDeps);
       const { req, res } = createMockReqRes({
         personalityId: 'personality-123',
         personalityConfig: { id: 'p-1', name: 'Test', model: 'gpt-4' },
@@ -1842,8 +1756,7 @@ describe('/user/llm-config routes', () => {
     });
 
     it('should reject invalid channelId format', async () => {
-      const router = createLlmConfigRoutes(mockDeps);
-      const handler = getHandler(router, 'post', '/resolve');
+      const handler = buildHandler(handleResolveUserLlmConfig, mockDeps);
       const { req, res } = createMockReqRes({
         personalityId: 'personality-123',
         personalityConfig: { id: 'p-1', name: 'Test', model: 'gpt-4' },
@@ -1857,8 +1770,7 @@ describe('/user/llm-config routes', () => {
 
     it('should return 500 when resolver throws', async () => {
       mockResolveConfig.mockRejectedValueOnce(new Error('DB error'));
-      const router = createLlmConfigRoutes(mockDeps);
-      const handler = getHandler(router, 'post', '/resolve');
+      const handler = buildHandler(handleResolveUserLlmConfig, mockDeps);
       const { req, res } = createMockReqRes({
         personalityId: 'personality-123',
         personalityConfig: { id: 'p-1', name: 'Test', model: 'gpt-4' },

@@ -1,5 +1,5 @@
 /**
- * GET /user/personality
+ * GET /api/user/personality
  * List all personalities visible to the user
  */
 

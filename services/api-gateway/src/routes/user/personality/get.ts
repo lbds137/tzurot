@@ -1,5 +1,5 @@
 /**
- * GET /user/personality/:slug
+ * GET /api/user/personality/:slug
  * Get a single personality by slug (if visible to user)
  */
 

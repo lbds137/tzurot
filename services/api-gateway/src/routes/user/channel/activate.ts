@@ -1,5 +1,5 @@
 /**
- * POST /user/channel/activate
+ * POST /api/user/channel/activate
  * Activate a personality in a Discord channel
  *
  * Activating a personality means it will respond to ALL messages in the channel,

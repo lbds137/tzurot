@@ -1,6 +1,6 @@
 /**
  * User Feedback Intake Route
- * POST /user/feedback - store a feedback submission after the abuse gates
+ * POST /api/user/feedback - store a feedback submission after the abuse gates
  *
  * Gates run cheap-first (owner-set posture: this surface is a spam/DoS
  * vector): Zod length cap → Redis cooldown → Redis daily cap → DB near-dup

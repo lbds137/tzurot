@@ -1,7 +1,7 @@
 /**
  * LLM Config Resolve Handler
  *
- * POST /user/llm-config/resolve
+ * POST /api/user/llm-config/resolve
  * Resolves the effective LLM config for a user+personality combination.
  * Used by bot-client to get context settings (maxMessages, maxAge, maxImages)
  * before building conversation context.

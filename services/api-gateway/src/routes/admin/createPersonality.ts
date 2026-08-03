@@ -1,9 +1,9 @@
 /**
- * POST /admin/personality
+ * POST /api/admin/personality
  * Create a new AI personality
  */
 
-import { Router, type RequestHandler, type Response } from 'express';
+import { type RequestHandler, type Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import {
   AdminPersonalityResponseSchema,
@@ -14,7 +14,6 @@ import { type Prisma } from '@tzurot/common-types/services/prisma';
 import { generatePersonalityUuid } from '@tzurot/common-types/utils/deterministicUuid';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { type CacheInvalidationService } from '@tzurot/cache-invalidation';
-import { requireOwnerAuth } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendContractSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
@@ -188,9 +187,3 @@ export const handleCreateGlobalPersonality = (deps: RouteDeps): RequestHandler =
     );
   });
 };
-
-export function createCreatePersonalityRoute(deps: RouteDeps): Router {
-  const router = Router();
-  router.post('/', requireOwnerAuth(), handleCreateGlobalPersonality(deps));
-  return router;
-}

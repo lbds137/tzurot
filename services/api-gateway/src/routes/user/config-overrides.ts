@@ -3,16 +3,16 @@
  * CRUD for user-level and per-personality config cascade overrides
  *
  * Endpoints:
- * - GET /user/config-overrides/resolve-defaults - Resolve admin → user-default cascade
- * - GET /user/config-overrides/resolve/:personalityId - Resolve cascade overrides
- * - PATCH /user/config-overrides/:personalityId - Update per-personality overrides
- * - DELETE /user/config-overrides/:personalityId - Clear per-personality overrides
- * - GET /user/config-overrides/defaults - Get user's global defaults
- * - PATCH /user/config-overrides/defaults - Update user's global defaults
- * - DELETE /user/config-overrides/defaults - Clear user's global defaults
+ * - GET /api/user/config-overrides/resolve-defaults - Resolve admin → user-default cascade
+ * - GET /api/user/config-overrides/resolve/:personalityId - Resolve cascade overrides
+ * - PATCH /api/user/config-overrides/:personalityId - Update per-personality overrides
+ * - DELETE /api/user/config-overrides/:personalityId - Clear per-personality overrides
+ * - GET /api/user/config-overrides/defaults - Get user's global defaults
+ * - PATCH /api/user/config-overrides/defaults - Update user's global defaults
+ * - DELETE /api/user/config-overrides/defaults - Clear user's global defaults
  */
 
-import { Router, type Response, type RequestHandler } from 'express';
+import { type Response, type RequestHandler } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import { z } from 'zod';
 import { DISCORD_SNOWFLAKE } from '@tzurot/common-types/constants/discord';
@@ -25,7 +25,6 @@ import {
 import { Prisma } from '@tzurot/common-types/services/prisma';
 import { generateUserPersonalityConfigUuid } from '@tzurot/common-types/utils/deterministicUuid';
 import { createLogger } from '@tzurot/common-types/utils/logger';
-import { requireUserAuth, requireProvisionedUser } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import {
   tryInvalidateCache,
@@ -291,20 +290,3 @@ export const handleClearPersonalityOverrides = (deps: RouteDeps): RequestHandler
     sendCustomSuccess(res, { success: true }, StatusCodes.OK);
   });
 };
-
-export function createConfigOverrideRoutes(deps: RouteDeps): Router {
-  const router = Router();
-
-  router.use(requireUserAuth());
-  router.use(requireProvisionedUser(deps.prisma));
-
-  router.get('/resolve-defaults', handleResolveUserDefaults(deps));
-  router.get('/defaults', handleGetUserDefaults(deps));
-  router.patch('/defaults', handleUpdateUserDefaults(deps));
-  router.delete('/defaults', handleClearUserDefaults(deps));
-  router.get('/resolve/:personalityId', handleResolveCascade(deps));
-  router.patch('/:personalityId', handleUpdatePersonalityOverrides(deps));
-  router.delete('/:personalityId', handleClearPersonalityOverrides(deps));
-
-  return router;
-}

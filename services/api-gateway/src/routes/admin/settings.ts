@@ -2,20 +2,22 @@
  * Admin Settings Routes
  * Owner-only endpoints for managing the global AdminSettings singleton
  *
- * Endpoints:
- * - GET /admin/settings - Get the AdminSettings singleton (service-only OR owner)
- * - PATCH /admin/settings/config-defaults - Update configDefaults (owner only)
- * - DELETE /admin/settings/config-defaults - Clear all admin config defaults (owner only)
+ * Endpoints (as mounted in routes/_generated/mounts.ts):
+ * - GET /api/internal/admin-settings - Get the singleton, service-only call
+ * - GET /api/admin/settings - Get the singleton (owner)
+ * - PATCH /api/admin/settings/config-defaults - Update configDefaults (owner only)
+ * - DELETE /api/admin/settings/config-defaults - Clear all admin config defaults (owner only)
  *
- * Auth shape: PATCH and DELETE use the standard `requireOwnerAuth()` middleware
- * (consistent with the other 12 admin route modules). GET cannot — it must
- * accept service-only calls (no Discord user context) so bot-client can
- * hydrate its admin-settings cache at startup. The GET keeps the inline
+ * Auth shape: the two writes sit behind `requireUserAuth()` + `requireOwnerAuth()`
+ * at the mount site. The read is mounted twice — once under `/api/admin` with the
+ * same owner gating, and once under `/api/internal` with no user middleware at
+ * all, because bot-client hydrates its admin-settings cache at startup with no
+ * Discord user context. The handler therefore keeps its inline
  * `isAuthorizedForRead` check, which permits no-userId requests but rejects
  * user-context requests from non-owners (see `GatewayClient.getAdminSettings()`).
  */
 
-import { Router, type Request, type RequestHandler, type Response } from 'express';
+import { type Request, type RequestHandler, type Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import {
   type GetAdminSettingsResponse,
@@ -29,7 +31,7 @@ import { asyncHandler } from '../../utils/asyncHandler.js';
 import { mergeConfigOverrides } from '../../utils/configOverrideMerge.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
-import { isAuthorizedForRead, requireOwnerAuth } from '../../services/AuthMiddleware.js';
+import { isAuthorizedForRead } from '../../services/AuthMiddleware.js';
 import type { RouteDeps } from '../routeDeps.js';
 
 const logger = createLogger('admin-settings-routes');
@@ -96,7 +98,7 @@ async function resolveUserUuid(prisma: PrismaClient, discordId: string): Promise
 }
 
 /**
- * PATCH /admin/settings/config-defaults handler
+ * PATCH /api/admin/settings/config-defaults handler
  * Accepts flat Partial<ConfigOverrides> body (same shape as all cascade tiers).
  */
 function createConfigDefaultsPatchHandler(
@@ -175,11 +177,3 @@ export const handleClearAdminSettings = (deps: RouteDeps): RequestHandler => {
     sendCustomSuccess(res, { success: true }, StatusCodes.OK);
   });
 };
-
-export function createAdminSettingsRoutes(deps: RouteDeps): Router {
-  const router = Router();
-  router.get('/', handleGetAdminSettings(deps));
-  router.patch('/config-defaults', requireOwnerAuth(), handleUpdateAdminSettings(deps));
-  router.delete('/config-defaults', requireOwnerAuth(), handleClearAdminSettings(deps));
-  return router;
-}

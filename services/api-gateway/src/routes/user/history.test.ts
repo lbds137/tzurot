@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { Request, Response } from 'express';
+import type { Request, RequestHandler, Response } from 'express';
 
 // Mock ConversationHistoryService instance methods
 const mockGetHistoryStats = vi.fn();
@@ -85,10 +85,19 @@ const mockPrisma = {
   }),
 };
 
-import { createHistoryRoutes } from './history.js';
-import { getRouteHandler, findRoute } from '../../test/expressRouterUtils.js';
+import {
+  handleClearHistory,
+  handleGetHistoryStats,
+  handleHardDeleteHistory,
+  handleUndoHistory,
+} from './history.js';
 import type { PrismaClient } from '@tzurot/common-types/services/prisma';
-import { stubRouteResolvers } from '../../test/shared-route-test-utils.js';
+import {
+  asRouteHandler,
+  stubRouteResolvers,
+  type RouteHandler,
+} from '../../test/shared-route-test-utils.js';
+import type { RouteDeps } from '../routeDeps.js';
 
 // Test constants
 const TEST_USER_ID = '00000000-0000-0000-0000-000000000001';
@@ -116,13 +125,12 @@ function createMockReqRes(body: Record<string, unknown> = {}, query: Record<stri
   return { req, res };
 }
 
-// Helper to get handler from router
-function getHandler(
-  router: ReturnType<typeof createHistoryRoutes>,
-  method: 'get' | 'post' | 'delete',
-  path: string
-) {
-  return getRouteHandler(router, method, path);
+/**
+ * Build a bare handler with the given deps — the same export
+ * routes/_generated/mounts.ts mounts, invoked directly.
+ */
+function buildHandler(handler: (deps: RouteDeps) => RequestHandler, deps: RouteDeps): RouteHandler {
+  return asRouteHandler(handler(deps));
 }
 
 describe('/user/history routes', () => {
@@ -173,52 +181,12 @@ describe('/user/history routes', () => {
     mockClearHistory.mockResolvedValue(5);
   });
 
-  describe('route factory', () => {
-    it('should create a router', () => {
-      const router = createHistoryRoutes({
-        ...stubRouteResolvers(),
-        prisma: mockPrisma as unknown as PrismaClient,
-      });
-
-      expect(router).toBeDefined();
-      expect(typeof router).toBe('function');
-    });
-
-    it('should have POST /clear route registered', () => {
-      const router = createHistoryRoutes({
-        ...stubRouteResolvers(),
-        prisma: mockPrisma as unknown as PrismaClient,
-      });
-
-      expect(findRoute(router, 'post', '/clear')).toBeDefined();
-    });
-
-    it('should have POST /undo route registered', () => {
-      const router = createHistoryRoutes({
-        ...stubRouteResolvers(),
-        prisma: mockPrisma as unknown as PrismaClient,
-      });
-
-      expect(findRoute(router, 'post', '/undo')).toBeDefined();
-    });
-
-    it('should have GET /stats route registered', () => {
-      const router = createHistoryRoutes({
-        ...stubRouteResolvers(),
-        prisma: mockPrisma as unknown as PrismaClient,
-      });
-
-      expect(findRoute(router, 'get', '/stats')).toBeDefined();
-    });
-  });
-
   describe('POST /user/history/clear', () => {
     it('should reject missing personalitySlug', async () => {
-      const router = createHistoryRoutes({
+      const handler = buildHandler(handleClearHistory, {
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
       });
-      const handler = getHandler(router, 'post', '/clear');
       const { req, res } = createMockReqRes({});
 
       await handler(req, res);
@@ -233,11 +201,10 @@ describe('/user/history routes', () => {
     });
 
     it('should reject empty personalitySlug', async () => {
-      const router = createHistoryRoutes({
+      const handler = buildHandler(handleClearHistory, {
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
       });
-      const handler = getHandler(router, 'post', '/clear');
       const { req, res } = createMockReqRes({ personalitySlug: '' });
 
       await handler(req, res);
@@ -248,11 +215,10 @@ describe('/user/history routes', () => {
     it('should return 404 when user not found', async () => {
       mockPrisma.user.findFirst.mockResolvedValue(null);
 
-      const router = createHistoryRoutes({
+      const handler = buildHandler(handleClearHistory, {
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
       });
-      const handler = getHandler(router, 'post', '/clear');
       const { req, res } = createMockReqRes({ personalitySlug: TEST_PERSONALITY_SLUG });
 
       await handler(req, res);
@@ -263,11 +229,10 @@ describe('/user/history routes', () => {
     it('should return 404 when personality not found', async () => {
       mockPrisma.personality.findUnique.mockResolvedValue(null);
 
-      const router = createHistoryRoutes({
+      const handler = buildHandler(handleClearHistory, {
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
       });
-      const handler = getHandler(router, 'post', '/clear');
       const { req, res } = createMockReqRes({ personalitySlug: TEST_PERSONALITY_SLUG });
 
       await handler(req, res);
@@ -282,11 +247,10 @@ describe('/user/history routes', () => {
         config: {},
       });
 
-      const router = createHistoryRoutes({
+      const handler = buildHandler(handleClearHistory, {
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
       });
-      const handler = getHandler(router, 'post', '/clear');
       const { req, res } = createMockReqRes({ personalitySlug: TEST_PERSONALITY_SLUG });
 
       await handler(req, res);
@@ -295,11 +259,10 @@ describe('/user/history routes', () => {
     });
 
     it('should set epoch on new config', async () => {
-      const router = createHistoryRoutes({
+      const handler = buildHandler(handleClearHistory, {
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
       });
-      const handler = getHandler(router, 'post', '/clear');
       const { req, res } = createMockReqRes({ personalitySlug: TEST_PERSONALITY_SLUG });
 
       await handler(req, res);
@@ -344,11 +307,10 @@ describe('/user/history routes', () => {
         previousContextReset: null,
       });
 
-      const router = createHistoryRoutes({
+      const handler = buildHandler(handleClearHistory, {
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
       });
-      const handler = getHandler(router, 'post', '/clear');
       const { req, res } = createMockReqRes({ personalitySlug: TEST_PERSONALITY_SLUG });
 
       await handler(req, res);
@@ -370,11 +332,10 @@ describe('/user/history routes', () => {
     });
 
     it('should use explicit personaId when provided', async () => {
-      const router = createHistoryRoutes({
+      const handler = buildHandler(handleClearHistory, {
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
       });
-      const handler = getHandler(router, 'post', '/clear');
       const { req, res } = createMockReqRes({
         personalitySlug: TEST_PERSONALITY_SLUG,
         personaId: TEST_PERSONA_ID,
@@ -396,11 +357,10 @@ describe('/user/history routes', () => {
     it('should return 404 for explicit personaId not owned by user', async () => {
       mockPrisma.persona.findFirst.mockResolvedValue(null); // Persona not found or not owned
 
-      const router = createHistoryRoutes({
+      const handler = buildHandler(handleClearHistory, {
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
       });
-      const handler = getHandler(router, 'post', '/clear');
       const { req, res } = createMockReqRes({
         personalitySlug: TEST_PERSONALITY_SLUG,
         personaId: 'not-owned-persona-id',
@@ -414,11 +374,10 @@ describe('/user/history routes', () => {
 
   describe('POST /user/history/undo', () => {
     it('should reject missing personalitySlug', async () => {
-      const router = createHistoryRoutes({
+      const handler = buildHandler(handleUndoHistory, {
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
       });
-      const handler = getHandler(router, 'post', '/undo');
       const { req, res } = createMockReqRes({});
 
       await handler(req, res);
@@ -429,11 +388,10 @@ describe('/user/history routes', () => {
     it('should return 404 when user not found', async () => {
       mockPrisma.user.findFirst.mockResolvedValue(null);
 
-      const router = createHistoryRoutes({
+      const handler = buildHandler(handleUndoHistory, {
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
       });
-      const handler = getHandler(router, 'post', '/undo');
       const { req, res } = createMockReqRes({ personalitySlug: TEST_PERSONALITY_SLUG });
 
       await handler(req, res);
@@ -450,11 +408,10 @@ describe('/user/history routes', () => {
         previousContextReset: null, // First clear - no previous epoch
       });
 
-      const router = createHistoryRoutes({
+      const handler = buildHandler(handleUndoHistory, {
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
       });
-      const handler = getHandler(router, 'post', '/undo');
       const { req, res } = createMockReqRes({ personalitySlug: TEST_PERSONALITY_SLUG });
 
       await handler(req, res);
@@ -485,11 +442,10 @@ describe('/user/history routes', () => {
     it('should return error when config does not exist', async () => {
       mockPrisma.userPersonaHistoryConfig.findUnique.mockResolvedValue(null);
 
-      const router = createHistoryRoutes({
+      const handler = buildHandler(handleUndoHistory, {
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
       });
-      const handler = getHandler(router, 'post', '/undo');
       const { req, res } = createMockReqRes({ personalitySlug: TEST_PERSONALITY_SLUG });
 
       await handler(req, res);
@@ -506,11 +462,10 @@ describe('/user/history routes', () => {
         previousContextReset: null,
       });
 
-      const router = createHistoryRoutes({
+      const handler = buildHandler(handleUndoHistory, {
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
       });
-      const handler = getHandler(router, 'post', '/undo');
       const { req, res } = createMockReqRes({ personalitySlug: TEST_PERSONALITY_SLUG });
 
       await handler(req, res);
@@ -531,11 +486,10 @@ describe('/user/history routes', () => {
         previousContextReset: previousEpoch,
       });
 
-      const router = createHistoryRoutes({
+      const handler = buildHandler(handleUndoHistory, {
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
       });
-      const handler = getHandler(router, 'post', '/undo');
       const { req, res } = createMockReqRes({ personalitySlug: TEST_PERSONALITY_SLUG });
 
       await handler(req, res);
@@ -567,11 +521,10 @@ describe('/user/history routes', () => {
 
   describe('GET /user/history/stats', () => {
     it('should reject missing personalitySlug', async () => {
-      const router = createHistoryRoutes({
+      const handler = buildHandler(handleGetHistoryStats, {
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
       });
-      const handler = getHandler(router, 'get', '/stats');
       const { req, res } = createMockReqRes({}, { channelId: TEST_CHANNEL_ID });
 
       await handler(req, res);
@@ -585,11 +538,10 @@ describe('/user/history routes', () => {
     });
 
     it('should reject missing channelId', async () => {
-      const router = createHistoryRoutes({
+      const handler = buildHandler(handleGetHistoryStats, {
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
       });
-      const handler = getHandler(router, 'get', '/stats');
       const { req, res } = createMockReqRes({}, { personalitySlug: TEST_PERSONALITY_SLUG });
 
       await handler(req, res);
@@ -605,11 +557,10 @@ describe('/user/history routes', () => {
     it('should return 404 when user not found', async () => {
       mockPrisma.user.findFirst.mockResolvedValue(null);
 
-      const router = createHistoryRoutes({
+      const handler = buildHandler(handleGetHistoryStats, {
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
       });
-      const handler = getHandler(router, 'get', '/stats');
       const { req, res } = createMockReqRes(
         {},
         { personalitySlug: TEST_PERSONALITY_SLUG, channelId: TEST_CHANNEL_ID }
@@ -629,11 +580,10 @@ describe('/user/history routes', () => {
         newestMessage: new Date('2024-01-02'),
       });
 
-      const router = createHistoryRoutes({
+      const handler = buildHandler(handleGetHistoryStats, {
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
       });
-      const handler = getHandler(router, 'get', '/stats');
       const { req, res } = createMockReqRes(
         {},
         { personalitySlug: TEST_PERSONALITY_SLUG, channelId: TEST_CHANNEL_ID }
@@ -687,11 +637,10 @@ describe('/user/history routes', () => {
         newestMessage: new Date('2024-01-02'),
       });
 
-      const router = createHistoryRoutes({
+      const handler = buildHandler(handleGetHistoryStats, {
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
       });
-      const handler = getHandler(router, 'get', '/stats');
       const { req, res } = createMockReqRes(
         {},
         { personalitySlug: TEST_PERSONALITY_SLUG, channelId: TEST_CHANNEL_ID }
@@ -738,11 +687,10 @@ describe('/user/history routes', () => {
         previousContextReset: new Date('2024-01-01'), // Has previous epoch
       });
 
-      const router = createHistoryRoutes({
+      const handler = buildHandler(handleGetHistoryStats, {
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
       });
-      const handler = getHandler(router, 'get', '/stats');
       const { req, res } = createMockReqRes(
         {},
         { personalitySlug: TEST_PERSONALITY_SLUG, channelId: TEST_CHANNEL_ID }
@@ -759,21 +707,11 @@ describe('/user/history routes', () => {
   });
 
   describe('DELETE /user/history/hard-delete', () => {
-    it('should have DELETE /hard-delete route registered', () => {
-      const router = createHistoryRoutes({
-        ...stubRouteResolvers(),
-        prisma: mockPrisma as unknown as PrismaClient,
-      });
-
-      expect(findRoute(router, 'delete', '/hard-delete')).toBeDefined();
-    });
-
     it('should reject missing personalitySlug', async () => {
-      const router = createHistoryRoutes({
+      const handler = buildHandler(handleHardDeleteHistory, {
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
       });
-      const handler = getHandler(router, 'delete', '/hard-delete');
       const { req, res } = createMockReqRes({ channelId: TEST_CHANNEL_ID });
 
       await handler(req, res);
@@ -788,11 +726,10 @@ describe('/user/history routes', () => {
     });
 
     it('should reject missing channelId', async () => {
-      const router = createHistoryRoutes({
+      const handler = buildHandler(handleHardDeleteHistory, {
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
       });
-      const handler = getHandler(router, 'delete', '/hard-delete');
       const { req, res } = createMockReqRes({ personalitySlug: TEST_PERSONALITY_SLUG });
 
       await handler(req, res);
@@ -809,11 +746,10 @@ describe('/user/history routes', () => {
     it('should return 404 when user not found', async () => {
       mockPrisma.user.findFirst.mockResolvedValue(null);
 
-      const router = createHistoryRoutes({
+      const handler = buildHandler(handleHardDeleteHistory, {
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
       });
-      const handler = getHandler(router, 'delete', '/hard-delete');
       const { req, res } = createMockReqRes({
         personalitySlug: TEST_PERSONALITY_SLUG,
         channelId: TEST_CHANNEL_ID,
@@ -827,11 +763,10 @@ describe('/user/history routes', () => {
     it('should return 404 when personality not found', async () => {
       mockPrisma.personality.findUnique.mockResolvedValue(null);
 
-      const router = createHistoryRoutes({
+      const handler = buildHandler(handleHardDeleteHistory, {
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
       });
-      const handler = getHandler(router, 'delete', '/hard-delete');
       const { req, res } = createMockReqRes({
         personalitySlug: TEST_PERSONALITY_SLUG,
         channelId: TEST_CHANNEL_ID,
@@ -845,11 +780,10 @@ describe('/user/history routes', () => {
     it('should delete history for resolved persona by default', async () => {
       mockClearHistory.mockResolvedValue(15);
 
-      const router = createHistoryRoutes({
+      const handler = buildHandler(handleHardDeleteHistory, {
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
       });
-      const handler = getHandler(router, 'delete', '/hard-delete');
       const { req, res } = createMockReqRes({
         personalitySlug: TEST_PERSONALITY_SLUG,
         channelId: TEST_CHANNEL_ID,
@@ -877,11 +811,10 @@ describe('/user/history routes', () => {
     it('should handle singular message count in response', async () => {
       mockClearHistory.mockResolvedValue(1);
 
-      const router = createHistoryRoutes({
+      const handler = buildHandler(handleHardDeleteHistory, {
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
       });
-      const handler = getHandler(router, 'delete', '/hard-delete');
       const { req, res } = createMockReqRes({
         personalitySlug: TEST_PERSONALITY_SLUG,
         channelId: TEST_CHANNEL_ID,
@@ -897,11 +830,10 @@ describe('/user/history routes', () => {
     });
 
     it('should set irreversible context epoch instead of deleting config', async () => {
-      const router = createHistoryRoutes({
+      const handler = buildHandler(handleHardDeleteHistory, {
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
       });
-      const handler = getHandler(router, 'delete', '/hard-delete');
       const { req, res } = createMockReqRes({
         personalitySlug: TEST_PERSONALITY_SLUG,
         channelId: TEST_CHANNEL_ID,
@@ -939,11 +871,10 @@ describe('/user/history routes', () => {
     it('should succeed and set epoch even when no messages to delete', async () => {
       mockClearHistory.mockResolvedValue(0);
 
-      const router = createHistoryRoutes({
+      const handler = buildHandler(handleHardDeleteHistory, {
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
       });
-      const handler = getHandler(router, 'delete', '/hard-delete');
       const { req, res } = createMockReqRes({
         personalitySlug: TEST_PERSONALITY_SLUG,
         channelId: TEST_CHANNEL_ID,
@@ -963,11 +894,10 @@ describe('/user/history routes', () => {
     it('should handle zero messages deleted', async () => {
       mockClearHistory.mockResolvedValue(0);
 
-      const router = createHistoryRoutes({
+      const handler = buildHandler(handleHardDeleteHistory, {
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
       });
-      const handler = getHandler(router, 'delete', '/hard-delete');
       const { req, res } = createMockReqRes({
         personalitySlug: TEST_PERSONALITY_SLUG,
         channelId: TEST_CHANNEL_ID,

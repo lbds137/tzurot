@@ -37,9 +37,9 @@ vi.mock('../../utils/asyncHandler.js', () => ({
 // Mock Prisma (minimal - route doesn't use it directly)
 const mockPrisma = {};
 
-import { createConversationLookupRoutes } from './conversationLookup.js';
+import { handleLookupPersonalityFromMessage } from './conversationLookup.js';
 import type { PrismaClient } from '@tzurot/common-types/services/prisma';
-import { stubRouteResolvers } from '../../test/shared-route-test-utils.js';
+import { asRouteHandler, stubRouteResolvers } from '../../test/shared-route-test-utils.js';
 
 // Helper to create mock request/response
 function createMockReqRes(query: Record<string, unknown> = {}) {
@@ -56,23 +56,19 @@ function createMockReqRes(query: Record<string, unknown> = {}) {
 }
 
 describe('conversationLookup routes', () => {
-  let router: ReturnType<typeof createConversationLookupRoutes>;
-
   beforeEach(() => {
     vi.clearAllMocks();
-    router = createConversationLookupRoutes({
-      ...stubRouteResolvers(),
-      prisma: mockPrisma as unknown as PrismaClient,
-    });
   });
 
-  describe('GET /conversation/message-personality', () => {
-    // Helper to get the route handler directly
+  describe('GET /api/internal/conversation/message-personality', () => {
+    // The bare handler export — the shape routes/_generated/mounts.ts mounts.
     function getHandler() {
-      const layer = (router as any).stack.find(
-        (l: any) => l.route?.path === '/message-personality'
+      return asRouteHandler(
+        handleLookupPersonalityFromMessage({
+          ...stubRouteResolvers(),
+          prisma: mockPrisma as unknown as PrismaClient,
+        })
       );
-      return layer?.route?.stack[0]?.handle;
     }
 
     it('should return 400 when discordMessageId is missing', async () => {

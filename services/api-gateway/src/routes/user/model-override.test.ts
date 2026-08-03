@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { Request, Response } from 'express';
+import type { Request, RequestHandler, Response } from 'express';
 
 // Mock dependencies before imports
 vi.mock('@tzurot/common-types/utils/logger', async () => {
@@ -80,11 +80,22 @@ const mockPrisma = {
   }),
 };
 
-import { createModelOverrideRoutes } from './model-override.js';
-import { getRouteHandler, findRoute } from '../../test/expressRouterUtils.js';
+import {
+  handleClearDefaultModelConfig,
+  handleDeleteModelOverride,
+  handleGetDefaultModelConfig,
+  handleListModelOverrides,
+  handleSetDefaultModelConfig,
+  handleSetModelOverride,
+} from './model-override.js';
 import { ADMIN_SETTINGS_SINGLETON_ID } from '@tzurot/common-types/schemas/api/adminSettings';
 import { type PrismaClient } from '@tzurot/common-types/services/prisma';
-import { stubRouteResolvers } from '../../test/shared-route-test-utils.js';
+import {
+  asRouteHandler,
+  stubRouteResolvers,
+  type RouteHandler,
+} from '../../test/shared-route-test-utils.js';
+import type { RouteDeps } from '../routeDeps.js';
 
 // Helper to create mock request/response
 function createMockReqRes(
@@ -109,13 +120,12 @@ function createMockReqRes(
   return { req, res };
 }
 
-// Helper to get handler from router
-function getHandler(
-  router: ReturnType<typeof createModelOverrideRoutes>,
-  method: 'get' | 'put' | 'delete',
-  path: string
-) {
-  return getRouteHandler(router, method, path);
+/**
+ * Build a bare handler with the given deps — the same export
+ * routes/_generated/mounts.ts mounts, invoked directly.
+ */
+function buildHandler(handler: (deps: RouteDeps) => RequestHandler, deps: RouteDeps): RouteHandler {
+  return asRouteHandler(handler(deps));
 }
 
 describe('/user/model-override routes', () => {
@@ -133,57 +143,14 @@ describe('/user/model-override routes', () => {
     mockPrisma.userPersonalityConfig.findMany.mockResolvedValue([]);
   });
 
-  describe('route factory', () => {
-    it('should create a router', () => {
-      const router = createModelOverrideRoutes({
-        ...stubRouteResolvers(),
-        prisma: mockPrisma as unknown as PrismaClient,
-      });
-
-      expect(router).toBeDefined();
-      expect(typeof router).toBe('function');
-    });
-
-    it('should have GET route registered', () => {
-      const router = createModelOverrideRoutes({
-        ...stubRouteResolvers(),
-        prisma: mockPrisma as unknown as PrismaClient,
-      });
-
-      expect(router.stack).toBeDefined();
-      expect(router.stack.length).toBeGreaterThan(0);
-
-      expect(findRoute(router, 'get', '/')).toBeDefined();
-    });
-
-    it('should have PUT route registered', () => {
-      const router = createModelOverrideRoutes({
-        ...stubRouteResolvers(),
-        prisma: mockPrisma as unknown as PrismaClient,
-      });
-
-      expect(findRoute(router, 'put', '/')).toBeDefined();
-    });
-
-    it('should have DELETE route registered', () => {
-      const router = createModelOverrideRoutes({
-        ...stubRouteResolvers(),
-        prisma: mockPrisma as unknown as PrismaClient,
-      });
-
-      expect(findRoute(router, 'delete', '/:personalityId')).toBeDefined();
-    });
-  });
-
   describe('GET /user/model-override', () => {
     it('should return empty list when user not found', async () => {
       mockPrisma.user.findFirst.mockResolvedValue(null);
 
-      const router = createModelOverrideRoutes({
+      const handler = buildHandler(handleListModelOverrides, {
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
       });
-      const handler = getHandler(router, 'get', '/');
       const { req, res } = createMockReqRes();
 
       await handler(req, res);
@@ -206,11 +173,10 @@ describe('/user/model-override routes', () => {
         },
       ]);
 
-      const router = createModelOverrideRoutes({
+      const handler = buildHandler(handleListModelOverrides, {
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
       });
-      const handler = getHandler(router, 'get', '/');
       const { req, res } = createMockReqRes();
 
       await handler(req, res);
@@ -247,12 +213,11 @@ describe('/user/model-override routes', () => {
         ),
       } as unknown as import('../../services/OpenRouterModelCache.js').OpenRouterModelCache;
 
-      const router = createModelOverrideRoutes({
+      const handler = buildHandler(handleListModelOverrides, {
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
         modelCache,
       });
-      const handler = getHandler(router, 'get', '/');
       const { req, res } = createMockReqRes();
 
       await handler(req, res);
@@ -276,11 +241,10 @@ describe('/user/model-override routes', () => {
         },
       ]);
 
-      const router = createModelOverrideRoutes({
+      const handler = buildHandler(handleListModelOverrides, {
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
       });
-      const handler = getHandler(router, 'get', '/');
       const { req, res } = createMockReqRes();
 
       await handler(req, res);
@@ -299,11 +263,10 @@ describe('/user/model-override routes', () => {
 
   describe('PUT /user/model-override', () => {
     it('should reject missing personalityId', async () => {
-      const router = createModelOverrideRoutes({
+      const handler = buildHandler(handleSetModelOverride, {
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
       });
-      const handler = getHandler(router, 'put', '/');
       const { req, res } = createMockReqRes({ configId: '22222222-2222-4222-a222-222222222222' });
 
       await handler(req, res);
@@ -317,11 +280,10 @@ describe('/user/model-override routes', () => {
     });
 
     it('should reject missing configId', async () => {
-      const router = createModelOverrideRoutes({
+      const handler = buildHandler(handleSetModelOverride, {
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
       });
-      const handler = getHandler(router, 'put', '/');
       const { req, res } = createMockReqRes({
         personalityId: '11111111-1111-4111-a111-111111111111',
       });
@@ -339,11 +301,10 @@ describe('/user/model-override routes', () => {
     it('should return 404 when personality not found', async () => {
       mockPrisma.personality.findFirst.mockResolvedValue(null);
 
-      const router = createModelOverrideRoutes({
+      const handler = buildHandler(handleSetModelOverride, {
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
       });
-      const handler = getHandler(router, 'put', '/');
       const { req, res } = createMockReqRes({
         personalityId: '11111111-1111-4111-a111-111111111111',
         configId: '22222222-2222-4222-a222-222222222222',
@@ -366,11 +327,10 @@ describe('/user/model-override routes', () => {
       });
       mockPrisma.llmConfig.findFirst.mockResolvedValue(null);
 
-      const router = createModelOverrideRoutes({
+      const handler = buildHandler(handleSetModelOverride, {
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
       });
-      const handler = getHandler(router, 'put', '/');
       const { req, res } = createMockReqRes({
         personalityId: '11111111-1111-4111-a111-111111111111',
         configId: '22222222-2222-4222-a222-222222222222',
@@ -402,11 +362,10 @@ describe('/user/model-override routes', () => {
         llmConfig: { name: 'GPT-4' },
       });
 
-      const router = createModelOverrideRoutes({
+      const handler = buildHandler(handleSetModelOverride, {
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
       });
-      const handler = getHandler(router, 'put', '/');
       const { req, res } = createMockReqRes({
         personalityId: '11111111-1111-4111-a111-111111111111',
         configId: '22222222-2222-4222-a222-222222222222',
@@ -474,12 +433,11 @@ describe('/user/model-override routes', () => {
         ),
       } as unknown as import('../../services/OpenRouterModelCache.js').OpenRouterModelCache;
 
-      const router = createModelOverrideRoutes({
+      const handler = buildHandler(handleSetModelOverride, {
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
         modelCache,
       });
-      const handler = getHandler(router, 'put', '/');
       const { req, res } = createMockReqRes(
         {
           personalityId: '11111111-1111-4111-a111-111111111111',
@@ -528,12 +486,11 @@ describe('/user/model-override routes', () => {
         ),
       } as unknown as import('../../services/OpenRouterModelCache.js').OpenRouterModelCache;
 
-      const router = createModelOverrideRoutes({
+      const handler = buildHandler(handleSetModelOverride, {
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
         modelCache,
       });
-      const handler = getHandler(router, 'put', '/');
       const { req, res } = createMockReqRes(
         {
           personalityId: '11111111-1111-4111-a111-111111111111',
@@ -570,12 +527,11 @@ describe('/user/model-override routes', () => {
         getModelById: vi.fn(async () => null), // unknown to OpenRouter + not a z.ai member
       } as unknown as import('../../services/OpenRouterModelCache.js').OpenRouterModelCache;
 
-      const router = createModelOverrideRoutes({
+      const handler = buildHandler(handleSetModelOverride, {
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
         modelCache,
       });
-      const handler = getHandler(router, 'put', '/');
       const { req, res } = createMockReqRes(
         {
           personalityId: '11111111-1111-4111-a111-111111111111',
@@ -601,11 +557,10 @@ describe('/user/model-override routes', () => {
     it('should return 200 (idempotent) when override not found', async () => {
       mockPrisma.userPersonalityConfig.findFirst.mockResolvedValue(null);
 
-      const router = createModelOverrideRoutes({
+      const handler = buildHandler(handleDeleteModelOverride, {
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
       });
-      const handler = getHandler(router, 'delete', '/:personalityId');
       const { req, res } = createMockReqRes(
         {},
         { personalityId: '11111111-1111-4111-a111-111111111111' }
@@ -626,11 +581,10 @@ describe('/user/model-override routes', () => {
         personality: { name: 'Lilith' },
       });
 
-      const router = createModelOverrideRoutes({
+      const handler = buildHandler(handleDeleteModelOverride, {
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
       });
-      const handler = getHandler(router, 'delete', '/:personalityId');
       const { req, res } = createMockReqRes(
         {},
         { personalityId: '11111111-1111-4111-a111-111111111111' }
@@ -651,11 +605,10 @@ describe('/user/model-override routes', () => {
         personality: { name: 'Lilith' },
       });
 
-      const router = createModelOverrideRoutes({
+      const handler = buildHandler(handleDeleteModelOverride, {
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
       });
-      const handler = getHandler(router, 'delete', '/:personalityId');
       const { req, res } = createMockReqRes(
         {},
         { personalityId: '11111111-1111-4111-a111-111111111111' }
@@ -684,11 +637,10 @@ describe('/user/model-override routes', () => {
         defaultLlmConfig: null,
       });
 
-      const router = createModelOverrideRoutes({
+      const handler = buildHandler(handleGetDefaultModelConfig, {
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
       });
-      const handler = getHandler(router, 'get', '/default');
       const { req, res } = createMockReqRes();
 
       await handler(req, res);
@@ -711,11 +663,10 @@ describe('/user/model-override routes', () => {
         defaultLlmConfig: { name: 'My Default Config' },
       });
 
-      const router = createModelOverrideRoutes({
+      const handler = buildHandler(handleGetDefaultModelConfig, {
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
       });
-      const handler = getHandler(router, 'get', '/default');
       const { req, res } = createMockReqRes();
 
       await handler(req, res);
@@ -734,11 +685,10 @@ describe('/user/model-override routes', () => {
 
   describe('PUT /user/model-override/default', () => {
     it('should reject missing configId', async () => {
-      const router = createModelOverrideRoutes({
+      const handler = buildHandler(handleSetDefaultModelConfig, {
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
       });
-      const handler = getHandler(router, 'put', '/default');
       const { req, res } = createMockReqRes({});
 
       await handler(req, res);
@@ -752,11 +702,10 @@ describe('/user/model-override routes', () => {
     });
 
     it('should reject empty configId', async () => {
-      const router = createModelOverrideRoutes({
+      const handler = buildHandler(handleSetDefaultModelConfig, {
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
       });
-      const handler = getHandler(router, 'put', '/default');
       const { req, res } = createMockReqRes({ configId: '  ' });
 
       await handler(req, res);
@@ -767,11 +716,10 @@ describe('/user/model-override routes', () => {
     it('should return 404 when config not found or not accessible', async () => {
       mockPrisma.llmConfig.findFirst.mockResolvedValue(null);
 
-      const router = createModelOverrideRoutes({
+      const handler = buildHandler(handleSetDefaultModelConfig, {
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
       });
-      const handler = getHandler(router, 'put', '/default');
       const { req, res } = createMockReqRes({ configId: '22222222-2222-4222-a222-222222222222' });
 
       await handler(req, res);
@@ -790,11 +738,10 @@ describe('/user/model-override routes', () => {
         name: 'Test Config',
       });
 
-      const router = createModelOverrideRoutes({
+      const handler = buildHandler(handleSetDefaultModelConfig, {
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
       });
-      const handler = getHandler(router, 'put', '/default');
       const { req, res } = createMockReqRes({ configId: '22222222-2222-4222-a222-222222222222' });
 
       await handler(req, res);
@@ -827,12 +774,11 @@ describe('/user/model-override routes', () => {
         ),
       } as unknown as import('../../services/OpenRouterModelCache.js').OpenRouterModelCache;
 
-      const router = createModelOverrideRoutes({
+      const handler = buildHandler(handleSetDefaultModelConfig, {
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
         modelCache,
       });
-      const handler = getHandler(router, 'put', '/default');
       const { req, res } = createMockReqRes(
         { configId: '22222222-2222-4222-a222-222222222222' },
         {},
@@ -861,12 +807,11 @@ describe('/user/model-override routes', () => {
         ),
       } as unknown as import('../../services/OpenRouterModelCache.js').OpenRouterModelCache;
 
-      const router = createModelOverrideRoutes({
+      const handler = buildHandler(handleSetDefaultModelConfig, {
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
         modelCache,
       });
-      const handler = getHandler(router, 'put', '/default');
       const { req, res } = createMockReqRes(
         { configId: '22222222-2222-4222-a222-222222222222' },
         {},
@@ -895,12 +840,11 @@ describe('/user/model-override routes', () => {
         getModelById: vi.fn(async () => null), // unknown to OpenRouter + not a z.ai member
       } as unknown as import('../../services/OpenRouterModelCache.js').OpenRouterModelCache;
 
-      const router = createModelOverrideRoutes({
+      const handler = buildHandler(handleSetDefaultModelConfig, {
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
         modelCache,
       });
-      const handler = getHandler(router, 'put', '/default');
       const { req, res } = createMockReqRes(
         { configId: '22222222-2222-4222-a222-222222222222' },
         {},
@@ -929,13 +873,12 @@ describe('/user/model-override routes', () => {
         invalidateUserLlmConfig: vi.fn().mockResolvedValue(undefined),
       };
 
-      const router = createModelOverrideRoutes({
+      const handler = buildHandler(handleSetDefaultModelConfig, {
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
         llmConfigCacheInvalidation:
           mockInvalidation as unknown as import('@tzurot/cache-invalidation').LlmConfigCacheInvalidationService,
       });
-      const handler = getHandler(router, 'put', '/default');
       const { req, res } = createMockReqRes({ configId: '22222222-2222-4222-a222-222222222222' });
 
       await handler(req, res);
@@ -953,13 +896,12 @@ describe('/user/model-override routes', () => {
         invalidateUserLlmConfig: vi.fn().mockRejectedValue(new Error('Redis error')),
       };
 
-      const router = createModelOverrideRoutes({
+      const handler = buildHandler(handleSetDefaultModelConfig, {
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
         llmConfigCacheInvalidation:
           mockInvalidation as unknown as import('@tzurot/cache-invalidation').LlmConfigCacheInvalidationService,
       });
-      const handler = getHandler(router, 'put', '/default');
       const { req, res } = createMockReqRes({ configId: '22222222-2222-4222-a222-222222222222' });
 
       await handler(req, res);
@@ -974,11 +916,10 @@ describe('/user/model-override routes', () => {
         name: 'Test Config',
       });
 
-      const router = createModelOverrideRoutes({
+      const handler = buildHandler(handleSetDefaultModelConfig, {
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
       });
-      const handler = getHandler(router, 'put', '/default');
       const { req, res } = createMockReqRes({ configId: '22222222-2222-4222-a222-222222222222' });
 
       await handler(req, res);
@@ -992,11 +933,10 @@ describe('/user/model-override routes', () => {
       // Provisioning middleware sets the UUID; handler-level findUnique returns null (e.g., race with user deletion).
       mockPrisma.user.findUnique.mockResolvedValueOnce(null);
 
-      const router = createModelOverrideRoutes({
+      const handler = buildHandler(handleClearDefaultModelConfig, {
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
       });
-      const handler = getHandler(router, 'delete', '/default');
       const { req, res } = createMockReqRes();
 
       await handler(req, res);
@@ -1009,11 +949,10 @@ describe('/user/model-override routes', () => {
         defaultLlmConfigId: null,
       });
 
-      const router = createModelOverrideRoutes({
+      const handler = buildHandler(handleClearDefaultModelConfig, {
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
       });
-      const handler = getHandler(router, 'delete', '/default');
       const { req, res } = createMockReqRes();
 
       await handler(req, res);
@@ -1034,11 +973,10 @@ describe('/user/model-override routes', () => {
         defaultLlmConfigId: 'config-123',
       });
 
-      const router = createModelOverrideRoutes({
+      const handler = buildHandler(handleClearDefaultModelConfig, {
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
       });
-      const handler = getHandler(router, 'delete', '/default');
       const { req, res } = createMockReqRes();
 
       await handler(req, res);
@@ -1074,11 +1012,10 @@ describe('/user/model-override routes', () => {
         name: 'gpt-4-free',
       });
 
-      const router = createModelOverrideRoutes({
+      const handler = buildHandler(handleClearDefaultModelConfig, {
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
       });
-      const handler = getHandler(router, 'delete', '/default');
       const { req, res } = createMockReqRes();
 
       await handler(req, res);
@@ -1108,11 +1045,10 @@ describe('/user/model-override routes', () => {
         name: 'gpt-4-free',
       });
 
-      const router = createModelOverrideRoutes({
+      const handler = buildHandler(handleClearDefaultModelConfig, {
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
       });
-      const handler = getHandler(router, 'delete', '/default');
       const { req, res } = createMockReqRes();
 
       await handler(req, res);
@@ -1143,13 +1079,12 @@ describe('/user/model-override routes', () => {
         invalidateUserLlmConfig: vi.fn().mockResolvedValue(undefined),
       };
 
-      const router = createModelOverrideRoutes({
+      const handler = buildHandler(handleClearDefaultModelConfig, {
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
         llmConfigCacheInvalidation:
           mockInvalidation as unknown as import('@tzurot/cache-invalidation').LlmConfigCacheInvalidationService,
       });
-      const handler = getHandler(router, 'delete', '/default');
       const { req, res } = createMockReqRes();
 
       await handler(req, res);
@@ -1167,13 +1102,12 @@ describe('/user/model-override routes', () => {
         invalidateUserLlmConfig: vi.fn().mockRejectedValue(new Error('Redis error')),
       };
 
-      const router = createModelOverrideRoutes({
+      const handler = buildHandler(handleClearDefaultModelConfig, {
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
         llmConfigCacheInvalidation:
           mockInvalidation as unknown as import('@tzurot/cache-invalidation').LlmConfigCacheInvalidationService,
       });
-      const handler = getHandler(router, 'delete', '/default');
       const { req, res } = createMockReqRes();
 
       await handler(req, res);
@@ -1193,11 +1127,10 @@ describe('/user/model-override routes', () => {
         defaultLlmConfigId: 'config-123',
       });
 
-      const router = createModelOverrideRoutes({
+      const handler = buildHandler(handleClearDefaultModelConfig, {
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
       });
-      const handler = getHandler(router, 'delete', '/default');
       const { req, res } = createMockReqRes();
 
       await handler(req, res);
@@ -1224,11 +1157,10 @@ describe('/user/model-override routes', () => {
         defaultVisionConfig: { name: 'Vision Cfg' },
       });
 
-      const router = createModelOverrideRoutes({
+      const handler = buildHandler(handleGetDefaultModelConfig, {
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
       });
-      const handler = getHandler(router, 'get', '/default');
       const { req, res } = createMockReqRes({}, {}, { slot: 'vision' });
 
       await handler(req, res);
@@ -1251,11 +1183,10 @@ describe('/user/model-override routes', () => {
       });
       mockPrisma.llmConfig.findUnique.mockResolvedValue({ id: 'vision-free', name: 'Vision Free' });
 
-      const router = createModelOverrideRoutes({
+      const handler = buildHandler(handleClearDefaultModelConfig, {
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
       });
-      const handler = getHandler(router, 'delete', '/default');
       const { req, res } = createMockReqRes({}, {}, { slot: 'vision' });
 
       await handler(req, res);
@@ -1295,11 +1226,10 @@ describe('/user/model-override routes', () => {
         },
       ]);
 
-      const router = createModelOverrideRoutes({
+      const handler = buildHandler(handleListModelOverrides, {
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
       });
-      const handler = getHandler(router, 'get', '/');
       const { req, res } = createMockReqRes({}, {}, { slot: 'vision' });
 
       await handler(req, res);
@@ -1328,11 +1258,10 @@ describe('/user/model-override routes', () => {
         },
       ]);
 
-      const router = createModelOverrideRoutes({
+      const handler = buildHandler(handleListModelOverrides, {
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
       });
-      const handler = getHandler(router, 'get', '/');
       const { req, res } = createMockReqRes({}, {}, { slot: 'all' });
 
       await handler(req, res);
@@ -1378,11 +1307,10 @@ describe('/user/model-override routes', () => {
         personality: { name: 'Lilith' },
       });
 
-      const router = createModelOverrideRoutes({
+      const handler = buildHandler(handleDeleteModelOverride, {
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
       });
-      const handler = getHandler(router, 'delete', '/:personalityId');
       const { req, res } = createMockReqRes({}, { personalityId: PERSONALITY }, { slot: 'vision' });
 
       await handler(req, res);
@@ -1411,11 +1339,10 @@ describe('/user/model-override routes', () => {
         .mockResolvedValueOnce({ id: 'text-free', name: 'Text Free' })
         .mockResolvedValueOnce({ id: 'vision-free', name: 'Vision Free' });
 
-      const router = createModelOverrideRoutes({
+      const handler = buildHandler(handleClearDefaultModelConfig, {
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
       });
-      const handler = getHandler(router, 'delete', '/default');
       const { req, res } = createMockReqRes({}, {}, { slot: 'all' });
 
       await handler(req, res);
@@ -1446,11 +1373,10 @@ describe('/user/model-override routes', () => {
         personality: { name: 'Lilith' },
       });
 
-      const router = createModelOverrideRoutes({
+      const handler = buildHandler(handleDeleteModelOverride, {
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
       });
-      const handler = getHandler(router, 'delete', '/:personalityId');
       const { req, res } = createMockReqRes({}, { personalityId: PERSONALITY }, { slot: 'all' });
 
       await handler(req, res);

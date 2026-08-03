@@ -1,5 +1,5 @@
 /**
- * PATCH /user/channel/update-guild
+ * PATCH /api/user/channel/update-guild
  * Update guildId for an existing channel settings record (lazy backfill)
  *
  * This endpoint is called by bot-client when it encounters settings

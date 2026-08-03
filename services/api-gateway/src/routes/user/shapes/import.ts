@@ -1,8 +1,8 @@
 /**
  * Shapes.inc Import Routes
  *
- * POST /user/shapes/import - Start a shapes.inc import job
- * GET  /user/shapes/import/jobs - List import history
+ * POST /api/user/shapes/import - Start a shapes.inc import job
+ * GET  /api/user/shapes/import/jobs - List import history
  */
 
 import { type Response, type RequestHandler } from 'express';

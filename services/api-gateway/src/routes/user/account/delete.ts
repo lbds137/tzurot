@@ -1,9 +1,9 @@
 /**
  * Account Data-Rights Deletion Routes
  *
- * GET  /user/account/delete/preview - counts + per-character blast radius
- * POST /user/account/delete/token   - typed phrase → single-use token
- * POST /user/account/delete         - consumes token, erases the account
+ * GET  /api/user/account/delete/preview - counts + per-character blast radius
+ * POST /api/user/account/delete/token   - typed phrase → single-use token
+ * POST /api/user/account/delete         - consumes token, erases the account
  *
  * Purge-pattern handshake (mirrors /memory/purge): the destructive call
  * accepts ONLY the token; the phrase validation happened at token-issue

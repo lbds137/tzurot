@@ -1,17 +1,15 @@
 /**
- * POST /wallet/test
+ * POST /api/user/wallet/test
  * Test API key validity
  *
  * Validates the stored API key by making a dry-run API call
  */
 
-import { Router, type Response, type RequestHandler } from 'express';
+import { type Response, type RequestHandler } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import { TestWalletKeySchema } from '@tzurot/common-types/schemas/api/wallet';
-import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import { decryptApiKey } from '@tzurot/common-types/utils/encryption';
 import { createLogger } from '@tzurot/common-types/utils/logger';
-import { requireUserAuth, requireProvisionedUser } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { resolveProvisionedUserId } from '../../utils/resolveProvisionedUserId.js';
 import { sendCustomSuccess, sendError } from '../../utils/responseHelpers.js';
@@ -122,14 +120,3 @@ export const handleTestWalletKey = (deps: WalletTestDeps): RequestHandler => {
     });
   });
 };
-
-export function createTestKeyRoute(prisma: PrismaClient): Router {
-  const router = Router();
-  router.post(
-    '/',
-    requireUserAuth(),
-    requireProvisionedUser(prisma),
-    handleTestWalletKey({ prisma })
-  );
-  return router;
-}

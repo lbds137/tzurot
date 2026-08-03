@@ -5,18 +5,22 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import express, { type Express } from 'express';
 import request from 'supertest';
-import { createCreatePersonalityRoute } from './createPersonality.js';
+import { handleCreateGlobalPersonality } from './createPersonality.js';
 import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 import type { CacheInvalidationService } from '@tzurot/cache-invalidation';
 import { stubRouteResolvers } from '../../test/shared-route-test-utils.js';
 
-// Mock AuthMiddleware
-vi.mock('../../services/AuthMiddleware.js', () => ({
-  requireOwnerAuth: () => (req: { userId?: string }, _res: unknown, next: () => void) => {
-    req.userId = 'admin-discord-id'; // Set admin user ID
+/**
+ * Stand-in for the owner-auth middleware applied at the mount site in
+ * routes/_generated/mounts.ts: the handler reads `req.userId` to resolve the
+ * owning admin user, so the tests have to populate it.
+ */
+function stubOwnerIdentity(app: Express): void {
+  app.use((req, _res, next) => {
+    (req as express.Request & { userId: string }).userId = 'admin-discord-id';
     next();
-  },
-}));
+  });
+}
 
 // Mock imageProcessor
 vi.mock('../../utils/imageProcessor.js', () => ({
@@ -63,12 +67,13 @@ describe('POST /admin/personality', () => {
     // Default: admin user exists (required for ownerId)
     prisma.user.findUnique.mockResolvedValue({ id: 'admin-user-id' });
 
-    // Create Express app with create personality router
+    // Create Express app with the create-personality handler
     app = express();
     app.use(express.json());
-    app.use(
+    stubOwnerIdentity(app);
+    app.post(
       '/admin/personality',
-      createCreatePersonalityRoute({
+      handleCreateGlobalPersonality({
         ...stubRouteResolvers(),
         prisma: prisma as unknown as PrismaClient,
       })
@@ -679,9 +684,10 @@ describe('POST /admin/personality', () => {
       // Create new app with cache service
       const appWithCache = express();
       appWithCache.use(express.json());
-      appWithCache.use(
+      stubOwnerIdentity(appWithCache);
+      appWithCache.post(
         '/admin/personality',
-        createCreatePersonalityRoute({
+        handleCreateGlobalPersonality({
           ...stubRouteResolvers(),
           prisma: prisma as unknown as PrismaClient,
           cacheInvalidationService: mockCacheService,
@@ -737,9 +743,10 @@ describe('POST /admin/personality', () => {
 
       const appWithCache = express();
       appWithCache.use(express.json());
-      appWithCache.use(
+      stubOwnerIdentity(appWithCache);
+      appWithCache.post(
         '/admin/personality',
-        createCreatePersonalityRoute({
+        handleCreateGlobalPersonality({
           ...stubRouteResolvers(),
           prisma: prisma as unknown as PrismaClient,
           cacheInvalidationService: mockCacheService,
@@ -795,9 +802,10 @@ describe('POST /admin/personality', () => {
 
       const appWithCache = express();
       appWithCache.use(express.json());
-      appWithCache.use(
+      stubOwnerIdentity(appWithCache);
+      appWithCache.post(
         '/admin/personality',
-        createCreatePersonalityRoute({
+        handleCreateGlobalPersonality({
           ...stubRouteResolvers(),
           prisma: prisma as unknown as PrismaClient,
           cacheInvalidationService: mockCacheService,

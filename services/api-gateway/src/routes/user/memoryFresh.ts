@@ -4,10 +4,10 @@
  * replies without using its long-term memories of the user; nothing is
  * deleted (the write-side sibling is incognito mode, which disables saving).
  *
- * GET /user/memory/fresh - Get current fresh status (optional
+ * GET /api/user/memory/fresh - Get current fresh status (optional
  *   `personalityId` query filters to sessions that apply to that character)
- * POST /user/memory/fresh - Enable fresh mode
- * DELETE /user/memory/fresh - Disable fresh mode
+ * POST /api/user/memory/fresh - Enable fresh mode
+ * DELETE /api/user/memory/fresh - Disable fresh mode
  *
  * All three are the shared memory-mode handlers (see memoryModeHandlers.ts);
  * the ai-worker checks the `fresh:` Redis keys at retrieval time. The

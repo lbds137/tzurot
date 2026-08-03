@@ -1,7 +1,7 @@
 /**
  * Shapes.inc List Route
  *
- * GET /user/shapes/list - Fetch owned shapes from shapes.inc
+ * GET /api/user/shapes/list - Fetch owned shapes from shapes.inc
  *
  * Proxies the user's request to shapes.inc /api/shapes?category=self
  * using their stored session cookie.

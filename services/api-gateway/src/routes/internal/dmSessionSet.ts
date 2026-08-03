@@ -1,5 +1,5 @@
 /**
- * POST /internal/channel/dm-session/set
+ * POST /api/internal/channel/dm-session/set
  *
  * Service-only endpoint used by the bot-client's MultiTagCoordinator to
  * record the active personality in a DM channel after a multi-tag fan-out.

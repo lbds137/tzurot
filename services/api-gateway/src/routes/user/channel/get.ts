@@ -1,6 +1,9 @@
 /**
- * GET /user/channel/:channelId
- * Get settings for a specific channel
+ * Get settings for a specific channel.
+ *
+ * Mounted twice in routes/_generated/mounts.ts:
+ * - GET /api/internal/channel/:channelId - service-to-service read (no user context)
+ * - GET /api/user/channel/:channelId - the user-facing read
  */
 
 import { type Response, type RequestHandler } from 'express';
@@ -17,7 +20,8 @@ import type { RouteDeps } from '../../routeDeps.js';
 const logger = createLogger('channel-get');
 
 /**
- * GET /api/user/channel/:channelId — channel settings (service-only).
+ * Channel settings by ID, served on both the `/api/internal` and `/api/user`
+ * mounts above.
  */
 export const handleGetUserChannel = (deps: RouteDeps): RequestHandler => {
   const { prisma } = deps;

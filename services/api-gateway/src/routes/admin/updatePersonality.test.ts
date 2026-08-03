@@ -5,18 +5,11 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import express, { type Express } from 'express';
 import request from 'supertest';
-import { createUpdatePersonalityRoute } from './updatePersonality.js';
+import { handleUpdateGlobalPersonality } from './updatePersonality.js';
 import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 import type { CacheInvalidationService } from '@tzurot/cache-invalidation';
 import { optimizeAvatar } from '../../utils/imageProcessor.js';
 import { stubRouteResolvers } from '../../test/shared-route-test-utils.js';
-
-// Mock AuthMiddleware
-vi.mock('../../services/AuthMiddleware.js', () => ({
-  requireOwnerAuth: () => (_req: unknown, _res: unknown, next: () => void) => {
-    next(); // Bypass auth for testing
-  },
-}));
 
 // Mock imageProcessor
 vi.mock('../../utils/imageProcessor.js', () => ({
@@ -54,12 +47,12 @@ describe('PATCH /admin/personality/:slug', () => {
     // Create mock Prisma client
     prisma = createMockPrismaClient();
 
-    // Create Express app with update personality router
+    // Create Express app with the update-personality handler
     app = express();
     app.use(express.json());
-    app.use(
-      '/admin/personality',
-      createUpdatePersonalityRoute({
+    app.patch(
+      '/admin/personality/:slug',
+      handleUpdateGlobalPersonality({
         ...stubRouteResolvers(),
         prisma: prisma as unknown as PrismaClient,
       })
@@ -452,9 +445,9 @@ describe('PATCH /admin/personality/:slug', () => {
 
       appWithCache = express();
       appWithCache.use(express.json());
-      appWithCache.use(
-        '/admin/personality',
-        createUpdatePersonalityRoute({
+      appWithCache.patch(
+        '/admin/personality/:slug',
+        handleUpdateGlobalPersonality({
           ...stubRouteResolvers(),
           prisma: prisma as unknown as PrismaClient,
           cacheInvalidationService: mockCacheService,

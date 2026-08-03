@@ -4,8 +4,8 @@
  * NON-CASCADING operational settings (design: admin-runtime-settings D1/D7/D9/D10).
  *
  * Endpoints:
- * - GET /admin/settings/system - Read the bag + the optimistic-concurrency token
- * - PATCH /admin/settings/system - Validated partial write
+ * - GET /api/admin/settings/system - Read the bag + the optimistic-concurrency token
+ * - PATCH /api/admin/settings/system - Validated partial write
  *
  * Write pipeline: wire-schema parse → registry-driven semantic validation
  * (env-key coherence, model catalog/capability, free-route firewall) →

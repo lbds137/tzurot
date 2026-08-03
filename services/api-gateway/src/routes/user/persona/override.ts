@@ -1,10 +1,10 @@
 /**
  * Persona Override Routes
- * - GET /override - List persona overrides for personalities
- * - GET /override/:personalitySlug - Get personality info for override modal
- * - PUT /override/:personalitySlug - Set persona override for a personality
- * - DELETE /override/:personalitySlug - Clear persona override
- * - POST /override/by-id/:personalityId - Create persona + set as override
+ * - GET /api/user/persona/override - List persona overrides for personalities
+ * - GET /api/user/persona/override/:personalitySlug - Get personality info for override modal
+ * - PUT /api/user/persona/override/:personalitySlug - Set persona override for a personality
+ * - DELETE /api/user/persona/override/:personalitySlug - Clear persona override
+ * - POST /api/user/persona/override/by-id/:personalityId - Create persona + set as override
  *     (single transaction; atomic)
  */
 

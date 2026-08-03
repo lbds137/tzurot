@@ -6,7 +6,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import express from 'express';
 import request from 'supertest';
 import { StatusCodes } from 'http-status-codes';
-import { createNsfwRoutes } from './nsfw.js';
+import { handleGetNsfwStatus, handleVerifyNsfw } from './nsfw.js';
 import { stubRouteResolvers } from '../../test/shared-route-test-utils.js';
 
 // Mock dependencies
@@ -73,7 +73,9 @@ function createTestApp() {
     (req as any).provisionedDefaultPersonaId = 'persona-uuid-default';
     next();
   });
-  app.use('/nsfw', createNsfwRoutes({ ...stubRouteResolvers(), prisma: mockPrisma as any }));
+  const deps = { ...stubRouteResolvers(), prisma: mockPrisma as any };
+  app.get('/nsfw', handleGetNsfwStatus(deps));
+  app.post('/nsfw/verify', handleVerifyNsfw(deps));
   return app;
 }
 

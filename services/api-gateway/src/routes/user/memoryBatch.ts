@@ -8,10 +8,10 @@
  * the client — eliminating drift between preview and execute.
  *
  * Endpoints:
- *   POST /user/memory/delete/preview  → impact summary + previewToken
- *   POST /user/memory/delete          → consumes previewToken, soft-deletes
- *   POST /user/memory/purge/token     → confirmation phrase + purgeToken
- *   POST /user/memory/purge           → consumes purgeToken, soft-deletes
+ *   POST /api/user/memory/delete/preview  → impact summary + previewToken
+ *   POST /api/user/memory/delete          → consumes previewToken, soft-deletes
+ *   POST /api/user/memory/purge/token     → confirmation phrase + purgeToken
+ *   POST /api/user/memory/purge           → consumes purgeToken, soft-deletes
  *
  * Locked memories are always skipped (never touched by either flow).
  *
@@ -66,12 +66,12 @@ async function resolvePersonaIdForBatch(
 }
 
 /**
- * Handler for POST /user/memory/delete/preview
+ * Handler for POST /api/user/memory/delete/preview
  *
  * Body: { personalityId, personaId?, timeframe? }
  * Returns: { wouldDelete, lockedWouldSkip, previewToken, ... }
  *
- * The previewToken is the ONLY way to invoke POST /user/memory/delete —
+ * The previewToken is the ONLY way to invoke POST /api/user/memory/delete —
  * the filter is stored server-side under the token key, so the execute
  * path is guaranteed to operate on the same filter the user previewed.
  */
@@ -168,7 +168,7 @@ export const handleBatchDeletePreview = (deps: RouteDeps): RequestHandler => {
 };
 
 /**
- * Handler for POST /user/memory/delete
+ * Handler for POST /api/user/memory/delete
  *
  * Body: { previewToken }
  * Peek-validate-consume: peek the token, validate personality + persona,
@@ -249,14 +249,14 @@ export const handleBatchDelete = (deps: RouteDeps): RequestHandler => {
 };
 
 /**
- * Handler for POST /user/memory/purge/token
+ * Handler for POST /api/user/memory/purge/token
  *
  * Body: { personalityId, confirmationPhrase }
  * Returns: { purgeToken, personalityName, ... }
  *
  * Validates the confirmation phrase against the personality name. On success,
  * issues a short-lived purge token bound to the personality. The actual
- * destructive purge requires the token at POST /user/memory/purge.
+ * destructive purge requires the token at POST /api/user/memory/purge.
  */
 export const handleIssuePurgeToken = (deps: RouteDeps): RequestHandler => {
   const { prisma } = deps;
@@ -307,7 +307,7 @@ export const handleIssuePurgeToken = (deps: RouteDeps): RequestHandler => {
 };
 
 /**
- * Handler for POST /user/memory/purge
+ * Handler for POST /api/user/memory/purge
  *
  * Body: { purgeToken }
  * Peek-validate-consume pattern (mirrors handleBatchDelete). Soft-deletes

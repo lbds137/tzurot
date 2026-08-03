@@ -9,7 +9,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import express from 'express';
 import request from 'supertest';
-import { createVoicesRoutes, describeProviderError } from './voices.js';
+import {
+  describeProviderError,
+  handleClearVoices,
+  handleDeleteVoice,
+  handleListVoiceModels,
+  handleListVoices,
+} from './voices.js';
 import { ErrorCode } from '../../types.js';
 import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 
@@ -159,7 +165,14 @@ describe('Voice Management Routes', () => {
 
     app = express();
     app.use(express.json());
-    app.use('/voices', createVoicesRoutes({ ...stubRouteResolvers(), prisma: mockPrisma }));
+    // Registration order mirrors routes/_generated/mounts.ts: the `/models` and
+    // `/clear` literals precede `/:provider/:voiceId` so the wildcard doesn't
+    // shadow them.
+    const deps = { ...stubRouteResolvers(), prisma: mockPrisma };
+    app.get('/voices', handleListVoices(deps));
+    app.get('/voices/models', handleListVoiceModels(deps));
+    app.post('/voices/clear', handleClearVoices(deps));
+    app.delete('/voices/:provider/:voiceId', handleDeleteVoice(deps));
 
     // Default: user has ElevenLabs key only (mirrors the legacy single-provider
     // setup that pre-PR-3 was the only supported configuration).

@@ -1,6 +1,6 @@
 /**
  * Persona Default Routes
- * - PATCH /:id/default - Set persona as user's default
+ * - PATCH /api/user/persona/:id/default - Set persona as user's default
  */
 
 import { type Response, type RequestHandler } from 'express';

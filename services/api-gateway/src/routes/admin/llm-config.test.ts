@@ -5,11 +5,20 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import express, { type Express } from 'express';
 import request from 'supertest';
-import { createAdminLlmConfigRoutes } from './llm-config.js';
+import {
+  handleCreateGlobalLlmConfig,
+  handleDeleteGlobalLlmConfig,
+  handleGetGlobalLlmConfig,
+  handleListGlobalLlmConfigs,
+  handleSetGlobalLlmConfigDefault,
+  handleSetGlobalLlmConfigFreeDefault,
+  handleUpdateGlobalLlmConfig,
+} from './llm-config.js';
 import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 import type { LlmConfigCacheInvalidationService } from '@tzurot/cache-invalidation';
-import { getAllRoutes } from '../../test/expressRouterUtils.js';
 import { stubRouteResolvers } from '../../test/shared-route-test-utils.js';
+import { requireOwnerAuth } from '../../services/AuthMiddleware.js';
+import type { RouteDeps } from '../routeDeps.js';
 
 // Mock the admin auth middleware
 vi.mock('../../services/AuthMiddleware.js', () => ({
@@ -97,24 +106,31 @@ const createMockPrismaClient = () => {
   };
 };
 
-describe('Admin LLM Config Routes', () => {
-  describe('middleware composition', () => {
-    it('wires requireOwnerAuth on every route', () => {
-      const routes = getAllRoutes(
-        createAdminLlmConfigRoutes({
-          prisma: {} as unknown as PrismaClient,
-          ...stubRouteResolvers(),
-        })
-      );
-      expect(routes.length, 'expected at least one registered route').toBeGreaterThan(0);
-      for (const route of routes) {
-        expect(route.stackLength, `${route.path} missing auth middleware`).toBeGreaterThanOrEqual(
-          2
-        );
-      }
-    });
-  });
+/**
+ * Register the admin LLM-config handlers at the paths
+ * routes/_generated/mounts.ts serves them from. Owner auth is applied at the
+ * mount site there too; here the mocked `requireOwnerAuth` stands in and
+ * seeds `req.userId`, which the write handlers read to resolve the owner row.
+ */
+function mountAdminLlmConfig(app: express.Express, deps: RouteDeps): void {
+  app.get('/admin/llm-config', requireOwnerAuth(), handleListGlobalLlmConfigs(deps));
+  app.post('/admin/llm-config', requireOwnerAuth(), handleCreateGlobalLlmConfig(deps));
+  app.get('/admin/llm-config/:id', requireOwnerAuth(), handleGetGlobalLlmConfig(deps));
+  app.put('/admin/llm-config/:id', requireOwnerAuth(), handleUpdateGlobalLlmConfig(deps));
+  app.put(
+    '/admin/llm-config/:id/set-default',
+    requireOwnerAuth(),
+    handleSetGlobalLlmConfigDefault(deps)
+  );
+  app.put(
+    '/admin/llm-config/:id/set-free-default',
+    requireOwnerAuth(),
+    handleSetGlobalLlmConfigFreeDefault(deps)
+  );
+  app.delete('/admin/llm-config/:id', requireOwnerAuth(), handleDeleteGlobalLlmConfig(deps));
+}
 
+describe('Admin LLM Config Routes', () => {
   let app: Express;
   let prisma: ReturnType<typeof createMockPrismaClient>;
 
@@ -127,13 +143,10 @@ describe('Admin LLM Config Routes', () => {
 
     app = express();
     app.use(express.json());
-    app.use(
-      '/admin/llm-config',
-      createAdminLlmConfigRoutes({
-        ...stubRouteResolvers(),
-        prisma: prisma as unknown as PrismaClient,
-      })
-    );
+    mountAdminLlmConfig(app, {
+      ...stubRouteResolvers(),
+      prisma: prisma as unknown as PrismaClient,
+    });
   });
 
   // App wired with a vision-aware model cache, for the vision-slot capability gate:
@@ -150,15 +163,12 @@ describe('Admin LLM Config Routes', () => {
     };
     const a = express();
     a.use(express.json());
-    a.use(
-      '/admin/llm-config',
-      createAdminLlmConfigRoutes({
-        ...stubRouteResolvers(),
-        prisma: prisma as unknown as PrismaClient,
-        modelCache:
-          mockModelCache as unknown as import('../../services/OpenRouterModelCache.js').OpenRouterModelCache,
-      })
-    );
+    mountAdminLlmConfig(a, {
+      ...stubRouteResolvers(),
+      prisma: prisma as unknown as PrismaClient,
+      modelCache:
+        mockModelCache as unknown as import('../../services/OpenRouterModelCache.js').OpenRouterModelCache,
+    });
     return a;
   };
 
@@ -221,17 +231,14 @@ describe('Admin LLM Config Routes', () => {
       };
       const appWithModel = express();
       appWithModel.use(express.json());
-      appWithModel.use(
-        '/admin/llm-config',
-        createAdminLlmConfigRoutes({
-          ...stubRouteResolvers(),
-          prisma: prisma as unknown as PrismaClient,
-          // List handler doesn't touch cache invalidation, so omit it; modelCache
-          // drives the enrichment.
-          modelCache:
-            mockModelCache as unknown as import('../../services/OpenRouterModelCache.js').OpenRouterModelCache,
-        })
-      );
+      mountAdminLlmConfig(appWithModel, {
+        ...stubRouteResolvers(),
+        prisma: prisma as unknown as PrismaClient,
+        // List handler doesn't touch cache invalidation, so omit it; modelCache
+        // drives the enrichment.
+        modelCache:
+          mockModelCache as unknown as import('../../services/OpenRouterModelCache.js').OpenRouterModelCache,
+      });
       prisma.llmConfig.findMany.mockResolvedValue([
         {
           id: 'vc-1',
@@ -1204,14 +1211,11 @@ describe('Admin LLM Config Routes', () => {
       cacheService = createMockCacheInvalidationService();
       appWithCache = express();
       appWithCache.use(express.json());
-      appWithCache.use(
-        '/admin/llm-config',
-        createAdminLlmConfigRoutes({
-          ...stubRouteResolvers(),
-          prisma: prisma as unknown as PrismaClient,
-          llmConfigCacheInvalidation: cacheService as unknown as LlmConfigCacheInvalidationService,
-        })
-      );
+      mountAdminLlmConfig(appWithCache, {
+        ...stubRouteResolvers(),
+        prisma: prisma as unknown as PrismaClient,
+        llmConfigCacheInvalidation: cacheService as unknown as LlmConfigCacheInvalidationService,
+      });
     });
 
     it('should invalidate cache after updating a global config', async () => {
@@ -1293,16 +1297,13 @@ describe('Admin LLM Config Routes', () => {
 
       const appWithModel = express();
       appWithModel.use(express.json());
-      appWithModel.use(
-        '/admin/llm-config',
-        createAdminLlmConfigRoutes({
-          ...stubRouteResolvers(),
-          prisma: prisma as unknown as PrismaClient,
-          llmConfigCacheInvalidation: cacheService as unknown as LlmConfigCacheInvalidationService,
-          modelCache:
-            mockModelCache as unknown as import('../../services/OpenRouterModelCache.js').OpenRouterModelCache,
-        })
-      );
+      mountAdminLlmConfig(appWithModel, {
+        ...stubRouteResolvers(),
+        prisma: prisma as unknown as PrismaClient,
+        llmConfigCacheInvalidation: cacheService as unknown as LlmConfigCacheInvalidationService,
+        modelCache:
+          mockModelCache as unknown as import('../../services/OpenRouterModelCache.js').OpenRouterModelCache,
+      });
 
       prisma.llmConfig.findUnique.mockResolvedValue({
         id: 'config-1',
@@ -1341,16 +1342,13 @@ describe('Admin LLM Config Routes', () => {
 
       const appWithModel = express();
       appWithModel.use(express.json());
-      appWithModel.use(
-        '/admin/llm-config',
-        createAdminLlmConfigRoutes({
-          ...stubRouteResolvers(),
-          prisma: prisma as unknown as PrismaClient,
-          llmConfigCacheInvalidation: cacheService as unknown as LlmConfigCacheInvalidationService,
-          modelCache:
-            mockModelCache as unknown as import('../../services/OpenRouterModelCache.js').OpenRouterModelCache,
-        })
-      );
+      mountAdminLlmConfig(appWithModel, {
+        ...stubRouteResolvers(),
+        prisma: prisma as unknown as PrismaClient,
+        llmConfigCacheInvalidation: cacheService as unknown as LlmConfigCacheInvalidationService,
+        modelCache:
+          mockModelCache as unknown as import('../../services/OpenRouterModelCache.js').OpenRouterModelCache,
+      });
 
       prisma.llmConfig.findFirst.mockResolvedValue(null);
       prisma.llmConfig.create.mockResolvedValue({
@@ -1393,16 +1391,13 @@ describe('Admin LLM Config Routes', () => {
 
       const appWithModel = express();
       appWithModel.use(express.json());
-      appWithModel.use(
-        '/admin/llm-config',
-        createAdminLlmConfigRoutes({
-          ...stubRouteResolvers(),
-          prisma: prisma as unknown as PrismaClient,
-          llmConfigCacheInvalidation: cacheService as unknown as LlmConfigCacheInvalidationService,
-          modelCache:
-            mockModelCache as unknown as import('../../services/OpenRouterModelCache.js').OpenRouterModelCache,
-        })
-      );
+      mountAdminLlmConfig(appWithModel, {
+        ...stubRouteResolvers(),
+        prisma: prisma as unknown as PrismaClient,
+        llmConfigCacheInvalidation: cacheService as unknown as LlmConfigCacheInvalidationService,
+        modelCache:
+          mockModelCache as unknown as import('../../services/OpenRouterModelCache.js').OpenRouterModelCache,
+      });
 
       prisma.llmConfig.findUnique.mockResolvedValue({
         id: 'config-id',
