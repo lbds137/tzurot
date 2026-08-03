@@ -5,7 +5,7 @@
  * GET /api/internal/conversation/message-personality - Get personality from Discord message ID
  */
 
-import { Router, type Request, type Response, type RequestHandler } from 'express';
+import { type Request, type Response, type RequestHandler } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { ConversationHistoryService } from '@tzurot/conversation-history';
@@ -60,9 +60,3 @@ export const handleLookupPersonalityFromMessage = (deps: RouteDeps): RequestHand
     sendCustomSuccess(res, response, StatusCodes.OK);
   });
 };
-
-export function createConversationLookupRoutes(deps: RouteDeps): Router {
-  const router = Router();
-  router.get('/message-personality', handleLookupPersonalityFromMessage(deps));
-  return router;
-}

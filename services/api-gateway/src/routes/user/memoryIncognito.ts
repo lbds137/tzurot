@@ -2,11 +2,11 @@
  * User Memory Incognito Routes
  * Incognito mode management - temporarily disable memory writing
  *
- * GET /user/memory/incognito - Get current incognito status (optional
+ * GET /api/user/memory/incognito - Get current incognito status (optional
  *   `personalityId` query filters to sessions that apply to that character)
- * POST /user/memory/incognito - Enable incognito mode
- * DELETE /user/memory/incognito - Disable incognito mode
- * POST /user/memory/incognito/forget - Retroactively delete recent memories
+ * POST /api/user/memory/incognito - Enable incognito mode
+ * DELETE /api/user/memory/incognito - Disable incognito mode
+ * POST /api/user/memory/incognito/forget - Retroactively delete recent memories
  *
  * Status/enable/disable are the shared memory-mode handlers (see
  * memoryModeHandlers.ts — fresh mode uses the same machinery); `forget` is
@@ -39,7 +39,7 @@ const incognitoHandlers = createMemoryModeHandlers('incognito', {
 });
 
 /**
- * Handler for POST /user/memory/incognito/forget
+ * Handler for POST /api/user/memory/incognito/forget
  * Retroactively delete recent memories
  */
 async function handleForget(

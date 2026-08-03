@@ -1,5 +1,5 @@
 /**
- * DELETE /wallet/:provider
+ * DELETE /api/user/wallet/:provider
  * Remove an API key for a provider
  */
 

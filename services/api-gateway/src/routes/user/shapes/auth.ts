@@ -1,9 +1,9 @@
 /**
  * Shapes.inc Credential Routes
  *
- * POST   /user/shapes/auth   - Store encrypted session cookie
- * DELETE /user/shapes/auth   - Remove stored credentials
- * GET    /user/shapes/auth/status - Check credential status
+ * POST   /api/user/shapes/auth   - Store encrypted session cookie
+ * DELETE /api/user/shapes/auth   - Remove stored credentials
+ * GET    /api/user/shapes/auth/status - Check credential status
  *
  * Security:
  * - Session cookies are encrypted with AES-256-GCM (same as API keys)

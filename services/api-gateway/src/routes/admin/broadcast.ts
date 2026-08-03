@@ -1,5 +1,5 @@
 /**
- * POST /admin/broadcast
+ * POST /api/admin/broadcast
  * Owner-only DM blast through the release-broadcast pipeline.
  * Dry-run resolves eligible recipients without writing or enqueueing anything.
  */

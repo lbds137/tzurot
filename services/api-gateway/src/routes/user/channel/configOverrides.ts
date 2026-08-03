@@ -3,9 +3,9 @@
  * CRUD for channel-level config cascade overrides
  *
  * Endpoints:
- * - GET /user/channel/:channelId/config-overrides - Get channel overrides
- * - PATCH /user/channel/:channelId/config-overrides - Update channel overrides (merge semantics)
- * - DELETE /user/channel/:channelId/config-overrides - Clear channel overrides
+ * - GET /api/user/channel/:channelId/config-overrides - Get channel overrides
+ * - PATCH /api/user/channel/:channelId/config-overrides - Update channel overrides (merge semantics)
+ * - DELETE /api/user/channel/:channelId/config-overrides - Clear channel overrides
  *
  * Authorization: These endpoints use requireUserAuth() only (no guild permission check).
  * Discord permission enforcement (ManageMessages) happens in the bot-client layer before

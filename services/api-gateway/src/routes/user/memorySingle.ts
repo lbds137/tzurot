@@ -114,7 +114,7 @@ function transformMemory(memory: {
 }
 
 /**
- * Handler for GET /user/memory/:id
+ * Handler for GET /api/user/memory/:id
  * Get a single memory by ID
  */
 export const handleGetMemory = (deps: RouteDeps): RequestHandler => {
@@ -156,7 +156,7 @@ export const handleGetMemory = (deps: RouteDeps): RequestHandler => {
 };
 
 /**
- * Handler for PATCH /user/memory/:id
+ * Handler for PATCH /api/user/memory/:id
  * Update memory content
  */
 export const handleUpdateMemory = (deps: RouteDeps): RequestHandler => {
@@ -253,7 +253,7 @@ export async function computeMemoryVector(
 }
 
 /**
- * Handler for PUT /user/memory/:id/lock
+ * Handler for PUT /api/user/memory/:id/lock
  * Set memory lock state explicitly. Idempotent on retry — caller passes
  * the desired state in the body rather than relying on server-side toggle
  * of the current state.
@@ -319,7 +319,7 @@ export const handleSetMemoryLock = (deps: RouteDeps): RequestHandler => {
 };
 
 /**
- * Handler for DELETE /user/memory/:id
+ * Handler for DELETE /api/user/memory/:id
  * Delete a memory (soft delete by setting visibility)
  */
 export const handleDeleteMemory = (deps: RouteDeps): RequestHandler => {

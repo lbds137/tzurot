@@ -1,5 +1,5 @@
 /**
- * DELETE /user/channel/deactivate
+ * DELETE /api/user/channel/deactivate
  * Deactivate personality from a Discord channel
  *
  * Removes any personality activation from the channel, so the bot

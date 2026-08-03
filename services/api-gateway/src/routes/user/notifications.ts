@@ -1,9 +1,9 @@
 /**
  * User Notification-Preference Routes
- * GET /user/notifications - Get release-notes DM preferences
- * PATCH /user/notifications - Partially update them (enabled and/or level)
- * GET /user/notifications/release-dms - Standing release DMs (for cleanup)
- * POST /user/notifications/release-dms/deleted - Stamp deleted release DMs
+ * GET /api/user/notifications - Get release-notes DM preferences
+ * PATCH /api/user/notifications - Partially update them (enabled and/or level)
+ * GET /api/user/notifications/release-dms - Standing release DMs (for cleanup)
+ * POST /api/user/notifications/release-dms/deleted - Stamp deleted release DMs
  */
 
 import { type Response, type RequestHandler } from 'express';

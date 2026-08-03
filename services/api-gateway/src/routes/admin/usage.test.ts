@@ -3,11 +3,10 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { createAdminUsageRoutes } from './usage.js';
+import { handleGetAdminUsageStats } from './usage.js';
 import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 import express from 'express';
 import request from 'supertest';
-import { getAllRoutes } from '../../test/expressRouterUtils.js';
 import { stubRouteResolvers } from '../../test/shared-route-test-utils.js';
 
 // Mock logger
@@ -26,32 +25,7 @@ vi.mock('@tzurot/common-types/utils/logger', async () => {
   };
 });
 
-// Mock AuthMiddleware — owner-auth gating runs unconditionally in tests
-vi.mock('../../services/AuthMiddleware.js', () => ({
-  requireOwnerAuth: () => (req: { userId?: string }, _res: unknown, next: () => void) => {
-    req.userId = 'admin-discord-id';
-    next();
-  },
-}));
-
 describe('Admin Usage Routes', () => {
-  describe('middleware composition', () => {
-    it('wires requireOwnerAuth on every route', () => {
-      const routes = getAllRoutes(
-        createAdminUsageRoutes({
-          prisma: {} as unknown as PrismaClient,
-          ...stubRouteResolvers(),
-        })
-      );
-      expect(routes.length, 'expected at least one registered route').toBeGreaterThan(0);
-      for (const route of routes) {
-        expect(route.stackLength, `${route.path} missing auth middleware`).toBeGreaterThanOrEqual(
-          2
-        );
-      }
-    });
-  });
-
   let mockPrisma: {
     usageLog: {
       findMany: ReturnType<typeof vi.fn>;
@@ -76,9 +50,9 @@ describe('Admin Usage Routes', () => {
 
     app = express();
     app.use(express.json());
-    app.use(
+    app.get(
       '/admin/usage',
-      createAdminUsageRoutes({
+      handleGetAdminUsageStats({
         ...stubRouteResolvers(),
         prisma: mockPrisma as unknown as PrismaClient,
       })
@@ -132,9 +106,9 @@ describe('Admin Usage Routes', () => {
       function appWithRedis(redisGet: ReturnType<typeof vi.fn>): express.Express {
         const withRedis = express();
         withRedis.use(express.json());
-        withRedis.use(
+        withRedis.get(
           '/admin/usage',
-          createAdminUsageRoutes({
+          handleGetAdminUsageStats({
             ...stubRouteResolvers(),
             prisma: mockPrisma as unknown as PrismaClient,
             redis: { get: redisGet } as never,

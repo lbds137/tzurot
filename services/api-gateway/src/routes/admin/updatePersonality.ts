@@ -1,9 +1,9 @@
 /**
- * PATCH /admin/personality/:slug
+ * PATCH /api/admin/personality/:slug
  * Edit an existing AI personality
  */
 
-import { Router, type Request, type RequestHandler, type Response } from 'express';
+import { type Request, type RequestHandler, type Response } from 'express';
 import {
   AdminPersonalityResponseSchema,
   PersonalityUpdateSchema,
@@ -11,7 +11,6 @@ import {
 } from '@tzurot/common-types/schemas/api/personality';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { type CacheInvalidationService } from '@tzurot/cache-invalidation';
-import { requireOwnerAuth } from '../../services/AuthMiddleware.js';
 import type { RouteDeps } from '../routeDeps.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendContractSuccess } from '../../utils/responseHelpers.js';
@@ -186,9 +185,3 @@ export const handleUpdateGlobalPersonality = (deps: RouteDeps): RequestHandler =
     });
   });
 };
-
-export function createUpdatePersonalityRoute(deps: RouteDeps): Router {
-  const router = Router();
-  router.patch('/:slug', requireOwnerAuth(), handleUpdateGlobalPersonality(deps));
-  return router;
-}

@@ -1,5 +1,5 @@
 /**
- * GET /wallet/list
+ * GET /api/user/wallet/list
  * List configured API key providers for a user
  *
  * Security:
@@ -7,11 +7,9 @@
  * - Only returns metadata (provider, isActive, dates)
  */
 
-import { Router, type Response, type RequestHandler } from 'express';
+import { type Response, type RequestHandler } from 'express';
 import { ListWalletKeysResponseSchema } from '@tzurot/common-types/schemas/api/wallet';
-import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import { createLogger } from '@tzurot/common-types/utils/logger';
-import { requireUserAuth, requireProvisionedUser } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { resolveProvisionedUserId } from '../../utils/resolveProvisionedUserId.js';
 import { sendCustomSuccess } from '../../utils/responseHelpers.js';
@@ -63,14 +61,3 @@ export const handleListWalletKeys = (deps: WalletListDeps): RequestHandler => {
     sendCustomSuccess(res, payload);
   });
 };
-
-export function createListKeysRoute(prisma: PrismaClient): Router {
-  const router = Router();
-  router.get(
-    '/',
-    requireUserAuth(),
-    requireProvisionedUser(prisma),
-    handleListWalletKeys({ prisma })
-  );
-  return router;
-}

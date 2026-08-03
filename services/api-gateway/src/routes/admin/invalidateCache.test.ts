@@ -6,16 +6,9 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import express, { type Express } from 'express';
 import request from 'supertest';
 import type { PrismaClient } from '@tzurot/common-types/services/prisma';
-import { createInvalidateCacheRoute } from './invalidateCache.js';
+import { handleInvalidateCache } from './invalidateCache.js';
 import type { RouteDeps } from '../routeDeps.js';
 import { stubRouteResolvers } from '../../test/shared-route-test-utils.js';
-
-// Mock AuthMiddleware
-vi.mock('../../services/AuthMiddleware.js', () => ({
-  requireOwnerAuth: () => (_req: unknown, _res: unknown, next: () => void) => {
-    next(); // Bypass auth for testing
-  },
-}));
 
 // Create mock CacheInvalidationService
 const createMockCacheInvalidationService = () => ({
@@ -26,7 +19,7 @@ const createMockCacheInvalidationService = () => ({
   unsubscribe: vi.fn().mockResolvedValue(undefined),
 });
 
-describe('POST /admin/invalidate-cache', () => {
+describe('POST /api/admin/invalidate-cache', () => {
   let app: Express;
   let cacheInvalidationService: ReturnType<typeof createMockCacheInvalidationService>;
 
@@ -36,7 +29,7 @@ describe('POST /admin/invalidate-cache', () => {
     // Create mock cache invalidation service
     cacheInvalidationService = createMockCacheInvalidationService();
 
-    // Create Express app with invalidate cache router
+    // Create Express app with the invalidate-cache handler
     const deps: RouteDeps = {
       ...stubRouteResolvers(),
       prisma: {} as PrismaClient,
@@ -45,7 +38,7 @@ describe('POST /admin/invalidate-cache', () => {
     };
     app = express();
     app.use(express.json());
-    app.use('/admin/invalidate-cache', createInvalidateCacheRoute(deps));
+    app.post('/admin/invalidate-cache', handleInvalidateCache(deps));
   });
 
   it('should invalidate specific personality cache', async () => {

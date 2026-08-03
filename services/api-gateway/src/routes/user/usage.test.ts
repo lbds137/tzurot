@@ -49,10 +49,9 @@ const mockPrisma = {
   $executeRaw: vi.fn().mockResolvedValue(1),
 };
 
-import { createUsageRoutes } from './usage.js';
+import { handleGetUserUsage } from './usage.js';
 import type { PrismaClient } from '@tzurot/common-types/services/prisma';
-import { findRoute, getRouteHandler } from '../../test/expressRouterUtils.js';
-import { stubRouteResolvers } from '../../test/shared-route-test-utils.js';
+import { asRouteHandler, stubRouteResolvers } from '../../test/shared-route-test-utils.js';
 
 // Helper to create mock request/response
 function createMockReqRes(query: Record<string, string> = {}) {
@@ -77,8 +76,9 @@ async function callHandler(
   req: Request & { userId: string },
   res: Response
 ): Promise<void> {
-  const router = createUsageRoutes({ ...stubRouteResolvers(), prisma: prisma as PrismaClient });
-  const handler = getRouteHandler(router, 'get');
+  const handler = asRouteHandler(
+    handleGetUserUsage({ ...stubRouteResolvers(), prisma: prisma as PrismaClient })
+  );
   await handler(req, res);
 }
 
@@ -87,30 +87,6 @@ describe('/user/usage routes', () => {
     vi.clearAllMocks();
     mockPrisma.user.findFirst.mockResolvedValue({ id: 'user-uuid-123' });
     mockPrisma.usageLog.findMany.mockResolvedValue([]);
-  });
-
-  describe('route factory', () => {
-    it('should create a router', () => {
-      const router = createUsageRoutes({
-        ...stubRouteResolvers(),
-        prisma: mockPrisma as unknown as PrismaClient,
-      });
-
-      expect(router).toBeDefined();
-      expect(typeof router).toBe('function');
-    });
-
-    it('should have GET route registered', () => {
-      const router = createUsageRoutes({
-        ...stubRouteResolvers(),
-        prisma: mockPrisma as unknown as PrismaClient,
-      });
-
-      expect(router.stack).toBeDefined();
-      expect(router.stack.length).toBeGreaterThan(0);
-
-      expect(findRoute(router, 'get', '/')).toBeDefined();
-    });
   });
 
   describe('period validation', () => {

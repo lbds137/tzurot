@@ -1,5 +1,5 @@
 /**
- * POST /internal/v1/routing-context
+ * POST /api/internal/v1/routing-context
  *
  * Hot-path routing read: resolves the per-(user, personality) routing facts a
  * Discord message needs BEFORE its AI job is dispatched — internal user UUID,

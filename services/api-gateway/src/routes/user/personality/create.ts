@@ -1,5 +1,5 @@
 /**
- * POST /user/personality
+ * POST /api/user/personality
  * Create a new personality owned by the user
  */
 

@@ -5,7 +5,7 @@
  * Extracted from voices.ts to keep that file under the 400-line limit.
  *
  * Endpoint:
- * - GET /models - List TTS-capable models from ElevenLabs
+ * - GET /api/user/voices/models - List TTS-capable models from ElevenLabs
  */
 
 import { z } from 'zod';

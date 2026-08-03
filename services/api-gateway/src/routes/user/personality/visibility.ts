@@ -1,5 +1,5 @@
 /**
- * PATCH /user/personality/:slug/visibility
+ * PATCH /api/user/personality/:slug/visibility
  * Toggle visibility of an owned personality
  */
 

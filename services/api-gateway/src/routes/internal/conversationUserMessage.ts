@@ -1,5 +1,5 @@
 /**
- * POST /internal/conversation/user-message
+ * POST /api/internal/conversation/user-message
  *
  * Persists the trigger user message before job submission. A user message is
  * a Discord event, so this gateway (the Discord-event data authority) owns

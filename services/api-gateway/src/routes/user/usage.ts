@@ -1,14 +1,13 @@
 /**
  * User Usage Routes
- * GET /user/usage - Get token usage statistics
+ * GET /api/user/usage - Get token usage statistics
  */
 
-import { Router, type Response, type RequestHandler } from 'express';
+import { type Response, type RequestHandler } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import { type UsagePeriod, type UsageStats } from '@tzurot/common-types/schemas/api/usage';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { shortModelName } from '@tzurot/common-types/utils/modelNames';
-import { requireUserAuth, requireProvisionedUser } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { resolveProvisionedUserId } from '../../utils/resolveProvisionedUserId.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
@@ -140,9 +139,3 @@ export const handleGetUserUsage = (deps: RouteDeps): RequestHandler => {
     sendCustomSuccess(res, stats, StatusCodes.OK);
   });
 };
-
-export function createUsageRoutes(deps: RouteDeps): Router {
-  const router = Router();
-  router.get('/', requireUserAuth(), requireProvisionedUser(deps.prisma), handleGetUserUsage(deps));
-  return router;
-}

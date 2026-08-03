@@ -202,7 +202,7 @@ export const handleGetFact = (deps: RouteDeps): RequestHandler => {
 };
 
 /**
- * PATCH /user/fact/:id — correct: supersede the fact with a NEW corrected-tier
+ * PATCH /api/user/fact/:id — correct: supersede the fact with a NEW corrected-tier
  * fact carrying the same entity tags / source provenance. The corrected tier
  * itself is what shields it from automatic extraction supersession (user
  * assertion outranks model assertion) — no lock involved, so re-correcting
@@ -331,7 +331,7 @@ export const handleCorrectFact = (deps: RouteDeps): RequestHandler => {
 };
 
 /**
- * DELETE /user/fact/:id — forget: terminal per-fact removal. Sets
+ * DELETE /api/user/fact/:id — forget: terminal per-fact removal. Sets
  * `forgotten=true` + `superseded_at` so the fact never re-enters retrieval or
  * supersession context, and re-extracting the identical statement no-ops
  * against the dead row. Per-fact only; the source episode is untouched.
@@ -383,7 +383,7 @@ export const handleForgetFact = (deps: RouteDeps): RequestHandler => {
 };
 
 /**
- * PUT /user/fact/:id/lock — set the extraction-protection lock explicitly.
+ * PUT /api/user/fact/:id/lock — set the extraction-protection lock explicitly.
  * Idempotent: replaying the same body lands the same state.
  */
 export const handleSetFactLock = (deps: RouteDeps): RequestHandler => {

@@ -1,7 +1,7 @@
 /**
  * Internal release-broadcast delivery ledger:
- * POST /internal/release-broadcast/:releaseId/pending    — worker's stall-rerun guard
- * POST /internal/release-broadcast/:releaseId/deliveries — per-recipient outcome reporting
+ * POST /api/internal/release-broadcast/:releaseId/pending    — worker's stall-rerun guard
+ * POST /api/internal/release-broadcast/:releaseId/deliveries — per-recipient outcome reporting
  *
  * Both are service-auth-only (bot-client's DM worker). The deliveries write is
  * idempotent (pending→terminal transitions only) — re-reporting a row is a

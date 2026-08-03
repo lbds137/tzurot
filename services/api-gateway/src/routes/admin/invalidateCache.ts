@@ -1,12 +1,11 @@
 /**
- * POST /admin/invalidate-cache
+ * POST /api/admin/invalidate-cache
  * Manually trigger cache invalidation for personality configurations
  */
 
-import { Router, type Request, type RequestHandler, type Response } from 'express';
+import { type Request, type RequestHandler, type Response } from 'express';
 import { InvalidateCacheSchema } from '@tzurot/common-types/schemas/api/admin';
 import { createLogger } from '@tzurot/common-types/utils/logger';
-import { requireOwnerAuth } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
@@ -57,9 +56,3 @@ export const handleInvalidateCache = (deps: RouteDeps): RequestHandler => {
     }
   });
 };
-
-export function createInvalidateCacheRoute(deps: RouteDeps): Router {
-  const router = Router();
-  router.post('/', requireOwnerAuth(), handleInvalidateCache(deps));
-  return router;
-}

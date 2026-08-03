@@ -1,12 +1,11 @@
 /**
- * POST /admin/cleanup
+ * POST /api/admin/cleanup
  * Manually trigger cleanup of old conversation history.
  */
 
-import { Router, type Request, type RequestHandler, type Response } from 'express';
+import { type Request, type RequestHandler, type Response } from 'express';
 import { CLEANUP_DEFAULTS } from '@tzurot/common-types/constants/timing';
 import { createLogger } from '@tzurot/common-types/utils/logger';
-import { requireOwnerAuth } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
@@ -28,9 +27,8 @@ function buildCleanupMessage(historyDeleted: number, daysToKeep: number): string
 
 /**
  * POST /api/admin/cleanup — named handler export. Returns 503 if the
- * retention service wasn't wired. The legacy aggregator gates
- * conditionally so this branch is only reachable when the route is
- * mounted unconditionally.
+ * retention service wasn't wired: the route is mounted unconditionally,
+ * so a missing dep has to degrade at request time rather than at mount.
  */
 export const handleCleanup = (deps: RouteDeps): RequestHandler => {
   const { retentionService } = deps;
@@ -78,14 +76,3 @@ export const handleCleanup = (deps: RouteDeps): RequestHandler => {
     });
   });
 };
-
-/**
- * Legacy factory for the `/admin/cleanup` mount. Wraps the named
- * handler with per-route middleware for callers that haven't yet
- * migrated to the bare handler export.
- */
-export function createCleanupRoute(deps: RouteDeps): Router {
-  const router = Router();
-  router.post('/', requireOwnerAuth(), handleCleanup(deps));
-  return router;
-}

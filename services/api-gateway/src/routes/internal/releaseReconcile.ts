@@ -1,5 +1,5 @@
 /**
- * POST /internal/release-broadcast/reconcile
+ * POST /api/internal/release-broadcast/reconcile
  *
  * Service-auth trigger for the release reconcile sweep. Called hourly by
  * ai-worker's scheduled job (the only service with a scheduler), and

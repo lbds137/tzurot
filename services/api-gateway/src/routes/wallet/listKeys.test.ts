@@ -49,10 +49,10 @@ const mockPrisma = {
   $executeRaw: vi.fn().mockResolvedValue(1),
 };
 
-import { createListKeysRoute } from './listKeys.js';
+import { handleListWalletKeys } from './listKeys.js';
 import { AIProvider } from '@tzurot/common-types/constants/ai';
 import { type PrismaClient } from '@tzurot/common-types/services/prisma';
-import { findRoute, getRouteHandler } from '../../test/expressRouterUtils.js';
+import { asRouteHandler } from '../../test/shared-route-test-utils.js';
 
 // Helper to create mock request/response
 function createMockReqRes() {
@@ -76,8 +76,7 @@ async function callHandler(
   req: Request & { userId: string },
   res: Response
 ): Promise<void> {
-  const router = createListKeysRoute(prisma as PrismaClient);
-  const handler = getRouteHandler(router, 'get');
+  const handler = asRouteHandler(handleListWalletKeys({ prisma: prisma as PrismaClient }));
   await handler(req, res);
 }
 
@@ -86,24 +85,6 @@ describe('GET /wallet/list', () => {
     vi.clearAllMocks();
     mockPrisma.user.findFirst.mockResolvedValue({ id: 'user-uuid-123' });
     mockPrisma.userApiKey.findMany.mockResolvedValue([]);
-  });
-
-  describe('route factory', () => {
-    it('should create a router', () => {
-      const router = createListKeysRoute(mockPrisma as unknown as PrismaClient);
-
-      expect(router).toBeDefined();
-      expect(typeof router).toBe('function');
-    });
-
-    it('should have a GET route registered', () => {
-      const router = createListKeysRoute(mockPrisma as unknown as PrismaClient);
-
-      expect(router.stack).toBeDefined();
-      expect(router.stack.length).toBeGreaterThan(0);
-
-      expect(findRoute(router, 'get')).toBeDefined();
-    });
   });
 
   describe('key listing', () => {

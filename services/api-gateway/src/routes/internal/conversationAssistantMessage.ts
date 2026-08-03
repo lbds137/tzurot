@@ -1,5 +1,5 @@
 /**
- * POST /internal/conversation/assistant-message
+ * POST /api/internal/conversation/assistant-message
  *
  * Persists the assistant conversation-history row after bot-client confirms
  * Discord delivery. The gateway owns the write: it derives the assistant

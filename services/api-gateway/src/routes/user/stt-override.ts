@@ -8,12 +8,12 @@
  * self-hosted voice-engine.
  *
  * Endpoints:
- *   GET    /user/stt-override — read User.defaultSttProviderId
- *   PUT    /user/stt-override — set
- *   DELETE /user/stt-override — clear
+ *   GET    /api/user/stt-override — read User.defaultSttProviderId
+ *   PUT    /api/user/stt-override — set
+ *   DELETE /api/user/stt-override — clear
  */
 
-import { Router, type Response, type RequestHandler } from 'express';
+import { type Response, type RequestHandler } from 'express';
 import {
   type UserDefaultSttProvider,
   ClearSttDefaultProviderResponseSchema,
@@ -22,7 +22,6 @@ import {
 } from '@tzurot/common-types/schemas/api/stt-override';
 import { isSttProvider } from '@tzurot/common-types/types/sttProvider';
 import { createLogger } from '@tzurot/common-types/utils/logger';
-import { requireUserAuth, requireProvisionedUser } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { tryInvalidateCache } from '../../utils/configOverrideHelpers.js';
 import { resolveProvisionedUserId } from '../../utils/resolveProvisionedUserId.js';
@@ -140,14 +139,3 @@ export const handleClearSttDefaultProvider = (deps: RouteDeps): RequestHandler =
     });
   });
 };
-
-export function createSttOverrideRoutes(deps: RouteDeps): Router {
-  const router = Router();
-  const requireProvisioned = requireProvisionedUser(deps.prisma);
-
-  router.get('/', requireUserAuth(), requireProvisioned, handleGetSttDefaultProvider(deps));
-  router.put('/', requireUserAuth(), requireProvisioned, handleSetSttDefaultProvider(deps));
-  router.delete('/', requireUserAuth(), requireProvisioned, handleClearSttDefaultProvider(deps));
-
-  return router;
-}

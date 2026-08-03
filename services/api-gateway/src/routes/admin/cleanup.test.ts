@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { createCleanupRoute } from './cleanup.js';
+import { handleCleanup } from './cleanup.js';
 import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 import type { ConversationRetentionService } from '@tzurot/conversation-history';
 import type { RouteDeps } from '../routeDeps.js';
@@ -27,15 +27,7 @@ vi.mock('@tzurot/common-types/utils/logger', async () => {
   };
 });
 
-// Mock requireOwnerAuth to allow requests through in tests
-vi.mock('../../services/AuthMiddleware.js', () => ({
-  requireOwnerAuth:
-    () => (_req: express.Request, _res: express.Response, next: express.NextFunction) => {
-      next();
-    },
-}));
-
-describe('Admin Cleanup Routes', () => {
+describe('Admin Cleanup Route', () => {
   let mockService: {
     cleanupOldHistory: ReturnType<typeof vi.fn>;
     cleanupSoftDeletedMessages: ReturnType<typeof vi.fn>;
@@ -57,7 +49,7 @@ describe('Admin Cleanup Routes', () => {
     };
     app = express();
     app.use(express.json());
-    app.use('/admin/cleanup', createCleanupRoute(deps));
+    app.post('/admin/cleanup', handleCleanup(deps));
     // Add error handler for debugging
     app.use(
       (err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {

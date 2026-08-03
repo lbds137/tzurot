@@ -3,14 +3,14 @@
  * CRUD operations for user-owned LLM configurations
  *
  * Endpoints:
- * - GET /user/llm-config - List configs (global + user)
- * - GET /user/llm-config/:id - Get single config with full params
- * - POST /user/llm-config - Create user config
- * - PUT /user/llm-config/:id - Update user config (advancedParameters)
- * - DELETE /user/llm-config/:id - Delete user config
+ * - GET /api/user/llm-config - List configs (global + user)
+ * - GET /api/user/llm-config/:id - Get single config with full params
+ * - POST /api/user/llm-config - Create user config
+ * - PUT /api/user/llm-config/:id - Update user config (advancedParameters)
+ * - DELETE /api/user/llm-config/:id - Delete user config
  */
 
-import { Router, type Response, type RequestHandler } from 'express';
+import { type Response, type RequestHandler } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import { AIProvider } from '@tzurot/common-types/constants/ai';
 import {
@@ -22,7 +22,6 @@ import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { isBotOwner } from '@tzurot/common-types/utils/ownerMiddleware';
 import { computeLlmConfigPermissions } from '@tzurot/common-types/utils/permissions';
-import { requireUserAuth, requireProvisionedUser } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { resolveProvisionedUserId } from '../../utils/resolveProvisionedUserId.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
@@ -521,19 +520,3 @@ export const handleUpdateUserLlmConfig = (deps: RouteDeps): RequestHandler =>
 
 export const handleDeleteUserLlmConfig = (deps: RouteDeps): RequestHandler =>
   asyncHandler(createDeleteHandler(buildService(deps)));
-
-// --- Main Route Factory ---
-
-export function createLlmConfigRoutes(deps: RouteDeps): Router {
-  const router = Router();
-  const requireProvisioned = requireProvisionedUser(deps.prisma);
-
-  router.get('/', requireUserAuth(), requireProvisioned, handleListUserLlmConfigs(deps));
-  router.get('/:id', requireUserAuth(), requireProvisioned, handleGetUserLlmConfig(deps));
-  router.post('/', requireUserAuth(), requireProvisioned, handleCreateUserLlmConfig(deps));
-  router.post('/resolve', requireUserAuth(), requireProvisioned, handleResolveUserLlmConfig(deps));
-  router.put('/:id', requireUserAuth(), requireProvisioned, handleUpdateUserLlmConfig(deps));
-  router.delete('/:id', requireUserAuth(), requireProvisioned, handleDeleteUserLlmConfig(deps));
-
-  return router;
-}

@@ -16,15 +16,14 @@
  * prompt construction issues.
  */
 
-import { Router, type Response, type Request, type RequestHandler } from 'express';
+import { type Response, type Request, type RequestHandler } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import { isValidUUID } from '@tzurot/common-types/constants/service';
 import { DiagnosticUpdateSchema } from '@tzurot/common-types/schemas/api/admin';
-import { Prisma, type PrismaClient } from '@tzurot/common-types/services/prisma';
+import { Prisma } from '@tzurot/common-types/services/prisma';
 import { type DiagnosticPayload } from '@tzurot/common-types/types/diagnostic';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { isBotOwner } from '@tzurot/common-types/utils/ownerMiddleware';
-import { requireServiceAuth, requireUserAuth } from '../../services/AuthMiddleware.js';
 import type { AuthenticatedRequest } from '../../types.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
@@ -393,6 +392,18 @@ export const handleGetDiagnosticByResponse = (deps: DiagnosticDeps): RequestHand
  * Handler: PATCH /api/internal/diagnostic/:requestId/response-ids
  * Update the response message IDs for a diagnostic log
  * Called by bot-client after sending response to Discord
+ *
+ * Auth: mounted under `/api/internal`, so `requireServiceAuth()` (the shared
+ * INTERNAL_SERVICE_SECRET) gates it rather than a user identity — no human
+ * user is involved.
+ *
+ * Trust assumption: any holder of INTERNAL_SERVICE_SECRET can overwrite
+ * responseMessageIds on any diagnostic row by requestId. In practice
+ * bot-client is the only legitimate caller, and it only PATCHes requestIds it
+ * generated itself — so the realistic blast radius is "if the service secret
+ * leaks, an attacker can corrupt diagnostic response-id arrays." It cannot
+ * create phantom rows (prisma.update throws P2025 on a missing row) and it
+ * cannot read another user's data through this route.
  */
 export const handleUpdateDiagnosticResponseIds = (deps: DiagnosticDeps): RequestHandler => {
   const { prisma } = deps;
@@ -433,54 +444,3 @@ export const handleUpdateDiagnosticResponseIds = (deps: DiagnosticDeps): Request
     }
   });
 };
-
-/**
- * Create diagnostic routes with injected dependencies
- * @param prisma - Prisma client for database operations
- */
-export function createDiagnosticRoutes(prisma: PrismaClient): Router {
-  const router = Router();
-
-  // GET routes use requireUserAuth — any authenticated user can call /inspect.
-  // Each handler then filters by userId for non-owners (server-side filtering,
-  // not client-side, so other users' diagnostic payloads never cross the
-  // service boundary). The bot owner sees all logs unfiltered.
-  //
-  // Service-secret enforcement is provided by the global `requireServiceAuth`
-  // mounted in `index.ts` ahead of route mounting — `requireUserAuth` alone
-  // does NOT validate the shared secret. If these routes are ever extracted
-  // to a sub-app or alternate mount that bypasses the global guard, callers
-  // could query diagnostic logs with only `X-User-Id`. The queued adminFetch /
-  // route-prefix refactor addresses this structurally via explicit prefix
-  // semantics (`/api/internal`, `/api/admin`, `/api/user`).
-  router.get('/recent', requireUserAuth(), handleGetRecentDiagnostics({ prisma }));
-  router.get('/by-message/:messageId', requireUserAuth(), handleGetDiagnosticByMessage({ prisma }));
-  router.get(
-    '/by-response/:messageId',
-    requireUserAuth(),
-    handleGetDiagnosticByResponse({ prisma })
-  );
-  // Note: /:requestId must come after /by-* routes to avoid matching 'by-message' as a requestId
-  router.get('/:requestId', requireUserAuth(), handleGetDiagnosticByRequestId({ prisma }));
-
-  // PATCH is an internal call from bot-client to api-gateway after AI response
-  // delivery — no human user is involved. requireServiceAuth() validates
-  // X-Service-Auth (the shared service secret) rather than gating on a user.
-  //
-  // Trust assumption: any holder of INTERNAL_SERVICE_SECRET can overwrite
-  // responseMessageIds on any diagnostic log row by requestId. In practice
-  // bot-client is the only legitimate caller, and it only PATCHes requestIds
-  // it generated itself — so the realistic blast radius is "if the service
-  // secret leaks, attacker can corrupt diagnostic row response-id arrays."
-  // Cannot create phantom rows (prisma.update throws P2025 on missing).
-  // Cannot read other users' data via this route. The queued adminFetch /
-  // route-prefix refactor will make this trust contract explicit by giving
-  // service-only routes a distinct prefix and middleware path.
-  router.patch(
-    '/:requestId/response-ids',
-    requireServiceAuth(),
-    handleUpdateDiagnosticResponseIds({ prisma })
-  );
-
-  return router;
-}

@@ -1,5 +1,5 @@
 /**
- * GET /user/channel/list
+ * GET /api/user/channel/list
  * List all channel settings with activated personalities
  *
  * Query params:

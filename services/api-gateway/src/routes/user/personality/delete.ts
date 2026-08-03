@@ -1,5 +1,5 @@
 /**
- * DELETE /user/personality/:slug
+ * DELETE /api/user/personality/:slug
  * Delete a personality and all associated data (owned personalities only)
  */
 
