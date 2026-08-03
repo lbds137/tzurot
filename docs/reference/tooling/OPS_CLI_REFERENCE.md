@@ -337,6 +337,16 @@ Structural enforcement checks that hard-fail CI on findings:
 
 **Requirements:** `ffprobe` (part of `ffmpeg`) must be installed on the host running the command. If missing, every probe will return errored with "ffprobe spawn failed".
 
+## Prompt Commands
+
+| Command                                                           | Description                                                                                           |
+| ----------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `pnpm ops prompt:mine-voice-probes --env dev --owner <discordId>` | Mine OWNER-ONLY conversation probes for the voice-consistency harness (LOCAL-ONLY, gitignored output) |
+| `... --personalities lilith,the-fluffle`                          | Override the activity auto-pick with explicit personality slugs                                       |
+| `... --depths 5,10,15,20,25,30 --cutoff <iso>`                    | Probe depths in prior turns · anchor cutoff (default: the beta.190 deploy instant)                    |
+
+**Why this exists:** the caching epic's Phase-1→2 exit gate replays real conversations through competing prompt-assembly arms (old vs restructured) and compares persona voice. This miner produces the probe corpus: per personality, one anchor (a real assistant reply) per conversation-depth stratum, with the triggering user turn + the prior window + the real logged reply (`referenceReply`, the harness's validity anchor). **Privacy scope:** `--owner` is required; only that operator's conversations are mined, and any probe whose window contains another user's turn is dropped.
+
 ## Package.json Shortcuts
 
 Root `package.json` provides shortcuts for common ops CLI commands:
