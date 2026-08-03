@@ -1,10 +1,10 @@
 ---
 id: TASK-409
 title: colorizeLogs matches level formats Railway never renders
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-03 17:12'
-updated_date: '2026-08-03 17:12'
+updated_date: '2026-08-03 19:17'
 labels:
   - 'area:tooling'
   - 'size:S'
