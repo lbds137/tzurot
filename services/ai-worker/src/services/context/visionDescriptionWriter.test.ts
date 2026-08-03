@@ -38,6 +38,31 @@ const imageAttachment: ProcessedAttachment = {
   metadata: { url: 'https://cdn/img.png', name: 'img.png', contentType: 'image/png', size: 10 },
 };
 
+const SPOKEN_WORDS = 'can you hear me okay';
+
+/**
+ * Shaped exactly as DependencyStep builds a trigger audio attachment from a
+ * transcription dependency result: no isVoiceMessage/duration metadata, so the
+ * description carries an `[Audio: name]` header (not `[Voice message: Ns]`).
+ */
+const voiceAttachment: ProcessedAttachment = {
+  type: AttachmentType.Audio,
+  description: SPOKEN_WORDS,
+  originalUrl: 'https://cdn/voice-message.ogg',
+  metadata: {
+    url: 'https://cdn/voice-message.ogg',
+    name: 'voice-message.ogg',
+    contentType: 'audio/unknown',
+    size: 0,
+  },
+};
+
+const VOICE_DESCRIPTIONS = `[Audio: voice-message.ogg]\n<voice_transcripts><transcript>${SPOKEN_WORDS}</transcript></voice_transcripts>`;
+
+function occurrences(haystack: string, needle: string): number {
+  return haystack.split(needle).length - 1;
+}
+
 describe('VisionDescriptionWriter', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -50,6 +75,7 @@ describe('VisionDescriptionWriter', () => {
     await writer.persistTriggerDescriptions({
       jobId: 'j1',
       message: 'look at this',
+      rawMessageContent: 'look at this',
       jobContext: makeContext(),
       personalityId: 'pers-1',
       processedAttachments: [imageAttachment],
@@ -71,6 +97,7 @@ describe('VisionDescriptionWriter', () => {
     await writer.persistTriggerDescriptions({
       jobId: 'j1',
       message: '',
+      rawMessageContent: '',
       jobContext: makeContext(),
       personalityId: 'pers-1',
       processedAttachments: [imageAttachment],
@@ -85,6 +112,77 @@ describe('VisionDescriptionWriter', () => {
     );
   });
 
+  it('stores descriptions alone for a voice trigger (the transcript appears once)', async () => {
+    // The user typed nothing (rawMessageContent === ''), so `message` here is
+    // the bot-side STT transcript — prefixing it would store the spoken words
+    // both bare and inside <voice_transcripts>.
+    const history = makeHistory();
+    const writer = new VisionDescriptionWriter(history as never);
+
+    await writer.persistTriggerDescriptions({
+      jobId: 'j1',
+      message: SPOKEN_WORDS,
+      rawMessageContent: '',
+      jobContext: makeContext(),
+      personalityId: 'pers-1',
+      processedAttachments: [voiceAttachment],
+    });
+
+    expect(history.updateLastUserMessage).toHaveBeenCalledWith(
+      'chan-1',
+      'pers-1',
+      'persona-1',
+      VOICE_DESCRIPTIONS,
+      { triggerMessageId: undefined }
+    );
+    const stored = history.updateLastUserMessage.mock.calls[0][3] as string;
+    expect(occurrences(stored, SPOKEN_WORDS)).toBe(1);
+  });
+
+  it('keeps the message prefix when the user typed text alongside an audio attachment', async () => {
+    const history = makeHistory();
+    const writer = new VisionDescriptionWriter(history as never);
+
+    await writer.persistTriggerDescriptions({
+      jobId: 'j1',
+      message: 'listen to this clip',
+      rawMessageContent: 'listen to this clip',
+      jobContext: makeContext(),
+      personalityId: 'pers-1',
+      processedAttachments: [voiceAttachment],
+    });
+
+    expect(history.updateLastUserMessage).toHaveBeenCalledWith(
+      'chan-1',
+      'pers-1',
+      'persona-1',
+      `listen to this clip\n\n${VOICE_DESCRIPTIONS}`,
+      { triggerMessageId: undefined }
+    );
+  });
+
+  it('keeps the message prefix when the payload carries no raw inputs to discriminate on', async () => {
+    const history = makeHistory();
+    const writer = new VisionDescriptionWriter(history as never);
+
+    await writer.persistTriggerDescriptions({
+      jobId: 'j1',
+      message: 'look at this',
+      rawMessageContent: undefined,
+      jobContext: makeContext(),
+      personalityId: 'pers-1',
+      processedAttachments: [imageAttachment],
+    });
+
+    expect(history.updateLastUserMessage).toHaveBeenCalledWith(
+      'chan-1',
+      'pers-1',
+      'persona-1',
+      'look at this\n\n[Image: img.png]\na red bicycle leaning on a wall',
+      { triggerMessageId: undefined }
+    );
+  });
+
   it('targets the row the job was queued for, not just the latest one', async () => {
     // The other write this job makes uses the same id. A second message landing
     // mid-generation must not collect this one's descriptions.
@@ -94,6 +192,7 @@ describe('VisionDescriptionWriter', () => {
     await writer.persistTriggerDescriptions({
       jobId: 'j1',
       message: 'look at this',
+      rawMessageContent: 'look at this',
       jobContext: makeContext({ triggerMessageId: 'discord-42' }),
       personalityId: 'pers-1',
       processedAttachments: [imageAttachment],
@@ -115,6 +214,7 @@ describe('VisionDescriptionWriter', () => {
     await writer.persistTriggerDescriptions({
       jobId: 'j1',
       message: 'plain text',
+      rawMessageContent: 'plain text',
       jobContext: makeContext(),
       personalityId: 'pers-1',
       processedAttachments: [],
@@ -130,6 +230,7 @@ describe('VisionDescriptionWriter', () => {
     await writer.persistTriggerDescriptions({
       jobId: 'j1',
       message: 'text',
+      rawMessageContent: 'text',
       jobContext: makeContext(),
       personalityId: 'pers-1',
       processedAttachments: [
@@ -147,6 +248,7 @@ describe('VisionDescriptionWriter', () => {
     await writer.persistTriggerDescriptions({
       jobId: 'j1',
       message: { structured: true },
+      rawMessageContent: 'text',
       jobContext: makeContext(),
       personalityId: 'pers-1',
       processedAttachments: [imageAttachment],
@@ -162,6 +264,7 @@ describe('VisionDescriptionWriter', () => {
     await writer.persistTriggerDescriptions({
       jobId: 'j1',
       message: 'text',
+      rawMessageContent: 'text',
       jobContext: makeContext({ activePersonaId: undefined }),
       personalityId: 'pers-1',
       processedAttachments: [imageAttachment],
@@ -177,6 +280,7 @@ describe('VisionDescriptionWriter', () => {
     await writer.persistTriggerDescriptions({
       jobId: 'j1',
       message: 'text',
+      rawMessageContent: 'text',
       jobContext: makeContext({ channelId: undefined }),
       personalityId: 'pers-1',
       processedAttachments: [imageAttachment],
@@ -184,6 +288,7 @@ describe('VisionDescriptionWriter', () => {
     await writer.persistTriggerDescriptions({
       jobId: 'j1',
       message: 'text',
+      rawMessageContent: 'text',
       jobContext: makeContext({ channelId: '' }),
       personalityId: 'pers-1',
       processedAttachments: [imageAttachment],
@@ -202,6 +307,7 @@ describe('VisionDescriptionWriter', () => {
       writer.persistTriggerDescriptions({
         jobId: 'j1',
         message: 'text',
+        rawMessageContent: 'text',
         jobContext: makeContext(),
         personalityId: 'pers-1',
         processedAttachments: [imageAttachment],
