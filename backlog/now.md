@@ -28,7 +28,6 @@ _Recently resolved items move to the GitHub release notes at ship time — this 
 
 _Small tasks that can be done between major features. Good for momentum._
 
-- 🧹 `[CHORE]` **System-map drift audit — hunt for more "known lies"** — owner call 2026-07-27 (map accuracy review): _"this is a surprisingly short list. I kind of expect that there's gonna be more items like this."_ Sweep for map-vs-territory drift beyond the six entries in `docs/reference/architecture/system-model.md` §4: stale code comments describing moved/removed behavior, docblocks on the wrong routes, `docs/reference/` claims contradicted by code, dormant legacy markers. Method: grep-driven (`cutover|legacy|deprecated|TODO|moved to`) + scout fan-out per service + spot-check of the oldest `docs/reference/` files against code. Output: new §4 entries (each with a follow-up row or fix-now disposition per the owner's known-lies-need-backlog-items call). Bounded: one session.
 
 
 ### 📥 Untriaged (max 10)
