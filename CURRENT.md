@@ -8,7 +8,15 @@
 
 **beta.190 is CUT and released (2026-08-02).** The caching epic Phase 0+1 is live in prod; the epic's proof already landed pre-cut on dev (67% cached tokens on a same-persona turn 2, req `fc288277`). The Watches below are now armed on prod traffic — cache-hit rate, memory-search budget, roleplay quality.
 
-**NEXT build unit: the voice-consistency comparison harness** (the Phase-1→2 exit gate — 20–30 turns × 3+ personas; roadmap + the trim-hysteresis Phase-2 design input live in `active-epic.md`). Phase 2 (history extraction) starts only after it passes. Fill-in units: the drain campaign's same-origin clusters (`#1317` 159–162, `#1323` 167–169, `#1321` 163–165, `#1119` 131–133, `#1035` 100–102) and two fresh small tasks from this cut's smoke round — **TASK-402** (retention nag embed: three-token identity line — `<@id>` mention + plain `@username` + id pill; owner-refined, mobile is the primary read surface) and **TASK-403** (dedicated `/inspect` Cache view, low).
+**The voice-consistency harness is BUILT (2026-08-02: PR #1910 miner + PR #1911 arms/judge/gate, both merged after 4+3 review rounds). NEXT: the operational gate RUN** — owner-in-loop, ~1 sitting:
+
+1. `pnpm ops prompt:mine-voice-probes --env dev --owner <your discordId>` → **veto/approve the printed persona list** (auto-picks 4 most-active from YOUR conversations only — privacy scope is owner-decision, code-enforced; ≥1 JSON + ≥1 legacy protocol forced). Pre-restructure mining window closes **~Sep 1** (30d retention).
+2. Persona-model census from the picked list → confirm the judge family is disjoint (default `anthropic/claude-sonnet-4.5` via OpenRouter; override `VOICE_EVAL_JUDGE_MODEL`).
+3. `VOICE_EVAL_DRY_RUN=1 pnpm eval:voice-replay` (needs `EVAL_MEMORY_DATABASE_URL`) → cost sanity (~1.6–1.9M input tokens ≈ $4–8 + ~$3 judge).
+4. `pnpm eval:voice-replay` → `pnpm eval:voice-judge` → **owner blind-reviews `reports/voice-consistency/judgment-sheet.md`** (~10–15 pairs, check ONE verdict box per pair + HARD BREAK when seen) → `pnpm eval:voice-verdict` → verdict + numbers recorded in `active-epic.md`. FAIL path: `VOICE_EVAL_ARMS=A,C` re-run → gate `VOICE_EVAL_GATE_KIND=CA` (the OUTPUT_CONSTRAINTS-to-tail remedy).
+   _Carried runner nits (fold into any runner touch-up, not worth a CI cycle alone): `afterAll` disconnect guard when PrismaClient construction throws; retry-once wastes a cycle on deterministic parse failures._
+
+Phase 2 (history extraction) starts only after the gate passes. Fill-in units: the drain campaign's same-origin clusters (`#1317` 159–162, `#1323` 167–169, `#1321` 163–165, `#1119` 131–133, `#1035` 100–102) and two fresh small tasks from this cut's smoke round — **TASK-402** (retention nag embed: three-token identity line — `<@id>` mention + plain `@username` + id pill; owner-refined, mobile is the primary read surface) and **TASK-403** (dedicated `/inspect` Cache view, low).
 
 **TASK-387 is now actionable**: it was deliberately sequenced after TASK-385 (same shared-state seam), and #1894 shipped 385's front-door restructure in this release — re-read 387 against the new pipeline shape before planning it; the restructure may have changed or absorbed its answer.
 
