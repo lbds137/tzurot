@@ -1,10 +1,10 @@
 ---
 id: TASK-408
 title: Rewrite BYOK_MANUAL_TESTING.md against the current command surface
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-03 16:02'
-updated_date: '2026-08-03 16:03'
+updated_date: '2026-08-03 21:31'
 labels:
   - 'area:docs'
   - 'size:S'

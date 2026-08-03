@@ -178,7 +178,9 @@ the generation path rather than just the UI._
 **Proves**: the four-tier resolution order, and that the slot axis is honoured.
 Requires the key from Pass B (a guest cannot select a paid preset).
 
-**Setup**: you need at least **two** distinguishable presets. Create one:
+**Setup**: you need at least **two** distinguishable presets — the one you
+create in D.1, plus any existing 🌐 global preset from `/preset browse` (there
+is always at least one; the system default). Create yours:
 
 | Step | Action                                                                       | Expected                                                                                                                                                                                                                                                                               |
 | ---- | ---------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
