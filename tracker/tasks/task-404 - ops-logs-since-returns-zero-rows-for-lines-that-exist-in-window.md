@@ -1,9 +1,10 @@
 ---
 id: TASK-404
 title: ops logs --since returns zero rows for lines that exist in-window
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-02 23:08'
+updated_date: '2026-08-03 17:17'
 labels:
   - 'area:tooling'
   - 'size:S'
