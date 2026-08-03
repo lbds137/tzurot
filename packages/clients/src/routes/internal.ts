@@ -98,7 +98,9 @@ export const internalRoutes = {
 
   /**
    * POST /api/internal/ai/transcribe
-   * Submits an audio transcription job (sync via `?wait=true` or async otherwise).
+   * Submits an audio transcription job. The generated client posts to the bare
+   * path (no `?wait=true`), so it returns as soon as the job is enqueued; the
+   * synchronous long-poll form is a raw-fetch caller in bot-client.
    */
   aiTranscribe: {
     audience: 'internal',

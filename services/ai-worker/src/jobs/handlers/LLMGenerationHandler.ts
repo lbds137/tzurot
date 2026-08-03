@@ -104,7 +104,7 @@ const logger = createLogger('LLMGenerationHandler');
  * - These propagate as exceptions and fail the BullMQ job directly
  * - No error result is returned; the job goes to the failed queue
  *
- * **Steps 2-6** run inside try/catch:
+ * **Steps 2-10** run inside try/catch:
  * - Errors are caught and converted to error results with `success: false`
  * - Error results include `failedStep` and `lastSuccessfulStep` for debugging
  * - These are "soft failures" - the job completes but reports an error to the client
@@ -316,9 +316,9 @@ export class LLMGenerationHandler {
   }
 
   /**
-   * Construct the ContextStep with its shadow instrumentation: the hydration
-   * data source plus the context assembler (user/persona re-derivation +
-   * shared history merge against the raw envelope).
+   * Construct the ContextStep — the sole context-hydration path: the
+   * hydration data source plus the context assembler (user/persona
+   * re-derivation + shared history merge against the raw envelope).
    */
   private buildContextStep(prisma: PrismaClient): ContextStep {
     const dataSource = new PrismaContextDataSource(prisma);

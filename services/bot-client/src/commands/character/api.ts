@@ -153,8 +153,8 @@ export async function fetchAllCharacters(
 
   const data = result.data;
 
-  // The list endpoint returns summaries, but we need full data for the dashboard
-  // For now, just return the summaries cast to CharacterData (we'll fetch full data when editing)
+  // The list endpoint returns summaries, so each row is widened into the
+  // CharacterData shape below; the fields the summary omits are placeholders.
   const owned: CharacterData[] = [];
   const publicOthers: CharacterData[] = [];
 

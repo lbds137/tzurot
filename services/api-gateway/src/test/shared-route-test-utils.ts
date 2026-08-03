@@ -32,21 +32,19 @@ export const createMockUpdatedAt = (): Date => new Date('2024-01-02T00:00:00.000
  * Create a mock request with `provisionedUserId` + `provisionedDefaultPersonaId`
  * already attached — the post-middleware state of a user-scoped route.
  *
- * This is the migration target for the route test files that currently
- * mock `requireProvisionedUser` as a no-op `vi.fn((_req, _res, next) => next())`
- * and therefore exercise the shadow-mode fallback branch of
- * `resolveProvisionedUserId` / `getOrCreateInternalUser` rather than the
- * common provisioned path. When the middleware is tightened from shadow-
- * mode-fallthrough to strict-400 (tracked in BACKLOG.md work
- * items), those no-op mocks will produce 400s at the middleware layer and
- * every unmigrated test file will break en masse.
+ * `requireProvisionedUser` is strict: every failure mode (missing headers,
+ * malformed URI encoding, a thrown `getOrCreateUser`) returns 400, and the
+ * old shadow-mode fallthrough — along with the shell-user path it fell back
+ * to — is gone. A test file that mocks the middleware as a no-op
+ * `vi.fn((_req, _res, next) => next())` therefore hands the handler a request
+ * with no provisioned fields, which is a shape production can no longer
+ * produce.
  *
- * To migrate a test: replace `createMockReqRes(body, params, query)` with
+ * To migrate such a test: replace `createMockReqRes(body, params, query)` with
  * `createProvisionedMockReqRes(body, params, query)`, and the route handler
  * will see the same shape it would in prod post-middleware. Handlers that
- * call `resolveProvisionedUserId(req, userService)` will hit the
- * common-path short-circuit and return the `provisionedUserId` directly,
- * without exercising `UserService.getOrCreateUserShell`.
+ * call `resolveProvisionedUserId(req, userService)` hit the common-path
+ * short-circuit and return the `provisionedUserId` directly.
  *
  * See `routes/user/shapes/auth.test.ts` for a reference caller using this
  * helper and the "migrate-this-file" TODO pattern.

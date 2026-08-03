@@ -100,5 +100,5 @@ Effective: **{enabled|disabled}** (from {entity|channel|global})
 
 ## Related Files
 
-- `services/bot-client/src/commands/channel/context.ts` - Channel command example
+- `services/bot-client/src/commands/channel/settings.ts` - Channel command example
 - `services/bot-client/src/commands/character/settings.ts` - Entity command example

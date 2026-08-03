@@ -6,6 +6,7 @@
  * - /settings timezone view|set - Manage timezone
  * - /settings apikey set|browse|remove|test - Manage API keys (BYOK)
  * - /settings defaults edit - Manage global default settings (config cascade)
+ * - /settings data export|delete - Export all account data, or delete the account
  *
  * HISTORY:
  * - Consolidated from former /me timezone, /wallet, and /me preset commands

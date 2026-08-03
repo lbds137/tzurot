@@ -26,7 +26,7 @@
 
 ## 2. The flows (routes only mean something inside one)
 
-~190 HTTP handlers, 5 queues, 16 job types collapse into eight flows:
+~190 HTTP handlers, 5 queues, 18 job types collapse into eight flows:
 
 1. **A message becomes a character reply** (the spine). MessageCreate → filter gates
    (bot/denylist/empty) → trigger match (reply-to-webhook · activated channel · @tags ·
@@ -125,23 +125,24 @@
 - Voice config depth (per-character voice overrides, ElevenLabs) is underused and
   therefore latent-bug-prone — one voice command sat broken for a while because
   nobody used it. The used voice paths, by contrast, run flawlessly.
+- The api-gateway "legacy aggregator" router-factory layer is dead code (test-only imports). Production routing is _generated/mounts.ts + sortRoutesForExpress — in-factory ordering comments and factory-attached middleware are inert. Known casualty: the denylist rate limiter exists only in the dead factory, so denylist mutations currently run unlimited (tracked for fix-or-drop).
 - <!-- OWNER: where does this page disagree with the system you actually experience? -->
 
 ## 5. Concept → location (bridging words to code; the generated index has the rest)
 
-| You say…                  | It lives…                                                                                              |
-| ------------------------- | ------------------------------------------------------------------------------------------------------ |
-| character                 | `personalities` table · `bot-client/commands/character` · `/api/user/personality/*`                    |
-| persona (speaker)         | `personas` table · `bot-client/commands/persona` · `/api/user/persona/*`                               |
-| the reply pipeline        | `bot-client/handlers` + `composition.ts` → `api-gateway/queue.ts` → `ai-worker/jobs/handlers/pipeline` |
-| memory / episode          | `memories` (pgvector) · `ai-worker/services/context` · `/api/user/memory/*`                            |
-| fact                      | `memory_facts` · `ai-worker/services/extraction` · fact routes                                         |
-| preset / cascade          | `llm_configs`/`tts_configs` · `packages/config-resolver` · `/api/user/config-overrides/*`              |
-| voice                     | `voice-engine/server.py` · `ai-worker/services/voice` · `bot-client/commands/voice`                    |
-| dashboard                 | `bot-client/utils/dashboard` (sessions in Redis, modals, truncation gate)                              |
-| inspect / flight recorder | `diagnostic_logs` · `bot-client/commands/inspect` · `/api/user/diagnostic/*`                           |
-| retention / purge         | `api-gateway/services/retention` (single-predicate `eligibility.ts`) · `retention:*` CLIs              |
-| release DMs               | `api-gateway/routes/webhooks` + `releaseBroadcast` · `bot-client/services/releaseDm`                   |
-| dev↔prod sync             | `api-gateway/services/sync` (`syncTables.ts` = the manifest)                                           |
-| the ops CLI               | `packages/tooling` (`pnpm ops …`)                                                                      |
-| the website               | `services/website` (renders `docs/commands.md`, `/privacy`, `/terms` live)                             |
+| You say…                  | It lives…                                                                                                           |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| character                 | `personalities` table · `bot-client/commands/character` · `/api/user/personality/*`                                 |
+| persona (speaker)         | `personas` table · `bot-client/commands/persona` · `/api/user/persona/*`                                            |
+| the reply pipeline        | `bot-client/handlers` + `composition.ts` → `api-gateway/queue.ts` → `ai-worker/jobs/handlers/pipeline`              |
+| memory / episode          | `memories` (pgvector) · `ai-worker/services/context` · `/api/user/memory/*`                                         |
+| fact                      | `memory_facts` · `ai-worker/services/extraction` · fact routes                                                      |
+| preset / cascade          | `llm_configs`/`tts_configs` · `packages/config-resolver` · `/api/user/config-overrides/*`                           |
+| voice                     | `voice-engine/server.py` · `ai-worker/services/voice` · `bot-client/commands/voice`                                 |
+| dashboard                 | `bot-client/utils/dashboard` (sessions in Redis, modals, truncation gate)                                           |
+| inspect / flight recorder | `llm_diagnostic_logs` · `bot-client/commands/inspect` · `/api/user/diagnostic/*`                                    |
+| retention / purge         | `api-gateway/services/retention` (single-predicate `eligibility.ts`) · `retention:*` CLIs                           |
+| release DMs               | `api-gateway/routes/public/githubWebhook.ts` + `routes/internal/releaseBroadcast` · `bot-client/services/releaseDm` |
+| dev↔prod sync             | `api-gateway/services/sync` (`syncTables.ts` = the manifest)                                                        |
+| the ops CLI               | `packages/tooling` (`pnpm ops …`)                                                                                   |
+| the website               | `services/website` (renders `docs/commands.md`, `/privacy`, `/terms` live)                                          |

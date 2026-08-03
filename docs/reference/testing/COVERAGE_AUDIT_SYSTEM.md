@@ -114,7 +114,7 @@ pnpm ops test:audit --update
 
 1. `services/ai-worker/src/services/LongTermMemoryService.ts` - core memory ops
 2. `services/ai-worker/src/services/ConversationalRAGService.ts` - AI generation flow
-3. `packages/common-types/src/services/ConversationRetentionService.ts` - retention logic
+3. `packages/conversation-history/src/ConversationRetentionService.ts` - retention logic
 
 ## Coverage Requirements (Codecov Enforced)
 

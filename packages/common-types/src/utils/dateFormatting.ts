@@ -63,7 +63,7 @@ function formatTimeUnit(value: number, unit: string): string {
  * Example: "Monday, January 27, 2025, 02:45 AM EST"
  *
  * Used for:
- * - Current date in system prompt
+ * - Current date in the prompt
  * - Displaying when context was generated
  *
  * @param date - Date to format
@@ -177,7 +177,7 @@ export function formatRelativeTime(timestamp: Date | string | number, timezone?:
  * Example: "Mon, Jan 27, 2025"
  *
  * Used for:
- * - LTM memory timestamps in system prompt
+ * - LTM memory timestamps in the prompt
  * - More compact than full format but still includes day of week
  *
  * @param timestamp - Timestamp to format

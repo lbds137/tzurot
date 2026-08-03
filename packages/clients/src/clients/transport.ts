@@ -270,8 +270,9 @@ async function readValidatedBody(args: {
  * Make a single gateway request. Returns a `GatewayResult` envelope; the
  * caller decides whether to throw or branch.
  *
- * Generated clients are the primary caller. Legacy code paths can continue
- * to call this directly during the migration to typed clients.
+ * The generated clients are the only callers — this is not part of the
+ * package's public surface, so new call sites go through a generated client
+ * method (or a new route manifest entry) rather than here.
  */
 export async function callGateway<T>(options: TransportOptions): Promise<GatewayResult<T>> {
   const {

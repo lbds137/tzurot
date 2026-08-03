@@ -427,7 +427,7 @@ export class MemoryRetriever {
       // is still valuable to the LLM even without a bio. Dropping an active
       // participant for empty content was the root of an incident where new
       // users whose persona had no bio text were entirely missing from the
-      // <participants> section of the system prompt.
+      // <participants> section of the human message's volatile prefix.
       if (personaData.content.length === 0) {
         logger.warn(
           {
