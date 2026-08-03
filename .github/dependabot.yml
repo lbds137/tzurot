@@ -54,6 +54,13 @@ updates:
       # remove this ignore. Tracked as TASK-258.
       - dependency-name: 'typescript'
         update-types: ['version-update:semver-major']
+      # BullMQ 6 is a breaking major: `repeat` is gone from JobsOptions (v6
+      # replaces repeatable jobs with the Job Schedulers API), and our
+      # lock/stall tuning was verified against 5.x internals — the upgrade is
+      # a deliberate migration, not a bump. Tracked as TASK-410; remove this
+      # ignore in the migration PR.
+      - dependency-name: 'bullmq'
+        update-types: ['version-update:semver-major']
 
   # GitHub Actions workflow file dependencies — separate ecosystem.
   - package-ecosystem: 'github-actions'
