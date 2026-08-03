@@ -325,6 +325,79 @@ describe('fetchLogs', () => {
       const errors = consoleErrorSpy.mock.calls.flat().join(' ');
       expect(errors).toContain('Cannot parse --since');
     });
+
+    describe('against the shape the Railway CLI actually emits', () => {
+      /**
+       * `railway logs` renders structured logs as an RFC3339 ingest prefix +
+       * level tag + message + logfmt key=value pairs — pino's `time` arrives as
+       * `time=<epoch ms>`, NOT as JSON `"time":<epoch ms>`. Captured verbatim
+       * from `railway logs --environment production --service ai-worker -n 5`.
+       */
+      const railwayLine = (pinoTimeMs: number, msg: string): string => {
+        // Railway's own prefix is nanosecond-precision and lands slightly after
+        // the pino stamp (it is the ingest time, not the emit time).
+        const prefix = `${new Date(pinoTimeMs + 2_000).toISOString().replace('Z', '')}898914Z`;
+        return `${prefix} [INFO] ${msg} time=${pinoTimeMs} pid=1 hostname="859ec3aad942" name="ai-worker"`;
+      };
+
+      it('keeps a logfmt pino line stamped inside the window', async () => {
+        vi.mocked(execFileSync).mockReturnValue(
+          `${railwayLine(FROZEN_NOW - 60_000, 'Generated response')}\n` +
+            `${railwayLine(FROZEN_NOW - 7_200_000, 'stale response')}\n`
+        );
+
+        await fetchLogs({ env: 'prod', service: 'ai-worker', since: '45m' });
+
+        const output = consoleLogSpy.mock.calls.flat().join('\n');
+        expect(output).toContain('Generated response');
+        expect(output).not.toContain('stale response');
+      });
+
+      it('accepts an ISO-8601 --since floor against the same shape', async () => {
+        vi.mocked(execFileSync).mockReturnValue(
+          `${railwayLine(FROZEN_NOW - 30_000, 'after the floor')}\n` +
+            `${railwayLine(FROZEN_NOW - 3_600_000, 'before the floor')}\n`
+        );
+
+        await fetchLogs({
+          env: 'prod',
+          service: 'ai-worker',
+          since: new Date(FROZEN_NOW - 600_000).toISOString(),
+        });
+
+        const output = consoleLogSpy.mock.calls.flat().join('\n');
+        expect(output).toContain('after the floor');
+        expect(output).not.toContain('before the floor');
+      });
+
+      it('falls back to the Railway ingest prefix for lines with no pino time', async () => {
+        // Non-pino services (redis, pgvector) still carry Railway's prefix; without
+        // the fallback they vanish from every --since dig.
+        const bare = (epochMs: number, msg: string): string =>
+          `${new Date(epochMs).toISOString().replace('Z', '')}898914Z ${msg}`;
+        vi.mocked(execFileSync).mockReturnValue(
+          `${bare(FROZEN_NOW - 60_000, 'redis ready to accept connections')}\n` +
+            `${bare(FROZEN_NOW - 7_200_000, 'redis old startup banner')}\n`
+        );
+
+        await fetchLogs({ env: 'prod', service: 'redis', since: '45m' });
+
+        const output = consoleLogSpy.mock.calls.flat().join('\n');
+        expect(output).toContain('ready to accept connections');
+        expect(output).not.toContain('old startup banner');
+      });
+
+      it('reports how many lines were dropped for having no parseable timestamp', async () => {
+        // The silent-empty failure mode this bug produced: a zero-row result must
+        // say WHY it was zero when the cause was unparseable timestamps.
+        vi.mocked(execFileSync).mockReturnValue('no-timestamp boot noise\nanother bare line\n');
+
+        await fetchLogs({ env: 'prod', service: 'ai-worker', since: '45m' });
+
+        const output = consoleLogSpy.mock.calls.flat().join('\n');
+        expect(output).toContain('2 line(s) had no parseable timestamp');
+      });
+    });
   });
 
   describe('dig-mode composition and failure paths', () => {
