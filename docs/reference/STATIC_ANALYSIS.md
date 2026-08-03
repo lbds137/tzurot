@@ -22,7 +22,7 @@ pnpm cpd:report       # Generate HTML report in reports/jscpd/
 | Setting     | Value | Purpose                                     |
 | ----------- | ----- | ------------------------------------------- |
 | `threshold` | 5     | Allow up to 5% total duplication            |
-| `minLines`  | 5     | Ignore duplicates shorter than 5 lines      |
+| `minLines`  | 10    | Ignore duplicates shorter than 10 lines     |
 | `minTokens` | 50    | Ignore duplicates with fewer than 50 tokens |
 
 Tests are excluded because test boilerplate is often intentionally similar (setup patterns, mock configurations).
@@ -122,29 +122,20 @@ Validates dependency rules at the import graph level. Encodes the architectural 
 **Commands:**
 
 ```bash
-pnpm depcruise            # Check for violations (exits non-zero on NEW violations)
-pnpm depcruise:baseline   # Update baseline after fixing violations
+pnpm depcruise            # Check for violations (exits non-zero on any violation)
 pnpm depcruise:graph      # Generate SVG dependency graph (requires graphviz)
 ```
 
 **Configuration:** `.dependency-cruiser.cjs`
 
-**Baseline:** `.dependency-cruiser-baseline.json` — known violations that existed before adoption. CI passes as long as no NEW violations are introduced. Same pattern as `test-coverage-baseline.json`.
+There is no baseline: depcruise is hard-blocking in `pnpm quality` and in the pre-push hook, and every violation must be fixed rather than recorded.
 
-**Rules enforced:**
-
-| Rule                       | Severity | Description                                         |
-| -------------------------- | -------- | --------------------------------------------------- |
-| `bot-client-no-prisma`     | error    | bot-client must never import @prisma/client         |
-| `no-cross-service-imports` | error    | Services cannot import from each other              |
-| `no-circular-dependencies` | error    | No circular dependency chains                       |
-| `ai-worker-no-discord`     | warn     | ai-worker should use common-types for Discord types |
+**Rules enforced:** the `forbidden` array in `.dependency-cruiser.cjs` is the authoritative list (bot-client isolation from Prisma / config-resolver / identity / conversation-history, no cross-service imports, no circular dependencies, and several import-direction rules). Read it there rather than duplicating it here — a copy in this document drifts silently.
 
 **Fixing violations:**
 
 1. Run `pnpm depcruise` to see current violations
 2. Fix the import (move shared code to common-types, use API calls instead of direct imports)
-3. If fixing a legacy violation, run `pnpm depcruise:baseline` to update the baseline
 
 **Adding new rules:**
 
@@ -213,18 +204,12 @@ Each package has `tsconfig.spec.json` that extends the main `tsconfig.json` but:
 
 ## CI Integration
 
-- **Pre-push hook**: `typecheck:spec` (blocking), `cpd` (warning), `depcruise` (warning)
-- **CI pipeline**: `typecheck:spec` is blocking; `cpd`, `depcruise`, `knip` have `continue-on-error: true`
+- **Pre-push hook**: `typecheck:spec`, `knip:dead`, and `depcruise` are blocking; `cpd` prints a summary only (warning)
+- **CI pipeline**: only the raw `cpd` step carries `continue-on-error: true` — everything else in the lint job, including the CPD ratchet (`pnpm ops cpd:check`), `depcruise`, and `knip`, is blocking
 
 ## Quality Command
 
-`pnpm quality` runs the full quality suite:
-
-1. `pnpm lint` - ESLint with sonarjs rules
-2. `pnpm cpd` - Copy-paste detection
-3. `pnpm depcruise` - Architecture boundary validation
-4. `pnpm typecheck` - Type-check source files
-5. `pnpm typecheck:spec` - Type-check test files
+`pnpm quality` runs the full static gate. Its composition lives in the root `package.json` under `scripts.quality` — read it there; it is deliberately not enumerated in docs (a second list drifts, and `pnpm ops guard:gate-parity` already keeps the script in sync with the CI lint job).
 
 Run this before submitting PRs to catch issues early.
 
@@ -265,38 +250,3 @@ This is expected on first run if tests were never type-checked. Prioritize:
 3. Assertion type issues
 
 Use `// @ts-expect-error` sparingly and only with comments explaining why.
-
-## Making Static Analysis Blocking
-
-Currently, static analysis checks run as **warnings** to allow time to fix baseline violations. Once violations are resolved:
-
-### Steps to Make Checks Blocking
-
-1. **CPD (CI)**: Remove `continue-on-error: true` from `.github/workflows/ci.yml` (line ~47)
-
-2. **typecheck:spec (Pre-push)**: Already blocking in both CI and pre-push.
-
-3. **CPD (Pre-push)**: Change from warning to blocking by adding `exit 1`:
-
-   ```bash
-   if ! pnpm cpd 2>/dev/null; then
-       echo "${RED}Copy-paste detection found violations${NC}"
-       exit 1
-   fi
-   ```
-
-4. **depcruise (Pre-push)**: Same pattern as CPD — change from warning to blocking.
-
-### Target State
-
-| Check          | Target                         | When to Make Blocking           |
-| -------------- | ------------------------------ | ------------------------------- |
-| CPD            | Under 3% duplication           | After extracting shared utils   |
-| typecheck:spec | Zero test type errors          | After fixing all test types     |
-| sonarjs        | Zero cognitive violations      | After refactoring complex funcs |
-| depcruise      | Zero baseline violations       | After fixing all circular deps  |
-| knip           | Triaged, false positives clean | After first clean advisory run  |
-
-### Tracking Progress
-
-Run `pnpm quality` to see current violation counts. Track progress in BACKLOG.md under "Fix Static Analysis Baseline Violations".

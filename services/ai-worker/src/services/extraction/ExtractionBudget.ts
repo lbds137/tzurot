@@ -4,7 +4,8 @@
  * Per-(personality, UTC-day) cap on extraction model calls. Extraction runs on
  * a fixed cheap SYSTEM model (never the personality's model), so the direct
  * dollar cost per call is small — but it is unbounded without a ceiling, and
- * shadow mode already spends money. Over-budget batches are skipped with a
+ * extraction spends on every batch regardless of whether the extracted facts
+ * are being read into prompts. Over-budget batches are skipped with a
  * structured log (the episodes stay in Postgres; nothing is lost — extraction
  * simply doesn't run for that personality until the UTC day rolls over).
  *

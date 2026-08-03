@@ -132,7 +132,7 @@ Note: bot-client has some of these handlers (`services/bot-client/src/redis.ts:4
 
 ### Priority 1: Add Explicit Timeouts (Critical)
 
-**File**: `packages/common-types/src/redis-utils.ts`
+**File**: `packages/common-types/src/utils/redis.ts`
 
 Add a new function to create standardized Redis connection options:
 

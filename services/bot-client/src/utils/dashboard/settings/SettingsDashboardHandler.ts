@@ -231,9 +231,10 @@ export async function handleSettingsButton(
       await handleBackButton(interaction, config, session);
       break;
     case 'close':
-      // The Close button no longer renders on paged dashboards (D18), but the
-      // action stays routable — stale messages predating the change still
-      // carry it, and flat dashboards keep the button.
+      // No settings dashboard renders a Close row anymore — ephemeral
+      // dashboards rely on native dismiss plus the session TTL for teardown.
+      // The action stays routable because stale messages predating the
+      // removal still carry the button.
       await handleCloseButton(interaction, config, session);
       break;
     case 'page':

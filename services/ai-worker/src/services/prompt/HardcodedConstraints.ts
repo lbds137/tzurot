@@ -4,11 +4,17 @@
  * Platform-level constraints that are hardcoded in code rather than stored in
  * the database. These cannot be overridden by personality configurations.
  *
- * Architecture follows the "Sandwich Method":
- * - PLATFORM_CONSTRAINTS: Near the start (primacy effect for safety)
- * - Identity constraints: Right after platform constraints
- * - Database content (permissions, directives): Middle section
- * - OUTPUT_CONSTRAINTS: At the very end (recency bias for format compliance)
+ * Placement is by cacheability tier, not by recency. Both blocks here are
+ * S0 (cross-persona static) and lead the system message:
+ * - PLATFORM_CONSTRAINTS: first (primacy effect for safety)
+ * - OUTPUT_CONSTRAINTS: second, still ahead of any per-persona content
+ * - Then S1 (system_identity, identity_constraints, protocol), then the
+ *   H-tier chat_log; per-request volatile content renders in the human
+ *   message prefix instead.
+ *
+ * Putting OUTPUT_CONSTRAINTS at the start rather than the recency tail is a
+ * deliberate trade: an all-static prefix is what automatic-prefix caching can
+ * share across personas and turns.
  */
 
 import { escapeXmlContent } from '@tzurot/common-types/utils/promptSanitizer';
@@ -51,7 +57,8 @@ export function buildIdentityConstraints(personalityName: string): string {
 
 /**
  * Output constraints - technical requirements for clean output.
- * Placed at the END of the prompt for recency bias (highest impact on actual output).
+ * Rendered as the second S0 block, at the start of the system message, so the
+ * whole constraint prefix stays byte-stable and cacheable.
  */
 export const OUTPUT_CONSTRAINTS = `<output_constraints>
 <constraint>Output the raw response text only; do not include name labels, timestamps, or speaker prefixes.</constraint>

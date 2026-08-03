@@ -364,5 +364,3 @@ Root `package.json` provides shortcuts for common ops CLI commands:
 | `pnpm generate:pglite`        | `pnpm ops test:generate-schema`  | Regenerate PGLite schema   |
 | `pnpm generate:command-types` | `pnpm ops codegen:command-types` | Generate command type defs |
 | `pnpm update-deps`            | `pnpm ops dev:update-deps`       | Update dependencies        |
-| `pnpm import-personality`     | `pnpm ops data:import`           | Import a personality       |
-| `pnpm bulk-import`            | `pnpm ops data:bulk-import`      | Bulk import personalities  |

@@ -165,7 +165,9 @@ interface CharacterSessionData extends CharacterData {
 }
 ```
 
-## Current Implementations
+## Example Implementation
+
+One implementation, shown as a worked example — not an exhaustive inventory:
 
 | Entity    | Field  | Context Property | Security Gate             |
 | --------- | ------ | ---------------- | ------------------------- |

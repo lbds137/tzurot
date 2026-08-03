@@ -4,7 +4,7 @@
 
 **Date:** 2025-10-02
 **Source:** Initial Gemini planning conversation
-**Status:** Foundational decisions implemented in v3
+**Status:** Historical planning artifact. Several decisions here were superseded during implementation (the shipped stack is simpler — pgvector rather than a managed vector DB, no graph-orchestration or user-runtime-profile layer). For what actually runs today, see [`system-model.md`](./system-model.md).
 
 ---
 

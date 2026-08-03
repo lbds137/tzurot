@@ -241,8 +241,8 @@ Resolver tests mock the Prisma client to verify:
 
 See:
 
-- `services/ai-worker/src/services/resolvers/PersonaResolver.test.ts`
-- `services/ai-worker/src/services/resolvers/LlmConfigResolver.test.ts`
+- `packages/identity/src/resolvers/PersonaResolver.test.ts`
+- `packages/config-resolver/src/LlmConfigResolver.test.ts`
 
 ## Usage Guidelines
 

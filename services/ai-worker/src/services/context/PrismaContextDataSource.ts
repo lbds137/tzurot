@@ -2,10 +2,10 @@
  * Prisma-backed ContextDataSource.
  *
  * Deliberately thin: every read delegates to the SAME shared services the
- * bot-client pipeline uses today (`ConversationHistoryService`,
- * `UserService`) so hydrated results are comparable row-for-row with the
- * bot-client-assembled payload during the shadow-verification window. The
- * context-epoch lookup replicates bot-client's raw
+ * bot-client pipeline used (`ConversationHistoryService`, `UserService`), so
+ * hydration stays row-for-row equivalent to the payload bot-client used to
+ * assemble — keep new reads on those services rather than hand-rolling
+ * queries here. The context-epoch lookup replicates bot-client's raw
  * `userPersonaHistoryConfig` query (the one read that never had a service
  * wrapper).
  */

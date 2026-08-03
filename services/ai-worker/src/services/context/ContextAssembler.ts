@@ -153,9 +153,9 @@ export class ContextAssembler {
   constructor(private readonly deps: ContextAssemblerDeps) {}
 
   /**
-   * Assemble the core surfaces. Throws on unexpected failures — the SHADOW
-   * caller owns the never-throws contract, not the assembler (at cutover the
-   * assembler's errors must surface as real job failures).
+   * Assemble the core surfaces. Throws on unexpected failures — deliberately:
+   * this is the live context path, so an assembly error must surface as a real
+   * job failure via the pipeline's try/catch rather than being swallowed here.
    */
   async assembleCore(
     jobContext: JobContext,
@@ -199,7 +199,7 @@ export class ContextAssembler {
     const userTimezone = await this.deps.dataSource.getUserTimezone(user.userId);
 
     // Step 3: hydrate channel history — same limit derivation as the
-    // bot-side dbLimit (and as the hydration shadow).
+    // bot-side dbLimit.
     const limit = Math.min(
       configOverrides?.maxMessages ?? MESSAGE_LIMITS.DEFAULT_MAX_MESSAGES,
       MESSAGE_LIMITS.MAX_EXTENDED_CONTEXT
