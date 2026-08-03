@@ -32,7 +32,10 @@ interface LogsOptions {
   requestId?: string;
   /** Correlation term: match lines containing this job ID (local substring). */
   jobId?: string;
-  /** Time floor: ISO-8601 timestamp or relative (`30m`, `2h`, `1d`). Local filter on pino `time`. */
+  /**
+   * Time floor: ISO-8601 timestamp or relative (`30m`, `2h`, `1d`). Local filter
+   * on the line's pino `time`, falling back to Railway's ingest prefix.
+   */
   since?: string;
 }
 
@@ -153,34 +156,73 @@ export function parseSinceMs(since: string, nowMs: number): number {
   return parsed;
 }
 
-/** Extract the pino epoch-ms `time` field from a JSON log line, if present. */
+/**
+ * Pino's epoch-ms `time` as the Railway CLI RENDERS it: structured logs come
+ * back as `<msg> time=1785776400257 pid=1 …` logfmt pairs, not as raw JSON —
+ * so a `"time":` matcher finds nothing on real output and silently drops every
+ * line. The JSON form is kept because `railway logs --json` still emits it.
+ */
+const PINO_TIME_LOGFMT = /(?:^|\s)time=(\d{10,})/;
+const PINO_TIME_JSON = /"time":\s*(\d{10,})/;
+
+/**
+ * Railway stamps every line it returns with an RFC3339 ingest prefix
+ * (nanosecond precision, a beat later than the emit time). It's the only clock
+ * on lines from non-pino services (redis, pgvector), so it backs the filter up.
+ */
+const RAILWAY_PREFIX_TIME = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z)/;
+
+/** Extract a line's epoch-ms timestamp: pino `time` first, Railway prefix as fallback. */
 function lineTimeMs(line: string): number | undefined {
-  const match = /"time":\s*(\d{10,})/.exec(line);
-  return match === null ? undefined : Number(match[1]);
+  const pino = PINO_TIME_LOGFMT.exec(line) ?? PINO_TIME_JSON.exec(line);
+  if (pino !== null) {
+    return Number(pino[1]);
+  }
+  const prefix = RAILWAY_PREFIX_TIME.exec(line);
+  if (prefix === null) {
+    return undefined;
+  }
+  const parsed = Date.parse(prefix[1]);
+  return Number.isNaN(parsed) ? undefined : parsed;
 }
 
 /**
  * Local line filtering: every correlation term must appear (case-insensitive
  * substring — predictable, unlike the server DSL), and when a time floor is
- * set, only lines whose pino `time` is at/after it survive (lines without a
- * parseable time are dropped in since-mode; they're boot noise, not events).
+ * set, only lines whose timestamp is at/after it survive. Lines carrying no
+ * parseable timestamp are still dropped in since-mode, but they're COUNTED —
+ * a zero-row dig has to be able to say whether the window was empty or the
+ * timestamps were unreadable.
  */
-export function applyLocalFilters(logs: string, terms: string[], sinceMs?: number): string[] {
+export function applyLocalFilters(
+  logs: string,
+  terms: string[],
+  sinceMs?: number
+): { matched: string[]; undated: number } {
   const lowered = terms.map(t => t.toLowerCase());
-  return logs.split('\n').filter(line => {
+  const matched: string[] = [];
+  let undated = 0;
+  for (const line of logs.split('\n')) {
     if (line.trim().length === 0) {
-      return false;
+      continue;
     }
     const lineLower = line.toLowerCase();
     if (!lowered.every(term => lineLower.includes(term))) {
-      return false;
+      continue;
     }
     if (sinceMs !== undefined) {
       const time = lineTimeMs(line);
-      return time !== undefined && time >= sinceMs;
+      if (time === undefined) {
+        undated += 1;
+        continue;
+      }
+      if (time < sinceMs) {
+        continue;
+      }
     }
-    return true;
-  });
+    matched.push(line);
+  }
+  return { matched, undated };
 }
 
 /**
@@ -293,6 +335,7 @@ function runLocalFilterDig(opts: {
   const services: string[] = opts.service !== undefined ? [opts.service] : [...APP_SERVICES];
 
   let totalMatched = 0;
+  let totalUndated = 0;
   for (const svc of services) {
     const args = buildRailwayArgs({
       railwayEnv: opts.railwayEnv,
@@ -312,8 +355,9 @@ function runLocalFilterDig(opts: {
       continue;
     }
 
-    const matched = applyLocalFilters(raw, opts.terms, opts.sinceMs);
+    const { matched, undated } = applyLocalFilters(raw, opts.terms, opts.sinceMs);
     totalMatched += matched.length;
+    totalUndated += undated;
     if (services.length > 1) {
       console.log(chalk.cyan.bold(`\n── ${svc} ──`));
     }
@@ -330,6 +374,15 @@ function runLocalFilterDig(opts: {
       `${totalMatched} matching line(s) across ${services.length} service window(s) of ${opts.lines} lines each.`
     )
   );
+  if (totalUndated > 0) {
+    // Without this, an all-unparseable window is indistinguishable from a
+    // genuinely empty one — the exact way --since read as "no data".
+    console.log(
+      chalk.yellow(
+        `⚠️  ${totalUndated} line(s) had no parseable timestamp and were excluded by --since.`
+      )
+    );
+  }
 }
 
 /**
