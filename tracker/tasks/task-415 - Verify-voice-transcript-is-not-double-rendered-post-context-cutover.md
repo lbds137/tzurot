@@ -1,10 +1,10 @@
 ---
 id: TASK-415
 title: Fix doubled voice transcript in the persisted trigger row
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-03 18:27'
-updated_date: '2026-08-03 19:23'
+updated_date: '2026-08-03 19:58'
 labels:
   - 'size:S'
 dependencies: []
