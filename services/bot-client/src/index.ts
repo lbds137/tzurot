@@ -1,11 +1,4 @@
-import {
-  Client,
-  GatewayIntentBits,
-  Events,
-  MessageFlags,
-  Partials,
-  type ChatInputCommandInteraction,
-} from 'discord.js';
+import { Client, GatewayIntentBits, Events, Partials } from 'discord.js';
 import { Queue, type Worker } from 'bullmq';
 import { Redis } from 'ioredis';
 import { getConfig } from '@tzurot/common-types/config/config';
@@ -30,6 +23,7 @@ import { WebhookManager } from './utils/WebhookManager.js';
 import { getServiceClient } from './utils/gatewayClients.js';
 import type { MessageHandler } from './handlers/MessageHandler.js';
 import { CommandHandler } from './handlers/CommandHandler.js';
+import { handleCommandWithContext } from './handlers/commandDispatch.js';
 import { redis as botRedis, closeRedis } from './redis.js';
 import { deployCommands } from './utils/deployCommands.js';
 import { respondToInteractionDuringMaintenance } from './utils/maintenanceResponses.js';
@@ -85,11 +79,6 @@ import {
   logGatewayHealthStatus,
 } from './startup.js';
 import { restoreBotPresence } from './commands/admin/presence.js';
-import {
-  createDeferredContext,
-  createModalContext,
-  createManualContext,
-} from './utils/commandContext/index.js';
 
 // Initialize logger
 const logger = createLogger('bot-client');
@@ -427,13 +416,6 @@ client.on(Events.InteractionCreate, interaction => {
       }
 
       if (interaction.isChatInputCommand()) {
-        // Get the command to determine its deferral mode
-        const command = commandHandler.getCommand(interaction.commandName);
-        if (command === undefined) {
-          logger.warn({ commandName: interaction.commandName }, 'Unknown command');
-          return;
-        }
-
         // Retention: pure-client commands (e.g. /help) render bot-side and never
         // reach the gateway, so stamp activity here for every chat-input command.
         // Fire-and-forget — the wrapper logs on failure and never throws; the
@@ -444,12 +426,16 @@ client.on(Events.InteractionCreate, interaction => {
           /* wrapper already logs; swallow so a rejection can't become unhandled */
         });
 
-        // All commands use the typed context pattern with deferralMode metadata
-        await handleCommandWithContext(interaction, command);
+        // The dispatcher owns the whole chat-input path, including the
+        // unknown-command reply when the lookup comes back empty.
+        await handleCommandWithContext(
+          interaction,
+          commandHandler.getCommand(interaction.commandName)
+        );
       } else if (interaction.isMessageContextMenuCommand()) {
         await commandHandler.handleContextMenuCommand(interaction);
       } else if (interaction.isModalSubmit()) {
-        await commandHandler.handleInteraction(interaction);
+        await commandHandler.handleModalInteraction(interaction);
       } else if (interaction.isAutocomplete()) {
         await commandHandler.handleAutocomplete(interaction);
       } else if (interaction.isStringSelectMenu() || interaction.isButton()) {
@@ -461,109 +447,6 @@ client.on(Events.InteractionCreate, interaction => {
     }
   })();
 });
-
-/**
- * Get the subcommand path for looking up deferral mode overrides.
- * Returns 'group subcommand' for subcommand groups, or just 'subcommand' for simple subcommands.
- */
-function getSubcommandPath(interaction: ChatInputCommandInteraction): string | null {
-  try {
-    const group = interaction.options.getSubcommandGroup(false);
-    const subcommand = interaction.options.getSubcommand(false);
-
-    if (group !== null && subcommand !== null) {
-      return `${group} ${subcommand}`;
-    }
-    return subcommand;
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Resolve the effective deferral mode for a command/subcommand.
- *
- * Checks subcommandDeferralModes for overrides, falls back to deferralMode.
- */
-function resolveEffectiveDeferralMode(
-  command: import('./types.js').Command,
-  interaction: ChatInputCommandInteraction
-): import('./utils/commandContext/index.js').DeferralMode {
-  const defaultMode = command.deferralMode ?? 'ephemeral';
-
-  // Check for subcommand-level override
-  if (command.subcommandDeferralModes !== undefined) {
-    const subcommandPath = getSubcommandPath(interaction);
-    if (subcommandPath !== null && subcommandPath in command.subcommandDeferralModes) {
-      return command.subcommandDeferralModes[subcommandPath];
-    }
-  }
-
-  return defaultMode;
-}
-
-/**
- * Handle a command using the typed context pattern.
- *
- * Commands declare their deferralMode via defineCommand(), and receive a
- * SafeCommandContext that doesn't expose deferReply() (for deferred modes),
- * preventing InteractionAlreadyReplied errors at compile time.
- *
- * For commands with mixed subcommand requirements, subcommandDeferralModes
- * allows per-subcommand overrides of the default deferral behavior.
- */
-async function handleCommandWithContext(
-  interaction: ChatInputCommandInteraction,
-  command: import('./types.js').Command
-): Promise<void> {
-  // Resolve effective deferral mode (may be overridden per-subcommand)
-  const effectiveMode = resolveEffectiveDeferralMode(command, interaction);
-
-  // Type assertion: We dispatch the correct context type based on deferralMode,
-  // but TypeScript can't narrow the execute function signature at compile time.
-  // This is safe because we control both the context creation and the dispatch.
-  type ContextExecute = (
-    context: import('./utils/commandContext/index.js').SafeCommandContext
-  ) => Promise<void>;
-  const execute = command.execute as ContextExecute;
-
-  switch (effectiveMode) {
-    case 'ephemeral':
-    case 'public': {
-      // Defer appropriately
-      const isEphemeral = effectiveMode === 'ephemeral';
-      try {
-        await interaction.deferReply({
-          flags: isEphemeral ? MessageFlags.Ephemeral : undefined,
-        });
-      } catch (deferError) {
-        logger.error(
-          { err: deferError, command: interaction.commandName },
-          'Failed to defer interaction'
-        );
-        return;
-      }
-      // Create typed context (no deferReply method!)
-      const context = createDeferredContext(interaction, isEphemeral);
-      await execute(context);
-      break;
-    }
-
-    case 'modal': {
-      // Don't defer - command will show modal
-      const context = createModalContext(interaction);
-      await execute(context);
-      break;
-    }
-
-    case 'none': {
-      // Don't defer - command handles timing itself
-      const context = createManualContext(interaction);
-      await execute(context);
-      break;
-    }
-  }
-}
 
 // Ready event
 client.once(Events.ClientReady, () => {

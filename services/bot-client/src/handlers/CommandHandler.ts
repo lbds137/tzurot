@@ -1,16 +1,20 @@
 /**
  * Command Handler
  *
- * Loads slash commands from the commands directory and routes interactions
- * Simple, modular approach - just scan files and build a Map
+ * Loads slash commands from the commands directory and routes the
+ * non-chat-input interaction surfaces: modal submits, autocomplete,
+ * components, and context-menu commands. Simple, modular approach - just
+ * scan files and build a Map.
+ *
+ * Chat-input (slash) dispatch is NOT here: it lives in
+ * `handlers/commandDispatch.ts`, which owns deferral-mode resolution and
+ * context creation and calls the loaded command's `execute`.
  */
 
 import { createLogger } from '@tzurot/common-types/utils/logger';
-import { InfraError } from '@tzurot/clients';
 import {
   Collection,
   ContextMenuCommandBuilder,
-  type ChatInputCommandInteraction,
   type MessageContextMenuCommandInteraction,
   type ModalSubmitInteraction,
   type AutocompleteInteraction,
@@ -19,8 +23,7 @@ import {
   MessageFlags,
 } from 'discord.js';
 import { CATALOG } from '../ux/catalog/catalog.js';
-import type { MessageSpec } from '../ux/catalog/types.js';
-import { replySpecSafe } from '../ux/render/reply.js';
+import { replySpecSafe, topLevelErrorSpec } from '../ux/render/reply.js';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join } from 'node:path';
 import type { Command, ContextMenuCommand } from '../types.js';
@@ -34,19 +37,6 @@ import { getCommandFromCustomId } from '../utils/customIds.js';
 import { getCommandFiles } from '../utils/commandFileUtils.js';
 
 const logger = createLogger('CommandHandler');
-
-/**
- * Spec for a top-level command/interaction error. An `InfraError` (a gateway
- * call failed for an infrastructure reason — timeout/network/5xx, surfaced
- * via the Pattern-B result helpers in `@tzurot/clients`) gets the transient
- * shape, so a blip never reads to the user as a definitive failure of the
- * command. Everything else keeps the surface-specific fallback spec.
- */
-export function topLevelErrorSpec(error: unknown, fallback: MessageSpec): MessageSpec {
-  return error instanceof InfraError
-    ? CATALOG.error.transient("Couldn't reach the server right now.")
-    : fallback;
-}
 
 // Get directory name for ESM
 const __filename = fileURLToPath(import.meta.url);
@@ -62,7 +52,7 @@ function deriveCategory(filePath: string, commandsPath: string): string | undefi
 }
 
 /**
- * Command Handler - manages slash command registration and execution
+ * Command Handler - manages command registration and non-chat-input routing
  *
  * Uses a prefix-to-command map for component routing:
  * - Command name is automatically registered as a prefix
@@ -251,50 +241,10 @@ export class CommandHandler {
   }
 
   /**
-   * Handle a slash command or modal submit interaction
-   */
-  async handleInteraction(
-    interaction: ChatInputCommandInteraction | ModalSubmitInteraction
-  ): Promise<void> {
-    // Handle modal submits via prefix routing
-    if (interaction.isModalSubmit()) {
-      await this.handleModalInteraction(interaction);
-      return;
-    }
-
-    // Handle slash commands
-    const commandName = interaction.commandName;
-    const command = this.commands.get(commandName);
-
-    if (!command) {
-      logger.warn({ commandName }, 'Unknown command');
-      await interaction.reply({
-        content: 'Unknown command!',
-        flags: MessageFlags.Ephemeral,
-      });
-      return;
-    }
-
-    try {
-      logger.info({ commandName }, 'Executing command');
-      // Type assertion for legacy commands that receive raw interaction
-      // New commands with deferralMode are handled by index.ts directly
-      type LegacyExecute = (interaction: ChatInputCommandInteraction) => Promise<void>;
-      const execute = command.execute as LegacyExecute;
-      await execute(interaction);
-    } catch (error) {
-      logger.error({ err: error, commandName }, 'Error executing command');
-      await replySpecSafe(interaction, topLevelErrorSpec(error, CATALOG.error.commandFailed()), {
-        logContext: { commandName },
-      });
-    }
-  }
-
-  /**
    * Handle a modal submit interaction
    * Routes via prefix map and uses handleModal if available
    */
-  private async handleModalInteraction(interaction: ModalSubmitInteraction): Promise<void> {
+  async handleModalInteraction(interaction: ModalSubmitInteraction): Promise<void> {
     const customId = interaction.customId;
     const prefix = getCommandFromCustomId(customId) ?? customId;
 
