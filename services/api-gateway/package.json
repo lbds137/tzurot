@@ -28,7 +28,7 @@
     "@tzurot/conversation-history": "workspace:*",
     "@tzurot/embeddings": "workspace:*",
     "@tzurot/identity": "workspace:*",
-    "bullmq": "^5.81.2",
+    "bullmq": "^5.81.3",
     "express": "^5.2.1",
     "helmet": "^8.3.0",
     "http-status-codes": "^2.3.0",
