@@ -1,9 +1,10 @@
 ---
 id: TASK-414
 title: Remove dormant back-compat shims with zero production consumers
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-03 18:27'
+updated_date: '2026-08-03 21:14'
 labels:
   - 'size:S'
 dependencies: []
