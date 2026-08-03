@@ -35,14 +35,13 @@ const KNOWN_SUBCOMMAND_NAMES = new Set<string>([
   'delete',
   'list', // legacy — handled specially below (warns toward `browse`)
   // config-route conventions (LLM/TTS settings) + the config-cascade
-  // get/set/set-default/clear-default family used consistently by /settings
-  // and /voice (read a value, set the per-scope default, clear it).
+  // get/default family used consistently by /preset and /voice (read a value,
+  // set the per-scope default, clear it — the default lives under a `default`
+  // group or subcommand, never a verb-suffix name).
   'default',
   'free-default',
   'settings',
   'get',
-  'set-default',
-  'clear-default',
   // established add/remove pair (deny, etc.)
   'add',
   'remove',

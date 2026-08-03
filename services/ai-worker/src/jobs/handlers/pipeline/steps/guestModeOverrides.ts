@@ -102,7 +102,7 @@ export async function applyGuestModeOverrides(
   } else if (!isFreeModel(guestModel)) {
     logger.warn(
       { userId, configuredModel: guestModel },
-      'Free-default config is not a free model — using the free router (check /preset free-default)'
+      'Free-default config is not a free model — using the free router (check /preset global free-default)'
     );
     guestModel = getFreeTextFloor();
   }

@@ -77,9 +77,8 @@ export const RAW_CONTENT_ALLOWLIST: Readonly<Record<string, number>> = {
   'services/bot-client/src/commands/shapes/status.ts': 1,
   'services/bot-client/src/commands/voice/stt/clear.ts': 2,
   'services/bot-client/src/commands/voice/stt/set.ts': 2,
-  'services/bot-client/src/commands/voice/tts/clear-default.ts': 2,
   'services/bot-client/src/commands/voice/tts/clear.ts': 2,
-  'services/bot-client/src/commands/voice/tts/set-default.ts': 2,
+  'services/bot-client/src/commands/voice/tts/default.ts': 4,
   'services/bot-client/src/commands/voice/tts/set.ts': 2,
   'services/bot-client/src/commands/voice/voices/purge.ts': 1,
   // The character-turn engine lives outside commands/, but the rule lints all

@@ -432,7 +432,7 @@ await interaction.reply({
 await interaction.reply({
   content:
     '✅ Preset saved!\n\n' +
-    'Use `/preset set-default` to set it as your default, or\n' +
+    'Use `/preset default set` to set it as your default, or\n' +
     '`/preset override set` to use it for specific characters.',
   flags: MessageFlags.Ephemeral,
 });

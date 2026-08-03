@@ -3,7 +3,7 @@
  *
  * Unified namespace for voice configuration:
  *
- * - /voice tts browse|set|clear|set-default|clear-default — TTS provider config (per-character + user-default)
+ * - /voice tts browse|set|clear|default — TTS provider config (per-character overrides + user-default)
  * - /voice stt set|clear — transcription provider preference (user-scoped; STT is speaker-bound)
  * - /voice voices browse|delete|purge — cloned-voice lifecycle
  * - /voice view <character> — unified TTS+STT+voices dashboard
@@ -38,8 +38,7 @@ import {
 } from './tts/browse.js';
 import { handleTtsSet } from './tts/set.js';
 import { handleTtsClear } from './tts/clear.js';
-import { handleTtsSetDefault } from './tts/set-default.js';
-import { handleTtsClearDefault } from './tts/clear-default.js';
+import { handleTtsDefault } from './tts/default.js';
 import { handleAutocomplete as handleTtsAutocomplete } from './tts/autocomplete.js';
 
 // STT handlers (set / clear — user-scoped, no per-character)
@@ -76,8 +75,7 @@ const ttsRouter = createTypedSubcommandRouter(
     browse: handleTtsBrowse,
     set: handleTtsSet,
     clear: handleTtsClear,
-    'set-default': handleTtsSetDefault,
-    'clear-default': handleTtsClearDefault,
+    default: handleTtsDefault,
   },
   { logger, logPrefix: '[Voice/Tts]' }
 );

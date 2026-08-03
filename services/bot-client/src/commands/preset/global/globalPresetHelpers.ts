@@ -2,7 +2,7 @@
  * Global Preset Update Helpers
  *
  * Shared logic for /preset global commands that set a config as a default.
- * Both free-default and set-default follow the same pattern:
+ * Both /preset global default and /preset global free-default follow the same pattern:
  * ownerClient PUT → error handling → success embed with configName.
  */
 
