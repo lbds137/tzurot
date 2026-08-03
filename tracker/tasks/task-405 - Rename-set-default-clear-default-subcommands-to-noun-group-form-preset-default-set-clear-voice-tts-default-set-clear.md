@@ -3,9 +3,10 @@ id: TASK-405
 title: >-
   Rename set-default/clear-default subcommands to noun-group form (/preset
   default set|clear, /voice tts default set|clear)
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-02 23:48'
+updated_date: '2026-08-03 16:02'
 labels:
   - 'area:bot-client'
   - 'size:M'

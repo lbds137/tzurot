@@ -18,6 +18,8 @@
 
 Phase 2 (history extraction) starts only after the gate passes. Fill-in units: the drain campaign's same-origin clusters (`#1317` 159–162, `#1323` 167–169, `#1321` 163–165, `#1119` 131–133, `#1035` 100–102) and two fresh small tasks from this cut's smoke round — **TASK-402** (retention nag embed: three-token identity line — `<@id>` mention + plain `@username` + id pill; owner-refined, mobile is the primary read surface) and **TASK-403** (dedicated `/inspect` Cache view, low).
 
+**Shipped 2026-08-03 (#1915, merged to develop)**: TASK-405 — `/preset default set|clear` + `/voice tts default` (breaking rename; Discord's no-nested-groups forced the flat voice shape, owner-approved). **Release-notes obligation for the next cut**: Breaking Changes must list both renames AND state explicitly that running `/voice tts default` with no option **clears** your default (reviewer-flagged surprise risk). `preset/global/set-default.ts` → `global/default.ts` filename fix rode along; BYOK doc drift filed as TASK-408.
+
 **TASK-387 is now actionable**: it was deliberately sequenced after TASK-385 (same shared-state seam), and #1894 shipped 385's front-door restructure in this release — re-read 387 against the new pipeline shape before planning it; the restructure may have changed or absorbed its answer.
 
 **Owner-gated, not agent-callable**: **TASK-371** (reasoning chunk cap → 10) is a user-visible-latency call. **TASK-132 + TASK-164** rule-outs are approved on technical merit (councilled 3/3) but not executed; TASK-164's tripwire (`name-match fallback`, shipped #1898) now feeds the decision with prod volume data.
