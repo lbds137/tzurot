@@ -25,19 +25,19 @@ Complete reference for every `/` command Tzurot exposes in Discord. For a high-l
 
 TTS + STT provider selection and cloned-voice library lifecycle. Per-character TTS overrides cascade over user defaults; STT is user-scoped (your voice doesn't change per character).
 
-| Command  | Subcommands                                    | Purpose                                                  |
-| -------- | ---------------------------------------------- | -------------------------------------------------------- |
-| `/voice` | `view <character>`                             | Resolved TTS + STT for a character (with cascade source) |
-|          | `tts list set clear set-default clear-default` | Per-character + user-default TTS provider config         |
-|          | `stt set clear`                                | Transcription provider preference (user-scoped)          |
-|          | `voices browse delete purge`                   | Cloned-voice library lifecycle                           |
+| Command  | Subcommands                    | Purpose                                                  |
+| -------- | ------------------------------ | -------------------------------------------------------- |
+| `/voice` | `view <character>`             | Resolved TTS + STT for a character (with cascade source) |
+|          | `tts browse set clear default` | Per-character + user-default TTS provider config         |
+|          | `stt set clear`                | Transcription provider preference (user-scoped)          |
+|          | `voices browse delete purge`   | Cloned-voice library lifecycle                           |
 
 ## Presets & Channels
 
 | Command    | Subcommands                                 | Purpose                                                            |
 | ---------- | ------------------------------------------- | ------------------------------------------------------------------ |
 | `/preset`  | `create` `edit` `browse`                    | Custom LLM presets (model + parameters)                            |
-|            | `set-default` `clear-default`               | Your default preset — used for every character without an override |
+|            | `default` (`set` `clear`)                   | Your default preset — used for every character without an override |
 |            | `override` (`browse` `set` `clear`)         | Per-character preset overrides                                     |
 |            | `export` `import` `template`                | Preset portability (JSON)                                          |
 |            | `global` (`default` `free-default`)         | System-wide defaults (owner only)                                  |

@@ -34,7 +34,7 @@ const ttsOverrideConfig: OverrideBrowseConfig = {
   fallbackNoun: 'TTS config',
   emptyDescription:
     "You haven't set any TTS overrides — use `/voice tts set` to override " +
-    'which TTS config a character uses, or `/voice tts set-default` to set ' +
+    'which TTS config a character uses, or `/voice tts default` to set ' +
     'your global default.',
   clearCommandHint: '/voice tts clear',
   selectPlaceholder: 'Select an override to clear…',

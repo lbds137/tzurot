@@ -1,14 +1,10 @@
 /**
  * TTS subcommand group builder for /voice.
  *
- * Symmetric naming: browse / set / clear / set-default / clear-default.
- * Each subcommand owns one (action × scope) pair. The shape mirrors what
- * /voice stt will adopt in PR 2 — sharing the pattern keeps both subgroups
- * predictable for users.
- *
- * Renamed from the legacy /settings tts shape:
- *   reset   → clear        (per-character clear, action verb consistent with set)
- *   default → set-default  (global-default set, parallel verb prefix)
+ * Naming: browse / set / clear operate on PER-CHARACTER overrides; `default`
+ * is your global default. Discord forbids a group inside a group, so `default`
+ * carries both directions on one subcommand: provide the `tts` option to set
+ * the default, omit it to clear the default.
  */
 
 import type { SlashCommandSubcommandGroupBuilder } from 'discord.js';
@@ -56,17 +52,14 @@ export function buildVoiceTtsSubcommandGroup(
     )
     .addSubcommand(subcommand =>
       subcommand
-        .setName('set-default')
-        .setDescription('Set your global default TTS config')
+        .setName('default')
+        .setDescription('Set (or clear) your global default TTS config')
         .addStringOption(option =>
           option
             .setName('tts')
-            .setDescription(SELECTOR_DESCRIPTION.ttsConfig)
-            .setRequired(true)
+            .setDescription(`${SELECTOR_DESCRIPTION.ttsConfig} — leave empty to clear your default`)
+            .setRequired(false)
             .setAutocomplete(true)
         )
-    )
-    .addSubcommand(subcommand =>
-      subcommand.setName('clear-default').setDescription('Clear your global default TTS config')
     );
 }

@@ -163,7 +163,7 @@ Style semantics, one rule set: **Primary (blurple)** = the surface's main action
 | `remove` | detach an entry from a list | deny remove, apikey remove |
 | `clear` | reset state; NEVER destroys entities | history clear (epoch — compliant), override clears (compliant); **`voice voices clear` violates it (destroys all voices) → rename `purge`** (council, unanimous: `delete-all` would invent a second destroy-all verb the table already assigns to `purge`) |
 | `purge` | destroy-all with typed-phrase confirmation | memory purge keeps it; `voice voices purge` joins it; reserve for Tier-B confirmations |
-| `set` / `set-default` | assign an override/default | keep |
+| `set` / `set-default` | assign an override/default | `set` keeps; **`set-default`/`clear-default` superseded** — renamed to noun-group form (`/preset default set`, `/preset default clear`, `/voice tts default`) so no verb-suffix subcommands remain |
 
 Description verbs must match command verbs (a `clear` subcommand may not describe itself as "Remove…").
 

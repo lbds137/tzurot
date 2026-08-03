@@ -42,7 +42,7 @@ const logger = createLogger('preset-create');
 export async function handleCreate(context: ModalCommandContext): Promise<void> {
   // No slot option: a preset's vision-capability is derived from its model
   // (`supportsVision`), not chosen at creation. The vision SLOT is picked later
-  // when the preset is assigned (set/set-default/global).
+  // when the preset is assigned (override set/default set/global).
   await context.showModal(buildPresetSeedModal());
 }
 

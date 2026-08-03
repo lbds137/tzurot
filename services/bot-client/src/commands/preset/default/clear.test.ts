@@ -1,21 +1,21 @@
 /**
- * Tests for Preset Clear-Default Handler
+ * Tests for Preset Default Clear Handler
  *
  * Note: This command uses editReply() because interactions are deferred
  * at the top level in index.ts. Ephemerality is set by deferReply().
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { handleClearDefault } from './clear-default.js';
+import { handleDefaultClear } from './clear.js';
 import { mockClearDefaultConfigResponse } from '@tzurot/test-factories';
-import { makeOk, makeErr } from '../../test/gatewayClientStubs.js';
+import { makeOk, makeErr } from '../../../test/gatewayClientStubs.js';
 import type { UserClient } from '@tzurot/clients';
 
 const stub = {
   clearDefaultModelConfig: vi.fn(),
 };
 
-vi.mock('../../utils/gatewayClients.js', () => ({
+vi.mock('../../../utils/gatewayClients.js', () => ({
   clientsFor: vi.fn(() => ({ userClient: stub as unknown as UserClient })),
 }));
 
@@ -35,7 +35,7 @@ vi.mock('@tzurot/common-types/utils/logger', async () => {
   };
 });
 
-describe('handleClearDefault', () => {
+describe('handleDefaultClear', () => {
   const mockEditReply = vi.fn();
 
   beforeEach(() => {
@@ -54,13 +54,13 @@ describe('handleClearDefault', () => {
         },
       } as never,
       editReply: mockEditReply,
-    } as unknown as Parameters<typeof handleClearDefault>[0];
+    } as unknown as Parameters<typeof handleDefaultClear>[0];
   }
 
   it('clears BOTH default slots when no slot is given', async () => {
     stub.clearDefaultModelConfig.mockResolvedValue(makeOk(mockClearDefaultConfigResponse()));
 
-    await handleClearDefault(createMockContext());
+    await handleDefaultClear(createMockContext());
 
     expect(stub.clearDefaultModelConfig).toHaveBeenCalledWith({ slot: 'all' });
   });
@@ -68,7 +68,7 @@ describe('handleClearDefault', () => {
   it('should clear the vision default when slot=vision', async () => {
     stub.clearDefaultModelConfig.mockResolvedValue(makeOk(mockClearDefaultConfigResponse()));
 
-    await handleClearDefault(createMockContext('vision'));
+    await handleDefaultClear(createMockContext('vision'));
 
     expect(stub.clearDefaultModelConfig).toHaveBeenCalledWith({ slot: 'vision' });
     // The vision path completes through to the success embed, same as text.
@@ -84,7 +84,7 @@ describe('handleClearDefault', () => {
   it('should show success embed when config cleared', async () => {
     stub.clearDefaultModelConfig.mockResolvedValue(makeOk(mockClearDefaultConfigResponse()));
 
-    await handleClearDefault(createMockContext());
+    await handleDefaultClear(createMockContext());
 
     expect(mockEditReply).toHaveBeenCalledWith({
       embeds: [
@@ -106,7 +106,7 @@ describe('handleClearDefault', () => {
       )
     );
 
-    await handleClearDefault(createMockContext());
+    await handleDefaultClear(createMockContext());
 
     expect(mockEditReply).toHaveBeenCalledWith({
       embeds: [
@@ -124,7 +124,7 @@ describe('handleClearDefault', () => {
       makeOk(mockClearDefaultConfigResponse({ newEffectiveDefaults: { text: null } }))
     );
 
-    await handleClearDefault(createMockContext());
+    await handleDefaultClear(createMockContext());
 
     expect(mockEditReply).toHaveBeenCalledWith({
       embeds: [
@@ -149,7 +149,7 @@ describe('handleClearDefault', () => {
       )
     );
 
-    await handleClearDefault(createMockContext());
+    await handleDefaultClear(createMockContext());
 
     // Both slot labels and both fallback model names appear — clearing both slots
     // no longer silently omits the vision fallback.
@@ -167,7 +167,7 @@ describe('handleClearDefault', () => {
     // (no double blank line between the two sentences).
     stub.clearDefaultModelConfig.mockResolvedValue(makeOk(mockClearDefaultConfigResponse()));
 
-    await handleClearDefault(createMockContext());
+    await handleDefaultClear(createMockContext());
 
     const description = mockEditReply.mock.calls[0][0].embeds[0].data.description;
     expect(description).not.toContain('\n\n\n');
@@ -177,7 +177,7 @@ describe('handleClearDefault', () => {
   it('should show error when API fails', async () => {
     stub.clearDefaultModelConfig.mockResolvedValue(makeErr(500, 'Internal server error'));
 
-    await handleClearDefault(createMockContext());
+    await handleDefaultClear(createMockContext());
 
     expect(mockEditReply).toHaveBeenCalledWith({
       content: '❌ Internal server error',
@@ -187,7 +187,7 @@ describe('handleClearDefault', () => {
   it('should handle exceptions', async () => {
     stub.clearDefaultModelConfig.mockRejectedValue(new Error('Network error'));
 
-    await handleClearDefault(createMockContext());
+    await handleDefaultClear(createMockContext());
 
     expect(mockEditReply).toHaveBeenCalledWith({
       content: '❌ Failed to clear the default. Please try again.',

@@ -9,7 +9,7 @@
  * - /preset export - Export a preset as JSON file
  * - /preset import - Import a preset from JSON file
  * - /preset template - Download JSON template for import
- * - /preset set-default|clear-default - Your default preset (used for every
+ * - /preset default set|clear - Your default preset (used for every
  *   character without an override)
  * - /preset override browse|set|clear - Per-character preset overrides
  * - /preset global default - Set system default (owner only)
@@ -51,7 +51,7 @@ import { handleExport } from './export.js';
 import { handleImport } from './import.js';
 import { handleTemplate } from './template.js';
 import { handleAutocomplete } from './autocomplete.js';
-import { handleGlobalSetDefault } from './global/set-default.js';
+import { handleGlobalSetDefault } from './global/default.js';
 import { handleGlobalSetFreeDefault } from './global/free-default.js';
 import {
   handleModalSubmit,
@@ -72,10 +72,10 @@ import { handleSet as handleOverrideSet } from './override/set.js';
 import { handleClear as handleOverrideClear } from './override/clear.js';
 import { handleAutocomplete as handleOverrideAutocomplete } from './override/autocomplete.js';
 
-// Account-default handlers (root subcommands — your default preset is a
-// baseline, not an override, so it lives beside browse/create/edit)
-import { handleSetDefault } from './set-default.js';
-import { handleClearDefault } from './clear-default.js';
+// Account-default handlers (the `default` group — your default preset is a
+// baseline that applies to every character without an override)
+import { handleDefaultSet } from './default/set.js';
+import { handleDefaultClear } from './default/clear.js';
 
 const logger = createLogger('preset-command');
 
@@ -94,8 +94,6 @@ const userRouter = createMixedModeSubcommandRouter(
       export: handleExport,
       import: handleImport,
       template: handleTemplate,
-      'set-default': handleSetDefault,
-      'clear-default': handleClearDefault,
     },
   },
   { logger, logPrefix: '[Preset]' }
@@ -111,6 +109,17 @@ const overrideRouter = createTypedSubcommandRouter(
     clear: handleOverrideClear,
   },
   { logger, logPrefix: '[Preset/Override]' }
+);
+
+/**
+ * Account-default subcommand group router (all deferred)
+ */
+const defaultRouter = createTypedSubcommandRouter(
+  {
+    set: handleDefaultSet,
+    clear: handleDefaultClear,
+  },
+  { logger, logPrefix: '[Preset/Default]' }
 );
 
 /**
@@ -135,6 +144,10 @@ async function execute(context: SafeCommandContext): Promise<void> {
     await overrideRouter(context as DeferredCommandContext);
     return;
   }
+  if (group === 'default') {
+    await defaultRouter(context as DeferredCommandContext);
+    return;
+  }
   if (group === 'global') {
     // Owner-only check for global subcommand group
     const deferredCtx = context as DeferredCommandContext;
@@ -152,15 +165,13 @@ async function execute(context: SafeCommandContext): Promise<void> {
  * Autocomplete handler for preset options
  */
 async function autocomplete(interaction: AutocompleteInteraction): Promise<void> {
-  // Route by GROUP/subcommand before option name: the override group AND the
-  // root set-default both focus an option named 'preset', but they suggest
-  // ASSIGNABLE configs (with the guest-mode upsell) — different from the base
-  // subcommands' pool of your editable presets. set-default assigns a preset
-  // just like override set does, so it shares the assignable autocomplete.
-  if (
-    interaction.options.getSubcommandGroup(false) === 'override' ||
-    interaction.options.getSubcommand(false) === 'set-default'
-  ) {
+  // Route by GROUP before option name: the override and default groups both
+  // focus an option named 'preset', but they suggest ASSIGNABLE configs (with
+  // the guest-mode upsell) — different from the base subcommands' pool of your
+  // editable presets. `default set` assigns a preset just like `override set`
+  // does, so it shares the assignable autocomplete.
+  const group = interaction.options.getSubcommandGroup(false);
+  if (group === 'override' || group === 'default') {
     await handleOverrideAutocomplete(interaction);
     return;
   }
@@ -274,7 +285,7 @@ export default defineCommand({
     .addSubcommand(subcommand =>
       // No slot option: a preset's vision-capability is derived from its
       // model (`supportsVision`), not chosen at creation. The vision SLOT is
-      // picked later when the preset is assigned (set/set-default/global).
+      // picked later when the preset is assigned (override set/default set/global).
       subcommand.setName('create').setDescription('Create a new model preset')
     )
     .addSubcommand(subcommand =>
@@ -312,35 +323,42 @@ export default defineCommand({
     .addSubcommand(subcommand =>
       subcommand.setName('template').setDescription('Download a JSON template for preset import')
     )
-    .addSubcommand(subcommand =>
-      subcommand
-        .setName('set-default')
-        .setDescription('Set your default preset — used for every character without an override')
-        .addStringOption(option =>
-          option
-            .setName('preset')
-            .setDescription(SELECTOR_DESCRIPTION.preset)
-            .setRequired(true)
-            .setAutocomplete(true)
+    .addSubcommandGroup(group =>
+      group
+        .setName('default')
+        .setDescription('Manage your default preset')
+        .addSubcommand(subcommand =>
+          subcommand
+            .setName('set')
+            .setDescription(
+              'Set your default preset — used for every character without an override'
+            )
+            .addStringOption(option =>
+              option
+                .setName('preset')
+                .setDescription(SELECTOR_DESCRIPTION.preset)
+                .setRequired(true)
+                .setAutocomplete(true)
+            )
+            .addStringOption(option =>
+              option
+                .setName('slot')
+                .setDescription(CONFIG_SLOT_OPTION_DESCRIPTION)
+                .setRequired(false)
+                .addChoices({ name: 'Chat', value: 'text' }, { name: 'Vision', value: 'vision' })
+            )
         )
-        .addStringOption(option =>
-          option
-            .setName('slot')
-            .setDescription(CONFIG_SLOT_OPTION_DESCRIPTION)
-            .setRequired(false)
-            .addChoices({ name: 'Chat', value: 'text' }, { name: 'Vision', value: 'vision' })
-        )
-    )
-    .addSubcommand(subcommand =>
-      subcommand
-        .setName('clear-default')
-        .setDescription('Clear your default preset')
-        .addStringOption(option =>
-          option
-            .setName('slot')
-            .setDescription(CONFIG_SLOT_OPTION_DESCRIPTION)
-            .setRequired(false)
-            .addChoices({ name: 'Chat', value: 'text' }, { name: 'Vision', value: 'vision' })
+        .addSubcommand(subcommand =>
+          subcommand
+            .setName('clear')
+            .setDescription('Clear your default preset')
+            .addStringOption(option =>
+              option
+                .setName('slot')
+                .setDescription(CONFIG_SLOT_OPTION_DESCRIPTION)
+                .setRequired(false)
+                .addChoices({ name: 'Chat', value: 'text' }, { name: 'Vision', value: 'vision' })
+            )
         )
     )
     .addSubcommandGroup(group =>

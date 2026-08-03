@@ -503,6 +503,21 @@ export const personaDefaultOptions = defineTypedOptions({
 // =============================================================================
 
 /**
+ * /preset default set <preset, slot>
+ */
+export const presetDefaultSetOptions = defineTypedOptions({
+  preset: { type: 'string', required: true },
+  slot: { type: 'string', required: false },
+});
+
+/**
+ * /preset default clear <slot>
+ */
+export const presetDefaultClearOptions = defineTypedOptions({
+  slot: { type: 'string', required: false },
+});
+
+/**
  * /preset global default <preset, slot>
  */
 export const presetGlobalDefaultOptions = defineTypedOptions({
@@ -563,21 +578,6 @@ export const presetExportOptions = defineTypedOptions({
  */
 export const presetImportOptions = defineTypedOptions({
   file: { type: 'attachment', required: true },
-});
-
-/**
- * /preset set-default <preset, slot>
- */
-export const presetSetDefaultOptions = defineTypedOptions({
-  preset: { type: 'string', required: true },
-  slot: { type: 'string', required: false },
-});
-
-/**
- * /preset clear-default <slot>
- */
-export const presetClearDefaultOptions = defineTypedOptions({
-  slot: { type: 'string', required: false },
 });
 
 // =============================================================================
@@ -666,10 +666,10 @@ export const voiceTtsClearOptions = defineTypedOptions({
 });
 
 /**
- * /voice tts set-default <tts>
+ * /voice tts default <tts>
  */
-export const voiceTtsSetDefaultOptions = defineTypedOptions({
-  tts: { type: 'string', required: true },
+export const voiceTtsDefaultOptions = defineTypedOptions({
+  tts: { type: 'string', required: false },
 });
 
 /**
