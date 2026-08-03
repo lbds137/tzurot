@@ -2,7 +2,7 @@
  * Conversation Lookup Routes
  * Internal endpoints for conversation data lookups (service-to-service)
  *
- * GET /user/conversation/message-personality - Get personality from Discord message ID
+ * GET /api/internal/conversation/message-personality - Get personality from Discord message ID
  */
 
 import { Router, type Request, type Response, type RequestHandler } from 'express';
@@ -23,7 +23,7 @@ interface MessagePersonalityResponse {
 }
 
 /**
- * GET /api/user/conversation/message-personality — lookup personality by Discord message ID
+ * GET /api/internal/conversation/message-personality — lookup personality by Discord message ID
  * Internal service-to-service endpoint (no user auth required).
  */
 export const handleLookupPersonalityFromMessage = (deps: RouteDeps): RequestHandler => {

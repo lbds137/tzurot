@@ -262,7 +262,8 @@ export class FactExtractionService {
   private async processGroup(job: FactExtractionJobData, group: EpisodeGroup): Promise<number> {
     const scope = { personalityId: job.personalityId, personaId: group.personaId };
 
-    // Cost tripwire FIRST — shadow mode already spends money. Owner-initiated
+    // Cost tripwire FIRST — every extracted group costs a model call whether
+    // or not the facts are read back into prompts. Owner-initiated
     // backfill jobs are exempt (finite job set, deliberate consumption); the
     // busy-path refund below mirrors this gate so the counter stays balanced.
     if (job.budgetExempt !== true) {

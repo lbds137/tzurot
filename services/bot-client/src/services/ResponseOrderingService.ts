@@ -90,7 +90,7 @@ export class ResponseOrderingService {
   /**
    * Start periodic cleanup of stale pending jobs.
    *
-   * NOTE: This setInterval is a known horizontal scaling blocker (see TECH_DEBT.md).
+   * NOTE: This setInterval is a known horizontal scaling blocker.
    * TODO: Migrate to BullMQ repeatable jobs for multi-instance deployments.
    */
   private startCleanupInterval(): void {

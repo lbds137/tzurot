@@ -905,7 +905,7 @@ async def register_voice(
             _cache_voice(voice_id, voice_state)
         except Exception:
             # Inline containment check for cleanup (CodeQL py/path-injection #63/#64).
-            # voice_path was already validated by _safe_voice_path at line 580, but
+            # voice_path was already validated by _safe_voice_path earlier in this handler, but
             # CodeQL can't trace custom sanitizer functions — it only recognizes the
             # realpath + startswith pattern when inlined in the same scope.
             real_dir = os.path.realpath(voices_dir)

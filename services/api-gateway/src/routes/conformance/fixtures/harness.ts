@@ -128,7 +128,9 @@ export async function buildConformanceHarness(): Promise<ConformanceHarness> {
     releaseBroadcastQueue: fakeQueue,
     queueEvents: fakeQueueEvents,
     // Real resolvers over PGLite — required deps since the detached-resolver
-    // cleanup; enableCleanup off (no timers in tests).
+    // cleanup. `enableCleanup: false` is inert (BaseConfigResolver keeps the
+    // option only for shape compatibility; the TTLCache expires on access and
+    // starts no timer either way) — it stays for explicitness.
     cascadeResolver: new ConfigCascadeResolver(prisma, { enableCleanup: false }),
     llmConfigResolver: new LlmConfigResolver(prisma, { enableCleanup: false }),
     // Real invalidation/retention services over the mock Redis/PGLite — the

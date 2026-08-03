@@ -1,7 +1,8 @@
 /**
  * Participant Formatter
  *
- * Formats conversation participant personas for inclusion in system prompts.
+ * Formats conversation participant personas for the volatile prefix of the
+ * human message.
  * Uses pure XML structure with ID binding for clear identity association.
  *
  * Key features:

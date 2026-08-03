@@ -1,7 +1,8 @@
 /**
  * Memory Formatter
  *
- * Formats relevant memories from past interactions for inclusion in system prompts.
+ * Formats relevant memories from past interactions for the volatile prefix of
+ * the human message.
  * Uses pure XML structure with <memory_archive>, <instruction>, and <historical_note> tags.
  *
  * The XML format helps LLMs clearly distinguish historical context from current

@@ -1,13 +1,16 @@
 /**
- * Admin Diagnostic Routes
- * Owner-only endpoints for accessing LLM diagnostic logs (flight recorder)
+ * Diagnostic Routes
+ * Endpoints for accessing LLM diagnostic logs (flight recorder). The GETs are
+ * open to any authenticated user but filtered server-side to that user's own
+ * logs; only the bot owner sees every row unfiltered. The PATCH is a
+ * service-to-service call (shared secret, no human user).
  *
- * Endpoints:
- * - GET /admin/diagnostic/recent - List recent diagnostic logs (last 100)
- * - GET /admin/diagnostic/by-message/:messageId - Get logs by Discord trigger message ID
- * - GET /admin/diagnostic/by-response/:messageId - Get logs by AI response message ID
- * - GET /admin/diagnostic/:requestId - Get diagnostic log by request ID
- * - PATCH /admin/diagnostic/:requestId/response-ids - Update response message IDs
+ * Endpoints (as mounted in routes/_generated/mounts.ts):
+ * - GET /api/user/diagnostic/recent - List recent diagnostic logs (last 100)
+ * - GET /api/user/diagnostic/by-message/:messageId - Get logs by Discord trigger message ID
+ * - GET /api/user/diagnostic/by-response/:messageId - Get logs by AI response message ID
+ * - GET /api/user/diagnostic/:requestId - Get diagnostic log by request ID
+ * - PATCH /api/internal/diagnostic/:requestId/response-ids - Update response message IDs
  *
  * Note: Diagnostic logs are ephemeral (24h retention) and stored for debugging
  * prompt construction issues.
@@ -160,7 +163,7 @@ function formatRecentLogResponse(row: RecentLogRow): RecentLogResponse {
 }
 
 /**
- * Handler: GET /admin/diagnostic/recent
+ * Handler: GET /api/user/diagnostic/recent
  * List recent diagnostic logs (last 100) with personality name extracted from JSONB
  */
 export const handleGetRecentDiagnostics = (deps: DiagnosticDeps): RequestHandler => {
@@ -233,7 +236,7 @@ export const handleGetRecentDiagnostics = (deps: DiagnosticDeps): RequestHandler
 };
 
 /**
- * Handler: GET /admin/diagnostic/by-message/:messageId
+ * Handler: GET /api/user/diagnostic/by-message/:messageId
  * Get all diagnostic logs for a Discord message ID
  */
 export const handleGetDiagnosticByMessage = (deps: DiagnosticDeps): RequestHandler => {
@@ -286,7 +289,7 @@ export const handleGetDiagnosticByMessage = (deps: DiagnosticDeps): RequestHandl
 };
 
 /**
- * Handler: GET /admin/diagnostic/:requestId
+ * Handler: GET /api/user/diagnostic/:requestId
  * Get full diagnostic log by request ID
  */
 export const handleGetDiagnosticByRequestId = (deps: DiagnosticDeps): RequestHandler => {
@@ -335,7 +338,7 @@ export const handleGetDiagnosticByRequestId = (deps: DiagnosticDeps): RequestHan
 };
 
 /**
- * Handler: GET /admin/diagnostic/by-response/:messageId
+ * Handler: GET /api/user/diagnostic/by-response/:messageId
  * Get diagnostic log by AI response message ID (array containment query)
  */
 export const handleGetDiagnosticByResponse = (deps: DiagnosticDeps): RequestHandler => {
@@ -387,7 +390,7 @@ export const handleGetDiagnosticByResponse = (deps: DiagnosticDeps): RequestHand
 };
 
 /**
- * Handler: PATCH /admin/diagnostic/:requestId/response-ids
+ * Handler: PATCH /api/internal/diagnostic/:requestId/response-ids
  * Update the response message IDs for a diagnostic log
  * Called by bot-client after sending response to Discord
  */

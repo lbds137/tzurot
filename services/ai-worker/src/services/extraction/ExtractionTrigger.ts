@@ -16,8 +16,8 @@
  * extraction is delayed (the next N episodes rebuild the batch), never lost
  * data (episodes are safe in Postgres). A channel going quiet mid-batch
  * leaves a partial list until its TTL; those episodes are simply never
- * extracted (bounded, acceptable for shadow mode — a periodic flusher is a
- * tracked follow-up if observation shows it matters).
+ * extracted (bounded and accepted — a periodic flusher is a tracked follow-up
+ * if observation shows it matters).
  */
 
 import type { Redis } from 'ioredis';

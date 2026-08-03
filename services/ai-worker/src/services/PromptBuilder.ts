@@ -1,5 +1,8 @@
 /**
- * Prompt Builder - Builds system prompts with personality info, memories, and context.
+ * Prompt Builder - Builds the cacheable system message (constraints, personality
+ * identity, protocol, chat log) and the human message, whose volatile prefix
+ * carries the per-request content (environment, participants, facts, memories,
+ * referenced messages).
  */
 
 import { HumanMessage, SystemMessage } from '@langchain/core/messages';
@@ -115,9 +118,10 @@ export class PromptBuilder {
    * - Provides consistent behavior between current turn and history
    *
    * The message includes speaker identification via a <from> tag to help the LLM
-   * know who is speaking. This is critical because while the system prompt has
-   * a participants section with active="true", and chat_log has from= attributes,
-   * the raw HumanMessage content also needs explicit speaker identification.
+   * know who is speaking. This is critical because while the volatile prefix of
+   * this same message has a participants section with active="true", and the
+   * system message's chat_log has from= attributes, the raw HumanMessage content
+   * also needs explicit speaker identification.
    */
   buildHumanMessage(
     userMessage: string,

@@ -24,8 +24,9 @@ export function fromApiMessage(
     channelId,
     guildId,
     // id/personaId are schema-optional on the wire but always populated by
-    // the bot-side fetcher; '' mirrors the shadow diff's own normalization
-    // ('' ids are excluded from id-keyed diffs, personaIds compare via ?? '').
+    // the bot-side fetcher. '' is the normalization contract for both: an ''
+    // id is excluded from every id-keyed lookup, and personaId compares as
+    // '' when absent — never treat either as a real identifier.
     id: msg.id ?? '',
     personaId: msg.personaId ?? '',
     // Discord messages always carry timestamps; epoch-0 is a defensive

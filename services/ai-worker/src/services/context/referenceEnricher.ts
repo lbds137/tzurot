@@ -22,10 +22,10 @@
  * applies (isDeduplicated is checked before the forwarded branch).
  *
  * Known accepted divergence: dedup DISAGREEMENT. The worker dedups against
- * its own assembled history, which can differ from the bot's by fetch-timing
- * drift — a reference one side stubs and the other keeps full surfaces as a
- * per-number dedup mismatch in the shadow diff. Counts always align by
- * construction: a bot-deduped forward ships ONE raw container ref (the raw
+ * its own assembled history, which can differ from the history the bot saw by
+ * fetch-timing drift — so a given reference number may be stubbed here and
+ * kept full on the bot side. Only the per-number decision can diverge; counts
+ * always align by construction: a bot-deduped forward ships ONE raw container ref (the raw
  * side never expanded it), a kept forward ships its per-snapshot refs, and
  * the worker enriches exactly the list it received.
  */

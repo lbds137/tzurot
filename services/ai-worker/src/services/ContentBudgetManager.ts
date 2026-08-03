@@ -223,7 +223,9 @@ export class ContentBudgetManager {
    * 3. Select memories within budget
    * 4. Calculate and allocate history budget
    * 5. Select and serialize history
-   * 6. Build final system prompt with all content
+   * 6. Rebuild the final human message (volatile prefix carrying the selected
+   *    memories/facts) alongside a system message carrying the serialized
+   *    history
    */
   allocate(opts: BudgetAllocationOptions, preselected: PreselectedHistory): BudgetAllocationResult {
     const { processedPersonality, participantPersonas, context } = opts;
