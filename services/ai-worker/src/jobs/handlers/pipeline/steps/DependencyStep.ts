@@ -153,6 +153,12 @@ export class DependencyStep implements IPipelineStep {
    * Uses the RAW job personality (NOT config.effectivePersonality): the update
    * must match the key the row was saved under, and routing-time personality
    * substitution doesn't change the saved row's key.
+   *
+   * `rawMessageContent` crosses to the writer as the typed-vs-voice
+   * discriminator. `job.data.message` is NOT that discriminator: this step runs
+   * before ContextStep re-derives the message from the envelope, so for a voice
+   * trigger the field still holds the bot-side STT transcript, which the writer
+   * must not prefix onto descriptions that already carry the transcript.
    */
   private async persistVisionDescriptions(
     context: GenerationContext,
@@ -168,6 +174,7 @@ export class DependencyStep implements IPipelineStep {
       await this.visionDescriptionWriter.persistTriggerDescriptions({
         jobId: job.id,
         message: job.data.message,
+        rawMessageContent: jobContext.rawAssemblyInputs?.rawMessageContent,
         jobContext,
         personalityId: job.data.personality.id,
         processedAttachments: preprocessing.processedAttachments,
