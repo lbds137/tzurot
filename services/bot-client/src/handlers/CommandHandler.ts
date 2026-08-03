@@ -103,12 +103,14 @@ export class CommandHandler {
     const fileUrl = pathToFileURL(filePath).href;
     const importedModule = (await import(fileUrl)) as Record<string, unknown>;
 
-    // Support both default export (new pattern) and named exports (legacy)
-    const cmdDef = (importedModule.default ?? importedModule) as Partial<Command>;
+    // Command entry points MUST default-export their Command (the shape
+    // `defineCommand` returns). A module with no default export falls through
+    // to the validation below and is skipped as an invalid command file.
+    const cmdDef = importedModule.default as Partial<Command> | undefined;
 
     // Validate command structure
     if (
-      cmdDef.data === undefined ||
+      cmdDef?.data === undefined ||
       cmdDef.data === null ||
       cmdDef.execute === undefined ||
       cmdDef.execute === null

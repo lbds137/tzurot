@@ -612,6 +612,18 @@ describe('forwardedMessageUtils', () => {
       expect(getEffectiveContent(message)).toBe('Fallback content from main');
     });
 
+    it('should return main content when the snapshot exists but is empty', () => {
+      // A present-but-empty snapshot must fall back the same way a missing
+      // snapshot does — otherwise the forward reads as a blank message.
+      const message = createMockMessage({
+        referenceType: MessageReferenceType.Forward,
+        snapshots: [{ content: '' }],
+        content: 'fallback content',
+      });
+
+      expect(getEffectiveContent(message)).toBe('fallback content');
+    });
+
     it('should return first snapshot content when multiple exist', () => {
       const message = createMockMessage({
         referenceType: MessageReferenceType.Forward,

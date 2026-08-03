@@ -52,9 +52,6 @@ vi.mock('./VoiceMessageProcessor.js', () => ({
 
 vi.mock('../utils/forwardedMessageUtils.js', () => ({
   isForwardedMessage: vi.fn().mockReturnValue(false),
-}));
-
-vi.mock('../utils/messageTypeUtils.js', () => ({
   getEffectiveContent: vi.fn((m: Message) => m.content),
 }));
 

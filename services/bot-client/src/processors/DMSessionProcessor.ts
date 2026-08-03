@@ -33,7 +33,7 @@ import {
   NSFW_VERIFICATION_CHECK_FAILED_MESSAGE,
 } from '../utils/nsfwVerification.js';
 import { clientsForUser } from '../utils/gatewayClients.js';
-import { getEffectiveContent } from '../utils/messageTypeUtils.js';
+import { getEffectiveContent } from '../utils/forwardedMessageUtils.js';
 import type { MultiTagPersistence } from '../services/MultiTagPersistence.js';
 
 const logger = createLogger('DMSessionProcessor');
