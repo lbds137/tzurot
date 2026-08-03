@@ -13,7 +13,7 @@
  * week, surviving deploys precisely because in-process state does not.
  */
 
-import { EmbedBuilder, type Client } from 'discord.js';
+import { EmbedBuilder, escapeMarkdown, type Client } from 'discord.js';
 import type { Redis } from 'ioredis';
 import { getConfig } from '@tzurot/common-types/config/config';
 import { createLogger } from '@tzurot/common-types/utils/logger';
@@ -66,13 +66,21 @@ export function buildRetentionNagEmbed(preview: RetentionPreviewResponse): Embed
     bystander: 'never used directly',
   } as const;
 
-  const lines = users
-    .slice(0, MAX_LISTED_USERS)
-    .map(
-      user =>
-        `\`${user.discordId}\` — inactive since ${user.inactiveSince.slice(0, 10)} ` +
-        `(${reasonLabel[user.reason]})`
+  // Three identity tokens per line, deliberately redundant: the `<@id>` mention
+  // frequently fails to resolve on mobile, the plain-text username is the
+  // readable fallback, and the backticked id is the copy-paste handle the CLI
+  // commands take. The username is user-controlled text entering an
+  // owner-facing embed, so it is escaped; an empty one drops its token rather
+  // than rendering a dangling `@`.
+  const lines = users.slice(0, MAX_LISTED_USERS).map(user => {
+    const escapedUsername = escapeMarkdown(user.username);
+    const usernameToken = user.username.trim() === '' ? '' : `@${escapedUsername} `;
+    return (
+      `<@${user.discordId}> ${usernameToken}— \`${user.discordId}\` — ` +
+      `inactive since ${user.inactiveSince.slice(0, 10)} ` +
+      `(${reasonLabel[user.reason]})`
     );
+  });
   if (users.length > MAX_LISTED_USERS) {
     lines.push(`…and ${String(users.length - MAX_LISTED_USERS)} more (see the preview CLI)`);
   }
