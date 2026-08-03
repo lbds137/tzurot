@@ -419,6 +419,92 @@ describe('DependencyStep', () => {
       );
     });
 
+    it('forwards an empty rawMessageContent for a voice trigger (writer stores descriptions only)', async () => {
+      // This step runs before ContextStep re-derives the message, so
+      // `job.data.message` still carries the bot-side STT transcript here. The
+      // writer needs the raw typed content to know not to prefix it.
+      const audioResult: AudioTranscriptionResult = {
+        requestId: 'test-req',
+        success: true,
+        content: 'can you hear me okay',
+        attachmentUrl: 'https://example.com/voice-message.ogg',
+        attachmentName: 'voice-message.ogg',
+      };
+      mockGetJobResult.mockResolvedValueOnce(audioResult);
+      const writer = makeWriter();
+      const stepWithWriter = new DependencyStep(undefined, writer as never);
+
+      await stepWithWriter.process({
+        job: createMockJob({
+          message: 'can you hear me okay',
+          context: {
+            kind: 'envelope',
+            userId: 'user-456',
+            userName: 'TestUser',
+            channelId: 'channel-789',
+            rawAssemblyInputs: { rawMessageContent: '' },
+          },
+          dependencies: [
+            {
+              jobId: 'audio-job-1',
+              type: JobType.AudioTranscription,
+              status: JobStatus.Completed,
+              resultKey: `${REDIS_KEY_PREFIXES.JOB_RESULT}audio-key`,
+            },
+          ],
+        }),
+        startTime: Date.now(),
+      });
+
+      expect(writer.persistTriggerDescriptions).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: 'can you hear me okay',
+          rawMessageContent: '',
+          processedAttachments: [expect.objectContaining({ description: 'can you hear me okay' })],
+        })
+      );
+    });
+
+    it('forwards the typed content for a text trigger (writer keeps the message prefix)', async () => {
+      const imageResult: ImageDescriptionResult = {
+        requestId: 'test-req',
+        success: true,
+        descriptions: [{ url: 'https://example.com/image.png', description: 'A beautiful sunset' }],
+      };
+      mockGetJobResult.mockResolvedValueOnce(imageResult);
+      const writer = makeWriter();
+      const stepWithWriter = new DependencyStep(undefined, writer as never);
+
+      await stepWithWriter.process({
+        job: createMockJob({
+          message: 'look at this sunset',
+          context: {
+            kind: 'envelope',
+            userId: 'user-456',
+            userName: 'TestUser',
+            channelId: 'channel-789',
+            rawAssemblyInputs: { rawMessageContent: 'look at this sunset' },
+          },
+          dependencies: [
+            {
+              jobId: 'image-job-1',
+              type: JobType.ImageDescription,
+              status: JobStatus.Completed,
+              resultKey: `${REDIS_KEY_PREFIXES.JOB_RESULT}image-key`,
+            },
+          ],
+        }),
+        startTime: Date.now(),
+      });
+
+      expect(writer.persistTriggerDescriptions).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: 'look at this sunset',
+          rawMessageContent: 'look at this sunset',
+        })
+      );
+    });
+
     it('does not invoke the writer when no trigger attachments were processed', async () => {
       const writer = makeWriter();
       const stepWithWriter = new DependencyStep(undefined, writer as never);

@@ -18,15 +18,15 @@
  *    kernel scan bot-side, so within-cap resolvable ids are present and
  *    everything else placeholders/passes through identically.
  *
- * Known accepted divergences (burn-in): the bot rewrites the REFETCHED
- * trigger content while the envelope captured the pre-submission `content`
- * param — these differ for voice triggers (raw carries the transcript, the
- * refetched content is empty) and forwarded triggers (raw carries snapshot
- * content), plus the rare mid-flight edit inside the embed-processing delay.
- * The shadow skips the messageContent comparison for voice jobs and counts
- * the rest as real divergence signal. The voice content story must be
- * settled before this output replaces the payload — using the transcript
- * as the message would double it with the attachment-description path.
+ * This output REPLACES `job.data.message` unconditionally (ContextStep
+ * applies it; there is no legacy fallback to the payload's own copy).
+ *
+ * Voice triggers: `rawMessageContent` is `''` by producer contract — the
+ * spoken words are not in this input and never enter the rewritten message.
+ * The transcript reaches the current turn solely via the worker's own
+ * transcription on the attachment-description path, which is what keeps it
+ * from appearing twice. (`rawRoutingTranscript`, the bot-side STT copy, is
+ * telemetry-only and is not read here.)
  */
 
 import { type ReferencedMessage } from '@tzurot/common-types/types/schemas/message';
@@ -124,7 +124,7 @@ export async function rewriteRawContent(
 
   // 4. Role mentions — names rewritten into content; the resolved list is
   // NOT surfaced (payload parity: JobContext carries no mentioned-roles
-  // field, so the shadow has nothing to compare it against either).
+  // field).
   const roleById = new Map((raw.rawMentionedRoles ?? []).map(r => [r.roleId, r]));
   const roleResult = rewriteRoleMentions(content, id => roleById.get(id) ?? null);
   content = roleResult.processedContent;

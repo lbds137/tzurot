@@ -65,18 +65,17 @@ export const rawAssemblyInputsSchema = z.object({
    * references, never a forward's inline snapshot). EMPTY for voice triggers,
    * where the worker re-transcribes the shipped attachment itself (the bot-side
    * STT transcript rides rawRoutingTranscript, telemetry-only) — keeping the
-   * voice transcript out of this field is what lets the shadow diff STT.
+   * voice transcript out of this field is what keeps the worker transcription
+   * the prompt's single source for the spoken words.
    */
   rawMessageContent: z.string(),
   /**
    * The bot-side STT transcript produced for routing (mention detection in
    * spoken text). TELEMETRY-ONLY: assembly ignores it — the prompt's
    * transcript comes from the worker's own transcription via the
-   * attachment-description path — and the shadow diffs it against the
-   * worker transcript to measure STT divergence. Consuming it for assembly
-   * (skipping the worker STT) is a deliberate post-burn-in change gated on
-   * that divergence data. ABSENT for non-voice triggers and when bot-side
-   * STT produced nothing.
+   * attachment-description path. Consuming it for assembly (skipping the
+   * worker STT) would be a deliberate design change, never a drop-in swap.
+   * ABSENT for non-voice triggers and when bot-side STT produced nothing.
    */
   rawRoutingTranscript: z.string().optional(),
   /**
@@ -111,8 +110,8 @@ export const rawAssemblyInputsSchema = z.object({
    * Discord-fetched extended-context messages BEFORE the merge with DB
    * history. Array-field semantics (also for the two user lists below):
    * ABSENT = the extended-context fetch didn't run for this message;
-   * EMPTY = the fetch ran and observed nothing. The shadow assembler treats
-   * the two differently, so producers must not collapse [] to undefined.
+   * EMPTY = the fetch ran and observed nothing. The assembler treats the two
+   * differently, so producers must not collapse [] to undefined.
    */
   rawExtendedContextMessages: z.array(apiConversationMessageSchema).optional(),
   /** Authors observed in extended context — inputs to the batch user upsert. */

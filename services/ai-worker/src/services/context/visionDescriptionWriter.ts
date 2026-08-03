@@ -31,13 +31,24 @@ export class VisionDescriptionWriter {
   /**
    * Upgrade the trigger user message's placeholders to rich descriptions.
    *
-   * The enriched content mirrors the retired bot-side composition exactly:
+   * The enriched content mirrors the retired bot-side composition:
    * `message + '\n\n' + descriptions`, or descriptions alone when the
-   * message has no text (voice-only / image-only triggers).
+   * message contributes no user-typed text (image-only or voice triggers).
    */
   async persistTriggerDescriptions(opts: {
     jobId: string | number | undefined;
     message: string | object;
+    /**
+     * The user's ACTUAL typed content for this turn
+     * (`context.rawAssemblyInputs.rawMessageContent`), which discriminates a
+     * voice trigger from a typed one. `''` means the user typed nothing — a
+     * Discord voice message by producer contract — and `opts.message` at this
+     * point in the pipeline still holds the bot-side STT transcript, so
+     * prefixing it would store the spoken words twice: once bare and once
+     * inside the attachment descriptions' `<voice_transcripts>` block.
+     * `undefined` (no raw inputs on the payload) keeps the message prefix.
+     */
+    rawMessageContent: string | undefined;
     jobContext: JobContext;
     personalityId: string;
     processedAttachments: ProcessedAttachment[];
@@ -63,8 +74,15 @@ export class VisionDescriptionWriter {
         return;
       }
 
+      // A typed-nothing turn contributes no prefix: the descriptions carry the
+      // whole of what the user said. Only an explicit `''` suppresses it —
+      // `undefined` means the payload carried no raw inputs to discriminate on,
+      // so the prefix is kept defensively.
+      const keepMessagePrefix = opts.rawMessageContent !== '';
       const enrichedContent =
-        opts.message.length > 0 ? `${opts.message}\n\n${descriptions}` : descriptions;
+        keepMessagePrefix && opts.message.length > 0
+          ? `${opts.message}\n\n${descriptions}`
+          : descriptions;
 
       const updated = await this.history.updateLastUserMessage(
         jobContext.channelId,

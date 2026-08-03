@@ -1,9 +1,10 @@
 ---
 id: TASK-415
-title: Verify voice transcript is not double-rendered post context-cutover
+title: Fix doubled voice transcript in the persisted trigger row
 status: To Do
 assignee: []
 created_date: '2026-08-03 18:27'
+updated_date: '2026-08-03 19:23'
 labels:
   - 'size:S'
 dependencies: []
@@ -14,7 +15,9 @@ ordinal: 415000
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
-Why: contentRewriter.ts docblock gated payload replacement on settling the voice content story ("using the transcript as the message would double it with the attachment-description path"), but ContextStep.ts:84-89 now overwrites job.data.message unconditionally - the cutover shipped through the documented precondition without discharging it. Code-read suggests voice jobs MAY render the transcript twice (message body + attachment description); NOT runtime-confirmed. Surfaced by the 2026-08-03 drift audit.
-Fix shape: trace a voice job through ContextStep/assembleCore - does messageContent embed the transcript AND does the attachment path inject it again? Confirm with a dev voice-turn diagnostic (/inspect or ai-worker logs). If doubled, pick the single source and fix; either way rewrite the contentRewriter docblock to state the live contract (left stale deliberately until this investigation lands).
-Acceptance: runtime evidence of single-render (close + docblock fix) or a fix PR; docblock states the live contract.
+CONFIRMED (2026-08-03, code-read + prod-data probe). Current-turn prompt is clean - the context cutover accidentally fixed the old double (contract test RawEnvelopeContract.consumer.contract.test.ts:194-212 pins messageContent="" for voice). But the PERSISTED trigger row doubles: DependencyStep runs before ContextStep, so visionDescriptionWriter.persistTriggerDescriptions receives the PRE-overwrite job.data.message (= bot STT transcript) and stores botTranscript + newlines + <voice_transcripts>workerTranscript</voice_transcripts>. That row renders in every SUBSEQUENT turn chat_log - spoken words twice.
+Prod probe (counts-only, no content read): 55 voice rows in retention (Jul 4 - Aug 3), 55/55 have a non-empty prefix before the block, avg prefix 866 chars vs avg inner transcript 837, 50/55 within 20 percent length match. Newest row is same-day - current behavior.
+Fix shape (chosen): discriminate on jobContext.rawAssemblyInputs.rawMessageContent - empty (Discord voice message) means persist descriptions only, no prefix; non-empty typed text keeps the current prefix+descriptions shape so text+image turns are unchanged. Do NOT switch the prefix source to rawMessageContent for text turns (would diverge from the bot-written baseline row).
+Existing 55 doubled rows: owner call - recommend leaving them; 30-day retention evicts by ~Sep 2.
+Acceptance: writer test covers audio empty-raw (descriptions only) and typed-text+attachment (prefix kept); DependencyStep forwards the discriminator; contentRewriter docblock rewritten to the live contract in the same PR.
 <!-- SECTION:DESCRIPTION:END -->
