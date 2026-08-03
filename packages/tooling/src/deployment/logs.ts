@@ -75,20 +75,44 @@ function validateService(service: string | undefined): string | undefined {
 }
 
 /**
- * Colorize log output based on log level
+ * Colorize log output based on log level.
+ *
+ * The Railway CLI renders its own level as a bracketed tag (`[ERROR]`,
+ * `[WARN]`, `[INFO]`, `[DEBUG]`) ahead of the message; the JSON/logfmt forms
+ * only appear inside the payload itself (`railway logs --json`, or an app that
+ * prints raw pino). Both are matched, because both reach this function.
+ *
+ * Known limitation: Railway tags every line a pino service writes to stdout as
+ * `[INFO]` regardless of the pino level, so an app-level error is colorized
+ * only when its payload carries the JSON/logfmt level. The tag matches cover
+ * Railway-tagged lines — stderr, crash output, deploy events.
+ *
+ * Exported for direct unit testing.
  */
-function colorizeLogs(logs: string): string {
+export function colorizeLogs(logs: string): string {
   return logs
     .split('\n')
     .map(line => {
       const lineLower = line.toLowerCase();
-      if (lineLower.includes('"level":"error"') || lineLower.includes('level=error')) {
+      if (
+        lineLower.includes('[error]') ||
+        lineLower.includes('"level":"error"') ||
+        lineLower.includes('level=error')
+      ) {
         return chalk.red(line);
       }
-      if (lineLower.includes('"level":"warn"') || lineLower.includes('level=warn')) {
+      if (
+        lineLower.includes('[warn]') ||
+        lineLower.includes('"level":"warn"') ||
+        lineLower.includes('level=warn')
+      ) {
         return chalk.yellow(line);
       }
-      if (lineLower.includes('"level":"debug"') || lineLower.includes('level=debug')) {
+      if (
+        lineLower.includes('[debug]') ||
+        lineLower.includes('"level":"debug"') ||
+        lineLower.includes('level=debug')
+      ) {
         return chalk.dim(line);
       }
       return line;
