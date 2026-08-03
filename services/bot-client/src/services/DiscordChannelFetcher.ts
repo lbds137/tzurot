@@ -24,6 +24,10 @@ import { createLogger } from '@tzurot/common-types/utils/logger';
 import { buildMessageContent, hasMessageContent } from '../utils/MessageContentBuilder.js';
 import { isUserContentMessage } from '../utils/messageTypeUtils.js';
 import { collectExtendedContextAttachments } from './channelFetcher/extendedContextAttachmentCollector.js';
+import {
+  buildMessageMetadata,
+  type BuiltMessageContentCarriers,
+} from './channelFetcher/messageMetadataBuilder.js';
 import { resolveHistoryLinks } from '../utils/HistoryLinkResolver.js';
 import { extractPersonalityName, stripBotSuffix } from '../utils/webhookNaming.js';
 
@@ -384,9 +388,36 @@ export class DiscordChannelFetcher {
   }
 
   /**
+   * Whether a message carries anything worth converting. Any one carrier is
+   * enough: plain text, attachments, a resolved voice transcript, embeds, a
+   * forward wrapper (its snapshot is the payload), or a link-resolved reference.
+   */
+  private hasProcessableContent(
+    discordMessageId: string,
+    content: string | undefined,
+    carriers: BuiltMessageContentCarriers,
+    resolvedReferences?: Map<string, StoredReferencedMessage[]>
+  ): boolean {
+    const { isForwarded, attachments, embedsXml, voiceTranscripts } = carriers;
+    const hasTextContent = content !== undefined && content.length > 0;
+    const hasAttachments = attachments.length > 0;
+    const hasVoiceTranscripts = voiceTranscripts !== undefined && voiceTranscripts.length > 0;
+    const hasEmbeds = embedsXml !== undefined && embedsXml.length > 0;
+    const hasLinkedRefs = resolvedReferences?.has(discordMessageId) === true;
+
+    return (
+      hasTextContent ||
+      hasAttachments ||
+      hasVoiceTranscripts ||
+      hasEmbeds ||
+      isForwarded ||
+      hasLinkedRefs
+    );
+  }
+
+  /**
    * Convert a Discord message to ConversationMessage format
    */
-  // eslint-disable-next-line complexity, sonarjs/cognitive-complexity -- Message type conversion branches for content building, attachment handling, reference resolution, forwarded message extraction, and our-message normalization
   private async convertMessage(
     msg: Message,
     options: FetchOptions,
@@ -413,20 +444,9 @@ export class DiscordChannelFetcher {
       getTranscript: options.getTranscript,
     });
 
-    const hasTextContent = rawContent !== undefined && rawContent.length > 0;
-    const hasAttachments = attachments.length > 0;
-    const hasVoiceTranscripts = voiceTranscripts !== undefined && voiceTranscripts.length > 0;
-    const hasEmbeds = embedsXml !== undefined && embedsXml.length > 0;
-    const hasLinkedRefs = resolvedReferences?.has(msg.id) === true;
-    const hasProcessableContent =
-      hasTextContent ||
-      hasAttachments ||
-      hasVoiceTranscripts ||
-      hasEmbeds ||
-      isForwarded ||
-      hasLinkedRefs;
+    const carriers = { isForwarded, attachments, embedsXml, voiceTranscripts };
 
-    if (!hasProcessableContent) {
+    if (!this.hasProcessableContent(msg.id, rawContent, carriers, resolvedReferences)) {
       return null;
     }
 
@@ -445,31 +465,8 @@ export class DiscordChannelFetcher {
     // to OUR messages so a real user typing literal `**foo:** bar` isn't
     // mis-attributed.
     const prefixName = isOurMessage ? extractMessagePrefixName(rawContent) : null;
-    const hasMetadata = embedsXml !== undefined || voiceTranscripts !== undefined;
-    let messageMetadata: ConversationMessage['messageMetadata'] = hasMetadata
-      ? { embedsXml, voiceTranscripts }
-      : undefined;
 
-    // Store forwarded attachment descriptions as fallback for when vision isn't available
-    if (isForwarded && attachments.length > 0) {
-      const imageLines = attachments
-        .filter(a => a.contentType?.startsWith('image/'))
-        .map(a => `[${a.contentType}: ${a.name ?? 'image'}]`);
-      if (imageLines.length > 0) {
-        messageMetadata = messageMetadata ?? {};
-        messageMetadata.forwardedAttachmentLines = imageLines;
-      }
-    }
-
-    // Merge resolved link references into messageMetadata
-    const linkedRefs = resolvedReferences?.get(msg.id);
-    if (linkedRefs !== undefined && linkedRefs.length > 0) {
-      messageMetadata = messageMetadata ?? {};
-      messageMetadata.referencedMessages = [
-        ...(messageMetadata.referencedMessages ?? []),
-        ...linkedRefs,
-      ];
-    }
+    const messageMetadata = buildMessageMetadata(msg.id, carriers, resolvedReferences);
 
     const message: ConversationMessage = {
       id: msg.id,
