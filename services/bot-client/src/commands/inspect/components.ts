@@ -118,6 +118,12 @@ export function buildInspectComponents(
         description: 'Per-step post-processing outcomes (checklist)',
         value: DebugViewType.PipelineHealth,
         emoji: '🩺',
+      },
+      {
+        label: 'Cache',
+        description: 'Prefix-cache hit rate, discount, per-section prompt map',
+        value: DebugViewType.Cache,
+        emoji: '♻️',
       }
     );
 

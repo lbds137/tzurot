@@ -1,10 +1,15 @@
 import { describe, it, expect } from 'vitest';
-import type { DiagnosticPayload, PipelineStep } from '@tzurot/common-types/types/diagnostic';
+import type {
+  DiagnosticPayload,
+  DiagnosticPromptSection,
+  PipelineStep,
+} from '@tzurot/common-types/types/diagnostic';
 import {
   buildPipelineHealthView,
   buildInputView,
   buildGenerationParamsView,
   buildPostProcessingView,
+  buildCacheView,
 } from './extendedViews.js';
 import type { ViewContext } from './viewContext.js';
 
@@ -327,5 +332,239 @@ describe('buildPostProcessingView', () => {
     const text = result.chunkedText?.text ?? '';
     expect(text).toContain('post-processing changed nothing');
     expect(text).not.toContain('### Raw model output');
+  });
+});
+
+const SECTIONS: DiagnosticPromptSection[] = [
+  { id: 'chat_log', tier: 'H', chars: 4200, offset: 900 },
+  { id: 'system_identity', tier: 'S0', chars: 600, offset: 0 },
+  { id: 'persona_card', tier: 'S1', chars: 300, offset: 600 },
+];
+
+function describeOf(result: ReturnType<typeof buildCacheView>): string {
+  return result.embeds![0].data.description ?? '';
+}
+
+describe('buildCacheView', () => {
+  it('renders cached vs total tokens, hit %, discount, and the section map', () => {
+    const payload = createMockPayload({
+      llmResponse: {
+        ...createMockPayload().llmResponse,
+        promptTokens: 10000,
+        cachedPromptTokens: 6272,
+        cacheDiscount: -0.0123,
+      },
+      assembledPrompt: {
+        messages: [],
+        totalTokenEstimate: 0,
+        systemPromptSections: SECTIONS,
+      },
+    });
+
+    const result = buildCacheView(payload, 'req-1', OWNER_CTX);
+    const text = describeOf(result);
+
+    expect(result.embeds![0].data.title).toBe('♻️ Cache');
+    expect(text).toContain('**Prompt tokens:** 10,000');
+    expect(text).toContain('**Cached:** 6,272 (63%)');
+    expect(text).toContain('**Cache discount:** -0.0123');
+    expect(text).toContain('**Prefix map** (3 sections)');
+    // Rows carry id, tier, chars, offset.
+    expect(text).toContain('system_identity');
+    expect(text).toContain('chat_log');
+    expect(text).toContain('4,200');
+    expect(text).toContain('900');
+  });
+
+  it('orders section rows by offset regardless of payload order', () => {
+    const payload = createMockPayload({
+      assembledPrompt: { messages: [], totalTokenEstimate: 0, systemPromptSections: SECTIONS },
+    });
+
+    const text = describeOf(buildCacheView(payload, 'req-1', OWNER_CTX));
+    const identityAt = text.indexOf('system_identity');
+    const personaAt = text.indexOf('persona_card');
+    const chatAt = text.indexOf('chat_log');
+    expect(identityAt).toBeGreaterThan(-1);
+    expect(identityAt).toBeLessThan(personaAt);
+    expect(personaAt).toBeLessThan(chatAt);
+  });
+
+  it('does not mutate the payload section array while ordering', () => {
+    const sections = [...SECTIONS];
+    const payload = createMockPayload({
+      assembledPrompt: { messages: [], totalTokenEstimate: 0, systemPromptSections: sections },
+    });
+
+    buildCacheView(payload, 'req-1', OWNER_CTX);
+    expect(sections.map(section => section.id)).toEqual([
+      'chat_log',
+      'system_identity',
+      'persona_card',
+    ]);
+  });
+
+  it('omits the hit percentage and bar when promptTokens is 0', () => {
+    const payload = createMockPayload({
+      llmResponse: {
+        ...createMockPayload().llmResponse,
+        promptTokens: 0,
+        cachedPromptTokens: 0,
+      },
+    });
+
+    const text = describeOf(buildCacheView(payload, 'req-1', OWNER_CTX));
+    expect(text).toContain('**Cached:** 0');
+    expect(text).not.toContain('%');
+    expect(text).not.toContain('NaN');
+    expect(text).not.toContain('Hit ');
+  });
+
+  it('renders a negative cached count without throwing (bar clamps at 0%)', () => {
+    const payload = createMockPayload({
+      llmResponse: {
+        ...createMockPayload().llmResponse,
+        promptTokens: 1000,
+        cachedPromptTokens: -50,
+      },
+    });
+
+    // String.repeat throws on negative counts — the lower clamp is what keeps
+    // the view's never-throws property against unvalidated provider data.
+    const text = describeOf(buildCacheView(payload, 'req-1', OWNER_CTX));
+    expect(text).toContain('**Cached:** -50 (0%)');
+    expect(text).toContain(`Hit ${'░'.repeat(15)}   0%`);
+  });
+
+  it('hides the prefix map from non-owners while keeping cache totals visible', () => {
+    const payload = createMockPayload({
+      llmResponse: {
+        ...createMockPayload().llmResponse,
+        promptTokens: 10000,
+        cachedPromptTokens: 6272,
+      },
+      assembledPrompt: {
+        messages: [],
+        totalTokenEstimate: 0,
+        systemPromptSections: SECTIONS,
+      },
+    });
+
+    const text = describeOf(buildCacheView(payload, 'req-1', { canViewCharacter: false }));
+    expect(text).toContain('**Cached:** 6,272 (63%)');
+    expect(text).toContain('🔒');
+    expect(text).not.toContain('system_identity');
+    expect(text).not.toContain('chat_log');
+  });
+
+  it('clamps the hit bar at 100% when a provider reports cached > prompt tokens', () => {
+    const payload = createMockPayload({
+      llmResponse: {
+        ...createMockPayload().llmResponse,
+        promptTokens: 1000,
+        cachedPromptTokens: 1500,
+      },
+    });
+
+    const text = describeOf(buildCacheView(payload, 'req-1', OWNER_CTX));
+    // The raw count renders honestly; only the derived bar/percent clamp.
+    expect(text).toContain('**Cached:** 1,500 (100%)');
+    expect(text).toContain(`Hit ${'█'.repeat(15)} 100%`);
+    expect(text).not.toContain('█'.repeat(16));
+  });
+
+  it('omits the discount line when the provider reported none', () => {
+    const payload = createMockPayload({
+      llmResponse: {
+        ...createMockPayload().llmResponse,
+        promptTokens: 10000,
+        cachedPromptTokens: 1000,
+      },
+    });
+
+    const text = describeOf(buildCacheView(payload, 'req-1', OWNER_CTX));
+    expect(text).toContain('**Cached:** 1,000 (10%)');
+    expect(text).not.toContain('Cache discount');
+  });
+
+  it('renders a zero-cache report as a real cold prefix, not as missing data', () => {
+    const payload = createMockPayload({
+      llmResponse: {
+        ...createMockPayload().llmResponse,
+        cachedPromptTokens: 0,
+      },
+    });
+
+    const text = describeOf(buildCacheView(payload, 'req-1', OWNER_CTX));
+    expect(text).toContain('**Cached:** 0 (0%)');
+    expect(text).not.toContain('no cache reporting');
+  });
+
+  it('degrades to an explanatory line when the log predates section tracking', () => {
+    const payload = createMockPayload({
+      llmResponse: {
+        ...createMockPayload().llmResponse,
+        promptTokens: 10000,
+        cachedPromptTokens: 500,
+      },
+    });
+
+    const result = buildCacheView(payload, 'req-1', OWNER_CTX);
+    const text = describeOf(result);
+    expect(text).toContain('predates system-prompt section tracking');
+    expect(text).not.toContain('```\nSection');
+  });
+
+  it('notes an empty section map distinctly from an absent one', () => {
+    const payload = createMockPayload({
+      assembledPrompt: { messages: [], totalTokenEstimate: 0, systemPromptSections: [] },
+    });
+
+    const text = describeOf(buildCacheView(payload, 'req-1', OWNER_CTX));
+    expect(text).toContain('No sections recorded for this request.');
+    expect(text).not.toContain('predates system-prompt section tracking');
+  });
+
+  it('still opens with an explanation when the log carries no cache fields at all', () => {
+    const result = buildCacheView(createMockPayload(), 'req-1', OWNER_CTX);
+    const text = describeOf(result);
+
+    expect(result.embeds).toHaveLength(1);
+    expect(text).toContain('no cache reporting from the provider');
+    expect(text).not.toContain('Cache discount');
+    expect(text).toContain('predates system-prompt section tracking');
+  });
+
+  it('truncates long section ids so rows stay mobile-width', () => {
+    const payload = createMockPayload({
+      assembledPrompt: {
+        messages: [],
+        totalTokenEstimate: 0,
+        systemPromptSections: [
+          { id: 'an_extremely_long_section_identifier', tier: 'S1', chars: 10, offset: 0 },
+        ],
+      },
+    });
+
+    const text = describeOf(buildCacheView(payload, 'req-1', OWNER_CTX));
+    expect(text).toContain('an_extremely_lon…');
+    expect(text).not.toContain('an_extremely_long_section_identifier');
+  });
+
+  it('trims the table when the section map would overflow the embed description', () => {
+    const many: DiagnosticPromptSection[] = Array.from({ length: 400 }, (_, i) => ({
+      id: `section_${i}`,
+      tier: 'V' as const,
+      chars: 100,
+      offset: i * 100,
+    }));
+    const payload = createMockPayload({
+      assembledPrompt: { messages: [], totalTokenEstimate: 0, systemPromptSections: many },
+    });
+
+    const text = describeOf(buildCacheView(payload, 'req-1', OWNER_CTX));
+    expect(text.length).toBeLessThanOrEqual(3900);
+    expect(text).toContain('sections trimmed to fit');
+    expect(text.endsWith('_')).toBe(true);
   });
 });
