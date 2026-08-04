@@ -143,12 +143,17 @@ export async function handleVoicePurgeModalSubmit(
       };
     }
 
-    const { deleted, total, errors } = result.data;
+    const { deleted, total, alreadyGone, errors } = result.data;
 
     const embed = new EmbedBuilder()
       .setTitle('🗑️ Voices Purged')
       .setColor(DISCORD_COLORS.SUCCESS)
       .setTimestamp();
+
+    // 404-at-provider voices satisfied the purge goal without being deleted by
+    // this run — folding them into `deleted` would over-claim, so say it plainly.
+    const alreadyGoneNote =
+      alreadyGone !== undefined && alreadyGone > 0 ? ` (${alreadyGone} already gone)` : '';
 
     if (errors !== undefined && errors.length > 0) {
       // Truncate error list to avoid exceeding Discord's 2048-char embed description limit.
@@ -158,13 +163,15 @@ export async function handleVoicePurgeModalSubmit(
       const overflow =
         errors.length > MAX_ERRORS_SHOWN ? `\n…and ${errors.length - MAX_ERRORS_SHOWN} more` : '';
       embed.setDescription(
-        `Deleted **${deleted}/${total}** voices. ${errors.length} failed:\n` +
+        `Deleted **${deleted}/${total}** voices${alreadyGoneNote}. ${errors.length} failed:\n` +
           shownErrors.map(e => `• ${e}`).join('\n') +
           overflow
       );
       embed.setColor(DISCORD_COLORS.WARNING);
     } else {
-      embed.setDescription(`Deleted **${deleted}** cloned voice${deleted !== 1 ? 's' : ''}.`);
+      embed.setDescription(
+        `Deleted **${deleted}** cloned voice${deleted !== 1 ? 's' : ''}${alreadyGoneNote}.`
+      );
     }
 
     // Invalidate autocomplete cache so deleted voices don't appear in /voice voices delete

@@ -62,6 +62,8 @@ export const ListVoiceModelsResponseSchema = z.object({
 export const ClearVoicesResponseSchema = z.object({
   deleted: z.number().int().nonnegative(),
   total: z.number().int().nonnegative(),
+  /** Voices that 404'd at the provider — already gone, NOT deleted by this run. Omitted when 0. */
+  alreadyGone: z.number().int().nonnegative().optional(),
   message: z.string().optional(),
   errors: z.array(z.string()).optional(),
 });
