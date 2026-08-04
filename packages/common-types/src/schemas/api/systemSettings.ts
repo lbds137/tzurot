@@ -66,6 +66,10 @@ export const SystemSettingsSchema = z.object({
   fallbackTextModelFree: z.string().min(1),
   /** The FREE vision floor — guests only; free-route models only. */
   fallbackVisionModelFree: z.string().min(1),
+  /** Runtime switch for the scheduled nightly dev↔prod db-sync (prod bot-client only). */
+  nightlySyncEnabled: z.boolean(),
+  /** UTC hour (0–23) the nightly sync fires in. */
+  nightlySyncHourUtc: z.number().int().min(0).max(23),
 });
 
 export type SystemSettings = z.infer<typeof SystemSettingsSchema>;
@@ -84,12 +88,19 @@ export const StoredSystemSettingsSchema = SystemSettingsSchema.partial().passthr
 
 /** Dashboard page-group assignment (concern grouping; the dashboard slice owns rendering). */
 export type SystemSettingGroup =
-  'extraction' | 'free-tier-fair-share' | 'free-tier-zai' | 'models-limits';
+  'extraction' | 'free-tier-fair-share' | 'free-tier-zai' | 'models-limits' | 'operations';
 
 const GROUP_EXTRACTION: SystemSettingGroup = 'extraction';
 const GROUP_FAIR_SHARE: SystemSettingGroup = 'free-tier-fair-share';
 const GROUP_ZAI: SystemSettingGroup = 'free-tier-zai';
 const GROUP_MODELS_LIMITS: SystemSettingGroup = 'models-limits';
+const GROUP_OPERATIONS: SystemSettingGroup = 'operations';
+
+/**
+ * `seedSource` for settings with no env-var predecessor — born as system
+ * settings rather than migrated into one.
+ */
+const SEED_SOURCE_NEW = '(none — introduced as a system setting)';
 
 /** Which input control the setting renders as (dashboard + slash-setter coercion). */
 export type SystemSettingControl = 'boolean' | 'integer' | 'enum' | 'model';
@@ -296,7 +307,7 @@ export const SYSTEM_SETTINGS_REGISTRY: SystemSettingsRegistry = {
     // because the steady state is expensive.
     fallback: true,
     // No predecessor: this setting is new, not migrated from an env var.
-    seedSource: '(none — introduced as a system setting)',
+    seedSource: SEED_SOURCE_NEW,
   },
   zaiHeadroomPercent: {
     key: 'zaiHeadroomPercent',
@@ -398,6 +409,35 @@ export const SYSTEM_SETTINGS_REGISTRY: SystemSettingsRegistry = {
       freeRouteOnly: true,
       catalogFailMode: 'closed',
     },
+  },
+  nightlySyncEnabled: {
+    key: 'nightlySyncEnabled',
+    label: 'Nightly Sync Enabled',
+    description: 'Run the scheduled nightly dev↔prod database sync (prod bot only).',
+    group: GROUP_OPERATIONS,
+    control: 'boolean',
+    liveness: 'live',
+    // Defaults ON: the scheduled sync is the mechanism that keeps dev usable as
+    // a rehearsal of prod, and it is silent when nothing moved. The switch
+    // exists to park it during a migration soak, not because the steady state
+    // is risky.
+    fallback: true,
+    // No predecessor: this setting is new, not migrated from an env var.
+    seedSource: SEED_SOURCE_NEW,
+  },
+  nightlySyncHourUtc: {
+    key: 'nightlySyncHourUtc',
+    label: 'Nightly Sync Hour (UTC)',
+    description:
+      'UTC hour the nightly database sync fires (7 ≈ 3am US Eastern in summer, 2am in winter).',
+    group: GROUP_OPERATIONS,
+    control: 'integer',
+    liveness: 'live',
+    fallback: 7,
+    // No predecessor: this setting is new, not migrated from an env var.
+    seedSource: SEED_SOURCE_NEW,
+    min: 0,
+    max: 23,
   },
 };
 

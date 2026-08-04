@@ -1,7 +1,7 @@
 /**
  * System-settings dashboard definitions — DERIVED from SYSTEM_SETTINGS_REGISTRY
  * (labels, descriptions, groups, choices, bounds all come from the registry;
- * adding setting #18 there makes it appear here with zero dashboard edits).
+ * adding setting #20 there makes it appear here with zero dashboard edits).
  *
  * These render as the owner-only System page group inside `/admin settings`
  * (artifact D8), in `statusDisplay: 'plain'` mode — the bag is non-cascading,
@@ -16,12 +16,13 @@ import {
 } from '@tzurot/common-types/schemas/api/systemSettings';
 import { SettingType, type SettingDefinition, type SettingsPage } from './types.js';
 
-/** Page order + labels for the four registry groups (artifact D8). */
+/** Page order + labels for the registry groups (artifact D8). */
 const SYSTEM_PAGE_LABELS: Record<SystemSettingGroup, string> = {
   extraction: 'System · Extraction',
   'free-tier-fair-share': 'System · Free Tier — Fair Share',
   'free-tier-zai': 'System · Free Tier — z.ai',
   'models-limits': 'System · Models & Limits',
+  operations: 'System · Operations',
 };
 
 const SYSTEM_GROUP_ORDER: SystemSettingGroup[] = [
@@ -29,6 +30,7 @@ const SYSTEM_GROUP_ORDER: SystemSettingGroup[] = [
   'free-tier-fair-share',
   'free-tier-zai',
   'models-limits',
+  'operations',
 ];
 
 /** Overview-field emoji per setting (display polish only). */
@@ -51,6 +53,8 @@ const SYSTEM_SETTING_EMOJI: Record<string, string> = {
   fallbackTextModelFree: '🆓',
   fallbackVisionModelFree: '🖼️',
   stickerVisionEnabled: '🏷️',
+  nightlySyncEnabled: '🌙',
+  nightlySyncHourUtc: '🕒',
 };
 
 /** Human labels for enum choice values (fall back to the raw value). */
@@ -124,15 +128,15 @@ function toSettingDefinition(meta: SystemSettingMeta): SettingDefinition {
 }
 
 /**
- * All 17 system settings as dashboard definitions, registry order.
+ * All 19 system settings as dashboard definitions, registry order.
  */
 export const SYSTEM_SETTINGS_DEFINITIONS: SettingDefinition[] = SYSTEM_SETTINGS_KEYS.map(key =>
   toSettingDefinition(SYSTEM_SETTINGS_REGISTRY[key])
 );
 
 /**
- * The four System concern pages (artifact D8), derived from the registry's
- * `group` field, in fixed order.
+ * The System concern pages (artifact D8), derived from the registry's `group`
+ * field, in fixed order.
  */
 export const SYSTEM_SETTINGS_PAGES: SettingsPage[] = SYSTEM_GROUP_ORDER.map(group => ({
   id: `system-${group}`,

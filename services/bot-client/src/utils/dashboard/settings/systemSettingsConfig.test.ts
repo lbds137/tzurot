@@ -43,6 +43,12 @@ describe('SYSTEM_SETTINGS_DEFINITIONS (registry derivation)', () => {
     const headroom = SYSTEM_SETTINGS_DEFINITIONS.find(d => d.id === 'zaiHeadroomPercent');
     expect(headroom?.min).toBe(1);
     expect(headroom?.max).toBe(99);
+    // A registry min of 0 must survive the `?? 1` default — `??` falls through
+    // on undefined only, and midnight is a legal sync hour.
+    const syncHour = SYSTEM_SETTINGS_DEFINITIONS.find(d => d.id === 'nightlySyncHourUtc');
+    expect(syncHour?.min).toBe(0);
+    expect(syncHour?.max).toBe(23);
+    expect(syncHour?.placeholder).toBe('0–23');
   });
 
   it('enum choices come from the registry with no reserved values', () => {
@@ -63,7 +69,7 @@ describe('SYSTEM_SETTINGS_DEFINITIONS (registry derivation)', () => {
 
   it('every registry key has a bespoke emoji and every enum choice a human label (the hand-maintained maps must not silently lag the registry)', () => {
     // The ⚙️/raw-value fallbacks are graceful-degradation paths, not a licence
-    // to skip the maps when adding setting #18 — this pins the maps complete.
+    // to skip the maps when adding setting #20 — this pins the maps complete.
     for (const def of SYSTEM_SETTINGS_DEFINITIONS) {
       expect(def.emoji, `missing bespoke emoji for ${def.id}`).not.toBe('⚙️');
       if (def.type === SettingType.ENUM) {
@@ -78,12 +84,13 @@ describe('SYSTEM_SETTINGS_DEFINITIONS (registry derivation)', () => {
 });
 
 describe('SYSTEM_SETTINGS_PAGES', () => {
-  it('renders four concern pages covering every registry key exactly once', () => {
+  it('renders the concern pages covering every registry key exactly once', () => {
     expect(SYSTEM_SETTINGS_PAGES.map(p => p.label)).toEqual([
       'System · Extraction',
       'System · Free Tier — Fair Share',
       'System · Free Tier — z.ai',
       'System · Models & Limits',
+      'System · Operations',
     ]);
     const allIds = SYSTEM_SETTINGS_PAGES.flatMap(p => p.settingIds);
     expect([...allIds].sort()).toEqual([...SYSTEM_SETTINGS_KEYS].sort());
