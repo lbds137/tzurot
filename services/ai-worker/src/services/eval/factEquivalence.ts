@@ -9,10 +9,20 @@
  * scores a match.
  */
 
-import type { LocalEmbeddingService } from '@tzurot/embeddings';
-
 /** Cosine similarity floor for "these two statements express the same fact". */
 export const FACT_EQUIVALENCE_THRESHOLD = 0.8;
+
+/**
+ * The only embedding capability the matcher uses.
+ *
+ * Narrower than `IEmbeddingService` on purpose: the memoizing wrapper below
+ * (and any test fake) satisfies this without implementing the worker-lifecycle
+ * methods the matcher never calls. `LocalEmbeddingService` satisfies it
+ * structurally, so callers keep passing one unchanged.
+ */
+export interface EmbeddingSource {
+  getEmbedding(text: string): Promise<Float32Array | undefined>;
+}
 
 export function cosineSimilarity(a: Float32Array | number[], b: Float32Array | number[]): number {
   let dot = 0;
@@ -47,7 +57,7 @@ export interface MatchResult {
 export async function matchFacts(
   extracted: string[],
   expected: string[],
-  embeddings: LocalEmbeddingService,
+  embeddings: EmbeddingSource,
   threshold = FACT_EQUIVALENCE_THRESHOLD
 ): Promise<MatchResult> {
   if (extracted.length === 0 && expected.length === 0) {
@@ -116,14 +126,19 @@ export async function scoreExtraction(
   extracted: string[],
   expectFacts: string[],
   allowedExtras: string[],
-  embeddings: LocalEmbeddingService,
+  embeddings: EmbeddingSource,
   threshold = FACT_EQUIVALENCE_THRESHOLD
 ): Promise<ExtractionScore> {
-  const recallMatch = await matchFacts(extracted, expectFacts, embeddings, threshold);
+  // Both passes embed every `extracted` statement, and `expectFacts` appears in
+  // both the recall list and the concatenated support list — so one memo shared
+  // across the two calls roughly halves the real model's embedding work.
+  const memo = memoizeEmbeddings(embeddings);
+
+  const recallMatch = await matchFacts(extracted, expectFacts, memo, threshold);
   const supportMatch = await matchFacts(
     extracted,
     [...expectFacts, ...allowedExtras],
-    embeddings,
+    memo,
     threshold
   );
 
@@ -136,6 +151,34 @@ export async function scoreExtraction(
     recall: recallMatch.recall,
     violationRate,
     precision: 1 - violationRate,
+  };
+}
+
+/**
+ * Wraps an embedding source so each unique statement is embedded exactly once.
+ *
+ * The cache holds the PROMISE rather than the resolved vector: the matcher
+ * embeds a whole list with `Promise.all`, so two in-flight requests for the
+ * same statement must share one call instead of both missing an
+ * only-populated-on-resolve cache.
+ *
+ * Scoped to a single scoring call by construction (no module-level cache) —
+ * an eval run over a large golden corpus would otherwise retain every
+ * statement it ever scored, and statements rarely repeat across goldens.
+ */
+function memoizeEmbeddings(source: EmbeddingSource): EmbeddingSource {
+  const inFlight = new Map<string, Promise<Float32Array | undefined>>();
+
+  return {
+    getEmbedding: async (text: string): Promise<Float32Array | undefined> => {
+      const cached = inFlight.get(text);
+      if (cached !== undefined) {
+        return cached;
+      }
+      const pending = source.getEmbedding(text);
+      inFlight.set(text, pending);
+      return pending;
+    },
   };
 }
 

@@ -1,6 +1,11 @@
 import { describe, it, expect, vi } from 'vitest';
 import type { LocalEmbeddingService } from '@tzurot/embeddings';
-import { cosineSimilarity, matchFacts, scoreExtraction } from './factEquivalence.js';
+import {
+  cosineSimilarity,
+  matchFacts,
+  scoreExtraction,
+  type EmbeddingSource,
+} from './factEquivalence.js';
 
 /** Deterministic fake embedder: known strings map to fixed orthogonal-ish vectors. */
 function makeEmbeddings(vectors: Record<string, number[]>): LocalEmbeddingService {
@@ -142,5 +147,59 @@ describe('scoreExtraction (source-grounded, methodology v2)', () => {
     expect(score.violationRate).toBe(0);
     expect(score.precision).toBe(1);
     expect(score.recall).toBe(0);
+  });
+});
+
+describe('scoreExtraction embedding memoization', () => {
+  /**
+   * Counting embedder: records every statement it is asked to embed. Resolution
+   * is deferred by a microtask so requests issued in the same tick are genuinely
+   * concurrent — a cache keyed on the RESOLVED vector would miss on those.
+   */
+  function makeCountingSource(): EmbeddingSource & { calls: string[] } {
+    const calls: string[] = [];
+    return {
+      calls,
+      getEmbedding: async (text: string): Promise<Float32Array> => {
+        calls.push(text);
+        await Promise.resolve();
+        return Float32Array.from([text.length, 1, 0]);
+      },
+    };
+  }
+
+  it('embeds each unique statement exactly once across both internal matchFacts passes', async () => {
+    const source = makeCountingSource();
+
+    await scoreExtraction(
+      ['extracted-1', 'extracted-2', 'extracted-3'],
+      ['expected-1', 'expected-2'],
+      ['allowed-1'],
+      source,
+      0.8
+    );
+
+    // Unmemoized this is 11 calls: extracted embedded once per pass (3 × 2),
+    // expectFacts once standalone and once inside the concatenated support
+    // list (2 × 2), plus the single allowed extra.
+    expect(source.calls).toHaveLength(6);
+    expect([...source.calls].sort()).toEqual([
+      'allowed-1',
+      'expected-1',
+      'expected-2',
+      'extracted-1',
+      'extracted-2',
+      'extracted-3',
+    ]);
+  });
+
+  it('dedupes concurrent requests for the same statement', async () => {
+    const source = makeCountingSource();
+
+    // Both copies of the duplicate are requested in the same tick (the matcher
+    // embeds a list with Promise.all), so only a promise-level memo collapses them.
+    await scoreExtraction(['dup', 'dup'], ['expected-1'], [], source, 0.8);
+
+    expect(source.calls).toEqual(['dup', 'expected-1']);
   });
 });
