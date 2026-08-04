@@ -3,9 +3,10 @@ id: TASK-417
 title: >-
   Delete the dead user/channel and user/personality factory index files and
   their handler-builder tier
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-03 23:10'
+updated_date: '2026-08-04 01:22'
 labels:
   - 'size:M'
   - 'area:api-gateway'
