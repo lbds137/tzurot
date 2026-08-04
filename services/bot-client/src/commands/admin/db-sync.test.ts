@@ -12,7 +12,6 @@ import {
   handleDbSync,
   handleDbSyncDetailsButton,
   isDbSyncDetailsButton,
-  buildSyncSummary,
   buildSyncReportText,
 } from './db-sync.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
@@ -352,53 +351,6 @@ describe('handleDbSync', () => {
     expect(context.editReply).toHaveBeenCalledWith({
       content: expect.stringContaining('❌ Database sync failed'),
     });
-  });
-});
-
-describe('buildSyncSummary — embed backstop', () => {
-  it('caps the active-table list at 30 lines with a see-report tail', () => {
-    const stats = Object.fromEntries(
-      Array.from({ length: 35 }, (_, i) => [
-        `table_${i}`,
-        { devToProd: 1, prodToDev: 0, conflicts: 0, deleted: 0 },
-      ])
-    );
-    const summary = buildSyncSummary({ stats }, false);
-
-    expect(summary).toContain('`table_0`:');
-    expect(summary).toContain('`table_29`:');
-    expect(summary).not.toContain('`table_30`:');
-    expect(summary).toContain('…and 5 more — see the report below.');
-  });
-});
-
-describe('buildSyncSummary', () => {
-  it('reports the in-sync state when no table has activity', () => {
-    const summary = buildSyncSummary(
-      {
-        schemaVersion: 'v1',
-        stats: { users: { devToProd: 0, prodToDev: 0, conflicts: 0, deleted: 0 } },
-      },
-      false
-    );
-
-    expect(summary).toContain('No changes — databases already in sync.');
-  });
-
-  it('appends conflict and deleted suffixes only when nonzero', () => {
-    const summary = buildSyncSummary(
-      {
-        stats: {
-          users: { devToProd: 1, prodToDev: 0, conflicts: 2, deleted: 3 },
-          personas: { devToProd: 4, prodToDev: 0, conflicts: 0, deleted: 0 },
-        },
-      },
-      false
-    );
-
-    expect(summary).toContain('`users`: 1 dev→prod, 0 prod→dev, 2 conflicts, 3 deleted');
-    expect(summary).toContain('`personas`: 4 dev→prod, 0 prod→dev');
-    expect(summary).not.toContain('`personas`: 4 dev→prod, 0 prod→dev,');
   });
 });
 

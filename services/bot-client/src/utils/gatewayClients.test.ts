@@ -22,6 +22,7 @@ vi.mock('@tzurot/common-types/config/config', async () => {
     getConfig: () => ({
       GATEWAY_URL: 'http://localhost:3000',
       INTERNAL_SERVICE_SECRET: 'test-service-secret',
+      BOT_OWNER_ID: '999888777666555444',
     }),
   };
 });
@@ -34,6 +35,7 @@ import {
   clientsFor,
   clientsForUser,
   getServiceClient,
+  getOwnerClient,
   toGatewayUser,
   isGatewayConfigured,
 } from './gatewayClients.js';
@@ -149,6 +151,36 @@ describe('getServiceClient', () => {
     }));
     const mod = await import('./gatewayClients.js');
     expect(() => mod.getServiceClient()).toThrow('GATEWAY_URL');
+    vi.doUnmock('@tzurot/common-types/config/config');
+    vi.doUnmock('../startup.js');
+  });
+});
+
+describe('getOwnerClient', () => {
+  // No-interaction factory for scheduled owner-scoped maintenance. The gateway
+  // gates /api/admin/* on the actor header, so the configured owner id is the
+  // only actor this can mint.
+  it('returns an OwnerClient actored as the configured bot owner', () => {
+    const client = getOwnerClient();
+
+    expect(client).toBeInstanceOf(OwnerClient);
+    expect(client.actor).toBe('999888777666555444');
+  });
+
+  it('throws when BOT_OWNER_ID is unset (the call could only be rejected)', async () => {
+    vi.resetModules();
+    vi.doMock('@tzurot/common-types/config/config', async () => {
+      const actual = await vi.importActual('@tzurot/common-types/config/config');
+      return {
+        ...actual,
+        getConfig: () => ({ GATEWAY_URL: 'http://localhost:3000', BOT_OWNER_ID: undefined }),
+      };
+    });
+    vi.doMock('../startup.js', () => ({
+      getValidatedServiceSecret: () => 'test-service-secret',
+    }));
+    const mod = await import('./gatewayClients.js');
+    expect(() => mod.getOwnerClient()).toThrow('BOT_OWNER_ID');
     vi.doUnmock('@tzurot/common-types/config/config');
     vi.doUnmock('../startup.js');
   });
