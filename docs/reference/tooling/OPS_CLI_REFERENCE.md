@@ -301,6 +301,24 @@ Filtered copy-paste detection ratchet — same structural shape as test:audit:
 
 `cpd:check` fails on either `filteredLines > baseline + graceMargin` OR `configHash` drift. The post-filter excludes fragments where ≥80% of classifiable lines are call-expression shape — see [`docs/reference/CPD_CAMPAIGN_AUDIT.md`](../CPD_CAMPAIGN_AUDIT.md) for the rationale. Bump `FILTER_IMPL_VERSION` (in `packages/tooling/src/cpd/postFilter.ts`) when the heuristic changes.
 
+## Cache Commands
+
+Two unrelated caches share the `cache:` namespace: `cache:inspect` / `cache:clear` act on the **local Turborepo build cache** (`.turbo/`, dev-machine only), while `cache:clear-credit-exhaustion` / `cache:prefix-diff` act on **runtime state in a target environment** (Redis and the diagnostic store) and therefore take `--env`.
+
+| Command                                                                   | Description                                                                                            |
+| ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `pnpm ops cache:inspect`                                                  | Report local Turborepo cache size, file count, and oldest/newest entry                                 |
+| `pnpm ops cache:clear`                                                    | Delete the local Turborepo cache to force fresh builds (`--dry-run` previews)                          |
+| `pnpm ops cache:clear-credit-exhaustion --env prod --user-id <discordId>` | Delete one BYOK user's OpenRouter credit-exhaustion Redis entry (operator escape valve after a top-up) |
+| `pnpm ops cache:clear-credit-exhaustion --env dev --system`               | Same, for the system-bucket entry (guest mode / system-key fallback)                                   |
+| `pnpm ops cache:prefix-diff --env dev --channel <snowflake>`              | Diff consecutive requests' system prompts for a channel to diagnose provider prompt-cache misses       |
+| `... --personality <uuid>`                                                | Restrict the diff to one personality                                                                   |
+| `... --limit <pairs>`                                                     | Consecutive pairs to compare — default 5, **max 100**                                                  |
+
+**`cache:clear-credit-exhaustion`** requires exactly one of `--user-id` or `--system`; supplying both or neither is rejected. Keys mirror `CreditExhaustionCache` in ai-worker (`nocredits:openrouter:user:<discordId>` / `nocredits:openrouter:system`).
+
+**`cache:prefix-diff`** requires `--channel` (read verbatim from argv — a Discord snowflake exceeds `MAX_SAFE_INTEGER` and would be corrupted by cac's number coercion). It fetches the channel's diagnostic rows in a subprocess against the target env, finds the first byte divergence between each consecutive pair of system prompts, and names the prompt section the divergence landed in. Diagnostic rows live 24h, so it diagnoses live cache behavior, not history. The `--limit` cap exists because the subprocess returns `limit + 1` full prompt payloads over a 128MB `maxBuffer`; an uncapped limit against prod overflows it and the run dies mid-transfer.
+
 ## Guard Commands
 
 Structural enforcement checks that hard-fail CI on findings:
