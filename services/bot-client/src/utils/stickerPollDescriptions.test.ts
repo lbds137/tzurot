@@ -3,12 +3,13 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import type { Message } from 'discord.js';
+import type { Message, Sticker } from 'discord.js';
 import {
   describePoll,
   describeStickers,
   describeStickersAndPoll,
   hasStickerOrPoll,
+  withSnapshotStickerDescriptions,
   withStickerAndPollDescriptions,
 } from './stickerPollDescriptions.js';
 
@@ -224,5 +225,41 @@ describe('withStickerAndPollDescriptions', () => {
         ''
       )
     ).toBe('[Poll: Q? — options: A]');
+  });
+});
+
+describe('withSnapshotStickerDescriptions', () => {
+  const snapshotWith = (
+    stickers: StickerFixture[]
+  ): { stickers: { values(): Iterable<Sticker> } } => ({
+    stickers: new Map(
+      stickers.map((s, i) => [
+        String(i),
+        { name: s.name, description: s.description === undefined ? null : s.description },
+      ])
+    ) as unknown as { values(): Iterable<Sticker> },
+  });
+
+  it('returns the text byte-identical when the snapshot has no stickers', () => {
+    expect(withSnapshotStickerDescriptions(snapshotWith([]), 'hello')).toBe('hello');
+  });
+
+  it('tolerates an absent stickers field (MessageSnapshot is a Partialize)', () => {
+    expect(withSnapshotStickerDescriptions({}, 'hello')).toBe('hello');
+  });
+
+  it('yields name-only content for a sticker-only snapshot (the invisible-Lottie fix)', () => {
+    expect(
+      withSnapshotStickerDescriptions(
+        snapshotWith([{ name: 'wave', description: 'Wumpus waves hello' }]),
+        ''
+      )
+    ).toBe('[Stickers: wave — Wumpus waves hello]');
+  });
+
+  it('appends the name line below existing snapshot text', () => {
+    expect(withSnapshotStickerDescriptions(snapshotWith([{ name: 'shipit' }]), 'look')).toBe(
+      'look\n\n[Stickers: shipit]'
+    );
   });
 });

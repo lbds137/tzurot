@@ -43,14 +43,29 @@ function collectionValues<T>(collection: { values(): Iterable<T> } | undefined |
   return collection === undefined || collection === null ? [] : [...collection.values()];
 }
 
-/** `name` alone, or `name — description` when Discord supplies a description. */
+/**
+ * `name` alone, or `name — description` when Discord supplies a description.
+ *
+ * `description` is typed `string | null` but tolerates `undefined` too: a
+ * snapshot-carried sticker is Partialize-shaped (see {@link collectionValues})
+ * and may omit the field entirely.
+ */
 function describeSticker(sticker: Sticker): string {
   const name = flatten(sticker.name);
+  const rawDescription: string | null | undefined = sticker.description;
   const description =
-    sticker.description === null || sticker.description.length === 0
+    rawDescription === null || rawDescription === undefined || rawDescription.length === 0
       ? undefined
-      : flatten(sticker.description);
+      : flatten(rawDescription);
   return description === undefined ? name : `${name} — ${description}`;
+}
+
+/** `[Stickers: …]` for an explicit sticker list. Empty string when there are none. */
+function describeStickerList(stickers: Sticker[]): string {
+  if (stickers.length === 0) {
+    return '';
+  }
+  return `[Stickers: ${stickers.map(describeSticker).join(', ')}]`;
 }
 
 /**
@@ -60,11 +75,7 @@ function describeSticker(sticker: Sticker): string {
  * unconditionally and filter falsy.
  */
 export function describeStickers(message: Message): string {
-  const all = collectAllStickers(message);
-  if (all.length === 0) {
-    return '';
-  }
-  return `[Stickers: ${all.map(describeSticker).join(', ')}]`;
+  return describeStickerList(collectAllStickers(message));
 }
 
 /**
@@ -169,4 +180,26 @@ export function withStickerAndPollDescriptions(message: Message, text: string): 
     return text;
   }
   return [...(text.length > 0 ? [text] : []), ...parts].join('\n\n');
+}
+
+/**
+ * Append the `[Stickers: …]` line for ONE snapshot's own stickers to that
+ * snapshot's already-resolved text. `SnapshotFormatter` renders each snapshot
+ * as its own reference and the containing `Message` never goes through
+ * {@link withStickerAndPollDescriptions} on that path — so the scope must be
+ * exactly this snapshot; the message-level renderer would pull sibling
+ * snapshots' stickers into every entry. The name line renders regardless of
+ * rasterizability: a Lottie sticker has no raster form for the vision path, so
+ * this line is the only way it reaches the model at all. (Snapshots never
+ * carry a poll, hence no poll half.)
+ */
+export function withSnapshotStickerDescriptions(
+  snapshot: { stickers?: { values(): Iterable<Sticker> } | null },
+  text: string
+): string {
+  const line = describeStickerList(collectionValues<Sticker>(snapshot.stickers));
+  if (line.length === 0) {
+    return text;
+  }
+  return [...(text.length > 0 ? [text] : []), line].join('\n\n');
 }
