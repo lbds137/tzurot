@@ -15,6 +15,7 @@ import logging
 import os
 import re
 import secrets
+import sys
 import tempfile
 import time
 from collections.abc import AsyncIterator, Awaitable, Callable
@@ -60,13 +61,63 @@ class _JsonFormatter(logging.Formatter):
         return json.dumps(log_entry)
 
 
+def _reroute_third_party_stream_loggers() -> None:
+    """Strip raw stream handlers from NeMo's loggers so records propagate to
+    the root JSON handler instead.
+
+    Railway colors a line by its stream unless the line is JSON carrying a
+    `level` field — NeMo's own handler writes plain text to stderr, so every
+    `[NeMo W]` (and its continuation lines) renders red as if it were an
+    error. Propagating to root emits WARNING+ as one structured JSON record.
+    Matched by name prefix rather than NeMo's logging API so a version that
+    renames the singleton degrades to a no-op, never a crash. Trade-off:
+    `[NeMo I]` info lines no longer appear (root handles WARNING+ only) —
+    the app logs its own model-load milestones.
+    """
+    for name in list(logging.root.manager.loggerDict):
+        if name == "nemo" or name.startswith(("nemo.", "nemo_")):
+            third_party = logging.getLogger(name)
+            third_party.handlers.clear()
+            third_party.propagate = True
+
+
+def _build_uvicorn_log_config() -> dict[str, Any]:
+    """uvicorn `log_config` routing its loggers through the JSON formatter.
+
+    uvicorn's default config writes plain text to stderr for its lifecycle
+    lines ("Application startup complete."), which Railway renders red even
+    at INFO. JSON on stdout lets Railway read the real level instead.
+    """
+    return {
+        "version": 1,
+        "disable_existing_loggers": False,
+        "formatters": {"json": {"()": _JsonFormatter}},
+        "handlers": {
+            "default": {
+                "class": "logging.StreamHandler",
+                "formatter": "json",
+                "stream": "ext://sys.stdout",
+            }
+        },
+        "loggers": {
+            "uvicorn": {"handlers": ["default"], "level": "INFO", "propagate": False},
+            "uvicorn.error": {"handlers": ["default"], "level": "INFO", "propagate": False},
+            # No "uvicorn.access" entry: access logging is disabled at
+            # uvicorn.run (internal-only service — the per-request lines were
+            # dominated by the container healthcheck curling /health).
+        },
+    }
+
+
 def _setup_logging() -> logging.Logger:
     """Configure voice-engine logger with JSON output.
 
     Also attaches a JSON formatter to the root logger at WARNING level so
     third-party libraries (NeMo, uvicorn) emit structured JSON on Railway.
+    Handlers write to stdout explicitly — Railway treats bare stderr as
+    error-red for any line it can't parse as JSON.
     """
-    handler = logging.StreamHandler()
+    handler = logging.StreamHandler(sys.stdout)
     handler.setFormatter(_JsonFormatter())
     log = logging.getLogger("voice-engine")
     log.addHandler(handler)
@@ -74,10 +125,14 @@ def _setup_logging() -> logging.Logger:
     log.propagate = False  # prevent double-logging to root
 
     # Root logger: third-party WARNING+ gets JSON formatting
-    root_handler = logging.StreamHandler()
+    root_handler = logging.StreamHandler(sys.stdout)
     root_handler.setFormatter(_JsonFormatter())
     root_handler.setLevel(logging.WARNING)
     logging.getLogger().addHandler(root_handler)
+
+    # NeMo is imported above, so its loggers exist by now; model-load
+    # warnings (the CUDA-unavailable batch) fire later, during lifespan.
+    _reroute_third_party_stream_loggers()
 
     return log
 
@@ -298,6 +353,12 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     asr_model = asr_model.cpu()
     asr_model.eval()
     models["asr"] = asr_model
+    # Second reroute pass: NeMo may create its logger + raw stderr handler
+    # lazily on first log call (which happens during from_pretrained, not at
+    # import), in which case the import-time sweep found nothing to strip.
+    # Idempotent and cheap, so running it again here closes that gap for all
+    # NeMo emissions after model load regardless of NeMo's init strategy.
+    _reroute_third_party_stream_loggers()
     logger.info("Parakeet TDT loaded successfully")
 
     # --- Load TTS model ---
@@ -934,4 +995,4 @@ if __name__ == "__main__":
     port = int(os.environ.get("PORT", "8000"))
     # Bind to :: (IPv6 wildcard) so Railway private networking (IPv6) works.
     # Dual-stack sockets also accept IPv4, so localhost/healthcheck still work.
-    uvicorn.run(app, host="::", port=port)
+    uvicorn.run(app, host="::", port=port, log_config=_build_uvicorn_log_config(), access_log=False)
