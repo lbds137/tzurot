@@ -68,7 +68,7 @@ function buildApp(): express.Express {
   return app;
 }
 
-describe('POST /internal/v1/routing-context', () => {
+describe('POST /api/internal/v1/routing-context', () => {
   beforeEach(() => vi.clearAllMocks());
   afterEach(() => vi.restoreAllMocks());
 

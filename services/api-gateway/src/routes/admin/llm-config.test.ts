@@ -172,7 +172,7 @@ describe('Admin LLM Config Routes', () => {
     return a;
   };
 
-  describe('GET /admin/llm-config', () => {
+  describe('GET /api/admin/llm-config', () => {
     it('should list all LLM configs', async () => {
       prisma.llmConfig.findMany.mockResolvedValue([
         {
@@ -289,7 +289,7 @@ describe('Admin LLM Config Routes', () => {
     });
   });
 
-  describe('GET /admin/llm-config/:id', () => {
+  describe('GET /api/admin/llm-config/:id', () => {
     it('should return a single global config', async () => {
       prisma.llmConfig.findUnique.mockResolvedValue({
         id: 'config-1',
@@ -410,7 +410,7 @@ describe('Admin LLM Config Routes', () => {
     });
   });
 
-  describe('POST /admin/llm-config', () => {
+  describe('POST /api/admin/llm-config', () => {
     it('should return 400 when model validation fails on create', async () => {
       // Mock must write the error to res before returning false — matches the
       // real helper's contract. Otherwise supertest hangs waiting for a response.
@@ -607,7 +607,7 @@ describe('Admin LLM Config Routes', () => {
     });
   });
 
-  describe('PUT /admin/llm-config/:id', () => {
+  describe('PUT /api/admin/llm-config/:id', () => {
     it('should return 400 when model validation fails on update', async () => {
       // The config must exist before model validation runs — validation is
       // after the row fetch, so mock findUnique.
@@ -776,7 +776,7 @@ describe('Admin LLM Config Routes', () => {
     });
   });
 
-  describe('PUT /admin/llm-config/:id/set-default', () => {
+  describe('PUT /api/admin/llm-config/:id/set-default', () => {
     it('writes the global chat-slot pointer (default text slot)', async () => {
       prisma.llmConfig.findUnique.mockResolvedValue({
         id: 'config-id',
@@ -871,7 +871,7 @@ describe('Admin LLM Config Routes', () => {
     });
   });
 
-  describe('PUT /admin/llm-config/:id/set-free-default', () => {
+  describe('PUT /api/admin/llm-config/:id/set-free-default', () => {
     it('writes the free chat-slot pointer (default text slot)', async () => {
       prisma.llmConfig.findUnique.mockResolvedValue({
         id: 'config-id',
@@ -967,7 +967,7 @@ describe('Admin LLM Config Routes', () => {
     });
   });
 
-  describe('DELETE /admin/llm-config/:id', () => {
+  describe('DELETE /api/admin/llm-config/:id', () => {
     it('should delete a global config', async () => {
       prisma.llmConfig.findUnique.mockResolvedValue({
         id: 'config-id',
@@ -1144,7 +1144,7 @@ describe('Admin LLM Config Routes', () => {
     });
   });
 
-  describe('PUT /admin/llm-config/:id - duplicate name check', () => {
+  describe('PUT /api/admin/llm-config/:id - duplicate name check', () => {
     it('should reject duplicate name when renaming config', async () => {
       prisma.llmConfig.findUnique.mockResolvedValue({
         id: 'config-id',

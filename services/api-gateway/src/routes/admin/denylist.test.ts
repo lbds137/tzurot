@@ -106,7 +106,7 @@ describe('Denylist Admin Routes', () => {
     );
   });
 
-  describe('GET /admin/denylist', () => {
+  describe('GET /api/admin/denylist', () => {
     it('should list all entries', async () => {
       const response = await request(app).get('/admin/denylist');
 
@@ -135,7 +135,7 @@ describe('Denylist Admin Routes', () => {
     });
   });
 
-  describe('GET /admin/denylist/cache', () => {
+  describe('GET /api/internal/denylist/cache', () => {
     it('should return all entries for hydration', async () => {
       const response = await request(app).get('/admin/denylist/cache');
 
@@ -147,7 +147,7 @@ describe('Denylist Admin Routes', () => {
     });
   });
 
-  describe('POST /admin/denylist', () => {
+  describe('POST /api/admin/denylist', () => {
     it('should add a USER + BOT entry', async () => {
       const response = await request(app).post('/admin/denylist').send({
         type: 'USER',
@@ -321,7 +321,7 @@ describe('Denylist Admin Routes', () => {
     });
   });
 
-  describe('DELETE /admin/denylist/:type/:discordId/:scope/:scopeId', () => {
+  describe('DELETE /api/admin/denylist/:type/:discordId/:scope/:scopeId', () => {
     it('should remove an existing entry', async () => {
       mockPrisma.denylistedEntity.findUnique.mockResolvedValue({
         id: 'test-uuid',

@@ -102,7 +102,7 @@ describe('/user/timezone routes', () => {
     mockPrisma.user.findUnique.mockResolvedValue({ id: 'user-uuid-123', timezone: 'UTC' });
   });
 
-  describe('GET /user/timezone', () => {
+  describe('GET /api/user/timezone', () => {
     // Provisioning middleware sets `req.provisionedUserId`; route reads it
     // directly (no shadow-mode resolver call). Each GET/PUT handler issues a
     // SINGLE `user.findUnique` call: the timezone data read.
@@ -166,7 +166,7 @@ describe('/user/timezone routes', () => {
     });
   });
 
-  describe('PUT /user/timezone', () => {
+  describe('PUT /api/user/timezone', () => {
     it('should reject missing timezone', async () => {
       const handler = makeHandler('put');
       const { req, res } = createMockReqRes({});

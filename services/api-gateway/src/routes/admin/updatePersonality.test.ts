@@ -37,7 +37,7 @@ const createMockPrismaClient = () => ({
   },
 });
 
-describe('PATCH /admin/personality/:slug', () => {
+describe('PATCH /api/admin/personality/:slug', () => {
   let app: Express;
   let prisma: ReturnType<typeof createMockPrismaClient>;
 

@@ -128,7 +128,7 @@ describe('/user/memory/incognito routes', () => {
   // Route wiring (paths, middleware, registration) is owned by the generated
   // mounts.ts — `pnpm ops codegen:routes --check` pins it against the
   // manifest, so these tests exercise the handlers directly.
-  describe('GET /user/memory/incognito (status)', () => {
+  describe('GET /api/user/memory/incognito (status)', () => {
     it('should return inactive status when no sessions', async () => {
       mockRedis.scan.mockResolvedValue(['0', []]);
 
@@ -179,7 +179,7 @@ describe('/user/memory/incognito routes', () => {
     });
   });
 
-  describe('POST /user/memory/incognito (enable)', () => {
+  describe('POST /api/user/memory/incognito (enable)', () => {
     it('should reject missing personalityId', async () => {
       const handler = handleEnableIncognito(modeDeps());
       const { req, res } = createMockReqRes({ duration: '1h' });
@@ -341,7 +341,7 @@ describe('/user/memory/incognito routes', () => {
     });
   });
 
-  describe('DELETE /user/memory/incognito (disable)', () => {
+  describe('DELETE /api/user/memory/incognito (disable)', () => {
     it('should reject missing personalityId', async () => {
       const handler = handleDisableIncognito(modeDeps());
       const { req, res } = createMockReqRes({});
@@ -394,7 +394,7 @@ describe('/user/memory/incognito routes', () => {
     });
   });
 
-  describe('POST /user/memory/incognito/forget', () => {
+  describe('POST /api/user/memory/incognito/forget', () => {
     it('should reject missing personalityId', async () => {
       const handler = handleIncognitoForget(modeDeps());
       const { req, res } = createMockReqRes({ timeframe: '15m' });

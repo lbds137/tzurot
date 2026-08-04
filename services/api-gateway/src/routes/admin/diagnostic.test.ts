@@ -190,7 +190,7 @@ describe('Admin Diagnostic Routes', () => {
     );
   });
 
-  describe('GET /admin/diagnostic/recent', () => {
+  describe('GET /api/user/diagnostic/recent', () => {
     it('should return recent logs with personalityName from JSONB', async () => {
       mockPrisma.$queryRaw.mockResolvedValue([
         {
@@ -322,7 +322,7 @@ describe('Admin Diagnostic Routes', () => {
     });
   });
 
-  describe('GET /admin/diagnostic/by-message/:messageId', () => {
+  describe('GET /api/user/diagnostic/by-message/:messageId', () => {
     it('should return logs for a valid message ID', async () => {
       mockPrisma.llmDiagnosticLog.findMany.mockResolvedValue([
         {
@@ -440,7 +440,7 @@ describe('Admin Diagnostic Routes', () => {
     });
   });
 
-  describe('GET /admin/diagnostic/:requestId', () => {
+  describe('GET /api/user/diagnostic/:requestId', () => {
     it('should return full diagnostic log', async () => {
       mockPrisma.llmDiagnosticLog.findUnique.mockResolvedValue({
         id: 'log-uuid',
@@ -563,7 +563,7 @@ describe('Admin Diagnostic Routes', () => {
     });
   });
 
-  describe('GET /admin/diagnostic/by-response/:messageId', () => {
+  describe('GET /api/user/diagnostic/by-response/:messageId', () => {
     it('should return log for a valid response message ID', async () => {
       mockPrisma.llmDiagnosticLog.findFirst.mockResolvedValue({
         id: 'log-uuid',
@@ -630,7 +630,7 @@ describe('Admin Diagnostic Routes', () => {
     });
   });
 
-  describe('PATCH /admin/diagnostic/:requestId/response-ids', () => {
+  describe('PATCH /api/internal/diagnostic/:requestId/response-ids', () => {
     it('should update response message IDs', async () => {
       mockPrisma.llmDiagnosticLog.update.mockResolvedValue({
         requestId: 'test-req-123',

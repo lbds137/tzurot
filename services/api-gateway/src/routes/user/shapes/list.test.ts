@@ -85,7 +85,7 @@ describe('Shapes List Routes', () => {
     vi.clearAllMocks();
   });
 
-  describe('GET / (list shapes)', () => {
+  describe('GET /api/user/shapes/list (list shapes)', () => {
     async function callListHandler(
       prisma = mockPrisma
     ): Promise<{ req: Request & { userId: string }; res: Response }> {

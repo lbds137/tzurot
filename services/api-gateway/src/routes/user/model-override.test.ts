@@ -143,7 +143,7 @@ describe('/user/model-override routes', () => {
     mockPrisma.userPersonalityConfig.findMany.mockResolvedValue([]);
   });
 
-  describe('GET /user/model-override', () => {
+  describe('GET /api/user/model-override', () => {
     it('should return empty list when user not found', async () => {
       mockPrisma.user.findFirst.mockResolvedValue(null);
 
@@ -261,7 +261,7 @@ describe('/user/model-override routes', () => {
     });
   });
 
-  describe('PUT /user/model-override', () => {
+  describe('PUT /api/user/model-override', () => {
     it('should reject missing personalityId', async () => {
       const handler = buildHandler(handleSetModelOverride, {
         ...stubRouteResolvers(),
@@ -553,7 +553,7 @@ describe('/user/model-override routes', () => {
     });
   });
 
-  describe('DELETE /user/model-override/:personalityId', () => {
+  describe('DELETE /api/user/model-override/:personalityId', () => {
     it('should return 200 (idempotent) when override not found', async () => {
       mockPrisma.userPersonalityConfig.findFirst.mockResolvedValue(null);
 
@@ -629,7 +629,7 @@ describe('/user/model-override routes', () => {
     });
   });
 
-  describe('GET /user/model-override/default', () => {
+  describe('GET /api/user/model-override/default', () => {
     it('should return null default when user has none set', async () => {
       // Provisioning middleware sets the UUID; handler's findUnique for the default config returns null.
       mockPrisma.user.findUnique.mockResolvedValueOnce({
@@ -683,7 +683,7 @@ describe('/user/model-override routes', () => {
     });
   });
 
-  describe('PUT /user/model-override/default', () => {
+  describe('PUT /api/user/model-override/default', () => {
     it('should reject missing configId', async () => {
       const handler = buildHandler(handleSetDefaultModelConfig, {
         ...stubRouteResolvers(),
@@ -863,7 +863,7 @@ describe('/user/model-override routes', () => {
     });
   });
 
-  describe('PUT /user/model-override/default cache invalidation', () => {
+  describe('PUT /api/user/model-override/default cache invalidation', () => {
     it('should call invalidateUserLlmConfig on success', async () => {
       mockPrisma.llmConfig.findFirst.mockResolvedValue({
         id: '22222222-2222-4222-a222-222222222222',
@@ -928,7 +928,7 @@ describe('/user/model-override routes', () => {
     });
   });
 
-  describe('DELETE /user/model-override/default', () => {
+  describe('DELETE /api/user/model-override/default', () => {
     it('should return 404 when user lookup returns null after provisioning', async () => {
       // Provisioning middleware sets the UUID; handler-level findUnique returns null (e.g., race with user deletion).
       mockPrisma.user.findUnique.mockResolvedValueOnce(null);
@@ -1070,7 +1070,7 @@ describe('/user/model-override routes', () => {
     });
   });
 
-  describe('DELETE /user/model-override/default cache invalidation', () => {
+  describe('DELETE /api/user/model-override/default cache invalidation', () => {
     it('should call invalidateUserLlmConfig on success', async () => {
       mockPrisma.user.findUnique.mockResolvedValueOnce({
         defaultLlmConfigId: 'config-123',

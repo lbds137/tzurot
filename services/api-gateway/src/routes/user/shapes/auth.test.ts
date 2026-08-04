@@ -132,7 +132,7 @@ describe('Shapes Auth Routes', () => {
     mockProbeShapesSession.mockResolvedValue('valid');
   });
 
-  describe('POST / (store credentials)', () => {
+  describe('POST /api/user/shapes/auth (store credentials)', () => {
     async function callStoreHandler(
       body: Record<string, unknown>,
       prisma = mockPrisma
@@ -321,7 +321,7 @@ describe('Shapes Auth Routes', () => {
     });
   });
 
-  describe('DELETE / (remove credentials)', () => {
+  describe('DELETE /api/user/shapes/auth (remove credentials)', () => {
     async function callDeleteHandler(
       prisma = mockPrisma
     ): Promise<{ req: Request & { userId: string }; res: Response }> {
@@ -354,7 +354,7 @@ describe('Shapes Auth Routes', () => {
     });
   });
 
-  describe('GET /status', () => {
+  describe('GET /api/user/shapes/auth/status', () => {
     async function callStatusHandler(
       prisma = mockPrisma
     ): Promise<{ req: Request & { userId: string }; res: Response }> {

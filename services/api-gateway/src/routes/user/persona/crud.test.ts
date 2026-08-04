@@ -72,7 +72,7 @@ describe('persona CRUD routes', () => {
     });
   });
 
-  describe('GET /user/persona', () => {
+  describe('GET /api/user/persona', () => {
     it('should return empty array when user has no personas', async () => {
       mockPrisma.persona.findMany.mockResolvedValue([]);
       const handler = handleListPersonas({
@@ -169,7 +169,7 @@ describe('persona CRUD routes', () => {
     });
   });
 
-  describe('GET /user/persona/:id', () => {
+  describe('GET /api/user/persona/:id', () => {
     it('should return persona details', async () => {
       mockPrisma.persona.findFirst.mockResolvedValue(mockPersona);
       const handler = handleGetPersona({
@@ -226,7 +226,7 @@ describe('persona CRUD routes', () => {
     });
   });
 
-  describe('POST /user/persona', () => {
+  describe('POST /api/user/persona', () => {
     it('should create a new persona', async () => {
       mockPrisma.persona.create.mockResolvedValue({
         ...mockPersona,
@@ -330,7 +330,7 @@ describe('persona CRUD routes', () => {
     });
   });
 
-  describe('PUT /user/persona/:id', () => {
+  describe('PUT /api/user/persona/:id', () => {
     it('should update persona', async () => {
       mockPrisma.persona.findFirst.mockResolvedValue({ id: MOCK_PERSONA_ID });
       mockPrisma.persona.update.mockResolvedValue({
@@ -485,7 +485,7 @@ describe('persona CRUD routes', () => {
     });
   });
 
-  describe('DELETE /user/persona/:id', () => {
+  describe('DELETE /api/user/persona/:id', () => {
     it('should delete persona', async () => {
       // Delete a non-default persona (MOCK_PERSONA_ID_2) — provisioning
       // middleware sets req.provisionedDefaultPersonaId = MOCK_PERSONA_ID,

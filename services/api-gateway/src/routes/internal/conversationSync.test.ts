@@ -41,7 +41,7 @@ const VALID_BODY = {
   ],
 };
 
-describe('POST /internal/conversation/sync', () => {
+describe('POST /api/internal/conversation/sync', () => {
   let app: express.Express;
   let runSyncSpy: ReturnType<typeof vi.spyOn>;
 

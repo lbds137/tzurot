@@ -19,7 +19,7 @@ const createMockQueue = () => ({
   getFailedCount: vi.fn().mockResolvedValue(0),
 });
 
-describe('GET /job/:jobId', () => {
+describe('GET /api/internal/ai/job/:jobId', () => {
   let app: Express;
   let aiQueue: ReturnType<typeof createMockQueue>;
 

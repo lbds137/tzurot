@@ -82,7 +82,7 @@ async function callHandler(
   await handler(req, res);
 }
 
-describe('DELETE /wallet/:provider', () => {
+describe('DELETE /api/user/wallet/:provider', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockPrisma.user.findFirst.mockResolvedValue({ id: 'user-uuid-123' });

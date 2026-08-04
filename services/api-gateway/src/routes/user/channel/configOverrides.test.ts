@@ -13,34 +13,8 @@ import {
   handleClearChannelConfigOverrides,
 } from './configOverrides.js';
 import type { RouteDeps } from '../../routeDeps.js';
-import { createMockPrisma, setupStandardMocks, MOCK_DISCORD_USER_ID } from './test-utils.js';
+import { createMockPrisma, setupStandardMocks } from './test-utils.js';
 import { stubRouteResolvers } from '../../../test/shared-route-test-utils.js';
-
-// Mock AuthMiddleware
-vi.mock('../../../services/AuthMiddleware.js', () => ({
-  requireUserAuth: () => (req: { userId?: string }, _res: unknown, next: () => void) => {
-    req.userId = MOCK_DISCORD_USER_ID;
-    next();
-  },
-  requireServiceAuth: () => (req: { userId?: string }, _res: unknown, next: () => void) => {
-    req.userId = 'service';
-    next();
-  },
-  requireProvisionedUser: () => (_req: unknown, _res: unknown, next: () => void) => {
-    next();
-  },
-}));
-
-// Mock isBotOwner
-vi.mock('@tzurot/common-types/utils/ownerMiddleware', async () => {
-  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/ownerMiddleware')>(
-    '@tzurot/common-types/utils/ownerMiddleware'
-  );
-  return {
-    ...actual,
-    isBotOwner: vi.fn().mockReturnValue(false),
-  };
-});
 
 const CHANNEL_ID = '999888777666555444';
 
@@ -91,7 +65,7 @@ describe('Channel Config Overrides Routes', () => {
     });
   });
 
-  describe('GET /:channelId/config-overrides', () => {
+  describe('GET /api/user/channel/:channelId/config-overrides', () => {
     it('should return null when no overrides exist', async () => {
       mockPrisma.channelSettings.findUnique.mockResolvedValue(null);
 
@@ -114,7 +88,7 @@ describe('Channel Config Overrides Routes', () => {
     });
   });
 
-  describe('PATCH /:channelId/config-overrides', () => {
+  describe('PATCH /api/user/channel/:channelId/config-overrides', () => {
     it('should merge valid overrides', async () => {
       mockPrisma.channelSettings.findUnique.mockResolvedValue({
         configOverrides: { maxMessages: 30 },
@@ -176,7 +150,7 @@ describe('Channel Config Overrides Routes', () => {
     });
   });
 
-  describe('PATCH /:channelId/config-overrides (cascade invalidation)', () => {
+  describe('PATCH /api/user/channel/:channelId/config-overrides (cascade invalidation)', () => {
     it('should swallow cascade invalidation errors', async () => {
       mockPrisma.channelSettings.findUnique.mockResolvedValue(null);
       mockPrisma.channelSettings.upsert.mockResolvedValue({});
@@ -201,7 +175,7 @@ describe('Channel Config Overrides Routes', () => {
     });
   });
 
-  describe('DELETE /:channelId/config-overrides (cascade invalidation)', () => {
+  describe('DELETE /api/user/channel/:channelId/config-overrides (cascade invalidation)', () => {
     it('should swallow cascade invalidation errors on delete', async () => {
       mockPrisma.channelSettings.updateMany.mockResolvedValue({ count: 1 });
 
@@ -225,7 +199,7 @@ describe('Channel Config Overrides Routes', () => {
     });
   });
 
-  describe('DELETE /:channelId/config-overrides', () => {
+  describe('DELETE /api/user/channel/:channelId/config-overrides', () => {
     it('should clear overrides via updateMany', async () => {
       mockPrisma.channelSettings.updateMany.mockResolvedValue({ count: 1 });
 

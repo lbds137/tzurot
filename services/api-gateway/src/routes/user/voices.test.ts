@@ -190,7 +190,7 @@ describe('Voice Management Routes', () => {
 
   // ===== GET / ============================================================
 
-  describe('GET / - List voices', () => {
+  describe('GET /api/user/voices - List voices', () => {
     it('returns tzurot-prefixed voices from ElevenLabs only when only that key is configured', async () => {
       userWithKeys(['elevenlabs']);
 
@@ -295,7 +295,7 @@ describe('Voice Management Routes', () => {
 
   // ===== DELETE /:provider/:voiceId =======================================
 
-  describe('DELETE /:provider/:voiceId - Delete a voice', () => {
+  describe('DELETE /api/user/voices/:provider/:voiceId - Delete a voice', () => {
     it('deletes an ElevenLabs tzurot-prefixed voice via the new route shape', async () => {
       userWithKeys(['elevenlabs']);
       setProviderFetchMocks({
@@ -401,7 +401,7 @@ describe('Voice Management Routes', () => {
 
   // ===== POST /clear ======================================================
 
-  describe('POST /clear - Clear all tzurot voices', () => {
+  describe('POST /api/user/voices/clear - Clear all tzurot voices', () => {
     it('deletes all tzurot voices across all providers the user has keys for', async () => {
       userWithKeys(['elevenlabs', 'mistral']);
       setProviderFetchMocks({

@@ -100,7 +100,7 @@ describe('Admin System Settings Routes', () => {
     app.patch('/system', handleUpdateSystemSettings(deps));
   });
 
-  describe('GET', () => {
+  describe('GET /api/admin/settings/system', () => {
     it('returns the stored bag and the concurrency token', async () => {
       mockPrisma.adminSettings.upsert.mockResolvedValue(
         settingsRow({ zaiHeadroomPercent: 60, futureKey: 'preserved' })
@@ -126,7 +126,7 @@ describe('Admin System Settings Routes', () => {
     });
   });
 
-  describe('PATCH — wire validation', () => {
+  describe('PATCH /api/admin/settings/system — wire validation', () => {
     it('rejects an out-of-bounds value', async () => {
       const res = await request(app)
         .patch('/system')
@@ -159,7 +159,7 @@ describe('Admin System Settings Routes', () => {
     });
   });
 
-  describe('PATCH — coherence (D7)', () => {
+  describe('PATCH /api/admin/settings/system — coherence (D7)', () => {
     it('rejects zaiFreeTierEnabled=true without the system z.ai key', async () => {
       mockZaiKey = undefined;
 
@@ -190,7 +190,7 @@ describe('Admin System Settings Routes', () => {
     });
   });
 
-  describe('PATCH — model validation (D9/D10)', () => {
+  describe('PATCH /api/admin/settings/system — model validation (D9/D10)', () => {
     it('accepts router aliases without a catalog lookup', async () => {
       const res = await request(app)
         .patch('/system')
@@ -279,7 +279,7 @@ describe('Admin System Settings Routes', () => {
     });
   });
 
-  describe('PATCH — merge + concurrency', () => {
+  describe('PATCH /api/admin/settings/system — merge + concurrency', () => {
     it('merges over the existing bag, preserving unknown keys', async () => {
       mockPrisma.adminSettings.upsert.mockResolvedValue(
         settingsRow({ futureKey: 'preserved', zaiHeadroomPercent: 75 })
@@ -343,7 +343,7 @@ describe('Admin System Settings Routes', () => {
     });
   });
 
-  describe('PATCH — cross-field window pair', () => {
+  describe('PATCH /api/admin/settings/system — cross-field window pair', () => {
     it('rejects a floor raised above the stored ceiling', async () => {
       mockPrisma.adminSettings.upsert.mockResolvedValue(settingsRow({ freeTierMaxPerWindow: 30 }));
 

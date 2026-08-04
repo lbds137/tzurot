@@ -58,7 +58,7 @@ describe('Admin Cleanup Route', () => {
     );
   });
 
-  describe('POST /admin/cleanup', () => {
+  describe('POST /api/admin/cleanup', () => {
     it('should cleanup history with default daysToKeep', async () => {
       mockService.cleanupOldHistory.mockResolvedValue(10);
 

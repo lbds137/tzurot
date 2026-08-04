@@ -143,7 +143,7 @@ describe('/user/memory routes', () => {
   // Route wiring (paths, middleware, registration order) is owned by the
   // generated mounts.ts — `pnpm ops codegen:routes --check` pins it against
   // the manifest, so these tests exercise the handlers directly.
-  describe('GET /user/memory/stats', () => {
+  describe('GET /api/user/memory/stats', () => {
     it('should reject missing personalityId', async () => {
       const handler = handleGetStats({
         ...stubRouteResolvers(),
@@ -271,7 +271,7 @@ describe('/user/memory routes', () => {
     });
   });
 
-  describe('POST /user/memory/search', () => {
+  describe('POST /api/user/memory/search', () => {
     const TEST_EMBEDDING = new Array(1536).fill(0.1);
 
     beforeEach(() => {
@@ -611,7 +611,7 @@ describe('/user/memory routes', () => {
     });
   });
 
-  describe('GET /user/memory/list', () => {
+  describe('GET /api/user/memory/list', () => {
     it('should return empty list when user has no persona', async () => {
       mockPrisma.user.findUnique.mockResolvedValueOnce({ defaultPersonaId: null });
 

@@ -102,7 +102,7 @@ async function callHandler(
   await handler(req, res);
 }
 
-describe('POST /wallet/test', () => {
+describe('POST /api/user/wallet/test', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockValidateApiKey.mockResolvedValue({ valid: true, credits: 50 });
