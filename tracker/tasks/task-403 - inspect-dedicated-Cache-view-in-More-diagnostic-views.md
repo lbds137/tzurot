@@ -1,10 +1,10 @@
 ---
 id: TASK-403
 title: 'inspect: dedicated Cache view in More diagnostic views'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-02 21:57'
-updated_date: '2026-08-02 21:57'
+updated_date: '2026-08-04 03:50'
 labels:
   - 'area:bot-client'
   - 'size:S'
