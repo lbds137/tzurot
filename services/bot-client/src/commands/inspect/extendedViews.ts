@@ -160,7 +160,10 @@ export function buildInputView(
     chunkedText: {
       text: sections.join('\n'),
       continuedHeader: '_(input continued)_\n',
-      maxChunks: 3,
+      // Input carries the full user message plus referenced-message content
+      // and attachment descriptions, so it can legitimately run long — same
+      // never-force-a-download decision as the Reasoning view.
+      maxChunks: 10,
       overflowFilename: 'input-full.txt',
     },
     flags: MessageFlags.Ephemeral,
@@ -271,6 +274,10 @@ export function buildPostProcessingView(
     chunkedText: {
       text: sections.join('\n'),
       continuedHeader: '_(post-processing continued)_\n',
+      // Deliberately lower than the other chunked views: this is a two-version
+      // diff of the same reply (raw vs final), inherently bounded and skimmed
+      // rather than read end-to-end — past 3 chunks the full file is the
+      // better artifact.
       maxChunks: 3,
       overflowFilename: 'post-processing-full.txt',
     },

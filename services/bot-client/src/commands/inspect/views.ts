@@ -210,15 +210,13 @@ export function buildSystemPromptView(
 // ---------------------------------------------------------------------------
 
 /**
- * Reasoning content, chunked across ephemeral messages.
+ * Reasoning content, rendered inline and chunked across ephemeral messages.
  *
  * The standing owner decision is that reading text must never require a file
- * download. The `maxChunks` cap below does NOT currently honour it: past the
- * cap `sendChunkedReply` sends the overflow as a text-file attachment, so a
- * long reasoning dump still lands as a download. Stated rather than implied
- * because the previous wording ("always inline") read as a guarantee the code
- * thirty lines down contradicts. Raising the cap is the open decision; until
- * then this is the honest description of what happens.
+ * download. The `maxChunks` cap of 10 (~19k chars) covers every realistic
+ * reasoning size, so the attachment overflow tail only fires on pathological
+ * dumps — a 50k-char reasoning flood that would otherwise arrive as ~26
+ * ephemeral messages.
  *
  * Reasoning content is shown to non-owners by design (per project decision —
  * model thinking is genuinely interesting and the user already saw the
@@ -246,9 +244,10 @@ export function buildReasoningView(
     chunkedText: {
       text: `## Reasoning\n\n${thinking}`,
       continuedHeader: '_(reasoning continued)_\n',
-      // A reasoning dump can run tens of chunks — cap the inline flood and
-      // deliver the rest (complete, self-contained) as an attachment tail.
-      maxChunks: 3,
+      // Outlier guard, not the normal reading path: realistic reasoning fits
+      // inline well under this, and only a pathological dump trips the tail
+      // (which then carries the COMPLETE text, self-contained).
+      maxChunks: 10,
       overflowFilename: 'reasoning-full.txt',
     },
     flags: MessageFlags.Ephemeral,

@@ -16,6 +16,9 @@
  * - `userClient` — user-callable routes at `/api/user/*`. Always carries
  *   the full Discord user context (id + username + displayName) so the
  *   gateway can provision the row + apply per-user filters.
+ *
+ * Outside an interaction (schedulers, startup tasks), `getOwnerClient()`
+ * mints the owner-actor flavor directly from `BOT_OWNER_ID`.
  */
 
 import type {
