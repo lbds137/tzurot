@@ -50,6 +50,7 @@ function createMockMessage(options: {
     duration?: number | null;
   }>;
   embeds?: Array<{ title?: string; description?: string }>;
+  stickers?: Array<{ id: string; name: string; format: number; url: string }>;
 }): Message {
   // Create attachments map with Discord.js Collection-like .some() method
   const attachmentsMap = new Map() as Map<string, unknown> & {
@@ -125,6 +126,8 @@ function createMockMessage(options: {
     messageSnapshots,
     attachments: attachmentsMap,
     embeds: options.embeds ?? [],
+    stickers:
+      options.stickers === undefined ? undefined : new Map(options.stickers.map(st => [st.id, st])),
   } as unknown as Message;
 }
 
@@ -473,6 +476,40 @@ describe('forwardedMessageUtils', () => {
       const message = createMockMessage({
         referenceType: MessageReferenceType.Forward,
         content: 'Fallback content',
+      });
+
+      expect(hasForwardedContent(message)).toBe(true);
+    });
+
+    it('returns true for a Lottie-sticker-only forward (no raster attachment to count)', () => {
+      // The attachment walk carries only RASTERIZABLE stickers; a Lottie-only
+      // forward has empty content, no attachments, no embeds — the direct
+      // sticker check is what keeps it from being dropped as empty.
+      const message = createMockMessage({
+        referenceType: MessageReferenceType.Forward,
+        snapshots: [
+          {
+            content: '',
+            stickers: [
+              { id: '88', name: 'wave', format: 3, url: 'https://cdn.discordapp.com/88.json' },
+            ],
+          },
+        ],
+      });
+
+      expect(hasForwardedContent(message)).toBe(true);
+    });
+
+    it('returns true for a sticker-only forward on the no-snapshot fallback path', () => {
+      // When Discord doesn't populate snapshots, the fallback reads the main
+      // message — which carries no sticker in its attachments/content/embeds
+      // either, so only the direct sticker check sees it.
+      const message = createMockMessage({
+        referenceType: MessageReferenceType.Forward,
+        content: '',
+        stickers: [
+          { id: '77', name: 'shipit', format: 1, url: 'https://cdn.discordapp.com/77.png' },
+        ],
       });
 
       expect(hasForwardedContent(message)).toBe(true);
