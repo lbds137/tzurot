@@ -117,6 +117,21 @@ describe('Voices API Contract Tests', () => {
       };
       expect(ClearVoicesResponseSchema.safeParse(data).success).toBe(true);
     });
+
+    it('alreadyGone survives the parse (strip-mode would silently drop an undeclared field)', () => {
+      const parsed = ClearVoicesResponseSchema.safeParse({
+        deleted: 5,
+        total: 170,
+        alreadyGone: 165,
+      });
+      expect(parsed.success).toBe(true);
+      expect(parsed.success && parsed.data.alreadyGone).toBe(165);
+    });
+
+    it('rejects negative alreadyGone', () => {
+      const data = { deleted: 1, total: 2, alreadyGone: -1 };
+      expect(ClearVoicesResponseSchema.safeParse(data).success).toBe(false);
+    });
   });
 
   describe('DeleteVoiceResponseSchema', () => {

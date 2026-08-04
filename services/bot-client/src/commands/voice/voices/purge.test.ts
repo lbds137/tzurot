@@ -252,4 +252,60 @@ describe('handleVoicePurgeModal', () => {
 
     expect(stub.clearVoices).toHaveBeenCalled();
   });
+
+  /**
+   * Drive the destructive-modal mock so the inner callback runs, and capture
+   * the DestructiveOperationResult it returns for embed assertions.
+   */
+  async function runPurgeCallback(clearVoicesData: Record<string, unknown>): Promise<{
+    success: boolean;
+    successEmbed?: { data: { description?: string } };
+  }> {
+    let opResult: { success: boolean; successEmbed?: { data: { description?: string } } } = {
+      success: false,
+    };
+    mockHandleDestructiveModalSubmit.mockImplementationOnce(
+      async (_interaction, _word, callback) => {
+        opResult = await (callback as () => Promise<typeof opResult>)();
+      }
+    );
+    stub.clearVoices.mockResolvedValue({ ok: true, data: clearVoicesData });
+    const interaction = {
+      customId: `voice::destructive::modal_submit::${VOICE_PURGE_OPERATION}::all`,
+      user: { id: 'user-123' },
+    } as unknown as ModalSubmitInteraction;
+
+    await handleVoicePurgeModal(interaction);
+    return opResult;
+  }
+
+  it('surfaces alreadyGone in the success embed instead of folding it into deleted', async () => {
+    const result = await runPurgeCallback({ deleted: 5, total: 170, alreadyGone: 165 });
+
+    expect(result.success).toBe(true);
+    expect(result.successEmbed?.data.description).toBe(
+      'Deleted **5** cloned voices (165 already gone).'
+    );
+  });
+
+  it('omits the already-gone note when the field is absent', async () => {
+    const result = await runPurgeCallback({ deleted: 3, total: 3 });
+
+    expect(result.success).toBe(true);
+    expect(result.successEmbed?.data.description).toBe('Deleted **3** cloned voices.');
+  });
+
+  it('keeps the already-gone note alongside partial-failure errors', async () => {
+    const result = await runPurgeCallback({
+      deleted: 1,
+      total: 3,
+      alreadyGone: 1,
+      errors: ['tzurot-x (elevenlabs): rate limited — try again shortly'],
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.successEmbed?.data.description).toContain(
+      'Deleted **1/3** voices (1 already gone). 1 failed:'
+    );
+  });
 });
