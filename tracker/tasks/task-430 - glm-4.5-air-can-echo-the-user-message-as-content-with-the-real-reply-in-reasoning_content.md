@@ -3,9 +3,10 @@ id: TASK-430
 title: >-
   glm-4.5-air can echo the user message as content with the real reply in
   reasoning_content
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-04 16:38'
+updated_date: '2026-08-04 17:10'
 labels:
   - 'area:ai-worker'
   - 'size:S'
