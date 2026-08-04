@@ -53,6 +53,7 @@ import {
   buildInputView,
   buildGenerationParamsView,
   buildPostProcessingView,
+  buildCacheView,
 } from './extendedViews.js';
 import { computeViewContext } from './viewContext.js';
 import { ackUpdate } from '../../ux/render/reply.js';
@@ -103,6 +104,7 @@ const VIEW_BUILDERS = {
   [DebugViewType.TokenBudget]: buildTokenBudgetView,
   [DebugViewType.VoiceAttribution]: buildVoiceAttributionView,
   [DebugViewType.PipelineHealth]: buildPipelineHealthView,
+  [DebugViewType.Cache]: buildCacheView,
 } as const;
 
 /**
