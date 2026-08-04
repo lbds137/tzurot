@@ -1,9 +1,10 @@
 ---
 id: TASK-423
 title: AuthStep routine no-key TTS fallbacks log full stack traces
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-04 02:51'
+updated_date: '2026-08-04 07:54'
 labels:
   - 'size:S'
 dependencies: []

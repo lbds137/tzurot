@@ -3,9 +3,10 @@ id: TASK-418
 title: >-
   Port or retire scripts/audit-route-auth-matrix.ts after the factory-tier
   deletion
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-03 23:11'
+updated_date: '2026-08-04 08:12'
 labels:
   - 'size:S'
   - 'area:api-gateway'

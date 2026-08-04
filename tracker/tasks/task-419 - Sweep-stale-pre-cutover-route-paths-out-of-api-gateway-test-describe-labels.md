@@ -1,9 +1,10 @@
 ---
 id: TASK-419
 title: Sweep stale pre-cutover route paths out of api-gateway test describe labels
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-03 23:11'
+updated_date: '2026-08-04 07:28'
 labels:
   - 'size:S'
   - 'area:api-gateway'
