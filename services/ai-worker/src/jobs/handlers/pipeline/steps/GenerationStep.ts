@@ -109,7 +109,8 @@ export class GenerationStep implements IPipelineStep {
       const conversationContext = buildConversationContext(
         jobContext,
         preparedContext,
-        preprocessing
+        preprocessing,
+        requestId
       );
 
       // Get recent assistant messages for cross-turn duplicate detection

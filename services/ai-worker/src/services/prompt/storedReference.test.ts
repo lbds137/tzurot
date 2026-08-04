@@ -99,15 +99,18 @@ describe('toStoredReference', () => {
     // the deduped path's orphan tail. Persisting it would write a row nothing
     // at replay could ever correlate — a key that matches every attachment or
     // none, depending on the reader.
-    const stored = toStoredReference(liveRef(), [
-      { url: '', attachment: { kind: 'voice', filename: 'x.ogg', description: 'orphaned' } },
-    ]);
+    const stored = toStoredReference(
+      liveRef(),
+      [{ url: '', attachment: { kind: 'voice', filename: 'x.ogg', description: 'orphaned' } }],
+      'req-keyless-3'
+    );
 
     expect(stored.attachmentEnrichment).toBeUndefined();
     // Silence is the habit this change exists to break: it reached the prompt
-    // and will not survive replay, so the log is the only place that shows up.
+    // and will not survive replay, so the log is the only place that shows up —
+    // carrying the request id, or the log names no owner for the lost work.
     expect(mockLogger.warn).toHaveBeenCalledWith(
-      expect.objectContaining({ kind: 'voice', filename: 'x.ogg' }),
+      expect.objectContaining({ requestId: 'req-keyless-3', kind: 'voice', filename: 'x.ogg' }),
       expect.stringContaining('no attachment URL')
     );
   });

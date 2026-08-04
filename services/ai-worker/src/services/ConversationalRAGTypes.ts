@@ -73,6 +73,16 @@ export interface DiscordEnvironment {
 
 export interface ConversationContext {
   userId: string;
+  /**
+   * Correlation id of the job that produced this turn, threaded from the job
+   * payload so renderer-level warnings (dropped paid enrichment, unkeyable
+   * enrichment) name the producing request instead of forcing timestamp
+   * archaeology across the pipeline's logs. Never a semantic input to
+   * generation — nothing downstream may branch on it. Optional so tests and
+   * non-job callers need not supply one; absent means the warn simply carries
+   * no correlation id.
+   */
+  requestId?: string;
   channelId?: string;
   serverId?: string;
   sessionId?: string;

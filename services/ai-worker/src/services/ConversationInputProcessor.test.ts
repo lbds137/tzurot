@@ -340,6 +340,39 @@ describe('ConversationInputProcessor', () => {
       expect(result.referencedMessagesDescriptions).toBe('<references>formatted</references>');
     });
 
+    it("forwards the context's requestId so the formatter's warnings are correlated", async () => {
+      // Pure correlation, but it crosses a mocked seam: the formatter's
+      // enrichment-drop warnings identify the request that paid for the lost
+      // vision/transcription work, and dropping this hop makes them anonymous
+      // without changing a single rendered byte.
+      const referencedMessages: ReferencedMessage[] = [
+        {
+          referenceNumber: 1,
+          discordMessageId: 'msg1',
+          discordUserId: 'user1',
+          authorUsername: 'user1',
+          authorDisplayName: 'User One',
+          content: 'Referenced content',
+          embeds: '',
+          timestamp: '2025-01-01T00:00:00Z',
+          locationContext: '<location/>',
+        },
+      ];
+      const context = createMockContext({ referencedMessages, requestId: 'req-input-5' });
+
+      await processor.processInputs(mockPersonality, mockMessage, context, {
+        isGuestMode: false,
+      });
+
+      expect(mockReferencedMessageFormatter.formatReferencedMessages).toHaveBeenCalledWith(
+        referencedMessages,
+        mockPersonality,
+        false,
+        undefined,
+        expect.objectContaining({ requestId: 'req-input-5' })
+      );
+    });
+
     it("forwards the formatter's durable references verbatim", async () => {
       // The hop between building a reference and writing it down. A test that
       // only checked the prompt XML would pass with this dropped, and the
