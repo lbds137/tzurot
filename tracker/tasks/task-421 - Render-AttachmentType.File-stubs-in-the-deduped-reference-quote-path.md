@@ -1,9 +1,10 @@
 ---
 id: TASK-421
 title: Render AttachmentType.File stubs in the deduped-reference quote path
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-04 02:48'
+updated_date: '2026-08-04 07:42'
 labels:
   - 'size:S'
 dependencies: []

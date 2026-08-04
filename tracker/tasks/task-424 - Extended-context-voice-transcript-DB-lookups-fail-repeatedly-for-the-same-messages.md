@@ -3,9 +3,10 @@ id: TASK-424
 title: >-
   Extended-context voice-transcript DB lookups fail repeatedly for the same
   messages
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-04 02:51'
+updated_date: '2026-08-04 08:27'
 labels:
   - 'size:S'
 dependencies: []
