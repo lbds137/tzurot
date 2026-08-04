@@ -9,6 +9,17 @@ import type { CAC } from 'cac';
 import { validateEnvironment, type Environment } from '../utils/env-runner.js';
 import { rawOptionValue } from '../utils/cli-args.js';
 
+/**
+ * Upper bound on `cache:prefix-diff --limit` (pair count).
+ *
+ * The fetch runs in a subprocess whose stdout carries `limit + 1` full
+ * diagnostic payloads — every compared pair costs two complete system
+ * prompts — over a 128MB `maxBuffer` (see cache/prefix-diff.ts). Against a
+ * prod channel with large prompts an unbounded limit overflows that buffer
+ * and the run dies mid-transfer instead of producing a diff.
+ */
+const PREFIX_DIFF_MAX_PAIRS = 100;
+
 export function registerCacheCommands(cli: CAC): void {
   cli.command('cache:inspect', 'Inspect Turborepo cache size and status').action(async () => {
     const { inspectCache } = await import('../cache/inspect-cache.js');
@@ -31,7 +42,9 @@ export function registerCacheCommands(cli: CAC): void {
     .option('--env <env>', 'Environment to target (local, dev, prod)', { default: 'dev' })
     .option('--channel <channelId>', 'Discord channel to trace (snowflake)')
     .option('--personality <uuid>', 'Restrict to one personality')
-    .option('--limit <pairs>', 'Consecutive pairs to compare', { default: 5 })
+    .option('--limit <pairs>', `Consecutive pairs to compare (max ${PREFIX_DIFF_MAX_PAIRS})`, {
+      default: 5,
+    })
     .example('ops cache:prefix-diff --env dev --channel 123456789012345678')
     .example('ops cache:prefix-diff --env prod --channel 123456789012345678 --limit 10')
     .action(async (options: { env: string; personality?: string; limit: number }) => {
@@ -45,6 +58,11 @@ export function registerCacheCommands(cli: CAC): void {
       const limit = Number(options.limit);
       if (!Number.isInteger(limit) || limit < 1) {
         throw new Error(`--limit must be a positive integer, got: ${String(options.limit)}`);
+      }
+      if (limit > PREFIX_DIFF_MAX_PAIRS) {
+        throw new Error(
+          `--limit must be at most ${PREFIX_DIFF_MAX_PAIRS}, got: ${String(options.limit)}`
+        );
       }
       const { runPrefixDiff } = await import('../cache/prefix-diff.js');
       await runPrefixDiff({
