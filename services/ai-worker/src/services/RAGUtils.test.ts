@@ -100,6 +100,20 @@ describe('RAGUtils', () => {
       expect(buildAttachmentDescriptions(attachments)).toBe('[Image: photo.png]\nA photo');
     });
 
+    it('formats an unsupported-type File stub under a [File:] header', () => {
+      const attachments: ProcessedAttachment[] = [
+        createAttachment(
+          AttachmentType.File,
+          'Attachment type video/mp4 is not supported — content not analyzed',
+          { name: 'screen-recording.mp4', contentType: 'video/mp4' }
+        ),
+      ];
+
+      expect(buildAttachmentDescriptions(attachments)).toBe(
+        '[File: screen-recording.mp4]\nAttachment type video/mp4 is not supported — content not analyzed'
+      );
+    });
+
     it('should format voice message with duration and wrap transcript in structured tags', () => {
       const attachments: ProcessedAttachment[] = [
         createAttachment(AttachmentType.Audio, 'User said hello and asked about the weather', {

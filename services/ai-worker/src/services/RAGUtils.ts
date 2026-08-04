@@ -108,6 +108,11 @@ function formatProcessedAttachmentEntry(a: ProcessedAttachment): string {
     const safeTranscript = neutralizeWrapperClosingTags(a.description);
     return `${header}\n<voice_transcripts><transcript>${safeTranscript}</transcript></voice_transcripts>`;
   }
+  if (a.type === AttachmentType.File) {
+    const name =
+      a.metadata.name !== undefined && a.metadata.name.length > 0 ? a.metadata.name : 'attachment';
+    return `[File: ${name}]\n${a.description}`;
+  }
   return '';
 }
 
