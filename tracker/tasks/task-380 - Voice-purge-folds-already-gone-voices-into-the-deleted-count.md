@@ -1,9 +1,10 @@
 ---
 id: TASK-380
 title: Voice purge folds already-gone voices into the deleted count
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-07-31 22:16'
+updated_date: '2026-08-04 12:49'
 labels:
   - 'size:S'
 dependencies: []
