@@ -10,7 +10,10 @@ import { type AudioProviderId } from '@tzurot/common-types/types/audio-provider'
 import { type SttDispatch } from '@tzurot/common-types/types/sttProvider';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { SttResolver, LlmConfigResolver } from '@tzurot/config-resolver';
-import type { ApiKeyResolver } from '../../../../services/ApiKeyResolver.js';
+import {
+  NoApiKeyAvailableError,
+  type ApiKeyResolver,
+} from '../../../../services/ApiKeyResolver.js';
 import { ProviderRouter } from '../../../../services/ProviderRouter.js';
 import {
   applyConfigToPersonality,
@@ -335,7 +338,17 @@ export class AuthStep implements IPipelineStep {
           logger.debug({ userId, source: result.source, provider: id }, 'Resolved audio API key');
         }
       } catch (error) {
-        logger.warn({ err: error, userId }, failNote);
+        if (error instanceof NoApiKeyAvailableError) {
+          // Expected for BYOK-only audio providers: a user without their own
+          // key hits this on EVERY job (negative results aren't cached). The
+          // fallback is deterministic and the note already names it, so this
+          // is compact debug — no stack, no err object.
+          logger.debug({ userId, provider: id }, failNote);
+        } else {
+          // Unexpected resolution failure (DB down, decryption error) — keep
+          // the stack; this one IS an incident.
+          logger.warn({ err: error, userId }, failNote);
+        }
       }
     }
     return audioKeysBuilder;
