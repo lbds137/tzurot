@@ -8,7 +8,6 @@ import {
   createMockPrisma,
   createMockReqRes,
   createMockActivation,
-  getHandler,
   setupStandardMocks,
   createMockCreatedAt,
   MOCK_USER_UUID,
@@ -45,11 +44,20 @@ vi.mock('../../../utils/asyncHandler.js', () => ({
   asyncHandler: vi.fn(fn => fn),
 }));
 
-import { createChannelRoutes } from './index.js';
-import { stubRouteResolvers } from '../../../test/shared-route-test-utils.js';
+import { handleGetUserChannel } from './get.js';
+import { asRouteHandler, stubRouteResolvers } from '../../../test/shared-route-test-utils.js';
 
 describe('GET /user/channel/:channelId', () => {
   const mockPrisma = createMockPrisma();
+
+  /** The bare handler export — the shape routes/_generated/mounts.ts mounts. */
+  const getChannelHandler = (): ReturnType<typeof asRouteHandler> =>
+    asRouteHandler(
+      handleGetUserChannel({
+        ...stubRouteResolvers(),
+        prisma: mockPrisma as unknown as PrismaClient,
+      })
+    );
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -60,11 +68,7 @@ describe('GET /user/channel/:channelId', () => {
     const settings = createMockActivation();
     mockPrisma.channelSettings.findUnique.mockResolvedValue(settings);
 
-    const router = createChannelRoutes({
-      ...stubRouteResolvers(),
-      prisma: mockPrisma as unknown as PrismaClient,
-    });
-    const handler = getHandler(router, 'get', '/:channelId');
+    const handler = getChannelHandler();
     const { req, res } = createMockReqRes({}, { channelId: MOCK_DISCORD_USER_ID });
 
     await handler(req, res);
@@ -88,11 +92,7 @@ describe('GET /user/channel/:channelId', () => {
   it('should return hasSettings=false when channel has no settings', async () => {
     mockPrisma.channelSettings.findUnique.mockResolvedValue(null);
 
-    const router = createChannelRoutes({
-      ...stubRouteResolvers(),
-      prisma: mockPrisma as unknown as PrismaClient,
-    });
-    const handler = getHandler(router, 'get', '/:channelId');
+    const handler = getChannelHandler();
     const { req, res } = createMockReqRes({}, { channelId: MOCK_DISCORD_USER_ID });
 
     await handler(req, res);
@@ -104,11 +104,7 @@ describe('GET /user/channel/:channelId', () => {
   });
 
   it('should reject empty channelId', async () => {
-    const router = createChannelRoutes({
-      ...stubRouteResolvers(),
-      prisma: mockPrisma as unknown as PrismaClient,
-    });
-    const handler = getHandler(router, 'get', '/:channelId');
+    const handler = getChannelHandler();
     const { req, res } = createMockReqRes({}, { channelId: '' });
 
     await handler(req, res);
@@ -127,11 +123,7 @@ describe('GET /user/channel/:channelId', () => {
     });
     mockPrisma.channelSettings.findUnique.mockResolvedValue(settingsWithNullCreator);
 
-    const router = createChannelRoutes({
-      ...stubRouteResolvers(),
-      prisma: mockPrisma as unknown as PrismaClient,
-    });
-    const handler = getHandler(router, 'get', '/:channelId');
+    const handler = getChannelHandler();
     const { req, res } = createMockReqRes({}, { channelId: MOCK_DISCORD_USER_ID });
 
     await handler(req, res);

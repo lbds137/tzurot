@@ -13,7 +13,6 @@ import {
   DeactivateChannelResponseSchema,
 } from '@tzurot/common-types/schemas/api/channel';
 import { createLogger } from '@tzurot/common-types/utils/logger';
-import { requireUserAuth, requireProvisionedUser } from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { sendCustomSuccess } from '../../../utils/responseHelpers.js';
 import { sendZodError } from '../../../utils/zodHelpers.js';
@@ -90,7 +89,3 @@ export const handleDeactivateChannel = (deps: RouteDeps): RequestHandler => {
     sendCustomSuccess(res, response, StatusCodes.OK);
   });
 };
-
-export function createDeactivateHandler(deps: RouteDeps): RequestHandler[] {
-  return [requireUserAuth(), requireProvisionedUser(deps.prisma), handleDeactivateChannel(deps)];
-}

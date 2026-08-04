@@ -13,7 +13,6 @@ import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { isBotOwner } from '@tzurot/common-types/utils/ownerMiddleware';
 import { computePersonalityPermissions } from '@tzurot/common-types/utils/permissions';
-import { requireUserAuth, requireProvisionedUser } from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { resolveProvisionedUserId } from '../../../utils/resolveProvisionedUserId.js';
 import { sendCustomSuccess } from '../../../utils/responseHelpers.js';
@@ -150,8 +149,3 @@ export const handleListPersonalities = (deps: RouteDeps): RequestHandler => {
     sendCustomSuccess(res, { personalities }, StatusCodes.OK);
   });
 };
-
-/** Legacy chain (auth middleware + handler) — kept for the existing aggregator. */
-export function createListHandler(deps: RouteDeps): RequestHandler[] {
-  return [requireUserAuth(), requireProvisionedUser(deps.prisma), handleListPersonalities(deps)];
-}

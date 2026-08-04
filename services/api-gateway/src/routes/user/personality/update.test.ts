@@ -9,7 +9,6 @@ import {
   createMockPrisma,
   createMockPersonality,
   createMockReqRes,
-  getHandler,
   setupStandardMocks,
   mockIsBotOwner,
   MOCK_USER_ID,
@@ -82,11 +81,24 @@ function createAsyncGenerator(items: string[]): AsyncGenerator<string> {
   })();
 }
 
-import { createPersonalityRoutes } from './index.js';
-import { stubRouteResolvers } from '../../../test/shared-route-test-utils.js';
+import { handleUpdatePersonality } from './update.js';
+import type { RouteDeps } from '../../routeDeps.js';
+import { asRouteHandler, stubRouteResolvers } from '../../../test/shared-route-test-utils.js';
 
 describe('PUT /user/personality/:slug (update)', () => {
   const mockPrisma = createMockPrisma();
+
+  /** The bare handler export — the shape routes/_generated/mounts.ts mounts. */
+  const getUpdateHandler = (
+    cacheInvalidationService?: RouteDeps['cacheInvalidationService']
+  ): ReturnType<typeof asRouteHandler> =>
+    asRouteHandler(
+      handleUpdatePersonality({
+        ...stubRouteResolvers(),
+        prisma: mockPrisma as unknown as PrismaClient,
+        cacheInvalidationService,
+      })
+    );
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -102,11 +114,7 @@ describe('PUT /user/personality/:slug (update)', () => {
   it('should return 404 when personality not found', async () => {
     mockPrisma.personality.findUnique.mockResolvedValue(null);
 
-    const router = createPersonalityRoutes({
-      ...stubRouteResolvers(),
-      prisma: mockPrisma as unknown as PrismaClient,
-    });
-    const handler = getHandler(router, 'put', '/:slug');
+    const handler = getUpdateHandler();
     const { req, res } = createMockReqRes({ name: 'Updated' }, { slug: 'nonexistent' });
 
     await handler(req, res);
@@ -120,11 +128,7 @@ describe('PUT /user/personality/:slug (update)', () => {
       ownerId: 'other-user',
     });
 
-    const router = createPersonalityRoutes({
-      ...stubRouteResolvers(),
-      prisma: mockPrisma as unknown as PrismaClient,
-    });
-    const handler = getHandler(router, 'put', '/:slug');
+    const handler = getUpdateHandler();
     const { req, res } = createMockReqRes({ name: 'Updated' }, { slug: 'not-mine' });
 
     await handler(req, res);
@@ -148,11 +152,7 @@ describe('PUT /user/personality/:slug (update)', () => {
       })
     );
 
-    const router = createPersonalityRoutes({
-      ...stubRouteResolvers(),
-      prisma: mockPrisma as unknown as PrismaClient,
-    });
-    const handler = getHandler(router, 'put', '/:slug');
+    const handler = getUpdateHandler();
     const { req, res } = createMockReqRes(
       { name: 'Updated Name', displayName: 'Updated Display' },
       { slug: 'my-char' }
@@ -210,11 +210,7 @@ describe('PUT /user/personality/:slug (update)', () => {
     );
     mockPrisma.personalityAlias.findMany.mockResolvedValue([{ alias: 'lila' }]);
 
-    const router = createPersonalityRoutes({
-      ...stubRouteResolvers(),
-      prisma: mockPrisma as unknown as PrismaClient,
-    });
-    const handler = getHandler(router, 'put', '/:slug');
+    const handler = getUpdateHandler();
     const { req, res } = createMockReqRes({ name: 'Lila' }, { slug: 'my-char' });
 
     await handler(req, res);
@@ -246,11 +242,7 @@ describe('PUT /user/personality/:slug (update)', () => {
       })
     );
 
-    const router = createPersonalityRoutes({
-      ...stubRouteResolvers(),
-      prisma: mockPrisma as unknown as PrismaClient,
-    });
-    const handler = getHandler(router, 'put', '/:slug');
+    const handler = getUpdateHandler();
     const { req, res } = createMockReqRes({ displayName: 'Cosmetic' }, { slug: 'my-char' });
 
     await handler(req, res);
@@ -270,11 +262,7 @@ describe('PUT /user/personality/:slug (update)', () => {
       createMockPersonality({ id: '7e570000-0000-4000-8000-000000000009', definitionPublic: true })
     );
 
-    const router = createPersonalityRoutes({
-      ...stubRouteResolvers(),
-      prisma: mockPrisma as unknown as PrismaClient,
-    });
-    const handler = getHandler(router, 'put', '/:slug');
+    const handler = getUpdateHandler();
     const { req, res } = createMockReqRes({ definitionPublic: true }, { slug: 'my-char' });
 
     await handler(req, res);
@@ -308,11 +296,7 @@ describe('PUT /user/personality/:slug (update)', () => {
       })
     );
 
-    const router = createPersonalityRoutes({
-      ...stubRouteResolvers(),
-      prisma: mockPrisma as unknown as PrismaClient,
-    });
-    const handler = getHandler(router, 'put', '/:slug');
+    const handler = getUpdateHandler();
     const { req, res } = createMockReqRes({ name: 'Updated' }, { slug: 'shared-char' });
 
     await handler(req, res);
@@ -344,11 +328,7 @@ describe('PUT /user/personality/:slug (update)', () => {
         })
       );
 
-      const router = createPersonalityRoutes({
-        ...stubRouteResolvers(),
-        prisma: mockPrisma as unknown as PrismaClient,
-      });
-      const handler = getHandler(router, 'put', '/:slug');
+      const handler = getUpdateHandler();
       const { req, res } = createMockReqRes(
         { avatarData: 'data:image/png;base64,iVBORw0KGgo=' }, // Only avatar, no displayName
         { slug: 'persephone' }
@@ -377,11 +357,7 @@ describe('PUT /user/personality/:slug (update)', () => {
         })
       );
 
-      const router = createPersonalityRoutes({
-        ...stubRouteResolvers(),
-        prisma: mockPrisma as unknown as PrismaClient,
-      });
-      const handler = getHandler(router, 'put', '/:slug');
+      const handler = getUpdateHandler();
       const { req, res } = createMockReqRes(
         { name: 'NewName' }, // Only name, no displayName
         { slug: 'persephone' }
@@ -411,11 +387,7 @@ describe('PUT /user/personality/:slug (update)', () => {
         })
       );
 
-      const router = createPersonalityRoutes({
-        ...stubRouteResolvers(),
-        prisma: mockPrisma as unknown as PrismaClient,
-      });
-      const handler = getHandler(router, 'put', '/:slug');
+      const handler = getUpdateHandler();
       const { req, res } = createMockReqRes(
         { displayName: 'Custom Display Name' },
         { slug: 'persephone' }
@@ -443,11 +415,7 @@ describe('PUT /user/personality/:slug (update)', () => {
         })
       );
 
-      const router = createPersonalityRoutes({
-        ...stubRouteResolvers(),
-        prisma: mockPrisma as unknown as PrismaClient,
-      });
-      const handler = getHandler(router, 'put', '/:slug');
+      const handler = getUpdateHandler();
       const { req, res } = createMockReqRes(
         { displayName: '' }, // Explicitly empty
         { slug: 'persephone' }
@@ -497,11 +465,7 @@ describe('PUT /user/personality/:slug (update)', () => {
       );
       mockUnlink.mockResolvedValue(undefined);
 
-      const router = createPersonalityRoutes({
-        ...stubRouteResolvers(),
-        prisma: mockPrisma as unknown as PrismaClient,
-      });
-      const handler = getHandler(router, 'put', '/:slug');
+      const handler = getUpdateHandler();
       const { req, res } = createMockReqRes(
         { name: 'Updated', avatarData: 'data:image/png;base64,iVBORw0KGgo=' },
         { slug: 'test-char' }
@@ -520,11 +484,7 @@ describe('PUT /user/personality/:slug (update)', () => {
       // avatar clear. Proves it reaches prisma as avatarData:null — the bug the
       // mocked bot-client test could not catch (avatarData:null alone no-ops).
       mockGlob.mockReturnValue(createAsyncGenerator([]));
-      const router = createPersonalityRoutes({
-        ...stubRouteResolvers(),
-        prisma: mockPrisma as unknown as PrismaClient,
-      });
-      const handler = getHandler(router, 'put', '/:slug');
+      const handler = getUpdateHandler();
       const { req, res } = createMockReqRes({ clearAvatar: true }, { slug: 'test-char' });
 
       await handler(req, res);
@@ -539,11 +499,7 @@ describe('PUT /user/personality/:slug (update)', () => {
 
     it('clearAvatar + a voice change in one request honors BOTH (no early-return drop)', async () => {
       mockGlob.mockReturnValue(createAsyncGenerator([]));
-      const router = createPersonalityRoutes({
-        ...stubRouteResolvers(),
-        prisma: mockPrisma as unknown as PrismaClient,
-      });
-      const handler = getHandler(router, 'put', '/:slug');
+      const handler = getUpdateHandler();
       const { req, res } = createMockReqRes(
         { clearAvatar: true, voiceReferenceData: null },
         { slug: 'test-char' }
@@ -562,11 +518,7 @@ describe('PUT /user/personality/:slug (update)', () => {
     it('avatarData:null alone is a no-op — does NOT clear the stored avatar', async () => {
       // Pins the dashboard round-trip contract the clearAvatar flag exists for.
       mockGlob.mockReturnValue(createAsyncGenerator([]));
-      const router = createPersonalityRoutes({
-        ...stubRouteResolvers(),
-        prisma: mockPrisma as unknown as PrismaClient,
-      });
-      const handler = getHandler(router, 'put', '/:slug');
+      const handler = getUpdateHandler();
       const { req, res } = createMockReqRes(
         { name: 'Updated', avatarData: null },
         { slug: 'test-char' }
@@ -585,11 +537,7 @@ describe('PUT /user/personality/:slug (update)', () => {
         throw enoentError;
       });
 
-      const router = createPersonalityRoutes({
-        ...stubRouteResolvers(),
-        prisma: mockPrisma as unknown as PrismaClient,
-      });
-      const handler = getHandler(router, 'put', '/:slug');
+      const handler = getUpdateHandler();
       const { req, res } = createMockReqRes(
         { name: 'Updated', avatarData: 'data:image/png;base64,iVBORw0KGgo=' },
         { slug: 'valid-slug' }
@@ -608,11 +556,7 @@ describe('PUT /user/personality/:slug (update)', () => {
       enoentError.code = 'ENOENT';
       mockUnlink.mockRejectedValue(enoentError);
 
-      const router = createPersonalityRoutes({
-        ...stubRouteResolvers(),
-        prisma: mockPrisma as unknown as PrismaClient,
-      });
-      const handler = getHandler(router, 'put', '/:slug');
+      const handler = getUpdateHandler();
       const { req, res } = createMockReqRes(
         { name: 'Updated', avatarData: 'data:image/png;base64,iVBORw0KGgo=' },
         { slug: 'valid-slug' }
@@ -632,11 +576,7 @@ describe('PUT /user/personality/:slug (update)', () => {
         throw permError;
       });
 
-      const router = createPersonalityRoutes({
-        ...stubRouteResolvers(),
-        prisma: mockPrisma as unknown as PrismaClient,
-      });
-      const handler = getHandler(router, 'put', '/:slug');
+      const handler = getUpdateHandler();
       const { req, res } = createMockReqRes(
         { name: 'Updated', avatarData: 'data:image/png;base64,iVBORw0KGgo=' },
         { slug: 'valid-slug' }
@@ -658,11 +598,7 @@ describe('PUT /user/personality/:slug (update)', () => {
         avatarData: null,
       });
 
-      const router = createPersonalityRoutes({
-        ...stubRouteResolvers(),
-        prisma: mockPrisma as unknown as PrismaClient,
-      });
-      const handler = getHandler(router, 'put', '/:slug');
+      const handler = getUpdateHandler();
       const { req, res } = createMockReqRes(
         { name: 'Updated', avatarData: 'data:image/png;base64,iVBORw0KGgo=' },
         { slug: '../../../etc/passwd' }
@@ -701,12 +637,7 @@ describe('PUT /user/personality/:slug (update)', () => {
         invalidatePersonality: vi.fn().mockResolvedValue(undefined),
       } as unknown as import('@tzurot/cache-invalidation').CacheInvalidationService;
 
-      const router = createPersonalityRoutes({
-        ...stubRouteResolvers(),
-        prisma: mockPrisma as unknown as PrismaClient,
-        cacheInvalidationService: mockCacheInvalidationService,
-      });
-      const handler = getHandler(router, 'put', '/:slug');
+      const handler = getUpdateHandler(mockCacheInvalidationService);
       const { req, res } = createMockReqRes(
         { avatarData: 'data:image/png;base64,iVBORw0KGgo=' },
         { slug: 'test-char' }
@@ -725,12 +656,7 @@ describe('PUT /user/personality/:slug (update)', () => {
         invalidatePersonality: vi.fn().mockRejectedValue(new Error('Cache service unavailable')),
       } as unknown as import('@tzurot/cache-invalidation').CacheInvalidationService;
 
-      const router = createPersonalityRoutes({
-        ...stubRouteResolvers(),
-        prisma: mockPrisma as unknown as PrismaClient,
-        cacheInvalidationService: mockCacheInvalidationService,
-      });
-      const handler = getHandler(router, 'put', '/:slug');
+      const handler = getUpdateHandler(mockCacheInvalidationService);
       const { req, res } = createMockReqRes(
         { avatarData: 'data:image/png;base64,iVBORw0KGgo=' },
         { slug: 'test-char' }
@@ -748,12 +674,7 @@ describe('PUT /user/personality/:slug (update)', () => {
         invalidatePersonality: vi.fn().mockResolvedValue(undefined),
       } as unknown as import('@tzurot/cache-invalidation').CacheInvalidationService;
 
-      const router = createPersonalityRoutes({
-        ...stubRouteResolvers(),
-        prisma: mockPrisma as unknown as PrismaClient,
-        cacheInvalidationService: mockCacheInvalidationService,
-      });
-      const handler = getHandler(router, 'put', '/:slug');
+      const handler = getUpdateHandler(mockCacheInvalidationService);
       const { req, res } = createMockReqRes(
         { name: 'Updated Name' }, // No avatar update
         { slug: 'test-char' }
@@ -785,11 +706,7 @@ describe('PUT /user/personality/:slug (update)', () => {
     });
 
     it('should return error for invalid voice reference data URI', async () => {
-      const router = createPersonalityRoutes({
-        ...stubRouteResolvers(),
-        prisma: mockPrisma as unknown as PrismaClient,
-      });
-      const handler = getHandler(router, 'put', '/:slug');
+      const handler = getUpdateHandler();
       const { req, res } = createMockReqRes(
         { voiceReferenceData: 'not-a-data-uri' },
         { slug: 'test-char' }
@@ -802,11 +719,7 @@ describe('PUT /user/personality/:slug (update)', () => {
     });
 
     it('should return error for unsupported voice reference MIME type', async () => {
-      const router = createPersonalityRoutes({
-        ...stubRouteResolvers(),
-        prisma: mockPrisma as unknown as PrismaClient,
-      });
-      const handler = getHandler(router, 'put', '/:slug');
+      const handler = getUpdateHandler();
       const { req, res } = createMockReqRes(
         { voiceReferenceData: 'data:image/png;base64,iVBORw0KGgo=' },
         { slug: 'test-char' }
@@ -829,11 +742,7 @@ describe('PUT /user/personality/:slug (update)', () => {
         })
       );
 
-      const router = createPersonalityRoutes({
-        ...stubRouteResolvers(),
-        prisma: mockPrisma as unknown as PrismaClient,
-      });
-      const handler = getHandler(router, 'put', '/:slug');
+      const handler = getUpdateHandler();
       const { req, res } = createMockReqRes({ voiceReferenceData: null }, { slug: 'test-char' });
 
       await handler(req, res);
@@ -866,11 +775,7 @@ describe('PUT /user/personality/:slug (update)', () => {
         })
       );
 
-      const router = createPersonalityRoutes({
-        ...stubRouteResolvers(),
-        prisma: mockPrisma as unknown as PrismaClient,
-      });
-      const handler = getHandler(router, 'put', '/:slug');
+      const handler = getUpdateHandler();
       const { req, res } = createMockReqRes(
         { name: 'Updated' }, // No voiceReferenceData field
         { slug: 'test-char' }
@@ -904,11 +809,7 @@ describe('PUT /user/personality/:slug (update)', () => {
       const base64 = audioBytes.toString('base64');
       const dataUri = `data:audio/wav;base64,${base64}`;
 
-      const router = createPersonalityRoutes({
-        ...stubRouteResolvers(),
-        prisma: mockPrisma as unknown as PrismaClient,
-      });
-      const handler = getHandler(router, 'put', '/:slug');
+      const handler = getUpdateHandler();
       const { req, res } = createMockReqRes({ voiceReferenceData: dataUri }, { slug: 'test-char' });
 
       await handler(req, res);
@@ -945,11 +846,7 @@ describe('PUT /user/personality/:slug (update)', () => {
     it('should reject slug update from non-admin user', async () => {
       mockIsBotOwner.mockReturnValue(false);
 
-      const router = createPersonalityRoutes({
-        ...stubRouteResolvers(),
-        prisma: mockPrisma as unknown as PrismaClient,
-      });
-      const handler = getHandler(router, 'put', '/:slug');
+      const handler = getUpdateHandler();
       const { req, res } = createMockReqRes(
         { slug: 'new-slug' }, // Attempting to change slug
         { slug: 'old-slug' }
@@ -987,11 +884,7 @@ describe('PUT /user/personality/:slug (update)', () => {
         })
       );
 
-      const router = createPersonalityRoutes({
-        ...stubRouteResolvers(),
-        prisma: mockPrisma as unknown as PrismaClient,
-      });
-      const handler = getHandler(router, 'put', '/:slug');
+      const handler = getUpdateHandler();
       const { req, res } = createMockReqRes({ slug: 'new-slug' }, { slug: 'old-slug' });
 
       await handler(req, res);
@@ -1041,12 +934,7 @@ describe('PUT /user/personality/:slug (update)', () => {
         invalidatePersonality: vi.fn().mockResolvedValue(undefined),
       } as unknown as import('@tzurot/cache-invalidation').CacheInvalidationService;
 
-      const router = createPersonalityRoutes({
-        ...stubRouteResolvers(),
-        prisma: mockPrisma as unknown as PrismaClient,
-        cacheInvalidationService: mockCacheInvalidationService,
-      });
-      const handler = getHandler(router, 'put', '/:slug');
+      const handler = getUpdateHandler(mockCacheInvalidationService);
       const { req, res } = createMockReqRes({ slug: 'new-slug' }, { slug: 'old-slug' });
 
       await handler(req, res);
@@ -1065,11 +953,7 @@ describe('PUT /user/personality/:slug (update)', () => {
     it('should reject invalid slug format', async () => {
       mockIsBotOwner.mockReturnValue(true);
 
-      const router = createPersonalityRoutes({
-        ...stubRouteResolvers(),
-        prisma: mockPrisma as unknown as PrismaClient,
-      });
-      const handler = getHandler(router, 'put', '/:slug');
+      const handler = getUpdateHandler();
       const { req, res } = createMockReqRes(
         { slug: 'Invalid Slug With Spaces!' }, // Invalid format
         { slug: 'old-slug' }
@@ -1098,11 +982,7 @@ describe('PUT /user/personality/:slug (update)', () => {
         })
         .mockResolvedValueOnce({ id: 'other-personality' }); // Another personality has this slug
 
-      const router = createPersonalityRoutes({
-        ...stubRouteResolvers(),
-        prisma: mockPrisma as unknown as PrismaClient,
-      });
-      const handler = getHandler(router, 'put', '/:slug');
+      const handler = getUpdateHandler();
       const { req, res } = createMockReqRes({ slug: 'taken-slug' }, { slug: 'old-slug' });
 
       await handler(req, res);
@@ -1128,11 +1008,7 @@ describe('PUT /user/personality/:slug (update)', () => {
         })
       );
 
-      const router = createPersonalityRoutes({
-        ...stubRouteResolvers(),
-        prisma: mockPrisma as unknown as PrismaClient,
-      });
-      const handler = getHandler(router, 'put', '/:slug');
+      const handler = getUpdateHandler();
       const { req, res } = createMockReqRes(
         { name: 'Updated Name', slug: 'same-slug' }, // Same slug as URL param
         { slug: 'same-slug' }
@@ -1147,11 +1023,7 @@ describe('PUT /user/personality/:slug (update)', () => {
     it('should reject reserved slug names', async () => {
       mockIsBotOwner.mockReturnValue(true);
 
-      const router = createPersonalityRoutes({
-        ...stubRouteResolvers(),
-        prisma: mockPrisma as unknown as PrismaClient,
-      });
-      const handler = getHandler(router, 'put', '/:slug');
+      const handler = getUpdateHandler();
       const { req, res } = createMockReqRes(
         { slug: 'admin' }, // Reserved slug
         { slug: 'old-slug' }

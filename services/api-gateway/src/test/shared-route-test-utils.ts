@@ -6,9 +6,8 @@
  */
 
 import { vi } from 'vitest';
-import type { Request, RequestHandler, Response, Router } from 'express';
+import type { Request, RequestHandler, Response } from 'express';
 import type { ConfigCascadeResolver, LlmConfigResolver } from '@tzurot/config-resolver';
-import { getRouteHandler } from './expressRouterUtils.js';
 
 /**
  * Create a typed vi.fn mock for isBotOwner.
@@ -84,17 +83,8 @@ export function createProvisionedMockReqRes(
   return { req, res };
 }
 
-/** Typed route handler extracted from Express router */
+/** Typed route handler as the route suites call it: `(req, res)`, no `next`. */
 export type RouteHandler = (req: Request & { userId: string }, res: Response) => Promise<void>;
-
-/** Get a typed handler from an Express router by method and path */
-export function getHandler(
-  router: Router,
-  method: 'get' | 'post' | 'put' | 'patch' | 'delete',
-  path: string
-): RouteHandler {
-  return getRouteHandler(router, method, path) as RouteHandler;
-}
 
 /**
  * Adapt a bare `RequestHandler` export (the shape `routes/_generated/mounts.ts`
