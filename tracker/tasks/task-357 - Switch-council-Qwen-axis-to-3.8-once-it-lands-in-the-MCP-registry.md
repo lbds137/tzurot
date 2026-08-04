@@ -4,8 +4,10 @@ title: Switch council Qwen axis to 3.8 once it lands in the MCP registry
 status: To Do
 assignee: []
 created_date: '2026-07-30 12:06'
+updated_date: '2026-08-04 13:56'
 labels:
   - 'size:S'
+  - 'area:docs'
 dependencies: []
 priority: low
 ordinal: 357000

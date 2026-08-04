@@ -4,8 +4,10 @@ title: Redaction allowlist is coupled to the codegen header set
 status: To Do
 assignee: []
 created_date: '2026-07-30 14:26'
+updated_date: '2026-08-04 13:56'
 labels:
   - 'size:S'
+  - 'area:clients'
 dependencies: []
 priority: medium
 ordinal: 358000

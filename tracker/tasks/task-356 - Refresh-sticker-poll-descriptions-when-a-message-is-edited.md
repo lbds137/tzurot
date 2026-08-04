@@ -4,8 +4,10 @@ title: Refresh sticker/poll descriptions when a message is edited
 status: To Do
 assignee: []
 created_date: '2026-07-30 04:47'
+updated_date: '2026-08-04 13:56'
 labels:
   - 'size:S'
+  - 'area:bot-client'
 dependencies: []
 priority: low
 ordinal: 356000

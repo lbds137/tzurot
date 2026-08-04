@@ -4,9 +4,10 @@ title: Animated stickers are described from a single frame
 status: To Do
 assignee: []
 created_date: '2026-07-30 15:51'
-updated_date: '2026-07-30 17:42'
+updated_date: '2026-08-04 13:56'
 labels:
   - 'size:M'
+  - 'area:ai-worker'
 dependencies: []
 priority: low
 ordinal: 360000
