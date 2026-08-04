@@ -6,6 +6,11 @@
  * posts an owner-channel summary when rows actually moved or the sync raised
  * warnings, and an owner-channel failure notice when the call fails.
  *
+ * PROD ONLY. The sync operates on the dev↔prod PAIR, so it is the same job no
+ * matter which side schedules it — running it from both bot-clients syncs the
+ * pair twice a day, and the Redis cooldown cannot dedupe that (each
+ * environment has its own Redis). The prod deployment owns the schedule.
+ *
  * Cadence design — one deliberate inversion of the nag schedulers. Those run
  * a CHEAP check every tick and use the Redis cooldown to rate-limit the POST.
  * Here the tick's action IS the expensive, consequential step: a real sync
@@ -16,15 +21,20 @@
  * process death mid-sync skips that day's run, which is the right trade for
  * an operation that writes to prod.
  *
- * The cadence is once per day anchored to process start, not to a wall-clock
- * hour — the same property every scheduler here has. "Nightly" is the budget,
- * not a guaranteed 03:00.
+ * Genuinely nightly, not boot-anchored: the tick runs every 15 minutes and
+ * does nothing unless the current UTC hour equals the `nightlySyncHourUtc`
+ * system setting (owner-editable in `/admin settings`, alongside the
+ * `nightlySyncEnabled` switch). The 23h cooldown then collapses the up-to-four
+ * ticks inside the matching hour to a single run — hour equality picks the
+ * time of day, the cooldown enforces once-per-day. A deploy at noon no longer
+ * fires a sync at noon.
  */
 
 import { EmbedBuilder, type Client } from 'discord.js';
 import type { Redis } from 'ioredis';
 import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
 import { getConfig } from '@tzurot/common-types/config/config';
+import { SYSTEM_SETTINGS_FALLBACKS } from '@tzurot/common-types/schemas/api/systemSettings';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { escapeFenceBreaks } from '../utils/fenceEscape.js';
 import { getOwnerClient } from '../utils/gatewayClients.js';
@@ -39,12 +49,19 @@ import {
 
 const logger = createLogger('nightly-db-sync');
 
-const SYNC_INTERVAL_MS = 24 * 60 * 60 * 1000;
+/**
+ * Tick cadence, NOT the sync cadence: the tick's only job is to notice that
+ * the clock has entered the configured hour. Four ticks per hour keeps the
+ * miss window small (a tick lost to a restart still leaves three chances) at
+ * the cost of one cheap settings read per tick.
+ */
+const TICK_INTERVAL_MS = 15 * 60 * 1000;
 const STARTUP_DELAY_MS = 60_000;
 /**
  * At most one real sync per day, across restarts. Deliberately a little under
- * the 24h interval so ordinary tick jitter can never make a scheduled run land
- * inside its own previous cooldown and skip a day.
+ * 24h so ordinary tick jitter can never make a scheduled run land inside its
+ * own previous cooldown and skip a day; comfortably longer than the one-hour
+ * window, so the extra ticks inside the matching hour are no-ops.
  */
 const SYNC_COOLDOWN_SECONDS = 23 * 60 * 60;
 const COOLDOWN_KEY = 'nightly-db-sync:cooldown';
@@ -58,7 +75,7 @@ const COOLDOWN_KEY = 'nightly-db-sync:cooldown';
 const SCHEDULED_SYNC_OPTIONS = { dryRun: false, allowSchemaSkew: false } as const;
 
 const scheduler = createIntervalScheduler<[Client, Redis]>({
-  intervalMs: SYNC_INTERVAL_MS,
+  intervalMs: TICK_INTERVAL_MS,
   startupDelayMs: STARTUP_DELAY_MS,
   logger,
   run: (client, redis) => runNightlyDbSync(client, redis),
@@ -68,7 +85,8 @@ const scheduler = createIntervalScheduler<[Client, Redis]>({
  * Start the daily sync (call once from the composition root). Refuses to start
  * without a configured owner id: every `/api/admin/*` call is gated on the
  * actor header matching it, so an unconfigured deployment could only ever
- * produce a daily rejection.
+ * produce a daily rejection. Also refuses outside production — see the
+ * prod-only note in the module docstring.
  */
 export function startNightlyDbSyncScheduler(client: Client, redis: Redis): void {
   const ownerId = getConfig().BOT_OWNER_ID;
@@ -77,6 +95,10 @@ export function startNightlyDbSyncScheduler(client: Client, redis: Redis): void 
   // failure post instead of one boot-time warn.
   if (ownerId === undefined || ownerId.length === 0) {
     logger.warn('BOT_OWNER_ID is not configured — nightly db-sync will not run');
+    return;
+  }
+  if (getConfig().NODE_ENV !== 'production') {
+    logger.info('Not a production environment — nightly db-sync scheduler disabled');
     return;
   }
   scheduler.start(client, redis);
@@ -117,10 +139,52 @@ function buildNightlySyncFailureEmbed(reason: string): EmbedBuilder {
     .setTimestamp();
 }
 
+/**
+ * The tick's schedule gate: is this the configured hour, and is the job on at
+ * all? Reads the live system-settings bag every tick (an owner toggling the
+ * switch must take effect without a deploy) and falls back to the registry
+ * constants for keys the bag has not seeded yet. Returns false — never syncs —
+ * when the bag cannot be read: an unknown config is not a licence to write to
+ * both databases.
+ */
+async function shouldSyncThisTick(): Promise<boolean> {
+  const settings = await getOwnerClient().getSystemSettings();
+  if (!settings.ok) {
+    logger.warn(
+      { status: settings.status, error: settings.error },
+      'System settings unreadable — skipping this nightly-sync tick'
+    );
+    return false;
+  }
+
+  const bag = settings.data.systemSettings;
+  const enabled = bag.nightlySyncEnabled ?? SYSTEM_SETTINGS_FALLBACKS.nightlySyncEnabled;
+  if (!enabled) {
+    logger.debug('Nightly db-sync is disabled by system setting');
+    return false;
+  }
+
+  const hourUtc = bag.nightlySyncHourUtc ?? SYSTEM_SETTINGS_FALLBACKS.nightlySyncHourUtc;
+  const currentHourUtc = new Date().getUTCHours();
+  if (currentHourUtc !== hourUtc) {
+    logger.debug({ currentHourUtc, hourUtc }, 'Outside the configured nightly-sync hour');
+    return false;
+  }
+
+  return true;
+}
+
 /** Exported for tests — one full sync cycle. */
 export async function runNightlyDbSync(client: Client, redis: Redis): Promise<void> {
   try {
-    // Cooldown FIRST, and armed before the call — see the cadence note above.
+    // Schedule gate BEFORE the cooldown: a tick outside the configured hour
+    // must not arm the cooldown, or the first tick after boot would burn the
+    // day's single run at whatever time the deploy happened to land.
+    if (!(await shouldSyncThisTick())) {
+      return;
+    }
+
+    // Cooldown SECOND, and armed before the call — see the cadence note above.
     const cooling = await redis.get(COOLDOWN_KEY);
     if (cooling !== null) {
       logger.info({ since: cooling }, 'Nightly sync already ran within the cooldown window');

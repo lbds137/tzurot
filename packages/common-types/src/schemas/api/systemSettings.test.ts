@@ -50,6 +50,16 @@ describe('SYSTEM_SETTINGS_REGISTRY completeness', () => {
     }
   });
 
+  it('a min of ZERO counts as present bounds metadata (0 must not read as "absent")', () => {
+    // nightlySyncHourUtc is the first integer setting whose floor is 0. Every
+    // bounds check here is written `!== undefined` rather than truthy for
+    // exactly this reason — a truthy test would skip the key's parity check.
+    const meta = SYSTEM_SETTINGS_REGISTRY.nightlySyncHourUtc;
+    expect(meta.min).toBe(0);
+    expect(meta.min !== undefined).toBe(true);
+    expect(meta.max).toBe(23);
+  });
+
   it('registry bounds behaviorally match the zod schema (the no-drift parity check)', () => {
     // The schema stays authoritative for validation; the registry mirrors bounds
     // for input surfaces. Parity is asserted behaviorally (accept/reject at the
@@ -83,6 +93,13 @@ describe('fallbacks (the floor beneath the floor)', () => {
     expect(SYSTEM_SETTINGS_FALLBACKS.extractionEnabled).toBe(false);
     expect(SYSTEM_SETTINGS_FALLBACKS.factsInPromptEnabled).toBe(false);
     expect(SYSTEM_SETTINGS_FALLBACKS.zaiFreeTierEnabled).toBe(false);
+  });
+
+  it('the nightly sync falls back ENABLED at 07:00 UTC (a lost DB keeps dev↔prod converging)', () => {
+    // Deliberate exception to the flags-fall-back-OFF rule above: the sync is
+    // idempotent, silent when nothing moved, and gated to the prod bot-client.
+    expect(SYSTEM_SETTINGS_FALLBACKS.nightlySyncEnabled).toBe(true);
+    expect(SYSTEM_SETTINGS_FALLBACKS.nightlySyncHourUtc).toBe(7);
   });
 
   it('free floors fall back to a free-route model (billing firewall holds even at the floor)', () => {
@@ -138,6 +155,7 @@ describe('SystemSettingsSchema bounds (mirror the env schema ranges)', () => {
     ['extractionBatchThreshold', 0, 51],
     ['freeTierWindowMinutes', 0, 1441],
     ['zaiHeadroomPercent', 0, 100],
+    ['nightlySyncHourUtc', -1, 24],
   ] as const)('%s rejects values outside its env-schema range', (key, below, above) => {
     expect(SystemSettingsSchema.safeParse({ ...valid, [key]: below }).success).toBe(false);
     expect(SystemSettingsSchema.safeParse({ ...valid, [key]: above }).success).toBe(false);
