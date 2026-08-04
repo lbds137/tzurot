@@ -7,6 +7,7 @@ import { ReferencedMessageFormatter } from './ReferencedMessageFormatter.js';
 import { AttachmentType } from '@tzurot/common-types/constants/media';
 import { type ReferencedMessage } from '@tzurot/common-types/types/schemas/message';
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
+import { type ProcessedAttachment } from './MultimodalProcessor.js';
 
 // Use vi.hoisted() to create mocks that persist across test resets
 const { mockDescribeImage, mockTranscribeAudio, mockFormatPromptTimestamp, mockLogger } =
@@ -1838,9 +1839,11 @@ describe('ReferencedMessageFormatter', () => {
       // discarded — and the silence around it was why a human was the only
       // detector the first two times.
       //
-      // The cast is the point: `AttachmentType` has only Image and Audio today,
-      // so the unhandled arm is not otherwise constructible. Pinning it now
-      // means the warn is proven to fire before anyone needs it to.
+      // The cast is the point: every `AttachmentType` that exists today either
+      // renders (Image, Audio) or is deliberately excluded from the denominator
+      // (File — a free stub, not paid work), so the unhandled arm is not
+      // otherwise constructible. Pinning it now means the warn is proven to
+      // fire before anyone needs it to.
       await formatter.formatReferencedMessages(
         [refWithImage({ isDeduplicated: true, attachments: undefined })],
         mockPersonality,
@@ -1894,6 +1897,99 @@ describe('ReferencedMessageFormatter', () => {
       );
 
       expect(mockLogger.warn).not.toHaveBeenCalled();
+    });
+
+    /**
+     * The other half of "paid work must appear": work that was never paid for
+     * must not be reported as missing.
+     *
+     * An attachment with no content processor comes back as a File-typed
+     * result carrying a locally-generated "not supported" stub. It renders as a
+     * bare <file/> — `RenderableFile` has no enrichment slot by design — so
+     * counting the stub as available enrichment would make the drop tripwire
+     * fire on any deduped quote of a video or a document, naming
+     * vision/transcription spend that never happened.
+     */
+    describe('file stubs are identity-only, and never counted as paid work', () => {
+      const FILE_STUB_DESCRIPTION =
+        'Attachment type video/mp4 is not supported — content not analyzed';
+
+      /** The shape MultimodalProcessor returns for an unprocessable type. */
+      function fileStubEntry(url: string, name: string): ProcessedAttachment {
+        return {
+          type: AttachmentType.File,
+          description: FILE_STUB_DESCRIPTION,
+          originalUrl: url,
+          metadata: { url, name, contentType: 'video/mp4', size: 4000 },
+        };
+      }
+
+      it('renders a correlated file entry as a bare <file/> without warning', async () => {
+        const url = 'https://cdn.example.com/clip.mp4';
+        const { formatted } = await formatter.formatReferencedMessages(
+          [
+            refWithImage({
+              isDeduplicated: true,
+              attachments: [{ url, contentType: 'video/mp4', name: 'clip.mp4', size: 4000 }],
+            }),
+          ],
+          mockPersonality,
+          false,
+          { 1: [fileStubEntry(url, 'clip.mp4')] }
+        );
+
+        // Identity from the reference's own attachment row, which carries the
+        // real content type.
+        expect(formatted).toContain('<file filename="clip.mp4" type="video/mp4"/>');
+        expect(formatted).not.toContain(FILE_STUB_DESCRIPTION);
+        expect(mockLogger.warn).not.toHaveBeenCalled();
+      });
+
+      it('renders an ORPHANED file entry rather than dropping it', async () => {
+        // No attachment row correlates, so the entry falls to the orphan loop —
+        // where a File used to have no arm and vanished from the quote entirely.
+        const { formatted } = await formatter.formatReferencedMessages(
+          [refWithImage({ isDeduplicated: true, attachments: undefined })],
+          mockPersonality,
+          false,
+          { 1: [fileStubEntry('https://cdn.example.com/orphan.mp4', 'orphan.mp4')] }
+        );
+
+        expect(formatted).toContain('<file filename="orphan.mp4"/>');
+        expect(formatted).not.toContain(FILE_STUB_DESCRIPTION);
+        expect(mockLogger.warn).not.toHaveBeenCalled();
+      });
+
+      it('excludes only the file stub from the denominator — a real drop still warns', async () => {
+        // Both in one reference: the tripwire must subtract the stub and still
+        // count the unrenderable paid result. `renderable: 1`, not 2.
+        await formatter.formatReferencedMessages(
+          [refWithImage({ isDeduplicated: true, attachments: undefined })],
+          mockPersonality,
+          false,
+          {
+            1: [
+              fileStubEntry('https://cdn.example.com/orphan.mp4', 'orphan.mp4'),
+              {
+                type: 'video' as AttachmentType,
+                description: 'a clip the splitter cannot render yet',
+                originalUrl: 'https://cdn.example.com/clip.mkv',
+                metadata: {
+                  url: 'https://cdn.example.com/clip.mkv',
+                  name: 'clip.mkv',
+                  contentType: 'video/x-matroska',
+                  size: 1000,
+                },
+              } satisfies ProcessedAttachment,
+            ],
+          }
+        );
+
+        expect(mockLogger.warn).toHaveBeenCalledWith(
+          expect.objectContaining({ referenceNumber: 1, renderable: 1, rendered: 0 }),
+          expect.stringContaining('not reaching the prompt')
+        );
+      });
     });
   });
 });
