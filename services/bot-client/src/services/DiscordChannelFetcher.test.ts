@@ -27,18 +27,25 @@ vi.mock('@tzurot/common-types/constants/message', async () => {
   };
 });
 
+// One stable logger instance (createLogger runs once at module load), so tests
+// can assert on the LEVEL a given path logs at — the transcript-cache-miss
+// fallback recurs by design and must stay off the info stream.
+const { loggerMock } = vi.hoisted(() => ({
+  loggerMock: {
+    info: vi.fn(),
+    debug: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+  },
+}));
+
 vi.mock('@tzurot/common-types/utils/logger', async () => {
   const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
     '@tzurot/common-types/utils/logger'
   );
   return {
     ...actual,
-    createLogger: () => ({
-      info: vi.fn(),
-      debug: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-    }),
+    createLogger: () => loggerMock,
   };
 });
 
@@ -1470,7 +1477,7 @@ describe('DiscordChannelFetcher', () => {
   });
 
   describe('voice transcript fallback', () => {
-    it('should use DB transcript when available', async () => {
+    it('should use the retriever transcript when available', async () => {
       // Voice message with a bot transcript reply in channel
       const voiceMessageId = 'voice-msg-1';
       const messages = [
@@ -1508,8 +1515,8 @@ describe('DiscordChannelFetcher', () => {
 
       const channel = createMockChannel(messages);
 
-      // DB returns transcript - should use DB, not fallback
-      const getTranscript = vi.fn().mockResolvedValue('DB transcript content');
+      // Retriever returns transcript - should use it, not fallback
+      const getTranscript = vi.fn().mockResolvedValue('Cached transcript content');
 
       const result = await fetcher.fetchRecentMessages(channel, {
         botUserId: 'bot123',
@@ -1520,7 +1527,7 @@ describe('DiscordChannelFetcher', () => {
       expect(result.keptCount).toBe(1);
       // Voice transcripts are now in messageMetadata for structured XML formatting
       expect(result.messages[0].messageMetadata?.voiceTranscripts).toContain(
-        'DB transcript content'
+        'Cached transcript content'
       );
       // Fallback transcript should not appear
       expect(result.messages[0].messageMetadata?.voiceTranscripts?.join('') ?? '').not.toContain(
@@ -1555,7 +1562,7 @@ describe('DiscordChannelFetcher', () => {
         }),
       ];
       const channel = createMockChannel(messages);
-      // No DB transcript, no bot reply in window ⇒ unresolved.
+      // No cached transcript, no bot reply in window ⇒ unresolved.
       const getTranscript = vi.fn().mockResolvedValue(null);
 
       const result = await fetcher.fetchRecentMessages(channel, {
@@ -1570,7 +1577,7 @@ describe('DiscordChannelFetcher', () => {
       expect(result.voiceAttachments?.[0].isVoiceMessage).toBe(true);
     });
 
-    it('should fall back to bot reply when DB returns null', async () => {
+    it('should fall back to bot reply when the retriever returns null', async () => {
       const voiceMessageId = 'voice-msg-1';
       const messages = [
         createMockMessage({
@@ -1607,7 +1614,7 @@ describe('DiscordChannelFetcher', () => {
 
       const channel = createMockChannel(messages);
 
-      // DB returns null - should fall back to bot reply
+      // Retriever returns null - should fall back to bot reply
       const getTranscript = vi.fn().mockResolvedValue(null);
 
       const result = await fetcher.fetchRecentMessages(channel, {
@@ -1620,9 +1627,20 @@ describe('DiscordChannelFetcher', () => {
       expect(result.messages[0].messageMetadata?.voiceTranscripts).toContain(
         'Fallback transcript from bot reply'
       );
+      // The cache-miss fallback recurs by design for any voice message older
+      // than the transcript cache TTL — it logs at debug, never info, and the
+      // message names the real mechanism (Redis cache, not a DB).
+      expect(loggerMock.debug).toHaveBeenCalledWith(
+        { messageId: voiceMessageId },
+        'Using bot reply fallback for voice transcript (not in Redis cache)'
+      );
+      expect(loggerMock.info).not.toHaveBeenCalledWith(
+        expect.anything(),
+        expect.stringContaining('bot reply fallback')
+      );
     });
 
-    it('should fall back to bot reply when DB returns empty string', async () => {
+    it('should fall back to bot reply when the retriever returns empty string', async () => {
       const voiceMessageId = 'voice-msg-1';
       const messages = [
         createMockMessage({
@@ -1648,7 +1666,7 @@ describe('DiscordChannelFetcher', () => {
         // Bot transcript reply
         createMockMessage({
           id: 'transcript-reply-1',
-          content: 'Fallback from empty DB',
+          content: 'Fallback from empty retriever result',
           authorId: 'bot123',
           authorUsername: 'TestBot',
           isBot: true,
@@ -1659,7 +1677,7 @@ describe('DiscordChannelFetcher', () => {
 
       const channel = createMockChannel(messages);
 
-      // DB returns empty string (corrupted data) - should fall back to bot reply
+      // Retriever returns empty string (corrupted data) - should fall back to bot reply
       const getTranscript = vi.fn().mockResolvedValue('');
 
       const result = await fetcher.fetchRecentMessages(channel, {
@@ -1670,11 +1688,11 @@ describe('DiscordChannelFetcher', () => {
       expect(result.keptCount).toBe(1);
       // Voice transcripts are now in messageMetadata for structured XML formatting
       expect(result.messages[0].messageMetadata?.voiceTranscripts).toContain(
-        'Fallback from empty DB'
+        'Fallback from empty retriever result'
       );
     });
 
-    it('should return null transcript when neither DB nor fallback available', async () => {
+    it('should return null transcript when neither retriever nor fallback available', async () => {
       const voiceMessageId = 'voice-msg-1';
       const messages = [
         createMockMessage({
@@ -1702,7 +1720,7 @@ describe('DiscordChannelFetcher', () => {
 
       const channel = createMockChannel(messages);
 
-      // DB returns null, no bot reply available
+      // Retriever returns null, no bot reply available
       const getTranscript = vi.fn().mockResolvedValue(null);
 
       const result = await fetcher.fetchRecentMessages(channel, {
@@ -1742,7 +1760,7 @@ describe('DiscordChannelFetcher', () => {
         // Bot transcript reply
         createMockMessage({
           id: 'transcript-reply-1',
-          content: 'Fallback when no DB function',
+          content: 'Fallback when no getTranscript function',
           authorId: 'bot123',
           authorUsername: 'TestBot',
           isBot: true,
@@ -1762,7 +1780,7 @@ describe('DiscordChannelFetcher', () => {
       expect(result.keptCount).toBe(1);
       // Voice transcripts are now in messageMetadata for structured XML formatting
       expect(result.messages[0].messageMetadata?.voiceTranscripts).toContain(
-        'Fallback when no DB function'
+        'Fallback when no getTranscript function'
       );
     });
 

@@ -202,22 +202,28 @@ export class DiscordChannelFetcher {
       );
     }
 
-    // Create wrapped getTranscript that tries DB first, then falls back to bot replies
+    // Wrap getTranscript: try the caller's retriever first (in production the
+    // Redis-only TranscriptRetriever — bot-client has no DB tier), then fall
+    // back to the bot's own in-channel transcript reply.
     const getTranscriptWithFallback = async (
       discordMessageId: string,
       attachmentUrl: string
     ): Promise<string | null> => {
       if (options.getTranscript) {
-        const dbTranscript = await options.getTranscript(discordMessageId, attachmentUrl);
-        if (dbTranscript !== null && dbTranscript.length > 0) {
-          return dbTranscript;
+        const primaryTranscript = await options.getTranscript(discordMessageId, attachmentUrl);
+        if (primaryTranscript !== null && primaryTranscript.length > 0) {
+          return primaryTranscript;
         }
       }
       const fallbackTranscript = botTranscriptFallback.get(discordMessageId);
       if (fallbackTranscript !== undefined) {
-        logger.info(
+        // Debug, not info: any voice message older than the transcript cache
+        // TTL misses the cache on EVERY extended-context fetch by design (the
+        // accepted divergence documented in TranscriptRetriever), so this
+        // recurs indefinitely for the same messages and is not an anomaly.
+        logger.debug(
           { messageId: discordMessageId },
-          'Using bot reply fallback for voice transcript (DB lookup failed)'
+          'Using bot reply fallback for voice transcript (not in Redis cache)'
         );
         return fallbackTranscript;
       }
