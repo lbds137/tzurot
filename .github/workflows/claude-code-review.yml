@@ -33,7 +33,16 @@ jobs:
         with:
           fetch-depth: 1
 
+      # The no-post verification below filters comments to ones created after
+      # this instant, so a comment from a previous push's review can't satisfy
+      # the check. The 2-minute back-shift absorbs runner-vs-API clock skew.
+      - name: Record review start time
+        id: review-start
+        run: echo "ts=$(date -u -d '-2 minutes' +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+
+      # Feature PRs get the full line-level review of the diff.
       - name: Run Claude Code Review
+        if: github.event.pull_request.base.ref != 'main'
         id: claude-review
         uses: anthropics/claude-code-action@v1.0.183
         with:
@@ -56,3 +65,82 @@ jobs:
           # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
           # or https://docs.claude.com/en/docs/claude-code/cli-reference for available options
           claude_args: '--allowed-tools "Bash(gh issue view:*),Bash(gh search:*),Bash(gh issue list:*),Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr list:*)"'
+
+      # Release PRs (develop → main) get a HOLISTIC review instead. Every
+      # constituent PR in the range was already line-reviewed at merge time, so
+      # re-reading the full release diff is both the largest possible prompt
+      # (observed >650KB, at which size the reviewer completes without posting
+      # anything) and the least valuable review. What's genuinely new at
+      # release time is the assembly: notes, version, and cross-PR seams.
+      - name: Run Claude Code Review (release)
+        if: github.event.pull_request.base.ref == 'main'
+        id: claude-review-release
+        uses: anthropics/claude-code-action@v1.0.183
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
+
+            This is a RELEASE PR (develop → main). Every constituent PR in this
+            range was already line-reviewed when it merged to develop — do NOT
+            re-review the full diff line by line, and do NOT run a bare
+            `gh pr diff` (release diffs can exceed your capacity; that is why
+            this prompt exists). Perform the holistic second look that only
+            release time allows:
+
+            1. Read the PR body (release notes) via `gh pr view`, and get the
+               shape of the change via `gh pr diff --name-only`.
+            2. Spot-check that the release notes' claims match the file list —
+               flag notes entries with no plausible corresponding change, and
+               significant changed areas the notes never mention.
+            3. Verify the version bump: package.json versions moved, and match
+               the version in the PR title/notes.
+            4. Think about cross-PR seams: places where two constituent changes
+               could interact badly even though each reviewed clean alone. Pull
+               targeted diffs of specific files (`gh pr diff` with paths) only
+               where you suspect a seam.
+            5. Look for anything that shouldn't ship to production: leftover
+               debug instrumentation, temporary scaffolding, TODO markers in
+               changed files, anything secret-shaped.
+
+            Use the repository's CLAUDE.md for guidance on conventions.
+
+            Post your findings with `gh pr comment` using your Bash tool. Post
+            a comment EVEN IF everything looks fine — a short "holistic release
+            pass, no findings" comment is the expected success output; silence
+            is indistinguishable from a failed review.
+
+          # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
+          # or https://docs.claude.com/en/docs/claude-code/cli-reference for available options
+          claude_args: '--allowed-tools "Bash(gh issue view:*),Bash(gh search:*),Bash(gh issue list:*),Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr list:*)"'
+
+      # The action can complete green having posted nothing (observed twice on
+      # release-sized PRs: a ~3.5-minute successful run, zero output on any
+      # surface). A silent green reads as "reviewed" to both humans and the
+      # merge gate, which is strictly worse than a red check. Fail loudly when
+      # no claude[bot] comment landed after this run started, so the gap is
+      # visible and a rerun is one click away.
+      - name: Verify a review was posted
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # The action validates this workflow file against main's copy and
+          # skips itself (posting nothing) on a mismatch — the sanctioned
+          # main-cut-PR case. Failing THAT no-post would turn every main-cut
+          # workflow PR red, so replicate the file-scoped validation check
+          # and stand down when the skip is legitimate.
+          git fetch --quiet --depth=1 origin main
+          if ! git diff --quiet FETCH_HEAD -- .github/workflows/claude-code-review.yml; then
+            echo "Workflow file differs from main — the review action skips itself on this PR; skipping no-post verification."
+            exit 0
+          fi
+          since="${{ steps.review-start.outputs.ts }}"
+          count=$(gh api "repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments?per_page=100" \
+            --paginate \
+            --jq "[.[] | select(.user.login == \"claude[bot]\" and .created_at >= \"$since\")] | length")
+          if [ "$count" -eq 0 ]; then
+            echo "::error::claude-review completed without posting a comment (no claude[bot] comment since $since). Re-run this job."
+            exit 1
+          fi
+          echo "Review verified: $count claude[bot] comment(s) posted since $since."
