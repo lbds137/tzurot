@@ -70,6 +70,7 @@ const successResult: GenerateAttemptResult = {
   response: { content: 'ok', retrievedMemories: 0, tokensIn: 1, tokensOut: 1 },
   duplicateRetries: 0,
   emptyRetries: 0,
+  echoRetries: 0,
   leakedThinkingRetries: 0,
 };
 

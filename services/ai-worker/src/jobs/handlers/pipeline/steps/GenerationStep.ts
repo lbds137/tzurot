@@ -154,6 +154,7 @@ export class GenerationStep implements IPipelineStep {
         response,
         duplicateRetries,
         emptyRetries,
+        echoRetries,
         leakedThinkingRetries,
         effectiveProviderUsed,
         quotaFallback: reactiveQuotaFallback,
@@ -204,7 +205,14 @@ export class GenerationStep implements IPipelineStep {
 
       const processingTimeMs = Date.now() - startTime;
       logger.info(
-        { jobId: job.id, processingTimeMs, duplicateRetries, emptyRetries, leakedThinkingRetries },
+        {
+          jobId: job.id,
+          processingTimeMs,
+          duplicateRetries,
+          emptyRetries,
+          echoRetries,
+          leakedThinkingRetries,
+        },
         'Generation completed'
       );
 

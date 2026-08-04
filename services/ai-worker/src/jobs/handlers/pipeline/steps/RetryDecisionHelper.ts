@@ -5,8 +5,13 @@
  * Extracted from GenerationStep to maintain file size limits.
  */
 
+import { stripBotFooters } from '@tzurot/common-types/utils/discord';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { RAGResponse } from '../../../../services/ConversationalRAGTypes.js';
+import {
+  stringSimilarity,
+  DEFAULT_SIMILARITY_THRESHOLD,
+} from '../../../../utils/duplicateDetection.js';
 
 const logger = createLogger('RetryDecisionHelper');
 
@@ -16,7 +21,7 @@ type RetryAction = 'retry' | 'return' | 'continue';
 /** A rejected-but-valid response preserved as a fallback in case later attempts fail entirely */
 export interface FallbackResponse {
   response: RAGResponse;
-  reason: 'empty' | 'duplicate' | 'leaked-thinking';
+  reason: 'empty' | 'duplicate' | 'leaked-thinking' | 'echo';
   attempt: number;
 }
 
@@ -38,20 +43,22 @@ export function restoreThinking(response: RAGResponse, preserved: string | undef
 }
 
 /**
- * Fallback quality ranking: duplicate > leaked-thinking > empty.
+ * Fallback quality ranking: duplicate > leaked-thinking > echo > empty.
  * - duplicate: in-character content, just repeated
  * - leaked-thinking: has content, just wrong kind (raw CoT)
+ * - echo: the user's own words handed back — model-authored nothing, but still text
  * - empty: no content at all
  */
 const FALLBACK_RANK: Record<FallbackResponse['reason'], number> = {
-  duplicate: 2,
-  'leaked-thinking': 1,
+  duplicate: 3,
+  'leaked-thinking': 2,
+  echo: 1,
   empty: 0,
 };
 
 /**
  * Select the better fallback between existing and candidate.
- * Uses quality ranking (duplicate > leaked-thinking > empty).
+ * Uses quality ranking (duplicate > leaked-thinking > echo > empty).
  * At equal rank, prefers the more recent attempt (escalated params).
  */
 export function selectBetterFallback(
@@ -121,6 +128,7 @@ export function logRetrySuccess(opts: {
   attempt: number;
   duplicateRetries: number;
   emptyRetries: number;
+  echoRetries: number;
   leakedThinkingRetries: number;
 }): void {
   logger.info(opts, 'Retry succeeded - got valid unique response');
@@ -133,6 +141,25 @@ interface EmptyResponseCheckOptions {
   maxAttempts: number;
   jobId: string | undefined;
 }
+
+/** Options for echoed-input check */
+interface EchoResponseCheckOptions {
+  response: RAGResponse;
+  /** Text of the user's current turn, as the model received it */
+  userMessage: string;
+  attempt: number;
+  maxAttempts: number;
+  jobId: string | undefined;
+}
+
+/**
+ * Minimum normalized user-message length for the echo check.
+ *
+ * Below this length an echo is not evidence of a misplaced reply: a short input
+ * ("lol", "goodnight") can legitimately be repeated back as a stylistic reply,
+ * and a false-positive retry spends budget and tokens for nothing.
+ */
+const MIN_LENGTH_FOR_ECHO_CHECK = 40;
 
 /** Options for duplicate detection logging */
 interface DuplicateDetectionOptions {
@@ -171,6 +198,82 @@ export function shouldRetryEmptyResponse(opts: EmptyResponseCheckOptions): Retry
     logger.error(
       { jobId, attempt, modelUsed: response.modelUsed, hasThinking, totalAttempts: maxAttempts },
       'All retries produced empty responses.'
+    );
+  }
+
+  return canRetry ? 'retry' : 'return';
+}
+
+/**
+ * Check whether the response is just the user's own message handed back, and
+ * determine the retry action.
+ *
+ * A provider can misplace the actual reply into the reasoning channel and emit
+ * the input verbatim as content. Such a response is non-empty (so the empty
+ * check passes it) and matches no recent ASSISTANT message (so cross-turn
+ * duplicate detection passes it too) — the user ends up receiving their own
+ * words in the character's voice.
+ *
+ * The comparison deliberately reuses the cross-turn detector's synchronous text
+ * layer — same normalization (`stripBotFooters`), same similarity function
+ * (`stringSimilarity`), same threshold (`DEFAULT_SIMILARITY_THRESHOLD`) — so
+ * both gates agree on what "the same text" means.
+ *
+ * `hasThinking` rides the log payload because reasoning-carrying-the-reply is
+ * the diagnostic tell for this failure; it deliberately does NOT gate the
+ * decision. An echo is an echo whether or not reasoning came with it.
+ *
+ * @returns 'continue' if the response is not an echo, 'retry' if can retry, 'return' if exhausted
+ */
+export function shouldRetryEchoResponse(opts: EchoResponseCheckOptions): RetryAction {
+  const { response, userMessage, attempt, maxAttempts, jobId } = opts;
+
+  const cleanUserMessage = stripBotFooters(userMessage);
+  if (cleanUserMessage.length < MIN_LENGTH_FOR_ECHO_CHECK) {
+    return 'continue';
+  }
+
+  const cleanContent = stripBotFooters(response.content);
+  const similarity = stringSimilarity(cleanContent, cleanUserMessage);
+  if (similarity < DEFAULT_SIMILARITY_THRESHOLD) {
+    return 'continue';
+  }
+
+  const canRetry = attempt < maxAttempts;
+  const hasThinking = response.thinkingContent !== undefined && response.thinkingContent !== '';
+
+  // NOTE: Do NOT extract logger methods (e.g., const logFn = logger.warn) as this loses
+  // the `this` context and causes "Cannot read properties of undefined" pino errors.
+  // Also, ESLint requires inline object literals for logger calls.
+  if (canRetry) {
+    logger.warn(
+      {
+        jobId,
+        attempt,
+        modelUsed: response.modelUsed,
+        hasThinking,
+        similarity: similarity.toFixed(3),
+        threshold: DEFAULT_SIMILARITY_THRESHOLD,
+        contentLength: cleanContent.length,
+        userMessageLength: cleanUserMessage.length,
+        totalAttempts: maxAttempts,
+      },
+      'Response echoes the user message. Retrying...'
+    );
+  } else {
+    logger.error(
+      {
+        jobId,
+        attempt,
+        modelUsed: response.modelUsed,
+        hasThinking,
+        similarity: similarity.toFixed(3),
+        threshold: DEFAULT_SIMILARITY_THRESHOLD,
+        contentLength: cleanContent.length,
+        userMessageLength: cleanUserMessage.length,
+        totalAttempts: maxAttempts,
+      },
+      'All retries echoed the user message.'
     );
   }
 
