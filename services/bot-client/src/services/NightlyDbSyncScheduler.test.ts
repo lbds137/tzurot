@@ -12,8 +12,9 @@ import type { Client } from 'discord.js';
 import type { Redis } from 'ioredis';
 
 const mockDbSync = vi.fn();
+const mockGetSystemSettings = vi.fn();
 vi.mock('../utils/gatewayClients.js', () => ({
-  getOwnerClient: () => ({ dbSync: mockDbSync }),
+  getOwnerClient: () => ({ dbSync: mockDbSync, getSystemSettings: mockGetSystemSettings }),
 }));
 
 // vi.hoisted: the module under test calls createIntervalScheduler at import
@@ -26,10 +27,11 @@ vi.mock('../utils/intervalScheduler.js', () => ({
   createIntervalScheduler: () => ({ start: mockSchedulerStart, stop: mockSchedulerStop }),
 }));
 
-// Mutable so the boot-guard tests can vary the configured owner id per case.
+// Mutable so the boot-guard tests can vary the configured owner id / env per case.
 let mockOwnerId: string | undefined = '123456789012345678';
+let mockNodeEnv = 'production';
 vi.mock('@tzurot/common-types/config/config', () => ({
-  getConfig: () => ({ BOT_OWNER_ID: mockOwnerId }),
+  getConfig: () => ({ BOT_OWNER_ID: mockOwnerId, NODE_ENV: mockNodeEnv }),
 }));
 
 const mockPostOwnerChannelEmbed = vi.fn();
@@ -65,6 +67,17 @@ function okResult(stats: Record<string, Record<string, number>>, warnings: strin
   };
 }
 
+/** A settings read that succeeded, carrying the given (partial) stored bag. */
+function okSettings(bag: Record<string, unknown> = {}): unknown {
+  return { ok: true, data: { systemSettings: bag, updatedAt: '2026-07-11T00:00:00.000Z' } };
+}
+
+/**
+ * Inside the DEFAULT sync window: the registry fallback hour is 7 UTC, and the
+ * run tests exercise the flow with an empty bag (fallbacks apply).
+ */
+const INSIDE_DEFAULT_HOUR = new Date('2026-07-15T07:30:00.000Z');
+
 function makeRedis(cooldownValue: string | null): Redis {
   return {
     get: vi.fn().mockResolvedValue(cooldownValue),
@@ -91,6 +104,7 @@ describe('startNightlyDbSyncScheduler boot guard', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockOwnerId = '123456789012345678';
+    mockNodeEnv = 'production';
   });
 
   it('starts the interval scheduler when an owner id is configured', () => {
@@ -115,6 +129,17 @@ describe('startNightlyDbSyncScheduler boot guard', () => {
     expect(mockSchedulerStart).not.toHaveBeenCalled();
   });
 
+  it.each(['development', 'test', 'staging'])(
+    'refuses to start outside production (NODE_ENV=%s) — the pair must sync from ONE side',
+    env => {
+      mockNodeEnv = env;
+
+      startNightlyDbSyncScheduler(client, makeRedis(null));
+
+      expect(mockSchedulerStart).not.toHaveBeenCalled();
+    }
+  );
+
   it('stop delegates to the interval scheduler', () => {
     stopNightlyDbSyncScheduler();
 
@@ -125,13 +150,103 @@ describe('startNightlyDbSyncScheduler boot guard', () => {
 describe('NightlyDbSyncScheduler runNightlyDbSync', () => {
   beforeEach(() => {
     vi.useFakeTimers();
+    vi.setSystemTime(INSIDE_DEFAULT_HOUR);
     vi.clearAllMocks();
     mockPostOwnerChannelEmbed.mockResolvedValue(undefined);
+    // Default: settings readable, nothing stored — the registry fallbacks
+    // (enabled, 07:00 UTC) apply, and the clock sits inside that hour.
+    mockGetSystemSettings.mockResolvedValue(okSettings());
   });
 
   afterEach(() => {
     vi.useRealTimers();
     vi.restoreAllMocks();
+  });
+
+  it('syncs when the stored bag is empty — the registry fallbacks are enabled at 07:00 UTC', async () => {
+    mockDbSync.mockResolvedValue(okResult(QUIET_STATS));
+    const redis = makeRedis(null);
+
+    await runNightlyDbSync(client, redis);
+
+    expect(mockDbSync).toHaveBeenCalledTimes(1);
+    expect(redis.setex).toHaveBeenCalledTimes(1);
+  });
+
+  it('does NOTHING when the nightly sync is switched off', async () => {
+    mockGetSystemSettings.mockResolvedValue(okSettings({ nightlySyncEnabled: false }));
+    const redis = makeRedis(null);
+
+    await runNightlyDbSync(client, redis);
+
+    expect(mockDbSync).not.toHaveBeenCalled();
+    expect(redis.get).not.toHaveBeenCalled();
+    expect(redis.setex).not.toHaveBeenCalled();
+    expect(mockPostOwnerChannelEmbed).not.toHaveBeenCalled();
+  });
+
+  it('does NOTHING on a tick outside the configured hour (and must not arm the cooldown)', async () => {
+    // 07:30 UTC on the clock, 3 UTC configured — the boot-anchored bug this
+    // gate replaces would have synced here, burning the day's run at deploy
+    // time. Arming the cooldown on a skipped tick would be the same bug.
+    mockGetSystemSettings.mockResolvedValue(okSettings({ nightlySyncHourUtc: 3 }));
+    const redis = makeRedis(null);
+
+    await runNightlyDbSync(client, redis);
+
+    expect(mockDbSync).not.toHaveBeenCalled();
+    expect(redis.setex).not.toHaveBeenCalled();
+  });
+
+  it('syncs in a NON-default configured hour when the clock matches it', async () => {
+    vi.setSystemTime(new Date('2026-07-15T03:05:00.000Z'));
+    mockGetSystemSettings.mockResolvedValue(okSettings({ nightlySyncHourUtc: 3 }));
+    mockDbSync.mockResolvedValue(okResult(QUIET_STATS));
+
+    await runNightlyDbSync(client, makeRedis(null));
+
+    expect(mockDbSync).toHaveBeenCalledTimes(1);
+  });
+
+  it('accepts midnight (hour 0) as a configured hour — a falsy hour is still a real one', async () => {
+    vi.setSystemTime(new Date('2026-07-15T00:45:00.000Z'));
+    mockGetSystemSettings.mockResolvedValue(okSettings({ nightlySyncHourUtc: 0 }));
+    mockDbSync.mockResolvedValue(okResult(QUIET_STATS));
+
+    await runNightlyDbSync(client, makeRedis(null));
+
+    expect(mockDbSync).toHaveBeenCalledTimes(1);
+  });
+
+  it('skips the tick when the settings read fails — never syncs on unknown config', async () => {
+    mockGetSystemSettings.mockResolvedValue({
+      ok: false,
+      kind: 'http',
+      status: 503,
+      error: 'gateway unavailable',
+    });
+    const redis = makeRedis(null);
+
+    await runNightlyDbSync(client, redis);
+
+    expect(mockDbSync).not.toHaveBeenCalled();
+    // The cooldown must stay unarmed: an unreadable-settings tick has to be a
+    // no-op, not a silent consumption of the day's single run.
+    expect(redis.setex).not.toHaveBeenCalled();
+    // And it stays quiet — this runs every 15 minutes; a post per tick would
+    // turn a gateway blip into ~96 owner-channel messages.
+    expect(mockPostOwnerChannelEmbed).not.toHaveBeenCalled();
+  });
+
+  it('reads settings BEFORE touching the cooldown key', async () => {
+    mockDbSync.mockResolvedValue(okResult(QUIET_STATS));
+    const redis = makeRedis(null);
+
+    await runNightlyDbSync(client, redis);
+
+    const settingsOrder = mockGetSystemSettings.mock.invocationCallOrder[0];
+    const getOrder = (redis.get as ReturnType<typeof vi.fn>).mock.invocationCallOrder[0];
+    expect(settingsOrder).toBeLessThan(getOrder);
   });
 
   it('runs a REAL sync with the manual command defaults', async () => {

@@ -234,7 +234,7 @@ describe('Admin Settings Dashboard', () => {
       const editReplyCall = context.editReply.mock.calls[0][0];
       const embedJson = editReplyCall.embeds[0].toJSON();
 
-      // D14 page 1 = Memory (5 settings); the other 12 cascade + 17 system
+      // D14 page 1 = Memory (5 settings); the other 12 cascade + 19 system
       // settings live on later pages.
       expect(embedJson.fields).toHaveLength(4);
       expect(embedJson.fields.map((f: { name: string }) => f.name)).toEqual(
@@ -245,7 +245,7 @@ describe('Admin Settings Dashboard', () => {
           expect.stringContaining('Memory Limit'),
         ])
       );
-      expect(embedJson.footer.text).toContain('Page 1/7 · Memory');
+      expect(embedJson.footer.text).toContain('Page 1/8 · Memory');
     });
 
     it('should include select menu and pagination row (no Close on paged dashboards)', async () => {
@@ -258,7 +258,7 @@ describe('Admin Settings Dashboard', () => {
       expect(editReplyCall.components).toHaveLength(2);
       const secondRow = editReplyCall.components[1].toJSON();
       const labels = secondRow.components.map((c: { label?: string }) => c.label);
-      expect(labels).toEqual(['Prev', 'Page 1/7 · Memory', 'Next']);
+      expect(labels).toEqual(['Prev', 'Page 1/8 · Memory', 'Next']);
       expect(labels).not.toContain('Close');
     });
 
