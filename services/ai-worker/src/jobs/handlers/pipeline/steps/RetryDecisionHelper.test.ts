@@ -5,6 +5,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   shouldRetryEmptyResponse,
+  shouldRetryEchoResponse,
   logDuplicateDetection,
   logRetryEscalation,
   logRetrySuccess,
@@ -98,6 +99,96 @@ describe('shouldRetryEmptyResponse', () => {
       jobId: 'test-job',
     });
     expect(result).toBe('retry');
+  });
+});
+
+describe('shouldRetryEchoResponse', () => {
+  // Long enough to clear the echo check's minimum-length gate.
+  const USER_MESSAGE =
+    'Tell me about the garden you were describing yesterday, the one behind the old chapel.';
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('should return "retry" when the content is an exact echo of the user message', () => {
+    const response = createMockResponse(USER_MESSAGE);
+    const result = shouldRetryEchoResponse({
+      response,
+      userMessage: USER_MESSAGE,
+      attempt: 1,
+      maxAttempts: 3,
+      jobId: 'test-job',
+    });
+    expect(result).toBe('retry');
+  });
+
+  it('should return "return" when the echo persists on the final attempt', () => {
+    const response = createMockResponse(USER_MESSAGE);
+    const result = shouldRetryEchoResponse({
+      response,
+      userMessage: USER_MESSAGE,
+      attempt: 3,
+      maxAttempts: 3,
+      jobId: 'test-job',
+    });
+    expect(result).toBe('return');
+  });
+
+  it('should return "retry" for a near-identical echo above the similarity threshold', () => {
+    // Same text with the terminal punctuation swapped — well above 0.85.
+    const response = createMockResponse(USER_MESSAGE.replace(/\.$/, '!'));
+    const result = shouldRetryEchoResponse({
+      response,
+      userMessage: USER_MESSAGE,
+      attempt: 1,
+      maxAttempts: 3,
+      jobId: 'test-job',
+    });
+    expect(result).toBe('retry');
+  });
+
+  it('should retry an echo that also carries reasoning content', () => {
+    // The reasoning-holds-the-reply signature: thinking content does not
+    // exempt the response from the echo gate.
+    const response = createMockResponse(USER_MESSAGE, 'The character would answer warmly...');
+    const result = shouldRetryEchoResponse({
+      response,
+      userMessage: USER_MESSAGE,
+      attempt: 1,
+      maxAttempts: 3,
+      jobId: 'test-job',
+    });
+    expect(result).toBe('retry');
+  });
+
+  it('should return "continue" when a SHORT user message is echoed back', () => {
+    // Short inputs can legitimately be repeated as a stylistic reply.
+    const shortMessage = 'goodnight, my dear friend';
+    const response = createMockResponse(shortMessage);
+    const result = shouldRetryEchoResponse({
+      response,
+      userMessage: shortMessage,
+      attempt: 1,
+      maxAttempts: 3,
+      jobId: 'test-job',
+    });
+    expect(result).toBe('continue');
+  });
+
+  it('should return "continue" for a normal reply that is not an echo', () => {
+    const response = createMockResponse(
+      'The chapel garden has gone wild since the frost — the roses climb the wall now, ' +
+        'and nobody prunes them.'
+    );
+    const result = shouldRetryEchoResponse({
+      response,
+      userMessage: USER_MESSAGE,
+      attempt: 1,
+      maxAttempts: 3,
+      jobId: 'test-job',
+    });
+    expect(result).toBe('continue');
   });
 });
 
@@ -282,6 +373,7 @@ describe('logRetrySuccess', () => {
         attempt: 2,
         duplicateRetries: 1,
         emptyRetries: 0,
+        echoRetries: 0,
         leakedThinkingRetries: 0,
       })
     ).not.toThrow();
@@ -295,6 +387,7 @@ describe('logRetrySuccess', () => {
         attempt: 3,
         duplicateRetries: 2,
         emptyRetries: 1,
+        echoRetries: 0,
         leakedThinkingRetries: 0,
       })
     ).not.toThrow();

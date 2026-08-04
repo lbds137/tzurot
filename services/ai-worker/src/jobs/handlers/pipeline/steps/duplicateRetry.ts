@@ -5,24 +5,18 @@
  * recent assistant message, escalating params per attempt.
  */
 
-import { type AIProvider } from '@tzurot/common-types/constants/ai';
 import { RETRY_CONFIG } from '@tzurot/common-types/constants/timing';
-import { type ResolvedConfigOverrides } from '@tzurot/common-types/schemas/api/configOverrides';
-import { type MessageContent } from '@tzurot/common-types/types/ai';
-import { type SttDispatch } from '@tzurot/common-types/types/sttProvider';
 import type { ConversationalRAGService } from '../../../../services/ConversationalRAGService.js';
-import type {
-  RAGResponse,
-  ConversationContext,
-} from '../../../../services/ConversationalRAGTypes.js';
+import type { RAGResponse } from '../../../../services/ConversationalRAGTypes.js';
+import type { GenerateAttemptOpts } from './autoPromotionFallback.js';
 import {
   buildRetryConfig,
   type EmbeddingServiceInterface,
 } from '../../../../utils/duplicateDetection.js';
 import { isRecentDuplicateAsync } from '../../../../utils/crossTurnDetection.js';
-import { type DiagnosticCollector } from '../../../../services/DiagnosticCollector.js';
 import {
   shouldRetryEmptyResponse,
+  shouldRetryEchoResponse,
   logDuplicateDetection,
   logRetryEscalation,
   logRetrySuccess,
@@ -43,30 +37,22 @@ const logger = createLogger('duplicateRetry');
  *
  * Retries on:
  * - Empty content after post-processing (e.g., model produced only thinking blocks)
+ * - Content that merely echoes the user's own message back
  * - Duplicate responses matching recent assistant messages (up to 5)
  */
 // eslint-disable-next-line sonarjs/cognitive-complexity, max-lines-per-function, max-statements -- single cohesive retry loop; extracting sub-steps would scatter the state machine across files
 export async function generateWithDuplicateRetry(
   ragService: ConversationalRAGService,
   embeddingService: EmbeddingServiceInterface | undefined,
-  opts: {
-    personality: Parameters<ConversationalRAGService['generateResponse']>[0];
-    message: MessageContent;
-    conversationContext: ConversationContext;
-    recentAssistantMessages: string[];
-    apiKey: string | undefined;
-    sttDispatch: SttDispatch | undefined;
-    isGuestMode: boolean;
-    jobId: string | undefined;
-    diagnosticCollector?: DiagnosticCollector;
-    configOverrides?: ResolvedConfigOverrides;
-    effectiveProvider?: AIProvider;
-    maxLlmAttempts?: number;
-  }
+  // Single-sourced with autoPromotionFallback: both files pass this exact
+  // contract to the same attempt function, and a locally redeclared copy can
+  // drift by one field without the compiler noticing at either end.
+  opts: GenerateAttemptOpts
 ): Promise<{
   response: RAGResponse;
   duplicateRetries: number;
   emptyRetries: number;
+  echoRetries: number;
   leakedThinkingRetries: number;
 }> {
   const {
@@ -84,10 +70,16 @@ export async function generateWithDuplicateRetry(
 
   let duplicateRetries = 0;
   let emptyRetries = 0;
+  let echoRetries = 0;
   let leakedThinkingRetries = 0;
   let preservedThinking: string | undefined;
   let fallback: FallbackResponse | undefined;
   const maxAttempts = RETRY_CONFIG.MAX_ATTEMPTS; // 3 = 1 initial + 2 retries
+
+  // The echo check compares against the user's CURRENT turn. `message` carries
+  // that turn either bare or wrapped alongside reference/attachment metadata;
+  // `content` is the text in both shapes.
+  const userMessageText = typeof message === 'string' ? message : message.content;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     // Reset diagnostic timing to prevent stale end timestamps from a prior
@@ -135,6 +127,7 @@ export async function generateWithDuplicateRetry(
           response: fallback.response,
           duplicateRetries,
           emptyRetries,
+          echoRetries,
           leakedThinkingRetries,
         };
       }
@@ -159,7 +152,30 @@ export async function generateWithDuplicateRetry(
     if (emptyAction === 'return') {
       emptyRetries++;
       restoreThinking(response, preservedThinking);
-      return { response, duplicateRetries, emptyRetries, leakedThinkingRetries };
+      return { response, duplicateRetries, emptyRetries, echoRetries, leakedThinkingRetries };
+    }
+
+    // Echoed input: content that is the user's own message back. Checked after
+    // the empty gate so an empty response keeps reporting as empty. The
+    // reasoning content is deliberately NOT promoted into the reply slot — on a
+    // response whose reasoning holds the real reply, that would publish raw
+    // chain-of-thought as the character's voice.
+    const echoAction = shouldRetryEchoResponse({
+      response,
+      userMessage: userMessageText,
+      attempt,
+      maxAttempts,
+      jobId,
+    });
+    if (echoAction === 'retry') {
+      echoRetries++;
+      fallback = selectBetterFallback(fallback, { response, reason: 'echo', attempt });
+      continue;
+    }
+    if (echoAction === 'return') {
+      echoRetries++;
+      restoreThinking(response, preservedThinking);
+      return { response, duplicateRetries, emptyRetries, echoRetries, leakedThinkingRetries };
     }
 
     // Leaked chain-of-thought (reasoning glitch) — retry with fallback
@@ -189,18 +205,24 @@ export async function generateWithDuplicateRetry(
     );
 
     if (!isDuplicate) {
-      if (duplicateRetries > 0 || emptyRetries > 0 || leakedThinkingRetries > 0) {
+      if (
+        duplicateRetries > 0 ||
+        emptyRetries > 0 ||
+        echoRetries > 0 ||
+        leakedThinkingRetries > 0
+      ) {
         logRetrySuccess({
           jobId,
           modelUsed: response.modelUsed,
           attempt,
           duplicateRetries,
           emptyRetries,
+          echoRetries,
           leakedThinkingRetries,
         });
       }
       restoreThinking(response, preservedThinking);
-      return { response, duplicateRetries, emptyRetries, leakedThinkingRetries };
+      return { response, duplicateRetries, emptyRetries, echoRetries, leakedThinkingRetries };
     }
 
     // Duplicate detected - log and determine action
@@ -216,7 +238,7 @@ export async function generateWithDuplicateRetry(
     });
     if (dupAction === 'return') {
       restoreThinking(response, preservedThinking);
-      return { response, duplicateRetries, emptyRetries, leakedThinkingRetries };
+      return { response, duplicateRetries, emptyRetries, echoRetries, leakedThinkingRetries };
     }
   }
 
