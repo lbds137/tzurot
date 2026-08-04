@@ -247,8 +247,21 @@ async function processSingleAttachment(
       metadata: attachment,
     };
   }
-  // Unsupported type
-  return null;
+  // No processor exists for this content-type (video, documents, archives…).
+  // Return an honest stub rather than null: a null here used to fall into the
+  // failure-mapping in processAttachments, which fabricated an "Audio
+  // transcription failed" description — a soundless video then read to the
+  // model (and the user) as a broken voice message.
+  logger.info(
+    { name: attachment.name, contentType: attachment.contentType },
+    'Attachment type unsupported — passing through as file stub'
+  );
+  return {
+    type: AttachmentType.File,
+    description: `Attachment type ${attachment.contentType} is not supported — content not analyzed`,
+    originalUrl: attachment.url,
+    metadata: attachment,
+  };
 }
 
 /**

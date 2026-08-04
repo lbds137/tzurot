@@ -480,6 +480,37 @@ describe('MultimodalProcessor', () => {
       vi.useFakeTimers();
     });
 
+    it('returns an honest File stub for unsupported types without calling any processor', async () => {
+      // The regression shape: a soundless screen-recording video used to fall
+      // into the failure-mapping and read as "Audio transcription failed".
+      vi.useRealTimers();
+
+      const attachments: AttachmentMetadata[] = [
+        {
+          url: 'https://cdn.discordapp.com/screen-recording.mp4',
+          name: 'screen-recording.mp4',
+          contentType: 'video/mp4',
+          size: 4096,
+        },
+      ];
+
+      const results = await processAttachments(attachments, mockPersonality, {
+        isGuestMode: false,
+      });
+
+      expect(results).toHaveLength(1);
+      expect(results[0]).toMatchObject({
+        type: AttachmentType.File,
+        description: 'Attachment type video/mp4 is not supported — content not analyzed',
+        originalUrl: 'https://cdn.discordapp.com/screen-recording.mp4',
+      });
+      // Neither paid boundary may fire for an unsupported type.
+      expect(mockTranscribeAudio).not.toHaveBeenCalled();
+      expect(results[0].description).not.toContain('transcription failed');
+
+      vi.useFakeTimers();
+    });
+
     it('should process multiple attachments in parallel', async () => {
       // Use real timers for this test - we're not testing timeout logic
       vi.useRealTimers();
