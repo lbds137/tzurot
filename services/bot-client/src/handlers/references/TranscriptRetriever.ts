@@ -10,9 +10,9 @@
  *   fully covered regardless of this cache.
  * - Extended-context messages (room awareness): the worker trusts the transcripts
  *   bot-client ships. A voice message whose transcript has aged out of the Redis
- *   cache (5-min TTL) therefore ships without its text — an accepted divergence
- *   that mirrors the worker's reference path, which is likewise DB-tier-only with
- *   no Redis equivalent.
+ *   cache (1-hour TTL, INTERVALS.VOICE_TRANSCRIPT_TTL) therefore ships without
+ *   its text — an accepted divergence that mirrors the worker's reference path,
+ *   which is likewise DB-tier-only with no Redis equivalent.
  *
  * If aged-out extended-context transcripts ever measurably degrade room awareness,
  * the fix is the envelope flat-list pattern (mirroring `rawExtendedContextImageAttachments`):
