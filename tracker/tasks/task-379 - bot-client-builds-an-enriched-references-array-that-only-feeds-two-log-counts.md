@@ -4,8 +4,10 @@ title: bot-client builds an enriched references array that only feeds two log co
 status: To Do
 assignee: []
 created_date: '2026-07-31 16:15'
+updated_date: '2026-08-04 13:56'
 labels:
   - 'size:M'
+  - 'area:bot-client'
 dependencies: []
 priority: medium
 ordinal: 379000

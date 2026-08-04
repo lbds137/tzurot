@@ -4,8 +4,10 @@ title: MISSING_PERMISSIONS key-test result renders under the generic Invalid tit
 status: To Do
 assignee: []
 created_date: '2026-07-28 20:22'
+updated_date: '2026-08-04 13:55'
 labels:
   - 'size:S'
+  - 'area:bot-client'
 dependencies: []
 priority: low
 ordinal: 344000

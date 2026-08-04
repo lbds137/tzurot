@@ -6,8 +6,11 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-07-29 11:52'
+updated_date: '2026-08-04 13:55'
 labels:
   - 'origin:review'
+  - 'area:bot-client'
+  - 'size:S'
 dependencies: []
 priority: low
 ordinal: 351000

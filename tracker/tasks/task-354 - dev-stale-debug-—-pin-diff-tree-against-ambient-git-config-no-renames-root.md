@@ -6,8 +6,10 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-07-29 18:14'
+updated_date: '2026-08-04 13:55'
 labels:
   - 'size:S'
+  - 'area:tooling'
 dependencies: []
 priority: low
 ordinal: 354000

@@ -4,8 +4,10 @@ title: Wire cache invalidation for the description prompt if an admin edit path 
 status: To Do
 assignee: []
 created_date: '2026-07-30 19:11'
+updated_date: '2026-08-04 13:56'
 labels:
   - 'size:S'
+  - 'area:ai-worker'
 dependencies: []
 priority: low
 ordinal: 363000

@@ -6,8 +6,10 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-07-31 01:23'
+updated_date: '2026-08-04 13:56'
 labels:
   - 'area:ai-worker'
+  - 'size:M'
 dependencies: []
 priority: medium
 ordinal: 373000

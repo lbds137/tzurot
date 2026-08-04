@@ -4,8 +4,10 @@ title: Lower AI_GENERATE_SUBMIT now that submit is enqueue-only
 status: To Do
 assignee: []
 created_date: '2026-07-28 19:30'
+updated_date: '2026-08-04 13:55'
 labels:
   - 'size:S'
+  - 'area:bot-client'
 dependencies: []
 priority: low
 ordinal: 343000

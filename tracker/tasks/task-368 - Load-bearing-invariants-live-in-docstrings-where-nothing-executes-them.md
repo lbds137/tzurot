@@ -4,8 +4,10 @@ title: Load-bearing invariants live in docstrings where nothing executes them
 status: To Do
 assignee: []
 created_date: '2026-07-30 23:08'
+updated_date: '2026-08-04 13:56'
 labels:
   - 'area:ai-worker'
+  - 'size:M'
 dependencies: []
 priority: medium
 ordinal: 368000
