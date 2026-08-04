@@ -6,11 +6,12 @@ title: >-
 status: Done
 assignee: []
 created_date: '2026-08-03 23:10'
-updated_date: '2026-08-04 01:22'
+updated_date: '2026-08-04 13:50'
 labels:
   - 'size:M'
   - 'area:api-gateway'
 dependencies: []
+priority: medium
 ordinal: 417000
 ---
 

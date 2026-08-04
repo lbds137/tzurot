@@ -4,8 +4,10 @@ title: 'Guard: cross-check ops commands against OPS_CLI_REFERENCE.md'
 status: To Do
 assignee: []
 created_date: '2026-08-04 13:22'
+updated_date: '2026-08-04 13:50'
 labels:
   - 'size:S'
+  - 'area:tooling'
 dependencies: []
 priority: medium
 ordinal: 428000

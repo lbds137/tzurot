@@ -4,8 +4,10 @@ title: Re-wire or consciously drop the denylist mutation rate limiter
 status: To Do
 assignee: []
 created_date: '2026-08-03 18:27'
+updated_date: '2026-08-04 13:50'
 labels:
   - 'size:S'
+  - 'area:api-gateway'
 dependencies: []
 priority: medium
 ordinal: 411000
