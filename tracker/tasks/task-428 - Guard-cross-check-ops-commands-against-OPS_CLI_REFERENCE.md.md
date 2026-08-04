@@ -1,10 +1,10 @@
 ---
 id: TASK-428
 title: 'Guard: cross-check ops commands against OPS_CLI_REFERENCE.md'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-04 13:22'
-updated_date: '2026-08-04 13:50'
+updated_date: '2026-08-04 22:49'
 labels:
   - 'size:S'
   - 'area:tooling'
