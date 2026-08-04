@@ -1,6 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
-import { extractQueueDocRefs, parseSectionCaps, runBacklogLint } from './backlogLint.js';
+import {
+  checkTaskTriage,
+  extractQueueDocRefs,
+  parseSectionCaps,
+  runBacklogLint,
+} from './backlogLint.js';
+import type { TrackerTask } from './trackerTasks.js';
 
 vi.mock('node:fs', () => ({
   existsSync: vi.fn(),
@@ -53,17 +59,84 @@ describe('extractQueueDocRefs', () => {
   });
 });
 
+// Fully triaged: the lint now gates on area + size + priority, so a fixture
+// standing in for "a healthy store" has to carry all three.
 const VALID_TASK = [
   '---',
   'id: TASK-1',
   "title: 'A valid task'",
   'status: To Do',
   "created_date: '2026-05-16 00:00'",
-  'labels: []',
+  'labels:',
+  "  - 'area:db'",
+  "  - 'size:S'",
+  'priority: medium',
   '---',
   '',
   'Body.',
 ].join('\n');
+
+describe('checkTaskTriage', () => {
+  function task(overrides: Partial<TrackerTask> = {}): TrackerTask {
+    return {
+      id: 'TASK-1',
+      title: 'A task',
+      status: 'To Do',
+      createdDate: '2026-05-16',
+      labels: ['area:db', 'size:S'],
+      priority: 'medium',
+      body: '',
+      file: 'tracker/tasks/task-1 - a-task.md',
+      ...overrides,
+    };
+  }
+
+  it('passes a fully triaged open task', () => {
+    expect(checkTaskTriage([task()])).toEqual([]);
+  });
+
+  it('flags an open task with no size label', () => {
+    const [problem] = checkTaskTriage([task({ labels: ['area:db'] })]);
+    expect(problem).toBe(
+      'tracker/tasks/task-1 - a-task.md: open task has no size label (size:S | size:M | size:L)'
+    );
+  });
+
+  it('flags an open task carrying more than one size label', () => {
+    const [problem] = checkTaskTriage([task({ labels: ['area:db', 'size:S', 'size:L'] })]);
+    expect(problem).toBe(
+      'tracker/tasks/task-1 - a-task.md: open task has 2 size labels — exactly one is required'
+    );
+  });
+
+  it('flags an open task with no area label', () => {
+    const [problem] = checkTaskTriage([task({ labels: ['size:M'] })]);
+    expect(problem).toBe(
+      'tracker/tasks/task-1 - a-task.md: open task has no area label (area:<package-or-domain>)'
+    );
+  });
+
+  it('flags an open task whose priority is absent or off the allowed set', () => {
+    expect(checkTaskTriage([task({ priority: '' })])).toEqual([
+      "tracker/tasks/task-1 - a-task.md: open task has priority '' — must be high | medium | low",
+    ]);
+    expect(checkTaskTriage([task({ priority: 'urgent' })])).toEqual([
+      "tracker/tasks/task-1 - a-task.md: open task has priority 'urgent' — must be high | medium | low",
+    ]);
+  });
+
+  it('exempts Done tasks entirely — finished work awaiting archive', () => {
+    expect(checkTaskTriage([task({ status: 'Done', labels: [], priority: '' })])).toEqual([]);
+  });
+
+  it('reports every problem on a single task, not just the first', () => {
+    const problems = checkTaskTriage([task({ labels: [], priority: '' })]);
+    expect(problems).toHaveLength(3);
+    expect(problems.join('\n')).toContain('no size label');
+    expect(problems.join('\n')).toContain('no area label');
+    expect(problems.join('\n')).toContain('must be high | medium | low');
+  });
+});
 
 describe('runBacklogLint', () => {
   let logSpy: ReturnType<typeof vi.spyOn>;

@@ -12,6 +12,11 @@
  *    search, and the aging surface — the same content-destroying failure the
  *    old markdown table had (a merged row hid a real item for a month), so it
  *    gates rather than warns.
+ *  - `tracker/tasks/` triage: every OPEN task carries the labels
+ *    `06-backlog.md` requires at filing — at least one `area:*`, exactly one
+ *    `size:S|M|L`, and a high/medium/low priority. Those three fields are what
+ *    every selection query filters on, so an unlabelled task is filed into a
+ *    blind spot. Done tasks are exempt: they're finished work awaiting archive.
  *
  * Run via `pnpm ops backlog`. Exits non-zero on a structural problem so it can
  * gate in `pnpm quality` and CI. This is a binary "is the layout in sync?"
@@ -26,7 +31,7 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import chalk from 'chalk';
-import { loadTrackerTasks } from './trackerTasks.js';
+import { loadTrackerTasks, openTasks, type TrackerTask } from './trackerTasks.js';
 
 /** @internal Exported for testing */
 export interface SectionCap {
@@ -119,10 +124,51 @@ function checkQueueDocRefs(rootDir: string): string[] {
     .map(ref => `queue.md: dangling doc reference → ${ref} (no tracker/docs/ file)`);
 }
 
+const SIZE_LABEL_PATTERN = /^size:[SML]$/;
+const AREA_LABEL_PREFIX = 'area:';
+const VALID_PRIORITIES = new Set(['high', 'medium', 'low']);
+
+/**
+ * Triage completeness on the open pool: area label, size label, priority.
+ *
+ * `06-backlog.md` requires all three at filing, and they are exactly the axes
+ * the selection queries filter on (`-l area:x`, `-l size:S --priority high`) —
+ * a task missing any of them is filed somewhere no query looks. Enforcing it
+ * here converts the filing rule from memory-dependent to structural.
+ *
+ * Only open tasks are checked; a Done task is finished work waiting on the
+ * archive sweep, and back-filling labels onto it buys nothing.
+ * @internal Exported for testing
+ */
+export function checkTaskTriage(tasks: TrackerTask[]): string[] {
+  const problems: string[] = [];
+  for (const task of openTasks(tasks)) {
+    const sizeLabels = task.labels.filter(label => SIZE_LABEL_PATTERN.test(label));
+    if (sizeLabels.length === 0) {
+      problems.push(`${task.file}: open task has no size label (size:S | size:M | size:L)`);
+    } else if (sizeLabels.length > 1) {
+      problems.push(
+        `${task.file}: open task has ${sizeLabels.length} size labels — exactly one is required`
+      );
+    }
+    if (!task.labels.some(label => label.startsWith(AREA_LABEL_PREFIX))) {
+      problems.push(`${task.file}: open task has no area label (area:<package-or-domain>)`);
+    }
+    if (!VALID_PRIORITIES.has(task.priority)) {
+      problems.push(
+        `${task.file}: open task has priority '${task.priority}' — must be high | medium | low`
+      );
+    }
+  }
+  return problems;
+}
+
 function reportProblems(problems: string[]): void {
   if (problems.length === 0) {
     console.log(
-      chalk.green('✓ Backlog layout in sync (caps respected, links resolve, tracker store parses)')
+      chalk.green(
+        '✓ Backlog layout in sync (caps respected, links resolve, tracker store parses, open tasks triaged)'
+      )
     );
     return;
   }
@@ -134,15 +180,20 @@ function reportProblems(problems: string[]): void {
 
 /**
  * CLI entry point. Sets a non-zero exit code on any structural problem (cap
- * exceeded, dangling doc reference, unreadable tracker task).
+ * exceeded, dangling doc reference, unreadable tracker task, untriaged open
+ * task).
  */
 export async function runBacklogLint(options: LintOptions = {}): Promise<void> {
   const rootDir = options.rootDir ?? process.cwd();
 
+  // A task that failed to parse is already in `problems` and absent from
+  // `tasks`, so the triage check never double-reports it.
+  const { tasks, problems: trackerProblems } = loadTrackerTasks(rootDir);
   const problems = [
     ...checkNowCaps(rootDir),
     ...checkQueueDocRefs(rootDir),
-    ...loadTrackerTasks(rootDir).problems,
+    ...trackerProblems,
+    ...checkTaskTriage(tasks),
   ];
   reportProblems(problems);
 

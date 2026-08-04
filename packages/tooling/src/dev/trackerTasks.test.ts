@@ -72,6 +72,37 @@ describe('parseTaskFile', () => {
     }
   });
 
+  it('parses the priority field, defaulting to empty string when absent', () => {
+    const withPriority = parseTaskFile(
+      frontmatter([
+        'id: TASK-2',
+        "title: 'Prioritized'",
+        'status: To Do',
+        "created_date: '2026-06-01 00:00'",
+        'priority: high',
+      ]),
+      'tracker/tasks/t.md'
+    );
+    expect(withPriority.ok).toBe(true);
+    if (withPriority.ok) {
+      expect(withPriority.task.priority).toBe('high');
+    }
+
+    const without = parseTaskFile(
+      frontmatter([
+        'id: TASK-3',
+        "title: 'Unprioritized'",
+        'status: To Do',
+        "created_date: '2026-06-01 00:00'",
+      ]),
+      'tracker/tasks/t.md'
+    );
+    expect(without.ok).toBe(true);
+    if (without.ok) {
+      expect(without.task.priority).toBe('');
+    }
+  });
+
   it('rejects a file with no frontmatter block', () => {
     const result = parseTaskFile('just prose, no frontmatter', 'tracker/tasks/broken.md');
     expect(result).toEqual({ ok: false, problem: 'tracker/tasks/broken.md: no frontmatter block' });
@@ -157,6 +188,7 @@ describe('openTasks', () => {
       status,
       createdDate: '2026-06-01',
       labels: [],
+      priority: 'medium',
       body: '',
       file: `tracker/tasks/${id}.md`,
     });
