@@ -376,11 +376,82 @@ async function deleteVoiceImpl(
 }
 
 /**
+ * Delete one voice at its provider during bulk clear.
+ *
+ * A 404 means the voice is already absent (deleted concurrently, or a stale
+ * listing entry) — the purge goal for it is met, so it's not a failure, but
+ * it was NOT deleted by this run and must not inflate the `deleted` count.
+ */
+async function deleteOneVoiceForClear(
+  voice: TaggedVoice,
+  keys: Map<AudioProviderId, string>
+): Promise<'deleted' | 'already-gone'> {
+  const apiKey = keys.get(voice.provider);
+  if (apiKey === undefined) {
+    // Defensive: voice came from fetchAllTzurotVoices, so its provider had a key.
+    // If it disappeared mid-clear, fail loudly with a meaningful message.
+    throw new Error(`${voice.name}: ${voice.provider} key disappeared mid-clear`);
+  }
+  const response = await deleteVoiceAtProvider(voice.provider, apiKey, voice.voiceId);
+  if (response.status === 404) {
+    return 'already-gone';
+  }
+  if (!response.ok) {
+    // Surface actionable messages — "429" alone is meaningless to end users.
+    // voice.name is safe to embed: it's tzurot-prefix-filtered (no user-controlled
+    // injection risk).
+    const detail =
+      response.status === 429
+        ? `${voice.name} (${voice.provider}): rate limited — try again shortly`
+        : `${voice.name} (${voice.provider}): ${response.status}`;
+    throw new Error(detail);
+  }
+  return 'deleted';
+}
+
+/**
+ * Delete voices in small batches (balancing speed vs provider rate limits)
+ * and tally outcomes. Bot-client uses GATEWAY_TIMEOUTS.BULK_OPERATION (30s)
+ * for this call; gateway timeout would abort but deletions continue
+ * server-side.
+ */
+async function deleteVoicesInBatches(
+  voices: TaggedVoice[],
+  keys: Map<AudioProviderId, string>
+): Promise<{ deleted: number; alreadyGone: number; errors: string[] }> {
+  let deleted = 0;
+  let alreadyGone = 0;
+  const errors: string[] = [];
+
+  for (let i = 0; i < voices.length; i += DELETE_BATCH_SIZE) {
+    const batch = voices.slice(i, i + DELETE_BATCH_SIZE);
+    const results = await Promise.allSettled(
+      batch.map(async voice => deleteOneVoiceForClear(voice, keys))
+    );
+
+    for (const result of results) {
+      if (result.status !== 'fulfilled') {
+        errors.push(result.reason instanceof Error ? result.reason.message : 'Unknown error');
+      } else if (result.value === 'already-gone') {
+        alreadyGone++;
+      } else {
+        deleted++;
+      }
+    }
+  }
+
+  return { deleted, alreadyGone, errors };
+}
+
+/**
  * POST /clear — delete ALL tzurot-prefixed voices across all configured providers.
  *
  * Always returns 200 OK, even on partial failure. Callers must inspect the
- * response body: `{ deleted, total, errors? }`. When `errors` is present,
- * some deletions failed but others succeeded.
+ * response body: `{ deleted, total, alreadyGone?, errors? }`. When `errors`
+ * is present, some deletions failed but others succeeded. `alreadyGone`
+ * counts voices that 404'd at the provider (deleted concurrently or stale
+ * listing entries) — the purge goal is met for them, but they were not
+ * deleted by this run.
  */
 async function clearVoicesImpl(
   prisma: PrismaClient,
@@ -412,52 +483,7 @@ async function clearVoicesImpl(
     return;
   }
 
-  // Delete in small batches to balance speed vs provider rate limits.
-  // Bot-client uses GATEWAY_TIMEOUTS.BULK_OPERATION (30s) for this call;
-  // gateway timeout would abort but deletions continue server-side.
-  let deleted = 0;
-  let alreadyGone = 0;
-  const errors: string[] = [];
-
-  for (let i = 0; i < voices.length; i += DELETE_BATCH_SIZE) {
-    const batch = voices.slice(i, i + DELETE_BATCH_SIZE);
-    const results = await Promise.allSettled(
-      batch.map(async voice => {
-        const apiKey = keysResult.keys.get(voice.provider);
-        if (apiKey === undefined) {
-          // Defensive: voice came from fetchAllTzurotVoices, so its provider had a key.
-          // If it disappeared mid-clear, fail loudly with a meaningful message.
-          throw new Error(`${voice.name}: ${voice.provider} key disappeared mid-clear`);
-        }
-        const response = await deleteVoiceAtProvider(voice.provider, apiKey, voice.voiceId);
-        if (response.status === 404) {
-          // Already absent at the provider (deleted concurrently, or a stale
-          // listing entry). The purge goal for this voice is met — reporting
-          // it as a failure just alarms the user about a voice that's gone.
-          alreadyGone++;
-          return;
-        }
-        if (!response.ok) {
-          // Surface actionable messages — "429" alone is meaningless to end users.
-          // voice.name is safe to embed: it's tzurot-prefix-filtered (no user-controlled
-          // injection risk).
-          const detail =
-            response.status === 429
-              ? `${voice.name} (${voice.provider}): rate limited — try again shortly`
-              : `${voice.name} (${voice.provider}): ${response.status}`;
-          throw new Error(detail);
-        }
-      })
-    );
-
-    for (const result of results) {
-      if (result.status === 'fulfilled') {
-        deleted++;
-      } else {
-        errors.push(result.reason instanceof Error ? result.reason.message : 'Unknown error');
-      }
-    }
-  }
+  const { deleted, alreadyGone, errors } = await deleteVoicesInBatches(voices, keysResult.keys);
 
   logger.info(
     { discordUserId, deleted, alreadyGone, total: voices.length, errors: errors.length },
@@ -467,6 +493,7 @@ async function clearVoicesImpl(
   sendCustomSuccess(res, {
     deleted,
     total: voices.length,
+    alreadyGone: alreadyGone > 0 ? alreadyGone : undefined,
     errors: errors.length > 0 ? errors : undefined,
   });
 }
