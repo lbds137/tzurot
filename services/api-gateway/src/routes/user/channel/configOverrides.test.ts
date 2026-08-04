@@ -7,7 +7,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Prisma, type PrismaClient } from '@tzurot/common-types/services/prisma';
 import express from 'express';
 import request from 'supertest';
-import { createChannelRoutes } from './index.js';
+import {
+  handleGetChannelConfigOverrides,
+  handleUpdateChannelConfigOverrides,
+  handleClearChannelConfigOverrides,
+} from './configOverrides.js';
+import type { RouteDeps } from '../../routeDeps.js';
 import { createMockPrisma, setupStandardMocks, MOCK_DISCORD_USER_ID } from './test-utils.js';
 import { stubRouteResolvers } from '../../../test/shared-route-test-utils.js';
 
@@ -39,6 +44,21 @@ vi.mock('@tzurot/common-types/utils/ownerMiddleware', async () => {
 
 const CHANNEL_ID = '999888777666555444';
 
+/**
+ * Mount the bare handler exports — the shape routes/_generated/mounts.ts
+ * mounts — on the paths it serves them at, minus the `/api` prefix the
+ * request URLs below omit.
+ */
+function buildApp(deps: RouteDeps): express.Express {
+  const app = express();
+  app.use(express.json());
+  const path = '/user/channel/:channelId/config-overrides';
+  app.get(path, handleGetChannelConfigOverrides(deps));
+  app.patch(path, handleUpdateChannelConfigOverrides(deps));
+  app.delete(path, handleClearChannelConfigOverrides(deps));
+  return app;
+}
+
 describe('Channel Config Overrides Routes', () => {
   let mockPrisma: ReturnType<typeof createMockPrisma>;
   let app: express.Express;
@@ -48,15 +68,10 @@ describe('Channel Config Overrides Routes', () => {
     mockPrisma = createMockPrisma();
     setupStandardMocks(mockPrisma);
 
-    app = express();
-    app.use(express.json());
-    app.use(
-      '/user/channel',
-      createChannelRoutes({
-        ...stubRouteResolvers(),
-        prisma: mockPrisma as unknown as PrismaClient,
-      })
-    );
+    app = buildApp({
+      ...stubRouteResolvers(),
+      prisma: mockPrisma as unknown as PrismaClient,
+    });
   });
 
   describe('channelId validation', () => {
@@ -147,16 +162,11 @@ describe('Channel Config Overrides Routes', () => {
         invalidateChannel: vi.fn().mockResolvedValue(undefined),
       };
 
-      const appWithInvalidation = express();
-      appWithInvalidation.use(express.json());
-      appWithInvalidation.use(
-        '/user/channel',
-        createChannelRoutes({
-          ...stubRouteResolvers(),
-          prisma: mockPrisma as unknown as PrismaClient,
-          cascadeInvalidation: mockInvalidation as never,
-        })
-      );
+      const appWithInvalidation = buildApp({
+        ...stubRouteResolvers(),
+        prisma: mockPrisma as unknown as PrismaClient,
+        cascadeInvalidation: mockInvalidation as never,
+      });
 
       await request(appWithInvalidation)
         .patch(`/user/channel/${CHANNEL_ID}/config-overrides`)
@@ -175,16 +185,11 @@ describe('Channel Config Overrides Routes', () => {
         invalidateChannel: vi.fn().mockRejectedValue(new Error('Redis down')),
       };
 
-      const appWithInvalidation = express();
-      appWithInvalidation.use(express.json());
-      appWithInvalidation.use(
-        '/user/channel',
-        createChannelRoutes({
-          ...stubRouteResolvers(),
-          prisma: mockPrisma as unknown as PrismaClient,
-          cascadeInvalidation: mockInvalidation as never,
-        })
-      );
+      const appWithInvalidation = buildApp({
+        ...stubRouteResolvers(),
+        prisma: mockPrisma as unknown as PrismaClient,
+        cascadeInvalidation: mockInvalidation as never,
+      });
 
       const response = await request(appWithInvalidation)
         .patch(`/user/channel/${CHANNEL_ID}/config-overrides`)
@@ -204,16 +209,11 @@ describe('Channel Config Overrides Routes', () => {
         invalidateChannel: vi.fn().mockRejectedValue(new Error('Redis down')),
       };
 
-      const appWithInvalidation = express();
-      appWithInvalidation.use(express.json());
-      appWithInvalidation.use(
-        '/user/channel',
-        createChannelRoutes({
-          ...stubRouteResolvers(),
-          prisma: mockPrisma as unknown as PrismaClient,
-          cascadeInvalidation: mockInvalidation as never,
-        })
-      );
+      const appWithInvalidation = buildApp({
+        ...stubRouteResolvers(),
+        prisma: mockPrisma as unknown as PrismaClient,
+        cascadeInvalidation: mockInvalidation as never,
+      });
 
       const response = await request(appWithInvalidation).delete(
         `/user/channel/${CHANNEL_ID}/config-overrides`

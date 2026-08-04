@@ -10,7 +10,6 @@ import { type Response, type RequestHandler } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import { ListChannelSettingsResponseSchema } from '@tzurot/common-types/schemas/api/channel';
 import { createLogger } from '@tzurot/common-types/utils/logger';
-import { requireUserAuth, requireProvisionedUser } from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { sendCustomSuccess, sendError } from '../../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../../utils/errorResponses.js';
@@ -93,7 +92,3 @@ export const handleListUserChannels = (deps: RouteDeps): RequestHandler => {
     sendCustomSuccess(res, response, StatusCodes.OK);
   });
 };
-
-export function createListHandler(deps: RouteDeps): RequestHandler[] {
-  return [requireUserAuth(), requireProvisionedUser(deps.prisma), handleListUserChannels(deps)];
-}

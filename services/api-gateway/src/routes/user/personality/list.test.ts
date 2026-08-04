@@ -7,7 +7,6 @@ import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 import {
   createMockPrisma,
   createMockReqRes,
-  getHandler,
   mockIsBotOwner,
   setupStandardMocks,
   MOCK_USER_ID,
@@ -75,11 +74,20 @@ vi.mock('../../../utils/asyncHandler.js', () => ({
   asyncHandler: vi.fn(fn => fn),
 }));
 
-import { createPersonalityRoutes } from './index.js';
-import { stubRouteResolvers } from '../../../test/shared-route-test-utils.js';
+import { handleListPersonalities } from './list.js';
+import { asRouteHandler, stubRouteResolvers } from '../../../test/shared-route-test-utils.js';
 
 describe('GET /user/personality (list)', () => {
   const mockPrisma = createMockPrisma();
+
+  /** The bare handler export — the shape routes/_generated/mounts.ts mounts. */
+  const getListHandler = (): ReturnType<typeof asRouteHandler> =>
+    asRouteHandler(
+      handleListPersonalities({
+        ...stubRouteResolvers(),
+        prisma: mockPrisma as unknown as PrismaClient,
+      })
+    );
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -100,11 +108,7 @@ describe('GET /user/personality (list)', () => {
       .mockResolvedValueOnce([publicPersonality])
       .mockResolvedValueOnce([]);
 
-    const router = createPersonalityRoutes({
-      ...stubRouteResolvers(),
-      prisma: mockPrisma as unknown as PrismaClient,
-    });
-    const handler = getHandler(router, 'get', '/');
+    const handler = getListHandler();
     const { req, res } = createMockReqRes();
 
     await handler(req, res);
@@ -139,11 +143,7 @@ describe('GET /user/personality (list)', () => {
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([ownedPersonality]);
 
-    const router = createPersonalityRoutes({
-      ...stubRouteResolvers(),
-      prisma: mockPrisma as unknown as PrismaClient,
-    });
-    const handler = getHandler(router, 'get', '/');
+    const handler = getListHandler();
     const { req, res } = createMockReqRes();
 
     await handler(req, res);
@@ -167,11 +167,7 @@ describe('GET /user/personality (list)', () => {
     mockPrisma.user.findFirst.mockResolvedValue(null);
     mockPrisma.personality.findMany.mockResolvedValue([]);
 
-    const router = createPersonalityRoutes({
-      ...stubRouteResolvers(),
-      prisma: mockPrisma as unknown as PrismaClient,
-    });
-    const handler = getHandler(router, 'get', '/');
+    const handler = getListHandler();
     const { req, res } = createMockReqRes();
 
     await handler(req, res);
@@ -222,11 +218,7 @@ describe('GET /user/personality (list)', () => {
       ];
       mockPrisma.personality.findMany.mockResolvedValueOnce(allPersonalities);
 
-      const router = createPersonalityRoutes({
-        ...stubRouteResolvers(),
-        prisma: mockPrisma as unknown as PrismaClient,
-      });
-      const handler = getHandler(router, 'get', '/');
+      const handler = getListHandler();
       const { req, res } = createMockReqRes();
 
       await handler(req, res);
@@ -273,11 +265,7 @@ describe('GET /user/personality (list)', () => {
       };
       mockPrisma.personality.findMany.mockResolvedValueOnce([personalityWithOwner]);
 
-      const router = createPersonalityRoutes({
-        ...stubRouteResolvers(),
-        prisma: mockPrisma as unknown as PrismaClient,
-      });
-      const handler = getHandler(router, 'get', '/');
+      const handler = getListHandler();
       const { req, res } = createMockReqRes();
 
       await handler(req, res);
@@ -305,11 +293,7 @@ describe('GET /user/personality (list)', () => {
       };
       mockPrisma.personality.findMany.mockResolvedValueOnce([personalityWithOwner]);
 
-      const router = createPersonalityRoutes({
-        ...stubRouteResolvers(),
-        prisma: mockPrisma as unknown as PrismaClient,
-      });
-      const handler = getHandler(router, 'get', '/');
+      const handler = getListHandler();
       const { req, res } = createMockReqRes();
 
       await handler(req, res);

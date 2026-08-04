@@ -8,7 +8,6 @@ import {
   createMockPrisma,
   createMockReqRes,
   createMockActivation,
-  getHandler,
   setupStandardMocks,
   createMockCreatedAt,
   MOCK_USER_UUID,
@@ -48,11 +47,20 @@ vi.mock('../../../utils/asyncHandler.js', () => ({
   asyncHandler: vi.fn(fn => fn),
 }));
 
-import { createChannelRoutes } from './index.js';
-import { stubRouteResolvers } from '../../../test/shared-route-test-utils.js';
+import { handleListUserChannels } from './list.js';
+import { asRouteHandler, stubRouteResolvers } from '../../../test/shared-route-test-utils.js';
 
 describe('GET /user/channel/list', () => {
   const mockPrisma = createMockPrisma();
+
+  /** The bare handler export — the shape routes/_generated/mounts.ts mounts. */
+  const getListHandler = (): ReturnType<typeof asRouteHandler> =>
+    asRouteHandler(
+      handleListUserChannels({
+        ...stubRouteResolvers(),
+        prisma: mockPrisma as unknown as PrismaClient,
+      })
+    );
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -76,11 +84,7 @@ describe('GET /user/channel/list', () => {
     ];
     mockPrisma.channelSettings.findMany.mockResolvedValue(activations);
 
-    const router = createChannelRoutes({
-      ...stubRouteResolvers(),
-      prisma: mockPrisma as unknown as PrismaClient,
-    });
-    const handler = getHandler(router, 'get', '/list');
+    const handler = getListHandler();
     const { req, res } = createMockReqRes();
 
     await handler(req, res);
@@ -109,11 +113,7 @@ describe('GET /user/channel/list', () => {
   it('should return empty array when no activations exist', async () => {
     mockPrisma.channelSettings.findMany.mockResolvedValue([]);
 
-    const router = createChannelRoutes({
-      ...stubRouteResolvers(),
-      prisma: mockPrisma as unknown as PrismaClient,
-    });
-    const handler = getHandler(router, 'get', '/list');
+    const handler = getListHandler();
     const { req, res } = createMockReqRes();
 
     await handler(req, res);
@@ -128,11 +128,7 @@ describe('GET /user/channel/list', () => {
     const activation = createMockActivation();
     mockPrisma.channelSettings.findMany.mockResolvedValue([activation]);
 
-    const router = createChannelRoutes({
-      ...stubRouteResolvers(),
-      prisma: mockPrisma as unknown as PrismaClient,
-    });
-    const handler = getHandler(router, 'get', '/list');
+    const handler = getListHandler();
     const { req, res } = createMockReqRes();
 
     await handler(req, res);
@@ -158,11 +154,7 @@ describe('GET /user/channel/list', () => {
     const activation = createMockActivation();
     mockPrisma.channelSettings.findMany.mockResolvedValue([activation]);
 
-    const router = createChannelRoutes({
-      ...stubRouteResolvers(),
-      prisma: mockPrisma as unknown as PrismaClient,
-    });
-    const handler = getHandler(router, 'get', '/list');
+    const handler = getListHandler();
     const { req, res } = createMockReqRes({}, {}, { guildId: MOCK_GUILD_ID });
 
     await handler(req, res);
@@ -182,11 +174,7 @@ describe('GET /user/channel/list', () => {
   it('should only return channels with activated personalities', async () => {
     mockPrisma.channelSettings.findMany.mockResolvedValue([]);
 
-    const router = createChannelRoutes({
-      ...stubRouteResolvers(),
-      prisma: mockPrisma as unknown as PrismaClient,
-    });
-    const handler = getHandler(router, 'get', '/list');
+    const handler = getListHandler();
     const { req, res } = createMockReqRes();
 
     await handler(req, res);
@@ -205,11 +193,7 @@ describe('GET /user/channel/list', () => {
     const activation = createMockActivation({ createdBy: null });
     mockPrisma.channelSettings.findMany.mockResolvedValue([activation]);
 
-    const router = createChannelRoutes({
-      ...stubRouteResolvers(),
-      prisma: mockPrisma as unknown as PrismaClient,
-    });
-    const handler = getHandler(router, 'get', '/list');
+    const handler = getListHandler();
     const { req, res } = createMockReqRes();
 
     await handler(req, res);
@@ -226,11 +210,7 @@ describe('GET /user/channel/list', () => {
   });
 
   it('should order activations by createdAt descending', async () => {
-    const router = createChannelRoutes({
-      ...stubRouteResolvers(),
-      prisma: mockPrisma as unknown as PrismaClient,
-    });
-    const handler = getHandler(router, 'get', '/list');
+    const handler = getListHandler();
     const { req, res } = createMockReqRes();
 
     await handler(req, res);

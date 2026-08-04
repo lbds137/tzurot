@@ -9,7 +9,6 @@ import { PERSONALITY_DETAIL_SELECT } from '@tzurot/common-types/schemas/api/pers
 import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { isBotOwner } from '@tzurot/common-types/utils/ownerMiddleware';
-import { requireUserAuth, requireProvisionedUser } from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { resolveProvisionedUserId } from '../../../utils/resolveProvisionedUserId.js';
 import { sendCustomSuccess, sendError } from '../../../utils/responseHelpers.js';
@@ -96,11 +95,7 @@ function createHandler(prisma: PrismaClient) {
   };
 }
 
-// --- Handler factory + route chain ---
+// --- Handler factory ---
 
 export const handleGetPersonality = (deps: RouteDeps): RequestHandler =>
   asyncHandler(createHandler(deps.prisma));
-
-export function createGetHandler(deps: RouteDeps): RequestHandler[] {
-  return [requireUserAuth(), requireProvisionedUser(deps.prisma), handleGetPersonality(deps)];
-}

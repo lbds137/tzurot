@@ -8,7 +8,6 @@ import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import {
   createMockPrisma,
   createMockReqRes,
-  getHandler,
   mockIsBotOwner,
   setupStandardMocks,
   MOCK_USER_ID,
@@ -71,11 +70,24 @@ function createAsyncGenerator(items: string[]): AsyncGenerator<string> {
   })();
 }
 
-import { createPersonalityRoutes } from './index.js';
-import { stubRouteResolvers } from '../../../test/shared-route-test-utils.js';
+import { handleDeletePersonality } from './delete.js';
+import type { RouteDeps } from '../../routeDeps.js';
+import { asRouteHandler, stubRouteResolvers } from '../../../test/shared-route-test-utils.js';
 
 describe('DELETE /user/personality/:slug', () => {
   const mockPrisma = createMockPrisma();
+
+  /** The bare handler export — the shape routes/_generated/mounts.ts mounts. */
+  const getDeleteHandler = (
+    cacheInvalidationService?: RouteDeps['cacheInvalidationService']
+  ): ReturnType<typeof asRouteHandler> =>
+    asRouteHandler(
+      handleDeletePersonality({
+        ...stubRouteResolvers(),
+        prisma: mockPrisma as unknown as PrismaClient,
+        cacheInvalidationService,
+      })
+    );
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -91,11 +103,7 @@ describe('DELETE /user/personality/:slug', () => {
   it('should return 404 when personality not found', async () => {
     mockPrisma.personality.findUnique.mockResolvedValue(null);
 
-    const router = createPersonalityRoutes({
-      ...stubRouteResolvers(),
-      prisma: mockPrisma as unknown as PrismaClient,
-    });
-    const handler = getHandler(router, 'delete', '/:slug');
+    const handler = getDeleteHandler();
     const { req, res } = createMockReqRes({}, { slug: 'nonexistent' });
 
     await handler(req, res);
@@ -116,11 +124,7 @@ describe('DELETE /user/personality/:slug', () => {
       },
     });
 
-    const router = createPersonalityRoutes({
-      ...stubRouteResolvers(),
-      prisma: mockPrisma as unknown as PrismaClient,
-    });
-    const handler = getHandler(router, 'delete', '/:slug');
+    const handler = getDeleteHandler();
     const { req, res } = createMockReqRes({}, { slug: 'not-mine' });
 
     await handler(req, res);
@@ -143,11 +147,7 @@ describe('DELETE /user/personality/:slug', () => {
     });
     mockPrisma.pendingMemory.count.mockResolvedValue(3);
 
-    const router = createPersonalityRoutes({
-      ...stubRouteResolvers(),
-      prisma: mockPrisma as unknown as PrismaClient,
-    });
-    const handler = getHandler(router, 'delete', '/:slug');
+    const handler = getDeleteHandler();
     const { req, res } = createMockReqRes({}, { slug: 'my-char' });
 
     await handler(req, res);
@@ -175,11 +175,7 @@ describe('DELETE /user/personality/:slug', () => {
     });
     mockPrisma.pendingMemory.count.mockResolvedValue(10);
 
-    const router = createPersonalityRoutes({
-      ...stubRouteResolvers(),
-      prisma: mockPrisma as unknown as PrismaClient,
-    });
-    const handler = getHandler(router, 'delete', '/:slug');
+    const handler = getDeleteHandler();
     const { req, res } = createMockReqRes({}, { slug: 'count-test' });
 
     await handler(req, res);
@@ -214,11 +210,7 @@ describe('DELETE /user/personality/:slug', () => {
     });
     mockPrisma.pendingMemory.count.mockResolvedValue(2);
 
-    const router = createPersonalityRoutes({
-      ...stubRouteResolvers(),
-      prisma: mockPrisma as unknown as PrismaClient,
-    });
-    const handler = getHandler(router, 'delete', '/:slug');
+    const handler = getDeleteHandler();
     const { req, res } = createMockReqRes({}, { slug: 'schema-test' });
 
     await handler(req, res);
@@ -245,11 +237,7 @@ describe('DELETE /user/personality/:slug', () => {
     });
     mockPrisma.pendingMemory.count.mockResolvedValue(0);
 
-    const router = createPersonalityRoutes({
-      ...stubRouteResolvers(),
-      prisma: mockPrisma as unknown as PrismaClient,
-    });
-    const handler = getHandler(router, 'delete', '/:slug');
+    const handler = getDeleteHandler();
     const { req, res } = createMockReqRes({}, { slug: 'no-pending' });
 
     await handler(req, res);
@@ -278,11 +266,7 @@ describe('DELETE /user/personality/:slug', () => {
     });
     mockPrisma.pendingMemory.count.mockResolvedValue(0);
 
-    const router = createPersonalityRoutes({
-      ...stubRouteResolvers(),
-      prisma: mockPrisma as unknown as PrismaClient,
-    });
-    const handler = getHandler(router, 'delete', '/:slug');
+    const handler = getDeleteHandler();
     const { req, res } = createMockReqRes({}, { slug: 'other-user-char' });
 
     await handler(req, res);
@@ -314,11 +298,7 @@ describe('DELETE /user/personality/:slug', () => {
     });
     mockPrisma.pendingMemory.count.mockResolvedValue(0);
 
-    const router = createPersonalityRoutes({
-      ...stubRouteResolvers(),
-      prisma: mockPrisma as unknown as PrismaClient,
-    });
-    const handler = getHandler(router, 'delete', '/:slug');
+    const handler = getDeleteHandler();
     const { req, res } = createMockReqRes({}, { slug: 'coowned-char' });
 
     await handler(req, res);
@@ -354,11 +334,7 @@ describe('DELETE /user/personality/:slug', () => {
       );
       mockUnlink.mockResolvedValue(undefined);
 
-      const router = createPersonalityRoutes({
-        ...stubRouteResolvers(),
-        prisma: mockPrisma as unknown as PrismaClient,
-      });
-      const handler = getHandler(router, 'delete', '/:slug');
+      const handler = getDeleteHandler();
       const { req, res } = createMockReqRes({}, { slug: 'valid-slug' });
 
       await handler(req, res);
@@ -376,11 +352,7 @@ describe('DELETE /user/personality/:slug', () => {
         throw enoentError;
       });
 
-      const router = createPersonalityRoutes({
-        ...stubRouteResolvers(),
-        prisma: mockPrisma as unknown as PrismaClient,
-      });
-      const handler = getHandler(router, 'delete', '/:slug');
+      const handler = getDeleteHandler();
       const { req, res } = createMockReqRes({}, { slug: 'valid-slug' });
 
       await handler(req, res);
@@ -396,11 +368,7 @@ describe('DELETE /user/personality/:slug', () => {
       enoentError.code = 'ENOENT';
       mockUnlink.mockRejectedValue(enoentError);
 
-      const router = createPersonalityRoutes({
-        ...stubRouteResolvers(),
-        prisma: mockPrisma as unknown as PrismaClient,
-      });
-      const handler = getHandler(router, 'delete', '/:slug');
+      const handler = getDeleteHandler();
       const { req, res } = createMockReqRes({}, { slug: 'valid-slug' });
 
       await handler(req, res);
@@ -412,11 +380,7 @@ describe('DELETE /user/personality/:slug', () => {
     it('should skip avatar deletion for invalid slug format (path traversal protection)', async () => {
       // This tests the CWE-22 path traversal protection
       // Invalid slugs should not trigger glob at all
-      const router = createPersonalityRoutes({
-        ...stubRouteResolvers(),
-        prisma: mockPrisma as unknown as PrismaClient,
-      });
-      const handler = getHandler(router, 'delete', '/:slug');
+      const handler = getDeleteHandler();
       const { req, res } = createMockReqRes({}, { slug: '../../../etc/passwd' });
 
       await handler(req, res);
@@ -428,11 +392,7 @@ describe('DELETE /user/personality/:slug', () => {
     });
 
     it('should skip avatar deletion for slug with spaces', async () => {
-      const router = createPersonalityRoutes({
-        ...stubRouteResolvers(),
-        prisma: mockPrisma as unknown as PrismaClient,
-      });
-      const handler = getHandler(router, 'delete', '/:slug');
+      const handler = getDeleteHandler();
       const { req, res } = createMockReqRes({}, { slug: 'invalid slug' });
 
       await handler(req, res);
@@ -466,12 +426,7 @@ describe('DELETE /user/personality/:slug', () => {
         invalidatePersonality: vi.fn().mockResolvedValue(undefined),
       } as unknown as import('@tzurot/cache-invalidation').CacheInvalidationService;
 
-      const router = createPersonalityRoutes({
-        ...stubRouteResolvers(),
-        prisma: mockPrisma as unknown as PrismaClient,
-        cacheInvalidationService: mockCacheInvalidationService,
-      });
-      const handler = getHandler(router, 'delete', '/:slug');
+      const handler = getDeleteHandler(mockCacheInvalidationService);
       const { req, res } = createMockReqRes({}, { slug: 'cache-test' });
 
       await handler(req, res);
@@ -487,12 +442,7 @@ describe('DELETE /user/personality/:slug', () => {
         invalidatePersonality: vi.fn().mockRejectedValue(new Error('Redis connection failed')),
       } as unknown as import('@tzurot/cache-invalidation').CacheInvalidationService;
 
-      const router = createPersonalityRoutes({
-        ...stubRouteResolvers(),
-        prisma: mockPrisma as unknown as PrismaClient,
-        cacheInvalidationService: mockCacheInvalidationService,
-      });
-      const handler = getHandler(router, 'delete', '/:slug');
+      const handler = getDeleteHandler(mockCacheInvalidationService);
       const { req, res } = createMockReqRes({}, { slug: 'cache-test' });
 
       await handler(req, res);
@@ -503,11 +453,7 @@ describe('DELETE /user/personality/:slug', () => {
     });
 
     it('should succeed without cache invalidation service', async () => {
-      const router = createPersonalityRoutes({
-        ...stubRouteResolvers(),
-        prisma: mockPrisma as unknown as PrismaClient,
-      });
-      const handler = getHandler(router, 'delete', '/:slug');
+      const handler = getDeleteHandler();
       const { req, res } = createMockReqRes({}, { slug: 'no-cache-service' });
 
       await handler(req, res);

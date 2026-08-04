@@ -14,7 +14,6 @@ import { type PrismaClient, type Prisma } from '@tzurot/common-types/services/pr
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { isBotOwner } from '@tzurot/common-types/utils/ownerMiddleware';
 import { type CacheInvalidationService } from '@tzurot/cache-invalidation';
-import { requireUserAuth, requireProvisionedUser } from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { sendContractSuccess, sendError } from '../../../utils/responseHelpers.js';
 import { ErrorResponses, type ErrorResponse } from '../../../utils/errorResponses.js';
@@ -351,11 +350,7 @@ function createHandler(prisma: PrismaClient, cacheInvalidationService?: CacheInv
   };
 }
 
-// --- Handler factory + route chain ---
+// --- Handler factory ---
 
 export const handleUpdatePersonality = (deps: RouteDeps): RequestHandler =>
   asyncHandler(createHandler(deps.prisma, deps.cacheInvalidationService));
-
-export function createUpdateHandler(deps: RouteDeps): RequestHandler[] {
-  return [requireUserAuth(), requireProvisionedUser(deps.prisma), handleUpdatePersonality(deps)];
-}

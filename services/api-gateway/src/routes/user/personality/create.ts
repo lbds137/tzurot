@@ -13,7 +13,6 @@ import {
 import { type Prisma } from '@tzurot/common-types/services/prisma';
 import { generatePersonalityUuid } from '@tzurot/common-types/utils/deterministicUuid';
 import { createLogger } from '@tzurot/common-types/utils/logger';
-import { requireUserAuth, requireProvisionedUser } from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { sendCustomSuccess, sendError } from '../../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../../utils/errorResponses.js';
@@ -172,7 +171,3 @@ export const handleCreatePersonality = (deps: RouteDeps): RequestHandler => {
     );
   });
 };
-
-export function createCreateHandler(deps: RouteDeps): RequestHandler[] {
-  return [requireUserAuth(), requireProvisionedUser(deps.prisma), handleCreatePersonality(deps)];
-}
