@@ -124,6 +124,14 @@ function buildDedupedAttachments(
   // class this module exists to close. Modality comes from the entry's own
   // `type`; the content type does not, per the note above.
   //
+  // A `file` entry renders IDENTITY-ONLY, and that is the whole rendering it
+  // gets: its "description" is the unsupported-type stub, static text nobody
+  // paid a model for, and `RenderableFile` has no slot for it by design. The
+  // stub's wording travels the processed-attachment path instead, where
+  // RAGUtils renders it as a `[File: name]` line. Rendering the element at all
+  // still matters — otherwise an orphaned file vanishes and the quote claims
+  // the message had no attachment.
+  //
   // Any OTHER modality is deliberately left unrendered and stays counted, so
   // the drop tripwire fires: silently downgrading an unknown type to a bare
   // image would misdescribe it AND discard the description.
@@ -150,6 +158,14 @@ function buildDedupedAttachments(
           description: entry.description,
         },
       });
+    } else if (entry.type === AttachmentType.File) {
+      attachments.push({
+        url: entry.originalUrl,
+        attachment: {
+          kind: 'file',
+          filename: entry.metadata.name,
+        },
+      });
     }
   }
 
@@ -157,14 +173,22 @@ function buildDedupedAttachments(
 }
 
 /**
- * How much enrichment the dependency stage produced for this reference.
+ * How much PAID enrichment the dependency stage produced for this reference.
  *
- * The denominator for the drop tripwire below. Empty descriptions are excluded:
- * a silent audio clip transcribes to `''` on SUCCESS, so counting it would warn
- * on ordinary traffic.
+ * The denominator for the drop tripwire below, so it counts only what a model
+ * was actually billed for. Two exclusions:
+ *
+ * - Empty descriptions: a silent audio clip transcribes to `''` on SUCCESS, so
+ *   counting it would warn on ordinary traffic.
+ * - `file` entries: their description is the unsupported-type stub, generated
+ *   locally from the content type, and a file renders identity-only by design.
+ *   Counting it would make the tripwire fire on any deduped quote of a video
+ *   or a document, claiming vision/transcription spend that never happened.
  */
 function countAvailableEnrichment(preprocessed: ProcessedAttachment[] | undefined): number {
-  return (preprocessed ?? []).filter(entry => entry.description.length > 0).length;
+  return (preprocessed ?? []).filter(
+    entry => entry.description.length > 0 && entry.type !== AttachmentType.File
+  ).length;
 }
 
 /** How much of it survived into the rendered attachments. */
@@ -360,9 +384,15 @@ export class ReferencedMessageFormatter {
    * succeeded, cost 47s, and were discarded with zero log output, so the only
    * detector in the system was a human noticing the character couldn't see the
    * images. The projection makes the old drop unreachable, but one route
-   * survives: enrichment for an attachment that classifies as a `file` has
-   * nowhere to go, because `RenderableFile` carries no description. If that
-   * ever happens, this says so instead of swallowing it.
+   * survives: a modality this renderer has no arm for at all — what a third
+   * enrichment type looks like on the day it is added and the deduped branch is
+   * not taught about it. If that ever happens, this says so instead of
+   * swallowing it.
+   *
+   * It guards PAID modalities only. A `file` entry's stub description is free
+   * static text and has nowhere to go by design (`RenderableFile` carries no
+   * enrichment slot), so it is excluded from the denominator rather than
+   * reported as purchased work that went missing.
    */
   private warnOnDroppedEnrichment(
     referenceNumber: number,
