@@ -103,39 +103,56 @@ function snippet(content: string, maxLength = 60): string {
   return content.substring(0, maxLength) + '...';
 }
 
-/** Log diagnostic info about duplicate detection outcome */
-function logDuplicateCheckResult(params: {
-  outcome: 'NEAR_MISS' | 'PASSED';
+/** Numeric/hash fields shared by both duplicate-check log outcomes. */
+interface DuplicateCheckNumericFields {
   maxSimilarity: number;
   threshold: number;
   maxSimilarityIndex: number;
   recentMessagesCount: number;
   newResponseLength: number;
-  newResponseSnippet: string;
-  closestMatchSnippet: string;
   newResponseHash: string;
-  /** Full per-message comparison details for diagnostic purposes. When a
-   *  user-reported duplicate slips past all 4 layers, this is the only way
-   *  to reconstruct what the detector actually saw at the time. */
-  comparisonReport: ComparisonReportEntry[];
-}): void {
+}
+
+/**
+ * Discriminated union making the content/no-content split compiler-enforced:
+ * a NEAR_MISS without content (or a PASSED with it) is unrepresentable, so
+ * the no-PII property of the PASSED arm can't be broken by a call-site slip.
+ */
+type DuplicateCheckLogParams =
+  | ({ outcome: 'PASSED' } & DuplicateCheckNumericFields)
+  | ({
+      outcome: 'NEAR_MISS';
+      content: {
+        newResponseSnippet: string;
+        closestMatchSnippet: string;
+        comparisonReport: ComparisonReportEntry[];
+      };
+    } & DuplicateCheckNumericFields);
+
+/**
+ * Log diagnostic info about duplicate detection outcome.
+ *
+ * Content-bearing fields (snippets + the per-message comparison report) are
+ * carried ONLY on the NEAR_MISS arm — owner decision: a routine PASSED check
+ * must log no message text (structured logs are no-PII per 00-critical), so
+ * the common path emits numerics and hashes only. NEAR_MISS and the WARN
+ * detection paths are the rare reconstruct-a-slipped-duplicate cases that
+ * justify carrying content.
+ */
+function logDuplicateCheckResult(params: DuplicateCheckLogParams): void {
   const {
-    outcome,
     maxSimilarity,
     threshold,
     maxSimilarityIndex,
     recentMessagesCount,
     newResponseLength,
-    newResponseSnippet,
-    closestMatchSnippet,
     newResponseHash,
-    comparisonReport,
   } = params;
 
-  if (outcome === 'NEAR_MISS') {
+  if (params.outcome === 'NEAR_MISS') {
     logger.info(
       {
-        outcome,
+        outcome: params.outcome,
         maxSimilarity: maxSimilarity.toFixed(3),
         threshold,
         nearMissThreshold: NEAR_MISS_THRESHOLD,
@@ -143,10 +160,10 @@ function logDuplicateCheckResult(params: {
         turnsBack: maxSimilarityIndex + 1,
         recentMessagesCount,
         newResponseLength,
-        newResponseSnippet,
-        closestMatchSnippet,
+        newResponseSnippet: params.content.newResponseSnippet,
+        closestMatchSnippet: params.content.closestMatchSnippet,
         newResponseHash,
-        comparisonReport,
+        comparisonReport: params.content.comparisonReport,
       },
       `NEAR-MISS: Similarity ${(maxSimilarity * 100).toFixed(1)}% ` +
         `is high but below ${(threshold * 100).toFixed(0)}% threshold.`
@@ -154,16 +171,13 @@ function logDuplicateCheckResult(params: {
   } else {
     logger.info(
       {
-        outcome,
+        outcome: params.outcome,
         maxSimilarity: maxSimilarity.toFixed(3),
         threshold,
         maxSimilarityIndex,
         recentMessagesCount,
         newResponseLength,
-        newResponseSnippet: snippet(newResponseSnippet, 40),
-        closestMatchSnippet: snippet(closestMatchSnippet, 40),
         newResponseHash,
-        comparisonReport,
       },
       'Check complete - no duplicate detected'
     );
@@ -333,9 +347,11 @@ export function isRecentDuplicate(
 
 /**
  * Tail-of-function log emission for `isRecentDuplicate`. Extracted so the
- * parent stays under the `max-lines-per-function` limit while all three
- * telemetry fields (`comparisonReport` ground-truth data, near-miss band,
- * closest-match snippet) remain emitted for every non-matching check.
+ * parent stays under the `max-lines-per-function` limit.
+ *
+ * The comparison report is built only for the NEAR_MISS band — its sole
+ * consumer is the log line, and the routine PASSED path neither logs nor
+ * pays for it.
  */
 function emitPassedOrNearMissLog(args: {
   cleanNewResponse: string;
@@ -361,19 +377,31 @@ function emitPassedOrNearMissLog(args: {
   }
 
   const isNearMiss = highestSimilarity >= NEAR_MISS_THRESHOLD && highestSimilarity < threshold;
-  const comparisonReport = buildComparisonReport(cleanNewResponse, newResponseHash, recentMessages);
-  logDuplicateCheckResult({
-    outcome: isNearMiss ? 'NEAR_MISS' : 'PASSED',
+  const numericFields = {
     maxSimilarity: highestSimilarity,
     threshold,
     maxSimilarityIndex: highestSimilarityIndex,
     recentMessagesCount: recentMessages.length,
     newResponseLength: cleanNewResponse.length,
-    newResponseSnippet: snippet(cleanNewResponse),
-    closestMatchSnippet,
     newResponseHash,
-    comparisonReport,
-  });
+  };
+  logDuplicateCheckResult(
+    isNearMiss
+      ? {
+          outcome: 'NEAR_MISS',
+          ...numericFields,
+          content: {
+            newResponseSnippet: snippet(cleanNewResponse),
+            closestMatchSnippet,
+            comparisonReport: buildComparisonReport(
+              cleanNewResponse,
+              newResponseHash,
+              recentMessages
+            ),
+          },
+        }
+      : { outcome: 'PASSED', ...numericFields }
+  );
 }
 
 /**

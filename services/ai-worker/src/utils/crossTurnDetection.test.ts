@@ -34,7 +34,9 @@ describe('crossTurnDetection diagnostic telemetry', () => {
   });
 
   describe('comparisonReport', () => {
-    it('emits a per-message report with hash, prefix, scores, and hashMatch flag on PASSED', () => {
+    it('logs numerics and hash only on PASSED — no snippets, no report', () => {
+      // Owner decision: routine PASSED checks must log no message text
+      // (no-PII logging); content-bearing diagnostics are NEAR_MISS/WARN-only.
       const newResponse =
         'The morning light filters through the window, casting long thoughtful shadows.';
       const recentMessages = [
@@ -46,25 +48,47 @@ describe('crossTurnDetection diagnostic telemetry', () => {
 
       expect(mockLogger.info).toHaveBeenCalledWith(
         expect.objectContaining({
+          outcome: 'PASSED',
+          newResponseHash: expect.any(String),
+          recentMessagesCount: 2,
+        }),
+        expect.stringContaining('no duplicate detected')
+      );
+      const [fields] = mockLogger.info.mock.calls[0] as [Record<string, unknown>];
+      expect(fields).not.toHaveProperty('comparisonReport');
+      expect(fields).not.toHaveProperty('newResponseSnippet');
+      expect(fields).not.toHaveProperty('closestMatchSnippet');
+      const serialized = JSON.stringify(fields);
+      expect(serialized).not.toContain('morning light');
+      expect(serialized).not.toContain('Previous unrelated');
+    });
+
+    it('retains snippets and the full report on NEAR_MISS', () => {
+      // High bigram overlap, sub-Jaccard word overlap, and a threshold above
+      // the similarity puts this in the near-miss band — the rare
+      // reconstruct-a-slipped-duplicate case that justifies carrying content.
+      const newResponse =
+        'The morning light filters through the window, casting long thoughtful shadows everywhere.';
+      const nearMissMessage =
+        'The morning light filters through the doorway, casting tall thoughtful shadows anywhere.';
+
+      isRecentDuplicate(newResponse, [nearMissMessage], 0.99);
+
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        expect.objectContaining({
+          outcome: 'NEAR_MISS',
+          newResponseSnippet: expect.stringContaining('morning light'),
+          closestMatchSnippet: expect.stringContaining('doorway'),
           comparisonReport: [
             expect.objectContaining({
               turnsBack: 1,
               hash: expect.stringMatching(/^[a-f0-9]{8}$/),
-              prefix: expect.stringContaining('Previous unrelated'),
-              length: recentMessages[0].length,
-              jaccard: expect.any(Number),
-              bigram: expect.any(Number),
-              hashMatch: false,
-            }),
-            expect.objectContaining({
-              turnsBack: 2,
-              hash: expect.stringMatching(/^[a-f0-9]{8}$/),
-              prefix: expect.stringContaining('Another earlier'),
+              prefix: expect.stringContaining('The morning light'),
               hashMatch: false,
             }),
           ],
         }),
-        expect.stringContaining('no duplicate detected')
+        expect.stringContaining('NEAR-MISS')
       );
     });
 
@@ -83,26 +107,31 @@ describe('crossTurnDetection diagnostic telemetry', () => {
       );
     });
 
-    it('populates jaccard/bigram as null when a comparison message is below MIN_LENGTH', () => {
+    it('populates jaccard/bigram as null for below-MIN_LENGTH messages in a NEAR_MISS report', () => {
+      // Two comparison messages: one drives the near-miss band, one is too
+      // short to score — the report row for the short one carries nulls.
       const newResponse =
-        'A sufficiently long response to make it past the 30-char minimum for scoring.';
+        'The morning light filters through the window, casting long thoughtful shadows everywhere.';
       const recentMessages = [
+        'The morning light filters through the doorway, casting tall thoughtful shadows anywhere.',
         'short', // below the 30-char MIN_LENGTH_FOR_SIMILARITY_CHECK
       ];
 
-      isRecentDuplicate(newResponse, recentMessages);
+      isRecentDuplicate(newResponse, recentMessages, 0.99);
 
       expect(mockLogger.info).toHaveBeenCalledWith(
         expect.objectContaining({
+          outcome: 'NEAR_MISS',
           comparisonReport: [
+            expect.objectContaining({ turnsBack: 1, jaccard: expect.any(Number) }),
             expect.objectContaining({
-              turnsBack: 1,
+              turnsBack: 2,
               jaccard: null,
               bigram: null,
             }),
           ],
         }),
-        expect.stringContaining('no duplicate detected')
+        expect.stringContaining('NEAR-MISS')
       );
     });
 
