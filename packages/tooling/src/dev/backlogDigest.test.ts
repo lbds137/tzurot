@@ -21,6 +21,7 @@ function task(
     status,
     createdDate,
     labels,
+    priority: 'medium',
     body: '',
     file: `tracker/tasks/${id}.md`,
   };

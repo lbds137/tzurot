@@ -30,6 +30,7 @@ function task(id: string, title: string, body: string, status = 'To Do'): Tracke
     status,
     createdDate: '2026-05-16',
     labels: [],
+    priority: 'medium',
     body,
     file: `tracker/tasks/${id.toLowerCase()} - sample.md`,
   };
