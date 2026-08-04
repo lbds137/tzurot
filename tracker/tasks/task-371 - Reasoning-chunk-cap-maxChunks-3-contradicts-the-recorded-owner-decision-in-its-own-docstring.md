@@ -3,10 +3,10 @@ id: TASK-371
 title: >-
   Reasoning chunk cap (maxChunks: 3) contradicts the recorded owner decision in
   its own docstring
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-07-31 01:17'
-updated_date: '2026-08-04 13:56'
+updated_date: '2026-08-04 18:15'
 labels:
   - 'area:bot-client'
   - 'size:S'
