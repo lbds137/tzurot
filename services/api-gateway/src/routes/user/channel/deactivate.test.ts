@@ -29,16 +29,6 @@ vi.mock('@tzurot/common-types/utils/logger', async () => {
   };
 });
 
-vi.mock('../../../services/AuthMiddleware.js', () => ({
-  requireUserAuth: vi.fn(() => vi.fn((_req: unknown, _res: unknown, next: () => void) => next())),
-  requireServiceAuth: vi.fn(() =>
-    vi.fn((_req: unknown, _res: unknown, next: () => void) => next())
-  ),
-  requireProvisionedUser: vi.fn(() =>
-    vi.fn((_req: unknown, _res: unknown, next: () => void) => next())
-  ),
-}));
-
 vi.mock('../../../utils/asyncHandler.js', () => ({
   asyncHandler: vi.fn(fn => fn),
 }));
@@ -46,7 +36,7 @@ vi.mock('../../../utils/asyncHandler.js', () => ({
 import { handleDeactivateChannel } from './deactivate.js';
 import { asRouteHandler, stubRouteResolvers } from '../../../test/shared-route-test-utils.js';
 
-describe('DELETE /user/channel/deactivate', () => {
+describe('DELETE /api/user/channel/deactivate', () => {
   const mockPrisma = createMockPrisma();
 
   /** The bare handler export — the shape routes/_generated/mounts.ts mounts. */

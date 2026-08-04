@@ -80,7 +80,7 @@ async function callHandler(
   await handler(req, res);
 }
 
-describe('GET /wallet/list', () => {
+describe('GET /api/user/wallet/list', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockPrisma.user.findFirst.mockResolvedValue({ id: 'user-uuid-123' });

@@ -185,7 +185,7 @@ describe('/user/config-overrides routes', () => {
     mockPrisma.userPersonalityConfig.upsert.mockResolvedValue({});
   });
 
-  describe('GET /resolve-defaults', () => {
+  describe('GET /api/user/config-overrides/resolve-defaults', () => {
     it('should return hardcoded defaults when no overrides exist', async () => {
       const handler = buildHandler(handleResolveUserDefaults, mockDeps);
       const { req, res } = createMockReqRes();
@@ -288,7 +288,7 @@ describe('/user/config-overrides routes', () => {
     });
   });
 
-  describe('GET /defaults', () => {
+  describe('GET /api/user/config-overrides/defaults', () => {
     it('should return null when no config defaults set', async () => {
       const handler = buildHandler(handleGetUserDefaults, mockDeps);
       const { req, res } = createMockReqRes();
@@ -318,7 +318,7 @@ describe('/user/config-overrides routes', () => {
     });
   });
 
-  describe('PATCH /defaults', () => {
+  describe('PATCH /api/user/config-overrides/defaults', () => {
     it('should merge valid overrides with existing defaults', async () => {
       mockPrisma.user.findUnique.mockResolvedValue({
         configDefaults: { maxMessages: 30 },
@@ -407,7 +407,7 @@ describe('/user/config-overrides routes', () => {
     });
   });
 
-  describe('DELETE /defaults', () => {
+  describe('DELETE /api/user/config-overrides/defaults', () => {
     it('should clear user config defaults', async () => {
       const handler = buildHandler(handleClearUserDefaults, mockDeps);
       const { req, res } = createMockReqRes();
@@ -424,7 +424,7 @@ describe('/user/config-overrides routes', () => {
     });
   });
 
-  describe('GET /resolve/:personalityId', () => {
+  describe('GET /api/user/config-overrides/resolve/:personalityId', () => {
     it('should return resolved cascade overrides', async () => {
       const handler = buildHandler(handleResolveCascade, mockDeps);
       const { req, res } = createMockReqRes({}, { personalityId: TEST_PERSONALITY_ID });
@@ -505,7 +505,7 @@ describe('/user/config-overrides routes', () => {
     });
   });
 
-  describe('PATCH /:personalityId', () => {
+  describe('PATCH /api/user/config-overrides/:personalityId', () => {
     it('should reject non-UUID personalityId', async () => {
       const handler = buildHandler(handleUpdatePersonalityOverrides, mockDeps);
       const { req, res } = createMockReqRes(
@@ -625,7 +625,7 @@ describe('/user/config-overrides routes', () => {
     });
   });
 
-  describe('DELETE /:personalityId', () => {
+  describe('DELETE /api/user/config-overrides/:personalityId', () => {
     it('should reject non-UUID personalityId', async () => {
       const handler = buildHandler(handleClearPersonalityOverrides, mockDeps);
       const { req, res } = createMockReqRes({}, { personalityId: 'resolve-defaults' });

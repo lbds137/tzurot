@@ -44,7 +44,7 @@ const EXPECTED_ID = generateConversationHistoryUuid(
   new Date('2026-06-04T12:00:00.001Z')
 );
 
-describe('POST /internal/conversation/assistant-message', () => {
+describe('POST /api/internal/conversation/assistant-message', () => {
   let mockPrisma: {
     conversationHistory: {
       findUnique: ReturnType<typeof vi.fn>;

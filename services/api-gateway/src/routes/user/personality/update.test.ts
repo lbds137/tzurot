@@ -41,12 +41,6 @@ vi.mock('@tzurot/common-types/utils/ownerMiddleware', async () => {
   };
 });
 
-// Uses the shared mock at `src/services/__mocks__/AuthMiddleware.ts`
-// (auto-discovered by vitest). Passes `getOrCreateUserService` through to
-// the real implementation and stubs `requireUserAuth` / `requireProvisionedUser`
-// as passthrough middleware.
-vi.mock('../../../services/AuthMiddleware.js');
-
 vi.mock('../../../utils/asyncHandler.js', () => ({
   asyncHandler: vi.fn(fn => fn),
 }));
@@ -85,7 +79,7 @@ import { handleUpdatePersonality } from './update.js';
 import type { RouteDeps } from '../../routeDeps.js';
 import { asRouteHandler, stubRouteResolvers } from '../../../test/shared-route-test-utils.js';
 
-describe('PUT /user/personality/:slug (update)', () => {
+describe('PUT /api/user/personality/:slug (update)', () => {
   const mockPrisma = createMockPrisma();
 
   /** The bare handler export — the shape routes/_generated/mounts.ts mounts. */

@@ -91,7 +91,7 @@ describe('NSFW Routes', () => {
     vi.restoreAllMocks();
   });
 
-  describe('GET /nsfw', () => {
+  describe('GET /api/user/nsfw', () => {
     it('should return verified status for verified user', async () => {
       const verifiedAt = new Date('2024-01-15T10:00:00Z');
       // First findUnique: getOrCreateUserShell lookup by discordId.
@@ -138,7 +138,7 @@ describe('NSFW Routes', () => {
     });
   });
 
-  describe('POST /nsfw/verify', () => {
+  describe('POST /api/user/nsfw/verify', () => {
     it('should verify a new user', async () => {
       mockPrisma.user.findUnique.mockResolvedValueOnce({
         nsfwVerified: false,

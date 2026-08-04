@@ -21,7 +21,7 @@ vi.mock('../../utils/jobChainOrchestrator.js', () => ({
   createJobChain: vi.fn().mockResolvedValue('llm-req-123'),
 }));
 
-describe('POST /generate', () => {
+describe('POST /api/internal/ai/generate', () => {
   let app: Express;
 
   beforeEach(() => {

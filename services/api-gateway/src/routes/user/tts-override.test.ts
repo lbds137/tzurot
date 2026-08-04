@@ -138,7 +138,7 @@ describe('user/tts-override routes', () => {
     vi.mocked(mockPrisma.userPersonalityConfig.findUnique).mockResolvedValue(null);
   });
 
-  describe('GET / (list overrides)', () => {
+  describe('GET /api/user/tts-override (list overrides)', () => {
     it('returns formatted overrides', async () => {
       vi.mocked(mockPrisma.userPersonalityConfig.findMany).mockResolvedValue([
         {
@@ -180,7 +180,7 @@ describe('user/tts-override routes', () => {
     });
   });
 
-  describe('PUT / (set override)', () => {
+  describe('PUT /api/user/tts-override (set override)', () => {
     it('returns 400 on invalid UUID', async () => {
       const handler = buildHandler(handleSetTtsOverride);
       const { res } = makeMockRes();
@@ -268,7 +268,7 @@ describe('user/tts-override routes', () => {
     });
   });
 
-  describe('GET /default', () => {
+  describe('GET /api/user/tts-override/default', () => {
     it('returns null default when none set', async () => {
       vi.mocked(mockPrisma.user.findUnique).mockResolvedValue({
         defaultTtsConfigId: null,
@@ -298,7 +298,7 @@ describe('user/tts-override routes', () => {
     });
   });
 
-  describe('PUT /default', () => {
+  describe('PUT /api/user/tts-override/default', () => {
     it('returns 404 when config not accessible', async () => {
       vi.mocked(mockPrisma.ttsConfig.findFirst).mockResolvedValue(null);
       const handler = buildHandler(handleSetTtsDefaultConfig);
@@ -330,7 +330,7 @@ describe('user/tts-override routes', () => {
     });
   });
 
-  describe('DELETE /default', () => {
+  describe('DELETE /api/user/tts-override/default', () => {
     it('returns idempotent success with wasSet:false when no default exists', async () => {
       vi.mocked(mockPrisma.user.findUnique).mockResolvedValue({ defaultTtsConfigId: null });
       vi.mocked(mockPrisma.ttsConfig.findFirst).mockResolvedValue(null);
@@ -409,7 +409,7 @@ describe('user/tts-override routes', () => {
     });
   });
 
-  describe('DELETE /:personalityId (reset override)', () => {
+  describe('DELETE /api/user/tts-override/:personalityId (reset override)', () => {
     it('returns idempotent success when no override exists', async () => {
       vi.mocked(mockPrisma.userPersonalityConfig.findFirst).mockResolvedValue(null);
       const handler = buildHandler(handleDeleteTtsOverride);

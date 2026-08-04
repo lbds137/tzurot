@@ -137,7 +137,7 @@ describe('/user/config-overrides personality routes', () => {
     mockPrisma.personality.update.mockResolvedValue({});
   });
 
-  describe('GET /resolve-personality/:personalityId', () => {
+  describe('GET /api/user/config-overrides/resolve-personality/:personalityId', () => {
     it('should return resolved 3-tier cascade', async () => {
       const handler = buildHandler(handleResolvePersonalityCascade, mockDeps);
       const { req, res } = createMockReqRes({}, { personalityId: TEST_PERSONALITY_ID });
@@ -159,7 +159,7 @@ describe('/user/config-overrides personality routes', () => {
     });
   });
 
-  describe('PATCH /personality/:personalityId', () => {
+  describe('PATCH /api/user/config-overrides/personality/:personalityId', () => {
     it('should reject non-UUID personalityId', async () => {
       const handler = buildHandler(handleUpdatePersonalityConfigDefaults, mockDeps);
       const { req, res } = createMockReqRes({ maxMessages: 25 }, { personalityId: 'not-a-uuid' });

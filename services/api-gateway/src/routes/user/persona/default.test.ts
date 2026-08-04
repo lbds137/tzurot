@@ -43,7 +43,7 @@ vi.mock('../../../utils/asyncHandler.js', () => ({
 import { handleSetPersonaDefault } from './default.js';
 import { stubRouteResolvers } from '../../../test/shared-route-test-utils.js';
 
-describe('PATCH /user/persona/:id/default', () => {
+describe('PATCH /api/user/persona/:id/default', () => {
   const mockPrisma = createMockPrisma();
 
   beforeEach(() => {

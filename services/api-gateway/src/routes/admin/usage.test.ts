@@ -59,7 +59,7 @@ describe('Admin Usage Routes', () => {
     );
   });
 
-  describe('GET /admin/usage', () => {
+  describe('GET /api/admin/usage', () => {
     it('should return usage stats with default 7d timeframe', async () => {
       mockPrisma.usageLog.findMany.mockResolvedValue([
         {

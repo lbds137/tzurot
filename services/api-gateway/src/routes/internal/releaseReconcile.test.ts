@@ -65,7 +65,7 @@ const RESWEEP = {
   capped: false,
 };
 
-describe('POST /internal/release-broadcast/reconcile', () => {
+describe('POST /api/internal/release-broadcast/reconcile', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     configMock.value = { GITHUB_API_TOKEN: undefined };

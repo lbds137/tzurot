@@ -34,7 +34,7 @@ const createMockPrisma = () =>
     },
   }) as unknown as PrismaClient;
 
-describe('POST /transcribe', () => {
+describe('POST /api/internal/ai/transcribe', () => {
   let app: Express;
   let aiQueue: ReturnType<typeof createMockQueue>;
   let queueEvents: ReturnType<typeof createMockQueueEvents>;

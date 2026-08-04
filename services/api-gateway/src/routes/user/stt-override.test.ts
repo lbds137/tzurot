@@ -91,7 +91,7 @@ describe('user/stt-override routes', () => {
     vi.clearAllMocks();
   });
 
-  describe('GET /', () => {
+  describe('GET /api/user/stt-override', () => {
     it('returns the user STT preference when set', async () => {
       mockPrisma.user.findUnique.mockResolvedValue({ defaultSttProviderId: 'mistral' });
       const handler = buildHandler(handleGetSttDefaultProvider);
@@ -124,7 +124,7 @@ describe('user/stt-override routes', () => {
     });
   });
 
-  describe('PUT /', () => {
+  describe('PUT /api/user/stt-override', () => {
     it('writes User.defaultSttProviderId and returns the value', async () => {
       mockPrisma.user.update.mockResolvedValue({});
       const handler = buildHandler(handleSetSttDefaultProvider);
@@ -151,7 +151,7 @@ describe('user/stt-override routes', () => {
     });
   });
 
-  describe('DELETE /', () => {
+  describe('DELETE /api/user/stt-override', () => {
     it('returns wasSet:false when no preference was set (idempotent)', async () => {
       mockPrisma.user.findUnique.mockResolvedValue({ defaultSttProviderId: null });
       const handler = buildHandler(handleClearSttDefaultProvider);

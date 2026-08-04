@@ -69,7 +69,7 @@ describe('Account Export Routes', () => {
     mockPrisma.exportJob.findFirst.mockResolvedValue(null);
   });
 
-  describe('POST /account/export', () => {
+  describe('POST /api/user/account/export', () => {
     async function callStart(body: Record<string, unknown> = {}) {
       const { req, res } = createMockReqRes(body);
       const handler = handleStartAccountExport({
@@ -155,7 +155,7 @@ describe('Account Export Routes', () => {
     });
   });
 
-  describe('GET /account/export/status', () => {
+  describe('GET /api/user/account/export/status', () => {
     async function callStatus() {
       const { req, res } = createMockReqRes();
       const handler = handleGetAccountExportStatus({

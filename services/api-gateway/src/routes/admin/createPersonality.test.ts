@@ -54,7 +54,7 @@ const createMockPrismaClient = () => ({
   },
 });
 
-describe('POST /admin/personality', () => {
+describe('POST /api/admin/personality', () => {
   let app: Express;
   let prisma: ReturnType<typeof createMockPrismaClient>;
 

@@ -102,7 +102,7 @@ describe('Shapes Export Routes', () => {
     vi.clearAllMocks();
   });
 
-  describe('POST / (create export job)', () => {
+  describe('POST /api/user/shapes/export (create export job)', () => {
     async function callExportHandler(body: Record<string, unknown>) {
       const { req, res } = createMockReqRes(body);
       const handler = handleStartShapesExport({
@@ -201,7 +201,7 @@ describe('Shapes Export Routes', () => {
     });
   });
 
-  describe('GET /jobs (list export history)', () => {
+  describe('GET /api/user/shapes/export/jobs (list export history)', () => {
     async function callListHandler(query: Record<string, string> = {}) {
       const { req, res } = createMockReqRes({}, query);
       const handler = handleListShapesExportJobs({

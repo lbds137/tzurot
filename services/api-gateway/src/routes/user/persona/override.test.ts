@@ -63,7 +63,7 @@ describe('persona override routes', () => {
     mockPrisma.user.findFirst.mockResolvedValue(mockUser);
   });
 
-  describe('GET /user/persona/override', () => {
+  describe('GET /api/user/persona/override', () => {
     it('should return list of persona overrides', async () => {
       mockPrisma.userPersonalityConfig.findMany.mockResolvedValue([
         {
@@ -110,7 +110,7 @@ describe('persona override routes', () => {
     });
   });
 
-  describe('GET /user/persona/override/:personalitySlug', () => {
+  describe('GET /api/user/persona/override/:personalitySlug', () => {
     it('should return personality info for override modal', async () => {
       mockPrisma.personality.findUnique.mockResolvedValue({
         id: MOCK_PERSONALITY_ID,
@@ -150,7 +150,7 @@ describe('persona override routes', () => {
     });
   });
 
-  describe('PUT /user/persona/override/:personalitySlug', () => {
+  describe('PUT /api/user/persona/override/:personalitySlug', () => {
     it('should set persona override for personality', async () => {
       mockPrisma.persona.findFirst.mockResolvedValue({
         id: MOCK_PERSONA_ID_2,
@@ -251,7 +251,7 @@ describe('persona override routes', () => {
     });
   });
 
-  describe('DELETE /user/persona/override/:personalitySlug', () => {
+  describe('DELETE /api/user/persona/override/:personalitySlug', () => {
     it('clears the persona slice and issues the atomic all-null prune', async () => {
       mockPrisma.personality.findUnique.mockResolvedValue({
         id: MOCK_PERSONALITY_ID,
@@ -381,7 +381,7 @@ describe('persona override routes', () => {
     });
   });
 
-  describe('POST /user/persona/override/by-id/:personalityId', () => {
+  describe('POST /api/user/persona/override/by-id/:personalityId', () => {
     const validBody = {
       name: 'Override Persona',
       content: 'Persona content for testing.',

@@ -149,7 +149,7 @@ describe('Account Deletion Routes', () => {
     deletionServiceMock.deleteAccount.mockResolvedValue(SUMMARY);
   });
 
-  describe('GET /account/delete/preview', () => {
+  describe('GET /api/user/account/delete/preview', () => {
     it('403s superuser accounts before computing anything', async () => {
       mockPrisma.user.findUnique.mockResolvedValue({ isSuperuser: true });
       const { req, res } = createMockReqRes();
@@ -170,7 +170,7 @@ describe('Account Deletion Routes', () => {
     });
   });
 
-  describe('POST /account/delete/token', () => {
+  describe('POST /api/user/account/delete/token', () => {
     it('rejects a wrong phrase without minting a token', async () => {
       const { req, res } = createMockReqRes({ confirmationPhrase: 'delete my stuff' });
       await handleIssueAccountDeleteToken(makeDeps())(req, res, vi.fn());
@@ -197,7 +197,7 @@ describe('Account Deletion Routes', () => {
     });
   });
 
-  describe('POST /account/delete', () => {
+  describe('POST /api/user/account/delete', () => {
     const VALID_BODY = { deleteToken: 'acctdel_0123456789abcdef' };
 
     it('400s an unknown token at the peek without consuming', async () => {

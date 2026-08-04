@@ -94,7 +94,7 @@ describe('Shapes Import Routes', () => {
     vi.clearAllMocks();
   });
 
-  describe('POST / (create import job)', () => {
+  describe('POST /api/user/shapes/import (create import job)', () => {
     async function callImportHandler(body: Record<string, unknown>) {
       const { req, res } = createMockReqRes(body);
       const handler = handleStartShapesImport({
@@ -187,7 +187,7 @@ describe('Shapes Import Routes', () => {
     });
   });
 
-  describe('GET /jobs (list import history)', () => {
+  describe('GET /api/user/shapes/import/jobs (list import history)', () => {
     async function callListHandler(query: Record<string, string> = {}) {
       const { req, res } = createMockReqRes({}, query);
       const handler = handleListShapesImportJobs({

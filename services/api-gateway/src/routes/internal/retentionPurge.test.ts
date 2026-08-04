@@ -29,7 +29,7 @@ function payloadOf(res: Response): Record<string, unknown> {
   return (res.json as ReturnType<typeof vi.fn>).mock.calls[0][0];
 }
 
-describe('POST /internal/retention/purge', () => {
+describe('POST /api/internal/retention/purge', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });

@@ -97,7 +97,7 @@ describe('personality alias routes', () => {
     mockInvalidate.mockResolvedValue(undefined);
   });
 
-  describe('GET list (visibility-gated)', () => {
+  describe('GET /api/user/personality/:slug/aliases (visibility-gated)', () => {
     it('404s on an unknown slug', async () => {
       mockPrisma.personality.findUnique.mockResolvedValue(null);
       const { req, res } = createMockReqRes({}, { slug: 'ghost' });
@@ -189,7 +189,7 @@ describe('personality alias routes', () => {
     }
   });
 
-  describe('POST add — user tier (default)', () => {
+  describe('POST /api/user/personality/:slug/aliases — user tier (default)', () => {
     it('creates a PERSONAL alias on a visible character with the user-scoped id', async () => {
       // Public character owned by someone else — visible, not editable.
       mockPrisma.personality.findUnique.mockResolvedValue({
@@ -307,7 +307,7 @@ describe('personality alias routes', () => {
     });
   });
 
-  describe('POST add — global tier (bot-owner only)', () => {
+  describe('POST /api/user/personality/:slug/aliases — global tier (bot-owner only)', () => {
     it('403s a non-bot-owner before touching anything', async () => {
       const { req, res } = createMockReqRes(
         { alias: 'Lila', scope: 'global' },
@@ -361,7 +361,7 @@ describe('personality alias routes', () => {
     });
   });
 
-  describe('DELETE remove', () => {
+  describe('DELETE /api/user/personality/:slug/aliases/:alias', () => {
     it('defaults to the USER tier: removes only the caller΄s own row', async () => {
       mockPrisma.personalityAlias.findFirst.mockResolvedValue({
         id: 'row-1',
@@ -446,7 +446,7 @@ describe('personality alias routes', () => {
     });
   });
 
-  describe('GET my-aliases (cross-character overview)', () => {
+  describe('GET /api/user/personality/my-aliases (cross-character overview)', () => {
     it('returns the caller΄s personal rows with personality context and shadow flags', async () => {
       mockPrisma.personalityAlias.findMany.mockResolvedValue([
         {
