@@ -1,12 +1,12 @@
 # Current
 
-> **Version**: v3.0.0-beta.191 (cut 2026-08-04) — **the sweep release.** 30 PRs (#1910–#1941): breaking command renames (`/preset default set|clear`, `/voice tts default` where no-option **clears**), `/inspect` Cache view (#1933), the unsupported-attachment honesty fix (#1934/#1938 — cleared the now.md prod entry), voice-consistency harness built (#1910/#1911, unrun), ~2,400 lines of dead router/shim code deleted (#1927/#1929/#1931/#1932), fast-uri high advisory closed (#1930), logging-honesty batch (#1935/#1936/#1939/#1940). No migrations.
+> **Version**: v3.0.0-beta.192 (cut 2026-08-04, same day as .191) — **the drain + prod-fix release.** 9 substantive PRs: glm-4.5-air echo-retry fix (#1955, prod bug that hit a real user), nightly real db-sync scheduler (#1954), enrichment-warn requestId correlation (#1953), backlog triage-label gate (#1952), forwarded-sticker names (#1948), voice-purge counting (#1947), prefix-diff cap (#1950), release-review overhaul (#1949, was already live on main), 4 moderate transitive advisories closed via overrides. No migrations.
 
 ---
 
 ## ⏭️ NEXT SESSION STARTS HERE
 
-**beta.191 is CUT and released (2026-08-04).** Everything through #1941 is on main; prod auto-deployed. Command propagation for the #1915 renames is ~1h post-deploy. The smoke checklist below carries the cut's two needs-smoke items (H, I). Dependabot alert #147 (fast-uri) should auto-close once GitHub rescans main — verify in passing.
+**beta.192 is CUT and released (2026-08-04).** Prod auto-deployed; develop SHA-aligned with main. The redesigned holistic release review ran its first real develop→main pass and posted a genuine scope/seam analysis (beta.189's silent-review class is confirmed dead). **beta.192 watches (first ~24h)**: (a) the first nightly db-sync outcome — owner-channel post if rows moved/failed, or the `Nightly sync applied no changes` info log; (b) the first `Response echoes the user message` warn from the echo-retry gate; (c) the 4 moderate Dependabot advisories should auto-close on main rescan. The smoke checklist below still carries beta.191's two needs-smoke items (H, I) — beta.192 added no needs-smoke items (observability covers both risk paths).
 
 **The voice-consistency harness is BUILT (#1910 miner + #1911 arms/judge/gate). NEXT: the operational gate RUN** — owner-in-loop, ~1 sitting (pre-restructure mining window closes **~Sep 1**):
 
