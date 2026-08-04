@@ -150,3 +150,23 @@ export function getServiceClient(): ServiceClient {
     serviceSecret: getValidatedServiceSecret(),
   });
 }
+
+/**
+ * Build an `OwnerClient` for `/api/admin/*` calls made outside any Discord
+ * interaction (scheduled background maintenance). The gateway gates those
+ * routes on the actor header matching the configured bot owner, so
+ * `BOT_OWNER_ID` is the ONLY valid actor here — there is no user to read one
+ * from. Throws when it is unset, same fail-fast shape as a missing
+ * `GATEWAY_URL`: without an owner id the call could only ever be rejected.
+ */
+export function getOwnerClient(): OwnerClient {
+  const ownerId = getConfig().BOT_OWNER_ID;
+  if (ownerId === undefined || ownerId.length === 0) {
+    throw new Error('BOT_OWNER_ID is not configured');
+  }
+  return new OwnerClient({
+    baseUrl: getGatewayBaseUrl(),
+    serviceSecret: getValidatedServiceSecret(),
+    actor: asActor(ownerId),
+  });
+}

@@ -32,112 +32,12 @@ import { createLogger } from '@tzurot/common-types/utils/logger';
 import { clientsFor } from '../../utils/gatewayClients.js';
 import { escapeFenceBreaks } from '../../utils/fenceEscape.js';
 import { sendChunkedReply } from '../../utils/chunkedReply.js';
+import { buildSyncSummary, type SyncResult, type TableStats } from '../../utils/dbSyncSummary.js';
 import { storeDbSyncReport, fetchDbSyncReport } from './dbSyncReportStore.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { ackUpdate } from '../../ux/render/reply.js';
 
 const logger = createLogger('admin-db-sync');
-
-interface TableStats {
-  devToProd?: number;
-  prodToDev?: number;
-  conflicts?: number;
-  deleted?: number;
-}
-
-interface DeletionDetail {
-  table: string;
-  rowKey: string;
-  target: 'dev' | 'prod';
-}
-
-interface SyncResult {
-  timestamp?: string;
-  schemaVersion?: string;
-  stats?: Record<string, TableStats>;
-  warnings?: string[];
-  info?: string[];
-  deletions?: DeletionDetail[];
-  deletionsTruncated?: boolean;
-}
-
-function sumCounters(stats: Record<string, TableStats>): Required<TableStats> {
-  const totals = { devToProd: 0, prodToDev: 0, conflicts: 0, deleted: 0 };
-  for (const s of Object.values(stats)) {
-    totals.devToProd += s.devToProd ?? 0;
-    totals.prodToDev += s.prodToDev ?? 0;
-    totals.conflicts += s.conflicts ?? 0;
-    totals.deleted += s.deleted ?? 0;
-  }
-  return totals;
-}
-
-function hasActivity(s: TableStats): boolean {
-  return (
-    (s.devToProd ?? 0) > 0 ||
-    (s.prodToDev ?? 0) > 0 ||
-    (s.conflicts ?? 0) > 0 ||
-    (s.deleted ?? 0) > 0
-  );
-}
-
-/** Embed-cap backstop: the active-table list is otherwise unbounded as the
- * synced-table set grows; the chunked follow-up report is the full surface. */
-const ACTIVE_TABLE_LINES_MAX = 30;
-
-/** One `table: N dev→prod, M prod→dev[, ...]` line per table with activity. */
-function buildActiveTableLines(stats: Record<string, TableStats>): string[] {
-  const active = Object.entries(stats).filter(([, s]) => hasActivity(s));
-  if (active.length === 0) {
-    return ['', 'No changes — databases already in sync.'];
-  }
-  const lines = [''];
-  for (const [table, s] of active.slice(0, ACTIVE_TABLE_LINES_MAX)) {
-    const conflicts = (s.conflicts ?? 0) > 0 ? `, ${s.conflicts} conflicts` : '';
-    const deleted = (s.deleted ?? 0) > 0 ? `, ${s.deleted} deleted` : '';
-    lines.push(
-      `\`${table}\`: ${s.devToProd ?? 0} dev→prod, ${s.prodToDev ?? 0} prod→dev${conflicts}${deleted}`
-    );
-  }
-  if (active.length > ACTIVE_TABLE_LINES_MAX) {
-    lines.push(`_…and ${active.length - ACTIVE_TABLE_LINES_MAX} more — see the report below._`);
-  }
-  return lines;
-}
-
-/**
- * The tight embed description: totals line + tables with activity only.
- * Full per-table detail (including quiet tables) lives in the chunked
- * follow-up report, so the embed can never outgrow Discord's description cap.
- */
-export function buildSyncSummary(result: SyncResult, dryRun: boolean): string {
-  const lines: string[] = [];
-
-  if (result.schemaVersion !== undefined && result.schemaVersion.length > 0) {
-    lines.push(`**Schema Version**: \`${result.schemaVersion}\``);
-  }
-
-  const stats = result.stats ?? {};
-  const tableCount = Object.keys(stats).length;
-  if (tableCount > 0) {
-    const totals = sumCounters(stats);
-    lines.push(
-      '',
-      `**${tableCount} tables** · ${totals.devToProd} dev→prod · ${totals.prodToDev} prod→dev · ${totals.conflicts} conflicts · ${totals.deleted} deleted`
-    );
-    lines.push(...buildActiveTableLines(stats));
-  }
-
-  const warningCount = result.warnings?.length ?? 0;
-  if (warningCount > 0) {
-    lines.push('', `⚠️ ${warningCount} warning(s) — full list in the report below`);
-  }
-  if (dryRun) {
-    lines.push('', '*Dry run — no changes were applied.*');
-  }
-
-  return lines.join('\n');
-}
 
 /** The `## Per-table stats` section — every table, active or not. Fixed-width
  * rows in a code fence: Discord doesn't render markdown pipe-tables, and the

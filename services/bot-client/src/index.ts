@@ -72,6 +72,10 @@ import {
   stopRetentionNagScheduler,
 } from './services/RetentionNagScheduler.js';
 import {
+  startNightlyDbSyncScheduler,
+  stopNightlyDbSyncScheduler,
+} from './services/NightlyDbSyncScheduler.js';
+import {
   validateDiscordToken,
   validateRedisUrl,
   validateInternalServiceSecret,
@@ -465,6 +469,11 @@ client.once(Events.ClientReady, () => {
   // restart-friendly cadence; nothing purges automatically in Phase 2).
   startRetentionNagScheduler(client, services.cacheRedis);
 
+  // Daily REAL dev↔prod sync — silent when already in agreement, owner-channel
+  // summary when rows moved. Its Redis cooldown gates the sync itself (not just
+  // the post); see NightlyDbSyncScheduler for that inversion.
+  startNightlyDbSyncScheduler(client, services.cacheRedis);
+
   // Restore saved bot presence from Redis
   void restoreBotPresence(client).catch(err => logger.warn({ err }, 'Failed to restore presence'));
 
@@ -539,6 +548,7 @@ async function disposeBotClient(): Promise<void> {
     stopVerificationCleanupScheduler();
     stopSecretRotationNagScheduler();
     stopRetentionNagScheduler();
+    stopNightlyDbSyncScheduler();
     // ioredis Redis#disconnect is synchronous (returns void) — kept outside
     // the awaited Promise.all because there's no Promise to await.
     services.cacheRedis.disconnect();
