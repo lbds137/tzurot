@@ -134,6 +134,9 @@ jobs:
       - name: Check docs/commands.md matches the command modules
         run: pnpm ops guard:commands-doc
 
+      - name: Check the ops CLI reference documents every registered command
+        run: pnpm ops guard:ops-doc
+
       - name: Check Dockerfile runner-stage dist copies
         run: pnpm ops guard:dockerfile-dist
 

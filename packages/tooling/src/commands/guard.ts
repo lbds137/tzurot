@@ -145,6 +145,17 @@ function registerSyncGuards(cli: CAC): void {
       const { checkCommandsDoc } = await import('../dev/check-commands-doc.js');
       checkCommandsDoc();
     });
+
+  cli
+    .command(
+      'guard:ops-doc',
+      'Fail when a registered pnpm ops command has no row in docs/reference/tooling/OPS_CLI_REFERENCE.md'
+    )
+    .example('ops guard:ops-doc')
+    .action(async () => {
+      const { checkOpsDoc } = await import('../dev/check-ops-doc.js');
+      checkOpsDoc();
+    });
 }
 
 /**

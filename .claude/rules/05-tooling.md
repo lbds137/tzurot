@@ -154,6 +154,7 @@ pnpm ops guard:proposal-links        # docs/proposals/backlog/*.md must have inb
 pnpm ops guard:audit-tool-docs       # Every registered audit tool has a non-stub WHY.md
 pnpm ops guard:workflow-sync         # claude workflow files must be byte-identical to origin/main
 pnpm ops guard:gate-parity           # pnpm-quality chain and CI lint job must not drift (allowlisted asymmetries excepted)
+pnpm ops guard:ops-doc               # every registered ops CLI command has a row in OPS_CLI_REFERENCE.md
 pnpm ops lines:check                 # always-loaded surfaces (.claude/rules total, CURRENT.md) within line budgets
 pnpm ops lines:update-baseline       # make budget growth explicit (same --update contract as cpd/test:audit)
 ```

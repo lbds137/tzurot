@@ -45,6 +45,46 @@ pnpm ops run --env <env> <command> [args...]
 
 **When to use:** One-off scripts that need database access without adding dedicated ops commands.
 
+## Deploy Commands
+
+Railway deployment helpers (full procedure: `/tzurot-deployment`):
+
+| Command                                          | Description                                         |
+| ------------------------------------------------ | --------------------------------------------------- |
+| `pnpm ops deploy:verify`                         | Verify the build before deploying                   |
+| `pnpm ops deploy:dev`                            | Deploy to the Railway development environment       |
+| `pnpm ops deploy:update-gateway`                 | Update the gateway URL in Railway                   |
+| `pnpm ops deploy:setup-vars --env dev`           | Set up Railway environment variables from `.env`    |
+| `pnpm ops deploy:setup-vars --env dev --dry-run` | Preview the variable set without writing to Railway |
+
+## Dev Workflow Commands
+
+Focused (changed-packages-only) task runs plus the standalone dev audits:
+
+| Command                           | Description                                                                       |
+| --------------------------------- | --------------------------------------------------------------------------------- |
+| `pnpm ops dev:focus <task>`       | Run a turbo task only on packages with changes                                    |
+| `pnpm ops dev:lint`               | Lint only changed packages                                                        |
+| `pnpm ops dev:test`               | Test only changed packages                                                        |
+| `pnpm ops dev:typecheck`          | Typecheck only changed packages                                                   |
+| `pnpm ops dev:test-summary`       | Run tests and print a clean summary                                               |
+| `pnpm ops dev:update-deps`        | Update all dependencies to latest versions                                        |
+| `pnpm ops dev:dead-files`         | Find production files referenced only by their own tests                          |
+| `pnpm ops dev:deferred-refs`      | Surface tracker tasks referencing the given (or staged) files — never fails       |
+| `pnpm ops dev:schema-audit`       | Audit Prisma optional columns for fake-optionality                                |
+| `pnpm ops dev:stale-debug`        | Audit for `debug`-typed commits whose scaffolding survives at HEAD                |
+| `pnpm ops lint:complexity-report` | Report files/functions approaching the ESLint complexity limits                   |
+| `pnpm ops commands:audit`         | Slash-command surface inventory + consistency audit (CI runs it with `--summary`) |
+
+## Backlog Commands
+
+| Command                   | Description                                                                           |
+| ------------------------- | ------------------------------------------------------------------------------------- |
+| `pnpm ops backlog`        | Lint the backlog surfaces: `now.md` caps, `queue.md` doc refs, tracker integrity      |
+| `pnpm ops backlog:digest` | Session-start briefing from the tracker store (per-area counts, oldest 20, newest 10) |
+
+`pnpm ops backlog` is wired into `pnpm quality` and the CI lint job (via the `pnpm backlog:lint` shortcut); `backlog:digest` is informational and never gates.
+
 ## Memory Commands
 
 Commands for analyzing and managing pgvector memories:
@@ -53,6 +93,8 @@ Commands for analyzing and managing pgvector memories:
 | ------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
 | `pnpm ops memory:analyze --env dev`                                       | Analyze duplicate memories                                                                          |
 | `pnpm ops memory:analyze --verbose`                                       | Show detailed breakdown                                                                             |
+| `pnpm ops memory:backfill --env dev`                                      | Backfill LTM from `conversation_history` for a date range                                           |
+| `pnpm ops memory:repair-fact-timestamps --env dev`                        | Rewrite `memory_facts.valid_from` to the newest source episode time (backward-only, idempotent)     |
 | `pnpm ops memory:cleanup --env dev`                                       | Remove duplicate memories                                                                           |
 | `pnpm ops memory:cleanup --dry-run`                                       | Preview what would be deleted                                                                       |
 | `pnpm ops memory:cleanup --force`                                         | Skip confirmation (required for prod)                                                               |
@@ -70,12 +112,15 @@ Commands for analyzing and managing pgvector memories:
 
 Data-minimization tooling for the inactivity retention/purge epic:
 
-| Command                                                       | Description                                                               |
-| ------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| `pnpm ops retention:preview --env dev`                        | Report the purge-eligible cohort + character impact (**read-only**)       |
-| `pnpm ops retention:backfill-last-active --env dev --dry-run` | Report which users' `last_active_at` would advance                        |
-| `pnpm ops retention:backfill-last-active --env dev`           | Seed `last_active_at` from historical activity (forward-only, idempotent) |
-| `pnpm ops retention:backfill-last-active --env prod --force`  | Skip the production confirmation prompt                                   |
+| Command                                                       | Description                                                                   |
+| ------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `pnpm ops retention:preview --env dev`                        | Report the purge-eligible cohort + character impact (**read-only**)           |
+| `pnpm ops retention:backfill-last-active --env dev --dry-run` | Report which users' `last_active_at` would advance                            |
+| `pnpm ops retention:backfill-last-active --env dev`           | Seed `last_active_at` from historical activity (forward-only, idempotent)     |
+| `pnpm ops retention:backfill-last-active --env prod --force`  | Skip the production confirmation prompt                                       |
+| `pnpm ops retention:notify --env prod`                        | DM the deletion warning to reachable-but-inactive users (starts grace clocks) |
+| `pnpm ops retention:purge --env prod`                         | **ERASE** the purge-eligible cohort, one account per call                     |
+| `pnpm ops retention:reconcile-off-db --env prod`              | Retry avatar cleanup a completed purge still owes (idempotent)                |
 
 **`retention:preview` is safe to run against prod** — it mutates nothing and has
 no confirmation prompt. It reads the cohort from the gateway
@@ -120,12 +165,14 @@ Quick codebase state for AI session startup:
 
 Runtime state inspection for debugging:
 
-| Command                                    | Description              |
-| ------------------------------------------ | ------------------------ |
-| `pnpm ops inspect:queue`                   | Show BullMQ queue stats  |
-| `pnpm ops inspect:queue --env prod`        | Inspect production queue |
-| `pnpm ops inspect:queue --verbose`         | Show job payloads        |
-| `pnpm ops inspect:queue --failed-limit 10` | Show more failed jobs    |
+| Command                                    | Description                                      |
+| ------------------------------------------ | ------------------------------------------------ |
+| `pnpm ops inspect:queue`                   | Show BullMQ queue stats                          |
+| `pnpm ops inspect:queue --env prod`        | Inspect production queue                         |
+| `pnpm ops inspect:queue --verbose`         | Show job payloads                                |
+| `pnpm ops inspect:queue --failed-limit 10` | Show more failed jobs                            |
+| `pnpm ops inspect:dlq`                     | View failed jobs in the BullMQ dead-letter queue |
+| `pnpm ops inspect:tts-configs`             | List all `tts_configs` rows for the current env  |
 
 **Output includes:**
 
@@ -266,14 +313,16 @@ Analyze TypeScript codebase structure via AST parsing. Extracts classes, functio
 
 Ratchet audits to enforce test coverage (CI runs these automatically):
 
-| Command                                  | Description                                  |
-| ---------------------------------------- | -------------------------------------------- |
-| `pnpm ops test:audit`                    | Run both contract and service audits         |
-| `pnpm ops test:audit-contracts`          | Audit API schema contract test coverage      |
-| `pnpm ops test:audit-services`           | Audit service component test coverage        |
-| `pnpm ops test:audit --strict`           | Fail on ANY gap (not just new ones)          |
-| `pnpm ops test:audit-contracts --update` | Update baseline after adding contract tests  |
-| `pnpm ops test:audit-services --update`  | Update baseline after adding component tests |
+| Command                                  | Description                                                 |
+| ---------------------------------------- | ----------------------------------------------------------- |
+| `pnpm ops test:audit`                    | Run both contract and service audits                        |
+| `pnpm ops test:audit-contracts`          | Audit API schema contract test coverage                     |
+| `pnpm ops test:audit-services`           | Audit service component test coverage                       |
+| `pnpm ops test:audit --strict`           | Fail on ANY gap (not just new ones)                         |
+| `pnpm ops test:audit-contracts --update` | Update baseline after adding contract tests                 |
+| `pnpm ops test:audit-services --update`  | Update baseline after adding component tests                |
+| `pnpm ops test:tiers`                    | Report the per-package test-tier distribution (report-only) |
+| `pnpm ops test:generate-schema`          | Regenerate the PGLite schema SQL from Prisma                |
 
 **How ratchets work:**
 
@@ -285,6 +334,58 @@ Ratchet audits to enforce test coverage (CI runs these automatically):
 **Drift detection (Layer 3):** `test:audit` hard-fails when the baseline's stored `configHash` doesn't match the current measurement-affecting config. Bumping `TEST_AUDIT_IMPL_VERSION` (in `packages/tooling/src/test/audit-version.ts`) invalidates baselines and forces an explicit `--update` refresh. The `--update` path is the only sanctioned way to refresh the meta block; hand-editing the baseline JSON skips meta updates and produces subtle staleness.
 
 See `tzurot-testing` skill for chip-away workflow details and [`docs/reference/audit-enforcement.md`](../audit-enforcement.md) for the audit-tool infrastructure.
+
+## Mutation-Score Commands
+
+Stryker ratchet over the tracked packages (`MUTATED_PACKAGES` in `packages/tooling/src/test/mutation-check.ts`):
+
+| Command                             | Description                                                                           |
+| ----------------------------------- | ------------------------------------------------------------------------------------- |
+| `pnpm ops mutation:check`           | CI gate: per-package score must stay ≥ baseline − `graceMargin`                       |
+| `pnpm ops mutation:check --summary` | Emit the JSONL audit-summary line                                                     |
+| `pnpm ops mutation:gate`            | CI skip gate: `run=false` when the diff can't move any tracked score (fail-open)      |
+| `pnpm ops mutation:update-baseline` | Write current scores to the baseline (needs a fresh LOCAL report per tracked package) |
+
+Reports come from `pnpm --filter @tzurot/<pkg> test:mutation`. When `mutation:check` fails on a genuine drop, close the test gaps it names — never hand-edit the baseline.
+
+## Secrets Commands
+
+Rotation ledger (`secret_rotations`, per-env, sync-excluded) driving the daily owner-channel nag:
+
+| Command                                             | Description                                                       |
+| --------------------------------------------------- | ----------------------------------------------------------------- |
+| `pnpm ops secrets:rotation-status --env prod`       | Show the ledger with overdue state                                |
+| `pnpm ops secrets:mark-rotated <name> --env prod`   | Stamp the ledger: `<name>` was rotated now (manual rotations)     |
+| `pnpm ops secrets:rotate-byok --env prod --stage 1` | Staged BYOK key rotation (1=stage, 2=re-encrypt rows, 3=finalize) |
+
+BYOK rotation is breakage-free via the dual-key window in `common-types/utils/encryption.ts` — never rotate `API_KEY_ENCRYPTION_KEY` by hand-replacing the variable.
+
+## Security Commands
+
+| Command                                 | Description                                                            |
+| --------------------------------------- | ---------------------------------------------------------------------- |
+| `pnpm ops security:advisories`          | Open Dependabot advisories: severity + fix version + direct/transitive |
+| `pnpm ops security:advisories --json`   | Machine-readable surface                                               |
+| `pnpm ops security:advisories --strict` | Exit non-zero on an actionable (fix-available) high/critical           |
+
+Run it in the release security-preflight: transitive-only advisories get no Dependabot PR and need a manual `pnpm.overrides` bump. Degrades to "unavailable" (never blocks) when the alerts API can't be read.
+
+## Codegen Commands
+
+| Command                                  | Description                                                    |
+| ---------------------------------------- | -------------------------------------------------------------- |
+| `pnpm ops codegen:routes`                | Generate the route-manifest-derived client classes             |
+| `pnpm ops codegen:routes --check`        | CI drift gate: fail if the committed generated files are stale |
+| `pnpm ops codegen:command-types`         | Generate the type-safe slash-command option schemas            |
+| `pnpm ops codegen:command-types --check` | CI drift gate for the generated command-option schemas         |
+
+## Topology Commands
+
+| Command                              | Description                                                      |
+| ------------------------------------ | ---------------------------------------------------------------- |
+| `pnpm ops topology:generate`         | Print the cross-service coverage topology                        |
+| `pnpm ops topology:generate --write` | Write `coverage-topology.json`                                   |
+| `pnpm ops topology:check`            | CI gate: fail if the committed `coverage-topology.json` is stale |
 
 ## CPD Commands
 
@@ -328,7 +429,12 @@ Structural enforcement checks that hard-fail CI on findings:
 | `pnpm ops guard:boundaries`                | Service-boundary imports (bot-client never imports Prisma directly, etc.) (audit-class, `--summary` not yet wired)           |
 | `pnpm ops guard:duplicate-exports`         | Same name exported from multiple files within a package (CI gate, intentionally not audit-class — no `--summary`)            |
 | `pnpm ops guard:no-export-star`            | Fail if any production `src/**` uses `export *` (re-masks knip's dead-export tracing) (CI gate, not audit-class)             |
+| `pnpm ops guard:prompt-tags`               | Fail if a structural prompt tag is emitted but not classified (protected vs known-unprotected) (CI gate, not audit-class)    |
+| `pnpm ops guard:commands-doc`              | Fail when `docs/commands.md` drifts from the bot-client command modules (that table renders live on the website)             |
+| `pnpm ops guard:ops-doc`                   | Fail when a registered `pnpm ops` command has no row in this file (CI gate, not audit-class)                                 |
 | `pnpm ops guard:dockerfile-dist`           | Service Dockerfile runner stages copy every runtime workspace dep's dist (CI gate, not audit-class)                          |
+| `pnpm ops guard:claude-content-refs`       | Skill/rule `pnpm ops` references resolve to registered commands; warns on stale `lastUpdated` (audit-class, `--summary`)     |
+| `pnpm ops guard:test-taxonomy`             | The test-tier taxonomy is single-sourced in `TESTING.md` and linked from the rule + skill                                    |
 | `pnpm ops guard:workflow-sync`             | Fail when the claude workflow files differ from origin/main (a develop-first change silently disables claude-review)         |
 | `pnpm ops guard:proposal-links`            | Every `docs/proposals/backlog/*.md` has an inbound link                                                                      |
 | `pnpm ops guard:proposal-links --summary`  | Emit JSONL summary line (for aggregator)                                                                                     |
@@ -337,6 +443,9 @@ Structural enforcement checks that hard-fail CI on findings:
 | `pnpm ops guard:gate-parity`               | `pnpm quality` chain and CI lint job must not drift (justified `CI_ONLY`/`LOCAL_ONLY` allowlists; stale entries flagged)     |
 | `pnpm ops lines:check`                     | Always-loaded surfaces (`.claude/rules/*.md` total, `CURRENT.md`) within their line budgets (audit-class, `--summary` wired) |
 | `pnpm ops lines:update-baseline`           | Make line-budget growth explicit (`--dry-run` supported; same meta contract as `cpd:update-baseline`)                        |
+| `pnpm ops health`                          | Layer-5 aggregator: run every summary-capable audit tool and print one consolidated report                                   |
+
+`guard:ops-doc` keeps THIS file honest: the command set it checks comes from a scan of the registrar sources in `packages/tooling/src/commands/`, and a command passes on a loose match (`pnpm ops <name>` anywhere in the file, or a backtick span holding exactly the name). Per-option coverage is out of scope. Deliberately-undocumented commands go on the justified `UNDOCUMENTED_ALLOWLIST` in `check-ops-doc.ts`.
 
 `guard:proposal-links` also hard-fails on single-segment proposal basenames (`memory.md`, `api.md`) because they defeat the word-boundary regex's precision. Multi-segment kebab-case or SCREAMING_SNAKE_CASE only.
 
