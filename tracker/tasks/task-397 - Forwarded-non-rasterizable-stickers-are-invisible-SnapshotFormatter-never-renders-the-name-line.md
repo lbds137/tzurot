@@ -3,9 +3,10 @@ id: TASK-397
 title: >-
   Forwarded non-rasterizable stickers are invisible: SnapshotFormatter never
   renders the name line
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-02 00:39'
+updated_date: '2026-08-04 13:24'
 labels:
   - 'size:S'
   - 'area:bot-client'

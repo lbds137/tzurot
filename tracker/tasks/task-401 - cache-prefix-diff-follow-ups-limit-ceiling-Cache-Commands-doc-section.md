@@ -1,9 +1,10 @@
 ---
 id: TASK-401
 title: 'cache:prefix-diff follow-ups: --limit ceiling + Cache Commands doc section'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-02 19:52'
+updated_date: '2026-08-04 13:24'
 labels:
   - 'size:S'
 dependencies: []

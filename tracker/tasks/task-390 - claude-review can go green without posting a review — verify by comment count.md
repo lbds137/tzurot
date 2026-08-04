@@ -3,9 +3,10 @@ id: TASK-390
 title: >-
   claude-review can go green without posting a review — verify by comment count,
   not by check colour
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-01 16:35'
+updated_date: '2026-08-04 13:24'
 labels:
   - 'size:M'
 dependencies: []
