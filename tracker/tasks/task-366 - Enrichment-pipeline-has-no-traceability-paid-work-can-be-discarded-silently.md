@@ -1,10 +1,10 @@
 ---
 id: TASK-366
 title: 'Enrichment pipeline has no traceability: paid work can be discarded silently'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-07-30 23:08'
-updated_date: '2026-08-04 13:56'
+updated_date: '2026-08-04 15:06'
 labels:
   - 'area:ai-worker'
   - 'size:M'
