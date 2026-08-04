@@ -12,6 +12,7 @@ import { extractDiscordEnvironment } from '../../utils/discordContext.js';
 import { extractAttachments } from '../../utils/attachmentExtractor.js';
 import { extractEmbedImages } from '../../utils/embedImageExtractor.js';
 import { extractSnapshotStickerImages } from '../../utils/stickerAttachments.js';
+import { withSnapshotStickerDescriptions } from '../../utils/stickerPollDescriptions.js';
 import { EmbedParser } from '../../utils/EmbedParser.js';
 
 /**
@@ -74,7 +75,10 @@ export class SnapshotFormatter {
     const embedImages = extractEmbedImages(snapshot.embeds);
 
     // Forwarded stickers get the same treatment — without this a forwarded
-    // sticker reached the model as a name with no image behind it.
+    // sticker reached the model as an image with no name behind it. The NAME
+    // half renders below via withSnapshotStickerDescriptions, matching what
+    // MessageFormatter does for the paths that format the containing message;
+    // for a non-rasterizable (Lottie) sticker the name line is the only trace.
     const stickerImages = extractSnapshotStickerImages(snapshot);
 
     // Combine all attachment kinds
@@ -111,7 +115,7 @@ export class SnapshotFormatter {
       discordUserId: UNKNOWN_USER_DISCORD_ID, // Snapshots don't include author info
       authorUsername: UNKNOWN_USER_NAME,
       authorDisplayName: UNKNOWN_USER_NAME,
-      content: snapshot.content || '',
+      content: withSnapshotStickerDescriptions(snapshot, snapshot.content || ''),
       embeds: embedString,
       timestamp: snapshot.createdTimestamp
         ? new Date(snapshot.createdTimestamp).toISOString()

@@ -91,6 +91,74 @@ describe('SnapshotFormatter', () => {
       expect(result.attachments).toEqual([
         expect.objectContaining({ id: '77', isSticker: true, contentType: 'image/png' }),
       ]);
+      // The rasterizable case carries BOTH halves: image attachment above,
+      // name line in content (default mock content is 'Snapshot content').
+      expect(result.content).toBe('Snapshot content\n\n[Stickers: shipit]');
+    });
+
+    it('renders the sticker name line for a non-rasterizable (Lottie) sticker', () => {
+      // A Lottie sticker has no raster form, so stickersToAttachments filters
+      // it out — the name line is its ONLY trace. Before this, a forwarded
+      // Lottie sticker was entirely invisible to the model: empty content,
+      // undefined attachments.
+      const snapshot = createMockSnapshot({
+        content: '',
+        stickers: new Map([
+          [
+            '88',
+            {
+              id: '88',
+              name: 'wave',
+              description: 'Wumpus waves hello',
+              format: 3, // StickerFormatType.Lottie
+              url: 'https://cdn.discordapp.com/stickers/88.json',
+            },
+          ],
+        ]),
+      });
+
+      const result = formatter.formatSnapshot(snapshot, 1, createMockMessage());
+
+      expect(result.content).toBe('[Stickers: wave — Wumpus waves hello]');
+      expect(result.attachments).toBeUndefined();
+    });
+
+    it('appends the sticker name line after existing snapshot content', () => {
+      const snapshot = createMockSnapshot({
+        content: 'look at this',
+        stickers: new Map([
+          [
+            '77',
+            {
+              id: '77',
+              name: 'shipit',
+              description: null,
+              format: 1, // StickerFormatType.PNG
+              url: 'https://cdn.discordapp.com/stickers/77.png',
+            },
+          ],
+        ]),
+      });
+
+      const result = formatter.formatSnapshot(snapshot, 1, createMockMessage());
+
+      expect(result.content).toBe('look at this\n\n[Stickers: shipit]');
+    });
+
+    it('scopes the name line to THIS snapshot — the forwarding message stickers stay out', () => {
+      // formatSnapshot runs once per snapshot; pulling the containing
+      // message's (or sibling snapshots') stickers in would duplicate names
+      // across every reference entry of a multi-snapshot forward.
+      const snapshot = createMockSnapshot({ content: 'plain text', stickers: new Map() });
+      const forwardedFrom = createMockMessage({
+        stickers: new Map([
+          ['99', { id: '99', name: 'container-sticker', description: null, format: 1 }],
+        ]),
+      });
+
+      const result = formatter.formatSnapshot(snapshot, 1, forwardedFrom);
+
+      expect(result.content).toBe('plain text');
     });
   });
 
