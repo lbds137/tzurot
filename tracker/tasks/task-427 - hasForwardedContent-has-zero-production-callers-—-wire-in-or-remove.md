@@ -4,8 +4,10 @@ title: hasForwardedContent has zero production callers — wire in or remove
 status: To Do
 assignee: []
 created_date: '2026-08-04 13:20'
+updated_date: '2026-08-04 13:50'
 labels:
   - 'size:S'
+  - 'area:bot-client'
 dependencies: []
 priority: medium
 ordinal: 427000
