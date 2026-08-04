@@ -69,6 +69,10 @@ function redactPayloadForNonOwner(payload: DiagnosticPayload): DiagnosticPayload
     ...payload,
     assembledPrompt: {
       ...payload.assembledPrompt,
+      // Per-section ids/sizes are a structural fingerprint of the character's
+      // system prompt — stripped for the same reason the Cache view gates its
+      // prefix map. `undefined` drops the key from the serialized JSON.
+      systemPromptSections: undefined,
       messages: payload.assembledPrompt.messages.map(msg =>
         msg.role === 'system' ? { ...msg, content: REDACTED_SYSTEM_PROMPT } : msg
       ),

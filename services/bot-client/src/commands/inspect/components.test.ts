@@ -67,7 +67,17 @@ describe('buildInspectComponents', () => {
     const selectMenu = rows[1].components[0].toJSON();
     // Compact JSON, System Prompt, Input, Generation Params,
     // Post-Processing, Memory Inspector, Token Budget, Voice Attribution,
-    // Pipeline Health (Quick Copy removed — never used)
-    expect('options' in selectMenu && selectMenu.options).toHaveLength(9);
+    // Pipeline Health, Cache (Quick Copy removed — never used)
+    expect('options' in selectMenu && selectMenu.options).toHaveLength(10);
+  });
+
+  it('exposes a Cache option routing to the cache view', () => {
+    const rows = buildInspectComponents('test-req');
+    const selectMenu = rows[1].components[0].toJSON();
+    const options = 'options' in selectMenu ? selectMenu.options : [];
+    const cacheOption = options.find(option => option.value === 'cache');
+    expect(cacheOption?.label).toBe('Cache');
+    // Discord caps option descriptions at 100 chars.
+    expect((cacheOption?.description ?? '').length).toBeLessThanOrEqual(100);
   });
 });

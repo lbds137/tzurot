@@ -793,6 +793,28 @@ describe('non-owner redaction', () => {
       expect(userMsg.content).toBe('Hello, how are you?');
     });
 
+    it('strips systemPromptSections when canViewCharacter is false', () => {
+      // The per-section map is a structural fingerprint of the character's
+      // prompt — the Cache view gates it, so the full download must too.
+      const payload = createMockPayload();
+      payload.assembledPrompt.systemPromptSections = [
+        { id: 'system_identity', tier: 'S0', chars: 600, offset: 0 },
+      ];
+      const result = buildFullJsonView(payload, 'req-123', NON_OWNER_CTX);
+      const parsed = JSON.parse(result.files![0].attachment.toString());
+      expect(parsed.assembledPrompt).not.toHaveProperty('systemPromptSections');
+    });
+
+    it('keeps systemPromptSections for the owner', () => {
+      const payload = createMockPayload();
+      payload.assembledPrompt.systemPromptSections = [
+        { id: 'system_identity', tier: 'S0', chars: 600, offset: 0 },
+      ];
+      const result = buildFullJsonView(payload, 'req-123', OWNER_CTX);
+      const parsed = JSON.parse(result.files![0].attachment.toString());
+      expect(parsed.assembledPrompt.systemPromptSections).toHaveLength(1);
+    });
+
     it('preserves memory IDs and scores when canViewCharacter is false', () => {
       const payload = createMockPayload();
       const result = buildFullJsonView(payload, 'req-123', NON_OWNER_CTX);

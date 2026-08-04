@@ -52,4 +52,5 @@ export enum DebugViewType {
   TokenBudget = 'token-budget',
   VoiceAttribution = 'voice-attribution',
   PipelineHealth = 'pipeline-health',
+  Cache = 'cache',
 }
