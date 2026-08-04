@@ -1,10 +1,10 @@
 ---
 id: TASK-369
 title: Nightly scheduled db-sync job (owner-requested fast follow)
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-07-31 00:50'
-updated_date: '2026-08-04 13:56'
+updated_date: '2026-08-04 16:40'
 labels:
   - 'area:bot-client'
   - 'size:M'
