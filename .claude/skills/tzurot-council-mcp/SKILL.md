@@ -1,7 +1,7 @@
 ---
 name: tzurot-council-mcp
 description: 'Multi-perspective AI consultation. Invoke with /tzurot-council-mcp for major refactors (>500 lines), structured debugging after failed attempts, or when a technical decision has multiple viable approaches.'
-lastUpdated: '2026-07-25'
+lastUpdated: '2026-08-04'
 ---
 
 # Council MCP Procedures
@@ -89,12 +89,12 @@ End the failed session, call `list_models` to find a replacement with similar ca
 
 | Task Type        | Recommended Models                                                                             | Notes                                                                                       |
 | ---------------- | ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| Reasoning/Design | **GLM 5.2 · Kimi K3 · Qwen 3.7 Max** (run all three in parallel) → Claude Sonnet/Opus fallback | **Avoid DeepSeek R1** — dated; design needs SOTA. Verify IDs via `list_models` (they drift) |
+| Reasoning/Design | **GLM 5.2 · Kimi K3 · Qwen 3.8 Max** (run all three in parallel) → Claude Sonnet/Opus fallback | **Avoid DeepSeek R1** — dated; design needs SOTA. Verify IDs via `list_models` (they drift) |
 | Coding/Review    | Claude Sonnet 4, Claude Opus 4                                                                 | Tool-use variants of Gemini also work for structured refactor tasks                         |
 | Vision/Images    | Gemini 2.5 Flash, Gemini 2.5 Pro                                                               | (verify availability with `list_models`)                                                    |
 | Long Documents   | Gemini (1M token context)                                                                      | (verify availability with `list_models`)                                                    |
 
-**Why avoid DeepSeek R1 for reasoning/design**: explicit user feedback — R1 is dated; design questions need SOTA. For open design decisions, run the current preferred trio in parallel — **GLM 5.2 · Kimi K3 · Qwen 3.7 Max** — and verify each ID via `list_models` first (the registry can lag a new release; fall back to the prior version of the same family). If those are unavailable, fall back to Claude Sonnet / Opus, **not** R1.
+**Why avoid DeepSeek R1 for reasoning/design**: explicit user feedback — R1 is dated; design questions need SOTA. For open design decisions, run the current preferred trio in parallel — **GLM 5.2 · Kimi K3 · Qwen 3.8 Max** (`qwen/qwen3.8-max` on OpenRouter — GA successor to 3.7 Max, 1M context, multimodal reasoning) — and verify each ID via `list_models` first (the registry can lag a new release; fall back to the prior version of the same family). If those are unavailable, fall back to Claude Sonnet / Opus, **not** R1.
 
 **Kimi specifically**: `moonshotai/kimi-k3` is the current SOTA pick (verify via `list_models` — this line will go stale exactly the way `kimi-k2.7-code` did); `kimi-k2.7-code` is superseded and should not be the default. K3 has **capacity pressure under demand** — expect occasional long waits (a council call has exceeded the 120s foreground window and backgrounded) — so falling back to the prior K2.x is a sanctioned practical compromise when K3 is unavailable, not a preference.
 
