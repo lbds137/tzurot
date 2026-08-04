@@ -111,6 +111,12 @@ export const AUDIO_MIME_ALIASES: Record<string, string> = {
 export enum AttachmentType {
   Image = 'image',
   Audio = 'audio',
+  /**
+   * Any attachment with no content processor (video, documents, archives…).
+   * Carries an honest "not supported" stub description so the model knows a
+   * file was attached — never a fabricated image/audio failure.
+   */
+  File = 'file',
 }
 
 /**
