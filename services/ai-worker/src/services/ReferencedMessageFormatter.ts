@@ -53,7 +53,9 @@ const CONTEXTUAL_REFERENCES_INSTRUCTION = `<instruction>Messages the user's curr
  * transcription independently. `allPersonalityNames` (personalities seen in the
  * visible history) enables the sibling-persona quote demotion in `deriveRefRole`
  * — without it a sibling's stamped-assistant quote renders as the responding
- * persona's own line. All fields optional — legacy callers degrade.
+ * persona's own line. `requestId` is pure correlation: it never changes what is
+ * rendered, it only lets this module's warnings name the request whose paid
+ * enrichment went missing. All fields optional — legacy callers degrade.
  */
 interface ReferenceVisionAuth {
   userApiKey?: string;
@@ -61,6 +63,7 @@ interface ReferenceVisionAuth {
   visionProvider?: AIProvider;
   visionModel?: string;
   allPersonalityNames?: Set<string>;
+  requestId?: string;
 }
 
 /**
@@ -248,7 +251,7 @@ export class ReferencedMessageFormatter {
       // built rather than as rendered: the stub subtracts content for THIS
       // turn's prompt, but replay decides dedup for itself and needs the whole
       // reference to decide from.
-      durable.push(toStoredReference(ref, built));
+      durable.push(toStoredReference(ref, built, apiKeys?.requestId));
 
       // Search text comes from the PRE-projection reference: the stub's prose
       // marker and its truncation are prompt-shaping, not semantic content.
@@ -353,7 +356,8 @@ export class ReferencedMessageFormatter {
       this.warnOnDroppedEnrichment(
         ref.referenceNumber,
         countAvailableEnrichment(preprocessedForRef),
-        countRenderedEnrichment(attachments)
+        countRenderedEnrichment(attachments),
+        apiKeys?.requestId
       );
       return attachments;
     }
@@ -393,15 +397,21 @@ export class ReferencedMessageFormatter {
    * static text and has nowhere to go by design (`RenderableFile` carries no
    * enrichment slot), so it is excluded from the denominator rather than
    * reported as purchased work that went missing.
+   *
+   * `requestId` carries the correlation the alert is useless without: the
+   * counts say enrichment was lost, and the id says which request lost it, so
+   * the producing job's own logs are one query away rather than a timestamp
+   * search. Undefined for callers that thread no correlation id.
    */
   private warnOnDroppedEnrichment(
     referenceNumber: number,
     available: number,
-    rendered: number
+    rendered: number,
+    requestId: string | undefined
   ): void {
     if (available > rendered) {
       logger.warn(
-        { referenceNumber, renderable: available, rendered },
+        { requestId, referenceNumber, renderable: available, rendered },
         '[ReferencedMessageFormatter] Preprocessed reference enrichment was not rendered — ' +
           'vision/transcription work was paid for and is not reaching the prompt'
       );

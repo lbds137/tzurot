@@ -9,6 +9,9 @@ import { MessageRole } from '@tzurot/common-types/constants/message';
 import { type LLMGenerationJobData } from '@tzurot/common-types/types/jobs';
 import type { PreparedContext, PreprocessingResults } from '../types.js';
 
+/** Correlation id the job payload carries alongside (not inside) its context. */
+const TEST_REQUEST_ID = 'req-test-0001';
+
 function createMinimalJobContext(): LLMGenerationJobData['context'] {
   return {
     kind: 'envelope',
@@ -31,7 +34,7 @@ describe('buildConversationContext', () => {
     const jobContext = createMinimalJobContext();
     const prepared = createMinimalPreparedContext();
 
-    const result = buildConversationContext(jobContext, prepared, undefined);
+    const result = buildConversationContext(jobContext, prepared, undefined, TEST_REQUEST_ID);
 
     expect(result.userId).toBe('user-123');
     expect(result.userName).toBe('TestUser');
@@ -47,9 +50,23 @@ describe('buildConversationContext', () => {
     const jobContext = { ...createMinimalJobContext(), triggerMessageId: '810000000000000042' };
     const prepared = createMinimalPreparedContext();
 
-    const result = buildConversationContext(jobContext, prepared, undefined);
+    const result = buildConversationContext(jobContext, prepared, undefined, TEST_REQUEST_ID);
 
     expect(result.triggerMessageId).toBe('810000000000000042');
+  });
+
+  it('forwards the requestId that travels beside the job context', () => {
+    // The correlation seam: requestId lives on the job payload's top level, not
+    // inside its context, so this hop is the only thing that puts it where the
+    // renderer's enrichment-drop warnings can read it.
+    const result = buildConversationContext(
+      createMinimalJobContext(),
+      createMinimalPreparedContext(),
+      undefined,
+      'req-correlation-9'
+    );
+
+    expect(result.requestId).toBe('req-correlation-9');
   });
 
   it('should include preprocessed attachments when present', () => {
@@ -68,7 +85,7 @@ describe('buildConversationContext', () => {
       referenceAttachments: {},
     };
 
-    const result = buildConversationContext(jobContext, prepared, preprocessing);
+    const result = buildConversationContext(jobContext, prepared, preprocessing, TEST_REQUEST_ID);
 
     expect(result.preprocessedAttachments).toHaveLength(1);
     expect(result.preprocessedAttachments?.[0].description).toBe('A sunset');
@@ -83,7 +100,7 @@ describe('buildConversationContext', () => {
       referenceAttachments: {},
     };
 
-    const result = buildConversationContext(jobContext, prepared, preprocessing);
+    const result = buildConversationContext(jobContext, prepared, preprocessing, TEST_REQUEST_ID);
 
     expect(result.preprocessedAttachments).toBeUndefined();
   });
@@ -96,7 +113,7 @@ describe('buildConversationContext', () => {
     };
     const prepared = createMinimalPreparedContext();
 
-    const result = buildConversationContext(jobContext, prepared, undefined);
+    const result = buildConversationContext(jobContext, prepared, undefined, TEST_REQUEST_ID);
 
     expect(result.activePersonaGuildInfo).toEqual({
       roles: ['Admin'],
@@ -124,7 +141,7 @@ describe('buildConversationContext', () => {
       },
     ];
 
-    const result = buildConversationContext(jobContext, prepared, undefined);
+    const result = buildConversationContext(jobContext, prepared, undefined, TEST_REQUEST_ID);
 
     expect(result.crossChannelHistory).toHaveLength(1);
     expect(result.crossChannelHistory?.[0].channelEnvironment.type).toBe('dm');
@@ -143,7 +160,8 @@ describe('buildConversationContext', () => {
       const result = buildConversationContext(
         jobContext,
         createMinimalPreparedContext(),
-        undefined
+        undefined,
+        TEST_REQUEST_ID
       );
 
       expect(result.summonAnonymity).toEqual({
@@ -160,7 +178,8 @@ describe('buildConversationContext', () => {
       const result = buildConversationContext(
         jobContext,
         createMinimalPreparedContext(),
-        undefined
+        undefined,
+        TEST_REQUEST_ID
       );
 
       expect(result.summonAnonymity).toEqual({ kind: 'incognito' });
@@ -176,7 +195,8 @@ describe('buildConversationContext', () => {
       const result = buildConversationContext(
         jobContext,
         createMinimalPreparedContext(),
-        undefined
+        undefined,
+        TEST_REQUEST_ID
       );
 
       expect(result.summonAnonymity).toEqual({
@@ -194,7 +214,8 @@ describe('buildConversationContext', () => {
       const result = buildConversationContext(
         jobContext,
         createMinimalPreparedContext(),
-        undefined
+        undefined,
+        TEST_REQUEST_ID
       );
 
       expect(result.summonAnonymity).toEqual({ kind: 'incognito' });
