@@ -15,9 +15,10 @@ import { type LLMGenerationJobData } from '@tzurot/common-types/types/jobs';
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import { AuthStep } from './AuthStep.js';
 import type { GenerationContext, ResolvedConfig } from '../types.js';
-import type {
-  ApiKeyResolver,
-  ApiKeyResolutionResult,
+import {
+  NoApiKeyAvailableError,
+  type ApiKeyResolver,
+  type ApiKeyResolutionResult,
 } from '../../../../services/ApiKeyResolver.js';
 import type { SttProvider } from '@tzurot/common-types/types/sttProvider';
 import type { LlmConfigResolver, SttResolver } from '@tzurot/config-resolver';
@@ -33,18 +34,25 @@ vi.mock('@tzurot/common-types/constants/ai', async () => {
   };
 });
 
+// One stable logger instance (createLogger runs once at AuthStep module load),
+// so tests can assert on the LEVEL a given path logs at — the no-key audio
+// fallbacks are expected control flow and must stay off the warn stream.
+const { loggerMock } = vi.hoisted(() => ({
+  loggerMock: {
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    debug: vi.fn(),
+  },
+}));
+
 vi.mock('@tzurot/common-types/utils/logger', async () => {
   const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
     '@tzurot/common-types/utils/logger'
   );
   return {
     ...actual,
-    createLogger: () => ({
-      info: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-      debug: vi.fn(),
-    }),
+    createLogger: () => loggerMock,
   };
 });
 
@@ -976,6 +984,103 @@ describe('AuthStep', () => {
       expect(result.auth?.apiKey).toBe('sk-or-test');
       expect(result.auth?.audioProviderKeys?.has('elevenlabs')).toBe(false);
       expect(result.auth?.isGuestMode).toBe(false);
+    });
+
+    it('should log no-key audio fallbacks at debug, without a stack', async () => {
+      const openRouterResult: ApiKeyResolutionResult = {
+        apiKey: 'sk-or-test',
+        provider: AIProvider.OpenRouter,
+        source: 'user',
+        isGuestMode: false,
+      };
+
+      // A non-BYOK user hits this on EVERY job: both audio providers are
+      // BYOK-only with no system key, so resolution throws by design and the
+      // dispatcher falls back to voice-engine.
+      vi.mocked(mockApiKeyResolver.resolveApiKey)
+        .mockResolvedValueOnce(openRouterResult)
+        .mockRejectedValueOnce(
+          new NoApiKeyAvailableError('No API key available for provider elevenlabs.')
+        )
+        .mockRejectedValueOnce(
+          new NoApiKeyAvailableError('No API key available for provider mistral.')
+        );
+
+      step = new AuthStep(mockApiKeyResolver);
+
+      const config: ResolvedConfig = {
+        effectivePersonality: TEST_PERSONALITY,
+        configSource: 'personality',
+      };
+
+      const context: GenerationContext = {
+        job: createMockJob(),
+        startTime: Date.now(),
+        config,
+      };
+
+      const result = await step.process(context);
+
+      expect(result.auth?.audioProviderKeys?.size).toBe(0);
+      expect(loggerMock.warn).not.toHaveBeenCalled();
+
+      const debugFields = loggerMock.debug.mock.calls
+        .filter(call => String(call[1]).includes('key resolution failed'))
+        .map(call => call[0] as Record<string, unknown>);
+
+      expect(debugFields).toHaveLength(2);
+      expect(debugFields).toContainEqual({ userId: 'user-456', provider: 'elevenlabs' });
+      expect(debugFields).toContainEqual({ userId: 'user-456', provider: 'mistral' });
+      for (const fields of debugFields) {
+        // The whole point of the compact form: no serialized stack trace.
+        expect(fields).not.toHaveProperty('err');
+      }
+    });
+
+    it('should keep the warn + stack for an unexpected audio-key failure', async () => {
+      const openRouterResult: ApiKeyResolutionResult = {
+        apiKey: 'sk-or-test',
+        provider: AIProvider.OpenRouter,
+        source: 'user',
+        isGuestMode: false,
+      };
+
+      const mistralNotConfigured: ApiKeyResolutionResult = {
+        apiKey: '',
+        provider: AIProvider.Mistral,
+        source: 'system',
+        isGuestMode: true,
+      };
+
+      vi.mocked(mockApiKeyResolver.resolveApiKey)
+        .mockResolvedValueOnce(openRouterResult)
+        .mockRejectedValueOnce(new Error('db connection refused'))
+        .mockResolvedValueOnce(mistralNotConfigured);
+
+      step = new AuthStep(mockApiKeyResolver);
+
+      const config: ResolvedConfig = {
+        effectivePersonality: TEST_PERSONALITY,
+        configSource: 'personality',
+      };
+
+      const context: GenerationContext = {
+        job: createMockJob(),
+        startTime: Date.now(),
+        config,
+      };
+
+      await step.process(context);
+
+      const warnCalls = loggerMock.warn.mock.calls.filter(call =>
+        String(call[1]).includes('ElevenLabs key resolution failed')
+      );
+      expect(warnCalls).toHaveLength(1);
+
+      const fields = warnCalls[0]?.[0] as { userId?: string; err?: Error };
+      expect(fields.userId).toBe('user-456');
+      expect(fields.err).toBeInstanceOf(Error);
+      expect(fields.err?.message).toBe('db connection refused');
     });
 
     describe('sttDispatch', () => {

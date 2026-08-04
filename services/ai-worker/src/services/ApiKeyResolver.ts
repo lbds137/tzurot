@@ -50,6 +50,22 @@ export interface ApiKeyResolutionResult {
 }
 
 /**
+ * Thrown by {@link ApiKeyResolver.resolveApiKey} when no key is configured
+ * anywhere for the requested provider — neither a user BYOK key nor a system
+ * fallback. This is an EXPECTED outcome for BYOK-only providers (Mistral,
+ * z.ai coding, ElevenLabs without an operator key): callers treat it as
+ * control flow (fall back to another provider) rather than as an incident,
+ * so it must be distinguishable from a genuine resolution failure such as a
+ * DB outage or a decryption error.
+ */
+export class NoApiKeyAvailableError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'NoApiKeyAvailableError';
+  }
+}
+
+/**
  * Cache entry for API keys (to avoid repeated DB lookups)
  *
  * Note: Cache is local to each ai-worker instance. When users update/remove
@@ -99,7 +115,7 @@ export class ApiKeyResolver {
    * @param userId - The user making the request
    * @param provider - The AI provider (openrouter, openai, etc.)
    * @returns The resolved API key and its source
-   * @throws Error if no API key is available
+   * @throws NoApiKeyAvailableError if no key is configured anywhere for the provider
    */
   async resolveApiKey(
     userId: string | undefined,
@@ -150,7 +166,7 @@ export class ApiKeyResolver {
     }
 
     // No API key available at all - cannot make API calls
-    throw new Error(
+    throw new NoApiKeyAvailableError(
       `No API key available for provider ${provider}. ` +
         'Please configure your own API key or contact the bot administrator.'
     );
