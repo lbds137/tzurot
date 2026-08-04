@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, beforeEach, vi, type Mock } from 'vitest';
-import { ApiKeyResolver } from './ApiKeyResolver.js';
+import { ApiKeyResolver, NoApiKeyAvailableError } from './ApiKeyResolver.js';
 import { AIProvider } from '@tzurot/common-types/constants/ai';
 import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import { decryptApiKey } from '@tzurot/common-types/utils/encryption';
@@ -365,6 +365,20 @@ describe('ApiKeyResolver', () => {
       // route requests to a wrong/missing key.
       await expect(resolver.resolveApiKey('user-123', AIProvider.ZaiCoding)).rejects.toThrow(
         /No API key available for provider zai-coding/
+      );
+    });
+
+    it('should throw NoApiKeyAvailableError so callers can treat it as control flow', async () => {
+      mockPrisma.userApiKey.findFirst.mockResolvedValue(null);
+
+      // The typed subclass is what lets AuthStep distinguish "user simply has
+      // no BYOK key for this provider" (expected, debug-level) from a genuine
+      // resolution failure such as a DB outage (warn-level, with stack).
+      await expect(resolver.resolveApiKey('user-123', AIProvider.ZaiCoding)).rejects.toBeInstanceOf(
+        NoApiKeyAvailableError
+      );
+      await expect(resolver.resolveApiKey('user-123', AIProvider.ZaiCoding)).rejects.toBeInstanceOf(
+        Error
       );
     });
 
