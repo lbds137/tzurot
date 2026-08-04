@@ -463,7 +463,7 @@ describe('Voice Management Routes', () => {
       expect(res.body.errors[0]).toContain('elevenlabs');
     });
 
-    it('counts a 404 delete as removed, not failed (voice already gone)', async () => {
+    it('counts a 404 delete as alreadyGone, not deleted and not failed', async () => {
       userWithKeys(['elevenlabs']);
       let deleteCallCount = 0;
       setProviderFetchMocks({
@@ -479,10 +479,26 @@ describe('Voice Management Routes', () => {
       const res = await request(app).post('/voices/clear');
 
       expect(res.status).toBe(200);
-      // Already-gone voices satisfy the purge goal — no scary failure output
-      expect(res.body.deleted).toBe(2);
+      // Already-gone voices satisfy the purge goal — no scary failure output —
+      // but they were not deleted by THIS run, so `deleted` must not claim them.
+      expect(res.body.deleted).toBe(1);
+      expect(res.body.alreadyGone).toBe(1);
       expect(res.body.total).toBe(2);
       expect(res.body.errors).toBeUndefined();
+    });
+
+    it('omits alreadyGone when every delete is a real deletion', async () => {
+      userWithKeys(['elevenlabs']);
+      setProviderFetchMocks({
+        elevenlabsList: () => jsonOk(elevenLabsVoicesResponse),
+        elevenlabsDelete: () => ({ ok: true, status: 200 }) as unknown as Response,
+      });
+
+      const res = await request(app).post('/voices/clear');
+
+      expect(res.status).toBe(200);
+      expect(res.body.deleted).toBe(2);
+      expect(res.body.alreadyGone).toBeUndefined();
     });
 
     it('shows actionable message for rate-limited deletions', async () => {
