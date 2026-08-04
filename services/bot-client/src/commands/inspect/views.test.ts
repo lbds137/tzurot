@@ -220,6 +220,9 @@ describe('buildReasoningView', () => {
     expect(result.files).toBeUndefined();
     expect(result.chunkedText!.text).toContain('x'.repeat(2500));
     expect(result.chunkedText!.continuedHeader).toContain('reasoning continued');
+    // Owner decision: reading text must never require a download — the cap is
+    // an outlier guard, so pin it rather than letting it silently drop.
+    expect(result.chunkedText!.maxChunks).toBe(10);
   });
 });
 
