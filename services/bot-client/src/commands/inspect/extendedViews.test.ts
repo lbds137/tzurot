@@ -225,7 +225,7 @@ describe('buildInputView', () => {
     expect(text).toContain('### Referenced messages');
     expect(text).toContain('`111`');
     expect(text).toContain('### Memory search query');
-    expect(result.chunkedText?.maxChunks).toBe(3);
+    expect(result.chunkedText?.maxChunks).toBe(10);
     expect(result.chunkedText?.overflowFilename).toBe('input-full.txt');
   });
 
