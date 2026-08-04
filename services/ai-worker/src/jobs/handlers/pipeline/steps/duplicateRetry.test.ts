@@ -64,6 +64,27 @@ describe('generateWithDuplicateRetry', () => {
     expect(vi.mocked(ragService.generateResponse)).toHaveBeenCalledTimes(2);
   });
 
+  it('retries an ECHO of the user message and returns the real reply', async () => {
+    // The provider misplaced the reply into the reasoning channel and emitted
+    // the input verbatim as content — non-empty, and unlike any prior
+    // assistant message, so only the echo gate catches it.
+    const userMessage =
+      'Tell me about the garden you were describing yesterday, the one behind the old chapel.';
+    const realReply =
+      'The chapel garden has gone wild since the frost — the roses climb the wall now.';
+    const ragService = ragServiceReturning(ragResponse(userMessage), ragResponse(realReply));
+
+    const result = await generateWithDuplicateRetry(ragService, undefined, {
+      ...baseOpts(),
+      message: userMessage as MessageContent,
+    });
+
+    expect(result.response.content).toBe(realReply);
+    expect(result.echoRetries).toBe(1);
+    expect(result.emptyRetries).toBe(0);
+    expect(vi.mocked(ragService.generateResponse)).toHaveBeenCalledTimes(2);
+  });
+
   it('retries an exact cross-turn DUPLICATE and returns the fresh attempt', async () => {
     // Similarity checking requires >=30 cleaned chars — short strings skip it.
     const dup = 'these are exactly the same words the assistant already said before';

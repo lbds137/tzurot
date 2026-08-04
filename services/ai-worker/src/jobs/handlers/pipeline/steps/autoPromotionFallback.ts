@@ -35,9 +35,10 @@ import { deriveCacheKeyId } from '../../../../services/RateLimitCache.js';
 const logger = createLogger('AutoPromotionFallback');
 
 /**
- * Shape of a single generation attempt — matches the option object
- * `GenerationStep.generateWithDuplicateRetry` accepts. Kept locally rather
- * than imported because it's an internal contract between these two files.
+ * Shape of a single generation attempt — the option object
+ * `generateWithDuplicateRetry` accepts. Single source of the contract:
+ * `duplicateRetry` types its own parameter with this, so the two files
+ * cannot drift by a field.
  */
 export interface GenerateAttemptOpts {
   personality: Parameters<ConversationalRAGService['generateResponse']>[0];
@@ -60,6 +61,7 @@ export interface GenerateAttemptResult {
   response: RAGResponse;
   duplicateRetries: number;
   emptyRetries: number;
+  echoRetries: number;
   leakedThinkingRetries: number;
   /**
    * The provider that actually served the request when it differs from the
