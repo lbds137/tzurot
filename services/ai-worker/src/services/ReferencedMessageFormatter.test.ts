@@ -1860,14 +1860,57 @@ describe('ReferencedMessageFormatter', () => {
                 contentType: 'video/mp4',
                 size: 1000,
               },
-            },
+            } satisfies ProcessedAttachment,
           ],
-        }
+        },
+        // The correlation id the warning is close to useless without: the counts
+        // say enrichment was lost, this says which request lost it.
+        { requestId: 'req-dropped-7' }
       );
 
       expect(mockLogger.warn).toHaveBeenCalledWith(
-        expect.objectContaining({ referenceNumber: 1, renderable: 1, rendered: 0 }),
+        expect.objectContaining({
+          requestId: 'req-dropped-7',
+          referenceNumber: 1,
+          renderable: 1,
+          rendered: 0,
+        }),
         expect.stringContaining('not reaching the prompt')
+      );
+    });
+
+    it('forwards the request id to the durable writer, so its keyless warn is correlated too', async () => {
+      // The seam this pins is the formatter → toStoredReference hop: the second
+      // warning about lost paid work lives inside the durable writer, and a
+      // correlation id that reaches only the renderer's own warn leaves that one
+      // anonymous. Modelled on the reachable shape — a transcription result the
+      // dependency step could not key by URL (`originalUrl: ''`), which renders
+      // fine for this turn and cannot be persisted for the next.
+      await formatter.formatReferencedMessages(
+        [refWithImage({ isDeduplicated: true, attachments: undefined })],
+        mockPersonality,
+        false,
+        {
+          1: [
+            {
+              type: AttachmentType.Audio,
+              description: TRANSCRIPT_SENTINEL,
+              originalUrl: '',
+              metadata: {
+                url: '',
+                name: 'voice-message.ogg',
+                contentType: 'audio/ogg',
+                size: 1000,
+              },
+            } satisfies ProcessedAttachment,
+          ],
+        },
+        { requestId: 'req-keyless-11' }
+      );
+
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.objectContaining({ requestId: 'req-keyless-11', kind: 'voice' }),
+        expect.stringContaining('no attachment URL')
       );
     });
 

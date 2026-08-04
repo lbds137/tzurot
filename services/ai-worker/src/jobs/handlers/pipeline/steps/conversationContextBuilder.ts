@@ -10,11 +10,18 @@ import { resolveSummonAnonymity } from '@tzurot/common-types/types/summon-anonym
 import type { ConversationContext } from '../../../../services/ConversationalRAGTypes.js';
 import type { PreparedContext, PreprocessingResults } from '../types.js';
 
-/** Build the conversation context for RAG service */
+/**
+ * Build the conversation context for RAG service.
+ *
+ * `requestId` is a separate parameter because it lives on the job payload's
+ * top level, not inside `job.data.context` — it travels with the context only
+ * so downstream warnings can name the producing request.
+ */
 export function buildConversationContext(
   jobContext: LLMGenerationJobData['context'],
   preparedContext: PreparedContext,
-  preprocessing: PreprocessingResults | undefined
+  preprocessing: PreprocessingResults | undefined,
+  requestId: string
 ): ConversationContext {
   // Resolve the personal-vs-incognito union once here so the memory consumers
   // (LTM read/write skip) switch on `summonAnonymity.kind` instead of each
@@ -36,6 +43,7 @@ export function buildConversationContext(
   });
   return {
     userId: jobContext.userId,
+    requestId,
     userName: jobContext.userName,
     userTimezone: jobContext.userTimezone,
     channelId: jobContext.channelId,

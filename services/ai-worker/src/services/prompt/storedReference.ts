@@ -49,10 +49,14 @@ const logger = createLogger('StoredReference');
  * - the derived `role` — `authorRole` is stored raw instead, because the
  *   sibling-persona demotion depends on which personalities are visible in the
  *   replaying turn's history, not this one's.
+ *
+ * `requestId` is not stored and never shapes the row: it exists only so the
+ * keyless-enrichment warning below can name the request that lost the work.
  */
 export function toStoredReference(
   ref: ReferencedMessage,
-  built: BuiltAttachment[]
+  built: BuiltAttachment[],
+  requestId?: string
 ): StoredReferencedMessage {
   return {
     discordMessageId: ref.discordMessageId,
@@ -66,7 +70,7 @@ export function toStoredReference(
     locationContext: ref.locationContext,
     attachments: ref.attachments,
     isForwarded: ref.isForwarded,
-    attachmentEnrichment: collectEnrichment(built),
+    attachmentEnrichment: collectEnrichment(built, requestId),
   };
 }
 
@@ -82,7 +86,10 @@ export function toStoredReference(
  * "never computed" (retryable), and an empty array would read as "computed,
  * found nothing".
  */
-function collectEnrichment(built: BuiltAttachment[]): AttachmentEnrichment[] | undefined {
+function collectEnrichment(
+  built: BuiltAttachment[],
+  requestId?: string
+): AttachmentEnrichment[] | undefined {
   const entries = built.flatMap(({ url, attachment }): AttachmentEnrichment[] => {
     const description = attachmentEnrichment(attachment);
     if (attachment.kind === 'file' || description === undefined || description.length === 0) {
@@ -95,7 +102,7 @@ function collectEnrichment(built: BuiltAttachment[]): AttachmentEnrichment[] | u
       // habit this whole change exists to break. Reachable when a transcription
       // result carries no attachment URL and the processor defaults it to ''.
       logger.warn(
-        { kind: attachment.kind, filename: attachment.filename },
+        { requestId, kind: attachment.kind, filename: attachment.filename },
         'Enrichment has no attachment URL to key it by — reached the prompt, will not survive replay'
       );
       return [];

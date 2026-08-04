@@ -155,6 +155,9 @@ export class ConversationInputProcessor {
                 context.rawConversationHistory ?? [],
                 personality.displayName
               ),
+              // Correlation only: the formatter's enrichment-drop warnings name
+              // the request that paid for the lost vision/transcription work.
+              requestId: context.requestId,
             }
           )
         : undefined;
