@@ -164,7 +164,7 @@ describe('Admin Settings Routes (Singleton)', () => {
     );
   });
 
-  describe('GET /admin/settings', () => {
+  describe('GET /api/admin/settings', () => {
     it('should return the AdminSettings singleton', async () => {
       const settings = createDefaultSettings();
       mockPrisma.adminSettings.upsert.mockResolvedValue(settings);
@@ -235,7 +235,7 @@ describe('Admin Settings Routes (Singleton)', () => {
     });
   });
 
-  describe('PATCH /admin/settings/config-defaults', () => {
+  describe('PATCH /api/admin/settings/config-defaults', () => {
     it('should accept flat body and update configDefaults', async () => {
       const updatedSettings = createDefaultSettings({
         configDefaults: { maxMessages: 42 },
@@ -341,7 +341,7 @@ describe('Admin Settings Routes (Singleton)', () => {
     });
   });
 
-  describe('DELETE /admin/settings/config-defaults', () => {
+  describe('DELETE /api/admin/settings/config-defaults', () => {
     it('should clear configDefaults and return success', async () => {
       mockPrisma.adminSettings.update.mockResolvedValue(
         createDefaultSettings({ configDefaults: null, updatedBy: MOCK_USER_UUID })

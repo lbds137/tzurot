@@ -51,7 +51,7 @@ function createMockReqRes(body: Record<string, unknown>) {
   return { req, res };
 }
 
-describe('POST /admin/broadcast', () => {
+describe('POST /api/admin/broadcast', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });

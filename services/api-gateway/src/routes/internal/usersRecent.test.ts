@@ -26,7 +26,7 @@ vi.mock('@tzurot/common-types/utils/logger', async () => {
   };
 });
 
-describe('GET /internal/users/recent', () => {
+describe('GET /api/internal/users/recent', () => {
   let mockPrisma: { $queryRaw: ReturnType<typeof vi.fn> };
   let app: express.Express;
 

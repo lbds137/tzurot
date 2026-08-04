@@ -32,7 +32,7 @@ function createMockReqRes() {
   return { req, res };
 }
 
-describe('GET /internal/secret-rotations', () => {
+describe('GET /api/internal/secret-rotations', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.useFakeTimers();

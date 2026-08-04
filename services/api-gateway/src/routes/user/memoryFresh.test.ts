@@ -96,7 +96,7 @@ describe('/user/memory/fresh routes', () => {
   // Route wiring (paths, middleware, registration) is owned by the generated
   // mounts.ts — `pnpm ops codegen:routes --check` pins it against the
   // manifest, so these tests exercise the handlers directly.
-  describe('POST / (enable)', () => {
+  describe('POST /api/user/memory/fresh (enable)', () => {
     it('stores the session under the fresh: prefix and says memories are kept', async () => {
       const handler = handleEnableFresh(modeDeps());
       const { req, res } = createMockReqRes({
@@ -138,7 +138,7 @@ describe('/user/memory/fresh routes', () => {
     });
   });
 
-  describe('DELETE / (disable)', () => {
+  describe('DELETE /api/user/memory/fresh (disable)', () => {
     it('deletes the fresh session and says memories will be used again', async () => {
       const handler = handleDisableFresh(modeDeps());
       const { req, res } = createMockReqRes({ personalityId: TEST_PERSONALITY_ID });
@@ -157,7 +157,7 @@ describe('/user/memory/fresh routes', () => {
     });
   });
 
-  describe('GET / (status)', () => {
+  describe('GET /api/user/memory/fresh (status)', () => {
     it('scans the fresh: keyspace, not incognito', async () => {
       const handler = handleGetFreshStatus(modeDeps());
       const { req, res } = createMockReqRes();

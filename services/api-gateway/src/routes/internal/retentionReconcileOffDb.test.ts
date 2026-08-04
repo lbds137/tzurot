@@ -24,7 +24,7 @@ function createMockReqRes() {
   return { req, res };
 }
 
-describe('POST /internal/retention/reconcile-off-db', () => {
+describe('POST /api/internal/retention/reconcile-off-db', () => {
   it('returns the sweep tally in the manifest-declared shape', async () => {
     reconcileMock.mockResolvedValue({ settled: 3, stillFailing: 1, remaining: 0 });
     const { req, res } = createMockReqRes();

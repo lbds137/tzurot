@@ -240,7 +240,7 @@ describe('/user/llm-config routes', () => {
     mockPrisma.userApiKey.findFirst.mockResolvedValue(null);
   });
 
-  describe('GET /user/llm-config', () => {
+  describe('GET /api/user/llm-config', () => {
     it('should return global configs', async () => {
       const globalConfig = {
         id: 'config-1',
@@ -354,7 +354,7 @@ describe('/user/llm-config routes', () => {
     });
   });
 
-  describe('GET /user/llm-config/:id', () => {
+  describe('GET /api/user/llm-config/:id', () => {
     it('should return 404 when config not found', async () => {
       mockPrisma.llmConfig.findUnique.mockResolvedValue(null);
 
@@ -503,7 +503,7 @@ describe('/user/llm-config routes', () => {
     });
   });
 
-  describe('POST /user/llm-config', () => {
+  describe('POST /api/user/llm-config', () => {
     it('should return 400 when model validation fails on create', async () => {
       // Mock req/res approach — no real HTTP client, so returning `false` without
       // calling res.status()/res.json() is safe. Contrast with admin/llm-config.test.ts
@@ -750,7 +750,7 @@ describe('/user/llm-config routes', () => {
     });
   });
 
-  describe('PUT /user/llm-config/:id', () => {
+  describe('PUT /api/user/llm-config/:id', () => {
     it('should return 400 when model validation fails on update', async () => {
       mockValidateLlmConfigModelFields.mockResolvedValueOnce(false);
 
@@ -1286,7 +1286,7 @@ describe('/user/llm-config routes', () => {
     });
   });
 
-  describe('DELETE /user/llm-config/:id', () => {
+  describe('DELETE /api/user/llm-config/:id', () => {
     it('should return 404 when user not found', async () => {
       mockPrisma.user.findFirst.mockResolvedValue(null);
 
@@ -1677,7 +1677,7 @@ describe('/user/llm-config routes', () => {
     });
   });
 
-  describe('POST /user/llm-config/resolve', () => {
+  describe('POST /api/user/llm-config/resolve', () => {
     it('should reject missing personalityId', async () => {
       const handler = buildHandler(handleResolveUserLlmConfig, mockDeps);
       const { req, res } = createMockReqRes({

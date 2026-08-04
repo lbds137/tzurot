@@ -168,7 +168,7 @@ describe('user/tts-config routes', () => {
     });
   });
 
-  describe('GET / (list)', () => {
+  describe('GET /api/user/tts-config (list)', () => {
     it('returns USER-scoped configs with permissions for non-admin', async () => {
       vi.mocked(mockService.list).mockResolvedValue([{ ...sampleRawConfig }]);
       const handler = buildHandler(handleListUserTtsConfigs);
@@ -198,7 +198,7 @@ describe('user/tts-config routes', () => {
     });
   });
 
-  describe('GET /:id (get)', () => {
+  describe('GET /api/user/tts-config/:id (get)', () => {
     it('returns 404 when config does not exist', async () => {
       vi.mocked(mockService.getById).mockResolvedValue(null);
       const handler = buildHandler(handleGetUserTtsConfig);
@@ -222,7 +222,7 @@ describe('user/tts-config routes', () => {
     });
   });
 
-  describe('POST / (create)', () => {
+  describe('POST /api/user/tts-config (create)', () => {
     it('returns 400 NAME_COLLISION when name already exists', async () => {
       vi.mocked(mockService.checkNameExists).mockResolvedValue({
         exists: true,
@@ -307,7 +307,7 @@ describe('user/tts-config routes', () => {
     });
   });
 
-  describe('PUT /:id (update)', () => {
+  describe('PUT /api/user/tts-config/:id (update)', () => {
     it('returns 404 when config does not exist', async () => {
       vi.mocked(mockService.getById).mockResolvedValue(null);
       const handler = buildHandler(handleUpdateUserTtsConfig);
@@ -436,7 +436,7 @@ describe('user/tts-config routes', () => {
     });
   });
 
-  describe('DELETE /:id', () => {
+  describe('DELETE /api/user/tts-config/:id', () => {
     it('returns 404 when config does not exist', async () => {
       vi.mocked(mockService.getById).mockResolvedValue(null);
       const handler = buildHandler(handleDeleteUserTtsConfig);

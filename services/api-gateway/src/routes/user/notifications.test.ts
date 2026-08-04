@@ -72,7 +72,7 @@ function createMockReqRes(body: Record<string, unknown> = {}) {
   return { req, res };
 }
 
-describe('GET /user/notifications', () => {
+describe('GET /api/user/notifications', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -105,7 +105,7 @@ describe('GET /user/notifications', () => {
   });
 });
 
-describe('PATCH /user/notifications', () => {
+describe('PATCH /api/user/notifications', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -216,7 +216,7 @@ describe('PATCH /user/notifications', () => {
   });
 });
 
-describe('GET /user/notifications/release-dms', () => {
+describe('GET /api/user/notifications/release-dms', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -255,7 +255,7 @@ describe('GET /user/notifications/release-dms', () => {
   });
 });
 
-describe('POST /user/notifications/release-dms/deleted', () => {
+describe('POST /api/user/notifications/release-dms/deleted', () => {
   const LOG_1 = '123e4567-e89b-42d3-a456-426614174001';
   const LOG_2 = '123e4567-e89b-42d3-a456-426614174002';
 

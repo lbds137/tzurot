@@ -148,7 +148,7 @@ describe('admin/tts-config routes', () => {
     });
   });
 
-  describe('GET / (list)', () => {
+  describe('GET /api/admin/tts-config (list)', () => {
     it('returns all GLOBAL configs in the formatted shape', async () => {
       vi.mocked(mockService.list).mockResolvedValue([sampleRawConfig]);
       const handler = buildHandler(handleListGlobalTtsConfigs);
@@ -174,7 +174,7 @@ describe('admin/tts-config routes', () => {
     });
   });
 
-  describe('GET /:id (get)', () => {
+  describe('GET /api/admin/tts-config/:id (get)', () => {
     it('returns 404 when config not found', async () => {
       vi.mocked(mockService.getById).mockResolvedValue(null);
       const handler = buildHandler(handleGetGlobalTtsConfig);
@@ -198,7 +198,7 @@ describe('admin/tts-config routes', () => {
     });
   });
 
-  describe('POST / (create)', () => {
+  describe('POST /api/admin/tts-config (create)', () => {
     it('returns 403 FORBIDDEN when admin user is not in DB', async () => {
       vi.mocked(mockPrisma.user.findUnique).mockResolvedValue(null);
       const handler = buildHandler(handleCreateGlobalTtsConfig);
@@ -238,7 +238,7 @@ describe('admin/tts-config routes', () => {
     });
   });
 
-  describe('PUT /:id (edit)', () => {
+  describe('PUT /api/admin/tts-config/:id (edit)', () => {
     it('returns 404 when config not found', async () => {
       vi.mocked(mockPrisma.ttsConfig.findUnique).mockResolvedValue(null);
       const handler = buildHandler(handleUpdateGlobalTtsConfig);
@@ -306,7 +306,7 @@ describe('admin/tts-config routes', () => {
     });
   });
 
-  describe('PUT /:id/set-default', () => {
+  describe('PUT /api/admin/tts-config/:id/set-default', () => {
     it('returns 404 when config not found', async () => {
       vi.mocked(mockPrisma.ttsConfig.findUnique).mockResolvedValue(null);
       const handler = buildHandler(handleSetGlobalTtsConfigDefault);
@@ -340,7 +340,7 @@ describe('admin/tts-config routes', () => {
     });
   });
 
-  describe('PUT /:id/set-free-default', () => {
+  describe('PUT /api/admin/tts-config/:id/set-free-default', () => {
     it('returns 400 when target is not self-hosted', async () => {
       // ElevenLabs config (BYOK provider) — should be rejected
       vi.mocked(mockPrisma.ttsConfig.findUnique).mockResolvedValue({
@@ -405,7 +405,7 @@ describe('admin/tts-config routes', () => {
     });
   });
 
-  describe('DELETE /:id', () => {
+  describe('DELETE /api/admin/tts-config/:id', () => {
     it('returns 404 when config not found', async () => {
       vi.mocked(mockPrisma.ttsConfig.findUnique).mockResolvedValue(null);
       const handler = buildHandler(handleDeleteGlobalTtsConfig);

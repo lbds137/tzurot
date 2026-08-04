@@ -72,7 +72,7 @@ function createMockReqRes(body: Record<string, unknown>) {
   return { req, res };
 }
 
-describe('POST /internal/release-broadcast/:releaseId/pending', () => {
+describe('POST /api/internal/release-broadcast/:releaseId/pending', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -103,7 +103,7 @@ describe('POST /internal/release-broadcast/:releaseId/pending', () => {
   });
 });
 
-describe('POST /internal/release-broadcast/:releaseId/deliveries', () => {
+describe('POST /api/internal/release-broadcast/:releaseId/deliveries', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockPrisma.releaseDeliveryLog.updateMany.mockResolvedValue({ count: 1 });

@@ -24,7 +24,7 @@ vi.mock('@tzurot/common-types/utils/logger', async () => {
   };
 });
 
-describe('POST /internal/channel/dm-session/set', () => {
+describe('POST /api/internal/channel/dm-session/set', () => {
   let mockPrisma: {
     personality: { findUnique: ReturnType<typeof vi.fn> };
     channelSettings: { upsert: ReturnType<typeof vi.fn> };

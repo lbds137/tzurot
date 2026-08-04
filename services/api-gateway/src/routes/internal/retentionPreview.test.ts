@@ -48,7 +48,7 @@ function createMockReqRes() {
   return { req, res };
 }
 
-describe('GET /internal/retention/preview', () => {
+describe('GET /api/internal/retention/preview', () => {
   it('returns the service preview in the manifest-declared shape', async () => {
     buildPreviewMock.mockResolvedValue(PREVIEW);
     const { req, res } = createMockReqRes();

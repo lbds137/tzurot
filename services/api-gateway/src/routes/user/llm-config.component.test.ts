@@ -130,7 +130,7 @@ describe('LLM Config Resolution Integration', () => {
     });
   });
 
-  describe('POST /user/llm-config/resolve', () => {
+  describe('POST /api/user/llm-config/resolve', () => {
     const mockPersonality = {
       id: TEST_PERSONALITY_ID,
       name: 'test-personality',

@@ -181,7 +181,7 @@ describe('/user/history routes', () => {
     mockClearHistory.mockResolvedValue(5);
   });
 
-  describe('POST /user/history/clear', () => {
+  describe('POST /api/user/history/clear', () => {
     it('should reject missing personalitySlug', async () => {
       const handler = buildHandler(handleClearHistory, {
         ...stubRouteResolvers(),
@@ -372,7 +372,7 @@ describe('/user/history routes', () => {
     });
   });
 
-  describe('POST /user/history/undo', () => {
+  describe('POST /api/user/history/undo', () => {
     it('should reject missing personalitySlug', async () => {
       const handler = buildHandler(handleUndoHistory, {
         ...stubRouteResolvers(),
@@ -519,7 +519,7 @@ describe('/user/history routes', () => {
     });
   });
 
-  describe('GET /user/history/stats', () => {
+  describe('GET /api/user/history/stats', () => {
     it('should reject missing personalitySlug', async () => {
       const handler = buildHandler(handleGetHistoryStats, {
         ...stubRouteResolvers(),
@@ -706,7 +706,7 @@ describe('/user/history routes', () => {
     });
   });
 
-  describe('DELETE /user/history/hard-delete', () => {
+  describe('DELETE /api/user/history/hard-delete', () => {
     it('should reject missing personalitySlug', async () => {
       const handler = buildHandler(handleHardDeleteHistory, {
         ...stubRouteResolvers(),

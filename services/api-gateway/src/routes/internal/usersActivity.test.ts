@@ -26,7 +26,7 @@ vi.mock('@tzurot/common-types/utils/logger', async () => {
 
 const VALID_DISCORD_ID = '123456789012345678';
 
-describe('POST /internal/users/activity', () => {
+describe('POST /api/internal/users/activity', () => {
   let mockPrisma: { $executeRaw: ReturnType<typeof vi.fn> };
   let app: express.Express;
 

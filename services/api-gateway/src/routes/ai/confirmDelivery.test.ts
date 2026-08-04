@@ -17,7 +17,7 @@ const createMockPrismaClient = () => ({
   },
 });
 
-describe('POST /job/:jobId/confirm-delivery', () => {
+describe('POST /api/internal/ai/job/:jobId/confirm-delivery', () => {
   let app: Express;
   let prisma: ReturnType<typeof createMockPrismaClient>;
 

@@ -41,7 +41,7 @@ const MOCK_PERSONALITY = {
   voiceEnabled: false,
 };
 
-describe('GET /internal/personality/load', () => {
+describe('GET /api/internal/personality/load', () => {
   let app: express.Express;
   let loadSpy: ReturnType<typeof vi.spyOn>;
 
