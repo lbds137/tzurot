@@ -7,7 +7,8 @@
  * - PATCH /api/user/channel/:channelId/config-overrides - Update channel overrides (merge semantics)
  * - DELETE /api/user/channel/:channelId/config-overrides - Clear channel overrides
  *
- * Authorization: These endpoints use requireUserAuth() only (no guild permission check).
+ * Authorization: routes/_generated/mounts.ts composes requireUserAuth() +
+ * requireProvisionedUser() ahead of these handlers — no guild permission check.
  * Discord permission enforcement (ManageMessages) happens in the bot-client layer before
  * calling the gateway. This is consistent with all other channel routes (activate, deactivate,
  * updateGuild) which follow the same trust model. An authenticated user bypassing the bot
@@ -21,7 +22,6 @@ import { isValidDiscordId } from '@tzurot/common-types/constants/discord';
 import { Prisma } from '@tzurot/common-types/services/prisma';
 import { generateChannelSettingsUuid } from '@tzurot/common-types/utils/deterministicUuid';
 import { createLogger } from '@tzurot/common-types/utils/logger';
-import { requireUserAuth, requireProvisionedUser } from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
 import {
   tryInvalidateCache,
@@ -139,27 +139,3 @@ export const handleClearChannelConfigOverrides = (deps: RouteDeps): RequestHandl
     sendCustomSuccess(res, { success: true }, StatusCodes.OK);
   });
 };
-
-export function createGetConfigOverridesHandler(deps: RouteDeps): RequestHandler[] {
-  return [
-    requireUserAuth(),
-    requireProvisionedUser(deps.prisma),
-    handleGetChannelConfigOverrides(deps),
-  ];
-}
-
-export function createPatchConfigOverridesHandler(deps: RouteDeps): RequestHandler[] {
-  return [
-    requireUserAuth(),
-    requireProvisionedUser(deps.prisma),
-    handleUpdateChannelConfigOverrides(deps),
-  ];
-}
-
-export function createDeleteConfigOverridesHandler(deps: RouteDeps): RequestHandler[] {
-  return [
-    requireUserAuth(),
-    requireProvisionedUser(deps.prisma),
-    handleClearChannelConfigOverrides(deps),
-  ];
-}

@@ -8,7 +8,6 @@ import {
   createMockCreatedAt,
   createMockUpdatedAt,
   createProvisionedMockReqRes,
-  getHandler,
 } from '../../../test/shared-route-test-utils.js';
 
 /**
@@ -36,9 +35,6 @@ export function createMockReqRes(
     // helper is fine. Contrast with persona/test-utils, which does set it.
   });
 }
-
-// Re-export shared utilities used by test files
-export { getHandler };
 
 // Mock isBotOwner - must be before vi.mock to be hoisted
 export const mockIsBotOwner = createMockIsBotOwner();

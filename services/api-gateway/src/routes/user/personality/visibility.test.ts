@@ -9,7 +9,6 @@ import {
   createMockPersonality,
   createMockPrisma,
   createMockReqRes,
-  getHandler,
   setupStandardMocks,
   MOCK_USER_ID,
 } from './test-utils.js';
@@ -40,11 +39,20 @@ vi.mock('../../../utils/asyncHandler.js', () => ({
   asyncHandler: vi.fn(fn => fn),
 }));
 
-import { createPersonalityRoutes } from './index.js';
-import { stubRouteResolvers } from '../../../test/shared-route-test-utils.js';
+import { handleSetPersonalityVisibility } from './visibility.js';
+import { asRouteHandler, stubRouteResolvers } from '../../../test/shared-route-test-utils.js';
 
 describe('PATCH /user/personality/:slug/visibility', () => {
   const mockPrisma = createMockPrisma();
+
+  /** The bare handler export — the shape routes/_generated/mounts.ts mounts. */
+  const getVisibilityHandler = (): ReturnType<typeof asRouteHandler> =>
+    asRouteHandler(
+      handleSetPersonalityVisibility({
+        ...stubRouteResolvers(),
+        prisma: mockPrisma as unknown as PrismaClient,
+      })
+    );
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -52,11 +60,7 @@ describe('PATCH /user/personality/:slug/visibility', () => {
   });
 
   it('should reject missing isPublic', async () => {
-    const router = createPersonalityRoutes({
-      ...stubRouteResolvers(),
-      prisma: mockPrisma as unknown as PrismaClient,
-    });
-    const handler = getHandler(router, 'patch', '/:slug/visibility');
+    const handler = getVisibilityHandler();
     const { req, res } = createMockReqRes({}, { slug: 'test-char' });
 
     await handler(req, res);
@@ -67,11 +71,7 @@ describe('PATCH /user/personality/:slug/visibility', () => {
   it('should return 404 when personality not found', async () => {
     mockPrisma.personality.findUnique.mockResolvedValue(null);
 
-    const router = createPersonalityRoutes({
-      ...stubRouteResolvers(),
-      prisma: mockPrisma as unknown as PrismaClient,
-    });
-    const handler = getHandler(router, 'patch', '/:slug/visibility');
+    const handler = getVisibilityHandler();
     const { req, res } = createMockReqRes({ isPublic: true }, { slug: 'nonexistent' });
 
     await handler(req, res);
@@ -86,11 +86,7 @@ describe('PATCH /user/personality/:slug/visibility', () => {
       isPublic: false,
     });
 
-    const router = createPersonalityRoutes({
-      ...stubRouteResolvers(),
-      prisma: mockPrisma as unknown as PrismaClient,
-    });
-    const handler = getHandler(router, 'patch', '/:slug/visibility');
+    const handler = getVisibilityHandler();
     const { req, res } = createMockReqRes({ isPublic: true }, { slug: 'not-mine' });
 
     await handler(req, res);
@@ -112,11 +108,7 @@ describe('PATCH /user/personality/:slug/visibility', () => {
       })
     );
 
-    const router = createPersonalityRoutes({
-      ...stubRouteResolvers(),
-      prisma: mockPrisma as unknown as PrismaClient,
-    });
-    const handler = getHandler(router, 'patch', '/:slug/visibility');
+    const handler = getVisibilityHandler();
     const { req, res } = createMockReqRes({ isPublic: true }, { slug: 'my-char' });
 
     await handler(req, res);
@@ -156,11 +148,7 @@ describe('PATCH /user/personality/:slug/visibility', () => {
       })
     );
 
-    const router = createPersonalityRoutes({
-      ...stubRouteResolvers(),
-      prisma: mockPrisma as unknown as PrismaClient,
-    });
-    const handler = getHandler(router, 'patch', '/:slug/visibility');
+    const handler = getVisibilityHandler();
     const { req, res } = createMockReqRes({ isPublic: false }, { slug: 'my-char' });
 
     await handler(req, res);

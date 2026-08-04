@@ -14,7 +14,6 @@ import {
 } from '@tzurot/common-types/schemas/api/channel';
 import { generateChannelSettingsUuid } from '@tzurot/common-types/utils/deterministicUuid';
 import { createLogger } from '@tzurot/common-types/utils/logger';
-import { requireUserAuth, requireProvisionedUser } from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { sendCustomSuccess, sendError } from '../../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../../utils/errorResponses.js';
@@ -165,7 +164,3 @@ export const handleActivateChannel = (deps: RouteDeps): RequestHandler => {
     sendCustomSuccess(res, buildActivationResponse(settings, wasReplaced), StatusCodes.CREATED);
   });
 };
-
-export function createActivateHandler(deps: RouteDeps): RequestHandler[] {
-  return [requireUserAuth(), requireProvisionedUser(deps.prisma), handleActivateChannel(deps)];
-}

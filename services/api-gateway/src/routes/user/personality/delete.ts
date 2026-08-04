@@ -9,7 +9,6 @@ import { DeletePersonalityResponseSchema } from '@tzurot/common-types/schemas/ap
 import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { type CacheInvalidationService } from '@tzurot/cache-invalidation';
-import { requireUserAuth, requireProvisionedUser } from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { sendCustomSuccess, sendError } from '../../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../../utils/errorResponses.js';
@@ -134,11 +133,7 @@ function createHandler(prisma: PrismaClient, cacheInvalidationService?: CacheInv
   };
 }
 
-// --- Handler factory + route chain ---
+// --- Handler factory ---
 
 export const handleDeletePersonality = (deps: RouteDeps): RequestHandler =>
   asyncHandler(createHandler(deps.prisma, deps.cacheInvalidationService));
-
-export function createDeleteHandler(deps: RouteDeps): RequestHandler[] {
-  return [requireUserAuth(), requireProvisionedUser(deps.prisma), handleDeletePersonality(deps)];
-}
