@@ -33,6 +33,8 @@ export interface TrackerTask {
   /** Filing date (YYYY-MM-DD) — the aging anchor. Null when unparseable. */
   createdDate: string | null;
   labels: string[];
+  /** Priority from frontmatter ('high' | 'medium' | 'low'); empty string when absent */
+  priority: string;
   /** Markdown body after the frontmatter block */
   body: string;
   /** Path of the task file relative to the repo root */
@@ -116,6 +118,7 @@ export function parseTaskFile(content: string, file: string): TaskParseResult {
       status: asString(record.status) ?? '',
       createdDate,
       labels: parseLabels(record.labels),
+      priority: asString(record.priority) ?? '',
       body: content.slice(frontmatter[0].length),
       file,
     },
