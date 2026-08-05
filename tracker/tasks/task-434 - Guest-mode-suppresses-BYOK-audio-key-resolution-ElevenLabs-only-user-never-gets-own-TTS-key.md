@@ -3,10 +3,10 @@ id: TASK-434
 title: >-
   Guest mode suppresses BYOK audio-key resolution (ElevenLabs-only user never
   gets own TTS key)
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-05 03:14'
-updated_date: '2026-08-05 03:14'
+updated_date: '2026-08-05 13:05'
 labels:
   - 'area:ai-worker'
   - 'size:M'
@@ -24,3 +24,9 @@ Fix shape: decouple audio-key resolution from chat guest-mode - resolve audio pr
 
 Acceptance: an ElevenLabs-only (or Mistral-only) user gets their own audio key used for TTS/STT while remaining a chat guest; the AuthStep comment stops claiming untracked follow-up status.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Shipped in PR #1974 (merged 2026-08-05, three review rounds, zero blocking findings). The outer chat-guest short-circuit was the entire coupling - the per-provider loop already admitted on each provider resolution result. Regression test verified failing pre-fix. Reviewer independently confirmed no system-key leak path (system fallback always self-marks guest) and swept all consumers. Cost follow-up: TASK-439 + the Promise.all fast-follow PR.
+<!-- SECTION:NOTES:END -->
