@@ -3,10 +3,10 @@ id: TASK-387
 title: >-
   Live reference path cannot subtract chat-log enrichment: it renders before
   injection
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-01 10:45'
-updated_date: '2026-08-04 13:50'
+updated_date: '2026-08-05 16:54'
 labels:
   - 'size:M'
   - 'area:ai-worker'
@@ -55,3 +55,9 @@ test #1887, which fixed replay only. Verifying #1887 needs a second turn so the
 stored reference is re-rendered from inside `<chat_log>`. A smoke item asking
 for a direct reply tests this task's gap, not #1887's fix.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+SHIPPED in #1978 (merged 2026-08-05), option (a) sharpened: enrichRagHistory reordered to Step 0.5 (before processInputs), carried-set derived via the replay path's own chatLogEnrichmentFor (single source), threaded to dedupeReference through the formatter's batch-invariant options. Sequencing seam test pins the order including the printed-twice failure under reversal. Review's Medium residual (subtraction trusts pre-truncation history; a budget-dropped quoted entry would lose its description from both places) -> TASK-440, accept-and-track per the review's own offered disposition; in-PR fix structurally blocked by the reference-size->budget dependency.
+<!-- SECTION:NOTES:END -->
