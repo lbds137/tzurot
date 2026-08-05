@@ -98,10 +98,14 @@ running land as `type=="queue-operation"` entries (`operation=="enqueue"`,
 plain-string `.content`) — a user-only extraction drops exactly the
 corrections issued while the user watched something go wrong. Union them in:
 
-    jq -r 'select(.type == "queue-operation" and .operation == "enqueue")
-      | select((.content // "") | length > 0)
-      | "=== \(.timestamp) [mid-turn] ===\n\(.content)\n"' \
-      ~/.claude/projects/-home-deck-Projects-tzurot/$f.jsonl >> $CORPUS/$f.txt
+    # same shell, same $CORPUS and same session list as the block above —
+    # $f and $CORPUS are loop-scoped, so this must run inside the loop too
+    for f in <session-uuid-1> <session-uuid-2>; do
+      jq -r 'select(.type == "queue-operation" and .operation == "enqueue")
+        | select((.content // "") | length > 0)
+        | "=== \(.timestamp) [mid-turn] ===\n\(.content)\n"' \
+        ~/.claude/projects/-home-deck-Projects-tzurot/$f.jsonl >> $CORPUS/$f.txt
+    done
 
 Blocks are appended out of chronological order; the timestamps let the miner
 interleave. Verify non-zero yield with a bare count first when the session had

@@ -19,15 +19,24 @@
 set -uo pipefail
 
 INPUT=$(cat)
+
+# Cheapest possible short-circuit, on the RAW stdin, before jq is even
+# forked: firing requires a `git commit`, so a payload carrying no git+commit
+# tokens anywhere cannot decode to one — the overwhelming majority of Bash
+# calls (and every non-Bash tool call) leave without spawning a process.
+case "$INPUT" in
+*git*commit*) ;;
+*) exit 0 ;;
+esac
+
 TOOL_NAME=$(jq -r '.tool_name // empty' <<<"$INPUT" 2>/dev/null || echo "")
 [ "$TOOL_NAME" != "Bash" ] && exit 0
 
 COMMAND=$(jq -r '.tool_input.command // empty' <<<"$INPUT" 2>/dev/null || echo "")
 [ -z "$COMMAND" ] && exit 0
 
-# Cheap bash-native short-circuit: the overwhelming majority of Bash calls
-# carry no fixup token at all and exit here (sibling hooks set the same
-# do-cheap-checks-first precedent).
+# Cheap bash-native short-circuit: a commit carrying no fixup token at all
+# exits here (sibling hooks set the same do-cheap-checks-first precedent).
 case "$COMMAND" in
 *--fixup*) ;;
 *) exit 0 ;;
