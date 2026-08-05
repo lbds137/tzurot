@@ -1,190 +1,108 @@
 # Encryption Key Rotation Procedure
 
-This document describes how to rotate the `API_KEY_ENCRYPTION_KEY` used for BYOK (Bring Your Own Key) API key encryption.
+How to rotate `API_KEY_ENCRYPTION_KEY`, the AES-256-GCM master key that
+encrypts user-supplied BYOK credentials.
 
-## Overview
+**Never rotate this variable by hand.** Replacing it directly orphans every
+encrypted row — the ciphertext is unrecoverable without the key it was written
+under. The only sanctioned path is the staged command below, which holds both
+keys while the rows migrate.
 
-User API keys are encrypted using AES-256-GCM with the master encryption key stored in `API_KEY_ENCRYPTION_KEY`. If this key is compromised or needs rotation for security compliance, follow this procedure.
+## What is encrypted
 
-## When to Rotate
+Two tables share the `iv` / `content` / `tag` column shape and both are swept by
+the rotation:
 
-- **Immediately**: If the encryption key is suspected to be compromised
-- **Periodically**: As part of security compliance (e.g., annually)
-- **Personnel changes**: When team members with key access leave
-- **Security audit findings**: When recommended by security review
+- `user_api_keys` (Prisma `userApiKey`)
+- `user_credentials` (Prisma `userCredential`)
 
-## Pre-Rotation Checklist
+Key material is 64 hex characters (32 bytes); anything else is rejected at parse
+time by `parseEncryptionKeyMaterial` in
+`packages/common-types/src/utils/encryption.ts`.
 
-- [ ] Schedule maintenance window (users cannot update API keys during rotation)
-- [ ] Generate new encryption key
-- [ ] Backup current database
-- [ ] Test rotation script in staging environment
-- [ ] Notify affected users of maintenance window
+## When to rotate
 
-## Key Generation
+- **Immediately** on suspected compromise.
+- **Every 180 days** as routine hygiene. The rotation ledger enforces this: a
+  `secret_rotations` row named `byok-encryption-key` carries a 180-day interval,
+  and the bot-client's daily check posts an owner-channel nag once it goes
+  overdue. `pnpm ops secrets:rotation-status --env prod` shows the ledger.
 
-Generate a new 32-byte (256-bit) encryption key:
-
-```bash
-# Using OpenSSL (recommended)
-openssl rand -hex 32
-
-# Or using Node.js
-node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
-```
-
-**Output example**: `a1b2c3d4e5f6...` (64 hexadecimal characters)
-
-## Rotation Procedure
-
-### Step 1: Put Services in Maintenance Mode
+## The staged rotation
 
 ```bash
-# Scale down api-gateway to prevent new key operations
-railway service scale api-gateway --replicas 0
-
-# ai-worker can continue running (uses cached keys)
+pnpm ops secrets:rotate-byok --env prod --stage 1   # stage
+pnpm ops secrets:rotate-byok --env prod --stage 2   # reencrypt
+pnpm ops secrets:rotate-byok --env prod --stage 3   # finalize
 ```
 
-### Step 2: Run Key Rotation Script
+Implementation: `packages/tooling/src/secrets/rotation.ts`.
 
-```typescript
-// scripts/rotate-encryption-key.ts
-import { PrismaClient } from '@prisma/client';
-import crypto from 'crypto';
+**No maintenance window is required.** During the window, services decrypt with
+the current key and fall back to the previous one — GCM's auth tag makes a
+wrong-key attempt fail loudly rather than return garbage, so try-then-fallback
+is a safe key selector and no ciphertext versioning is needed. User-facing key
+operations keep working throughout.
 
-const ALGORITHM = 'aes-256-gcm';
+### Stage 1 — stage
 
-// Get keys from environment
-const OLD_KEY = Buffer.from(process.env.OLD_ENCRYPTION_KEY!, 'hex');
-const NEW_KEY = Buffer.from(process.env.NEW_ENCRYPTION_KEY!, 'hex');
+Mints a new 32-byte key, then sets `API_KEY_ENCRYPTION_KEY` (new) and
+`API_KEY_ENCRYPTION_KEY_PREVIOUS` (old) on **both** api-gateway and ai-worker.
 
-const prisma = new PrismaClient();
+**Wait for both redeploys to finish before running stage 2.** A service still
+running on the old process doesn't know the new key yet.
 
-async function rotateKeys() {
-  const keys = await prisma.userApiKey.findMany({
-    select: { id: true, iv: true, content: true, tag: true },
-  });
+Stage 1 refuses to run if `PREVIOUS` is already set — that would demote the
+current key and discard the real previous one, permanently orphaning any row
+still on it. Finish the open window (stages 2 then 3) first.
 
-  console.log(`Found ${keys.length} keys to rotate`);
+### Stage 2 — reencrypt
 
-  for (const key of keys) {
-    try {
-      // Decrypt with old key
-      const decipher = crypto.createDecipheriv(ALGORITHM, OLD_KEY, Buffer.from(key.iv, 'hex'));
-      decipher.setAuthTag(Buffer.from(key.tag, 'hex'));
-      let plaintext = decipher.update(key.content, 'hex', 'utf8');
-      plaintext += decipher.final('utf8');
+Sweeps both tables, re-encrypting every row that still decrypts under the
+previous key, then verifies. Per-table tally:
 
-      // Encrypt with new key
-      const newIv = crypto.randomBytes(16);
-      const cipher = crypto.createCipheriv(ALGORITHM, NEW_KEY, newIv);
-      let encrypted = cipher.update(plaintext, 'utf8', 'hex');
-      encrypted += cipher.final('hex');
-      const newTag = cipher.getAuthTag();
+- `re-encrypted` — migrated to the new key.
+- `already current` — nothing to do.
+- `changed concurrently` — a user updated or deleted the row mid-sweep. Skipped,
+  never overwritten; a re-run reclassifies them (a mid-window user write already
+  used the current key).
+- `unreadable` — matches **neither** key. Triage these before finalizing; they
+  are pre-existing corruption or ciphertext from a key no longer held.
 
-      // Update database
-      await prisma.userApiKey.update({
-        where: { id: key.id },
-        data: {
-          iv: newIv.toString('hex'),
-          content: encrypted,
-          tag: newTag.toString('hex'),
-        },
-      });
+Stage 2 is idempotent. Re-run it until the verify reports zero rows off the
+current key.
 
-      console.log(`Rotated key ${key.id}`);
-    } catch (error) {
-      console.error(`Failed to rotate key ${key.id}:`, error);
-      throw error; // Abort on any failure
-    }
-  }
+### Stage 3 — finalize
 
-  console.log('Key rotation complete');
-}
+Re-verifies, then clears `PREVIOUS` on both services (set to `""` — the Railway
+CLI cannot delete variables, and the runtime treats empty as unset) and stamps
+the ledger. It **refuses to finalize** while any row still fails to decrypt with
+the current key, and equally if a read hit the 50,000-row cap, since a capped
+sweep cannot prove completeness.
 
-rotateKeys()
-  .catch(console.error)
-  .finally(() => prisma.$disconnect());
-```
+## Safety properties worth knowing
 
-Run the script:
+- **Split-brain guard**: every stage first asserts that api-gateway and ai-worker
+  agree on both key variables, and aborts otherwise. If a previous variable write
+  partially failed, re-set the variable on the lagging service (Railway's
+  dashboard history holds the values) and re-run the stage.
+- **Optimistic concurrency**: the re-encrypt write matches the full snapshot
+  ciphertext, not just the row id, so a concurrent user write is never clobbered.
+- **Secret values never reach stdout** — only names, counts, and confirmations.
+  Known limitation: `railway variables --set` has no stdin form, so key material
+  transits the process's argv for the duration of the call.
 
-```bash
-OLD_ENCRYPTION_KEY=<current-key> \
-NEW_ENCRYPTION_KEY=<new-key> \
-DATABASE_URL=<db-url> \
-npx tsx scripts/rotate-encryption-key.ts
-```
+## If the key is compromised
 
-### Step 3: Update Environment Variables
+1. Run the staged rotation immediately — it does not require unsetting anything
+   first, and the dual-key window means no user-visible downtime.
+2. Notify affected users that their **provider** keys (OpenRouter, OpenAI, …)
+   may be exposed and should be rotated at the provider.
+3. Rotating our encryption key protects future ciphertext; it does not un-expose
+   plaintext an attacker already extracted. Step 2 is the one that matters to
+   users.
 
-```bash
-# Update Railway environment variable
-railway variables --set "API_KEY_ENCRYPTION_KEY=<new-key>" --service api-gateway
-railway variables --set "API_KEY_ENCRYPTION_KEY=<new-key>" --service ai-worker
-```
+## Related
 
-### Step 4: Restart Services
-
-```bash
-# Scale api-gateway back up
-railway service scale api-gateway --replicas 1
-
-# Restart ai-worker to clear cached keys
-railway service restart ai-worker
-```
-
-### Step 5: Verify
-
-```bash
-# Check service health
-curl https://api-gateway.up.railway.app/health
-
-# Test key operations (as a test user)
-# - List keys: should show existing keys
-# - Set new key: should encrypt with new key
-# - Use existing key: should decrypt and work
-```
-
-## Rollback Procedure
-
-If rotation fails partway through:
-
-1. **Stop the rotation script** immediately
-2. **Do NOT update environment variables**
-3. **Identify failed keys** from script output
-4. **Restore from backup** if needed
-5. **Investigate failure** before retrying
-
-## Security Considerations
-
-1. **Never store both keys** in the same location
-2. **Delete old key** from all systems after successful rotation
-3. **Audit log access** to encryption keys
-4. **Document rotation** in security incident log
-5. **Test decryption** with new key before deleting old key
-
-## Emergency Key Compromise Response
-
-If the encryption key is compromised:
-
-1. **Immediately disable BYOK** by unsetting `API_KEY_ENCRYPTION_KEY`
-2. **Notify affected users** that their API keys may be compromised
-3. **Advise users to rotate** their provider API keys (OpenRouter, OpenAI, etc.)
-4. **Generate new encryption key** and follow rotation procedure
-5. **Users must re-enter** their API keys after rotation
-6. **Conduct security review** to determine compromise scope
-
-## Future Improvements
-
-The current implementation uses a single encryption key. Future versions could support:
-
-1. **Key versioning**: Store key version with encrypted data for seamless rotation
-2. **Hardware Security Module (HSM)**: Use AWS KMS or similar for key management
-3. **Automatic rotation**: Scheduled key rotation with zero-downtime migration
-4. **Key escrow**: Secure backup of encryption keys for disaster recovery
-
-## Related Documentation
-
+- `.claude/rules/05-tooling.md` § Secret Rotation — the command surface and the ledger's role
 - [Railway Operations](../deployment/RAILWAY_OPERATIONS.md)

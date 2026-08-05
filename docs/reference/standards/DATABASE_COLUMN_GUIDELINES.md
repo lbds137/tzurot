@@ -4,16 +4,17 @@
 
 ## Quick Decision Matrix
 
-| Scenario                                   | Use           |
-| ------------------------------------------ | ------------- |
-| Core business logic (IDs, limits, flags)   | Typed columns |
-| Need to query/filter by field              | Typed columns |
-| Need database-level defaults/constraints   | Typed columns |
-| Flat, stable structure                     | Typed columns |
-| Structure varies by row                    | JSONB         |
-| Deeply nested data                         | JSONB         |
-| High-velocity schema changes (prototyping) | JSONB         |
-| 3rd party metadata/raw API responses       | JSONB         |
+| Scenario                                    | Use           |
+| ------------------------------------------- | ------------- |
+| Core business logic (IDs, limits, flags)    | Typed columns |
+| Need to query/filter by field               | Typed columns |
+| Need database-level defaults/constraints    | Typed columns |
+| Flat, stable structure                      | Typed columns |
+| Structure varies by row                     | JSONB         |
+| Deeply nested data                          | JSONB         |
+| High-velocity schema changes (prototyping)  | JSONB         |
+| 3rd party metadata/raw API responses        | JSONB         |
+| One tier's partial set of cascade overrides | JSONB         |
 
 ## Typed Columns (Default)
 
@@ -22,7 +23,7 @@
 - Prisma generates strict TypeScript types
 - Database enforces constraints (`CHECK`, `NOT NULL`, `DEFAULT`)
 - B-Tree indexes are fast and small
-- Simple atomic updates: `data: { maxMessages: 100 }`
+- Simple atomic updates: `data: { contextWindowTokens: 131072 }`
 - Storage efficient (no key repetition)
 
 **Cons:**
@@ -47,7 +48,7 @@
 
 **Cons:**
 
-- Prisma types as `Json` (effectively `any`) - no compile-time safety
+- Prisma types as `Json` (effectively `any`) — no compile-time safety, so a Zod schema at the read/write boundary is mandatory, not optional
 - No database-level type enforcement
 - Updates require read-modify-write pattern (race condition risk)
 - GIN indexes are larger and slower than B-Tree
@@ -56,72 +57,109 @@
 **When to use:**
 
 - LLM API parameters (vary by model, change frequently)
+- One tier's partial set of config-cascade overrides
 - Plugin/extension configurations
 - Raw 3rd party API responses for debugging
 - Prototyping features that may be deleted
 
 ## The Prisma JSONB Gotcha
 
-Prisma doesn't support partial JSONB updates. You must read-modify-write:
+Prisma doesn't support partial JSONB updates. You must read-modify-write, which
+opens a race window between the read and the write (illustrative shapes):
 
 ```typescript
-// JSONB - Risky read-modify-write pattern
-const config = await prisma.config.findUnique({ where: { id } });
-const current = config.settings as Record<string, unknown>;
-await prisma.config.update({
-  where: { id },
-  data: {
-    settings: { ...current, maxMessages: 100 }, // Race condition!
-  },
+// JSONB — read-modify-write; a concurrent writer's change is lost
+const row = await prisma.channelSettings.findUnique({ where: { channelId } });
+const current = ConfigOverridesSchema.parse(row?.configOverrides ?? {});
+await prisma.channelSettings.update({
+  where: { channelId },
+  data: { configOverrides: { ...current, maxMessages: 100 } },
 });
 
-// Typed column - Clean atomic update
-await prisma.config.update({
+// Typed column — single atomic update, no window
+await prisma.llmConfig.update({
   where: { id },
-  data: { maxMessages: 100 }, // Safe
+  data: { contextWindowTokens: 131072 },
 });
 ```
 
+This is the main reason to prefer a typed column whenever the field is genuinely
+one stable value per row.
+
 ## Examples in This Codebase
 
-### Good JSONB Usage: `advancedParameters`
+### Good JSONB usage: `advancedParameters`
 
-LLM API parameters like `temperature`, `top_p`, `frequency_penalty` are stored in JSONB because:
+Provider parameters like `temperature`, `topP`, `topK` live in
+`llm_configs.advanced_parameters` because:
 
-- They vary by model (Claude vs GPT vs Gemini have different params)
-- New params are added frequently as models evolve
-- They're passed through to external API (not core business logic)
-- We rarely query/filter by individual params
+- They vary by provider and model.
+- New params appear as models evolve, faster than migrations are worth.
+- They pass straight through to the external API rather than driving our logic.
+- We never filter rows by an individual param.
 
-### Good Typed Column Usage: Context Settings
+They are still validated — `AdvancedParamsSchema` in common-types parses the
+blob at the service boundary — which is the pattern to copy: JSONB in the
+database, Zod at the edge.
 
-Settings like `maxMessages`, `maxAge`, `maxImages` should be typed columns because:
+### Good typed-column usage: `contextWindowTokens`
 
-- They're stable configuration (won't change frequently)
-- We need database defaults (e.g., `DEFAULT 50`)
-- We might filter by them (e.g., find configs with high limits)
-- They're core application logic, not pass-through data
+`llm_configs.context_window_tokens` is a typed `Int` with a database default
+because it is stable per config, has a meaningful default, and is core
+application logic rather than pass-through data.
+
+### The third case: JSONB _because_ the value is a cascade override
+
+Context/memory settings — `maxMessages`, `maxAge`, `maxImages`, `memoryLimit`,
+`memoryScoreThreshold` and friends — are **not** columns on `llm_configs`. They
+are per-field overrides resolved through a five-tier cascade
+(`packages/config-resolver/src/ConfigCascadeResolver.ts`), lowest to highest:
+
+1. `admin_settings.config_defaults` (admin)
+2. `personalities.config_defaults` (personality)
+3. `channel_settings.config_overrides` (channel)
+4. `users.config_defaults` (user default)
+5. `user_personality_configs.config_overrides` (user + personality)
+
+Each tier stores a JSONB blob, and every tier may set any subset of fields —
+that partial, per-field, per-tier shape is exactly the "structure varies by row"
+case JSONB exists for. A typed column per field per tier would be five columns
+per setting, all nullable, with no way to express "this tier says nothing about
+this field."
+
+The type-safety cost is paid back with `ConfigOverridesSchema`
+(`packages/common-types/src/schemas/api/configOverrides.ts`), which validates
+every blob and pins each field's range. It also encodes something a plain column
+could not: **absence and stored `null` mean different things** — key absent =
+inherit from the tier below, stored `null` = an explicit OFF that terminates the
+cascade. Preserve that distinction in any code that reads or writes these blobs.
 
 ## Schema Pattern
 
 ```prisma
 model LlmConfig {
-  id                  String @id @default(uuid())
-  name                String
-  model               String
+  id                  String @id @db.Uuid
+  name                String @db.Citext
+  model               String @db.VarChar(255)
 
-  // Typed columns for stable config
-  maxMessages         Int    @default(50) @map("max_messages")
-  maxAge              Int?   @map("max_age")  // null = no limit
-  maxImages           Int    @default(10) @map("max_images")
-  memoryLimit         Int?   @map("memory_limit")
-  memoryScoreThreshold Float? @map("memory_score_threshold")
-  contextWindowTokens Int?   @map("context_window_tokens")
+  // Typed column: stable, has a meaningful default
+  contextWindowTokens Int    @default(131072) @map("context_window_tokens")
 
-  // JSONB for variable LLM API params
+  // JSONB: provider-specific pass-through params, validated by AdvancedParamsSchema
   advancedParameters  Json?  @map("advanced_parameters")
 }
+
+model ChannelSettings {
+  id        String @id @db.Uuid
+  channelId String @unique @map("channel_id") @db.VarChar(20)
+
+  // JSONB: one cascade tier's partial override set, validated by ConfigOverridesSchema
+  configOverrides Json? @map("config_overrides")
+}
 ```
+
+`prisma/schema.prisma` is the source of truth for both models; the snippets
+above are illustrative excerpts, not the full definitions.
 
 ## Migration Checklist
 
