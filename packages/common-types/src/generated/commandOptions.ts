@@ -560,6 +560,13 @@ export const presetBrowseOptions = defineTypedOptions({
 });
 
 /**
+ * /preset create <model>
+ */
+export const presetCreateOptions = defineTypedOptions({
+  model: { type: 'string', required: false },
+});
+
+/**
  * /preset edit <preset>
  */
 export const presetEditOptions = defineTypedOptions({

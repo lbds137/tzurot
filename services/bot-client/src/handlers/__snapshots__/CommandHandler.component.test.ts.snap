@@ -2226,7 +2226,20 @@ exports[`CommandHandler (component) > command structure snapshots > has a stable
     "description_localizations": undefined,
     "name": "create",
     "name_localizations": undefined,
-    "options": [],
+    "options": [
+      {
+        "autocomplete": true,
+        "choices": undefined,
+        "description": "Model ID (e.g., anthropic/claude-sonnet-4)",
+        "description_localizations": undefined,
+        "max_length": undefined,
+        "min_length": undefined,
+        "name": "model",
+        "name_localizations": undefined,
+        "required": false,
+        "type": 3,
+      },
+    ],
     "type": 1,
   },
   {
