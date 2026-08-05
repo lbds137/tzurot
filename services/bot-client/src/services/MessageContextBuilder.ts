@@ -334,7 +334,7 @@ export class MessageContextBuilder {
       isWeighInMode: options.isWeighInMode,
       maxReferences: options.extendedContext?.maxMessages,
     });
-    const { messageContent, referencedMessages } = refsAndMentions;
+    const { messageContent } = refsAndMentions;
 
     // Step 5: Convert conversation history to API format
     // Include messageMetadata so referenced messages can be formatted at prompt time
@@ -397,7 +397,7 @@ export class MessageContextBuilder {
         activePersonaId: context.activePersonaId,
         activePersonaName: context.activePersonaName,
         historyLength: history.length,
-        referencedMessagesCount: referencedMessages.length,
+        referencedMessagesCount: refsAndMentions.rawReferencedMessages?.length ?? 0,
       },
       'Context built successfully'
     );
