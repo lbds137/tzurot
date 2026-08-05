@@ -7,6 +7,7 @@
 
 import { describe, it, expect } from 'vitest';
 import {
+  ARTIFACT_TAG_NAMES,
   stripResponseArtifacts,
   stripUserMessageEcho,
   normalizeForEchoMatch,
@@ -130,6 +131,18 @@ describe('stripResponseArtifacts', () => {
         // false positives would delete the closers of pairs that are genuinely
         // complete. Pinned so the boundary is visible rather than discovered.
         expect(stripResponseArtifacts('<action>text</actionable>', 'Emily')).toBe('<action>text');
+      });
+
+      it('KNOWN LIMIT: a completed pair earlier keeps a separate trailing orphan closer', () => {
+        // The opener probe is not pair-aware: it scans for `<action` anywhere
+        // before the trailing closer and declines on the first hit, even when
+        // that opener already has its own closer and the trailing one is a
+        // genuine orphan. Pair-tracking would be a materially different
+        // mechanism, and this direction under-cleans (one visible closing tag)
+        // rather than risking corruption of a real pair. Pinned so the boundary
+        // is visible rather than discovered.
+        const content = '<action>waves</action> hello</action>';
+        expect(stripResponseArtifacts(content, 'Emily')).toBe(content);
       });
 
       it('composes with the other steps in the loop and converges', () => {
@@ -858,5 +871,15 @@ describe('stripUserMessageEcho', () => {
         '*tilting head, horns casting thoughtful shadows*\n\nThat question deserves a careful answer.';
       expect(stripUserMessageEcho(response, LONG_USER_MSG, LILITH)).toBe(response);
     });
+  });
+});
+
+describe('ARTIFACT_TAG_NAMES', () => {
+  it('is a nonempty, duplicate-free vocabulary', () => {
+    // The Set-dedup in the definition makes duplicates impossible today; the
+    // pin documents the contract for `wrapperTagUnwrap.ts`, which spreads this
+    // list into an `it.each` sweep that a duplicate would silently double.
+    expect(ARTIFACT_TAG_NAMES.length).toBeGreaterThan(0);
+    expect(new Set(ARTIFACT_TAG_NAMES).size).toBe(ARTIFACT_TAG_NAMES.length);
   });
 });

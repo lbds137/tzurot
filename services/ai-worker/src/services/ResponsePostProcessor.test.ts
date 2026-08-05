@@ -42,10 +42,17 @@ vi.mock('../utils/duplicateDetection.js', () => ({
   removeDuplicateResponse: mockRemoveDuplicateResponse,
 }));
 
-vi.mock('../utils/responseArtifacts.js', () => ({
-  stripResponseArtifacts: mockStripResponseArtifacts,
-  stripUserMessageEcho: mockStripUserMessageEcho,
-}));
+vi.mock('../utils/responseArtifacts.js', async importOriginal => {
+  const actual = await importOriginal<typeof import('../utils/responseArtifacts.js')>();
+  return {
+    // Real, not mocked, for the same reason `KNOWN_THINKING_TAGS` is below:
+    // `wrapperTagUnwrap` derives its exclusion set from this vocabulary at
+    // module load, so a stubbed-out constant would crash the import.
+    ARTIFACT_TAG_NAMES: actual.ARTIFACT_TAG_NAMES,
+    stripResponseArtifacts: mockStripResponseArtifacts,
+    stripUserMessageEcho: mockStripUserMessageEcho,
+  };
+});
 
 vi.mock('../utils/thinkingExtraction.js', async importOriginal => {
   const actual = await importOriginal<typeof import('../utils/thinkingExtraction.js')>();
