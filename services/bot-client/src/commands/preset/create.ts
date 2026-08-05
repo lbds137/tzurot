@@ -8,6 +8,7 @@
  */
 
 import { MessageFlags, type ModalBuilder, type ModalSubmitInteraction } from 'discord.js';
+import { presetCreateOptions } from '@tzurot/common-types/generated/commandOptions';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { ModalCommandContext } from '../../utils/commandContext/types.js';
 import {
@@ -43,7 +44,12 @@ export async function handleCreate(context: ModalCommandContext): Promise<void> 
   // No slot option: a preset's vision-capability is derived from its model
   // (`supportsVision`), not chosen at creation. The vision SLOT is picked later
   // when the preset is assigned (override set/default set/global).
-  await context.showModal(buildPresetSeedModal());
+  //
+  // Reading the option is synchronous, so it costs nothing against the 3-second
+  // showModal budget. Absent option → no initial values, leaving the modal's own
+  // placeholder visible rather than prefilling an empty string.
+  const model = presetCreateOptions(context.interaction).model();
+  await context.showModal(buildPresetSeedModal(model !== null ? { model } : undefined));
 }
 
 /** Seed modal builder — shared by create and the retry affordance. */
