@@ -3,10 +3,10 @@ id: TASK-207
 title: >-
   Preset model field: autocomplete from OpenRouterModelCache instead of freeform
   text
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-07-05 00:00'
-updated_date: '2026-07-29 16:28'
+updated_date: '2026-08-05 04:52'
 labels:
   - 'area:bot-client'
   - 'size:S'
