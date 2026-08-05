@@ -9,6 +9,7 @@
 import { type AIProvider } from '@tzurot/common-types/constants/ai';
 import { TEXT_LIMITS } from '@tzurot/common-types/constants/discord';
 import { AttachmentType } from '@tzurot/common-types/constants/media';
+import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import {
   type ReferencedMessage,
   type StoredReferencedMessage,
@@ -17,6 +18,8 @@ import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/perso
 import { type SttDispatch } from '@tzurot/common-types/types/sttProvider';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { ProcessedAttachment } from './MultimodalProcessor.js';
+import { batchResolveByDiscordIds } from './reference/BatchResolvers.js';
+import type { ResolvedPersona } from './reference/UserReferencePatterns.js';
 import {
   attachmentEnrichment,
   buildRenderableAttachments,
@@ -64,6 +67,22 @@ interface ReferenceVisionAuth {
   visionModel?: string;
   allPersonalityNames?: Set<string>;
   requestId?: string;
+}
+
+/**
+ * Everything the per-reference adapter needs that does NOT vary across the
+ * batch — the responding personality, the guest-mode flag, the persona lookup
+ * resolved once for the whole set, and the vision/STT auth. Bundled as one
+ * object rather than four positional parameters so adding the next
+ * batch-invariant input is an edit to this interface instead of a wider
+ * signature.
+ */
+interface LiveReferenceContext {
+  personality: LoadedPersonality;
+  isGuestMode: boolean;
+  /** Discord user id → resolved persona, for the whole batch. Misses are normal. */
+  personaMap: Map<string, ResolvedPersona>;
+  apiKeys?: ReferenceVisionAuth;
 }
 
 /**
@@ -209,6 +228,14 @@ function countRenderedEnrichment(attachments: BuiltAttachment[]): number {
  */
 export class ReferencedMessageFormatter {
   /**
+   * @param prisma - Backs the persona hydration of quote authors. The live path
+   *   renders the SAME identity vocabulary as <chat_log> and stored quotes —
+   *   persona name plus `from_id` — so one person is not named two ways inside
+   *   one prompt with only one of the names ID-bound.
+   */
+  constructor(private readonly prisma: PrismaClient) {}
+
+  /**
    * Format referenced messages for inclusion in prompt
    *
    * Processes all attachments (images, voice messages) in parallel for better performance.
@@ -232,13 +259,22 @@ export class ReferencedMessageFormatter {
     const searchParts: string[] = [];
     const durable: StoredReferencedMessage[] = [];
 
+    // ONE lookup for the whole batch, before any rendering: two quotes by the
+    // same author must not become two queries, and the resolver already returns
+    // an empty map for both empty input and a failed query — a database that is
+    // down costs the persona names, never the quotes.
+    const personaMap = await batchResolveByDiscordIds(this.prisma, [
+      ...new Set(
+        references.map(ref => ref.discordUserId).filter(id => id !== undefined && id.length > 0)
+      ),
+    ]);
+    const context: LiveReferenceContext = { personality, isGuestMode, personaMap, apiKeys };
+
     for (const ref of references) {
       const { renderable, built } = await this.fromLiveReference(
         ref,
-        personality,
-        isGuestMode,
         preprocessedAttachments?.[ref.referenceNumber],
-        apiKeys
+        context
       );
 
       // Dedup is a projection of the reference above, never a second build —
@@ -298,14 +334,22 @@ export class ReferencedMessageFormatter {
    * forwarded, and deduped alike — sees the same object, which is why
    * forwarding is now an attribute on it rather than a separate render method
    * that quietly dropped the number, role, username and location.
+   *
+   * Identity is resolved HERE, per the adapter contract on
+   * `RenderableReference`: a quote's author renders under the persona name and
+   * carries the persona UUID that `<participants>` binds, matching what
+   * <chat_log> and a replayed stored quote already render. `context.personaMap`
+   * is the batch the caller resolved for the whole set; a miss falls back to
+   * the Discord display name, which is what the path rendered unconditionally
+   * before.
    */
   private async fromLiveReference(
     ref: ReferencedMessage,
-    personality: LoadedPersonality,
-    isGuestMode: boolean,
     preprocessedForRef: ProcessedAttachment[] | undefined,
-    apiKeys?: ReferenceVisionAuth
+    context: LiveReferenceContext
   ): Promise<{ renderable: RenderableReference; built: BuiltAttachment[] }> {
+    const { personality, isGuestMode, personaMap, apiKeys } = context;
+
     const built = await this.buildAttachments(
       ref,
       personality,
@@ -314,16 +358,25 @@ export class ReferencedMessageFormatter {
       apiKeys
     );
 
+    const discordName = ref.authorDisplayName || ref.authorUsername;
+    const persona = personaMap.get(ref.discordUserId);
+
     return {
       built,
       renderable: {
         number: ref.referenceNumber,
         isForwarded: ref.isForwarded,
-        from: ref.authorDisplayName || ref.authorUsername,
+        from: persona?.personaName ?? discordName,
+        fromId: persona?.personaId,
         username: ref.authorUsername,
+        // Deliberately the DISCORD name, not the hydrated one: role derivation
+        // is a name-match against the responding personality's own display
+        // name and its siblings' — all Discord-vocabulary — so feeding it a
+        // persona name would silently break the self/sibling match that keeps
+        // a persona's own line from reading as a user's.
         role: deriveRefRole(
           ref.authorRole,
-          ref.authorDisplayName || ref.authorUsername,
+          discordName,
           personality.displayName,
           apiKeys?.allPersonalityNames
         ),

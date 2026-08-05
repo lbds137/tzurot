@@ -209,6 +209,25 @@ describe('fromStoredReference', () => {
     expect(renderable.fromId).toBe('persona-9');
   });
 
+  it('derives the role from the DISCORD name, not the hydrated persona name', () => {
+    // A human whose persona name collides with the responding personality must
+    // not be promoted to assistant by hydration...
+    const collision = fromStoredReference(
+      { ...stored, resolvedPersonaName: 'Ref Bot', resolvedPersonaId: 'persona-9' },
+      'Ref Bot'
+    );
+    expect(collision.from).toBe('Ref Bot');
+    expect(collision.role).toBe('user');
+
+    // ...and a webhook line (Discord display name IS the character name, no
+    // persona resolves for a webhook id) still self-matches.
+    const ownLine = fromStoredReference(
+      { ...stored, authorUsername: 'ref-bot', authorDisplayName: 'Ref Bot' },
+      'Ref Bot'
+    );
+    expect(ownLine.role).toBe('assistant');
+  });
+
   it('suppresses a pre-XML location block rather than rendering it as prose', () => {
     const renderable = fromStoredReference(
       { ...stored, locationContext: '**Server**: Test\nThis conversation is taking place in #x' },
