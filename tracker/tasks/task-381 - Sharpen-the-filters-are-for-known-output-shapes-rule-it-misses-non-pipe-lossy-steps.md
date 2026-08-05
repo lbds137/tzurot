@@ -3,10 +3,10 @@ id: TASK-381
 title: >-
   Sharpen the filters-are-for-known-output-shapes rule: it misses non-pipe lossy
   steps
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-07-31 22:53'
-updated_date: '2026-08-04 13:49'
+updated_date: '2026-08-05 01:37'
 labels:
   - 'size:S'
   - 'area:docs'
