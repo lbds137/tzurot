@@ -76,7 +76,18 @@ cmd = re.sub(r"'[^']*'", "S", cmd)
 cmd = re.sub(r'"[^"]*"', "S", cmd)
 
 # `git commit` with optional global flags (-C <path>, --git-dir=…, etc.).
-if not re.search(r"\bgit(\s+-{1,2}\S+(\s+\S+)?)*\s+commit\b", cmd):
+# The trailing (?![-\w]) is load-bearing: a plain \b would also match the
+# plumbing subcommands `git commit-tree` / `git commit-graph`, because `-`
+# is a non-word character and so a word boundary exists right before it.
+# Those write no commit and must never be treated as one.
+#
+# Python's \w is Unicode-aware, so this is equivalent to the bash side's
+# ASCII-only ([^-a-zA-Z0-9_]|$) for every real git invocation but not for
+# a non-ASCII suffix (`git commit日本語`). Deliberately NOT re.ASCII: that
+# flag narrows \s in the same pattern too, so a non-breaking space between
+# `git` and `commit` would stop matching and the guard would MISS a real
+# commit — failing open on a pasteable input to close a hypothetical one.
+if not re.search(r"\bgit(\s+-{1,2}\S+(\s+\S+)?)*\s+commit(?![-\w])", cmd):
     print("ok")
     raise SystemExit
 

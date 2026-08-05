@@ -24,13 +24,24 @@
 set -uo pipefail
 
 INPUT=$(cat)
+
+# Cheapest possible short-circuit, on the RAW stdin, before jq is even
+# forked: a payload carrying no git+commit tokens anywhere cannot decode to
+# a command that carries them, so the overwhelming majority of Bash calls
+# (and every non-Bash tool call) leave without spawning a process.
+case "$INPUT" in
+*git*commit*) ;;
+*) exit 0 ;;
+esac
+
 TOOL_NAME=$(jq -r '.tool_name // empty' <<<"$INPUT" 2>/dev/null || echo "")
 [ "$TOOL_NAME" != "Bash" ] && exit 0
 
 COMMAND=$(jq -r '.tool_input.command // empty' <<<"$INPUT" 2>/dev/null || echo "")
 [ -z "$COMMAND" ] && exit 0
 
-# Cheap bash-native short-circuit before any git work.
+# Same short-circuit against the DECODED command — the raw-stdin pass above
+# can be satisfied by tokens living in some other JSON field.
 case "$COMMAND" in
 *git*commit*) ;;
 *) exit 0 ;;
