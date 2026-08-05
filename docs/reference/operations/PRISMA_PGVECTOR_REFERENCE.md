@@ -1,168 +1,53 @@
 # Prisma + pgvector Operations Reference
 
-**Last Updated**: 2025-11-17
+pgvector-specific reference material — the parts of running Prisma against this
+database that pgvector makes unusual.
 
-Quick reference for working with Prisma migrations in a pgvector database.
+**The migration workflow itself lives elsewhere and is not repeated here:**
 
-## Standard Workflow
-
-### 1. Make Schema Changes
-
-Edit `prisma/schema.prisma`:
-
-```prisma
-model Memory {
-  // ... existing fields
-
-  @@index([userId, createdAt]) // ← New index
-}
-```
-
-### 2. Create and Apply Migration
-
-```bash
-npx prisma migrate dev --name add_memory_user_index
-```
-
-Prisma will:
-
-- Generate the migration SQL automatically
-- Create the migration file in `prisma/migrations/`
-- Apply it to your development database
-- Update `_prisma_migrations` table
-
-### 3. Deploy to Production
-
-```bash
-# Via Railway CLI
-railway run npx prisma migrate deploy
-
-# Or with environment variable
-DATABASE_URL="$PROD_DATABASE_URL" npx prisma migrate deploy
-```
-
-**Note**: Railway automatically runs `npx prisma migrate deploy` during deployments via Dockerfile.
+- `.claude/rules/03-database.md` — connection/pool rules, protected indexes, the
+  drift-ignore two-tier structure, and the deployment timing rule (migrations
+  are **operator-driven**: `pnpm ops release:premigrate` before merging a
+  release PR, `pnpm ops db:migrate --env dev` after a push to develop). No
+  Dockerfile runs `prisma migrate deploy`, and nothing applies migrations
+  automatically on deploy.
+- `/tzurot-db-vector` skill — the step-by-step procedure: `db:safe-migrate` →
+  review SQL → `db:migrate` → regenerate the PGLite schema, plus drift
+  detection, inspection, and protected-index recovery.
 
 ---
 
-## Helpful Commands
+## The vector indexes
 
-### Check Migration Status
+Two IVFFlat indexes exist, both on 384-dimension BGE-small-en-v1.5 embeddings,
+both managed **outside** Prisma because `Unsupported("vector")` columns can't
+declare `VectorCosineOps`:
 
-```bash
-# Dev database
-npx prisma migrate status
+| Index                        | Table          | Definition                                       |
+| ---------------------------- | -------------- | ------------------------------------------------ |
+| `idx_memories_embedding`     | `memories`     | `ivfflat (embedding vector_cosine_ops) lists=50` |
+| `idx_memory_facts_embedding` | `memory_facts` | `ivfflat (embedding vector_cosine_ops) lists=50` |
 
-# Production database
-DATABASE_URL="$PROD_DATABASE_URL" npx prisma migrate status
-```
+Both are registered in `prisma/drift-ignore.json` so the DROP statements Prisma
+generates for them are stripped from new migrations. `idx_memories_embedding`
+additionally carries `recreateSQL` there for recovery.
 
-Expected output:
+## Why `lists = 50`
 
-```
-Database schema is up to date!
-```
+The `lists` parameter trades recall against build memory and query speed. More
+lists means better accuracy but a larger build; fewer means a cheaper build and
+faster queries at some recall cost.
 
-### Verify Migrations in Database
+`lists = 50` is not a tuning preference — it is a memory ceiling. The build for
+`lists = 100` exceeded Railway's `maintenance_work_mem` (64 MB) and failed with
+"No space left on device"; the migration that resized the index down
+(`20251117155350_update_memories_index_to_lists_50`) records that constraint.
+If a future index build hits the same error, reduce `lists` rather than
+retrying — for HNSW the equivalent knobs are `m` and `ef_construction`.
 
-```bash
-# Via Railway CLI
-railway run psql -c "SELECT migration_name, finished_at FROM _prisma_migrations ORDER BY finished_at DESC LIMIT 5;"
+## Creating a vector index by hand
 
-# Or with direct connection
-psql $DATABASE_URL -c "SELECT migration_name, finished_at FROM _prisma_migrations ORDER BY finished_at DESC LIMIT 5;"
-```
-
-### Generate Migration SQL Manually
-
-For complex schema changes, generate SQL without applying:
-
-```bash
-npx prisma migrate dev --create-only --name your_migration_name
-```
-
-Then edit `prisma/migrations/TIMESTAMP_your_migration_name/migration.sql` before applying.
-
-### Execute Raw SQL
-
-```bash
-# Dev database
-npx prisma db execute --file migration.sql --schema prisma/schema.prisma
-
-# Production database
-DATABASE_URL="$PROD_DATABASE_URL" npx prisma db execute --file migration.sql --schema prisma/schema.prisma
-```
-
----
-
-## Troubleshooting
-
-### Issue: "Migration already applied"
-
-**Cause**: Migration SQL was run directly on database before running `prisma migrate deploy`
-
-**Fix**: Mark the migration as applied
-
-```bash
-npx prisma migrate resolve --applied "MIGRATION_NAME"
-
-# For production
-DATABASE_URL="$PROD_DATABASE_URL" npx prisma migrate resolve --applied "MIGRATION_NAME"
-```
-
-### Issue: "Drift detected" or "Migration modified after applied"
-
-**Cause**: Changed migration file after it was applied to database
-
-**Fix**: Create a new migration to correct the issue (don't modify applied migrations)
-
-```bash
-npx prisma migrate dev --name fix_previous_migration
-```
-
-If you must mark the modified migration as applied:
-
-```bash
-npx prisma migrate resolve --applied "MIGRATION_NAME"
-```
-
-### Issue: "No space left on device" (Index Creation)
-
-**Cause**: Index creation requires more memory than Railway's `maintenance_work_mem` allows
-
-**Fix**: Reduce index parameters
-
-- **HNSW**: Reduce `m` and `ef_construction` values
-- **IVFFlat**: Reduce `lists` parameter (e.g., from 100 to 50)
-
-Example:
-
-```sql
--- Instead of lists=100 (needs 65 MB)
-CREATE INDEX idx_memories_embedding ON memories
-  USING ivfflat (embedding vector_cosine_ops)
-  WITH (lists = 50);  -- Needs ~33 MB
-```
-
----
-
-## Vector Index Best Practices
-
-### IVFFlat Index Parameters
-
-**lists parameter** controls accuracy vs. speed trade-off:
-
-- **More lists** (100-200): Better accuracy, slower queries, more memory to build
-- **Fewer lists** (25-50): Slightly worse accuracy, faster queries, less memory to build
-
-**Railway constraints**: `maintenance_work_mem = 64 MB`
-
-- lists=100 requires ~65 MB (won't work)
-- lists=50 requires ~33 MB (works fine)
-
-### Creating Vector Indexes
-
-Always use `IF NOT EXISTS` for idempotency:
+Always idempotent:
 
 ```sql
 CREATE INDEX IF NOT EXISTS idx_memories_embedding ON memories
@@ -170,58 +55,21 @@ CREATE INDEX IF NOT EXISTS idx_memories_embedding ON memories
   WITH (lists = 50);
 ```
 
-For production databases, consider using `CONCURRENTLY` (requires psql, not Prisma):
+`CONCURRENTLY` avoids the write lock on a populated table, but **cannot run
+inside a transaction block** — so it will not work through
+`npx prisma db execute`, which wraps its input. Run it via `psql` against the
+target database instead.
 
-```sql
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_memories_embedding ON memories
-  USING ivfflat (embedding vector_cosine_ops)
-  WITH (lists = 50);
-```
+## Similarity queries
 
-**Note**: `CONCURRENTLY` cannot run inside a transaction block, so it won't work with `npx prisma db execute`.
-
----
-
-## Best Practices
-
-### ✅ DO
-
-- **Use descriptive migration names**: `add_memory_user_index` not `update_schema`
-- **Test in development first**: Apply to dev database before production
-- **Commit migrations with code**: Keep schema changes atomic with code changes
-- **Use `IF NOT EXISTS`**: Makes migrations idempotent and safer
-- **Create migration files**: Even if you run SQL manually, create the migration file
-
-### ❌ DON'T
-
-- **Don't delete applied migrations**: This breaks migration history permanently
-- **Don't modify applied migrations**: Create a new migration to fix issues instead
-- **Don't commit `DATABASE_URL`**: Use environment variables or placeholders
-- **Don't skip migration tracking**: Always mark manually-applied migrations as applied
-
----
-
-## Railway Deployment
-
-Migrations run automatically during Railway deployment via Dockerfile:
-
-```dockerfile
-# In services/*/Dockerfile
-RUN npx prisma generate
-RUN npx prisma migrate deploy  # ← Runs pending migrations
-```
-
-**Manual deployment** (if needed):
-
-```bash
-railway run --service SERVICE_NAME npx prisma migrate deploy
-```
+Vector search goes through `prisma.$queryRaw`, never the ORM — see
+`.claude/rules/03-database.md` § pgvector Operations for the canonical query
+shape (cosine distance, `<->`, `LIMIT`).
 
 ---
 
 ## References
 
-- [Prisma Migrate Documentation](https://www.prisma.io/docs/concepts/components/prisma-migrate)
-- [Prisma Production Troubleshooting](https://www.prisma.io/docs/guides/migrate/production-troubleshooting)
-- [pgvector Extension](https://github.com/pgvector/pgvector)
+- [pgvector](https://github.com/pgvector/pgvector)
+- [`PRISMA_DRIFT_ISSUES.md`](../database/PRISMA_DRIFT_ISSUES.md) — the intentional schema/Prisma divergences, including these indexes
 - [Railway Operations Guide](../deployment/RAILWAY_OPERATIONS.md)

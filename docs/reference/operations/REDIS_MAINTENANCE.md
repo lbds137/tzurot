@@ -1,246 +1,157 @@
 # Redis Maintenance
 
-Procedures for maintaining Redis health in production.
+Procedures for inspecting and maintaining Redis in dev and prod.
 
-**Last Updated:** 2025-11-08
+Redis carries two very different workloads here: **BullMQ queues** (jobs whose
+payloads include conversation history, so tens of KB each) and a large set of
+**cache/state keys** (sessions, dedup markers, multi-tag coordination, cached
+transcripts and vision descriptions). Most maintenance concerns the first.
 
----
+## The queues
 
-## Overview
+Five BullMQ queues exist. Names are defined in
+`packages/common-types/src/constants/queue.ts`, except the main one, which is
+the `QUEUE_NAME` env var (default `ai-requests`) — so always resolve it from the
+environment rather than hardcoding it.
 
-Tzurot uses Redis for BullMQ job queuing. Jobs contain full conversation history (50-100KB each), so proper maintenance is essential to prevent memory bloat and performance degradation.
+| Queue               | Constant                       | Producer    | Consumer   | Carries                                                     |
+| ------------------- | ------------------------------ | ----------- | ---------- | ----------------------------------------------------------- |
+| `ai-requests`       | `QUEUE_NAME` (env, default)    | api-gateway | ai-worker  | LLM generation + audio/image preprocessing, imports/exports |
+| `scheduled-jobs`    | `SCHEDULED_QUEUE_NAME`         | ai-worker   | ai-worker  | Repeatable cron: pending-memory processing, cleanup         |
+| `fact-extraction`   | `FACT_EXTRACTION_QUEUE_NAME`   | ai-worker   | ai-worker  | Async fact extraction from episodes                         |
+| `release-broadcast` | `RELEASE_BROADCAST_QUEUE_NAME` | api-gateway | bot-client | Release-notes / broadcast DM delivery                       |
+| `retention-notify`  | `RETENTION_NOTIFY_QUEUE_NAME`  | api-gateway | bot-client | Retention warning-DM delivery                               |
 
-## Current Configuration
+bot-client also opens a `QUEUE_NAME` handle for multi-tag state.
 
-**Job Retention Limits** (as of v3.0.0-alpha.34):
+`release-broadcast` and `retention-notify` are deliberately separate,
+single-purpose, concurrency-1 FIFO queues — their at-least-once delivery bound
+depends on staying that way. Do not repurpose either for a new job type.
 
-- Completed jobs: 10 (previously 100)
-- Failed jobs: 50 (previously 500)
-- Scheduled completed: 10
-- Scheduled failed: 50
+## Job retention
 
-**Total expected usage**: ~4.5MB for job history (down from ~40-50MB)
+`QUEUE_CONFIG` in `packages/common-types/src/constants/queue.ts`:
 
-**Auto-cleanup**: BullMQ automatically removes jobs beyond these limits as new jobs complete/fail.
+| Setting                     | Value |
+| --------------------------- | ----- |
+| `COMPLETED_HISTORY_LIMIT`   | 10    |
+| `FAILED_HISTORY_LIMIT`      | 50    |
+| `SCHEDULED_COMPLETED_LIMIT` | 10    |
+| `SCHEDULED_FAILED_LIMIT`    | 50    |
 
-## Monitoring Redis Health
+BullMQ trims to these automatically as jobs complete or fail
+(`removeOnComplete` / `removeOnFail`). Limits are low on purpose: each job
+payload can be 50–100 KB, so a generous history is what turns Redis growth into
+an incident.
 
-### Check Memory Usage
+## Inspecting queue state
+
+Prefer the ops CLI over raw `redis-cli` — it resolves the environment's queue
+name and Redis URL for you.
+
+```bash
+pnpm ops inspect:queue                              # dev, default queue
+pnpm ops inspect:queue --env prod
+pnpm ops inspect:queue --queue fact-extraction
+pnpm ops inspect:queue --verbose --failed-limit 10  # include job data
+```
+
+Prints waiting / active / completed / failed / delayed / paused counts, then the
+most recent failed jobs (id, name, attempts, failure reason — plus full job data
+under `--verbose`) and the currently active jobs.
+
+Dead-letter view — jobs that exhausted their retry attempts:
+
+```bash
+pnpm ops inspect:dlq                    # dev, default queue
+pnpm ops inspect:dlq --env prod --limit 20
+pnpm ops inspect:dlq --queue retention-notify --json
+```
+
+Prints per-job id, name, failed-at, created-at, attempts, error, the first five
+stacktrace lines, and a data preview. `--json` emits full job details for
+scripting.
+
+Both commands accept `--env local|dev|prod` (default `dev`) and `--queue <name>`
+(default: the environment's `QUEUE_NAME`, else `ai-requests`).
+
+## Pausing the queues
+
+`pnpm ops maintenance on --env prod` pauses the AI-requests and scheduled queues
+and waits for active jobs to drain, in addition to putting the services behind
+friendly rejections. That is the sanctioned way to quiet the queues — it resolves
+the env's real queue name rather than a hardcoded literal, so it can't pause the
+wrong one. `pnpm ops maintenance off --env prod` resumes. Full sequence in the
+`/tzurot-deployment` skill.
+
+While paused, waiting and delayed jobs park rather than being processed; nothing
+is dropped.
+
+## Raw Redis inspection
+
+When the CLI isn't enough:
 
 ```bash
 railway run --service ai-worker redis-cli INFO memory | grep used_memory_human
-```
-
-### Count Total Keys
-
-```bash
 railway run --service ai-worker redis-cli DBSIZE
-```
 
-### Count Jobs by Pattern
-
-```bash
-# Count ai-requests jobs
+# Count a queue's keys (substitute the queue name)
 railway run --service ai-worker redis-cli --scan --pattern "bull:ai-requests:*" | wc -l
-
-# Count scheduled jobs
-railway run --service ai-worker redis-cli --scan --pattern "bull:scheduled-jobs:*" | wc -l
 ```
 
-### Inspect Job Keys
+Non-queue keys are namespaced by the prefixes in `REDIS_KEY_PREFIXES` (same
+constants file) — `session:`, `dedup:`, `multitag:*`, `transcript:`,
+`vision:canon:`, `job-result:`, and others. Each prefix's TTL and owner are
+documented at the constant. Scanning by prefix is how you attribute unexpected
+key growth to a subsystem.
 
-```bash
-# List sample job keys
-railway run --service ai-worker redis-cli --scan --pattern "bull:ai-requests:*" | head -20
-
-# Check specific key type
-railway run --service ai-worker redis-cli TYPE "bull:ai-requests:completed"
-```
-
-## Manual Cleanup Procedures
-
-### When to Clean Manually
-
-- After discovering Redis has thousands of old jobs (e.g., 125+ pages in web UI)
-- Before deploying retention limit changes (to immediately reclaim space)
-- When Redis memory usage is approaching limits
-- After a deployment that significantly changed job structure
-
-### Safety First
-
-⚠️ **Before running cleanup commands:**
-
-1. Check that no critical jobs are in progress:
-
-   ```bash
-   railway run --service ai-worker redis-cli LLEN "bull:ai-requests:active"
-   ```
-
-   Should return 0 or small number (≤ concurrency setting).
-
-2. Verify you're targeting the correct environment:
-   ```bash
-   railway status
-   ```
-   Confirm you're connected to the intended service.
-
-### Cleanup Commands
-
-**1. Remove Old Completed Jobs**
-
-```bash
-# List completed job keys (check what you're deleting first)
-railway run --service ai-worker redis-cli --scan --pattern "bull:ai-requests:completed*" | head -50
-
-# Delete all completed job data
-railway run --service ai-worker redis-cli --scan --pattern "bull:ai-requests:completed*" | \
-  xargs -L 1000 railway run --service ai-worker redis-cli DEL
-```
-
-**2. Remove Old Failed Jobs**
-
-```bash
-# List failed job keys
-railway run --service ai-worker redis-cli --scan --pattern "bull:ai-requests:failed*" | head -50
-
-# Delete all failed job data
-railway run --service ai-worker redis-cli --scan --pattern "bull:ai-requests:failed*" | \
-  xargs -L 1000 railway run --service ai-worker redis-cli DEL
-```
-
-**3. Remove Specific Job ID**
-
-```bash
-# If you know a specific problematic job ID
-railway run --service ai-worker redis-cli DEL "bull:ai-requests:req-12345678"
-```
-
-**4. Nuclear Option: Clear All Queue Data**
-
-⚠️ **WARNING**: This removes ALL queue data including active jobs!
-
-```bash
-# Only use if you need to completely reset the queue
-railway run --service ai-worker redis-cli --scan --pattern "bull:ai-requests:*" | \
-  xargs -L 1000 railway run --service ai-worker redis-cli DEL
-
-railway run --service ai-worker redis-cli --scan --pattern "bull:scheduled-jobs:*" | \
-  xargs -L 1000 railway run --service ai-worker redis-cli DEL
-```
-
-After nuclear option, restart all services:
-
-```bash
-railway up --service ai-worker
-railway up --service api-gateway
-railway up --service bot-client
-```
-
-## Verifying Cleanup
-
-After cleanup, verify Redis is healthy:
-
-```bash
-# Check memory usage decreased
-railway run --service ai-worker redis-cli INFO memory | grep used_memory_human
-
-# Check key count decreased
-railway run --service ai-worker redis-cli DBSIZE
-
-# Verify queue is still functional (should see new jobs)
-railway run --service ai-worker redis-cli --scan --pattern "bull:ai-requests:*" | head -10
-```
-
-## Preventing Future Bloat
-
-### Code-Level Prevention
-
-1. **Job Retention Limits**: Defined in `packages/common-types/src/constants/queue.ts`
-   - Keep limits low (current: 10 completed, 50 failed)
-   - Each job = 50-100KB of conversation history
-
-2. **Job Cleanup**: BullMQ automatically removes old jobs via:
-
-   ```typescript
-   removeOnComplete: { count: QUEUE_CONFIG.COMPLETED_HISTORY_LIMIT },
-   removeOnFail: { count: QUEUE_CONFIG.FAILED_HISTORY_LIMIT },
-   ```
-
-3. **Monitor Job Size**: Large jobs indicate:
-   - Very long conversation histories
-   - Large attachments not being cleaned up
-   - Memory leaks in job data
-
-### Operational Prevention
-
-1. **Regular Monitoring**: Check Redis memory usage weekly
-2. **Alert Thresholds**: Set up alerts when Redis memory > 80% capacity
-3. **Automated Cleanup**: Consider cron job to remove jobs older than 7 days
-4. **Redis Upgrade**: If consistently hitting limits, upgrade Railway Redis tier
+**Do not hand-delete queue keys.** BullMQ's per-queue keys are a coordinated set
+(job hashes plus the `waiting` / `active` / `completed` / `failed` / `delayed`
+structures); deleting a subset by glob leaves the queue internally inconsistent
+in ways that are much harder to diagnose than the space it reclaims. If retention
+limits aren't holding, that's a bug to investigate, not a bucket to empty by
+hand. If a queue genuinely must be reset, pause it via maintenance mode first and
+use BullMQ's own `obliterate` semantics rather than `DEL` globs.
 
 ## Troubleshooting
 
-### Redis Running Slow
+### Redis slow, or command timeouts
 
-**Symptoms**: Timeout errors in logs, slow job processing
+Check memory pressure and key count first (`INFO memory`, `DBSIZE`). If the key
+count is far above `(10 + 50) × queues + active`, retention isn't being applied
+— confirm the queue was constructed with `removeOnComplete` / `removeOnFail`
+from `QUEUE_CONFIG` rather than ad-hoc options.
 
-**Causes**:
+Timeouts that aren't accompanied by memory pressure are usually connection-level;
+see [`REDIS_TIMEOUT_ANALYSIS.md`](REDIS_TIMEOUT_ANALYSIS.md).
 
-- Too many keys (thousands of old jobs)
-- Memory pressure (approaching Redis max memory)
-- Network latency (Railway shared Redis)
+### Connection refused / errors on Railway
 
-**Solutions**:
+Connection settings are centralized in
+`packages/common-types/src/utils/redis.ts`. Two constraints that bite when
+something is constructed outside that helper:
 
-1. Run manual cleanup (see above)
-2. Check Redis memory: `railway run --service ai-worker redis-cli INFO memory`
-3. Consider reducing job retention limits further
-4. Upgrade Railway Redis tier if on free/hobby
+- **IPv6 (`family: 6`) is required** for Railway private networking; IPv4 does
+  not work there.
+- **`maxRetriesPerRequest` must be `null`** for BullMQ connections, so BullMQ
+  owns its own retry logic; a number makes IORedis give up and log errors while
+  BullMQ silently keeps retrying. `createBullMQRedisConfig` sets it; non-BullMQ
+  clients built by the other helpers keep a numeric value on purpose.
 
-### Jobs Not Being Cleaned Up
+Connect and command timeouts come from `REDIS_CONNECTION` in
+`packages/common-types/src/constants/timing.ts`. Build every connection through
+the shared helpers rather than hand-rolling `new Redis(...)`.
 
-**Symptoms**: DBSIZE keeps growing despite retention limits
+### Jobs stuck active
 
-**Possible Issues**:
-
-1. **BullMQ not removing jobs**: Check that `removeOnComplete`/`removeOnFail` are configured
-2. **Old jobs from before limit change**: Run manual cleanup
-3. **Active jobs stuck**: Check active queue length
-4. **Multiple queue instances**: Ensure only one worker is running
-
-**Verification**:
-
-```bash
-# Check if old jobs exist
-railway run --service ai-worker redis-cli --scan --pattern "bull:ai-requests:*" | wc -l
-
-# Should be roughly: (COMPLETED_LIMIT + FAILED_LIMIT) * 2 + active jobs
-# Example: (10 + 50) * 2 + 5 = 125 keys (not thousands)
-```
-
-### Railway Redis Connection Issues
-
-**Symptoms**: `Command timed out` errors, connection refused
-
-**Solutions**:
-
-1. Check Railway service status: `railway status`
-2. Verify Redis is running: `railway ps`
-3. Check Redis config matches Railway requirements:
-   - IPv6 (family: 6) for private networking
-   - Increased timeouts (30s commandTimeout)
-   - maxRetriesPerRequest: null for BullMQ
+`pnpm ops inspect:queue` shows the active list with job ids. A count above the
+worker's concurrency setting means jobs are stalling rather than running —
+check the consumer service's logs for that job id.
 
 ## Reference
 
-- **Job Retention Config**: `packages/common-types/src/constants/queue.ts`
-- **Redis Config**: `packages/common-types/src/utils/redis.ts`
-- **BullMQ Docs**: https://docs.bullmq.io/
-- **Railway Redis Docs**: https://docs.railway.app/databases/redis
-
----
-
-**Related Documentation:**
-
+- `packages/common-types/src/constants/queue.ts` — queue names, retention limits, key prefixes, pub/sub channels
+- `packages/common-types/src/utils/redis.ts` — connection construction
+- [`REDIS_TIMEOUT_ANALYSIS.md`](REDIS_TIMEOUT_ANALYSIS.md) — timeout root-cause analysis
 - [Operations Guide](../deployment/RAILWAY_OPERATIONS.md)
-- [Timeout Constants](../../packages/common-types/src/constants/timing.ts)
+- [BullMQ docs](https://docs.bullmq.io/)
