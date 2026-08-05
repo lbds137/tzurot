@@ -43,6 +43,7 @@
 
 import { isInsideCodeSpan } from '@tzurot/common-types/utils/codeSpanDetection';
 import { createLogger } from '@tzurot/common-types/utils/logger';
+import { ARTIFACT_TAG_NAMES } from './responseArtifacts.js';
 import { KNOWN_THINKING_TAGS } from './thinkingExtraction.js';
 
 const logger = createLogger('wrapper-tag-unwrap');
@@ -51,14 +52,15 @@ const logger = createLogger('wrapper-tag-unwrap');
  * Tag names this pass must never unwrap, because another pass in the pipeline
  * owns them and unwrapping would defeat that pass.
  *
- * Three groups:
- * - `KNOWN_THINKING_TAGS` — imported rather than restated, so a tag added for a
- *   new model revision inherits the exclusion instead of arriving unguarded.
- * - The `responseArtifacts.ts` deletion vocabulary — every tag family named by
- *   `buildArtifactPatterns` there. Those patterns DELETE their contents; keeping
- *   the contents by unwrapping first would resurrect prompt-scaffolding echo.
- * - Prompt-template tags emitted by `PromptBuilder` — the model echoing one back
- *   is scaffolding leakage, not a stage direction.
+ * Two groups, both imported rather than restated, so a tag added for a new model
+ * revision or a new prompt block inherits the exclusion instead of arriving
+ * unguarded:
+ * - `KNOWN_THINKING_TAGS` — the reasoning vocabulary.
+ * - `ARTIFACT_TAG_NAMES` — the `responseArtifacts.ts` deletion vocabulary, every
+ *   tag family named by `buildArtifactPatterns` there. Those patterns DELETE
+ *   their contents; keeping the contents by unwrapping first would resurrect
+ *   prompt-scaffolding echo. It includes the `PromptBuilder` prompt-template
+ *   orphan-closer vocabulary, since those closers are part of that pattern list.
  *
  * Exported so the guard suite can enumerate the vocabulary rather than restate
  * it; a hand-maintained copy in the tests would drift on exactly the revision
@@ -68,32 +70,7 @@ export const WRAPPER_UNWRAP_EXCLUDED_TAGS: readonly string[] = [
   // Reasoning vocabulary — extracted upstream by `extractThinkingBlocks`.
   ...KNOWN_THINKING_TAGS,
   // Artifact vocabulary — deleted downstream by `stripResponseArtifacts`.
-  'last_message',
-  'from',
-  'result',
-  'result_text',
-  'parameter',
-  'character',
-  'name',
-  'content',
-  'function_calls',
-  'function_results',
-  'invoke',
-  'results',
-  'tool_calls',
-  'tool_results',
-  'tool_call',
-  'tool_result',
-  'received',
-  'reactions',
-  'message',
-  // Prompt-template vocabulary — scaffolding echo from PromptBuilder's format.
-  'chat_log',
-  'participants',
-  'protocol',
-  'memory_archive',
-  'contextual_references',
-  'facts',
+  ...ARTIFACT_TAG_NAMES,
 ];
 
 const EXCLUDED_TAG_SET: ReadonlySet<string> = new Set(WRAPPER_UNWRAP_EXCLUDED_TAGS);

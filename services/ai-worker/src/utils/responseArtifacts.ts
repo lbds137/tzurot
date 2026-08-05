@@ -106,6 +106,83 @@ function stripOrphanTrailingCloser(content: string): string {
 }
 
 /**
+ * Self-contained metadata echoes: a short-bodied pair the model emits as a
+ * whole (`<result>PersonalityName</result>`). Order is the alternation order of
+ * the pattern built from it.
+ */
+const SELF_CONTAINED_ECHO_TAGS = [
+  'result',
+  'result_text',
+  'parameter',
+  'character',
+  'name',
+  'content',
+] as const;
+
+/**
+ * Hallucinated tool-use scaffolding: GLM 4.5 Air (and similar models trained on
+ * Anthropic/OpenAI data) wrap responses in these XML structures. Both the
+ * leading-opener and leading-orphan-closer patterns are built from this list,
+ * so the two can never disagree about the vocabulary.
+ */
+const TOOL_USE_SCAFFOLD_TAGS = [
+  'function_calls',
+  'function_results',
+  'invoke',
+  'results',
+  'result',
+  'result_text',
+  'parameter',
+  'content',
+  'character',
+  'name',
+  'tool_calls',
+  'tool_results',
+  'tool_call',
+  'tool_result',
+] as const;
+
+/**
+ * Closing tags from the prompt's own XML structure (PromptBuilder.ts) that the
+ * model echoes back. (`context` is deliberately absent: too collision-prone as
+ * prose.)
+ */
+const PROMPT_TEMPLATE_ORPHAN_TAGS = [
+  'chat_log',
+  'participants',
+  'protocol',
+  'memory_archive',
+  'contextual_references',
+  'facts',
+] as const;
+
+/**
+ * The deletion vocabulary of `buildArtifactPatterns` — every tag name whose
+ * contents (or whose closer) this module removes.
+ *
+ * Exported so `wrapperTagUnwrap.ts` DERIVES its exclusion set from it instead of
+ * restating the names: drift between the two silently reopens a
+ * scaffolding-resurrection risk, where the unwrap pass keeps the inner text of a
+ * tag family this module means to delete.
+ *
+ * `message` is a member via the personality-parameterized `<message speaker=...>`
+ * prefix pattern and the module's generic trailing-closer handling, not via any
+ * alternation literal.
+ */
+export const ARTIFACT_TAG_NAMES: readonly string[] = [
+  ...new Set([
+    'last_message',
+    'from',
+    ...SELF_CONTAINED_ECHO_TAGS,
+    ...TOOL_USE_SCAFFOLD_TAGS,
+    'received',
+    'reactions',
+    'message',
+    ...PROMPT_TEMPLATE_ORPHAN_TAGS,
+  ]),
+];
+
+/**
  * Build the ordered artifact-cleanup steps for a given personality name.
  */
 function buildArtifactPatterns(personalityName: string): ArtifactStep[] {
@@ -123,31 +200,29 @@ function buildArtifactPatterns(personalityName: string): ArtifactStep[] {
     // Max 100 chars prevents stripping tags that contain the actual response.
     // MUST come before leading opening tag pattern so matched pairs are stripped as a unit.
     patternStep(
-      /^<(result|result_text|parameter|character|name|content)(?:\s[^>]*)?>[^<\n]{0,100}<\/\1>\s*/i
+      new RegExp(
+        `^<(${SELF_CONTAINED_ECHO_TAGS.join('|')})(?:\\s[^>]*)?>[^<\\n]{0,100}<\\/\\1>\\s*`,
+        'i'
+      )
     ),
     // Leading hallucinated tool-use opening tags: GLM 4.5 Air (and similar models trained on
     // Anthropic/OpenAI data) wrap responses in XML tool-use structures like <function_calls>,
     // <invoke>, <results>, etc. Strip known tag families at start of content only.
     patternStep(
-      /^<(?:function_calls|function_results|invoke|results|result|result_text|parameter|content|character|name|tool_calls|tool_results|tool_call|tool_result)(?:\s[^>]*)?>[ \t]*\n?/i
+      new RegExp(`^<(?:${TOOL_USE_SCAFFOLD_TAGS.join('|')})(?:\\s[^>]*)?>[ \\t]*\\n?`, 'i')
     ),
     // Leading hallucinated closing tags: after inner content is stripped, orphaned closing tags
     // like </result> or </function_results> remain at the start. Strip them too.
-    patternStep(
-      /^<\/(?:function_calls|function_results|invoke|results|result|result_text|parameter|content|character|name|tool_calls|tool_results|tool_call|tool_result)>[ \t]*\n?/i
-    ),
+    patternStep(new RegExp(`^<\\/(?:${TOOL_USE_SCAFFOLD_TAGS.join('|')})>[ \\t]*\\n?`, 'i')),
     // Leading <received message>...</received> block: GLM 4.5 Air echoes the user's message
     // in a hallucinated receipt structure before responding
     patternStep(/^<received(?:\s+message)?(?:\s[^>]*)?>[\s\S]*?<\/received>\s*/i),
     // Prompt template orphan closing tags: model echoes closing tags from the prompt's
     // XML structure (e.g., </chat_log> from PromptBuilder.ts). Stripped from anywhere in content
-    // since they can appear mid-response, not just trailing. `facts` joined the list when the
-    // V-tier blocks moved into the user message, directly adjacent to the current turn —
-    // the echo-probability position. (`context` is deliberately absent: too collision-prone
-    // as prose.)
-    patternStep(
-      /<\/(?:chat_log|participants|protocol|memory_archive|contextual_references|facts)>/gi
-    ),
+    // since they can appear mid-response, not just trailing. `facts` is a member because the
+    // V-tier blocks sit in the user message, directly adjacent to the current turn — the
+    // echo-probability position.
+    patternStep(new RegExp(`<\\/(?:${PROMPT_TEMPLATE_ORPHAN_TAGS.join('|')})>`, 'gi')),
     // Trailing <reactions> block: LLM mimics history metadata. ReDoS: leading `\s{0,64}` bounded (unbounded `\s*` before literal retries at every position).
     patternStep(/\s{0,64}<reactions>[\s\S]*?<\/reactions>\s*$/i),
     // Generic trailing closing tag, opener-aware — see `stripOrphanTrailingCloser`.
