@@ -1143,6 +1143,126 @@ describe('AuthStep', () => {
       expect(fields.err?.message).toBe('db connection refused');
     });
 
+    it('should start both audio lookups before either resolves', async () => {
+      // The concurrency pin proper: a revert to sequential awaiting would pass
+      // every outcome-shaped test (same map, same logs), so this one observes
+      // the call pattern instead — with the first audio lookup parked on an
+      // unresolved promise, the second lookup must already have been issued.
+      const openRouterResult: ApiKeyResolutionResult = {
+        apiKey: 'sk-or-test',
+        provider: AIProvider.OpenRouter,
+        source: 'user',
+        isGuestMode: false,
+      };
+      let releaseElevenLabs!: (value: ApiKeyResolutionResult) => void;
+      const parkedElevenLabs = new Promise<ApiKeyResolutionResult>(resolve => {
+        releaseElevenLabs = resolve;
+      });
+      const mistralByok: ApiKeyResolutionResult = {
+        apiKey: 'sk-mistral-byok',
+        provider: AIProvider.Mistral,
+        source: 'user',
+        isGuestMode: false,
+      };
+
+      vi.mocked(mockApiKeyResolver.resolveApiKey)
+        .mockResolvedValueOnce(openRouterResult)
+        .mockReturnValueOnce(parkedElevenLabs)
+        .mockResolvedValueOnce(mistralByok);
+
+      step = new AuthStep(mockApiKeyResolver);
+
+      const config: ResolvedConfig = {
+        effectivePersonality: TEST_PERSONALITY,
+        configSource: 'personality',
+      };
+
+      const context: GenerationContext = {
+        job: createMockJob(),
+        startTime: Date.now(),
+        config,
+      };
+
+      const processPromise = step.process(context);
+
+      // Drain microtasks until process() has issued all three lookups (bounded
+      // so a regression cannot hang the test). The ElevenLabs promise is still
+      // parked, so under a sequential loop the Mistral call can never be issued
+      // and the drain exhausts with only two calls recorded.
+      for (
+        let i = 0;
+        i < 50 && vi.mocked(mockApiKeyResolver.resolveApiKey).mock.calls.length < 3;
+        i++
+      ) {
+        await Promise.resolve();
+      }
+      expect(mockApiKeyResolver.resolveApiKey).toHaveBeenCalledTimes(3);
+      expect(mockApiKeyResolver.resolveApiKey).toHaveBeenCalledWith('user-456', AIProvider.Mistral);
+
+      releaseElevenLabs({
+        apiKey: 'sk-el-byok',
+        provider: AIProvider.ElevenLabs,
+        source: 'user',
+        isGuestMode: false,
+      });
+
+      const result = await processPromise;
+      expect(result.auth?.audioProviderKeys?.get('elevenlabs')).toBe('sk-el-byok');
+      expect(result.auth?.audioProviderKeys?.get('mistral')).toBe('sk-mistral-byok');
+    });
+
+    it('should isolate per-provider failures when both audio lookups reject', async () => {
+      // The isolation pin: each concurrent lookup must own its rejection. A
+      // naive Promise.all over bare lookups would let the first rejection
+      // abort the whole resolution (and leave the second one unhandled) —
+      // here each provider still gets its own log at its own level.
+      const openRouterResult: ApiKeyResolutionResult = {
+        apiKey: 'sk-or-test',
+        provider: AIProvider.OpenRouter,
+        source: 'user',
+        isGuestMode: false,
+      };
+
+      vi.mocked(mockApiKeyResolver.resolveApiKey)
+        .mockResolvedValueOnce(openRouterResult)
+        .mockRejectedValueOnce(
+          new NoApiKeyAvailableError('No API key available for provider elevenlabs.')
+        )
+        .mockRejectedValueOnce(new Error('db down'));
+
+      step = new AuthStep(mockApiKeyResolver);
+
+      const config: ResolvedConfig = {
+        effectivePersonality: TEST_PERSONALITY,
+        configSource: 'personality',
+      };
+
+      const context: GenerationContext = {
+        job: createMockJob(),
+        startTime: Date.now(),
+        config,
+      };
+
+      const result = await step.process(context);
+
+      expect(result.auth?.audioProviderKeys?.size).toBe(0);
+
+      const debugCalls = loggerMock.debug.mock.calls.filter(call =>
+        String(call[1]).includes('ElevenLabs key resolution failed')
+      );
+      expect(debugCalls).toHaveLength(1);
+      expect(debugCalls[0]?.[0]).toEqual({ userId: 'user-456', provider: 'elevenlabs' });
+
+      const warnCalls = loggerMock.warn.mock.calls.filter(call =>
+        String(call[1]).includes('Mistral key resolution failed')
+      );
+      expect(warnCalls).toHaveLength(1);
+      const warnFields = warnCalls[0]?.[0] as { userId?: string; err?: Error };
+      expect(warnFields.userId).toBe('user-456');
+      expect(warnFields.err).toBeInstanceOf(Error);
+      expect(warnFields.err?.message).toBe('db down');
+    });
+
     describe('sttDispatch', () => {
       function setupResolvers(): {
         openRouter: ApiKeyResolutionResult;
