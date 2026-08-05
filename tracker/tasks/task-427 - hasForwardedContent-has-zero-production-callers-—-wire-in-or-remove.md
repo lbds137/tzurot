@@ -1,10 +1,10 @@
 ---
 id: TASK-427
 title: hasForwardedContent has zero production callers — wire in or remove
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-04 13:20'
-updated_date: '2026-08-04 13:50'
+updated_date: '2026-08-05 10:23'
 labels:
   - 'size:S'
   - 'area:bot-client'
@@ -22,3 +22,9 @@ Fix shape: decide wire-or-remove. (a) If a real filtering path should consult it
 
 Acceptance: the function has a production caller, or it no longer exists.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+RESOLVED 2026-08-05: removed in PR #1969 (merge-verified). Repo-wide grep confirmed zero production callers; EmptyMessageFilter short-circuits forwarded messages before any content gate and extended context uses hasStickerOrPoll, so there was no candidate consumer to wire it into. claude-review independently verified every claim including the collectAllStickers import removal and the surviving mock-fixture usage.
+<!-- SECTION:NOTES:END -->
