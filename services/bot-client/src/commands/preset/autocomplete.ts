@@ -16,11 +16,7 @@ import { createLogger } from '@tzurot/common-types/utils/logger';
 import { TTLCache } from '@tzurot/common-types/utils/TTLCache';
 import { shortModelName } from '@tzurot/common-types/utils/modelNames';
 import { clientsFor } from '../../utils/gatewayClients.js';
-import {
-  fetchTextModels,
-  fetchVisionModels,
-  formatModelChoice,
-} from '../../utils/modelAutocomplete.js';
+import { respondWithCatalogAutocomplete } from '../../utils/modelCatalogAutocomplete.js';
 
 import { runGuardedAutocomplete } from '../../utils/autocomplete/guardedAutocomplete.js';
 
@@ -93,9 +89,9 @@ export async function handleAutocomplete(interaction: AutocompleteInteraction): 
         await handlePresetAutocomplete(interaction, focusedOption.value, userId);
       }
     } else if (focusedOption.name === 'model') {
-      await handleModelAutocomplete(interaction, focusedOption.value);
-    } else if (focusedOption.name === 'vision-model') {
-      await handleVisionModelAutocomplete(interaction, focusedOption.value);
+      // `/preset create <model>` — merged-catalog suggestions, capability-agnostic
+      // like the preset picker (vision-capability derives from the chosen model).
+      await respondWithCatalogAutocomplete(interaction, focusedOption.value);
     } else {
       await interaction.respond([]);
     }
@@ -198,34 +194,6 @@ async function handlePresetAutocomplete(
       metadata: shortModelName(c.model),
     });
   });
-
-  await interaction.respond(choices);
-}
-
-/**
- * Handle model autocomplete - fetches text generation models from OpenRouter
- */
-async function handleModelAutocomplete(
-  interaction: AutocompleteInteraction,
-  query: string
-): Promise<void> {
-  const models = await fetchTextModels(query, DISCORD_LIMITS.AUTOCOMPLETE_MAX_CHOICES);
-
-  const choices = models.map(m => formatModelChoice(m));
-
-  await interaction.respond(choices);
-}
-
-/**
- * Handle vision-model autocomplete - fetches vision-capable models from OpenRouter
- */
-async function handleVisionModelAutocomplete(
-  interaction: AutocompleteInteraction,
-  query: string
-): Promise<void> {
-  const models = await fetchVisionModels(query, DISCORD_LIMITS.AUTOCOMPLETE_MAX_CHOICES);
-
-  const choices = models.map(m => formatModelChoice(m));
 
   await interaction.respond(choices);
 }

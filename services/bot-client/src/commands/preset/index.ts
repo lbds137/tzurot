@@ -286,7 +286,19 @@ export default defineCommand({
       // No slot option: a preset's vision-capability is derived from its
       // model (`supportsVision`), not chosen at creation. The vision SLOT is
       // picked later when the preset is assigned (override set/default set/global).
-      subcommand.setName('create').setDescription('Create a new model preset')
+      subcommand
+        .setName('create')
+        .setDescription('Create a new model preset')
+        // Optional pre-seed: prefills the seed modal's Model ID field so the
+        // model can be picked from autocomplete instead of typed into the modal
+        // (Discord modals have no autocomplete).
+        .addStringOption(option =>
+          option
+            .setName('model')
+            .setDescription('Model ID (e.g., anthropic/claude-sonnet-4)')
+            .setRequired(false)
+            .setAutocomplete(true)
+        )
     )
     .addSubcommand(subcommand =>
       subcommand
