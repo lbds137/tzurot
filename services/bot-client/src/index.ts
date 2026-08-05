@@ -47,6 +47,7 @@ import { DenylistCache } from './services/DenylistCache.js';
 import { DMCacheWarmer } from './services/DMCacheWarmer.js';
 import { StartupDMPrewarmer } from './services/StartupDMPrewarmer.js';
 import { registerServices } from './services/serviceRegistry.js';
+import { registerShardLifecycleLogging } from './services/ShardLifecycleLogger.js';
 
 // Processors
 import {
@@ -504,6 +505,9 @@ client.once(Events.ClientReady, () => {
 client.on(Events.Error, error => {
   logger.error({ err: error }, 'Discord client error');
 });
+
+// Gateway shard lifecycle — without these, a dead websocket looks like a healthy, silent process.
+registerShardLifecycleLogging(client, logger);
 
 // unhandledRejection handling is registered by registerProcessLifecycle below
 // (rejectionPolicy: 'log-and-live').
