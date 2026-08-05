@@ -5,10 +5,7 @@
 
 import { type Response, type RequestHandler } from 'express';
 import { AIProvider } from '@tzurot/common-types/constants/ai';
-import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import { createLogger } from '@tzurot/common-types/utils/logger';
-import { type ApiKeyCacheInvalidationService } from '@tzurot/cache-invalidation';
-import { requireUserAuth, requireProvisionedUser } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { resolveProvisionedUserId } from '../../utils/resolveProvisionedUserId.js';
 import { sendCustomSuccess, sendError } from '../../utils/responseHelpers.js';
@@ -20,10 +17,6 @@ type WalletRemoveDeps = Pick<RouteDeps, 'prisma' | 'apiKeyCacheInvalidation'>;
 
 const logger = createLogger('wallet-remove-key');
 
-/**
- * Create remove key route handlers
- * Returns an array of middleware: [auth, handler]
- */
 /** DELETE /api/user/wallet/:provider — remove user's API key for a provider. */
 export const handleRemoveWalletKey = (deps: WalletRemoveDeps): RequestHandler => {
   const { prisma, apiKeyCacheInvalidation } = deps;
@@ -72,13 +65,3 @@ export const handleRemoveWalletKey = (deps: WalletRemoveDeps): RequestHandler =>
     });
   });
 };
-
-/** Legacy chain. Aggregator spreads the array into `router.delete(...)`. */
-export const createRemoveKeyRoute = (
-  prisma: PrismaClient,
-  apiKeyCacheInvalidation?: ApiKeyCacheInvalidationService
-): RequestHandler[] => [
-  requireUserAuth(),
-  requireProvisionedUser(prisma),
-  handleRemoveWalletKey({ prisma, apiKeyCacheInvalidation }),
-];
