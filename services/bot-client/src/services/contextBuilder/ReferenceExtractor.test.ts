@@ -94,7 +94,7 @@ describe('extractReferencesAndMentions', () => {
     // Discord links rewritten to [Reference N]. With no links it echoes the
     // content unchanged.
     mockExtractReferences.mockResolvedValue({
-      references: [],
+      rawReferences: [],
       updatedContent: 'Hello world',
     });
     mockResolveAllMentions.mockReturnValue({
@@ -107,7 +107,6 @@ describe('extractReferencesAndMentions', () => {
 
   it('captures raw envelope fields', async () => {
     mockExtractReferences.mockResolvedValue({
-      references: [],
       updatedContent: 'Hello world',
       rawReferences: [{ referenceNumber: 1, content: 'raw snapshot' }],
     });
@@ -146,14 +145,14 @@ describe('extractReferencesAndMentions', () => {
     });
 
     expect(result.messageContent).toBe('Hello world');
-    expect(result.referencedMessages).toEqual([]);
+    expect(result.rawReferencedMessages).toBeUndefined();
     expect(mockExtractReferences).not.toHaveBeenCalled();
     expect(mockResolveAllMentions).not.toHaveBeenCalled();
   });
 
   it('should extract references and resolve mentions in normal mode', async () => {
     mockExtractReferences.mockResolvedValue({
-      references: [{ referenceNumber: 1, content: 'quoted text', authorName: 'User' }],
+      rawReferences: [{ referenceNumber: 1, content: 'quoted text', authorName: 'User' }],
       updatedContent: 'Hello [1]',
     });
     mockResolveAllMentions.mockReturnValue({
@@ -172,7 +171,7 @@ describe('extractReferencesAndMentions', () => {
     });
 
     expect(result.messageContent).toBe('Hello [1]');
-    expect(result.referencedMessages).toHaveLength(1);
+    expect(result.rawReferencedMessages).toHaveLength(1);
   });
 
   it('returns empty messageContent when mention resolution drops non-empty content', async () => {
@@ -206,7 +205,7 @@ describe('extractReferencesAndMentions', () => {
     // empty by formatting the empty top-level content.
     const effectiveContent = 'Forwarded snapshot text the user actually sent';
     mockExtractReferences.mockResolvedValue({
-      references: [],
+      rawReferences: [],
       updatedContent: effectiveContent, // no links → echoed unchanged
     });
     mockResolveAllMentions.mockReturnValue({

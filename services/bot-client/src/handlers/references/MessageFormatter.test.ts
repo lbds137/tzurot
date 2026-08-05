@@ -5,7 +5,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { MessageFormatter } from './MessageFormatter.js';
 import { createMockMessage, createMockUser } from '../../test/mocks/Discord.mock.js';
-import type { TranscriptRetriever } from './TranscriptRetriever.js';
 
 // Mock the utility functions
 vi.mock('../../utils/discordContext.js', () => ({
@@ -55,20 +54,15 @@ vi.mock('../../utils/forwardedMessageUtils.js', () => ({
 
 describe('MessageFormatter', () => {
   let formatter: MessageFormatter;
-  let mockTranscriptRetriever: TranscriptRetriever;
 
   beforeEach(() => {
     vi.clearAllMocks();
 
-    mockTranscriptRetriever = {
-      retrieveTranscript: vi.fn().mockResolvedValue(null),
-    } as any;
-
-    formatter = new MessageFormatter(mockTranscriptRetriever);
+    formatter = new MessageFormatter();
   });
 
   describe('Basic Formatting', () => {
-    it('should format a simple message', async () => {
+    it('should format a simple message', () => {
       const message = createMockMessage({
         id: 'msg-123',
         content: 'Hello world',
@@ -83,7 +77,7 @@ describe('MessageFormatter', () => {
         embeds: [],
       });
 
-      const result = await formatter.formatMessage(message, 1);
+      const result = formatter.buildRawReference(message, 1).reference;
 
       expect(result).toEqual({
         referenceNumber: 1,
@@ -103,7 +97,7 @@ describe('MessageFormatter', () => {
       });
     });
 
-    it('should include webhook ID if present', async () => {
+    it('should include webhook ID if present', () => {
       const message = createMockMessage({
         id: 'msg-123',
         content: 'Webhook message',
@@ -113,12 +107,12 @@ describe('MessageFormatter', () => {
         embeds: [],
       });
 
-      const result = await formatter.formatMessage(message, 1);
+      const result = formatter.buildRawReference(message, 1).reference;
 
       expect(result.webhookId).toBe('webhook-789');
     });
 
-    it('should describe a sticker-only referenced message instead of rendering it blank', async () => {
+    it('should describe a sticker-only referenced message instead of rendering it blank', () => {
       const stickers = new Map([['1', { name: 'partyblob', description: null }]]);
       const message = createMockMessage({
         content: '',
@@ -128,12 +122,12 @@ describe('MessageFormatter', () => {
         stickers: stickers as any,
       });
 
-      const result = await formatter.formatMessage(message, 1);
+      const result = formatter.buildRawReference(message, 1).reference;
 
       expect(result.content).toBe('[Stickers: partyblob]');
     });
 
-    it('should attach a referenced sticker so vision can describe it, not just name it', async () => {
+    it('should attach a referenced sticker so vision can describe it, not just name it', () => {
       // The name line above is only half. Without the sticker reaching
       // `attachments`, a character replying to a sticker saw what it was CALLED
       // and never what it depicted — while the same sticker sent directly was
@@ -159,14 +153,14 @@ describe('MessageFormatter', () => {
         stickers: stickers as any,
       });
 
-      const result = await formatter.formatMessage(message, 1);
+      const result = formatter.buildRawReference(message, 1).reference;
 
       expect(result.attachments).toEqual([
         expect.objectContaining({ id: '99', isSticker: true, contentType: 'image/png' }),
       ]);
     });
 
-    it('should mark message as forwarded when flag is set', async () => {
+    it('should mark message as forwarded when flag is set', () => {
       const message = createMockMessage({
         content: 'Forwarded message',
         author: createMockUser(),
@@ -174,12 +168,12 @@ describe('MessageFormatter', () => {
         embeds: [],
       });
 
-      const result = await formatter.formatMessage(message, 1, true);
+      const result = formatter.buildRawReference(message, 1, true).reference;
 
       expect(result.isForwarded).toBe(true);
     });
 
-    it('should presence-encode authorIsBot for bot authors', async () => {
+    it('should presence-encode authorIsBot for bot authors', () => {
       const message = createMockMessage({
         content: 'Bot message',
         author: createMockUser({ username: 'SomeBot', bot: true }),
@@ -187,12 +181,12 @@ describe('MessageFormatter', () => {
         embeds: [],
       });
 
-      const result = await formatter.formatMessage(message, 1);
+      const result = formatter.buildRawReference(message, 1).reference;
 
       expect(result.authorIsBot).toBe(true);
     });
 
-    it('should omit authorIsBot for human authors', async () => {
+    it('should omit authorIsBot for human authors', () => {
       const message = createMockMessage({
         content: 'Human message',
         author: createMockUser({ username: 'Human', bot: false }),
@@ -200,12 +194,12 @@ describe('MessageFormatter', () => {
         embeds: [],
       });
 
-      const result = await formatter.formatMessage(message, 1);
+      const result = formatter.buildRawReference(message, 1).reference;
 
       expect(result.authorIsBot).toBeUndefined();
     });
 
-    it('stamps authorRole="assistant" for our own bot webhook (applicationId === client id)', async () => {
+    it('stamps authorRole="assistant" for our own bot webhook (applicationId === client id)', () => {
       // Wiring check: applicationId matching the mock's client.user.id classifies as
       // our own persona. (Mock client.user.id is 'mock-client-bot-id'.)
       const message = createMockMessage({
@@ -216,12 +210,12 @@ describe('MessageFormatter', () => {
         embeds: [],
       });
 
-      const result = await formatter.formatMessage(message, 1);
+      const result = formatter.buildRawReference(message, 1).reference;
 
       expect(result.authorRole).toBe('assistant');
     });
 
-    it('stamps authorRole="bot" for a non-persona webhook (different applicationId)', async () => {
+    it('stamps authorRole="bot" for a non-persona webhook (different applicationId)', () => {
       const message = createMockMessage({
         applicationId: 'some-other-app',
         webhookId: 'wh-other',
@@ -230,12 +224,12 @@ describe('MessageFormatter', () => {
         embeds: [],
       });
 
-      const result = await formatter.formatMessage(message, 1);
+      const result = formatter.buildRawReference(message, 1).reference;
 
       expect(result.authorRole).toBe('bot');
     });
 
-    it('should use username as displayName when displayName is null', async () => {
+    it('should use username as displayName when displayName is null', () => {
       const message = createMockMessage({
         content: 'Test',
         author: createMockUser({ username: 'TestUser', globalName: null }),
@@ -243,7 +237,7 @@ describe('MessageFormatter', () => {
         embeds: [],
       });
 
-      const result = await formatter.formatMessage(message, 1);
+      const result = formatter.buildRawReference(message, 1).reference;
 
       expect(result.authorDisplayName).toBe('TestUser');
     });
@@ -267,7 +261,7 @@ describe('MessageFormatter', () => {
         embeds: [],
       });
 
-      const result = await formatter.formatMessage(message, 1);
+      const result = formatter.buildRawReference(message, 1).reference;
 
       expect(result.attachments).toHaveLength(1);
       expect(result.attachments?.[0].url).toBe('https://example.com/image.png');
@@ -299,166 +293,11 @@ describe('MessageFormatter', () => {
         embeds: [{} as any],
       });
 
-      const result = await formatter.formatMessage(message, 1);
+      const result = formatter.buildRawReference(message, 1).reference;
 
       expect(result.attachments).toHaveLength(2);
       expect(result.attachments?.[0].url).toBe('https://example.com/file.pdf');
       expect(result.attachments?.[1].url).toBe('https://example.com/embed-image.png');
-    });
-  });
-
-  describe('Voice Transcript Handling', () => {
-    it('should retrieve and append voice transcript when available', async () => {
-      const { extractAttachments } = await import('../../utils/attachmentExtractor.js');
-
-      vi.mocked(extractAttachments).mockReturnValue([
-        {
-          url: 'https://example.com/voice.ogg',
-          contentType: 'audio/ogg',
-          name: 'voice.ogg',
-          isVoiceMessage: true,
-        },
-      ]);
-
-      vi.mocked(mockTranscriptRetriever.retrieveTranscript).mockResolvedValue(
-        'This is the voice transcript'
-      );
-
-      const message = createMockMessage({
-        id: 'msg-voice',
-        content: 'Original text',
-        author: createMockUser(),
-        attachments: new Map() as any,
-        embeds: [],
-      });
-
-      const result = await formatter.formatMessage(message, 1);
-
-      expect(result.content).toBe(
-        'Original text\n\n[Voice transcript]: This is the voice transcript'
-      );
-      expect(mockTranscriptRetriever.retrieveTranscript).toHaveBeenCalledWith(
-        'msg-voice',
-        'https://example.com/voice.ogg'
-      );
-    });
-
-    it('should handle voice message with no text content', async () => {
-      const { extractAttachments } = await import('../../utils/attachmentExtractor.js');
-
-      vi.mocked(extractAttachments).mockReturnValue([
-        {
-          url: 'https://example.com/voice.ogg',
-          contentType: 'audio/ogg',
-          name: 'voice.ogg',
-          isVoiceMessage: true,
-        },
-      ]);
-
-      vi.mocked(mockTranscriptRetriever.retrieveTranscript).mockResolvedValue(
-        'Voice only transcript'
-      );
-
-      const message = createMockMessage({
-        id: 'msg-voice',
-        content: '',
-        author: createMockUser(),
-        attachments: new Map() as any,
-        embeds: [],
-      });
-
-      const result = await formatter.formatMessage(message, 1);
-
-      expect(result.content).toBe('[Voice transcript]: Voice only transcript');
-    });
-
-    it('should handle multiple voice messages', async () => {
-      const { extractAttachments } = await import('../../utils/attachmentExtractor.js');
-
-      vi.mocked(extractAttachments).mockReturnValue([
-        {
-          url: 'https://example.com/voice1.ogg',
-          contentType: 'audio/ogg',
-          name: 'voice1.ogg',
-          isVoiceMessage: true,
-        },
-        {
-          url: 'https://example.com/voice2.ogg',
-          contentType: 'audio/ogg',
-          name: 'voice2.ogg',
-          isVoiceMessage: true,
-        },
-      ]);
-
-      vi.mocked(mockTranscriptRetriever.retrieveTranscript)
-        .mockResolvedValueOnce('First transcript')
-        .mockResolvedValueOnce('Second transcript');
-
-      const message = createMockMessage({
-        id: 'msg-voice',
-        content: 'Text content',
-        author: createMockUser(),
-        attachments: new Map() as any,
-        embeds: [],
-      });
-
-      const result = await formatter.formatMessage(message, 1);
-
-      expect(result.content).toBe(
-        'Text content\n\n[Voice transcript]: First transcript\n\nSecond transcript'
-      );
-    });
-
-    it('should skip voice attachments when transcript is unavailable', async () => {
-      const { extractAttachments } = await import('../../utils/attachmentExtractor.js');
-
-      vi.mocked(extractAttachments).mockReturnValue([
-        {
-          url: 'https://example.com/voice.ogg',
-          contentType: 'audio/ogg',
-          name: 'voice.ogg',
-          isVoiceMessage: true,
-        },
-      ]);
-
-      vi.mocked(mockTranscriptRetriever.retrieveTranscript).mockResolvedValue(null);
-
-      const message = createMockMessage({
-        content: 'Original content',
-        author: createMockUser(),
-        attachments: new Map() as any,
-        embeds: [],
-      });
-
-      const result = await formatter.formatMessage(message, 1);
-
-      // Content should remain unchanged
-      expect(result.content).toBe('Original content');
-    });
-
-    it('should not retrieve transcripts for non-voice audio attachments', async () => {
-      const { extractAttachments } = await import('../../utils/attachmentExtractor.js');
-
-      vi.mocked(extractAttachments).mockReturnValue([
-        {
-          url: 'https://example.com/music.mp3',
-          contentType: 'audio/mpeg',
-          name: 'music.mp3',
-          isVoiceMessage: false, // Not a voice message
-        },
-      ]);
-
-      const message = createMockMessage({
-        content: 'Music file',
-        author: createMockUser(),
-        attachments: new Map() as any,
-        embeds: [],
-      });
-
-      await formatter.formatMessage(message, 1);
-
-      // Should not try to retrieve transcript
-      expect(mockTranscriptRetriever.retrieveTranscript).not.toHaveBeenCalled();
     });
   });
 
@@ -475,14 +314,14 @@ describe('MessageFormatter', () => {
         embeds: [{} as any],
       });
 
-      const result = await formatter.formatMessage(message, 1);
+      const result = formatter.buildRawReference(message, 1).reference;
 
       expect(result.embeds).toBe('Embed Title\nEmbed Description');
     });
   });
 
-  describe('Forwarded Voice Message Handling', () => {
-    it('should extract voice attachments from forwarded message snapshots and retrieve transcripts', async () => {
+  describe('Forwarded Message Handling', () => {
+    it('should extract voice attachments from forwarded message snapshots', async () => {
       // Setup forwarded message detection
       const {
         isForwardedMessage,
@@ -504,11 +343,6 @@ describe('MessageFormatter', () => {
         },
       ]);
 
-      // Mock transcript retrieval - uses forwarding message ID
-      vi.mocked(mockTranscriptRetriever.retrieveTranscript).mockResolvedValue(
-        'Forwarded voice transcript'
-      );
-
       const message = createMockMessage({
         id: 'forwarding-msg-999', // The forwarding message's ID
         content: '', // Forwarded messages often have empty main content
@@ -517,75 +351,18 @@ describe('MessageFormatter', () => {
         embeds: [],
       });
 
-      const result = await formatter.formatMessage(message, 1);
+      const result = formatter.buildRawReference(message, 1).reference;
 
       // Should be marked as forwarded
       expect(result.isForwarded).toBe(true);
 
-      // Content should include forwarded text and voice transcript
-      expect(result.content).toContain('Forwarded text content');
-      expect(result.content).toContain('[Voice transcript]: Forwarded voice transcript');
-
-      // Transcript should be retrieved using FORWARDING message ID (not original)
-      expect(mockTranscriptRetriever.retrieveTranscript).toHaveBeenCalledWith(
-        'forwarding-msg-999',
-        'https://cdn.discord.com/voice.ogg'
-      );
+      // Content comes from the snapshot, unenriched — the worker appends the
+      // transcript itself from the raw attachment record below.
+      expect(result.content).toBe('Forwarded text content');
 
       // Voice attachment should be in attachments
       expect(result.attachments).toHaveLength(1);
       expect(result.attachments?.[0].isVoiceMessage).toBe(true);
-    });
-
-    it('should handle forwarded voice message when no transcript is available', async () => {
-      const {
-        isForwardedMessage,
-        hasForwardedSnapshots,
-        extractForwardedAttachments,
-        extractForwardedContent,
-      } = await import('../../utils/forwardedMessageUtils.js');
-
-      vi.mocked(isForwardedMessage).mockReturnValue(true);
-      vi.mocked(hasForwardedSnapshots).mockReturnValue(true);
-      vi.mocked(extractForwardedContent).mockReturnValue('');
-      vi.mocked(extractForwardedAttachments).mockReturnValue([
-        {
-          url: 'https://cdn.discord.com/voice-no-transcript.ogg',
-          contentType: 'audio/ogg',
-          name: 'voice.ogg',
-          isVoiceMessage: true,
-          duration: 8.2,
-        },
-      ]);
-
-      // No transcript available
-      vi.mocked(mockTranscriptRetriever.retrieveTranscript).mockResolvedValue(null);
-
-      const message = createMockMessage({
-        id: 'forwarding-msg-no-transcript',
-        content: '',
-        author: createMockUser(),
-        attachments: new Map() as any,
-        embeds: [],
-      });
-
-      const result = await formatter.formatMessage(message, 1);
-
-      // Should still be marked as forwarded
-      expect(result.isForwarded).toBe(true);
-
-      // Content should not contain voice transcript
-      expect(result.content).not.toContain('[Voice transcript]');
-
-      // Voice attachment should still be in attachments
-      expect(result.attachments).toHaveLength(1);
-      expect(result.attachments?.[0].isVoiceMessage).toBe(true);
-
-      // Transcript retrieval should have been attempted
-      expect(mockTranscriptRetriever.retrieveTranscript).toHaveBeenCalledWith(
-        'forwarding-msg-no-transcript',
-        'https://cdn.discord.com/voice-no-transcript.ogg'
-      );
     });
 
     it('should extract images from forwarded message snapshots', async () => {
@@ -615,7 +392,7 @@ describe('MessageFormatter', () => {
         embeds: [],
       });
 
-      const result = await formatter.formatMessage(message, 1);
+      const result = formatter.buildRawReference(message, 1).reference;
 
       // Should be marked as forwarded
       expect(result.isForwarded).toBe(true);
@@ -627,9 +404,6 @@ describe('MessageFormatter', () => {
       expect(result.attachments).toHaveLength(1);
       expect(result.attachments?.[0].url).toBe('https://cdn.discord.com/forwarded-image.png');
       expect(result.attachments?.[0].contentType).toBe('image/png');
-
-      // Should NOT try to retrieve transcript for non-voice attachment
-      expect(mockTranscriptRetriever.retrieveTranscript).not.toHaveBeenCalled();
     });
 
     it('should fall back to regular attachment extraction when forwarded message has no snapshots', async () => {
@@ -667,7 +441,7 @@ describe('MessageFormatter', () => {
         embeds: [],
       });
 
-      const result = await formatter.formatMessage(message, 1);
+      const result = formatter.buildRawReference(message, 1).reference;
 
       // Should still be marked as forwarded
       expect(result.isForwarded).toBe(true);
