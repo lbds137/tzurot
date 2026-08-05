@@ -1,10 +1,10 @@
 ---
 id: TASK-156
 title: hasVoiceAttachment keeps a parallel forwarded-snapshot walk
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-06-23 00:00'
-updated_date: '2026-07-28 10:49'
+updated_date: '2026-08-05 23:47'
 labels:
   - 'area:bot-client'
   - 'area:voice'

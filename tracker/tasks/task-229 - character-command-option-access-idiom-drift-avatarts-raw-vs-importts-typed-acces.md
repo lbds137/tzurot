@@ -3,10 +3,10 @@ id: TASK-229
 title: >-
   /character command option-access idiom drift (avatar.ts raw vs import.ts typed
   accessor)
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-07-07 00:00'
-updated_date: '2026-07-28 10:50'
+updated_date: '2026-08-05 23:47'
 labels:
   - 'origin:review'
   - 'area:bot-client'
