@@ -19,6 +19,7 @@ import {
   mergeThinkingContent,
 } from '../utils/thinkingExtraction.js';
 import { replacePromptPlaceholders } from '../utils/promptPlaceholders.js';
+import { unwrapUnknownWrapperTags } from '../utils/wrapperTagUnwrap.js';
 
 const logger = createLogger('ResponsePostProcessor');
 
@@ -204,8 +205,9 @@ export class ResponsePostProcessor {
    * 1. Remove duplicate content (stop-token failure handling)
    * 2. Extract API-level reasoning
    * 3. Extract inline thinking blocks
-   * 4. Strip response artifacts (system prompt leakage)
-   * 5. Replace prompt placeholders with actual names
+   * 4. Unwrap invented content-shaped wrapper tags
+   * 5. Strip response artifacts (system prompt leakage)
+   * 6. Replace prompt placeholders with actual names
    */
   processResponse(
     rawContent: string,
@@ -226,10 +228,19 @@ export class ResponsePostProcessor {
       apiReasoning
     );
 
-    // Step 4: Strip artifacts
-    let cleanedContent = stripResponseArtifacts(visibleContent, context.personalityName);
+    // Step 4: Unwrap invented content-shaped wrapper tags (e.g. a reply whose
+    // stage direction came back as a literal <action>…</action> line).
+    //
+    // Placement is load-bearing: it MUST run before artifact stripping. That
+    // pass carries a generic trailing-closing-tag pattern, which eats a
+    // reply-final </action> and orphans the opener — so the pair has to be
+    // unwrapped while it is still intact.
+    const { content: unwrappedContent } = unwrapUnknownWrapperTags(visibleContent);
 
-    // Step 4b: Strip leading verbatim echo of the user's incoming message.
+    // Step 5: Strip artifacts
+    let cleanedContent = stripResponseArtifacts(unwrappedContent, context.personalityName);
+
+    // Step 5b: Strip leading verbatim echo of the user's incoming message.
     // Some LLMs learned to echo the incoming message as a prefix; existing
     // stripResponseArtifacts catches XML-wrapped variants, this catches the
     // plain-text variant. Safe no-op when userMessage is undefined.
@@ -239,7 +250,7 @@ export class ResponsePostProcessor {
       context.personalityName
     );
 
-    // Step 5: Replace placeholders
+    // Step 6: Replace placeholders
     cleanedContent = replacePromptPlaceholders(
       cleanedContent,
       context.userName,
@@ -247,7 +258,7 @@ export class ResponsePostProcessor {
       context.discordUsername
     );
 
-    // Step 6: Glitch detection — check for leaked chain-of-thought
+    // Step 7: Glitch detection — check for leaked chain-of-thought
     // Only fires when reasoning was enabled AND tag-based extraction found nothing
     let onlyThinkingProduced = false;
     if (
@@ -264,7 +275,7 @@ export class ResponsePostProcessor {
       );
     }
 
-    // Step 7: Reasoning-mode actual-vs-requested telemetry. Some models
+    // Step 8: Reasoning-mode actual-vs-requested telemetry. Some models
     // (notably `z-ai/glm-4.5-air:free`) accept a reasoning flag but don't
     // always actually emit reasoning — the response comes back as if
     // reasoning was disabled. When we're investigating model-inference
