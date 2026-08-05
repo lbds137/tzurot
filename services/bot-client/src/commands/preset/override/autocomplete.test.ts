@@ -5,6 +5,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { handleAutocomplete } from './autocomplete.js';
 import type { AutocompleteInteraction, User } from 'discord.js';
+import { AIProvider } from '@tzurot/common-types/constants/ai';
 import { type PersonalitySummary } from '@tzurot/common-types/schemas/api/personality';
 import { mockListWalletKeysResponse, mockLlmConfigSummary } from '@tzurot/test-factories';
 
@@ -508,6 +509,89 @@ describe('handleAutocomplete', () => {
       expect(choices).toHaveLength(2);
       expect(choices[0].value).toBe('00000000-0000-4000-8000-0000000000c3');
       expect(choices[0].name).toContain('GLM 4.5 Air');
+    });
+
+    it('free-filters and upsells for a voice-ONLY (ElevenLabs) wallet', async () => {
+      // An ElevenLabs key is a voice key: it unlocks no models, so the picker
+      // must behave exactly as it does for an empty wallet.
+      vi.mocked(mockInteraction.options.getFocused).mockReturnValue({
+        name: 'preset',
+        value: '',
+      } as unknown as string);
+      stub.listUserLlmConfigs.mockResolvedValue({
+        ok: true,
+        data: {
+          configs: [
+            mockLlmConfigSummary({
+              id: '00000000-0000-4000-8000-0000000000c1',
+              name: 'Claude Pro',
+              model: 'anthropic/claude-sonnet-4',
+              provider: 'openrouter',
+              isGlobal: true,
+              isOwned: false,
+            }),
+            mockLlmConfigSummary({
+              id: '00000000-0000-4000-8000-0000000000c2',
+              name: 'Grok Free',
+              model: 'x-ai/grok-4.1-fast:free',
+              provider: 'openrouter',
+              isGlobal: true,
+              isOwned: false,
+            }),
+          ],
+        },
+      });
+      stub.listWalletKeys.mockResolvedValue({
+        ok: true,
+        data: mockListWalletKeysResponse([{ provider: AIProvider.ElevenLabs, isActive: true }]),
+      });
+
+      await handleAutocomplete(mockInteraction);
+
+      const choices = vi.mocked(mockInteraction.respond).mock.calls[0][0] as {
+        name: string;
+        value: string;
+      }[];
+      // Paid preset filtered out; free preset + the upsell slot remain.
+      expect(choices).toHaveLength(2);
+      expect(choices[0].value).toBe('00000000-0000-4000-8000-0000000000c2');
+      expect(choices[1]).toEqual({ name: '✨ Unlock All Models...', value: UNLOCK_MODELS_VALUE });
+    });
+
+    it('shows paid presets with no upsell for a z.ai coding-plan key (not a guest)', async () => {
+      vi.mocked(mockInteraction.options.getFocused).mockReturnValue({
+        name: 'preset',
+        value: '',
+      } as unknown as string);
+      stub.listUserLlmConfigs.mockResolvedValue({
+        ok: true,
+        data: {
+          configs: [
+            mockLlmConfigSummary({
+              id: '00000000-0000-4000-8000-0000000000c1',
+              name: 'Claude Pro',
+              model: 'anthropic/claude-sonnet-4',
+              provider: 'openrouter',
+              isGlobal: true,
+              isOwned: false,
+            }),
+          ],
+        },
+      });
+      stub.listWalletKeys.mockResolvedValue({
+        ok: true,
+        data: mockListWalletKeysResponse([{ provider: AIProvider.ZaiCoding, isActive: true }]),
+      });
+
+      await handleAutocomplete(mockInteraction);
+
+      const choices = vi.mocked(mockInteraction.respond).mock.calls[0][0] as {
+        name: string;
+        value: string;
+      }[];
+      expect(choices).toHaveLength(1);
+      expect(choices[0].value).toBe('00000000-0000-4000-8000-0000000000c1');
+      expect(choices.some(c => c.value === UNLOCK_MODELS_VALUE)).toBe(false);
     });
 
     it('should add upsell option at the end for guest users', async () => {

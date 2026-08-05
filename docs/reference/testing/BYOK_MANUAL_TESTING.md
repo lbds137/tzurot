@@ -68,11 +68,13 @@ Only OpenRouter and ElevenLabs report a remaining balance; the other two show no
 credit field.
 
 **OpenRouter is the primary LLM provider.** The voice providers (ElevenLabs,
-Mistral) do not make chat responses stop being guest-mode at generation time.
+Mistral) do not take you out of chat guest-mode anywhere — not in the preset UI,
+not at generation time; their keys authorize voice endpoints only.
 The one exception is **Z.AI Coding Plan**: when the resolved preset's model is a
 `z-ai/<model>` on the coding-plan catalog AND you hold a zai-coding key, the
 request auto-promotes to direct z.ai routing and is **not** guest mode — no
-OpenRouter key required. See the known-asymmetry note at the end of Pass E.
+OpenRouter key required. See the voice-keys note at the end of Pass E for how
+this plays out across the UI and the generation path.
 
 ### 0.4 The command surface under test
 
@@ -94,8 +96,9 @@ First match wins:
 3. The character's own preset
 4. The system default preset — `/preset global default` (owner)
 
-**Guest mode cuts across all four.** With no OpenRouter key of your own, the
-ai-worker substitutes a free model whenever the resolved preset is not free —
+**Guest mode cuts across all four.** With no chat-capable key of your own (a
+voice-only ElevenLabs/Mistral key does not count — see §0.3), the ai-worker
+substitutes a free model whenever the resolved preset is not free —
 resolution continues down the guest ladder (your free selection → the free-tier
 default set by `/preset global free-default` → the `openrouter/free` router as a
 last resort). You do not get an error; you get a different model.
@@ -208,7 +211,7 @@ both, a slot-scoped clear must clear exactly one._
 ## Pass E — Multiple providers
 
 **Proves**: keys are per-provider, and that the LLM guest-mode decision is
-driven by the OpenRouter key specifically.
+driven by a chat-capable key (OpenRouter or z.ai Coding Plan) specifically.
 
 **Rate-limit budget**: 2 writes. Skip this pass if you have no second provider key.
 
@@ -222,16 +225,20 @@ driven by the OpenRouter key specifically.
 | E.4  | `/settings apikey remove` provider:**ElevenLabs (Voice)** | Embed **🗑️ API Key Removed** — “Your **ElevenLabs** API key has been deleted. The bot will now use the default system key (if available) for this provider.” |
 | E.5  | `/settings apikey browse`                                 | Only the OpenRouter row remains — removing one provider does not touch another.                                                                              |
 
-**Known asymmetry — report what you see, don't assume it's a bug.** The
-bot-client UI treats you as a key-holder when you have an active key for **any**
-provider, while the ai-worker decides chat guest-mode from your **OpenRouter**
-key (with the z.ai auto-promotion exception in §0.3 — a zai-coding key exits
-guest mode only for presets targeting a `z-ai/<model>` on the coding-plan
-catalog). So with only an ElevenLabs key stored: `/preset browse` would show no
-Guest Mode preamble, but a chat response would still carry the
-`🆓 Using free model` footer. If you want to check that combination, remove the
-OpenRouter key first (Pass F), store only an ElevenLabs key, and record both
+**Voice keys don't buy models — both services agree on this.** Chat guest-mode
+is decided by whether you hold an active **chat-capable** key (OpenRouter, or a
+z.ai Coding Plan key); ElevenLabs and Mistral are voice-only. So with only an
+ElevenLabs or Mistral key stored, the UI and the generation path line up:
+`/preset browse` shows the Guest Mode preamble **and** a chat response carries
+the `🆓 Using free model` footer. To check that combination, remove the
+OpenRouter key first (Pass F), store only a voice key, and record both
 observables.
+
+One nuance survives, per §0.3: the ai-worker's z.ai promotion is
+preset-dependent — a zai-coding key exits guest mode only for presets targeting
+a `z-ai/<model>` on the coding-plan catalog — while the bot-client UI treats a
+zai-coding key as full access globally. That optimism is deliberate (the UI
+never blocks what the worker would allow); the worker remains authoritative.
 
 ---
 

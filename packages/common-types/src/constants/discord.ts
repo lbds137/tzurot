@@ -4,6 +4,7 @@
  * Discord API limits, colors, and text truncation limits.
  */
 
+import { isChatCapableProvider } from './ai.js';
 import type { QuotaFallbackCategoryValue } from './error.js';
 
 /**
@@ -302,19 +303,18 @@ export const BOT_FOOTER_TEXT = {
  * ever populate the model footer's `providerUsed`, so this allowlist makes that
  * constraint STRUCTURAL — a voice provider can never surface as "• via ElevenLabs (Voice)"
  * on an LLM response even if a future change wired one into the LLM `providerUsed` path.
- * Add a new entry here when a new LLM provider is added to `DISCORD_PROVIDER_CHOICES`.
- */
-const LLM_FOOTER_PROVIDERS: ReadonlySet<(typeof DISCORD_PROVIDER_CHOICES)[number]['value']> =
-  new Set(['openrouter', 'zai-coding']);
-
-/**
+ *
+ * The allowlist is `isChatCapableProvider` — the single classification of which
+ * providers serve LLM generation, shared with the guest-mode predicates — so the
+ * footer and the UI can never disagree about what counts as an LLM provider.
+ *
  * Provider value → human-readable footer label, derived from the slash-command
- * choices (filtered to LLM providers) so the two never drift. Used to make the
- * served-by provider explicit in the model footer (e.g. "via Z.AI Coding Plan" vs
- * "via OpenRouter") rather than leaving users to infer it from the `z-ai/` vendor-prefix.
+ * choices so the two never drift. Used to make the served-by provider explicit in
+ * the model footer (e.g. "via Z.AI Coding Plan" vs "via OpenRouter") rather than
+ * leaving users to infer it from the `z-ai/` vendor-prefix.
  */
 const PROVIDER_FOOTER_LABEL: Readonly<Record<string, string>> = Object.fromEntries(
-  DISCORD_PROVIDER_CHOICES.filter(choice => LLM_FOOTER_PROVIDERS.has(choice.value)).map(choice => [
+  DISCORD_PROVIDER_CHOICES.filter(choice => isChatCapableProvider(choice.value)).map(choice => [
     choice.value,
     choice.name,
   ])

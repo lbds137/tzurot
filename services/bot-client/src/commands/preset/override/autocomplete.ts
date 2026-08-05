@@ -5,7 +5,11 @@
  */
 
 import type { AutocompleteInteraction } from 'discord.js';
-import { isFreeModelForUser, isFreeTierEligibleModel } from '@tzurot/common-types/constants/ai';
+import {
+  hasActiveChatCapableKey,
+  isFreeModelForUser,
+  isFreeTierEligibleModel,
+} from '@tzurot/common-types/constants/ai';
 import { DISCORD_LIMITS } from '@tzurot/common-types/constants/discord';
 import {
   AUTOCOMPLETE_BADGES,
@@ -71,18 +75,21 @@ async function handlePresetAutocomplete(
     return;
   }
 
-  // Check if user is in guest mode (no active wallet keys).
+  // Check if user is in guest mode (no active CHAT-capable wallet key — a
+  // voice-only ElevenLabs/Mistral key can't serve a generation, so it must
+  // not unlock the paid model list).
   //
   // Fails OPEN on wallet-API failure: a transient `/wallet/list` error
-  // would otherwise collapse with `!hasActiveWallet` to force `isGuestMode
-  // = true`, hiding paid models from users who actually have active keys.
+  // would otherwise collapse with `!hasActiveChatCapableKey` to force
+  // `isGuestMode = true`, hiding paid models from users who actually have
+  // active keys.
   // Mirrors the pattern in guestModeValidation.checkGuestModePremiumAccess —
   // the ai-worker's ApiKeyResolver + AuthStep enforce the gate
   // authoritatively at generation time, so showing extra options here can't
   // bypass the real check.
   let isGuestMode: boolean;
   if (walletResult.ok) {
-    isGuestMode = !walletResult.data.keys.some(k => k.isActive === true);
+    isGuestMode = !hasActiveChatCapableKey(walletResult.data.keys);
   } else {
     logger.warn(
       { userId, error: walletResult.error },
