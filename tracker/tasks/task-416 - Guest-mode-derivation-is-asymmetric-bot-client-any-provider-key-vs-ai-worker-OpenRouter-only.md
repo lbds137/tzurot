@@ -25,4 +25,6 @@ Nuance (claude-review on the doc PR, verified): ai-worker is not strictly OpenRo
 Fix shape: owner call on which semantic wins (chat guest-mode should probably key on chat-capable providers), then align the other side + the upsell/strikethrough surfaces.
 Acceptance: both services agree on guest-mode for a user holding only a non-OpenRouter key; the BYOK manual pass (Pass E known-asymmetry note in BYOK_MANUAL_TESTING.md) is updated to assert the chosen behavior.
 Surfaced by the TASK-408 doc rewrite.
+
+OWNER CALL 2026-08-04: the CHAT-CAPABLE-KEYS semantic wins — guest mode = no chat-capable key (OpenRouter, or z.ai-coding for z.ai-catalog presets). Align bot-client (preset/browse.ts, guestModeValidation.ts) to ai-worker's actual behavior so ElevenLabs/Mistral-only users see the Guest Mode preamble/strikethroughs honestly. Update the BYOK_MANUAL_TESTING.md Pass E known-asymmetry note to assert the chosen behavior. Now agent-runnable.
 <!-- SECTION:DESCRIPTION:END -->

@@ -7,6 +7,8 @@ created_date: '2026-08-03 18:27'
 
 _Focus: rewrite or retire the `docs/reference/` files the 2026-08-03 drift audit found materially wrong — the ones needing real current-code knowledge, not line fixes (those shipped in the audit's sweep PR)._
 
+**OWNER CALLS RESOLVED 2026-08-04 — the pass is now fully agent-runnable.** Delete `architecture/POSTGRES_SCHEMA.md` (schema.prisma self-documents) and `architecture/group-conversation-design.md` (diverged-planning-doc lifecycle). `operations/DATABASE_BACKUP_STRATEGY.md`: do NOT delete — move to `docs/proposals/backlog/` AND edit it there so its content matches reality (strip the fictional scripts/workflows; reframe as an honest un-started proposal for backup posture).
+
 One PR's worth of sweeping, roughly in danger order. Per-file disposition:
 
 - **`operations/PRISMA_PGVECTOR_REFERENCE.md`** — DANGEROUS: claims Railway auto-runs `prisma migrate deploy` in Dockerfiles (no Dockerfile does; migrations are operator-driven via `ops db:migrate` / `release:premigrate`). Whole workflow section predates the ops CLI, `drift-ignore.json`, and protected indexes. Rewrite around the real flow, or gut to a pointer at `.claude/rules/03-database.md` + `/tzurot-db-vector`.
