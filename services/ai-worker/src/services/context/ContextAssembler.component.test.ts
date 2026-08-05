@@ -293,8 +293,14 @@ describe('ContextAssembler.assembleCore — PGLite component', () => {
     // Decoration: B uses the env-map entry; C (no entry) uses the shared fallback.
     const byChannel = (id: string): DiscordEnvironment | undefined =>
       groups.find(g => g.channelEnvironment.channel.id === id)?.channelEnvironment;
-    expect(byChannel(CHANNEL_ID_B)?.channel.name).toBe('other-channel');
-    expect(byChannel(CHANNEL_ID_C)?.channel.name).toBe('unknown-channel');
+    // Presence first, so a MISSING group fails as "expected undefined to be
+    // defined" rather than as an ambiguous wrong-name mismatch below.
+    const envB = byChannel(CHANNEL_ID_B);
+    const envC = byChannel(CHANNEL_ID_C);
+    expect(envB).toBeDefined();
+    expect(envC).toBeDefined();
+    expect(envB?.channel.name).toBe('other-channel');
+    expect(envC?.channel.name).toBe('unknown-channel');
   });
 
   // ── Content rewriting via real DB-fallback mention resolution (step 6) ──────
