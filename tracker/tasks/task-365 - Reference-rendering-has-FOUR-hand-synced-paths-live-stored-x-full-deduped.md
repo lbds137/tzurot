@@ -4,7 +4,7 @@ title: Reference rendering has FOUR hand-synced paths (live/stored x full/dedupe
 status: To Do
 assignee: []
 created_date: '2026-07-30 23:08'
-updated_date: '2026-08-04 13:56'
+updated_date: '2026-08-05 15:25'
 labels:
   - 'area:ai-worker'
   - 'size:L'
@@ -523,3 +523,9 @@ dead work — it feeds two log counts while running Redis+DB transcript lookups
 per reference). TASK-34's mechanism was restated: its `[contentType: name]`
 markers no longer exist, but the unbounded per-attachment stub cost survives in
 a new form and is the owner's call.
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+PR-3 SHIPPED in #1976 (merged 2026-08-05): live persona hydration via batchResolveByDiscordIds injected into ReferencedMessageFormatter — same resolver as the stored path, so both quote paths resolve identity identically and a future fidelity upgrade lands at one seam. Review round 1 surfaced that fromStoredReference fed the HYDRATED name into deriveRefRole (the exact class the live path avoided); fixed in the same PR with a two-direction test. Remaining scope: PR-4 ONLY (message-level <image_descriptions>/<voice_transcripts> -> <attachments> alignment) — owner-gated per this task's own record; widest model-visible surface.
+<!-- SECTION:NOTES:END -->
