@@ -3,10 +3,10 @@ id: TASK-416
 title: >-
   Guest-mode derivation is asymmetric: bot-client any-provider key vs ai-worker
   OpenRouter-only
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-03 21:09'
-updated_date: '2026-08-03 21:09'
+updated_date: '2026-08-05 03:57'
 labels:
   - 'size:M'
   - 'area:bot-client'
