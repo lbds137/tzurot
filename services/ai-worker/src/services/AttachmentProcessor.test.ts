@@ -12,17 +12,41 @@ import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/perso
 import { processAttachmentsParallel } from './AttachmentProcessor.js';
 
 // Use vi.hoisted() to create mocks that persist across test resets
-const { mockDescribeImage, mockTranscribeAudio, mockGetSystemSetting } = vi.hoisted(() => ({
-  mockDescribeImage: vi.fn(),
-  mockTranscribeAudio: vi.fn(),
-  // Defaults to the registry default (sticker vision ON) so every pre-existing
-  // case behaves exactly as before; only the kill-switch case flips it.
-  mockGetSystemSetting: vi.fn(() => true),
-}));
+const {
+  mockDescribeImage,
+  mockTranscribeAudio,
+  mockGetSystemSetting,
+  mockLogger,
+  mockChildLogger,
+} = vi.hoisted(() => {
+  const child = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+  return {
+    mockDescribeImage: vi.fn(),
+    mockTranscribeAudio: vi.fn(),
+    // Defaults to the registry default (sticker vision ON) so every pre-existing
+    // case behaves exactly as before; only the kill-switch case flips it.
+    mockGetSystemSetting: vi.fn(() => true),
+    mockChildLogger: child,
+    mockLogger: {
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+      child: vi.fn(() => child),
+    },
+  };
+});
 
 vi.mock('@tzurot/common-types/services/SystemSettingsService', () => ({
   getSystemSetting: mockGetSystemSetting,
 }));
+
+vi.mock('@tzurot/common-types/utils/logger', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
+    '@tzurot/common-types/utils/logger'
+  );
+  return { ...actual, createLogger: () => mockLogger };
+});
 
 // Mock the MultimodalProcessor module
 vi.mock('./MultimodalProcessor.js', () => ({
@@ -666,6 +690,134 @@ describe('AttachmentProcessor', () => {
         contentType: 'audio/mp3',
       });
       expect(mockTranscribeAudio).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('requestId correlation', () => {
+    // The reason this module logs at all is to explain a reference whose
+    // enrichment went missing, and a failure line nobody can tie back to the
+    // request that produced it is close to unusable. The binding is pure
+    // correlation — nothing below asserts on rendered output, because none of it
+    // changes.
+    const imageOptions = (
+      requestId?: string
+    ): Parameters<typeof processAttachmentsParallel>[0] => ({
+      attachments: [
+        {
+          url: 'https://example.com/broken.png',
+          contentType: 'image/png',
+          name: 'broken.png',
+          size: 1000,
+        },
+      ],
+      referenceNumber: 1,
+      personality: mockPersonality,
+      isGuestMode: false,
+      requestId,
+    });
+
+    it('emits the image failure through a logger bound to the requestId', async () => {
+      mockDescribeImage.mockRejectedValue(new Error('Vision API failed'));
+
+      await processAttachmentsParallel(imageOptions('req-image'));
+
+      expect(mockLogger.child).toHaveBeenCalledWith({ requestId: 'req-image' });
+      expect(mockChildLogger.error).toHaveBeenCalledWith(
+        expect.objectContaining({ referenceNumber: 1, url: 'https://example.com/broken.png' }),
+        'Image processing failed'
+      );
+      // The unbound module logger must not carry the line — an uncorrelated copy
+      // is the state this change exists to remove.
+      expect(mockLogger.error).not.toHaveBeenCalled();
+    });
+
+    it('emits the voice failure through the bound logger', async () => {
+      mockTranscribeAudio.mockRejectedValue(new Error('STT failed'));
+
+      await processAttachmentsParallel({
+        attachments: [
+          {
+            url: 'https://example.com/voice.ogg',
+            contentType: 'audio/ogg',
+            name: 'voice.ogg',
+            size: 5000,
+            isVoiceMessage: true,
+            duration: 5,
+          },
+        ],
+        referenceNumber: 2,
+        personality: mockPersonality,
+        isGuestMode: false,
+        requestId: 'req-voice',
+      });
+
+      expect(mockLogger.child).toHaveBeenCalledWith({ requestId: 'req-voice' });
+      expect(mockChildLogger.error).toHaveBeenCalledWith(
+        expect.objectContaining({ referenceNumber: 2, url: 'https://example.com/voice.ogg' }),
+        'Voice transcription failed'
+      );
+      expect(mockLogger.error).not.toHaveBeenCalled();
+    });
+
+    it('correlates the fan-out catch, not only the per-modality failures', async () => {
+      // The pre-dispatch throw (same forced shape as the modality-preservation
+      // cases above) is the one failure site OUTSIDE the two helpers, so it is
+      // the one that would silently keep the unbound logger.
+      const exploding = [
+        {
+          type: AttachmentType.Image,
+          description: 'unused',
+          originalUrl: 'https://example.com/other.png',
+          metadata: {
+            url: 'https://example.com/other.png',
+            name: 'other.png',
+            contentType: 'image/png',
+            size: 1,
+          },
+        },
+      ];
+      exploding.find = () => {
+        throw new Error('boom before dispatch');
+      };
+
+      await processAttachmentsParallel({
+        ...imageOptions('req-fanout'),
+        preprocessedAttachments: exploding,
+      });
+
+      expect(mockLogger.child).toHaveBeenCalledWith({ requestId: 'req-fanout' });
+      expect(mockChildLogger.error).toHaveBeenCalledWith(
+        expect.objectContaining({ referenceNumber: 1, url: 'https://example.com/broken.png' }),
+        'Unexpected error in attachment processing'
+      );
+      expect(mockLogger.error).not.toHaveBeenCalled();
+    });
+
+    it('threads the bound logger into withRetry so retry warnings correlate too', async () => {
+      // withRetry raises its own warnings between attempts. Those are the lines
+      // that say a paid call was retried, so leaving them on the module logger
+      // would strand exactly the spend evidence next to a correlated failure.
+      mockDescribeImage.mockRejectedValue(new Error('Vision API failed'));
+
+      await processAttachmentsParallel(imageOptions('req-retry'));
+
+      expect(mockChildLogger.warn).toHaveBeenCalled();
+      expect(mockLogger.warn).not.toHaveBeenCalled();
+    });
+
+    it('uses the module logger when no requestId is threaded', async () => {
+      // Legacy callers thread nothing; they must not pay for a child binding and
+      // must keep logging exactly as before.
+      mockDescribeImage.mockRejectedValue(new Error('Vision API failed'));
+
+      await processAttachmentsParallel(imageOptions());
+
+      expect(mockLogger.child).not.toHaveBeenCalled();
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        expect.objectContaining({ referenceNumber: 1, url: 'https://example.com/broken.png' }),
+        'Image processing failed'
+      );
+      expect(mockChildLogger.error).not.toHaveBeenCalled();
     });
   });
 });

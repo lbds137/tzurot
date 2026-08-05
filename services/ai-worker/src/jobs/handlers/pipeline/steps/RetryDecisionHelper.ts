@@ -158,6 +158,11 @@ interface EchoResponseCheckOptions {
  * Below this length an echo is not evidence of a misplaced reply: a short input
  * ("lol", "goodnight") can legitimately be repeated back as a stylistic reply,
  * and a false-positive retry spends budget and tokens for nothing.
+ *
+ * Deliberately stricter than the cross-turn detector's
+ * `MIN_LENGTH_FOR_SIMILARITY_CHECK` (30, in utils/crossTurnDetection.ts): a
+ * false-positive echo retry burns a paid generation, while a false-positive
+ * similarity comparison only affects a free dedup check.
  */
 const MIN_LENGTH_FOR_ECHO_CHECK = 40;
 
