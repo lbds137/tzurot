@@ -9,6 +9,10 @@
 
 import { escapeMarkdown } from 'discord.js';
 import { type EnvConfig } from '@tzurot/common-types/config/config';
+import {
+  characterAvatarSetOptions,
+  characterAvatarClearOptions,
+} from '@tzurot/common-types/generated/commandOptions';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import {
@@ -64,13 +68,13 @@ async function handleAvatarUpload(
   context: DeferredCommandContext,
   config: EnvConfig
 ): Promise<void> {
-  const interaction = context.interaction;
-  const slug = interaction.options.getString('character', true);
+  const options = characterAvatarSetOptions(context.interaction);
+  const slug = options.character();
   if (isAutocompleteErrorSentinel(slug)) {
     await context.editReply({ content: AUTOCOMPLETE_UNAVAILABLE_MESSAGE });
     return;
   }
-  const attachment = interaction.options.getAttachment('image', true);
+  const attachment = options.image();
   const userId = context.user.id;
 
   const validationError = validateImageAttachment(attachment);
@@ -163,8 +167,7 @@ async function handleAvatarClear(
   context: DeferredCommandContext,
   config: EnvConfig
 ): Promise<void> {
-  const interaction = context.interaction;
-  const slug = interaction.options.getString('character', true);
+  const slug = characterAvatarClearOptions(context.interaction).character();
   if (isAutocompleteErrorSentinel(slug)) {
     await context.editReply({ content: AUTOCOMPLETE_UNAVAILABLE_MESSAGE });
     return;

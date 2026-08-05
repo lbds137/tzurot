@@ -671,9 +671,21 @@ describe('handleExpandField', () => {
   });
 
   function expandInteraction() {
-    return { deferReply, editReply, deferred: true, replied: false } as unknown as Parameters<
-      typeof handleExpandField
-    >[0];
+    const interaction: Record<string, unknown> = {
+      deferReply,
+      editReply,
+      deferred: false,
+      replied: false,
+    };
+    // deferReply flips the ack state like Discord, so an error path picks editReply
+    // (deferred) over reply (fresh) — matching the runtime path. A statically
+    // pre-set `deferred: true` would silently exercise the deferred branch even if
+    // a future pre-defer error path took the fresh one.
+    deferReply.mockImplementation(() => {
+      interaction.deferred = true;
+      return Promise.resolve(undefined);
+    });
+    return interaction as unknown as Parameters<typeof handleExpandField>[0];
   }
 
   it('defers ephemerally and sends the full field content via chunked reply', async () => {
