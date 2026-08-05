@@ -410,8 +410,33 @@ describe('MultiTagPersistence', () => {
       expect(await persistence.getSyntheticTimeout('job-1')).toBeNull();
     });
 
+    it('getSyntheticTimeout round-trips a DM context (null guildId, absent clientId)', async () => {
+      // `JSON.stringify` drops an undefined clientId, so the stored marker has no
+      // such key at all — the shape guard must still accept it.
+      const dmCtx = { ...ctx, guildId: null, clientId: undefined };
+      mockRedis.get.mockResolvedValue(JSON.stringify(dmCtx));
+      expect(await persistence.getSyntheticTimeout('job-1')).toEqual({
+        ...ctx,
+        guildId: null,
+        clientId: undefined,
+      });
+    });
+
     it('getSyntheticTimeout fails soft (null) on malformed JSON', async () => {
       mockRedis.get.mockResolvedValue('not-json{');
+      expect(await persistence.getSyntheticTimeout('job-1')).toBeNull();
+    });
+
+    it('getSyntheticTimeout returns null (not a half-populated object) on a wrong-shaped marker', async () => {
+      // Structurally valid JSON missing a required field — what a marker written
+      // by an older deploy looks like once the shape gains a field.
+      const { personalitySlug: _dropped, ...missingField } = ctx;
+      mockRedis.get.mockResolvedValue(JSON.stringify(missingField));
+      expect(await persistence.getSyntheticTimeout('job-1')).toBeNull();
+    });
+
+    it('getSyntheticTimeout returns null on a marker whose field has the wrong type', async () => {
+      mockRedis.get.mockResolvedValue(JSON.stringify({ ...ctx, isAutoResponse: 'yes' }));
       expect(await persistence.getSyntheticTimeout('job-1')).toBeNull();
     });
 

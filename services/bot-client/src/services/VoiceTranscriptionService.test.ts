@@ -229,6 +229,106 @@ describe('VoiceTranscriptionService', () => {
 
       expect(service.hasVoiceAttachment(message)).toBe(false);
     });
+
+    // The forwarded branch delegates to `hasForwardedVoiceAttachment`, which reads a
+    // precomputed `isVoiceMessage` flag rather than re-running the predicate over raw
+    // snapshot attachments. These pin the inputs where the two mechanisms could
+    // plausibly disagree.
+
+    it('detects a forwarded voice snapshot with an OMITTED content-type (duration fallback)', () => {
+      // The one case the two mechanisms most plausibly diverge on: with no
+      // content-type there is no audio/* discriminator, so detection rests entirely
+      // on the duration fallback. It survives only because the flag is computed from
+      // the RAW attachment, before a null content-type is normalized to octet-stream.
+      const message = createMockMessage({
+        attachments: [],
+        messageSnapshots: [
+          {
+            attachments: [
+              {
+                url: 'https://cdn.discord.com/voice/forwarded-no-ct.ogg',
+                contentType: null,
+                name: 'voice.ogg',
+                size: 50000,
+                duration: 5.2,
+              },
+            ],
+          },
+        ],
+      });
+
+      expect(service.hasVoiceAttachment(message)).toBe(true);
+    });
+
+    it('does NOT treat a forwarded content-type-less snapshot attachment WITHOUT duration as voice', () => {
+      const message = createMockMessage({
+        attachments: [],
+        messageSnapshots: [
+          {
+            attachments: [
+              {
+                url: 'https://cdn.discord.com/forwarded-no-ct.bin',
+                contentType: null,
+                name: 'file.bin',
+                size: 50000,
+                duration: null,
+              },
+            ],
+          },
+        ],
+      });
+
+      expect(service.hasVoiceAttachment(message)).toBe(false);
+    });
+
+    it('detects voice in a LATER snapshot, not just the first (multi-snapshot walk)', () => {
+      const message = createMockMessage({
+        attachments: [],
+        messageSnapshots: [
+          {
+            attachments: [
+              {
+                url: 'https://cdn.discord.com/image.png',
+                contentType: 'image/png',
+                name: 'image.png',
+                size: 50000,
+                duration: null,
+              },
+            ],
+          },
+          {
+            attachments: [
+              {
+                url: 'https://cdn.discord.com/voice/second.ogg',
+                contentType: 'audio/ogg',
+                name: 'voice.ogg',
+                size: 50000,
+                duration: 5.2,
+              },
+            ],
+          },
+        ],
+      });
+
+      expect(service.hasVoiceAttachment(message)).toBe(true);
+    });
+
+    it('returns false for a forward whose snapshots Discord did not populate', () => {
+      // `reference.type === Forward` with no snapshots: the old walk bailed on
+      // `hasForwardedSnapshots`, the shared detector instead falls back to the MAIN
+      // message's attachments — which the direct check above has already cleared.
+      const message = createMockMessage({
+        attachments: [
+          {
+            contentType: 'image/png',
+            duration: null,
+          },
+        ],
+        forwardReferenceWithoutSnapshots: true,
+      });
+
+      expect(service.hasVoiceAttachment(message)).toBe(false);
+    });
   });
 
   describe('transcribe', () => {
@@ -1421,6 +1521,13 @@ interface MockMessageOptions {
   authorId?: string;
   /** Give the mock channel a `send` method (the taking-longer notice path). */
   channelSend?: boolean;
+  /**
+   * Mark the message as a forward (`reference.type === Forward`) while leaving
+   * `messageSnapshots` absent — the shape Discord produces when it declines to
+   * populate snapshots. The two forwarded-voice detectors guard this case with
+   * different predicates, so it needs its own fixture.
+   */
+  forwardReferenceWithoutSnapshots?: boolean;
 }
 
 function createMockAttachmentsMap(attachmentsList: MockSnapshotAttachment[] | null): Map<
@@ -1486,6 +1593,12 @@ function createMockMessage(options: MockMessageOptions = {}): Message {
         attachments: createMockAttachmentsMap(snapshot.attachments),
       });
     });
+    // Discord.js hands back a `Collection`, not a bare `Map` — the shared
+    // forwarded-message helpers use `first()`. Stub it so the fixture matches the
+    // real shape instead of only the subset one caller happened to touch.
+    (messageSnapshots as any).first = function () {
+      return this.values().next().value;
+    };
   }
 
   const channel: any = options.noTypingSupport
@@ -1503,7 +1616,10 @@ function createMockMessage(options: MockMessageOptions = {}): Message {
 
   // If messageSnapshots is provided, include forward reference type
   // This is required by the centralized forwardedMessageUtils detection
-  const reference = messageSnapshots !== undefined ? { type: MessageReferenceType.Forward } : null;
+  const reference =
+    messageSnapshots !== undefined || options.forwardReferenceWithoutSnapshots === true
+      ? { type: MessageReferenceType.Forward }
+      : null;
 
   return {
     attachments,

@@ -19,6 +19,7 @@
  */
 
 import type { Redis } from 'ioredis';
+import { z } from 'zod';
 import { MULTI_TAG } from '@tzurot/common-types/constants/message';
 import { REDIS_KEY_PREFIXES } from '@tzurot/common-types/constants/queue';
 import { createLogger } from '@tzurot/common-types/utils/logger';
@@ -92,6 +93,23 @@ export interface SyntheticTimeoutContext {
   recipientUserId: string;
   isAutoResponse: boolean;
 }
+
+/**
+ * Runtime shape guard for a persisted `SyntheticTimeoutContext`. Mirrors the
+ * interface above field-for-field — keep the two in sync. A cast alone would
+ * accept a structurally-valid-but-wrong-shaped marker (one written by an older
+ * deploy that predates a newly-required field), handing the consumer an
+ * `undefined` it never guards against; parsing turns that into a clean skip.
+ * `clientId` is optional here because `JSON.stringify` drops an undefined key.
+ */
+const SyntheticTimeoutContextSchema = z.object({
+  channelId: z.string(),
+  guildId: z.string().nullable(),
+  clientId: z.string().optional(),
+  personalitySlug: z.string(),
+  recipientUserId: z.string(),
+  isAutoResponse: z.boolean(),
+});
 
 /**
  * Serializable snapshot of a single slot. Strips runtime-only fields
@@ -337,17 +355,33 @@ export class MultiTagPersistence {
 
   /**
    * Read the synthetic-timeout recovery context for a jobId, or null if none
-   * (not a synthetic-timeout job, or marker expired). Fails soft → null.
+   * (not a synthetic-timeout job, marker expired, or the stored value no longer
+   * matches the current shape). Fails soft → null.
    */
   async getSyntheticTimeout(jobId: string): Promise<SyntheticTimeoutContext | null> {
     const key = `${REDIS_KEY_PREFIXES.MULTI_TAG_SYNTHETIC_TIMEOUT}${jobId}`;
     try {
       const raw = await this.redis.get(key);
-      // No deep schema validation: we wrote this marker ourselves minutes earlier and
-      // the 30-min TTL keeps any cross-deploy shape drift transient. A structurally
-      // valid but wrong-shaped marker would surface downstream (e.g. sendResponse),
-      // not here — acceptable for a best-effort recovery path.
-      return raw === null ? null : (JSON.parse(raw) as SyntheticTimeoutContext);
+      if (raw === null) {
+        return null;
+      }
+      // Validate rather than cast: the `catch` below covers malformed JSON, this
+      // covers structurally-valid-but-wrong-shape (a marker written by an older
+      // deploy). A half-populated context would otherwise surface downstream as a
+      // surprising send or a Discord API error instead of a clean skip.
+      const parsed = SyntheticTimeoutContextSchema.safeParse(JSON.parse(raw));
+      if (!parsed.success) {
+        logger.warn(
+          { jobId },
+          'getSyntheticTimeout marker failed shape validation — treating as no recovery marker'
+        );
+        return null;
+      }
+      // The trailing `clientId` is not redundant with the spread: zod's
+      // `.optional()` omits the KEY entirely when unset, while the interface
+      // declares it required-but-possibly-undefined. Re-assigning forces the
+      // key to exist so the return structurally satisfies the type.
+      return { ...parsed.data, clientId: parsed.data.clientId };
     } catch (err) {
       logger.warn(
         { err, jobId },

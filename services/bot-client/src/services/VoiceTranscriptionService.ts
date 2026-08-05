@@ -22,7 +22,11 @@ import {
 } from '@tzurot/common-types/utils/errors';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { voiceTranscriptCache } from '../redis.js';
-import { hasForwardedSnapshots, getSnapshots } from '../utils/forwardedMessageUtils.js';
+import {
+  hasForwardedSnapshots,
+  getSnapshots,
+  hasForwardedVoiceAttachment,
+} from '../utils/forwardedMessageUtils.js';
 import { isVoiceAttachment } from '../utils/voiceAttachment.js';
 import { sendTypingIndicator } from '../utils/typingErrorClassifier.js';
 import { classifyBotAudio } from '../utils/botAudioClassifier.js';
@@ -249,26 +253,6 @@ function extractAudioFromSnapshot(snapshot: {
 }
 
 /**
- * Check if a snapshot has any audio attachments
- * @internal
- */
-function snapshotHasAudio(snapshot: {
-  attachments?: ReadonlyMap<
-    string,
-    {
-      contentType: string | null;
-      duration: number | null;
-    }
-  > | null;
-}): boolean {
-  if (!snapshot.attachments || snapshot.attachments.size === 0) {
-    return false;
-  }
-
-  return Array.from(snapshot.attachments.values()).some(isVoiceAttachment);
-}
-
-/**
  * Extract audio attachments from forwarded message snapshots
  * @internal
  */
@@ -314,23 +298,12 @@ export class VoiceTranscriptionService {
       return true;
     }
 
-    // Check forwarded message snapshots using centralized utility
-    if (!hasForwardedSnapshots(message)) {
-      return false;
-    }
-
-    const snapshots = getSnapshots(message);
-    if (snapshots === undefined) {
-      return false;
-    }
-
-    for (const snapshot of snapshots.values()) {
-      if (snapshotHasAudio(snapshot)) {
-        return true;
-      }
-    }
-
-    return false;
+    // Forwarded snapshots: delegate to the shared detector rather than re-walking
+    // the snapshots here. It reads the `isVoiceMessage` flag that
+    // `extractAttachments` computed from the RAW snapshot attachment, i.e. the same
+    // `isVoiceAttachment` predicate over the same object — including the
+    // duration fallback for content-type-less snapshots.
+    return hasForwardedVoiceAttachment(message);
   }
 
   /**

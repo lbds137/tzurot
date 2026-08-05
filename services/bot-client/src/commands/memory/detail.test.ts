@@ -522,19 +522,28 @@ describe('Memory Detail', () => {
     it('should show error if memory not found', async () => {
       stub.getMemory.mockResolvedValue(makeErr(404, 'Not found'));
 
-      const mockDeferReply = vi.fn();
       const mockEditReply = vi.fn();
 
-      const interaction = {
+      const interaction: Record<string, unknown> = {
         user: { id: 'user-123', username: 'testuser' },
-        deferReply: mockDeferReply,
         editReply: mockEditReply,
-        deferred: true,
+        reply: vi.fn(),
+        deferred: false,
         replied: false,
-      } as unknown as ButtonInteraction;
+      };
+      // deferReply flips the ack state like Discord, so the error path picks
+      // editReply (deferred) over reply (fresh) — matching the runtime path. A
+      // statically pre-set `deferred: true` would silently exercise the deferred
+      // branch even if a future pre-defer error path took the fresh one.
+      const mockDeferReply = vi.fn().mockImplementation(() => {
+        interaction.deferred = true;
+        return Promise.resolve(undefined);
+      });
+      interaction.deferReply = mockDeferReply;
 
-      await handleViewFullButton(interaction, 'memory-123');
+      await handleViewFullButton(interaction as unknown as ButtonInteraction, 'memory-123');
 
+      expect(mockDeferReply).toHaveBeenCalled();
       expect(mockEditReply).toHaveBeenCalledWith(
         expect.objectContaining({
           content: expect.stringContaining('Memory not found'),

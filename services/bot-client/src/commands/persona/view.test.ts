@@ -206,14 +206,23 @@ describe('handleExpandContent', () => {
   });
 
   function createMockButtonInteraction() {
-    return {
+    const interaction: Record<string, unknown> = {
       user: { id: '123456789' },
       deferReply: mockDeferReply,
       editReply: mockEditReply,
       followUp: mockFollowUp,
-      deferred: true,
+      deferred: false,
       replied: false,
-    } as unknown as Parameters<typeof handleExpandContent>[0];
+    };
+    // deferReply flips the ack state like Discord, so an error path picks editReply
+    // (deferred) over reply (fresh) — matching the runtime path. A statically
+    // pre-set `deferred: true` would silently exercise the deferred branch even if
+    // a future pre-defer error path took the fresh one.
+    mockDeferReply.mockImplementation(() => {
+      interaction.deferred = true;
+      return Promise.resolve(undefined);
+    });
+    return interaction as unknown as Parameters<typeof handleExpandContent>[0];
   }
 
   it('should show full content when short', async () => {
