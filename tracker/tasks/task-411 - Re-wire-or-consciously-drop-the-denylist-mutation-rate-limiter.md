@@ -1,10 +1,10 @@
 ---
 id: TASK-411
 title: Re-wire or consciously drop the denylist mutation rate limiter
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-03 18:27'
-updated_date: '2026-08-04 13:50'
+updated_date: '2026-08-05 03:11'
 labels:
   - 'size:S'
   - 'area:api-gateway'
