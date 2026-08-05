@@ -101,6 +101,11 @@ run 2 "dirty .mts module"                         'git commit -m "x"'           
 run 2 "dirty .cts module"                         'git commit -m "x"'                                      'services/probe.cts'
 run 2 "dirty yaml config"                         'git commit -m "x"'                                      'services/probe/config.yaml'
 run 2 "dirty Dockerfile"                          'git commit -m "x"'                                      'services/probe/Dockerfile'
+# Plumbing subcommands are not `git commit`: `-` is a non-word character, so
+# a bare `commit\b` matched them and blocked a tree-writing plumbing call.
+run 0 "plumbing: git commit-tree stays silent"    'git commit-tree abc1234 -m x'                           'services/probe.ts'
+run 0 "plumbing: git commit-graph stays silent"   'git commit-graph write'                                 'services/probe.ts'
+run 0 "plumbing: commit-tree behind -C flag"      'git -C /some/path commit-tree abc1234'                  'services/probe.ts'
 run 0 "escape hatch in command position"          'TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git commit -m "x"'   'services/probe.ts'
 run 0 "escape hatch, canonical heredoc form"      "TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 $CANONICAL_HEREDOC"  'services/probe.ts'
 run 0 "non-git command"                           'echo hello'                                             'services/probe.ts'
