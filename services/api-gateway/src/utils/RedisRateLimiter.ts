@@ -209,22 +209,6 @@ export function createRedisWalletReadRateLimiter(redis: Redis): RequestHandler {
 }
 
 /**
- * Create rate limiter for denylist admin operations (POST/DELETE)
- *
- * Denylist mutations are infrequent admin actions. Rate limit to
- * prevent accidental rapid-fire changes, not DDoS protection.
- */
-export function createRedisDenylistRateLimiter(redis: Redis): RequestHandler {
-  const limiter = new RedisRateLimiter(redis, {
-    windowMs: 60 * 1000, // 1 minute
-    maxRequests: 10, // 10 mutations per minute
-    message: 'Too many denylist operations. Please try again later.',
-    keyPrefix: 'ratelimit:denylist:',
-  });
-  return limiter.middleware();
-}
-
-/**
  * IP-based key generator for unauthenticated public routes.
  *
  * Takes the RIGHTMOST `X-Forwarded-For` entry — that's the IP the last

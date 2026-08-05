@@ -9,7 +9,7 @@
  * cache at startup, before any Discord user context exists.
  */
 
-import { Router, type Request, type RequestHandler, type Response } from 'express';
+import { type Request, type RequestHandler, type Response } from 'express';
 import {
   DenylistAddSchema,
   denylistEntityTypeSchema,
@@ -19,12 +19,11 @@ import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { isBotOwner } from '@tzurot/common-types/utils/ownerMiddleware';
 import { type DenylistCacheInvalidationService } from '@tzurot/cache-invalidation';
-import { extractOwnerId, requireOwnerAuth } from '../../services/AuthMiddleware.js';
+import { extractOwnerId } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendCustomSuccess, sendError } from '../../utils/responseHelpers.js';
 import { sendZodError } from '../../utils/zodHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
-import { createRedisDenylistRateLimiter } from '../../utils/RedisRateLimiter.js';
 import type { RouteDeps } from '../routeDeps.js';
 
 const logger = createLogger('admin-denylist');
@@ -93,9 +92,6 @@ function handleAddEntry(
   });
 }
 
-/**
- * Create denylist admin routes
- */
 /** GET /api/admin/denylist — list all entries (optional ?type= filter) */
 export const handleListDenylistEntries = (deps: RouteDeps): RequestHandler => {
   const { prisma } = deps;
@@ -201,28 +197,3 @@ export const handleRemoveDenylistEntry = (deps: RouteDeps): RequestHandler => {
     sendCustomSuccess(res, { success: true, removed: true });
   });
 };
-
-/**
- * Legacy factory composing the 4 denylist endpoints with per-route
- * middleware (the rate limiter ties them together at the factory
- * level, so callers that haven't migrated to the bare handlers can
- * keep the existing mount shape).
- */
-export function createDenylistRoutes(deps: RouteDeps): Router {
-  const router = Router();
-  const rateLimiter =
-    deps.redis !== undefined ? createRedisDenylistRateLimiter(deps.redis) : undefined;
-  const mutationMiddleware = rateLimiter !== undefined ? [rateLimiter] : [];
-
-  router.get('/', requireOwnerAuth(), handleListDenylistEntries(deps));
-  router.get('/cache', handleGetDenylistCache(deps));
-  router.post('/', requireOwnerAuth(), ...mutationMiddleware, handleAddDenylistEntry(deps));
-  router.delete(
-    '/:type/:discordId/:scope/:scopeId',
-    requireOwnerAuth(),
-    ...mutationMiddleware,
-    handleRemoveDenylistEntry(deps)
-  );
-
-  return router;
-}
