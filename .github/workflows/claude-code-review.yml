@@ -60,6 +60,8 @@ jobs:
 
             Use the repository's CLAUDE.md for guidance on style and conventions. Be constructive and helpful in your feedback.
 
+            Report every issue you find — do not pre-filter by severity; label severity instead and let the reader triage. Keep the review proportional to its findings (no padding), and if you write a summary or actionable-items section, it must enumerate EVERY actionable item from the body — a finding that appears only mid-body and not in the summary is a defect of the review.
+
             Use `gh pr comment` with your Bash tool to leave your review as a comment on the PR.
 
           # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
