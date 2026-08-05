@@ -7,7 +7,10 @@
  */
 
 import { EmbedBuilder } from 'discord.js';
-import { isFreeTierEligibleModel } from '@tzurot/common-types/constants/ai';
+import {
+  hasActiveChatCapableKey,
+  isFreeTierEligibleModel,
+} from '@tzurot/common-types/constants/ai';
 import { DISCORD_COLORS } from '@tzurot/common-types/constants/discord';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { type UserClient } from '@tzurot/clients';
@@ -90,9 +93,11 @@ export async function checkGuestModePremiumAccess(
     return { blocked: false, reason: 'check-failed' };
   }
 
-  const hasActiveWallet = walletResult.data.keys.some(k => k.isActive === true);
+  // Only a CHAT-capable key (OpenRouter / z.ai coding plan) buys model access;
+  // a voice-only ElevenLabs or Mistral key leaves the user in guest mode.
+  const hasChatKey = hasActiveChatCapableKey(walletResult.data.keys);
 
-  if (hasActiveWallet) {
+  if (hasChatKey) {
     return { blocked: false, reason: 'paid' };
   }
 

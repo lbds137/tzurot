@@ -16,7 +16,11 @@ import {
   type ButtonInteraction,
   type StringSelectMenuInteraction,
 } from 'discord.js';
-import { isFreeModelForUser, isFreeTierEligibleModel } from '@tzurot/common-types/constants/ai';
+import {
+  hasActiveChatCapableKey,
+  isFreeModelForUser,
+  isFreeTierEligibleModel,
+} from '@tzurot/common-types/constants/ai';
 import { ENTITY_EMOJI, buildBadgeLegend } from '@tzurot/common-types/constants/uxVocabulary';
 import { AUTOCOMPLETE_BADGES } from '@tzurot/common-types/utils/autocompleteFormat';
 import { presetBrowseOptions } from '@tzurot/common-types/generated/commandOptions';
@@ -324,7 +328,9 @@ export async function handleBrowse(context: DeferredCommandContext): Promise<voi
       return;
     }
 
-    // Check if user is in guest mode (no active wallet keys)
+    // Check if user is in guest mode (no active CHAT-capable wallet key —
+    // a voice-only ElevenLabs/Mistral key buys no models, so it must not
+    // read as full access)
     // Only show guest mode warning when we successfully verified no active keys
     // If wallet API failed, assume user might have keys (don't restrict them)
     if (!walletResult.ok) {
@@ -333,7 +339,7 @@ export async function handleBrowse(context: DeferredCommandContext): Promise<voi
         'Wallet check failed, assuming not guest mode'
       );
     }
-    const isGuestMode = walletResult.ok && !walletResult.data.keys.some(k => k.isActive === true);
+    const isGuestMode = walletResult.ok && !hasActiveChatCapableKey(walletResult.data.keys);
 
     const { embed, components } = buildBrowsePage(presets, filter, query, 0, isGuestMode);
 
@@ -372,9 +378,10 @@ export async function buildBrowseResponse(
     return null;
   }
 
-  // Only show guest mode when we successfully verified no active keys
+  // Only show guest mode when we successfully verified no active chat-capable
+  // keys (voice-only keys don't count)
   // If wallet API failed, assume user might have keys (don't restrict them)
-  const isGuestMode = walletResult.ok && !walletResult.data.keys.some(k => k.isActive === true);
+  const isGuestMode = walletResult.ok && !hasActiveChatCapableKey(walletResult.data.keys);
 
   return buildBrowsePage(presets, filter, query, page, isGuestMode);
 }

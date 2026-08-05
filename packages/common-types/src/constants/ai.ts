@@ -616,6 +616,44 @@ export function isFreeTierEligibleModel(modelId: string): boolean {
 }
 
 /**
+ * Providers whose BYOK key authorizes LLM chat/generation. The rest of
+ * `AIProvider` is voice-only — ElevenLabs (synthesis/cloning/STT) and Mistral
+ * (whose key authorizes only `/v1/audio/*`) — so holding one of those keys
+ * grants no chat capability whatsoever.
+ *
+ * This is the classification behind "does the user have a key that buys them
+ * models?": guest-mode predicates key off THIS set, never off "has any active
+ * key at all", or a voice-only key-holder is silently treated as a paid chat
+ * user and shown models they cannot run. Add a new LLM provider here when one
+ * is added to `AIProvider`.
+ */
+// eslint-disable-next-line @tzurot/no-singleton-export -- Intentional: immutable lookup set used as a constant (mirrors VisionProcessor's terminate-set). Exported so the classification is greppable and the exhaustiveness test in ai.test.ts can assert its membership.
+export const CHAT_CAPABLE_PROVIDERS: ReadonlySet<AIProvider> = new Set([
+  AIProvider.OpenRouter,
+  AIProvider.ZaiCoding,
+]);
+
+/** True when `provider` serves LLM chat/generation (see {@link CHAT_CAPABLE_PROVIDERS}). */
+export function isChatCapableProvider(provider: AIProvider | string): boolean {
+  return CHAT_CAPABLE_PROVIDERS.has(provider as AIProvider);
+}
+
+/**
+ * True when the wallet holds at least one ACTIVE chat-capable key — the
+ * canonical "not a guest" predicate for chat/preset UI. An ElevenLabs- or
+ * Mistral-only wallet is a guest here, because neither key can serve a
+ * generation.
+ *
+ * The parameter is structural (not `WalletKey`) so `constants/` stays free of
+ * a `schemas/` dependency while wallet responses still satisfy it.
+ */
+export function hasActiveChatCapableKey(
+  keys: readonly { provider: AIProvider | string; isActive: boolean }[]
+): boolean {
+  return keys.some(key => key.isActive === true && isChatCapableProvider(key.provider));
+}
+
+/**
  * May this model serve THIS user for free? Guests (no active key) get the
  * conditionally-free piggyback model — admission decides at runtime and a
  * denial degrades to the free router — so it presents as free to them.

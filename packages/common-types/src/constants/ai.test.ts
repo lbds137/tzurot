@@ -4,6 +4,10 @@
 
 import { describe, it, expect } from 'vitest';
 import {
+  AIProvider,
+  CHAT_CAPABLE_PROVIDERS,
+  hasActiveChatCapableKey,
+  isChatCapableProvider,
   isFreeModel,
   isFreeModelForUser,
   GUEST_MODE,
@@ -210,6 +214,82 @@ describe('isFreeModelForUser', () => {
   it('paid models are never free', () => {
     expect(isFreeModelForUser('anthropic/claude-sonnet-4', true)).toBe(false);
     expect(isFreeModelForUser('anthropic/claude-sonnet-4', false)).toBe(false);
+  });
+});
+
+describe('isChatCapableProvider', () => {
+  it('classifies every AIProvider: LLM providers in, voice providers out', () => {
+    expect(isChatCapableProvider(AIProvider.OpenRouter)).toBe(true);
+    expect(isChatCapableProvider(AIProvider.ZaiCoding)).toBe(true);
+    // Voice-only: ElevenLabs is synthesis/cloning/STT; a Mistral key authorizes
+    // only /v1/audio/*. Neither can serve a chat generation.
+    expect(isChatCapableProvider(AIProvider.ElevenLabs)).toBe(false);
+    expect(isChatCapableProvider(AIProvider.Mistral)).toBe(false);
+  });
+
+  it('accepts raw provider strings (wire values) and rejects unknown ones', () => {
+    expect(isChatCapableProvider('openrouter')).toBe(true);
+    expect(isChatCapableProvider('zai-coding')).toBe(true);
+    expect(isChatCapableProvider('elevenlabs')).toBe(false);
+    expect(isChatCapableProvider('not-a-provider')).toBe(false);
+    expect(isChatCapableProvider('')).toBe(false);
+  });
+
+  it('CHAT_CAPABLE_PROVIDERS holds exactly the LLM providers', () => {
+    expect([...CHAT_CAPABLE_PROVIDERS].sort()).toEqual(
+      [AIProvider.OpenRouter, AIProvider.ZaiCoding].sort()
+    );
+  });
+});
+
+describe('hasActiveChatCapableKey', () => {
+  it('is true for an active OpenRouter or z.ai coding-plan key', () => {
+    expect(hasActiveChatCapableKey([{ provider: AIProvider.OpenRouter, isActive: true }])).toBe(
+      true
+    );
+    expect(hasActiveChatCapableKey([{ provider: AIProvider.ZaiCoding, isActive: true }])).toBe(
+      true
+    );
+  });
+
+  it('is false for a voice-only wallet (ElevenLabs / Mistral) — the guest case', () => {
+    expect(hasActiveChatCapableKey([{ provider: AIProvider.ElevenLabs, isActive: true }])).toBe(
+      false
+    );
+    expect(hasActiveChatCapableKey([{ provider: AIProvider.Mistral, isActive: true }])).toBe(false);
+    expect(
+      hasActiveChatCapableKey([
+        { provider: AIProvider.ElevenLabs, isActive: true },
+        { provider: AIProvider.Mistral, isActive: true },
+      ])
+    ).toBe(false);
+  });
+
+  it('requires the chat key to be ACTIVE (inactive keys buy nothing)', () => {
+    expect(hasActiveChatCapableKey([{ provider: AIProvider.OpenRouter, isActive: false }])).toBe(
+      false
+    );
+    // The conjunction, not either half: a deactivated chat key next to an
+    // active voice key must still read as guest.
+    expect(
+      hasActiveChatCapableKey([
+        { provider: AIProvider.OpenRouter, isActive: false },
+        { provider: AIProvider.ElevenLabs, isActive: true },
+      ])
+    ).toBe(false);
+  });
+
+  it('finds the chat key among voice keys', () => {
+    expect(
+      hasActiveChatCapableKey([
+        { provider: AIProvider.ElevenLabs, isActive: true },
+        { provider: AIProvider.OpenRouter, isActive: true },
+      ])
+    ).toBe(true);
+  });
+
+  it('is false for an empty wallet', () => {
+    expect(hasActiveChatCapableKey([])).toBe(false);
   });
 });
 

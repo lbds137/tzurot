@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { AIProvider } from '@tzurot/common-types/constants/ai';
+import { mockListWalletKeysResponse } from '@tzurot/test-factories';
 import { handleUnlockModelsUpsell, checkGuestModePremiumAccess } from './guestModeValidation.js';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
 import { makeOk, makeErr, asUserClient } from '../../../test/gatewayClientStubs.js';
@@ -81,6 +83,77 @@ describe('guestModeValidation', () => {
       expect(result).toMatchObject({ blocked: false, reason: 'paid' });
       // Paid path: configs not fetched
       expect(stub.listUserLlmConfigs).not.toHaveBeenCalled();
+    });
+
+    it('treats a voice-ONLY ElevenLabs wallet as guest (no chat-capable key)', async () => {
+      // An ElevenLabs key buys voice, not models — the premium gate must fire.
+      stub.listWalletKeys.mockResolvedValue(
+        makeOk(mockListWalletKeysResponse([{ provider: AIProvider.ElevenLabs, isActive: true }]))
+      );
+      stub.listUserLlmConfigs.mockResolvedValue(
+        makeOk({ configs: [{ id: 'config-1', name: 'Premium Config', model: 'claude-sonnet' }] })
+      );
+
+      const result = await checkGuestModePremiumAccess(
+        createMockContext(),
+        'config-1',
+        userClient()
+      );
+      expect(result).toMatchObject({ blocked: true, reason: 'guest-premium' });
+      expect(mockEditReply).toHaveBeenCalled();
+    });
+
+    it('treats a voice-ONLY Mistral wallet as guest (key authorizes only /v1/audio/*)', async () => {
+      stub.listWalletKeys.mockResolvedValue(
+        makeOk(mockListWalletKeysResponse([{ provider: AIProvider.Mistral, isActive: true }]))
+      );
+      stub.listUserLlmConfigs.mockResolvedValue(
+        makeOk({ configs: [{ id: 'config-1', name: 'Premium Config', model: 'claude-sonnet' }] })
+      );
+
+      const result = await checkGuestModePremiumAccess(
+        createMockContext(),
+        'config-1',
+        userClient()
+      );
+      expect(result).toMatchObject({ blocked: true, reason: 'guest-premium' });
+    });
+
+    it('treats a z.ai coding-plan key as full access (not a guest)', async () => {
+      stub.listWalletKeys.mockResolvedValue(
+        makeOk(mockListWalletKeysResponse([{ provider: AIProvider.ZaiCoding, isActive: true }]))
+      );
+
+      const result = await checkGuestModePremiumAccess(
+        createMockContext(),
+        'config-1',
+        userClient()
+      );
+      expect(result).toMatchObject({ blocked: false, reason: 'paid' });
+      expect(stub.listUserLlmConfigs).not.toHaveBeenCalled();
+    });
+
+    it('is guest when the only chat key is INACTIVE and the active one is voice-only', async () => {
+      // Guards the conjunction: active-ness alone and chat-capability alone
+      // each look like access; only both together grant it.
+      stub.listWalletKeys.mockResolvedValue(
+        makeOk(
+          mockListWalletKeysResponse([
+            { provider: AIProvider.OpenRouter, isActive: false },
+            { provider: AIProvider.ElevenLabs, isActive: true },
+          ])
+        )
+      );
+      stub.listUserLlmConfigs.mockResolvedValue(
+        makeOk({ configs: [{ id: 'config-1', name: 'Premium Config', model: 'claude-sonnet' }] })
+      );
+
+      const result = await checkGuestModePremiumAccess(
+        createMockContext(),
+        'config-1',
+        userClient()
+      );
+      expect(result).toMatchObject({ blocked: true, reason: 'guest-premium' });
     });
 
     it('should not block guest user selecting free model', async () => {
