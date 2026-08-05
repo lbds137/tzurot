@@ -99,7 +99,7 @@ export class ConversationalRAGService {
     this.factRetriever = createFactRetriever(prisma, memoryManager);
     this.promptBuilder = new PromptBuilder();
     const longTermMemory = new LongTermMemoryService(prisma, memoryManager, extractionTrigger);
-    this.referencedMessageFormatter = new ReferencedMessageFormatter();
+    this.referencedMessageFormatter = new ReferencedMessageFormatter(prisma);
     this.contextWindowManager = new ContextWindowManager();
     this.userReferenceResolver = new UserReferenceResolver(prisma);
     this.history = new ConversationHistoryService(prisma);

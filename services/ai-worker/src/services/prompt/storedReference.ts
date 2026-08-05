@@ -172,12 +172,18 @@ export function fromStoredReference(
   // Hydrated persona name where one resolved, else the Discord display name.
   const from = ref.resolvedPersonaName ?? (ref.authorDisplayName || ref.authorUsername);
 
+  // Role derivation gets the DISCORD name, never the hydrated one: the
+  // self/sibling name-match runs against personality names, which are Discord
+  // vocabulary — a webhook line's display name IS the character name, while a
+  // human's persona name matching a personality is a collision, not identity.
+  const discordName = ref.authorDisplayName || ref.authorUsername;
+
   return {
     isForwarded: ref.isForwarded,
     from,
     fromId: ref.resolvedPersonaId,
     username: ref.authorUsername,
-    role: deriveRefRole(ref.authorRole, from, personalityName, allPersonalityNames),
+    role: deriveRefRole(ref.authorRole, discordName, personalityName, allPersonalityNames),
     time: promptTime(ref.timestamp),
     content: ref.content,
     locationContext: usableLocationContext(ref.locationContext),
