@@ -28,9 +28,9 @@ declare `VectorCosineOps`:
 | `idx_memories_embedding`     | `memories`     | `ivfflat (embedding vector_cosine_ops) lists=50` |
 | `idx_memory_facts_embedding` | `memory_facts` | `ivfflat (embedding vector_cosine_ops) lists=50` |
 
-Both are registered in `prisma/drift-ignore.json` so the DROP statements Prisma
-generates for them are stripped from new migrations. `idx_memories_embedding`
-additionally carries `recreateSQL` there for recovery.
+Both are registered in `prisma/drift-ignore.json`'s `protectedIndexes` array,
+so the DROP statements Prisma generates for them are stripped from new
+migrations — and both carry `recreateSQL` there for recovery.
 
 ## Why `lists = 50`
 
