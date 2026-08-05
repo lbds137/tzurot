@@ -9,6 +9,7 @@
  */
 
 import { type MessageContent } from '@tzurot/common-types/types/ai';
+import { type ReferencedMessage } from '@tzurot/common-types/types/schemas/message';
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import { type SttDispatch } from '@tzurot/common-types/types/sttProvider';
 import { createLogger } from '@tzurot/common-types/utils/logger';
@@ -19,7 +20,12 @@ import {
 } from './MultimodalProcessor.js';
 import { extractRecentHistoryWindow } from './RAGUtils.js';
 import { shouldFoldSearchQuery } from './prompt/queryFoldGate.js';
-import { collectPersonalityNames } from '../jobs/utils/conversationUtils.js';
+import {
+  buildHistoryEntryIndex,
+  collectPersonalityNames,
+} from '../jobs/utils/conversationUtils.js';
+import type { RawHistoryEntry } from '../jobs/utils/conversationTypes.js';
+import { chatLogEnrichmentFor } from '../jobs/utils/xmlMetadataFormatters.js';
 import type { PromptBuilder } from './PromptBuilder.js';
 import type { ReferencedMessageFormatter } from './ReferencedMessageFormatter.js';
 import type {
@@ -29,6 +35,55 @@ import type {
 } from './ConversationalRAGTypes.js';
 
 const logger = createLogger('ConversationInputProcessor');
+
+/**
+ * What `<chat_log>` will already render for each DEDUPED reference, keyed by
+ * Discord message id — the subtraction set the stub renderer cannot derive.
+ *
+ * The live path's ordering problem in one function. A deduped stub asks "does
+ * history already carry this quote's image description?", which is a fact about
+ * the chat-log renderer's output for that quote's OWN history entry; the replay
+ * path answers it from the entry it deduped against, and this is the live
+ * equivalent. It is only answerable AFTER history enrichment has run, because
+ * enrichment is what populates `imageDescriptions` — hence the step ordering in
+ * `ConversationalRAGService.generateResponse`.
+ *
+ * Keyed the same way the dedup DECISION was made: `referenceEnricher` flags a
+ * reference duplicate when its Discord id is in the assembled history's id set,
+ * so every exact-id dedup resolves to an entry here. Its time-window fallback
+ * flags references with no matching entry at all — those get no map entry and
+ * subtract nothing, which is correct: there is no chat-log copy to defer to.
+ *
+ * `personalityName`/`allPersonalityNames` mirror what the chat-log renderer will
+ * be handed (`personality.name`), so this reports what that renderer emits
+ * rather than a second opinion about it.
+ */
+function buildCarriedChatLogEnrichment(
+  references: ReferencedMessage[],
+  history: RawHistoryEntry[],
+  personalityName: string
+): Map<string, ReadonlySet<string>> {
+  const carried = new Map<string, ReadonlySet<string>>();
+  const deduped = references.filter(ref => ref.isDeduplicated === true);
+  if (deduped.length === 0 || history.length === 0) {
+    return carried;
+  }
+
+  const historyEntries = buildHistoryEntryIndex(history);
+  const allPersonalityNames = collectPersonalityNames(history, personalityName);
+
+  for (const ref of deduped) {
+    const entry = historyEntries.get(ref.discordMessageId);
+    if (entry !== undefined) {
+      carried.set(
+        ref.discordMessageId,
+        chatLogEnrichmentFor(entry, personalityName, allPersonalityNames)
+      );
+    }
+  }
+
+  return carried;
+}
 
 /**
  * Processes conversation inputs for the RAG pipeline
@@ -150,10 +205,22 @@ export class ConversationInputProcessor {
               visionProvider,
               visionModel,
               // Personalities visible in history — enables the sibling-persona
-              // quote demotion (assistant → character) in deriveRefRole.
+              // quote demotion (assistant → character) in deriveRefRole. Seeded
+              // with the DISPLAY name because role derivation is a match against
+              // Discord-vocabulary names (see fromLiveReference), which is also
+              // why it is not the set below.
               allPersonalityNames: collectPersonalityNames(
                 context.rawConversationHistory ?? [],
                 personality.displayName
+              ),
+              // What <chat_log> already renders for each deduped quote, so the
+              // stub subtracts it instead of printing the same paid vision
+              // description twice in one prompt. Derived from history AFTER
+              // enrichment ran — the ordering is load-bearing (see the helper).
+              carriedByChatLog: buildCarriedChatLogEnrichment(
+                references,
+                context.rawConversationHistory ?? [],
+                personality.name
               ),
               // Correlation only: the formatter's enrichment-drop warnings name
               // the request that paid for the lost vision/transcription work.

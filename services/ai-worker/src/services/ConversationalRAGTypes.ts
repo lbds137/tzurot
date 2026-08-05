@@ -127,6 +127,15 @@ export interface ConversationContext {
   rawConversationHistory?: {
     /** Message ID - for extended context messages this IS the Discord message ID */
     id?: string;
+    /**
+     * Discord snowflakes for this row (several when a long message was chunked).
+     * Declared because the assembled entries have always carried it — the
+     * producer is `ConversationMessage` — and the reference paths key on it:
+     * the enricher's dedup decision and the deduped stub's subtraction index
+     * both ask "which history entry is this quote?" by Discord id, never by
+     * `id` (a database UUID on DB-sourced rows).
+     */
+    discordMessageId?: string[];
     role: string;
     content: string;
     tokenCount?: number;

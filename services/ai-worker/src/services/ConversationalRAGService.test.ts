@@ -164,6 +164,7 @@ import {
 } from '../test/mocks/index.js';
 import { checkModelContextLength } from '../redis.js';
 import { retrieveFactsForPrompt } from './factRetrievalHelper.js';
+import { enrichmentKey } from './prompt/QuoteFormatter.js';
 
 // Prisma is injected into the constructor, but every DB-touching child
 // (MemoryRetriever, LongTermMemoryService, UserReferenceResolver) is mocked
@@ -285,6 +286,64 @@ describe('ConversationalRAGService', () => {
           personalityId: personality.id,
           scope: expect.objectContaining({ channelId: context.channelId }),
         })
+      );
+    });
+
+    it('enriches history BEFORE rendering references, so a deduped stub can subtract', async () => {
+      // The step ORDER, asserted at the hop that depends on it. The subtraction
+      // set is derived from `imageDescriptions` on the history entry, and the
+      // only thing that populates that field is history enrichment — so a
+      // populated set crossing into the formatter is proof enrichment already
+      // ran. Reversing the two steps leaves the set empty and the same paid
+      // description prints in <contextual_references> AND <chat_log>.
+      const VISION_SENTINEL = 'SENTINEL_ORDER_VISION_3f9a: a tabby asleep on a keyboard';
+      const imageUrl = 'https://cdn.discordapp.com/attachments/1/2/cat.png';
+      const personality = createMockPersonality();
+      const context = createMockContext({
+        rawConversationHistory: [
+          {
+            id: 'db-row-uuid-1',
+            discordMessageId: ['ref-9'],
+            role: 'user',
+            content: 'look at my cat',
+          },
+        ],
+        preprocessedExtendedContextAttachments: [
+          {
+            type: AttachmentType.Image,
+            description: VISION_SENTINEL,
+            originalUrl: imageUrl,
+            metadata: {
+              url: imageUrl,
+              name: 'cat.png',
+              contentType: CONTENT_TYPES.IMAGE_PNG,
+              size: 1000,
+              sourceDiscordMessageId: 'ref-9',
+            },
+          },
+        ],
+        referencedMessages: [
+          {
+            referenceNumber: 1,
+            discordMessageId: 'ref-9',
+            discordUserId: 'user-9',
+            authorUsername: 'quoted',
+            authorDisplayName: 'Quoted',
+            content: 'look at my cat',
+            embeds: '',
+            timestamp: '2026-07-31T12:00:00.000Z',
+            locationContext: '',
+            isDeduplicated: true,
+          },
+        ],
+      });
+
+      await service.generateResponse(personality, 'what breed is that', context);
+
+      const batchInputs = getReferencedMessageFormatterMock().formatReferencedMessages.mock
+        .calls[0]?.[4] as { carriedByChatLog?: Map<string, ReadonlySet<string>> } | undefined;
+      expect(batchInputs?.carriedByChatLog?.get('ref-9')).toEqual(
+        new Set([enrichmentKey('image', VISION_SENTINEL)])
       );
     });
 
