@@ -5,17 +5,18 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import express, { type Express } from 'express';
 import request from 'supertest';
-import { createDenylistRoutes } from './denylist.js';
-import { getAllRoutes } from '../../test/expressRouterUtils.js';
+import {
+  handleAddDenylistEntry,
+  handleGetDenylistCache,
+  handleListDenylistEntries,
+  handleRemoveDenylistEntry,
+} from './denylist.js';
 import { stubRouteResolvers } from '../../test/shared-route-test-utils.js';
+import type { RouteDeps } from '../routeDeps.js';
 
 // Mock AuthMiddleware
 vi.mock('../../services/AuthMiddleware.js', () => ({
   extractOwnerId: () => '999999999999999999',
-  requireOwnerAuth: () => (req: { userId?: string }, _res: unknown, next: () => void) => {
-    req.userId = '999999999999999999';
-    next();
-  },
 }));
 
 // Mock isBotOwner
@@ -56,35 +57,25 @@ const createMockDenylistInvalidation = () => ({
   unsubscribe: vi.fn().mockResolvedValue(undefined),
 });
 
+/**
+ * Register the four denylist handlers on the paths
+ * `routes/_generated/mounts.ts` mounts them at. Auth composition
+ * (`requireUserAuth` + `requireOwnerAuth` on the three admin routes, none on
+ * the service-only `/cache` hydration endpoint) is owned by the generated
+ * mounts and pinned by `mounts.component.test.ts` plus the conformance
+ * fixtures, so these suites exercise the handlers themselves.
+ */
+function mountDenylistRoutes(app: Express, deps: RouteDeps): void {
+  app.get('/api/admin/denylist', handleListDenylistEntries(deps));
+  app.get('/api/internal/denylist/cache', handleGetDenylistCache(deps));
+  app.post('/api/admin/denylist', handleAddDenylistEntry(deps));
+  app.delete(
+    '/api/admin/denylist/:type/:discordId/:scope/:scopeId',
+    handleRemoveDenylistEntry(deps)
+  );
+}
+
 describe('Denylist Admin Routes', () => {
-  describe('middleware composition', () => {
-    it('wires requireOwnerAuth on user-facing routes but not on /cache', () => {
-      // /cache is the service-only cache hydration endpoint — bot-client
-      // hits this at startup before any Discord user context exists, so
-      // adding requireOwnerAuth here would break startup silently. Lock
-      // the design in by asserting /cache has exactly one handler in its
-      // route stack (asyncHandler only), while every other route has at
-      // least two (auth + business logic, plus optional rate limiter).
-      const router = createDenylistRoutes({
-        ...stubRouteResolvers(),
-        prisma: createMockPrisma() as never,
-        denylistInvalidation: createMockDenylistInvalidation() as never,
-      });
-      const routes = getAllRoutes(router);
-      const cacheRoute = routes.find(r => r.path === '/cache');
-      expect(cacheRoute, '/cache route not found in router stack').toBeDefined();
-      expect(cacheRoute?.stackLength, '/cache must remain service-only (no owner-auth)').toBe(1);
-
-      const nonCacheRoutes = routes.filter(r => r.path !== '/cache');
-      expect(nonCacheRoutes.length, 'expected at least one non-/cache route').toBeGreaterThan(0);
-      for (const route of nonCacheRoutes) {
-        expect(route.stackLength, `${route.path} missing auth middleware`).toBeGreaterThanOrEqual(
-          2
-        );
-      }
-    });
-  });
-
   let app: Express;
   let mockPrisma: ReturnType<typeof createMockPrisma>;
   let mockInvalidation: ReturnType<typeof createMockDenylistInvalidation>;
@@ -96,19 +87,16 @@ describe('Denylist Admin Routes', () => {
 
     app = express();
     app.use(express.json());
-    app.use(
-      '/admin/denylist',
-      createDenylistRoutes({
-        ...stubRouteResolvers(),
-        prisma: mockPrisma as never,
-        denylistInvalidation: mockInvalidation as never,
-      })
-    );
+    mountDenylistRoutes(app, {
+      ...stubRouteResolvers(),
+      prisma: mockPrisma as never,
+      denylistInvalidation: mockInvalidation as never,
+    });
   });
 
   describe('GET /api/admin/denylist', () => {
     it('should list all entries', async () => {
-      const response = await request(app).get('/admin/denylist');
+      const response = await request(app).get('/api/admin/denylist');
 
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
@@ -119,7 +107,7 @@ describe('Denylist Admin Routes', () => {
     });
 
     it('should filter by type', async () => {
-      await request(app).get('/admin/denylist?type=USER');
+      await request(app).get('/api/admin/denylist?type=USER');
 
       expect(mockPrisma.denylistedEntity.findMany).toHaveBeenCalledWith(
         expect.objectContaining({ where: { type: 'USER' } })
@@ -127,7 +115,7 @@ describe('Denylist Admin Routes', () => {
     });
 
     it('should reject invalid type filter', async () => {
-      const response = await request(app).get('/admin/denylist?type=INVALID');
+      const response = await request(app).get('/api/admin/denylist?type=INVALID');
 
       expect(response.status).toBe(400);
       expect(response.body.message).toContain('Invalid type filter');
@@ -137,7 +125,7 @@ describe('Denylist Admin Routes', () => {
 
   describe('GET /api/internal/denylist/cache', () => {
     it('should return all entries for hydration', async () => {
-      const response = await request(app).get('/admin/denylist/cache');
+      const response = await request(app).get('/api/internal/denylist/cache');
 
       expect(response.status).toBe(200);
       expect(response.body.entries).toEqual([]);
@@ -149,7 +137,7 @@ describe('Denylist Admin Routes', () => {
 
   describe('POST /api/admin/denylist', () => {
     it('should add a USER + BOT entry', async () => {
-      const response = await request(app).post('/admin/denylist').send({
+      const response = await request(app).post('/api/admin/denylist').send({
         type: 'USER',
         discordId: '123456789012345678',
       });
@@ -174,7 +162,7 @@ describe('Denylist Admin Routes', () => {
         addedAt: new Date(),
       });
 
-      const response = await request(app).post('/admin/denylist').send({
+      const response = await request(app).post('/api/admin/denylist').send({
         type: 'USER',
         discordId: '123456789012345678',
         scope: 'CHANNEL',
@@ -198,7 +186,7 @@ describe('Denylist Admin Routes', () => {
         addedAt: new Date(),
       });
 
-      const response = await request(app).post('/admin/denylist').send({
+      const response = await request(app).post('/api/admin/denylist').send({
         type: 'GUILD',
         discordId: '123456789012345678',
       });
@@ -220,7 +208,7 @@ describe('Denylist Admin Routes', () => {
         addedAt: new Date(),
       });
 
-      const response = await request(app).post('/admin/denylist').send({
+      const response = await request(app).post('/api/admin/denylist').send({
         type: 'USER',
         discordId: '123456789012345678',
         mode: 'MUTE',
@@ -239,7 +227,7 @@ describe('Denylist Admin Routes', () => {
     });
 
     it('should default mode to BLOCK', async () => {
-      const response = await request(app).post('/admin/denylist').send({
+      const response = await request(app).post('/api/admin/denylist').send({
         type: 'USER',
         discordId: '123456789012345678',
       });
@@ -253,7 +241,7 @@ describe('Denylist Admin Routes', () => {
     });
 
     it('should reject denying the bot owner', async () => {
-      const response = await request(app).post('/admin/denylist').send({
+      const response = await request(app).post('/api/admin/denylist').send({
         type: 'USER',
         discordId: '999999999999999999',
       });
@@ -264,7 +252,7 @@ describe('Denylist Admin Routes', () => {
     });
 
     it('should reject GUILD with CHANNEL scope', async () => {
-      const response = await request(app).post('/admin/denylist').send({
+      const response = await request(app).post('/api/admin/denylist').send({
         type: 'GUILD',
         discordId: '123456789012345678',
         scope: 'CHANNEL',
@@ -276,7 +264,7 @@ describe('Denylist Admin Routes', () => {
     });
 
     it('should reject GUILD with PERSONALITY scope', async () => {
-      const response = await request(app).post('/admin/denylist').send({
+      const response = await request(app).post('/api/admin/denylist').send({
         type: 'GUILD',
         discordId: '123456789012345678',
         scope: 'PERSONALITY',
@@ -288,7 +276,7 @@ describe('Denylist Admin Routes', () => {
     });
 
     it('should reject BOT scope with non-wildcard scopeId', async () => {
-      const response = await request(app).post('/admin/denylist').send({
+      const response = await request(app).post('/api/admin/denylist').send({
         type: 'USER',
         discordId: '123456789012345678',
         scope: 'BOT',
@@ -300,7 +288,7 @@ describe('Denylist Admin Routes', () => {
     });
 
     it('should reject CHANNEL scope with wildcard scopeId', async () => {
-      const response = await request(app).post('/admin/denylist').send({
+      const response = await request(app).post('/api/admin/denylist').send({
         type: 'USER',
         discordId: '123456789012345678',
         scope: 'CHANNEL',
@@ -312,7 +300,7 @@ describe('Denylist Admin Routes', () => {
     });
 
     it('should reject invalid input', async () => {
-      const response = await request(app).post('/admin/denylist').send({
+      const response = await request(app).post('/api/admin/denylist').send({
         type: 'INVALID',
         discordId: '',
       });
@@ -332,7 +320,9 @@ describe('Denylist Admin Routes', () => {
         mode: 'BLOCK',
       });
 
-      const response = await request(app).delete('/admin/denylist/USER/123456789012345678/BOT/*');
+      const response = await request(app).delete(
+        '/api/admin/denylist/USER/123456789012345678/BOT/*'
+      );
 
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
@@ -346,7 +336,9 @@ describe('Denylist Admin Routes', () => {
     it('should return 404 for non-existent entry', async () => {
       mockPrisma.denylistedEntity.findUnique.mockResolvedValue(null);
 
-      const response = await request(app).delete('/admin/denylist/USER/123456789012345678/BOT/*');
+      const response = await request(app).delete(
+        '/api/admin/denylist/USER/123456789012345678/BOT/*'
+      );
 
       expect(response.status).toBe(404);
       expect(mockPrisma.denylistedEntity.delete).not.toHaveBeenCalled();
@@ -354,7 +346,7 @@ describe('Denylist Admin Routes', () => {
 
     it('should reject invalid type param', async () => {
       const response = await request(app).delete(
-        '/admin/denylist/INVALID/123456789012345678/BOT/*'
+        '/api/admin/denylist/INVALID/123456789012345678/BOT/*'
       );
 
       expect(response.status).toBe(400);
@@ -364,7 +356,7 @@ describe('Denylist Admin Routes', () => {
 
     it('should reject invalid scope param', async () => {
       const response = await request(app).delete(
-        '/admin/denylist/USER/123456789012345678/INVALID/*'
+        '/api/admin/denylist/USER/123456789012345678/INVALID/*'
       );
 
       expect(response.status).toBe(400);
