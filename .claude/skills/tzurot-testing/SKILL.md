@@ -1,7 +1,7 @@
 ---
 name: tzurot-testing
 description: 'Testing procedures. Invoke with /tzurot-testing for test execution, coverage audits, and debugging test failures.'
-lastUpdated: '2026-08-02'
+lastUpdated: '2026-08-05'
 ---
 
 # Testing Procedures
@@ -146,6 +146,17 @@ it('should call service', () => {
   expect(getMyServiceMock().someMethod).toHaveBeenCalled();
 });
 ```
+
+## Mock-reachability check (before writing assertions)
+
+Before asserting on a subject that sits behind a mocked collaborator, answer
+two questions: (a) which mock makes this code path reachable, and (b) what
+would a wiring bug at that seam look like in this test's output? If the
+answer to (b) is "the test can't see it," the test asserts through the seam
+it mocked — add the seam assertion per `02-code-standards.md` § Assert what
+crosses a mocked seam before writing more cases. This is the coverage-illusion
+class: a mock missing one property leaves the dependent branch green and
+untested; a feature flag can no-op silently under a fully green suite.
 
 ## Integration Tests with PGLite
 

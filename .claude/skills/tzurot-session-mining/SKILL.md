@@ -1,7 +1,7 @@
 ---
 name: tzurot-session-mining
 description: 'Mine Claude session logs for recurring friction and convert findings into structural fixes (rules/skills/hooks). Invoke with /tzurot-session-mining periodically or when a failure pattern feels recurrent but unquantified.'
-lastUpdated: '2026-08-02'
+lastUpdated: '2026-08-05'
 ---
 
 # Session Friction Mining
@@ -92,6 +92,24 @@ alongside direct user messages. Do not pre-filter — compaction summaries
 preserve verbatim user quotes from compacted-away turns (the "All user
 messages" sections), and several of the highest-signal findings in the
 original audit survived ONLY there. The miner agent sorts signal from noise.
+
+**Mid-turn messages are NOT `type=="user"`.** Messages typed while a turn is
+running land as `type=="queue-operation"` entries (`operation=="enqueue"`,
+plain-string `.content`) — a user-only extraction drops exactly the
+corrections issued while the user watched something go wrong. Union them in:
+
+    jq -r 'select(.type == "queue-operation" and .operation == "enqueue")
+      | select((.content // "") | length > 0)
+      | "=== \(.timestamp) [mid-turn] ===\n\(.content)\n"' \
+      ~/.claude/projects/-home-deck-Projects-tzurot/$f.jsonl >> $CORPUS/$f.txt
+
+Blocks are appended out of chronological order; the timestamps let the miner
+interleave. Verify non-zero yield with a bare count first when the session had
+any mid-turn traffic. The stream is not only human messages — Monitor output
+and task-notification blocks enqueue the same way, so the extract will carry
+harness dumps beside the human corrections. That is consistent with the
+deliberately-raw posture above: the miner sorts them, the `[mid-turn]` marker
+tells it where to look.
 
 ## Step 2 — Mine (parallel reader agents, one per corpus file)
 
