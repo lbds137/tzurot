@@ -1,10 +1,10 @@
 ---
 id: TASK-346
 title: Audit remaining route-factory functions for dead production wiring
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-07-28 22:27'
-updated_date: '2026-07-28 22:38'
+updated_date: '2026-08-05 03:11'
 labels:
   - 'area:api-gateway'
   - 'size:M'
