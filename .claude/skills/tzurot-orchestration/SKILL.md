@@ -1,0 +1,118 @@
+---
+name: tzurot-orchestration
+description: 'Orchestrator mode: when to delegate implementation to a worker agent, the spec template every worker gets, and the full-diff review gate before any commit. Invoke with /tzurot-orchestration at the start of any implementation unit run in orchestrator mode — the moment a task fix shape is known, before the first src Edit/Write.'
+lastUpdated: '2026-08-05'
+---
+
+# Orchestrator Mode
+
+**Invoke with /tzurot-orchestration** at the start of any implementation unit
+run in orchestrator mode — the moment a task's fix shape is known, BEFORE the
+first src Edit/Write.
+
+## Why this procedure exists
+
+Separating the drafting context from the judging context is what catches
+confident-but-wrong work: the context that wrote a diff cannot see its own
+assumptions, and a fresh reader can. The orchestrator's full-diff read is the
+gate that stops worker defects before CI does.
+
+## Mode decision table
+
+Who drives the main loop determines the delegation posture. The mechanism is
+quality — fresh context plus an independent diff review — not budget.
+
+| Driver                       | Posture                                                                                                                                                                                                                                                                     |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Fable main loop**          | Delegate implementation to `opus-implementer` by DEFAULT. "It's small" is not an inline justification. Inline only for: trivial mechanical edits (~a few lines), fixes discovered mid-review of a worker's diff, or work where writing the spec costs more than the edit.   |
+| **Opus main loop**           | Delegate substantive units — the fresh-context worker plus a separate diff review is the quality mechanism. But do NOT delegate work finishable in a handful of tool calls: Opus 5 over-delegates by documented tendency (prompting guide § controlling subagent spawning). |
+| **Bulk reading/exploration** | Explore/Plan agents, either driver. Reading fan-out is delegation's cheapest and least risky use.                                                                                                                                                                           |
+
+## The spec template
+
+Every implementation spec carries these sections, by name. A missing section is
+a gap the worker will fill by guessing.
+
+1. **Task** — the design decisions already made. The worker executes; it never
+   designs.
+2. **Files in scope.**
+3. **Landmines** — enumerated known traps: formatters that rewrite the file,
+   gated baselines, hook behavior, fixture shapes.
+4. **Authorized routine decisions** — name the 2–3 calls the worker may make
+   solo. Everything material not listed is a stop condition.
+5. **Stop conditions** — the task-specific ones, on top of the agent contract's
+   defaults.
+6. **Verification gates — enumerate the exact commands.** Name every gate CI
+   will run for the touched packages; in particular BOTH `typecheck` AND
+   `typecheck:spec` where the package defines it (separate tsconfig — plain
+   `typecheck` misses test-file errors). Sequential, long timeouts, never in
+   parallel (`05-tooling.md` § Resource Constraints).
+7. **Branch setup** — as a separate first step. The develop-code-commit-guard
+   evaluates the current branch before compound commands run, so branch
+   creation has to land on its own before any edit.
+8. **Report requirements** — deviations flagged, verbatim verification tails,
+   survivor-grep results.
+
+## Worktree spawns
+
+Before trusting any code-grounded output from a worktree-isolated worker,
+verify the worktree's base against the intended SHA:
+
+```bash
+git -C <worktree-path> log -1 --format='%H %s'
+```
+
+A stale base is the failure mode that reads as competence: the worker behaves
+correctly against the code it can see, and confidently "corrects" a spec that
+was right about the code it cannot.
+
+## While the worker runs
+
+Pre-stage the next unit's grounding — read the files, profile the data, draft
+the next spec. Never touch the worker's files while it holds them. Monitors
+exist so waiting is never the activity (`10-working-posture.md` § Momentum).
+
+## When the worker reports
+
+**Read the FULL diff before any commit.** This gate is the reason the split
+works; skipping it collapses orchestration back into a single context that
+reviewed nothing. Then:
+
+- A flagged stop or ambiguity is a good outcome — resolve it and re-dispatch,
+  not a worker failure to work around.
+- Check every reported deviation against the spec's intent, not just its
+  letter.
+- Re-run the gates yourself when the worker's verification tails are absent or
+  truncated; a claim without command output is unverified.
+- Then the normal commit → PR → monitor cycle per `/tzurot-git-workflow`.
+
+## Opus-main-loop posture
+
+Three habits that matter more when Opus 5 drives the main loop than when it
+works behind a spec.
+
+- **Compact at unit boundaries, proactively.** Error quality degrades as the
+  context window fills, and the degradation is invisible from inside it. Close
+  the unit out to `CURRENT.md` / the tracker first, then compact — a boundary
+  compaction loses nothing, while a mid-unit one loses the work-stack pointer.
+- **Escalate as one named question plus a recommendation**
+  (`09-interaction-style.md`). A menu without a pick is not an escalation; it
+  moves the decision to the user without the analysis that would let them make
+  it cheaply.
+- **Cite the read that proved it.** Before stating any factual claim about the
+  code, name the tool result from THIS session that establishes it
+  (`00-critical.md` § Don't Present Speculation as Fact). When challenged on a
+  claim, re-verify at the source rather than defending it — the pull to defend
+  is strongest exactly when the claim came from memory rather than a read.
+
+## Relationship to the rules
+
+- **`.claude/agents/opus-implementer.md`** is the worker's own contract — the
+  spec template above supplies what that contract expects to receive.
+- **`00-critical.md`** § Merge Approval and § Never Merge PRs Without Completed
+  CI govern the merge gate; the diff-read gate here sits before it, not instead
+  of it.
+- **`10-working-posture.md`** § Momentum and § Scope contract govern what the
+  orchestrator does between dispatches.
+- **`/tzurot-review-response`** owns what happens when the reviewer, rather
+  than the orchestrator, finds the defect.

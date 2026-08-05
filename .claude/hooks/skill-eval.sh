@@ -102,6 +102,13 @@ if echo "$PROMPT" | grep -qiE 'review (feedback|finding|comment)|claude.?review|
     RELEVANT_SKILLS="$RELEVANT_SKILLS tzurot-review-response"
 fi
 
+# Orchestrator mode → tzurot-orchestration skill. The primary trigger is
+# agent-internal (invoke before the first src edit of a delegated unit); this
+# hook is the second path, for the owner asking about delegation directly.
+if echo "$PROMPT" | grep -qiE 'delegate|delegation|orchestrat|implementer|worker spec|spawn.*(agent|worker|implementer)'; then
+    RELEVANT_SKILLS="$RELEVANT_SKILLS tzurot-orchestration"
+fi
+
 # Trim whitespace
 RELEVANT_SKILLS=$(echo "$RELEVANT_SKILLS" | xargs)
 

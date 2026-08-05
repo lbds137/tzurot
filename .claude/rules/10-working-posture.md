@@ -104,6 +104,14 @@ posture is applying it to YOURSELF mid-session, at the moment of the miss —
 and choosing the surface by who needs it: every contributor → rules; every
 session of you on this machine → memory.
 
+## Scope contract: deliver what was asked, at the scope intended
+
+Trigger: interpreting any task or review finding. Make routine judgment calls
+yourself; check in only when different readings of the request would lead to
+materially different work. Never quietly narrow, widen, or transform the
+request — a scope change is announced before it happens, not discovered in
+the diff.
+
 ## Report shape
 
 Lead with the outcome. Keep an honest ledger — the day's summary includes your

@@ -7,21 +7,22 @@
 
 ## Available Skills (Procedures)
 
-| Skill                                                       | Purpose                                                        | Invoke With               |
-| ----------------------------------------------------------- | -------------------------------------------------------------- | ------------------------- |
-| [tzurot-git-workflow](./tzurot-git-workflow/SKILL.md)       | Commit, PR, rebase, release procedures                         | `/tzurot-git-workflow`    |
-| [tzurot-deployment](./tzurot-deployment/SKILL.md)           | Railway deployment & troubleshooting                           | `/tzurot-deployment`      |
-| [tzurot-docs](./tzurot-docs/SKILL.md)                       | Session start/end, CURRENT.md workflow                         | `/tzurot-docs`            |
-| [tzurot-db-vector](./tzurot-db-vector/SKILL.md)             | Prisma migrations, drift fixes, pgvector                       | `/tzurot-db-vector`       |
-| [tzurot-testing](./tzurot-testing/SKILL.md)                 | Test execution, coverage audits, tier verification             | `/tzurot-testing`         |
-| [tzurot-council-mcp](./tzurot-council-mcp/SKILL.md)         | Multi-perspective AI consultation                              | `/tzurot-council-mcp`     |
-| [tzurot-doc-audit](./tzurot-doc-audit/SKILL.md)             | Documentation + auto-memory freshness audit                    | `/tzurot-doc-audit`       |
-| [tzurot-arch-audit](./tzurot-arch-audit/SKILL.md)           | Architecture health audit                                      | `/tzurot-arch-audit`      |
-| [tzurot-bug-remediation](./tzurot-bug-remediation/SKILL.md) | Recurring-bug protocol: evidence → class sweep → guard         | `/tzurot-bug-remediation` |
-| [tzurot-reuse-scout](./tzurot-reuse-scout/SKILL.md)         | Pre-write reuse scouting, drifted-duplicate consolidation      | `/tzurot-reuse-scout`     |
-| [tzurot-review-response](./tzurot-review-response/SKILL.md) | PR review-response: edit-shape triage, auto-apply vs ASK       | `/tzurot-review-response` |
-| [tzurot-design-boulder](./tzurot-design-boulder/SKILL.md)   | Grounded, council-reviewed design sessions → ACCEPTED artifact | `/tzurot-design-boulder`  |
-| [tzurot-session-mining](./tzurot-session-mining/SKILL.md)   | Mine session logs for recurring friction → structural fixes    | `/tzurot-session-mining`  |
+| Skill                                                       | Purpose                                                         | Invoke With               |
+| ----------------------------------------------------------- | --------------------------------------------------------------- | ------------------------- |
+| [tzurot-git-workflow](./tzurot-git-workflow/SKILL.md)       | Commit, PR, rebase, release procedures                          | `/tzurot-git-workflow`    |
+| [tzurot-deployment](./tzurot-deployment/SKILL.md)           | Railway deployment & troubleshooting                            | `/tzurot-deployment`      |
+| [tzurot-docs](./tzurot-docs/SKILL.md)                       | Session start/end, CURRENT.md workflow                          | `/tzurot-docs`            |
+| [tzurot-db-vector](./tzurot-db-vector/SKILL.md)             | Prisma migrations, drift fixes, pgvector                        | `/tzurot-db-vector`       |
+| [tzurot-testing](./tzurot-testing/SKILL.md)                 | Test execution, coverage audits, tier verification              | `/tzurot-testing`         |
+| [tzurot-council-mcp](./tzurot-council-mcp/SKILL.md)         | Multi-perspective AI consultation                               | `/tzurot-council-mcp`     |
+| [tzurot-doc-audit](./tzurot-doc-audit/SKILL.md)             | Documentation + auto-memory freshness audit                     | `/tzurot-doc-audit`       |
+| [tzurot-arch-audit](./tzurot-arch-audit/SKILL.md)           | Architecture health audit                                       | `/tzurot-arch-audit`      |
+| [tzurot-bug-remediation](./tzurot-bug-remediation/SKILL.md) | Recurring-bug protocol: evidence → class sweep → guard          | `/tzurot-bug-remediation` |
+| [tzurot-reuse-scout](./tzurot-reuse-scout/SKILL.md)         | Pre-write reuse scouting, drifted-duplicate consolidation       | `/tzurot-reuse-scout`     |
+| [tzurot-review-response](./tzurot-review-response/SKILL.md) | PR review-response: edit-shape triage, auto-apply vs ASK        | `/tzurot-review-response` |
+| [tzurot-design-boulder](./tzurot-design-boulder/SKILL.md)   | Grounded, council-reviewed design sessions → ACCEPTED artifact  | `/tzurot-design-boulder`  |
+| [tzurot-session-mining](./tzurot-session-mining/SKILL.md)   | Mine session logs for recurring friction → structural fixes     | `/tzurot-session-mining`  |
+| [tzurot-orchestration](./tzurot-orchestration/SKILL.md)     | Delegation posture, worker spec template, full-diff review gate | `/tzurot-orchestration`   |
 
 ## Rules (Auto-Loaded)
 
