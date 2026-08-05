@@ -377,6 +377,7 @@ export class ReferencedMessageFormatter {
       sttDispatch,
       visionProvider,
       model: visionModel,
+      requestId: apiKeys?.requestId,
     });
   }
 
