@@ -49,9 +49,10 @@ const mockPrisma = {
   $executeRaw: vi.fn().mockResolvedValue(1),
 };
 
-import { createRemoveKeyRoute } from './removeKey.js';
+import { handleRemoveWalletKey } from './removeKey.js';
 import { AIProvider } from '@tzurot/common-types/constants/ai';
 import { type PrismaClient } from '@tzurot/common-types/services/prisma';
+import { asRouteHandler } from '../../test/shared-route-test-utils.js';
 
 // Helper to create mock request/response
 function createMockReqRes(provider: string) {
@@ -70,15 +71,13 @@ function createMockReqRes(provider: string) {
   return { req, res };
 }
 
-// Helper to call the handler directly
+// Helper to call the route handler directly
 async function callHandler(
   prisma: unknown,
   req: Request & { userId: string },
   res: Response
 ): Promise<void> {
-  const handlers = createRemoveKeyRoute(prisma as PrismaClient);
-  // handlers layout: [auth, provision, handler]
-  const handler = handlers[2] as (req: Request, res: Response) => Promise<void>;
+  const handler = asRouteHandler(handleRemoveWalletKey({ prisma: prisma as PrismaClient }));
   await handler(req, res);
 }
 
@@ -88,34 +87,6 @@ describe('DELETE /api/user/wallet/:provider', () => {
     mockPrisma.user.findFirst.mockResolvedValue({ id: 'user-uuid-123' });
     mockPrisma.userApiKey.findFirst.mockResolvedValue({ id: 'key-uuid-123' });
     mockPrisma.userApiKey.delete.mockResolvedValue({ id: 'key-uuid-123' });
-  });
-
-  describe('route factory', () => {
-    it('should create an array of handlers', () => {
-      const handlers = createRemoveKeyRoute(mockPrisma as unknown as PrismaClient);
-
-      expect(handlers).toBeDefined();
-      expect(Array.isArray(handlers)).toBe(true);
-      expect(handlers.length).toBe(3); // [requireUserAuth, requireProvisionedUser, handler]
-    });
-
-    it('should have requireUserAuth as first handler', () => {
-      const handlers = createRemoveKeyRoute(mockPrisma as unknown as PrismaClient);
-
-      expect(typeof handlers[0]).toBe('function');
-    });
-
-    it('should have requireProvisionedUser as second handler', () => {
-      const handlers = createRemoveKeyRoute(mockPrisma as unknown as PrismaClient);
-
-      expect(typeof handlers[1]).toBe('function');
-    });
-
-    it('should have request handler as third handler', () => {
-      const handlers = createRemoveKeyRoute(mockPrisma as unknown as PrismaClient);
-
-      expect(typeof handlers[2]).toBe('function');
-    });
   });
 
   describe('validation', () => {
