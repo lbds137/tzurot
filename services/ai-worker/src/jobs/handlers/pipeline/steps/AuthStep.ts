@@ -89,7 +89,7 @@ export class AuthStep implements IPipelineStep {
       quotaFallback,
     } = llmAuth;
 
-    const audioProviderKeys = await this.resolveAudioProviderKeys(jobContext.userId, isGuestMode);
+    const audioProviderKeys = await this.resolveAudioProviderKeys(jobContext.userId);
 
     // Resolve STT dispatch once here so downstream steps (DependencyStep,
     // GenerationStep → MultimodalProcessor) don't each re-resolve. SttResolver
@@ -303,19 +303,19 @@ export class AuthStep implements IPipelineStep {
    * Resolve audio-provider keys (ElevenLabs + Mistral). Each provider's key
    * authorizes ALL of that provider's audio endpoints — TTS, STT, cloning.
    *
-   * Skipped in guest mode: isGuestMode is determined by OpenRouter resolution,
-   * so a user with ONLY an audio key (no OpenRouter) won't get BYOK TTS/STT.
-   * This is an intentional v1 coupling — decoupling requires per-provider
-   * guest mode logic and is tracked as a follow-up. Per-provider resolution
-   * failure is logged and tolerated; the dispatcher skips providers whose
-   * entry is missing from the map.
+   * Independent of the chat guest-mode decision: that verdict comes from
+   * OpenRouter/LLM resolution, whereas these are provider-scoped lookups. Each
+   * provider's OWN resolution result is the admission guard — a guest-mode
+   * result or a missing key keeps that provider out of the map — so a user who
+   * is a chat guest but holds a BYOK audio key still gets BYOK TTS/STT.
+   * Per-provider resolution failure is logged and tolerated; the dispatcher
+   * skips providers whose entry is missing from the map.
    */
   private async resolveAudioProviderKeys(
-    userId: string,
-    isGuestMode: boolean
+    userId: string
   ): Promise<ReadonlyMap<AudioProviderId, string>> {
     const audioKeysBuilder = new Map<AudioProviderId, string>();
-    if (!this.apiKeyResolver || isGuestMode) {
+    if (!this.apiKeyResolver) {
       return audioKeysBuilder;
     }
     const providers: { id: AudioProviderId; provider: AIProvider; failNote: string }[] = [

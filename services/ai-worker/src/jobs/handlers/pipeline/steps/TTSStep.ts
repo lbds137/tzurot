@@ -127,8 +127,9 @@ export class TTSStep implements IPipelineStep {
 
       // Build dispatcher inputs. The audioProviderKeys map carries any BYOK
       // credentials the user has set (populated by AuthStep — empty Map is
-      // expected for guest mode or no-key users). Typed fallback avoids a
-      // narrowing cast at the dispatcher boundary.
+      // expected for a user with no audio keys; chat guest mode does NOT imply
+      // an empty map, since audio keys resolve per provider). Typed fallback
+      // avoids a narrowing cast at the dispatcher boundary.
       const audioProviderKeys =
         context.auth?.audioProviderKeys ?? new Map<AudioProviderId, string>();
 
