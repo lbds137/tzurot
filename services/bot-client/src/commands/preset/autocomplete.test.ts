@@ -6,6 +6,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { AutocompleteInteraction, User } from 'discord.js';
 import { mockListLlmConfigsResponse, mockLlmConfigSummary } from '@tzurot/test-factories';
 import { makeOk, makeErr, asUserClient } from '../../test/gatewayClientStubs.js';
+import type { CatalogModel } from '../../utils/modelCatalog.js';
 
 vi.mock('@tzurot/common-types/utils/logger', async () => {
   const actual = await vi.importActual<typeof import('@tzurot/common-types/utils/logger')>(
@@ -27,7 +28,37 @@ vi.mock('../../utils/gatewayClients.js', () => ({
   clientsFor: clientsForMock,
 }));
 
+// Only the catalog fetch (the gateway boundary) is mocked — the choices below
+// are built by the real `formatAutocompleteOption`/`formatContextLength`, so a
+// formatting regression fails these tests rather than being mocked away.
+const catalogMock = vi.hoisted(() => ({ fetchModelCatalog: vi.fn() }));
+vi.mock('../../utils/modelCatalog.js', async importOriginal => {
+  const actual = await importOriginal<typeof import('../../utils/modelCatalog.js')>();
+  return {
+    ...actual,
+    fetchModelCatalog: (...args: unknown[]) => catalogMock.fetchModelCatalog(...args),
+  };
+});
+
 const { handleAutocomplete, __resetGlobalConfigCacheForTests } = await import('./autocomplete.js');
+
+function catalogModel(overrides: Partial<CatalogModel> & { id: string }): CatalogModel {
+  return {
+    name: overrides.id,
+    contextLength: 200_000,
+    supportsVision: false,
+    supportsImageGeneration: false,
+    supportsAudioInput: false,
+    supportsAudioOutput: false,
+    promptPricePerMillion: 3,
+    completionPricePerMillion: 15,
+    isZaiCoding: false,
+    docsUrl: null,
+    source: 'openrouter',
+    hasPricing: true,
+    ...overrides,
+  };
+}
 
 interface UserClientStub {
   listUserLlmConfigs: ReturnType<typeof vi.fn>;
@@ -291,6 +322,99 @@ describe('handleAutocomplete', () => {
 
       const respondCall = vi.mocked(mockInteraction.respond).mock.calls[0][0];
       expect(respondCall).toHaveLength(25);
+    });
+  });
+
+  describe('model autocomplete', () => {
+    const focusModel = (value: string): void => {
+      vi.mocked(mockInteraction.options.getFocused).mockReturnValue({
+        name: 'model',
+        value,
+      } as unknown as string);
+    };
+
+    it('suggests merged-catalog models and ⚡-badges z.ai coding-plan entries', async () => {
+      catalogMock.fetchModelCatalog.mockResolvedValue([
+        catalogModel({ id: 'anthropic/claude-sonnet-4', name: 'Claude Sonnet 4' }),
+        // z.ai-only model: absent from OpenRouter, present only because
+        // fetchModelCatalog merges the static coding-plan catalog in.
+        catalogModel({
+          id: 'z-ai/glm-5.2',
+          name: 'GLM-5.2',
+          contextLength: 1_000_000,
+          isZaiCoding: true,
+          source: 'zai-catalog',
+          hasPricing: false,
+        }),
+      ]);
+      focusModel('glm');
+
+      await handleAutocomplete(mockInteraction);
+
+      expect(mockInteraction.respond).toHaveBeenCalledWith([
+        { name: 'Claude Sonnet 4 · 200K', value: 'anthropic/claude-sonnet-4' },
+        { name: '⚡ GLM-5.2 · 1M', value: 'z-ai/glm-5.2' },
+      ]);
+    });
+
+    it('forwards the typed query as the catalog search term', async () => {
+      catalogMock.fetchModelCatalog.mockResolvedValue([]);
+      focusModel('sonnet');
+
+      await handleAutocomplete(mockInteraction);
+
+      expect(catalogMock.fetchModelCatalog).toHaveBeenCalledWith(
+        expect.objectContaining({ search: 'sonnet' })
+      );
+    });
+
+    it('omits the search term entirely when nothing has been typed', async () => {
+      catalogMock.fetchModelCatalog.mockResolvedValue([]);
+      focusModel('');
+
+      await handleAutocomplete(mockInteraction);
+
+      expect(catalogMock.fetchModelCatalog).toHaveBeenCalledWith(
+        expect.objectContaining({ search: undefined })
+      );
+    });
+
+    it('re-caps the merged catalog at the 25-choice Discord ceiling', async () => {
+      // The fetch limit bounds only the OpenRouter half; the z.ai merge can push
+      // the returned list past 25, so the handler must cap again after the merge.
+      catalogMock.fetchModelCatalog.mockResolvedValue(
+        Array.from({ length: 31 }, (_, i) => catalogModel({ id: `vendor/model-${i}` }))
+      );
+      focusModel('');
+
+      await handleAutocomplete(mockInteraction);
+
+      const choices = vi.mocked(mockInteraction.respond).mock.calls[0][0];
+      expect(choices).toHaveLength(25);
+    });
+
+    it('truncates an over-long model id to the 100-char Discord value limit', async () => {
+      catalogMock.fetchModelCatalog.mockResolvedValue([
+        catalogModel({ id: `vendor/${'x'.repeat(120)}`, name: 'Long Model' }),
+      ]);
+      focusModel('');
+
+      await handleAutocomplete(mockInteraction);
+
+      const choices = vi.mocked(mockInteraction.respond).mock.calls[0][0] as {
+        name: string;
+        value: string;
+      }[];
+      expect(choices[0].value).toHaveLength(100);
+    });
+
+    it('responds with an empty list when the catalog fetch fails', async () => {
+      catalogMock.fetchModelCatalog.mockRejectedValue(new Error('gateway down'));
+      focusModel('gpt');
+
+      await handleAutocomplete(mockInteraction);
+
+      expect(mockInteraction.respond).toHaveBeenCalledWith([]);
     });
   });
 

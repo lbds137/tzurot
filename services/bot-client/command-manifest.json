@@ -1815,7 +1815,15 @@
             "type": 1,
             "name": "create",
             "description": "Create a new model preset",
-            "options": []
+            "options": [
+              {
+                "autocomplete": true,
+                "type": 3,
+                "name": "model",
+                "description": "Model ID (e.g., anthropic/claude-sonnet-4)",
+                "required": false
+              }
+            ]
           },
           {
             "type": 1,

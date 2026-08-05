@@ -51,11 +51,23 @@ vi.mock('../../utils/dashboard/index.js', () => ({
   }),
 }));
 
+/** Read the seed modal's `model` TextInput value out of the showModal call. */
+function modelInputValue(showModal: ReturnType<typeof vi.fn>): string | undefined {
+  const modalBuilder = vi.mocked(showModal).mock.calls[0][0] as {
+    toJSON: () => {
+      components: Array<{ component?: { custom_id: string; value?: string } }>;
+    };
+  };
+  return modalBuilder
+    .toJSON()
+    .components.find(labelRow => labelRow.component?.custom_id === 'model')?.component?.value;
+}
+
 describe('Preset Create', () => {
   describe('handleCreate', () => {
     // /preset create has no kind/slot option — a preset's vision-capability is
-    // derived from its model, not chosen at creation. handleCreate just shows
-    // the seed modal.
+    // derived from its model, not chosen at creation. handleCreate shows the
+    // seed modal, optionally pre-seeded from the `model` command option.
     const mockContext = {
       showModal: vi.fn(),
       interaction: { options: { getString: vi.fn().mockReturnValue(null) } },
@@ -63,6 +75,9 @@ describe('Preset Create', () => {
 
     beforeEach(() => {
       vi.clearAllMocks();
+      // Re-establish the no-option default: `clearAllMocks` clears calls but not
+      // implementations, so a per-test override would otherwise leak forward.
+      vi.mocked(mockContext.interaction.options.getString).mockReturnValue(null);
     });
 
     it('should show modal for preset creation', async () => {
@@ -95,6 +110,22 @@ describe('Preset Create', () => {
 
       expect(fieldIds).toContain('name');
       expect(fieldIds).toContain('model');
+    });
+
+    it('pre-seeds the modal Model ID field from the model command option', async () => {
+      vi.mocked(mockContext.interaction.options.getString).mockReturnValue('z-ai/glm-5.2');
+
+      await handleCreate(mockContext as unknown as Parameters<typeof handleCreate>[0]);
+
+      // Seam: the option value must survive the read → buildPresetSeedModal →
+      // TextInput hop, since Discord modals have no autocomplete of their own.
+      expect(modelInputValue(mockContext.showModal)).toBe('z-ai/glm-5.2');
+    });
+
+    it('leaves the Model ID field unset when the model option is absent', async () => {
+      await handleCreate(mockContext as unknown as Parameters<typeof handleCreate>[0]);
+
+      expect(modelInputValue(mockContext.showModal)).toBeUndefined();
     });
   });
 
