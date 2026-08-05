@@ -10,6 +10,7 @@ labels:
   - 'area:api-gateway'
   - 'area:bot-client'
   - 'size:M'
+  - 'state:owner'
 dependencies: []
 priority: low
 ordinal: 331000

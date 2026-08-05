@@ -1,10 +1,10 @@
 ---
 id: TASK-85
 title: Harden ttsConfigSingletons module-level state
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-05-04 00:00'
-updated_date: '2026-07-28 10:47'
+updated_date: '2026-08-05 22:33'
 labels:
   - 'area:voice'
   - 'size:M'

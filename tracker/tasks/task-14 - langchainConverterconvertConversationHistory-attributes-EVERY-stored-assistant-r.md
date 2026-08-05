@@ -11,6 +11,7 @@ labels:
   - 'area:ai-worker'
   - 'area:conversation-history'
   - 'size:M'
+  - 'state:dependent'
 dependencies: []
 priority: medium
 ordinal: 14000

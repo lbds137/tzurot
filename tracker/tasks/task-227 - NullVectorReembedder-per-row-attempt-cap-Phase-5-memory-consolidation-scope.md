@@ -9,6 +9,7 @@ labels:
   - 'area:ai-worker'
   - 'area:embeddings'
   - 'size:S'
+  - 'state:observable'
 dependencies: []
 priority: low
 ordinal: 227000

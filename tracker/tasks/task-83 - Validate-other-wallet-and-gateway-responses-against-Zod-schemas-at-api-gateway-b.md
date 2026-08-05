@@ -11,6 +11,7 @@ labels:
   - 'area:api-gateway'
   - 'area:common-types'
   - 'size:M'
+  - 'state:ready'
 dependencies: []
 priority: medium
 ordinal: 83000

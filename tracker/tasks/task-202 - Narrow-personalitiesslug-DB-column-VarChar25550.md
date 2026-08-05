@@ -10,6 +10,7 @@ labels:
   - 'area:db'
   - 'area:docs'
   - 'size:S'
+  - 'state:dependent'
 dependencies: []
 priority: low
 ordinal: 202000

@@ -11,6 +11,7 @@ labels:
   - 'area:ai-worker'
   - 'area:testing'
   - 'size:S'
+  - 'state:unreachable'
 dependencies: []
 priority: low
 ordinal: 179000

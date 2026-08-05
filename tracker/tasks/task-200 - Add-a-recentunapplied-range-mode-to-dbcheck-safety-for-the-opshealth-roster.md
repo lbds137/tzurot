@@ -9,6 +9,7 @@ labels:
   - 'area:tooling'
   - 'area:db'
   - 'size:S'
+  - 'state:ready'
 dependencies: []
 priority: low
 ordinal: 200000

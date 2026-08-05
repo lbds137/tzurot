@@ -9,6 +9,7 @@ labels:
   - 'area:ai-worker'
   - 'area:voice'
   - 'size:M'
+  - 'state:owner'
 dependencies: []
 priority: low
 ordinal: 45000

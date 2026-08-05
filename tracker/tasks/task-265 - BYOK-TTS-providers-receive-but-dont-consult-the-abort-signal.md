@@ -9,6 +9,7 @@ labels:
   - 'area:voice'
   - 'origin:review'
   - 'size:S'
+  - 'state:dependent'
 dependencies: []
 priority: low
 ordinal: 265000

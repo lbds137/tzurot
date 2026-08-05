@@ -10,6 +10,7 @@ labels:
   - 'area:tooling'
   - 'area:docs'
   - 'size:S'
+  - 'state:ready'
 dependencies: []
 priority: low
 ordinal: 6000

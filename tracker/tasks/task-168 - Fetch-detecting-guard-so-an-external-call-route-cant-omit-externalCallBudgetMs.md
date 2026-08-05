@@ -11,6 +11,7 @@ labels:
   - 'area:api-gateway'
   - 'area:tooling'
   - 'size:M'
+  - 'state:ready'
 dependencies: []
 priority: low
 ordinal: 168000

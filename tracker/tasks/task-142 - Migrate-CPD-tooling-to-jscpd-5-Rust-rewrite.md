@@ -10,6 +10,7 @@ labels:
   - 'area:db'
   - 'area:ci'
   - 'size:M'
+  - 'state:observable'
 dependencies: []
 priority: medium
 ordinal: 142000

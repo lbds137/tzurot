@@ -10,6 +10,7 @@ labels:
   - 'area:ci'
   - 'origin:review'
   - 'size:S'
+  - 'state:owner'
 dependencies: []
 priority: low
 ordinal: 198000

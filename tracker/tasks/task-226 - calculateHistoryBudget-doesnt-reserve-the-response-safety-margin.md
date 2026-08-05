@@ -9,6 +9,7 @@ labels:
   - 'origin:review'
   - 'area:ai-worker'
   - 'size:S'
+  - 'state:dependent'
 dependencies: []
 priority: medium
 ordinal: 226000

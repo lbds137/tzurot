@@ -7,6 +7,7 @@ created_date: '2026-08-05 01:37'
 labels:
   - 'area:tooling'
   - 'size:S'
+  - 'state:observable'
 dependencies: []
 priority: low
 ordinal: 433000

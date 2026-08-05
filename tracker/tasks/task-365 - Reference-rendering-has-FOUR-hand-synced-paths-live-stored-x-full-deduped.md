@@ -1,10 +1,10 @@
 ---
 id: TASK-365
 title: Reference rendering has FOUR hand-synced paths (live/stored x full/deduped)
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-07-30 23:08'
-updated_date: '2026-08-05 15:25'
+updated_date: '2026-08-05 22:33'
 labels:
   - 'area:ai-worker'
   - 'size:L'

@@ -8,6 +8,7 @@ updated_date: '2026-08-05 12:46'
 labels:
   - 'area:process'
   - 'size:S'
+  - 'state:dependent'
 dependencies: []
 priority: medium
 ordinal: 438000

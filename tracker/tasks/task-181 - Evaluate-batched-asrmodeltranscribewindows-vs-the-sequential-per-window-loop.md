@@ -10,6 +10,7 @@ updated_date: '2026-07-28 10:49'
 labels:
   - 'area:voice'
   - 'size:M'
+  - 'state:observable'
 dependencies: []
 priority: low
 ordinal: 181000

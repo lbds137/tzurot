@@ -10,6 +10,7 @@ labels:
   - 'area:docs'
   - 'area:backlog'
   - 'size:S'
+  - 'state:owner'
 dependencies: []
 priority: low
 ordinal: 284000

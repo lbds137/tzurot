@@ -7,6 +7,7 @@ created_date: '2026-07-28 13:05'
 labels:
   - 'area:db'
   - 'size:M'
+  - 'state:observable'
 dependencies: []
 priority: low
 ordinal: 340000

@@ -9,6 +9,7 @@ labels:
   - 'area:db'
   - 'area:redis'
   - 'size:S'
+  - 'state:unreachable'
 dependencies: []
 priority: low
 ordinal: 214000

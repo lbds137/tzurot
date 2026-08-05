@@ -10,6 +10,7 @@ labels:
   - 'area:process'
   - 'origin:review'
   - 'size:S'
+  - 'state:ready'
 dependencies: []
 priority: low
 ordinal: 302000

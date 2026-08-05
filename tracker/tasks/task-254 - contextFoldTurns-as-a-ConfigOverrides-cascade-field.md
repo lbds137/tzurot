@@ -9,6 +9,7 @@ labels:
   - 'area:config-resolver'
   - 'area:common-types'
   - 'size:M'
+  - 'state:dependent'
 dependencies: []
 priority: low
 ordinal: 254000

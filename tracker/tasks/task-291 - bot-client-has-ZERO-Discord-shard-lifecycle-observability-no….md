@@ -8,6 +8,7 @@ updated_date: '2026-07-28 10:52'
 labels:
   - 'area:bot-client'
   - 'size:M'
+  - 'state:ready'
 dependencies: []
 priority: medium
 ordinal: 291000

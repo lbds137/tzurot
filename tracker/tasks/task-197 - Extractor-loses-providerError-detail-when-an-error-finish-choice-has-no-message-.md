@@ -11,6 +11,7 @@ labels:
   - 'origin:review'
   - 'area:ai-worker'
   - 'size:S'
+  - 'state:observable'
 dependencies: []
 priority: low
 ordinal: 197000

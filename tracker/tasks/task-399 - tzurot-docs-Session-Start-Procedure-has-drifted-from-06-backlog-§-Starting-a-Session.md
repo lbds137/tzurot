@@ -10,6 +10,7 @@ updated_date: '2026-08-04 13:50'
 labels:
   - 'size:S'
   - 'area:docs'
+  - 'state:ready'
 dependencies: []
 priority: low
 ordinal: 399000

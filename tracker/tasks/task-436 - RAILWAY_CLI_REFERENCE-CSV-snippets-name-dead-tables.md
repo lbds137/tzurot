@@ -7,6 +7,7 @@ created_date: '2026-08-05 04:58'
 labels:
   - 'area:docs'
   - 'size:S'
+  - 'state:ready'
 dependencies: []
 priority: low
 ordinal: 436000

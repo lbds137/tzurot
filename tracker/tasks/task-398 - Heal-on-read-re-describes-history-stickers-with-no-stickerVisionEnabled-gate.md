@@ -7,6 +7,7 @@ created_date: '2026-08-02 00:52'
 labels:
   - 'size:S'
   - 'area:ai-worker'
+  - 'state:owner'
 dependencies: []
 priority: low
 ordinal: 398000

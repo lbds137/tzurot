@@ -9,6 +9,7 @@ labels:
   - 'area:voice'
   - 'area:api-gateway'
   - 'size:L'
+  - 'state:observable'
 dependencies: []
 priority: low
 ordinal: 90000

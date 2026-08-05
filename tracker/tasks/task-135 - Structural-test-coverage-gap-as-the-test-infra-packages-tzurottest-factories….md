@@ -9,6 +9,7 @@ labels:
   - 'area:common-types'
   - 'area:testing'
   - 'size:S'
+  - 'state:dependent'
 dependencies: []
 priority: low
 ordinal: 135000

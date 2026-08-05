@@ -12,6 +12,7 @@ labels:
   - 'area:bot-client'
   - 'area:testing'
   - 'size:S'
+  - 'state:unreachable'
 dependencies: []
 priority: low
 ordinal: 44000

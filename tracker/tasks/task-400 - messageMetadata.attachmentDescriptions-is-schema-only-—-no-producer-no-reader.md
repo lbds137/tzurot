@@ -8,6 +8,7 @@ updated_date: '2026-08-02 14:34'
 labels:
   - 'area:common-types'
   - 'size:S'
+  - 'state:unreachable'
 dependencies: []
 priority: low
 ordinal: 400000

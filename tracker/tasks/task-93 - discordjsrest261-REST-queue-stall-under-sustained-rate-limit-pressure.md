@@ -9,6 +9,7 @@ labels:
   - 'area:jobs'
   - 'area:bot-client'
   - 'size:M'
+  - 'state:observable'
 dependencies: []
 priority: low
 ordinal: 93000

@@ -9,6 +9,7 @@ labels:
   - 'origin:review'
   - 'area:process'
   - 'size:S'
+  - 'state:ready'
 dependencies: []
 priority: low
 ordinal: 336000

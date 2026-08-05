@@ -10,6 +10,7 @@ labels:
   - 'area:api-gateway'
   - 'area:ai-worker'
   - 'size:S'
+  - 'state:observable'
 dependencies: []
 priority: low
 ordinal: 81000

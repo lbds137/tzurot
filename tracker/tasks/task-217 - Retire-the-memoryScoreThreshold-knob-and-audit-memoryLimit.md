@@ -9,6 +9,7 @@ labels:
   - 'area:ai-worker'
   - 'area:db'
   - 'size:M'
+  - 'state:dependent'
 dependencies: []
 priority: low
 ordinal: 217000

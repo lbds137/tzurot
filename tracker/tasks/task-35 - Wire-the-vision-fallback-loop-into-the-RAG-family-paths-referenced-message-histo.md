@@ -9,6 +9,7 @@ labels:
   - 'area:conversation-history'
   - 'area:ai-worker'
   - 'size:M'
+  - 'state:ready'
 dependencies: []
 priority: medium
 ordinal: 35000

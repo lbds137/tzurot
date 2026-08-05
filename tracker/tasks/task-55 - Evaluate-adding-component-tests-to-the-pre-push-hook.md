@@ -9,6 +9,7 @@ labels:
   - 'area:testing'
   - 'area:process'
   - 'size:S'
+  - 'state:owner'
 dependencies: []
 priority: low
 ordinal: 55000

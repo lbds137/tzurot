@@ -9,6 +9,7 @@ labels:
   - 'area:redis'
   - 'origin:review'
   - 'size:S'
+  - 'state:unreachable'
 dependencies: []
 priority: low
 ordinal: 225000

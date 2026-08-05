@@ -9,6 +9,7 @@ labels:
   - 'area:voice'
   - 'area:docs'
   - 'size:S'
+  - 'state:ready'
 dependencies: []
 priority: low
 ordinal: 25000

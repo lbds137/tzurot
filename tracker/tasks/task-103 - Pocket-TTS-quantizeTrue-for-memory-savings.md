@@ -9,6 +9,7 @@ labels:
   - 'area:voice'
   - 'area:embeddings'
   - 'size:S'
+  - 'state:observable'
 dependencies: []
 priority: low
 ordinal: 103000

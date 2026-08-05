@@ -9,6 +9,7 @@ labels:
   - 'area:tooling'
   - 'area:redis'
   - 'size:M'
+  - 'state:observable'
 dependencies: []
 priority: medium
 ordinal: 79000

@@ -9,6 +9,7 @@ labels:
   - 'area:db'
   - 'area:api-gateway'
   - 'size:S'
+  - 'state:ready'
 dependencies: []
 priority: low
 ordinal: 68000

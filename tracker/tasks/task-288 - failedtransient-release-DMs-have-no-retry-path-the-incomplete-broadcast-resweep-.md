@@ -10,6 +10,7 @@ labels:
   - 'area:api-gateway'
   - 'area:jobs'
   - 'size:M'
+  - 'state:observable'
 dependencies: []
 priority: medium
 ordinal: 288000
