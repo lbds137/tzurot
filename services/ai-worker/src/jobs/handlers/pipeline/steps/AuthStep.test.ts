@@ -923,15 +923,21 @@ describe('AuthStep', () => {
       expect(mockApiKeyResolver.resolveApiKey).toHaveBeenCalledWith('user-456', AIProvider.Mistral);
     });
 
-    it('should skip ElevenLabs resolution in guest mode', async () => {
-      const keyResult: ApiKeyResolutionResult = {
+    it('should still probe audio providers in chat guest mode, admitting none that resolve guest', async () => {
+      // One guest-mode result per probed provider, each carrying its own
+      // provider id — AuthStep never reads result.provider, but the fixtures
+      // should still describe the calls they answer.
+      const guestResultFor = (provider: AIProvider): ApiKeyResolutionResult => ({
         apiKey: 'system-key',
-        provider: AIProvider.OpenRouter,
+        provider,
         source: 'system',
         isGuestMode: true,
-      };
+      });
 
-      vi.mocked(mockApiKeyResolver.resolveApiKey).mockResolvedValue(keyResult);
+      vi.mocked(mockApiKeyResolver.resolveApiKey)
+        .mockResolvedValueOnce(guestResultFor(AIProvider.OpenRouter))
+        .mockResolvedValueOnce(guestResultFor(AIProvider.ElevenLabs))
+        .mockResolvedValueOnce(guestResultFor(AIProvider.Mistral));
       vi.mocked(mockConfigResolver.getFreeDefaultConfig).mockResolvedValue(null);
 
       step = new AuthStep(mockApiKeyResolver, mockConfigResolver);
@@ -950,8 +956,62 @@ describe('AuthStep', () => {
       const result = await step.process(context);
 
       expect(result.auth?.audioProviderKeys?.has('elevenlabs')).toBe(false);
-      // Only called once (OpenRouter), not twice
-      expect(mockApiKeyResolver.resolveApiKey).toHaveBeenCalledTimes(1);
+      // Chat guest mode does not short-circuit the audio probe — every provider
+      // is asked (OpenRouter + ElevenLabs + Mistral), and it is each provider's
+      // OWN guest-mode result that keeps it out of the map.
+      expect(mockApiKeyResolver.resolveApiKey).toHaveBeenCalledTimes(3);
+    });
+
+    it('should resolve a BYOK audio key for a user who is a chat guest', async () => {
+      // The decoupling pin: chat guest mode is an OpenRouter/LLM verdict. A user
+      // whose only key is ElevenLabs is a chat guest AND a BYOK audio customer.
+      const openRouterGuest: ApiKeyResolutionResult = {
+        apiKey: 'system-key',
+        provider: AIProvider.OpenRouter,
+        source: 'system',
+        isGuestMode: true,
+      };
+
+      const elevenLabsByok: ApiKeyResolutionResult = {
+        apiKey: 'sk_el_guest_byok',
+        provider: AIProvider.ElevenLabs,
+        source: 'user',
+        isGuestMode: false,
+      };
+
+      // A no-key Mistral lookup THROWS in the real resolver (no system
+      // fallback exists for Mistral) — the fixture goes through that path
+      // rather than a synthetic resolved result the resolver never produces.
+      vi.mocked(mockApiKeyResolver.resolveApiKey)
+        .mockResolvedValueOnce(openRouterGuest)
+        .mockResolvedValueOnce(elevenLabsByok)
+        .mockRejectedValueOnce(
+          new NoApiKeyAvailableError('No API key available for provider mistral.')
+        );
+      vi.mocked(mockConfigResolver.getFreeDefaultConfig).mockResolvedValue(null);
+
+      step = new AuthStep(mockApiKeyResolver, mockConfigResolver);
+
+      const config: ResolvedConfig = {
+        effectivePersonality: TEST_PERSONALITY,
+        configSource: 'personality',
+      };
+
+      const context: GenerationContext = {
+        job: createMockJob(),
+        startTime: Date.now(),
+        config,
+      };
+
+      const result = await step.process(context);
+
+      expect(result.auth?.isGuestMode).toBe(true);
+      expect(result.auth?.audioProviderKeys?.get('elevenlabs')).toBe('sk_el_guest_byok');
+      expect(result.auth?.audioProviderKeys?.has('mistral')).toBe(false);
+      expect(mockApiKeyResolver.resolveApiKey).toHaveBeenCalledWith(
+        'user-456',
+        AIProvider.ElevenLabs
+      );
     });
 
     it('should silently handle ElevenLabs resolution failure', async () => {
