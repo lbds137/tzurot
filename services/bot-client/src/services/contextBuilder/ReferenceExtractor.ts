@@ -24,7 +24,6 @@ const logger = createLogger('MessageContextBuilder');
 /** Result of extracting references and resolving mentions */
 export interface ReferencesAndMentionsResult {
   messageContent: string;
-  referencedMessages: ReferencedMessage[];
   /**
    * Raw-envelope fields: pre-enrichment reference snapshots plus the
    * guild-cache-resolved channel and role mention data the worker needs to
@@ -59,7 +58,6 @@ export async function extractReferencesAndMentions(
   if (isWeighInMode) {
     return {
       messageContent: content,
-      referencedMessages: [],
     };
   }
 
@@ -79,17 +77,14 @@ export async function extractReferencesAndMentions(
     conversationHistoryTimestamps,
   });
 
-  const {
-    references: referencedMessages,
-    updatedContent,
-    rawReferences,
-  } = await referenceExtractor.extractReferencesWithReplacement(message, content);
+  const { updatedContent, rawReferences } =
+    await referenceExtractor.extractReferencesWithReplacement(message, content);
 
-  if (referencedMessages.length > 0) {
+  if (rawReferences.length > 0) {
     logger.info(
       {
-        count: referencedMessages.length,
-        referenceNumbers: referencedMessages.map(r => r.referenceNumber),
+        count: rawReferences.length,
+        referenceNumbers: rawReferences.map(r => r.referenceNumber),
       },
       'Extracted referenced messages (after deduplication)'
     );
@@ -110,7 +105,6 @@ export async function extractReferencesAndMentions(
 
   return {
     messageContent,
-    referencedMessages,
     ...rawEnvelopeFields,
   };
 }
@@ -154,13 +148,13 @@ type RawEnvelopeFields = Pick<
 >;
 
 function captureRawEnvelopeFields(
-  rawReferences: ReferencedMessage[] | undefined,
+  rawReferences: ReferencedMessage[],
   mentionResult: Awaited<ReturnType<MentionResolver['resolveAllMentions']>>
 ): RawEnvelopeFields {
   return {
-    // No `?? []` fallback: the extractor always produced an array, and if a
-    // future path legitimately passes undefined, ABSENT is the accurate signal
-    // to propagate (see schema semantics).
+    // Always an array here — extraction ran. ABSENT on the wire means
+    // extraction was skipped entirely (the weigh-in early return above never
+    // reaches this function), so `[]` and absent stay distinct signals.
     rawReferencedMessages: rawReferences,
     rawMentionedChannels: mentionResult.mentionedChannels.map(ch => ({
       channelId: ch.channelId,

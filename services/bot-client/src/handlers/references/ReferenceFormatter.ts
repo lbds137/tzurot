@@ -19,24 +19,19 @@ const logger = createLogger('ReferenceFormatter');
  * Formatted reference result
  */
 interface FormattedResult {
-  /** Formatted references with numbers assigned */
-  references: ReferencedMessage[];
   /** Updated message content with links replaced by [Reference N] */
   updatedContent: string;
   /**
-   * Raw pre-enrichment snapshots (only when `collectRaw` was requested):
-   * same numbering as `references`, but full content always — no transcript
-   * append, no dedup stubbing — so the worker-side assembler can re-run both
-   * enrichments itself.
+   * Raw pre-enrichment snapshots — full content always, no transcript append
+   * and no dedup stubbing, so the worker-side assembler can run both
+   * enrichments itself. This is the only reference payload that ships.
    */
-  rawReferences?: ReferencedMessage[];
+  rawReferences: ReferencedMessage[];
 }
 
 /** Mutable accumulation state threaded through the per-message branch handlers. */
 interface FormatState {
-  references: ReferencedMessage[];
   rawReferences: ReferencedMessage[];
-  collectRaw: boolean;
   linkMap: Map<string, number>;
   nextNumber: number;
 }
@@ -57,13 +52,11 @@ export class ReferenceFormatter {
    * @param maxReferences - Maximum number of references to include
    * @returns Formatted references and updated content
    */
-  async format(
+  format(
     originalContent: string,
     crawledMessages: Map<string, { message: Message; metadata: ReferenceMetadata }>,
-    maxReferences: number,
-    options: { collectRaw?: boolean } = {}
-  ): Promise<FormattedResult> {
-    const collectRaw = options.collectRaw === true;
+    maxReferences: number
+  ): FormattedResult {
     const rawReferences: ReferencedMessage[] = [];
     // Convert to array for sorting
     const messagesArray = Array.from(crawledMessages.values());
@@ -91,17 +84,19 @@ export class ReferenceFormatter {
     }
 
     // Format messages and assign reference numbers
-    const references: ReferencedMessage[] = [];
     const linkMap = new Map<string, number>(); // Map Discord URL to reference number
 
-    const state: FormatState = { references, rawReferences, collectRaw, linkMap, nextNumber: 1 };
+    const state: FormatState = { rawReferences, linkMap, nextNumber: 1 };
     for (const { message, metadata } of selected) {
-      if (metadata.isDeduplicated === true) {
-        this.appendDedupedReference(message, metadata, state);
-      } else if (isForwardedMessage(message)) {
+      // A deduped reference takes the single-entry path even when it is a
+      // forward: no stub is built on this side any more (deduplication is
+      // decided and rendered worker-side, against ai-worker's OWN assembled
+      // history), so the deduped branch is exactly the regular one — it just
+      // must not fan a forward out into one entry per snapshot.
+      if (metadata.isDeduplicated !== true && isForwardedMessage(message)) {
         this.appendForwardedSnapshots(message, metadata, state);
       } else {
-        await this.appendRegular(message, metadata, state);
+        this.appendSingleReference(message, metadata, state);
       }
     }
 
@@ -110,40 +105,19 @@ export class ReferenceFormatter {
 
     logger.info(
       {
-        referencesFormatted: references.length,
+        referencesFormatted: rawReferences.length,
         linksReplaced: linkMap.size,
       },
       'Formatting complete'
     );
 
     return {
-      references,
       updatedContent,
-      ...(collectRaw && { rawReferences }),
+      rawReferences,
     };
   }
 
-  /** Deduped: the full snapshot, on both sides. */
-  private appendDedupedReference(
-    message: Message,
-    metadata: ReferenceMetadata,
-    s: FormatState
-  ): void {
-    // No stub is built here any more. Deduplication is decided and rendered
-    // worker-side (ai-worker re-runs it against its OWN assembled history), and
-    // the thin envelope carries `rawReferences` only — so a stub built here
-    // reached nothing but two log statements while giving the stub shape a
-    // second, drift-prone home.
-    const raw = this.messageFormatter.buildRawReference(message, s.nextNumber).reference;
-    s.references.push(raw);
-    if (s.collectRaw) {
-      s.rawReferences.push(raw);
-    }
-    this.trackLink(metadata, s.nextNumber, s.linkMap);
-    s.nextNumber++;
-  }
-
-  /** Forwarded: each snapshot becomes a reference; raw = enriched (no DB enrichment). */
+  /** Forwarded: each snapshot becomes its own reference. */
   private appendForwardedSnapshots(
     message: Message & { messageSnapshots: NonNullable<Message['messageSnapshots']> },
     metadata: ReferenceMetadata,
@@ -155,10 +129,7 @@ export class ReferenceFormatter {
         s.nextNumber,
         message
       );
-      s.references.push(snapshotReference);
-      if (s.collectRaw) {
-        s.rawReferences.push({ ...snapshotReference });
-      }
+      s.rawReferences.push(snapshotReference);
       // All snapshots of one forward share the crawled entry's discordUrl, and
       // trackLink uses Map.set — so the LAST snapshot's number wins and the
       // [Reference N] link resolves to the forward's final snapshot.
@@ -176,20 +147,14 @@ export class ReferenceFormatter {
     }
   }
 
-  /** Regular: enriched (transcripts appended) + raw pre-enrichment snapshot. */
-  private async appendRegular(
+  /** One reference: the raw pre-enrichment snapshot of the whole message. */
+  private appendSingleReference(
     message: Message,
     metadata: ReferenceMetadata,
     s: FormatState
-  ): Promise<void> {
-    const { enriched, raw } = await this.messageFormatter.formatMessageWithRaw(
-      message,
-      s.nextNumber
-    );
-    s.references.push(enriched);
-    if (s.collectRaw) {
-      s.rawReferences.push(raw);
-    }
+  ): void {
+    const raw = this.messageFormatter.buildRawReference(message, s.nextNumber).reference;
+    s.rawReferences.push(raw);
     this.trackLink(metadata, s.nextNumber, s.linkMap);
     s.nextNumber++;
   }

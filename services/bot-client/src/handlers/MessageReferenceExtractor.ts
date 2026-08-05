@@ -4,15 +4,12 @@
  * Thin coordinator that delegates to:
  * - ReferenceCrawler: BFS traversal and message fetching
  * - ReferenceFormatter: Sorting, numbering, and presentation
- *
- * This facade maintains the original public API for backwards compatibility
  */
 
 import { INTERVALS } from '@tzurot/common-types/constants/timing';
 import { type ReferencedMessage } from '@tzurot/common-types/types/schemas/message';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import { type Message } from 'discord.js';
-import { TranscriptRetriever } from './references/TranscriptRetriever.js';
 import { SnapshotFormatter } from './references/SnapshotFormatter.js';
 import { MessageFormatter } from './references/MessageFormatter.js';
 import { LinkExtractor } from './references/LinkExtractor.js';
@@ -27,16 +24,14 @@ const logger = createLogger('MessageReferenceExtractor');
  * Result of reference extraction with link replacement
  */
 interface ReferenceExtractionResult {
-  /** Extracted referenced messages */
-  references: ReferencedMessage[];
   /** Updated message content with Discord links replaced by [Reference N] */
   updatedContent: string;
   /**
-   * Raw pre-enrichment reference snapshots for the assembly envelope —
-   * present only when CONTEXT_RAW_ENVELOPE=true. Full content always (no
-   * transcripts, no dedup stubs), same numbering as `references`.
+   * Raw pre-enrichment reference snapshots for the assembly envelope — full
+   * content always (no transcripts, no dedup stubs), numbered depth-first
+   * and chronologically within each depth.
    */
-  rawReferences?: ReferencedMessage[];
+  rawReferences: ReferencedMessage[];
 }
 
 /**
@@ -82,9 +77,8 @@ export class MessageReferenceExtractor {
       options.embedProcessingDelayMs ?? INTERVALS.EMBED_PROCESSING_DELAY;
 
     // Initialize dependencies
-    const transcriptRetriever = new TranscriptRetriever();
     const snapshotFormatter = new SnapshotFormatter();
-    const messageFormatter = new MessageFormatter(transcriptRetriever);
+    const messageFormatter = new MessageFormatter();
     const linkExtractor = new LinkExtractor();
 
     // Initialize extraction strategies
@@ -104,16 +98,6 @@ export class MessageReferenceExtractor {
   }
 
   /**
-   * Extract all referenced messages from a Discord message
-   * @param message - Discord message to extract references from
-   * @returns Array of referenced messages
-   */
-  async extractReferences(message: Message): Promise<ReferencedMessage[]> {
-    const result = await this.extractReferencesWithReplacement(message);
-    return result.references;
-  }
-
-  /**
    * Extract all referenced messages and replace Discord links with [Reference N]
    * Uses breadth-first search to handle nested references.
    *
@@ -128,8 +112,8 @@ export class MessageReferenceExtractor {
    *   replacement to. For forwarded messages the real text lives in a snapshot,
    *   so `message.content` (top-level) is empty; the caller passes the
    *   snapshot-extracted content here. Falls back to `message.content` when
-   *   omitted (the references-only public path).
-   * @returns References and updated content with links replaced
+   *   omitted.
+   * @returns Raw reference snapshots and updated content with links replaced
    */
   async extractReferencesWithReplacement(
     message: Message,
@@ -164,21 +148,15 @@ export class MessageReferenceExtractor {
     // Apply link replacement to the effective content (snapshot text for
     // forwards), not the empty top-level content — otherwise a forward's real
     // text is lost when the caller adopts updatedContent.
-    const formattedResult = await this.formatter.format(
+    const formattedResult = this.formatter.format(
       effectiveContent ?? updatedMessage.content,
       crawlResult.messages,
-      this.maxReferences,
-      // Raw references always captured — the thin envelope is the only payload
-      // shape, and the worker re-derives from these.
-      { collectRaw: true }
+      this.maxReferences
     );
 
     return {
-      references: formattedResult.references,
       updatedContent: formattedResult.updatedContent,
-      ...(formattedResult.rawReferences !== undefined && {
-        rawReferences: formattedResult.rawReferences,
-      }),
+      rawReferences: formattedResult.rawReferences,
     };
   }
 

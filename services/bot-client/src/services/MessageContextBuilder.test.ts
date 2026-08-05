@@ -245,7 +245,7 @@ describe('MessageContextBuilder', () => {
   describe('buildContext', () => {
     it('attaches rawAssemblyInputs — the worker re-derives the context from it', async () => {
       mockExtractReferencesWithReplacement.mockResolvedValue({
-        references: [],
+        rawReferences: [],
         updatedContent: 'REWRITTEN content',
       });
       // The mention resolver is the LAST rewriter — its output is the
@@ -288,7 +288,7 @@ describe('MessageContextBuilder', () => {
         imageAttachments: [{ url: 'https://cdn/x.png', contentType: 'image/png', id: 'x' }],
       });
       mockExtractReferencesWithReplacement.mockResolvedValue({
-        references: [],
+        rawReferences: [],
         updatedContent: 'REWRITTEN content',
       });
       mockResolveAllMentions.mockReturnValue({
@@ -344,7 +344,7 @@ describe('MessageContextBuilder', () => {
         history: [],
       });
       mockExtractReferencesWithReplacement.mockResolvedValue({
-        references: [],
+        rawReferences: [],
         updatedContent: 'Hello world',
       });
 
@@ -397,7 +397,7 @@ describe('MessageContextBuilder', () => {
         history: [],
       });
       mockExtractReferencesWithReplacement.mockResolvedValue({
-        references: [],
+        rawReferences: [],
         updatedContent: 'Hello',
       });
 
@@ -416,7 +416,7 @@ describe('MessageContextBuilder', () => {
 
     it('should handle empty conversation history', async () => {
       mockExtractReferencesWithReplacement.mockResolvedValue({
-        references: [],
+        rawReferences: [],
         updatedContent: 'First message',
       });
 
@@ -442,7 +442,6 @@ describe('MessageContextBuilder', () => {
       ];
 
       mockExtractReferencesWithReplacement.mockResolvedValue({
-        references: mockReferences,
         updatedContent: 'Check [Reference 1]',
         rawReferences: mockReferences,
       });
@@ -469,7 +468,7 @@ describe('MessageContextBuilder', () => {
 
     it('does not run the extended-context fetch by default (no Postgres history service wired for dedup)', async () => {
       mockExtractReferencesWithReplacement.mockResolvedValue({
-        references: [],
+        rawReferences: [],
         updatedContent: 'Hello',
       });
 
@@ -493,7 +492,7 @@ describe('MessageContextBuilder', () => {
       ];
 
       mockExtractReferencesWithReplacement.mockResolvedValue({
-        references: [],
+        rawReferences: [],
         updatedContent: 'Check this image',
       });
       vi.mocked(extractAttachments).mockReturnValue(mockAttachments as any);
@@ -512,7 +511,7 @@ describe('MessageContextBuilder', () => {
       };
 
       mockExtractReferencesWithReplacement.mockResolvedValue({
-        references: [],
+        rawReferences: [],
         updatedContent: 'Hello',
       });
       vi.mocked(extractDiscordEnvironment).mockReturnValue(mockEnvironment as any);
@@ -525,7 +524,7 @@ describe('MessageContextBuilder', () => {
 
     it('should handle empty content with fallback', async () => {
       mockExtractReferencesWithReplacement.mockResolvedValue({
-        references: [],
+        rawReferences: [],
         updatedContent: null,
       });
       mockResolveAllMentions.mockReturnValue({
@@ -569,7 +568,7 @@ describe('MessageContextBuilder', () => {
       } as any;
 
       mockExtractReferencesWithReplacement.mockResolvedValue({
-        references: [],
+        rawReferences: [],
         updatedContent: 'Voice message',
       });
       mockResolveAllMentions.mockReturnValue({
@@ -589,15 +588,16 @@ describe('MessageContextBuilder', () => {
 
     it('should not include referencedMessages in context when empty', async () => {
       mockExtractReferencesWithReplacement.mockResolvedValue({
-        references: [],
+        rawReferences: [],
         updatedContent: 'Hello',
       });
 
       const result = await builder.buildContext(mockMessage, mockPersonality, 'Hello');
 
       expect(result.context.referencedMessages).toBeUndefined();
-      // No references extracted → the raw envelope carries none either.
-      expect(result.context.rawAssemblyInputs?.rawReferencedMessages).toBeUndefined();
+      // No references extracted → the raw envelope carries an empty list. The
+      // extractor always returns an array, so absence is not a reachable state.
+      expect(result.context.rawAssemblyInputs?.rawReferencedMessages).toEqual([]);
     });
 
     it('does NOT resolve user mentions bot-side (worker re-derives) — channel/role only', async () => {
@@ -612,7 +612,7 @@ describe('MessageContextBuilder', () => {
       (mockMessage.mentions.users as Map<string, User>).set('123456', mockMentionedUser);
 
       mockExtractReferencesWithReplacement.mockResolvedValue({
-        references: [],
+        rawReferences: [],
         updatedContent: 'Hey <@123456>, how are you?',
       });
       // Channel/role rewriting leaves the user mention untouched.
@@ -654,7 +654,7 @@ describe('MessageContextBuilder', () => {
         history: [],
       });
       mockExtractReferencesWithReplacement.mockResolvedValue({
-        references: [],
+        rawReferences: [],
         updatedContent: 'Hello after clear',
       });
       mockResolveAllMentions.mockReturnValue({
@@ -704,7 +704,7 @@ describe('MessageContextBuilder', () => {
         history: [],
       });
       mockExtractReferencesWithReplacement.mockResolvedValue({
-        references: [],
+        rawReferences: [],
         updatedContent: 'Weigh in',
       });
       mockResolveAllMentions.mockReturnValue({
@@ -745,7 +745,7 @@ describe('MessageContextBuilder', () => {
       vi.mocked(mockPrisma.userPersonaHistoryConfig.findUnique).mockResolvedValue(null);
 
       mockExtractReferencesWithReplacement.mockResolvedValue({
-        references: [],
+        rawReferences: [],
         updatedContent: 'Hello',
       });
       mockResolveAllMentions.mockReturnValue({
@@ -802,7 +802,7 @@ describe('MessageContextBuilder', () => {
       mockMergeWithHistory.mockReturnValue(extendedMessages);
 
       mockExtractReferencesWithReplacement.mockResolvedValue({
-        references: [],
+        rawReferences: [],
         updatedContent: 'Hello',
       });
       mockResolveAllMentions.mockReturnValue({
@@ -858,7 +858,7 @@ describe('MessageContextBuilder', () => {
         keptCount: 0,
       });
       mockExtractReferencesWithReplacement.mockResolvedValue({
-        references: [],
+        rawReferences: [],
         updatedContent: 'hi',
       });
       mockResolveAllMentions.mockReturnValue({
@@ -897,7 +897,7 @@ describe('MessageContextBuilder', () => {
         keptCount: 0,
       });
       mockExtractReferencesWithReplacement.mockResolvedValue({
-        references: [],
+        rawReferences: [],
         updatedContent: '',
       });
       mockResolveAllMentions.mockReturnValue({
@@ -955,7 +955,7 @@ describe('MessageContextBuilder', () => {
       });
       mockMergeWithHistory.mockReturnValue([]);
       mockExtractReferencesWithReplacement.mockResolvedValue({
-        references: [],
+        rawReferences: [],
         updatedContent: 'Hello',
       });
       mockResolveAllMentions.mockReturnValue({
@@ -1010,7 +1010,7 @@ describe('MessageContextBuilder', () => {
 
     it('should not fetch extended context when botUserId is not provided', async () => {
       mockExtractReferencesWithReplacement.mockResolvedValue({
-        references: [],
+        rawReferences: [],
         updatedContent: 'Hello',
       });
       mockResolveAllMentions.mockReturnValue({
@@ -1082,7 +1082,7 @@ describe('MessageContextBuilder', () => {
       });
       mockMergeWithHistory.mockReturnValue(extendedMessages);
       mockExtractReferencesWithReplacement.mockResolvedValue({
-        references: [],
+        rawReferences: [],
         updatedContent: 'Hello',
       });
       mockResolveAllMentions.mockReturnValue({
@@ -1147,7 +1147,7 @@ describe('MessageContextBuilder', () => {
       });
       mockMergeWithHistory.mockReturnValue(extendedMessages);
       mockExtractReferencesWithReplacement.mockResolvedValue({
-        references: [],
+        rawReferences: [],
         updatedContent: 'Hello',
       });
       mockResolveAllMentions.mockReturnValue({
@@ -1221,7 +1221,7 @@ describe('MessageContextBuilder', () => {
 
       mockMergeWithHistory.mockReturnValue(extendedMessages);
       mockExtractReferencesWithReplacement.mockResolvedValue({
-        references: [],
+        rawReferences: [],
         updatedContent: 'Hello',
       });
       mockResolveAllMentions.mockReturnValue({
@@ -1269,7 +1269,7 @@ describe('MessageContextBuilder', () => {
         keptCount: 0,
       });
       mockExtractReferencesWithReplacement.mockResolvedValue({
-        references: [],
+        rawReferences: [],
         updatedContent: 'content',
       });
       mockResolveAllMentions.mockReturnValue({

@@ -79,7 +79,8 @@ describe('MessageReferenceExtractor (Orchestration)', () => {
         channel: mockChannel,
       });
 
-      const references = await extractor.extractReferences(message);
+      const { rawReferences: references } =
+        await extractor.extractReferencesWithReplacement(message);
 
       expect(references).toEqual([]);
     });
@@ -107,7 +108,8 @@ describe('MessageReferenceExtractor (Orchestration)', () => {
         fetch: vi.fn().mockResolvedValue(message),
       };
 
-      const references = await extractor.extractReferences(message);
+      const { rawReferences: references } =
+        await extractor.extractReferencesWithReplacement(message);
 
       expect(references).toHaveLength(1);
       expect(references[0].referenceNumber).toBe(1);
@@ -154,7 +156,8 @@ describe('MessageReferenceExtractor (Orchestration)', () => {
       });
       Object.defineProperty(message, 'channel', { value: mockChannel, writable: true });
 
-      const references = await extractor.extractReferences(message);
+      const { rawReferences: references } =
+        await extractor.extractReferencesWithReplacement(message);
 
       expect(references).toHaveLength(1);
       expect(references[0].referenceNumber).toBe(1);
@@ -202,7 +205,7 @@ describe('MessageReferenceExtractor (Orchestration)', () => {
 
       const result = await extractor.extractReferencesWithReplacement(message);
 
-      expect(result.references).toHaveLength(1);
+      expect(result.rawReferences).toHaveLength(1);
       expect(result.updatedContent).toBe('See [Reference 1]');
     });
 
@@ -259,7 +262,8 @@ describe('MessageReferenceExtractor (Orchestration)', () => {
         embedProcessingDelayMs: 0,
       });
 
-      const references = await limitedExtractor.extractReferences(message);
+      const { rawReferences: references } =
+        await limitedExtractor.extractReferencesWithReplacement(message);
 
       // Should limit to 10
       expect(references.length).toBeLessThanOrEqual(10);
@@ -296,7 +300,8 @@ describe('MessageReferenceExtractor (Orchestration)', () => {
         conversationHistoryMessageIds: ['referenced-123'], // Mark as already in history
       });
 
-      const references = await dedupExtractor.extractReferences(message);
+      const { rawReferences: references } =
+        await dedupExtractor.extractReferencesWithReplacement(message);
 
       expect(references.length).toBe(1);
       expect(references[0].isDeduplicated).toBeUndefined();
@@ -306,10 +311,10 @@ describe('MessageReferenceExtractor (Orchestration)', () => {
     it('ships dedup-INVARIANT rawReferences + content (getChannelHistory is vestigial for the envelope)', async () => {
       // `conversationHistoryMessageIds` IS bot-client's getChannelHistory output. It
       // drives the dedup decision, which routes a reference between the formatter's
-      // full and stub branches. This proves that decision changes ONLY the local
-      // enriched `references` (full vs stub) — the SHIPPED `rawReferences` and the
-      // rewritten content are byte-identical either way, because both branches push
-      // the same full raw snapshot and increment the same reference number. That
+      // deduped and regular branches. This proves that decision leaves the SHIPPED
+      // `rawReferences` and the rewritten content byte-identical either way, because
+      // both branches push the same full raw snapshot and increment the same
+      // reference number. That
       // invariance is precisely why the worker can re-derive dedup from the raw
       // snapshots against its OWN history and bot-client's getChannelHistory read is
       // vestigial for the thin envelope (2.5d getChannelHistory-eviction precondition).
@@ -340,14 +345,11 @@ describe('MessageReferenceExtractor (Orchestration)', () => {
           conversationHistoryMessageIds: historyIds,
         }).extractReferencesWithReplacement(buildTrigger());
 
-      const notDeduped = await extract([]); // ref NOT in history → full reference
-      const deduped = await extract(['referenced-123']); // ref in history → stubbed
+      const notDeduped = await extract([]); // ref NOT in history → regular branch
+      const deduped = await extract(['referenced-123']); // ref in history → deduped branch
 
       // The dedup decision now leaves no trace ANYWHERE on this side — not just
-      // on the wire. It used to diverge the local enriched references (full vs.
-      // stub); that stub reached two log statements and nothing else, while
-      // giving the stub shape a second home to drift in.
-      expect(deduped.references).toEqual(notDeduped.references);
+      // on the wire.
       expect(deduped.rawReferences).toEqual(notDeduped.rawReferences);
       expect(deduped.updatedContent).toEqual(notDeduped.updatedContent);
     });

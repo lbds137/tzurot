@@ -241,9 +241,6 @@ export async function generate(
   // the first place to look if the heavy-attachment submit timeout recurs.
   logger.debug(
     {
-      hasReferencedMessages:
-        context.referencedMessages !== undefined && context.referencedMessages !== null,
-      referencedCount: context.referencedMessages?.length ?? 0,
       contextKeys: Object.keys(context),
     },
     'Submitting generation context'
