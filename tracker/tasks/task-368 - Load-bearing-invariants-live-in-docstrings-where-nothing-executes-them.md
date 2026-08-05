@@ -1,10 +1,10 @@
 ---
 id: TASK-368
 title: Load-bearing invariants live in docstrings where nothing executes them
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-07-30 23:08'
-updated_date: '2026-08-04 13:56'
+updated_date: '2026-08-05 22:22'
 labels:
   - 'area:ai-worker'
   - 'size:M'
