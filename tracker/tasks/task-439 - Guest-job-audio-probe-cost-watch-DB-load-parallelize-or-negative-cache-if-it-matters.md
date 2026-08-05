@@ -6,7 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-08-05 12:50'
-updated_date: '2026-08-05 13:05'
+updated_date: '2026-08-05 13:28'
 labels:
   - 'area:ai-worker'
   - 'area:db'
@@ -29,4 +29,6 @@ Acceptance: either the observable stays quiet for a release cycle (close as nois
 
 <!-- SECTION:NOTES:BEGIN -->
 Mechanism sharpened by #1974 review round 3 (verified against ApiKeyResolver source): the cost is an UNCACHED EXCEPTION path - cacheResult runs only on success branches, and Mistral has NO system fallback (getSystemApiKey returns null unconditionally), so every keyless guest job re-throws NoApiKeyAvailableError and re-hits prisma.userApiKey.findFirst forever; ElevenLabs caches only if an operator system key is configured. The Promise.all half of the fix shape is shipping as an immediate fast-follow PR (two reviews converged on it); this task then owns only the negative-cache decision, still gated on the observable.
+
+Promise.all half SHIPPED in #1975 (merged 2026-08-05; concurrency + isolation both test-pinned). Remaining scope: the negative-result cache decision only, gated on the observable above.
 <!-- SECTION:NOTES:END -->
