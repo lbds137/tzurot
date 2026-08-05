@@ -10,13 +10,32 @@ import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/perso
 import { type ProcessedAttachment } from './MultimodalProcessor.js';
 
 // Use vi.hoisted() to create mocks that persist across test resets
-const { mockDescribeImage, mockTranscribeAudio, mockFormatPromptTimestamp, mockLogger } =
-  vi.hoisted(() => ({
+const {
+  mockDescribeImage,
+  mockTranscribeAudio,
+  mockFormatPromptTimestamp,
+  mockLogger,
+  mockChildLogger,
+} = vi.hoisted(() => {
+  // AttachmentProcessor binds a request-scoped child off the same mocked
+  // createLogger, so `child` has to exist here for the live attachment path to
+  // run at all — and the implementation is passed to vi.fn() rather than
+  // configured afterwards so a mock reset restores it.
+  const child = { info: vi.fn(), debug: vi.fn(), warn: vi.fn(), error: vi.fn() };
+  return {
     mockDescribeImage: vi.fn(),
     mockTranscribeAudio: vi.fn(),
     mockFormatPromptTimestamp: vi.fn(),
-    mockLogger: { info: vi.fn(), debug: vi.fn(), warn: vi.fn(), error: vi.fn() },
-  }));
+    mockChildLogger: child,
+    mockLogger: {
+      info: vi.fn(),
+      debug: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+      child: vi.fn(() => child),
+    },
+  };
+});
 
 // Mock the MultimodalProcessor module
 vi.mock('./MultimodalProcessor.js', () => ({
@@ -1911,6 +1930,33 @@ describe('ReferencedMessageFormatter', () => {
       expect(mockLogger.warn).toHaveBeenCalledWith(
         expect.objectContaining({ requestId: 'req-keyless-11', kind: 'voice' }),
         expect.stringContaining('no attachment URL')
+      );
+    });
+
+    it('forwards the request id into the live attachment path, so its logs correlate too', async () => {
+      // The third correlation seam, and the only one on the COMPUTING arm: the
+      // deduped arm's two warnings are correlated above, but a full reference
+      // reaches vision and transcription through processAttachmentsParallel,
+      // where every failure line is about work that was actually paid for. This
+      // runs the real chain (AttachmentProcessor is not mocked here), so the
+      // binding is observed where it lands rather than at a mocked call's args.
+      mockDescribeImage.mockResolvedValue(VISION_SENTINEL);
+
+      await formatter.formatReferencedMessages(
+        [refWithImage()],
+        mockPersonality,
+        false,
+        undefined,
+        {
+          requestId: 'req-live-3',
+        }
+      );
+
+      expect(mockLogger.child).toHaveBeenCalledWith({ requestId: 'req-live-3' });
+      // Bound, and actually used — a child nobody logs through correlates nothing.
+      expect(mockChildLogger.info).toHaveBeenCalledWith(
+        expect.objectContaining({ referenceNumber: 1 }),
+        'Processing image (inline fallback)'
       );
     });
 

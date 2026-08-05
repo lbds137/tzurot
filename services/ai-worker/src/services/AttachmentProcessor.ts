@@ -6,6 +6,7 @@
  * Extracted from ReferencedMessageFormatter for maintainability.
  */
 
+import type { Logger } from 'pino';
 import { type AIProvider } from '@tzurot/common-types/constants/ai';
 import { RETRY_CONFIG } from '@tzurot/common-types/constants/timing';
 import { type ReferencedMessage } from '@tzurot/common-types/types/schemas/message';
@@ -48,6 +49,8 @@ interface ProcessSingleAttachmentOptions {
   visionProvider?: AIProvider;
   /** Pre-resolved vision model (from `resolveVisionConfig`); honored over `selectVisionModel`. */
   model?: string;
+  /** Logger bound to the request (or the module logger when no id was threaded) */
+  log: Logger;
 }
 
 /**
@@ -67,6 +70,8 @@ interface ProcessImageOptions {
   visionProvider?: AIProvider;
   /** Pre-resolved vision model (from `resolveVisionConfig`); honored over `selectVisionModel`. */
   model?: string;
+  /** Logger bound to the request (or the module logger when no id was threaded) */
+  log: Logger;
 }
 
 /**
@@ -88,6 +93,13 @@ export interface ProcessAttachmentsOptions {
   visionProvider?: AIProvider;
   /** Pre-resolved vision model (from `resolveVisionConfig`); honored over `selectVisionModel`. */
   model?: string;
+  /**
+   * Pure correlation: it never changes what is rendered, it only lets this
+   * module's logs name the request whose attachment enrichment failed. Undefined
+   * for callers that thread no correlation id — those fall back to the module
+   * logger and behave exactly as before.
+   */
+  requestId?: string;
 }
 
 /**
@@ -115,7 +127,12 @@ export async function processAttachmentsParallel(
     loggingContext,
     visionProvider,
     model,
+    requestId,
   } = options;
+  // Bound once and threaded down, so every log this path emits — including the
+  // retry warnings withRetry raises — names the request rather than only the
+  // three failure sites.
+  const log = requestId === undefined ? logger : logger.child({ requestId });
   if (!attachments || attachments.length === 0) {
     return [];
   }
@@ -160,6 +177,7 @@ export async function processAttachmentsParallel(
             loggingContext,
             visionProvider,
             model,
+            log,
           }),
         };
       } catch (error) {
@@ -174,7 +192,7 @@ export async function processAttachmentsParallel(
       rendered.push(outcome.built);
       continue;
     }
-    logger.error(
+    log.error(
       { err: outcome.error, url: outcome.attachment.url, referenceNumber },
       'Unexpected error in attachment processing'
     );
@@ -231,6 +249,7 @@ function findPreprocessedByUrl(
 async function processVoiceAttachment(
   attachment: ProcessSingleAttachmentOptions['attachment'],
   referenceNumber: number,
+  log: Logger,
   preprocessed?: ProcessedAttachment,
   sttDispatch?: SttDispatch
 ): Promise<BuiltAttachment> {
@@ -245,10 +264,7 @@ async function processVoiceAttachment(
   } as const;
 
   if (preprocessed?.description !== undefined && preprocessed.description !== '') {
-    logger.debug(
-      { referenceNumber, url: attachment.url },
-      'Using preprocessed voice transcription'
-    );
+    log.debug({ referenceNumber, url: attachment.url }, 'Using preprocessed voice transcription');
     return {
       url: attachment.url,
       attachment: { ...identity, description: preprocessed.description },
@@ -256,7 +272,7 @@ async function processVoiceAttachment(
   }
 
   try {
-    logger.info(
+    log.info(
       {
         referenceNumber,
         url: attachment.url,
@@ -269,16 +285,13 @@ async function processVoiceAttachment(
       () => transcribeAudio(attachment, sttDispatch ?? { provider: 'voice-engine' }),
       {
         maxAttempts: RETRY_CONFIG.MAX_ATTEMPTS,
-        logger,
+        logger: log,
         operationName: `Voice transcription (reference ${referenceNumber})`,
       }
     );
     return { url: attachment.url, attachment: { ...identity, description: result.value.text } };
   } catch (error) {
-    logger.error(
-      { err: error, referenceNumber, url: attachment.url },
-      'Voice transcription failed'
-    );
+    log.error({ err: error, referenceNumber, url: attachment.url }, 'Voice transcription failed');
     return { url: attachment.url, attachment: { ...identity, status: 'untranscribed' } };
   }
 }
@@ -295,6 +308,7 @@ async function processImageAttachment(options: ProcessImageOptions): Promise<Bui
     loggingContext = {},
     visionProvider,
     model,
+    log,
   } = options;
   // Identity only — see the note in processVoiceAttachment.
   const identity = {
@@ -304,7 +318,7 @@ async function processImageAttachment(options: ProcessImageOptions): Promise<Bui
   } as const;
 
   if (preprocessed?.description !== undefined && preprocessed.description !== '') {
-    logger.debug({ referenceNumber, url: attachment.url }, 'Using preprocessed image description');
+    log.debug({ referenceNumber, url: attachment.url }, 'Using preprocessed image description');
     return {
       url: attachment.url,
       attachment: { ...identity, description: preprocessed.description },
@@ -312,7 +326,7 @@ async function processImageAttachment(options: ProcessImageOptions): Promise<Bui
   }
 
   try {
-    logger.info(
+    log.info(
       {
         referenceNumber,
         url: attachment.url,
@@ -331,13 +345,13 @@ async function processImageAttachment(options: ProcessImageOptions): Promise<Bui
         }),
       {
         maxAttempts: RETRY_CONFIG.MAX_ATTEMPTS,
-        logger,
+        logger: log,
         operationName: `Image description (reference ${referenceNumber})`,
       }
     );
     return { url: attachment.url, attachment: { ...identity, description: result.value } };
   } catch (error) {
-    logger.error({ err: error, referenceNumber, url: attachment.url }, 'Image processing failed');
+    log.error({ err: error, referenceNumber, url: attachment.url }, 'Image processing failed');
     return { url: attachment.url, attachment: { ...identity, status: 'undescribed' } };
   }
 }
@@ -360,12 +374,13 @@ async function processSingleAttachment(
     loggingContext,
     visionProvider,
     model,
+    log,
   } = options;
   const preprocessed = findPreprocessedByUrl(attachment.url, preprocessedAttachments);
 
   switch (classifyAttachment(attachment)) {
     case 'voice':
-      return processVoiceAttachment(attachment, referenceNumber, preprocessed, sttDispatch);
+      return processVoiceAttachment(attachment, referenceNumber, log, preprocessed, sttDispatch);
     case 'image':
       return processImageAttachment({
         attachment,
@@ -377,6 +392,7 @@ async function processSingleAttachment(
         loggingContext,
         visionProvider,
         model,
+        log,
       });
     case 'file':
       return {
