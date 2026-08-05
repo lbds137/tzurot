@@ -130,19 +130,28 @@ describe('Preset Create', () => {
   });
 
   describe('handleSeedModalSubmit', () => {
-    const createMockModalInteraction = (values: Record<string, string>) =>
-      ({
+    const createMockModalInteraction = (values: Record<string, string>) => {
+      const interaction: Record<string, unknown> = {
         user: { id: 'user-123' },
         channelId: 'channel-123',
-        deferReply: vi.fn(),
         editReply: vi.fn().mockResolvedValue({ id: 'message-123' }),
         followUp: vi.fn().mockResolvedValue(undefined),
-        deferred: true,
+        deferred: false,
         replied: false,
         fields: {
           getTextInputValue: vi.fn((id: string) => values[id] ?? ''),
         },
-      }) as unknown as ModalSubmitInteraction;
+      };
+      // deferReply flips the ack state like Discord, so an error path picks editReply
+      // (deferred) over reply (fresh) — matching the runtime path. A statically
+      // pre-set `deferred: true` would silently exercise the deferred branch even if
+      // a future pre-defer error path took the fresh one.
+      interaction.deferReply = vi.fn().mockImplementation(() => {
+        interaction.deferred = true;
+        return Promise.resolve(undefined);
+      });
+      return interaction as unknown as ModalSubmitInteraction;
+    };
 
     beforeEach(() => {
       vi.clearAllMocks();

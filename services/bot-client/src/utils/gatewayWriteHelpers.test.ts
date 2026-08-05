@@ -16,13 +16,9 @@ import {
   persistUserMessageViaGateway,
   syncConversationViaGateway,
 } from './gatewayWriteHelpers.js';
+import { makeErr } from '../test/gatewayClientStubs.js';
 
 const ok = <T>(data: T): { ok: true; data: T } => ({ ok: true, data });
-const err = (status: number): { ok: false; error: string; status: number } => ({
-  ok: false,
-  error: 'boom',
-  status,
-});
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -56,7 +52,7 @@ describe('persistAssistantMessageViaGateway', () => {
   });
 
   it('THROWS on a request failure (authoritative write, caller owns the catch)', async () => {
-    mockServiceClient.persistAssistantMessage.mockResolvedValue(err(503));
+    mockServiceClient.persistAssistantMessage.mockResolvedValue(makeErr(503, 'boom'));
 
     await expect(persistAssistantMessageViaGateway(PARAMS)).rejects.toThrow(
       'Assistant-message persist failed via gateway: 503'
@@ -104,7 +100,7 @@ describe('syncConversationViaGateway', () => {
   });
 
   it('never throws: zero counts on request failure and on client error', async () => {
-    mockServiceClient.syncConversation.mockResolvedValue(err(503));
+    mockServiceClient.syncConversation.mockResolvedValue(makeErr(503, 'boom'));
     await expect(syncConversationViaGateway('chan-1', 'pers-1', OBSERVED)).resolves.toEqual({
       updated: 0,
       deleted: 0,
@@ -157,7 +153,7 @@ describe('persistUserMessageViaGateway', () => {
   });
 
   it('THROWS on a request failure (authoritative write, caller owns the catch)', async () => {
-    mockServiceClient.persistUserMessage.mockResolvedValue(err(503));
+    mockServiceClient.persistUserMessage.mockResolvedValue(makeErr(503, 'boom'));
 
     await expect(persistUserMessageViaGateway(PARAMS)).rejects.toThrow(
       'User-message persist failed via gateway: 503'

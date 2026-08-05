@@ -53,13 +53,9 @@ import {
   clearAllChannelSettingsCache,
   _clearAdminSettingsCacheForTesting,
 } from './gatewayServiceCalls.js';
+import { makeErr } from '../test/gatewayClientStubs.js';
 
 const ok = <T>(data: T): { ok: true; data: T } => ({ ok: true, data });
-const err = (status: number): { ok: false; error: string; status: number } => ({
-  ok: false,
-  error: 'boom',
-  status,
-});
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -87,7 +83,7 @@ describe('getChannelSettingsCached', () => {
   });
 
   it('returns null (no throw) on a gateway error and does not cache it', async () => {
-    mockServiceClient.getChannelSettings.mockResolvedValue(err(500));
+    mockServiceClient.getChannelSettings.mockResolvedValue(makeErr(500, 'boom'));
 
     expect(await getChannelSettingsCached('chan-err')).toBeNull();
     // A subsequent call still tries again (error was not cached).
@@ -120,7 +116,7 @@ describe('getAdminSettingsCached', () => {
   });
 
   it('returns null on error', async () => {
-    mockServiceClient.getAdminSettingsInternal.mockResolvedValue(err(503));
+    mockServiceClient.getAdminSettingsInternal.mockResolvedValue(makeErr(503, 'boom'));
     expect(await getAdminSettingsCached()).toBeNull();
   });
 });
@@ -145,7 +141,7 @@ describe('setDmSessionPersonality', () => {
 
   it('does not throw and does not invalidate on failure', async () => {
     mockServiceClient.getChannelSettings.mockResolvedValue(ok({ hasSettings: true }));
-    mockServiceClient.setDmSession.mockResolvedValue(err(500));
+    mockServiceClient.setDmSession.mockResolvedValue(makeErr(500, 'boom'));
 
     await getChannelSettingsCached('dm-2');
     await expect(setDmSessionPersonality('dm-2', 'lila')).resolves.toBeUndefined();
@@ -165,14 +161,14 @@ describe('lookupPersonalityFromMessage', () => {
   });
 
   it('returns null on a 404 / error', async () => {
-    mockServiceClient.lookupPersonalityFromMessage.mockResolvedValue(err(404));
+    mockServiceClient.lookupPersonalityFromMessage.mockResolvedValue(makeErr(404, 'boom'));
     expect(await lookupPersonalityFromMessage('msg-x')).toBeNull();
   });
 });
 
 describe('fire-and-forget helpers', () => {
   it('updateDiagnosticResponseIds passes the ids and never throws on failure', async () => {
-    mockServiceClient.updateDiagnosticResponseIds.mockResolvedValue(err(500));
+    mockServiceClient.updateDiagnosticResponseIds.mockResolvedValue(makeErr(500, 'boom'));
     await expect(updateDiagnosticResponseIds('req-1', ['m1', 'm2'])).resolves.toBeUndefined();
     expect(mockServiceClient.updateDiagnosticResponseIds).toHaveBeenCalledWith('req-1', {
       responseMessageIds: ['m1', 'm2'],
@@ -180,7 +176,7 @@ describe('fire-and-forget helpers', () => {
   });
 
   it('stampUserActivity forwards the discordId as { discordId } and never throws on failure', async () => {
-    mockServiceClient.stampUserActivity.mockResolvedValue(err(500));
+    mockServiceClient.stampUserActivity.mockResolvedValue(makeErr(500, 'boom'));
     // Seam assertion: the wrapper must forward the raw snowflake as the request
     // body shape the endpoint expects, and a failed stamp must not surface to
     // the fire-and-forget caller.
@@ -191,7 +187,7 @@ describe('fire-and-forget helpers', () => {
   });
 
   it('filterNotifyEligible THROWS on gateway failure (pre-send: BullMQ must retry)', async () => {
-    mockServiceClient.retentionNotifyFilter.mockResolvedValue(err(503));
+    mockServiceClient.retentionNotifyFilter.mockResolvedValue(makeErr(503, 'boom'));
     await expect(filterNotifyEligible(['u-1'])).rejects.toThrow('Notify-eligibility filter failed');
   });
 
@@ -241,7 +237,7 @@ describe('fire-and-forget helpers', () => {
   });
 
   it('filterPendingDeliveries THROWS on gateway failure (pre-send: BullMQ must retry)', async () => {
-    mockServiceClient.releaseBroadcastPending.mockResolvedValue(err(503));
+    mockServiceClient.releaseBroadcastPending.mockResolvedValue(makeErr(503, 'boom'));
     await expect(filterPendingDeliveries('release-1', ['a'])).rejects.toThrow(
       'Pending-delivery filter failed'
     );
@@ -324,7 +320,7 @@ describe('fire-and-forget helpers', () => {
   });
 
   it('confirmDelivery never throws on failure', async () => {
-    mockServiceClient.aiConfirmDelivery.mockResolvedValue(err(404));
+    mockServiceClient.aiConfirmDelivery.mockResolvedValue(makeErr(404, 'boom'));
     await expect(confirmDelivery('job-1')).resolves.toBeUndefined();
     expect(mockServiceClient.aiConfirmDelivery).toHaveBeenCalledWith('job-1');
   });
@@ -354,7 +350,7 @@ describe('generate', () => {
   });
 
   it('throws on submission failure', async () => {
-    mockServiceClient.aiGenerate.mockResolvedValue(err(500));
+    mockServiceClient.aiGenerate.mockResolvedValue(makeErr(500, 'boom'));
     await expect(
       generate({ slug: 'lila' } as never, { messageContent: 'hi' } as never)
     ).rejects.toThrow('Gateway request failed');

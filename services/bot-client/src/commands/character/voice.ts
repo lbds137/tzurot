@@ -10,6 +10,10 @@
 
 import { escapeMarkdown } from 'discord.js';
 import { type EnvConfig } from '@tzurot/common-types/config/config';
+import {
+  characterVoiceSetOptions,
+  characterVoiceClearOptions,
+} from '@tzurot/common-types/generated/commandOptions';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import {
@@ -64,13 +68,13 @@ async function handleVoiceUpload(
   context: DeferredCommandContext,
   config: EnvConfig
 ): Promise<void> {
-  const interaction = context.interaction;
-  const slug = interaction.options.getString('character', true);
+  const options = characterVoiceSetOptions(context.interaction);
+  const slug = options.character();
   if (isAutocompleteErrorSentinel(slug)) {
     await context.editReply({ content: AUTOCOMPLETE_UNAVAILABLE_MESSAGE });
     return;
   }
-  const attachment = interaction.options.getAttachment('audio', true);
+  const attachment = options.audio();
   const userId = context.user.id;
   const { contentType } = attachment;
 
@@ -164,8 +168,7 @@ async function handleVoiceUpload(
  * Handle /character voice clear
  */
 async function handleVoiceClear(context: DeferredCommandContext, config: EnvConfig): Promise<void> {
-  const interaction = context.interaction;
-  const slug = interaction.options.getString('character', true);
+  const slug = characterVoiceClearOptions(context.interaction).character();
   if (isAutocompleteErrorSentinel(slug)) {
     await context.editReply({ content: AUTOCOMPLETE_UNAVAILABLE_MESSAGE });
     return;
