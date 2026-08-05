@@ -4,6 +4,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js';
+import { AIProvider } from '@tzurot/common-types/constants/ai';
 import { mockListLlmConfigsResponse, mockListWalletKeysResponse } from '@tzurot/test-factories';
 import { makeOk, makeErr, asUserClient } from '../../test/gatewayClientStubs.js';
 import { registerBrowseRebuilder } from '../../utils/dashboard/index.js';
@@ -439,6 +440,58 @@ describe('handleBrowse', () => {
     expect(embedData.description).toContain('Claude Default');
     expect(embedData.description).not.toContain('GPT Config');
     expect(embedData.description).toContain('Searching: "claude"');
+  });
+
+  it('shows guest mode for a voice-ONLY (ElevenLabs) wallet and dims paid presets', async () => {
+    // A voice key buys no models, so this wallet is a guest for chat UI: the
+    // preamble must appear AND the paid preset must be struck through.
+    configurePresets(stub, [
+      {
+        id: '00000000-0000-4000-8000-00000000000e',
+        name: 'Claude Paid',
+        model: 'anthropic/claude-sonnet-4',
+        provider: 'openrouter',
+        isGlobal: true,
+        isDefault: false,
+        isOwned: false,
+      },
+    ]);
+    stub.listWalletKeys.mockResolvedValue(
+      makeOk(mockListWalletKeysResponse([{ provider: AIProvider.ElevenLabs, isActive: true }]))
+    );
+
+    await handleBrowse(createMockContext());
+
+    const description =
+      (mockEditReply.mock.calls[0][0] as { embeds: { data: { description?: string } }[] }).embeds[0]
+        .data.description ?? '';
+    expect(description).toContain('Guest Mode');
+    expect(description).toContain('~~Claude Paid~~');
+  });
+
+  it('treats a z.ai coding-plan key as full access (no guest preamble)', async () => {
+    configurePresets(stub, [
+      {
+        id: '00000000-0000-4000-8000-00000000000f',
+        name: 'Claude Paid',
+        model: 'anthropic/claude-sonnet-4',
+        provider: 'openrouter',
+        isGlobal: true,
+        isDefault: false,
+        isOwned: false,
+      },
+    ]);
+    stub.listWalletKeys.mockResolvedValue(
+      makeOk(mockListWalletKeysResponse([{ provider: AIProvider.ZaiCoding, isActive: true }]))
+    );
+
+    await handleBrowse(createMockContext());
+
+    const description =
+      (mockEditReply.mock.calls[0][0] as { embeds: { data: { description?: string } }[] }).embeds[0]
+        .data.description ?? '';
+    expect(description).not.toContain('Guest Mode');
+    expect(description).not.toContain('~~Claude Paid~~');
   });
 
   it('should show guest mode warning when no active wallet', async () => {
