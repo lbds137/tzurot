@@ -7,6 +7,8 @@ created_date: '2026-08-03 18:27'
 
 _Focus: rewrite or retire the `docs/reference/` files the 2026-08-03 drift audit found materially wrong — the ones needing real current-code knowledge, not line fixes (those shipped in the audit's sweep PR)._
 
+**PASS EXECUTED — shipped in PR #1968 (2026-08-05).** All nine files done per the dispositions below; the two out-of-scope drift finds are tracked as TASK-436 (RAILWAY_CLI_REFERENCE dead tables) and dispositioned correct-as-is (CACHING_AUDIT, already labeled historical). This doc is historical record only.
+
 **OWNER CALLS RESOLVED 2026-08-04 — the pass is now fully agent-runnable.** Delete `architecture/POSTGRES_SCHEMA.md` (schema.prisma self-documents) and `architecture/group-conversation-design.md` (diverged-planning-doc lifecycle). `operations/DATABASE_BACKUP_STRATEGY.md`: do NOT delete — move to `docs/proposals/backlog/` AND edit it there so its content matches reality (strip the fictional scripts/workflows; reframe as an honest un-started proposal for backup posture).
 
 One PR's worth of sweeping, roughly in danger order. Per-file disposition:
