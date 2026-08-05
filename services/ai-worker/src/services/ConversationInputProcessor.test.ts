@@ -15,6 +15,7 @@ import type { ConversationContext } from './ConversationalRAGTypes.js';
 import type { PromptBuilder } from './PromptBuilder.js';
 import type { ReferencedMessageFormatter } from './ReferencedMessageFormatter.js';
 import type { ProcessedAttachment } from './MultimodalProcessor.js';
+import { enrichmentKey } from './prompt/QuoteFormatter.js';
 
 // Use vi.hoisted() to create mocks that persist across test resets
 const { mockProcessAttachments, mockExtractRecentHistoryWindow } = vi.hoisted(() => ({
@@ -335,6 +336,9 @@ describe('ConversationInputProcessor', () => {
           visionProvider: undefined,
           visionModel: undefined,
           allPersonalityNames: new Set(['Test Bot']),
+          // Nothing to subtract: the reference is not deduplicated, so the
+          // chat log has no copy of it to defer to.
+          carriedByChatLog: new Map(),
         }
       );
       expect(result.referencedMessagesDescriptions).toBe('<references>formatted</references>');
@@ -570,8 +574,112 @@ describe('ConversationInputProcessor', () => {
           visionProvider: undefined,
           visionModel: undefined,
           allPersonalityNames: new Set(['Test Bot']),
+          carriedByChatLog: new Map(),
         }
       );
+    });
+
+    describe('carriedByChatLog (what the chat log already renders for a deduped quote)', () => {
+      const IMAGE_DESCRIPTION = 'SENTINEL_HISTORY_VISION: a tabby asleep on a keyboard';
+
+      function dedupedRef(): ReferencedMessage {
+        return {
+          referenceNumber: 1,
+          discordMessageId: 'msg1',
+          discordUserId: 'user1',
+          authorUsername: 'user1',
+          authorDisplayName: 'User One',
+          content: 'look at my cat',
+          embeds: '',
+          timestamp: '2025-01-01T00:00:00Z',
+          locationContext: '',
+          isDeduplicated: true,
+        };
+      }
+
+      /** The map as the formatter received it. */
+      function carriedArg(): Map<string, ReadonlySet<string>> | undefined {
+        const call = (
+          mockReferencedMessageFormatter.formatReferencedMessages as ReturnType<typeof vi.fn>
+        ).mock.calls[0] as [
+          unknown,
+          unknown,
+          unknown,
+          unknown,
+          { carriedByChatLog?: Map<string, ReadonlySet<string>> },
+        ];
+        return call[4].carriedByChatLog;
+      }
+
+      it('reports the image description history renders for the quoted message', async () => {
+        const context = createMockContext({
+          referencedMessages: [dedupedRef()],
+          rawConversationHistory: [
+            {
+              id: 'db-row-uuid-1',
+              discordMessageId: ['msg1'],
+              role: 'user',
+              content: 'look at my cat',
+              messageMetadata: {
+                imageDescriptions: [{ filename: 'cat.png', description: IMAGE_DESCRIPTION }],
+              },
+            },
+          ],
+        });
+
+        await processor.processInputs(mockPersonality, mockMessage, context, {
+          isGuestMode: true,
+        });
+
+        expect(carriedArg()?.get('msg1')).toEqual(
+          new Set([enrichmentKey('image', IMAGE_DESCRIPTION)])
+        );
+      });
+
+      it('reports nothing for a deduped quote whose message is not in history', async () => {
+        // The time-window dedup path: flagged duplicate, no matching entry. No
+        // map entry means no subtraction — the safe default, since there is no
+        // chat-log copy to defer to.
+        const context = createMockContext({
+          referencedMessages: [dedupedRef()],
+          rawConversationHistory: [
+            {
+              id: 'db-row-uuid-2',
+              discordMessageId: ['some-other-message'],
+              role: 'user',
+              content: 'unrelated',
+            },
+          ],
+        });
+
+        await processor.processInputs(mockPersonality, mockMessage, context, {
+          isGuestMode: true,
+        });
+
+        expect(carriedArg()?.has('msg1')).toBe(false);
+      });
+
+      it('reports an EMPTY set for a matched entry that renders no enrichment', async () => {
+        // Distinct from the miss above: the entry exists and carries nothing, so
+        // the quote keeps its media (an empty set subtracts nothing).
+        const context = createMockContext({
+          referencedMessages: [dedupedRef()],
+          rawConversationHistory: [
+            {
+              id: 'db-row-uuid-1',
+              discordMessageId: ['msg1'],
+              role: 'user',
+              content: 'look at my cat',
+            },
+          ],
+        });
+
+        await processor.processInputs(mockPersonality, mockMessage, context, {
+          isGuestMode: true,
+        });
+
+        expect(carriedArg()?.get('msg1')).toEqual(new Set());
+      });
     });
 
     it('should return complete ProcessedInputs structure', async () => {

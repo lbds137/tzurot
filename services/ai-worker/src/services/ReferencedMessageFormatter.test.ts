@@ -9,6 +9,7 @@ import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import { type ReferencedMessage } from '@tzurot/common-types/types/schemas/message';
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import { type ProcessedAttachment } from './MultimodalProcessor.js';
+import { enrichmentKey } from './prompt/QuoteFormatter.js';
 import { type ResolvedPersona } from './reference/UserReferencePatterns.js';
 
 // Use vi.hoisted() to create mocks that persist across test resets
@@ -2234,6 +2235,173 @@ describe('ReferencedMessageFormatter', () => {
           expect.stringContaining('not reaching the prompt')
         );
       });
+    });
+  });
+
+  /**
+   * The other half of the enrichment contract: paid work must appear ONCE.
+   *
+   * A deduped stub whose description <chat_log> also renders prints the same
+   * paid text twice in one prompt. The stub cannot know that — it is a fact
+   * about the other renderer's output — so the caller hands it what history
+   * carries and `dedupeReference` subtracts. These cases pin both directions,
+   * because both fixed answers are wrong in half the input.
+   */
+  describe('carriedByChatLog: the chat log copy is subtracted from the stub', () => {
+    const VISION_SENTINEL = 'SENTINEL_CARRIED_VISION_9d41ab';
+    const QUOTED_MESSAGE_ID = 'quoted-msg-1';
+    const IMAGE_URL = 'https://cdn.example.com/quoted-cat.png';
+
+    /**
+     * The real wire shape of a deduped reference with media: the enricher
+     * flags it and strips nothing, and its descriptions arrive via
+     * preprocessing (the deduped branch never calls vision itself).
+     */
+    function dedupedRefWithImage(): ReferencedMessage {
+      return {
+        referenceNumber: 1,
+        discordMessageId: QUOTED_MESSAGE_ID,
+        discordUserId: 'user-1',
+        authorUsername: 'testuser',
+        authorDisplayName: 'Test User',
+        content: 'look at my cat',
+        embeds: '',
+        timestamp: '2025-12-06T00:00:00Z',
+        locationContext: '',
+        isDeduplicated: true,
+      };
+    }
+
+    const preprocessedImage: Record<number, ProcessedAttachment[]> = {
+      1: [
+        {
+          type: AttachmentType.Image,
+          description: VISION_SENTINEL,
+          originalUrl: IMAGE_URL,
+          metadata: {
+            url: IMAGE_URL,
+            name: 'quoted-cat.png',
+            contentType: 'image/png',
+            size: 1000,
+          },
+        },
+      ],
+    };
+
+    it('drops the description — and the "described here" clause — when the chat log carries it', async () => {
+      const { formatted, searchText, durable } = await formatter.formatReferencedMessages(
+        [dedupedRefWithImage()],
+        mockPersonality,
+        false,
+        preprocessedImage,
+        {
+          carriedByChatLog: new Map([
+            [QUOTED_MESSAGE_ID, new Set([enrichmentKey('image', VISION_SENTINEL)])],
+          ]),
+        }
+      );
+
+      expect(formatted).not.toContain(VISION_SENTINEL);
+      // Nothing enriched survives, so the stub must not promise media here.
+      expect(formatted).toContain('[Referenced message — full text in the chat log]');
+      expect(formatted).not.toContain('its media is described here');
+
+      // Subtraction is prompt-shaping only: retrieval and the durable row are
+      // built from the PRE-projection reference and keep the paid text.
+      expect(searchText).toContain(VISION_SENTINEL);
+      expect(JSON.stringify(durable)).toContain(VISION_SENTINEL);
+    });
+
+    it('keeps the description when the map has no entry for that reference', async () => {
+      // The miss case — a time-window dedup matches no history entry at all.
+      // Subtracting nothing is the safe default: a duplicated description costs
+      // tokens, a dropped one costs the answer.
+      const { formatted } = await formatter.formatReferencedMessages(
+        [dedupedRefWithImage()],
+        mockPersonality,
+        false,
+        preprocessedImage,
+        { carriedByChatLog: new Map() }
+      );
+
+      expect(formatted).toContain(VISION_SENTINEL);
+      expect(formatted).toContain('its media is described here');
+    });
+
+    it('keeps the description when no map is threaded at all', async () => {
+      const { formatted } = await formatter.formatReferencedMessages(
+        [dedupedRefWithImage()],
+        mockPersonality,
+        false,
+        preprocessedImage
+      );
+
+      expect(formatted).toContain(VISION_SENTINEL);
+      expect(formatted).toContain('its media is described here');
+    });
+
+    it('keeps a description the chat log renders DIFFERENTLY', async () => {
+      // The set is matched on the enrichment text, not on the message id: an
+      // entry whose chat-log copy is some other description subtracts nothing,
+      // so the quote's own media still reaches the model.
+      const { formatted } = await formatter.formatReferencedMessages(
+        [dedupedRefWithImage()],
+        mockPersonality,
+        false,
+        preprocessedImage,
+        {
+          carriedByChatLog: new Map([
+            [QUOTED_MESSAGE_ID, new Set([enrichmentKey('image', 'a completely different photo')])],
+          ]),
+        }
+      );
+
+      expect(formatted).toContain(VISION_SENTINEL);
+    });
+
+    it('subtracts only the modality the chat log actually carries', async () => {
+      // Same text, wrong kind: the key is (kind, text), so an image description
+      // is not cancelled by an identical-looking transcript.
+      const { formatted } = await formatter.formatReferencedMessages(
+        [dedupedRefWithImage()],
+        mockPersonality,
+        false,
+        preprocessedImage,
+        {
+          carriedByChatLog: new Map([
+            [QUOTED_MESSAGE_ID, new Set([enrichmentKey('voice', VISION_SENTINEL)])],
+          ]),
+        }
+      );
+
+      expect(formatted).toContain(VISION_SENTINEL);
+    });
+
+    it('never subtracts from a FULL reference, however the map is populated', async () => {
+      // Only a deduped stub defers to <chat_log>; a full reference is the only
+      // place its media appears. It carries its own attachment row (the full
+      // branch renders from the reference, correlating preprocessing by URL).
+      const { formatted } = await formatter.formatReferencedMessages(
+        [
+          {
+            ...dedupedRefWithImage(),
+            isDeduplicated: undefined,
+            attachments: [
+              { url: IMAGE_URL, contentType: 'image/png', name: 'quoted-cat.png', size: 1000 },
+            ],
+          },
+        ],
+        mockPersonality,
+        false,
+        preprocessedImage,
+        {
+          carriedByChatLog: new Map([
+            [QUOTED_MESSAGE_ID, new Set([enrichmentKey('image', VISION_SENTINEL)])],
+          ]),
+        }
+      );
+
+      expect(formatted).toContain(VISION_SENTINEL);
     });
   });
 });

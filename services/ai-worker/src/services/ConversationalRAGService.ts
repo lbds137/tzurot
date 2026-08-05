@@ -273,6 +273,9 @@ export class ConversationalRAGService {
    * Generate a response using conversational RAG
    *
    * Architecture: This method orchestrates the response generation pipeline:
+   * 0. Enrich history (inline image descriptions, stored references) — first,
+   *    because the reference render in step 1 subtracts against what history
+   *    will carry
    * 1. Process inputs (attachments, messages, search query)
    * 2. Load personas and resolve user references
    * 3. Retrieve relevant memories from vector store
@@ -315,6 +318,27 @@ export class ConversationalRAGService {
         apiKeyResolver: this.apiKeyResolver,
       });
 
+      // Step 0.5: Enrich history with inline image descriptions + hydrated stored
+      // references, using the cross-provider-resolved vision auth.
+      //
+      // BEFORE Step 1, and that ordering is load-bearing rather than incidental.
+      // The two steps communicate through a shared mutable object — this one
+      // writes `imageDescriptions` onto `context.rawConversationHistory`
+      // entries, and the reference render reads them back to decide how much of
+      // a deduped quote <chat_log> already carries. Run the other way round, the
+      // renderer sees pre-enrichment history, subtracts nothing, and the same
+      // paid vision description is printed twice in one prompt (once in
+      // <contextual_references>, once in <chat_log>). Nothing in Step 1 feeds
+      // this call — all of its inputs are resolved above.
+      await enrichRagHistory({
+        prisma: this.prisma,
+        context,
+        personality,
+        visionAuth,
+        isGuestMode,
+        sttDispatch,
+      });
+
       // Step 1: Process inputs (attachments, messages, search query)
       const inputs = await this.inputProcessor.processInputs(personality, message, context, {
         isGuestMode,
@@ -345,17 +369,6 @@ export class ConversationalRAGService {
           searchQuery: inputs.searchQuery,
         });
       }
-
-      // Step 1.5: Enrich history with inline image descriptions + hydrated stored
-      // references, using the cross-provider-resolved vision auth.
-      await enrichRagHistory({
-        prisma: this.prisma,
-        context,
-        personality,
-        visionAuth,
-        isGuestMode,
-        sttDispatch,
-      });
 
       // Step 2: Load personas and resolve user references
       const { participantPersonas, processedPersonality } = await loadPersonasAndResolveReferences(
@@ -403,7 +416,7 @@ export class ConversationalRAGService {
 
       // Step 4: Allocate token budgets and select content
       // Note: Image descriptions and stored reference hydration are handled by
-      // enrichConversationHistory (Step 1.5) — history is already enriched here
+      // enrichConversationHistory (Step 0.5) — history is already enriched here
       const budgetResult = this.contentBudgetManager.allocate(
         { ...budgetOptionsBase, retrievedMemories, facts },
         preselected
