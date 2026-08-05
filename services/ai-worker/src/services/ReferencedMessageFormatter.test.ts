@@ -5,15 +5,18 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ReferencedMessageFormatter } from './ReferencedMessageFormatter.js';
 import { AttachmentType } from '@tzurot/common-types/constants/media';
+import { type PrismaClient } from '@tzurot/common-types/services/prisma';
 import { type ReferencedMessage } from '@tzurot/common-types/types/schemas/message';
 import { type LoadedPersonality } from '@tzurot/common-types/types/schemas/personality';
 import { type ProcessedAttachment } from './MultimodalProcessor.js';
+import { type ResolvedPersona } from './reference/UserReferencePatterns.js';
 
 // Use vi.hoisted() to create mocks that persist across test resets
 const {
   mockDescribeImage,
   mockTranscribeAudio,
   mockFormatPromptTimestamp,
+  mockBatchResolveByDiscordIds,
   mockLogger,
   mockChildLogger,
 } = vi.hoisted(() => {
@@ -26,6 +29,7 @@ const {
     mockDescribeImage: vi.fn(),
     mockTranscribeAudio: vi.fn(),
     mockFormatPromptTimestamp: vi.fn(),
+    mockBatchResolveByDiscordIds: vi.fn(),
     mockChildLogger: child,
     mockLogger: {
       info: vi.fn(),
@@ -41,6 +45,13 @@ const {
 vi.mock('./MultimodalProcessor.js', () => ({
   describeImage: mockDescribeImage,
   transcribeAudio: mockTranscribeAudio,
+}));
+
+// Persona hydration's only database seam. Mocking the resolver rather than
+// Prisma keeps the formatter's stub client trivial and puts the assertions on
+// the arguments that actually cross the seam (which ids, and how many calls).
+vi.mock('./reference/BatchResolvers.js', () => ({
+  batchResolveByDiscordIds: mockBatchResolveByDiscordIds,
 }));
 
 vi.mock('@tzurot/common-types/utils/logger', async () => {
@@ -70,8 +81,11 @@ describe('ReferencedMessageFormatter', () => {
 
     // Restore default mock implementations after mockReset clears them
     mockFormatPromptTimestamp.mockReturnValue('2025-12-06 (Fri) 00:00 • just now');
+    // Default: nobody resolves, so every quote renders its Discord identity —
+    // the pre-hydration behaviour the rest of this file pins.
+    mockBatchResolveByDiscordIds.mockResolvedValue(new Map<string, ResolvedPersona>());
 
-    formatter = new ReferencedMessageFormatter();
+    formatter = new ReferencedMessageFormatter({} as PrismaClient);
     mockPersonality = {
       id: 'test-personality',
       name: 'TestBot',
@@ -500,6 +514,147 @@ describe('ReferencedMessageFormatter', () => {
       );
 
       expect(result).toContain('role="assistant"');
+    });
+  });
+
+  /**
+   * Live persona hydration — the identity seam.
+   *
+   * Before this, a live quote rendered the Discord display name with no
+   * `from_id`, while <chat_log> and stored quotes rendered the persona name
+   * WITH one: the same person named two ways inside one prompt, and only one of
+   * the names bound to a `<participants>` id. The assertions below run across
+   * the resolver seam (which ids it is called with, how many times) rather than
+   * only on the rendered string, because a batch that silently degrades to
+   * per-reference queries renders identically.
+   */
+  describe('persona hydration (live path)', () => {
+    function resolved(personaId: string, personaName: string): ResolvedPersona {
+      return { personaId, personaName, preferredName: null, pronouns: null, content: '' };
+    }
+
+    function makeRef(overrides: Partial<ReferencedMessage> = {}): ReferencedMessage {
+      return {
+        referenceNumber: 1,
+        discordMessageId: 'msg-1',
+        discordUserId: 'discord-1',
+        authorUsername: 'testuser',
+        authorDisplayName: 'Test User',
+        content: 'quoted text',
+        embeds: '',
+        timestamp: '2025-12-06T00:00:00Z',
+        locationContext: '',
+        ...overrides,
+      };
+    }
+
+    it('resolves the whole batch in ONE call, with the author ids deduplicated', async () => {
+      await formatter.formatReferencedMessages(
+        [
+          makeRef({ referenceNumber: 1, discordUserId: 'discord-1' }),
+          // Same author as #1 — one id, not two.
+          makeRef({ referenceNumber: 2, discordUserId: 'discord-1' }),
+          makeRef({ referenceNumber: 3, discordUserId: 'discord-2' }),
+        ],
+        mockPersonality
+      );
+
+      expect(mockBatchResolveByDiscordIds).toHaveBeenCalledTimes(1);
+      expect(mockBatchResolveByDiscordIds).toHaveBeenCalledWith(expect.anything(), [
+        'discord-1',
+        'discord-2',
+      ]);
+    });
+
+    it('skips the query entirely when no reference carries an author id', async () => {
+      // The resolver short-circuits on an empty array anyway; passing it an
+      // empty list keeps the intent visible at this seam.
+      await formatter.formatReferencedMessages([makeRef({ discordUserId: '' })], mockPersonality);
+
+      expect(mockBatchResolveByDiscordIds).toHaveBeenCalledWith(expect.anything(), []);
+    });
+
+    it.each([
+      ['a full reference', false],
+      ['a DEDUPED reference', true],
+    ])('renders the persona name and from_id on %s', async (_label, isDeduplicated) => {
+      mockBatchResolveByDiscordIds.mockResolvedValue(
+        new Map([['discord-1', resolved('persona-uuid-1', 'Vladlena')]])
+      );
+
+      const { formatted } = await formatter.formatReferencedMessages(
+        [makeRef({ isDeduplicated: isDeduplicated ? true : undefined })],
+        mockPersonality
+      );
+
+      expect(formatted).toContain(
+        '<quote number="1" from="Vladlena" from_id="persona-uuid-1" username="testuser" role="user"'
+      );
+      // The Discord display name is fully replaced, not appended.
+      expect(formatted).not.toContain('from="Test User"');
+    });
+
+    it('falls back to the Discord display name, and emits no from_id, on a resolver miss', async () => {
+      mockBatchResolveByDiscordIds.mockResolvedValue(
+        new Map([['someone-else', resolved('persona-uuid-9', 'Not This Person')]])
+      );
+
+      const { formatted } = await formatter.formatReferencedMessages([makeRef()], mockPersonality);
+
+      expect(formatted).toContain('<quote number="1" from="Test User" username="testuser"');
+      expect(formatted).not.toContain('from_id=');
+      expect(formatted).not.toContain('Not This Person');
+    });
+
+    it('keeps username when the persona name differs from it, and drops it when they match', async () => {
+      mockBatchResolveByDiscordIds.mockResolvedValue(
+        new Map([['discord-1', resolved('persona-uuid-1', 'Vladlena')]])
+      );
+      const differs = await formatter.formatReferencedMessages([makeRef()], mockPersonality);
+      expect(differs.formatted).toContain(
+        'from="Vladlena" from_id="persona-uuid-1" username="testuser"'
+      );
+
+      // Hydration can make `from` equal the username, which is exactly the
+      // duplicated-token case informativeUsername exists to suppress.
+      mockBatchResolveByDiscordIds.mockResolvedValue(
+        new Map([['discord-1', resolved('persona-uuid-1', 'testuser')]])
+      );
+      const matches = await formatter.formatReferencedMessages([makeRef()], mockPersonality);
+      expect(matches.formatted).toContain('from="testuser" from_id="persona-uuid-1" role="user"');
+      expect(matches.formatted).not.toContain('username=');
+    });
+
+    it('derives the role from the DISCORD name, not the hydrated persona name', async () => {
+      // Both directions of the substitution that would break role derivation if
+      // the hydrated name were fed to it. deriveRefRole matches against the
+      // responding personality's displayName ('Test Bot'), which is Discord
+      // vocabulary — a persona name is a different namespace entirely.
+      mockBatchResolveByDiscordIds.mockResolvedValue(
+        new Map([['discord-1', resolved('persona-uuid-1', 'Vladlena')]])
+      );
+      const ownLine = await formatter.formatReferencedMessages(
+        // No authorRole stamp → the name-match fallback runs. The Discord name
+        // matches the personality, so this is still our own line.
+        [makeRef({ authorUsername: 'test-bot', authorDisplayName: 'Test Bot' })],
+        mockPersonality
+      );
+      expect(ownLine.formatted).toContain(
+        '<quote number="1" from="Vladlena" from_id="persona-uuid-1" username="test-bot" role="assistant"'
+      );
+
+      // ...and the converse: a human whose PERSONA name happens to match the
+      // personality must not be promoted to assistant by hydration.
+      mockBatchResolveByDiscordIds.mockResolvedValue(
+        new Map([['discord-1', resolved('persona-uuid-2', 'Test Bot')]])
+      );
+      const human = await formatter.formatReferencedMessages(
+        [makeRef({ authorUsername: 'someone', authorDisplayName: 'Someone' })],
+        mockPersonality
+      );
+      expect(human.formatted).toContain(
+        '<quote number="1" from="Test Bot" from_id="persona-uuid-2" username="someone" role="user"'
+      );
     });
   });
 
