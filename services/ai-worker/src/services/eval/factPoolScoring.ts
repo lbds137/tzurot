@@ -151,7 +151,12 @@ export function withPolicyArm(
     arms: pool.arms.includes(armName) ? pool.arms : [...pool.arms, armName],
     candidates: pool.candidates.map(candidate => ({
       ...candidate,
-      ranks: { ...candidate.ranks, [armName]: ranks.get(candidate.corpusId) ?? 0 },
+      // `null`, never `0`: null is the documented "arm did not surface this"
+      // value. `rankedIds` includes any non-null rank and sorts ascending, so a
+      // `0` placeholder would put an arm's DROPPED candidates ahead of its real
+      // rank-1 pick. Today's arms rank every candidate, so the difference is
+      // latent — which is exactly why the wrong value must not sit here.
+      ranks: { ...candidate.ranks, [armName]: ranks.get(candidate.corpusId) ?? null },
     })),
   };
 }
@@ -180,7 +185,8 @@ export function repetitionOverlap(
       pool.candidates
         .filter(candidate => {
           const rank = candidate.ranks[arm];
-          return rank !== undefined && rank >= 1 && rank <= k;
+          // Absent AND null both mean "this arm did not surface it".
+          return rank !== undefined && rank !== null && rank >= 1 && rank <= k;
         })
         .map(candidate => candidate.corpusId)
     ),
@@ -230,7 +236,8 @@ export function tierRankLift(pools: readonly FactGoldenPool[], arm: string): Tie
         continue;
       }
       const rank = candidate.ranks[arm];
-      if (rank === undefined || rank < 1) {
+      // Absent AND null both mean "this arm did not surface it".
+      if (rank === undefined || rank === null || rank < 1) {
         continue;
       }
       count += 1;

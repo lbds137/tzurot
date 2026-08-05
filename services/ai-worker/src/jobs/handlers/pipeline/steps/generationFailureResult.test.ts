@@ -11,6 +11,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { PrismaClient } from '@tzurot/common-types/services/prisma';
 import type { DiagnosticCollector } from '../../../../services/DiagnosticCollector.js';
 import type { GenerationContext } from '../types.js';
+import { RetryError } from '../../../../utils/retry.js';
 import {
   composeGenerationFailureResult,
   type GenerationFailureOptions,
@@ -108,6 +109,36 @@ describe('composeGenerationFailureResult', () => {
     // Footer seam: both routes named so the chain can render.
     expect(result.result?.metadata?.providerUsed).toBe('zai-coding');
     expect(result.result?.metadata?.fallbackProviderAttempted).toBe('openrouter');
+  });
+
+  it('leads with the root cause, not the wrapper text, when the error is RetryError-wrapped', () => {
+    const rootCause = new Error('OpenRouter 402: requires more credits');
+    const wrapped = new RetryError(
+      'LLM invocation (glm-4.7) failed with non-retryable error',
+      1,
+      rootCause
+    );
+    const options = buildOptions(wrapped);
+
+    const result = composeGenerationFailureResult(options);
+
+    // result.error is a diagnostic string; it must name the provider detail
+    // rather than the generic retry wrapper, matching what technicalMessage
+    // (derived from the same unwrapped error) already says.
+    expect(result.result?.error).toBe('OpenRouter 402: requires more credits');
+    expect(result.result?.error).not.toContain('non-retryable error');
+    expect(options.diagnosticCollector.recordError).toHaveBeenCalledWith(
+      expect.objectContaining({ message: 'OpenRouter 402: requires more credits' })
+    );
+  });
+
+  it('keeps the wrapper text when a RetryError carries a non-Error cause', () => {
+    const wrapped = new RetryError('LLM invocation (glm-4.7) failed', 1, 'not-an-error');
+    const options = buildOptions(wrapped);
+
+    const result = composeGenerationFailureResult(options);
+
+    expect(result.result?.error).toBe('LLM invocation (glm-4.7) failed');
   });
 
   it('records the failure in the diagnostic collector and stores the log', () => {

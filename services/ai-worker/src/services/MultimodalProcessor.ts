@@ -297,7 +297,15 @@ export async function processAttachments(
     'Processing attachments in parallel'
   );
 
-  // Use retryService for consistent retry behavior
+  // Use retryService for consistent retry behavior.
+  //
+  // Scope note: this outer retry cannot fire for an image on the fallback path.
+  // `describeImageWithFallback` retries INTERNALLY across vision tiers and never
+  // throws by contract — it degrades to a null/marker description instead — so a
+  // failure there returns normally and the wrapper sees success. What the wrapper
+  // is actually live for: non-vision attachment types (audio/STT, documents) and
+  // the legacy single-model `describeImage` branch taken when no `visionAuth`
+  // bundle was supplied, both of which can still throw.
   const results = await withParallelRetry(
     attachments,
     attachment =>

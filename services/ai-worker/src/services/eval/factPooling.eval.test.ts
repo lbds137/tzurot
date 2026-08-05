@@ -287,7 +287,9 @@ function buildFactJudgmentSheets(pools: FactGoldenPool[]): string {
       ''
     );
     const display = pool.candidates
-      .filter(candidate => Object.values(candidate.ranks).some(rank => rank >= 1 && rank <= POOL_K))
+      .filter(candidate =>
+        Object.values(candidate.ranks).some(rank => rank !== null && rank >= 1 && rank <= POOL_K)
+      )
       .sort((a, b) => bestRank(a) - bestRank(b));
     for (const candidate of display) {
       const badges = [
@@ -330,11 +332,15 @@ function buildMechanicalReport(pools: FactGoldenPool[]): string {
 }
 
 function bestRank(candidate: FactPooledCandidate): number {
-  const ranks = Object.values(candidate.ranks).filter(rank => rank >= 1);
+  const ranks = Object.values(candidate.ranks).filter(
+    (rank): rank is number => rank !== null && rank >= 1
+  );
   return ranks.length === 0 ? 99 : Math.min(...ranks);
 }
 
 function rankBadge(candidate: FactPooledCandidate, arm: string, label: string): string | null {
   const rank = candidate.ranks[arm];
-  return rank === undefined || rank < 1 || rank > POOL_K ? null : `${label}#${rank}`;
+  return rank === undefined || rank === null || rank < 1 || rank > POOL_K
+    ? null
+    : `${label}#${rank}`;
 }
