@@ -315,7 +315,8 @@ export class AuthStep implements IPipelineStep {
     userId: string
   ): Promise<ReadonlyMap<AudioProviderId, string>> {
     const audioKeysBuilder = new Map<AudioProviderId, string>();
-    if (!this.apiKeyResolver) {
+    const resolver = this.apiKeyResolver;
+    if (!resolver) {
       return audioKeysBuilder;
     }
     const providers: { id: AudioProviderId; provider: AIProvider; failNote: string }[] = [
@@ -330,25 +331,37 @@ export class AuthStep implements IPipelineStep {
         failNote: 'Mistral key resolution failed (non-fatal — TTS dispatcher will skip Mistral)',
       },
     ];
-    for (const { id, provider, failNote } of providers) {
-      try {
-        const result = await this.apiKeyResolver.resolveApiKey(userId, provider);
-        if (!result.isGuestMode && result.apiKey !== undefined) {
-          audioKeysBuilder.set(id, result.apiKey);
-          logger.debug({ userId, source: result.source, provider: id }, 'Resolved audio API key');
+    // The lookups are independent (one per provider, no shared state) and both
+    // sit on an uncached path for keyless users, so they run concurrently and
+    // each owns its failure handling — one provider's error never affects the
+    // other.
+    const resolutions = await Promise.all(
+      providers.map(async ({ id, provider, failNote }) => {
+        try {
+          return { id, result: await resolver.resolveApiKey(userId, provider) };
+        } catch (error) {
+          if (error instanceof NoApiKeyAvailableError) {
+            // Expected for BYOK-only audio providers: a user without their own
+            // key hits this on EVERY job (negative results aren't cached). The
+            // fallback is deterministic and the note already names it, so this
+            // is compact debug — no stack, no err object.
+            logger.debug({ userId, provider: id }, failNote);
+          } else {
+            // Unexpected resolution failure (DB down, decryption error) — keep
+            // the stack; this one IS an incident.
+            logger.warn({ err: error, userId }, failNote);
+          }
+          return { id, result: undefined };
         }
-      } catch (error) {
-        if (error instanceof NoApiKeyAvailableError) {
-          // Expected for BYOK-only audio providers: a user without their own
-          // key hits this on EVERY job (negative results aren't cached). The
-          // fallback is deterministic and the note already names it, so this
-          // is compact debug — no stack, no err object.
-          logger.debug({ userId, provider: id }, failNote);
-        } else {
-          // Unexpected resolution failure (DB down, decryption error) — keep
-          // the stack; this one IS an incident.
-          logger.warn({ err: error, userId }, failNote);
-        }
+      })
+    );
+
+    // Populate in providers-array order (Promise.all preserves it) so map
+    // insertion order stays deterministic regardless of resolution timing.
+    for (const { id, result } of resolutions) {
+      if (result !== undefined && !result.isGuestMode && result.apiKey !== undefined) {
+        audioKeysBuilder.set(id, result.apiKey);
+        logger.debug({ userId, source: result.source, provider: id }, 'Resolved audio API key');
       }
     }
     return audioKeysBuilder;
