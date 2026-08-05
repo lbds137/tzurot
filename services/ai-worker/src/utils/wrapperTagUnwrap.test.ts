@@ -3,6 +3,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import { ARTIFACT_TAG_NAMES } from './responseArtifacts.js';
 import { KNOWN_THINKING_TAGS } from './thinkingExtraction.js';
 import { unwrapUnknownWrapperTags, WRAPPER_UNWRAP_EXCLUDED_TAGS } from './wrapperTagUnwrap.js';
 
@@ -217,6 +218,44 @@ describe('unwrapUnknownWrapperTags', () => {
       expect(unwrapUnknownWrapperTags(content).unwrappedTags).toEqual([]);
     });
 
+    it('counts only same-name tags ALONE on a line, so an inline mention survives verbatim', () => {
+      // Span depth is counted over delimiter-shaped lines (`^<action>$`), never
+      // over prose that happens to name the tag mid-line. An inline mention
+      // must therefore neither open a nested level (which would leave the span
+      // unclosed and the delimiters visible) nor be rewritten — it is the
+      // character's own words about the markup.
+      const content = [
+        '"Hi."',
+        '<action>',
+        'She waves, then pauses.',
+        '"Every time," she says, "she typed <action> at me and left it there."',
+        'She looks away.',
+        '</action>',
+        '"Bye."',
+      ].join('\n');
+
+      const result = unwrapUnknownWrapperTags(content);
+
+      expect(result.content).toBe(
+        [
+          '"Hi."',
+          'She waves, then pauses.',
+          '"Every time," she says, "she typed <action> at me and left it there."',
+          'She looks away.',
+          '"Bye."',
+        ].join('\n')
+      );
+      expect(result.unwrappedTags).toEqual(['action']);
+
+      // Only the two delimiter lines are gone; every body line byte-identical.
+      const original = content.split('\n');
+      expect(result.content.split('\n')).toEqual([
+        original[0],
+        ...original.slice(2, 5),
+        original[6],
+      ]);
+    });
+
     it('resolves nested same-name spans within the pass bound', () => {
       const content = [
         '"Hi."',
@@ -284,6 +323,16 @@ describe('unwrapUnknownWrapperTags', () => {
   describe('excluded tags', () => {
     it('excludes every known thinking tag', () => {
       for (const tag of KNOWN_THINKING_TAGS) {
+        expect(WRAPPER_UNWRAP_EXCLUDED_TAGS).toContain(tag);
+      }
+    });
+
+    it('excludes every artifact tag name', () => {
+      // Trivially true while the exclusion set spreads `ARTIFACT_TAG_NAMES`.
+      // The pin is for the future hand-edit that replaces the spread with a
+      // literal list: the copy would drift from `responseArtifacts.ts` and
+      // resurrect scaffolding echo silently, so this fails loudly instead.
+      for (const tag of ARTIFACT_TAG_NAMES) {
         expect(WRAPPER_UNWRAP_EXCLUDED_TAGS).toContain(tag);
       }
     });
