@@ -29,7 +29,6 @@ import { type AttachmentMetadata } from '@tzurot/common-types/types/schemas/disc
 import { extractAttachments } from './attachmentExtractor.js';
 import { extractEmbedImages } from './embedImageExtractor.js';
 import { extractSnapshotStickerImages } from './stickerAttachments.js';
-import { collectAllStickers } from './stickerPollDescriptions.js';
 import { isVoiceAttachment } from './voiceAttachment.js';
 
 /**
@@ -277,39 +276,6 @@ export function extractAllForwardedContent(message: Message): ForwardedContentRe
     fromSnapshot: true,
     originalMessageId: message.reference?.messageId,
   };
-}
-
-/**
- * Check if a forwarded message has any meaningful content.
- *
- * Returns true if the forwarded message has:
- * - Text content (in snapshots or main message)
- * - Attachments (in snapshots or main message)
- * - Embeds (in snapshots or main message)
- * - Stickers (in snapshots or main message, rasterizable or not)
- *
- * Use this for filtering - a forwarded message is worth processing if it has content.
- *
- * @param message - Discord message (should be a forwarded message)
- * @returns true if the forwarded message has meaningful content
- */
-export function hasForwardedContent(message: Message): boolean {
-  if (!isForwardedMessage(message)) {
-    return false;
-  }
-
-  const { content, attachments, embeds } = extractAllForwardedContent(message);
-
-  // Stickers are checked directly rather than through the extraction result:
-  // the attachment walk only carries RASTERIZABLE stickers (Lottie has no
-  // image form), and the no-snapshot fallback carries none at all — either
-  // way a sticker-only forward would read as empty and be dropped.
-  return (
-    content.length > 0 ||
-    attachments.length > 0 ||
-    embeds.length > 0 ||
-    collectAllStickers(message).length > 0
-  );
 }
 
 /**
