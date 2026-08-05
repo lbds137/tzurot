@@ -282,6 +282,12 @@ await fetch(url, { headers: { 'X-Request-ID': requestId } });
 logger.info({ requestId, jobId }, 'Processing');
 ```
 
+When a whole call path should carry the id — especially when it hands a
+`logger` to a helper like `withRetry` that emits its own lines — bind once at
+the entry point (`const log = logger.child({ requestId })`) and thread the
+bound logger, instead of adding `requestId` to every call site. Reference:
+`processAttachmentsParallel` in ai-worker's `AttachmentProcessor.ts`.
+
 ### Structured Logging
 
 ```typescript
