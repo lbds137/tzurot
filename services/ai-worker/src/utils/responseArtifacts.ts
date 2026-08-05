@@ -16,6 +16,13 @@
  * asked about the very structures these patterns hunt for. Matches inside code
  * markup are therefore left alone (`replaceOutsideCodeMarkup`), which is the
  * same discriminator the reasoning-tag extractor settled on for the same reason.
+ *
+ * The generic trailing-closing-tag cleanup is additionally OPENER-AWARE: a
+ * trailing `</tag>` is deleted only when no matching `<tag>` appears earlier in
+ * the content. Deleting the closer of a complete pair does not clean the reply,
+ * it CORRUPTS it — the opener is left orphaned and ships to the reader. A
+ * surviving pair is symmetric visible markup, which is cosmetic; a surviving
+ * lone opener is not.
  */
 
 import { type MessageContent } from '@tzurot/common-types/types/ai';
@@ -42,56 +49,120 @@ const MIN_ECHO_LENGTH = 30;
 const MAX_STRIP_RATIO = 0.8;
 
 /**
- * Build artifact patterns for a given personality name
+ * One cleanup step. Takes the current content and returns it with at most one
+ * artifact family removed, or unchanged when the step does not apply.
+ *
+ * Most steps are a single regex deletion (see {@link patternStep}); the generic
+ * trailing-closer step is a function because "strip only when no matching opener
+ * exists earlier" is a condition no static regex can express, and it has to be
+ * evaluated against the CURRENT content on every iteration — earlier steps
+ * expose trailing closers that were not trailing when the pass began.
  */
-function buildArtifactPatterns(personalityName: string): RegExp[] {
+type ArtifactStep = (content: string) => string;
+
+/**
+ * Adapt a deletion regex to a step, preserving the code-markup gate and the
+ * trim that every pattern has always applied.
+ */
+function patternStep(pattern: RegExp): ArtifactStep {
+  return content => replaceOutsideCodeMarkup(content, pattern).trim();
+}
+
+/**
+ * Generic trailing closing tag: catches </message>, </module>, </current_turn>,
+ * etc. — the stray tags models learn to append from XML training data.
+ */
+const TRAILING_CLOSER_PATTERN = /<\/([a-z][a-z0-9_-]*)>\s*$/i;
+
+/**
+ * Strip a trailing closing tag ONLY when nothing earlier in the content opened
+ * it. A trailing `</action>` whose `<action>` sits on the same line is half of a
+ * pair the model emitted deliberately (or that an upstream pass declined to
+ * unwrap); deleting just the closer orphans the opener and ships corrupted text.
+ * Leaving the pair intact is the conservative direction — visible but symmetric
+ * markup rather than a mangled reply.
+ *
+ * The opener probe is a plain scan of everything before the match: an opener
+ * inside code markup still counts as "exists", which fails toward preserving
+ * content, consistent with the rest of this module.
+ */
+function stripOrphanTrailingCloser(content: string): string {
+  const match = TRAILING_CLOSER_PATTERN.exec(content);
+  if (match === null) {
+    return content;
+  }
+
+  // Tag name comes from the `[a-z][a-z0-9_-]*` capture, so it carries no regex
+  // metacharacters (`-` is literal outside a character class) and needs no
+  // escaping. The `(?:\s|>)` boundary stops `<actionable ` from counting as an
+  // opener for `</action>`, and a closing tag can never match because `</` puts
+  // a `/` where the pattern requires the tag's first letter.
+  const opener = new RegExp(`<${match[1]}(?:\\s|>)`, 'i');
+  if (opener.test(content.slice(0, match.index))) {
+    return content;
+  }
+
+  return replaceOutsideCodeMarkup(content, TRAILING_CLOSER_PATTERN).trim();
+}
+
+/**
+ * Build the ordered artifact-cleanup steps for a given personality name.
+ */
+function buildArtifactPatterns(personalityName: string): ArtifactStep[] {
   const escapedName = personalityName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
   return [
     // Leading <last_message> block: model echoes prompt structure (learned from training data)
     // '<last_message>User: hello</last_message>\n\nResponse' → 'Response'
-    /^<last_message>[\s\S]*?<\/last_message>\s*/i,
+    patternStep(/^<last_message>[\s\S]*?<\/last_message>\s*/i),
     // Leading <from> tag: model echoes speaker identification from prompt
     // '<from id="abc">Kevbear</from>\n\nHello' → 'Hello'
-    /^<from\b[^>]*>[^<]*<\/from>\s*/i,
+    patternStep(/^<from\b[^>]*>[^<]*<\/from>\s*/i),
     // Self-contained hallucinated tags with short content: catches metadata echoes like
     // <result>PersonalityName</result> or <parameter name="char">Name</parameter>.
     // Max 100 chars prevents stripping tags that contain the actual response.
     // MUST come before leading opening tag pattern so matched pairs are stripped as a unit.
-    /^<(result|result_text|parameter|character|name|content)(?:\s[^>]*)?>[^<\n]{0,100}<\/\1>\s*/i,
+    patternStep(
+      /^<(result|result_text|parameter|character|name|content)(?:\s[^>]*)?>[^<\n]{0,100}<\/\1>\s*/i
+    ),
     // Leading hallucinated tool-use opening tags: GLM 4.5 Air (and similar models trained on
     // Anthropic/OpenAI data) wrap responses in XML tool-use structures like <function_calls>,
     // <invoke>, <results>, etc. Strip known tag families at start of content only.
-    /^<(?:function_calls|function_results|invoke|results|result|result_text|parameter|content|character|name|tool_calls|tool_results|tool_call|tool_result)(?:\s[^>]*)?>[ \t]*\n?/i,
+    patternStep(
+      /^<(?:function_calls|function_results|invoke|results|result|result_text|parameter|content|character|name|tool_calls|tool_results|tool_call|tool_result)(?:\s[^>]*)?>[ \t]*\n?/i
+    ),
     // Leading hallucinated closing tags: after inner content is stripped, orphaned closing tags
     // like </result> or </function_results> remain at the start. Strip them too.
-    /^<\/(?:function_calls|function_results|invoke|results|result|result_text|parameter|content|character|name|tool_calls|tool_results|tool_call|tool_result)>[ \t]*\n?/i,
+    patternStep(
+      /^<\/(?:function_calls|function_results|invoke|results|result|result_text|parameter|content|character|name|tool_calls|tool_results|tool_call|tool_result)>[ \t]*\n?/i
+    ),
     // Leading <received message>...</received> block: GLM 4.5 Air echoes the user's message
     // in a hallucinated receipt structure before responding
-    /^<received(?:\s+message)?(?:\s[^>]*)?>[\s\S]*?<\/received>\s*/i,
+    patternStep(/^<received(?:\s+message)?(?:\s[^>]*)?>[\s\S]*?<\/received>\s*/i),
     // Prompt template orphan closing tags: model echoes closing tags from the prompt's
     // XML structure (e.g., </chat_log> from PromptBuilder.ts). Stripped from anywhere in content
     // since they can appear mid-response, not just trailing. `facts` joined the list when the
     // V-tier blocks moved into the user message, directly adjacent to the current turn —
     // the echo-probability position. (`context` is deliberately absent: too collision-prone
     // as prose.)
-    /<\/(?:chat_log|participants|protocol|memory_archive|contextual_references|facts)>/gi,
+    patternStep(
+      /<\/(?:chat_log|participants|protocol|memory_archive|contextual_references|facts)>/gi
+    ),
     // Trailing <reactions> block: LLM mimics history metadata. ReDoS: leading `\s{0,64}` bounded (unbounded `\s*` before literal retries at every position).
-    /\s{0,64}<reactions>[\s\S]*?<\/reactions>\s*$/i,
-    // Generic trailing closing tag: catches </message>, </module>, </current_turn>, etc.
-    // Models learn XML patterns from training data and append stray closing tags
-    /<\/[a-z][a-z0-9_-]*>\s*$/i,
+    patternStep(/\s{0,64}<reactions>[\s\S]*?<\/reactions>\s*$/i),
+    // Generic trailing closing tag, opener-aware — see `stripOrphanTrailingCloser`.
+    stripOrphanTrailingCloser,
     // XML message prefix: '<message speaker="Emily">Hello' → 'Hello'
-    new RegExp(`^<message\\s+speaker=["']${escapedName}["'][^>]*>\\s*`, 'i'),
+    patternStep(new RegExp(`^<message\\s+speaker=["']${escapedName}["'][^>]*>\\s*`, 'i')),
     // Simple name prefix: "Emily: Hello" → "Hello"
-    new RegExp(`^${escapedName}:\\s*(?:\\[[^\\]]+?\\]\\s*)?`, 'i'),
+    patternStep(new RegExp(`^${escapedName}:\\s*(?:\\[[^\\]]+?\\]\\s*)?`, 'i')),
     // Standalone timestamp: "[2m ago] Hello" → "Hello"
-    /^\[[^\]]+?\]\s*/,
+    patternStep(/^\[[^\]]+?\]\s*/),
   ];
 }
 
 /**
- * Apply patterns iteratively until no more matches.
+ * Apply cleanup steps iteratively until none of them changes the content.
  *
  * Every pattern here deletes, so each strip runs through
  * `replaceOutsideCodeMarkup`: a reply demonstrating `` `</chat_log>` `` is
@@ -105,7 +176,7 @@ function buildArtifactPatterns(personalityName: string): RegExp[] {
  */
 function applyPatternsIteratively(
   content: string,
-  patterns: RegExp[],
+  patterns: ArtifactStep[],
   maxIterations: number
 ): { cleaned: string; strippedCount: number } {
   let cleaned = content;
@@ -115,8 +186,8 @@ function applyPatternsIteratively(
     const beforeStrip = cleaned;
     let matched = false;
 
-    for (const pattern of patterns) {
-      cleaned = replaceOutsideCodeMarkup(cleaned, pattern).trim();
+    for (const step of patterns) {
+      cleaned = step(cleaned);
       if (cleaned !== beforeStrip) {
         strippedCount++;
         matched = true;

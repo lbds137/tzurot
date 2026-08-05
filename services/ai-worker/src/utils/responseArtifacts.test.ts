@@ -73,6 +73,81 @@ describe('stripResponseArtifacts', () => {
       expect(stripResponseArtifacts('Hello!</my-tag>', 'Emily')).toBe('Hello!');
       expect(stripResponseArtifacts('Hello!</section2>', 'Emily')).toBe('Hello!');
     });
+
+    describe('opener-aware: a closer whose opener is present is not an orphan', () => {
+      // Deleting the closer of a COMPLETE pair does not clean the reply, it
+      // corrupts it: the opening tag is left behind and ships to the reader.
+      // `unwrapUnknownWrapperTags` deliberately declines inline pairs (a tag pair
+      // sharing a line with prose is as likely to be quotation as markup), so
+      // this is the shape that reaches here — and the safe outcome is symmetric
+      // visible markup rather than a mangled sentence.
+
+      it('strips a trailing closer that nothing earlier opened', () => {
+        // The pattern's original purpose, pinned: a bare stray closer.
+        expect(stripResponseArtifacts('She steps back into the shadows.</action>', 'Lilith')).toBe(
+          'She steps back into the shadows.'
+        );
+      });
+
+      it('keeps BOTH halves of an inline pair at the end of a reply', () => {
+        const content =
+          '"You should not be here." <action>She steps back into the shadows.</action>';
+        expect(stripResponseArtifacts(content, 'Lilith')).toBe(content);
+      });
+
+      it('keeps a pair whose opener carries attributes', () => {
+        const content = 'Then it happened. <action type="move">She crosses the room.</action>';
+        expect(stripResponseArtifacts(content, 'Lilith')).toBe(content);
+      });
+
+      it('does NOT treat a LONGER earlier tag name as the opener', () => {
+        // `<actionable>` must not count as an opener for `</action>` — the
+        // `(?:\s|>)` boundary is what makes the two distinct.
+        expect(stripResponseArtifacts('<actionable> is the widget name.</action>', 'Emily')).toBe(
+          '<actionable> is the widget name.'
+        );
+      });
+
+      it('leaves two complete pairs on one line untouched', () => {
+        const content = '<action>a</action> and <action>b</action>';
+        expect(stripResponseArtifacts(content, 'Emily')).toBe(content);
+      });
+
+      it('re-evaluates against the CURRENT content on each iteration', () => {
+        // The stray `</message>` goes first; only then is `</action>` trailing —
+        // and by then its opener is visible, so it survives. A one-shot check
+        // made before the loop could not see this.
+        const content = 'Hello! <action>She waves.</action></message>';
+        expect(stripResponseArtifacts(content, 'Emily')).toBe('Hello! <action>She waves.</action>');
+      });
+
+      it('KNOWN LIMIT: a mismatched-name pair still loses its trailing closer', () => {
+        // `<action>…</actionable>` is a model typo, not the incident class this
+        // opener-awareness exists for. The unwrap pass upstream declines (no
+        // matching closer), and the opener probe here finds no `<actionable`, so
+        // the closer strips and a lone `<action>` ships. Catching it would need
+        // fuzzy tag matching — a materially different mechanism, and one whose
+        // false positives would delete the closers of pairs that are genuinely
+        // complete. Pinned so the boundary is visible rather than discovered.
+        expect(stripResponseArtifacts('<action>text</actionable>', 'Emily')).toBe('<action>text');
+      });
+
+      it('composes with the other steps in the loop and converges', () => {
+        const content = [
+          '"Stay back." <action>She raises a hand.</action>',
+          '<reactions>',
+          '<reaction from="Lila" from_id="abc-123">😮</reaction>',
+          '</reactions>',
+          '</module>',
+        ].join('\n');
+
+        // Orphan `</module>` stripped, the reactions block stripped, the complete
+        // `<action>` pair left alone.
+        expect(stripResponseArtifacts(content, 'Lilith')).toBe(
+          '"Stay back." <action>She raises a hand.</action>'
+        );
+      });
+    });
   });
 
   describe('<last_message> block stripping', () => {
@@ -330,12 +405,14 @@ describe('stripResponseArtifacts', () => {
     });
 
     it('should NOT strip self-contained tag with long content via single pattern', () => {
-      // Self-contained pattern has 100-char limit, but individual leading/trailing patterns
-      // still strip the tags separately. Use a tag NOT in our known lists to verify.
+      // Self-contained pattern has 100-char limit, so the pair is not stripped as
+      // a unit. Use a tag NOT in our known lists to verify.
       const longContent = 'A'.repeat(150);
       const content = `<dialogue>${longContent}</dialogue>`;
-      // Only </dialogue> gets stripped by generic trailing closer; <dialogue> is not in our list
-      expect(stripResponseArtifacts(content, 'Emily')).toBe(`<dialogue>${longContent}`);
+      // The generic trailing closer is opener-aware: `<dialogue>` is right there
+      // in the content, so deleting `</dialogue>` alone would orphan it. Nothing
+      // else in the list owns `dialogue`, so the content survives whole.
+      expect(stripResponseArtifacts(content, 'Emily')).toBe(content);
     });
 
     it('should handle combined leading XML wrappers + trailing closing tags', () => {
