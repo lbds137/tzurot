@@ -37,7 +37,6 @@ Root-level reference files: `DOCUMENTATION_PHILOSOPHY.md`, `STATIC_ANALYSIS.md`,
 
 **Operations runbooks:**
 
-- [`DATABASE_BACKUP_STRATEGY.md`](reference/operations/DATABASE_BACKUP_STRATEGY.md) - Postgres backup and restore strategy
 - [`ENCRYPTION_KEY_ROTATION.md`](reference/operations/ENCRYPTION_KEY_ROTATION.md) - Rotating the BYOK API-key encryption key
 - [`PRISMA_PGVECTOR_REFERENCE.md`](reference/operations/PRISMA_PGVECTOR_REFERENCE.md) - Prisma + pgvector operations reference
 - [`REDIS_MAINTENANCE.md`](reference/operations/REDIS_MAINTENANCE.md) - Redis health maintenance procedures
@@ -83,6 +82,7 @@ Root-level reference files: `DOCUMENTATION_PHILOSOPHY.md`, `STATIC_ANALYSIS.md`,
 - `proposals/backlog/GIT_HOOK_IMPROVEMENTS.md` - Git hook enhancements (Phase 2 complete)
 - `proposals/backlog/MEMORY_MANAGEMENT_COMMANDS.md` - Memory management (Phase 1-2 complete)
 - `proposals/backlog/multi-personality-support.md` - Multi-personality channels
+- [`database-backup-strategy.md`](proposals/backlog/database-backup-strategy.md) - Postgres backup posture beyond Railway's native backups (un-started)
 - `doc-8` - Future memory architecture (OpenMemory distillation lives there)
 - `proposals/backlog/chatterbox-tts-evaluation.md` - TTS model evaluation
 
@@ -118,8 +118,8 @@ Root-level reference files: `DOCUMENTATION_PHILOSOPHY.md`, `STATIC_ANALYSIS.md`,
 **Understanding the System:**
 
 1. Memory System Overhaul theme (`doc-8`)
-2. [Database Schema](reference/architecture/POSTGRES_SCHEMA.md)
-3. [Group Conversations](reference/architecture/group-conversation-design.md)
+2. Database schema — [`prisma/schema.prisma`](../prisma/schema.prisma) is the source of truth (every optional column carries a `///` null-semantics comment)
+3. [Model Selection Pipeline](reference/architecture/model-selection-pipeline.md)
 
 **Planning Work:**
 

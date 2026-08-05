@@ -1,227 +1,166 @@
 # Channel Activation Feature
 
-**Status**: Implemented (v3.0.0-beta.24)
-**Added**: December 2025
-
-## Overview
-
-Channel activation allows server admins to enable automatic personality responses in specific Discord channels. When a personality is activated in a channel, it responds to all messages without requiring @mentions.
-
-This is a port of the v2 "auto-response" feature, redesigned for the v3 microservices architecture.
+Channel activation lets server moderators designate one character to respond
+automatically in a channel. Once activated, that character replies to every
+message in the channel without needing an `@`-mention.
 
 ## User Commands
 
+All four subcommands live under `/channel` and defer ephemerally.
+
 ### `/channel activate`
 
-Activates a personality in the current channel.
+Activates a character in the current channel.
 
-**Parameters:**
-
-- `personality` (required) - The personality to activate (autocomplete enabled)
-
-**Permissions Required:**
-
-- `ManageMessages` permission in the channel
-
-**Behavior:**
-
-- Only one personality can be active per channel
-- Activating a new personality replaces any existing activation
-- Private personalities can only be activated by their owner (or bot owner)
-
-**Example:**
-
-```
-/channel activate personality:lilith
-```
+- **Option**: `character` (required, autocompleted).
+- **Permission**: `ManageMessages` in the channel (`requireManageMessagesContext`).
+- Only one character can be active per channel — the channel's settings row is
+  unique on `channel_id`, so activating a new character replaces the previous
+  activation rather than stacking.
+- Private characters can only be activated by someone who can access them.
 
 ### `/channel deactivate`
 
-Deactivates the personality in the current channel.
-
-**Permissions Required:**
-
-- `ManageMessages` permission in the channel
-
-**Behavior:**
-
-- Returns success even if no personality was active (idempotent)
-
-**Example:**
-
-```
-/channel deactivate
-```
+Clears the channel's activated character. Idempotent — succeeds whether or not
+anything was active. Same `ManageMessages` requirement.
 
 ### `/channel browse`
 
-Lists all channel activations visible to you.
+Paginated browse over activated channels.
 
-**Parameters:** None
+- **Options**: `query` (search by character name), `filter` (`This Server` /
+  `All Servers`, the latter owner-only).
 
-**Behavior:**
+### `/channel settings`
 
-- Shows all activations in the current server
-- Displays channel name, personality name, who activated it, and when
-
-**Example output:**
-
-```
-Channel Activations (3)
-
-#general - Lilith (activated by @user, 2 days ago)
-#roleplay - Sarcastic (activated by @admin, 1 week ago)
-#testing - Default (activated by @owner, just now)
-```
+Opens the channel's extended-context settings dashboard. Channel settings are
+also the **channel tier of the config cascade** — the `config_overrides` JSONB
+column on the same row sits between the personality and user tiers.
 
 ## How It Works
 
-### Message Processing Chain
+### Message processing chain
 
-The `ActivatedChannelProcessor` sits in the message processing chain:
+Messages flow through a Chain-of-Responsibility built by `buildProcessorChain`
+in `services/bot-client/src/composition.ts`. Order matters — first match wins:
 
-1. `BotMessageFilter` - Ignores bot messages
-2. `EmptyMessageFilter` - Ignores empty messages
-3. `VoiceMessageProcessor` - Transcribes voice messages
-4. `ReplyMessageProcessor` - Handles replies to bot messages
-5. **`ActivatedChannelProcessor`** - Handles activated channel auto-responses
-6. `PersonalityMentionProcessor` - Handles @mentions
+1. `BotMessageFilter` — drop bot-originated messages
+2. `DenylistFilter` — silently drop denied users/guilds/channels
+3. `EmptyMessageFilter` — drop empty messages
+4. `VoiceMessageProcessor` — transcribe voice; stashes the transcript for later stages
+5. **`PersonalityTriggerProcessor`** — reply + activation + mentions → fan-out
+6. `DMSessionProcessor` — bare DM messages → the active session character
+7. `BotMentionProcessor` — the bot itself was `@`-mentioned (fallback)
 
-This ordering ensures:
+Activation is **not** its own processor. `PersonalityTriggerProcessor` resolves
+all three trigger sources in parallel and hands an ordered slot list to
+`MultiTagCoordinator`, which owns delivery from there:
 
-- Explicit replies to the bot take priority over auto-responses
-- @mentions still work in activated channels (for other personalities)
+| Slot | Source     | `isAutoResponse` |
+| ---- | ---------- | ---------------- |
+| 0    | reply      | `false`          |
+| 1    | activation | `true`           |
+| 2..N | mentions   | `false`          |
 
-### Private Personality Access
+That ordering is what makes an explicit reply outrank the ambient channel
+default while `@`-mentions of other characters still work in an activated
+channel. Slots are deduped by personality id, so a character that is
+simultaneously the reply target and the activation produces one response, not
+two. The list is capped at the multi-tag maximum; the coordinator is told when
+the cap truncated candidates.
 
-When a channel has a private personality activated:
+Two behaviors worth knowing:
 
-1. **Owner/Authorized users**: Get normal auto-responses
-2. **Unauthorized users**:
-   - Do NOT get auto-responses (message continues to next processor)
-   - Receive a one-time notification explaining the situation
-   - Can still @mention other personalities they have access to
+- **Threads inherit from their parent** — but only when the thread has no
+  settings row at all. A thread with an explicit row and a null personality
+  means "explicitly deactivated" and is respected over parent inheritance.
+- **Forwarded messages fire activation only.** Reply and mention resolution are
+  skipped, because a forward carries no webhook-reply relationship and its text
+  was authored by the original sender.
+- **Activation is guild-only.** DMs have no channel-level activation; bare DM
+  messages fall through to `DMSessionProcessor`.
 
-The notification is rate-limited (1 hour cooldown per user per channel) to prevent spam.
+### Private character access
 
-### Database Schema
+When the activated character is private and the message author can't access it,
+`loadPersonalityStrict` returns null and the activation slot is dropped — the
+message simply continues down the chain, so the user can still `@`-mention
+characters they do have access to.
 
-```sql
-CREATE TABLE activated_channels (
-  id UUID PRIMARY KEY,
-  channel_id VARCHAR(20) NOT NULL,
-  personality_id UUID NOT NULL REFERENCES personalities(id),
-  created_by UUID REFERENCES users(id),
-  created_at TIMESTAMP DEFAULT NOW(),
-  UNIQUE(channel_id, personality_id)  -- Composite unique constraint
-);
-```
+They also receive a one-time explanatory reply, rate-limited to one notice per
+user per channel per hour (`notificationCache.shouldNotifyUser`).
 
-**Key constraints:**
+A gateway **failure** during resolution is deliberately distinguished from a
+denial: a throw is caught, logged, and yields no activation slot _silently_.
+Only a genuine "not accessible for this user" answer produces the notice.
 
-- `UNIQUE(channel_id, personality_id)` - prevents duplicate activations of the same personality
-- Uses deterministic UUIDs (`generateActivatedChannelUuid`) for dev/prod sync compatibility
+### Storage
 
-**Schema Design Note:** The composite unique constraint intentionally allows multiple personalities per channel at the database level. The "one personality per channel" restriction is enforced at the application level (via transaction that deletes existing activations). This design supports future multi-personality channels without requiring a migration.
+Activation lives on the `channel_settings` table (Prisma model
+`ChannelSettings`), which also carries the channel's config-cascade overrides:
 
-### API Endpoints
+| Column                     | Meaning                                        |
+| -------------------------- | ---------------------------------------------- |
+| `channel_id`               | Discord channel snowflake, **unique**          |
+| `guild_id`                 | Owning guild, nullable                         |
+| `activated_personality_id` | The activated character; null = no activation  |
+| `auto_respond`             | Defaults true                                  |
+| `config_overrides`         | JSONB — the channel tier of the config cascade |
+| `created_by`               | The user who created the row                   |
 
-| Endpoint                   | Method | Auth    | Description                     |
-| -------------------------- | ------ | ------- | ------------------------------- |
-| `/user/channel/activate`   | POST   | User    | Activate personality in channel |
-| `/user/channel/deactivate` | DELETE | User    | Deactivate channel              |
-| `/user/channel/:channelId` | GET    | Service | Check if channel is activated   |
-| `/user/channel/list`       | GET    | User    | List all activations            |
+`activated_personality_id` is `onDelete: SetNull`, so deleting a character
+deactivates it everywhere rather than cascading the settings rows away. Row ids
+are deterministic UUIDs so the same logical row has the same id across
+environments.
 
-**Note:** The GET endpoint uses service auth (not user auth) because it's called by the bot-client during message processing, where no user context is available.
+### API endpoints
+
+| Endpoint                                        | Method           | Auth    | Description                              |
+| ----------------------------------------------- | ---------------- | ------- | ---------------------------------------- |
+| `/api/user/channel/activate`                    | POST             | User    | Activate a character in a channel        |
+| `/api/user/channel/deactivate`                  | DELETE           | User    | Clear the channel's activation           |
+| `/api/user/channel/list`                        | GET              | User    | List activations                         |
+| `/api/user/channel/update-guild`                | PATCH            | User    | Backfill/repair the row's guild id       |
+| `/api/user/channel/:channelId`                  | GET              | User    | Read one channel's settings              |
+| `/api/user/channel/:channelId/config-overrides` | GET/PATCH/DELETE | User    | Channel-tier cascade overrides           |
+| `/api/internal/channel/:channelId`              | GET              | Service | The read bot-client uses at message time |
+
+The bot-client reads the **internal** variant during message processing (no user
+context exists there) through the generated service client, behind a 30-second
+`TTLCache` with pub/sub invalidation — see
+`getChannelSettingsCached` in `bot-client/src/utils/gatewayServiceCalls.ts`.
+"No settings" responses are cached too, so an inactive channel doesn't hit the
+gateway on every message.
 
 ## Design Decisions
 
-### One Personality Per Channel
+### One character per channel
 
-**Decision:** Only one personality can be active in a channel at a time.
+Enforced structurally: `channel_id` is unique on `channel_settings` and
+`activated_personality_id` is a single column. Multiple simultaneous characters
+in one channel would produce competing responses to every message; users get
+that behavior deliberately via `@`-mentions instead, which the multi-tag slot
+mechanism already supports per message.
 
-**Rationale:**
+### `ManageMessages` to activate
 
-- Simplifies UX - users know which personality will respond
-- Prevents "personality fights" where multiple bots try to respond
-- Matches v2 behavior
-- Future multi-personality support tracked in `docs/improvements/multi-personality-support.md`
+Activation changes how a channel behaves for everyone in it, so it needs a
+moderation-shaped permission — but not full admin. `ManageMessages` is the
+permission servers already hand to moderators.
 
-### ManageMessages Permission
+### Activation replaces rather than toggles
 
-**Decision:** Require `ManageMessages` permission to activate/deactivate.
+Switching characters is one command, not deactivate-then-activate, and the
+replacement is a single row update so there is no intermediate state where the
+channel is briefly unactivated.
 
-**Rationale:**
+### Not synced between dev and prod
 
-- Balances accessibility with preventing abuse
-- `ManageMessages` is commonly given to moderators
-- Prevents random users from changing channel behavior
-- Doesn't require full admin access
+`channel_settings` is in the sync-excluded set (`syncTables.ts`). Dev and prod
+run different Discord bot instances; syncing activations would make both bots
+auto-respond in the same channel.
 
-### Activation Replacement (Not Toggle)
+## Related
 
-**Decision:** Activating a new personality replaces the old one (no explicit deactivate-then-activate).
-
-**Rationale:**
-
-- Better UX - single command to switch personalities
-- Uses database transaction to prevent race conditions
-- Atomic operation - no intermediate state
-
-### Dev/Prod Sync Exclusion
-
-**Decision:** `activated_channels` table is NOT synced between dev and prod environments.
-
-**Rationale:**
-
-- Dev and prod use different Discord bot instances
-- Syncing would cause double-responses in servers with both bots
-- Each environment should have independent channel activations
-
-## Files Changed (Implementation Reference)
-
-### Bot Client
-
-- `services/bot-client/src/processors/ActivatedChannelProcessor.ts` - Main processor
-- `services/bot-client/src/processors/notificationCache.ts` - Rate limiting cache
-- `services/bot-client/src/commands/channel/` - Slash commands
-
-### API Gateway
-
-- `services/api-gateway/src/routes/user/channel/` - REST endpoints
-- `services/api-gateway/src/services/sync/config/syncTables.ts` - Sync exclusion
-
-### Common Types
-
-- `packages/common-types/src/schemas/api/channel.ts` - Zod schemas
-- `packages/common-types/src/utils/deterministicUuid.ts` - UUID generator
-
-## Testing
-
-### Unit Tests
-
-- `ActivatedChannelProcessor.test.ts` - 11 tests
-- `notificationCache.test.ts` - 11 tests
-- `activate.test.ts`, `deactivate.test.ts`, `get.test.ts`, `list.test.ts` - API endpoint tests
-
-### Manual Testing
-
-1. Activate a personality: `/channel activate personality:lilith`
-2. Send a message - bot should auto-respond
-3. Try activating a different personality - should replace
-4. Deactivate: `/channel deactivate`
-5. Send a message - bot should NOT auto-respond
-6. Test with private personality as non-owner - should get notification
-
-## Known Limitations
-
-1. **No guild-scoped activations** - Currently channel-level only
-2. **No scheduled activations** - Always-on when activated
-3. **No activation history** - Only current state is stored
-4. **Single personality per channel** - Multi-personality planned for future
-
-## Related Documentation
-
-- `docs/improvements/multi-personality-support.md` - Future multi-personality plans
-- `docs/standards/SLASH_COMMAND_IMPLEMENTATION.md` - Command implementation patterns
+- [`docs/proposals/backlog/multi-personality-support.md`](../../proposals/backlog/multi-personality-support.md) — multiple characters per channel
+- [`docs/reference/architecture/model-selection-pipeline.md`](../architecture/model-selection-pipeline.md) — where the channel tier sits in config resolution
