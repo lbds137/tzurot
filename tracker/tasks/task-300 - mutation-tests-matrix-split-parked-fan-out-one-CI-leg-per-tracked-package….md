@@ -9,6 +9,7 @@ labels:
   - 'area:ci'
   - 'area:tooling'
   - 'size:M'
+  - 'state:dependent'
 dependencies: []
 priority: low
 ordinal: 300000

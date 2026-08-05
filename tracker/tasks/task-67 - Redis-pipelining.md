@@ -8,6 +8,7 @@ updated_date: '2026-07-28 10:47'
 labels:
   - 'area:redis'
   - 'size:M'
+  - 'state:observable'
 dependencies: []
 priority: low
 ordinal: 67000

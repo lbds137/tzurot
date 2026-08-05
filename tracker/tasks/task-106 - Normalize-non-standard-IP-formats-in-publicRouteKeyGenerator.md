@@ -9,6 +9,7 @@ labels:
   - 'area:api-gateway'
   - 'area:redis'
   - 'size:S'
+  - 'state:observable'
 dependencies: []
 priority: low
 ordinal: 106000

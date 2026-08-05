@@ -11,6 +11,7 @@ labels:
   - 'area:common-types'
   - 'area:redis'
   - 'size:S'
+  - 'state:observable'
 dependencies: []
 priority: medium
 ordinal: 172000

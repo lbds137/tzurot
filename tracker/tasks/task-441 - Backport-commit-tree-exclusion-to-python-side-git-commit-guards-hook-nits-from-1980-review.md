@@ -9,6 +9,7 @@ created_date: '2026-08-05 20:32'
 labels:
   - 'area:tooling'
   - 'size:S'
+  - 'state:ready'
 dependencies: []
 priority: medium
 ordinal: 441000

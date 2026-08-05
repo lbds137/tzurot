@@ -9,6 +9,7 @@ created_date: '2026-08-01 19:11'
 labels:
   - 'size:S'
   - 'area:embeddings'
+  - 'state:observable'
 dependencies: []
 priority: low
 ordinal: 394000

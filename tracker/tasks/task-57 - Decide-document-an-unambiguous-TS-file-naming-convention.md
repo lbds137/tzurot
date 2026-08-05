@@ -9,6 +9,7 @@ labels:
   - 'area:common-types'
   - 'area:process'
   - 'size:S'
+  - 'state:owner'
 dependencies: []
 priority: low
 ordinal: 57000

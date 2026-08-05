@@ -10,6 +10,7 @@ updated_date: '2026-07-28 10:50'
 labels:
   - 'area:bot-client'
   - 'size:M'
+  - 'state:observable'
 dependencies: []
 priority: low
 ordinal: 190000

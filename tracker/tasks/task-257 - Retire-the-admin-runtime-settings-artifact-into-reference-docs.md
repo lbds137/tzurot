@@ -8,6 +8,7 @@ updated_date: '2026-07-28 10:51'
 labels:
   - 'area:docs'
   - 'size:S'
+  - 'state:dependent'
 dependencies: []
 priority: low
 ordinal: 257000

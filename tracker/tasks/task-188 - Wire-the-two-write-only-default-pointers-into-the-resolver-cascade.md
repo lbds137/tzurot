@@ -9,6 +9,7 @@ labels:
   - 'area:config-resolver'
   - 'area:api-gateway'
   - 'size:M'
+  - 'state:owner'
 dependencies: []
 priority: medium
 ordinal: 188000

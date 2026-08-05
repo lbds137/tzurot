@@ -10,6 +10,7 @@ updated_date: '2026-07-28 10:48'
 labels:
   - 'area:ci'
   - 'size:S'
+  - 'state:observable'
 dependencies: []
 priority: low
 ordinal: 119000

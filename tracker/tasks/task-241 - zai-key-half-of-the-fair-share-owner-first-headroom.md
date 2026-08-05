@@ -10,6 +10,7 @@ labels:
   - 'area:jobs'
   - 'area:backlog'
   - 'size:M'
+  - 'state:dependent'
 dependencies: []
 priority: low
 ordinal: 241000

@@ -9,6 +9,7 @@ labels:
   - 'area:db'
   - 'origin:review'
   - 'size:M'
+  - 'state:dependent'
 dependencies: []
 priority: medium
 ordinal: 52000

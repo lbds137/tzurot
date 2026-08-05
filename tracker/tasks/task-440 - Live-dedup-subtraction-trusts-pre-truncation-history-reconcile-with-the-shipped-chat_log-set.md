@@ -10,6 +10,7 @@ updated_date: '2026-08-05 16:52'
 labels:
   - 'area:ai-worker'
   - 'size:M'
+  - 'state:ready'
 dependencies: []
 priority: medium
 ordinal: 440000

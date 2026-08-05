@@ -10,6 +10,7 @@ updated_date: '2026-07-28 10:53'
 labels:
   - 'area:backlog'
   - 'size:S'
+  - 'state:dependent'
 dependencies: []
 priority: low
 ordinal: 337000

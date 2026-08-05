@@ -9,6 +9,7 @@ labels:
   - 'area:tooling'
   - 'area:testing'
   - 'size:S'
+  - 'state:ready'
 dependencies: []
 priority: low
 ordinal: 139000

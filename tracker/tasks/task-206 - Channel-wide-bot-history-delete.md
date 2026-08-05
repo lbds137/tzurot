@@ -9,6 +9,7 @@ labels:
   - 'area:jobs'
   - 'area:conversation-history'
   - 'size:M'
+  - 'state:ready'
 dependencies: []
 priority: low
 ordinal: 206000

@@ -9,6 +9,7 @@ labels:
   - 'area:voice'
   - 'area:db'
   - 'size:S'
+  - 'state:dependent'
 dependencies: []
 priority: low
 ordinal: 95000

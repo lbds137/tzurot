@@ -9,6 +9,7 @@ labels:
   - 'origin:review'
   - 'area:process'
   - 'size:S'
+  - 'state:observable'
 dependencies: []
 priority: low
 ordinal: 287000

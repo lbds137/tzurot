@@ -9,6 +9,7 @@ labels:
   - 'area:api-gateway'
   - 'area:conversation-history'
   - 'size:S'
+  - 'state:dependent'
 dependencies: []
 priority: low
 ordinal: 210000

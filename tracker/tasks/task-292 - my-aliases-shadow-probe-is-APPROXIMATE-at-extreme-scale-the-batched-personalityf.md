@@ -9,6 +9,7 @@ labels:
   - 'origin:review'
   - 'area:api-gateway'
   - 'size:S'
+  - 'state:observable'
 dependencies: []
 priority: low
 ordinal: 292000

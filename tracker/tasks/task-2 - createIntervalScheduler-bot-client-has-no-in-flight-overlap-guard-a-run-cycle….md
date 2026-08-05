@@ -9,6 +9,7 @@ labels:
   - 'area:bot-client'
   - 'origin:review'
   - 'size:S'
+  - 'state:observable'
 dependencies: []
 priority: low
 ordinal: 2000

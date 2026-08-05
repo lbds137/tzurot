@@ -9,6 +9,7 @@ labels:
   - 'area:website'
   - 'area:docs'
   - 'size:S'
+  - 'state:owner'
 dependencies: []
 priority: medium
 ordinal: 314000

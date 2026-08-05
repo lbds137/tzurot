@@ -3,10 +3,10 @@ id: TASK-147
 title: >-
   Purge-confirmation footer rename Personality to Character (cross-deploy
   window)
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-06-16 00:00'
-updated_date: '2026-07-28 10:49'
+updated_date: '2026-08-05 22:33'
 labels:
   - 'area:bot-client'
   - 'size:S'

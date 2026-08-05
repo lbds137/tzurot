@@ -3,10 +3,10 @@ id: TASK-373
 title: >-
   Audit: content that QUOTES our control syntax — every parse site, not just
   thinking tags
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-07-31 01:23'
-updated_date: '2026-08-04 13:56'
+updated_date: '2026-08-05 22:33'
 labels:
   - 'area:ai-worker'
   - 'size:M'

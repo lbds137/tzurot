@@ -9,6 +9,7 @@ labels:
   - 'area:bot-client'
   - 'area:voice'
   - 'size:S'
+  - 'state:unreachable'
 dependencies: []
 priority: low
 ordinal: 156000

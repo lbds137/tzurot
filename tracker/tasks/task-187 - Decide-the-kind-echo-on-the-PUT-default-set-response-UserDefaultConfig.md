@@ -9,6 +9,7 @@ labels:
   - 'area:bot-client'
   - 'area:common-types'
   - 'size:S'
+  - 'state:owner'
 dependencies: []
 priority: low
 ordinal: 187000

@@ -10,6 +10,7 @@ labels:
   - 'area:tooling'
   - 'area:jobs'
   - 'size:L'
+  - 'state:unreachable'
 dependencies: []
 priority: low
 ordinal: 49000

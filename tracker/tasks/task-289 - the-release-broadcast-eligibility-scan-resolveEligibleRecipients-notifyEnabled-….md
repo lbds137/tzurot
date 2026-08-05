@@ -10,6 +10,7 @@ labels:
   - 'area:api-gateway'
   - 'area:db'
   - 'size:S'
+  - 'state:observable'
 dependencies: []
 priority: low
 ordinal: 289000

@@ -8,6 +8,7 @@ updated_date: '2026-07-28 10:49'
 labels:
   - 'area:common-types'
   - 'size:S'
+  - 'state:dependent'
 dependencies: []
 priority: low
 ordinal: 157000

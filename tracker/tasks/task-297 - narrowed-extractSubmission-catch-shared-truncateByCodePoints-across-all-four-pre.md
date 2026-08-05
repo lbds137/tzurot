@@ -11,6 +11,7 @@ labels:
   - 'origin:review'
   - 'area:bot-client'
   - 'size:S'
+  - 'state:dependent'
 dependencies: []
 priority: low
 ordinal: 297000

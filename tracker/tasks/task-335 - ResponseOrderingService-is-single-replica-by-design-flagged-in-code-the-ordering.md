@@ -10,6 +10,7 @@ labels:
   - 'area:jobs'
   - 'area:redis'
   - 'size:L'
+  - 'state:dependent'
 dependencies: []
 priority: low
 ordinal: 335000

@@ -8,6 +8,7 @@ updated_date: '2026-08-03 17:37'
 labels:
   - 'area:jobs'
   - 'size:M'
+  - 'state:ready'
 dependencies: []
 priority: medium
 ordinal: 410000

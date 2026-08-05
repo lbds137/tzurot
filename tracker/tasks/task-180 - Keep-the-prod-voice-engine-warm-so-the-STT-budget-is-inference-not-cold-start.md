@@ -9,6 +9,7 @@ labels:
   - 'area:voice'
   - 'area:jobs'
   - 'size:M'
+  - 'state:observable'
 dependencies: []
 priority: low
 ordinal: 180000

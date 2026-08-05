@@ -10,6 +10,7 @@ labels:
   - 'area:api-gateway'
   - 'area:db'
   - 'size:S'
+  - 'state:owner'
 dependencies: []
 priority: medium
 ordinal: 283000

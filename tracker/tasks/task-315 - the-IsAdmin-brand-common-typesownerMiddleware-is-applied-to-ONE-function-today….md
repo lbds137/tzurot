@@ -9,6 +9,7 @@ labels:
   - 'area:common-types'
   - 'origin:review'
   - 'size:S'
+  - 'state:dependent'
 dependencies: []
 priority: low
 ordinal: 315000

@@ -8,6 +8,7 @@ updated_date: '2026-07-28 10:49'
 labels:
   - 'area:api-gateway'
   - 'size:S'
+  - 'state:observable'
 dependencies: []
 priority: low
 ordinal: 184000

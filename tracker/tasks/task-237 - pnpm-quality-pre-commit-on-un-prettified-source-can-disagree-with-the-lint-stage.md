@@ -9,6 +9,7 @@ labels:
   - 'area:process'
   - 'area:tooling'
   - 'size:S'
+  - 'state:observable'
 dependencies: []
 priority: low
 ordinal: 237000

@@ -9,6 +9,7 @@ labels:
   - 'area:voice'
   - 'area:common-types'
   - 'size:M'
+  - 'state:unreachable'
 dependencies: []
 priority: low
 ordinal: 48000

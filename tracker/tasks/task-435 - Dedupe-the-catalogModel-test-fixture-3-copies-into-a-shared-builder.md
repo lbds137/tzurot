@@ -7,6 +7,7 @@ created_date: '2026-08-05 04:45'
 labels:
   - 'area:bot-client'
   - 'size:S'
+  - 'state:ready'
 dependencies: []
 priority: low
 ordinal: 435000

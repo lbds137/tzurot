@@ -9,6 +9,7 @@ labels:
   - 'origin:review'
   - 'area:tooling'
   - 'size:S'
+  - 'state:observable'
 dependencies: []
 priority: low
 ordinal: 310000

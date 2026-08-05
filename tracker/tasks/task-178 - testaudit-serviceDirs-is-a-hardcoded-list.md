@@ -11,6 +11,7 @@ labels:
   - 'area:db'
   - 'area:testing'
   - 'size:S'
+  - 'state:ready'
 dependencies: []
 priority: low
 ordinal: 178000

@@ -10,6 +10,7 @@ labels:
   - 'area:redis'
   - 'area:jobs'
   - 'size:M'
+  - 'state:observable'
 dependencies: []
 priority: medium
 ordinal: 268000

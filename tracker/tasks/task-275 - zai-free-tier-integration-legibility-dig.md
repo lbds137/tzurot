@@ -9,6 +9,7 @@ labels:
   - 'area:ai-worker'
   - 'area:docs'
   - 'size:S'
+  - 'state:ready'
 dependencies: []
 priority: low
 ordinal: 275000

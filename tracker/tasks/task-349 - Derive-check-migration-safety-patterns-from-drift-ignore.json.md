@@ -8,6 +8,7 @@ updated_date: '2026-07-29 01:18'
 labels:
   - 'area:tooling'
   - 'size:S'
+  - 'state:ready'
 dependencies: []
 priority: low
 ordinal: 349000

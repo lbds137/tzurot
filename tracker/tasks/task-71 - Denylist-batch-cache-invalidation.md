@@ -9,6 +9,7 @@ labels:
   - 'area:bot-client'
   - 'area:redis'
   - 'size:S'
+  - 'state:observable'
 dependencies: []
 priority: low
 ordinal: 71000

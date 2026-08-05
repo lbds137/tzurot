@@ -11,6 +11,7 @@ labels:
   - 'area:voice'
   - 'origin:review'
   - 'size:S'
+  - 'state:ready'
 dependencies: []
 priority: low
 ordinal: 30000

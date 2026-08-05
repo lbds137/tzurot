@@ -11,6 +11,7 @@ labels:
   - 'area:embeddings'
   - 'area:db'
   - 'size:M'
+  - 'state:dependent'
 dependencies: []
 priority: low
 ordinal: 186000
