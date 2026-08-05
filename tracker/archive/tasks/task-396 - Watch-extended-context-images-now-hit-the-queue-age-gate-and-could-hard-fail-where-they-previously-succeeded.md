@@ -6,6 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-08-01 22:17'
+updated_date: '2026-08-05 14:47'
 labels:
   - 'size:S'
   - 'area:ai-worker'
@@ -32,3 +33,9 @@ That is the intended fix (previously they reached vision as raw CDN URLs that co
 
 Not filed as a defect — the change is correct and deliberate. This exists so the trade is checked rather than assumed, since the whole point of #1894 was removing a failure mode that nobody could see.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+CLOSED 2026-08-05 with the evidence the task's own exit condition named: zero queue-age rejections in prod since #1894 shipped (beta.190). Sweep: five ai-worker deployments 2026-08-02 -> 2026-08-05, ~21k log lines, grepped for the jobAgeGate warn tokens (queueAgeMs / max queue age / likely expired) — zero hits of any kind, trigger or extended-context. Non-vacuous: real vision/attachment traffic present in every window (98 image-processing mentions in the current deployment alone). Caveat: 5000-line windows leave gaps (Aug 1, Aug 3 partially uncovered), but three release cycles passed the 'one release with no rejections' bar. The gate is not stricter than CDN reality at current traffic.
+<!-- SECTION:NOTES:END -->
