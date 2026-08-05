@@ -6,7 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-05-30 00:00'
-updated_date: '2026-07-30 12:58'
+updated_date: '2026-08-05 12:09'
 labels:
   - 'area:clients'
   - 'area:bot-client'
@@ -94,4 +94,6 @@ Net: mechanism real, harm unobserved, cost `size:M`. Left filed rather than
 built or ruled out — a rule-out here is a user-visible-latency call, which is
 the owner's per `06-backlog.md`. The stale comments that made this gap look
 already-handled were fixed separately (see the read-default-flip comment sweep).
+
+RULE-OUT EXECUTED 2026-08-05 (owner approved; council 3/3). Grounds: harm unobserved in prod (zero 'Unknown interaction'/10062 across the 2026-07-30 measurement window with real traffic); the task's own promote-when signal never fired; Discord bounds the autocomplete side at 3s client-side regardless of gateway budget (manifest.test.ts counter-position), so the cost is a wasted open request, not user-visible breakage; fix is size:M across two packages. User-visible-latency call made by the owner 2026-08-05. If 'Unknown interaction' autocomplete noise ever becomes observable, that evidence reopens the question on its own merits.
 <!-- SECTION:NOTES:END -->
