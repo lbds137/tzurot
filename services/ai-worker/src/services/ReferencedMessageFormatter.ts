@@ -67,6 +67,19 @@ interface ReferenceVisionAuth {
   visionModel?: string;
   allPersonalityNames?: Set<string>;
   requestId?: string;
+  /**
+   * Per-reference: the enrichment `<chat_log>` will already render for that
+   * reference's own history entry, keyed by Discord message id. Batch-invariant
+   * (one derivation for the whole set) and READ-ONLY here — the caller derives
+   * it from the enriched history, because whether history carries a quote's
+   * image description is a fact about the OTHER renderer's output, not one this
+   * module can see.
+   *
+   * A reference with no entry in the map subtracts nothing, which is the safe
+   * default `dedupeReference` documents: a duplicated description costs tokens,
+   * a dropped one costs the answer.
+   */
+  carriedByChatLog?: Map<string, ReadonlySet<string>>;
 }
 
 /**
@@ -245,7 +258,9 @@ export class ReferencedMessageFormatter {
    * @param personality - Personality configuration for vision/transcription models
    * @param isGuestMode - Whether the user is in guest mode (no BYOK API key)
    * @param preprocessedAttachments - Pre-processed attachments keyed by reference number (avoids inline API calls)
-   * @param apiKeys - Vision/STT auth plus the personality-name set for role derivation
+   * @param apiKeys - Vision/STT auth plus the batch-invariant render inputs: the
+   *   personality-name set for role derivation and the per-reference set of
+   *   enrichment `<chat_log>` already carries (see `carriedByChatLog`)
    * @returns The prompt XML plus the plain-text search rendering
    */
   async formatReferencedMessages(
@@ -279,8 +294,17 @@ export class ReferencedMessageFormatter {
 
       // Dedup is a projection of the reference above, never a second build —
       // so a field this formatter learns to carry reaches the stub for free.
+      //
+      // The subtraction set is looked up per reference: it says what <chat_log>
+      // renders for THIS quote's own history entry, so the stub stops repeating
+      // a description the model reads twenty lines later anyway. A miss (no
+      // matching entry, or a caller that threads no map) subtracts nothing.
       referenceElements.push(
-        renderReference(ref.isDeduplicated === true ? dedupeReference(renderable) : renderable)
+        renderReference(
+          ref.isDeduplicated === true
+            ? dedupeReference(renderable, apiKeys?.carriedByChatLog?.get(ref.discordMessageId))
+            : renderable
+        )
       );
 
       // Persisted from the PRE-projection reference, and from the enrichment as
