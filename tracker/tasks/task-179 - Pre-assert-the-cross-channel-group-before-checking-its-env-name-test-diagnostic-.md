@@ -3,10 +3,10 @@ id: TASK-179
 title: >-
   Pre-assert the cross-channel group before checking its env name (test
   diagnostic clarity)
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-06-25 00:00'
-updated_date: '2026-07-28 10:49'
+updated_date: '2026-08-05 23:08'
 labels:
   - 'area:ai-worker'
   - 'area:testing'

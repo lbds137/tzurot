@@ -1,10 +1,10 @@
 ---
 id: TASK-33
 title: Align result.error compose base with errorInfo.technicalMessage
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-07-02 00:00'
-updated_date: '2026-07-28 10:46'
+updated_date: '2026-08-05 23:08'
 labels:
   - 'origin:review'
   - 'area:ai-worker'
