@@ -1,10 +1,10 @@
 ---
 id: TASK-266
 title: withPolicyArm's ?? 0 fallback poisons partially-ranking arms
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-07-14 00:00'
-updated_date: '2026-07-28 10:51'
+updated_date: '2026-08-05 23:08'
 labels:
   - 'area:ai-worker'
   - 'size:S'
