@@ -290,13 +290,25 @@ export function getAttemptedFallbackProvider(error: unknown): string | undefined
 }
 
 /**
- * Compose the user-facing error string: the pristine original message plus the
+ * Compose the diagnostic error string: the pristine original message plus the
  * fallback-failure summary when one was attached. MUST be called only after
  * classification (`parseApiError`) has run — that's the whole point of keeping
  * the summary off the message.
+ *
+ * The base is the UNWRAPPED error, mirroring what the fallback summary and the
+ * classifier both do: a `RetryError`'s own message is the generic wrapper
+ * ("LLM invocation (<model>) failed with non-retryable error"), which buries
+ * the provider detail that makes the log line useful. Unwrapping keeps this
+ * string's root cause consistent with `errorInfo.technicalMessage`, which is
+ * derived from the same unwrapped error.
  */
 export function composeFallbackAwareErrorMessage(error: unknown): string {
-  const base = error instanceof Error ? error.message : 'Unknown error';
+  // `RetryError.lastError` is `unknown` — when it isn't an Error there is no
+  // root-cause message to lead with, so keep the wrapper's own text rather
+  // than degrading to the placeholder.
+  const unwrapped = error instanceof RetryError ? error.lastError : error;
+  const baseError = unwrapped instanceof Error ? unwrapped : error;
+  const base = baseError instanceof Error ? baseError.message : 'Unknown error';
   const summary = getFallbackFailureSummary(error);
   return summary !== undefined ? `${base} — fallback via OpenRouter also failed: ${summary}` : base;
 }

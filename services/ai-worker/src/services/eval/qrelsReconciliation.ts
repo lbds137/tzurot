@@ -22,7 +22,14 @@ export interface PooledCandidate {
   corpusId: string;
   createdAtMs: number;
   contentPreview: string;
-  ranks: Record<string, number>;
+  /**
+   * Arm name → 1-based rank. Absent OR null = the arm did not surface this
+   * candidate — same vocabulary `ScoredCandidate.ranks` uses downstream, and
+   * the reason a derived arm must never write `0` for an unranked candidate:
+   * `rankedIds` accepts any non-null number, so a `0` would sort AHEAD of the
+   * arm's genuine rank-1 pick.
+   */
+  ranks: Record<string, number | null>;
   verdict: GuardVerdict;
 }
 

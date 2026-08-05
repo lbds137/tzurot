@@ -138,12 +138,16 @@ export function oldestHistoryMs(priorHistory: { createdAt: string }[]): number {
 
 /** Sort candidates by best (lowest) rank across all arms for sheet readability. */
 export function armSortKey(candidate: PooledCandidate): number {
-  const ranks = Object.values(candidate.ranks);
+  // Null ranks are "arm did not surface it" — dropping them keeps a
+  // non-surfacing arm from sorting the candidate to the top (null would
+  // coerce to 0 through Math.min).
+  const ranks = Object.values(candidate.ranks).filter((rank): rank is number => rank !== null);
   return ranks.length === 0 ? 99 : Math.min(...ranks);
 }
 
 /** `label#rank` badge for the judgment sheet, or null when the arm missed the candidate. */
 export function rankBadge(candidate: PooledCandidate, arm: string, label: string): string | null {
   const rank = candidate.ranks[arm];
-  return rank === undefined ? null : `${label}#${rank}`;
+  // Absent AND null both mean the arm missed this candidate.
+  return rank === undefined || rank === null ? null : `${label}#${rank}`;
 }

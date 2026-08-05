@@ -60,9 +60,12 @@ function matchesPersonality(authorName: string, personalityName: string): boolea
  * Whether a set entry is the SAME persona as the responder under a different
  * name vocabulary — stored rows carry `personality.name` ("Yeshua") while the
  * live path matches against `displayName` ("Yeshua ben Yosef"). Either prefix
- * direction counts. The cost: a sibling whose name is an exact prefix of the
- * responder's reads as a self-variant (accepted bounded edge, same class as
- * the documented name-collision edge on the fallback).
+ * direction counts. The cost: because the check is symmetric, BOTH prefix
+ * directions collide. A sibling whose name is a prefix of the responder's
+ * reads as a self-variant ("Alex" under an "Alexandra" responder), and so
+ * does the reverse — an unrelated sibling "Alexandra" under an "Alex"
+ * responder reads as a self-variant by the same rule. (Accepted bounded edge,
+ * same class as the documented name-collision edge on the fallback.)
  */
 function isSelfVariant(name: string, personalityName: string): boolean {
   return matchesPersonality(personalityName, name) || matchesPersonality(name, personalityName);

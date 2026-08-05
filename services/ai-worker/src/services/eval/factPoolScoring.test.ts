@@ -14,7 +14,7 @@ import {
   type FactPooledCandidate,
 } from './factPoolScoring.js';
 import { reconcile } from './qrelsReconciliation.js';
-import { scoreArm } from './poolScoring.js';
+import { rankedIds, scoreArm } from './poolScoring.js';
 
 const NOW = 1_800_000_000_000;
 const DAY_MS = 86_400_000;
@@ -150,6 +150,41 @@ describe('policyRanks / withPolicyArm', () => {
     expect(pool.candidates[0].ranks.balanced).toBeUndefined();
     // Re-adding the same arm does not duplicate the name
     expect(withPolicyArm(withArm, 'balanced', c => c.salience).arms).toEqual(['prod', 'balanced']);
+  });
+
+  it('never emits 0 as a rank — the unranked sentinel is null, which sorts OUT', () => {
+    const pool = makePool([
+      makeCandidate({ corpusId: 'a', similarity: 0.9 }),
+      makeCandidate({ corpusId: 'b', similarity: 0.5 }),
+      makeCandidate({ corpusId: 'c', similarity: 0.1 }),
+    ]);
+    const withArm = withPolicyArm(pool, 'partial', c => c.similarity);
+
+    // 0 is a REAL rank to `rankedIds` and sorts ahead of rank 1, so an arm that
+    // ever dropped a candidate would put its rejects at the head of the list.
+    // Every emitted value must therefore be a genuine 1-based rank.
+    for (const candidate of withArm.candidates) {
+      expect(candidate.ranks.partial).not.toBe(0);
+      expect(candidate.ranks.partial ?? 1).toBeGreaterThanOrEqual(1);
+    }
+  });
+
+  it('leaves a candidate an arm did not surface OUT of that arm ordering, not at its head', () => {
+    // The shape a partially-ranking arm produces: `null` for the candidate it
+    // dropped. Pinned through the real consumer chain (reconcile → rankedIds)
+    // because that is where a `0` placeholder would misorder — a dropped
+    // candidate would lead the arm's list instead of being absent from it.
+    const pool = makePool(
+      [
+        makeCandidate({ corpusId: 'kept-1', ranks: { prod: 1, partial: 1 } }),
+        makeCandidate({ corpusId: 'kept-2', ranks: { prod: 2, partial: 2 } }),
+        makeCandidate({ corpusId: 'dropped', ranks: { prod: 3, partial: null } }),
+      ],
+      { arms: ['prod', 'partial'] }
+    );
+    const { queries } = reconcile([pool], {});
+
+    expect(rankedIds(queries[0].candidates, 'partial')).toEqual(['kept-1', 'kept-2']);
   });
 });
 

@@ -803,9 +803,10 @@ describe('GenerationStep', () => {
         const result = await step.process(context);
 
         expect(result.result?.success).toBe(false);
-        // The error message should be from the RetryError (outer), but the
-        // errorInfo.category should be based on the underlying authError
-        expect(result.result?.error).toBe('All retries failed');
+        // Both the diagnostic message and the category come from the UNWRAPPED
+        // error: the RetryError's own text is a generic wrapper that buries the
+        // provider detail, so `result.error` leads with the root cause.
+        expect(result.result?.error).toBe('Invalid API key');
         // The underlying error contains 'Invalid API key' which matches authentication pattern
         expect(result.result?.errorInfo?.category).toBe('authentication');
       });

@@ -79,9 +79,13 @@ export function resolveSpeakerInfo(
     // store `personality.name` (same vocabulary as the parameter), but the
     // extended-context fetch's registry-miss fallback stores the webhook
     // DISPLAY name (`${displayName}${botSuffix}`) — a strict compare would
-    // demote the persona's OWN rows whenever name !== displayName. Cost: a
-    // sibling whose name is an exact prefix of the responder's reads as self
-    // (same accepted bounded edge as referenceRole.ts's self-variant skip).
+    // demote the persona's OWN rows whenever name !== displayName. Cost: the
+    // check is symmetric, so BOTH prefix directions collide. A sibling whose
+    // name is a prefix of the responder's reads as self ("Alex" sibling under
+    // an "Alexandra" responder), and so does the reverse — an unrelated
+    // sibling "Alexandra" under an "Alex" responder reads as self by the same
+    // rule. (Same accepted bounded edge as referenceRole.ts's self-variant
+    // skip.)
     const speakerLower = speakerName.toLowerCase();
     const personalityLower = personalityName.toLowerCase();
     const isSelf =
