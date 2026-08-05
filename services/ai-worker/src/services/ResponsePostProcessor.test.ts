@@ -47,11 +47,18 @@ vi.mock('../utils/responseArtifacts.js', () => ({
   stripUserMessageEcho: mockStripUserMessageEcho,
 }));
 
-vi.mock('../utils/thinkingExtraction.js', () => ({
-  extractThinkingBlocks: mockExtractThinkingBlocks,
-  extractApiReasoningContent: mockExtractApiReasoningContent,
-  mergeThinkingContent: mockMergeThinkingContent,
-}));
+vi.mock('../utils/thinkingExtraction.js', async importOriginal => {
+  const actual = await importOriginal<typeof import('../utils/thinkingExtraction.js')>();
+  return {
+    // Real, not mocked: `wrapperTagUnwrap` (reached through the processor, not
+    // stubbed here) derives its exclusion set from this vocabulary at module
+    // load, so a stubbed-out constant would crash the import.
+    KNOWN_THINKING_TAGS: actual.KNOWN_THINKING_TAGS,
+    extractThinkingBlocks: mockExtractThinkingBlocks,
+    extractApiReasoningContent: mockExtractApiReasoningContent,
+    mergeThinkingContent: mockMergeThinkingContent,
+  };
+});
 
 vi.mock('../utils/promptPlaceholders.js', () => ({
   replacePromptPlaceholders: mockReplacePromptPlaceholders,
@@ -335,6 +342,133 @@ describe('ResponsePostProcessor', () => {
 
       expect(result.thinkingContent).toBe('API level\n\n---\n\nInline');
       expect(result.cleanedContent).toBe('Response');
+    });
+  });
+
+  describe('processResponse wrapper-tag unwrap (seam)', () => {
+    // Every other test in this file mocks the pipeline's collaborators, which
+    // is exactly what cannot catch this bug: the failure lives in the ORDER of
+    // two real passes. `stripResponseArtifacts` carries a generic
+    // trailing-closing-tag pattern that eats a reply-final `</action>` and
+    // leaves the opener behind, so the unwrap has to reach the pair first.
+    // These cases therefore run the real chain end-to-end.
+    beforeEach(async () => {
+      const [dedup, thinking, artifacts, placeholders] = await Promise.all([
+        vi.importActual<typeof import('../utils/duplicateDetection.js')>(
+          '../utils/duplicateDetection.js'
+        ),
+        vi.importActual<typeof import('../utils/thinkingExtraction.js')>(
+          '../utils/thinkingExtraction.js'
+        ),
+        vi.importActual<typeof import('../utils/responseArtifacts.js')>(
+          '../utils/responseArtifacts.js'
+        ),
+        vi.importActual<typeof import('../utils/promptPlaceholders.js')>(
+          '../utils/promptPlaceholders.js'
+        ),
+      ]);
+
+      mockRemoveDuplicateResponse.mockImplementation(dedup.removeDuplicateResponse);
+      mockExtractThinkingBlocks.mockImplementation(thinking.extractThinkingBlocks);
+      mockExtractApiReasoningContent.mockImplementation(thinking.extractApiReasoningContent);
+      mockMergeThinkingContent.mockImplementation(thinking.mergeThinkingContent);
+      mockStripResponseArtifacts.mockImplementation(artifacts.stripResponseArtifacts);
+      mockStripUserMessageEcho.mockImplementation(artifacts.stripUserMessageEcho);
+      mockReplacePromptPlaceholders.mockImplementation(placeholders.replacePromptPlaceholders);
+    });
+
+    const seamContext = {
+      personalityName: 'Lilith',
+      userName: 'Lila',
+    };
+
+    it('delivers the unwrapped text for a reply-final wrapped stage direction', () => {
+      // The production shape: dialogue lines plus a stage direction the model
+      // wrapped in invented markup, with the closing tag last in the message.
+      const raw = [
+        '"You should not be here."',
+        '<action>She steps back into the shadows.</action>',
+      ].join('\n');
+
+      const result = processor.processResponse(raw, undefined, undefined, seamContext);
+
+      expect(result.cleanedContent).toBe(
+        '"You should not be here."\nShe steps back into the shadows.'
+      );
+      // The orphan-opener assertion is the regression: if the artifact pass ran
+      // first it would strip the trailing `</action>` and leave `<action>`.
+      expect(result.cleanedContent).not.toContain('<action>');
+      expect(result.cleanedContent).not.toContain('</action>');
+    });
+
+    it('delivers the unwrapped text for a mid-reply wrapped stage direction', () => {
+      const raw = [
+        '"You should not be here."',
+        '<action>She steps back into the shadows.</action>',
+        '"Go home, Lila."',
+      ].join('\n');
+
+      const result = processor.processResponse(raw, undefined, undefined, seamContext);
+
+      expect(result.cleanedContent).toBe(
+        '"You should not be here."\nShe steps back into the shadows.\n"Go home, Lila."'
+      );
+      expect(result.cleanedContent).not.toContain('action>');
+    });
+
+    it('leaves an inline wrapped stage direction byte-identical rather than orphaning its opener', () => {
+      // The residual shape the unwrap DECLINES by design: the pair shares a line
+      // with other text, so it is indistinguishable from prose that mentions
+      // markup. Declining is only safe if the next pass leaves it alone too —
+      // the artifact pass's generic trailing-closer strip used to delete the
+      // reply-final `</action>` and ship the orphaned `<action>` to the reader.
+      const raw = '"You should not be here." <action>She steps back into the shadows.</action>';
+
+      const result = processor.processResponse(raw, undefined, undefined, seamContext);
+
+      expect(result.cleanedContent).toBe(raw);
+    });
+
+    it('delivers the unwrapped text for a multi-line wrapped block mid-reply', () => {
+      // The span shape: delimiters on their own lines around a block. Neither
+      // the whole-message mode (content does not start with the tag) nor the
+      // line mode (the opener's line has no closer) reaches it, so before the
+      // span mode existed both literal tags shipped to the reader.
+      const raw = [
+        '"Dialogue here."',
+        '',
+        '<action>',
+        'She walks to the window, pauses, and looks out at the rain falling',
+        'gently on the street below.',
+        '</action>',
+        '',
+        '"More dialogue."',
+      ].join('\n');
+
+      const result = processor.processResponse(raw, undefined, undefined, seamContext);
+
+      expect(result.cleanedContent).toBe(
+        [
+          '"Dialogue here."',
+          '',
+          'She walks to the window, pauses, and looks out at the rain falling',
+          'gently on the street below.',
+          '',
+          '"More dialogue."',
+        ].join('\n')
+      );
+      expect(result.cleanedContent).not.toContain('action>');
+    });
+
+    it('leaves a reply that merely discusses the markup byte-identical', () => {
+      const raw = [
+        '"It kept doing it," she says. "Sticking <action>walks away</action> into the',
+        'middle of a sentence like the tag was part of the prose."',
+      ].join('\n');
+
+      const result = processor.processResponse(raw, undefined, undefined, seamContext);
+
+      expect(result.cleanedContent).toBe(raw);
     });
   });
 
