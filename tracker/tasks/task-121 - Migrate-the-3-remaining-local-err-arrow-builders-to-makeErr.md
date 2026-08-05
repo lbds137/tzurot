@@ -1,10 +1,10 @@
 ---
 id: TASK-121
 title: Migrate the 3 remaining local err() arrow-builders to makeErr
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-07-02 00:00'
-updated_date: '2026-07-28 10:48'
+updated_date: '2026-08-05 23:47'
 labels:
   - 'area:bot-client'
   - 'area:testing'
