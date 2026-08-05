@@ -3,9 +3,10 @@ id: TASK-429
 title: >-
   Reference-pipeline failure logs are uncorrelated — consider a requestId-bound
   child logger
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-04 15:00'
+updated_date: '2026-08-05 01:31'
 labels:
   - 'area:ai-worker'
   - 'size:S'
