@@ -193,6 +193,17 @@ describe('annotateUsability', () => {
     expect(r.canUse).toBe(true);
   });
 
+  it('marks the piggyback model free/usable for a VOICE-only key-holder (still a guest)', () => {
+    // An ElevenLabs key buys voice, not models — the wallet is non-empty but
+    // holds no chat-capable key, so the free-tier presentation still applies.
+    const [r] = annotateUsability(
+      [cat({ id: 'z-ai/glm-4.5-air', source: 'both' })],
+      new Set(['elevenlabs'])
+    );
+    expect(r.usability).toBe('free');
+    expect(r.canUse).toBe(true);
+  });
+
   it('keeps key-based verdicts for the piggyback model when the user HAS a key', () => {
     // Key-holders are billed on their own key — normal source-based routing
     const [r] = annotateUsability(

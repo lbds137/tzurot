@@ -15,6 +15,7 @@
 import {
   AIProvider,
   ZAI_MODEL_PREFIX,
+  isChatCapableProvider,
   isFreeModel,
   isZaiFreeTierModel,
   isZaiCodingPlanModel,
@@ -250,16 +251,20 @@ export function annotateUsability(
   const keysUnknown = activeProviders === null;
   const hasOpenRouter = activeProviders?.has(AIProvider.OpenRouter) ?? false;
   const hasZai = activeProviders?.has(AIProvider.ZaiCoding) ?? false;
+  // "Is this user a guest?" is a chat-capability question, not a key-count one:
+  // a wallet holding only voice keys (ElevenLabs, Mistral) buys no models.
+  const hasChatKey = [...(activeProviders ?? [])].some(isChatCapableProvider);
 
   return models.map(model => {
     if (isFreeModel(model.id)) {
       return { ...model, usability: 'free', canUse: true };
     }
-    // The conditionally-free piggyback model: a KEYLESS (guest) user runs it
-    // via free-tier admission (denial degrades to the free router), so it
-    // presents as free to them. Key-holders fall through to the key-based
-    // verdicts below — they are billed on their own key.
-    if (isZaiFreeTierModel(model.id) && activeProviders !== null && activeProviders.size === 0) {
+    // The conditionally-free piggyback model: a guest — nobody with a
+    // CHAT-capable key, so a voice-only ElevenLabs/Mistral wallet counts —
+    // runs it via free-tier admission (denial degrades to the free router),
+    // so it presents as free to them. Chat key-holders fall through to the
+    // key-based verdicts below; they are billed on their own key.
+    if (isZaiFreeTierModel(model.id) && activeProviders !== null && !hasChatKey) {
       return { ...model, usability: 'free', canUse: true };
     }
     if (keysUnknown) {
