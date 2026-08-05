@@ -58,14 +58,28 @@ After a bulk rename/move, also grep for the OLD token in its variant forms —
 bare basename, each prefix depth, backticked mention — before declaring the
 sweep complete; the canonical-form grep alone has under-swept three times.
 
-## Filters are for known output shapes
+## Lossy steps are for known output shapes
 
-Piping a first-run or diagnostic command through grep/sed/tail/head swallows
-exactly the failure signal you need — the filter drops the error and returns
-empty, which then reads as "no data" (the class has bitten via filtered
-git-push output, truncated review fetches, and a sed-filtered DB probe that
-hid its own SQL error). Run a command raw the first time; filter only once
-its output shape — including its FAILURE shape — is known.
+A filter pipe is only the most visible member of the class: ANY lossy step
+between fresh data and your eyes converts a failure signal into "no data".
+The observed shapes: grep/sed/tail/head pipes; `2>/dev/null` (a malformed
+identifier's error vanishes, leaving empty stdout that reads as absence);
+an encoding transform between writing and searching (`json.dumps` escapes
+`—` to `\u2014`, so a literal grep misses a marker that IS present); and
+grepping for a form your own extraction normalized rather than the form
+actually on disk. Run a first-run or diagnostic command raw, stderr
+attached; add lossy steps only once the output shape — including its
+FAILURE shape — is known.
+
+The read-side tell is the actual moment of failure: an empty or oddly short
+result indicts your own invocation before it says anything about the data.
+Check, in order: (a) did I suppress or filter stderr, (b) am I searching for
+a form I produced rather than the stored form, (c) is every identifier and
+argument complete and well-formed. Only after those pass does "the data
+isn't there" become a hypothesis — and stating it is governed by
+`00-critical.md` § "An empty or sparse tool result" (the store side of this
+same seam). Structural backstop: the `empty-result-stderr-guard` hook flags
+any `2>/dev/null` command that returned empty stdout.
 
 ## Reviews are collaborators, not gates to survive
 
