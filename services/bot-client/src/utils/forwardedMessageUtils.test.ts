@@ -16,7 +16,6 @@ import {
   extractForwardedContent,
   extractForwardedAttachments,
   extractAllForwardedContent,
-  hasForwardedContent,
   hasForwardedVoiceAttachment,
   hasVoiceAttachments,
   getEffectiveContent,
@@ -422,97 +421,6 @@ describe('forwardedMessageUtils', () => {
       expect(result.embeds).toHaveLength(1);
       expect(result.fromSnapshot).toBe(false);
       expect(result.originalMessageId).toBe('original-456');
-    });
-  });
-
-  describe('hasForwardedContent', () => {
-    it('should return true when forwarded message has text content', () => {
-      const message = createMockMessage({
-        referenceType: MessageReferenceType.Forward,
-        snapshots: [{ content: 'Some content' }],
-      });
-
-      expect(hasForwardedContent(message)).toBe(true);
-    });
-
-    it('should return true when forwarded message has only attachments', () => {
-      const message = createMockMessage({
-        referenceType: MessageReferenceType.Forward,
-        snapshots: [
-          {
-            content: '',
-            attachments: [{ url: 'https://cdn.discord.com/image.png' }],
-          },
-        ],
-      });
-
-      expect(hasForwardedContent(message)).toBe(true);
-    });
-
-    it('should return true when forwarded message has only embeds', () => {
-      const message = createMockMessage({
-        referenceType: MessageReferenceType.Forward,
-        snapshots: [
-          {
-            content: '',
-            embeds: [{ title: 'Embed' }],
-          },
-        ],
-      });
-
-      expect(hasForwardedContent(message)).toBe(true);
-    });
-
-    it('should return false for non-forwarded message', () => {
-      const message = createMockMessage({
-        content: 'Regular message',
-      });
-
-      expect(hasForwardedContent(message)).toBe(false);
-    });
-
-    it('should return true when forwarded message has main content but no snapshots', () => {
-      // Edge case: forwarded with no snapshots falls back to main content
-      const message = createMockMessage({
-        referenceType: MessageReferenceType.Forward,
-        content: 'Fallback content',
-      });
-
-      expect(hasForwardedContent(message)).toBe(true);
-    });
-
-    it('returns true for a Lottie-sticker-only forward (no raster attachment to count)', () => {
-      // The attachment walk carries only RASTERIZABLE stickers; a Lottie-only
-      // forward has empty content, no attachments, no embeds — the direct
-      // sticker check is what keeps it from being dropped as empty.
-      const message = createMockMessage({
-        referenceType: MessageReferenceType.Forward,
-        snapshots: [
-          {
-            content: '',
-            stickers: [
-              { id: '88', name: 'wave', format: 3, url: 'https://cdn.discordapp.com/88.json' },
-            ],
-          },
-        ],
-      });
-
-      expect(hasForwardedContent(message)).toBe(true);
-    });
-
-    it('returns true for a sticker-only forward on the no-snapshot fallback path', () => {
-      // When Discord doesn't populate snapshots, the fallback reads the main
-      // message — which carries no sticker in its attachments/content/embeds
-      // either, so only the direct sticker check sees it.
-      const message = createMockMessage({
-        referenceType: MessageReferenceType.Forward,
-        content: '',
-        stickers: [
-          { id: '77', name: 'shipit', format: 1, url: 'https://cdn.discordapp.com/77.png' },
-        ],
-      });
-
-      expect(hasForwardedContent(message)).toBe(true);
     });
   });
 
