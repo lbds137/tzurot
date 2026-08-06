@@ -176,7 +176,8 @@ describe('rotateByokKey', () => {
   it('stage 1 happy path: PREVIOUS has NEVER existed on Railway (first rotation ever)', async () => {
     // Regression pin: the variable is absent from `railway variables --json`
     // entirely before the first rotation — absent must read as unset, not
-    // throw. (The round-1 window-guard fix crashed here.)
+    // throw — the window guard must treat a missing key as "no previous key"
+    // rather than dereferencing it.
     stubRailwayVars({ API_KEY_ENCRYPTION_KEY: KEY_A_HEX });
 
     await expect(rotateByokKey({ env: 'dev', stage: '1' })).resolves.toBeUndefined();

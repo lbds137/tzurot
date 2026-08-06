@@ -22,8 +22,9 @@ const llmResolver = (
 
 // Mirrors the REAL ResolvedVisionConfig contract: explicit params arrive
 // NESTED on `params` (picked at resolution time by VisionConfigResolver via
-// pickVisionTierParams), never as flat sampling fields — the round-1 review
-// caught the double drifting from the real shape and hiding a dead feature.
+// pickVisionTierParams), never as flat sampling fields. A double that
+// flattens them diverges from the production shape, so every test built on it
+// keeps passing while the behaviour it claims to cover is dead.
 const visionResolver = (
   model: string,
   source: string,

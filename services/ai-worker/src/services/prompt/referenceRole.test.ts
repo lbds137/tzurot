@@ -69,8 +69,8 @@ describe('deriveRefRole', () => {
 
   it('fallback: own line under a stored-name variant resolves to assistant, not character', () => {
     // Mirror of the stamped self-variant pin with NO stamp — the fallback must
-    // route through the same self-variant guard (round-2 review catch: it
-    // previously matched the bare set entry and misread the persona's own line).
+    // route through the same self-variant guard. Matching the bare set entry
+    // instead misreads the persona's own line as a character line.
     expect(
       deriveRefRole(
         undefined,

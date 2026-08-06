@@ -266,6 +266,52 @@ describe('generateSchema', () => {
       expect(content).toContain('ALTER TABLE "t" ADD CONSTRAINT "c" CHECK ("n" > 0);');
     });
 
+    // A `$word$`-shaped run inside an ordinary string literal looks exactly
+    // like a dollar-quote tag to the scanner. Treating an unmatched one as a
+    // span running to end-of-file does not delete the tail — it is copied
+    // through verbatim — but it does stop comment-stripping for the rest of
+    // the file, and an unstripped comment containing a `;` then splits the
+    // statement after it, which IS how the constraint gets lost. The trailing
+    // comment below is therefore load-bearing: without it the bug is inert.
+    it('does not swallow the rest of the file on an unmatched dollar-tag', async () => {
+      mockMigrations({
+        '20251127110000_dollar_lookalike': `
+          ALTER TABLE "t" ADD CONSTRAINT "before_tag" CHECK ("a" > 0);
+          ALTER TABLE "t" ALTER COLUMN "note" SET DEFAULT '$money$';
+          /* retires the old one; a new one follows */
+          ALTER TABLE "t" ADD CONSTRAINT "after_tag" CHECK ("b" > 0);
+        `,
+      });
+
+      const { generateSchema } = await import('./generate-schema.js');
+      await generateSchema();
+
+      const [, content] = fsMock.writeFileSync.mock.calls[0] as [string, string];
+      expect(content).toContain('ALTER TABLE "t" ADD CONSTRAINT "before_tag" CHECK ("a" > 0);');
+      // The one that a swallow-to-EOF scanner loses.
+      expect(content).toContain('ALTER TABLE "t" ADD CONSTRAINT "after_tag" CHECK ("b" > 0);');
+    });
+
+    // Postgres block comments NEST, so the whole `/* a /* b */ c */` span is
+    // one comment. Closing at the FIRST `*/` leaves ` c */` behind as live
+    // SQL, which then splits the following statement on the comment's own
+    // text and drops the constraint.
+    it('treats a nested block comment as one span', async () => {
+      mockMigrations({
+        '20251127110000_nested_block': `
+          /* outer prologue /* inner note; with a semicolon */ still commented; */
+          ALTER TABLE "t" ADD CONSTRAINT "nested_ok" CHECK ("n" > 0);
+        `,
+      });
+
+      const { generateSchema } = await import('./generate-schema.js');
+      await generateSchema();
+
+      const [, content] = fsMock.writeFileSync.mock.calls[0] as [string, string];
+      expect(content).toContain('ALTER TABLE "t" ADD CONSTRAINT "nested_ok" CHECK ("n" > 0);');
+      expect(content).not.toContain('still commented');
+    });
+
     // Realistic "same name appears twice" shape: migration B drops the
     // constraint, then re-adds it with a different expression. Without the
     // dedup, both ADDs would land in the output and PGLite would reject the
@@ -812,6 +858,268 @@ describe('generateSchema', () => {
 
       const [, content] = fsMock.writeFileSync.mock.calls[0] as [string, string];
       expect(content).not.toContain('doomed_trigger');
+    });
+
+    // Comment stripping must not reach inside a dollar-quoted body. A plpgsql
+    // body's own string literals are arbitrary text: a URL or example string
+    // containing `--` would otherwise have the rest of that line deleted,
+    // silently corrupting the harvested function — and a corrupted or missing
+    // trigger means component tests stop exercising production behaviour
+    // while still passing.
+    it('keeps a `--` inside a dollar-quoted string literal intact', async () => {
+      mockMigrations({
+        '20260101000000_url_in_body': `
+          CREATE FUNCTION note_source() RETURNS trigger AS $$
+          BEGIN
+            NEW.source := 'https://example.test/a--b';
+            RETURN NEW;
+          END;
+          $$ LANGUAGE plpgsql;
+        `,
+      });
+
+      const { generateSchema } = await import('./generate-schema.js');
+      await generateSchema();
+
+      const [, content] = fsMock.writeFileSync.mock.calls[0] as [string, string];
+      expect(content).toContain("NEW.source := 'https://example.test/a--b';");
+      // The statement after the truncated line must survive too — blind
+      // stripping eats it along with the rest of the line.
+      expect(content).toContain('RETURN NEW;');
+      expect(content).toContain('LANGUAGE plpgsql;');
+    });
+
+    it('keeps a `/*` inside a dollar-quoted body from swallowing later statements', async () => {
+      // A `/*` inside a body is not a comment opener at all — but a blind
+      // block-comment strip reads it as one and deletes everything up to the
+      // next `*/`, gutting the body in between.
+      mockMigrations({
+        '20260101000000_glob_in_body': `
+          CREATE FUNCTION glob_note() RETURNS trigger AS $$
+          BEGIN
+            NEW.pattern := 'src/*.ts';
+            NEW.other := 'a*/b';
+            RETURN NEW;
+          END;
+          $$ LANGUAGE plpgsql;
+          CREATE TRIGGER glob_note_trigger AFTER UPDATE ON "users" FOR EACH ROW EXECUTE FUNCTION glob_note();
+        `,
+      });
+
+      const { generateSchema } = await import('./generate-schema.js');
+      await generateSchema();
+
+      const [, content] = fsMock.writeFileSync.mock.calls[0] as [string, string];
+      expect(content).toContain("NEW.pattern := 'src/*.ts';");
+      expect(content).toContain("NEW.other := 'a*/b';");
+      expect(content).toContain('CREATE TRIGGER glob_note_trigger');
+    });
+
+    it('leaves a $tag$-quoted span alone when stripping comments around it', async () => {
+      // The custom-tag form ($tag$…$tag$) is equally valid plpgsql quoting.
+      // (CREATE_FUNCTION_REGEX itself only recognises the bare `$$` form, so
+      // this pins the STRIPPER's behaviour: a `/*` inside the tagged span
+      // must not pair with a real block comment further down the file and
+      // swallow the trigger between them.)
+      mockMigrations({
+        '20260101000000_tagged_body': `
+          CREATE FUNCTION tagged_note() RETURNS trigger AS $body$
+          BEGIN
+            NEW.pattern := 'src/*.ts';
+            RETURN NEW;
+          END;
+          $body$ LANGUAGE plpgsql;
+          CREATE TRIGGER tagged_note_trigger AFTER UPDATE ON "users" /* deferred */ FOR EACH ROW EXECUTE FUNCTION tagged_note();
+        `,
+      });
+
+      const { generateSchema } = await import('./generate-schema.js');
+      await generateSchema();
+
+      const [, content] = fsMock.writeFileSync.mock.calls[0] as [string, string];
+      expect(content).toContain('CREATE TRIGGER tagged_note_trigger');
+    });
+
+    it('still strips a real `--` comment OUTSIDE any dollar-quoted body', async () => {
+      // The dollar-quote awareness must not turn the stripper off wholesale:
+      // a genuine comment mentioning CREATE TRIGGER would otherwise be
+      // harvested as if it were DDL.
+      mockMigrations({
+        '20260101000000_commented': `
+          -- CREATE TRIGGER commented_out AFTER DELETE ON "users" FOR EACH ROW EXECUTE FUNCTION f();
+          CREATE TRIGGER real_trigger AFTER DELETE ON "users" FOR EACH ROW EXECUTE FUNCTION f();
+        `,
+      });
+
+      const { generateSchema } = await import('./generate-schema.js');
+      await generateSchema();
+
+      const [, content] = fsMock.writeFileSync.mock.calls[0] as [string, string];
+      expect(content).toContain('CREATE TRIGGER real_trigger');
+      expect(content).not.toContain('commented_out');
+    });
+  });
+
+  describe('dedup scoping (table + name)', () => {
+    function mockMigrations(migrations: Record<string, string>): void {
+      fsMock.existsSync.mockImplementation((path: string) => {
+        if (path.endsWith('prisma/migrations')) return true;
+        for (const name of Object.keys(migrations)) {
+          if (path.endsWith(`${name}/migration.sql`)) return true;
+        }
+        return false;
+      });
+      fsMock.readdirSync.mockImplementation(() =>
+        Object.keys(migrations).map(name => ({
+          name,
+          isDirectory: () => true,
+        }))
+      );
+      fsMock.readFileSync.mockImplementation((path: string) => {
+        for (const [name, sql] of Object.entries(migrations)) {
+          if (path.endsWith(`${name}/migration.sql`)) return sql;
+        }
+        return '';
+      });
+    }
+
+    // Postgres scopes constraint names to their table, so a hand-written
+    // migration may legitimately use the same bare name on two tables.
+    // Keying the dedup on the name alone collapses the pair to ONE statement
+    // and silently drops the other from the generated schema.
+    it('keeps same-named CHECK constraints on two different tables', async () => {
+      mockMigrations({
+        '20260101000000_two_tables': `
+          ALTER TABLE "a" ADD CONSTRAINT "valid_range" CHECK ("n" > 0);
+          ALTER TABLE "b" ADD CONSTRAINT "valid_range" CHECK ("m" > 10);
+        `,
+      });
+
+      const { generateSchema } = await import('./generate-schema.js');
+      await generateSchema();
+
+      const [, content] = fsMock.writeFileSync.mock.calls[0] as [string, string];
+      expect(content).toContain('ALTER TABLE "a" ADD CONSTRAINT "valid_range" CHECK ("n" > 0);');
+      expect(content).toContain('ALTER TABLE "b" ADD CONSTRAINT "valid_range" CHECK ("m" > 10);');
+    });
+
+    it('drops a CHECK on one table without disturbing the same name on another', async () => {
+      mockMigrations({
+        '20260101000000_add': `
+          ALTER TABLE "a" ADD CONSTRAINT "valid_range" CHECK ("n" > 0);
+          ALTER TABLE "b" ADD CONSTRAINT "valid_range" CHECK ("m" > 10);
+        `,
+        '20260102000000_drop_a': 'ALTER TABLE "a" DROP CONSTRAINT "valid_range";',
+      });
+
+      const { generateSchema } = await import('./generate-schema.js');
+      await generateSchema();
+
+      const [, content] = fsMock.writeFileSync.mock.calls[0] as [string, string];
+      expect(content).not.toContain('ALTER TABLE "a" ADD CONSTRAINT "valid_range"');
+      expect(content).toContain('ALTER TABLE "b" ADD CONSTRAINT "valid_range" CHECK ("m" > 10);');
+    });
+
+    it('keeps same-named DEFERRABLE constraints on two different tables', async () => {
+      mockMigrations({
+        '20260101000000_two_tables': `
+          ALTER TABLE "a" ALTER CONSTRAINT "shared_fkey" DEFERRABLE INITIALLY IMMEDIATE;
+          ALTER TABLE "b" ALTER CONSTRAINT "shared_fkey" DEFERRABLE INITIALLY DEFERRED;
+        `,
+      });
+
+      const { generateSchema } = await import('./generate-schema.js');
+      await generateSchema();
+
+      const [, content] = fsMock.writeFileSync.mock.calls[0] as [string, string];
+      expect(content).toContain(
+        'ALTER TABLE "a" ALTER CONSTRAINT "shared_fkey" DEFERRABLE INITIALLY IMMEDIATE;'
+      );
+      expect(content).toContain(
+        'ALTER TABLE "b" ALTER CONSTRAINT "shared_fkey" DEFERRABLE INITIALLY DEFERRED;'
+      );
+    });
+
+    // Index names are unique per SCHEMA in Postgres (and `DROP INDEX` names no
+    // table at all), so the index harvest stays keyed on the name alone —
+    // last-wins across tables is the correct behaviour there, not a bug.
+    it('still last-wins partial-unique indexes by name alone across tables', async () => {
+      mockMigrations({
+        '20260101000000_first': 'CREATE UNIQUE INDEX "u" ON "a"("kind") WHERE "x" = true;',
+        '20260102000000_second': `
+          DROP INDEX "u";
+          CREATE UNIQUE INDEX "u" ON "b"("kind") WHERE "y" = true;
+        `,
+      });
+
+      const { generateSchema } = await import('./generate-schema.js');
+      await generateSchema();
+
+      const [, content] = fsMock.writeFileSync.mock.calls[0] as [string, string];
+      const matches = content.match(/CREATE UNIQUE INDEX "u"/g) ?? [];
+      expect(matches).toHaveLength(1);
+      expect(content).toContain('CREATE UNIQUE INDEX "u" ON "b"("kind") WHERE "y" = true;');
+    });
+
+    // Trigger names follow the CONSTRAINT rule, not the index rule: they are
+    // unique per table, so a repeated convention name on two tables must not
+    // collapse.
+    it('keeps same-named triggers on two different tables', async () => {
+      mockMigrations({
+        '20260101000000_two_tables': `
+          CREATE TRIGGER set_updated_at AFTER UPDATE ON "a" FOR EACH ROW EXECUTE FUNCTION f();
+          CREATE TRIGGER set_updated_at AFTER UPDATE ON "b" FOR EACH ROW EXECUTE FUNCTION f();
+        `,
+      });
+
+      const { generateSchema } = await import('./generate-schema.js');
+      await generateSchema();
+
+      const [, content] = fsMock.writeFileSync.mock.calls[0] as [string, string];
+      expect(content).toContain('CREATE TRIGGER set_updated_at AFTER UPDATE ON "a"');
+      expect(content).toContain('CREATE TRIGGER set_updated_at AFTER UPDATE ON "b"');
+    });
+
+    // The table is quoted in Prisma-generated statements and bare in the
+    // hand-written cache-invalidation migrations — and the two forms are
+    // mixed across a single trigger's own DROP/CREATE pair. If the harvest
+    // keyed on the quoting rather than the identifier, this drop would no
+    // longer match its add and the retired trigger would survive.
+    it('pairs a bare-table DROP TRIGGER with a quoted-table CREATE TRIGGER', async () => {
+      mockMigrations({
+        '20260101000000_create': `
+          CREATE TRIGGER t_cache AFTER UPDATE ON "personalities" FOR EACH ROW EXECUTE FUNCTION f();
+        `,
+        '20260102000000_retire': 'DROP TRIGGER IF EXISTS t_cache ON personalities;',
+      });
+
+      const { generateSchema } = await import('./generate-schema.js');
+      await generateSchema();
+
+      const [, content] = fsMock.writeFileSync.mock.calls[0] as [string, string];
+      expect(content).not.toContain('CREATE TRIGGER t_cache');
+    });
+
+    // The multi-line, unquoted-table shape the cache-invalidation migrations
+    // actually use — the timing clause spans lines and carries no `ON` of its
+    // own, so the first `ON` is the table's.
+    it('captures the table from a multi-line unquoted CREATE TRIGGER', async () => {
+      mockMigrations({
+        '20260101000000_multiline': `
+          CREATE TRIGGER t_multi
+            AFTER INSERT OR UPDATE OR DELETE ON personality_default_configs
+            FOR EACH ROW
+            EXECUTE FUNCTION notify();
+        `,
+        '20260102000000_retire_other_table': 'DROP TRIGGER IF EXISTS t_multi ON some_other_table;',
+      });
+
+      const { generateSchema } = await import('./generate-schema.js');
+      await generateSchema();
+
+      const [, content] = fsMock.writeFileSync.mock.calls[0] as [string, string];
+      // The drop targets a DIFFERENT table, so it must not retire this one.
+      expect(content).toContain('CREATE TRIGGER t_multi');
     });
   });
 

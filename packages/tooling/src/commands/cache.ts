@@ -7,7 +7,7 @@
 import type { CAC } from 'cac';
 
 import { validateEnvironment, type Environment } from '../utils/env-runner.js';
-import { rawOptionValue } from '../utils/cli-args.js';
+import { rawOptionValue, parseIntFlag } from '../utils/cli-args.js';
 
 /**
  * Upper bound on `cache:prefix-diff --limit` (pair count).
@@ -19,6 +19,13 @@ import { rawOptionValue } from '../utils/cli-args.js';
  * and the run dies mid-transfer instead of producing a diff.
  */
 const PREFIX_DIFF_MAX_PAIRS = 100;
+
+/**
+ * Default `cache:prefix-diff --limit`. Named so the cac option default and
+ * the post-parse fallback cannot drift apart — cac always supplies the
+ * default, but `parseIntFlag` is typed to allow an absent flag.
+ */
+const PREFIX_DIFF_DEFAULT_PAIRS = 5;
 
 export function registerCacheCommands(cli: CAC): void {
   cli.command('cache:inspect', 'Inspect Turborepo cache size and status').action(async () => {
@@ -43,7 +50,7 @@ export function registerCacheCommands(cli: CAC): void {
     .option('--channel <channelId>', 'Discord channel to trace (snowflake)')
     .option('--personality <uuid>', 'Restrict to one personality')
     .option('--limit <pairs>', `Consecutive pairs to compare (max ${PREFIX_DIFF_MAX_PAIRS})`, {
-      default: 5,
+      default: PREFIX_DIFF_DEFAULT_PAIRS,
     })
     .example('ops cache:prefix-diff --env dev --channel 123456789012345678')
     .example('ops cache:prefix-diff --env prod --channel 123456789012345678 --limit 10')
@@ -55,15 +62,9 @@ export function registerCacheCommands(cli: CAC): void {
       if (channelId === undefined || channelId.length === 0) {
         throw new Error('--channel is required (Discord channel snowflake)');
       }
-      const limit = Number(options.limit);
-      if (!Number.isInteger(limit) || limit < 1) {
-        throw new Error(`--limit must be a positive integer, got: ${String(options.limit)}`);
-      }
-      if (limit > PREFIX_DIFF_MAX_PAIRS) {
-        throw new Error(
-          `--limit must be at most ${PREFIX_DIFF_MAX_PAIRS}, got: ${String(options.limit)}`
-        );
-      }
+      const limit =
+        parseIntFlag(options.limit, '--limit', { min: 1, max: PREFIX_DIFF_MAX_PAIRS }) ??
+        PREFIX_DIFF_DEFAULT_PAIRS;
       const { runPrefixDiff } = await import('../cache/prefix-diff.js');
       await runPrefixDiff({
         env: options.env as Environment,
