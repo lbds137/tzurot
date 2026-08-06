@@ -1,10 +1,10 @@
 ---
 id: TASK-279
 title: Rename MemoryActionTokenService → ActionTokenService
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-07-15 00:00'
-updated_date: '2026-07-28 10:51'
+updated_date: '2026-08-06 08:58'
 labels:
   - 'area:api-gateway'
   - 'size:S'

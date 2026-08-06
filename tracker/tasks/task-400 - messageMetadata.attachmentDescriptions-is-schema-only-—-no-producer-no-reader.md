@@ -1,10 +1,10 @@
 ---
 id: TASK-400
 title: 'messageMetadata.attachmentDescriptions is schema-only — no producer, no reader'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-02 14:34'
-updated_date: '2026-08-02 14:34'
+updated_date: '2026-08-06 08:58'
 labels:
   - 'area:common-types'
   - 'size:S'
