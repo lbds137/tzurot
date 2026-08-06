@@ -538,7 +538,7 @@ jobs:
   # by the real Railway deploy the merge triggers — post-merge is too late: a
   # shell-form CMD typo or a turbo-prune/COPY drift ships broken and takes
   # the service down at deploy time. Each leg builds only when its Dockerfile
-  # or its build-input config changes, so most PRs skip all four. No layer
+  # or its build-input config changes, so most PRs skip every leg. No layer
   # caching for now — the trigger is rare enough that a cold build per firing
   # is cheaper than carrying cache plumbing.
   docker-build-smoke:

@@ -1,43 +1,21 @@
 {
-  "name": "Solo Developer Branch Protection",
+  "name": "Develop Branch Protection",
   "target": "branch",
   "enforcement": "active",
   "conditions": {
     "ref_name": {
       "exclude": [],
-      "include": ["~DEFAULT_BRANCH"]
+      "include": ["refs/heads/develop"]
     }
   },
-  "bypass_actors": [],
+  "bypass_actors": [
+    {
+      "actor_id": 5,
+      "actor_type": "RepositoryRole",
+      "bypass_mode": "always"
+    }
+  ],
   "rules": [
-    {
-      "type": "pull_request",
-      "parameters": {
-        "required_approving_review_count": 0,
-        "dismiss_stale_reviews_on_push": false,
-        "required_reviewers": [],
-        "require_code_owner_review": false,
-        "require_last_push_approval": false,
-        "required_review_thread_resolution": false,
-        "allowed_merge_methods": ["rebase"]
-      }
-    },
-    {
-      "type": "non_fast_forward"
-    },
-    {
-      "type": "deletion"
-    },
-    {
-      "type": "required_linear_history"
-    },
-    {
-      "type": "copilot_code_review",
-      "parameters": {
-        "review_on_push": true,
-        "review_draft_pull_requests": false
-      }
-    },
     {
       "type": "required_status_checks",
       "parameters": {
@@ -79,8 +57,29 @@
           },
           {
             "context": "mutation-tests"
+          },
+          {
+            "context": "fixup-check"
           }
         ]
+      }
+    },
+    {
+      "type": "deletion"
+    },
+    {
+      "type": "required_linear_history"
+    },
+    {
+      "type": "pull_request",
+      "parameters": {
+        "required_approving_review_count": 0,
+        "dismiss_stale_reviews_on_push": false,
+        "required_reviewers": [],
+        "require_code_owner_review": false,
+        "require_last_push_approval": false,
+        "required_review_thread_resolution": false,
+        "allowed_merge_methods": ["rebase"]
       }
     }
   ]
