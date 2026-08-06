@@ -9,7 +9,7 @@
 
 Today's payload is **two messages**: one `SystemMessage` containing *everything* (identity, constraints, datetime, RAG memories, references, and ALL conversation history as `<chat_log>` XML) + one `HumanMessage` (current turn). Consequences:
 
-1. **Zero cache hits, by construction and by intent.** The volatile `<context>` block (datetime + a deliberate `<request_id>` cache-buster, `PromptBuilder.ts:229`) renders at position 4 of 10 — every byte after it, including the fully static protocol/output-constraints tail, is downstream of per-request entropy. A second deliberate anti-cache measure (`historyReductionPercent`, `ContentBudgetManager.ts:243`) shrinks history on retries. Relative-timestamp suffixes (`t="… • 2 weeks ago"`) drift even frozen history bytes. Spend is input-token-dominated (the fact that killed the 402 max_tokens idea) — caching is the highest-leverage cost lever, and we are structurally locked out of it.
+1. **Zero cache hits, by construction and by intent.** The volatile `<context>` block (datetime + a deliberate `<request_id>` cache-buster, `PromptBuilder.ts:229`) renders at position 4 of 10 — every byte after it, including the fully static protocol/output-constraints tail, is downstream of per-request entropy. A second deliberate anti-cache measure (`historyReductionPercent`, `ContentBudgetManager.ts:243`) shrinks history on retries. Relative-timestamp suffixes (`t="… • 2 weeks ago"`) drift even frozen history bytes. _(Both were fixed in Phase 0: `historyReductionPercent` was deleted in `e6456349a`, and chat-log timestamps are absolute-only — see the Phase-0 row in §6. This paragraph describes the pre-Phase-0 system and is kept as the problem statement.)_ Spend is input-token-dominated (the fact that killed the 402 max_tokens idea) — caching is the highest-leverage cost lever, and we are structurally locked out of it.
 2. **Agentic is unreachable from this shape.** Tool loops require history as discrete messages with structural `AIMessage.tool_calls[i].id ↔ ToolMessage.tool_call_id` pairing (LangGraph recon §5); a serialized string cannot carry it, and it opts out of checkpointing/persistence/trimming middleware entirely. Current tool readiness is zero: the (unused-in-main-path) history converter misfiles `tool` roles as Human messages; `AIMessage`s are built from plain strings.
 3. **Assorted structural debt**: references duplicated in both messages; a dead-code o-series system→user rewrite with destructive behavior (§2.6); the prompt is one string concatenation with no partition seam.
 
@@ -84,6 +84,29 @@ The parked idea targeted `<chat_log>` XML attributes; the shape changed, the pri
 
 Prefix caching means **dropping the oldest message invalidates everything after it** — a rolling window that slides every turn defeats breakpoint B perpetually. Policy: **chunked eviction with hysteresis** — when the history budget is exceeded, evict down to ~75% of budget in one cut (oldest-first, as today), then let the window refill. The prefix is then stable for many turns between slides; each slide costs one miss. Invariants (council): eviction cuts on message boundaries only; a **minimum-message floor** (never evict below N messages — a small budget must not strip the persona of scene context); tool-call/tool-result pairs evict **atomically** (an orphaned `tool_calls` without its result is a provider error — forward-compat invariant for #4). Note the average-context trade honestly: the window oscillates 75–100% of budget (vs a per-turn slider's constant 100%), i.e. slightly less average context bought for prefix stability — and any message lost to a chunk cut would have left the window within a few turns under sliding anyway. Epoch resets (`/history clear`), heal-on-read corrections, and message edits are accepted single-miss events (history is ephemeral by design — the cache must tolerate rewrites, never prevent them).
 
+#### 2.5.1 Trimming is DORMANT in production — measured, not assumed
+
+Everything above describes what to do *when the history budget is exceeded*. Measured against prod: **it never is, today.** Across 89 consecutive requests in a 24-hour window, `historyMessagesDropped` was **0 on every one**, and every request classified into the hard-cap branch with **≥21,100 tokens of headroom** before trimming could begin.
+
+That is a property of the budget's shape, not luck. Trimming happens **only** when `memoryReserve` is pinned at its contention floor; in the other two branches the budget provably covers all fetched history. Reconstructing the budgeting inputs from the diagnostic payload (`base = systemPromptTokens − historyTokensUsed`, `cur = currentMessageTokens − memoryTokensUsed − factTokensUsed` — valid precisely *because* nothing was dropped):
+
+| observed (24h, n=89) | value |
+| -------------------- | ----- |
+| requests that dropped history | **0** |
+| branch classification | 89/89 hard-capped |
+| tightest headroom to the trimming branch | 21,100 tokens |
+| tightest config | `W`=64,000, base 6,361 — trimming begins at ~48,363 tokens of history |
+
+**Dormant is not impossible.** At the tightest observed config, trimming begins at roughly **484 tokens/message across a 100-message window** — and 100 is reachable (`limit = min(maxMessages ?? 50, 100)`; 50 is only the default). The realistic path there is attachment-heavy conversation: Discord permits **up to 10 attachments per message**, each contributing a vision description to the rendered entry, so worst-case entries sit an order of magnitude above the mean rather than a small multiple of it.
+
+**Consequences for Phase 2:**
+
+1. **Do not build window-start quantization/hysteresis speculatively.** The `historyBudget` recomputation genuinely has no stability mechanism — no floor, no quantization, no memory of the prior turn's boundary — so the window start *can* move on a budget-number change alone. But with zero trimming events there is nothing to tune against, and any scheme would be fitted to imagined data.
+2. **Build §2.5's chunked eviction as specified.** When trimming does begin it will begin in attachment-heavy threads, which is exactly where per-turn sliding is most wasteful (each slide evicting the largest entries).
+3. **Watch `historyMessagesDropped > 0`.** It is already recorded per request and needs no new instrumentation. It is also the *only* robust trigger here: every attempt to model rendered per-entry size during this analysis was wrong (see TASK-370 — the cached `tokenCount` understates rendered size by 60–87%, and no stored field equals the rendered form). The drop counter requires no such model.
+
+Provider economics, verified against first-party docs, temper the urgency: a shifted window costs **forfeited discount only** on implicit-caching routes (z.ai — our dominant route — plus Gemini and pre-5.6 OpenAI, where cache writes are free). Only explicit routes (Anthropic, Qwen) charge a write premium, making an unread write **more expensive than not caching at all** — so `cache_control` should not be set on a route whose window is unstable. Break-even on Anthropic's 5-minute tier is a single read (1.25× write + 0.1× read = 1.35 vs 2.00 uncached); the 1-hour tier needs two.
+
 ### 2.6 Reasoning-model rewrite: DELETED, not fixed (fact-check outcome)
 
 The draft planned to fix the system→user rewrite with a `developer`-role message. Fact verification (2026-07-05, OpenAI first-party docs) dissolved the problem: **the entire o-series is deprecated** (o1 → o4-mini, all marked deprecated; current reasoning lineup is GPT-5.4/5.5 with effort levels) and **no current OpenAI model rejects the `system` role** — Chat Completions accepts both `system` and `developer` API-wide, with system treated as developer for reasoning models. The transform (`transformMessagesForReasoningModel` + the stale `/^(openai\/)?o[13]…/` gate) is dead code guarding against dead models, with destructive behavior (content-part flattening, silent system-content drops) as its only remaining effect. **Delete it** (Phase 0). Reasoning-effort config plumbing is unaffected and stays.
@@ -113,8 +136,8 @@ Every completion records the verified OpenRouter usage fields — `usage.prompt_
 ## 3. What gets deleted
 
 - `<request_id>` buster (`PromptBuilder.ts:229`) — verify-and-remove (theme Phase 1; hypothesis: prefix caching affects billing, not sampling — repetition won't return; if it does, root-cause via sampling params, never re-add entropy).
-- `historyReductionPercent` retry shrink (`ContentBudgetManager.ts:243`) — same verify-and-remove treatment, same rationale.
-- Relative-timestamp suffixes inside history (absolute-only; §2.3).
+- `historyReductionPercent` retry shrink (`ContentBudgetManager.ts:243`) — same verify-and-remove treatment, same rationale. **✅ DONE — deleted in `e6456349a`; zero references remain in `services/` or `packages/`.** A non-reintroduction note survives at `duplicateDetection.ts:128`.
+- Relative-timestamp suffixes inside history (absolute-only; §2.3). **✅ DONE** — `conversationUtils.ts:109-117` carries the rationale at the code.
 - References duplication (§2.2) + `<contextual_references>` for in-window targets (§2.4).
 - The o-series transform itself, entirely (§2.6) — dead code for dead models.
 
