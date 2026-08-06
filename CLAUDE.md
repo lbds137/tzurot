@@ -85,6 +85,7 @@ When compacting context, preserve:
 - **Open promises and asks**: anything announced as "I'll do X later," any unanswered question posed to the user, any user question not yet answered
 - **The work-stack pointer**: the interrupted task and its resume point when a side-quest (prod bug, review round) preempted the main line
 - **Manual-test / smoke-checklist state**: which items the user has executed and their results (also written to CURRENT.md per `/tzurot-testing` — the file is the source of truth)
+- **Live `Monitor` task ids for open PRs**: they cannot be looked up afterwards (`TaskList` does not enumerate background monitors), and losing one re-stacks watchers on the next push — see `05-tooling.md` § PR Monitoring
 - Re-read `.claude/rules/` files after compaction
 - **Read-state does not survive compaction**: Edit/Write requires a fresh Read of any file post-compaction — and auto-loaded content (rules, CLAUDE.md, CURRENT.md, backlog injections) never counts as Read for editing purposes; Read the file first or the edit is rejected
 
