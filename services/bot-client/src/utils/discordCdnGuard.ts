@@ -13,6 +13,7 @@ const DISCORD_CDN_HOSTS = ['cdn.discordapp.com', 'media.discordapp.net'];
 export type DiscordCdnGuardResult =
   | { ok: true; hostname: string }
   | { ok: false; reason: 'invalid-url' }
+  | { ok: false; reason: 'non-https' }
   | { ok: false; reason: 'unexpected-host'; rawHost: string };
 
 /**
@@ -33,7 +34,7 @@ export function validateDiscordCdnUrl(url: string, logger?: Logger): DiscordCdnG
     return { ok: false, reason: 'invalid-url' };
   }
   if (parsed.protocol !== 'https:') {
-    return { ok: false, reason: 'invalid-url' };
+    return { ok: false, reason: 'non-https' };
   }
   const hostname = parsed.hostname;
   if (!DISCORD_CDN_HOSTS.includes(hostname)) {

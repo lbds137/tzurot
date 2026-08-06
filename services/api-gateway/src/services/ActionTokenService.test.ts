@@ -1,10 +1,10 @@
 /**
- * Tests for MemoryActionTokenService
+ * Tests for ActionTokenService
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Redis } from 'ioredis';
-import { MemoryActionTokenService } from './MemoryActionTokenService.js';
+import { ActionTokenService } from './ActionTokenService.js';
 import { REDIS_KEY_PREFIXES } from '@tzurot/common-types/constants/queue';
 import { type BatchDeletePreviewInput } from '@tzurot/common-types/schemas/api/memory';
 
@@ -16,15 +16,15 @@ function createMockRedis(): Redis {
   } as unknown as Redis;
 }
 
-describe('MemoryActionTokenService', () => {
+describe('ActionTokenService', () => {
   let redis: Redis;
-  let service: MemoryActionTokenService;
+  let service: ActionTokenService;
 
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-05-26T12:00:00.000Z'));
     redis = createMockRedis();
-    service = new MemoryActionTokenService(redis);
+    service = new ActionTokenService(redis);
   });
 
   describe('issuePreviewToken', () => {

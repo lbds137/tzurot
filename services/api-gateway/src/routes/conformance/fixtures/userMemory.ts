@@ -6,7 +6,7 @@
  * inserted directly via Prisma. The embedding column is nullable, and
  * search uses `preferTextSearch` to stay off the embedding model.
  * Token handshakes run against the harness's mock Redis — the real
- * MemoryActionTokenService path.
+ * ActionTokenService path.
  */
 
 import type { ConformanceEntry, SeedContext } from './types.js';

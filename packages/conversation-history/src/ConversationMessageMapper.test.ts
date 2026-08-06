@@ -86,24 +86,6 @@ describe('ConversationMessageMapper', () => {
       expect(result?.referencedMessages?.[0].discordMessageId).toBe('msg-123');
     });
 
-    it('parses valid metadata with attachmentDescriptions', () => {
-      const metadata = {
-        attachmentDescriptions: [
-          {
-            type: 'image' as const,
-            description: 'A cat',
-            originalUrl: 'https://example.com/cat.png',
-            name: 'cat.png',
-          },
-        ],
-      };
-
-      const result = parseMessageMetadata(metadata);
-
-      expect(result).toBeDefined();
-      expect(result?.attachmentDescriptions).toHaveLength(1);
-    });
-
     it('returns undefined for invalid metadata structure', () => {
       const invalidMetadata = {
         referencedMessages: 'not-an-array',

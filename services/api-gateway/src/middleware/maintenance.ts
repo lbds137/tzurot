@@ -22,7 +22,7 @@ import { ErrorResponses } from '../utils/errorResponses.js';
 
 /** Gateway-side maintenance message — clean JSON wording, no emojis (bot-client adds those). */
 const MAINTENANCE_MESSAGE =
-  'Tzurot is undergoing scheduled maintenance. Service will resume shortly.';
+  'The service is undergoing scheduled maintenance. It will resume shortly.';
 
 export function createMaintenanceMiddleware(flag: MaintenanceFlag): RequestHandler {
   // `_req` unused by design — the gate is request-agnostic; Express positional
