@@ -126,18 +126,27 @@ PR MONITOR REMINDER — push detected on PR #$PR_NUM
 Per .claude/rules/05-tooling.md (PR Monitoring), arm a Monitor now:
 
   FIRST: if a monitor for PR #$PR_NUM is still running from an earlier push,
-  TaskStop it. One monitor per PR — the command is not SHA-pinned, so a stale
-  watcher can fire "CI_COMPLETE" over a partially-registered check list.
+  TaskStop it. One monitor per PR — the reporting half is not SHA-pinned, so a
+  stale watcher reports the CURRENT state under an older push's label.
 
-  Monitor({
-    description: "CI + reviews for PR #$PR_NUM",
-    command: 'sleep 60; gh pr checks $PR_NUM --watch --interval=30 > /dev/null 2>&1; sleep 5; echo "CI_COMPLETE"; gh pr checks $PR_NUM',
-    timeout_ms: 900000
-  })
+  The SHA below is this push's, already resolved IN FULL — the API rejects an
+  abbreviated SHA (it matches nothing, so the gate never fires and the monitor
+  just spins to its timeout). The until-gate waits for the CI workflow RUN to
+  complete; do not swap it for a fixed 'sleep', because run creation itself can
+  lag the push by minutes (see 05-tooling.md § PR Monitoring).
+
+  Arm a Monitor with description "CI + reviews for PR #$PR_NUM", timeout_ms
+  1800000, persistent false (deliberately NOT true — a forgotten session-length
+  watcher cannot be cleaned up), and the line below as its "command" — verbatim,
+  as plain bash. The command parameter is a JSON string, and JSON does not
+  escape apostrophes, so the jq filter's single quotes need no backslashes.
+  Adding any would be a parse error at arm time, not a working command.
+
+    SHA=$SHA; until gh api "repos/{owner}/{repo}/actions/runs?head_sha=\$SHA" --jq '[.workflow_runs[]|select(.name=="CI" and .status=="completed" and .conclusion!="startup_failure")]|length' | grep -qE '^[1-9]'; do sleep 30; done; gh pr checks $PR_NUM --watch --interval=30 > /dev/null 2>&1; sleep 5; echo "CI_COMPLETE"; gh pr checks $PR_NUM
 
 When it fires:
 - Inspect \`gh pr checks $PR_NUM\` output for pass/fail summary.
-- If no "CI_COMPLETE" line appeared, the 15-min timeout fired first — re-arm.
+- If no "CI_COMPLETE" line appeared, the 30-min timeout fired first — re-arm.
 - Fetch new feedback. Conversation comments + inline code-review comments
   + review summaries live in THREE different endpoints — you need all three:
     pnpm ops gh:pr-comments $PR_NUM   # conversation + line-level
