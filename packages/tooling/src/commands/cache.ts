@@ -8,6 +8,7 @@ import type { CAC } from 'cac';
 
 import { validateEnvironment, type Environment } from '../utils/env-runner.js';
 import { rawOptionValue, parseIntFlag } from '../utils/cli-args.js';
+import { UsageError } from '../utils/errors.js';
 
 /**
  * Upper bound on `cache:prefix-diff --limit` (pair count).
@@ -60,7 +61,7 @@ export function registerCacheCommands(cli: CAC): void {
       // values and a snowflake exceeds MAX_SAFE_INTEGER (see utils/cli-args.ts).
       const channelId = rawOptionValue(process.argv, '--channel');
       if (channelId === undefined || channelId.length === 0) {
-        throw new Error('--channel is required (Discord channel snowflake)');
+        throw new UsageError('--channel is required (Discord channel snowflake)');
       }
       const limit =
         parseIntFlag(options.limit, '--limit', { min: 1, max: PREFIX_DIFF_MAX_PAIRS }) ??

@@ -6,6 +6,7 @@
 
 import type { CAC } from 'cac';
 import type { Environment } from '../utils/env-runner.js';
+import { UsageError } from '../utils/errors.js';
 
 export function registerReleaseCommands(cli: CAC): void {
   // Bump version across all package.json files
@@ -125,7 +126,7 @@ function registerPublishCommand(cli: CAC): void {
         options: { notesFile?: string; target?: string; dryRun?: boolean }
       ) => {
         if (options.notesFile === undefined || options.notesFile.length === 0) {
-          throw new Error(
+          throw new UsageError(
             '--notes-file <path> is required (prepare notes first, e.g. release:draft-notes).'
           );
         }

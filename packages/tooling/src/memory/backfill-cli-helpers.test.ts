@@ -1,16 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { parseDateRange, printDryRunPreview } from './backfill-cli-helpers.js';
+import { UsageError } from '../utils/errors.js';
 
 describe('backfill-cli-helpers', () => {
   describe('parseDateRange', () => {
-    const mockExit = vi.spyOn(process, 'exit').mockImplementation(() => undefined as never);
-    const mockConsoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
-
-    beforeEach(() => {
-      mockExit.mockClear();
-      mockConsoleError.mockClear();
-    });
-
     it('should parse valid YYYY-MM-DD dates', () => {
       const result = parseDateRange('2026-02-09', '2026-02-17');
       expect(result.fromDate).toEqual(new Date('2026-02-09'));
@@ -23,24 +16,28 @@ describe('backfill-cli-helpers', () => {
       expect(result.toDate).toEqual(new Date('2026-02-17T00:00:00Z'));
     });
 
-    it('should exit on invalid from date', () => {
-      parseDateRange('not-a-date', '2026-02-17');
-      expect(mockExit).toHaveBeenCalledWith(1);
+    // These throw rather than exit so cli.ts's top-level handler renders them
+    // as a one-line usage error. The CLASS is load-bearing, not just the
+    // message: a bare Error would fall through to the raw stack-trace path.
+    it('throws a UsageError on an invalid from date', () => {
+      expect(() => parseDateRange('not-a-date', '2026-02-17')).toThrow(UsageError);
+      expect(() => parseDateRange('not-a-date', '2026-02-17')).toThrow(
+        'Invalid date format. Use YYYY-MM-DD.'
+      );
     });
 
-    it('should exit on invalid to date', () => {
-      parseDateRange('2026-02-09', 'garbage');
-      expect(mockExit).toHaveBeenCalledWith(1);
+    it('throws a UsageError on an invalid to date', () => {
+      expect(() => parseDateRange('2026-02-09', 'garbage')).toThrow(UsageError);
     });
 
-    it('should exit when from equals to', () => {
-      parseDateRange('2026-02-09', '2026-02-09');
-      expect(mockExit).toHaveBeenCalledWith(1);
+    it('throws a UsageError when from equals to', () => {
+      expect(() => parseDateRange('2026-02-09', '2026-02-09')).toThrow(
+        '--from must be before --to'
+      );
     });
 
-    it('should exit when from is after to', () => {
-      parseDateRange('2026-02-17', '2026-02-09');
-      expect(mockExit).toHaveBeenCalledWith(1);
+    it('throws a UsageError when from is after to', () => {
+      expect(() => parseDateRange('2026-02-17', '2026-02-09')).toThrow(UsageError);
     });
   });
 

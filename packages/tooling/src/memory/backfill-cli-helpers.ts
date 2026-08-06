@@ -5,18 +5,18 @@
 
 import chalk from 'chalk';
 
+import { UsageError } from '../utils/errors.js';
+
 /** Validate and parse date range options */
 export function parseDateRange(from: string, to: string): { fromDate: Date; toDate: Date } {
   const fromDate = new Date(from);
   const toDate = new Date(to);
 
   if (isNaN(fromDate.getTime()) || isNaN(toDate.getTime())) {
-    console.error(chalk.red('Invalid date format. Use YYYY-MM-DD.'));
-    process.exit(1);
+    throw new UsageError('Invalid date format. Use YYYY-MM-DD.');
   }
   if (fromDate >= toDate) {
-    console.error(chalk.red('--from must be before --to'));
-    process.exit(1);
+    throw new UsageError('--from must be before --to');
   }
 
   return { fromDate, toDate };

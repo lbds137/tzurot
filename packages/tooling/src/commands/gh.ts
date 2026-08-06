@@ -11,31 +11,31 @@
 
 import type { CAC } from 'cac';
 
-import { parseIntFlagOrReport } from '../utils/cli-args.js';
+import { parseIntFlag } from '../utils/cli-args.js';
+import { UsageError } from '../utils/errors.js';
 
 /**
- * Parse the `<number>` positional every gh command takes. Returns the PR
- * number, or `null` if it isn't one (having already printed the error and set
- * `exitCode` — the caller returns on null).
+ * Parse the `<number>` positional every gh command takes, throwing a
+ * `UsageError` when it isn't a usable PR number.
  *
  * `parseInt('abc', 10)` is NaN, which would reach the GitHub API as a literal
  * `/pulls/NaN` path and fail with an opaque 404 rather than a usage error.
  *
- * An ABSENT value is reported here rather than passed through: `parseIntFlag`
+ * An ABSENT value throws here rather than being passed through: `parseIntFlag`
  * treats `undefined` as "flag omitted, use the default" and returns silently,
- * which is right for an optional flag and wrong for a required positional —
- * collapsing it with `?? null` would exit 0 printing nothing, the one failure
- * shape a caller checking `=== null` could not distinguish from success. cac
- * enforces the positional before the action runs, so this is belt-and-braces;
- * it exists so every `null` this returns has a printed reason.
+ * which is right for an optional flag and wrong for a required positional. cac
+ * enforces the positional before the action runs, so that branch is
+ * belt-and-braces; it exists so a missing number can never be read as a
+ * successful parse.
  */
-function parsePrNumber(raw: string | undefined): number | null {
-  if (raw === undefined) {
-    console.error('<number> is required');
-    process.exitCode = 1;
-    return null;
+function parsePrNumber(raw: string | undefined): number {
+  // `parseIntFlag` throws on a present-but-invalid value and returns undefined
+  // only for an absent one, so the single guard below covers the absent case.
+  const parsed = parseIntFlag(raw, '<number>', { min: 1 });
+  if (parsed === undefined) {
+    throw new UsageError('<number> is required');
   }
-  return parseIntFlagOrReport(raw, '<number>', { min: 1 }) ?? null;
+  return parsed;
 }
 
 function registerPrInfoCommands(cli: CAC): void {
@@ -45,7 +45,6 @@ function registerPrInfoCommands(cli: CAC): void {
     .action(async (number: string) => {
       const { getPrInfo } = await import('../gh/github-api.js');
       const prNumber = parsePrNumber(number);
-      if (prNumber === null) return;
       const pr = getPrInfo(prNumber);
       console.log(`# PR #${pr.number}: ${pr.title}\n`);
       console.log(`State: ${pr.state}`);
@@ -60,7 +59,6 @@ function registerPrInfoCommands(cli: CAC): void {
     .action(async (number: string) => {
       const { getPrReviews, formatReviews } = await import('../gh/github-api.js');
       const prNumber = parsePrNumber(number);
-      if (prNumber === null) return;
       const reviews = getPrReviews(prNumber);
       console.log(`# Reviews for PR #${prNumber}\n`);
       console.log(formatReviews(reviews));
@@ -75,7 +73,6 @@ function registerPrInfoCommands(cli: CAC): void {
     .action(async (number: string) => {
       const { getPrAllComments, formatComments } = await import('../gh/github-api.js');
       const prNumber = parsePrNumber(number);
-      if (prNumber === null) return;
       const comments = getPrAllComments(prNumber);
 
       console.log(`# Comments for PR #${prNumber}\n`);
@@ -104,7 +101,6 @@ function registerPrInfoCommands(cli: CAC): void {
     .action(async (number: string) => {
       const { getPrIssueComments, formatComments } = await import('../gh/github-api.js');
       const prNumber = parsePrNumber(number);
-      if (prNumber === null) return;
       const comments = getPrIssueComments(prNumber);
       console.log(`# Conversation for PR #${prNumber}\n`);
       console.log(formatComments(comments));
@@ -123,7 +119,6 @@ function registerPrEditCommand(cli: CAC): void {
       async (number: string, options: { title?: string; body?: string; bodyFile?: string }) => {
         const { editPr } = await import('../gh/github-api.js');
         const prNumber = parsePrNumber(number);
-        if (prNumber === null) return;
 
         let body = options.body;
         if (options.bodyFile) {
@@ -132,11 +127,7 @@ function registerPrEditCommand(cli: CAC): void {
         }
 
         if (!options.title && !body) {
-          // Soft exit, matching parsePrNumber above: process.exit() kills the
-          // process mid-event-loop, so any pending stdout write can be lost.
-          console.error('Error: Must provide --title, --body, or --body-file');
-          process.exitCode = 1;
-          return;
+          throw new UsageError('Must provide --title, --body, or --body-file');
         }
 
         const updates: { title?: string; body?: string } = {};
@@ -165,7 +156,6 @@ function registerPrAllCommand(cli: CAC): void {
         formatComments,
       } = await import('../gh/github-api.js');
       const prNumber = parsePrNumber(number);
-      if (prNumber === null) return;
 
       const pr = getPrInfo(prNumber);
       const reviews = getPrReviews(prNumber);

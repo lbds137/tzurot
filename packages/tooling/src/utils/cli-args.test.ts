@@ -1,5 +1,6 @@
-import { describe, it, expect, vi, afterEach } from 'vitest';
-import { rawOptionValue, parseIntFlag, parseIntFlagOrReport } from './cli-args.js';
+import { describe, it, expect } from 'vitest';
+import { rawOptionValue, parseIntFlag } from './cli-args.js';
+import { UsageError } from './errors.js';
 
 describe('rawOptionValue', () => {
   it('reads a space-separated flag value verbatim (no numeric coercion)', () => {
@@ -128,44 +129,16 @@ describe('parseIntFlag', () => {
     // shape check has to pass for a real `number` arrival, not just a string.
     expect(parseIntFlag(42, '--limit', { min: 1 })).toBe(42);
   });
-});
 
-describe('parseIntFlagOrReport', () => {
-  afterEach(() => {
-    vi.restoreAllMocks();
-    process.exitCode = undefined;
-  });
-
-  it('returns the parsed value and leaves exitCode alone when valid', () => {
-    const err = vi.spyOn(console, 'error').mockImplementation(() => {});
-    expect(parseIntFlagOrReport('42', '--limit', { min: 1 })).toBe(42);
-    expect(err).not.toHaveBeenCalled();
-    expect(process.exitCode).toBeUndefined();
-  });
-
-  it('distinguishes an absent flag (undefined) from an invalid one (null)', () => {
-    const err = vi.spyOn(console, 'error').mockImplementation(() => {});
-    // The distinction callers depend on: undefined means "fall back to the
-    // default", null means "abort" — collapsing them would run an invalid
-    // flag under the default.
-    expect(parseIntFlagOrReport(undefined, '--limit', { min: 1 })).toBeUndefined();
-    expect(err).not.toHaveBeenCalled();
-    expect(process.exitCode).toBeUndefined();
-
-    expect(parseIntFlagOrReport('abc', '--limit', { min: 1 })).toBeNull();
-    expect(process.exitCode).toBe(1);
-  });
-
-  it('prints the flag-named message and sets exitCode on an invalid value', () => {
-    const err = vi.spyOn(console, 'error').mockImplementation(() => {});
-    expect(parseIntFlagOrReport('0', '--count', { min: 1 })).toBeNull();
-    expect(err).toHaveBeenCalledWith('--count must be at least 1, got: 0');
-    expect(process.exitCode).toBe(1);
-  });
-
-  it('reports an out-of-range value against a ceiling', () => {
-    const err = vi.spyOn(console, 'error').mockImplementation(() => {});
-    expect(parseIntFlagOrReport('101', '--limit', { min: 1, max: 100 })).toBeNull();
-    expect(err).toHaveBeenCalledWith('--limit must be at most 100, got: 101');
+  // The CLASS is load-bearing, not just the message text: cli.ts's top-level
+  // handler keys on `UsageError` to print one line instead of a stack trace
+  // and a Node version banner, so a bare `Error` here would regress the
+  // operator-facing output while every message assertion above still passed.
+  // One case per throw branch.
+  it('throws UsageError, the tag the top-level handler renders as one line', () => {
+    expect(() => parseIntFlag('abc', '--limit', { min: 1 })).toThrow(UsageError);
+    expect(() => parseIntFlag('0', '--limit', { min: 1 })).toThrow(UsageError);
+    expect(() => parseIntFlag('101', '--limit', { min: 1, max: 100 })).toThrow(UsageError);
+    expect(() => parseIntFlag('99999999999999999999', '--limit', { min: 1 })).toThrow(UsageError);
   });
 });

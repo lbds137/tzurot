@@ -5,6 +5,7 @@
 import type { CAC } from 'cac';
 
 import { parseIntFlag } from '../utils/cli-args.js';
+import { UsageError } from '../utils/errors.js';
 
 const ENV_OPTION = '--env <env>';
 
@@ -33,12 +34,10 @@ function registerMaintenanceCommand(cli: CAC): void {
         options: { env: string; skipDrain: boolean; drainTimeout: number }
       ) => {
         if (action !== 'on' && action !== 'off' && action !== 'status') {
-          console.error('Error: action must be "on", "off", or "status"');
-          process.exit(1);
+          throw new UsageError('action must be "on", "off", or "status"');
         }
         if (options.env !== 'local' && options.env !== 'dev' && options.env !== 'prod') {
-          console.error('Error: --env must be "local", "dev", or "prod"');
-          process.exit(1);
+          throw new UsageError('--env must be "local", "dev", or "prod"');
         }
 
         const { runMaintenance } = await import('../deployment/maintenance.js');
@@ -81,8 +80,7 @@ export function registerDeployCommands(cli: CAC): void {
     .option('--yes, -y', 'Skip confirmation prompts', { default: false })
     .action(async (options: { env: string; dryRun: boolean; yes: boolean }) => {
       if (options.env !== 'dev' && options.env !== 'prod') {
-        console.error('Error: --env must be "dev" or "prod"');
-        process.exit(1);
+        throw new UsageError('--env must be "dev" or "prod"');
       }
 
       const { setupRailwayVariables } = await import('../deployment/setup-railway-variables.js');
@@ -127,8 +125,7 @@ export function registerDeployCommands(cli: CAC): void {
         follow?: boolean;
       }) => {
         if (options.env !== 'dev' && options.env !== 'prod') {
-          console.error('Error: --env must be "dev" or "prod"');
-          process.exit(1);
+          throw new UsageError('--env must be "dev" or "prod"');
         }
 
         const { fetchLogs } = await import('../deployment/logs.js');

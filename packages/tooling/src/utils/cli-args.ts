@@ -14,6 +14,8 @@
  * with this helper instead of the parsed options object.
  */
 
+import { UsageError } from './errors.js';
+
 /**
  * Read `--flag value` or `--flag=value` verbatim from an argv array.
  * Returns undefined when the flag is absent or has no value token.
@@ -57,7 +59,7 @@ export interface IntFlagRange {
  *
  * Returns `undefined` for an absent flag, so an optional flag stays optional.
  *
- * @throws Error naming the flag when the value is present but not an integer
+ * @throws UsageError naming the flag when the value is present but not an integer
  *   within `range`.
  */
 export function parseIntFlag(
@@ -79,14 +81,14 @@ export function parseIntFlag(
   const value = /^-?\d+$/.test(text) ? Number(text) : Number.NaN;
 
   if (!Number.isInteger(value)) {
-    throw new Error(`${flag} must be an integer, got: "${String(raw)}"`);
+    throw new UsageError(`${flag} must be an integer, got: "${String(raw)}"`);
   }
   // The shape check above guarantees a decimal integer STRING, but a long
   // enough one still lands on an imprecise float — `Number.isInteger` reports
   // true for it, so the value would be silently rounded. This is the shared
   // choke point for numeric CLI parsing, so it rejects rather than rounds.
   if (!Number.isSafeInteger(value)) {
-    throw new Error(
+    throw new UsageError(
       `${flag} is too large to represent exactly, got: "${String(raw)}" (max ${String(Number.MAX_SAFE_INTEGER)})`
     );
   }
@@ -94,38 +96,10 @@ export function parseIntFlag(
   // echo back what was typed, so the operator can spot the typo in their own
   // command line rather than in a normalized form they never wrote.
   if (value < range.min) {
-    throw new Error(`${flag} must be at least ${range.min}, got: ${String(raw)}`);
+    throw new UsageError(`${flag} must be at least ${range.min}, got: ${String(raw)}`);
   }
   if (range.max !== undefined && value > range.max) {
-    throw new Error(`${flag} must be at most ${range.max}, got: ${String(raw)}`);
+    throw new UsageError(`${flag} must be at most ${range.max}, got: ${String(raw)}`);
   }
   return value;
-}
-
-/**
- * `parseIntFlag` for commands that report usage errors by printing and
- * setting `exitCode` rather than throwing — the dominant convention among the
- * `ops` commands that take numeric input.
- *
- * Returns the parsed integer, `undefined` for an absent optional flag, or
- * `null` when the value was present but invalid (having already printed the
- * error and set `exitCode`). The caller returns on `null`.
- *
- * The three-way return is what lets a caller distinguish "flag omitted, use
- * the default" from "flag given but unusable, abort" — collapsing them would
- * silently run an invalid flag under the default, which is the failure this
- * whole helper exists to prevent.
- */
-export function parseIntFlagOrReport(
-  raw: string | number | undefined,
-  flag: string,
-  range: IntFlagRange
-): number | undefined | null {
-  try {
-    return parseIntFlag(raw, flag, range);
-  } catch (error) {
-    console.error(error instanceof Error ? error.message : String(error));
-    process.exitCode = 1;
-    return null;
-  }
 }
