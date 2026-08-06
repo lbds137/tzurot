@@ -6,6 +6,7 @@
 
 import type { CAC } from 'cac';
 import type { Environment } from '../utils/env-runner.js';
+import { parseIntFlagOrReport } from '../utils/cli-args.js';
 
 const ENV_OPTION = '--env <env>';
 const ENV_OPTION_DESC = 'Environment: local, dev, or prod';
@@ -24,20 +25,16 @@ const OUT_OPTION_DESC = 'Output dir (default reports/goldens-mining — gitignor
 /**
  * Parse an optional positive-integer CLI flag. Returns the number, `undefined`
  * if the flag is absent, or `null` if it's present-but-invalid (having already
- * printed the error + set exitCode — the caller returns on null). Shared by the
- * mining commands' `--sample` / `--history-window` validation.
+ * printed the error + set exitCode — the caller returns on null).
+ *
+ * Names the `{ min: 1 }` range this file's flags all share, over the shared
+ * `parseIntFlagOrReport`.
  */
-function parsePositiveIntOption(raw: string | undefined, flag: string): number | undefined | null {
-  if (raw === undefined) {
-    return undefined;
-  }
-  const value = Number(raw);
-  if (!Number.isInteger(value) || value < 1) {
-    console.error(`${flag} must be a positive integer (got '${raw}')`);
-    process.exitCode = 1;
-    return null;
-  }
-  return value;
+function parsePositiveIntOption(
+  raw: string | number | undefined,
+  flag: string
+): number | undefined | null {
+  return parseIntFlagOrReport(raw, flag, { min: 1 });
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -86,13 +83,21 @@ function registerBackfillFactsCommand(cli: CAC): void {
         includeCovered?: boolean;
         force?: boolean;
       }) => {
+        // A typo'd --limit must not fall through as NaN: this command's cap
+        // exists to keep canary runs bounded, and `enqueued >= NaN` is always
+        // false — the run would proceed uncapped over the whole backlog.
+        const limit = parsePositiveIntOption(options.limit, '--limit');
+        if (limit === null) return;
+        const windowSize = parsePositiveIntOption(options.windowSize, '--window-size');
+        if (windowSize === null) return;
+
         const { backfillFacts } = await import('../memory/backfill-facts.js');
         await backfillFacts({
           env: options.env ?? 'dev',
           dryRun: options.dryRun,
-          limit: options.limit === undefined ? undefined : Number(options.limit),
+          limit,
           personalityId: options.personalityId,
-          windowSize: options.windowSize === undefined ? undefined : Number(options.windowSize),
+          windowSize,
           includeCovered: options.includeCovered,
           force: options.force,
         });

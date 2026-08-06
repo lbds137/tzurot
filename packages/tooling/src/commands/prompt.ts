@@ -7,7 +7,7 @@
 import type { CAC } from 'cac';
 
 import { validateEnvironment, type Environment } from '../utils/env-runner.js';
-import { rawOptionValue } from '../utils/cli-args.js';
+import { rawOptionValue, parseIntFlag } from '../utils/cli-args.js';
 
 export function registerPromptCommands(cli: CAC): void {
   cli
@@ -46,10 +46,7 @@ export function registerPromptCommands(cli: CAC): void {
             '--owner is required (operator Discord snowflake) — the privacy scope is explicit, never implied.'
           );
         }
-        const count = options.count === undefined ? undefined : Number(options.count);
-        if (count !== undefined && (!Number.isInteger(count) || count < 1)) {
-          throw new Error(`--count must be a positive integer, got: ${String(options.count)}`);
-        }
+        const count = parseIntFlag(options.count, '--count', { min: 1 });
         const { parseDepthsOption } = await import('../prompt/voice-probes.js');
         const { mineVoiceProbes } = await import('../prompt/mine-voice-probes.js');
         await mineVoiceProbes({

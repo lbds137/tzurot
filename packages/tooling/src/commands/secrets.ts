@@ -6,6 +6,7 @@
 
 import type { CAC } from 'cac';
 import type { SecretsEnv } from '../secrets/rotation.js';
+import { parseIntFlag } from '../utils/cli-args.js';
 
 const ENV_OPTION_FLAG = '--env <env>';
 const ENV_OPTION_HELP = 'Target environment: dev | prod';
@@ -26,15 +27,9 @@ export function registerSecretsCommands(cli: CAC): void {
     .option('--interval <days>', 'Override the rotation interval in days')
     .example('ops secrets:mark-rotated internal-service-secret --env prod')
     .action(async (name: string, options: { env: SecretsEnv; interval?: string }) => {
-      let intervalDays: number | undefined;
-      if (options.interval !== undefined) {
-        // Strict parse: a malformed value must be a usage error here, not a
-        // NaN that only fails downstream at the Prisma write.
-        intervalDays = Number(options.interval);
-        if (!Number.isInteger(intervalDays) || intervalDays <= 0) {
-          throw new Error(`--interval must be a positive integer, got "${options.interval}"`);
-        }
-      }
+      // Strict parse: a malformed value must be a usage error here, not a
+      // NaN that only fails downstream at the Prisma write.
+      const intervalDays = parseIntFlag(options.interval, '--interval', { min: 1 });
       const { markSecretRotated } = await loadRotation();
       await markSecretRotated({ env: options.env, name, intervalDays });
     });

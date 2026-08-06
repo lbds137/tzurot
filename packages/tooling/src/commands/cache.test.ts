@@ -66,7 +66,14 @@ describe('cache:prefix-diff --limit bounds', () => {
   it('still rejects a non-positive limit (the lower bound is unchanged)', async () => {
     const { runPrefixDiff } = await import('../cache/prefix-diff.js');
 
-    await expect(runWithLimit('0')).rejects.toThrow('--limit must be a positive integer, got: 0');
+    await expect(runWithLimit('0')).rejects.toThrow('--limit must be at least 1, got: 0');
+    expect(runPrefixDiff).not.toHaveBeenCalled();
+  });
+
+  it('rejects a non-numeric limit rather than letting NaN skip the cap check', async () => {
+    const { runPrefixDiff } = await import('../cache/prefix-diff.js');
+
+    await expect(runWithLimit('abc')).rejects.toThrow('--limit must be an integer, got: "abc"');
     expect(runPrefixDiff).not.toHaveBeenCalled();
   });
 });
