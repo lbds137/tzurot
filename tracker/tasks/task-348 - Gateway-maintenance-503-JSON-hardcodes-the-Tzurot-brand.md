@@ -1,10 +1,10 @@
 ---
 id: TASK-348
 title: Gateway maintenance 503 JSON hardcodes the Tzurot brand
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-07-29 00:59'
-updated_date: '2026-07-29 00:59'
+updated_date: '2026-08-06 08:58'
 labels:
   - 'area:api-gateway'
   - 'size:S'
