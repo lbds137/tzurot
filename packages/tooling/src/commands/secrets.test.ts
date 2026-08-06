@@ -42,4 +42,32 @@ describe('registerSecretsCommands', () => {
     const command = cli.commands.find(c => c.name === 'secrets:rotate-byok');
     expect(command?.options.find(option => option.name === 'stage')).toBeDefined();
   });
+
+  // The action validates --interval before the dynamic import, so a malformed
+  // value fails here rather than as a NaN at the Prisma write. This is the one
+  // action-level assertion in this file; the rest is registration shape per
+  // the convention above.
+  it('rejects a malformed --interval before loading the rotation module', async () => {
+    registerSecretsCommands(cli);
+
+    cli.parse(['node', 'test', 'secrets:mark-rotated', 'some-secret', '--interval', 'abc'], {
+      run: false,
+    });
+
+    await expect(cli.runMatchedCommand() as Promise<void>).rejects.toThrow(
+      '--interval must be an integer, got: "abc"'
+    );
+  });
+
+  it('rejects a zero --interval, which would mark every secret perpetually overdue', async () => {
+    registerSecretsCommands(cli);
+
+    cli.parse(['node', 'test', 'secrets:mark-rotated', 'some-secret', '--interval', '0'], {
+      run: false,
+    });
+
+    await expect(cli.runMatchedCommand() as Promise<void>).rejects.toThrow(
+      '--interval must be at least 1, got: 0'
+    );
+  });
 });

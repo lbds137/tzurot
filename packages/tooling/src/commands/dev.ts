@@ -6,6 +6,8 @@
 
 import type { CAC } from 'cac';
 
+import { parseIntFlag } from '../utils/cli-args.js';
+
 export function registerDevCommands(cli: CAC): void {
   cli
     .command('dev:focus <task>', 'Run turbo task only on packages with changes')
@@ -117,7 +119,7 @@ function registerStaleDebugCommand(cli: CAC): void {
       const { runStaleDebugAudit } = await import('../dev/stale-debug-audit.js');
       runStaleDebugAudit({
         summary: options.summary,
-        maxAgeDays: options.maxAgeDays !== undefined ? Number(options.maxAgeDays) : undefined,
+        maxAgeDays: parseIntFlag(options.maxAgeDays, '--max-age-days', { min: 1 }),
       });
     });
 }

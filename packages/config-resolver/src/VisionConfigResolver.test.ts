@@ -110,10 +110,10 @@ describe('VisionConfigResolver', () => {
     });
 
     it("carries the row's explicitly-set params through the REAL mapper (tier 1)", async () => {
-      // The round-1 review of the vision-params feature found the resolver
-      // discarding every sampling field — this pins the real end-to-end path
-      // (DB row JSONB → mapper → ResolvedVisionConfig.params) so contract
-      // drift between the resolver and the gateway stamp can't recur silently.
+      // Runs the REAL mapper, not a stub, so the whole path is pinned:
+      // DB row JSONB → mapper → ResolvedVisionConfig.params. The resolver
+      // must carry every explicitly-set sampling field through; dropping one
+      // would leave the resolver and the gateway stamp silently disagreeing.
       mockPrisma.user.findFirst.mockResolvedValue({
         id: 'internal-x',
         defaultVisionConfigId: null,

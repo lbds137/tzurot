@@ -1112,18 +1112,18 @@ DECLARE
   personality_ids UUID[];
   pid UUID;
 BEGIN
-  
+  -- Determine which personalities are affected based on the table
   IF TG_TABLE_NAME = 'personalities' THEN
     personality_ids := ARRAY[COALESCE(NEW.id, OLD.id)];
 
   ELSIF TG_TABLE_NAME = 'llm_configs' THEN
-    
-    
+    -- When llm_configs change, send single "all" event instead of N individual events
+    -- This prevents notification storms when bulk operations occur
     PERFORM pg_notify(
       'cache_invalidation',
       json_build_object('type', 'all')::text
     );
-    RETURN NULL; 
+    RETURN NULL; -- Exit early - already sent notification
 
   ELSIF TG_TABLE_NAME = 'personality_default_configs' THEN
     personality_ids := ARRAY[COALESCE(NEW.personality_id, OLD.personality_id)];
@@ -1132,7 +1132,7 @@ BEGIN
     personality_ids := ARRAY[COALESCE(NEW.personality_id, OLD.personality_id)];
   END IF;
 
-  
+  -- Send NOTIFY for each affected personality
   IF personality_ids IS NOT NULL THEN
     FOREACH pid IN ARRAY personality_ids
     LOOP

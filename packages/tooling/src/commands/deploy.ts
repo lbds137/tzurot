@@ -4,7 +4,15 @@
 
 import type { CAC } from 'cac';
 
+import { parseIntFlag } from '../utils/cli-args.js';
+
 const ENV_OPTION = '--env <env>';
+
+/**
+ * Default `maintenance --drain-timeout`, in seconds. Named so the cac option
+ * default and the post-parse fallback cannot drift apart.
+ */
+const DRAIN_TIMEOUT_DEFAULT_SEC = 120;
 
 function registerMaintenanceCommand(cli: CAC): void {
   cli
@@ -14,7 +22,7 @@ function registerMaintenanceCommand(cli: CAC): void {
       default: false,
     })
     .option('--drain-timeout <seconds>', 'Max seconds to wait for the queue to drain', {
-      default: 120,
+      default: DRAIN_TIMEOUT_DEFAULT_SEC,
     })
     .example('pnpm ops maintenance status --env prod')
     .example('pnpm ops maintenance on --env prod')
@@ -34,14 +42,17 @@ function registerMaintenanceCommand(cli: CAC): void {
         }
 
         const { runMaintenance } = await import('../deployment/maintenance.js');
-        // NaN-guard: `Number('abc')` is NaN, and `waited >= NaN` is always
-        // false — an unfiltered NaN deadline would poll forever. Fall back to
-        // the command default instead.
-        const drainTimeout = Number(options.drainTimeout);
+        // A malformed timeout is a usage error, not a fall-back: `waited >=
+        // NaN` is always false, so an unfiltered NaN deadline polls forever,
+        // and silently substituting the default hides that the operator's
+        // intended (probably longer) window was never applied.
+        const drainTimeoutSec =
+          parseIntFlag(options.drainTimeout, '--drain-timeout', { min: 1 }) ??
+          DRAIN_TIMEOUT_DEFAULT_SEC;
         process.exitCode = await runMaintenance(action, {
           env: options.env,
           skipDrain: options.skipDrain,
-          drainTimeoutSec: Number.isFinite(drainTimeout) ? drainTimeout : undefined,
+          drainTimeoutSec,
         });
       }
     );
@@ -124,7 +135,10 @@ export function registerDeployCommands(cli: CAC): void {
         await fetchLogs({
           env: options.env,
           service: options.service,
-          lines: options.lines === undefined ? undefined : Number(options.lines),
+          // No ceiling here: logs.ts clamps an over-large window to the
+          // Railway CLI cap with a warning, which is friendlier than a hard
+          // usage error for a flag whose cap is an external tool's limit.
+          lines: parseIntFlag(options.lines, '--lines', { min: 1 }),
           filter: options.filter,
           // CAC auto-casts all-digit values to Number; an unstringed ID would
           // silently fail logs.ts's `typeof === 'string'` term filter.
