@@ -125,6 +125,10 @@ PR MONITOR REMINDER — push detected on PR #$PR_NUM
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Per .claude/rules/05-tooling.md (PR Monitoring), arm a Monitor now:
 
+  FIRST: if a monitor for PR #$PR_NUM is still running from an earlier push,
+  TaskStop it. One monitor per PR — the command is not SHA-pinned, so a stale
+  watcher can fire "CI_COMPLETE" over a partially-registered check list.
+
   Monitor({
     description: "CI + reviews for PR #$PR_NUM",
     command: 'sleep 60; gh pr checks $PR_NUM --watch --interval=30 > /dev/null 2>&1; sleep 5; echo "CI_COMPLETE"; gh pr checks $PR_NUM',
