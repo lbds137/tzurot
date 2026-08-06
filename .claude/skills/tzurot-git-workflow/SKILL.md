@@ -1,7 +1,7 @@
 ---
 name: tzurot-git-workflow
 description: 'Git workflow procedures. Invoke with /tzurot-git-workflow for commit, PR, and release procedures.'
-lastUpdated: '2026-08-03'
+lastUpdated: '2026-08-06'
 ---
 
 # Git Workflow Procedures
@@ -84,6 +84,8 @@ gh pr create --base develop --title "feat: description" --assignee @me
 ### Arm CI monitor (required)
 
 Immediately after `gh pr create` — and after any subsequent `git push` to an open PR — start a `Monitor` that waits for CI to complete and reports new review comments back. **Do not skip this step and do not wait for the user to ask about CI status.**
+
+**`TaskStop` the PR's previous monitor first — one monitor per PR.** Re-arming each push without stopping the old one stacks watchers on the same PR, and since the command is not SHA-pinned a stale one can fire `CI_COMPLETE` over a partially-registered check list (`05-tooling.md` § PR Monitoring).
 
 The `.claude/hooks/pr-monitor-reminder.sh` PostToolUse hook auto-fires on `git push` / `gh pr create` and injects a reminder with the Monitor invocation pre-filled with the current PR number. Use that when you see it; the template below is the fallback shape if you're arming manually:
 
