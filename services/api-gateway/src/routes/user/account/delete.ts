@@ -28,7 +28,7 @@ import { sendZodError } from '../../../utils/zodHelpers.js';
 import type { ProvisionedRequest } from '../../../types.js';
 import { resolveProvisionedUserId } from '../../../utils/resolveProvisionedUserId.js';
 import { requireRedis } from '../memoryBatchHelpers.js';
-import { MemoryActionTokenService } from '../../../services/MemoryActionTokenService.js';
+import { ActionTokenService } from '../../../services/ActionTokenService.js';
 import {
   AccountDeletionService,
   SuperuserDeletionError,
@@ -107,9 +107,7 @@ export const handleIssueAccountDeleteToken = (deps: RouteDeps): RequestHandler =
       return;
     }
 
-    const deleteToken = await new MemoryActionTokenService(redis).issueAccountDeleteToken(
-      req.userId
-    );
+    const deleteToken = await new ActionTokenService(redis).issueAccountDeleteToken(req.userId);
     logger.info({ discordUserId: req.userId }, 'Account delete token issued');
     sendCustomSuccess(res, { deleteToken }, StatusCodes.OK);
   });
@@ -130,7 +128,7 @@ export const handleDeleteAccount = (deps: RouteDeps): RequestHandler =>
 
     const discordUserId = req.userId;
     const { deleteToken } = parseResult.data;
-    const tokenService = new MemoryActionTokenService(redis);
+    const tokenService = new ActionTokenService(redis);
 
     // Peek-validate-consume: precondition failures must not burn the token.
     if (!(await tokenService.peekAccountDeleteToken(discordUserId, deleteToken))) {

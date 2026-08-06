@@ -26,9 +26,9 @@ const tokenServiceMock = vi.hoisted(() => ({
   peekAccountDeleteToken: vi.fn(),
   consumeAccountDeleteToken: vi.fn(),
 }));
-vi.mock('../../../services/MemoryActionTokenService.js', () => ({
+vi.mock('../../../services/ActionTokenService.js', () => ({
   // Plain function: constructable (arrows are not), returns the shared stub.
-  MemoryActionTokenService: function MockTokenService() {
+  ActionTokenService: function MockTokenService() {
     return tokenServiceMock;
   },
 }));

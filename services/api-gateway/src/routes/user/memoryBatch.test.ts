@@ -2,9 +2,9 @@
  * Tests for /user/memory batch operations
  *
  * Handlers are now (deps: RouteDeps) => RequestHandler factories. The
- * MemoryActionTokenService is `new`-constructed per request from
+ * ActionTokenService is `new`-constructed per request from
  * `deps.redis`, so we mock the service class via vi.hoisted/vi.mock and
- * have every `new MemoryActionTokenService(redis)` return the same
+ * have every `new ActionTokenService(redis)` return the same
  * shared mock instance. Tests configure that instance's methods.
  */
 
@@ -42,7 +42,7 @@ vi.mock('../../utils/resolveProvisionedUserId.js', () => ({
 }));
 
 // vi.hoisted so the mock instance is available before vi.mock evaluates.
-// Every `new MemoryActionTokenService(redis)` inside a handler returns this
+// Every `new ActionTokenService(redis)` inside a handler returns this
 // same shared instance; tests configure its method mocks directly.
 const { mockTokenService } = vi.hoisted(() => ({
   mockTokenService: {
@@ -55,14 +55,14 @@ const { mockTokenService } = vi.hoisted(() => ({
   },
 }));
 
-vi.mock('../../services/MemoryActionTokenService.js', () => ({
-  // `function` (not arrow) so `new MemoryActionTokenService(redis)` is a
+vi.mock('../../services/ActionTokenService.js', () => ({
+  // `function` (not arrow) so `new ActionTokenService(redis)` is a
   // valid constructor invocation. Constructor ignores redis and returns the
   // shared mockTokenService — every handler in a single test sees the same
   // instance, so configuring mockTokenService.method.mockResolvedValue(...)
   // controls all 4 handlers' behavior in lockstep.
 
-  MemoryActionTokenService: vi.fn().mockImplementation(function (this: any) {
+  ActionTokenService: vi.fn().mockImplementation(function (this: any) {
     return mockTokenService;
   }),
 }));

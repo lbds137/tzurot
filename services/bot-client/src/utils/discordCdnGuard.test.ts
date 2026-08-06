@@ -42,7 +42,7 @@ describe('validateDiscordCdnUrl', () => {
     const result = validateDiscordCdnUrl('http://cdn.discordapp.com/attachments/1/2/file.png');
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      expect(result.reason).toBe('invalid-url');
+      expect(result.reason).toBe('non-https');
     }
   });
 

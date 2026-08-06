@@ -11,9 +11,9 @@
  *
  * Attachment text lives appended in `content` (VisionDescriptionWriter
  * upgrades the placeholder row post-vision: `message + '\n\n' + descriptions`).
- * `messageMetadata.attachmentDescriptions` has NO producer — the JSONB field
- * is schema-only — so candidates are found by content marker and split back
- * into (bare message, attachment block) at mine time.
+ * `messageMetadata` carries no attachment-description structure at all, so
+ * candidates are found by content marker and split back into (bare message,
+ * attachment block) at mine time.
  *
  * The mined output is LOCAL-ONLY (gitignored `reports/goldens-mining/`) — it
  * holds raw conversation content. What gets committed is THIS miner

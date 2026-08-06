@@ -169,17 +169,6 @@ export const messageReactionSchema = z.object({
 export const messageMetadataSchema = z.object({
   // Referenced messages (replies, message links) - snapshot at time of message
   referencedMessages: z.array(storedReferencedMessageSchema).optional(),
-  // Processed attachment descriptions (voice transcriptions, image descriptions)
-  attachmentDescriptions: z
-    .array(
-      z.object({
-        type: z.enum(['audio', 'image', 'file']),
-        description: z.string(),
-        originalUrl: z.string(),
-        name: z.string().optional(),
-      })
-    )
-    .optional(),
   // Extended context fields (not persisted to DB, used for prompt formatting)
   // These are populated by DiscordChannelFetcher for extended context messages
   /** Embed XML strings for extended context messages (already formatted by EmbedParser) */
