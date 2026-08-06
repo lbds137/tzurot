@@ -37,6 +37,7 @@ import { registerCpdCommands } from './commands/cpd.js';
 import { registerCodegenCommands } from './commands/codegen.js';
 import { registerTopologyCommands } from './commands/topology.js';
 import { registerPromptCommands } from './commands/prompt.js';
+import { reportUsageError } from './utils/errors.js';
 
 // Read version from package.json dynamically
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -72,5 +73,19 @@ registerPromptCommands(cli);
 cli.help();
 cli.version(packageJson.version);
 
-// Parse and run
-cli.parse();
+// Parse and run.
+//
+// `cli.parse()` runs the matched command but DISCARDS the promise its action
+// returns, so a rejected async action surfaces as an unhandled rejection — a
+// stack trace and a Node version banner where a one-line usage error belongs.
+// Parsing with `{ run: false }` and awaiting `runMatchedCommand()` ourselves
+// is cac's documented seam for owning that error path. `--help` and
+// `--version` are still handled inside `parse()`, which unsets the matched
+// command afterwards, so `runMatchedCommand()` correctly no-ops for them.
+cli.parse(process.argv, { run: false });
+
+try {
+  await cli.runMatchedCommand();
+} catch (error) {
+  if (!reportUsageError(error)) throw error;
+}
