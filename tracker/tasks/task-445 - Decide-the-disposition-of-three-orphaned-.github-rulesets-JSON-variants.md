@@ -1,10 +1,10 @@
 ---
 id: TASK-445
 title: Decide the disposition of three orphaned .github/rulesets JSON variants
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-06 14:03'
-updated_date: '2026-08-06 14:03'
+updated_date: '2026-08-06 14:37'
 labels:
   - 'area:docs'
   - 'area:process'

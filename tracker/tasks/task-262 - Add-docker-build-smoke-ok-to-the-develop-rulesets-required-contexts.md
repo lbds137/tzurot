@@ -1,10 +1,10 @@
 ---
 id: TASK-262
 title: Add docker-build-smoke-ok to the develop ruleset's required contexts
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-07-13 00:00'
-updated_date: '2026-07-28 10:51'
+updated_date: '2026-08-06 14:37'
 labels:
   - 'origin:review'
   - 'area:ci'
