@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { cac } from 'cac';
 
 import { registerGhCommands } from './gh.js';
+import { UsageError } from '../utils/errors.js';
 
 // Every gh command dynamically imports this module and hits the GitHub API
 // through it; stubbing it lets the positional validation run offline, and
@@ -23,14 +24,12 @@ describe('gh command PR-number validation', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.spyOn(console, 'log').mockImplementation(() => {});
-    vi.spyOn(console, 'error').mockImplementation(() => {});
     cli = cac('test');
     registerGhCommands(cli);
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
-    process.exitCode = undefined;
   });
 
   async function run(command: string, number: string): Promise<void> {
@@ -38,26 +37,29 @@ describe('gh command PR-number validation', () => {
     await (cli.runMatchedCommand() as Promise<void>);
   }
 
-  // The early-return is the load-bearing half: without it a NaN would reach
-  // the API as a literal `/pulls/NaN` path and fail with an opaque 404 rather
-  // than a usage error.
-  it('returns before the API call when the PR number is not a number', async () => {
+  // Aborting before the call is the load-bearing half: without it a NaN would
+  // reach the API as a literal `/pulls/NaN` path and fail with an opaque 404
+  // rather than a usage error. The throw is what cli.ts renders as one line.
+  it('throws a UsageError before the API call when the PR number is not a number', async () => {
     const { getPrInfo } = await import('../gh/github-api.js');
 
-    await run('gh:pr-info', 'abc');
+    await expect(run('gh:pr-info', 'abc')).rejects.toThrow(UsageError);
 
     expect(getPrInfo).not.toHaveBeenCalled();
-    expect(process.exitCode).toBe(1);
-    expect(console.error).toHaveBeenCalledWith('<number> must be an integer, got: "abc"');
   });
 
-  it('returns before the API call when the PR number is zero', async () => {
+  it('names the offending positional in the message', async () => {
+    await expect(run('gh:pr-info', 'abc')).rejects.toThrow(
+      '<number> must be an integer, got: "abc"'
+    );
+  });
+
+  it('throws before the API call when the PR number is zero', async () => {
     const { getPrReviews } = await import('../gh/github-api.js');
 
-    await run('gh:pr-reviews', '0');
+    await expect(run('gh:pr-reviews', '0')).rejects.toThrow('<number> must be at least 1, got: 0');
 
     expect(getPrReviews).not.toHaveBeenCalled();
-    expect(process.exitCode).toBe(1);
   });
 
   // The absent-value case never reaches the action: cac rejects a missing
@@ -80,7 +82,6 @@ describe('gh command PR-number validation', () => {
     await run('gh:pr-info', '1985');
 
     expect(getPrInfo).toHaveBeenCalledWith(1985);
-    expect(process.exitCode).toBeUndefined();
   });
 
   // The guard was applied to six call sites by a scripted replace; this pins
@@ -88,7 +89,7 @@ describe('gh command PR-number validation', () => {
   it('guards the multi-call gh:pr-all command as well', async () => {
     const api = await import('../gh/github-api.js');
 
-    await run('gh:pr-all', 'abc');
+    await expect(run('gh:pr-all', 'abc')).rejects.toThrow(UsageError);
 
     expect(api.getPrInfo).not.toHaveBeenCalled();
     expect(api.getPrReviews).not.toHaveBeenCalled();

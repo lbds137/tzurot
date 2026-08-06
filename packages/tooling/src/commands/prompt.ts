@@ -8,6 +8,7 @@ import type { CAC } from 'cac';
 
 import { validateEnvironment, type Environment } from '../utils/env-runner.js';
 import { rawOptionValue, parseIntFlag } from '../utils/cli-args.js';
+import { UsageError } from '../utils/errors.js';
 
 export function registerPromptCommands(cli: CAC): void {
   cli
@@ -42,7 +43,7 @@ export function registerPromptCommands(cli: CAC): void {
         // values and a snowflake exceeds MAX_SAFE_INTEGER (see utils/cli-args.ts).
         const ownerDiscordId = rawOptionValue(process.argv, '--owner');
         if (ownerDiscordId === undefined || ownerDiscordId.length === 0) {
-          throw new Error(
+          throw new UsageError(
             '--owner is required (operator Discord snowflake) — the privacy scope is explicit, never implied.'
           );
         }

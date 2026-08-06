@@ -10,6 +10,8 @@
 import { spawn, execFileSync } from 'node:child_process';
 import chalk from 'chalk';
 
+import { UsageError } from './errors.js';
+
 export type Environment = 'local' | 'dev' | 'prod';
 
 const VALID_ENVIRONMENTS = new Set<string>(['local', 'dev', 'prod']);
@@ -261,10 +263,14 @@ export async function runPrismaCommand(
  * 3. For 'dev'/'prod': Railway CLI is authenticated
  */
 export function validateEnvironment(env: string): void {
+  // A bad --env is an operator typo, so it throws for the top-level handler to
+  // render as one line. The two checks below are NOT: a missing DATABASE_URL or
+  // an unauthenticated Railway CLI are operational preconditions, which keep
+  // their own reporting (see utils/errors.ts on the distinction).
   if (!isValidEnvironment(env)) {
-    console.error(chalk.red(`❌ Invalid environment: "${String(env)}"`));
-    console.error(chalk.dim(`   Valid values: ${[...VALID_ENVIRONMENTS].join(', ')}`));
-    process.exit(1);
+    throw new UsageError(
+      `Invalid environment: "${String(env)}" — valid values: ${[...VALID_ENVIRONMENTS].join(', ')}`
+    );
   }
 
   if (env === 'local') {

@@ -7,6 +7,7 @@
 import type { CAC } from 'cac';
 import type { SecretsEnv } from '../secrets/rotation.js';
 import { parseIntFlag } from '../utils/cli-args.js';
+import { UsageError } from '../utils/errors.js';
 
 const ENV_OPTION_FLAG = '--env <env>';
 const ENV_OPTION_HELP = 'Target environment: dev | prod';
@@ -53,7 +54,7 @@ export function registerSecretsCommands(cli: CAC): void {
     .example('ops secrets:rotate-byok --env prod --stage 1')
     .action(async (options: { env: SecretsEnv; stage?: string }) => {
       if (options.stage === undefined) {
-        throw new Error('--stage is required (1|stage, 2|reencrypt, 3|finalize)');
+        throw new UsageError('--stage is required (1|stage, 2|reencrypt, 3|finalize)');
       }
       const { rotateByokKey } = await loadRotation();
       await rotateByokKey({ env: options.env, stage: options.stage });

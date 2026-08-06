@@ -6,7 +6,8 @@
 
 import type { CAC } from 'cac';
 import type { Environment } from '../utils/env-runner.js';
-import { parseIntFlagOrReport } from '../utils/cli-args.js';
+import { parseIntFlag } from '../utils/cli-args.js';
+import { UsageError } from '../utils/errors.js';
 
 const ENV_OPTION = '--env <env>';
 const ENV_OPTION_DESC = 'Environment: local, dev, or prod';
@@ -23,38 +24,34 @@ const OUT_OPTION = '--out <dir>';
 const OUT_OPTION_DESC = 'Output dir (default reports/goldens-mining — gitignored)';
 
 /**
- * Parse an optional positive-integer CLI flag. Returns the number, `undefined`
- * if the flag is absent, or `null` if it's present-but-invalid (having already
- * printed the error + set exitCode — the caller returns on null).
+ * Parse an optional positive-integer CLI flag. Returns the number, or
+ * `undefined` when the flag is absent so the caller's default still applies;
+ * throws a `UsageError` when the flag is present but not a positive integer.
  *
- * Names the `{ min: 1 }` range this file's flags all share, over the shared
- * `parseIntFlagOrReport`.
+ * Exists to name the `{ min: 1 }` range every numeric flag in this file
+ * shares, over the shared `parseIntFlag`.
  */
 function parsePositiveIntOption(
   raw: string | number | undefined,
   flag: string
-): number | undefined | null {
-  return parseIntFlagOrReport(raw, flag, { min: 1 });
+): number | undefined {
+  return parseIntFlag(raw, flag, { min: 1 });
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
- * Validate a required `--persona-id` UUID. Returns the id, or `null` when it's
- * absent or malformed (error printed + exitCode set — the caller returns on null).
- * Catches a bad id before it hits a raw `::uuid` cast, which would otherwise
- * surface as a raw Postgres error instead of a clean CLI message.
+ * Validate a required `--persona-id` UUID, throwing a `UsageError` when it is
+ * absent or malformed. Catches a bad id before it hits a raw `::uuid` cast,
+ * which would otherwise surface as a raw Postgres error instead of a clean
+ * CLI message.
  */
-function requirePersonaId(raw: string | undefined): string | null {
+function requirePersonaId(raw: string | undefined): string {
   if (raw === undefined) {
-    console.error('--persona-id is required');
-    process.exitCode = 1;
-    return null;
+    throw new UsageError('--persona-id is required');
   }
   if (!UUID_RE.test(raw)) {
-    console.error(`--persona-id must be a UUID (got '${raw}')`);
-    process.exitCode = 1;
-    return null;
+    throw new UsageError(`--persona-id must be a UUID (got '${raw}')`);
   }
   return raw;
 }
@@ -87,9 +84,7 @@ function registerBackfillFactsCommand(cli: CAC): void {
         // exists to keep canary runs bounded, and `enqueued >= NaN` is always
         // false — the run would proceed uncapped over the whole backlog.
         const limit = parsePositiveIntOption(options.limit, '--limit');
-        if (limit === null) return;
         const windowSize = parsePositiveIntOption(options.windowSize, '--window-size');
-        if (windowSize === null) return;
 
         const { backfillFacts } = await import('../memory/backfill-facts.js');
         await backfillFacts({
@@ -146,15 +141,9 @@ function registerGoldensCommands(cli: CAC): void {
         out?: string;
       }) => {
         const personaId = requirePersonaId(options.personaId);
-        if (personaId === null) {
-          return;
-        }
         // Fail loudly on a garbage --sample: NaN comparisons are all false, so
         // it would otherwise degrade into nonsense quota math silently.
         const sampleSize = parsePositiveIntOption(options.sample, '--sample');
-        if (sampleSize === null) {
-          return;
-        }
         const { mineGoldens } = await import('../memory/mine-goldens.js');
         await mineGoldens({
           env: options.env ?? 'dev',
@@ -211,17 +200,8 @@ function registerAttachmentGoldensCommand(cli: CAC): void {
         out?: string;
       }) => {
         const personaId = requirePersonaId(options.personaId);
-        if (personaId === null) {
-          return;
-        }
         const sampleSize = parsePositiveIntOption(options.sample, '--sample');
-        if (sampleSize === null) {
-          return;
-        }
         const historyWindow = parsePositiveIntOption(options.historyWindow, '--history-window');
-        if (historyWindow === null) {
-          return;
-        }
         const { mineAttachmentGoldens } = await import('../memory/mine-attachment-goldens.js');
         await mineAttachmentGoldens({
           env: options.env ?? 'dev',
@@ -255,17 +235,8 @@ function registerConversationGoldensCommand(cli: CAC): void {
         out?: string;
       }) => {
         const personaId = requirePersonaId(options.personaId);
-        if (personaId === null) {
-          return;
-        }
         const sampleSize = parsePositiveIntOption(options.sample, '--sample');
-        if (sampleSize === null) {
-          return;
-        }
         const historyWindow = parsePositiveIntOption(options.historyWindow, '--history-window');
-        if (historyWindow === null) {
-          return;
-        }
         const { mineConversationGoldens } = await import('../memory/mine-conversation-goldens.js');
         await mineConversationGoldens({
           env: options.env ?? 'dev',
@@ -311,8 +282,7 @@ export function registerMemoryCommands(cli: CAC): void {
         force?: boolean;
       }) => {
         if (!options.from || !options.to) {
-          console.error('Error: --from and --to are required');
-          process.exit(1);
+          throw new UsageError('--from and --to are required');
         }
         const { backfillLongTermMemories } = await import('../memory/backfill-ltm.js');
         await backfillLongTermMemories({
