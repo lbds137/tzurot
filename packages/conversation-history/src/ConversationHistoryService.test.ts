@@ -688,9 +688,7 @@ describe('ConversationHistoryService - Token Count Caching', () => {
 
       await service.updateLastUserMessage('channel-123', 'personality-456', 'persona-789', 'new', {
         newMetadata: {
-          attachmentDescriptions: [
-            { type: 'image', description: 'a cat', originalUrl: 'https://cdn/c.png' },
-          ],
+          voiceTranscripts: ['a transcript'],
         },
       });
 
@@ -704,9 +702,7 @@ describe('ConversationHistoryService - Token Count Caching', () => {
             referencedMessages: [{ discordMessageId: 'ref-1', content: 'quoted' }],
             embedsXml: ['<embed>keep me</embed>'],
             // new key merged in
-            attachmentDescriptions: [
-              { type: 'image', description: 'a cat', originalUrl: 'https://cdn/c.png' },
-            ],
+            voiceTranscripts: ['a transcript'],
           },
         },
       });

@@ -1,8 +1,8 @@
 /**
- * MemoryActionTokenService
+ * ActionTokenService
  *
- * Issues and consumes short-lived Redis tokens that bind a destructive memory
- * operation's preview to its execute call:
+ * Issues and consumes short-lived Redis tokens that bind a destructive
+ * operation's confirmation step to its execute call:
  *
  *   - `PreviewToken` — issued by `POST /user/memory/delete/preview`. The token
  *     value stores the filter (personality, persona, timeframe) that produced
@@ -14,6 +14,10 @@
  *     types the confirmation phrase. The token value stores the personalityId
  *     binding. `POST /user/memory/purge` consumes the token and purges that
  *     personality's memories.
+ *
+ *   - `AccountDeleteToken` — issued by the account-deletion route after the
+ *     user types the confirmation phrase. The deletion target is the key's
+ *     own user, so the token carries no payload binding beyond `issuedAt`.
  *
  * Tokens are namespaced by Discord user ID — token-stealing across users is
  * cut off at the lookup-key boundary (a stolen token won't match another
@@ -35,7 +39,7 @@ import { REDIS_KEY_PREFIXES } from '@tzurot/common-types/constants/queue';
 import { type BatchDeletePreviewInput } from '@tzurot/common-types/schemas/api/memory';
 import { createLogger } from '@tzurot/common-types/utils/logger';
 
-const logger = createLogger('MemoryActionTokenService');
+const logger = createLogger('ActionTokenService');
 
 /** Token TTL in seconds. 5 minutes covers confirmation-modal UX comfortably. */
 const TOKEN_TTL_SECONDS = 5 * 60;
@@ -81,7 +85,7 @@ function mintTokenValue(prefix: 'preview' | 'purge' | 'acctdel'): string {
   return `${prefix}_${suffix}`;
 }
 
-export class MemoryActionTokenService {
+export class ActionTokenService {
   constructor(private readonly redis: Redis) {}
 
   /**

@@ -16,7 +16,7 @@
  * Locked memories are always skipped (never touched by either flow).
  *
  * Handlers follow the (deps: RouteDeps) => RequestHandler shape so codegen
- * can wire them up from the route manifest. The MemoryActionTokenService is
+ * can wire them up from the route manifest. The ActionTokenService is
  * instantiated per-request (cheap; no shared state beyond Redis), mirroring
  * the IncognitoSessionManager pattern.
  */
@@ -45,7 +45,7 @@ import {
   resolvePersonaIdForBatch as resolvePersonaIdForBatchHelper,
   executeBatchDelete,
 } from './memoryBatchHelpers.js';
-import { MemoryActionTokenService } from '../../services/MemoryActionTokenService.js';
+import { ActionTokenService } from '../../services/ActionTokenService.js';
 
 const logger = createLogger('memory-batch');
 
@@ -82,7 +82,7 @@ export const handleBatchDeletePreview = (deps: RouteDeps): RequestHandler => {
     if (redis === null) {
       return;
     }
-    const tokenService = new MemoryActionTokenService(redis);
+    const tokenService = new ActionTokenService(redis);
 
     const discordUserId = req.userId;
 
@@ -183,7 +183,7 @@ export const handleBatchDelete = (deps: RouteDeps): RequestHandler => {
     if (redis === null) {
       return;
     }
-    const tokenService = new MemoryActionTokenService(redis);
+    const tokenService = new ActionTokenService(redis);
 
     const discordUserId = req.userId;
 
@@ -265,7 +265,7 @@ export const handleIssuePurgeToken = (deps: RouteDeps): RequestHandler => {
     if (redis === null) {
       return;
     }
-    const tokenService = new MemoryActionTokenService(redis);
+    const tokenService = new ActionTokenService(redis);
 
     const discordUserId = req.userId;
 
@@ -320,7 +320,7 @@ export const handlePurge = (deps: RouteDeps): RequestHandler => {
     if (redis === null) {
       return;
     }
-    const tokenService = new MemoryActionTokenService(redis);
+    const tokenService = new ActionTokenService(redis);
 
     const discordUserId = req.userId;
 

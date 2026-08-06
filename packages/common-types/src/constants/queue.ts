@@ -153,14 +153,14 @@ export const REDIS_KEY_PREFIXES = {
   /**
    * Prefix for batch-delete preview tokens. Key: `memory:preview:{userId}:{token}`.
    * Value: JSON-encoded filter that produced the preview. TTL: 5 min.
-   * Consumer: `api-gateway/MemoryActionTokenService`.
+   * Consumer: `api-gateway/ActionTokenService`.
    */
   MEMORY_PREVIEW_TOKEN: 'memory:preview:',
   /**
    * Prefix for memory purge confirmation tokens. Key:
    * `memory:purge:{userId}:{token}`. Value: JSON-encoded `{ personalityId }`
    * binding. TTL: 5 min.
-   * Consumer: `api-gateway/MemoryActionTokenService`.
+   * Consumer: `api-gateway/ActionTokenService`.
    */
   MEMORY_PURGE_TOKEN: 'memory:purge:',
   /**
@@ -168,7 +168,7 @@ export const REDIS_KEY_PREFIXES = {
    * `account:delete:{discordUserId}:{token}`. Value: JSON-encoded
    * `{ issuedAt }` (the deletion target is the key's own user — no extra
    * binding needed). TTL: 5 min.
-   * Consumer: `api-gateway/MemoryActionTokenService`.
+   * Consumer: `api-gateway/ActionTokenService`.
    */
   ACCOUNT_DELETE_TOKEN: 'account:delete:',
   /**
