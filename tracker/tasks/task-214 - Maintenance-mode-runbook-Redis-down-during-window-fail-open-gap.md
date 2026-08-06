@@ -1,10 +1,10 @@
 ---
 id: TASK-214
 title: 'Maintenance-mode runbook: Redis-down-during-window fail-open gap'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-07-06 00:00'
-updated_date: '2026-07-28 10:50'
+updated_date: '2026-08-06 09:18'
 labels:
   - 'area:db'
   - 'area:redis'

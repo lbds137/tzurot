@@ -1,10 +1,10 @@
 ---
 id: TASK-264
 title: 'Deployment skill: railway redeploy acts on the LINKED environment'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-07-13 00:00'
-updated_date: '2026-07-28 10:51'
+updated_date: '2026-08-06 09:18'
 labels:
   - 'area:docs'
   - 'area:process'
