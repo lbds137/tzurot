@@ -1,7 +1,7 @@
 ---
 name: tzurot-deployment
 description: 'Railway deployment procedures. Invoke with /tzurot-deployment for deploying, checking logs, and troubleshooting.'
-lastUpdated: '2026-08-02'
+lastUpdated: '2026-08-06'
 ---
 
 # Deployment Procedures
@@ -63,13 +63,22 @@ Additive migrations are safe to premigrate; destructive ones (drop/rename/tighte
 
 ```bash
 pnpm ops maintenance on --env prod      # bot replies 🔧, gateway 503s (health stays green), BullMQ drains
+pnpm ops maintenance status --env prod  # REQUIRED: confirm ON before migrating (see below)
 pnpm ops release:premigrate --allow-destructive
 gh pr merge <release-PR> --rebase       # Railway auto-deploys into the ready schema
 # verify /health + bot boot, then:
 pnpm ops maintenance off --env prod     # traffic resumes within the 5s flag-cache window
 ```
 
-`pnpm ops maintenance status --env prod` shows the flag + queue depth. The flag lives in Redis (not an env var — env changes trigger Railway redeploys, and Postgres is the thing in flux). Note: the maintenance CHECK must already be deployed in prod for the gate to work — it protects releases after the one that ships it. See `.claude/rules/03-database.md` § Deployment.
+**Verify `status` shows ON before premigrating — do not proceed if Redis is down.**
+It reports the flag state plus queue depth. `MaintenanceFlag` fails OPEN on Redis
+errors, which is right for normal operation (a Redis blip must not 503 the whole
+API) but inverts here: if Redis is unreachable during the window, traffic is NOT
+quiesced precisely when quiescing is what protects the still-live old code from the
+changed schema. `maintenance on` returning success is not proof the gate is active —
+read the status.
+
+The flag lives in Redis (not an env var — env changes trigger Railway redeploys, and Postgres is the thing in flux). Note: the maintenance CHECK must already be deployed in prod for the gate to work — it protects releases after the one that ships it. See `.claude/rules/03-database.md` § Deployment.
 
 ### 3. Monitor deployment
 
@@ -220,10 +229,22 @@ pnpm ops run --env dev npx prisma studio
 
 ## Service Restart
 
+**`railway redeploy` has no `--environment` flag** — it acts on whatever environment
+the CLI is currently LINKED to, which is not necessarily the one you were just
+working in. A blind `redeploy --service <name> --yes` has come within one keystroke of
+bouncing PROD because the link happened to be production. Always check the link,
+switch explicitly, then restore it:
+
 ```bash
 # Note: 'railway restart' doesn't exist, use redeploy
+railway status                          # shows the currently LINKED environment — note it
+railway environment <target>            # switch explicitly — never assume the link
 railway redeploy --service bot-client --yes
+railway environment <the one status showed>   # restore the link you found, not a guess
 ```
+
+Same hazard class as any env-implicit CLI command against shared infra: the command
+looks identical whether it is about to touch dev or prod.
 
 ## Cost Impact in Infra Recommendations
 
