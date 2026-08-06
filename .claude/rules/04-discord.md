@@ -180,28 +180,37 @@ MUST go through CommandHandler.
 
 **ALWAYS check for existing utilities before implementing:**
 
-| Pattern                 | Shared Utility                  | Location                                      |
-| ----------------------- | ------------------------------- | --------------------------------------------- |
-| Browse pagination       | `createBrowseCustomIdHelpers`   | `utils/browse/customIdFactory.ts`             |
-| Browse buttons          | `buildBrowseButtons`            | `utils/browse/buttonBuilder.ts`               |
-| Browse truncation       | `truncateForSelect`             | `utils/browse/truncation.ts`                  |
-| Dashboard builder       | `buildDashboardEmbed`           | `utils/dashboard/DashboardBuilder.ts`         |
-| Dashboard modals        | `buildSectionModal`             | `utils/dashboard/ModalFactory.ts`             |
-| Dashboard sessions      | `initSessionManager`            | `utils/dashboard/SessionManager.ts`           |
-| Dashboard messages      | `DASHBOARD_MESSAGES`            | `utils/dashboard/messages.ts`                 |
-| Dashboard close         | `handleDashboardClose`          | `utils/dashboard/closeHandler.ts`             |
-| Dashboard refresh       | `createRefreshHandler`          | `utils/dashboard/refreshHandler.ts`           |
-| Dashboard delete        | `buildDeleteConfirmation`       | `utils/dashboard/deleteConfirmation.ts`       |
-| Dashboard perms         | `checkEditPermission`           | `utils/dashboard/permissionChecks.ts`         |
-| Session helpers         | `fetchOrCreateSession`          | `utils/dashboard/sessionHelpers.ts`           |
-| Dashboard select menu   | `handleDashboardSectionSelect`  | `utils/dashboard/genericSelectMenuHandler.ts` |
-| Dashboard modal merge   | `extractAndMergeSectionValues`  | `utils/dashboard/modalHelpers.ts`             |
-| Interaction error reply | `replyError`                    | `utils/dashboard/replyError.ts`               |
-| Personality autocomp    | `handlePersonalityAutocomplete` | `utils/autocomplete/`                         |
-| Persona autocomplete    | `handlePersonaAutocomplete`     | `utils/autocomplete/`                         |
-| List sorting            | `createListComparator`          | `utils/listSorting.ts`                        |
+| Pattern                 | Shared Utility                  | Location                                        |
+| ----------------------- | ------------------------------- | ----------------------------------------------- |
+| Browse pagination       | `createBrowseCustomIdHelpers`   | `utils/browse/customIdFactory.ts`               |
+| Browse buttons          | `buildBrowseButtons`            | `utils/browse/buttonBuilder.ts`                 |
+| Browse truncation       | `truncateForSelect`             | `utils/browse/truncation.ts`                    |
+| Dashboard builder       | `buildDashboardEmbed`           | `utils/dashboard/DashboardBuilder.ts`           |
+| Dashboard modals        | `buildSectionModal`             | `utils/dashboard/ModalFactory.ts`               |
+| Dashboard sessions      | `initSessionManager`            | `utils/dashboard/SessionManager.ts`             |
+| Dashboard messages      | `DASHBOARD_MESSAGES`            | `utils/dashboard/messages.ts`                   |
+| Dashboard close         | `handleDashboardClose`          | `utils/dashboard/closeHandler.ts`               |
+| Dashboard refresh       | `createRefreshHandler`          | `utils/dashboard/refreshHandler.ts`             |
+| Dashboard delete        | `buildDeleteConfirmation`       | `utils/dashboard/deleteConfirmation.ts`         |
+| Dashboard perms         | `checkEditPermission`           | `utils/dashboard/permissionChecks.ts`           |
+| Session helpers         | `fetchOrCreateSession`          | `utils/dashboard/sessionHelpers.ts`             |
+| Dashboard select menu   | `handleDashboardSectionSelect`  | `utils/dashboard/genericSelectMenuHandler.ts`   |
+| Dashboard modal merge   | `extractAndMergeSectionValues`  | `utils/dashboard/modalHelpers.ts`               |
+| Interaction error reply | `replyError`                    | `utils/dashboard/replyError.ts`                 |
+| Personality autocomp    | `handlePersonalityAutocomplete` | `utils/autocomplete/`                           |
+| Persona autocomplete    | `handlePersonaAutocomplete`     | `utils/autocomplete/`                           |
+| List sorting            | `createListComparator`          | `utils/listSorting.ts`                          |
+| Round-trip contract     | `DASHBOARDS` registry           | `utils/dashboard/updateSchemaRoundTrip.test.ts` |
 
 **Never reimplement these patterns locally.**
+
+**A new fetch-edit-PUT dashboard MUST add itself to the `DASHBOARDS` registry.**
+That guard runs a null-bearing fetched object through the dashboard's real payload
+builder and asserts the result validates against the gateway's update schema — it
+catches the class where a dashboard PUTs back a field it fetched as `null` against
+an update schema declaring it `.optional()` (which accepts `undefined` but rejects
+`null`), 400ing every save. Registration can't be auto-discovered, so an unregistered
+dashboard is simply unguarded; this table is where that requirement is visible.
 
 ## Autocomplete Formatting
 
