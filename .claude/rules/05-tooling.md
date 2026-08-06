@@ -253,6 +253,17 @@ gh api "repos/{owner}/{repo}/actions/runs?head_sha=$(git rev-parse HEAD)" \
 
 `head_sha` filters **server-side**, so the result is exhaustive for that commit with no `--limit` window to outgrow. Don't substitute `gh run list --limit N | jq 'select(.headSha==…)'`: that lists runs repo-wide and filters client-side _after_ the window is applied, so other branches, dependabot, and cron runs share the budget — worst during an incident, when reruns spike repo activity and this check matters most.
 
+**The index lags, so an empty result minutes after a push means "not indexed yet", not "no run dispatched".** Observed on a fresh push: zero runs for a commit that provably had two (the run object's own `head_sha` matched), then `total_count: 2` on the identical query two minutes later. Re-query before concluding anything, and cross-check `?branch=<name>` — same server-side filter, different index. Note this lag and the `--watch` snapshot race above share one cause (GitHub has not finished registering the push), so the fallback is least trustworthy exactly when a premature `CI_COMPLETE` makes you reach for it.
+
+**A red check with zero steps never ran — that's infrastructure, not your diff.** Read the job's step count, not just its conclusion:
+
+```bash
+gh api "repos/{owner}/{repo}/actions/runs/<run-id>/jobs?per_page=100" \
+  --jq '.jobs[] | "\(.conclusion // "-") steps=\(.steps | length) \(.name)"'
+```
+
+A `cancelled` job with `steps=0` after a long queue waited for a runner it never got — rerun-eligible per `00-critical.md`'s failure-shape table. A cancel or timeout with steps behind it is a real failure. Observed: 5 of 19 jobs cancelled at 15–17 minutes with `steps=0`, beside 14 that succeeded with 5–19 steps each — indistinguishable in `gh pr checks`, which renders both as plain `fail`.
+
 Anything not `completed success` (or `skipped`) is a finding. **The died-before-dispatch case is the one `gh pr checks` structurally cannot show you** — a run `cancelled` or `timed_out` _after_ its jobs started still emits check-runs carrying that conclusion, so those DO surface in the check list; it is the zero-job run that vanishes from it. **Pin on the SHA, never a timestamp window**: a window silently spans two pushes and will report an older push's completion under the newer one's label. This is a verification step after the monitor fires, not a replacement watch loop — the sleep-prefixed `--watch` above is still how you wait.
 
 Pass to `Monitor` with `timeout_ms: 900000` (15 min — GitHub CI + CodeQL usually finishes well inside that; if it exceeds, re-arm).
