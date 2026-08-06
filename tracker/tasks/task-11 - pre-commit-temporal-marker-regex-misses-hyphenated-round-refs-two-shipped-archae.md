@@ -1,10 +1,10 @@
 ---
 id: TASK-11
 title: pre-commit temporal-marker regex misses hyphenated round refs
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-07-12 00:00'
-updated_date: '2026-07-28 10:46'
+updated_date: '2026-08-06 02:54'
 labels:
   - 'area:process'
   - 'size:S'

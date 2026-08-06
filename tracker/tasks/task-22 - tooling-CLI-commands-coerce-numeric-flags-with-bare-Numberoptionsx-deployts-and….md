@@ -1,10 +1,10 @@
 ---
 id: TASK-22
 title: 'Tooling CLI numeric flags: bare Number(options.x) coercion'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-07-10 00:00'
-updated_date: '2026-07-28 10:46'
+updated_date: '2026-08-06 02:54'
 labels:
   - 'area:tooling'
   - 'size:S'

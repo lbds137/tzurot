@@ -1,10 +1,10 @@
 ---
 id: TASK-19
 title: generate-schema.ts comment-stripping is a blind whole-file regex
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-07-10 00:00'
-updated_date: '2026-07-28 10:46'
+updated_date: '2026-08-06 02:54'
 labels:
   - 'area:testing'
   - 'size:S'

@@ -1,10 +1,10 @@
 ---
 id: TASK-196
 title: 'Harvester dedup keys on bare constraint/index name, not (table, name)'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-07-02 00:00'
-updated_date: '2026-07-28 10:50'
+updated_date: '2026-08-06 02:54'
 labels:
   - 'area:db'
   - 'area:testing'
