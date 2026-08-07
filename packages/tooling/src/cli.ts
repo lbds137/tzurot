@@ -37,7 +37,8 @@ import { registerCpdCommands } from './commands/cpd.js';
 import { registerCodegenCommands } from './commands/codegen.js';
 import { registerTopologyCommands } from './commands/topology.js';
 import { registerPromptCommands } from './commands/prompt.js';
-import { reportUsageError } from './utils/errors.js';
+import { UsageError, reportUsageError } from './utils/errors.js';
+import { classifyNoMatch, unknownCommandMessage } from './utils/unknown-command.js';
 
 // Read version from package.json dynamically
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -85,7 +86,12 @@ cli.version(packageJson.version);
 cli.parse(process.argv, { run: false });
 
 try {
-  await cli.runMatchedCommand();
+  // cac no-ops when nothing matched, so an unknown command name would otherwise
+  // print nothing and exit 0 — a typo indistinguishable from success.
+  const action = classifyNoMatch(cli);
+  if (action.kind === 'unknown') throw new UsageError(unknownCommandMessage(action.name));
+  if (action.kind === 'help') cli.outputHelp();
+  else await cli.runMatchedCommand();
 } catch (error) {
   if (!reportUsageError(error)) throw error;
 }
