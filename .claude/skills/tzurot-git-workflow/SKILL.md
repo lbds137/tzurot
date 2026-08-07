@@ -95,6 +95,8 @@ Arm a `Monitor` with `description: "CI + reviews for PR <N>"`, `timeout_ms: 1800
 SHA=<full-40-char-pushed-sha>; until gh api "repos/{owner}/{repo}/actions/runs?head_sha=$SHA" --jq '[.workflow_runs[]|select(.name=="CI" and .status=="completed" and .conclusion!="startup_failure")]|length' | grep -qE '^[1-9]'; do sleep 30; done; gh pr checks <N> --watch --interval=30 > /dev/null 2>&1; sleep 5; echo "CI_COMPLETE"; gh pr checks <N>
 ```
 
+This literal is one of three copies (here, `05-tooling.md`, the hook heredoc). Edit one and `pnpm ops guard:monitor-command` fails CI until the other two match — placeholders may differ, nothing else may.
+
 **Do not add backslashes to the jq filter's single quotes.** The `command` parameter is a JSON string and JSON does not escape apostrophes; a `\'` there is a bash parse error at arm time (`syntax error near unexpected token '('`, exit 2), so the monitor dies instead of watching. Every surface documenting this command shows plain bash for exactly this reason.
 
 The `until` gate waits for the CI workflow RUN to complete before handing off to `--watch`. A fixed startup `sleep` does not work here: workflow-run creation itself can lag the push by minutes, so `--watch` starts against a check list holding only the fast checks and exits immediately. See `05-tooling.md` § PR Monitoring for the measurement.
