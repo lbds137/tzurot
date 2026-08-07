@@ -217,6 +217,19 @@ describe('waitForCi', () => {
     expect(beats[0]).toContain('CI(in_progress)');
   });
 
+  it('heartbeats "no data" through an outage spanning the interval', async () => {
+    // The two halves — describeWaitState(undefined) and the healthy-slow
+    // heartbeat — were each tested alone. This pins the actual scenario the
+    // gate exists for: a broken gate must not read as a slow one, and over a
+    // long outage the heartbeat is the only thing still speaking.
+    const outage = Array.from({ length: 40 }, () => new GhApiError('HTTP 500'));
+    const { deps, logs } = harness([...outage, [DONE('CI')]]);
+    await waitForCi('sha', deps);
+    const beats = logs.filter(l => l.startsWith('⏳'));
+    expect(beats.length).toBeGreaterThan(0);
+    expect(beats[0]).toContain('no data (gh api failing)');
+  });
+
   it('gives up before the Monitor timeout and says so', async () => {
     const { deps, logs } = harness([[run('CI', 'in_progress')]], { repeatLast: true });
     await expect(waitForCi('sha', deps)).resolves.toBe('timeout');
@@ -388,6 +401,38 @@ describe('runCiGate with its REAL dependencies (wiring seam)', () => {
     expect(logs).toContain(mod.SENTINELS.releasable);
     // The uppercase SHA was normalized before `git cat-file` saw it.
     expect(argvs[0][2]).toBe(`${'a'.repeat(40)}^{commit}`);
+  });
+
+  it('threads `log` into fetchRuns so its page-ceiling warning reaches stdout', async () => {
+    // A bare `fetch: fetchRuns` would send that one warning to console.warn
+    // (stderr) instead, which is why this asserts the wiring rather than the
+    // warning's text — the text is covered by fetchRuns' own test.
+    vi.resetModules();
+    vi.useFakeTimers();
+    vi.doMock('node:child_process', () => ({
+      execFileSync: (_cmd: string, args: string[]) =>
+        args[0] === 'api'
+          ? JSON.stringify(Array.from({ length: GATE_PAGE_SIZE }, () => DONE('CI')))
+          : '',
+    }));
+    const mod = await import('./ci-gate.js');
+    const stdout: string[] = [];
+    const stderr: string[] = [];
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(m => void stdout.push(String(m)));
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(m => void stderr.push(String(m)));
+
+    const promise = mod.runCiGate(1992, { sha: 'a'.repeat(40) });
+    await vi.advanceTimersByTimeAsync(mod.GATE_DEFAULTS.SETTLE_MS);
+    await promise;
+
+    logSpy.mockRestore();
+    warnSpy.mockRestore();
+    vi.useRealTimers();
+    vi.doUnmock('node:child_process');
+    vi.resetModules();
+
+    expect(stdout.some(l => l.includes('page ceiling'))).toBe(true);
+    expect(stderr).toEqual([]);
   });
 });
 

@@ -49,16 +49,19 @@ export interface SurfaceCommand {
  *
  * - the PR number after `gh:ci-gate` — the hook interpolates the real one, the
  *   rule writes `N`, the skill `<N>`
- * - the `--sha` value — the hook interpolates the pushed SHA, the docs describe it
+ * - the heredoc's `\$` escaping — the hook's copy lives in a heredoc, where the
+ *   backslash is what stops bash expanding the substitution at emit time
  *
- * Everything else — the command name, the flags, any future argument — is
- * compared literally, which is the whole point.
+ * The `--sha` VALUE is deliberately NOT normalized: all three copies now pass
+ * the literal `$(git rev-parse HEAD)`, so it can be compared like any other
+ * token. That is the stricter choice — a placeholder rule broad enough to cover
+ * a value containing spaces would also swallow any flag appended after it.
  */
 export function normalizeMonitorCommand(raw: string): string {
   return raw
     .trim()
-    .replace(/gh:ci-gate \S+/, 'gh:ci-gate <PLACEHOLDER>')
-    .replace(/--sha \S+/, '--sha <PLACEHOLDER>');
+    .replaceAll('\\$', '$')
+    .replace(/gh:ci-gate \S+/, 'gh:ci-gate <PLACEHOLDER>');
 }
 
 /**

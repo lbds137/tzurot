@@ -92,12 +92,12 @@ The `.claude/hooks/pr-monitor-reminder.sh` PostToolUse hook auto-fires on `git p
 Arm a `Monitor` with `description: "CI + reviews for PR <N>"`, `timeout_ms: 1800000`, `persistent: false` (required by the schema; deliberately NOT `true` — see 05-tooling.md, a forgotten session-length watcher can't be cleaned up), and this as its `command` — verbatim, as plain bash:
 
 ```bash
-pnpm ops gh:ci-gate <N> --sha <full-40-char-pushed-sha>
+pnpm ops gh:ci-gate <N> --sha $(git rev-parse HEAD)
 ```
 
 This invocation is one of three copies (here, `05-tooling.md`, the hook heredoc). Edit one and `pnpm ops guard:monitor-command` fails CI until the other two match — the PR/SHA placeholders may differ, nothing else may.
 
-**Pass `$(git rev-parse HEAD)` — never a hand-transcribed SHA.** The gate rejects an abbreviated one immediately, and also resolves the SHA locally so a well-formed-but-nonexistent one (an abbreviated SHA completed by hand) fails instantly instead of waiting on a query that can never match.
+**Copy the substitution verbatim — never resolve the SHA and paste the result.** Hand-transcribing failed four times in one session, twice by completing an abbreviated SHA with invented characters; both shapes spin silently rather than erroring. The gate rejects an abbreviated SHA and a well-formed one naming no local commit, but the substitution removes the step entirely.
 
 The gate waits for the CI workflow RUN to complete — and for nothing else on that SHA to still be in flight — before handing off to `--watch`. A fixed startup `sleep` does not work here: workflow-run creation itself can lag the push by minutes, so `--watch` starts against a check list holding only the fast checks and exits immediately. See `05-tooling.md` § PR Monitoring for the measurement and for what the gate reports when `gh api` fails.
 

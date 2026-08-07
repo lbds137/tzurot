@@ -8,12 +8,24 @@ import {
   normalizeMonitorCommand,
 } from './check-monitor-command.js';
 
-const HOOK_LINE = '    pnpm ops gh:ci-gate 42 --sha 3f2fda862bab52543b9746a4dbff5cb40af393ea';
-const RULE_LINE = 'pnpm ops gh:ci-gate N --sha <full-40-char-sha>';
+const HOOK_LINE = String.raw`    pnpm ops gh:ci-gate 42 --sha \$(git rev-parse HEAD)`;
+const RULE_LINE = 'pnpm ops gh:ci-gate N --sha $(git rev-parse HEAD)';
 
 describe('normalizeMonitorCommand', () => {
-  it('erases the PR-number and SHA differences', () => {
+  it('erases only the PR-number and the heredoc escaping', () => {
     expect(normalizeMonitorCommand(HOOK_LINE)).toBe(normalizeMonitorCommand(RULE_LINE));
+  });
+
+  it('flags drift INSIDE the first --sha token, which a placeholder rule would hide', () => {
+    // The load-bearing test for "the --sha value is no longer normalized", and
+    // the fixture matters more than it looks. Reintroducing the old
+    // `--sha \S+` → placeholder rule must break exactly this test, so the
+    // divergence has to sit inside the token `\S+` would swallow (`--sha $(git`).
+    // Verified by canary: with the old rule restored, this fails and every
+    // other test in this file still passes. A stray space later in the
+    // substitution does NOT discriminate — it survives outside `\S+`'s reach.
+    const drifted = RULE_LINE.replace('$(git ', '$(gitx ');
+    expect(normalizeMonitorCommand(drifted)).not.toBe(normalizeMonitorCommand(RULE_LINE));
   });
 
   it('keeps a renamed command visible', () => {
@@ -26,7 +38,7 @@ describe('normalizeMonitorCommand', () => {
     expect(normalizeMonitorCommand(extra)).not.toBe(normalizeMonitorCommand(RULE_LINE));
   });
 
-  it('keeps a changed flag NAME visible even though its value is normalized', () => {
+  it('keeps a changed flag NAME visible', () => {
     const renamedFlag = RULE_LINE.replace('--sha', '--commit');
     expect(normalizeMonitorCommand(renamedFlag)).not.toBe(normalizeMonitorCommand(RULE_LINE));
   });
