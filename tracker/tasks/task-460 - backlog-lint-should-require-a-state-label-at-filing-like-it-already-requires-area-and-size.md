@@ -3,10 +3,10 @@ id: TASK-460
 title: >-
   backlog lint should require a state label at filing, like it already requires
   area and size
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-07 13:11'
-updated_date: '2026-08-07 13:11'
+updated_date: '2026-08-07 16:59'
 labels:
   - 'area:backlog'
   - 'area:tooling'
