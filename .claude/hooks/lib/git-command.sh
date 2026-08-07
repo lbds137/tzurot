@@ -3,7 +3,10 @@
 # Sourced by claim-shape-guard.sh and fixup-rider-check.sh — the regex lives
 # here so a future tweak (new global-flag shape, new commit variant) lands in
 # one place. (develop-code-commit-guard.sh and git-commit-filter-guard.sh
-# carry equivalent Python-side logic — sync manually if the shape changes.)
+# carry equivalent Python-side logic. The three are kept in agreement by
+# packages/tooling/src/dev/gitCommitPatternAgreement.test.ts, which extracts
+# all three patterns and runs them over a shared case table — change one
+# without the others and it names the copy that drifted.)
 
 # is_git_commit_command <command-string> → exit 0 when the string invokes
 # `git commit`, tolerating global flags (`git -C path commit`, `git -c k=v
