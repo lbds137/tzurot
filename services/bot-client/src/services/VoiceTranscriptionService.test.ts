@@ -1524,28 +1524,31 @@ interface MockMessageOptions {
   /**
    * Mark the message as a forward (`reference.type === Forward`) while leaving
    * `messageSnapshots` absent — the shape Discord produces when it declines to
-   * populate snapshots. The two forwarded-voice detectors guard this case with
-   * different predicates, so it needs its own fixture.
+   * populate snapshots. `isForwardedMessage` says yes on the reference alone, so
+   * this reaches the snapshot walk with nothing to walk; it needs its own fixture
+   * to pin that the empty walk yields false rather than throwing.
    */
   forwardReferenceWithoutSnapshots?: boolean;
 }
 
-function createMockAttachmentsMap(attachmentsList: MockSnapshotAttachment[] | null): Map<
-  string,
-  MockSnapshotAttachment
-> & {
-  some: (predicate: (a: MockSnapshotAttachment) => boolean) => boolean;
-} {
-  const map = new Map<string, MockSnapshotAttachment>();
+/**
+ * Discord.js hands back a `Collection`, which extends Map with helpers the shared
+ * forwarded-message utilities call — `some` on attachment collections, `first` on
+ * snapshot collections. A bare Map silently lacks both, so each fixture used to
+ * monkey-patch only the subset its own caller happened to touch. Building one
+ * shape that carries both keeps a fixture honest to the real Collection instead
+ * of to one call path, which is what let a detector reach a fixture missing the
+ * very method it needed.
+ */
+type MockCollection<V> = Map<string, V> & {
+  some: (predicate: (value: V) => boolean) => boolean;
+  first: () => V | undefined;
+};
 
-  if (attachmentsList) {
-    attachmentsList.forEach((att, index) => {
-      map.set(`snapshot-att-${index}`, att);
-    });
-  }
+function createMockCollection<V>(entries: Iterable<readonly [string, V]>): MockCollection<V> {
+  const collection = new Map<string, V>(entries) as MockCollection<V>;
 
-  // Add Collection-like methods
-  (map as any).some = function (predicate: (a: MockSnapshotAttachment) => boolean) {
+  collection.some = function (predicate: (value: V) => boolean): boolean {
     for (const value of this.values()) {
       if (predicate(value)) {
         return true;
@@ -1554,51 +1557,53 @@ function createMockAttachmentsMap(attachmentsList: MockSnapshotAttachment[] | nu
     return false;
   };
 
-  return map as Map<string, MockSnapshotAttachment> & {
-    some: (predicate: (a: MockSnapshotAttachment) => boolean) => boolean;
+  collection.first = function (): V | undefined {
+    return this.values().next().value;
   };
+
+  return collection;
+}
+
+function createMockAttachmentsMap(
+  attachmentsList: MockSnapshotAttachment[] | null
+): MockCollection<MockSnapshotAttachment> {
+  return createMockCollection(
+    (attachmentsList ?? []).map((att, index) => [`snapshot-att-${index}`, att] as const)
+  );
 }
 
 function createMockMessage(options: MockMessageOptions = {}): Message {
-  const attachments = new Map();
-
-  (options.attachments || []).forEach((att, index) => {
-    attachments.set(`attachment-${index}`, {
-      url: att.url || `https://cdn.discord.com/file-${index}`,
-      contentType: att.contentType === undefined ? 'application/octet-stream' : att.contentType,
-      name: att.name || `file-${index}`,
-      size: att.size || 1000,
-      duration: att.duration === undefined ? null : att.duration,
-      waveform: att.waveform,
-    });
-  });
-
-  // Add Collection-like methods to Map (Discord.js Collection extends Map)
-  (attachments as any).some = function (predicate: any) {
-    for (const value of this.values()) {
-      if (predicate(value)) {
-        return true;
-      }
-    }
-    return false;
-  };
+  const attachments = createMockCollection(
+    (options.attachments || []).map(
+      (att, index) =>
+        [
+          `attachment-${index}`,
+          {
+            url: att.url || `https://cdn.discord.com/file-${index}`,
+            contentType:
+              att.contentType === undefined ? 'application/octet-stream' : att.contentType,
+            name: att.name || `file-${index}`,
+            size: att.size || 1000,
+            duration: att.duration === undefined ? null : att.duration,
+            waveform: att.waveform,
+          },
+        ] as const
+    )
+  );
 
   // Create messageSnapshots if provided
   let messageSnapshots:
-    Map<string, { attachments: ReturnType<typeof createMockAttachmentsMap> }> | undefined;
+    MockCollection<{ attachments: MockCollection<MockSnapshotAttachment> }> | undefined;
   if (options.messageSnapshots && options.messageSnapshots.length > 0) {
-    messageSnapshots = new Map();
-    options.messageSnapshots.forEach((snapshot, index) => {
-      messageSnapshots!.set(`snapshot-${index}`, {
-        attachments: createMockAttachmentsMap(snapshot.attachments),
-      });
-    });
-    // Discord.js hands back a `Collection`, not a bare `Map` — the shared
-    // forwarded-message helpers use `first()`. Stub it so the fixture matches the
-    // real shape instead of only the subset one caller happened to touch.
-    (messageSnapshots as any).first = function () {
-      return this.values().next().value;
-    };
+    messageSnapshots = createMockCollection(
+      options.messageSnapshots.map(
+        (snapshot, index) =>
+          [
+            `snapshot-${index}`,
+            { attachments: createMockAttachmentsMap(snapshot.attachments) },
+          ] as const
+      )
+    );
   }
 
   const channel: any = options.noTypingSupport

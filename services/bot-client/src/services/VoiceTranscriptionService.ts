@@ -25,7 +25,7 @@ import { voiceTranscriptCache } from '../redis.js';
 import {
   hasForwardedSnapshots,
   getSnapshots,
-  hasForwardedVoiceAttachment,
+  hasVoiceAttachments,
 } from '../utils/forwardedMessageUtils.js';
 import { isVoiceAttachment } from '../utils/voiceAttachment.js';
 import { sendTypingIndicator } from '../utils/typingErrorClassifier.js';
@@ -287,23 +287,17 @@ interface VoiceTranscriptionResult {
  */
 export class VoiceTranscriptionService {
   /**
-   * Check if message contains voice attachment (in direct attachments or forwarded message snapshots)
-   * Uses centralized utilities from forwardedMessageUtils.ts for consistent forwarded message handling.
+   * Check if message contains voice attachment (in direct attachments or forwarded
+   * message snapshots).
+   *
+   * Kept as a method rather than an import at the call site so VoiceMessageProcessor
+   * retains an injectable seam over this service; the detection itself is the shared
+   * one — direct attachments first, then the forwarded-snapshot detector, which reads
+   * the `isVoiceMessage` flag `extractAttachments` computed from the RAW snapshot
+   * attachment (including the duration fallback for content-type-less snapshots).
    */
   hasVoiceAttachment(message: Message): boolean {
-    // Direct attachments (forwarded snapshots handled below).
-    const hasDirectAudio = message.attachments.some(isVoiceAttachment);
-
-    if (hasDirectAudio) {
-      return true;
-    }
-
-    // Forwarded snapshots: delegate to the shared detector rather than re-walking
-    // the snapshots here. It reads the `isVoiceMessage` flag that
-    // `extractAttachments` computed from the RAW snapshot attachment, i.e. the same
-    // `isVoiceAttachment` predicate over the same object — including the
-    // duration fallback for content-type-less snapshots.
-    return hasForwardedVoiceAttachment(message);
+    return hasVoiceAttachments(message);
   }
 
   /**
