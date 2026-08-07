@@ -75,6 +75,11 @@ cmd = re.sub(r"<<[-~]?\s*'?\"?(\w+)'?\"?.*?\n\1(?=\s|$)", "HEREDOC", cmd, flags=
 cmd = re.sub(r"'[^']*'", "S", cmd)
 cmd = re.sub(r'"[^"]*"', "S", cmd)
 
+# Kept in agreement with the other two copies (lib/git-command.sh and
+# git-commit-filter-guard.sh) by
+# packages/tooling/src/dev/gitCommitPatternAgreement.test.ts, which extracts all
+# three patterns and runs them over a shared case table.
+#
 # `git commit` with optional global flags (-C <path>, --git-dir=…, etc.).
 # The trailing (?![-\w]) is load-bearing: a plain \b would also match the
 # plumbing subcommands `git commit-tree` / `git commit-graph`, because `-`
