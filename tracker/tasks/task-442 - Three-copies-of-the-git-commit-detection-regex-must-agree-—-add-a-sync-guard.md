@@ -1,10 +1,10 @@
 ---
 id: TASK-442
 title: Three copies of the git-commit-detection regex must agree — add a sync guard
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-05 21:37'
-updated_date: '2026-08-05 21:37'
+updated_date: '2026-08-07 16:30'
 labels:
   - 'area:tooling'
   - 'area:ci'
