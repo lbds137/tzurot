@@ -1,12 +1,20 @@
 #!/bin/bash
 # Shared detection: does a Bash tool command string invoke `git commit`?
-# Sourced by claim-shape-guard.sh and fixup-rider-check.sh — the regex lives
-# here so a future tweak (new global-flag shape, new commit variant) lands in
-# one place. (develop-code-commit-guard.sh and git-commit-filter-guard.sh
-# carry equivalent Python-side logic. The three are kept in agreement by
-# packages/tooling/src/dev/gitCommitPatternAgreement.test.ts, which extracts
-# all three patterns and runs them over a shared case table — change one
-# without the others and it names the copy that drifted.)
+#
+# NO RUNTIME CONSUMER. claude-shape-guard.sh and fixup-rider-check.sh used to
+# source this; both moved to husky channels and now key off git state (the
+# staged diff) and the commit-message subject respectively, neither of which
+# needs command-text matching at all. What remains is the CANONICAL REFERENCE
+# copy of the pattern: develop-code-commit-guard.sh and git-commit-filter-guard.sh
+# carry equivalent Python-side logic, and
+# packages/tooling/src/dev/gitCommitPatternAgreement.test.ts extracts all three
+# and runs them over a shared case table — change one without the others and it
+# names the copy that drifted.
+#
+# Keeping a consumer-free reference is a deliberate call, not an oversight: the
+# two live copies are Python regexes inside blocking hooks, and a language-
+# neutral third copy is what the agreement test compares them against. If that
+# stops earning its keep, delete this file and reduce the test to two sources.
 
 # is_git_commit_command <command-string> → exit 0 when the string invokes
 # `git commit`, tolerating global flags (`git -C path commit`, `git -c k=v
