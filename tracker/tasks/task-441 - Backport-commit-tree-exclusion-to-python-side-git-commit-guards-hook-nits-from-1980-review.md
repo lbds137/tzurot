@@ -3,9 +3,10 @@ id: TASK-441
 title: >-
   Backport commit-tree exclusion to python-side git-commit guards (+ hook nits
   from #1980 review)
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-05 20:32'
+updated_date: '2026-08-07 23:57'
 labels:
   - 'area:tooling'
   - 'size:S'
@@ -28,28 +29,6 @@ STATUS after #1981: (a), (b) and (c) SHIPPED. (d) remains — the task stays ope
 
 Acceptance: git commit-tree not treated as git commit by any hook (probe-pinned in both guards); claim-shape/fixup-rider hooks fork jq only when the input plausibly contains a commit.
 
-## SCOPE SHRANK 2026-08-07 — (b) and (d) are moot, (e) is the whole remaining task
-
-TASK-458's remediation re-homed claim-shape-guard to .husky/pre-commit and
-fixup-rider-check to .husky/commit-msg. Neither reads stdin, forks jq, or does
-command-text matching anymore - claim-shape reads the staged diff, fixup-rider
-reads the commit-message subject. Consequences for this task:
-
-- (b) MOOT. The jq forks it wanted gated no longer exist in those two hooks.
-  The second clause of the acceptance line above is therefore unreachable and
-  should be read as satisfied-by-removal.
-- (d) MOOT as written. It wanted heredoc/quote stripping in
-  is_git_commit_command to kill message-text false-fires, but that function now
-  has NO consumers (it survives only as the agreement test's reference copy),
-  so there is no false-fire to kill. The two blocking guards already do their
-  own Python-side stripping.
-- (a), (c) SHIPPED in #1981 as recorded above.
-
-That leaves (e) alone, and its measurement stands unaffected: the two BLOCKING
-guards still fork jq twice on EVERY Bash call at ~16.3ms, before their case
-short-circuit. Revised acceptance: develop-code-commit-guard.sh and
-git-commit-filter-guard.sh short-circuit on a raw-stdin substring check before
-forking jq, with probe cases pinning that the blocking behaviour is unchanged.
 ## MEASUREMENT 2026-08-07 — (e) is worth doing
 
 Timed 50 runs of develop-code-commit-guard.sh against a non-git payload
@@ -99,5 +78,32 @@ runtime-confirmed false-fire — do not build it on a code-read mechanism. The
 bash-vs-Python tradeoff is unchanged: bash cannot express the heredoc delimiter
 backreference, so the options are a bash state loop or forking Python from the
 lib.
+
+## CLOSED 2026-08-07 — (d) is moot, so nothing remains
+
+TASK-458's remediation re-homed claim-shape-guard to .husky/pre-commit (it now
+reads the staged diff) and fixup-rider-check to .husky/commit-msg (it now reads
+the commit-message subject). Neither does command-text matching anymore, so
+both stopped sourcing lib/git-command.sh — leaving `is_git_commit_command` with
+ZERO consumers, verified by grep: the only remaining mentions are the
+definition itself, two comments in the Python guards, and the agreement test.
+
+That moots (d) twice over:
+
+1. There is no false-fire left to kill. (d) wanted heredoc/quote stripping to
+   stop a commit whose MESSAGE mentions `git commit` from firing the guard, but
+   the two hooks that consumed the function are gone from that path. The two
+   Python guards already do their own stripping and were never the target.
+2. Doing it would BREAK something. The function survives as the reference copy
+   that gitCommitPatternAgreement.test.ts compares the two live Python regexes
+   against. Hardening only the bash copy makes it diverge from both, which is
+   exactly the drift that test exists to fail on.
+
+With (a)/(b)/(c) shipped in #1981 and (e) in #1999, every member is now shipped
+or moot. Closing.
+
+If a message-text false-fire is ever observed in one of the PYTHON guards, that
+is a new task against those regexes — not a revival of this one, whose target
+was the bash lib.
 
 <!-- SECTION:DESCRIPTION:END -->
