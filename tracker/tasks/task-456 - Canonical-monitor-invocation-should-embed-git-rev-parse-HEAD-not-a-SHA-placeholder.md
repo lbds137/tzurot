@@ -3,10 +3,10 @@ id: TASK-456
 title: >-
   Canonical monitor invocation should embed $(git rev-parse HEAD), not a SHA
   placeholder
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-07 02:26'
-updated_date: '2026-08-07 02:26'
+updated_date: '2026-08-07 10:35'
 labels:
   - 'area:tooling'
   - 'area:process'
