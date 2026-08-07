@@ -2,6 +2,15 @@
 # PostToolUse hook: after `git push` or `gh pr create`, inject a reminder for
 # Claude to arm a Monitor watching PR CI + review-bot completion.
 # Contract + Monitor command shape: .claude/rules/05-tooling.md "PR Monitoring".
+#
+# The reminder prints `--sha $(git rev-parse HEAD)` UNRESOLVED, on purpose, even
+# though $SHA below already holds the pushed value. Baking the value in has no
+# arm-delay window, but it also makes this copy differ from the two doc copies,
+# and every hand-filled SHA has to be transcribed from somewhere — which failed
+# four times in one session. The cost is that anything moving HEAD between the
+# push and the Monitor — a branch checkout more often than a new commit — makes
+# the gate watch a different SHA silently; the rule names that window. Do not "fix" this back to $SHA without reading that section
+# and guard:monitor-command, which requires all three copies to match.
 
 # No `-e`: we rely on graceful early-exits via empty-var checks. `-u` catches
 # typos on variable names; pipefail surfaces failures from pipelines.
@@ -129,20 +138,23 @@ Per .claude/rules/05-tooling.md (PR Monitoring), arm a Monitor now:
   TaskStop it. One monitor per PR — the reporting half is not SHA-pinned, so a
   stale watcher reports the CURRENT state under an older push's label.
 
-  The SHA below is this push's, already resolved IN FULL — COPY IT, never
-  complete an abbreviated one by hand. The gate rejects an abbreviated SHA
-  outright, and also refuses a well-formed one that names no local commit (the
-  runs API matches nothing on either, so waiting would be pointless). The gate
-  waits for the CI workflow RUN to complete and
-  for nothing else on that SHA to still be in flight; do not swap it for a fixed
-  'sleep', because run creation itself can lag the push by minutes (see
-  05-tooling.md § PR Monitoring).
+  COPY THE LINE BELOW VERBATIM, substitution included — do NOT resolve the SHA
+  yourself and paste the result. Hand-transcribing it failed four times in one
+  session (twice by completing an abbreviated SHA with invented characters), and
+  every one of those spins silently instead of erroring. The gate does reject an
+  abbreviated SHA and a well-formed one naming no local commit, but the point of
+  the substitution is that there is nothing left to get wrong.
+
+  The gate waits for the CI workflow RUN to complete and for nothing else on
+  that SHA to still be in flight; do not swap it for a fixed 'sleep', because
+  run creation itself can lag the push by minutes (see 05-tooling.md § PR
+  Monitoring).
 
   Arm a Monitor with description "CI + reviews for PR #$PR_NUM", timeout_ms
   1800000, persistent false (deliberately NOT true — a forgotten session-length
   watcher cannot be cleaned up), and the line below as its "command", verbatim:
 
-    pnpm ops gh:ci-gate $PR_NUM --sha $SHA
+    pnpm ops gh:ci-gate $PR_NUM --sha \$(git rev-parse HEAD)
 
 When it fires:
 - Inspect \`gh pr checks $PR_NUM\` output for pass/fail summary.

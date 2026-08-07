@@ -386,7 +386,17 @@ export async function runCiGate(
 
   const outcome = await waitForCi(
     args.sha,
-    overrides.wait ?? { fetch: fetchRuns, now: () => Date.now(), wait: sleep, log }
+    // `sha => fetchRuns(sha, log)`, not the bare reference: fetchRuns' page-
+    // ceiling warning would otherwise fall back to its own console.warn default
+    // and go to stderr, while every other diagnostic here goes through `log` to
+    // stdout. That warning reports the one condition the gate structurally
+    // cannot see past, so it must not be the one least likely to surface.
+    overrides.wait ?? {
+      fetch: (sha: string) => fetchRuns(sha, log),
+      now: () => Date.now(),
+      wait: sleep,
+      log,
+    }
   );
 
   // Every outcome reports the current check state — even a timeout or a
