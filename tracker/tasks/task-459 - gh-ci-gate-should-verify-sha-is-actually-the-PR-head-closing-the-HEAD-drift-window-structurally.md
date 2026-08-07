@@ -3,10 +3,10 @@ id: TASK-459
 title: >-
   gh:ci-gate should verify --sha is actually the PR head, closing the HEAD-drift
   window structurally
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-07 10:20'
-updated_date: '2026-08-07 10:20'
+updated_date: '2026-08-07 13:11'
 labels:
   - 'area:tooling'
   - 'size:S'
