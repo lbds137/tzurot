@@ -27,6 +27,29 @@ STATUS after #1981: (a), (b) and (c) SHIPPED. (d) remains — the task stays ope
 (e) NEW, from the #1981 round-3 review: the raw-stdin pre-check landed only in claim-shape-guard.sh and fixup-rider-check.sh, but develop-code-commit-guard.sh and git-commit-filter-guard.sh are the PreToolUse hooks that run on EVERY Bash call, and they still fork jq twice before their decoded-command short-circuit. That is where a cheap-first pass actually pays. Not ridden in #1981 because an early exit added to a BLOCKING guard is a behavior change needing its own probe cases. See also TASK-442 (the three-way regex sync guard).
 
 Acceptance: git commit-tree not treated as git commit by any hook (probe-pinned in both guards); claim-shape/fixup-rider hooks fork jq only when the input plausibly contains a commit.
+
+## SCOPE SHRANK 2026-08-07 — (b) and (d) are moot, (e) is the whole remaining task
+
+TASK-458's remediation re-homed claim-shape-guard to .husky/pre-commit and
+fixup-rider-check to .husky/commit-msg. Neither reads stdin, forks jq, or does
+command-text matching anymore - claim-shape reads the staged diff, fixup-rider
+reads the commit-message subject. Consequences for this task:
+
+- (b) MOOT. The jq forks it wanted gated no longer exist in those two hooks.
+  The second clause of the acceptance line above is therefore unreachable and
+  should be read as satisfied-by-removal.
+- (d) MOOT as written. It wanted heredoc/quote stripping in
+  is_git_commit_command to kill message-text false-fires, but that function now
+  has NO consumers (it survives only as the agreement test's reference copy),
+  so there is no false-fire to kill. The two blocking guards already do their
+  own Python-side stripping.
+- (a), (c) SHIPPED in #1981 as recorded above.
+
+That leaves (e) alone, and its measurement stands unaffected: the two BLOCKING
+guards still fork jq twice on EVERY Bash call at ~16.3ms, before their case
+short-circuit. Revised acceptance: develop-code-commit-guard.sh and
+git-commit-filter-guard.sh short-circuit on a raw-stdin substring check before
+forking jq, with probe cases pinning that the blocking behaviour is unchanged.
 ## MEASUREMENT 2026-08-07 — (e) is worth doing
 
 Timed 50 runs of develop-code-commit-guard.sh against a non-git payload
