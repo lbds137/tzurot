@@ -109,6 +109,14 @@ run 0 "plumbing: commit-tree behind -C flag"      'git -C /some/path commit-tree
 run 0 "escape hatch in command position"          'TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 git commit -m "x"'   'services/probe.ts'
 run 0 "escape hatch, canonical heredoc form"      "TZUROT_ALLOW_DEVELOP_CODE_COMMIT=1 $CANONICAL_HEREDOC"  'services/probe.ts'
 run 0 "non-git command"                           'echo hello'                                             'services/probe.ts'
+# Raw-payload pre-check boundary: the hook exits before forking jq when the RAW
+# stdin has no git…commit token pair. `git status` has no `commit` at all;
+# `echo commit && git status` has the tokens in the WRONG ORDER, and the glob
+# needs git BEFORE commit — matching the decoded check it replaces. Both must
+# stay silent, and a commit whose tokens sit behind a chain must still block
+# (covered by the blocking cases above).
+run 0 "pre-check: git verb with no commit token"  'git status --porcelain'                                 'services/probe.ts'
+run 0 "pre-check: tokens in the wrong order"      'echo commit && git status'                              'services/probe.ts'
 run 0 "clean tree commit"                         'git add -A && git commit -m "x"'
 run 0 "docs-only dirty file"                      'git commit -m "x"'                                      'docs/probe-notes.md'
 # Accepted-tradeoff pin: dirty-tree (not staged-set) design means an

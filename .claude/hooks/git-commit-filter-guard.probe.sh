@@ -65,6 +65,15 @@ run 0 "non-git command with a filter"         'pnpm test | tail -20'
 run 0 "git log piped to a filter"             'git log --oneline | head -5'
 run 0 "commit message merely mentions a pipe" 'git commit -m "fix: stop piping git push | tail"'
 
+# --- raw-payload pre-check boundary ---------------------------------------
+# The hook exits before forking jq when the RAW stdin lacks a pipe, or lacks
+# the git+commit / git+push token pair. These pin that the fast path never
+# swallows a command the decoded checks would have caught, and that the slow
+# path is still reached when it must be.
+run 0 "pre-check: pipe but no git token"      'ls -la | tail'
+run 0 "pre-check: git commit but no pipe"     'git commit --amend --no-edit'
+run 2 "pre-check: tokens split across a &&"   'echo commit && git push | tail'
+
 # --- malformed / non-Bash input fails OPEN --------------------------------
 printf '{"tool_name":"Read","tool_input":{"file_path":"x"}}' | "$HOOK" >/dev/null 2>&1
 if [ $? -eq 0 ]; then
