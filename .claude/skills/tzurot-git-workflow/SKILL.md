@@ -87,7 +87,7 @@ Immediately after `gh pr create` — and after any subsequent `git push` to an o
 
 **`TaskStop` the PR's previous monitor first — one monitor per PR.** Re-arming each push without stopping the old one stacks watchers on the same PR, and since the reporting half is not SHA-pinned a stale one can fire `CI_COMPLETE` carrying the current state under an older push's label (`05-tooling.md` § PR Monitoring).
 
-The `.claude/hooks/pr-monitor-reminder.sh` PostToolUse hook auto-fires on `git push` / `gh pr create` and injects a reminder with the Monitor invocation pre-filled with the current PR number. Use that when you see it; the template below is the fallback shape if you're arming manually:
+Arm it from the template below every time — `.claude/hooks/pr-monitor-reminder.sh` builds a pre-filled reminder but its output never reaches the agent (non-blocking post-hoc hook output is dropped), so there is no banner to wait for. This template is the only path, not a fallback:
 
 Arm a `Monitor` with `description: "CI + reviews for PR <N>"`, `timeout_ms: 1800000`, `persistent: false` (required by the schema; deliberately NOT `true` — see 05-tooling.md, a forgotten session-length watcher can't be cleaned up), and this as its `command` — verbatim, as plain bash:
 

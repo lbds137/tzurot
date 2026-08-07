@@ -2,10 +2,12 @@
  * Guard: the canonical CI-monitor command must not drift across its three surfaces.
  *
  * The same bash one-liner (run-gate + `gh pr checks --watch`) is embedded in:
- *   - `.claude/hooks/pr-monitor-reminder.sh` — the copy that is actually EMITTED
- *     to the agent on every push, so it is ground truth
+ *   - `.claude/hooks/pr-monitor-reminder.sh` — the hook's heredoc copy. It is
+ *     built on every push but never reaches the agent (non-blocking post-hoc
+ *     hook output is dropped), so it is the reference copy by position here,
+ *     not because anyone reads it.
  *   - `.claude/rules/05-tooling.md` — the canonical documented block
- *   - `.claude/skills/tzurot-git-workflow/SKILL.md` — the manual-arm fallback
+ *   - `.claude/skills/tzurot-git-workflow/SKILL.md` — the copy actually armed from
  *
  * Keeping the literal in all three is a deliberate readability choice (a pointer
  * would make the rule unreadable at the exact moment someone needs the command),

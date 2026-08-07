@@ -11,8 +11,14 @@
 # Background: .claude/rules/00-critical.md "Never Merge PRs Without Completed
 # CI" #3 says "claude-review turning green only means it finished posting — it
 # does NOT mean its content was read." The rule existed but relied on agent
-# attention; this hook is the structural backstop. Companion to
-# pr-monitor-reminder.sh (PostToolUse on push/create).
+# attention; this hook is the structural backstop.
+#
+# It also carries the release-finalize reminder for PRs based on `main`. That
+# reminder used to be its own PostToolUse hook firing after the merge, but
+# non-blocking PostToolUse output never reaches the agent (probed directly,
+# every matcher), so it printed into a void across every release. This hook is
+# the nearest channel that provably delivers: it fires on the same `gh pr merge`
+# command and blocks, and blocking-path stderr was observed reaching context.
 
 set -uo pipefail
 
@@ -107,6 +113,19 @@ ORIGIN_HITS=$(grep -icE 'pre-?existing|pre-?dates|not a regression|not introduce
 ACK_FILE="/tmp/.claude_pr_merge_ack.$(id -u)"
 ACK_KEY="${PR_NUM}:${REVIEW_ID}"
 
+# Release-PR detection, for the finalize reminder folded into the block below.
+# Resolved here rather than earlier so the extra API call only costs on the
+# path that is about to block anyway (the acked-retry path exits above).
+#
+# Filtering on base=main is the whole test: the project's critical rule
+# reserves a `main` base for release PRs. The reminder is FORWARD-looking —
+# it fires before the merge rather than after it, which is why there is no
+# `state = MERGED` check here (state is OPEN at this point, by construction).
+# That is a channel-forced improvement, not a compromise: the previous
+# PostToolUse version fired post-merge into an output stream that never
+# reached the agent, so the reminder it printed was never read.
+PR_BASE=$(gh pr view "$PR_NUM" --json baseRefName --jq '.baseRefName' 2>/dev/null || echo "")
+
 if [ -f "$ACK_FILE" ] && grep -qxF "$ACK_KEY" "$ACK_FILE" 2>/dev/null; then
     # Already injected this review; allow the retry.
     exit 0
@@ -148,6 +167,20 @@ RULE='━━━━━━━━━━━━━━━━━━━━━━━━�
         printf 'user-facing summary: fix now / backlog entry with promote-when /\n'
         printf 'correct-as-is WITH the technical reason. "Pre-existing" may not be the\n'
         printf 'operative reason.\n\n'
+    fi
+    if [ "$PR_BASE" = "main" ]; then
+        printf '%s\n' "$RULE"
+        printf 'RELEASE PR — base is main. AFTER this merge lands, run finalize NEXT:\n\n'
+        printf '  pnpm ops release:finalize --yes\n\n'
+        printf 'Rebase-merging a release PR to main creates new SHAs on main. Without\n'
+        printf 'finalize, develop keeps its old SHAs and the next release PR shows N\n'
+        printf 'commits of false divergence per cycle — ~57 commits of drift accumulated\n'
+        printf 'across two skipped cycles before manual cleanup was needed.\n\n'
+        printf 'Also part of the post-merge sequence:\n'
+        printf '  - Prod migrations run BEFORE the merge (pnpm ops release:premigrate) —\n'
+        printf '    if this release has one and it has not run, stop and run it first.\n'
+        printf '  - Tag + push the release tag, then create the GitHub Release.\n'
+        printf '  - Do NOT pass --delete-branch: develop must survive.\n\n'
     fi
     printf 'Do NOT bypass this gate by editing the ack file. The gate'\''s purpose is to\n'
     printf 'ensure the latest review is in context at merge time — not an obstacle to\n'

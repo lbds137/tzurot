@@ -178,6 +178,12 @@ $(echo "$FILE_VIOLATIONS" | sed 's/^/     /')
     fi
 fi
 
+# Advisory: scan staged added lines for claim-shaped assertions ("always
+# populated", "never null", "cannot happen"). Those state what a value HOLDS at
+# runtime, which only the producer can settle (00-critical.md). Never blocks;
+# `|| true` keeps a missing/failed script harmless.
+.claude/hooks/claim-shape-guard.sh || true
+
 # Surface deferred-backlog entries that reference staged files (informational).
 # Many tracker tasks are gated on "opportunistic when next
 # touching <file>" — a trigger that only fires if the committer remembers the
