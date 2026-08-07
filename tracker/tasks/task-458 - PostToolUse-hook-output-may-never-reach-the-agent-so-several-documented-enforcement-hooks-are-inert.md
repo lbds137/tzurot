@@ -38,4 +38,30 @@ NOT yet determined: whether this is harness behavior (PostToolUse stdout not inj
 First step: determine whether ANY PostToolUse hook output reaches the agent. eslint-on-edit.sh is registered on Edit/Write/MultiEdit rather than Bash, so a deliberate lint error in an edited file is a cheap discriminator: if that surfaces and the Bash ones do not, the matcher or the tool is the variable rather than PostToolUse itself.
 
 Acceptance: either the hooks output reaches the agent and the rules citing them are true, or the rules stop claiming enforcement these hooks cannot deliver and the checks move somewhere that does fire.
+
+## CONFIRMED by probe — the discriminator ran
+
+The answer is PostToolUse itself, NOT the matcher. Four steps, each closing an alternative:
+
+1. Edited a .ts file, firing eslint-on-edit.sh (matcher Edit|Write|MultiEdit, not Bash) with a deliberate unused-binding error. NO output reached the agent.
+2. Ran eslint on that exact file directly: 1 error, output present. So there WAS something to deliver.
+3. Fed the hook the payload shape the harness sends: it printed that same eslint output and exited 0. So the hook itself works.
+4. Reverted; git status clean.
+
+Conclusion: non-blocking PostToolUse output never reaches the agent regardless of matcher. Six registered hooks affected: pr-monitor-reminder, release-finalize-reminder, empty-result-stderr-guard, fixup-rider-check, claim-shape-guard, eslint-on-edit.
+
+Contrast confirming the boundary, both observed live rather than inferred: the pr-merge-review-check PreToolUse hook injected a full review into agent context during the PR #2000 merge, and husky output arrives on every commit because it is the Bash command own stdout. NOT verified: WHY the harness drops it. The pattern fits "only blocking-error text is injected", but that is a hypothesis, not a finding.
+
+Second-order cost found while probing: eslint-on-edit spends ~4.8s per edited .ts file (its own comment measures this) producing output nobody has ever read.
+
+## Remediation shape — deletion was considered and REJECTED
+
+Every one of these hooks encodes a live concern and ships a probe harness; the fault is the delivery channel, so they get RE-HOMED, not deleted:
+
+- claim-shape-guard: needs the post-commit diff, so it cannot be PreToolUse — but .husky/pre-commit output DOES reach the agent, and pre-commit is the better moment anyway (the claim has not entered history yet). Move there.
+- fixup-rider-check: its own comment says detection is command-text only, so PreToolUse is behaviourally identical and fires before the commit. Move there.
+- release-finalize-reminder: needs post-merge PR state. The pr-merge-review-check PreToolUse hook already fires on the exact command (gh pr merge) and demonstrably reaches the agent — fold the release-PR reminder into it.
+- empty-result-stderr-guard: structurally cannot move; it needs the empty RESULT, which exists only post-hoc. Correct the false "structural backstop" claim in 10-working-posture.md and keep the rule text.
+- pr-monitor-reminder: correct the false "the hook is the enforcement mechanism behind this rule" claim in 05-tooling.md and the git-workflow skill. The rule text is what has actually been working.
+- eslint-on-edit: decide between dropping it and keeping a 4.8s-per-edit no-op. lint-staged and CI already enforce it.
 <!-- SECTION:DESCRIPTION:END -->
