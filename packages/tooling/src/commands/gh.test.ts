@@ -96,4 +96,38 @@ describe('gh command PR-number validation', () => {
     expect(api.getPrLineComments).not.toHaveBeenCalled();
     expect(api.getPrIssueComments).not.toHaveBeenCalled();
   });
+
+  // gh:ci-gate is the 7th call site and doesn't go through github-api.js, so
+  // the mock above can't prove it aborted. Its own module is stubbed instead:
+  // a regression dropping `parsePrNumber` would let a bad number through to a
+  // 25-minute wait against `/pulls/NaN`.
+  it('guards gh:ci-gate before it can start waiting', async () => {
+    vi.doMock('../gh/ci-gate.js', () => ({ runCiGate: vi.fn() }));
+    const { runCiGate } = await import('../gh/ci-gate.js');
+
+    await expect(run('gh:ci-gate', 'abc')).rejects.toThrow(UsageError);
+
+    expect(runCiGate).not.toHaveBeenCalled();
+    vi.doUnmock('../gh/ci-gate.js');
+  });
+
+  it('forwards --sha to gh:ci-gate read from raw argv', async () => {
+    // The value crosses a seam the PR-number tests don't cover: it is read from
+    // process.argv rather than cac's parsed options (mri coerces digit-only
+    // values), so a wiring break here would be invisible to every other test.
+    vi.doMock('../gh/ci-gate.js', () => ({ runCiGate: vi.fn() }));
+    const { runCiGate } = await import('../gh/ci-gate.js');
+    const sha = 'a'.repeat(40);
+    const priorArgv = process.argv;
+    process.argv = ['node', 'test', 'gh:ci-gate', '1992', '--sha', sha];
+    try {
+      cli.parse(process.argv, { run: false });
+      await (cli.runMatchedCommand() as Promise<void>);
+    } finally {
+      process.argv = priorArgv;
+    }
+
+    expect(runCiGate).toHaveBeenCalledWith(1992, { sha });
+    vi.doUnmock('../gh/ci-gate.js');
+  });
 });

@@ -8,36 +8,36 @@ import {
   normalizeMonitorCommand,
 } from './check-monitor-command.js';
 
-const HOOK_LINE =
-  '    SHA=$SHA; until gh api "repos/{owner}/{repo}/actions/runs?head_sha=\\$SHA" ' +
-  "--jq '[.workflow_runs[]|select(.name==\"CI\")]|length' | grep -qE '^[1-9]'; do sleep 30; " +
-  'done; gh pr checks 42 --watch --interval=30 > /dev/null 2>&1; sleep 5; ' +
-  'echo "CI_COMPLETE"; gh pr checks 42';
-
-const RULE_LINE =
-  'SHA=<sha>; until gh api "repos/{owner}/{repo}/actions/runs?head_sha=$SHA" ' +
-  "--jq '[.workflow_runs[]|select(.name==\"CI\")]|length' | grep -qE '^[1-9]'; do sleep 30; " +
-  'done; gh pr checks N --watch --interval=30 > /dev/null 2>&1; sleep 5; ' +
-  'echo "CI_COMPLETE"; gh pr checks N';
+const HOOK_LINE = '    pnpm ops gh:ci-gate 42 --sha 3f2fda862bab52543b9746a4dbff5cb40af393ea';
+const RULE_LINE = 'pnpm ops gh:ci-gate N --sha <full-40-char-sha>';
 
 describe('normalizeMonitorCommand', () => {
-  it('erases the SHA, PR-number, and heredoc-escaping differences', () => {
+  it('erases the PR-number and SHA differences', () => {
     expect(normalizeMonitorCommand(HOOK_LINE)).toBe(normalizeMonitorCommand(RULE_LINE));
   });
 
-  it('keeps a predicate change visible', () => {
-    const weakened = RULE_LINE.replace('.name=="CI"', '.name=="Lint"');
-    expect(normalizeMonitorCommand(weakened)).not.toBe(normalizeMonitorCommand(RULE_LINE));
+  it('keeps a renamed command visible', () => {
+    const renamed = RULE_LINE.replace('gh:ci-gate', 'gh:ci-wait');
+    expect(normalizeMonitorCommand(renamed)).not.toBe(normalizeMonitorCommand(RULE_LINE));
   });
 
-  it('keeps a poll-interval change visible', () => {
-    const faster = RULE_LINE.replace('sleep 30', 'sleep 5');
-    expect(normalizeMonitorCommand(faster)).not.toBe(normalizeMonitorCommand(RULE_LINE));
+  it('keeps an added flag visible', () => {
+    const extra = `${RULE_LINE} --poll 5`;
+    expect(normalizeMonitorCommand(extra)).not.toBe(normalizeMonitorCommand(RULE_LINE));
   });
 
-  it('keeps a dropped sentinel visible', () => {
-    const silent = RULE_LINE.replace('echo "CI_COMPLETE"; ', '');
-    expect(normalizeMonitorCommand(silent)).not.toBe(normalizeMonitorCommand(RULE_LINE));
+  it('keeps a changed flag NAME visible even though its value is normalized', () => {
+    const renamedFlag = RULE_LINE.replace('--sha', '--commit');
+    expect(normalizeMonitorCommand(renamedFlag)).not.toBe(normalizeMonitorCommand(RULE_LINE));
+  });
+});
+
+describe('MONITOR_COMMAND_SURFACES', () => {
+  it('keeps the hook first, because index 0 is the drift reference', () => {
+    // Reordering this array (alphabetizing, inserting a surface) would silently
+    // change which copy the guard calls authoritative — and the in-sync case
+    // would still pass, so nothing else would catch it.
+    expect(MONITOR_COMMAND_SURFACES[0]).toBe('.claude/hooks/pr-monitor-reminder.sh');
   });
 });
 
@@ -56,8 +56,8 @@ describe('extractMonitorCommand', () => {
     expect(() => extractMonitorCommand('f.md', `${RULE_LINE}\n${RULE_LINE}\n`)).toThrow(/found 2/);
   });
 
-  it('does not match prose that merely describes the gate', () => {
-    const prose = 'The gate polls `gh api` for actions/runs until the CI run completes.';
+  it('does not match prose that merely names the command', () => {
+    const prose = 'Arm `pnpm ops gh:ci-gate` in a Monitor after every push.';
     expect(() => extractMonitorCommand('f.md', prose)).toThrow(/no CI-monitor command/);
   });
 });
@@ -71,7 +71,7 @@ describe('findMonitorCommandDrift', () => {
   });
 
   it('reports every copy that differs from the reference', () => {
-    const drifted = RULE_LINE.replace('sleep 30', 'sleep 15');
+    const drifted = `${RULE_LINE} --poll 5`;
     const result = findMonitorCommandDrift(surfaces(HOOK_LINE, RULE_LINE, drifted));
     expect(result.map(c => c.file)).toEqual(['f2.md']);
   });
@@ -79,7 +79,7 @@ describe('findMonitorCommandDrift', () => {
   it('treats the FIRST surface as the reference, not the majority', () => {
     // Two matching docs copies do not outvote the hook — the hook is the copy
     // that actually gets emitted, so it is what the other two must match.
-    const changed = RULE_LINE.replace('sleep 30', 'sleep 15');
+    const changed = `${RULE_LINE} --poll 5`;
     const result = findMonitorCommandDrift(surfaces(HOOK_LINE, changed, changed));
     expect(result).toHaveLength(2);
   });
