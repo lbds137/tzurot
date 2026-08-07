@@ -51,4 +51,30 @@ canonical heredoc commit form is not skipped.
 (d) remains parked pending a runtime-confirmed false-fire, per the original
 entry — do not build it on a code-read mechanism.
 
+## STATUS after #1999 — (e) SHIPPED; only (d) remains
+
+(e) landed: both PreToolUse guards now pre-check the RAW stdin before forking
+jq. Measured 100 runs each on a non-git payload: develop-code-commit-guard
+22.25ms -> 9.07ms, git-commit-filter-guard 22.35ms -> 9.02ms (both fire on
+every Bash call, so ~26ms returned per call). The 50 existing probe assertions
+were the regression evidence — every verdict unchanged — plus 5 new boundary
+cases and a canary (over-tightening the pre-check fails 18 assertions).
+
+The safety concern that deferred it out of #1981 is closed: the raw check can
+only OVER-match, and that was runtime-verified against a REAL harness payload
+(a live `git push ... | tail` blocked through the pre-check path), not just
+jq-built fixtures.
+
+Review note worth keeping: #1999's reviewer suggested the same win applies to
+claim-shape-guard.sh and fixup-rider-check.sh. It does NOT — verified, they
+already carry the raw pre-check ahead of their jq forks (member (b), shipped
+in #1981). Do not re-file it.
+
+REMAINING: (d) only. Reuse the heredoc/quote stripping inside
+is_git_commit_command to kill message-text false-fires. Still gated on a
+runtime-confirmed false-fire — do not build it on a code-read mechanism. The
+bash-vs-Python tradeoff is unchanged: bash cannot express the heredoc delimiter
+backreference, so the options are a bash state loop or forking Python from the
+lib.
+
 <!-- SECTION:DESCRIPTION:END -->
