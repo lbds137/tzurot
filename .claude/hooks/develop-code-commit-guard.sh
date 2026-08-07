@@ -44,6 +44,28 @@
 set -uo pipefail
 
 INPUT=$(cat)
+
+# Raw-payload pre-check, BEFORE the two jq forks. This hook is PreToolUse on
+# every Bash call, and the jq pair dominates the cost — 22.25ms -> 9.07ms per
+# call (measured, 100 runs against a non-git payload) — so the decoded
+# short-circuit below was saving the python spawn but not the forks.
+#
+# Safe on a BLOCKING guard because it can only OVER-match, never under-match:
+# JSON escaping inserts backslashes at `"`, `\`, and control characters, and
+# leaves ASCII letters alone, so a decoded command containing `git`…`commit`
+# implies the raw payload carries those tokens too, in that order (the JSON
+# envelope contains no `git` ahead of the command field). Confirmed against a
+# REAL harness payload, not just jq-built probe fixtures: the sibling
+# filter-guard blocked a live `git push … | tail` through this same pre-check,
+# which requires the tokens to have been literal in the raw stdin.
+#
+# A false positive costs exactly what today already costs; a false negative is
+# the only dangerous direction and this shape cannot produce one.
+case "$INPUT" in
+  *git*commit*) ;;
+  *) exit 0 ;;
+esac
+
 TOOL_NAME=$(jq -r '.tool_name // empty' <<<"$INPUT" 2>/dev/null || echo "")
 [ "$TOOL_NAME" != "Bash" ] && exit 0
 
