@@ -4,9 +4,11 @@ title: chat_log role legend ships in every prompt charged to no budget
 status: To Do
 assignee: []
 created_date: '2026-08-06 23:46'
+updated_date: '2026-08-07 16:23'
 labels:
   - 'area:ai-worker'
   - 'size:S'
+  - 'state:ready'
 dependencies: []
 priority: low
 ordinal: 448000
