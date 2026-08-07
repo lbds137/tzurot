@@ -1,9 +1,10 @@
 ---
 id: TASK-454
 title: An unknown ops subcommand exits 0 silently instead of erroring
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-07 00:56'
+updated_date: '2026-08-07 02:34'
 labels:
   - 'area:tooling'
   - 'size:S'
