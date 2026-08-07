@@ -59,6 +59,12 @@ cmd = cmd.replace("|&", "|")
 # the same pipeline blocks — `| cat | tail` must not defeat the guard, while
 # pure pass-throughs (cat/tee) on their own stay allowed.
 FILTERS = re.compile(r"^\s*(tail|head|grep|sed|awk)\b")
+# Kept in agreement with the other two copies (lib/git-command.sh and
+# develop-code-commit-guard.sh) by
+# packages/tooling/src/dev/gitCommitPatternAgreement.test.ts, which extracts all
+# three patterns and runs them over a shared case table. Note this copy detects
+# (commit|push); the agreement table is push-free so the alternation is inert.
+#
 # Tolerate git global flags between `git` and the subcommand:
 # -C <path>, -c k=v, --no-pager, --git-dir=..., etc.
 # The trailing (?![-\w]) sits OUTSIDE the alternation so it guards both
