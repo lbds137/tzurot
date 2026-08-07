@@ -352,6 +352,7 @@ describe('findContentRefs (against real repo)', () => {
       'guard:dockerfile-dist',
       'guard:duplicate-exports',
       'guard:gate-parity',
+      'guard:monitor-command',
       'guard:ops-doc',
       'guard:proposal-links',
       'lines:check',

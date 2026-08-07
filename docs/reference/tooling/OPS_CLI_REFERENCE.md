@@ -432,6 +432,7 @@ Structural enforcement checks that hard-fail CI on findings:
 | `pnpm ops guard:prompt-tags`               | Fail if a structural prompt tag is emitted but not classified (protected vs known-unprotected) (CI gate, not audit-class)    |
 | `pnpm ops guard:commands-doc`              | Fail when `docs/commands.md` drifts from the bot-client command modules (that table renders live on the website)             |
 | `pnpm ops guard:ops-doc`                   | Fail when a registered `pnpm ops` command has no row in this file (CI gate, not audit-class)                                 |
+| `pnpm ops guard:monitor-command`           | Fail when the CI-monitor command drifts between the hook, `05-tooling.md`, and the git-workflow skill (CI gate)              |
 | `pnpm ops guard:dockerfile-dist`           | Service Dockerfile runner stages copy every runtime workspace dep's dist (CI gate, not audit-class)                          |
 | `pnpm ops guard:claude-content-refs`       | Skill/rule `pnpm ops` references resolve to registered commands; warns on stale `lastUpdated` (audit-class, `--summary`)     |
 | `pnpm ops guard:test-taxonomy`             | The test-tier taxonomy is single-sourced in `TESTING.md` and linked from the rule + skill                                    |
