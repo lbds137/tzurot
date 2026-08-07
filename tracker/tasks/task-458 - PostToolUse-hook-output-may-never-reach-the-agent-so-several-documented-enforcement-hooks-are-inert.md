@@ -64,4 +64,10 @@ Every one of these hooks encodes a live concern and ships a probe harness; the f
 - empty-result-stderr-guard: structurally cannot move; it needs the empty RESULT, which exists only post-hoc. Correct the false "structural backstop" claim in 10-working-posture.md and keep the rule text.
 - pr-monitor-reminder: correct the false "the hook is the enforcement mechanism behind this rule" claim in 05-tooling.md and the git-workflow skill. The rule text is what has actually been working.
 - eslint-on-edit: decide between dropping it and keeping a 4.8s-per-edit no-op. lint-staged and CI already enforce it.
+
+REVISED destination for fixup-rider-check (the PreToolUse assumption above does NOT hold): every PreToolUse hook in this repo is block-or-silent, emitting output only on its exit-2 path, so nothing here shows that a PreToolUse hook exiting 0 delivers output either. Do not build on that. All three moves now target channels proven in-session — claim-shape-guard to .husky/pre-commit, fixup-rider-check to .husky/commit-msg (which sees the `fixup!` subject directly, killing the documented false positive where a commit whose MESSAGE mentions --fixup fires it), and release-finalize-reminder folded into pr-merge-review-check, which BLOCKS and demonstrably reached the agent during the PR #2000 merge.
+
+OPEN QUESTION, no longer load-bearing: does a non-blocking PreToolUse hook's output reach the agent at all? Nothing in the repo answers it.
+
+ABSORBED: TASK-433 (watch empty-result-stderr-guard reminder volume; tighten if noisy) was archived into this task. Its trigger was observed reminder volume — unobservable, since those reminders never arrive. Its real acceptance criterion ("or the hook is retired with the reason") is decided here instead.
 <!-- SECTION:DESCRIPTION:END -->
