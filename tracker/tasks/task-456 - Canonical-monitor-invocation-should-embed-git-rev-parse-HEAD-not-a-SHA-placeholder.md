@@ -28,4 +28,12 @@ The fix that removes the opportunity: make the canonical invocation on all three
 Blocker to handle: guard:monitor-command normalizes the SHA with the regex --sha \S+, and $(git rev-parse HEAD) contains spaces, so the three copies would no longer normalize to equal strings. Fix the normalizer at the same time — since --sha is the last token on the line in every copy, normalizing --sha .*$ to a placeholder is both simpler and correct.
 
 Acceptance: the rule, the skill, and the hook heredoc all show --sha $(git rev-parse HEAD); guard:monitor-command still passes; a monitor armed by copying the canonical line verbatim watches the right SHA.
+
+## Riders carried from PR 1992's round-5 review (merged without them, deliberately — they touch these same three surfaces plus ci-gate.ts, so they land here rather than in a sixth CI cycle)
+
+RIDER 1 — 05-tooling.md still claims CI is the slowest workflow at "~20 min". MEASURED 2026-08-06 across the last 7 CI runs on feat/ci-gate-command: 3-4 minutes each. The actual long pole is claude-review at 4m31s to 9m44s, trending upward with diff size. Fix the figure and name claude-review as the pole, because the stale number is what made the round-5 reviewer conclude the gate's 25-minute budget has only a 5-minute margin when the measured worst case is about 14 minutes.
+
+RIDER 2 — fetchRuns' page-ceiling warning writes to console.warn (stderr) via its own default, while every other diagnostic in ci-gate.ts threads through the injected log (stdout). runCiGate passes `fetch: fetchRuns` as a bare reference, so the one path reporting an API result the gate structurally cannot see past is also the one least likely to surface. One-line fix: `fetch: sha => fetchRuns(sha, log)`. Add a wiring assertion so the bare-reference form cannot come back.
+
+RIDER 3 — no test drives waitForCi's heartbeat while state is undefined, i.e. a gh api outage spanning a full HEARTBEAT_MS. describeWaitState(undefined) and the healthy-slow heartbeat are each tested alone; the scenario the gate exists to fix (a broken gate must not look like a slow one) is not. Script more than ten consecutive GhApiErrors across the heartbeat interval and assert the emitted line contains "no data (gh api failing)".
 <!-- SECTION:DESCRIPTION:END -->
