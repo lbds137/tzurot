@@ -6,6 +6,9 @@ import {
   describeWaitState,
   gitHasCommit,
   isReleasable,
+  classifyHeadSha,
+  confirmHeadSha,
+  describeHeadMismatch,
   parseGateState,
   RUNS_PAGE_SIZE as GATE_PAGE_SIZE,
   SENTINELS,
@@ -130,6 +133,83 @@ describe('validateGateArgs', () => {
     // commands/gh.ts routes the positional through parsePrNumber (min: 1) like
     // every other gh:* command, so this function receives an already-valid number.
     expect(validateGateArgs(1991, SHA, exists).prNumber).toBe(1991);
+  });
+});
+
+describe('classifyHeadSha', () => {
+  const SHA = 'a'.repeat(40);
+
+  it('matches when the PR points at the same commit', () => {
+    expect(classifyHeadSha(SHA, SHA)).toEqual({ kind: 'match' });
+  });
+
+  it('reports a mismatch carrying the PR head, so the message can name both', () => {
+    const other = 'b'.repeat(40);
+    expect(classifyHeadSha(SHA, other)).toEqual({ kind: 'mismatch', prHead: other });
+  });
+
+  it('treats an unknown PR head as fine rather than blocking', () => {
+    // Fail-open on purpose: refusing to watch CI because `gh` hiccuped is a
+    // worse outcome than the rare drift this check exists to catch.
+    expect(classifyHeadSha(SHA, undefined)).toEqual({ kind: 'unknown' });
+  });
+});
+
+describe('confirmHeadSha', () => {
+  const SHA = 'a'.repeat(40);
+  const OTHER = 'b'.repeat(40);
+  const noWait = async () => {};
+
+  it('re-reads once before believing a mismatch, absorbing push propagation', async () => {
+    // Measured: pulls/N.head.sha trailed a push by ~1.4s (old SHA at 680ms,
+    // current at 1379ms). A first-read refusal would reject a monitor armed
+    // that fast after pushing.
+    let call = 0;
+    const fetch = () => (call++ === 0 ? OTHER : SHA);
+    await expect(confirmHeadSha(SHA, 1995, fetch, noWait)).resolves.toEqual({ kind: 'match' });
+    expect(call).toBe(2);
+  });
+
+  it('still refuses when the mismatch persists — real drift does not self-heal', async () => {
+    await expect(confirmHeadSha(SHA, 1995, () => OTHER, noWait)).resolves.toEqual({
+      kind: 'mismatch',
+      prHead: OTHER,
+    });
+  });
+
+  it('does not re-read when the first answer already agrees', async () => {
+    let call = 0;
+    await confirmHeadSha(
+      SHA,
+      1995,
+      () => {
+        call++;
+        return SHA;
+      },
+      noWait
+    );
+    expect(call).toBe(1);
+  });
+});
+
+describe('describeHeadMismatch', () => {
+  it('names both SHAs and why nothing else would have caught it', () => {
+    const message = describeHeadMismatch(1994, 'a'.repeat(40), 'b'.repeat(40));
+    expect(message).toContain('a'.repeat(40));
+    expect(message).toContain('b'.repeat(40));
+    expect(message).toContain('#1994');
+    expect(message).toMatch(/branch checkout/);
+  });
+
+  it('offers the cause as a candidate rather than asserting it', () => {
+    // The gate cannot observe WHY the SHAs differ. A mismatch surviving the
+    // re-check is usually a moved HEAD, but replication slower than
+    // HEAD_RECHECK_MS — a bound set from one measurement — produces the same
+    // symptom. Naming one cause as fact would send the reader after the wrong
+    // fix (00-critical.md § Don't Present Speculation as Fact).
+    const message = describeHeadMismatch(1994, 'a'.repeat(40), 'b'.repeat(40));
+    expect(message).toMatch(/replication/);
+    expect(message).toMatch(/re-read once/);
   });
 });
 
@@ -280,9 +360,50 @@ describe('runCiGate (orchestration)', () => {
       },
       log: (m: string) => events.push(`log:${m}`),
       commitExists: () => true,
+      prHead: () => SHA,
     };
     return { events, overrides };
   }
+
+  it('refuses to arm when --sha is not the PR head', async () => {
+    // The window the substitution opened: HEAD moved (a branch checkout) between
+    // the push and the arm. The SHA is real, so nothing else rejects it.
+    const { overrides } = orchestrationHarness([DONE('CI')]);
+    await expect(
+      runCiGate(1992, { sha: SHA }, { ...overrides, prHead: () => 'b'.repeat(40) })
+    ).rejects.toThrow(/is not the head of PR #1992/);
+  });
+
+  it('arms anyway when the PR head cannot be determined', async () => {
+    const { events, overrides } = orchestrationHarness([DONE('CI')]);
+    const exitCode = await captureExitCode(() =>
+      runCiGate(1992, { sha: SHA }, { ...overrides, prHead: () => undefined })
+    );
+    expect(events).toContain('checks:1992:report');
+    expect(events).toContain('log:⚠️  Could not read the PR head; arming without the drift check.');
+    expect(exitCode).toBeUndefined();
+  });
+
+  it('fails open when the injected head fetcher THROWS, not just when it returns undefined', async () => {
+    // The fail-open promise belongs to confirmHeadSha, not to fetchPrHeadSha's
+    // internal catch — an override that throws must not surface as a stack
+    // trace and stop the monitor arming.
+    const { events, overrides } = orchestrationHarness([DONE('CI')]);
+    const exitCode = await captureExitCode(() =>
+      runCiGate(
+        1992,
+        { sha: SHA },
+        {
+          ...overrides,
+          prHead: () => {
+            throw new Error('gh exploded');
+          },
+        }
+      )
+    );
+    expect(events).toContain('checks:1992:report');
+    expect(exitCode).toBeUndefined();
+  });
 
   it('settles between the watch handoff and the final report', async () => {
     // The old bash gate had `sleep 5` here; porting dropped it silently. The
@@ -373,9 +494,12 @@ describe('runCiGate with its REAL dependencies (wiring seam)', () => {
     vi.doMock('node:child_process', () => ({
       execFileSync: (_cmd: string, args: string[]) => {
         argvs.push(args);
-        // `git cat-file` (existence check) returns empty; the runs query returns
-        // a releasable state; `gh pr checks` returns its report.
-        return args[0] === 'api' ? JSON.stringify([DONE('CI')]) : '';
+        // Four distinct real calls: `git cat-file` (existence) returns empty;
+        // `pulls/N` returns the PR head, which must MATCH or the gate refuses
+        // to arm; the runs query returns a releasable state; `gh pr checks`
+        // returns its report.
+        if (args[0] !== 'api') return '';
+        return args[1].includes('/pulls/') ? 'A'.repeat(40) : JSON.stringify([DONE('CI')]);
       },
     }));
     const mod = await import('./ci-gate.js');
@@ -395,12 +519,46 @@ describe('runCiGate with its REAL dependencies (wiring seam)', () => {
 
     // The real settle ran (the promise only resolved after advancing the clock),
     // and every real dependency was reached in order.
-    expect(argvs.map(a => a[0])).toEqual(['cat-file', 'api', 'pr', 'pr']);
-    expect(argvs[2]).toContain('--watch');
-    expect(argvs[3]).not.toContain('--watch');
+    expect(argvs.map(a => a[0])).toEqual(['cat-file', 'api', 'api', 'pr', 'pr']);
+    expect(argvs[1][1]).toContain('/pulls/1992'); // head check precedes the wait
+    expect(argvs[2][1]).toContain('head_sha=');
+    expect(argvs[3]).toContain('--watch');
+    expect(argvs[4]).not.toContain('--watch');
     expect(logs).toContain(mod.SENTINELS.releasable);
-    // The uppercase SHA was normalized before `git cat-file` saw it.
+    // The uppercase SHA was normalized before `git cat-file` AND before the
+    // head comparison — an uppercase --sha must not read as drift.
     expect(argvs[0][2]).toBe(`${'a'.repeat(40)}^{commit}`);
+  });
+
+  it('drives the mismatch re-read through the REAL sleep-backed settle', async () => {
+    // Every other retry test uses a synthetic no-op wait, so feeding the wrong
+    // function into confirmHeadSha's `wait` — or never wiring it — would pass
+    // all of them. This one only resolves once fake timers advance by
+    // HEAD_RECHECK_MS, which proves the real `sleep` is what got threaded in.
+    vi.resetModules();
+    vi.useFakeTimers();
+    let pullsCalls = 0;
+    vi.doMock('node:child_process', () => ({
+      execFileSync: (_cmd: string, args: string[]) => {
+        if (args[0] !== 'api') return '';
+        if (!args[1].includes('/pulls/')) return JSON.stringify([DONE('CI')]);
+        pullsCalls += 1;
+        return 'b'.repeat(40); // never agrees — a real, persistent mismatch
+      },
+    }));
+    const mod = await import('./ci-gate.js');
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+
+    const promise = mod.runCiGate(1992, { sha: 'a'.repeat(40) });
+    const assertion = expect(promise).rejects.toThrow(/is not the head of PR #1992/);
+    await vi.advanceTimersByTimeAsync(mod.GATE_DEFAULTS.HEAD_RECHECK_MS);
+    await assertion;
+
+    expect(pullsCalls).toBe(2); // read, waited, re-read
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+    vi.doUnmock('node:child_process');
+    vi.resetModules();
   });
 
   it('threads `log` into fetchRuns so its page-ceiling warning reaches stdout', async () => {
@@ -410,10 +568,16 @@ describe('runCiGate with its REAL dependencies (wiring seam)', () => {
     vi.resetModules();
     vi.useFakeTimers();
     vi.doMock('node:child_process', () => ({
-      execFileSync: (_cmd: string, args: string[]) =>
-        args[0] === 'api'
-          ? JSON.stringify(Array.from({ length: GATE_PAGE_SIZE }, () => DONE('CI')))
-          : '',
+      execFileSync: (_cmd: string, args: string[]) => {
+        if (args[0] !== 'api') return '';
+        // Route the head check distinctly. Returning the runs payload for it
+        // would fail FULL_SHA and drop into the fail-open branch — the test's
+        // assertions would still pass while silently not exercising the head
+        // check at all.
+        return args[1].includes('/pulls/')
+          ? 'a'.repeat(40)
+          : JSON.stringify(Array.from({ length: GATE_PAGE_SIZE }, () => DONE('CI')));
+      },
     }));
     const mod = await import('./ci-gate.js');
     const stdout: string[] = [];
@@ -488,6 +652,53 @@ describe('the argv that actually reaches gh', () => {
       ['pr', 'checks', '1992', '--watch', '--interval=30'],
       ['pr', 'checks', '1992'],
     ]);
+  });
+});
+
+describe('fetchPrHeadSha', () => {
+  /** Mirrors fetchRuns' error-path coverage — same fallback shape, same risk. */
+  async function withGhResult(impl: () => string): Promise<string | undefined> {
+    vi.resetModules();
+    vi.doMock('node:child_process', () => ({ execFileSync: impl }));
+    const { fetchPrHeadSha } = await import('./ci-gate.js');
+    const result = fetchPrHeadSha(1995);
+    vi.doUnmock('node:child_process');
+    vi.resetModules();
+    return result;
+  }
+
+  it('returns the lowercased SHA on success', async () => {
+    await expect(withGhResult(() => `${'A'.repeat(40)}\n`)).resolves.toBe('a'.repeat(40));
+  });
+
+  it('returns undefined when gh throws, so the gate fails open', async () => {
+    await expect(
+      withGhResult(() => {
+        throw new Error('HTTP 401: Bad credentials');
+      })
+    ).resolves.toBeUndefined();
+  });
+
+  it('returns undefined on a response that is not a SHA', async () => {
+    // A `--jq` miss or an error body would otherwise be compared as a head SHA
+    // and read as drift, refusing a perfectly good arm.
+    await expect(withGhResult(() => 'null\n')).resolves.toBeUndefined();
+  });
+
+  it('bounds the call so a hang degrades to fail-open rather than silence', async () => {
+    vi.resetModules();
+    let opts: { timeout?: number } = {};
+    vi.doMock('node:child_process', () => ({
+      execFileSync: (_c: string, _a: string[], o: { timeout?: number }) => {
+        opts = o;
+        return 'a'.repeat(40);
+      },
+    }));
+    const mod = await import('./ci-gate.js');
+    mod.fetchPrHeadSha(1995);
+    expect(opts.timeout).toBe(mod.HEAD_FETCH_TIMEOUT_MS);
+    vi.doUnmock('node:child_process');
+    vi.resetModules();
   });
 });
 
