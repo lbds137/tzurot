@@ -1,9 +1,10 @@
 ---
 id: TASK-451
 title: The canonical CI-monitor command is hand-synced across three surfaces
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-07 00:32'
+updated_date: '2026-08-07 02:33'
 labels:
   - 'area:process'
   - 'area:tooling'
