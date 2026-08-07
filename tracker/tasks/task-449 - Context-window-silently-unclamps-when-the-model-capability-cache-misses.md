@@ -4,9 +4,11 @@ title: Context window silently unclamps when the model-capability cache misses
 status: To Do
 assignee: []
 created_date: '2026-08-06 23:46'
+updated_date: '2026-08-07 16:23'
 labels:
   - 'area:ai-worker'
   - 'size:M'
+  - 'state:ready'
 dependencies: []
 priority: medium
 ordinal: 449000

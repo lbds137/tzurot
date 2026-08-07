@@ -59,8 +59,8 @@ describe('extractQueueDocRefs', () => {
   });
 });
 
-// Fully triaged: the lint now gates on area + size + priority, so a fixture
-// standing in for "a healthy store" has to carry all three.
+// Fully triaged: the lint gates on area + size + state + priority, so a fixture
+// standing in for "a healthy store" has to carry all four.
 const VALID_TASK = [
   '---',
   'id: TASK-1',
@@ -70,6 +70,7 @@ const VALID_TASK = [
   'labels:',
   "  - 'area:db'",
   "  - 'size:S'",
+  "  - 'state:ready'",
   'priority: medium',
   '---',
   '',
@@ -83,7 +84,7 @@ describe('checkTaskTriage', () => {
       title: 'A task',
       status: 'To Do',
       createdDate: '2026-05-16',
-      labels: ['area:db', 'size:S'],
+      labels: ['area:db', 'size:S', 'state:ready'],
       priority: 'medium',
       body: '',
       file: 'tracker/tasks/task-1 - a-task.md',
@@ -96,21 +97,23 @@ describe('checkTaskTriage', () => {
   });
 
   it('flags an open task with no size label', () => {
-    const [problem] = checkTaskTriage([task({ labels: ['area:db'] })]);
+    const [problem] = checkTaskTriage([task({ labels: ['area:db', 'state:ready'] })]);
     expect(problem).toBe(
       'tracker/tasks/task-1 - a-task.md: open task has no size label (size:S | size:M | size:L)'
     );
   });
 
   it('flags an open task carrying more than one size label', () => {
-    const [problem] = checkTaskTriage([task({ labels: ['area:db', 'size:S', 'size:L'] })]);
+    const [problem] = checkTaskTriage([
+      task({ labels: ['area:db', 'size:S', 'size:L', 'state:ready'] }),
+    ]);
     expect(problem).toBe(
       'tracker/tasks/task-1 - a-task.md: open task has 2 size labels — exactly one is required'
     );
   });
 
   it('flags an open task with no area label', () => {
-    const [problem] = checkTaskTriage([task({ labels: ['size:M'] })]);
+    const [problem] = checkTaskTriage([task({ labels: ['size:M', 'state:ready'] })]);
     expect(problem).toBe(
       'tracker/tasks/task-1 - a-task.md: open task has no area label (area:<package-or-domain>)'
     );
@@ -129,10 +132,68 @@ describe('checkTaskTriage', () => {
     expect(checkTaskTriage([task({ status: 'Done', labels: [], priority: '' })])).toEqual([]);
   });
 
+  it('flags an open task with no state label', () => {
+    const [problem] = checkTaskTriage([task({ labels: ['area:db', 'size:S'] })]);
+    expect(problem).toBe(
+      'tracker/tasks/task-1 - a-task.md: open task has no state label ' +
+        '(state:ready | state:observable | state:dependent | state:owner | state:unreachable)'
+    );
+  });
+
+  it('flags an open task carrying more than one state label', () => {
+    const [problem] = checkTaskTriage([
+      task({ labels: ['area:db', 'size:S', 'state:ready', 'state:owner'] }),
+    ]);
+    expect(problem).toBe(
+      'tracker/tasks/task-1 - a-task.md: open task has 2 state labels — exactly one is required'
+    );
+  });
+
+  it('accepts every state in the vocabulary', () => {
+    for (const state of ['ready', 'observable', 'dependent', 'owner', 'unreachable']) {
+      expect(
+        checkTaskTriage([task({ labels: ['area:db', 'size:S', `state:${state}`] })]),
+        `state:${state} should be accepted`
+      ).toEqual([]);
+    }
+  });
+
+  it('names an out-of-vocabulary state and does NOT also call it missing', () => {
+    // Presence is measured on the `state:` PREFIX, validity on the vocabulary.
+    // Measuring presence on the vocabulary reports 'state:blocked' as "no state
+    // label" — sending the reader to add a label already sitting there, and
+    // (alongside the unknown message) claiming it is absent and present at once.
+    const problems = checkTaskTriage([task({ labels: ['area:db', 'size:S', 'state:blocked'] })]);
+    expect(problems).toEqual([
+      "tracker/tasks/task-1 - a-task.md: open task has unknown state label 'state:blocked' — " +
+        'must be one of state:ready | state:observable | state:dependent | state:owner | state:unreachable',
+    ]);
+  });
+
+  it('names an out-of-vocabulary size the same way — the axes share one rule', () => {
+    // `size:XL` had the identical defect before the axes were unified: it failed
+    // the size pattern, so a label that was present reported as absent.
+    const problems = checkTaskTriage([task({ labels: ['area:db', 'size:XL', 'state:ready'] })]);
+    expect(problems).toEqual([
+      "tracker/tasks/task-1 - a-task.md: open task has unknown size label 'size:XL' — " +
+        'must be one of size:S | size:M | size:L',
+    ]);
+  });
+
+  it('still flags a duplicate valid label when an unknown one sits beside it', () => {
+    const problems = checkTaskTriage([
+      task({ labels: ['area:db', 'size:S', 'state:ready', 'state:owner', 'state:blocked'] }),
+    ]);
+    expect(problems.join('\n')).toContain("unknown state label 'state:blocked'");
+    expect(problems.join('\n')).toContain('has 2 state labels — exactly one is required');
+    expect(problems.join('\n')).not.toContain('no state label');
+  });
+
   it('reports every problem on a single task, not just the first', () => {
     const problems = checkTaskTriage([task({ labels: [], priority: '' })]);
-    expect(problems).toHaveLength(3);
+    expect(problems).toHaveLength(4);
     expect(problems.join('\n')).toContain('no size label');
+    expect(problems.join('\n')).toContain('no state label');
     expect(problems.join('\n')).toContain('no area label');
     expect(problems.join('\n')).toContain('must be high | medium | low');
   });
