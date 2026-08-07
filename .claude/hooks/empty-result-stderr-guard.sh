@@ -1,7 +1,17 @@
 #!/bin/bash
-# PostToolUse hook: after a Bash command that discarded stderr (`2>/dev/null`)
-# and returned EMPTY stdout, inject a non-blocking reminder that the empty
-# result may be a swallowed failure rather than an absence of data.
+# UNREGISTERED — retained for reference, not wired into .claude/settings.json.
+#
+# After a Bash command that discarded stderr (`2>/dev/null`) and returned EMPTY
+# stdout, this injects a non-blocking reminder that the empty result may be a
+# swallowed failure rather than an absence of data.
+#
+# It cannot be made to work in any available channel. The trigger needs the
+# command's RESULT, which exists only post-hoc — so PostToolUse is the only
+# matching event — and non-blocking PostToolUse output never reaches the agent
+# (probed directly, confirmed for every matcher). The constraint it guards is
+# real and stays in .claude/rules/10-working-posture.md § "Lossy steps are for
+# known output shapes"; the RULE is the mechanism, not this hook. Do not cite
+# this file as a structural backstop while it is unregistered — see TASK-458.
 #
 # That exact shape — errors routed to /dev/null, nothing on stdout — is how a
 # malformed identifier's error message vanished and the resulting empty output

@@ -1,6 +1,17 @@
 #!/bin/bash
-# PostToolUse hook (matcher: Edit|Write|MultiEdit): lint a touched TypeScript file so
-# feedback lands in-session instead of waiting for lint-staged or CI.
+# UNREGISTERED — retained for reference, not wired into .claude/settings.json.
+#
+# This lints a touched TypeScript file so feedback lands in-session instead of
+# waiting for lint-staged or CI. It never delivered on that: non-blocking
+# PostToolUse output does not reach the agent (probed directly — a deliberate
+# lint error in an edited file produced correct hook output when the payload was
+# fed in by hand, and nothing arrived in context), so its ~4.8s per edited .ts
+# file bought nothing. The enforcing gates were always lint-staged and CI, both
+# of which still run. Registering it again requires evidence that the delivery
+# channel changed — see TASK-458.
+#
+# The measured cost and the ruled-out `--cache` fix are tracked in TASK-287,
+# which is moot while this stays unregistered.
 #
 # Matchers can only match TOOL NAMES — file filtering must happen here, from
 # the stdin JSON payload. (The previous inline hook used a file-pattern

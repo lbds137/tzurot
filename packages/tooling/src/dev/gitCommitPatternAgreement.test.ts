@@ -5,16 +5,18 @@
  * three times, in two languages:
  *
  *   1. `.claude/hooks/lib/git-command.sh`         — `is_git_commit_command`, a
- *      GNU-grep ERE, sourced by claim-shape-guard.sh and fixup-rider-check.sh
+ *      GNU-grep ERE. No runtime consumer; the canonical reference copy.
  *   2. `.claude/hooks/develop-code-commit-guard.sh` — a Python regex (BLOCKING)
  *   3. `.claude/hooks/git-commit-filter-guard.sh`   — a Python regex (BLOCKING)
  *
- * They cannot be collapsed into one: the two blocking hooks need Python for
- * their heredoc/quote stripping, and the lib exists so the two bash consumers
- * don't fork Python on every Bash call. So the coupling is real, hand-managed,
- * and documented only in a comment ("sync manually if the shape changes") —
- * the unenforced-invariant shape. It has already opened once: the commit-tree
- * false positive was fixed in the bash copy one PR before the two Python ones.
+ * Copy 1 had two bash consumers until they moved to husky channels and stopped
+ * needing command-text matching; it is retained as a language-neutral reference
+ * for the two live Python copies to be compared against. Those two cannot be
+ * collapsed into one: each needs its own heredoc/quote stripping inside a
+ * blocking hook. So the coupling is real, hand-managed, and documented only in
+ * a comment ("sync manually if the shape changes") — the unenforced-invariant
+ * shape. It has already opened once: the commit-tree false positive was fixed
+ * in the bash copy one PR before the two Python ones.
  *
  * This test asserts the three agree on a shared CASE TABLE, not that they are
  * textually identical — they deliberately aren't (see DIVERGENCES below). The

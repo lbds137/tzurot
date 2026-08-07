@@ -1,6 +1,8 @@
 #!/bin/bash
-# PostToolUse hook: after a `git commit --fixup` lands, surface the rider
-# checklist from /tzurot-review-response rule 3.
+# .husky/commit-msg step: when the commit being written is a fixup/squash
+# rider, surface the rider checklist from /tzurot-review-response rule 3.
+#
+# Usage: .claude/hooks/fixup-rider-check.sh <commit-msg-file>
 #
 # Review-response riders systematically get less scrutiny than planned work —
 # "one clause" / "~10 lines" is exactly the size that skips the checks a
@@ -8,49 +10,40 @@
 # complement to rule 3's test gate: the test gate catches breakage, this
 # catches absence.
 #
-# Advisory only: never blocks, always exits 0. Fires on every matching commit
-# (the banner is short) — no dedup state file, because a rider committed twice
-# deserves the checklist twice. Known limitation (accepted, same class as
-# claim-shape-guard's): detection is command-text only, so a commit whose
-# MESSAGE merely mentions `--fixup` also fires — spurious banner, no harm.
+# Channel: this runs from `.husky/commit-msg`, NOT as a Claude Code hook.
+# Non-blocking PostToolUse output never reaches the agent — probed directly and
+# confirmed for every matcher — so the PostToolUse registration this check used
+# to carry printed into a void. Husky output arrives because it is part of the
+# `git commit` command's own stdout.
+#
+# Reading the MESSAGE rather than the command text also kills the false
+# positive the PostToolUse version documented and accepted: a commit whose
+# message merely MENTIONS `--fixup` used to fire. Git writes a literal
+# `fixup! ` / `squash! ` subject prefix for real riders and nothing else does,
+# so the subject is an exact signal where the command text was a heuristic.
+#
+# Advisory only: never blocks, always exits 0. No dedup state — a rider
+# committed twice deserves the checklist twice.
 #
 # Fixture check: run .claude/hooks/fixup-rider-check.probe.sh after ANY edit.
 
 set -uo pipefail
 
-INPUT=$(cat)
+MSG_FILE="${1:-}"
+[ -z "$MSG_FILE" ] && exit 0
+[ -f "$MSG_FILE" ] || exit 0
 
-# Cheapest possible short-circuit, on the RAW stdin, before jq is even
-# forked: firing requires a `git commit`, so a payload carrying no git+commit
-# tokens anywhere cannot decode to one — the overwhelming majority of Bash
-# calls (and every non-Bash tool call) leave without spawning a process.
-case "$INPUT" in
-*git*commit*) ;;
+# The subject is the first line that is neither blank nor a git comment.
+# `git commit --fixup` writes the generated subject on line 1, but reading
+# past leading blanks/comments keeps this correct for editor-authored
+# messages and for `core.commentChar` defaults.
+SUBJECT=$(grep -m1 -vE '^[[:space:]]*(#|$)' "$MSG_FILE" 2>/dev/null || echo "")
+[ -z "$SUBJECT" ] && exit 0
+
+case "$SUBJECT" in
+fixup!* | squash!* | amend!*) ;;
 *) exit 0 ;;
 esac
-
-TOOL_NAME=$(jq -r '.tool_name // empty' <<<"$INPUT" 2>/dev/null || echo "")
-[ "$TOOL_NAME" != "Bash" ] && exit 0
-
-COMMAND=$(jq -r '.tool_input.command // empty' <<<"$INPUT" 2>/dev/null || echo "")
-[ -z "$COMMAND" ] && exit 0
-
-# Cheap bash-native short-circuit: a commit carrying no fixup token at all
-# exits here (sibling hooks set the same do-cheap-checks-first precedent).
-case "$COMMAND" in
-*--fixup*) ;;
-*) exit 0 ;;
-esac
-
-# Both `git commit` and the fixup flag in either form (`--fixup=<sha>` /
-# `--fixup <sha>`) must be present.
-SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
-# shellcheck source=lib/git-command.sh
-. "$SCRIPT_DIR/lib/git-command.sh" 2>/dev/null || exit 0
-is_git_commit_command "$COMMAND" || exit 0
-if ! grep -qE '(^|[[:space:]])--fixup([=[:space:]]|$)' <<<"$COMMAND"; then
-    exit 0
-fi
 
 cat <<'EOF'
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -66,3 +59,5 @@ answers the same three questions a planned change answers:
 If any answer is yes and unhandled, amend before pushing.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 EOF
+
+exit 0

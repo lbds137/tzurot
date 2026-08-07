@@ -1,7 +1,17 @@
 #!/bin/bash
-# PostToolUse hook: after `git push` or `gh pr create`, inject a reminder for
-# Claude to arm a Monitor watching PR CI + review-bot completion.
+# PostToolUse hook: after `git push` or `gh pr create`, backfill the PR
+# assignee and print a reminder to arm a Monitor watching PR CI + review-bot
+# completion.
 # Contract + Monitor command shape: .claude/rules/05-tooling.md "PR Monitoring".
+#
+# THE REMINDER BANNER NEVER REACHES THE AGENT. Non-blocking PostToolUse output
+# is dropped — probed directly and confirmed for every matcher — so the banner
+# below has printed into a void on every push it has ever fired for, and the
+# rule text is what has actually been arming monitors. This hook stays
+# registered for the ONE effect that does not depend on delivery: the assignee
+# backfill, which is a real API write. Do not cite the banner as enforcement
+# anywhere; 05-tooling.md and the git-workflow skill were corrected to stop
+# doing so. See TASK-458.
 #
 # The reminder prints `--sha $(git rev-parse HEAD)` UNRESOLVED, on purpose, even
 # though $SHA below already holds the pushed value. Baking the value in has no

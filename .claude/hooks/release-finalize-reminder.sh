@@ -1,5 +1,17 @@
 #!/bin/bash
-# PostToolUse hook: after `gh pr merge <N> --rebase` completes for a release PR
+# SUPERSEDED + UNREGISTERED — the live copy of this reminder now rides
+# `.claude/hooks/pr-merge-review-check.sh` (PreToolUse, blocking), which fires
+# on the same `gh pr merge` command and provably reaches the agent. Edit it
+# there, never here. This file is retained only as the record of the original
+# reasoning; it is a candidate for deletion.
+#
+# Why it moved: this fired post-merge via PostToolUse, and non-blocking
+# PostToolUse output never reaches the agent (probed directly, every matcher) —
+# so it printed into a void on every release it was supposed to guard. The
+# replacement fires BEFORE the merge instead, which is why it needs no
+# `state = MERGED` check. See TASK-458.
+#
+# Original purpose: after `gh pr merge <N> --rebase` completes for a release PR
 # (one whose base branch is `main`), inject a reminder to run
 # `pnpm ops release:finalize` so develop's SHAs stay aligned with main.
 #
