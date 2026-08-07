@@ -12,7 +12,7 @@
 
 import { execFileSync } from 'node:child_process';
 
-const REPO = 'lbds137/tzurot';
+export const REPO = 'lbds137/tzurot';
 
 interface PrReview {
   id: number;

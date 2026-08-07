@@ -92,14 +92,14 @@ The `.claude/hooks/pr-monitor-reminder.sh` PostToolUse hook auto-fires on `git p
 Arm a `Monitor` with `description: "CI + reviews for PR <N>"`, `timeout_ms: 1800000`, `persistent: false` (required by the schema; deliberately NOT `true` — see 05-tooling.md, a forgotten session-length watcher can't be cleaned up), and this as its `command` — verbatim, as plain bash:
 
 ```bash
-SHA=<full-40-char-pushed-sha>; until gh api "repos/{owner}/{repo}/actions/runs?head_sha=$SHA" --jq '[.workflow_runs[]|select(.name=="CI" and .status=="completed" and .conclusion!="startup_failure")]|length' | grep -qE '^[1-9]'; do sleep 30; done; gh pr checks <N> --watch --interval=30 > /dev/null 2>&1; sleep 5; echo "CI_COMPLETE"; gh pr checks <N>
+pnpm ops gh:ci-gate <N> --sha <full-40-char-pushed-sha>
 ```
 
-This literal is one of three copies (here, `05-tooling.md`, the hook heredoc). Edit one and `pnpm ops guard:monitor-command` fails CI until the other two match — placeholders may differ, nothing else may.
+This invocation is one of three copies (here, `05-tooling.md`, the hook heredoc). Edit one and `pnpm ops guard:monitor-command` fails CI until the other two match — the PR/SHA placeholders may differ, nothing else may.
 
-**Do not add backslashes to the jq filter's single quotes.** The `command` parameter is a JSON string and JSON does not escape apostrophes; a `\'` there is a bash parse error at arm time (`syntax error near unexpected token '('`, exit 2), so the monitor dies instead of watching. Every surface documenting this command shows plain bash for exactly this reason.
+**Pass `$(git rev-parse HEAD)` — never a hand-transcribed SHA.** The gate rejects an abbreviated one immediately, and also resolves the SHA locally so a well-formed-but-nonexistent one (an abbreviated SHA completed by hand) fails instantly instead of waiting on a query that can never match.
 
-The `until` gate waits for the CI workflow RUN to complete before handing off to `--watch`. A fixed startup `sleep` does not work here: workflow-run creation itself can lag the push by minutes, so `--watch` starts against a check list holding only the fast checks and exits immediately. See `05-tooling.md` § PR Monitoring for the measurement.
+The gate waits for the CI workflow RUN to complete — and for nothing else on that SHA to still be in flight — before handing off to `--watch`. A fixed startup `sleep` does not work here: workflow-run creation itself can lag the push by minutes, so `--watch` starts against a check list holding only the fast checks and exits immediately. See `05-tooling.md` § PR Monitoring for the measurement and for what the gate reports when `gh api` fails.
 
 When the monitor fires, **all four** of the following must happen — do not stop after #1 even when every check passed:
 
@@ -123,7 +123,7 @@ The #1-without-#2 failure mode is worth guarding against: all-green CI feels com
 
 The #2-without-full-body failure mode is the second trap: fetching comments but extracting only the summary section. A review that ends "**Summary**: two actionable items" almost always has a body with additional items that weren't promoted to the summary.
 
-If the monitor completes without a `CI_COMPLETE` line in its output, the 30-min timeout fired first — re-arm rather than assume CI passed. If CI fails or CodeQL flags something, use `PushNotification` — the user should hear about it before their next turn.
+The gate prints exactly one sentinel, and **only `CI_COMPLETE` means CI actually finished** — `CI_GATE_TIMEOUT` (gave up at 25 min) and `CI_GATE_STARTUP_FAILURE` (a run died before dispatch) both mean re-arm, as does no sentinel at all (the Monitor's own 30-min kill). See `05-tooling.md` § PR Monitoring for the table. If CI fails or CodeQL flags something, use `PushNotification` — the user should hear about it before their next turn.
 
 **Merge gate is green-only.** Per `.claude/rules/00-critical.md` "Never Merge PRs Without Completed CI": every check must be green before `gh pr merge` runs, including release PRs. If a check fails for what looks like infrastructure reasons (binary not found, missing secret, action-setup error), `gh run rerun <run-id> --failed` and re-arm the Monitor — don't merge through the red. The release procedure below assumes a green pipeline.
 

@@ -129,20 +129,20 @@ Per .claude/rules/05-tooling.md (PR Monitoring), arm a Monitor now:
   TaskStop it. One monitor per PR — the reporting half is not SHA-pinned, so a
   stale watcher reports the CURRENT state under an older push's label.
 
-  The SHA below is this push's, already resolved IN FULL — the API rejects an
-  abbreviated SHA (it matches nothing, so the gate never fires and the monitor
-  just spins to its timeout). The until-gate waits for the CI workflow RUN to
-  complete; do not swap it for a fixed 'sleep', because run creation itself can
-  lag the push by minutes (see 05-tooling.md § PR Monitoring).
+  The SHA below is this push's, already resolved IN FULL — COPY IT, never
+  complete an abbreviated one by hand. The gate rejects an abbreviated SHA
+  outright, and also refuses a well-formed one that names no local commit (the
+  runs API matches nothing on either, so waiting would be pointless). The gate
+  waits for the CI workflow RUN to complete and
+  for nothing else on that SHA to still be in flight; do not swap it for a fixed
+  'sleep', because run creation itself can lag the push by minutes (see
+  05-tooling.md § PR Monitoring).
 
   Arm a Monitor with description "CI + reviews for PR #$PR_NUM", timeout_ms
   1800000, persistent false (deliberately NOT true — a forgotten session-length
-  watcher cannot be cleaned up), and the line below as its "command" — verbatim,
-  as plain bash. The command parameter is a JSON string, and JSON does not
-  escape apostrophes, so the jq filter's single quotes need no backslashes.
-  Adding any would be a parse error at arm time, not a working command.
+  watcher cannot be cleaned up), and the line below as its "command", verbatim:
 
-    SHA=$SHA; until gh api "repos/{owner}/{repo}/actions/runs?head_sha=\$SHA" --jq '[.workflow_runs[]|select(.name=="CI" and .status=="completed" and .conclusion!="startup_failure")]|length' | grep -qE '^[1-9]'; do sleep 30; done; gh pr checks $PR_NUM --watch --interval=30 > /dev/null 2>&1; sleep 5; echo "CI_COMPLETE"; gh pr checks $PR_NUM
+    pnpm ops gh:ci-gate $PR_NUM --sha $SHA
 
 When it fires:
 - Inspect \`gh pr checks $PR_NUM\` output for pass/fail summary.

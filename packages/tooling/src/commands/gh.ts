@@ -11,7 +11,7 @@
 
 import type { CAC } from 'cac';
 
-import { parseIntFlag } from '../utils/cli-args.js';
+import { parseIntFlag, rawOptionValue } from '../utils/cli-args.js';
 import { UsageError } from '../utils/errors.js';
 
 /**
@@ -180,8 +180,34 @@ function registerPrAllCommand(cli: CAC): void {
     });
 }
 
+/**
+ * The wait half of PR monitoring. Long-running by design — it is what a
+ * `Monitor` is armed with, not something to run interactively.
+ */
+function registerCiGateCommand(cli: CAC): void {
+  cli
+    .command(
+      'gh:ci-gate <number>',
+      'Wait for CI on a pushed SHA, then report the check state (arm this in a Monitor)'
+    )
+    .option('--sha <sha>', 'The FULL 40-character SHA just pushed (git rev-parse HEAD)')
+    .example('ops gh:ci-gate 1991 --sha $(git rev-parse HEAD)')
+    .action(async (number: string) => {
+      const { runCiGate } = await import('../gh/ci-gate.js');
+      // Read --sha from raw argv, not cac's parsed options: mri coerces a
+      // digit-only value to a Number before any type declaration applies, and
+      // an all-decimal SHA (rare, not impossible) would arrive as a number.
+      // Same reason the snowflake flags use this helper.
+      const sha = rawOptionValue(process.argv, '--sha');
+      // Same validator as every other gh:* command — it enforces `min: 1`,
+      // which the gate's own shape check would have accepted as "0".
+      await runCiGate(parsePrNumber(number), { sha });
+    });
+}
+
 export function registerGhCommands(cli: CAC): void {
   registerPrInfoCommands(cli);
   registerPrEditCommand(cli);
   registerPrAllCommand(cli);
+  registerCiGateCommand(cli);
 }
