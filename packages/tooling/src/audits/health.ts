@@ -28,6 +28,7 @@ import chalk from 'chalk';
 import { parseSummary, type AuditSummary } from './summary.js';
 import { collectHealthExtras, formatHealthExtras, type SecurityCount } from './health-extras.js';
 import { collectOpenAdvisories, formatAdvisoriesReport } from './advisories.js';
+import { collectRepoSettings, formatRepoSettingsReport } from '../dev/check-repo-settings.js';
 import { describeMeasuredRef, formatMeasuredRef } from './measured-ref.js';
 
 /**
@@ -226,6 +227,16 @@ export function runHealth(options: { noFail?: boolean; rootDir?: string } = {}):
     console.log('');
     console.log(formatAdvisoriesReport(advisorySurface));
   }
+
+  // Repo deletion-safety (guard:repo-settings). Report-only here, like the
+  // advisory block above: the guard hard-fails on its own invocation, and the
+  // weekly report carries it so a re-armed auto-delete surfaces on cadence
+  // rather than only when someone runs the guard. It is NOT a HEALTH_TOOLS
+  // entry — that roster is summary-capable audit-class tools, and this is a
+  // binary sync-check with no --summary line.
+  console.log('');
+  console.log('### Repo deletion safety (report-only)');
+  console.log(formatRepoSettingsReport(collectRepoSettings()));
 
   if (report.overall === 'fail' && options.noFail !== true) {
     process.exitCode = 1;

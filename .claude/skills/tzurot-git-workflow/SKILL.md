@@ -1,7 +1,7 @@
 ---
 name: tzurot-git-workflow
 description: 'Git workflow procedures. Invoke with /tzurot-git-workflow for commit, PR, and release procedures.'
-lastUpdated: '2026-08-06'
+lastUpdated: '2026-08-07'
 ---
 
 # Git Workflow Procedures
@@ -290,8 +290,11 @@ mid-release, and a fixable vuln is cheaper to ride along than to hotfix after.
 
 ```bash
 pnpm ops security:advisories        # each advisory + severity + fix version + direct/transitive + action
+pnpm ops guard:repo-settings        # deletion of main/develop must be UNREACHABLE (see below)
 gh pr list --author "app/dependabot" --state open   # any auto-PRs to ride along
 ```
+
+**`guard:repo-settings` belongs in the preflight specifically**, because the release merge is the one merge whose head branch is `develop`. It asserts that `delete_branch_on_merge` is off — that setting deletes the head branch on every merge regardless of the `--delete-branch` flag, and GitHub runs the delete with admin privileges, so it passes through `develop`'s deliberately-bypassable ruleset. A CRITICAL finding here means the next release merge will delete `develop`; fix it before cutting, not after.
 
 `security:advisories` is the primary check: it prints each open advisory with
 its fix version and — crucially — whether it's a **direct** dep (Dependabot
