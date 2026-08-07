@@ -19,6 +19,7 @@
  */
 
 import chalk from 'chalk';
+import { UsageError } from '../utils/errors.js';
 import { FACT_EXTRACTION_QUEUE_NAME, JobType } from '@tzurot/common-types/constants/queue';
 import { generateFactExtractionJobUuid } from '@tzurot/common-types/utils/deterministicUuid';
 import type { FactExtractionJobData } from '@tzurot/common-types/types/jobs';
@@ -82,7 +83,9 @@ export function buildWindows(rows: EligibleMemoryRow[], windowSize: number): Bac
   // Number.isInteger rejects NaN (a mistyped CLI value) — a bare `< 1` check
   // would let NaN through and crash confusingly in the chunking loop.
   if (!Number.isInteger(windowSize) || windowSize < 1 || windowSize > MAX_WINDOW_SIZE) {
-    throw new Error(`windowSize must be an integer in 1..${MAX_WINDOW_SIZE} (got ${windowSize})`);
+    throw new UsageError(
+      `windowSize must be an integer in 1..${MAX_WINDOW_SIZE} (got ${windowSize})`
+    );
   }
   const groups = new Map<string, EligibleMemoryRow[]>();
   for (const row of rows) {
@@ -200,7 +203,7 @@ export async function backfillFacts(options: BackfillFactsOptions): Promise<void
   // UNCAP the run (NaN comparisons are false), turning a mistyped 5-window
   // canary into the full budget-exempt backfill.
   if (options.limit !== undefined && (!Number.isInteger(options.limit) || options.limit < 1)) {
-    throw new Error(`--limit must be a positive integer (got ${options.limit})`);
+    throw new UsageError(`--limit must be a positive integer (got ${options.limit})`);
   }
 
   validateEnvironment(env);
