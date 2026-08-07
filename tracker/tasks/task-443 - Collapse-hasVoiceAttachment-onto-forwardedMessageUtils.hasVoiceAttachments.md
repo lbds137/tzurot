@@ -1,9 +1,10 @@
 ---
 id: TASK-443
 title: Collapse hasVoiceAttachment onto forwardedMessageUtils.hasVoiceAttachments
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-05 23:47'
+updated_date: '2026-08-07 16:09'
 labels:
   - 'area:bot-client'
   - 'size:S'
