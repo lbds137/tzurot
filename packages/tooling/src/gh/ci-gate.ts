@@ -43,6 +43,17 @@ export const GATE_DEFAULTS = {
   ERROR_REPEAT_EVERY: 10,
   /** Pause after `--watch` exits, before the final report reads the same lagging index. */
   SETTLE_MS: 5_000,
+  /**
+   * Re-read delay before declaring a PR-head mismatch.
+   *
+   * MEASURED, not guessed: after a push to an open PR, `pulls/N.head.sha`
+   * still returned the previous SHA at 680ms and matched at 1379ms. That is a
+   * different and far smaller lag than the `actions/runs?head_sha=` search
+   * index (minutes) — a PR object, not a search — but it is not zero, so a
+   * first-read refusal could reject a monitor armed immediately after a push.
+   * Real drift persists, so the re-read costs it nothing.
+   */
+  HEAD_RECHECK_MS: 3_000,
 } as const;
 
 export interface WorkflowRun {
@@ -153,6 +164,101 @@ export function validateGateArgs(
     );
   }
   return { prNumber, sha };
+}
+
+/** Bound on the head lookup; a hang must degrade to fail-open, not to silence. */
+export const HEAD_FETCH_TIMEOUT_MS = 15_000;
+
+/** Reads the PR's head SHA, or `undefined` when it cannot be read at all. */
+export function fetchPrHeadSha(prNumber: number): string | undefined {
+  let raw: string;
+  try {
+    raw = execFileSync('gh', ['api', `repos/${REPO}/pulls/${prNumber}`, '--jq', '.head.sha'], {
+      encoding: 'utf-8',
+      stdio: ['pipe', 'pipe', 'pipe'],
+      // A hang here would block the whole process synchronously. Bounded so it
+      // degrades into the fail-open path (which says so) instead of silence.
+      timeout: HEAD_FETCH_TIMEOUT_MS,
+    });
+  } catch {
+    return undefined;
+  }
+  const sha = raw.trim().toLowerCase();
+  return FULL_SHA.test(sha) ? sha : undefined;
+}
+
+export type HeadShaVerdict =
+  { kind: 'match' } | { kind: 'unknown' } | { kind: 'mismatch'; prHead: string };
+
+/**
+ * Whether `--sha` is the SHA this PR actually points at.
+ *
+ * Closes the one window the substitution opened. `$(git rev-parse HEAD)`
+ * resolves when the Monitor runs, not when you pushed, so anything moving `HEAD`
+ * in between — a branch checkout to file a tracker task is the realistic one —
+ * makes the gate watch a different commit. Neither `FULL_SHA` nor `gitHasCommit`
+ * catches it: a moved `HEAD` still names a real local commit, so it validates
+ * cleanly and the gate then waits on the wrong SHA in silence.
+ *
+ * `undefined` means "could not tell" and is treated as fine. This check is a
+ * safety net, not a gate on the gate: a `gh` hiccup must never stop a monitor
+ * from arming, because the failure it prevents is rarer than the failure of
+ * refusing to watch CI at all.
+ */
+export function classifyHeadSha(sha: string, prHead: string | undefined): HeadShaVerdict {
+  if (prHead === undefined) return { kind: 'unknown' };
+  return prHead === sha ? { kind: 'match' } : { kind: 'mismatch', prHead };
+}
+
+/**
+ * Classify, and on a mismatch re-read once before believing it.
+ *
+ * The first read can legitimately trail a just-landed push (see
+ * `HEAD_RECHECK_MS` for the measurement). Genuine drift — a `HEAD` that moved
+ * to another branch — does not resolve itself, so the second read still
+ * disagrees and the refusal stands.
+ */
+export async function confirmHeadSha(
+  sha: string,
+  prNumber: number,
+  fetch: (prNumber: number) => string | undefined,
+  wait: (ms: number) => Promise<void>
+): Promise<HeadShaVerdict> {
+  // Catch here rather than trusting the injected fetcher. `fetchPrHeadSha`
+  // already returns undefined on failure, but the fail-open promise belongs to
+  // THIS function — an override that throws would otherwise surface as a stack
+  // trace and stop the monitor arming, which is the opposite of the guarantee.
+  const read = (): string | undefined => {
+    try {
+      return fetch(prNumber);
+    } catch {
+      return undefined;
+    }
+  };
+  const first = classifyHeadSha(sha, read());
+  if (first.kind !== 'mismatch') return first;
+  await wait(GATE_DEFAULTS.HEAD_RECHECK_MS);
+  return classifyHeadSha(sha, read());
+}
+
+export function describeHeadMismatch(prNumber: number, sha: string, prHead: string): string {
+  // Deliberately does NOT assert the cause. The likeliest is that HEAD moved
+  // between push and arm, but a mismatch surviving the re-check could also be
+  // replication lag beyond HEAD_RECHECK_MS, whose bound comes from one
+  // measurement rather than a distribution. Naming a cause we cannot observe
+  // would send the reader after the wrong fix (`00-critical.md` § Don't Present
+  // Speculation as Fact), so the message states what IS known and offers the
+  // common cause as a candidate.
+  return (
+    `--sha ${sha} is not the head of PR #${prNumber}, which points at ${prHead}. ` +
+    'The gate re-read once and still disagrees. Most often HEAD moved between the ' +
+    'push and the arm (a branch checkout does it); an unusually slow GitHub ' +
+    'replication is the other candidate. Nothing else would have caught either: ' +
+    "the SHA is real, so the gate would have waited on another commit's CI and " +
+    "reported this PR's checks beside it. Confirm with `git rev-parse HEAD` and " +
+    '`gh pr view ' +
+    `${prNumber} --json headRefOid\`, then re-arm.`
+  );
 }
 
 /** Thrown when `gh api` fails, so the loop can report it instead of swallowing it. */
@@ -370,6 +476,7 @@ export interface GateRunDeps {
   settle: (ms: number) => Promise<void>;
   log: (message: string) => void;
   commitExists: (sha: string) => boolean;
+  prHead: (prNumber: number) => string | undefined;
 }
 
 export async function runCiGate(
@@ -382,7 +489,27 @@ export async function runCiGate(
   const settle = overrides.settle ?? sleep;
   const args = validateGateArgs(prNumber, options.sha, overrides.commitExists);
 
+  // This line comes BEFORE the head check on purpose. The check is a synchronous
+  // network call, and a hang in it would otherwise produce zero output until the
+  // Monitor's external kill — the exact "a broken gate looks like a slow one"
+  // shape this command exists to remove.
   log(`⏱️  Waiting for CI on PR #${args.prNumber} @ ${args.sha.slice(0, 8)}…`);
+
+  const headVerdict = await confirmHeadSha(
+    args.sha,
+    args.prNumber,
+    overrides.prHead ?? fetchPrHeadSha,
+    settle
+  );
+  if (headVerdict.kind === 'mismatch') {
+    throw new UsageError(describeHeadMismatch(args.prNumber, args.sha, headVerdict.prHead));
+  }
+  if (headVerdict.kind === 'unknown') {
+    // Say so rather than failing open in silence: "checked and matched" and
+    // "could not check" are different states, and only one of them means the
+    // drift protection was actually active for this arm.
+    log('⚠️  Could not read the PR head; arming without the drift check.');
+  }
 
   const outcome = await waitForCi(
     args.sha,
