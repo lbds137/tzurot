@@ -27,4 +27,28 @@ STATUS after #1981: (a), (b) and (c) SHIPPED. (d) remains — the task stays ope
 (e) NEW, from the #1981 round-3 review: the raw-stdin pre-check landed only in claim-shape-guard.sh and fixup-rider-check.sh, but develop-code-commit-guard.sh and git-commit-filter-guard.sh are the PreToolUse hooks that run on EVERY Bash call, and they still fork jq twice before their decoded-command short-circuit. That is where a cheap-first pass actually pays. Not ridden in #1981 because an early exit added to a BLOCKING guard is a behavior change needing its own probe cases. See also TASK-442 (the three-way regex sync guard).
 
 Acceptance: git commit-tree not treated as git commit by any hook (probe-pinned in both guards); claim-shape/fixup-rider hooks fork jq only when the input plausibly contains a commit.
+## MEASUREMENT 2026-08-07 — (e) is worth doing
+
+Timed 50 runs of develop-code-commit-guard.sh against a non-git payload
+(`ls -la`), on the Steam Deck:
+
+- full hook: 1.108s / 50 = **22.2ms per Bash call**
+- the two bare jq forks alone: 0.814s / 50 = **16.3ms per Bash call**
+
+So jq is ~73% of the hook's cost, paid on EVERY Bash call, twice over across
+the two blocking hooks. The existing `case` short-circuit runs after the jq
+forks — it saves the python spawn, not the jq spawns.
+
+Safety argument for the raw-$INPUT pre-check (the reason #1981 deferred it):
+it is **fail-open by construction**. JSON escaping only inserts backslashes at
+`"`, `\`, and control chars, and no standard encoder escapes ASCII letters — so
+any decoded command containing `git`…`commit` implies the raw payload contains
+`git`…`commit`. The raw check is therefore strictly WEAKER than the decoded one
+(it can over-match, never under-match), and over-matching just does today's
+work. Probe cases should pin: a normal payload still reaches the guard, and the
+canonical heredoc commit form is not skipped.
+
+(d) remains parked pending a runtime-confirmed false-fire, per the original
+entry — do not build it on a code-read mechanism.
+
 <!-- SECTION:DESCRIPTION:END -->
