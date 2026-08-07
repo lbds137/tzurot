@@ -260,16 +260,17 @@ Cover the full release lifecycle: bump versions before the release PR, draft and
 
 **🚨 Use these instead of `gh pr edit` (which is broken):**
 
-| Command                                    | Description                    |
-| ------------------------------------------ | ------------------------------ |
-| `pnpm ops gh:pr-info <n>`                  | Get PR title, body, state      |
-| `pnpm ops gh:pr-reviews <n>`               | Get all reviews on a PR        |
-| `pnpm ops gh:pr-comments <n>`              | Get line-level review comments |
-| `pnpm ops gh:pr-conversation <n>`          | Get conversation comments      |
-| `pnpm ops gh:pr-edit <n> --title "..."`    | Edit PR title                  |
-| `pnpm ops gh:pr-edit <n> --body "..."`     | Edit PR body                   |
-| `pnpm ops gh:pr-edit <n> --body-file f.md` | Edit PR body from file         |
-| `pnpm ops gh:pr-all <n>`                   | Get all PR info at once        |
+| Command                                    | Description                                                                             |
+| ------------------------------------------ | --------------------------------------------------------------------------------------- |
+| `pnpm ops gh:pr-info <n>`                  | Get PR title, body, state                                                               |
+| `pnpm ops gh:pr-reviews <n>`               | Get all reviews on a PR                                                                 |
+| `pnpm ops gh:pr-comments <n>`              | Get line-level review comments                                                          |
+| `pnpm ops gh:pr-conversation <n>`          | Get conversation comments                                                               |
+| `pnpm ops gh:pr-edit <n> --title "..."`    | Edit PR title                                                                           |
+| `pnpm ops gh:pr-edit <n> --body "..."`     | Edit PR body                                                                            |
+| `pnpm ops gh:pr-edit <n> --body-file f.md` | Edit PR body from file                                                                  |
+| `pnpm ops gh:pr-all <n>`                   | Get all PR info at once                                                                 |
+| `pnpm ops gh:ci-gate <n> --sha <sha>`      | Wait for CI, then report checks (arm in a Monitor; see `05-tooling.md` § PR Monitoring) |
 
 These use `gh api` directly, bypassing the broken GraphQL calls.
 

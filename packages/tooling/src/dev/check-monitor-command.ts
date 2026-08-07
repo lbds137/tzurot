@@ -30,11 +30,12 @@ export const MONITOR_COMMAND_SURFACES = [
 ] as const;
 
 /**
- * Anchors on the run-gate's API query, which every copy must contain and no
- * other line in these files does. Deliberately narrower than "mentions gh api"
- * so prose describing the gate can't be mistaken for a copy of it.
+ * Anchors on the gate invocation, which every copy must contain and no other
+ * line in these files does. Requires the `--sha` flag too, so prose naming the
+ * command (`run \`pnpm ops gh:ci-gate\` to wait`) can't be mistaken for a copy
+ * of the invocation.
  */
-const COMMAND_LINE = /until gh api .*actions\/runs\?head_sha=/;
+const COMMAND_LINE = /pnpm ops gh:ci-gate .*--sha/;
 
 export interface SurfaceCommand {
   file: string;
@@ -46,22 +47,18 @@ export interface SurfaceCommand {
 /**
  * Erase the per-surface placeholders so the three copies become comparable:
  *
- * - `\$SHA` → `$SHA`: the hook's copy lives in a heredoc, where the backslash is
- *   what stops bash from expanding the loop's own variable read at emit time.
- * - `SHA=<anything>;` → `SHA=<PLACEHOLDER>;`: the hook interpolates the real
- *   pushed SHA, the rule writes `<sha>`, the skill `<full-40-char-pushed-sha>`.
- * - `gh pr checks <anything>` → `gh pr checks <PLACEHOLDER>`: same split for the
- *   PR number (`$PR_NUM` / `N` / `<N>`).
+ * - the PR number after `gh:ci-gate` — the hook interpolates the real one, the
+ *   rule writes `N`, the skill `<N>`
+ * - the `--sha` value — the hook interpolates the pushed SHA, the docs describe it
  *
- * Everything else — the jq filter, the predicate, the sleeps, the sentinel — is
+ * Everything else — the command name, the flags, any future argument — is
  * compared literally, which is the whole point.
  */
 export function normalizeMonitorCommand(raw: string): string {
   return raw
     .trim()
-    .replaceAll('\\$', '$')
-    .replace(/^SHA=\S+?;/, 'SHA=<PLACEHOLDER>;')
-    .replaceAll(/gh pr checks \S+/g, 'gh pr checks <PLACEHOLDER>');
+    .replace(/gh:ci-gate \S+/, 'gh:ci-gate <PLACEHOLDER>')
+    .replace(/--sha \S+/, '--sha <PLACEHOLDER>');
 }
 
 /**
