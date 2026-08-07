@@ -14,9 +14,11 @@
  *    gates rather than warns.
  *  - `tracker/tasks/` triage: every OPEN task carries the labels
  *    `06-backlog.md` requires at filing — at least one `area:*`, exactly one
- *    `size:S|M|L`, and a high/medium/low priority. Those three fields are what
- *    every selection query filters on, so an unlabelled task is filed into a
- *    blind spot. Done tasks are exempt: they're finished work awaiting archive.
+ *    `size:S|M|L`, exactly one `state:*`, and a high/medium/low priority. Those
+ *    four fields are what every selection query filters on, so an unlabelled
+ *    task is filed into a blind spot: a filter that returns nothing reads as
+ *    "no such work", never as "the label is missing". Done tasks are exempt:
+ *    they're finished work awaiting archive.
  *
  * Run via `pnpm ops backlog`. Exits non-zero on a structural problem so it can
  * gate in `pnpm quality` and CI. This is a binary "is the layout in sync?"
@@ -124,17 +126,85 @@ function checkQueueDocRefs(rootDir: string): string[] {
     .map(ref => `queue.md: dangling doc reference → ${ref} (no tracker/docs/ file)`);
 }
 
-const SIZE_LABEL_PATTERN = /^size:[SML]$/;
 const AREA_LABEL_PREFIX = 'area:';
 const VALID_PRIORITIES = new Set(['high', 'medium', 'low']);
 
 /**
- * Triage completeness on the open pool: area label, size label, priority.
+ * A label axis that must appear exactly once, with its full vocabulary.
  *
- * `06-backlog.md` requires all three at filing, and they are exactly the axes
- * the selection queries filter on (`-l area:x`, `-l size:S --priority high`) —
- * a task missing any of them is filed somewhere no query looks. Enforcing it
- * here converts the filing rule from memory-dependent to structural.
+ * `state:*` is the reachability axis — what has to happen before this task can
+ * be picked up. `size:*` is effort. Both are enumerated rather than pattern-
+ * matched so a failure message can print the accepted values.
+ */
+interface LabelAxis {
+  readonly name: string;
+  readonly prefix: string;
+  readonly values: readonly string[];
+}
+
+const SIZE_AXIS: LabelAxis = { name: 'size', prefix: 'size:', values: ['S', 'M', 'L'] };
+const STATE_AXIS: LabelAxis = {
+  name: 'state',
+  prefix: 'state:',
+  values: ['ready', 'observable', 'dependent', 'owner', 'unreachable'],
+};
+
+const vocabularyOf = (axis: LabelAxis): string =>
+  axis.values.map(value => `${axis.prefix}${value}`).join(' | ');
+
+/**
+ * Problems on one exactly-once label axis.
+ *
+ * The distinction that matters: **presence is measured on the PREFIX, validity
+ * on the vocabulary.** Measuring presence on the vocabulary instead makes an
+ * out-of-vocabulary value (`state:blocked`, `size:XL`) report as "no label" —
+ * which sends the reader to add a label that is already sitting there, and, if
+ * the unknown-value message is also emitted, tells them the label is absent and
+ * present in the same breath. Each shape gets exactly one message:
+ *
+ * - no `prefix` label at all → missing
+ * - a `prefix` label outside the vocabulary → unknown, naming the value
+ * - more than one VALID value → too many
+ */
+function checkLabelAxis(task: TrackerTask, axis: LabelAxis): string[] {
+  const accepted = new Set(axis.values.map(value => `${axis.prefix}${value}`));
+  const present = task.labels.filter(label => label.startsWith(axis.prefix));
+  const valid = present.filter(label => accepted.has(label));
+
+  if (present.length === 0) {
+    return [`${task.file}: open task has no ${axis.name} label (${vocabularyOf(axis)})`];
+  }
+
+  const problems = present
+    .filter(label => !accepted.has(label))
+    .map(
+      label =>
+        `${task.file}: open task has unknown ${axis.name} label '${label}' — must be one of ${vocabularyOf(axis)}`
+    );
+
+  if (valid.length > 1) {
+    problems.push(
+      `${task.file}: open task has ${valid.length} ${axis.name} labels — exactly one is required`
+    );
+  }
+  return problems;
+}
+
+/**
+ * Triage completeness on the open pool: area, size, state, priority.
+ *
+ * `06-backlog.md` requires all four at filing, and they are exactly the axes
+ * the selection queries filter on (`-l area:x`, `-l state:ready -l size:S
+ * --priority high`) — a task missing any of them is filed somewhere no query
+ * looks. Enforcing it here converts the filing rule from memory-dependent to
+ * structural.
+ *
+ * `state:*` was the axis that proved the point: it governed drain selection and
+ * was carried by every open task, yet nothing checked it, so a batch filed
+ * without it went straight into the pool invisible to the query that would have
+ * surfaced it. Absence of a filter value reads as "no such work", never as "the
+ * label is missing" — which is why this has to be structural rather than a
+ * habit.
  *
  * Only open tasks are checked; a Done task is finished work waiting on the
  * archive sweep, and back-filling labels onto it buys nothing.
@@ -143,14 +213,9 @@ const VALID_PRIORITIES = new Set(['high', 'medium', 'low']);
 export function checkTaskTriage(tasks: TrackerTask[]): string[] {
   const problems: string[] = [];
   for (const task of openTasks(tasks)) {
-    const sizeLabels = task.labels.filter(label => SIZE_LABEL_PATTERN.test(label));
-    if (sizeLabels.length === 0) {
-      problems.push(`${task.file}: open task has no size label (size:S | size:M | size:L)`);
-    } else if (sizeLabels.length > 1) {
-      problems.push(
-        `${task.file}: open task has ${sizeLabels.length} size labels — exactly one is required`
-      );
-    }
+    problems.push(...checkLabelAxis(task, SIZE_AXIS));
+    problems.push(...checkLabelAxis(task, STATE_AXIS));
+
     if (!task.labels.some(label => label.startsWith(AREA_LABEL_PREFIX))) {
       problems.push(`${task.file}: open task has no area label (area:<package-or-domain>)`);
     }

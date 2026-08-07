@@ -4,10 +4,12 @@ title: 'Watch: historyMessagesDropped > 0 in prod means history trimming has beg
 status: To Do
 assignee: []
 created_date: '2026-08-06 23:45'
+updated_date: '2026-08-07 16:23'
 labels:
   - 'area:ai-worker'
   - 'area:observability'
   - 'size:S'
+  - 'state:observable'
 dependencies: []
 priority: medium
 ordinal: 447000
