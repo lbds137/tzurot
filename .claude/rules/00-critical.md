@@ -150,6 +150,8 @@ gh pr merge 714 --rebase --delete-branch  # PR from develop → main
 gh pr merge 714 --rebase                  # develop survives
 ```
 
+**The flag is not the only deletion path — the repo setting is the other one.** `delete_branch_on_merge` deletes the head branch on EVERY merge regardless of the flag, and GitHub performs that delete with ADMIN privileges, so it passes straight through a ruleset whose `bypass_actors` is non-empty. `develop`'s ruleset carries bypass actors deliberately (`release:finalize`'s force-push, sanctioned direct doc-commits), which makes `develop` — and only `develop` — reachable that way. **`delete_branch_on_merge` must stay `false`**; feature branches are cleaned by passing `--delete-branch` explicitly, which the commands above already do. `pnpm ops guard:repo-settings` asserts the whole invariant; run it in the release preflight.
+
 ### Destructive Commands - ASK FIRST
 
 **NEVER run these without explicit user permission:**
