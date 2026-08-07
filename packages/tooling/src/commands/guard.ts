@@ -148,6 +148,17 @@ function registerSyncGuards(cli: CAC): void {
 
   cli
     .command(
+      'guard:monitor-command',
+      'Fail when the canonical CI-monitor command drifts between the hook, the rule, and the skill'
+    )
+    .example('ops guard:monitor-command')
+    .action(async () => {
+      const { checkMonitorCommand } = await import('../dev/check-monitor-command.js');
+      checkMonitorCommand();
+    });
+
+  cli
+    .command(
       'guard:ops-doc',
       'Fail when a registered pnpm ops command has no row in docs/reference/tooling/OPS_CLI_REFERENCE.md'
     )
