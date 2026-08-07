@@ -340,6 +340,7 @@ describe('findContentRefs (against real repo)', () => {
       'dev:test-summary',
       'dev:typecheck',
       'dev:update-deps',
+      'gh:ci-gate',
       'gh:pr-all',
       'gh:pr-comments',
       'gh:pr-conversation',
