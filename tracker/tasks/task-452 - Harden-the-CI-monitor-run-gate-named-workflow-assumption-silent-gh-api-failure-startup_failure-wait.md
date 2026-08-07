@@ -3,9 +3,10 @@ id: TASK-452
 title: >-
   Harden the CI-monitor run-gate: named-workflow assumption, silent gh api
   failure, startup_failure wait
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-07 00:51'
+updated_date: '2026-08-07 03:28'
 labels:
   - 'area:process'
   - 'area:tooling'
