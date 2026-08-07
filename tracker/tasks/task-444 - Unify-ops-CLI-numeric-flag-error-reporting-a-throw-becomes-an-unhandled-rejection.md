@@ -3,10 +3,10 @@ id: TASK-444
 title: >-
   Unify ops CLI numeric-flag error reporting; a throw becomes an unhandled
   rejection
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-06 02:04'
-updated_date: '2026-08-06 02:04'
+updated_date: '2026-08-07 00:59'
 labels:
   - 'area:tooling'
   - 'size:M'
