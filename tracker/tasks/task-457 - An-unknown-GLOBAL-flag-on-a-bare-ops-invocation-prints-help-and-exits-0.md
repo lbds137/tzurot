@@ -4,10 +4,11 @@ title: An unknown GLOBAL flag on a bare ops invocation prints help and exits 0
 status: To Do
 assignee: []
 created_date: '2026-08-07 02:32'
-updated_date: '2026-08-07 02:33'
+updated_date: '2026-08-07 12:33'
 labels:
   - 'area:tooling'
   - 'size:S'
+  - 'state:ready'
 dependencies: []
 priority: low
 ordinal: 456000
