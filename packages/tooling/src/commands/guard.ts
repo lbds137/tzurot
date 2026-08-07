@@ -159,6 +159,19 @@ function registerSyncGuards(cli: CAC): void {
 
   cli
     .command(
+      'guard:repo-settings',
+      'Fail when deletion of a long-lived branch (main, develop) is reachable via GitHub settings'
+    )
+    .option('--json', 'Emit the raw settings surface as JSON')
+    .example('ops guard:repo-settings')
+    .example('ops guard:repo-settings --json')
+    .action(async (options: { json?: boolean }) => {
+      const { checkRepoSettings } = await import('../dev/check-repo-settings.js');
+      checkRepoSettings(options);
+    });
+
+  cli
+    .command(
       'guard:ops-doc',
       'Fail when a registered pnpm ops command has no row in docs/reference/tooling/OPS_CLI_REFERENCE.md'
     )
