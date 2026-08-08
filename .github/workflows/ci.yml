@@ -140,6 +140,9 @@ jobs:
       - name: Check the CI-monitor command is identical across its three surfaces
         run: pnpm ops guard:monitor-command
 
+      - name: Run the hook probe harnesses (and check every hook has one)
+        run: pnpm ops guard:hook-probes
+
       - name: Check Dockerfile runner-stage dist copies
         run: pnpm ops guard:dockerfile-dist
 
