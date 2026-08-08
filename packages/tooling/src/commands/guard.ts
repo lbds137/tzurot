@@ -172,6 +172,17 @@ function registerSyncGuards(cli: CAC): void {
 
   cli
     .command(
+      'guard:hook-probes',
+      'Fail when a hook script has no probe harness (or reason), or when any probe harness fails'
+    )
+    .example('ops guard:hook-probes')
+    .action(async () => {
+      const { checkHookProbes } = await import('../dev/check-hook-probes.js');
+      checkHookProbes();
+    });
+
+  cli
+    .command(
       'guard:ops-doc',
       'Fail when a registered pnpm ops command has no row in docs/reference/tooling/OPS_CLI_REFERENCE.md'
     )
