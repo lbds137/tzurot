@@ -60,6 +60,103 @@ if [ -z "$PR_NUM" ]; then
     exit 0
 fi
 
+RULE='━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
+
+# Ack file, defined BEFORE the review fetch because two independent concerns
+# key off it now: the review gate (per PR+comment-id) and the release-finalize
+# reminder (per PR). /tmp wipes on reboot so the file stays bounded;
+# UID-namespaced so concurrent users on a shared host don't cross-contaminate.
+ACK_FILE="/tmp/.claude_pr_merge_ack.$(id -u)"
+RELEASE_KEY="RELEASE:${PR_NUM}"
+
+# Base-branch resolution, cached in the ack file as `BASE:<pr>:<branch>`.
+#
+# Two constraints pull opposite ways and the cache is what satisfies both. The
+# release reminder must be reachable BEFORE the review-existence early-exits —
+# a release PR whose claude-review posted nothing (documented in 05-tooling.md
+# § claude-review health, observed twice) would otherwise merge with no
+# reminder at all, which is the exact silent-drop this hook was moved here to
+# end. But the acked-retry fast path must stay free of API calls, since it runs
+# on every ordinary feature merge. So the first call for a PR pays one
+# `gh pr view`; every later call reads the cached line.
+#
+# Fails open to "": an unreadable base skips the release block rather than
+# blocking a merge on a `gh` blip.
+PR_BASE=""
+resolve_pr_base() {
+    [ -n "$PR_BASE" ] && return 0
+    if [ -f "$ACK_FILE" ]; then
+        PR_BASE=$(grep -m1 "^BASE:${PR_NUM}:" "$ACK_FILE" 2>/dev/null | cut -d: -f3- || echo "")
+    fi
+    [ -n "$PR_BASE" ] && return 0
+    PR_BASE=$(gh pr view "$PR_NUM" --json baseRefName --jq '.baseRefName' 2>/dev/null || echo "")
+    if [ -n "$PR_BASE" ]; then
+        echo "BASE:${PR_NUM}:${PR_BASE}" >>"$ACK_FILE" 2>/dev/null || true
+        chmod 600 "$ACK_FILE" 2>/dev/null || true
+    fi
+    return 0
+}
+
+# True when this is a release PR whose reminder has not been shown yet.
+# Filtering on base=main is the whole test: the project's critical rule
+# reserves a `main` base for release PRs.
+release_reminder_due() {
+    resolve_pr_base
+    [ "$PR_BASE" = "main" ] || return 1
+    if [ -f "$ACK_FILE" ] && grep -qxF "$RELEASE_KEY" "$ACK_FILE" 2>/dev/null; then
+        return 1
+    fi
+    return 0
+}
+
+# The reminder body. Written to stderr by both call paths below — beside the
+# review on the normal path, alone when no review exists. FORWARD-looking (it
+# fires before the merge, not after), which is why there is no `state = MERGED`
+# check: state is OPEN at this point by construction. That is a channel-forced
+# improvement over the PostToolUse version, which fired post-merge into an
+# output stream that never reached the agent.
+print_release_block() {
+    printf '%s\n' "$RULE"
+    printf 'RELEASE PR — base is main. AFTER this merge lands, run finalize NEXT:\n\n'
+    printf '  pnpm ops release:finalize --yes\n\n'
+    printf 'Rebase-merging a release PR to main creates new SHAs on main. Without\n'
+    printf 'finalize, develop keeps its old SHAs and the next release PR shows N\n'
+    printf 'commits of false divergence per cycle — ~57 commits of drift accumulated\n'
+    printf 'across two skipped cycles before manual cleanup was needed.\n\n'
+    printf 'Also part of the post-merge sequence:\n'
+    printf '  - Prod migrations run BEFORE the merge (pnpm ops release:premigrate) —\n'
+    printf '    if this release has one and it has not run, stop and run it first.\n'
+    printf '  - Tag + push the release tag, then create the GitHub Release.\n'
+    printf '  - Do NOT pass --delete-branch: develop must survive.\n\n'
+}
+
+# Taken by the two "no usable review" exits below. Without a review there is
+# nothing to inject, so the review gate itself allows the merge — but a release
+# PR still owes its finalize reminder, and stderr only reaches the agent on the
+# blocking path, so delivering it means exiting 2 once. A feature PR is
+# unaffected and still exits 0 immediately.
+release_block_then_exit() {
+    if release_reminder_due; then
+        {
+            printf '%s\n' "$RULE"
+            printf 'PR MERGE GATE — no claude-review comment found for PR #%s\n' "$PR_NUM"
+            printf '%s\n\n' "$RULE"
+            printf 'The review gate has nothing to surface, so it is not blocking on that.\n'
+            printf 'This block is the release reminder, which does NOT depend on a review\n'
+            printf 'existing. Retry the same merge command to proceed.\n\n'
+            print_release_block
+            printf '%s\n' "$RULE"
+        } >&2
+        if echo "$RELEASE_KEY" >>"$ACK_FILE" 2>/dev/null; then
+            chmod 600 "$ACK_FILE" 2>/dev/null || true
+            exit 2
+        fi
+        # Ack write failed — fail open rather than block forever.
+        printf 'WARNING: release-reminder ack write failed (%s) — allowing merge\n' "$ACK_FILE" >&2
+    fi
+    exit 0
+}
+
 # Fetch the most recent claude[bot] comment on this PR. Pull body + id +
 # created_at so the ack key is stable per-comment (a fresh review re-runs
 # the gate).
@@ -80,7 +177,7 @@ REVIEW_JSON=$(gh api "repos/lbds137/tzurot/issues/${PR_NUM}/comments?per_page=10
 # only meaningful when there's actually content to surface. The user-facing
 # rule still applies: agent should be reading whatever review IS available.
 if [ -z "$REVIEW_JSON" ] || [ "$REVIEW_JSON" = "null" ]; then
-    exit 0
+    release_block_then_exit
 fi
 
 REVIEW_ID=$(jq -r '.id // empty' <<<"$REVIEW_JSON")
@@ -89,8 +186,9 @@ REVIEW_BODY=$(jq -r '.body // empty' <<<"$REVIEW_JSON")
 
 if [ -z "$REVIEW_ID" ] || [ -z "$REVIEW_BODY" ]; then
     # Malformed response or empty review. Allow the merge rather than block on
-    # an unparseable state; the rule still nominally applies.
-    exit 0
+    # an unparseable state; the rule still nominally applies. The release
+    # reminder is independent of that and still owed.
+    release_block_then_exit
 fi
 
 # Origin-language scan: reviews that scope findings as "pre-existing" /
@@ -106,28 +204,15 @@ fi
 # is expected and keeps the guard correct if `set -e` ever arrives.
 ORIGIN_HITS=$(grep -icE 'pre-?existing|pre-?dates|not a regression|not introduced (by|in) this|existing behavior|consistent with existing|already (present|existed)' <<<"$REVIEW_BODY" || true)
 
-# Per-(PR, comment-id) ack file. A fresh review (different comment-id) forces
-# re-engagement; a retry after ack proceeds. /tmp wipes on reboot so the file
-# stays bounded; UID-namespaced so concurrent users on a shared host don't
-# cross-contaminate.
-ACK_FILE="/tmp/.claude_pr_merge_ack.$(id -u)"
+# Per-(PR, comment-id) key. A fresh review (different comment-id) forces
+# re-engagement; a retry after ack proceeds.
 ACK_KEY="${PR_NUM}:${REVIEW_ID}"
 
-# Release-PR detection, for the finalize reminder folded into the block below.
-# Resolved here rather than earlier so the extra API call only costs on the
-# path that is about to block anyway (the acked-retry path exits above).
-#
-# Filtering on base=main is the whole test: the project's critical rule
-# reserves a `main` base for release PRs. The reminder is FORWARD-looking —
-# it fires before the merge rather than after it, which is why there is no
-# `state = MERGED` check here (state is OPEN at this point, by construction).
-# That is a channel-forced improvement, not a compromise: the previous
-# PostToolUse version fired post-merge into an output stream that never
-# reached the agent, so the reminder it printed was never read.
-PR_BASE=$(gh pr view "$PR_NUM" --json baseRefName --jq '.baseRefName' 2>/dev/null || echo "")
-
+# Acked-retry fast path. Deliberately BEFORE any base resolution so it stays
+# free of API calls — it runs on every ordinary feature merge, and the release
+# reminder (if this is a release PR) was already delivered by the blocking call
+# that wrote this ack.
 if [ -f "$ACK_FILE" ] && grep -qxF "$ACK_KEY" "$ACK_FILE" 2>/dev/null; then
-    # Already injected this review; allow the retry.
     exit 0
 fi
 
@@ -144,7 +229,8 @@ fi
 # line in the body, so a review that contained `EOF` on its own line would
 # silently truncate the injected content. printf has no such delimiter
 # semantics — `%s` swallows whatever the variable holds.
-RULE='━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
+RELEASE_DUE=0
+if release_reminder_due; then RELEASE_DUE=1; fi
 {
     printf '%s\n' "$RULE"
     printf 'PR MERGE GATE — latest claude-review for PR #%s\n' "$PR_NUM"
@@ -168,19 +254,8 @@ RULE='━━━━━━━━━━━━━━━━━━━━━━━━�
         printf 'correct-as-is WITH the technical reason. "Pre-existing" may not be the\n'
         printf 'operative reason.\n\n'
     fi
-    if [ "$PR_BASE" = "main" ]; then
-        printf '%s\n' "$RULE"
-        printf 'RELEASE PR — base is main. AFTER this merge lands, run finalize NEXT:\n\n'
-        printf '  pnpm ops release:finalize --yes\n\n'
-        printf 'Rebase-merging a release PR to main creates new SHAs on main. Without\n'
-        printf 'finalize, develop keeps its old SHAs and the next release PR shows N\n'
-        printf 'commits of false divergence per cycle — ~57 commits of drift accumulated\n'
-        printf 'across two skipped cycles before manual cleanup was needed.\n\n'
-        printf 'Also part of the post-merge sequence:\n'
-        printf '  - Prod migrations run BEFORE the merge (pnpm ops release:premigrate) —\n'
-        printf '    if this release has one and it has not run, stop and run it first.\n'
-        printf '  - Tag + push the release tag, then create the GitHub Release.\n'
-        printf '  - Do NOT pass --delete-branch: develop must survive.\n\n'
+    if [ "$RELEASE_DUE" = 1 ]; then
+        print_release_block
     fi
     printf 'Do NOT bypass this gate by editing the ack file. The gate'\''s purpose is to\n'
     printf 'ensure the latest review is in context at merge time — not an obstacle to\n'
@@ -199,6 +274,12 @@ RULE='━━━━━━━━━━━━━━━━━━━━━━━━�
 if ! echo "$ACK_KEY" >>"$ACK_FILE" 2>/dev/null; then
     printf 'WARNING: pr-merge-review-check ack write failed (%s) — allowing merge to avoid infinite block; investigate /tmp writability\n' "$ACK_FILE" >&2
     exit 0
+fi
+# Ack the release reminder too when it was just shown, so a later call on this
+# PR (a fresh review re-arming the gate, or a no-review path) does not repeat
+# it. Best-effort: a failure here costs a duplicate reminder, never a block.
+if [ "$RELEASE_DUE" = 1 ]; then
+    echo "$RELEASE_KEY" >>"$ACK_FILE" 2>/dev/null || true
 fi
 chmod 600 "$ACK_FILE" 2>/dev/null || true
 
