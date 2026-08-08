@@ -112,15 +112,12 @@ if [ -n "$STAGED_CODE_FILES" ]; then
     # final match below is case-insensitive (grep -Ei), so capitalized keywords
     # (`Fixes #N`, `Closed #N`, `Caught in round N`) are caught too.
     #
-    # Smoke-test after editing TEMPORAL_PATTERN (run in a shell where it's set):
-    #   for s in 'Fixes #42' 'bug #1254' 'the #1254 drift' '(#1254)' \
-    #            'Phase 5b' 'Epic Phase 3' 'Post-Phase 4' 'Phase 6 made X' \
-    #            'round 1 review' 'round-1 review' 'round-2 claude-review'; do \
-    #     echo "$s" | grep -qEi "$TEMPORAL_PATTERN" && echo "catch: $s"; done
-    #   for s in '#FF0000' '#123456' '#123' 'close the door' \
-    #            'Phase 1 (scan)' 'Phase 2 (flush)' 'round-trip review' \
-    #            'round-trips through the encoder' 'a rounded-corner review panel'; do \
-    #     echo "$s" | grep -qEi "$TEMPORAL_PATTERN" || echo "ignore: $s"; done
+    # Smoke-test after editing TEMPORAL_PATTERN or the COMMENT_PREFIX case
+    # below:  .claude/hooks/husky-pre-commit.probe.sh
+    # The catch/ignore cases used to live here as a list to copy-paste and run
+    # by hand; they are in the probe now, which extracts both regexes from THIS
+    # file (no second copy to drift) and runs in `pnpm quality` and CI via
+    # `pnpm ops guard:hook-probes`.
     #
     # Epic-phase archaeology: `Phase 5b` / `Epic Phase` / `Post-Phase` name WHICH
     # epic a change landed in — journey, not invariant (02-code-standards rule).
