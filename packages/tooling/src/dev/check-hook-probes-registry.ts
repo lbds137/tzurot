@@ -79,11 +79,7 @@ export const HOOK_PROBES: HookProbeEntry[] = [
   },
   {
     hook: '.claude/hooks/pr-monitor-reminder.sh',
-    probe: null,
-    unprobedReason:
-      'TASK-302 member. Non-trivial logic (PR-number resolution with a `gh pr create` ' +
-      'stdout path and a `gh pr list` fallback, tag-push exclusion, per-(PR,SHA) dedup, ' +
-      'assignee backfill) and no harness pins any of it.',
+    probe: '.claude/hooks/pr-monitor-reminder.probe.sh',
   },
   {
     hook: '.claude/hooks/eslint-on-edit.sh',
