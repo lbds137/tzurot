@@ -95,9 +95,15 @@ fi
 # Namespaced by UID so concurrent sessions from different users on the same
 # host can't cross-contaminate each other's dedup state.
 # /tmp is wiped on reboot, so the file stays bounded naturally.
+#
+# TZUROT_PR_MONITOR_SEEN_FILE redirects the ledger, which is what makes the
+# dedup branch testable: pinned to the real path, a probe would write the live
+# key on its first run and then hit the early-exit on every run after — going
+# quietly inert while still exiting 0. Nothing is gated on this file except
+# whether a banner prints, so redirecting it weakens no check.
 SHA=$(git rev-parse HEAD 2>/dev/null || echo "nosha-$$")
 KEY="${PR_NUM}:${SHA}"
-SEEN_FILE="/tmp/.claude_pr_monitor_seen.$(id -u)"
+SEEN_FILE="${TZUROT_PR_MONITOR_SEEN_FILE:-/tmp/.claude_pr_monitor_seen.$(id -u)}"
 if [ -f "$SEEN_FILE" ] && grep -qxF "$KEY" "$SEEN_FILE" 2>/dev/null; then
     exit 0
 fi
