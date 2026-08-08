@@ -242,9 +242,9 @@ No branch, no PR, no CI re-run. Pre-push hooks still fire because they run on an
 2. **Complete**: a CI cycle that's still running on the most recent commit is not "green" — it's incomplete. Wait for `claude-review` and every other check to finish before any merge proposal, even if the only remaining commit is a "trivial" fixup (one-line comment, test rename, etc.). Trivial-shape edits per `/tzurot-review-response` are still gated by tests; the analog at the merge step is "still gated by CI."
 3. **Read**: `claude-review` turning green only means it finished posting — it does NOT mean its content was read. Always fetch the latest review (`pnpm ops gh:pr-comments <N>`) and read its findings before any merge proposal. A "LGTM" verdict is fine; non-blocking observations may or may not warrant a fixup, but you can't decide without reading. Skipping this step is how reviewer feedback gets silently dropped.
 
-**Structural backstop**: `.claude/hooks/pr-merge-review-check.sh` is a `PreToolUse` hook on `gh pr merge` that fetches the most recent claude[bot] comment for the PR and injects its body into stderr (which lands in agent context), then blocks the merge once per (PR, review-comment-id). The agent must retry the merge after engaging — at which point the same comment-id is acked and the merge proceeds. This makes the "read the review" step structurally enforced rather than memory-dependent. A fresh review (e.g., the post-autosquash re-run that often surfaces findings invisible at pre-autosquash time) re-arms the gate because its comment-id is new. Do not bypass by editing the ack file.
+**Structural backstop**: `pr-merge-review-check.sh` blocks `gh pr merge` once per review, injecting the review body into context; retry after engaging with it. A fresh review re-arms it. Do not bypass by editing the ack file.
 
-**Scope of the structural backstop**: the hook covers `claude[bot]` issue-level comments (where claude-review posts via `gh pr comment`). It does NOT enforce reading formal `/pulls/{N}/reviews` summaries or human reviewer line-comments — those remain attention-dependent and you should fetch them via `pnpm ops gh:pr-reviews <N>` and `pnpm ops gh:pr-comments <N>` per the PR-monitoring rule in `05-tooling.md`.
+The hook covers only `claude[bot]` issue-level comments — formal review summaries and human line-comments stay attention-dependent, so fetch them per `05-tooling.md` § PR Monitoring.
 
 If post-merge feedback surfaces from claude-review on a tiny fixup, it can always be fixed on develop afterwards via the doc-commit exception (for docs) or a tiny follow-up PR (for code). The cost of one more CI cycle (~5 min) is far smaller than the cost of merging through an unreviewed change.
 
@@ -259,8 +259,6 @@ If post-merge feedback surfaces from claude-review on a tiny fixup, it can alway
 | Real code failure (test red, lint error, type error)                                             | Fix the code. Do not skip the check.                                                                                                                                                |
 
 **Bypassing CI is forbidden** even when the user has approved the merge in principle — approval is contingent on the merge happening through a green pipeline. If the user explicitly says "merge it anyway despite the red check," confirm once that they understand which check is red and what signal is being skipped before proceeding.
-
-**Observed**: release PR #892 — an infra-red claude-review was merged through; the correction is rerun-then-merge, never merge-through.
 
 ## Testing
 
