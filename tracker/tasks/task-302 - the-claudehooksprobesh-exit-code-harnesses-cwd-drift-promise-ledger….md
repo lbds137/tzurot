@@ -113,6 +113,12 @@ CARRIED INTO THE LAST MEMBER, all three from #2005's review rounds:
    structural over-deletion, once from a `sed` that silently failed on a
    bracket-heavy regex. Assert the mutant diff is non-empty before trusting its
    result.
+4. **Soften the review-round cap wording in `/tzurot-review-response`.** The
+   skill reads as a hard "cap at 3 automated rounds"; the owner clarified
+   2026-08-08 that it is a rule of thumb, not a hard stop. Round 4 on #2005 was
+   applied over the cap on agent judgement (the finding made a comment in the
+   diff false) and the owner confirmed that was the right call. One-line wording
+   change; skills are review-gated so it needs a PR, and this is the next one.
 
 MEMBER (added 2026-08-07 while shipping TASK-458): `.claude/hooks/pr-merge-review-check.sh` has no probe either, and it is the highest-stakes hook in the set — it BLOCKS `gh pr merge` and is the structural backstop behind 00-critical's read-the-review rule. #2002 modified it (folding in the release-finalize reminder) and the only way to verify the change was a hand-built harness: copy the script to /tmp with ACK_FILE redirected, run it against a real merged main-based PR and a develop-based one, and assert exit 2 -> exit 0 on retry plus release-section presence/absence. That worked (all four assertions passed) but nothing re-runs it, which is this task's whole complaint. The ACK_FILE redirect is the only parameterization needed — worth making the script honor an env override so the probe does not have to sed itself a copy.
 
