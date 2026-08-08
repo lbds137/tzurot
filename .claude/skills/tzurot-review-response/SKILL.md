@@ -1,7 +1,7 @@
 ---
 name: tzurot-review-response
-description: 'PR review-response iteration: classify each finding by EDIT SHAPE (trivial → auto-apply as a test-gated fixup commit; semantic → ASK), check reviewer-vs-agent signal conflict, batch-present the four sections, cap at 3 automated rounds. Invoke with /tzurot-review-response the moment a claude-review or human reviewer posts findings on a PR — before applying anything.'
-lastUpdated: '2026-07-29'
+description: 'PR review-response iteration: classify each finding by EDIT SHAPE (trivial → auto-apply as a test-gated fixup commit; semantic → ASK), check reviewer-vs-agent signal conflict, batch-present the four sections, and step back at ~3 automated rounds (a rule of thumb, not a hard stop). Invoke with /tzurot-review-response the moment a claude-review or human reviewer posts findings on a PR — before applying anything.'
+lastUpdated: '2026-08-08'
 ---
 
 # Review-Response Iteration
@@ -171,9 +171,11 @@ Without the tags both dispositions are invisible in the summary: a do-it-now fix
 
 **Never present a raw unified diff.** Categorization IS the presentation — it lets the user bulk-confirm the auto-applied group and focus attention on the semantic asks without having to visually separate them.
 
-### 5. Cap iteration at 3 automated rounds
+### 5. Step back at ~3 automated rounds
 
-If a PR reaches **round 4 of review-respond cycles without user intervention**, stop. Present consolidated status:
+**This is a rule of thumb, not a hard stop** (owner call). Three rounds is where a loop usually stops being refinement — but a round-4 finding that is genuinely substantive (it makes a claim in the diff false, it names a real defect) gets FIXED, not deferred to a menu. Use judgement, and say in the round summary that the guideline was passed and why.
+
+When a PR reaches **round 4 without user intervention** and the remaining items are nits rather than defects, stop and present consolidated status:
 
 ```
 PR #N has completed 3 rounds of review-respond. Remaining unresolved items:
@@ -187,7 +189,7 @@ Each round's fixes have surfaced new findings. Options:
 - Review the loop — maybe the PR scope is wrong
 ```
 
-Long review loops are almost always a convergence failure, not genuine quality refinement. The user is better positioned than the agent to decide whether to merge, rewrite, or abandon. Forcing the decision at round 4 prevents the agent and reviewer from indefinitely discovering new nits.
+Long review loops are usually a convergence failure rather than genuine quality refinement, and the user is better positioned than the agent to decide whether to merge, rewrite, or abandon. What this guideline protects against is the agent and reviewer trading nits without converging — it was never meant to ship a known-wrong diff on a technicality.
 
 The cap resets on user intervention. **"User intervention" means the user explicitly answered an ASK, approved/rejected an auto-apply call, or directed the agent to take a specific action.** Merely reading a round summary without a response, acknowledging with a thumbs-up emoji, or a "continue" that doesn't address an open ASK does not count — those are light-touch signals the user is still present, but the decision-fatigue pressure the round cap exists to bound is about _active_ user engagement, not _passive_ presence. When in doubt: if the user said something that would differently route an item (answered an ASK, amended a fix, told the agent to do X), reset the counter; if they didn't, don't reset.
 

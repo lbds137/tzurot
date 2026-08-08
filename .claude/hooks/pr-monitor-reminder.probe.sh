@@ -25,6 +25,20 @@
 # would also break `guard:monitor-command`, which requires this copy to match
 # the two doc copies. That is pinned below as its own case.
 #
+# --- what this probe does NOT pin -------------------------------------------
+#
+#   1. The `--jq` / `--json` output-shape contract. The shim dispatches on
+#      `"$1 $2"` and ignores the real flags entirely, returning a fixture that
+#      is already in post-`--jq` shape. So the hook's parsing of that shape is
+#      pinned; whether real `gh` still PRODUCES it is not. Change a `--jq`
+#      expression to emit something different and every case here keeps passing
+#      while the hook is broken against real `gh`.
+#   2. Delivery. The hook's own header records that its banner never reaches
+#      the agent (non-blocking PostToolUse output is dropped). The probe can
+#      assert the hook wrote the banner, never that anyone reads it — which is
+#      why the assignee backfill, the one effect that works without delivery,
+#      is asserted through the API log instead.
+#
 # Usage: .claude/hooks/pr-monitor-reminder.probe.sh   (from repo root)
 
 set -uo pipefail

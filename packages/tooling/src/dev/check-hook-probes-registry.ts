@@ -14,7 +14,7 @@ export const HOOKS_DIR = '.claude/hooks';
 export const HUSKY_DIR = '.husky';
 
 /**
- * Per-probe ceiling. The margin over the ~11s the whole current set takes is
+ * Per-probe ceiling. The margin over the ~18s the whole current set takes is
  * deliberately wide, because the realistic non-hang cause of a slow probe is a
  * loaded machine rather than the probe itself. What it buys: a probe that
  * blocks on a stale git lock or an accidental network call fails fast and names
@@ -69,13 +69,13 @@ export const HOOK_PROBES: HookProbeEntry[] = [
     probe: '.claude/hooks/promise-ledger-check.probe.sh',
   },
   {
+    // The ack file is reached through `$(id -u)`, so the probe shims `id` on
+    // PATH beside `gh` and redirects it with no production change. An
+    // env-var override was the earlier plan and was rejected: adding a bypass
+    // surface to the one hook whose job is to be un-bypassable is the wrong
+    // trade for test convenience.
     hook: '.claude/hooks/pr-merge-review-check.sh',
-    probe: null,
-    unprobedReason:
-      'TASK-302 member. Highest-stakes hook in the set (it blocks `gh pr merge`) ' +
-      'and the only verification it has ever had is a hand-built /tmp copy with ' +
-      'ACK_FILE redirected. Needs an ACK_FILE env override plus pinned PR-number-' +
-      'extraction cases before a harness can be written.',
+    probe: '.claude/hooks/pr-merge-review-check.probe.sh',
   },
   {
     hook: '.claude/hooks/pr-monitor-reminder.sh',
