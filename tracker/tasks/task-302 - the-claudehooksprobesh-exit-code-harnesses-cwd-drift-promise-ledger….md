@@ -58,7 +58,61 @@ with no network. Pin the shim's `pr view` to return `main` and the release banne
 `for PR #N` line makes the extracted PR number assertable — which is the assertion
 that matters, since a wrong PR with no review exits 0 and merges UNREVIEWED.
 
-MEMBER: `.claude/hooks/pr-monitor-reminder.sh` has no probe.sh either. It is PR-flow-critical (it is the artifact that tells the agent to arm the CI monitor, and as of #1989 to stop the prior one), and its logic is non-trivial — PR-number resolution with a `gh pr create` stdout path plus a `gh pr list` fallback, a tag-push exclusion, per-(PR,SHA) dedup, and an assignee backfill. A probe would pin the banner's required lines and the exclusion branches against a synthetic hook payload.
+**DESIGN CORRECTED 2026-08-08 — NO env override is needed, and none should be
+added.** The ack path is `/tmp/.claude_pr_merge_ack.$(id -u)`, and `id` is a PATH
+lookup. A probe that already shims `gh` onto PATH can shim `id -u` in the same
+directory and the ack file redirects with ZERO production change to the
+highest-stakes hook in the set. That is strictly better than both options this
+note previously weighed: no new bypass surface on the merge gate, and unlike a
+sed-copy the probe drives the REAL script rather than a mutated one.
+
+Measured end-to-end against the real hook before writing any harness — every
+branch is reachable offline this way:
+
+- release PR (base=main) WITH a review -> exit 2, release block present, ack
+  holds both `2000:777` and `RELEASE:2000`, retry exits 0
+- release PR with NO review -> still exit 2 with the reminder (the defect #2002's
+  review caught; confirmed not regressed)
+- feature PR (base=develop) with no review -> exit 0, silent
+- origin-language body -> `ORIGIN-LANGUAGE DETECTED` fires
+- a fresh review comment-id -> re-arms the gate: 2 -> 0 -> 2
+- the real ack file was byte-identical before and after (md5 checked)
+
+The registry's `unprobedReason` for this hook still asserts the env override is
+needed; correct it in the same PR.
+
+MEMBER SHIPPED — #2005 (2026-08-08): `pr-monitor-reminder.probe.sh`, 40+
+assertions over early exits, both boundaries of both command-match alternatives,
+all three candidates of the PR-URL fallback chain, the dedup ledger on BOTH the
+PR and SHA axes (a throwaway `git init` repo supplies a HEAD that can move), the
+assignee backfill including bot/hygiene skips and both fail-open paths, and the
+banner's required lines. The hook took one change — `SEEN_FILE` now honors
+`TZUROT_PR_MONITOR_SEEN_FILE`, because pinned to the real path the probe writes
+the live key on run 1 and early-exits at dedup on every run after, going quietly
+inert while still exiting 0. Nothing is gated on that ledger except whether a
+banner prints, so it weakens no check.
+
+CARRIED INTO THE LAST MEMBER, all three from #2005's review rounds:
+
+1. **Document the shim's boundary.** The `gh` shim dispatches on `"$1 $2"` and
+   ignores the real `--json`/`--jq` flags, so the probe pins parsing but NOT the
+   `--jq` output-shape contract: change `--jq` to emit a different shape and the
+   shim keeps returning the old fixture while the hook is broken against real
+   `gh`. Low risk, but `husky-pre-commit.probe.sh` carries an explicit "what this
+   does not pin" section and `pr-monitor-reminder.probe.sh` does not. Add one to
+   both when writing the third shim.
+2. **Enumerate DIMENSIONS before writing mutants.** Four of five review rounds on
+   #2005 found the same class: an untested axis rather than a forgotten case —
+   the SHA half of a two-part key, one side of a two-sided boundary, one branch
+   of a three-candidate chain, one alternative of a two-alternative regex. The
+   mutation testing was real and caught real defects; the mutants just clustered
+   on whichever axis was top-of-mind. Before calling coverage complete, list the
+   axes of every composite key, boundary, and fallback chain and vary each.
+3. **A mutant needs its own verification.** Twice a BROKEN mutant produced a
+   false "All probes passed" against an effectively unmodified file — once from a
+   structural over-deletion, once from a `sed` that silently failed on a
+   bracket-heavy regex. Assert the mutant diff is non-empty before trusting its
+   result.
 
 MEMBER (added 2026-08-07 while shipping TASK-458): `.claude/hooks/pr-merge-review-check.sh` has no probe either, and it is the highest-stakes hook in the set — it BLOCKS `gh pr merge` and is the structural backstop behind 00-critical's read-the-review rule. #2002 modified it (folding in the release-finalize reminder) and the only way to verify the change was a hand-built harness: copy the script to /tmp with ACK_FILE redirected, run it against a real merged main-based PR and a develop-based one, and assert exit 2 -> exit 0 on retry plus release-section presence/absence. That worked (all four assertions passed) but nothing re-runs it, which is this task's whole complaint. The ACK_FILE redirect is the only parameterization needed — worth making the script honor an env override so the probe does not have to sed itself a copy.
 
