@@ -78,7 +78,7 @@ The agent proposing rule additions should not be the sole judge of what is exces
 ## Related
 
 - **TASK-323** — the metric fix. Hard prerequisite, **SHIPPED #2007**; ranking is now available worst-first by bytes.
-- **TASK-470** — three "assertions that cannot fail" shapes, filed `state:owner` precisely because its natural home is an always-loaded rule. It is the first live test of this doc's conflict-of-interest concern: weigh it inside the pass rather than appending it beside it.
+- **TASK-470** — three "assertions that cannot fail" shapes, filed `state:owner` precisely because its natural home is an always-loaded rule. It was the first live test of this doc's conflict-of-interest concern, and the owner resolved it that way: **weighed inside the next pass, not appended beside it.** The candidate that has to earn its space is the one-line defense — _mutate the code the assertion covers and confirm it goes red_ — which is a constraint. The three observed shapes are examples of what that catches, and examples are exactly what an always-loaded surface cannot afford; they stay in the task. TASK-470 carries `state:dependent` on this pass until it runs.
 - `07-documentation.md` — the constraint this pass enforces.
 - `/tzurot-doc-audit` sections 2 and 3 — the accuracy pass this sits beside.
 - doc-58 (docs/reference drift rewrite) — different corpus (`docs/`) and different axis (accuracy); not a duplicate.
