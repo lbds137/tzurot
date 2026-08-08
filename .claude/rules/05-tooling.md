@@ -353,7 +353,7 @@ Release notes follow the Conventional Changelog format. This enables machine par
 tzurot/
 ├── .claude/
 │   ├── rules/              # Always-loaded constraints (THIS DIRECTORY)
-│   ├── hooks/              # Automation (skill-eval, eslint)
+│   ├── hooks/              # Automation (skill-eval, merge/commit guards)
 │   └── skills/             # Procedural skills
 ├── services/
 │   ├── bot-client/         # Discord interface (NO Prisma)
