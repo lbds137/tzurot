@@ -109,12 +109,13 @@ export const HOOK_PROBES: HookProbeEntry[] = [
       'wrong action, and the table changes far more often than its shape does.',
   },
   {
+    // Partial by design, and the probe's own header says so: it pins the
+    // temporal-marker block's two regexes and their AND, not the whole hook.
+    // Driving the other blocks means running the hook for real, whose first
+    // act is lint-staged followed by codegen — minutes per invocation against
+    // a gate budgeted in seconds.
     hook: '.husky/pre-commit',
-    probe: null,
-    unprobedReason:
-      'TASK-302 member. Its temporal-marker catch/ignore smoke list lives as an embedded ' +
-      'shell COMMENT that a human is expected to copy-paste and run — 11 catch + 9 ignore ' +
-      'cases verified by hand and never re-run since.',
+    probe: '.claude/hooks/husky-pre-commit.probe.sh',
   },
   {
     hook: '.husky/commit-msg',
