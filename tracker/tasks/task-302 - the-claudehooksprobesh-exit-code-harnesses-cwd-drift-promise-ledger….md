@@ -1,10 +1,10 @@
 ---
 id: TASK-302
 title: Probe-harness parity for the remaining .claude hooks
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-07-20 00:00'
-updated_date: '2026-07-28 10:52'
+updated_date: '2026-08-08 16:36'
 labels:
   - 'area:tooling'
   - 'area:process'
