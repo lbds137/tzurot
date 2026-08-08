@@ -184,6 +184,20 @@ separators - all misfire when the decoy leads. A decoy that leads but carries
 no bare digit (`echo gh pr merge now`, `echo gh pr merge v1`) extracts 2002
 correctly.
 
+TRIGGER SET CORRECTED A THIRD TIME (2026-08-08, from #2006's review). The
+"decoy BEFORE a real invocation" framing is still too narrow: there need not
+be a real invocation at all. The command match tests the whole command TEXT,
+so the subcommand actually being invoked is irrelevant - measured against the
+real hook, `gh pr comment N --body "... gh pr merge 1 in prose"` fetches PR 1
+and `gh issue create --body "run gh pr merge 42 when ready"` fetches PR 42.
+Ordinary prose about merging, in any command, is enough.
+
+The hardening is TASK-469; the three shapes are pinned as PINNED DEFECT cases
+in pr-merge-review-check.probe.sh so a fix is a deliberate act. This note has
+now been wrong three times in the same direction - each correction widened the
+trigger set - so treat any future "the precondition is X" claim here as a
+lower bound until re-measured.
+
 OBSERVED IN PRODUCTION, not just derived: a READ-ONLY diagnostic command that
 merely discussed merges - it defined a shell function and printed case labels,
 invoking no merge at all - tripped the live hook, which extracted PR #1,
