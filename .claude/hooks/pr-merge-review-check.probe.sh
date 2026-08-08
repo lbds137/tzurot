@@ -53,7 +53,7 @@
 #      only assert the hook wrote it.
 #
 # Three cases in section 2 were PINNED DEFECTS until the extraction was
-# rewritten (TASK-469): the old match tested the whole command TEXT, so any
+# rewritten: the old match tested the whole command TEXT, so any
 # command carrying the phrase `gh pr merge` plus a bare all-digit token armed
 # the gate on the WRONG PR — a decoy before the real invocation, a `--body`
 # argument, or prose in an unrelated subcommand. They now assert the correct
@@ -389,6 +389,154 @@ assert_pr "unbalanced quotes fall back to the legacy scan rather than arming not
 # A real invocation inside a command substitution is still a real invocation.
 new_case; invoke 'out=$(gh pr merge 2002)'
 assert_pr "command substitution around the invocation still arms the gate" 2002
+
+# A shell with flags before its own `-c`. Scoping the check to the token
+# immediately preceding `-c` missed this; the owner is the segment's command
+# word, which is what the code now tracks.
+new_case; invoke 'bash -x -c "gh pr merge 2002"'
+assert_pr "flags between the shell and its -c do not hide the invocation" 2002
+
+# The QUOTED eval form is one opaque token, so WRAPPERS alone cannot see it —
+# it needs the recursion that the unquoted form does not.
+new_case; invoke 'eval "gh pr merge 2002"'
+assert_pr "a quoted eval argument still arms the gate" 2002
+
+# A decoy BEFORE a wrapper-run invocation. The backstop originally fell back
+# to a raw-text scan, which reads the first textual occurrence — so it returned
+# the decoy and reintroduced exactly the bug this file exists to fix. Two
+# changes prevent it: `eval` is a wrapper (so the position-aware scan handles
+# this directly), and the backstop scans TOKENS, which carry quoting.
+new_case; invoke 'echo gh pr merge 1 && eval gh pr merge 2002'
+assert_pr "a decoy before a wrapper-run invocation does not win" 2002
+
+# The `-c` shell check must belong to the token that owns the flag. A shell
+# named anywhere earlier in a compound command previously made an unrelated
+# tool's `-c` argument get scanned as if it were a shell string.
+new_case; invoke 'bash --version; grep -c "gh pr merge 42 mentioned" notes.txt'
+assert_no_fetch "an earlier shell name does not make grep -c a shell string"
+
+# THE STRUCTURAL BACKSTOP. When `gh pr merge` survives tokenization as three
+# adjacent tokens but the command-position logic did not recognise the shape,
+# a token-level scan runs rather than the gate exiting clean, so the NEXT
+# unmodelled shape over-arms instead of becoming a silent bypass.
+#
+# The unquoted `eval` below no longer EXERCISES the backstop — `eval` is a
+# wrapper now, so the primary scan resolves it. It stays as a regression pin
+# for that path; the backstop's own coverage is the decoy case further down.
+new_case; invoke 'eval gh pr merge 2002'
+assert_pr "an unmodelled invocation shape falls back rather than exiting clean" 2002
+
+# And the discriminator that keeps this file's headline fix: prose inside a
+# quoted argument is ONE token, never three adjacent ones, so the backstop
+# does not fire and the gate stays quiet.
+new_case; invoke 'gh pr comment 2006 --body "the hook matches gh pr merge 1 in prose"'
+assert_no_fetch "the backstop does not re-arm the gate on quoted prose"
+
+# Utilities that RUN the following command do not consume the command
+# position. `env FOO=bar gh pr merge N` extracted nothing at all — an under-arm.
+new_case; invoke 'env GH_TOKEN=x gh pr merge 2002'
+assert_pr "a wrapper utility does not consume the command position" 2002
+
+new_case; invoke 'nohup gh pr merge 2002'
+assert_pr "same for nohup" 2002
+
+# The `-c` recursion must belong to a SHELL. Many tools take `-c`, and one
+# whose argument merely quotes the phrase would otherwise arm the gate on it.
+new_case; invoke 'grep -c "gh pr merge 2002" notes.txt'
+assert_no_fetch "a non-shell -c argument is not scanned as a command"
+
+# An empty-quoted ARGUMENT between `merge` and the PR number. `all()` over an
+# empty string is True, so an empty token read as an operator and ended the
+# digit scan before reaching the number — an under-arm.
+new_case; invoke "gh pr merge '' 2002"
+assert_pr "an empty argument does not end the PR-number scan" 2002
+
+# Two REAL, differently-numbered invocations joined by a semicolon. A semicolon
+# runs both sides unconditionally and in order, so the FIRST is the one that
+# executes first and the one whose review must be surfaced. Added because a
+# review argued the semicolon glues to the adjacent token and defeats the scan;
+# measured, `;` IS in shlex's default punctuation set and splits correctly, so
+# this pins the behaviour rather than fixing anything.
+new_case; invoke 'gh pr merge 1; gh pr merge 2002'
+assert_pr "semicolon-chained real invocations: the FIRST one arms the gate" 1
+
+new_case; invoke 'gh pr merge 2002;'
+assert_pr "a trailing semicolon does not glue to the PR number" 2002
+
+# An empty-quoted argument is a legitimate EMPTY-STRING token, not end of
+# input. Treating it as EOF truncated the token stream and dropped every
+# command after it — an under-arm.
+new_case; invoke "echo '' && gh pr merge 2002"
+assert_pr "an empty-string token does not truncate the scan" 2002
+
+# A `-c` argument is a command in its own right, and arrives as ONE quoted
+# token. Without recursion this is invisible — and the naive text scan this
+# replaced DID catch it, so missing it would be a regression, not a gap.
+new_case; invoke 'bash -c "gh pr merge 2002"'
+assert_pr "a merge inside a -c string argument still arms the gate" 2002
+
+# Bash keywords that open a command position. `if`/`while`/`until` were absent
+# while `then`/`do` were present, so a merge directly after them went ungated.
+new_case; invoke 'if gh pr merge 2002; then echo ok; fi'
+assert_pr "a merge directly after `if` is at a command position" 2002
+
+new_case; invoke 'while gh pr merge 2002; do echo retry; done'
+assert_pr "same after `while`" 2002
+
+# A phrase-match that yields no PR number must not end the scan. The earlier
+# implementation exited unconditionally after the first match, so a bare merge
+# chained before a real one extracted NOTHING and the real merge went entirely
+# ungated — an under-arm, the direction this hook must never fail in.
+new_case; invoke 'gh pr merge && gh pr merge 2002'
+assert_pr "a bare merge before a real one does not swallow the real PR" 2002
+
+new_case; invoke 'gh pr merge; gh pr merge 2002'
+assert_pr "same across a semicolon separator" 2002
+
+# shlex returns adjacent punctuation as ONE token, so an enumerated operator
+# set misses `&&(` and command position stays stuck.
+new_case; invoke 'pnpm test &&( gh pr merge 2002 )'
+assert_pr "glued punctuation still opens a command position" 2002
+
+# Bash keywords open a command position too.
+new_case; invoke 'if true; then gh pr merge 2002; fi'
+assert_pr "a merge after `then` is still at a command position" 2002
+
+# Heredoc bodies are DATA, never commands — bash will not execute a word in
+# one however shell-like it looks. shlex has no concept of heredocs, so
+# without stripping them the body tokenizes as shell and any example command
+# quoted in a PR body or commit message arms the gate on the digit after it.
+#
+# Not hypothetical: this hook fired on its own fix's `gh pr create`, pulling a
+# PR number out of a markdown table cell that described the very bug being
+# fixed. That is the same shape as one of the two production sightings.
+new_case; invoke "$(printf 'gh pr create --body "$(cat <<%sEOF%s\nrun gh pr merge 42 when ready\nEOF\n)"' "'" "'")"
+assert_no_fetch "a merge quoted inside a heredoc body does not arm the gate"
+
+# The complement: stripping the body must not swallow a REAL invocation that
+# follows the heredoc's terminator.
+new_case; invoke "$(printf 'gh pr comment 7 --body "$(cat <<%sEOF%s\nsee gh pr merge 1\nEOF\n)" && gh pr merge 2002' "'" "'")"
+assert_pr "a real merge after the heredoc terminator still arms the gate" 2002
+
+# Unterminated heredoc strips NOTHING, so the body stays visible and the gate
+# over-arms. That is deliberate. The opener is found by regex over raw text,
+# which cannot tell a real redirection from the same characters inside a quoted
+# argument — and the previous "drop to end-of-text" behaviour deleted whatever
+# followed a FALSE match, which is a total bypass rather than a wrong PR.
+new_case; invoke "$(printf 'gh pr create --body "$(cat <<%sEOF%s\nrun gh pr merge 42 when ready' "'" "'")"
+assert_pr "an unterminated heredoc strips nothing, so the gate over-arms rather than vanishing" 42
+
+# The bypass that behaviour used to cause, pinned so it cannot come back: a
+# quoted string that merely LOOKS like a heredoc opener, with a real merge
+# after it. Stripping to end-of-text here removed the real invocation entirely
+# and the merge proceeded with no gate at all.
+new_case; invoke 'gh pr comment 5 --body "see the <<EOF heredoc marker" && gh pr merge 2002'
+assert_pr "a false heredoc opener inside quotes must not swallow the real merge" 2002
+
+# `<<<` is a here-string, not a heredoc; its trailing `<` plus a bare word hit
+# the same never-terminates path.
+new_case; invoke 'cat <<<marker && gh pr merge 2002'
+assert_pr "a here-string is not read as a heredoc opener" 2002
 
 # `set -f` equivalent: the tokenizer must not expand a glob against the cwd,
 # so a digit-named file cannot become a PR number.
