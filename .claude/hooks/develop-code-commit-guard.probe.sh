@@ -21,31 +21,123 @@ TMP_BASE=$(mktemp -d)
 WT="$TMP_BASE/probe-wt"
 FEATURE_WT="$TMP_BASE/probe-feature-wt"
 MAIN_WT="$TMP_BASE/probe-main-wt"
+CREATED_BRANCHES=""
 cleanup() {
   git -C "$REPO_ROOT" worktree remove "$WT" --force 2>/dev/null
   git -C "$REPO_ROOT" worktree remove "$FEATURE_WT" --force 2>/dev/null
   git -C "$REPO_ROOT" worktree remove "$MAIN_WT" --force 2>/dev/null
   git -C "$REPO_ROOT" branch -D probe/feature-fixture 2>/dev/null
+  # A failed delete here is the one cleanup failure worth SAYING, because these
+  # names are `develop`/`main`: if worktree removal above lost a race, the branch
+  # is still checked out and this silently no-ops, leaving a stray one behind for
+  # the rest of the job. Loud beats swallowed — everything else here is
+  # best-effort by design.
+  for b in $CREATED_BRANCHES; do
+    git -C "$REPO_ROOT" branch -D "$b" 2>/dev/null ||
+      echo "WARNING: could not delete fabricated branch '$b' — remove it by hand" >&2
+  done
   rm -rf "$TMP_BASE"
 }
+# EXIT alone is enough for the timeout path, and that is measured rather than
+# assumed: SIGTERM'ing a bash script while it is blocked in a foreground child
+# DOES run its EXIT trap (probed — trap body observed, exit 143). So a probe
+# killed at guard:hook-probes' 120s ceiling still removes its worktrees and any
+# fabricated branches. SIGKILL remains the one path that skips this, which is
+# the residual documented on add_named_worktree below.
 trap cleanup EXIT
+
+# Put a worktree on a branch with an EXACT name. The hook decides from
+# `rev-parse --abbrev-ref HEAD`, so the branch's NAME is what matters, not its
+# history — which is both what makes the fallback below sound and why a
+# probe-scoped name like `probe/develop` would test nothing.
+#
 # --force: the primary checkout routinely sits ON develop (doc commits,
 # post-release), and worktree add refuses a branch checked out elsewhere.
 # Safe here — the probe never commits, it only reads branch + status.
-git -C "$REPO_ROOT" worktree add --force "$WT" develop >/dev/null || {
+#
+# WHY THE GATE IS `GITHUB_ACTIONS` AND NOT `ACT` AND NOT `CI`. `CI` alone is far
+# too broad — plenty of non-ephemeral environments export it (test runners, shell
+# profiles), and there the fabrication would land in a REAL working repo, which
+# is the outcome this gate exists to prevent.
+#
+# `GITHUB_ACTIONS` alone is not sufficient either, and this is the part worth
+# reading: nektos/act sets ALL THREE of `GITHUB_ACTIONS=true`, `CI=true` and
+# `ACT=true`. act exists to reproduce the runner environment, so it deliberately
+# looks like one. A contributor running act against their real clone to debug
+# the lint job is therefore precisely the scenario that would otherwise get
+# branches fabricated in a live repo.
+#
+# Evidence, stated so it can be re-checked: act is NOT installed on this machine
+# (`which act` — nothing), so a live capture was unavailable and this comes from
+# act's own ASSIGNMENT SITES in pkg/runner/run_context.go — `withGithubEnv` sets
+# GITHUB_ACTIONS and CI, `GetEnv` sets ACT. That is the producer, not a doc page
+# that could have drifted from it. If act ever lands on a dev box here, a live
+# `act -n` env dump would upgrade this from producer-read to runtime-confirmed;
+# until then do not weaken the gate on the assumption that it might be wrong.
+#
+# `ACT` is act's own documented opt-out for exactly this, so requiring
+# GITHUB_ACTIONS AND NOT ACT is the pair that means "a genuine ephemeral
+# runner". Do not simplify either half away.
+#
+# WHY THE FALLBACK IS CI-ONLY. `actions/checkout` fetches only the PR ref, so
+# on a runner neither `develop` nor `main` exists locally; the unconditional
+# `worktree add … develop` this replaced died there with "invalid reference:
+# develop" the first time guard:hook-probes ran the harness — the checkout-shape
+# dependency the gate was written to expose. Fabricating the branch is fine
+# there (ephemeral, never pushed) and a bad trade anywhere else: a fresh
+# `git clone` has `main` and no local `develop`, so a contributor running
+# `pnpm quality` would silently gain a `develop` pointing at main's HEAD, and
+# their next `git checkout develop` would land on it instead of tracking
+# origin/develop. Off CI the probe keeps its original LOUD failure — an
+# actionable message beats a fabricated branch. (The exposure is `pnpm quality`,
+# not `git push`: `.husky/pre-push` composes its own list and omits this guard.)
+#
+# Residual, accepted, CI-only: a stray survivor of a hard kill is ADOPTED rather
+# than re-created — show-ref finds it, takes the real-branch path, and never
+# records it in CREATED_BRANCHES, so it is never cleaned either. Harmless (only
+# the name is read), and the cleanup that would fix it needs a heuristic telling
+# "stray" from "real", which when wrong DELETES a real branch.
+add_named_worktree() { # <path> <branch-name>
+  local path="$1" name="$2"
+  if git -C "$REPO_ROOT" show-ref --verify --quiet "refs/heads/$name"; then
+    git -C "$REPO_ROOT" worktree add --force "$path" "$name" >/dev/null
+  elif [ -n "${GITHUB_ACTIONS:-}" ] && [ -z "${ACT:-}" ]; then
+    # Record AFTER the create succeeds, never before. CREATED_BRANCHES is the
+    # cleanup loop's list of things that exist; putting a name in it up front
+    # means a failed `worktree add` leaves the loop trying to delete a branch
+    # that was never made, which prints "could not delete fabricated branch —
+    # remove it by hand" and sends someone hunting a stray that isn't there.
+    git -C "$REPO_ROOT" worktree add --force -b "$name" "$path" HEAD >/dev/null || return 1
+    CREATED_BRANCHES="$CREATED_BRANCHES $name"
+  else
+    echo "FATAL: no local branch '$name'. This probe needs one to test the hook's" >&2
+    echo "       branch check. Create it:  git fetch origin $name:$name" >&2
+    echo "       (Branches are only fabricated on a real GitHub Actions runner," >&2
+    echo "        where the checkout is ephemeral — never on a working repo, and" >&2
+    echo "        never under act, which sets GITHUB_ACTIONS but also ACT.)" >&2
+    # exit, not return: the callers add a generic "(git error above)" line, which
+    # would be a lie here — no git command ran, let alone failed. Leaving by the
+    # front door keeps that message for actual git failures. The EXIT trap still
+    # runs, so cleanup is unaffected.
+    exit 1
+  fi
+}
+
+add_named_worktree "$WT" develop || {
   echo "FATAL: could not create develop worktree (git error above)" >&2
   exit 1
 }
 # Second worktree on a FEATURE branch: pins the hook's highest-traffic path
 # (stay silent off develop/main) — the branch of the control flow that would
-# regress invisibly (fail-open) if the branch check were ever broken.
-git -C "$REPO_ROOT" worktree add --force -b probe/feature-fixture "$FEATURE_WT" develop >/dev/null || {
+# regress invisibly (fail-open) if the branch check were ever broken. Started
+# from HEAD rather than develop for the same checkout-shape reason.
+git -C "$REPO_ROOT" worktree add --force -b probe/feature-fixture "$FEATURE_WT" HEAD >/dev/null || {
   echo "FATAL: could not create feature worktree (git error above)" >&2
   exit 1
 }
 # Third worktree ON main: pins the other blocking branch of the
 # check (main is guarded exactly like develop).
-git -C "$REPO_ROOT" worktree add --force "$MAIN_WT" main >/dev/null || {
+add_named_worktree "$MAIN_WT" main || {
   echo "FATAL: could not create main worktree (git error above)" >&2
   exit 1
 }
