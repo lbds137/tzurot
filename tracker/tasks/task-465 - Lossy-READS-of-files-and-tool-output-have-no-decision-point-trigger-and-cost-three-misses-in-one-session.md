@@ -34,4 +34,15 @@ Fix shape: add to 10-working-posture the trigger "before making a claim about wh
 Also consider whether a hook can catch shape 1 mechanically: a Bash call using sed -n or head/tail on a file under tracker/ or .claude/ is a deterministic trigger, though the correction is not mechanical. Probably rule-only.
 
 Acceptance: the trigger sentence lands in 10-working-posture via a review-gated PR, and it names the file-read case explicitly rather than only the command-output case.
+
+## Two more sightings, 2026-08-08 (PR #2008) — a distinct sub-shape
+
+Both inside one PR, and both PUBLISHED before being caught:
+
+4. Ranked the rules corpus, read the ranking through a truncated view, and wrote in the PR body that 04-discord.md was second-most by lines and three places below 03-database.md by bytes. Third-most, and one place. Caught by the reviewer, not by me.
+5. Ran the full unit suite, read the summary through tail, summed the four package rows that happened to be visible, and reported 12020 as the repo total in the PR body and to the owner. The real total is 19183 across 13 packages. Caught only because miss 4 prompted a re-check of every other number in the same document.
+
+What these add to the class: shapes 1 to 3 were a truncated read HIDING a fact. These two are a truncated read PRODUCING a plausible wrong number, by aggregating the visible rows and presenting the subtotal as the total. That failure has no odd-looking output at all - a subtotal is a well-formed number - so the read-side tell the existing rule offers cannot fire on it. The trigger sentence should therefore cover aggregation explicitly: a count, sum, or rank stated as complete requires the whole result set, not the visible part of it.
+
+Also worth noting for whoever writes the fix: the surrounding work was a measurement-reporting tool, and both misses were misreported measurements. Proximity to the subject matter provided no protection whatsoever, which argues against any fix that relies on the author being alert to the topic.
 <!-- SECTION:DESCRIPTION:END -->
