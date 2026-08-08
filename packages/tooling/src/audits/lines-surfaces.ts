@@ -13,7 +13,7 @@
  */
 
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, relative } from 'node:path';
 import { UsageError } from '../utils/errors.js';
 
 /**
@@ -116,6 +116,13 @@ export function trackedSurfaceNames(baselineSurfaces: Record<string, unknown>): 
   ];
 }
 
+export interface FileMeasurement {
+  /** Path as the surface's glob produced it, relative to the repo root. */
+  path: string;
+  lines: number;
+  bytes: number;
+}
+
 export interface SurfaceMeasurement {
   /** Sum of line counts across every file the surface's glob matched. */
   lines: number;
@@ -164,29 +171,43 @@ function matchSurfaceFiles(rootDir: string, glob: string): string[] {
 }
 
 /**
- * Measure every tracked surface under `rootDir`.
+ * Measure one surface FILE BY FILE, in glob order.
+ *
+ * The aggregate below is a sum of exactly this, so the two can never disagree
+ * about what a surface weighs — which matters because the per-file view is
+ * what a trim is planned from, and a ranking that disagreed with the gate
+ * would send the reader at a file the gate does not actually count.
  *
  * Bytes are the file's actual on-disk size, which is what it costs to load —
  * `content.length` would count a multi-byte character once and under-report
  * exactly the em-dashes and check-marks these documents are full of.
  */
+export function measureSurfaceFiles(rootDir: string, surface: SurfaceName): FileMeasurement[] {
+  return matchSurfaceFiles(rootDir, SURFACE_GLOBS[surface]).map(file => {
+    // Read ONCE as a Buffer: `buf.length` is the file's actual on-disk size.
+    // Decoding to a string first and re-encoding would substitute U+FFFD for
+    // any invalid sequence and then count the REPLACEMENT's bytes, which
+    // would quietly make the "exact" claim above false exactly where it
+    // matters most — on a file that is not what it looks like.
+    const buf = readFileSync(file);
+    return {
+      path: relative(rootDir, file),
+      lines: countLines(buf.toString('utf-8')),
+      bytes: buf.length,
+    };
+  });
+}
+
+/** Measure every tracked surface under `rootDir`, aggregated. */
 export function measureSurfaces(rootDir: string): MeasuredSurfaces {
   const measured = {} as MeasuredSurfaces;
   for (const name of SURFACE_NAMES) {
-    const files = matchSurfaceFiles(rootDir, SURFACE_GLOBS[name]);
-    let lines = 0;
-    let bytes = 0;
-    for (const file of files) {
-      // Read ONCE as a Buffer: `buf.length` is the file's actual on-disk size.
-      // Decoding to a string first and re-encoding would substitute U+FFFD for
-      // any invalid sequence and then count the REPLACEMENT's bytes, which
-      // would quietly make the "exact" claim above false exactly where it
-      // matters most — on a file that is not what it looks like.
-      const buf = readFileSync(file);
-      bytes += buf.length;
-      lines += countLines(buf.toString('utf-8'));
-    }
-    measured[name] = { lines, bytes, fileCount: files.length };
+    const files = measureSurfaceFiles(rootDir, name);
+    measured[name] = {
+      lines: files.reduce((sum, file) => sum + file.lines, 0),
+      bytes: files.reduce((sum, file) => sum + file.bytes, 0),
+      fileCount: files.length,
+    };
   }
   return measured;
 }

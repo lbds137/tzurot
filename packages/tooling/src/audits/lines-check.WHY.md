@@ -9,9 +9,15 @@ bytes** — and fails when either surface exceeds either budget
 (`baseline + graceMargin`), with the baseline in
 `.github/baselines/lines-baseline.json`. `pnpm ops lines:update-baseline` is
 the sanctioned refresh path, and `--surface <name>` scopes it to one surface.
-It runs in `pnpm quality`, the CI lint job, AND the pre-push docs-only fast
-path — the last one matters most, because doc-only pushes skip every heavy
+The gate runs in `pnpm quality`, the CI lint job, AND the pre-push docs-only
+fast path — the last one matters most, because doc-only pushes skip every heavy
 check and are exactly how these surfaces bloat.
+
+`--breakdown` adds a read-only per-file ranking of both surfaces, worst-first
+by bytes: the gate says whether a surface is over budget, the ranking says
+which of its files to open. It is **not** wired into any of those automated
+paths and never gates anything — it is run by hand, by whoever is doing the
+economy pass in `/tzurot-doc-audit`.
 
 ## Why
 
@@ -27,14 +33,19 @@ visible in review) instead of drift nobody chose.
 
 ## Why two dimensions
 
-Lines is not what these surfaces cost; tokens are, and the two diverge badly.
-Measured across the ten rules files, density runs from 44 to 130 chars/line,
-and `CURRENT.md` sits at ~367. So the line ratchet rated `CURRENT.md`
-"comfortable" at 96 of 97 lines while it carried a fifth of the entire rules
-surface's bytes in under a twentieth of its lines — anyone following the
-ratchet to pick a trim target was sent at the wrong file, which is worse than
-having no ranking at all. A dense rewrite that halves a file's line count
-while growing its payload is invisible to lines and caught by bytes.
+Lines is not what these surfaces cost; tokens are, and the two diverge badly —
+density varies several-fold across the corpus, and `CURRENT.md` runs several
+times denser again. So the line ratchet rated `CURRENT.md` "comfortable" at 96
+of 97 lines while it carried a fifth of the entire rules surface's bytes in
+under a twentieth of its lines — anyone following the ratchet to pick a trim
+target was sent at the wrong file, which is worse than having no ranking at
+all. A dense rewrite that halves a file's line count while growing its payload
+is invisible to lines and caught by bytes.
+
+The live figures are deliberately not quoted here. They move with every edit to
+the corpus, so a copy in prose is stale the day after it is written — which is
+the same defect this document would be describing. `lines:check --breakdown`
+prints them from measurement.
 
 Bytes rather than tokens because bytes are exact, deterministic, and carry no
 tokenizer dependency; the report derives a token figure from them for

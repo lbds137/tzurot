@@ -10,6 +10,7 @@ import { describe, it, expect } from 'vitest';
 import {
   countLines,
   measureSurfaces,
+  measureSurfaceFiles,
   getLinesConfigFingerprint,
   assertSurfaceName,
   trackedSurfaceNames,
@@ -85,6 +86,53 @@ describe('measureSurfaces', () => {
         rules: { lines: 0, bytes: 0, fileCount: 0 },
         current: { lines: 0, bytes: 0, fileCount: 0 },
       });
+    });
+  });
+});
+
+describe('measureSurfaceFiles', () => {
+  it('reports each file separately, relative to the repo root', async () => {
+    await withTmpDir(async tmp => {
+      const { mkdir, writeFile } = await import('node:fs/promises');
+      const { join } = await import('node:path');
+      await mkdir(join(tmp, '.claude/rules'), { recursive: true });
+      await writeFile(join(tmp, '.claude/rules/00-a.md'), 'one\ntwo\n');
+      await writeFile(join(tmp, '.claude/rules/01-b.md'), 'one\ntwo\nthree\n');
+      await writeFile(join(tmp, '.claude/rules/notes.txt'), 'x\n'.repeat(50));
+
+      expect(measureSurfaceFiles(tmp, 'rules')).toEqual([
+        { path: '.claude/rules/00-a.md', lines: 2, bytes: 8 },
+        { path: '.claude/rules/01-b.md', lines: 3, bytes: 14 },
+      ]);
+    });
+  });
+
+  it('agrees with the aggregate the gate uses', async () => {
+    // The ranking is the trim plan and the aggregate is the gate. If they
+    // could disagree, the ranking would send a reader at a file the gate does
+    // not count — so the sum is asserted, not assumed.
+    await withTmpDir(async tmp => {
+      const { mkdir, writeFile } = await import('node:fs/promises');
+      const { join } = await import('node:path');
+      await mkdir(join(tmp, '.claude/rules'), { recursive: true });
+      await writeFile(join(tmp, '.claude/rules/00-a.md'), '— ✓\nplain\n');
+      await writeFile(join(tmp, '.claude/rules/01-b.md'), 'one\n');
+      await writeFile(join(tmp, 'CURRENT.md'), 'status\n');
+
+      const perFile = measureSurfaceFiles(tmp, 'rules');
+      const aggregate = measureSurfaces(tmp).rules;
+
+      expect(perFile).toHaveLength(aggregate.fileCount);
+      expect(perFile.reduce((sum, file) => sum + file.bytes, 0)).toBe(aggregate.bytes);
+      expect(perFile.reduce((sum, file) => sum + file.lines, 0)).toBe(aggregate.lines);
+      // Pinned so the equality above cannot be satisfied by two zeros.
+      expect(aggregate.bytes).toBe(18);
+    });
+  });
+
+  it('returns an empty list for a surface that matched nothing', async () => {
+    await withTmpDir(async tmp => {
+      expect(measureSurfaceFiles(tmp, 'current')).toEqual([]);
     });
   });
 });

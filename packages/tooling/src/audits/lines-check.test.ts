@@ -8,6 +8,7 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
+import chalk from 'chalk';
 import {
   evaluateSurfaceBudgets,
   parseLinesBaseline,
@@ -691,7 +692,9 @@ describe('per-dimension report lines name the REAL reason', () => {
 
     // 2000 bytes / 4 / 1000 -> rounds to 1k; the line carries value, estimate,
     // limit and baseline together.
-    expect(output).toContain('2000 bytes ≈ 1k est. tokens (limit 2100, baseline 2000)');
+    // One formatter across gate and ranking: 2000 bytes is ~500 estimated
+    // tokens, which the old whole-thousand rounding rendered as "1k".
+    expect(output).toContain('2000 bytes ≈500 tok (limit 2100, baseline 2000)');
     expect(output).toContain('1000 lines (limit 1050, baseline 1000)');
   });
 
@@ -702,5 +705,143 @@ describe('per-dimension report lines name the REAL reason', () => {
     );
 
     expect(output).toContain('not tracked by the baseline');
+  });
+});
+
+describe('runLinesCheck --breakdown wiring', () => {
+  /**
+   * Run the shell with console captured and colour forced off, so the
+   * assertions compare text rather than whatever chalk decided the runner's
+   * terminal supports.
+   */
+  async function captureShell(options: {
+    tmp: string;
+    baseline: string;
+    breakdown?: boolean;
+  }): Promise<string> {
+    const lines: string[] = [];
+    const record = (...args: unknown[]): void => {
+      lines.push(args.map(String).join(' '));
+    };
+    const priorLevel = chalk.level;
+    chalk.level = 0;
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(record);
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(record);
+    try {
+      runLinesCheck({
+        rootDir: options.tmp,
+        baseline: options.baseline,
+        breakdown: options.breakdown,
+        noFail: true,
+      });
+    } finally {
+      logSpy.mockRestore();
+      errorSpy.mockRestore();
+      chalk.level = priorLevel;
+    }
+    return lines.join('\n');
+  }
+
+  /** A tmp repo with both surfaces present and a matching fresh baseline. */
+  async function seedRepo(tmp: string): Promise<string> {
+    const { mkdir, writeFile } = await import('node:fs/promises');
+    const { join } = await import('node:path');
+    await mkdir(join(tmp, '.claude/rules'), { recursive: true });
+    await writeFile(join(tmp, '.claude/rules/00-a.md'), 'rule\n');
+    await writeFile(join(tmp, 'CURRENT.md'), 'status\n');
+    const baselinePath = join(tmp, 'baseline.json');
+    const m = measureSurfaces(tmp);
+    await writeFile(
+      baselinePath,
+      JSON.stringify({
+        surfaces: {
+          rules: {
+            lines: m.rules.lines,
+            graceMargin: 5,
+            bytes: m.rules.bytes,
+            bytesGraceMargin: 50,
+          },
+          current: {
+            lines: m.current.lines,
+            graceMargin: 5,
+            bytes: m.current.bytes,
+            bytesGraceMargin: 50,
+          },
+        },
+        meta: buildBaselineMeta(
+          `lines-check/${LINES_IMPL_VERSION}`,
+          hashConfigSlice(getLinesConfigFingerprint())
+        ),
+      })
+    );
+    return baselinePath;
+  }
+
+  it('prints the ranking only when asked', async () => {
+    await withTmpDir(async tmp => {
+      const baselinePath = await seedRepo(tmp);
+
+      const withoutFlag = await captureShell({ tmp, baseline: baselinePath });
+      const withFlag = await captureShell({ tmp, baseline: baselinePath, breakdown: true });
+
+      expect(withoutFlag).not.toContain('Per-file ranking');
+      expect(withFlag).toContain('Per-file ranking');
+      expect(withFlag).toContain('.claude/rules/00-a.md');
+      // The gate's own verdict still prints either way.
+      expect(withoutFlag).toContain('within their budgets');
+      expect(withFlag).toContain('within their budgets');
+    });
+  });
+
+  // `runLinesCheck`'s contract names TWO broken-state exits where the ranking
+  // must still print. Both are pinned, not just the one that was easiest to
+  // build: the implementation satisfies them together today only because the
+  // call sits outside every gate branch, and an edit that moved it inside
+  // `runLinesCheckGate` would regress whichever case went unpinned in silence.
+
+  it('still prints the ranking when the baseline is missing entirely', async () => {
+    // A missing baseline is exactly when someone needs to see what the
+    // surfaces weigh; withholding the diagnostic because the gate is
+    // unusable would be backwards.
+    await withTmpDir(async tmp => {
+      const { mkdir, writeFile } = await import('node:fs/promises');
+      const { join } = await import('node:path');
+      await mkdir(join(tmp, '.claude/rules'), { recursive: true });
+      await writeFile(join(tmp, '.claude/rules/00-a.md'), 'rule\n');
+
+      const output = await captureShell({
+        tmp,
+        baseline: join(tmp, 'does-not-exist.json'),
+        breakdown: true,
+      });
+
+      expect(output).toContain('baseline not found');
+      expect(output).toContain('Per-file ranking');
+    });
+  });
+
+  it('still prints the ranking when the baseline drifted out of config', async () => {
+    // The other named broken-state exit: drift returns before any evaluation
+    // happens, so the ranking is the only number the operator gets.
+    await withTmpDir(async tmp => {
+      const { mkdir, writeFile } = await import('node:fs/promises');
+      const { join } = await import('node:path');
+      await mkdir(join(tmp, '.claude/rules'), { recursive: true });
+      await writeFile(join(tmp, '.claude/rules/00-a.md'), 'rule\n');
+      const baselinePath = join(tmp, 'baseline.json');
+      await writeFile(
+        baselinePath,
+        JSON.stringify({
+          surfaces: { rules: { lines: 1, graceMargin: 0 } },
+          meta: buildBaselineMeta('lines-check/stale', 'stalehash000'),
+        })
+      );
+
+      const output = await captureShell({ tmp, baseline: baselinePath, breakdown: true });
+
+      expect(output).toContain('meta drift');
+      expect(output).toContain('Per-file ranking');
+      expect(output).toContain('.claude/rules/00-a.md');
+    });
   });
 });
