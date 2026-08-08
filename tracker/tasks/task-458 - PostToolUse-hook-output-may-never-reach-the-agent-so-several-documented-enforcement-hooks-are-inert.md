@@ -100,4 +100,12 @@ and check-monitor-command.ts.
 
 Follow-ups filed rather than folded in: TASK-464 (claim-shape cannot-<verb>
 false positive), TASK-302 gained pr-merge-review-check as a probe-parity member.
+
+Note 2026-08-08: the fixup-rider-check destination recorded above is history —
+the hook has since been DELETED outright (TASK-472). Re-homing it to
+.husky/commit-msg worked as a CHANNEL fix and proved nothing about the control:
+the banner reached the agent on all four commits that introduced defects that
+day and prevented none, because commit time is after the rider is written. The
+rider class is delegated to review; the checklist survives as review-side
+guidance in /tzurot-review-response. Everything else in this task stands.
 <!-- SECTION:DESCRIPTION:END -->

@@ -1,10 +1,9 @@
 #!/bin/bash
 # Shared detection: does a Bash tool command string invoke `git commit`?
 #
-# NO RUNTIME CONSUMER. claim-shape-guard.sh and fixup-rider-check.sh used to
-# source this; both moved to husky channels and now key off git state (the
-# staged diff) and the commit-message subject respectively, neither of which
-# needs command-text matching at all. What remains is the CANONICAL REFERENCE
+# NO RUNTIME CONSUMER. claim-shape-guard.sh used to source this; it moved to a
+# husky channel and now keys off git state (the staged diff), which needs no
+# command-text matching at all. What remains is the CANONICAL REFERENCE
 # copy of the pattern: develop-code-commit-guard.sh and git-commit-filter-guard.sh
 # carry equivalent Python-side logic, and
 # packages/tooling/src/dev/gitCommitPatternAgreement.test.ts extracts all three
