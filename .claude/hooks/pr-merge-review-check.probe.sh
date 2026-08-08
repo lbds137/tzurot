@@ -52,14 +52,13 @@
 #      agent's context. That is a Claude Code runtime property; the probe can
 #      only assert the hook wrote it.
 #
-# Three cases below are PINNED DEFECTS, labelled as such. The match tests the
-# whole command TEXT, so any command carrying the phrase `gh pr merge` followed
-# by a bare all-digit token arms the gate on the WRONG PR — whether that text is
-# a decoy before a real invocation, a `--body` argument, or ordinary prose in an
-# unrelated subcommand. They are pinned rather than fixed because hardening the
-# match is a semantic change to the merge gate; pinning documents the boundary
-# and makes the fix a deliberate act (update the cases) rather than an accident.
-# The hardening is tracked as TASK-469.
+# Three cases in section 2 were PINNED DEFECTS until the extraction was
+# rewritten (TASK-469): the old match tested the whole command TEXT, so any
+# command carrying the phrase `gh pr merge` plus a bare all-digit token armed
+# the gate on the WRONG PR — a decoy before the real invocation, a `--body`
+# argument, or prose in an unrelated subcommand. They now assert the correct
+# behaviour, which is what pinning them was for: the fix flipped known cases
+# instead of discovering them.
 #
 # Usage: .claude/hooks/pr-merge-review-check.probe.sh   (from repo root)
 
@@ -346,12 +345,10 @@ assert_pr "separator: pipe" 2002
 new_case; invoke "$(printf 'pnpm test\ngh pr merge 2002')"
 assert_pr "separator: newline" 2002
 
-# The two-part precondition for the extraction defect, pinned as a pair: it
-# takes a decoy gh/pr/merge sequence BEFORE the real invocation AND a bare
-# all-digit token after it. Either half alone is harmless, and the difference
-# between these cases is what documents the boundary.
+# The two-part precondition for the old extraction defect, kept as a group
+# because the differences between these cases are what document the boundary.
 new_case; invoke 'echo "gh pr merge 1" && gh pr merge 2002'
-assert_pr "quoted decoy: the closing quote makes the token non-bare, so no misfire" 2002
+assert_pr "quoted decoy: no misfire" 2002
 
 new_case; invoke 'echo gh pr merge now && gh pr merge 2002'
 assert_pr "leading decoy with no digit at all: no misfire" 2002
@@ -359,34 +356,68 @@ assert_pr "leading decoy with no digit at all: no misfire" 2002
 new_case; invoke 'gh pr merge 2002 && echo gh pr merge 1'
 assert_pr "decoy AFTER the real invocation: no misfire" 2002
 
-# PINNED DEFECT. Both halves of the precondition hold, and the hook extracts
-# the decoy. Recorded so the boundary is documented and a fix is deliberate:
-# when the extraction is hardened, this case flips to expect 2002.
+# WAS A PINNED DEFECT. The old text scan stripped to the FIRST occurrence of
+# the phrase, so the decoy's bare digit won over the real invocation and the
+# gate fetched PR 1. Command-position matching is what fixes it: `echo` holds
+# the command position, so its arguments can never be a merge invocation.
 new_case; invoke 'echo gh pr merge 1 && gh pr merge 2002'
-assert_pr "PINNED DEFECT: unquoted leading decoy + bare digit wins over the real PR" 1
+assert_pr "unquoted leading decoy does not beat the real PR" 2002
 
-# PINNED DEFECT, wider than the decoy case above and measured rather than
-# reasoned. The command match tests the whole command TEXT, so the subcommand
-# actually being invoked is irrelevant: any Bash command whose text contains
-# the phrase followed by a bare digit arms the gate. Prose ABOUT merging is
-# enough — this fired in production twice, once on a read-only diagnostic and
-# once on a reviewer's own `gh pr comment` submitting a review that quoted the
-# hook's internals. It is pinned rather than fixed because hardening the match
-# is a semantic change to the merge gate, tracked separately.
+# WAS A PINNED DEFECT, and the widest of the three. The old match tested the
+# whole command TEXT, so the subcommand actually invoked was irrelevant: any
+# command carrying the phrase plus a bare digit armed the gate. Both shapes
+# below fired in production. Quote-aware tokenization fixes them — a quoted
+# --body is ONE token, so prose inside it cannot match a command position.
 new_case; invoke 'gh pr comment 2006 --body "the hook matches gh pr merge 1 in prose"'
-assert_pr "PINNED DEFECT: gh pr comment whose BODY quotes the phrase arms the gate" 1
+assert_no_fetch "gh pr comment whose BODY quotes the phrase does not arm the gate"
 
 new_case; invoke 'gh issue create --body "run gh pr merge 42 when ready"'
-assert_pr "PINNED DEFECT: any command text carrying the phrase arms the gate" 42
+assert_no_fetch "command text carrying the phrase does not arm the gate"
 
-# `set -f`. Without it the loop's unquoted expansion globs against the cwd, so
-# a digit-named file becomes a PR number. Only reachable from a directory that
-# actually holds one.
+# An assignment prefix does not consume the command position. Missing this in
+# the prototype made the gate silently skip the shape — a fail-OPEN miss, the
+# same class the rewrite exists to close, so it is pinned rather than assumed.
+new_case; invoke 'GH_TOKEN=x gh pr merge 2002'
+assert_pr "an env-assignment prefix still reaches the merge invocation" 2002
+
+# Unparseable input must fall back to the permissive scan, never to silence.
+# Over-arming is recoverable (the agent sees an unrelated review and retries);
+# under-arming just lets the merge through.
+new_case; invoke 'gh pr merge 2002 --body "unbalanced'
+assert_pr "unbalanced quotes fall back to the legacy scan rather than arming nothing" 2002
+
+# A real invocation inside a command substitution is still a real invocation.
+new_case; invoke 'out=$(gh pr merge 2002)'
+assert_pr "command substitution around the invocation still arms the gate" 2002
+
+# Heredoc bodies are DATA, never commands — bash will not execute a word in
+# one however shell-like it looks. shlex has no concept of heredocs, so
+# without stripping them the body tokenizes as shell and any example command
+# quoted in a PR body or commit message arms the gate on the digit after it.
+#
+# Not hypothetical: this hook fired on its own fix's `gh pr create`, pulling a
+# PR number out of a markdown table cell that described the very bug being
+# fixed. That is the same shape as one of the two production sightings.
+new_case; invoke "$(printf 'gh pr create --body "$(cat <<%sEOF%s\nrun gh pr merge 42 when ready\nEOF\n)"' "'" "'")"
+assert_no_fetch "a merge quoted inside a heredoc body does not arm the gate"
+
+# The complement: stripping the body must not swallow a REAL invocation that
+# follows the heredoc's terminator.
+new_case; invoke "$(printf 'gh pr comment 7 --body "$(cat <<%sEOF%s\nsee gh pr merge 1\nEOF\n)" && gh pr merge 2002' "'" "'")"
+assert_pr "a real merge after the heredoc terminator still arms the gate" 2002
+
+# Unterminated heredoc: everything after it was never commands either, so
+# dropping to end-of-text is the safe direction.
+new_case; invoke "$(printf 'gh pr create --body "$(cat <<%sEOF%s\nrun gh pr merge 42 when ready' "'" "'")"
+assert_no_fetch "an unterminated heredoc does not arm the gate on its body"
+
+# `set -f` equivalent: the tokenizer must not expand a glob against the cwd,
+# so a digit-named file cannot become a PR number.
 GLOBDIR="$WORK/globdir"
 mkdir -p "$GLOBDIR"
 : >"$GLOBDIR/7"
 new_case; invoke_in "$GLOBDIR" 'gh pr merge * 2002'
-assert_pr "set -f: a glob token does not expand into a digit-named file" 2002
+assert_pr "a glob token does not expand into a digit-named file" 2002
 
 # ===========================================================================
 # 3. The review gate — block once per (PR, review-id), allow on retry

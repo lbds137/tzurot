@@ -28,34 +28,146 @@ COMMAND=$(jq -r '.tool_input.command // empty' <<<"$INPUT" 2>/dev/null || echo "
 
 [ "$TOOL_NAME" != "Bash" ] && exit 0
 
-# Match `gh pr merge` (with trailing word boundary so `gh pr merge-queue` etc.
-# don't trigger), then scan the remainder of the command for the first standalone
-# numeric token. This catches both arg orders:
-#   gh pr merge 979 --rebase          (number first)
-#   gh pr merge --rebase 979          (flags first)
-# Bare `gh pr merge` (current branch's PR, no number) is rare in agent flow and
-# stays out of scope — if it occurs the merge proceeds without the gate.
-if ! [[ "$COMMAND" =~ (^|[[:space:]&|;])gh[[:space:]]+pr[[:space:]]+merge($|[[:space:]]) ]]; then
-    exit 0
-fi
-# Strip everything up to and including the `merge` keyword, then find the first
-# whitespace-delimited all-digit token in the remainder. Excludes flag values
-# like `--retries=5` because those carry the digit inside an `=` or `--` token.
-REMAINDER="${COMMAND#*gh*pr*merge}"
-PR_NUM=""
-# `set -f` disables filename globbing so an unquoted-expansion token containing
-# `*`, `?`, or `[` (e.g. shell redirections in the merge command) doesn't
-# expand against cwd before the loop sees it. Restored after the loop.
-set -f
-for token in $REMAINDER; do
-    if [[ "$token" =~ ^[0-9]+$ ]]; then
-        PR_NUM="$token"
-        break
-    fi
-done
-set +f
+# Decide the PR number from the ARGUMENT VECTOR of a real `gh pr merge`
+# invocation, not from a text scan of the whole command.
+#
+# The text scan this replaces was wrong in two ways that both END IN AN
+# UNREVIEWED MERGE, which is the one outcome this hook exists to prevent. It
+# matched the phrase anywhere in the command, so `gh pr comment N --body "...gh
+# pr merge 1..."` armed the gate on PR 1 (fired in production twice); and it
+# stripped to the FIRST occurrence, so `echo gh pr merge 1 && gh pr merge 2002`
+# extracted 1. Either way the gate fetches some unrelated PR — and when that PR
+# has no review and a base other than `main`, the hook exits 0 and the real
+# merge proceeds with nothing read.
+#
+# `shlex` gives quote-awareness (a quoted --body is ONE token, so prose can
+# never match) and operator tokens (so `gh` is only a command when it starts
+# the line or follows an operator). Python is already a hard dependency of
+# three sibling hooks, so this adds no new one.
+#
+# Fails CLOSED by design, in both directions: an unparseable command falls back
+# to the old permissive scan rather than arming nothing, because silently not
+# arming is the same hole under a different name.
+PR_NUM=$(COMMAND="$COMMAND" python3 << 'PYEOF'
+import os, re, shlex, sys
 
-# No PR number anywhere after `merge` → bare `gh pr merge` form, exit clean.
+raw_command = os.environ.get("COMMAND", "")
+
+# Cheap reject before any parsing: no phrase, no gate. Keeps the common Bash
+# call (which is not a merge) off the parsing path entirely.
+if not re.search(r"(^|[\s&|;(])gh\s+pr\s+merge($|\s)", raw_command):
+    sys.exit(0)
+
+OPERATORS = {"&&", "||", ";", "|", "&", "(", ")", ";;", "\n"}
+
+
+def strip_heredocs(text):
+    """Remove heredoc BODIES before tokenizing.
+
+    A heredoc body is data, never commands — bash will not execute a word in
+    it no matter what it looks like. `shlex` has no concept of heredocs, so
+    without this the body is tokenized as if it were shell, and any example
+    command quoted in a PR body, commit message, or issue text can arm the
+    gate on whatever digit follows it. That is not hypothetical: this hook
+    fired on its own PR's `gh pr create`, extracting a PR number out of a
+    markdown table cell describing the very bug being fixed.
+
+    Handles `<<MARKER`, `<<'MARKER'`, `<<"MARKER"`, and the `<<-` indent form.
+    Anything unterminated is dropped to end-of-text, which is the safe way
+    round: an unterminated heredoc means the rest was never commands either.
+    """
+    pattern = re.compile(r"<<-?\s*(['\"]?)([A-Za-z_][A-Za-z_0-9]*)\1")
+    out = []
+    pos = 0
+    while True:
+        match = pattern.search(text, pos)
+        if match is None:
+            out.append(text[pos:])
+            return "".join(out)
+        # Keep the redirection operator itself; drop only what it introduces.
+        out.append(text[pos : match.start()])
+        marker = match.group(2)
+        # The body starts after the line carrying the redirection.
+        newline = text.find("\n", match.end())
+        if newline == -1:
+            return "".join(out)
+        out.append(text[match.end() : newline + 1])
+        terminator = re.compile(r"^[ \t]*" + re.escape(marker) + r"[ \t]*$", re.M)
+        end = terminator.search(text, newline + 1)
+        if end is None:
+            return "".join(out)
+        pos = end.end()
+
+
+def legacy_scan(text):
+    """The pre-hardening behaviour, kept ONLY as the unparseable fallback.
+
+    Over-arming (the old bug) is recoverable — the agent sees a review for a
+    PR it did not ask about and retries. Under-arming is not: the merge just
+    proceeds. So when the tokenizer cannot run, take the noisy option.
+    """
+    after = re.split(r"gh\s+pr\s+merge", text, maxsplit=1)
+    if len(after) < 2:
+        return ""
+    for token in after[1].split():
+        if token.isdigit():
+            return token
+    return ""
+
+
+command = strip_heredocs(raw_command)
+
+try:
+    lexer = shlex.shlex(command, punctuation_chars=True, posix=True)
+    lexer.whitespace_split = True
+    # A newline separates commands, but shlex counts it as plain whitespace and
+    # never emits it as a token — so `pnpm test\ngh pr merge 2002` would read as
+    # one long command and the merge would lose its command position. Record the
+    # line each token STARTS on so a newline can restore that position.
+    #
+    # Read the counter BEFORE each token, not after: measured, `lineno` is
+    # incremented while finishing the token that PRECEDES the newline, so the
+    # after-value marks the wrong token as the one that crossed the line.
+    tokens = []
+    linenos = []
+    while True:
+        line_at_start = lexer.lineno
+        token = lexer.get_token()
+        if token is None or token == "":
+            break
+        tokens.append(token)
+        linenos.append(line_at_start)
+except ValueError:
+    # Unbalanced quotes: not parseable as a command line at all.
+    print(legacy_scan(command))
+    sys.exit(0)
+
+at_command_start = True
+for i, token in enumerate(tokens):
+    if i > 0 and linenos[i] != linenos[i - 1]:
+        at_command_start = True
+    if token in OPERATORS:
+        at_command_start = True
+        continue
+    # `FOO=bar gh pr merge 5` — an assignment prefix does not consume the
+    # command position. Missing this made the gate silently skip that shape.
+    if at_command_start and re.fullmatch(r"[A-Za-z_][A-Za-z_0-9]*=.*", token):
+        continue
+    if at_command_start and token == "gh" and tokens[i + 1 : i + 3] == ["pr", "merge"]:
+        for candidate in tokens[i + 3 :]:
+            if candidate in OPERATORS:
+                break
+            if candidate.isdigit():
+                print(candidate)
+                sys.exit(0)
+        # Bare `gh pr merge` (current branch's PR). Nothing to key an ack on.
+        sys.exit(0)
+    at_command_start = False
+PYEOF
+) || PR_NUM=""
+
+# No PR number → bare `gh pr merge`, or the command only mentioned the phrase
+# without invoking it. Either way there is nothing to gate on.
 if [ -z "$PR_NUM" ]; then
     exit 0
 fi
