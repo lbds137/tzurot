@@ -158,13 +158,15 @@ describe('collectSecuritySurface', () => {
 });
 
 describe('collectLinesMarginBullets', () => {
-  it('reports live measured lines against the baseline ceiling per surface', async () => {
+  it('reports live measured lines AND bytes against the baseline ceilings', async () => {
+    // Both dimensions, because the aggregator reporting only lines is what let
+    // CURRENT.md read as comfortable while it was the heaviest surface loaded.
     await withTmpRepo(
       {
         '.github/baselines/lines-baseline.json': JSON.stringify({
           surfaces: {
-            rules: { lines: 4, graceMargin: 6 },
-            current: { lines: 2, graceMargin: 3 },
+            rules: { lines: 4, graceMargin: 6, bytes: 10, bytesGraceMargin: 20 },
+            current: { lines: 2, graceMargin: 3, bytes: 5, bytesGraceMargin: 5 },
           },
         }),
         '.claude/rules/00-a.md': 'one\ntwo\nthree\n',
@@ -173,7 +175,32 @@ describe('collectLinesMarginBullets', () => {
       async rootDir => {
         expect(collectLinesMarginBullets(rootDir)).toEqual([
           'lines rules: 3/10 (7 headroom, live measure)',
+          'bytes rules: 14/30 (16 headroom, live measure)',
           'lines current: 1/5 (4 headroom, live measure)',
+          'bytes current: 7/10 (3 headroom, live measure)',
+        ]);
+      }
+    );
+  });
+
+  it('names a missing byte budget rather than reporting only the line one', async () => {
+    // A pre-bytes baseline must not read as a healthy single-dimension report.
+    await withTmpRepo(
+      {
+        '.github/baselines/lines-baseline.json': JSON.stringify({
+          surfaces: { rules: { lines: 4, graceMargin: 6 } },
+        }),
+        '.claude/rules/00-a.md': 'one\ntwo\nthree\n',
+        'CURRENT.md': 'status\n',
+      },
+      async rootDir => {
+        // `current` is deliberately absent from the fixture baseline, and the
+        // bullet for it must APPEAR — asserting its absence here would lock in
+        // the blind spot this aggregator exists to surface.
+        expect(collectLinesMarginBullets(rootDir)).toEqual([
+          'lines rules: 3/10 (7 headroom, live measure)',
+          'bytes rules: no byte budget in baseline (run `lines:update-baseline`)',
+          'lines current: NOT TRACKED by the baseline (run `lines:update-baseline`)',
         ]);
       }
     );
@@ -195,8 +222,12 @@ describe('collectLinesMarginBullets', () => {
         }),
       },
       async rootDir => {
+        // `current` is absent from this fixture's baseline too, and now says so
+        // rather than being skipped — before the union iteration it produced no
+        // bullet at all, which read as a two-surface report that was clean.
         expect(collectLinesMarginBullets(rootDir)).toEqual([
           'lines rules: unmeasurable (surface matched zero files)',
+          'lines current: NOT TRACKED by the baseline (run `lines:update-baseline`)',
         ]);
       }
     );

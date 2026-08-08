@@ -182,22 +182,29 @@ describe('audit-canary: lines:check', () => {
     const { mkdtemp, writeFile, rm } = await import('node:fs/promises');
     const { tmpdir } = await import('node:os');
     const { join } = await import('node:path');
-    const { runLinesCheck, getLinesConfigFingerprint } = await import('./lines-check.js');
+    const { runLinesCheck } = await import('./lines-check.js');
+    const { getLinesConfigFingerprint } = await import('./lines-surfaces.js');
     const { buildBaselineMeta, hashConfigSlice } = await import('./baseline-meta.js');
 
     // The fixture is a static fake repo root with over-budget surfaces
-    // (rules 40 lines, CURRENT.md 20 lines) — the DO-NOT-FIX artifact. The
-    // baseline is built at test time so its configHash tracks the CURRENT
-    // fingerprint — a hardcoded hash would turn every legitimate fingerprint
-    // change into a canary failure about drift instead of budget detection.
+    // (rules 40 lines / 2607 bytes, CURRENT.md 20 lines / 1258 bytes) — the
+    // DO-NOT-FIX artifact. The baseline is built at test time so its
+    // configHash tracks the CURRENT fingerprint — a hardcoded hash would turn
+    // every legitimate fingerprint change into a canary failure about drift
+    // instead of budget detection.
+    //
+    // Every dimension carries a budget the fixture exceeds. Omitting the byte
+    // budgets would still make the canary "fail", but on a malformed-baseline
+    // path rather than on over-budget detection — a canary that fails for the
+    // wrong reason has stopped testing anything.
     const tmp = await mkdtemp(join(tmpdir(), 'lines-canary-'));
     const baselinePath = join(tmp, 'baseline.json');
     await writeFile(
       baselinePath,
       JSON.stringify({
         surfaces: {
-          rules: { lines: 10, graceMargin: 5 },
-          current: { lines: 5, graceMargin: 2 },
+          rules: { lines: 10, graceMargin: 5, bytes: 500, bytesGraceMargin: 100 },
+          current: { lines: 5, graceMargin: 2, bytes: 300, bytesGraceMargin: 50 },
         },
         meta: buildBaselineMeta('lines-check/canary', hashConfigSlice(getLinesConfigFingerprint())),
       })
@@ -221,7 +228,9 @@ describe('audit-canary: lines:check', () => {
       const summary = parseSummary(captured[captured.length - 1]);
       expect(summary.tool).toBe('lines:check');
       expect(summary.status).toBe('fail');
-      expect(summary.findings).toBeGreaterThan(0);
+      // Both dimensions on both surfaces are over budget, so anything short of
+      // four findings means a dimension stopped being evaluated.
+      expect(summary.findings).toBe(4);
     } finally {
       logSpy.mockRestore();
       errorSpy.mockRestore();
