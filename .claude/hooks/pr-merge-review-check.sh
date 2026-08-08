@@ -233,6 +233,16 @@ ACK_KEY="${PR_NUM}:${REVIEW_ID}"
 # free of API calls — it runs on every ordinary feature merge, and the release
 # reminder (if this is a release PR) was already delivered by the blocking call
 # that wrote this ack.
+#
+# KNOWN GAP, tracked: that last clause assumes the base has not changed since
+# the ack was written. Retarget an open PR from develop to main between two
+# merge attempts on the SAME review comment and the ack still matches, so this
+# exits before release_reminder_due() is ever consulted and the reminder never
+# fires. Not the documented workflow — release PRs are opened against main
+# directly — and closing it costs a `gh pr view` on EVERY merge attempt, which
+# is the cost two earlier review rounds asked to remove from these paths. Those
+# reviewers genuinely conflict, so the resolution is its own change rather than
+# a late patch here.
 if [ -f "$ACK_FILE" ] && grep -qxF "$ACK_KEY" "$ACK_FILE" 2>/dev/null; then
     exit 0
 fi
