@@ -36,4 +36,19 @@ Why it matters: a wrong PR whose review is absent AND whose base is not main exi
 Fix shape: decide the PR number from the ARGUMENT VECTOR of an actual gh-pr-merge invocation rather than from a text scan of the whole command. At minimum, require that the matched occurrence is not inside a quoted string and that no earlier occurrence anchored the remainder. Semantic change to the highest-stakes hook, so it needs its own PR with the probe cases updated in the same change.
 
 Acceptance: the three cases currently pinned as PINNED DEFECT in pr-merge-review-check.probe.sh flip to expecting the real PR number, and the probe stays green.
+
+## Prototype result (2026-08-08, not yet shipped)
+
+A python3 shlex tokenizer resolves all three pinned cases and preserves every currently-correct shape. Approach: shlex.shlex with punctuation_chars and whitespace_split, then scan for a token gh at COMMAND POSITION (index 0, or right after one of the operator tokens) followed by pr and merge, and take the first all-digit token before the next operator. Quote-awareness kills the prose case because a quoted body is one token; command-position matching kills the decoy case.
+
+Verified correct: both arg orders, bare gh-pr-merge, gh-pr-merge-queue, a real merge after an operator, a quoted number, extra whitespace, and a merge inside a command substitution.
+
+TWO GAPS the prototype still has, both fail-OPEN and both must be closed by the shipped version:
+
+1. An env-var assignment prefix defeats command-position detection, so the gate does not arm at all on that shape. A leading VAR=value token must be skipped rather than treated as the command.
+2. On unparseable input (unbalanced quotes raise ValueError) the prototype arms nothing, where the current regex hook would arm. Parse failure must fall back to the legacy scan, never to silence, since failing open here is the same hole the task is about.
+
+A third shape is a known non-goal, unchanged from today: a PR number supplied by command substitution cannot be resolved statically, so it reads as the bare form and the merge proceeds ungated.
+
+The prototype script is machine-local scratch and is not committed; the shape above is the durable part.
 <!-- SECTION:DESCRIPTION:END -->
