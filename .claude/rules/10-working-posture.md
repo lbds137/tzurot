@@ -93,11 +93,17 @@ state what you verified and how, not just what you did.
 
 ## Ship in bounded units
 
-Trigger: when unreleased substantive PRs on develop reach roughly ten, or the
+Trigger: when unreleased **merged PRs that touch runtime** (`services/`,
+`prisma/`, `.github/workflows/`, `package.json`) reach roughly ten, or the
 release notes would need more than two themes, propose a cut — accumulation
-dilutes the holistic release-review's second look. The same instinct applies
-down-stack: one package per rollout PR, one campaign slice per PR, fix-forward
-for a release review's non-blocking finding rather than holding the train.
+dilutes the holistic release-review's second look. **Count merged PRs, not
+commits**: rebase-only merging makes those diverge badly, and counting commits
+once inflated the trigger by two thirds and produced a recommendation a council
+overturned. A tooling- or docs-only batch dilutes nothing — the second look
+earns its keep on runtime risk headed for prod — so cut those at convenience.
+The same instinct applies down-stack: one package per rollout PR, one campaign
+slice per PR, fix-forward for a release review's non-blocking finding rather
+than holding the train.
 
 ## Failure modes get structure, not resolutions
 
