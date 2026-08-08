@@ -24,6 +24,40 @@ Surfaced 2026-07-20 (#1732 review observation) — the `.claude/hooks/*.probe.sh
 
 **Why:** 05-tooling prefers structural enforcement over remembered manual steps; the probes exist but their execution is memory-dependent.
 
+## MEMBER 1 SHIPPED — #2003 (2026-08-08)
+
+`pnpm ops guard:hook-probes` runs every registered probe in `pnpm quality` and the
+CI lint job, plus a bidirectional `HOOK_PROBES` registry (`check-hook-probes-registry.ts`)
+covering `.claude/hooks/` AND `.husky/`: every hook needs a probe or a written
+reason, and orphan/duplicate/empty-path rows all hard-fail.
+
+Two decisions that departed from the fix shape above, both with data:
+
+- **Unconditional, not diff-keyed.** Measured ~11s across the six probes — noise
+  beside knip/cpd/depcruise in the same job. An unconditional gate also cannot
+  drift out of sync with its own trigger condition, which a diff-keyed one can.
+- **Discovery is fail-closed on both families.** `.claude/hooks/` matches script
+  extensions OR extensionless-plus-exec-bit; `.husky/` matches git's exact
+  client-side hook names. Either alone left a shape invisible to the check.
+
+The gate's FIRST CI run paid for itself: `develop-code-commit-guard.probe.sh` had
+grown a dependency on local `develop`/`main` branches, which a shallow
+`actions/checkout` does not have. Invisible for as long as the probe only ever ran
+on one machine.
+
+**New local precondition worth knowing before the remaining members:** `pnpm quality`
+now requires local `develop` and `main` (`git fetch origin develop:develop`).
+Branches are fabricated only on a real Actions runner — gated on `GITHUB_ACTIONS`
+set AND `ACT` unset, because nektos/act sets `CI`, `GITHUB_ACTIONS` and `ACT`
+alike (read from its assignment sites in `pkg/runner/run_context.go`; act is not
+installed here, so this is a producer-read, not a live capture).
+
+**Design pre-validated for the pr-merge-review-check member:** a `gh` shim first on
+PATH plus a `TZUROT_PR_MERGE_ACK_FILE` env override drives every branch of that hook
+with no network. Pin the shim's `pr view` to return `main` and the release banner's
+`for PR #N` line makes the extracted PR number assertable — which is the assertion
+that matters, since a wrong PR with no review exits 0 and merges UNREVIEWED.
+
 MEMBER: `.claude/hooks/pr-monitor-reminder.sh` has no probe.sh either. It is PR-flow-critical (it is the artifact that tells the agent to arm the CI monitor, and as of #1989 to stop the prior one), and its logic is non-trivial — PR-number resolution with a `gh pr create` stdout path plus a `gh pr list` fallback, a tag-push exclusion, per-(PR,SHA) dedup, and an assignee backfill. A probe would pin the banner's required lines and the exclusion branches against a synthetic hook payload.
 
 MEMBER (added 2026-08-07 while shipping TASK-458): `.claude/hooks/pr-merge-review-check.sh` has no probe either, and it is the highest-stakes hook in the set — it BLOCKS `gh pr merge` and is the structural backstop behind 00-critical's read-the-review rule. #2002 modified it (folding in the release-finalize reminder) and the only way to verify the change was a hand-built harness: copy the script to /tmp with ACK_FILE redirected, run it against a real merged main-based PR and a develop-based one, and assert exit 2 -> exit 0 on retry plus release-section presence/absence. That worked (all four assertions passed) but nothing re-runs it, which is this task's whole complaint. The ACK_FILE redirect is the only parameterization needed — worth making the script honor an env override so the probe does not have to sed itself a copy.
