@@ -1,7 +1,7 @@
 ---
 name: tzurot-doc-audit
-description: 'Documentation and auto-memory freshness audit. Invoke with /tzurot-doc-audit to review docs and Claude auto-memory for staleness, items in the wrong layer, and missing-tool drift.'
-lastUpdated: '2026-07-24'
+description: 'Documentation and auto-memory freshness audit. Invoke with /tzurot-doc-audit to review docs and Claude auto-memory for staleness, items in the wrong layer, missing-tool drift, and always-loaded passages that no longer earn their context cost.'
+lastUpdated: '2026-08-08'
 ---
 
 # Documentation Audit Procedure
@@ -144,6 +144,68 @@ deeper check than the generic list above — the coupling drifts silently:
 | Skill                     | Extra check                                                                                        |
 | ------------------------- | -------------------------------------------------------------------------------------------------- |
 | `/tzurot-review-response` | Edit-shape whitelist current? Round-cap + fixup-commit procedure matches the CI `fixup-check` job? |
+
+### 3b. Economy Pass — always-loaded surfaces (rules + `CURRENT.md`)
+
+Sections 2 and 3 ask **is this still accurate?** Nothing above asks **is this
+earning its context cost?** — so the always-loaded corpus only ever grows.
+Rank it, then cut from the top:
+
+```bash
+pnpm ops lines:check --breakdown   # every rules file + CURRENT.md, worst-first by bytes
+```
+
+**Work the ranking in order and stop after the top 3.** Bytes, not lines, is
+the order that matters: density varies several-fold across these files (the
+command prints each one's B/line), so a line-sorted list puts a table-heavy
+file above a prose-heavy one that costs more. Depth beats breadth here — three
+files read closely beats ten skimmed, and the ranking is stable enough that
+the next audit picks up where this one stopped.
+
+#### The cut test — four questions per passage
+
+A passage stays only if it survives all four. **Any single "no" is a cut**, and
+"it's true and useful" is not an answer to any of them:
+
+1. **Constraint or narrative?** Does it state what to do, or recount how we
+   found out? Incident stories, adoption dates, council-derivation notes, and
+   "this happened twice" counts are the record of a decision, not the decision
+   — the operationalized outcome IS the record, and git preserves the story.
+2. **Would a reader act differently without it?** If removing the passage
+   changes no behavior, it is costing tokens to be agreed with.
+3. **Is it said in more than one layer?** The same thing in a rule AND a skill
+   AND a doc is one canonical statement plus two copies that drift. Keep it at
+   the layer that loads when it is needed (`07-documentation.md`), link from
+   the others.
+4. **Has a gate since made it structural?** A measurement, a caution, or a
+   checklist superseded by a `guard:*` / ratchet / hook is enforced now — the
+   prose is a second, weaker copy that can silently disagree with the gate.
+
+**Cut text goes nowhere.** Not to a doc, not to an archive file, not to a
+comment — git holds it. Moving it down a layer is only right when the content
+is genuinely _reference_ someone will look up on purpose; otherwise a move is
+a cut that didn't happen.
+
+#### Who decides
+
+**This pass defaults to cutting, and the owner sees the diff.** The agent
+proposing rule additions should not be the sole judge of what is excess, and
+the direction of that bias is measured, not hypothetical: the July trim bought
+headroom and the additions since have been spending it. So — propose the cuts
+as a normal review-gated PR (`.claude/rules/*.md` and `SKILL.md` both require
+one), one PR per pass, with each cut's question number as its justification.
+When a passage is genuinely contested, cut it and say so in the PR body; the
+owner restoring one line is cheaper than the corpus keeping ten.
+
+#### Record the result
+
+- Re-run `pnpm ops lines:check --breakdown` and put the before/after byte
+  numbers in the PR body — a trim with no number is indistinguishable from a
+  reshuffle.
+- `pnpm ops lines:update-baseline --surface <name>` to ratchet the trimmed
+  surface DOWN. **Scope it**: the unscoped write also ratchets a grown surface
+  UP in the same commit, which is how a previous post-trim refresh got skipped
+  entirely and the trim went unrecorded.
 
 ### 4. Reference Docs by Subdirectory
 

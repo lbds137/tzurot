@@ -208,9 +208,14 @@ function registerLinesCommands(cli: CAC): void {
       default: '.github/baselines/lines-baseline.json',
     })
     .option('--summary', SUMMARY_OPTION_DESC)
+    .option(
+      '--breakdown',
+      'Also rank every file in each surface worst-first by bytes (the trim order)'
+    )
     .example('ops lines:check')
     .example('ops lines:check --summary')
-    .action(async (options: { baseline: string; summary?: boolean }) => {
+    .example('ops lines:check --breakdown')
+    .action(async (options: { baseline: string; summary?: boolean; breakdown?: boolean }) => {
       const { runLinesCheck } = await import('../audits/lines-check.js');
       runLinesCheck(options);
     });
