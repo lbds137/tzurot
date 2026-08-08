@@ -1,7 +1,7 @@
 #!/bin/bash
 # Shared detection: does a Bash tool command string invoke `git commit`?
 #
-# NO RUNTIME CONSUMER. claude-shape-guard.sh and fixup-rider-check.sh used to
+# NO RUNTIME CONSUMER. claim-shape-guard.sh and fixup-rider-check.sh used to
 # source this; both moved to husky channels and now key off git state (the
 # staged diff) and the commit-message subject respectively, neither of which
 # needs command-text matching at all. What remains is the CANONICAL REFERENCE

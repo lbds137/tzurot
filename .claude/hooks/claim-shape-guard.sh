@@ -13,8 +13,13 @@
 # Non-blocking PostToolUse output never reaches the agent — probed directly and
 # confirmed for every matcher — so the PostToolUse registration this guard used
 # to carry enforced nothing. Husky output arrives because it is part of the
-# `git commit` command's own stdout. Pre-commit is also the better moment: the
-# claim has not entered history yet, so the fix is an edit rather than an amend.
+# `git commit` command's own stdout.
+#
+# The channel change buys VISIBILITY, not earlier intervention. An agent runs
+# `git commit` as one blocking call, so this banner is read only after the
+# commit object already exists — the practical remedy is still an amend, same
+# as before. (A human watching an interactive terminal does get the earlier
+# moment.) Pre-commit is simply where a staged-diff scan belongs.
 #
 # Path exclusions: tracker/, backlog/, docs/, .claude/, .husky/, and ALL *.md
 # files. Markdown is prose that legitimately DESCRIBES these phrasings
@@ -69,6 +74,6 @@ MATCHES=$(git -c diff.mnemonicprefix=false -c core.quotepath=false diff --cached
 
 printf 'CLAIM-SHAPE GUARD: staged line(s) assert what a field/value always or never holds:\n'
 printf '%s\n' "$MATCHES" | sed 's/^/  /'
-printf 'Per 00-critical § the producer is authoritative: verify each at its producer/assignment site and cite it; revise before committing.\n'
+printf 'Per 00-critical § the producer is authoritative: verify each at its producer/assignment site and cite it, or amend.\n'
 
 exit 0

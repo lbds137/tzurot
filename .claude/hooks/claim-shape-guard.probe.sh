@@ -85,8 +85,11 @@ check 0 silent "same claim line under tracker/ (excluded meta path)"
 stage_fixture 'docs/reference/notes.md' 'The producer guarantees the id is never null here.'
 check 0 silent "claim line under docs/ (excluded meta path)"
 
-stage_fixture '.claude/rules/probe.md' 'A field that is always set needs a producer citation.'
-check 0 silent "claim line under .claude/ (excluded meta path)"
+# A NON-markdown fixture on purpose: a .md file here would be silenced by the
+# markdown-wide exclusion regardless of whether the .claude/ path-prefix branch
+# works at all, so the case would pass through a regression in that branch.
+stage_fixture '.claude/hooks/probe-fixture.sh' '# a field that is always set needs a producer citation'
+check 0 silent "claim line under .claude/ (excluded meta path, non-markdown)"
 
 # .husky/ scripts necessarily quote the phrasings this guard looks for, in the
 # comments that describe it. Observed live: the guard flagged its own

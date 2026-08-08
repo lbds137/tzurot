@@ -17,8 +17,10 @@
 # malformed identifier's error message vanished and the resulting empty output
 # then read as "no data", nearly reversing real findings more than once. The
 # constraint lives in .claude/rules/10-working-posture.md § "Lossy steps are
-# for known output shapes"; this hook is its structural backstop, firing at the
-# moment of the empty result instead of relying on agent attention.
+# for known output shapes". This hook was written to be that rule's structural
+# backstop, firing at the moment of the empty result instead of relying on agent
+# attention — it never achieved that, per the header above, and the rule text is
+# the mechanism.
 #
 # Scope rationale — only the literal `2>/dev/null` (with optional whitespace
 # after `2>`) triggers:

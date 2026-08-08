@@ -40,6 +40,11 @@ MSG_FILE="${1:-}"
 SUBJECT=$(grep -m1 -vE '^[[:space:]]*(#|$)' "$MSG_FILE" 2>/dev/null || echo "")
 [ -z "$SUBJECT" ] && exit 0
 
+# All three prefixes reach this hook end-to-end: commitlint runs first in
+# .husky/commit-msg and would exit 1 on an unrecognised type, but it ignores
+# every rider prefix. Verified live against this repo's own config rather than
+# assumed from commitlint's defaults — `fixup!`, `squash!` and `amend!`
+# subjects each pass `commitlint --edit`, so none of these arms is dead.
 case "$SUBJECT" in
 fixup!* | squash!* | amend!*) ;;
 *) exit 0 ;;

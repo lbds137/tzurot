@@ -101,6 +101,20 @@ else
     fail=1
 fi
 
+# Present, non-empty, but carrying no subject at all — only blanks and git
+# comment lines. The subject search finds nothing and must stay silent rather
+# than treat a comment as the subject.
+printf '%s\n' '' '   ' '# Please enter the commit message for your changes.' \
+    '# On branch main' >"$TMP/NOSUBJECT"
+out=$("$HOOK" "$TMP/NOSUBJECT" 2>/dev/null)
+got=$?
+if [ "$got" = 0 ] && [ -z "${out//[[:space:]]/}" ]; then
+    echo "ok   [exit=0 | silent]: message file with only blanks and comments"
+else
+    echo "FAIL [exit=$got]: blanks-and-comments-only file should be silent+0"
+    fail=1
+fi
+
 : >"$TMP/EMPTY"
 out=$("$HOOK" "$TMP/EMPTY" 2>/dev/null)
 got=$?
