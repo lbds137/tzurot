@@ -35,8 +35,14 @@ MSG_FILE="${1:-}"
 
 # The subject is the first line that is neither blank nor a git comment.
 # `git commit --fixup` writes the generated subject on line 1, but reading
-# past leading blanks/comments keeps this correct for editor-authored
-# messages and for `core.commentChar` defaults.
+# past leading blanks/comments keeps this correct for editor-authored messages.
+#
+# `#` is hardcoded as the comment character. git's `core.commentChar` can be
+# set to something else, in which case a real `#` line would be skipped as a
+# comment (or a comment in the configured character read as the subject). Not
+# worth reading git config for: this repo has never set it, and both failure
+# directions cost at most a missing or spurious advisory banner — the hook
+# never blocks. Named here because every other edge case in this file is.
 SUBJECT=$(grep -m1 -vE '^[[:space:]]*(#|$)' "$MSG_FILE" 2>/dev/null || echo "")
 [ -z "$SUBJECT" ] && exit 0
 
