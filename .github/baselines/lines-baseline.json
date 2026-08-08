@@ -1,19 +1,23 @@
 {
   "surfaces": {
     "rules": {
-      "lines": 2120,
-      "graceMargin": 150
+      "lines": 2088,
+      "graceMargin": 150,
+      "bytes": 172579,
+      "bytesGraceMargin": 12000
     },
     "current": {
-      "lines": 37,
-      "graceMargin": 60
+      "lines": 96,
+      "graceMargin": 20,
+      "bytes": 35237,
+      "bytesGraceMargin": 4000
     }
   },
   "meta": {
-    "toolVersion": "lines-check/1",
-    "configHash": "84da1e207dac",
+    "toolVersion": "lines-check/2",
+    "configHash": "038ea0a31198",
     "nodeVersion": "v24.11.1",
-    "generatedFromSha": "fabf69ee5b84334f2cba3986f6d5b45b084705a7",
-    "generatedAt": "2026-07-07T02:02:03.061Z"
+    "generatedFromSha": "d574f178a1d44049dba20068e557e3f2e154fbc9",
+    "generatedAt": "2026-08-08T15:39:40.916Z"
   }
 }
