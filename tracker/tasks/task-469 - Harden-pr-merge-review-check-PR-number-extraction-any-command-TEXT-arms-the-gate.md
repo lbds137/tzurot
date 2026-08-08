@@ -3,10 +3,10 @@ id: TASK-469
 title: >-
   Harden pr-merge-review-check PR-number extraction: any command TEXT arms the
   gate
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-08 15:49'
-updated_date: '2026-08-08 15:50'
+updated_date: '2026-08-08 22:52'
 labels:
   - 'area:tooling'
   - 'area:process'
