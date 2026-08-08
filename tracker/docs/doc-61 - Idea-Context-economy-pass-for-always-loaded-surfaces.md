@@ -56,7 +56,7 @@ A pruning procedure built on line counts sends whoever runs it at `04-discord.md
 
 Phases:
 
-1. **TASK-323** — add a bytes (or est-token) dimension to `lines-baseline.json` and the check output, plus a `--surface <name>` flag on `lines:update-baseline` so one metric can ratchet without loosening another. Prerequisite.
+1. ~~**TASK-323** — add a bytes (or est-token) dimension to `lines-baseline.json` and the check output, plus a `--surface <name>` flag on `lines:update-baseline` so one metric can ratchet without loosening another.~~ **DONE 2026-08-08 (#2007).** Both dimensions gate independently, the report derives an est-token figure from bytes (nothing gates on the estimate), and `--surface` scopes a refresh. The prerequisite is satisfied; **this pass is now actionable.** First real use confirmed the premise live: a 2-line CURRENT.md edit cost 2,253 bytes, which the old line-only gate would have rejected on lines while never showing the cost that mattered.
 2. **The economy pass** in doc-audit — ranked worst-first by the new metric, with a decision rule (below) and a bias toward cutting.
 3. Optional follow-on: a trend line, so growth between audits is visible rather than only the ceiling.
 
@@ -77,7 +77,8 @@ The agent proposing rule additions should not be the sole judge of what is exces
 
 ## Related
 
-- **TASK-323** — the metric fix. Hard prerequisite.
+- **TASK-323** — the metric fix. Hard prerequisite, **SHIPPED #2007**; ranking is now available worst-first by bytes.
+- **TASK-470** — three "assertions that cannot fail" shapes, filed `state:owner` precisely because its natural home is an always-loaded rule. It is the first live test of this doc's conflict-of-interest concern: weigh it inside the pass rather than appending it beside it.
 - `07-documentation.md` — the constraint this pass enforces.
 - `/tzurot-doc-audit` sections 2 and 3 — the accuracy pass this sits beside.
 - doc-58 (docs/reference drift rewrite) — different corpus (`docs/`) and different axis (accuracy); not a duplicate.
