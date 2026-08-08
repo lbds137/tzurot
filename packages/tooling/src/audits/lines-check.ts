@@ -6,14 +6,17 @@
  * exceeds its baseline budget.
  *
  * Lines alone is a poor proxy for what these surfaces actually cost, which is
- * context tokens, and the gap is not academic: measured across the ten rules
- * files, density ranges from 44 to 130 chars/line, and `CURRENT.md` runs at
- * ~367. The line ratchet therefore rated `CURRENT.md` "comfortable" at 96/97
- * while it carried a fifth of the entire rules surface's bytes in under a
- * twentieth of its lines — so a reader following the ratchet to find a trim
- * target was sent at the wrong file. Bytes is the honest measurable (exact,
- * deterministic, no tokenizer dependency); the reported token figure is
- * derived from it for readability and nothing gates on the estimate.
+ * context tokens, and the gap is not academic: density varies several-fold
+ * across the corpus, so a surface can sit comfortably under its line budget
+ * while being one of the heaviest things loaded — which is how a reader
+ * following the line ratchet to find a trim target got sent at the wrong file.
+ * Bytes is the honest measurable (exact, deterministic, no tokenizer
+ * dependency); the reported token figure is derived from it for readability
+ * and nothing gates on the estimate.
+ *
+ * The live per-file figures are deliberately NOT repeated here — they move
+ * with every edit to the corpus, and a second stale copy of them is worse
+ * than none. `pnpm ops lines:check --breakdown` prints them from measurement.
  *
  * Mirrors the mutation:check / cpd:check ratchet pattern:
  *
@@ -41,6 +44,7 @@ import {
   type BaselineMeta,
 } from './baseline-meta.js';
 import { emitSummary } from './summary.js';
+import { reportBreakdown, formatTokenEstimate } from './lines-breakdown.js';
 
 import {
   LINES_IMPL_VERSION,
@@ -58,14 +62,6 @@ import {
   type SurfaceMeasurement,
   type MeasuredSurfaces,
 } from './lines-surfaces.js';
-
-/**
- * Bytes per token, for the derived estimate in the report only. Roughly right
- * for English prose and markdown across current tokenizers, and deliberately
- * NOT used by any gate — a threshold resting on a rule of thumb would be a
- * threshold nobody could reason about.
- */
-const BYTES_PER_TOKEN_ESTIMATE = 4;
 
 export const DEFAULT_LINES_BASELINE_PATH = '.github/baselines/lines-baseline.json';
 
@@ -281,14 +277,32 @@ export function evaluateSurfaceBudgets(
 export interface LinesCheckOptions {
   baseline?: string;
   summary?: boolean;
+  /** Print the ranked per-file view after the gate result. */
+  breakdown?: boolean;
   /** Return instead of setting a failure exit code (canary/test use). */
   noFail?: boolean;
   /** Repo root override for tests/canaries. */
   rootDir?: string;
 }
 
-/** CLI shell for `lines:check`. */
+/**
+ * CLI shell for `lines:check`.
+ *
+ * The breakdown prints after EVERY outcome, including the broken-state exits
+ * (no baseline, config drift). Those are exactly the moments the ranking is
+ * worth having — an operator who has to refresh a baseline still wants to see
+ * what the surfaces weigh — and gating a pure read-only diagnostic on the
+ * gate's own verdict would withhold it precisely when the gate is unusable.
+ */
 export function runLinesCheck(options: LinesCheckOptions = {}): 'ok' | 'fail' {
+  const result = runLinesCheckGate(options);
+  if (options.breakdown === true) {
+    reportBreakdown(options.rootDir ?? process.cwd());
+  }
+  return result;
+}
+
+function runLinesCheckGate(options: LinesCheckOptions): 'ok' | 'fail' {
   const rootDir = options.rootDir ?? process.cwd();
   const baselinePath = resolve(rootDir, options.baseline ?? DEFAULT_LINES_BASELINE_PATH);
 
@@ -357,10 +371,12 @@ function formatDimensionLine(surfaceName: string, dim: DimensionEvaluation): str
     const detail = dim.note ?? 'not evaluated';
     return chalk.red(`${label} ${dim.dimension}: ${detail}`);
   }
-  const estimate =
-    dim.dimension === 'bytes'
-      ? ` ≈ ${Math.round(dim.value / BYTES_PER_TOKEN_ESTIMATE / 1000)}k est. tokens`
-      : '';
+  // Same formatter the per-file ranking uses. Two renderings of one quantity
+  // in one tool reads as a discrepancy — the gate printed "≈ 9k est. tokens"
+  // for a measurement the breakdown printed as "≈9.4k tok" — and the shared
+  // one is also strictly more honest at the low end, where whole-thousand
+  // rounding turned 500 estimated tokens into "1k".
+  const estimate = dim.dimension === 'bytes' ? ` ${formatTokenEstimate(dim.value)}` : '';
   const line =
     `${label} ${dim.value} ${dim.dimension}${estimate} ` +
     `(limit ${dim.limit}, baseline ${dim.baselineValue})`;
