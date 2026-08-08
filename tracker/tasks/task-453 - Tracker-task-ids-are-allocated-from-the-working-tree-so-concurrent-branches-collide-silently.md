@@ -36,4 +36,36 @@ Fix shapes to consider:
 The second option is the cheapest and catches the case at push time, which is where it matters, but it does not prevent two in-flight branches from both claiming an id before either merges.
 
 Acceptance: filing a task on a branch while a sibling branch holds an unmerged task cannot produce a duplicate id, or the duplicate is caught before it reaches develop.
+
+## OBSERVED LIVE 2026-08-07
+
+Hit exactly as predicted, no hypothesis needed. `pnpm tracker task create` was
+run on `develop` while an open PR branch already carried a freshly-filed
+TASK-464. The CLI allocated **464 again**, because it counts from the working
+tree and the branch's file is not there. No warning, no collision error - two
+different tasks with the same id, one per branch, which would have merged into a
+silently duplicated id.
+
+Caught only because the same session filed both and recognised the number. A
+session that filed one of them yesterday would not have.
+
+Detection that worked, worth reusing in the fix:
+
+    git log --all --diff-filter=A --name-only --pretty=format: \
+      | grep -oE 'task-[0-9]+' | sort -t- -k2 -n | tail -3
+
+That reads every id ever ADDED on any branch, so it is immune to the
+working-tree blind spot. A pre-create check against it, or a `backlog` lint rule
+comparing the max working-tree id against the max all-branches id, would have
+refused the allocation.
+
+Recovery was manual: rename the file, edit `id:` and `ordinal:` in frontmatter,
+re-run `pnpm ops backlog`.
+
+SECOND, UNRELATED CLI GOTCHA found in the same sitting: repeated `-l` flags
+(`-l area:process -l size:S -l state:ready`) do NOT append - only the LAST one
+survives. Both tasks filed this session lost two of three labels that way. The
+comma form (`-l area:process,size:S,state:ready`) works. This is silent; the
+only reason it was caught is that `pnpm ops backlog` gates on all four label
+axes and failed. Worth a line in 06-backlog.md next time that file is touched.
 <!-- SECTION:DESCRIPTION:END -->
