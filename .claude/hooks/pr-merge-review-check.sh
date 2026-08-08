@@ -98,12 +98,35 @@ resolve_pr_base() {
 # True when this is a release PR whose reminder has not been shown yet.
 # Filtering on base=main is the whole test: the project's critical rule
 # reserves a `main` base for release PRs.
+#
+# The ack check runs FIRST, before the network call, so a PR whose reminder was
+# already shown costs nothing to re-evaluate.
+#
+# DELIBERATE ACCEPT for the remaining case: a FIRST block on an ordinary feature
+# PR pays one `gh pr view` to discover it is not release-relevant. Two things
+# make that acceptable — the same path already makes a `gh api` call to fetch
+# the review, so it is network-bound regardless, and it is a blocking gate that
+# happens once per review cycle, not a latency-sensitive loop. It also fails
+# open, so a `gh` outage degrades to "no reminder", never "cannot merge".
+#
+# Two cheaper short-circuits were considered and REJECTED, both for correctness:
+#
+#   - Caching the base per PR. Tried and removed: a PR retargeted develop<->main
+#     keeps serving the stale answer for the life of /tmp, which either
+#     suppresses the reminder or fires it spuriously. A stale answer here
+#     reproduces the exact silent-drop class this hook exists to prevent.
+#   - Treating `--delete-branch` as "this is a feature PR" (the old standalone
+#     reminder used it as a fast path). It looks free and local, but it
+#     suppresses the reminder precisely when the reminder matters MOST: the
+#     release block's own text says "Do NOT pass --delete-branch: develop must
+#     survive", so keying the skip on that flag would silence the warning in the
+#     exact scenario that once deleted `develop`.
 release_reminder_due() {
-    resolve_pr_base
-    [ "$PR_BASE" = "main" ] || return 1
     if [ -f "$ACK_FILE" ] && grep -qxF "$RELEASE_KEY" "$ACK_FILE" 2>/dev/null; then
         return 1
     fi
+    resolve_pr_base
+    [ "$PR_BASE" = "main" ] || return 1
     return 0
 }
 
