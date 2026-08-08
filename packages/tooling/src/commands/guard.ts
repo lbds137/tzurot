@@ -202,7 +202,7 @@ function registerLinesCommands(cli: CAC): void {
   cli
     .command(
       'lines:check',
-      'Fail if an always-loaded context surface exceeded its line budget (CI gate)'
+      'Fail if an always-loaded context surface exceeded its line or byte budget (CI gate)'
     )
     .option(BASELINE_OPTION, BASELINE_OPTION_DESC, {
       default: '.github/baselines/lines-baseline.json',
@@ -218,14 +218,19 @@ function registerLinesCommands(cli: CAC): void {
   cli
     .command(
       'lines:update-baseline',
-      'Write current surface line counts to the baseline (run after intentional growth or a trim)'
+      'Write current surface line+byte counts to the baseline (run after intentional growth or a trim)'
     )
     .option(BASELINE_OPTION, BASELINE_OPTION_DESC, {
       default: '.github/baselines/lines-baseline.json',
     })
     .option('--dry-run', 'Show the diff without writing the file')
+    .option(
+      '--surface <name>',
+      'Refresh only this surface (rules|current); the others keep their recorded numbers'
+    )
     .example('ops lines:update-baseline --dry-run')
-    .action(async (options: { baseline: string; dryRun?: boolean }) => {
+    .example('ops lines:update-baseline --surface rules')
+    .action(async (options: { baseline: string; dryRun?: boolean; surface?: string }) => {
       const { runLinesUpdateBaseline } = await import('../audits/lines-check.js');
       runLinesUpdateBaseline(options);
     });

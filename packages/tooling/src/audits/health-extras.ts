@@ -23,12 +23,8 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { loadJscpdReport, filterReport } from '../cpd/postFilter.js';
-import {
-  measureSurfaces,
-  parseLinesBaseline,
-  DEFAULT_LINES_BASELINE_PATH,
-  type SurfaceMeasurement,
-} from './lines-check.js';
+import { parseLinesBaseline, DEFAULT_LINES_BASELINE_PATH } from './lines-check.js';
+import { measureSurfaces, trackedSurfaceNames, type SurfaceMeasurement } from './lines-surfaces.js';
 import { parseMutationBaseline } from '../test/mutation-check.js';
 import { RAW_CONTENT_ALLOWLIST, rawContentBudgetTotal } from '../eslint/raw-content-allowlist.js';
 import { loadUnifiedBaseline, collectUnifiedAuditData } from '../test/audit-unified.js';
@@ -140,17 +136,45 @@ export function collectLinesMarginBullets(rootDir: string): string[] {
   const baseline = parseLinesBaseline(readFileSync(baselinePath, 'utf-8'), baselinePath);
   const measured = measureSurfaces(rootDir) as Record<string, SurfaceMeasurement | undefined>;
 
+  // The union of the CANONICAL surfaces and whatever the baseline holds — the
+  // same iteration `evaluateSurfaceBudgets` uses, and for the same reason. A
+  // canonical surface absent from the baseline would otherwise produce no
+  // bullet at all, so the aggregator whose job is to surface blind spots would
+  // itself read clean for a surface the gate hard-fails on. A scoped refresh
+  // against a baseline that never held the other surface writes exactly that
+  // state, so this is reachable, not theoretical.
+  const trackedNames = trackedSurfaceNames(baseline.surfaces);
+
   const bullets: string[] = [];
-  for (const [name, surface] of Object.entries(baseline.surfaces)) {
-    const ceiling = surface.lines + surface.graceMargin;
+  for (const name of trackedNames) {
+    const surface = baseline.surfaces[name];
+    if (surface === undefined) {
+      bullets.push(`lines ${name}: NOT TRACKED by the baseline (run \`lines:update-baseline\`)`);
+      continue;
+    }
     const measurement = measured[name];
     if (measurement === undefined || measurement.fileCount === 0) {
       bullets.push(`lines ${name}: unmeasurable (surface matched zero files)`);
       continue;
     }
+    const lineCeiling = surface.lines + surface.graceMargin;
     bullets.push(
-      `lines ${name}: ${measurement.lines}/${ceiling} ` +
-        `(${ceiling - measurement.lines} headroom, live measure)`
+      `lines ${name}: ${measurement.lines}/${lineCeiling} ` +
+        `(${lineCeiling - measurement.lines} headroom, live measure)`
+    );
+    // Bytes gets its own bullet rather than being folded into the line one,
+    // because the two disagree and the disagreement is the signal: reporting
+    // only lines is what let CURRENT.md read as comfortable at 96/97 while it
+    // was the heaviest always-loaded surface in the repo. An aggregator that
+    // shows one dimension of a two-dimension gate reintroduces exactly that.
+    if (surface.bytes === undefined || surface.bytesGraceMargin === undefined) {
+      bullets.push(`bytes ${name}: no byte budget in baseline (run \`lines:update-baseline\`)`);
+      continue;
+    }
+    const byteCeiling = surface.bytes + surface.bytesGraceMargin;
+    bullets.push(
+      `bytes ${name}: ${measurement.bytes}/${byteCeiling} ` +
+        `(${byteCeiling - measurement.bytes} headroom, live measure)`
     );
   }
   return bullets;

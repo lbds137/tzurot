@@ -156,9 +156,11 @@ pnpm ops guard:workflow-sync         # claude workflow files must be byte-identi
 pnpm ops guard:gate-parity           # pnpm-quality chain and CI lint job must not drift (allowlisted asymmetries excepted)
 pnpm ops guard:ops-doc               # every registered ops CLI command has a row in OPS_CLI_REFERENCE.md
 pnpm ops guard:hook-probes           # runs every .claude/hooks/*.probe.sh; every hook needs a probe or a written reason
-pnpm ops lines:check                 # always-loaded surfaces (.claude/rules total, CURRENT.md) within line budgets
-pnpm ops lines:update-baseline       # make budget growth explicit (same --update contract as cpd/test:audit)
+pnpm ops lines:check                 # always-loaded surfaces (.claude/rules total, CURRENT.md) within their LINE and BYTE budgets
+pnpm ops lines:update-baseline       # make budget growth explicit (same --update contract as cpd/test:audit); --surface <name> scopes the write
 ```
+
+`lines:check` gates two dimensions independently, because lines is not what these surfaces cost: density across the rules files runs 44–130 chars/line and `CURRENT.md` sits near 367, so a line-only ratchet called it comfortable at 96/97 while it carried a fifth of the rules corpus's bytes. Reach for `--surface <name>` whenever a refresh is wanted for one surface only — the unscoped write ratchets a trimmed surface DOWN and a grown one UP in the same commit, which is why the last post-trim refresh was skipped entirely.
 
 The first five run in the CI `lint` job; all guards hard-fail on findings. `guard:workflow-sync` runs in `pnpm quality`, `.husky/pre-push`, AND the CI `lint` job; it skips itself on main-cut branches (detected by topology — no develop-exclusive history — with `--base main` as the explicit override), because main-cut workflow PRs are the sanctioned path. It covers ONLY the self-validating claude workflow files (`claude-code-review.yml`, `claude.yml`): a develop-first change to those silently disables claude-review on every PR (green ~15s no-op) until the next release, because the review's skip-validation compares the action's OWN workflow file against main — empirically file-scoped (a PR carrying ci.yml drift still received a real review). Other workflow files (e.g. `ci.yml`) execute from the PR branch and may land via develop like any code change. `guard:boundaries`, `guard:proposal-links`, and `guard:audit-tool-docs` also support `--summary` for the future aggregator. `guard:audit-tool-docs` self-registers and runs the bidirectional check (every registered tool has a WHY.md AND every `*.WHY.md` is either registered or on `UNREGISTERED_WHY_PATHS`).
 
