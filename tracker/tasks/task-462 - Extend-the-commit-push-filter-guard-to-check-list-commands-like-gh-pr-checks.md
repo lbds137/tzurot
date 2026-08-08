@@ -71,4 +71,27 @@ covered.
 Verdict: worth building, at the narrowed scope. One confirmed incident with real
 cost, deterministic trigger, near-zero runtime cost. AWAITING owner go-ahead on
 the narrowing before implementation.
+
+## APPROVED 2026-08-07 — build at the narrowed scope
+
+Owner approved the narrowing (in response to the recommendation above). Binding
+scope, so a later session does not re-litigate it:
+
+- BLOCK: `head`, `tail`, and `sed -n 'N,Mp'`-style windowing applied to gh READ
+  commands - `gh pr checks`, `gh pr view`, `gh run list`, `gh api` comment/review
+  fetches, and the ops wrappers `gh:pr-comments` / `gh:pr-reviews`.
+- ALLOW: `grep`, `awk`, `jq`. These select by PREDICATE; their emptiness is
+  itself informative. head/tail discard by POSITION and cannot report what they
+  dropped. That distinction is the whole design and must not be widened back
+  into "block filters", which would fire on the correct query.
+- The block message must name the full-output alternative, because "I only
+  wanted the first few" is exactly the assumption that hid the red row.
+
+Open implementation question for whoever builds it: whether this extends
+git-commit-filter-guard.sh (one fewer process per Bash call, but the name stops
+being accurate and a rename ripples through settings.json, its probe, and doc
+references) or lands as a sibling hook. Decide on merits at build time; the
+existing guard's probe is the shape to copy either way, and new probe cases must
+pin BOTH directions - a tail on gh pr checks blocked, a grep on the same command
+allowed.
 <!-- SECTION:DESCRIPTION:END -->
