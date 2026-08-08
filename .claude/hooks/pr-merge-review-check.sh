@@ -51,14 +51,52 @@ COMMAND=$(jq -r '.tool_input.command // empty' <<<"$INPUT" 2>/dev/null || echo "
 PR_NUM=$(COMMAND="$COMMAND" python3 << 'PYEOF'
 import os, re, shlex, sys
 
-command = os.environ.get("COMMAND", "")
+raw_command = os.environ.get("COMMAND", "")
 
 # Cheap reject before any parsing: no phrase, no gate. Keeps the common Bash
 # call (which is not a merge) off the parsing path entirely.
-if not re.search(r"(^|[\s&|;(])gh\s+pr\s+merge($|\s)", command):
+if not re.search(r"(^|[\s&|;(])gh\s+pr\s+merge($|\s)", raw_command):
     sys.exit(0)
 
 OPERATORS = {"&&", "||", ";", "|", "&", "(", ")", ";;", "\n"}
+
+
+def strip_heredocs(text):
+    """Remove heredoc BODIES before tokenizing.
+
+    A heredoc body is data, never commands — bash will not execute a word in
+    it no matter what it looks like. `shlex` has no concept of heredocs, so
+    without this the body is tokenized as if it were shell, and any example
+    command quoted in a PR body, commit message, or issue text can arm the
+    gate on whatever digit follows it. That is not hypothetical: this hook
+    fired on its own PR's `gh pr create`, extracting a PR number out of a
+    markdown table cell describing the very bug being fixed.
+
+    Handles `<<MARKER`, `<<'MARKER'`, `<<"MARKER"`, and the `<<-` indent form.
+    Anything unterminated is dropped to end-of-text, which is the safe way
+    round: an unterminated heredoc means the rest was never commands either.
+    """
+    pattern = re.compile(r"<<-?\s*(['\"]?)([A-Za-z_][A-Za-z_0-9]*)\1")
+    out = []
+    pos = 0
+    while True:
+        match = pattern.search(text, pos)
+        if match is None:
+            out.append(text[pos:])
+            return "".join(out)
+        # Keep the redirection operator itself; drop only what it introduces.
+        out.append(text[pos : match.start()])
+        marker = match.group(2)
+        # The body starts after the line carrying the redirection.
+        newline = text.find("\n", match.end())
+        if newline == -1:
+            return "".join(out)
+        out.append(text[match.end() : newline + 1])
+        terminator = re.compile(r"^[ \t]*" + re.escape(marker) + r"[ \t]*$", re.M)
+        end = terminator.search(text, newline + 1)
+        if end is None:
+            return "".join(out)
+        pos = end.end()
 
 
 def legacy_scan(text):
@@ -76,6 +114,8 @@ def legacy_scan(text):
             return token
     return ""
 
+
+command = strip_heredocs(raw_command)
 
 try:
     lexer = shlex.shlex(command, punctuation_chars=True, posix=True)

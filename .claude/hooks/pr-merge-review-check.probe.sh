@@ -390,6 +390,27 @@ assert_pr "unbalanced quotes fall back to the legacy scan rather than arming not
 new_case; invoke 'out=$(gh pr merge 2002)'
 assert_pr "command substitution around the invocation still arms the gate" 2002
 
+# Heredoc bodies are DATA, never commands — bash will not execute a word in
+# one however shell-like it looks. shlex has no concept of heredocs, so
+# without stripping them the body tokenizes as shell and any example command
+# quoted in a PR body or commit message arms the gate on the digit after it.
+#
+# Not hypothetical: this hook fired on its own fix's `gh pr create`, pulling a
+# PR number out of a markdown table cell that described the very bug being
+# fixed. That is the same shape as one of the two production sightings.
+new_case; invoke "$(printf 'gh pr create --body "$(cat <<%sEOF%s\nrun gh pr merge 42 when ready\nEOF\n)"' "'" "'")"
+assert_no_fetch "a merge quoted inside a heredoc body does not arm the gate"
+
+# The complement: stripping the body must not swallow a REAL invocation that
+# follows the heredoc's terminator.
+new_case; invoke "$(printf 'gh pr comment 7 --body "$(cat <<%sEOF%s\nsee gh pr merge 1\nEOF\n)" && gh pr merge 2002' "'" "'")"
+assert_pr "a real merge after the heredoc terminator still arms the gate" 2002
+
+# Unterminated heredoc: everything after it was never commands either, so
+# dropping to end-of-text is the safe direction.
+new_case; invoke "$(printf 'gh pr create --body "$(cat <<%sEOF%s\nrun gh pr merge 42 when ready' "'" "'")"
+assert_no_fetch "an unterminated heredoc does not arm the gate on its body"
+
 # `set -f` equivalent: the tokenizer must not expand a glob against the cwd,
 # so a digit-named file cannot become a PR number.
 GLOBDIR="$WORK/globdir"
