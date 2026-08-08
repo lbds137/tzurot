@@ -10,7 +10,7 @@ fi
 # so its exit status is its last command's — and the fixup-rider call below ends
 # in `|| true`, which always yields 0. Drop this and a failing commitlint falls
 # through and the commit is accepted, silently disabling message linting.
-npx --no -- commitlint --edit ${1} || exit 1
+npx --no -- commitlint --edit "$1" || exit 1
 
 # Advisory: surface the review-response rider checklist when this commit is a
 # fixup/squash rider. Reads the message subject (`fixup! …`), which git writes
