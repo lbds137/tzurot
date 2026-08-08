@@ -156,11 +156,16 @@ print_release_block() {
 # PR still owes its finalize reminder, and stderr only reaches the agent on the
 # blocking path, so delivering it means exiting 2 once. A feature PR is
 # unaffected and still exits 0 immediately.
+#
+# $1 is the reason line, because the two call sites are NOT the same state: one
+# found no comment, the other found one that would not parse. Saying "none
+# found" for both would be a banner asserting something untrue, which is the
+# whole class this hook's own PR was cleaning up.
 release_block_then_exit() {
     if release_reminder_due; then
         {
             printf '%s\n' "$RULE"
-            printf 'PR MERGE GATE — no claude-review comment found for PR #%s\n' "$PR_NUM"
+            printf 'PR MERGE GATE — %s for PR #%s\n' "${1:-no usable claude-review}" "$PR_NUM"
             printf '%s\n\n' "$RULE"
             printf 'The review gate has nothing to surface, so it is not blocking on that.\n'
             printf 'This block is the release reminder, which does NOT depend on a review\n'
@@ -198,7 +203,7 @@ REVIEW_JSON=$(gh api "repos/lbds137/tzurot/issues/${PR_NUM}/comments?per_page=10
 # only meaningful when there's actually content to surface. The user-facing
 # rule still applies: agent should be reading whatever review IS available.
 if [ -z "$REVIEW_JSON" ] || [ "$REVIEW_JSON" = "null" ]; then
-    release_block_then_exit
+    release_block_then_exit "no claude-review comment found"
 fi
 
 REVIEW_ID=$(jq -r '.id // empty' <<<"$REVIEW_JSON")
@@ -209,7 +214,7 @@ if [ -z "$REVIEW_ID" ] || [ -z "$REVIEW_BODY" ]; then
     # Malformed response or empty review. Allow the merge rather than block on
     # an unparseable state; the rule still nominally applies. The release
     # reminder is independent of that and still owed.
-    release_block_then_exit
+    release_block_then_exit "a claude-review comment was found but did not parse"
 fi
 
 # Origin-language scan: reviews that scope findings as "pre-existing" /
