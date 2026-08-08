@@ -57,10 +57,6 @@ export const HOOK_PROBES: HookProbeEntry[] = [
     probe: '.claude/hooks/develop-code-commit-guard.probe.sh',
   },
   {
-    hook: '.claude/hooks/fixup-rider-check.sh',
-    probe: '.claude/hooks/fixup-rider-check.probe.sh',
-  },
-  {
     hook: '.claude/hooks/git-commit-filter-guard.sh',
     probe: '.claude/hooks/git-commit-filter-guard.probe.sh',
   },
@@ -117,9 +113,10 @@ export const HOOK_PROBES: HookProbeEntry[] = [
     hook: '.husky/commit-msg',
     probe: null,
     unprobedReason:
-      'Three steps, each verified elsewhere: the session-URL grep is a one-line literal ' +
-      'match, commitlint has its own test suite, and the rider step is covered by ' +
-      'fixup-rider-check.probe.sh. Only the `|| exit 1` wiring is unpinned.',
+      'Two steps, each verified elsewhere: the session-URL grep is a one-line literal ' +
+      'match, and commitlint has its own test suite. Only the `|| exit 1` wiring is ' +
+      'unpinned — it guards against a future always-zero step being appended after ' +
+      'commitlint, which is what the retired rider-checklist banner used to be.',
   },
   {
     hook: '.husky/pre-push',

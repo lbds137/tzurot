@@ -86,13 +86,15 @@ For items that passed rules 1 and 2 (trivial-shape + no conflict):
 3. Tests pass → keep the fixup commit.
 4. Tests fail → **escalate to ASK immediately**, with the test failure output attached. A trivial-shape edit that breaks tests is the signal that the whitelist mis-classified it; escalation preserves the safety net.
 
-**Rider checklist — when the fix ADDS code rather than changing it.** Review-response riders systematically get less scrutiny than planned work: "one clause" / "~10 lines" is exactly the size that skips the checks a planned change gets (observed as 3 of 4 findings in one PR's review rounds — an added-but-never-called function, an arm added untested, a doc comment staled from a file the fix didn't touch). Before committing any rider that adds code (or moves it between files), answer the three questions a planned change answers:
+**Riders are caught at review, not at commit.** A fix that ADDS code rather than changing it gets systematically less scrutiny than planned work — "one clause" / "~10 lines" is exactly the size that skips the checks a planned change gets. Measured across four PRs in one session, four separate defects arrived this way — one per PR, each riding a larger change that was itself correct. (Not _every_ defect that session was a rider: a new implementation's own gaps are ordinary primary-change defects. The rider class is distinctive because it evades the scrutiny the primary change gets, not because it is the only source of bugs.)
+
+The authoring-time version of this control failed on its own terms: it existed here as a pre-commit checklist — read four times that day — AND as a commit-time banner that fired on all four of those commits. Not one was prevented. The timing is why — at commit time the rider is already written and staged, so the honest answer to "does this need its own test" costs a rewrite and the cheap read is "it's fine." The reviewer caught all four. So the three questions below are **review-side**: what a flagged rider is usually failing, not a ritual to recite before committing.
 
 - (a) Does the addition need its own test? (New function/branch → yes by default; "it's small" is not an exemption.)
 - (b) Does it stale a comment or doc elsewhere — including `schema.prisma` doc comments and files the fix doesn't touch?
 - (c) Does moving code between files change what a coverage or mutation gate measures? (Extraction can drop a module below a per-file gate that the old file's average was hiding.)
 
-Rule 3's test gate catches breakage; this checklist is the authoring-time complement that catches absence.
+Rule 3's test gate catches breakage; these catch absence.
 
 Fixup commits autosquash naturally on the next `git rebase -i --autosquash`. This is the correct escape valve for a rebase-only workflow — `git revert` is not available on rewritten-history branches, but fixup-drop during interactive rebase is cheap and native.
 

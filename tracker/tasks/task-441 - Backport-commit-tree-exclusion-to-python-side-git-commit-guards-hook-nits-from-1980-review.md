@@ -106,4 +106,9 @@ If a message-text false-fire is ever observed in one of the PYTHON guards, that
 is a new task against those regexes — not a revival of this one, whose target
 was the bash lib.
 
+Note 2026-08-08: fixup-rider-check.sh has been deleted (TASK-472 — the rider
+class is delegated to review). Every reference to it above is history: its
+members are shipped, and the acceptance line naming it is satisfied by its
+removal rather than by anything left to do.
+
 <!-- SECTION:DESCRIPTION:END -->

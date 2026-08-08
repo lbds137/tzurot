@@ -7,13 +7,8 @@ if grep -qE 'claude\.ai/code/session_' "$1"; then
 fi
 
 # The `|| exit 1` is LOAD-BEARING, not defensive. This script has no `set -e`,
-# so its exit status is its last command's — and the fixup-rider call below ends
-# in `|| true`, which always yields 0. Drop this and a failing commitlint falls
-# through and the commit is accepted, silently disabling message linting.
+# so its exit status is its last command's. It is the last command today, which
+# makes the guard look redundant — it is not: append any always-zero step after
+# it (the retired rider-checklist banner ended in `|| true`) and a failing
+# commitlint falls through, silently disabling message linting.
 npx --no -- commitlint --edit "$1" || exit 1
-
-# Advisory: surface the review-response rider checklist when this commit is a
-# fixup/squash rider. Reads the message subject (`fixup! …`), which git writes
-# only for real riders — exact where the previous command-text match was a
-# heuristic. Never blocks; `|| true` keeps a missing/failed script harmless.
-.claude/hooks/fixup-rider-check.sh "$1" || true

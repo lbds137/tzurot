@@ -32,4 +32,6 @@ What the refactor must preserve (checked before filing, do not lose these):
 Work: delete lib/git-command.sh; drop SOURCES[0] and the bashVerdict machinery from gitCommitPatternAgreement.test.ts; trim the leading element from each DIVERGENCE_CASES expectedByLabel array; update the test header (it says "three times, in two languages"); update the "Kept in agreement with the other two copies" comments in develop-code-commit-guard.sh and git-commit-filter-guard.sh; check the GNU-grep-on-PATH caveat in the test header, which exists only for the bash column and can go with it.
 
 Acceptance: file deleted, agreement test green with two Python sources, both divergence rows still pinning Python behaviour, and a canary check that editing one Python regex alone still fails the test.
+
+Note 2026-08-08: fixup-rider-check.sh has since been deleted outright (TASK-472 — the rider class is delegated to review), so one of the two former consumers named above no longer exists. The merits argument is unchanged and slightly stronger: the file has fewer former consumers, not more.
 <!-- SECTION:DESCRIPTION:END -->

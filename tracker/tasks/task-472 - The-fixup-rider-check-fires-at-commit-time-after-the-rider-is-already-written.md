@@ -20,7 +20,7 @@ ordinal: 472000
 <!-- SECTION:DESCRIPTION:BEGIN -->
 Surfaced 2026-08-08 across PRs 2008, 2009, 2010 and 2011 in one session.
 
-Evidence: every defect introduced in that session arrived as a SMALL RIDER on a larger change that was itself correct.
+Evidence: four separate defects, one per PR, each a SMALL RIDER on a larger change that was itself correct. (Corrected 2026-08-08 from "every defect introduced" — too strong. #2009 rounds 2-7 also found gaps in the original tokenizer, which are ordinary primary-change defects. The rider class is distinctive for evading the primary change's scrutiny, not for being the only source of bugs.)
 
 - 2009: a heredoc-stripping rider, added to close a fail-open, deleted any real merge invocation that followed a false opener - a total gate bypass, strictly worse than the bug being fixed.
 - 2008: a doc rider fixing stale figures introduced a pronoun ambiguity that made a false claim about what runs in CI.
