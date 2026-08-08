@@ -3,10 +3,10 @@ id: TASK-458
 title: >-
   PostToolUse hook output may never reach the agent, so several documented
   enforcement hooks are inert
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-07 03:39'
-updated_date: '2026-08-07 12:33'
+updated_date: '2026-08-08 00:32'
 labels:
   - 'area:process'
   - 'area:tooling'
@@ -70,4 +70,29 @@ REVISED destination for fixup-rider-check (the PreToolUse assumption above does 
 OPEN QUESTION, no longer load-bearing: does a non-blocking PreToolUse hook's output reach the agent at all? Nothing in the repo answers it.
 
 ABSORBED: TASK-433 (watch empty-result-stderr-guard reminder volume; tighten if noisy) was archived into this task. Its trigger was observed reminder volume — unobservable, since those reminders never arrive. Its real acceptance criterion ("or the hook is retired with the reason") is decided here instead.
+
+## SHIPPED 2026-08-07 (#2002)
+
+claim-shape-guard -> .husky/pre-commit (scans the STAGED diff).
+fixup-rider-check -> .husky/commit-msg (keyed on git's fixup!/squash!/amend!
+subject, which killed the documented --fixup-in-message false positive; all
+three prefixes verified live to pass commitlint, so no arm is dead).
+release-finalize reminder -> folded into the BLOCKING pr-merge-review-check,
+firing before the merge rather than after, and reachable even when no review
+comment exists (a review-round finding: the first cut nested it behind the
+review-existence check, which would have silently dropped it in the documented
+claude-review-posted-nothing case).
+
+CORRECTION to the remediation recorded above: pr-monitor-reminder is NOT inert.
+Its gh api assignee backfill is a real write that works without output
+delivery, so it stays registered; only its banner was dead.
+
+empty-result-stderr-guard and eslint-on-edit are unregistered with in-file
+UNREGISTERED headers - neither has a channel that delivers.
+release-finalize-reminder.sh deleted (superseded). False enforcement claims
+removed from 05-tooling.md (x2), 10-working-posture.md, the git-workflow skill,
+and check-monitor-command.ts.
+
+Follow-ups filed rather than folded in: TASK-464 (claim-shape cannot-<verb>
+false positive), TASK-302 gained pr-merge-review-check as a probe-parity member.
 <!-- SECTION:DESCRIPTION:END -->

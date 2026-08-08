@@ -69,31 +69,29 @@ RULE='━━━━━━━━━━━━━━━━━━━━━━━━�
 ACK_FILE="/tmp/.claude_pr_merge_ack.$(id -u)"
 RELEASE_KEY="RELEASE:${PR_NUM}"
 
-# Base-branch resolution, cached in the ack file as `BASE:<pr>:<branch>`.
+# Base-branch resolution. Queried fresh every time it is needed, NOT cached.
 #
-# Two constraints pull opposite ways and the cache is what satisfies both. The
-# release reminder must be reachable BEFORE the review-existence early-exits —
-# a release PR whose claude-review posted nothing (documented in 05-tooling.md
-# § claude-review health, observed twice) would otherwise merge with no
-# reminder at all, which is the exact silent-drop this hook was moved here to
-# end. But the acked-retry fast path must stay free of API calls, since it runs
-# on every ordinary feature merge. So the first call for a PR pays one
-# `gh pr view`; every later call reads the cached line.
+# The release reminder must be reachable BEFORE the review-existence
+# early-exits — a release PR whose claude-review posted nothing (documented in
+# 05-tooling.md § claude-review health, observed twice) would otherwise merge
+# with no reminder at all, which is the exact silent-drop this hook was moved
+# here to end.
+#
+# That does NOT cost the acked-retry fast path anything, because that path
+# exits at the ack check below before this is ever called — which is also why
+# an earlier cache of the answer was removed rather than kept: it bought
+# nothing on the hot path and introduced a staleness bug, since a PR retargeted
+# from develop to main (or back) would keep serving the old base for the life
+# of /tmp, silently suppressing or spuriously firing the reminder. A stale
+# answer here reproduces the very failure class this hook exists to prevent, so
+# freshness wins over one saved API call on a rare path.
 #
 # Fails open to "": an unreadable base skips the release block rather than
 # blocking a merge on a `gh` blip.
 PR_BASE=""
 resolve_pr_base() {
     [ -n "$PR_BASE" ] && return 0
-    if [ -f "$ACK_FILE" ]; then
-        PR_BASE=$(grep -m1 "^BASE:${PR_NUM}:" "$ACK_FILE" 2>/dev/null | cut -d: -f3- || echo "")
-    fi
-    [ -n "$PR_BASE" ] && return 0
     PR_BASE=$(gh pr view "$PR_NUM" --json baseRefName --jq '.baseRefName' 2>/dev/null || echo "")
-    if [ -n "$PR_BASE" ]; then
-        echo "BASE:${PR_NUM}:${PR_BASE}" >>"$ACK_FILE" 2>/dev/null || true
-        chmod 600 "$ACK_FILE" 2>/dev/null || true
-    fi
     return 0
 }
 
