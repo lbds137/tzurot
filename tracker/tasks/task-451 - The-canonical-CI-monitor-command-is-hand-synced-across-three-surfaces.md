@@ -19,9 +19,17 @@ ordinal: 451000
 <!-- SECTION:DESCRIPTION:BEGIN -->
 The same bash one-liner (the until-gate + gh pr checks --watch monitor command) is embedded verbatim in THREE places:
 
-- .claude/hooks/pr-monitor-reminder.sh (inside a heredoc) — the only surface that is actually EXECUTED, so it is ground truth
+- .claude/hooks/pr-monitor-reminder.sh (inside a heredoc) — the guard's reference copy by POSITION only
 - .claude/rules/05-tooling.md (canonical block)
-- .claude/skills/tzurot-git-workflow/SKILL.md (fallback template)
+- .claude/skills/tzurot-git-workflow/SKILL.md (the copy actually armed from)
+
+CORRECTION 2026-08-07 (TASK-458 / #2002): the first bullet used to read "the only
+surface that is actually EXECUTED, so it is ground truth". That premise is false.
+The heredoc IS built on every push, but non-blocking PostToolUse output never
+reaches the agent, so nobody has ever read it — every monitor this project has
+armed came from the rule/skill text. If this task's fix picks a single source to
+generate the other two from, do NOT pick the hook on ground-truth grounds; the
+skill copy is the one with real readers.
 
 Every logic change therefore needs three coordinated edits. Surfaced by the #1989 round-3 review, which noted this cuts against 07-documentation.md three-layer rule that layers do not duplicate content.
 
