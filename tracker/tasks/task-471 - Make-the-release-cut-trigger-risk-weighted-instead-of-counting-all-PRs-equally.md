@@ -1,10 +1,10 @@
 ---
 id: TASK-471
 title: Make the release-cut trigger risk-weighted instead of counting all PRs equally
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-08 19:11'
-updated_date: '2026-08-08 19:11'
+updated_date: '2026-08-08 19:37'
 labels:
   - 'area:process'
   - 'size:S'
