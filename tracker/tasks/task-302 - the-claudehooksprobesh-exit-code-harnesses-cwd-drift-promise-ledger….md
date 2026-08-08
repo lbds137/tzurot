@@ -104,4 +104,37 @@ So the real precondition is a BARE all-digit token after a decoy gh/pr/merge
 sequence - not merely a decoy sequence. Pin all four shapes, including the
 quoted one as a passing case, since it is the difference between the two that
 documents the actual boundary.
+
+TRIGGER SET CORRECTED AGAIN (2026-08-08, re-derived against the extraction
+logic itself rather than through the banner). The correction above is right
+about the bare-digit half and WRONG about the heredoc row, so the note had the
+same defect twice - a listed trigger that does not hold:
+
+- `gh pr merge 2002 <<EOF / run gh pr merge 1 later / EOF` -> extracts 2002
+  (CORRECT, does NOT misfire). Shortest-prefix removal anchors on the FIRST
+  gh/pr/merge occurrence, which here is the real one, so the decoy inside the
+  heredoc body is already past the anchor.
+- `cat <<EOF / run gh pr merge 1 later / EOF / gh pr merge 2002` -> extracts 1
+  (MISFIRES). Same heredoc, moved BEFORE the real invocation.
+
+POSITION is the missing half of the precondition. Both must hold: a decoy
+gh/pr/merge sequence positioned BEFORE the real invocation, AND a bare
+all-digit token after it. Verified across `&&`, `;`, newline, and pipe
+separators - all misfire when the decoy leads. A decoy that leads but carries
+no bare digit (`echo gh pr merge now`, `echo gh pr merge v1`) extracts 2002
+correctly.
+
+OBSERVED IN PRODUCTION, not just derived: a READ-ONLY diagnostic command that
+merely discussed merges - it defined a shell function and printed case labels,
+invoking no merge at all - tripped the live hook, which extracted PR #1,
+fetched that PR's (absent) review, resolved its base as `main`, and printed the
+release-finalize reminder. Two things follow. First, the misfire needs no
+exotic construction; ordinary prose about merging with a loose digit in it is
+enough. Second, the probe's own case list cannot be passed inline in a Bash
+command - it will trip the hook it is testing. Write the harness to a file and
+execute the file.
+
+Impact stands as recorded: a wrong PR whose review is absent AND whose base is
+not `main` exits 0, and the merge proceeds UNREVIEWED. Here it happened to
+block only because the release reminder was independently due.
 <!-- SECTION:DESCRIPTION:END -->
