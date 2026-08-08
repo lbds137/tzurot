@@ -79,9 +79,9 @@ argument complete and well-formed. Only after those pass does "the data
 isn't there" become a hypothesis — and stating it is governed by
 `00-critical.md` § "An empty or sparse tool result" (the store side of this
 same seam). There is no structural backstop here — this check is yours to run.
-A hook once claimed the job, but it needs the command's RESULT, which only
-exists post-hoc, and non-blocking post-hoc hook output does not reach the
-agent; it is unregistered rather than silently inert.
+A hook once claimed the job and was retired: it needed the command's RESULT,
+which exists only post-hoc, and non-blocking post-hoc hook output never reaches
+the agent. No channel can carry it, so the rule is the mechanism.
 
 ## Reviews are collaborators, not gates to survive
 

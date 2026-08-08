@@ -87,8 +87,13 @@ CORRECTION to the remediation recorded above: pr-monitor-reminder is NOT inert.
 Its gh api assignee backfill is a real write that works without output
 delivery, so it stays registered; only its banner was dead.
 
-empty-result-stderr-guard and eslint-on-edit are unregistered with in-file
-UNREGISTERED headers - neither has a channel that delivers.
+empty-result-stderr-guard was RETIRED (deleted with its probe), which is the
+acceptance criterion the absorbed TASK-433 recorded: no channel can carry it,
+because it needs the command's RESULT and that exists only post-hoc. The rule
+text in 10-working-posture.md is the mechanism and says so. eslint-on-edit is
+unregistered with an in-file UNREGISTERED header rather than deleted - it is
+dormant-but-viable (a working script whose only fault is the channel), and
+lint-staged plus CI already cover it.
 release-finalize-reminder.sh deleted (superseded). False enforcement claims
 removed from 05-tooling.md (x2), 10-working-posture.md, the git-workflow skill,
 and check-monitor-command.ts.
