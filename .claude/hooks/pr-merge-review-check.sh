@@ -48,17 +48,126 @@ COMMAND=$(jq -r '.tool_input.command // empty' <<<"$INPUT" 2>/dev/null || echo "
 # Fails CLOSED by design, in both directions: an unparseable command falls back
 # to the old permissive scan rather than arming nothing, because silently not
 # arming is the same hole under a different name.
+# Cheap Bash-level reject FIRST. This hook is registered on every Bash call, so
+# without this guard a python3 process would start for `ls`, `git status`, and
+# every other command in the session — on a RAM-constrained machine, for a check
+# that is irrelevant to all of them. The tokenizer below only ever runs on a
+# command that at least mentions the phrase.
+# Held in a variable rather than written inline: an unquoted `[[ =~ ]]` regex
+# whose bracket expression contains `(` derails bash's own parser, and it fails
+# at the END of the file with a misleading "unexpected EOF" rather than here.
+# Deliberately PERMISSIVE: it only decides whether to spawn python, and the
+# tokenizer does the real work. Requiring a boundary before `gh` made it reject
+# quote-wrapped invocations (`bash -c "gh pr merge N"`) before anything could
+# look at them. Only the trailing boundary matters, so `gh pr merge-queue` and
+# similar still fall through.
+MERGE_PHRASE_RE='gh[[:space:]]+pr[[:space:]]+merge($|[[:space:]])'
+if ! [[ "$COMMAND" =~ $MERGE_PHRASE_RE ]]; then
+    exit 0
+fi
+
 PR_NUM=$(COMMAND="$COMMAND" python3 << 'PYEOF'
 import os, re, shlex, sys
 
-command = os.environ.get("COMMAND", "")
+raw_command = os.environ.get("COMMAND", "")
 
 # Cheap reject before any parsing: no phrase, no gate. Keeps the common Bash
 # call (which is not a merge) off the parsing path entirely.
-if not re.search(r"(^|[\s&|;(])gh\s+pr\s+merge($|\s)", command):
+# Mirrors the bash-level MERGE_PHRASE_RE above; keep the two in step.
+if not re.search(r"gh\s+pr\s+merge($|\s)", raw_command):
     sys.exit(0)
 
-OPERATORS = {"&&", "||", ";", "|", "&", "(", ")", ";;", "\n"}
+# What opens a new command position. Tested as a PUNCTUATION RUN rather than an
+# enumerated set: shlex returns adjacent punctuation as ONE token, so `a &&( gh
+# pr merge N )` yields `&&(` — which no enumerated set contains, leaving the
+# position stuck and the merge ungated. Keywords are separate because bash also
+# starts a command after them and they arrive as ordinary words.
+PUNCTUATION = set("();<>|&")
+KEYWORDS = {"if", "then", "else", "elif", "while", "until", "do",
+            "case", "select", "{", "!"}
+
+# Utilities that RUN the command that follows them, so they do not consume the
+# command position — same idea as the assignment-prefix skip below. Without
+# this, `env FOO=bar gh pr merge N` extracted nothing at all and the merge went
+# ungated. `env` also takes assignments, which the existing skip then handles.
+WRAPPERS = {"env", "nohup", "time", "command", "exec", "sudo", "stdbuf",
+            "timeout", "xargs", "eval"}
+
+# Programs whose `-c` argument is a shell command. Gating on these keeps the
+# recursion from firing on the many unrelated tools with a `-c` flag —
+# `grep -c "<the phrase> N" file` would otherwise arm the gate on N.
+SHELLS = {"bash", "sh", "zsh", "dash", "ksh", "fish"}
+
+
+def opens_command(token):
+    # `token and` is load-bearing: `all()` over an empty string is True, so an
+    # empty token would read as an operator. That ended the PR-number scan on
+    # `gh pr merge '' 2002` before it reached the number — an under-arm.
+    return bool(token) and (token in KEYWORDS or all(ch in PUNCTUATION for ch in token))
+
+# `str.isdigit()` is true for superscripts and Arabic-Indic digits; the bash
+# regex it replaced was strictly ASCII.
+ASCII_DIGITS = re.compile(r"[0-9]+")
+
+
+def strip_heredocs(text):
+    """Remove heredoc BODIES before tokenizing.
+
+    A heredoc body is data, never commands — bash will not execute a word in
+    it no matter what it looks like. `shlex` has no concept of heredocs, so
+    without this the body is tokenized as if it were shell, and any example
+    command quoted in a PR body, commit message, or issue text can arm the
+    gate on whatever digit follows it. That is not hypothetical: this hook
+    fired on its own PR's `gh pr create`, extracting a PR number out of a
+    markdown table cell describing the very bug being fixed.
+
+    Handles `<<MARKER`, `<<'MARKER'`, `<<"MARKER"`, and the `<<-` indent form,
+    for identifier-shaped markers only. A non-identifier marker leaves its body
+    un-stripped, which over-arms rather than under-arms — the safe direction.
+
+    An UNTERMINATED match strips NOTHING. The opener is found by regex over raw
+    text, which cannot tell a real redirection from the same characters sitting
+    inside a quoted argument — and dropping to end-of-text on a false match
+    deletes any real invocation that followed it, producing a total gate bypass
+    rather than a wrong PR. That is the worse of the two directions, so the
+    unterminated case keeps the text and accepts over-arming instead.
+
+    `<<<` (here-string) is excluded for the same reason: its trailing `<` plus a
+    bare word looks like an opener to a naive regex, and the marker never
+    terminates, so it hit exactly the bypass above.
+
+    One unterminated opener disables stripping for the WHOLE command, not just
+    that heredoc — deliberate, since the alternative is deciding which half of
+    an ambiguous parse to trust, and the cost is only over-arming.
+
+    Two known limits, both over-arming: only the FIRST opener on a line is
+    recognized (`cmd <<A <<B` leaves B's body unstripped), and the terminator
+    match allows leading whitespace even for the non-`<<-` form, which real
+    bash requires at column 0. Both leave heredoc text visible to the
+    tokenizer, never hide a real invocation.
+    """
+    # (?<!<) keeps `<<<` from reading as a heredoc opener.
+    pattern = re.compile(r"(?<!<)<<-?\s*(['\"]?)([A-Za-z_][A-Za-z_0-9]*)\1")
+    out = []
+    pos = 0
+    while True:
+        match = pattern.search(text, pos)
+        if match is None:
+            out.append(text[pos:])
+            return "".join(out)
+        # Keep the redirection operator itself; drop only what it introduces.
+        out.append(text[pos : match.start()])
+        marker = match.group(2)
+        # The body starts after the line carrying the redirection.
+        newline = text.find("\n", match.end())
+        if newline == -1:
+            return text
+        terminator = re.compile(r"^[ \t]*" + re.escape(marker) + r"[ \t]*$", re.M)
+        end = terminator.search(text, newline + 1)
+        if end is None:
+            return text
+        out.append(text[match.end() : newline + 1])
+        pos = end.end()
 
 
 def legacy_scan(text):
@@ -72,57 +181,148 @@ def legacy_scan(text):
     if len(after) < 2:
         return ""
     for token in after[1].split():
-        if token.isdigit():
+        if ASCII_DIGITS.fullmatch(token):
             return token
     return ""
 
 
-try:
-    lexer = shlex.shlex(command, punctuation_chars=True, posix=True)
-    lexer.whitespace_split = True
-    # A newline separates commands, but shlex counts it as plain whitespace and
-    # never emits it as a token — so `pnpm test\ngh pr merge 2002` would read as
-    # one long command and the merge would lose its command position. Record the
-    # line each token STARTS on so a newline can restore that position.
-    #
-    # Read the counter BEFORE each token, not after: measured, `lineno` is
-    # incremented while finishing the token that PRECEDES the newline, so the
-    # after-value marks the wrong token as the one that crossed the line.
-    tokens = []
-    linenos = []
-    while True:
-        line_at_start = lexer.lineno
-        token = lexer.get_token()
-        if token is None or token == "":
-            break
-        tokens.append(token)
-        linenos.append(line_at_start)
-except ValueError:
-    # Unbalanced quotes: not parseable as a command line at all.
-    print(legacy_scan(command))
-    sys.exit(0)
+def extract(text, depth=0):
+    """Return the PR number a real `gh pr merge` in `text` targets, or "".
 
-at_command_start = True
-for i, token in enumerate(tokens):
-    if i > 0 and linenos[i] != linenos[i - 1]:
-        at_command_start = True
-    if token in OPERATORS:
-        at_command_start = True
-        continue
-    # `FOO=bar gh pr merge 5` — an assignment prefix does not consume the
-    # command position. Missing this made the gate silently skip that shape.
-    if at_command_start and re.fullmatch(r"[A-Za-z_][A-Za-z_0-9]*=.*", token):
-        continue
-    if at_command_start and token == "gh" and tokens[i + 1 : i + 3] == ["pr", "merge"]:
-        for candidate in tokens[i + 3 :]:
-            if candidate in OPERATORS:
+    Recurses into `-c` / `eval` string arguments: `bash -c "gh pr merge N"` is
+    ONE quoted token to the tokenizer, so without recursion the invocation is
+    invisible — which the naive text scan this replaced did catch, making it a
+    regression rather than a pre-existing gap.
+    """
+    if depth > 3:
+        return ""
+    command = strip_heredocs(text)
+    try:
+        lexer = shlex.shlex(command, punctuation_chars=True, posix=True)
+        lexer.whitespace_split = True
+        # A newline separates commands, but shlex counts it as plain whitespace
+        # and never emits it as a token — so `pnpm test\ngh pr merge 2002` would
+        # read as one long command and the merge would lose its command
+        # position. Record the line each token STARTS on to restore it.
+        #
+        # Read the counter BEFORE each token, not after: measured, `lineno` is
+        # incremented while finishing the token that PRECEDES the newline, so
+        # the after-value marks the wrong token as having crossed the line.
+        tokens = []
+        linenos = []
+        while True:
+            line_at_start = lexer.lineno
+            token = lexer.get_token()
+            # ONLY None means end of input. An empty string is a legitimate
+            # token (`echo '' && gh pr merge N`), and treating it as EOF
+            # truncated the stream and dropped every command after it.
+            if token is None:
                 break
-            if candidate.isdigit():
-                print(candidate)
-                sys.exit(0)
-        # Bare `gh pr merge` (current branch's PR). Nothing to key an ack on.
-        sys.exit(0)
-    at_command_start = False
+            tokens.append(token)
+            linenos.append(line_at_start)
+    except Exception:
+        # ANY tokenizer failure, not just the unbalanced-quote ValueError.
+        # A narrower catch let every other exception escape, crash python, and
+        # reach the shell's `|| PR_NUM=""` — which is silently NO GATE, the
+        # exact direction this design refuses. Failure means fall back to the
+        # permissive scan; it never means arm nothing.
+        return legacy_scan(command)
+
+    at_command_start = True
+    # The command word of the segment being scanned — what actually owns any
+    # flags that follow. Cleared at every command boundary.
+    current_command = None
+    nested = []
+    for i, token in enumerate(tokens):
+        if i > 0 and linenos[i] != linenos[i - 1]:
+            at_command_start = True
+            current_command = None
+        if opens_command(token):
+            at_command_start = True
+            current_command = None
+            continue
+        # A shell's `-c` argument, or `eval`'s, is a command in its own right;
+        # collect it and scan it only if nothing real is found at this level.
+        # Which program owns this `-c`? Tracked as the current segment's command
+        # word, not the whole prefix and not the immediately-preceding token.
+        # Both narrower rules were wrong: a prefix-wide check let `bash
+        # --version; grep -c "<phrase> N"` recurse into grep's PATTERN, and the
+        # immediately-preceding check missed `bash -x -c "..."`, where a flag
+        # sits between the shell and its own `-c`.
+        if i + 1 < len(tokens) and token == "-c" and current_command in SHELLS:
+            nested.append(tokens[i + 1])
+        # `eval` is in WRAPPERS, which handles its UNQUOTED form (bash joins the
+        # args and runs them). The quoted form is one opaque token, so it needs
+        # the recursion as well.
+        if i + 1 < len(tokens) and token == "eval":
+            nested.append(tokens[i + 1])
+        # `FOO=bar gh pr merge 5` — an assignment prefix does not consume the
+        # command position. Missing this made the gate silently skip that shape.
+        # A wrapper runs what follows, so it is not the command word itself.
+        if at_command_start and token in WRAPPERS:
+            continue
+        if at_command_start and current_command is None:
+            current_command = token
+        if at_command_start and re.fullmatch(r"[A-Za-z_][A-Za-z_0-9]*=.*", token):
+            continue
+        if at_command_start and token == "gh" and tokens[i + 1 : i + 3] == ["pr", "merge"]:
+            for candidate in tokens[i + 3 :]:
+                if opens_command(candidate):
+                    break
+                if ASCII_DIGITS.fullmatch(candidate):
+                    return candidate
+            # This occurrence yielded no PR number — a bare `gh pr merge`, or
+            # its arguments ran into an operator first. KEEP SCANNING: `gh pr
+            # merge && gh pr merge 2002` would otherwise extract nothing and
+            # let the real, explicit merge through completely ungated.
+        at_command_start = False
+
+    for inner in nested:
+        found = extract(inner, depth + 1)
+        if found:
+            return found
+
+    # STRUCTURAL BACKSTOP. Everything above decides WHICH invocation is real,
+    # and every bug this file has had was the same shape: that logic failed to
+    # recognise one, returned nothing, and the merge proceeded with no gate —
+    # the one direction this hook must never fail in. Six such gaps were found
+    # by review in a single day (bare-then-real chaining, empty tokens, `-c`
+    # wrapping, `env`/`nohup` prefixes, glued punctuation, `eval`), which is
+    # what writing a shell parser by hand actually looks like.
+    #
+    # So: if `gh pr merge` survived tokenization as three ADJACENT tokens, a
+    # real invocation is present and the position logic simply did not model
+    # its shape. Fall back to the permissive scan rather than exiting clean.
+    # Any future gap now degrades to over-arming (the agent sees an unrelated
+    # review and retries) instead of a silent bypass.
+    #
+    # Adjacency is the discriminator that keeps this PR's headline fix: prose
+    # inside a quoted `--body` is ONE token, so it never looks adjacent, and a
+    # heredoc body is already stripped before it gets here. Only text the shell
+    # would actually execute as words reaches this check.
+    # Scan the TOKENS, not the raw text. `legacy_scan` reads the first textual
+    # occurrence, so a decoy earlier in the command won over the real
+    # invocation — this backstop would have reintroduced the very bug the file
+    # exists to fix. Tokens carry quoting, so prose cannot appear adjacent.
+    for i in range(len(tokens)):
+        if tokens[i : i + 3] == ["gh", "pr", "merge"]:
+            for candidate in tokens[i + 3 :]:
+                if opens_command(candidate):
+                    break
+                if ASCII_DIGITS.fullmatch(candidate):
+                    return candidate
+    return ""
+
+
+try:
+    print(extract(raw_command))
+except Exception:
+    # The whole extraction, not just the tokenizer. Anything escaping here
+    # would exit non-zero, hit the shell's `|| PR_NUM=""`, and silently arm
+    # nothing — the direction this design refuses. Now structurally true
+    # rather than true-by-current-code-shape.
+    print(legacy_scan(raw_command))
+
 PYEOF
 ) || PR_NUM=""
 
