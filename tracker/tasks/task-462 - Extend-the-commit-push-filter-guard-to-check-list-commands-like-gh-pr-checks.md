@@ -94,4 +94,48 @@ references) or lands as a sibling hook. Decide on merits at build time; the
 existing guard's probe is the shape to copy either way, and new probe cases must
 pin BOTH directions - a tail on gh pr checks blocked, a grep on the same command
 allowed.
+
+## BUILD DECISION 2026-08-07 — extend + rename, decided on merits after reading the guard
+
+Read .claude/hooks/git-commit-filter-guard.sh end to end. Its scan is already
+the right shape and generalizes with no restructuring:
+
+  - split the command into chain segments (&&, ||, ;, newline)
+  - split each segment into pipeline stages on |
+  - for each stage, if a TARGET regex matches it and a FILTERS regex matches any
+    LATER stage in the same pipeline, block
+
+Today that is one hardcoded pair: GIT_TARGET (git commit|push, tolerating global
+flags) x FILTERS (tail|head|grep|sed|awk). The change is to make it a LIST of
+(target, filters) pairs and add a second entry:
+
+  - GH_READ_TARGET: gh pr checks | gh pr view | gh run list | gh api .*comments
+    | gh api .*reviews, plus the ops wrappers gh:pr-comments / gh:pr-reviews
+  - TRUNCATORS: ^(head|tail)\b, plus sed with an -n N,Mp window. NOT grep/awk/jq.
+
+Two different filter sets is exactly why the pair-list generalization is needed
+and why this belongs in the same scan rather than a copy of it.
+
+EXTEND, not a sibling hook. Merits: a sibling costs a whole extra process on
+every Bash call (each blocking guard measures ~9ms after its raw pre-check, per
+the numbers recorded in TASK-441), duplicates the segment/stage splitter, and
+splits one concern - "a lossy pipe on output that must be read whole" - across
+two files that would drift.
+
+RENAME as part of it: git-commit-filter-guard.sh stops being an accurate name
+once it guards gh reads. Rename to lossy-pipe-guard.sh and update
+.claude/settings.json, the colocated .probe.sh, and any doc references (grep at
+build time; do not assume the list).
+
+One cost to accept knowingly: the raw-stdin pre-check must gain a gh token, so
+`gh` commands that also contain a pipe will start reaching python. Still narrow
+- it requires BOTH a pipe and a gh/git token - and the existing pre-check
+comment explains why over-matching there is safe.
+
+Probe cases must pin BOTH directions per target, or the allow-list silently
+becomes a block-list:
+  - gh pr checks 2002 | tail -30      -> BLOCK
+  - gh pr checks 2002 | grep fail     -> ALLOW  (this is the correct query)
+  - gh pr checks 2002 | awk '$2!="pass"' -> ALLOW
+  - git push | tail                   -> BLOCK  (all 50+ existing cases stay green)
 <!-- SECTION:DESCRIPTION:END -->
