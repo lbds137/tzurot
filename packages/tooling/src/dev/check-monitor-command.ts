@@ -136,8 +136,9 @@ export function checkMonitorCommand(): void {
     console.error(`\nDrifted (${c.file}:${c.line}):\n  ${c.normalized}`);
   }
   console.error(
-    '\nThe hook is ground truth — it is the copy actually emitted to the agent on ' +
-      'every push. Apply the change to all three surfaces (placeholders may differ; ' +
+    '\nThe hook heredoc is the reference copy by position, not because it is read — ' +
+      'its output never reaches the agent. The skill copy is the one actually armed ' +
+      'from. Apply the change to all three surfaces (placeholders may differ; ' +
       'nothing else may).'
   );
   process.exitCode = 1;
