@@ -51,4 +51,23 @@ Cases to pin: bare `gh pr merge 2002`; flags-first `gh pr merge --rebase 2002`;
 a chained `echo "gh pr merge 1" && gh pr merge 2002`; and a heredoc body
 mentioning the command. Assert the extracted PR_NUM, not just the exit code -
 exit code alone cannot distinguish "right PR" from "wrong PR with no review".
+
+TRIGGER SET CORRECTED (measured while shipping #2003, against a copy of the
+hook with ACK_FILE redirected and a PATH-shimmed gh; PR_NUM read back from the
+release banner's "for PR #N"). The mechanism is real but one listed trigger
+does NOT hold, and repeating it in a PR body would have sent someone to verify
+a path that was never broken:
+
+- `echo "gh pr merge 1" && gh pr merge 2002` -> extracts 2002 (CORRECT, does
+  NOT misfire). The decoy token is `1"` with the closing quote attached, and
+  the loop tests `^[0-9]+$`, so it is skipped. The quote is what saves it.
+- `echo "gh pr merge 1 " && gh pr merge 2002` -> extracts 1 (MISFIRES). One
+  space before the closing quote is the whole difference.
+- `echo gh pr merge 1 && gh pr merge 2002` (unquoted) -> extracts 1 (MISFIRES).
+- heredoc body containing `run gh pr merge 1 later` -> extracts 1 (MISFIRES).
+
+So the real precondition is a BARE all-digit token after a decoy gh/pr/merge
+sequence - not merely a decoy sequence. Pin all four shapes, including the
+quoted one as a passing case, since it is the difference between the two that
+documents the actual boundary.
 <!-- SECTION:DESCRIPTION:END -->
