@@ -7,7 +7,7 @@
 pnpm dev              # Start all services
 pnpm test             # Run unit tests
 pnpm test:component   # Run component tests (snapshots, cross-service)
-pnpm quality          # the full static gate — composition lives in package.json scripts.quality (guard:gate-parity keeps it in sync with the CI lint job; don't enumerate it here, that's a third list to drift)
+pnpm quality          # full static gate (composition: package.json scripts.quality)
 pnpm lint             # Lint all packages
 pnpm lint:errors      # Show only errors
 
@@ -23,20 +23,9 @@ pnpm focus:test       # Test changed packages
 
 ## Resource Constraints (CRITICAL)
 
-**NEVER run `pnpm test` and `pnpm quality` in parallel.** The Steam Deck has
-limited RAM, and running both simultaneously causes OOM kills that crash the IDE
-and Claude Code. Always run them **sequentially**:
-
-```bash
-# ✅ CORRECT - Sequential
-pnpm test && pnpm quality
-
-# ❌ WRONG - Parallel (crashes Steam Deck)
-# Running both as background tasks simultaneously
-```
-
-This applies to all heavy commands: `pnpm test`, `pnpm test:component`, `pnpm quality`,
-`pnpm typecheck`. Run one at a time, wait for completion, then run the next.
+**NEVER run heavy commands in parallel** — `pnpm test`, `pnpm test:component`,
+`pnpm quality`, `pnpm typecheck`. The Steam Deck OOM-kills the IDE and Claude
+Code. Run sequentially: `pnpm test && pnpm quality`.
 
 ## Ops CLI (`pnpm ops`)
 
@@ -50,9 +39,7 @@ pnpm ops db:inspect                   # Inspect tables/indexes (local)
 pnpm ops db:check-drift               # Check for migration drift
 ```
 
-**Non-interactive note**: `db:safe-migrate` and `db:migrate` work in non-TTY
-environments (AI assistants, CI). `--name` is required for `db:safe-migrate`
-when stdin is not a TTY.
+**`db:safe-migrate` requires `--name` in non-TTY environments (AI assistants, CI).**
 
 ### GitHub (Use instead of broken `gh pr edit`)
 
@@ -71,7 +58,7 @@ pnpm ops run --env dev <command>     # Run any command with Railway creds
 pnpm ops maintenance on|off|status --env prod   # Maintenance mode (destructive migrations) — sequence in /tzurot-deployment
 ```
 
-**Migration-timing reminder:** Migrations are NOT auto-applied on Railway, and timing matters because every service auto-deploys in parallel. For a **prod release**, migrate BEFORE merging the release PR — `pnpm ops release:premigrate` (then merge; auto-deploy lands into the ready schema). For **dev**, apply promptly after the push — `pnpm ops db:migrate --env dev`. See `.claude/rules/03-database.md` § Deployment for the additive-vs-destructive distinction.
+**Migration timing:** prod — `pnpm ops release:premigrate` BEFORE merging the release PR; dev — `pnpm ops db:migrate --env dev` promptly after the push. Details: `03-database.md` § Deployment.
 
 ### Codebase Analysis (Xray)
 
@@ -89,8 +76,6 @@ pnpm ops xray --imports              # Include import analysis (auto for md/json
 
 **Use `--summary` for architectural overview.** Full mode lists every declaration.
 
-**Decision-point trigger**: xray is not just a periodic-audit tool — it is the required sweep before any negative existence claim ("we don't have X") per `00-critical.md` § Don't Present Speculation as Fact. `pnpm ops xray --format md | grep -iE 'termA|termB|termC'` searches every export in seconds and cannot be stale.
-
 ### Mutation-Score Ratchet (Stryker)
 
 ```bash
@@ -100,7 +85,7 @@ pnpm ops mutation:gate                      # CI skip gate: run=false when the d
 pnpm ops mutation:update-baseline           # sanctioned refresh (needs a fresh LOCAL report for EVERY tracked package)
 ```
 
-Tracked packages live in `MUTATED_PACKAGES` (`packages/tooling/src/test/mutation-check.ts`). Adding one: copy config-resolver's `stryker.config.mjs` + `logger-calls` ignorer (NOT cache-invalidation's copy — its `observability-options` rule is package-specific), add a `test:mutation` script + the `@stryker-mutator/*` devDeps, add to `MUTATED_PACKAGES` (fingerprint drift forces the baseline refresh), add its CI step before `mutation:check` (the gate + tracked-set intersection picks the new package up automatically). When the check fails on a genuine score drop: close the test gaps it names — never hand-edit the baseline. Services are adjudicated NOT per-PR viable (30-70min projected runs); don't re-attempt without new data. `ignoreStatic` stays OFF (owner decision — module-top-level mutants held the rollout's best real finds).
+Tracked set: `MUTATED_PACKAGES` (`packages/tooling/src/test/mutation-check.ts`). On a genuine score drop, close the test gaps — never hand-edit the baseline. `ignoreStatic` stays OFF. Services are not per-PR viable (30-70min); don't re-attempt without new data. Adding a package: copy config-resolver's `stryker.config.mjs` + `logger-calls` ignorer (NOT cache-invalidation's).
 
 ### Secret Rotation
 
@@ -110,7 +95,7 @@ pnpm ops secrets:mark-rotated <name> --env prod   # stamp a manual rotation
 pnpm ops secrets:rotate-byok --env prod --stage 1 # staged BYOK key rotation (1=stage, 2=reencrypt, 3=finalize)
 ```
 
-The ledger (`secret_rotations`, per-env, sync-excluded) drives a daily bot-client check that posts an owner-channel nag when a secret passes its interval (BYOK 180d, others 365d). BYOK rotation is breakage-free via the dual-key window in `common-types/utils/encryption.ts` — never rotate `API_KEY_ENCRYPTION_KEY` by hand-replacing the variable; always use the staged command.
+Never rotate `API_KEY_ENCRYPTION_KEY` by hand-replacing the variable — always the staged command (dual-key window in `common-types/utils/encryption.ts`). Intervals: BYOK 180d, others 365d; a daily bot-client check nags the owner channel when one lapses.
 
 ### Security Advisories
 
@@ -120,7 +105,7 @@ pnpm ops security:advisories --json     # machine-readable surface
 pnpm ops security:advisories --strict   # exit nonzero on an actionable (fix-available) high/critical
 ```
 
-Reads the GitHub Dependabot alerts API and prints each open advisory with its fix version and — the actionable bit — whether it's a **direct** dep (Dependabot auto-PRs the fix) or **transitive-only** (Dependabot _can't_ PR it; needs a manual `pnpm.overrides` bump and otherwise lingers open with no PR). **Decision-point trigger:** the release security-preflight (`/tzurot-git-workflow` § Release) — run it before cutting a release and ride any transitive-with-fix advisory into the release via an override. The same list also appears in `pnpm ops health`. Degrades to "unavailable" (never blocks) when the alerts API can't be read — CI tokens lack the `security-events` scope. Not an audit-class tool (a point-in-time report, no baseline/ratchet — see the exclusion note in `audit-tool-registry.ts`).
+Flags each advisory **direct** (Dependabot auto-PRs the fix) vs **transitive-only** (needs a manual `pnpm.overrides` bump — no PR will ever appear). **Decision-point trigger:** the release security-preflight (`/tzurot-git-workflow` § Release) — ride any transitive-with-fix advisory into the release via an override. Degrades to "unavailable", never blocks.
 
 ### Test Audits
 
@@ -129,7 +114,7 @@ pnpm ops test:audit                  # Run coverage ratchet (CI)
 pnpm ops test:audit --update         # Update baseline + refresh meta block (run after closing coverage gaps)
 ```
 
-**Drift detection (Layer 3):** `test:audit` hard-fails when the baseline's stored `configHash` doesn't match the current `getTestAuditConfigFingerprint()`. Bump `TEST_AUDIT_IMPL_VERSION` in `packages/tooling/src/test/audit-version.ts` whenever the measurement-affecting logic changes (Prisma-detection heuristic, service-file glob, etc.) — that bump invalidates baselines and forces an explicit `--update` refresh. The `--update` path is the only one that updates the meta block; hand-editing the baseline JSON is not the sanctioned path.
+Bump `TEST_AUDIT_IMPL_VERSION` (`packages/tooling/src/test/audit-version.ts`) whenever measurement-affecting logic changes; `--update` is the only sanctioned baseline refresh.
 
 ### CPD (Duplication Ratchet)
 
@@ -142,7 +127,7 @@ pnpm ops cpd:update-baseline         # Refresh baseline + meta block
 pnpm ops cpd:update-baseline --dry-run  # Preview without writing
 ```
 
-`cpd:check` hard-fails on either (a) `filteredLines > baseline + graceMargin` or (b) `configHash` drift. Same `--update`-refreshes-meta contract as `test:audit`. Bump `FILTER_IMPL_VERSION` in `packages/tooling/src/cpd/postFilter.ts` when the call-dominance heuristic changes.
+Bump `FILTER_IMPL_VERSION` (`packages/tooling/src/cpd/postFilter.ts`) when the call-dominance heuristic changes.
 
 ### Guards (Structural enforcement)
 
@@ -160,13 +145,11 @@ pnpm ops lines:check                 # always-loaded surfaces (.claude/rules tot
 pnpm ops lines:update-baseline       # make budget growth explicit (same --update contract as cpd/test:audit); --surface <name> scopes the write
 ```
 
-`lines:check` gates two dimensions independently, because lines is not what these surfaces cost: density varies several-fold across the corpus, so a line-only ratchet rated `CURRENT.md` comfortable while it carried a fifth of the rules corpus's bytes. `--breakdown` ranks every file worst-first by bytes — that ranking is the trim order, and the economy pass in `/tzurot-doc-audit` is the procedure that consumes it. Reach for `--surface <name>` whenever a refresh is wanted for one surface only — the unscoped write ratchets a trimmed surface DOWN and a grown one UP in the same commit.
+`--breakdown` ranks every file worst-first by bytes — that is the trim order the `/tzurot-doc-audit` economy pass consumes. `--surface <name>` scopes a refresh to one surface; the unscoped write ratchets a trimmed surface DOWN and a grown one UP in the same commit.
 
-The first five run in the CI `lint` job; all guards hard-fail on findings. `guard:workflow-sync` runs in `pnpm quality`, `.husky/pre-push`, AND the CI `lint` job; it skips itself on main-cut branches (detected by topology — no develop-exclusive history — with `--base main` as the explicit override), because main-cut workflow PRs are the sanctioned path. It covers ONLY the self-validating claude workflow files (`claude-code-review.yml`, `claude.yml`): a develop-first change to those silently disables claude-review on every PR (green ~15s no-op) until the next release, because the review's skip-validation compares the action's OWN workflow file against main — empirically file-scoped (a PR carrying ci.yml drift still received a real review). Other workflow files (e.g. `ci.yml`) execute from the PR branch and may land via develop like any code change. `guard:boundaries`, `guard:proposal-links`, and `guard:audit-tool-docs` also support `--summary` for the future aggregator. `guard:audit-tool-docs` self-registers and runs the bidirectional check (every registered tool has a WHY.md AND every `*.WHY.md` is either registered or on `UNREGISTERED_WHY_PATHS`).
+All guards hard-fail on findings. `guard:workflow-sync` covers ONLY `claude-code-review.yml` and `claude.yml` — those must land via a **main-cut** branch (a develop-first change silently disables claude-review on every PR until the next release); it self-skips on main-cut branches, `--base main` overrides. Other workflow files (`ci.yml`) may land via develop like any code change.
 
-`guard:hook-probes` is the only verification the hook scripts have — a bash hook has no unit-test tier, so its colocated `*.probe.sh` exit-code harness is it. **After editing any hook, run its probe**; the gate is the backstop, not the loop. It runs unconditionally (~18s) rather than keying off a hooks-dir diff, and its `HOOK_PROBES` registry in `packages/tooling/src/dev/check-hook-probes-registry.ts` is bidirectional over BOTH `.claude/hooks/*.sh` and the `.husky/` lifecycle scripts: a new hook in either place with no probe must carry a written reason, and an orphan probe fails too. **New local precondition:** because the probes now run on every `pnpm quality`, `develop-code-commit-guard.probe.sh` needs local branches named `develop` and `main` to exist (it puts a worktree on each to test the hook's branch check). A fresh clone has only `main` — `git fetch origin develop:develop` if the probe fails on it. Branches are fabricated automatically only on a real GitHub Actions runner (gated on `GITHUB_ACTIONS` set AND `ACT` unset — `act` sets `CI`, `GITHUB_ACTIONS` and `ACT` alike, so neither of the first two alone excludes a local run), never on a working repo.
-
-**Note on `guard:duplicate-exports`, `guard:dockerfile-dist`, `guard:hook-probes`, and `guard:gate-parity`**: all four are CI gates but intentionally NOT registered as audit-class tools (no WHY.md, no canary, no `--summary` mode). The criteria for "audit-class" require a measurement with a threshold — duplicate-exports and dockerfile-dist are binary "is this in sync?" checks, not measurements. Same framing as `memory:analyze` (one-shot remediation, not periodic audit). See [`docs/reference/audit-enforcement.md`](../../docs/reference/audit-enforcement.md) for the registry criteria.
+**After editing any hook, run its probe** — `guard:hook-probes` is the backstop, not the loop (a bash hook has no unit-test tier). Registry: `packages/tooling/src/dev/check-hook-probes-registry.ts`, bidirectional over `.claude/hooks/*.sh` AND `.husky/`. Local precondition: `develop-code-commit-guard.probe.sh` needs local `develop` and `main` branches — `git fetch origin develop:develop` if it fails on a fresh clone.
 
 ### Backlog lint + digest
 
@@ -177,11 +160,11 @@ pnpm ops backlog:digest              # Session-start briefing from tracker/: per
 pnpm tracker task list --search <t> --plain   # Query the small-item pool (Backlog.md CLI)
 ```
 
-The lint verifies the caps (Current Focus ≤ 3, Quick Wins ≤ 5, Untriaged ≤ 10), flags `cold/queue.md` doc references (`doc-N`) that don't resolve in `tracker/docs/`, fails on any `tracker/tasks/` file whose frontmatter won't parse (a broken task silently vanishes from every query surface), and enforces triage on every OPEN task — ≥1 `area:*` label, exactly one `size:S|M|L`, exactly one `state:*` (`ready` · `observable` · `dependent` · `owner` · `unreachable`), and a high/medium/low priority, the four axes every selection query filters on. A label carrying a known prefix but an unknown value (`state:blocked`, `size:XL`) is reported as unknown, never as missing — a present-but-invalid label must not read as an absent one. **Wired into `pnpm quality` AND the CI lint job** (they are separate lists — CI does not run `quality`; `guard:gate-parity` keeps the two in sync). Like the binary guards above, it's a layout sync-check, not an audit-class tool — no WHY.md / canary / `--summary`. The digest is informational (never gates) — the aging-escalation surface lives there, read at session start per `06-backlog.md`.
+Gate details and the triage axes live in `06-backlog.md`. The digest never gates — it's the session-start aging surface.
 
 ### Audit-tool infrastructure (Layers 1-3)
 
-`pnpm ops`-class commands that meet the audit criteria (measurement + threshold + periodic) are subject to three structural enforcement layers. **Before adding a new audit tool, read [`docs/reference/audit-enforcement.md`](../../docs/reference/audit-enforcement.md)** — it covers the WHY.md convention, the canary-fixture pattern, the JSONL summary line shape, and the baseline-meta drift contract. Skipping these checklist items will fail CI in non-obvious ways.
+**Before adding a new audit tool, read [`docs/reference/audit-enforcement.md`](../../docs/reference/audit-enforcement.md)** — skipping its checklist fails CI in non-obvious ways.
 
 ## Git Workflow
 
@@ -202,32 +185,34 @@ EOF
 )"
 ```
 
-**Types:** `feat`, `fix`, `docs`, `refactor`, `test`, `chore`, `perf`, `debug`
+**Types:** `feat`, `fix`, `docs`, `refactor`, `test`, `chore`, `perf`, `debug` (+ standard `build`, `ci`, `revert`, `style`; every valid type is also a valid branch prefix)
 **Scopes:** `ai-worker`, `api-gateway`, `bot-client`, `common-types`, `ci`, `deps`
 
 **Commitlint gotchas** (the hook catches these, but every trip costs a retry): the **full header must be ≤100 chars** (`header-max-length` — the most-tripped rule in practice; count before writing a long subject), the subject must start **lowercase** (`subject-case`), and the scope must be in the configured enum **or omitted entirely** — an unknown scope is rejected, no scope is fine.
 
-The list above is the project's primary set. `commitlint.config.cjs` also accepts the rest of the standard Conventional Commits types — `build`, `ci`, `revert`, `style` — and the `.husky/pre-push` branch-name allowlist permits all of them as branch prefixes too, so a valid commit type is always a valid branch prefix. Reach for the standard ones when they genuinely fit (`build:` for bundler/Docker changes, `revert:` for a clean revert); otherwise the primary set covers most work.
-
 #### The `debug` type
 
-`debug` is for **temporary diagnostic instrumentation** — logging (or similar probes) added to a production code path to confirm a bug's _runtime_ behaviour before fixing it, then removed in a cleanup PR once the bug is understood. It exists because such work fits none of the other types cleanly: it is not `feat` (nothing ships to users), not `fix` (it corrects no behaviour), and not `chore` (it is risky production-path code, not housekeeping). Use it for **both** adding and removing the scaffolding (`debug(bot-client): add forward-shape probes` … `debug(bot-client): remove forward-shape probes`) so an add/remove pair reads cleanly in the log.
+`debug` = temporary diagnostic instrumentation in a production path, added to
+confirm a bug's runtime behaviour and removed in a cleanup PR. Use it for BOTH
+the add and the remove so the pair reads cleanly. Permanent observability is
+`feat`, not `debug` — the distinction is lifecycle.
 
-The payoff is a built-in safety net: a `debug` commit is a high-signal "did I remove this?" marker. `git log --grep '^debug[:(]' origin/develop..HEAD` on a branch surfaces any instrumentation still live on it — empty output means the production code is clean. (The `[:(]` anchors to the conventional `debug:` / `debug(scope):` forms so a free-form subject like `debugged the parser` doesn't false-match.) The token grep is per-branch hygiene only; the structural catch for FORGOTTEN scaffolding is `pnpm ops dev:stale-debug` (weekly `ops health` roster) — blame-based, so it finds survivors whose lines don't contain any greppable marker word.
-
-Do **not** use `debug` for **permanent** observability (structured logs, metrics, traces that stay) — that is a real operational improvement and should be `feat`. The distinction is lifecycle: `debug` is scaffolding you intend to delete; `feat` observability is infrastructure you intend to keep.
-
-Enforced by `commitlint.config.cjs` (`type-enum`) and the `.husky/pre-push` branch-name allowlist (`debug/` branches permitted).
+`git log --grep '^debug[:(]' origin/develop..HEAD` surfaces instrumentation
+still live on a branch (empty = clean). Forgotten scaffolding older than that
+is caught by `pnpm ops dev:stale-debug` (blame-based, weekly `ops health`).
 
 ### PR Monitoring (automatic — do not wait to be asked)
 
-**Whenever you create a PR or push commits to an open PR, arm a `Monitor` that waits for CI to finish and then reports on new reviewer comments.** Don't wait for the user to ask whether CI passed or whether a review landed. There is no hook behind this — `pr-monitor-reminder.sh` fires but its output never reaches the agent, so this text is the mechanism.
+**Whenever you create a PR or push commits to an open PR, arm a `Monitor` that waits for CI to finish and then reports on new reviewer comments.** Don't wait for the user to ask whether CI passed or whether a review landed.
 
-**First verify the push actually landed.** Backgrounded pushes reporting "exit 0" and foreground pushes with filtered output can both hide a failed transfer. Confirm the `-> branch` ref-update line or `git status -sb` in-sync — a monitor watching a push that never landed reports a stale CI run as fresh.
+**Verify the push landed first** (the `-> branch` ref-update line, or `git status -sb` in-sync) — a monitor on a push that never landed reports a stale run as fresh.
 
-**One monitor per PR: `TaskStop` this PR's previous monitor before arming a new one** (scoped per-PR — a release PR alongside a feature PR keeps one each). The reporting half is not SHA-pinned, so a stale watcher reports the PR's current state under an older push's label, which reads identically to a finished run. Keep the id `Monitor` returns and stop it as the first step of the next arm.
-
-**If the id is gone** (compaction, session restart), you cannot look it up — `TaskList` does not enumerate background monitors, so it returns "No tasks found" with one live. Recover from the notification itself: every monitor event carries its own `task-id`, so when one fires for a PR you already reported on at this SHA, `TaskStop` that id instead of re-reporting. That dedupes but does not prove freshness; the SHA-pinned query in step 1 is what does. Preserving live ids across compaction is in `CLAUDE.md` § Compaction Instructions for this reason.
+**One monitor per PR: `TaskStop` this PR's previous monitor before arming a
+new one** (a release PR alongside a feature PR keeps one each). The reporting
+half is not SHA-pinned, so a stale watcher reports current state under an older
+push's label. **If the id is gone** (compaction): `TaskList` cannot enumerate
+monitors, so recover from the notification — every monitor event carries its own
+`task-id`; `TaskStop` that id when one fires for a PR already reported at this SHA.
 
 Arm the Monitor with this as its `command`, **substitution included** — copy it verbatim and only replace `N` with the PR number. Never transcribe the SHA by hand; a hand-completed SHA passes any format check, and the gate refuses it (`git cat-file`) rather than watching it:
 
@@ -255,8 +240,6 @@ When the monitor fires, **all four** of the following must happen — do not sto
 
    Inline line comments are where human reviewers leave blocking feedback. Track the last reported comment's timestamp so a later push doesn't re-report it, and **include human reviewers** alongside the bots.
 
-   **Never pipe review fetches through `| tail` / `| head`** — truncating the fetch is how body findings get silently dropped.
-
    **claude-review health**: a green check means the action _completed_, not that a body was posted. If no new `claude[bot]` comment exists after a green run, `gh run rerun <run-id>` before proceeding.
 
 3. In one concise message, report CI pass/fail **and** any new review findings (blocking vs. non-blocking). If there are no new reviews, say so explicitly — silence isn't a substitute for "no new comments."
@@ -264,11 +247,6 @@ When the monitor fires, **all four** of the following must happen — do not sto
    **Read every `###` section of each review body — do not rely on the trailing Summary.** Reviewer output is tiered, and the summary routinely under-reports what the body flags; treat a 100+ line review as a skimming risk. If multiple `claude[bot]` entries exist, read every one.
 
 4. **Apply review feedback — INVOKE `/tzurot-review-response` first, before touching anything.** That skill carries the full procedure. Loading it is not optional politeness — applying feedback from memory is how the rubber-stamping this procedure prevents creeps back in.
-
-Two failure modes, both observed:
-
-- **Step 1 without step 2**: all-green CI feels complete, so the comment fetch gets skipped. All-CI-green does not discharge it.
-- **Step 2 without a full-body read**: extracting only the summary section. A review ending "two actionable items" usually has more in the body.
 
 If CI fails or CodeQL flags a new alert, surface it via `PushNotification` — that class of feedback changes what the user does next.
 
@@ -288,7 +266,7 @@ gh api "repos/{owner}/{repo}/actions/runs/<run-id>/jobs?per_page=100" \
   --jq '.jobs[] | "\(.conclusion // "-") steps=\(.steps | length) \(.name)"'
 ```
 
-**Wait on the gate, never on a `sleep` or a hand-written poll loop.** A fixed sleep expires before run creation (which can lag the push by minutes) and `gh pr checks --watch` then snapshots a near-empty check list; custom loops over `gh pr checks --json` race a partial list that momentarily reads all-non-pending. Both were measured emitting a premature `CI_COMPLETE`.
+**Wait on the gate, never on a `sleep` or a hand-written poll loop** — both were measured emitting a premature `CI_COMPLETE`.
 
 **Outcome handling — read WHICH sentinel printed, not just whether one did.** Only the first means CI finished:
 
@@ -299,11 +277,9 @@ gh api "repos/{owner}/{repo}/actions/runs/<run-id>/jobs?per_page=100" \
 | `CI_GATE_STARTUP_FAILURE` | a run died before dispatch (zero jobs, invisible in `gh pr checks`) | `gh run rerun <run-id>`, then re-arm |
 | _none of them_            | the Monitor's own 30-min `timeout_ms` killed the process            | re-arm                               |
 
-**Working-memory caveat**: the dedup timestamp lives in conversation state, so after a session restart a re-fetch may surface previously-reported comments once. Acceptable — re-reporting a known comment beats silently missing a new one.
-
 ### Release Notes Format
 
-Release notes follow the Conventional Changelog format. This enables machine parsing for Discord release notifications.
+Release notes follow the Conventional Changelog format.
 
 - **Release title**: `v3.0.0-beta.XX` (version number only, no summary)
 - **Body** starts directly with category headings (no version line in body)
@@ -324,50 +300,20 @@ Release notes follow the Conventional Changelog format. This enables machine par
 **Full Changelog**: https://github.com/lbds137/tzurot/compare/vOLD...vNEW
 ```
 
-**Rules:**
-
-- Categories use H3: **Features**, **Bug Fixes**, **Improvements**, **Breaking Changes**, **Chores**, **Tests**, **Database Migrations**
-- Breaking Changes section always comes first when present
-- Only include categories that have entries
-- Line items: `- **scope:** description (#123)` — scope maps to commit scope, `#N` auto-links on GitHub (PR numbers optional)
-- End with: `**Full Changelog**: https://github.com/lbds137/tzurot/compare/vOLD...vNEW`
-
-## Project Structure
-
-```
-tzurot/
-├── .claude/
-│   ├── rules/              # Always-loaded constraints (THIS DIRECTORY)
-│   ├── hooks/              # Automation (skill-eval, merge/commit guards)
-│   └── skills/             # Procedural skills
-├── services/
-│   ├── bot-client/         # Discord interface (NO Prisma)
-│   ├── api-gateway/        # HTTP API + BullMQ
-│   └── ai-worker/          # AI processing + memory
-├── packages/
-│   ├── common-types/       # Shared types
-│   └── tooling/            # CLI commands (pnpm ops)
-└── prisma/                 # Database schema
-```
+**Rules:** H3 categories — **Breaking Changes** (always first when present),
+**Features**, **Bug Fixes**, **Improvements**, **Chores**, **Tests**,
+**Database Migrations**. Omit empty categories. Line items:
+`- **scope:** description (#123)`. End with the Full Changelog compare link.
 
 ## No Standalone Scripts
 
-**All tooling must live in `packages/tooling/`** as TypeScript, not as standalone
-bash/shell scripts. This ensures:
+**All tooling lives in `packages/tooling/`** as TypeScript, never as bash
+scripts — for options-object consistency, unit testability, and `pnpm ops --help`
+discoverability. New dev tool: `src/dev/<name>.ts` + colocated test + registration
+in `src/commands/dev.ts` (+ a root `package.json` shortcut if frequent).
 
-- Consistent patterns (options objects, typed interfaces)
-- Unit testability (colocated `.test.ts` files with mocked child_process)
-- Discoverability via `pnpm ops --help`
-
-When adding a new dev tool, follow the existing pattern:
-
-1. Implementation in `packages/tooling/src/dev/<name>.ts`
-2. Tests in `packages/tooling/src/dev/<name>.test.ts`
-3. Command registration in `packages/tooling/src/commands/dev.ts`
-4. Shortcut in root `package.json` if frequently used (e.g., `"knip:dead"`)
-
-**Exception:** `scripts/` may contain one-off data migration or codegen scripts
-that run once and are deleted. Persistent tooling goes in the tooling package.
+**Exception:** `scripts/` may hold one-off migration/codegen scripts that run
+once and are deleted.
 
 ## References
 
