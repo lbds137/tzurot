@@ -1,10 +1,10 @@
 ---
 id: TASK-472
 title: 'The fixup rider check fires at commit time, after the rider is already written'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-08 19:55'
-updated_date: '2026-08-08 19:55'
+updated_date: '2026-08-09 00:18'
 labels:
   - 'area:process'
   - 'area:tooling'
