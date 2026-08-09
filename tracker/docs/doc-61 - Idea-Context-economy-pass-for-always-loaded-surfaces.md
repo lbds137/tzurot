@@ -7,6 +7,8 @@ created_date: '2026-08-08 15:01'
 
 _Focus: give pruning of `.claude/rules` + skills an owner, a ranking that reflects real cost, and a decision rule for what earns its place._
 
+**EXECUTED 2026-08-09.** The pass exists as `/tzurot-doc-audit` § 3b (built #2007) and its first full run shipped as PR #2028: top-3 rules files trimmed 166,827 → 142,502 B (~6k tok/session), first-ever `lines:update-baseline --surface rules` DOWN-write. Remaining threads live elsewhere: cadence + the ungated memory surface → doc-63; the optional trend line → doc-63 Phase 3; TASK-470's candidate was NOT weighed during the run (miss) → rides TASK-490. This doc is now historical rationale.
+
 Owner-approved 2026-08-08 (asked "do we have a skill for periodically pruning excess verbiage from rules / skills? if not we should consider one" -> yes, file it).
 
 ## The gap
