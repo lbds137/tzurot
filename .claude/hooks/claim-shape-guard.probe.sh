@@ -118,6 +118,114 @@ check 0 fire "cannot-<verb> phrasing in a code file"
 stage_fixture 'src/isalways.ts' 'seed(map); // the map is always seeded before first read'
 check 0 fire "is-always phrasing in a code file"
 
+# `cannot be` is narrowed to a following VALUE token. Both directions are
+# pinned, because the allow side is the whole point of the narrowing: bare
+# `cannot be` fired on ordinary design prose about code structure, and a guard
+# that mostly cries wolf trains the reader to skim past its true positives.
+stage_fixture 'src/cannotnull.ts' 'assert(id); // the id cannot be null once queued'
+check 0 fire "cannot-be with a value token is still a runtime claim"
+
+stage_fixture 'src/cannotempty.ts' 'use(rows); // the batch cannot be empty here'
+check 0 fire "cannot-be-empty is still a runtime claim"
+
+# The exact line that false-fired in practice, on a comment about why two
+# regex copies stay separate.
+stage_fixture 'src/collapse.ts' '// They cannot be collapsed into one: each needs its own stripping'
+check 0 silent "cannot-be-collapsed is design prose, not a runtime claim"
+
+stage_fixture 'src/extract.ts' '// this helper cannot be extracted without three callbacks'
+check 0 silent "cannot-be-extracted is design prose"
+
+stage_fixture 'src/reuse.ts' '// the adapter cannot be reused across implementors'
+check 0 silent "cannot-be-reused is design prose"
+
+# One fixture per value token. The alternation is 13 branches wide and the
+# probe is the only verification this hook gets, so a typo in any single branch
+# must fail here rather than silently stop catching that claim shape.
+stage_fixture 'src/tok0.ts' '// the value cannot be null at this point'
+check 0 fire "value token: cannot be null"
+
+stage_fixture 'src/tok1.ts' '// the value cannot be empty at this point'
+check 0 fire "value token: cannot be empty"
+
+stage_fixture 'src/tok2.ts' '// the value cannot be undefined at this point'
+check 0 fire "value token: cannot be undefined"
+
+stage_fixture 'src/tok3.ts' '// the value cannot be unset at this point'
+check 0 fire "value token: cannot be unset"
+
+stage_fixture 'src/tok4.ts' '// the value cannot be set at this point'
+check 0 fire "value token: cannot be set"
+
+stage_fixture 'src/tok5.ts' '// the value cannot be present at this point'
+check 0 fire "value token: cannot be present"
+
+stage_fixture 'src/tok6.ts' '// the value cannot be absent at this point'
+check 0 fire "value token: cannot be absent"
+
+stage_fixture 'src/tok7.ts' '// the value cannot be missing at this point'
+check 0 fire "value token: cannot be missing"
+
+stage_fixture 'src/tok8.ts' '// the value cannot be zero at this point'
+check 0 fire "value token: cannot be zero"
+
+stage_fixture 'src/tok9.ts' '// the value cannot be negative at this point'
+check 0 fire "value token: cannot be negative"
+
+stage_fixture 'src/tok10.ts' '// the value cannot be false at this point'
+check 0 fire "value token: cannot be false"
+
+stage_fixture 'src/tok11.ts' '// the value cannot be true at this point'
+check 0 fire "value token: cannot be true"
+
+stage_fixture 'src/tok12.ts' '// the value cannot be populated at this point'
+check 0 fire "value token: cannot be populated"
+
+# The `$` half of the boundary. Every fire fixture above has trailing text, so
+# a typo shrinking ([^a-z]|$) to ([^a-z]) would pass all of them while silently
+# dropping every claim that ENDS at the token — a completely ordinary shape for
+# a short inline comment.
+stage_fixture 'src/tokeol.ts' '// the id cannot be null'
+check 0 fire "value token at end of line (the \$ half of the boundary)"
+
+# The `reached` exclusion is a reasoned decision, so it gets a pin like every
+# other one. Under the old bare arm this fired; it must now stay silent, and an
+# accidental re-addition of the token to the list has to fail here.
+stage_fixture 'src/reached.ts' '// this branch cannot be reached'
+check 0 silent "reached is out of scope by design (control flow, not a value)"
+
+# The accepted recall loss, pinned so it reads as chosen rather than missed: an
+# inflected form no longer fires. If a future edit decides to catch these, this
+# case is where that intent gets stated.
+stage_fixture 'src/nulled.ts' '// the config cannot be nulled once persisted'
+check 0 silent "inflected forms fall outside the narrowed pattern (accepted)"
+
+# `unset` gets its own collision pin because English is unusually rich in words
+# that start with it — "unsettled", "unsettling" — making it the token most
+# likely to meet a real collision, alongside the five already pinned below.
+stage_fixture 'src/unsettled.ts' '// this precedent cannot be unsettled by one case'
+check 0 silent "collision: 'unsettled' must not match the 'unset' token"
+
+# SUBSTRING COLLISIONS. awk's `~` is a substring match with no \b support,
+# so an unanchored alternation fired on ordinary English whose next word
+# merely STARTS with a value token — reintroducing the exact false-positive
+# class this narrowing exists to remove. The trailing ([^a-z]|$) is what
+# stops it, and these pin it per colliding token.
+stage_fixture 'src/coll0.ts' '// this cannot be settled without more data'
+check 0 silent "collision: 'settled' must not match the 'set' token"
+
+stage_fixture 'src/coll1.ts' '// this cannot be negatively impacted'
+check 0 silent "collision: 'negatively' must not match the 'negative' token"
+
+stage_fixture 'src/coll2.ts' '// the count cannot be zeroed out'
+check 0 silent "collision: 'zeroed' must not match the 'zero' token"
+
+stage_fixture 'src/coll3.ts' '// this cannot be falsely triggered'
+check 0 silent "collision: 'falsely' must not match the 'false' token"
+
+stage_fixture 'src/coll4.ts' '// this cannot be presently disabled'
+check 0 silent "collision: 'presently' must not match the 'present' token"
+
 stage_fixture 'src/onlyever.ts' 'const job = queue[0]; // this queue only ever holds one job'
 check 0 fire "only-ever phrasing in a code file"
 

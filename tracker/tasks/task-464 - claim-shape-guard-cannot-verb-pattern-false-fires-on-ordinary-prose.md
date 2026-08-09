@@ -1,10 +1,10 @@
 ---
 id: TASK-464
 title: claim-shape-guard cannot-<verb> pattern false-fires on ordinary prose
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-07 23:50'
-updated_date: '2026-08-09 00:48'
+updated_date: '2026-08-09 01:31'
 labels:
   - 'area:process'
   - 'area:tooling'
