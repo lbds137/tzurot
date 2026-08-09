@@ -3,10 +3,10 @@ id: TASK-461
 title: >-
   Probe whether a bypass-actor-free deletion rule actually blocks GitHub
   auto-delete
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-07 22:30'
-updated_date: '2026-08-07 22:30'
+updated_date: '2026-08-09 08:44'
 labels:
   - 'area:tooling'
   - 'area:process'
