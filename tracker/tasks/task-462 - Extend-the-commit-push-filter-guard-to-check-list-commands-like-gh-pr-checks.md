@@ -4,12 +4,12 @@ title: Extend the commit/push filter guard to check-list commands like gh pr che
 status: To Do
 assignee: []
 created_date: '2026-08-07 22:30'
-updated_date: '2026-08-07 22:30'
+updated_date: '2026-08-09 00:48'
 labels:
   - 'area:tooling'
   - 'area:process'
   - 'size:M'
-  - 'state:owner'
+  - 'state:ready'
 dependencies: []
 priority: medium
 ordinal: 461000

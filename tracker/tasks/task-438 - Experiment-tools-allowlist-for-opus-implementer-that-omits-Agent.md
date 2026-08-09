@@ -4,11 +4,11 @@ title: 'Experiment: tools allowlist for opus-implementer that omits Agent'
 status: To Do
 assignee: []
 created_date: '2026-08-05 11:30'
-updated_date: '2026-08-05 12:46'
+updated_date: '2026-08-09 00:48'
 labels:
   - 'area:process'
   - 'size:S'
-  - 'state:dependent'
+  - 'state:ready'
 dependencies: []
 priority: medium
 ordinal: 438000
