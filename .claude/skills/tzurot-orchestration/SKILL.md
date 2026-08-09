@@ -1,7 +1,7 @@
 ---
 name: tzurot-orchestration
 description: 'Orchestrator mode: when to delegate implementation to a worker agent, the spec template every worker gets, and the full-diff review gate before any commit. Invoke with /tzurot-orchestration at the start of any implementation unit run in orchestrator mode — the moment a task fix shape is known, before the first src Edit/Write.'
-lastUpdated: '2026-08-05'
+lastUpdated: '2026-08-09'
 ---
 
 # Orchestrator Mode
@@ -22,11 +22,33 @@ gate that stops worker defects before CI does.
 Who drives the main loop determines the delegation posture. The mechanism is
 quality — fresh context plus an independent diff review — not budget.
 
-| Driver                       | Posture                                                                                                                                                                                                                                                                     |
-| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Fable main loop**          | Delegate implementation to `opus-implementer` by DEFAULT. "It's small" is not an inline justification. Inline only for: trivial mechanical edits (~a few lines), fixes discovered mid-review of a worker's diff, or work where writing the spec costs more than the edit.   |
-| **Opus main loop**           | Delegate substantive units — the fresh-context worker plus a separate diff review is the quality mechanism. But do NOT delegate work finishable in a handful of tool calls: Opus 5 over-delegates by documented tendency (prompting guide § controlling subagent spawning). |
-| **Bulk reading/exploration** | Explore/Plan agents, either driver. Reading fan-out is delegation's cheapest and least risky use.                                                                                                                                                                           |
+| Driver                       | Posture                                                                                                                                                                                                                                                                                   |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Fable main loop**          | Delegate implementation to `opus-implementer` by DEFAULT. "It's small" is not an inline justification. Inline only for: trivial mechanical edits (~a few lines), fixes discovered mid-review of a worker's diff, or work where writing the spec costs more than the edit.                 |
+| **Opus main loop**           | Delegate substantive units — the fresh-context worker plus a separate diff review is the quality mechanism. But do NOT delegate work finishable in a handful of tool calls: Opus 5 over-delegates by documented tendency (prompting guide § controlling subagent spawning).               |
+| **Bulk reading/exploration** | Explore/Plan agents, either driver. Reading fan-out is delegation's cheapest and least risky use. **Any read fan-out of ~4+ files, or any search across unknown locations, goes to `Explore` with `model: "haiku"` passed on the Agent call — never inline** (mechanism below the table). |
+
+**Why Explore gets `model: "haiku"` per-call**: the built-in Explore inherits
+the main-loop model, so an unpinned spawn bills the scarcest budget, while
+every file read inline re-bills as main-loop input on all later turns.
+Per-call `model` is the verified mechanism; a frontmatter override file was
+ruled out — TASK-438's probes showed the harness ignores subagent
+TOOL-restriction frontmatter (`tools:`/`disallowedTools:`), so an override's
+read-only surface would rest on unenforced fields, and whether a project file
+can override a built-in agent name at all was never probed.
+
+**Worker model tier (measured pilot)**: a **mechanical-class** unit — one whose
+spec describes the edit precisely (renames, sweeps, fixture updates, applying a
+settled pattern across files) — may pass `model: sonnet` on the Agent call
+instead of the default Opus model (same `opus-implementer` contract, only the
+model overridden per-call); an edit that can be described precisely does not
+need Opus-tier judgment to execute, and the spec template produces
+exactly that. This is a pilot against the Opus-worker record observed so far
+(no repo-citable measurement — the baseline lives in session history): record
+each Sonnet unit's diff-review findings and CI cycles in the pilot's tracker
+task (`pnpm tracker task list --search 'Sonnet worker-tier pilot'`), and drop
+the tier back to Opus if defects appear. Semantic-class units (design judgment
+inside the diff) stay on Opus.
 
 ## The spec template
 
@@ -78,8 +100,15 @@ exist so waiting is never the activity (`10-working-posture.md` § Momentum).
 works; skipping it collapses orchestration back into a single context that
 reviewed nothing. Then:
 
-- A flagged stop or ambiguity is a good outcome — resolve it and re-dispatch,
-  not a worker failure to work around.
+- A flagged stop or ambiguity is a good outcome, not a worker failure to work
+  around. Resolve it and **resume the SAME worker** (`SendMessage` to its
+  agent id) rather than spawning fresh — the resume retains the worker's full
+  working context and rides the prompt cache, where a fresh spawn re-pays the
+  entire spec and re-grounding. Spawn fresh only when the worker's own
+  grounding is suspect (stale worktree base, confused state) — or when the
+  worker's agent id did not survive a compaction boundary: ids cannot be
+  enumerated afterward (same gap as Monitor ids, `CLAUDE.md` § Compaction
+  Instructions), so a lost id means fresh-spawn is the only path.
 - Check every reported deviation against the spec's intent, not just its
   letter.
 - Re-run the gates yourself when the worker's verification tails are absent or
