@@ -3,10 +3,10 @@ id: TASK-465
 title: >-
   Lossy READS of files and tool output have no decision-point trigger, and cost
   three misses in one session
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-08 00:06'
-updated_date: '2026-08-08 00:06'
+updated_date: '2026-08-09 07:51'
 labels:
   - 'area:process'
   - 'size:S'
