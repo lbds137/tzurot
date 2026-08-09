@@ -1,7 +1,7 @@
 ---
 name: tzurot-testing
 description: 'Testing procedures. Invoke with /tzurot-testing for test execution, coverage audits, and debugging test failures.'
-lastUpdated: '2026-08-05'
+lastUpdated: '2026-08-09'
 ---
 
 # Testing Procedures
@@ -34,6 +34,8 @@ pnpm test:coverage
 # Run only changed packages
 pnpm focus:test
 ```
+
+**Always invoke through the package's own config.** A root-invoked `npx vitest run <pkg path>` resolves the ROOT config, which has no `setupFiles` — the package's setup (dotenv, the global `afterEach(vi.clearAllMocks)`) never loads, hoisted-mock call history accumulates across tests in a file, and `expect(mock).not.toHaveBeenCalled()` fails on calls leaked from earlier tests. It masquerades as flaky or pre-existing breakage; it is an invocation artifact. Use `pnpm --filter @tzurot/<pkg> test`, or `cd services/<pkg> && npx vitest run <relative-path>` — and never diagnose "pre-existing failures" from a root-invoked run.
 
 ## Coverage Audit Procedure
 

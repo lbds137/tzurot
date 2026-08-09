@@ -134,6 +134,11 @@ Don't file Zod schema tests under "contract."
    never on `[]`). Reference:
    `services/ai-worker/src/jobs/handlers/pipeline/steps/extendedContextVisionSeam.test.ts`.
 
+   **The RESPONSE direction crosses a Zod strip no mock can see.** Typed clients return
+   `outputSchema.safeParse(...).data`, so a response key not declared in the wire schema
+   is deleted before the caller ever sees it — and a mocked client skips that parse. Pin
+   survival at the boundary: `Schema.safeParse(payloadWithSentinel)` → assert `result.data` still carries it.
+
 8. **Interface changes must sweep UNTYPED fixtures — and new fixtures should be typed** - When a shared type's shape changes, grep by a distinctive FIELD name in addition to the type name: untyped mock payloads (`vi.fn().mockResolvedValue({...})`) never reference the type, so both a type-name grep AND the compiler miss them — and a fail-soft catch downstream can hide the breakage entirely (a PGLite suite's usage-log writes silently no-oped this way). Prevent the class at authoring time by typing fixture payloads: `mockResolvedValue({...} satisfies ExtractionModelResult)` makes the compiler break the test when the interface moves.
 
    **The sweep must cover every test TIER, not just the ones a local
@@ -143,6 +148,8 @@ Don't file Zod schema tests under "contract."
    repo-wide _including `tests/`_, and (b) run
    `npx vitest run --config vitest.integration.config.ts tests/e2e/contracts/`
    (~2s; the full-`test:integration` OOM ban does not cover this subset).
+
+9. **Prove a new assertion can fail** - before trusting it, mutate the code it covers and confirm the test goes red; a test that passes either way reports coverage while verifying nothing.
 
 **All packages are enforced by `structure.test.ts`** — services, common-types, embeddings, AND tooling. Adding a new `.ts` file without a colocated `.test.ts` will fail the test suite unless the file matches an exclusion pattern (types, constants, thin CLI wrappers, etc.).
 

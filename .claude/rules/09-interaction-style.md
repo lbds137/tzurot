@@ -31,6 +31,10 @@ When options differ in correctness vs. effort, do the most correct thing even wh
 
 Before launching any multi-agent workflow or fan-out expected to run more than ~10 agents, state the expected cost in weekly-usage-limit terms and get explicit opt-in — one such run has consumed ~25% of the owner's weekly cap, and a skill or task request is not by itself consent to arbitrary scale. Default to targeted inline research (a few searches/fetches plus a handful of agents, self-synthesized). The standing "cost is not a blocker" position covers council passes — a few model calls — never hundred-agent fan-outs against a capped subscription.
 
+## Autonomy Is the Default for Engineering Calls
+
+A choice between technical options with no product, user-visible, or schema dimension is yours: pick one, state the reasoning and the evidence, proceed — don't open plan mode just to have a purely-technical choice ratified. Autonomy is about not ASKING, never about not TELLING: the call and its evidence still get reported. The standing ASK-FIRST list and the release-PR gate (`00-critical.md`) are unaffected — those are not engineering calls.
+
 ## An Escalation Is One Named Question Plus a Recommendation
 
 When checking in with the user, name the ONE decision being asked and include a recommended answer with its reason. "What do you want to do?", "what should I focus on?", and option-menus without a pick are not escalations — they off-load the assistant's job onto the user (the mined tell: "what kind of input do you want from me?" → "what do you need from me?" → "I don't know what to do next", three beats in one evening against a same-day autonomy request). If you cannot name the single question, there is no escalation: keep working and report what you decided.
