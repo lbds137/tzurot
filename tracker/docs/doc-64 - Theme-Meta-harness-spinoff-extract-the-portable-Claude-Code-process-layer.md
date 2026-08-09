@@ -40,7 +40,7 @@ Owner constraint (2026-08-09): permissive only — reuse into Capital One work w
 
 ### Phase sketch
 
-- **Phase 0 — inventory (decides everything)**: classify every rule section, hook, skill, and ops command as portable / Tzurot-bound / parameterizable-with-effort. Output: the classification table; it picks the split shape empirically.
+- **Phase 0 — inventory (decides everything)**: ✅ DONE 2026-08-09 — the classification table lives in [[doc-69]] (278 rows across rules/hooks/skills/ops/root surfaces, 12 borderline rows adjudicated). Headline: epistemics/posture/interaction layer near-wholesale portable; 01/03/04 rules + data-touching ops are the bound core; the wide middle is PARAM, and doc-69's per-row "param surface" column is the plugin's config-schema raw material. Next: the council pass consumes doc-69.
 - **Phase 1 — process plugin**: extract the parameter-free skills/hooks/agents; Tzurot consumes the plugin; deleted local copies prove the seam.
 - **Phase 2 — ratchet package**: extract the audit-tool layers behind config; Tzurot pins a version.
 - **Phase 3 — hardening**: versioning/drift story between the two repos (the guard:workflow-sync class of problem multiplies across repos — design for it, not into it).

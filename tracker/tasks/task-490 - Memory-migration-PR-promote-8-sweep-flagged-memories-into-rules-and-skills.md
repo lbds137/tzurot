@@ -1,10 +1,10 @@
 ---
 id: TASK-490
 title: 'Memory-migration PR: promote 8 sweep-flagged memories into rules and skills'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-09 16:44'
-updated_date: '2026-08-09 17:03'
+updated_date: '2026-08-09 18:19'
 labels:
   - 'area:process'
   - 'size:M'
