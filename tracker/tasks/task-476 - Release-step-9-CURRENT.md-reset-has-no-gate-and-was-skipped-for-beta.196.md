@@ -1,10 +1,10 @@
 ---
 id: TASK-476
 title: Release step 9 (CURRENT.md reset) has no gate and was skipped for beta.196
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-09 08:07'
-updated_date: '2026-08-09 08:08'
+updated_date: '2026-08-09 13:26'
 labels:
   - 'area:tooling'
   - 'area:process'

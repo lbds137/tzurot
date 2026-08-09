@@ -3,9 +3,10 @@ id: TASK-478
 title: >-
   GH_READ_PARTS is enumerated by hand with nothing tying it to the gh command
   registry
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-09 10:25'
+updated_date: '2026-08-09 13:26'
 labels:
   - 'area:tooling'
   - 'area:process'

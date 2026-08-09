@@ -3,9 +3,10 @@ id: TASK-480
 title: >-
   repo-settings clean-report headline overclaims un-bypassable deletion for
   every branch
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-09 11:25'
+updated_date: '2026-08-09 13:26'
 labels:
   - 'area:tooling'
   - 'size:S'

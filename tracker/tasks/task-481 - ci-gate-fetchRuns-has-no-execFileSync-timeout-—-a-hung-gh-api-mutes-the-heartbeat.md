@@ -3,9 +3,10 @@ id: TASK-481
 title: >-
   ci-gate fetchRuns has no execFileSync timeout — a hung gh api mutes the
   heartbeat
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-09 11:26'
+updated_date: '2026-08-09 13:26'
 labels:
   - 'area:tooling'
   - 'size:S'

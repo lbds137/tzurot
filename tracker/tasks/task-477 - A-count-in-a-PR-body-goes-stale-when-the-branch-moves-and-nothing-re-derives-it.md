@@ -3,9 +3,10 @@ id: TASK-477
 title: >-
   A count in a PR body goes stale when the branch moves, and nothing re-derives
   it
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-09 09:39'
+updated_date: '2026-08-09 13:26'
 labels:
   - 'area:process'
   - 'area:docs'
