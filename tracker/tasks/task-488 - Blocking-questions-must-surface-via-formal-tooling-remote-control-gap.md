@@ -1,9 +1,10 @@
 ---
 id: TASK-488
 title: Blocking questions must surface via formal tooling - remote control gap
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-09 16:08'
+updated_date: '2026-08-09 19:02'
 labels:
   - 'area:process'
   - 'size:M'
