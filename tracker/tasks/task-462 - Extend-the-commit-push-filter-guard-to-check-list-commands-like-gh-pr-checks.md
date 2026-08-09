@@ -1,10 +1,10 @@
 ---
 id: TASK-462
 title: Extend the commit/push filter guard to check-list commands like gh pr checks
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-07 22:30'
-updated_date: '2026-08-09 00:48'
+updated_date: '2026-08-09 01:02'
 labels:
   - 'area:tooling'
   - 'area:process'

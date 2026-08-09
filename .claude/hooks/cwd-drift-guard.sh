@@ -60,7 +60,13 @@ fi
 # `git commit -m "docs: update packages/tooling/README"` contains a path-like
 # substring that is NOT a pathspec argument, and matching it would false-block
 # (violating this hook's "only ever block an unambiguous mistake" contract).
-# Same quote-stripping precedent as git-commit-filter-guard.
+# NOTE: this is the naive two-pass strip (single-quoted spans, then
+# double-quoted spans, independently) that lossy-pipe-guard REPLACED with a
+# stateful scanner, because an ordinary apostrophe in one double-quoted
+# argument pairs with one in a later argument and erases everything between.
+# It is a third copy of that bug class and is tracked in TASK-474 alongside the
+# develop-code-commit-guard copy. Lower stakes here: this hook only ever ADDS a
+# block, so the failure mode is a missed drift warning, not a bypass.
 SCAN=$(sed -E "s/'[^']*'//g; s/\"[^\"]*\"//g" <<<"$CMD")
 # Repo-root-relative DIR-prefixed pathspec (the always-wrong drift shape)...
 if ! grep -qE '(^|[[:space:]])(services|packages|backlog|docs|prisma|scripts|\.claude|\.github|\.husky)/' <<<"$SCAN"; then

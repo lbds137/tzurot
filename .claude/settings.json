@@ -20,7 +20,7 @@
           },
           {
             "type": "command",
-            "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" && .claude/hooks/git-commit-filter-guard.sh"
+            "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" && .claude/hooks/lossy-pipe-guard.sh"
           },
           {
             "type": "command",

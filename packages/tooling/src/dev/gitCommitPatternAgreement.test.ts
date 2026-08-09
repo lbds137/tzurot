@@ -5,7 +5,7 @@
  * twice, and both copies BLOCK:
  *
  *   1. `.claude/hooks/develop-code-commit-guard.sh` — a Python regex
- *   2. `.claude/hooks/git-commit-filter-guard.sh`   — a Python regex
+ *   2. `.claude/hooks/lossy-pipe-guard.sh`          — a Python regex
  *
  * They cannot be collapsed into one: each needs its own heredoc/quote stripping
  * inside its own blocking hook. So the coupling is real, hand-managed, and
@@ -61,8 +61,8 @@ const SOURCES: readonly PatternSource[] = [
     extract: /re\.search\(r"(.+)", cmd\)/,
   },
   {
-    label: 'python git-commit-filter-guard.sh',
-    file: '.claude/hooks/git-commit-filter-guard.sh',
+    label: 'python lossy-pipe-guard.sh',
+    file: '.claude/hooks/lossy-pipe-guard.sh',
     extract: /GIT_TARGET = re\.compile\(r"(.+)"\)/,
   },
 ];
