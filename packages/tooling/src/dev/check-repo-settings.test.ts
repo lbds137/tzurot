@@ -12,6 +12,7 @@ vi.mock('node:child_process', () => ({
 }));
 
 import { execFileSync } from 'node:child_process';
+import { GH_TIMEOUT_MS } from '../audits/health-extras.js';
 import {
   LONG_LIVED_BRANCHES,
   isDeletionReachable,
@@ -335,6 +336,109 @@ describe('collectRepoSettings', () => {
       return detail;
     });
   }
+
+  it('spends one aggregate budget across the whole sweep, not one per call', () => {
+    // Ruleset 1 needs a real detail fixture: it is the third fetch, which the
+    // budget still permits. Ruleset 2 deliberately has none — the budget must
+    // stop the sweep BEFORE that fetch, so a shim error there would mean the
+    // deadline failed to fire.
+    mockGh({
+      list: [1, 2],
+      details: { 'repos/{owner}/{repo}/rulesets/1': rulesetDetail({ refs: ['~ALL'] }) },
+    });
+    // Half a per-call timeout per read. budget() is consulted four times —
+    // repo settings, the ruleset list, then one per id — and the elapsed time
+    // at each is 0.5T / 1.0T / 1.5T / 2.0T against a 2T budget. So the first
+    // three fetches run and the FOURTH finds nothing left.
+    //
+    // The tick size is load-bearing: a full-T tick exhausts the budget on the
+    // second consultation, so only one gh call would ever run and the sweep
+    // would never demonstrate accumulation across calls at all.
+    let ticks = 0;
+    const now = (): number => GH_TIMEOUT_MS * 0.5 * ticks++;
+
+    const surface = collectRepoSettings({ now });
+
+    expect(surface.available).toBe(false);
+    // Exactly the calls that fit: budget exhaustion happened DURING the sweep,
+    // not before it. Without this the test would also pass if the very first
+    // call threw, which is a different bug.
+    expect(vi.mocked(execFileSync).mock.calls).toHaveLength(3);
+    // The reason must name the BUDGET, not the last gh error — otherwise the
+    // reader chases a network problem that is not there.
+    expect(surface.available === false && surface.reason).toContain('budget');
+  });
+
+  it('shrinks each call timeout to the REMAINING budget', () => {
+    mockGh({ list: [1] });
+    let ticks = 0;
+    // 0.6 of a per-call timeout per read, against a 2T budget. Elapsed at each
+    // consultation is 0.6T / 1.2T / 1.8T, so remaining is 1.4T / 0.8T / 0.2T —
+    // only the FIRST call is clamped by the ceiling; the other two are already
+    // below it.
+    const now = (): number => GH_TIMEOUT_MS * 0.6 * ticks++;
+
+    collectRepoSettings({ now });
+
+    const timeouts = vi
+      .mocked(execFileSync)
+      .mock.calls.map(call => (call[2] as { timeout: number }).timeout);
+    // Asserted as a literal sequence rather than as properties: a property
+    // check ("non-increasing, never above the ceiling") is satisfied by more
+    // than one implementation, and the prose explaining WHY drifted from the
+    // arithmetic once already. The sequence cannot drift from itself.
+    expect(timeouts).toEqual([
+      GH_TIMEOUT_MS, // 1.4T remaining, clamped to the ceiling
+      GH_TIMEOUT_MS * 0.8,
+      GH_TIMEOUT_MS * 0.2,
+    ]);
+  });
+
+  it('never hands execFileSync a fractional timeout', () => {
+    mockGh({ list: [] });
+    // The tick has to be chosen so the REMAINING budget is fractional AND below
+    // the per-call ceiling — the clamp returns an integer whenever remaining
+    // exceeds the ceiling, so a naive fractional clock never reaches the branch
+    // at all. (Learned by canary: a half-millisecond tick left this test green
+    // with Math.floor removed.) At 20000.25 per tick the two consultations see
+    // 39999.75 (clamped to 30000) and 19999.5 (fractional, unclamped).
+    //
+    // Node rejects a non-integer `timeout` with ERR_OUT_OF_RANGE — verified by
+    // running it — which the catch would swallow into a misleading
+    // "unavailable" naming a gh problem rather than a clock one.
+    let ticks = 0;
+    const now = (): number => ticks++ * 20000.25;
+
+    const surface = collectRepoSettings({ now });
+
+    expect(surface.available).toBe(true);
+    for (const call of vi.mocked(execFileSync).mock.calls) {
+      expect(Number.isInteger((call[2] as { timeout: number }).timeout)).toBe(true);
+    }
+  });
+
+  it('never hands execFileSync a zero timeout', () => {
+    mockGh({ list: [] });
+    // A tick that leaves the remaining budget fractional and strictly between
+    // 0 and 1 on the second consultation: 2T - 59999.5 = 0.5. The `left <= 0`
+    // throw does not catch that, and Math.floor alone would turn it into 0 —
+    // which Node reads as NO TIMEOUT rather than expire-now, handing that call
+    // an unbounded wait.
+    let ticks = 0;
+    const now = (): number => ticks++ * 59999.5;
+
+    collectRepoSettings({ now });
+
+    for (const call of vi.mocked(execFileSync).mock.calls) {
+      expect((call[2] as { timeout: number }).timeout).toBeGreaterThan(0);
+    }
+  });
+
+  it('completes normally when the sweep fits inside the budget', () => {
+    mockGh({ list: [] });
+    const surface = collectRepoSettings({ now: () => 0 });
+    expect(surface.available).toBe(true);
+  });
 
   it('passes gh arguments as an array (never an interpolated shell string)', () => {
     mockGh({ list: [] });

@@ -117,12 +117,34 @@ export function isDeletionReachable(state: BranchDeletionState): boolean {
 /* gh fetch + parsing                                                          */
 /* -------------------------------------------------------------------------- */
 
-/** Run one `gh api` call and return its raw stdout. Throws on any gh failure. */
-function ghApi(path: string, ...extraArgs: string[]): string {
+/**
+ * Overall budget for ONE `collectRepoSettings()` sweep.
+ *
+ * Without it the sweep is `1 + 1 + N` sequential `gh` calls, each carrying its
+ * own independent `GH_TIMEOUT_MS` — so a repo with many rulesets plus a slow or
+ * flaky `gh` compounds into MINUTES of waiting before the surface degrades to
+ * "unavailable". Both call sites (release preflight, weekly ops health) are
+ * latency-tolerant today and this repo has two rulesets, but a per-call timeout
+ * with no aggregate is a budget only in the single-call case, and the ruleset
+ * count is not ours to bound.
+ *
+ * 60s = two full per-call timeouts: one slow call plus its successor, past
+ * which an informational surface has stopped being worth waiting for.
+ */
+export const REPO_SETTINGS_BUDGET_MS = 2 * GH_TIMEOUT_MS;
+
+/**
+ * Run one `gh api` call and return its raw stdout. Throws on any gh failure.
+ *
+ * `timeoutMs` is the REMAINING budget, not a fresh allowance — the caller
+ * shrinks it as the sweep proceeds, so one slow call cannot overrun the whole
+ * budget by itself.
+ */
+function ghApi(path: string, timeoutMs: number, ...extraArgs: string[]): string {
   return execFileSync('gh', ['api', path, ...extraArgs], {
     encoding: 'utf-8',
     stdio: ['ignore', 'pipe', 'pipe'],
-    timeout: GH_TIMEOUT_MS,
+    timeout: timeoutMs,
   });
 }
 
@@ -140,13 +162,13 @@ function ghApi(path: string, ...extraArgs: string[]): string {
  * class of endpoint (see `audits/advisories.ts`) — one value per line across
  * every page, with no array framing to reassemble.
  */
-function fetchRulesetIdsNdjson(): string {
-  return ghApi('repos/{owner}/{repo}/rulesets', '--paginate', '--jq', '.[].id');
+function fetchRulesetIdsNdjson(timeoutMs: number): string {
+  return ghApi('repos/{owner}/{repo}/rulesets', timeoutMs, '--paginate', '--jq', '.[].id');
 }
 
 /** Fetch `delete_branch_on_merge`; throws when the field is missing or not a boolean. */
-export function fetchDeleteBranchOnMerge(): boolean {
-  const parsed = safeParse(ghApi('repos/{owner}/{repo}'), 'repository');
+export function fetchDeleteBranchOnMerge(timeoutMs: number = GH_TIMEOUT_MS): boolean {
+  const parsed = safeParse(ghApi('repos/{owner}/{repo}', timeoutMs), 'repository');
   const value = asRecord(parsed)?.delete_branch_on_merge;
   if (typeof value !== 'boolean') {
     throw new Error('repository response has no boolean delete_branch_on_merge');
@@ -398,21 +420,61 @@ export function evaluateRepoSettings(
 /* Collection + report                                                         */
 /* -------------------------------------------------------------------------- */
 
+/** Options for {@link collectRepoSettings}. */
+export interface CollectRepoSettingsOptions {
+  /**
+   * Injectable clock, defaulting to `Date.now`. The sweep is synchronous, so a
+   * fake clock is the only way to advance time across calls in a test.
+   */
+  readonly now?: () => number;
+}
+
 /**
  * Read the repo setting + every active branch ruleset and evaluate the
  * invariant. Never throws: `gh` is legitimately unavailable (missing binary,
  * no auth, no network, a CI token without the rulesets scope), and a guard
  * must degrade rather than block on a query it cannot run.
  */
-export function collectRepoSettings(): RepoSettingsSurface {
+export function collectRepoSettings(options: CollectRepoSettingsOptions = {}): RepoSettingsSurface {
   try {
-    const deleteBranchOnMerge = fetchDeleteBranchOnMerge();
+    const now = options.now ?? Date.now;
+    // Inside the try so "never throws" holds unconditionally, not merely for
+    // well-behaved clocks. Date.now cannot throw; an injected one could.
+    const startedAt = now();
+
+    // Remaining budget, clamped to the per-call ceiling. Throws once spent, so
+    // expiry lands in the same catch as any gh failure and degrades the surface
+    // to "unavailable" with a reason naming the BUDGET — not the last gh error,
+    // which would send a reader chasing a network problem that is not there.
+    //
+    // Math.floor is not cosmetic: execFileSync rejects a FRACTIONAL timeout
+    // with ERR_OUT_OF_RANGE (verified by running it, not recalled). Date.now
+    // yields integers so production never reaches it, but every clock this
+    // function accepts is a chance to, and the tests inject clocks by design.
+    const budget = (): number => {
+      const left = REPO_SETTINGS_BUDGET_MS - (now() - startedAt);
+      if (left <= 0) {
+        throw new Error(
+          `repo-settings budget of ${REPO_SETTINGS_BUDGET_MS}ms exhausted before the sweep finished`
+        );
+      }
+      // Math.max(1, …) guards a floor to ZERO. `left` can be fractional and
+      // strictly between 0 and 1 — the `left <= 0` throw above lets it through
+      // — and Node reads `timeout: 0` as NO TIMEOUT, not as expire-now
+      // (verified by running it: a `sleep 1` under `timeout: 0` ran to
+      // completion). Flooring to 0 would therefore hand the last gh call an
+      // UNBOUNDED wait, which is the exact failure this budget exists to
+      // prevent, arriving through the fix for it.
+      return Math.max(1, Math.floor(Math.min(left, GH_TIMEOUT_MS)));
+    };
+
+    const deleteBranchOnMerge = fetchDeleteBranchOnMerge(budget());
     const rulesets: ActiveBranchRuleset[] = [];
-    for (const id of parseRulesetIds(fetchRulesetIdsNdjson())) {
+    for (const id of parseRulesetIds(fetchRulesetIdsNdjson(budget()))) {
       // The id came from GitHub's own list response and is narrowed to a
       // finite number above; it is passed as an ARRAY argument, never as part
       // of a shell command string.
-      const detail = parseRulesetDetail(ghApi(`repos/{owner}/{repo}/rulesets/${id}`));
+      const detail = parseRulesetDetail(ghApi(`repos/{owner}/{repo}/rulesets/${id}`, budget()));
       if (detail !== undefined) {
         rulesets.push(detail);
       }

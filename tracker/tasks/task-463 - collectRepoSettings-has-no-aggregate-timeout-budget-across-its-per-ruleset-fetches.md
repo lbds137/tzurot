@@ -3,10 +3,10 @@ id: TASK-463
 title: >-
   collectRepoSettings has no aggregate timeout budget across its per-ruleset
   fetches
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-07 22:30'
-updated_date: '2026-08-07 22:30'
+updated_date: '2026-08-09 01:52'
 labels:
   - 'area:tooling'
   - 'size:S'
