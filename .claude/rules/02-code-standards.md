@@ -13,16 +13,12 @@
 | `max-statements`         | 50    | Warn  | Extract helpers        |
 
 **Note**: Test files (`*.test.ts`, `*.spec.ts`) are excluded from the
-size/complexity limits above (production blocks ignore them), but they are NOT
-lint-free: a dedicated test block in `eslint.config.js` still lints them
-(vitest correctness rules plus style rules like `import/no-duplicates` and
-`prefer-optional-chain`, without type-checking). The limits above apply to
-production code only. Do NOT split test files to satisfy max-lines — keep all
-tests for a module in one colocated file for discoverability.
+size/complexity limits above but are still linted (vitest correctness + style
+rules, no type-checking). Do NOT split test files to satisfy max-lines — keep
+all tests for a module in one colocated file.
 
 **To fix `max-lines`**: Extract code (functions, helpers, types) to a new module.
 **NEVER** trim, compact, or shorten comments/JSDoc to fit the line limit.
-Comments document intent — removing them to satisfy a linter is always wrong.
 
 ## Lint Suppression Standards
 
@@ -39,25 +35,21 @@ Rules:
 
 1. **Describe WHY the code needs the suppression**, not that it's old
 2. **If the reason is "this code is messy"** — refactor it instead of suppressing
-3. **"pre-existing" is not a justification** — it just means nobody bothered to explain
-4. Run `pnpm ops xray --suppressions` to audit; target 0 unjustified items
+3. Run `pnpm ops xray --suppressions` to audit; target 0 unjustified items
 
 ## Temporal Markers in Code Comments
 
-**Don't reference dates, PR numbers, or review-archaeology in code comments.** They rot meaninglessly the moment the surrounding context shifts — a `// Caught in PR #847 round 3` marker tells a future reader nothing useful once #847 is squashed into the history. Keep the _invariant explanation_ (why this constraint exists, what it protects against) and drop the _archaeology_ (when, who, which review).
+**No dates, PR numbers, or review-archaeology in code comments** (`//`, JSDoc
+`*`, block `/* */`) — keep the invariant, drop the journey: not
+`// Added 2026-05-06 to fix data loss` but
+`// Required for parity with API schema cap; UI silently truncated otherwise`.
+`backlog/**/*.md` is exempt. Archaeology belongs in commit messages, PR
+descriptions, post-mortems, and backlog entries.
 
-| ❌ Don't write                                 | ✅ Instead                                                                                |
-| ---------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| `// Added 2026-05-06 to fix data loss`         | `// Required for parity with API schema cap; UI silently truncated otherwise`             |
-| `// Caught in PR #985 final round review`      | `// Async work before showModal blows the 3-second budget; must wrap in timeout helper`   |
-| `// Surfaced 2026-04-25 by claude-bot`         | `// guards against the empty-default leaking into ON CONFLICT path`                       |
-| `* Background: PR #983 raised the cap to 4000` | `* Cap mirrors API schema's SHORT_PARAGRAPH_MAX_LENGTH; do not raise without bumping API` |
-
-This applies to all comment shapes: full-line `//`, JSDoc `*` body, block `/* */`. Backlog markdown (`backlog/**/*.md`) is exempt — it intentionally tracks surfacing dates and PR origins.
-
-**Where archaeology _does_ belong**: commit messages (preserved by git), PR descriptions, post-mortems (`docs/incidents/`), and backlog entries with explicit "Surfaced 20YY-MM-DD" prefixes. Code comments document the _invariant_, not the _journey_.
-
-**Enforcement**: `.husky/pre-commit` scans newly-added comment lines in `*.ts`/`*.tsx`/`*.js`/`*.jsx` for date stamps, PR refs, and round/review markers. Override with `TZUROT_SKIP_TEMPORAL_CHECK=1` for the rare intentional case (post-mortem references where the date is the point).
+**Enforcement**: `.husky/pre-commit` scans newly-added comment lines in
+`*.ts`/`*.tsx`/`*.js`/`*.jsx` for date stamps, PR refs, and round/review
+markers. Override with `TZUROT_SKIP_TEMPORAL_CHECK=1` for the rare intentional
+case.
 
 ## A Comment That Asserts Behavior Is a Claim
 
@@ -67,33 +59,18 @@ treatment as a claim in a PR body: **pin it with a test, or say in the comment
 that it is unverified.** This applies to the same comment shapes the section
 above enumerates.
 
-Both failure directions are silent, which is why this is a rule and not care. A
-_wrong_ claim reads as documentation and is trusted — a comment described a
-ReDoS as fixed for a whole PR while the pattern still ran for minutes. A claim
-that is _right but unpinned_ invites the change that breaks it: an exact-case
-escape token, argued at length and tested nowhere, sits one plausible
-"consistency cleanup" away from unlocking a blocking guard.
+Trigger: any comment asserting RUNTIME behavior. Certainty words (_never_,
+_always_, _cannot_, _is safe_) are the usual tell but not the whole set — a bare
+property name ("the retry is idempotent") and a named mechanism's EFFECT ("the
+lookahead prevents backtracking") claim just as much. Naming a mechanism alone
+does not ("uses a lookahead to skip whitespace"), and neither does
+design-structure prose ("cannot be extracted"). Name the test, or hedge in the
+comment itself (`// not verified: assumes the caller already acked`).
 
-Trigger: any comment asserting RUNTIME behavior. The certainty words — _never_,
-_always_, _cannot_, _is safe_ — are the usual tell but not the whole set: a bare
-property name claims just as much ("the retry is idempotent"), and so does a
-named mechanism's EFFECT ("the lookahead prevents backtracking"), which asserts
-something with no certainty word in it at all. Naming a mechanism alone does not
-("uses a lookahead to skip whitespace" asserts nothing), and neither does
-design-structure prose ("cannot be extracted", "cannot be collapsed into one") —
-`claim-shape-guard.sh` was narrowed for exactly that reason, because a trigger
-that fires on structure trains readers to skim past the real ones. Name the
-test, or hedge in the comment itself (`// not verified: assumes the caller
-already acked`) — an honest hedge invites the correction that a confident wrong
-claim deters.
-
-Scope: in CODE files the VALUE half is already caught mechanically by
-`claim-shape-guard.sh` (`never null`, `always populated`, `cannot be <value>`) —
-it skips `*.md` and the `.claude/` tree entirely, so a value claim in prose is
-this rule's too. Otherwise this rule is the judgment half — behavioral,
-algorithmic, security. `00-critical.md`
-§ "Code-reading is not runtime verification" holds the same standard for a claim
-made in conversation; a comment differs by persisting.
+In CODE files the VALUE half (`never null`, `always populated`, `cannot be
+<value>`) is caught mechanically by `claim-shape-guard.sh`, which skips `*.md`
+and the `.claude/` tree — so a value claim in prose is this rule's too. The
+rest (behavioral, algorithmic, security) is judgment.
 
 ## TypeScript Strict Rules
 
@@ -105,27 +82,13 @@ made in conversation; a comment differs by persisting.
 
 ## Pino Logger Format
 
-```typescript
-// ✅ CORRECT - Error object in first argument
-logger.error({ err: error }, 'Failed to process request');
-logger.info({ requestId, duration }, 'Request completed');
-
-// ❌ WRONG - Will fail lint
-logger.error(error, 'Failed to process');
-```
+Error/fields object FIRST, static message second: `logger.error({ err: error }, 'Failed to process request')`. Single-argument and template-literal forms are ESLint errors.
 
 ## Testing Standards
 
 ### Test Tiers (canonical: see TESTING.md)
 
-Tzurot uses Toby Clemson's 5-tier model — **unit** (mocked logic) · **component**
-(one whole service over PGLite; our `*.component.test.ts`) · **integration** (a module
-against a real external dep; our `tests/e2e/*.integration.test.ts`) ·
-**contract** (provider↔consumer agreement; `tests/e2e/contracts/*.contract.test.ts`) · **e2e**
-(full system). The canonical definitions live in **one place** —
-[Test Tier Taxonomy](../../docs/reference/guides/TESTING.md#test-tier-taxonomy).
-Do not re-define the tiers here or in the skill; link there (the
-`pnpm ops guard:test-taxonomy` CI gate enforces this single-sourcing).
+Tzurot uses Toby Clemson's 5-tier model. **The canonical definitions live in one place** — [Test Tier Taxonomy](../../docs/reference/guides/TESTING.md#test-tier-taxonomy). Do not re-define the tiers here or in the skill; link there (`pnpm ops guard:test-taxonomy` enforces the single-sourcing).
 
 **Suffixes match tiers**: `*.component.test.ts` (component), `*.integration.test.ts`
 (integration), `*.contract.test.ts` (contract), plain `*.test.ts` (unit).
@@ -145,17 +108,41 @@ Don't file Zod schema tests under "contract."
 6. **Tests must be self-contained** - Each `it()` block sets up its own data; never depend on side effects from prior tests. Use `beforeAll`/`beforeEach` in a sub-describe for shared fixtures.
 7. **Assert what crosses a mocked seam** - When you `vi.mock` a downstream module/collaborator, at least one test MUST assert the arguments that cross that seam (`expect(mockX).toHaveBeenCalledWith(...)`), not only the orchestrator's return value. A test that mocks the seam it's meant to verify **cannot catch a wiring bug at that seam** — the mocked collaborator returns the same thing whether the caller forwarded the right data or silently dropped it. For a multi-module flow (A → B → C where each is unit-tested with the next mocked), also keep ONE **wiring/seam test** that runs the real chain end-to-end and mocks ONLY the external boundary (network/DB/Redis/model client). Reference: `services/ai-worker/src/services/multimodal/visionFallbackChain.test.ts`.
 
-   **Why this rule exists**: a feature shipped with green coverage but two real bugs (a dropped forwarded field between two functions, and a wrong output for an untested failure _sequence_) that every unit test missed — because they each mocked the seam. Line coverage marks the buggy lines "covered" (they executed); it has no concept of "this covered line forwarded the wrong thing." The only gate that catches a seam bug is a test that _asserts across the seam_ or runs the seam for real. Established 2026-07-01 after PR #1429's review caught the seam bugs by hand.
+   **Cover every render MODE, not just the default one.** A branching renderer
+   (full vs. deduped, live vs. stored, enabled vs. disabled) leaves its
+   non-default arms as untested forwarding paths — enumerate the modes and
+   assert the seam in each. When the forwarded value **cost money** (vision,
+   transcription, an external fetch), mock the paid boundary to return a
+   sentinel and assert the sentinel reaches the final output — a field-parity
+   allowlist only catches the field you already know about. Reference: the
+   (deduped × full) × (live × stored) matrix in
+   `services/ai-worker/src/services/ReferencedMessageFormatter.test.ts`.
 
-   **Cover every render MODE, not just the default one.** A branching renderer (full vs. deduped, live vs. stored, enabled vs. disabled) leaves its non-default arms as untested forwarding paths — which is where fields get dropped: the reference path silently lost `authorRole`, then image descriptions, both on the deduped arm, both under green line coverage. Enumerate the modes and assert the seam in each. When the forwarded value **cost money** (vision, transcription, an external fetch), make the assertion economic rather than structural — mock the paid boundary to return a sentinel and assert the sentinel reaches the final output, because **paid work must appear**. A field-parity allowlist only ever catches the field you already know about; a sentinel catches whichever goes next. Reference: the (deduped × full) × (live × stored) matrix in `services/ai-worker/src/services/ReferencedMessageFormatter.test.ts`.
+   **A shared mutable context is a seam too, with no mock to assert across.**
+   Pipeline steps, middleware, and anything handing data to a later stage by
+   writing a field on a shared object (`job.data.context`, `req`, an
+   accumulating result): each step's unit tests construct that object
+   themselves, so neither can observe what the other produced. Whenever a step
+   writes a field a later step reads, keep ONE test that runs those steps
+   **in order**.
 
-   **A shared mutable context is a seam too — and it has no mock to assert across.** Everything above assumes a CALL chain. Pipeline steps, middleware, and anything else that hands data to a later stage by writing a field on a shared object (`job.data.context`, `req`, an accumulating result) form a seam with no call and no mock in it: step A writes, step B reads, and each one's unit tests construct that object themselves — so neither can observe what the other actually produced. Whenever a step writes a field a later step reads, keep ONE test that runs those steps **in order**.
-
-   **The specific tell is a default-coalescing write-back**: `x = ctx.field ?? []`, `?? {}`, `|| fallback` — harmless as a local view, silently destructive when the normalized value is written BACK onto the shared object, because it erases the distinction the later step reads. Where absence carries meaning (a `?? derive(...)` sentinel, an "unset vs. explicitly empty" config), say so in a comment at the write site and pin BOTH states in the sequencing test — absent stays absent, empty stays empty. `??` falls through on `undefined`, never on `[]`. Reference: `services/ai-worker/src/jobs/handlers/pipeline/steps/extendedContextVisionSeam.test.ts`.
+   **The specific tell is a default-coalescing write-back**: `x = ctx.field ??
+[]`, `?? {}`, `|| fallback` written BACK onto the shared object erases the
+   distinction the later step reads. Where absence carries meaning, say so in a
+   comment at the write site and pin BOTH states in the sequencing test —
+   absent stays absent, empty stays empty (`??` falls through on `undefined`,
+   never on `[]`). Reference:
+   `services/ai-worker/src/jobs/handlers/pipeline/steps/extendedContextVisionSeam.test.ts`.
 
 8. **Interface changes must sweep UNTYPED fixtures — and new fixtures should be typed** - When a shared type's shape changes, grep by a distinctive FIELD name in addition to the type name: untyped mock payloads (`vi.fn().mockResolvedValue({...})`) never reference the type, so both a type-name grep AND the compiler miss them — and a fail-soft catch downstream can hide the breakage entirely (a PGLite suite's usage-log writes silently no-oped this way). Prevent the class at authoring time by typing fixture payloads: `mockResolvedValue({...} satisfies ExtractionModelResult)` makes the compiler break the test when the interface moves.
 
-   **The sweep must cover every test TIER, not just the ones a local `pnpm test` runs.** `tests/e2e/` (integration + contract, CI's component-integration-tests job) pins producer shapes too, and shape pins there have gone red in CI twice after locally-green sweeps. Before pushing any cross-service string-shape change (job ids, fixture fields, wire formats): (a) grep the OLD shape's distinctive tokens repo-wide _including `tests/`_, and (b) run the touched contract files — `npx vitest run --config vitest.integration.config.ts tests/e2e/contracts/` finishes in ~2s (the full-`test:integration` OOM ban covers the heavy integration suites, NOT this fixture+schema subset).
+   **The sweep must cover every test TIER, not just the ones a local
+   `pnpm test` runs** — `tests/e2e/` (integration + contract) pins producer
+   shapes too. Before pushing any cross-service string-shape change (job ids,
+   fixture fields, wire formats): (a) grep the OLD shape's distinctive tokens
+   repo-wide _including `tests/`_, and (b) run
+   `npx vitest run --config vitest.integration.config.ts tests/e2e/contracts/`
+   (~2s; the full-`test:integration` OOM ban does not cover this subset).
 
 **All packages are enforced by `structure.test.ts`** — services, common-types, embeddings, AND tooling. Adding a new `.ts` file without a colocated `.test.ts` will fail the test suite unless the file matches an exclusion pattern (types, constants, thin CLI wrappers, etc.).
 
@@ -188,12 +175,7 @@ await assertion;
 
 ### Schema Test Colocation
 
-Schema tests follow the same colocation rule as all other tests:
-
-- `schemas/api/persona.ts` → `schemas/api/persona.test.ts`
-- `types/jobs.ts` → `types/jobs.test.ts`
-
-Do NOT place schema tests in a separate directory.
+Schema tests colocate like everything else: `schemas/api/persona.ts` → `schemas/api/persona.test.ts`. Never a separate directory.
 
 ## Types & Constants
 
@@ -217,43 +199,21 @@ export const MY_CONFIG = {
 
 ## Module Organization
 
-**Import from source modules, not index files.** Re-exports create circular import issues.
+**Import from source modules, not index files** — `./utils/dateUtils.js`,
+never `./utils/index.js`. Re-exports create circular imports and break vitest
+mocking.
 
-```typescript
-// ✅ GOOD - Import from source
-import { formatDate } from './utils/dateUtils.js';
+**No wrapper re-export files.** Never create a local file that just re-exports
+from another package; import directly from the source package.
 
-// ❌ BAD - Re-exporting for convenience
-import { formatDate } from './utils/index.js';
-```
-
-**Exception**: Package entry points (e.g., `@tzurot/common-types`) are acceptable.
-
-**No wrapper re-export files.** Never create a local file that just re-exports from
-another package. Import directly from the source package instead.
-
-```typescript
-// ❌ BAD - Wrapper file that re-exports (slugUtils.ts just doing
-//   export { normalizeSlugForUser } from '@tzurot/common-types')
-import { normalizeSlugForUser } from '../../utils/slugUtils.js';
-
-// ✅ GOOD - Import directly from the package
-import { normalizeSlugForUser } from '@tzurot/common-types';
-```
-
-Re-export wrappers add indirection, break vitest mocking (the mock of the package
-doesn't intercept internal imports), and make dependency tracing harder.
+The `@tzurot/common-types` root barrel was REMOVED — a bare
+`from '@tzurot/common-types'` import is an ESLint error
+(`no-restricted-imports`). Use deep subpaths
+(`@tzurot/common-types/types/jobs`, `@tzurot/common-types/services/prisma`).
 
 ## Dependency Additions Land on Latest
 
-When adding a **new** dependency (not bumping an existing one), check the latest
-stable version first — `pnpm view <pkg> version` — and pin to it, rather than
-whatever version is top-of-mind or copied from a stale example. A dep added a
-major behind starts its life needing an upgrade (Astro was added at v5 with v6
-already shipped). This applies at the **add** moment; keeping deps current
-afterward is Dependabot's job. When the latest major is very new (days old) and
-the ecosystem around it may lag, that's a reason to _note_ the choice, not to
-default to the old major.
+When adding a **new** dependency (not bumping an existing one), check `pnpm view <pkg> version` and pin to latest stable — a dep added a major behind starts life needing an upgrade. Keeping deps current afterward is Dependabot's job.
 
 ## Python Standards (voice-engine)
 
@@ -261,39 +221,43 @@ Moved to [`services/voice-engine/CLAUDE.md`](../../services/voice-engine/CLAUDE.
 
 ## Duplication, Helpers, and the CPD Ratchet
 
-The CRUD config routes (admin/{llm,tts}-config, user/{llm,tts}-config) share extracted helpers; the raw-jscpd metric is paired with a post-filter that excludes call-expression-dominant fragments (the "standardized helper call site" false-positive class). The full close-out audit lives in [`docs/reference/CPD_CAMPAIGN_AUDIT.md`](../../docs/reference/CPD_CAMPAIGN_AUDIT.md).
+Raw jscpd output is paired with a post-filter that excludes call-expression-dominant fragments (the "standardized helper call site" false-positive class). Close-out audit: [`docs/reference/CPD_CAMPAIGN_AUDIT.md`](../../docs/reference/CPD_CAMPAIGN_AUDIT.md).
 
 ### Config-route helpers — scope and boundary
 
-The helpers in `services/api-gateway/src/utils/configRouteHelpers.ts` and `normalizeConfigNameOnPromote.ts` standardize the CRUD config-route shape:
-
-- `parseBodyOrSendError(res, schema, body)` — Zod parse + send error
-- `findConfigOrSendNotFound(res, fetchRow, resourceName)` — fetch + 404
-- `findGlobalConfigOrSendError(res, fetchRow, options)` — fetch + 404 + isGlobal guard (admin paths)
-- `findAdminUserOrSendError(res, prisma, discordUserId, logger)` — admin discordId → UUID
-- `ensureNoNameCollision<TScope>(res, service, options)` — generic name-collision check; supports `postIsGlobal` for cross-namespace promotion paths
-- `shapeDeleteResponse(warning, baseLogFields)` — conditional warning omission for delete
-- `applyOwnerNamePromotion<TBody>(body, config, user)` — generic promotion patch construction
+`services/api-gateway/src/utils/configRouteHelpers.ts` + `normalizeConfigNameOnPromote.ts` standardize the CRUD config-route shape: `parseBodyOrSendError`, `findConfigOrSendNotFound`, `findGlobalConfigOrSendError`, `findAdminUserOrSendError`, `ensureNoNameCollision`, `shapeDeleteResponse`, `applyOwnerNamePromotion` (signatures in the file).
 
 **Apply these helpers when:** the route follows the fetch-validate-respond shape over a top-level config row (LlmConfig, TtsConfig, similar future resources).
 
-**Do NOT apply these helpers when:** the route uses cascade-override semantics (`user/{tts,stt,model}-override.ts`). Cascade overrides set/clear values on a personality-scoped key — a fundamentally different domain shape than CRUD. Forcing CRUD helpers there is the Wrong Abstraction trap per Kimi K2.6 and GLM 5.1 council review during campaign close-out.
+**Do NOT apply these helpers when:** the route uses cascade-override semantics (`user/{tts,stt,model}-override.ts`). Cascade overrides set/clear values on a personality-scoped key — a fundamentally different domain shape than CRUD. Forcing CRUD helpers there is the Wrong Abstraction trap.
 
 ### The 2-callback ceiling rule (when considering new extractions)
 
 Before extracting a new shared helper from a duplicated route pattern, prototype the kernel signature. If the proposed shared function requires **more than 2 callback/predicate parameters** to handle observed divergences across the call sites, **the divergence is structural and the helper should NOT be extracted**. Leave the code inline; duplication is cheaper than the wrong abstraction.
 
-The rule's symmetry: when council reviewers (or your own instinct) warn "this looks like Wrong Abstraction," try the prototype. Don't pre-decide; let the signature size be the empirical answer.
-
-**The adapter-interface exception (council-ruled)**: a cohesive INTERFACE whose methods are authored together per implementor is ONE parameter, not N callbacks — even with 3+ methods. The test is cohesion: if removing one method makes the others meaningless (they produce/consume each other's outputs), it's an adapter seam; if the functions are independent degrees of freedom a caller could mix-and-match, it's callbacks and the ceiling applies. Precedents: `TtsProvider`, `EntitySectionAdapter` (findSection's sync bundle is what loadSectionData warms and resolveSectionContext composes — cohesive), vs. the rejected cascade-route "preamble helper" (schema + verify-access + pre-hook = independent knobs — ceiling). Constraint that keeps this honest: adapter IMPLEMENTATIONS live next to their implementor's code, never in the shared module.
+**The adapter-interface exception**: a cohesive INTERFACE whose methods are
+authored together per implementor is ONE parameter, not N callbacks — even
+with 3+ methods. The test is cohesion: if removing one method makes the others
+meaningless, it's an adapter seam; if the functions are independent degrees of
+freedom a caller could mix-and-match, the ceiling applies. Precedents:
+`TtsProvider`, `EntitySectionAdapter` (cohesive) vs. the rejected
+cascade-route "preamble helper" (schema + verify-access + pre-hook =
+independent knobs). Adapter IMPLEMENTATIONS live next to their implementor's
+code, never in the shared module.
 
 ### CPD measurement: raw vs filtered
 
-- **`pnpm cpd`** — runs jscpd. Output is informational. The raw clone count cannot reach zero in a well-abstracted TypeScript codebase because jscpd's token matcher treats standardized call sites of shared helpers as new clones across consumers.
-- **`pnpm ops cpd:filtered`** — runs the post-filter against jscpd's JSON output. Excludes fragments where ≥80% of classifiable lines are call-expression shape. This is the metric that reflects real duplication debt.
-- **`pnpm ops cpd:check`** — CI gate. Fails the build if filtered lines exceed the baseline ceiling (`baseline.filteredLines + baseline.graceMargin`) recorded in `.github/baselines/cpd-baseline.json`.
-- **`pnpm ops cpd:update-baseline`** — sanctioned path for updating the baseline. Writes the current filtered count to `cpd-baseline.json`, preserving existing `graceMargin` / `threshold` / `notes` / `version` fields. Includes `--dry-run` to preview the delta first (recommended). Use after applying one of the three legitimate paths below — never to "make CI pass" without doing the underlying work.
+Commands: `05-tooling.md` § CPD. `pnpm cpd` (raw jscpd) is informational — the
+raw count cannot reach zero in a well-abstracted TypeScript codebase;
+`pnpm ops cpd:filtered` is the metric that reflects real debt.
 
-**When a clone trips the ratchet, ask first**: is this a new call-site of a shared helper (likely OK, will be excluded by the filter — investigate why the filter missed it) or a new copy-paste of business logic (real debt, fix it)? `pnpm ops cpd:filtered --show-pairs 25` shows the top remaining pairs to help triage.
+**When a clone trips the ratchet, ask first**: new call-site of a shared
+helper (likely OK — investigate why the filter missed it) or new copy-paste of
+business logic (real debt, fix it)? `pnpm ops cpd:filtered --show-pairs 25`
+triages.
 
-**Do NOT bypass the ratchet by editing the baseline upward** without first either (a) extracting the duplication into a shared helper, (b) confirming the new clones are legitimate skeleton-shape uniformity not worth abstracting (apply the 2-callback rule), or (c) raising the threshold on `pnpm ops cpd:filtered` if the heuristic is misclassifying. Once one of (a)/(b)/(c) is done, `pnpm ops cpd:update-baseline --dry-run` to preview, then run without `--dry-run` to commit the change.
+**Never raise the baseline to make CI pass.** First do one of: (a) extract the
+duplication into a shared helper, (b) confirm the clones are legitimate
+skeleton-shape uniformity (2-callback rule), or (c) raise the `cpd:filtered`
+threshold if the heuristic is misclassifying. Then
+`pnpm ops cpd:update-baseline --dry-run` to preview, and again without it.
